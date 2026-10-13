@@ -20,6 +20,10 @@ import { safeAttachmentMimeType } from "$lib/utils/attachmentMime";
 import { exceedsUploadLimit, FileTooLargeError } from "$lib/utils/uploadLimits";
 import { parseMxc, isSameOrigin } from "$lib/utils/mxcUri";
 import {
+    readBodyWithProgress,
+    type ReadProgressOptions,
+} from "$lib/utils/downloadProgress";
+import {
     mediaItemFromEvent,
     mediaFilterDefinition,
     type RoomMediaItem,
@@ -343,7 +347,10 @@ export function mxcToHttp(
 }
 
 /** Fetch an attachment from the homeserver with auth and return an object URL for use in <video/audio src> and file downloads. */
-export async function fetchAttachmentBlob(httpUrl: string): Promise<string> {
+export async function fetchAttachmentBlob(
+    httpUrl: string,
+    opts: ReadProgressOptions = {},
+): Promise<string> {
     if (!matrixClient) throw new Error(t("media.notLoggedIn"));
     const baseUrl = matrixClient.getHomeserverUrl();
     // The access token must NEVER leave the homeserver. Refuse to attach it (or
@@ -358,12 +365,15 @@ export async function fetchAttachmentBlob(httpUrl: string): Promise<string> {
     const token = matrixClient.getAccessToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    const resp = await fetch(httpUrl, { headers });
+    const resp = await fetch(httpUrl, { headers, signal: opts.signal });
     if (!resp.ok)
         throw new Error(
             t("media.failedToFetchAttachment", { status: resp.status }),
         );
-    const blob = await resp.blob();
+    const chunks = await readBodyWithProgress(resp, opts);
+    const blob = new Blob(chunks as BlobPart[], {
+        type: resp.headers.get("content-type") ?? "",
+    });
     return URL.createObjectURL(blob);
 }
 
@@ -378,6 +388,7 @@ export async function fetchAttachmentBlob(httpUrl: string): Promise<string> {
 export async function fetchDecryptedAttachmentBlob(
     file: EncryptedFileInfo & { url: string },
     mimetype?: string,
+    opts: ReadProgressOptions = {},
 ): Promise<string> {
     if (!matrixClient) throw new Error(t("media.notLoggedIn"));
     const httpUrl = mxcToHttp(file.url);
@@ -390,7 +401,7 @@ export async function fetchDecryptedAttachmentBlob(
     const token = matrixClient.getAccessToken();
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
-    const resp = await fetch(httpUrl, { headers });
+    const resp = await fetch(httpUrl, { headers, signal: opts.signal });
     if (!resp.ok) {
         throw new Error(
             t("media.failedToFetchEncryptedAttachment", {
@@ -398,7 +409,8 @@ export async function fetchDecryptedAttachmentBlob(
             }),
         );
     }
-    const ciphertext = await resp.arrayBuffer();
+    const chunks = await readBodyWithProgress(resp, opts);
+    const ciphertext = await new Blob(chunks as BlobPart[]).arrayBuffer();
     const plaintext = await decryptAttachment(ciphertext, file);
     // The sender controls `mimetype`; pin it to an inert-media allowlist so a
     // future open-in-tab/iframe sink can't execute e.g. an image/svg+xml or

@@ -17,6 +17,8 @@
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import PollBody from "$lib/components/messages/PollBody.svelte";
     import MessageVideo from "$lib/components/messages/MessageVideo.svelte";
+    import MediaProgress from "$lib/components/ui/MediaProgress.svelte";
+    import type { DownloadProgress } from "$lib/utils/downloadProgress";
     import LocationBody from "$lib/components/messages/LocationBody.svelte";
     import VerificationRequestMessage from "$lib/components/messages/VerificationRequestMessage.svelte";
     import CallEventCard from "$lib/components/messages/CallEventCard.svelte";
@@ -1218,6 +1220,7 @@
     let encryptedImageFullUrl = $state<string | null>(null);
     let imageDecrypting = $state(false);
     let imageDecryptFailed = $state(false);
+    let imageProgress = $state<DownloadProgress | null>(null);
 
     // Image/sticker media 401s when the media service worker isn't authenticating
     // it (notably a hard reload, which leaves the page uncontrolled). createMediaRetry
@@ -1235,33 +1238,41 @@
         if (!file) return;
         imageDecrypting = true;
         imageDecryptFailed = false;
-        let thumbUrl: string | null = null;
-        let fullUrl: string | null = null;
-        const mimetype = (content?.info as { mimetype?: string } | undefined)
-            ?.mimetype;
-        // Decrypt thumb (for GIFs, full is the thumb)
-        const thumbPromise = isGif
-            ? fetchDecryptedAttachmentBlob(file, mimetype)
-            : fetchDecryptedAttachmentBlob(file, mimetype);
-        // Decrypt full (only if not GIF, otherwise reuse thumb)
-        const fullPromise = isGif
-            ? thumbPromise
-            : fetchDecryptedAttachmentBlob(file, mimetype);
-        Promise.all([thumbPromise, fullPromise])
-            .then(([thumb, full]) => {
-                thumbUrl = thumb;
-                fullUrl = full;
-                encryptedImageThumbUrl = thumb;
-                encryptedImageFullUrl = full;
+        imageProgress = null;
+        let blobUrl: string | null = null;
+        let cancelled = false;
+        const abort = new AbortController();
+        const info = content?.info as
+            { mimetype?: string; size?: number } | undefined;
+        // One download serves both the inline image and the viewer: the
+        // thumbnail and the full image are the same ciphertext, and fetching it
+        // twice doubled the wait on a slow server.
+        fetchDecryptedAttachmentBlob(file, info?.mimetype, {
+            expectedSize: info?.size,
+            signal: abort.signal,
+            onProgress: (p) => {
+                if (!cancelled) imageProgress = p;
+            },
+        })
+            .then((url) => {
+                if (cancelled) {
+                    URL.revokeObjectURL(url);
+                    return;
+                }
+                blobUrl = url;
+                encryptedImageThumbUrl = url;
+                encryptedImageFullUrl = url;
                 imageDecrypting = false;
             })
             .catch(() => {
+                if (cancelled) return;
                 imageDecrypting = false;
                 imageDecryptFailed = true;
             });
         return () => {
-            if (thumbUrl && !isGif) URL.revokeObjectURL(thumbUrl);
-            if (fullUrl) URL.revokeObjectURL(fullUrl);
+            cancelled = true;
+            abort.abort();
+            if (blobUrl) URL.revokeObjectURL(blobUrl);
             encryptedImageThumbUrl = null;
             encryptedImageFullUrl = null;
         };
@@ -1271,6 +1282,7 @@
     let audioClicked = $state(false);
     let audioBlobUrl = $state<string | null>(null);
     let audioLoading = $state(false);
+    let audioProgress = $state<DownloadProgress | null>(null);
     let audioFailed = $state(false);
     // Bumped by the Retry affordance to re-run the load effect (toggling
     // audioClicked can't: false→true in one handler nets to no change).
@@ -1305,10 +1317,15 @@
             audioLoading = true;
             audioFailed = false;
             let objectUrl: string | null = null;
-            const mimetype = (
-                content?.info as { mimetype?: string } | undefined
-            )?.mimetype;
-            fetchDecryptedAttachmentBlob(file, mimetype)
+            const audioInfo = content?.info as
+                { mimetype?: string; size?: number } | undefined;
+            audioProgress = null;
+            fetchDecryptedAttachmentBlob(file, audioInfo?.mimetype, {
+                expectedSize: audioInfo?.size,
+                onProgress: (p) => {
+                    if (!cancelled) audioProgress = p;
+                },
+            })
                 .then(toPlayableAudio)
                 .then((url) => {
                     if (cancelled) return URL.revokeObjectURL(url);
@@ -1332,7 +1349,14 @@
             audioLoading = true;
             audioFailed = false;
             let objectUrl: string | null = null;
-            fetchAttachmentBlob(httpUrl)
+            audioProgress = null;
+            fetchAttachmentBlob(httpUrl, {
+                expectedSize: (content?.info as { size?: number } | undefined)
+                    ?.size,
+                onProgress: (p) => {
+                    if (!cancelled) audioProgress = p;
+                },
+            })
                 .then(toPlayableAudio)
                 .then((url) => {
                     if (cancelled) return URL.revokeObjectURL(url);
@@ -2096,16 +2120,10 @@
                 {@const thumb = file ? encryptedImageThumbUrl : imageThumbUrl()}
                 {@const full = file ? encryptedImageFullUrl : imageFullUrl()}
                 {#if file && imageDecrypting}
-                    <div
-                        class="flex items-center gap-2 p-3 bg-discord-backgroundSecondary rounded-lg mt-1 max-w-sm"
-                    >
-                        <div
-                            class="w-4 h-4 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
-                        ></div>
-                        <span class="text-xs text-discord-textMuted"
-                            >{t("messageItem.decryptingImage")}</span
-                        >
-                    </div>
+                    <MediaProgress
+                        label={t("messageItem.decryptingImage")}
+                        progress={imageProgress}
+                    />
                 {:else if file && imageDecryptFailed}
                     <div
                         class="flex items-center gap-2 p-3 bg-discord-backgroundSecondary rounded-lg mt-1 max-w-sm"
@@ -2320,6 +2338,29 @@
                                 >
                                     {audioStatusLabel(audioMode)}
                                 </p>
+                                {#if audioLoading && audioProgress?.total}
+                                    <div
+                                        class="mt-1 h-1 rounded-full bg-discord-backgroundSecondary overflow-hidden"
+                                        role="progressbar"
+                                        aria-label={audioStatusLabel(audioMode)}
+                                        aria-valuemin="0"
+                                        aria-valuemax="100"
+                                        aria-valuenow={Math.round(
+                                            (audioProgress.loaded /
+                                                audioProgress.total) *
+                                                100,
+                                        )}
+                                    >
+                                        <div
+                                            class="h-full bg-discord-accent transition-[width] duration-150"
+                                            style="width: {Math.round(
+                                                (audioProgress.loaded /
+                                                    audioProgress.total) *
+                                                    100,
+                                            )}%"
+                                        ></div>
+                                    </div>
+                                {/if}
                             {/if}
                         </div>
                     </div>

@@ -14,7 +14,12 @@
     import { safeAspectRatio, safeDimension } from "$lib/utils/mediaDimensions";
     import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
     import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
-    import { videoNeedsAuthedStream } from "$lib/matrix/videoStream";
+    import {
+        videoNeedsAuthedStream,
+        STREAM_ENCRYPTED_MIN_BYTES,
+    } from "$lib/matrix/videoStream";
+    import MediaProgress from "$lib/components/ui/MediaProgress.svelte";
+    import type { DownloadProgress } from "$lib/utils/downloadProgress";
 
     interface Props {
         /** An m.video event's content. */
@@ -48,6 +53,26 @@
     let videoDecryptFailed = $state(false);
     let videoDecryptAttempt = $state(0);
     let videoPlayRequested = $state(false);
+    // Encrypted video big enough to be worth playing while it downloads: the
+    // bytes are decrypted on the fly instead of waiting for the whole file
+    // (see videoStream.ts for what that does to integrity checking).
+    let videoStreamEncrypted = $state(false);
+    // True once the element has enough data to start; until then a streamed
+    // video shows download progress over its black box.
+    let videoStreamReady = $state(false);
+    let videoProgress = $state<DownloadProgress | null>(null);
+    const videoSize = $derived.by(() => {
+        const size = (content?.info as Record<string, unknown> | undefined)
+            ?.size;
+        return typeof size === "number" && Number.isFinite(size) && size > 0
+            ? size
+            : null;
+    });
+    const encryptedStreamUrl = $derived(
+        videoStreamEncrypted && videoSrc?.kind === "encrypted"
+            ? mxcToHttp(videoSrc.file.url)
+            : null,
+    );
 
     // Without a controlling service worker (Tor Browser has none; a hard
     // reload starts uncontrolled) that bare `src` 401s, so the plain video is
@@ -72,13 +97,37 @@
             videoAttempt += 1;
             return;
         }
+        if (videoStreamEncrypted) return fallBackToVerifiedDownload();
         videoFailed = true;
+    }
+
+    // A streamed encrypted video that could not be played (hash mismatch at the
+    // end, a network error, a codec MediaSource refuses) drops back to the
+    // download-verify-play path, which either plays it or says it is corrupt.
+    function fallBackToVerifiedDownload() {
+        if (!videoStreamEncrypted) return;
+        videoStreamEncrypted = false;
+        videoStreamReady = false;
+        videoPlayRequested = true;
+        videoDecrypting = true;
     }
 
     function playVideo() {
         videoFailed = false;
         if (videoNeedsAuthedStream()) videoUseStream = true;
         videoAttempt += 1;
+        if (
+            videoSrc?.kind === "encrypted" &&
+            !encryptedVideoUrl &&
+            videoSize !== null &&
+            videoSize >= STREAM_ENCRYPTED_MIN_BYTES &&
+            typeof MediaSource !== "undefined"
+        ) {
+            videoStreamEncrypted = true;
+            videoStreamReady = false;
+            videoProgress = null;
+            return;
+        }
         if (videoSrc?.kind === "encrypted") {
             videoPlayRequested = true;
             // Show the spinner from this frame on, not an empty <video> until
@@ -103,12 +152,20 @@
 
         videoDecrypting = true;
         videoDecryptFailed = false;
+        videoProgress = null;
         let capturedUrl: string | null = null;
         // A decrypt that resolves after cleanup (unmount, retry, new source)
         // must revoke its own URL instead of publishing it.
         let cancelled = false;
+        const abort = new AbortController();
 
-        fetchDecryptedAttachmentBlob(src.file, src.mimetype ?? undefined)
+        fetchDecryptedAttachmentBlob(src.file, src.mimetype ?? undefined, {
+            expectedSize: untrack(() => videoSize),
+            signal: abort.signal,
+            onProgress: (p) => {
+                if (!cancelled) videoProgress = p;
+            },
+        })
             .then((url) => {
                 if (cancelled) {
                     URL.revokeObjectURL(url);
@@ -126,6 +183,7 @@
 
         return () => {
             cancelled = true;
+            abort.abort();
             if (capturedUrl) URL.revokeObjectURL(capturedUrl);
             encryptedVideoUrl = null;
         };
@@ -229,17 +287,56 @@
     }
 </script>
 
+{#snippet player(extraClass: string)}
+    <!-- svelte-ignore a11y_media_has_caption -->
+    <!-- The played box is drawn identically to the poster: same
+     `aspect-ratio` and `max-height`, plus object-contain and
+     a black backdrop. Without an explicit box the <video>
+     sizes to its intrinsic dimensions, which (a) jumps the
+     box vs the poster on play and (b) lets a wide clip's
+     min-content width push past the column and overflow. -->
+    <video
+        src={videoSrc?.kind === "plain"
+            ? videoStreamUrl
+                ? undefined
+                : mxcToHttp(videoSrc.mxc)
+            : encryptedStreamUrl
+              ? undefined
+              : encryptedVideoUrl}
+        use:authedVideoSrc={{
+            url: videoStreamUrl ?? encryptedStreamUrl,
+            mimetype: videoMimetype,
+            decrypt:
+                encryptedStreamUrl && videoSrc?.kind === "encrypted"
+                    ? videoSrc.file
+                    : undefined,
+            expectedSize: videoSize,
+            onProgress: (p) => (videoProgress = p),
+            onError: () =>
+                encryptedStreamUrl
+                    ? fallBackToVerifiedDownload()
+                    : (videoFailed = true),
+        }}
+        controls
+        autoplay
+        playsinline
+        preload="auto"
+        class="max-w-lg w-full rounded-lg block object-contain bg-black {extraClass}"
+        style={`aspect-ratio: ${effectiveVideoAspect}; max-height: 24rem;`}
+        onloadedmetadata={onVideoMetadata}
+        oncanplay={() => (videoStreamReady = true)}
+        onerror={onVideoError}
+        use:pauseOffscreen={{
+            enabled: settingsState.pauseVideoOnScrollOff,
+        }}
+    ></video>
+{/snippet}
+
 {#if videoDecrypting}
-    <div
-        class="flex items-center gap-3 px-4 py-3 mt-1 max-w-sm w-full bg-discord-backgroundTertiary rounded-lg"
-    >
-        <div
-            class="w-4 h-4 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
-        ></div>
-        <span class="text-xs text-discord-textMuted"
-            >{t("messageItem.decryptingVideo")}</span
-        >
-    </div>
+    <MediaProgress
+        label={t("messageItem.decryptingVideo")}
+        progress={videoProgress}
+    />
 {:else if videoDecryptFailed}
     <div
         class="flex items-center gap-3 px-4 py-3 mt-1 max-w-sm w-full bg-discord-backgroundTertiary rounded-lg"
@@ -296,36 +393,25 @@
      src is unchanged, so without this Svelte would patch
      nothing and the browser would never re-attempt the load. -->
     {#key videoAttempt}
-        <!-- svelte-ignore a11y_media_has_caption -->
-        <!-- The played box is drawn identically to the poster: same
-         `aspect-ratio` and `max-height`, plus object-contain and
-         a black backdrop. Without an explicit box the <video>
-         sizes to its intrinsic dimensions, which (a) jumps the
-         box vs the poster on play and (b) lets a wide clip's
-         min-content width push past the column and overflow. -->
-        <video
-            src={videoSrc?.kind === "plain"
-                ? videoStreamUrl
-                    ? undefined
-                    : mxcToHttp(videoSrc.mxc)
-                : encryptedVideoUrl}
-            use:authedVideoSrc={{
-                url: videoStreamUrl,
-                mimetype: videoMimetype,
-                onError: () => (videoFailed = true),
-            }}
-            controls
-            autoplay
-            playsinline
-            preload="auto"
-            class="max-w-lg w-full rounded-lg mt-1 block object-contain bg-black"
-            style={`aspect-ratio: ${effectiveVideoAspect}; max-height: 24rem;`}
-            onloadedmetadata={onVideoMetadata}
-            onerror={onVideoError}
-            use:pauseOffscreen={{
-                enabled: settingsState.pauseVideoOnScrollOff,
-            }}
-        ></video>
+        {#if encryptedStreamUrl}
+            <div class="relative max-w-lg w-full mt-1">
+                {@render player("")}
+                {#if !videoStreamReady}
+                    <!-- Streaming: the box stays black until the first
+                     seconds are in, so say how far the download is. -->
+                    <div
+                        class="absolute inset-x-2 bottom-2 flex justify-start pointer-events-none"
+                    >
+                        <MediaProgress
+                            label={t("messageItem.decryptingVideo")}
+                            progress={videoProgress}
+                        />
+                    </div>
+                {/if}
+            </div>
+        {:else}
+            {@render player("mt-1")}
+        {/if}
     {/key}
 {:else}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->

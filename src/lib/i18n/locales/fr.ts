@@ -817,6 +817,7 @@ const messages: Record<MessageKey, string> = {
     "messageItem.audio": "Audio",
     "messageItem.kb": "{toFixed} Ko",
     "messageItem.mb": "{toFixed} Mo",
+    "mediaProgress.ofTotal": "{loaded} sur {total}",
     "messageItem.fileAttachment": "Fichier joint",
     "messageItem.download": "Télécharger",
     "messageItem.toSave": "pour enregistrer ·",

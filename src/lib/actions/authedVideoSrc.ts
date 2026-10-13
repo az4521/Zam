@@ -2,13 +2,19 @@ import {
     attachAuthedVideo,
     type AuthedVideoStream,
 } from "$lib/matrix/videoStream";
+import type { EncryptedFileInfo } from "$lib/utils/decryptAttachment";
+import type { DownloadProgress } from "$lib/utils/downloadProgress";
 
 /** Parameters for the {@link authedVideoSrc} action. */
 export interface AuthedVideoSrcParams {
     /** Homeserver media URL to stream, or null to leave the element alone. */
     url: string | null;
     mimetype?: string | null;
-    onError?: () => void;
+    onError?: (err: unknown) => void;
+    /** Set for an encrypted attachment: it is decrypted while streaming. */
+    decrypt?: EncryptedFileInfo;
+    expectedSize?: number | null;
+    onProgress?: (p: DownloadProgress) => void;
 }
 
 /**
@@ -27,8 +33,11 @@ export function authedVideoSrc(
         if (!current.url) return;
         stream = attachAuthedVideo(node, current.url, {
             mimetype: current.mimetype,
+            decrypt: current.decrypt,
+            expectedSize: current.expectedSize,
             // Read through `current` so a re-bound callback is honoured.
-            onError: () => current.onError?.(),
+            onProgress: (p) => current.onProgress?.(p),
+            onError: (err) => current.onError?.(err),
         });
     }
 

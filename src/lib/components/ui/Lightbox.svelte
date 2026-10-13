@@ -39,6 +39,8 @@
     import { fetchAttachmentBlob } from "$lib/matrix/client";
     import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
     import { focusTrap } from "$lib/actions/focusTrap";
+    import MediaProgress from "$lib/components/ui/MediaProgress.svelte";
+    import type { DownloadProgress } from "$lib/utils/downloadProgress";
     import { fade, scale as scaleTransition } from "svelte/transition";
     import { motionOK } from "$lib/utils/motionPreference";
     import { onMount, untrack } from "svelte";
@@ -154,6 +156,7 @@
     let videoEl = $state<HTMLVideoElement | null>(null);
     let videoBlobUrl = $state<string | null>(null);
     let videoFailed = $state(false);
+    let videoProgress = $state<DownloadProgress | null>(null);
 
     // ⚠ Exactly ONE video element is ever live (this viewer is a singleton in
     // the modal slot) and it is only ever created after the user clicked a
@@ -184,11 +187,18 @@
         }
         let objectUrl: string | null = null;
         let cancelled = false;
+        const abort = new AbortController();
         untrack(() => {
             videoBlobUrl = null;
             videoFailed = false;
+            videoProgress = null;
         });
-        fetchAttachmentBlob(target)
+        fetchAttachmentBlob(target, {
+            signal: abort.signal,
+            onProgress: (p) => {
+                if (!cancelled) videoProgress = p;
+            },
+        })
             .then((url) => {
                 if (cancelled) {
                     URL.revokeObjectURL(url);
@@ -204,6 +214,7 @@
             });
         return () => {
             cancelled = true;
+            abort.abort();
             // Stop the element before the URL goes away: a paused, src-less
             // element cannot keep buffering, and revoking alone would leave a
             // playing video decoding what it already holds.
@@ -667,9 +678,12 @@
                                     {t("lightbox.couldNotLoadThisVideoUse")}
                                 </p>
                             {:else}
-                                <div
-                                    class="w-10 h-10 border-2 border-white border-t-transparent rounded-full animate-spin"
-                                ></div>
+                                <div class="px-4 w-full max-w-sm">
+                                    <MediaProgress
+                                        label={t("common.loading")}
+                                        progress={videoProgress}
+                                    />
+                                </div>
                             {/if}
                         </div>
                     </div>

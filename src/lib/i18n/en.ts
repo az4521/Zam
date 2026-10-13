@@ -823,6 +823,7 @@ export const en = {
     "messageItem.audio": "Audio",
     "messageItem.kb": "{toFixed} KB",
     "messageItem.mb": "{toFixed} MB",
+    "mediaProgress.ofTotal": "{loaded} of {total}",
     "messageItem.fileAttachment": "File attachment",
     "messageItem.download": "Download",
     "messageItem.toSave": "to save ·",

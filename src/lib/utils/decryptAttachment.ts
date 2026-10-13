@@ -107,3 +107,125 @@ export async function decryptAttachment(
         ciphertext,
     );
 }
+
+const AES_BLOCK = 16;
+const LOW_64 = (1n << 64n) - 1n;
+
+/** The counter block for the `blockIndex`th AES block: the IV with its low 64
+ *  bits advanced, wrapping (Matrix, like `length: 64` above, never carries
+ *  into the high half). */
+function counterAt(
+    iv: Uint8Array,
+    blockIndex: bigint,
+): Uint8Array<ArrayBuffer> {
+    const out = new Uint8Array(iv);
+    const view = new DataView(out.buffer);
+    view.setBigUint64(8, (view.getBigUint64(8) + blockIndex) & LOW_64);
+    return out;
+}
+
+function concat(a: Uint8Array, b: Uint8Array): Uint8Array<ArrayBuffer> {
+    const out = new Uint8Array(a.length + b.length);
+    out.set(a, 0);
+    out.set(b, a.length);
+    return out;
+}
+
+/**
+ * Incremental counterpart of {@link decryptAttachment}, for playing media while
+ * it is still downloading. AES-CTR is a stream cipher, so each chunk can be
+ * decrypted as it arrives; the SHA-256 integrity check cannot, because it
+ * covers the whole ciphertext, so it runs in `finish()`.
+ *
+ * ⚠ That means plaintext handed out by `push()` is UNVERIFIED until `finish()`
+ * resolves. Callers must treat a rejection from `finish()` as "everything you
+ * played was tampered with" and tear it down, and must not persist or hand the
+ * bytes anywhere (a blob URL, a download) before it resolves.
+ */
+export interface StreamDecryptor {
+    /** Decrypt the next ciphertext chunk. May return fewer bytes than given
+     *  (a partial AES block is held back until the next chunk). */
+    push(chunk: Uint8Array): Promise<Uint8Array>;
+    /** Decrypt the held-back tail and verify the SHA-256 over everything
+     *  pushed. Rejects, returning no plaintext, on a mismatch. */
+    finish(): Promise<Uint8Array>;
+}
+
+export async function createStreamDecryptor(
+    info: EncryptedFileInfo,
+    subtle: SubtleCrypto = globalThis.crypto.subtle,
+): Promise<StreamDecryptor> {
+    if (!info?.key?.k) throw new Error("Encrypted file is missing its key");
+    if (!info.iv) throw new Error("Encrypted file is missing its IV");
+    if (!info.hashes?.sha256) {
+        throw new Error("Encrypted file is missing its integrity hash");
+    }
+    const keyBytes = base64ToBytes(info.key.k);
+    if (keyBytes.length !== 32) {
+        throw new Error("Encrypted file key is not 256 bits");
+    }
+    const iv = base64ToBytes(info.iv);
+    if (iv.length !== AES_BLOCK) {
+        throw new Error("Encrypted file IV is not 16 bytes");
+    }
+    const expected = base64ToBytes(info.hashes.sha256);
+    const key = await subtle.importKey(
+        "raw",
+        keyBytes,
+        { name: "AES-CTR" },
+        false,
+        ["decrypt"],
+    );
+
+    // Retained for the final digest: WebCrypto has no incremental SHA-256.
+    const seen: Uint8Array[] = [];
+    let carry: Uint8Array<ArrayBuffer> = new Uint8Array(0);
+    let blocks = 0n;
+    let finished = false;
+
+    const decrypt = async (data: Uint8Array<ArrayBuffer>) =>
+        new Uint8Array(
+            await subtle.decrypt(
+                {
+                    name: "AES-CTR",
+                    counter: counterAt(iv, blocks),
+                    length: 64,
+                },
+                key,
+                data,
+            ),
+        );
+
+    return {
+        async push(chunk) {
+            if (finished) throw new Error("Stream decryptor already finished");
+            seen.push(chunk);
+            const data = concat(carry, chunk);
+            const usable = data.length - (data.length % AES_BLOCK);
+            carry = data.slice(usable);
+            if (usable === 0) return new Uint8Array(0);
+            const out = await decrypt(data.subarray(0, usable));
+            blocks += BigInt(usable / AES_BLOCK);
+            return out;
+        },
+        async finish() {
+            if (finished) throw new Error("Stream decryptor already finished");
+            finished = true;
+            const total = seen.reduce((n, c) => n + c.length, 0);
+            const all = new Uint8Array(total);
+            let at = 0;
+            for (const c of seen) {
+                all.set(c, at);
+                at += c.length;
+            }
+            seen.length = 0;
+            const digest = await subtle.digest("SHA-256", all);
+            if (!bytesEqual(new Uint8Array(digest), expected)) {
+                throw new Error(
+                    "Attachment integrity check failed (hash mismatch)",
+                );
+            }
+            return carry.length ? decrypt(carry) : new Uint8Array(0);
+        },
+    };
+}

@@ -22,6 +22,10 @@
     import { resizeHandle } from "$lib/actions/resizeHandle";
     import { COMPOSER_PICKER_SIZE } from "$lib/utils/pickerSize";
     import { safeAspectRatio } from "$lib/utils/mediaDimensions";
+    import {
+        favouriteAspectStyle,
+        learnGifAspect,
+    } from "$lib/utils/gifAspect.svelte";
     import { overlayActionClass } from "$lib/utils/touchTargets";
     import { scrollBehavior } from "$lib/utils/motionPreference";
     import {
@@ -203,7 +207,14 @@
 
     function toggleStar(r: GifResult) {
         if (isFavouriteGif(r.url)) removeFavouriteGif(r.url);
-        else addFavouriteGif({ url: r.url, previewUrl: r.previewUrl });
+        else
+            addFavouriteGif({
+                url: r.url,
+                previewUrl: r.previewUrl,
+                ...(r.width > 0 && r.height > 0
+                    ? { width: r.width, height: r.height }
+                    : {}),
+            });
     }
 
     function onGridScroll() {
@@ -500,6 +511,16 @@
                                     class="w-full h-auto block rounded bg-discord-backgroundTertiary"
                                     loading="lazy"
                                     decoding="async"
+                                    style={favouriteAspectStyle(gif)}
+                                    onload={(e) => {
+                                        const img =
+                                            e.currentTarget as HTMLImageElement;
+                                        learnGifAspect(
+                                            gif.previewUrl,
+                                            img.naturalWidth,
+                                            img.naturalHeight,
+                                        );
+                                    }}
                                 />
                             </button>
                             <!-- Touchscreens have no hover, so the controls stay

@@ -1449,6 +1449,11 @@ export interface FavouriteGif {
     previewUrl: string;
     addedAt: number;
     tags?: string[];
+    /** Natural size of the GIF, when known at the time it was starred. Lets
+     *  the picker reserve the tile before the preview loads. Untrusted on
+     *  read (account data): only ever used through safeAspectRatio. */
+    width?: number;
+    height?: number;
 }
 
 /**

@@ -1,6 +1,14 @@
 import { matrixClient } from "./runtime";
 import { isSameOrigin } from "$lib/utils/mxcUri";
 import { safeAttachmentMimeType } from "$lib/utils/attachmentMime";
+import {
+    createStreamDecryptor,
+    type EncryptedFileInfo,
+} from "$lib/utils/decryptAttachment";
+import {
+    expectedBodySize,
+    type DownloadProgress,
+} from "$lib/utils/downloadProgress";
 import type { ISOFile, Movie } from "mp4box";
 
 /**
@@ -23,7 +31,26 @@ import type { ISOFile, Movie } from "mp4box";
  * blob timing. Anything else (WebM, no MediaSource at all) goes the blob way.
  * Seeking only reaches what has already downloaded: without ranges there is
  * no way to fetch ahead.
+ *
+ * Encrypted attachments take the same route with a decrypt step on the byte
+ * stream (`opts.decrypt`). AES-CTR decrypts chunk by chunk, but the SHA-256
+ * that proves the ciphertext is untampered covers the whole file, so it can
+ * only be checked once the last byte is in. The trade this makes explicit:
+ *   - Anything that needs the finished file (a non-faststart MP4, a non-MP4,
+ *     no MediaSource) is verified BEFORE it is handed to the element.
+ *   - A faststart MP4 starts playing on unverified bytes, and if the hash then
+ *     fails the stream is torn down and `onError` fires with the integrity
+ *     error. Callers should therefore only opt in for files large enough to
+ *     be worth it (see MessageVideo's STREAM_ENCRYPTED_MIN_BYTES).
  */
+
+/**
+ * Encrypted videos smaller than this are downloaded, verified and only then
+ * played, exactly as before. Streaming plays unverified bytes until the hash
+ * check at the end (see the file header), which is only worth risking when the
+ * wait for the whole file would be long.
+ */
+export const STREAM_ENCRYPTED_MIN_BYTES = 4 * 1024 * 1024;
 
 /** True when this page has no service worker to authenticate `<video src>`. */
 export function videoNeedsAuthedStream(): boolean {
@@ -37,6 +64,13 @@ export interface AuthedVideoStreamOptions {
     mimetype?: string | null;
     /** Called once if the media can't be fetched or fed to the element. */
     onError?: (err: unknown) => void;
+    /** `content.file` of an encrypted attachment: the download is decrypted on
+     *  the fly and verified at the end (see the file header). */
+    decrypt?: EncryptedFileInfo;
+    /** Size from the event, for progress when the server sends no length. */
+    expectedSize?: number | null;
+    /** Bytes downloaded so far, for a progress indicator. */
+    onProgress?: (p: DownloadProgress) => void;
 }
 
 export interface AuthedVideoStream {
@@ -67,6 +101,14 @@ function isMp4(head: Uint8Array): boolean {
     const type = String.fromCharCode(head[4], head[5], head[6], head[7]);
     return type === "ftyp" || type === "styp" || type === "moov";
 }
+
+/** What the pipeline needs from a body reader: a ReadableStream's, or ours. */
+interface ChunkReader {
+    read(): Promise<ReadableStreamReadResult<Uint8Array>>;
+}
+
+// Chunks arrive faster than anyone can read a counter; cap UI updates.
+const PROGRESS_INTERVAL_MS = 100;
 
 /** Copy a reader chunk into its own exactly-sized ArrayBuffer. */
 function ownBuffer(chunk: Uint8Array): ArrayBuffer {
@@ -190,10 +232,70 @@ export function attachAuthedVideo(
         video.src = url;
     }
 
-    async function readAll(
-        reader: ReadableStreamDefaultReader<Uint8Array>,
-        parts: BlobPart[],
-    ) {
+    /**
+     * The response body as a chunk reader that reports progress and, for an
+     * encrypted attachment, yields plaintext. The final read() of a decrypting
+     * reader runs the integrity check and REJECTS on a mismatch, so a caller
+     * that reads to the end before using the bytes only ever uses verified ones.
+     */
+    async function openReader(resp: Response): Promise<ChunkReader> {
+        const total = expectedBodySize(resp, opts.expectedSize);
+        let raw: ChunkReader;
+        const streamReader = resp.body?.getReader();
+        if (streamReader) {
+            raw = streamReader;
+        } else {
+            // No streaming body: one chunk, once.
+            let sent = false;
+            const all = new Uint8Array(await resp.arrayBuffer());
+            raw = {
+                read: async () =>
+                    sent
+                        ? { done: true, value: undefined }
+                        : ((sent = true), { done: false, value: all }),
+            };
+        }
+        const decryptor = opts.decrypt
+            ? await createStreamDecryptor(opts.decrypt)
+            : null;
+        let loaded = 0;
+        let lastReport = 0;
+        let finished = false;
+        const report = (force = false) => {
+            const now = Date.now();
+            if (!force && now - lastReport < PROGRESS_INTERVAL_MS) return;
+            lastReport = now;
+            opts.onProgress?.({
+                loaded,
+                total: total !== null && loaded <= total ? total : null,
+            });
+        };
+        report(true);
+        return {
+            async read() {
+                for (;;) {
+                    const r = await raw.read();
+                    if (r.done) {
+                        report(true);
+                        if (decryptor && !finished) {
+                            finished = true;
+                            const tail = await decryptor.finish();
+                            if (tail.length)
+                                return { done: false, value: tail };
+                        }
+                        return { done: true, value: undefined };
+                    }
+                    loaded += r.value.length;
+                    report();
+                    if (!decryptor) return r;
+                    const out = await decryptor.push(r.value);
+                    if (out.length) return { done: false, value: out };
+                }
+            },
+        };
+    }
+
+    async function readAll(reader: ChunkReader, parts: BlobPart[]) {
         for (;;) {
             const { done, value } = await reader.read();
             if (done) return;
@@ -201,10 +303,7 @@ export function attachAuthedVideo(
         }
     }
 
-    async function playAsBlob(
-        reader: ReadableStreamDefaultReader<Uint8Array> | null,
-        parts: BlobPart[],
-    ) {
+    async function playAsBlob(reader: ChunkReader | null, parts: BlobPart[]) {
         if (reader) await readAll(reader, parts);
         if (disposed) return;
         setSrc(
@@ -223,12 +322,8 @@ export function attachAuthedVideo(
         });
         if (!resp.ok) throw new Error(`Video fetch failed: ${resp.status}`);
 
-        const reader = resp.body?.getReader() ?? null;
-        if (!reader || typeof MediaSource === "undefined") {
-            const parts: BlobPart[] = [];
-            if (!reader) parts.push(await resp.blob());
-            return playAsBlob(reader, parts);
-        }
+        const reader = await openReader(resp);
+        if (typeof MediaSource === "undefined") return playAsBlob(reader, []);
 
         // Everything read so far, kept until we commit to MSE so a fallback
         // to a blob loses nothing.

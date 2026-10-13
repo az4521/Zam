@@ -773,6 +773,7 @@ const messages: Record<MessageKey, string> = {
     "messageItem.audio": "ܩܠܐ",
     "messageItem.kb": "{toFixed} KB",
     "messageItem.mb": "{toFixed} MB",
+    "mediaProgress.ofTotal": "{loaded} ܡܢ {total}",
     "messageItem.fileAttachment": "ܐܣܝܪܬܐ ܕܦܐܝܠ",
     "messageItem.download": "ܐܚܬ",
     "messageItem.toSave": "ܩܐ ܢܛܪܐ ·",
