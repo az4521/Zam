@@ -4,6 +4,14 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.19.10
+
+🐛 **Fixed**
+
+- **No more pumping or "helium" voice with noise suppression:** in 1.19.9, the boost Zam gives a quiet microphone mistook room noise for a quiet voice, so it kept jumping up in pauses and back down when you spoke. Your voice swung between too loud and too quiet, sounded thin and high while the noise suppression caught up with each jump, and got muffled. The boost now only listens to your actual speech, and a normal microphone isn't boosted at all.
+- **Less muffled noise suppression:** DeepFilterNet3 no longer suppresses without limit, which was eating into voices along with the noise. Speech comes through clearer and steadier, with background noise still well reduced.
+- **Changing audio settings during a call works again:** switching auto gain control or noise suppression mid-call showed an error and could briefly cut your microphone. It now switches smoothly without interrupting what you're sending.
+
 ## v1.19.9
 
 🐛 **Fixed**
