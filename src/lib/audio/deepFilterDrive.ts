@@ -23,6 +23,11 @@
  * slightly hurt it, so the target sits just above where the model starts to
  * struggle and a normal mic is left alone.
  */
+import {
+    createSpeechGate,
+    speechWindow,
+    type SpeechGate,
+} from "./voiceNormalization";
 
 /** Speech is lifted to at least this level, in dBFS RMS. */
 export const DRIVE_TARGET_DB = -30;
@@ -74,12 +79,8 @@ export function undriveCurve(
     return curve;
 }
 
-/** A window is speech only this far above the room's noise floor. */
-export const DRIVE_SPEECH_ABOVE_FLOOR_DB = 12;
-/** Noise floor follower, per window: drops quickly to a quieter room, creeps
- *  up slowly (about 12 s) so speech doesn't drag it up. */
-export const DRIVE_FLOOR_FALL = 0.3;
-export const DRIVE_FLOOR_RISE = 0.004;
+/** Length of one window the chain measures, in seconds. */
+export const DRIVE_WINDOW_S = 0.05;
 /** Speech level estimate weights, per speech window: settles over a few
  *  seconds of talking. */
 export const DRIVE_SPEECH_RISE = 0.05;
@@ -89,12 +90,12 @@ export const DRIVE_SPEECH_FALL = 0.02;
 export const DRIVE_OVERLOAD_DB = 12;
 
 export interface DriveState {
-    floor: number | null;
+    gate: SpeechGate;
     speech: number | null;
 }
 
 export function createDriveState(): DriveState {
-    return { floor: null, speech: null };
+    return { gate: createSpeechGate(), speech: null };
 }
 
 /** One 50 ms window of raw input: update the noise floor and, for speech
@@ -104,19 +105,8 @@ export function driveTick(
     windowDb: number,
     current: number,
 ): number | null {
-    if (!Number.isFinite(windowDb)) return null;
-    const { floor } = state;
-    state.floor =
-        floor === null
-            ? windowDb
-            : floor +
-              (windowDb < floor ? DRIVE_FLOOR_FALL : DRIVE_FLOOR_RISE) *
-                  (windowDb - floor);
-    const isSpeech =
-        windowDb >= DRIVE_GATE_DB &&
-        floor !== null &&
-        windowDb >= floor + DRIVE_SPEECH_ABOVE_FLOOR_DB;
-    if (!isSpeech) return null;
+    if (!speechWindow(state.gate, windowDb, DRIVE_WINDOW_S, DRIVE_GATE_DB))
+        return null;
     const prev = state.speech;
     state.speech =
         prev === null

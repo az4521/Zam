@@ -3,19 +3,20 @@
  * LiveKit audio processor, $lib/audio/micProcessor) and by the settings mic
  * test, so what you hear in the test is what the call sends:
  *
- *   input -> [drive -> DeepFilterNet3 -> undo drive] -> [leveller gain]
- *         -> soft clipper -> output
+ *   input -> [drive -> DeepFilterNet3 -> undo drive -> pause gate]
+ *         -> [leveller gain] -> soft clipper -> output
  *
  * DeepFilterNet3 mangles speech it hears as quiet ($lib/audio/deepFilterDrive),
  * so the drive lifts a quiet mic into the model's range and the same gain
  * comes off after it: the chain's output level is what it was, the model just
- * gets a signal it can work with.
+ * gets a signal it can work with. The pause gate ($lib/audio/pauseGate) then
+ * quietens what the model leaves of clicks, keys and room noise between words.
  *
  * The leveller evens out your voice in place of the browser's WebRTC AGC:
- * digital only (it never moves the OS microphone volume), it holds its gain
- * through pauses instead of pumping room noise up between sentences, and it
- * turns down fast but up slowly. Same maths as incoming-voice normalization.
- * It measures after DeepFilterNet, so it levels your voice, not the noise.
+ * digital only (it never moves the OS microphone volume), it turns down fast
+ * but up slowly, and only speech moves it (speechWindow), so it holds its
+ * gain through pauses instead of pumping the noise floor up between
+ * sentences. Same maths as incoming-voice normalization.
  *
  * DeepFilterNet3 loads asynchronously (a large wasm, fetched on first use):
  * until it is ready, and if it fails, audio passes through unfiltered.
@@ -25,9 +26,12 @@ import {
     nextSpeechLevel,
     normalizationGain,
     gainTimeConstant,
+    createSpeechGate,
+    speechWindow,
 } from "./voiceNormalization";
 import { createSoftClipper } from "./softClip";
 import { createDeepFilterNode } from "./deepFilter";
+import { createPauseGateNode } from "./pauseGate";
 import {
     createDriveState,
     DEEP_FILTER_DELAY_S,
@@ -71,10 +75,13 @@ export function createMicChain(
     let timer: ReturnType<typeof setInterval> | null = null;
     if (opts.level) {
         const buf = new Float32Array(analyser.fftSize);
+        const speech = createSpeechGate();
         let level: number | null = null;
         timer = setInterval(() => {
             analyser.getFloatTimeDomainData(buf);
-            level = nextSpeechLevel(level, rmsDb(buf));
+            const db = rmsDb(buf);
+            if (speechWindow(speech, db, LEVELLER_TICK_MS / 1000))
+                level = nextSpeechLevel(level, db);
             const target = normalizationGain(level);
             if (target === null) return;
             gain.gain.setTargetAtTime(
@@ -86,6 +93,10 @@ export function createMicChain(
     }
 
     let dfNode: AudioWorkletNode | null = null;
+    let gateNode: AudioWorkletNode | null = null;
+    // The model's input, lined up with its output for the gate's decisions.
+    const gateRef = ctx.createDelay(0.2);
+    gateRef.delayTime.value = DEEP_FILTER_DELAY_S;
     const drive = ctx.createGain();
     const undrive = ctx.createGain();
     let driveTimer: ReturnType<typeof setInterval> | null = null;
@@ -121,21 +132,37 @@ export function createMicChain(
     };
 
     const denoiseReady = opts.denoise
-        ? createDeepFilterNode(ctx).then(
-              (node) => {
+        ? Promise.all([
+              createDeepFilterNode(ctx),
+              // Without the gate the model still runs, just ungated.
+              createPauseGateNode(ctx).catch((err) => {
+                  console.warn("Pause gate unavailable:", err);
+                  return null;
+              }),
+          ]).then(
+              ([node, gate]) => {
                   if (destroyed) {
                       node.disconnect();
+                      gate?.disconnect();
                       return false;
                   }
-                  // Splice it in:
-                  // input -> drive -> df -> undrive -> (gain, analyser).
+                  // Splice it in: input -> drive -> df -> undrive ->
+                  // [gate, with input -> delay as its reference] ->
+                  // (gain, analyser).
                   dfNode = node;
+                  gateNode = gate;
                   input.disconnect();
                   input.connect(drive);
                   drive.connect(node);
                   node.connect(undrive);
-                  undrive.connect(gain);
-                  undrive.connect(analyser);
+                  const out: AudioNode = gate ?? undrive;
+                  if (gate) {
+                      undrive.connect(gate, 0, 0);
+                      input.connect(gateRef);
+                      gateRef.connect(gate, 0, 1);
+                  }
+                  out.connect(gain);
+                  out.connect(analyser);
                   startDrive();
                   return true;
               },
@@ -159,6 +186,8 @@ export function createMicChain(
             drive.disconnect();
             dfNode?.disconnect();
             undrive.disconnect();
+            gateRef.disconnect();
+            gateNode?.disconnect();
             // The worklet keeps its wasm state until the processor is
             // collected; tell it to stop work in the meantime.
             dfNode?.port.postMessage({ type: "setEnabled", value: false });

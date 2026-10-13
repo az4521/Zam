@@ -55,3 +55,49 @@ export function normalizationGain(levelDb: number | null): number | null {
 export function gainTimeConstant(current: number, target: number): number {
     return target < current ? 0.15 : 1.5;
 }
+
+/** A window counts as speech only this far above the noise floor. A fixed
+ *  level gate alone isn't enough: room noise, or what noise suppression
+ *  leaves of it, easily sits above -55 dBFS, and a level estimate fed by it
+ *  drifts down in every pause, so the gain climbs and the noise floor
+ *  becomes audible, then the next word comes in far too loud. */
+export const SPEECH_ABOVE_FLOOR_DB = 12;
+/** Noise floor follower: drops quickly to a quieter room (per window),
+ *  creeps up over about this many seconds so speech doesn't drag it up. */
+export const NOISE_FLOOR_FALL = 0.3;
+export const NOISE_FLOOR_RISE_S = 12;
+
+/** Per-source state for speechWindow. */
+export interface SpeechGate {
+    floor: number | null;
+}
+
+export function createSpeechGate(): SpeechGate {
+    return { floor: null };
+}
+
+/** Track the noise floor with one window (`windowS` long) and say whether
+ *  that window is speech: above `minDb` and SPEECH_ABOVE_FLOOR_DB over the
+ *  floor as it stood before this window. */
+export function speechWindow(
+    gate: SpeechGate,
+    windowDb: number,
+    windowS: number,
+    minDb = NORMALIZE_GATE_DB,
+): boolean {
+    if (!Number.isFinite(windowDb)) return false;
+    const floor = gate.floor;
+    gate.floor =
+        floor === null
+            ? windowDb
+            : floor +
+              (windowDb < floor
+                  ? NOISE_FLOOR_FALL
+                  : Math.min(1, windowS / NOISE_FLOOR_RISE_S)) *
+                  (windowDb - floor);
+    return (
+        floor !== null &&
+        windowDb >= minDb &&
+        windowDb >= floor + SPEECH_ABOVE_FLOOR_DB
+    );
+}

@@ -14,6 +14,9 @@ import {
     nextSpeechLevel,
     normalizationGain,
     gainTimeConstant,
+    createSpeechGate,
+    speechWindow,
+    type SpeechGate,
 } from "./voiceNormalization";
 import { createSoftClipper } from "./softClip";
 
@@ -25,6 +28,7 @@ interface RoutedSource {
     norm: GainNode;
     gain: GainNode;
     level: number | null;
+    gate: SpeechGate;
 }
 
 export interface CallAudioGraph {
@@ -88,7 +92,12 @@ export function createCallAudioGraph(opts: {
         const now = ctx.currentTime;
         for (const r of routed.values()) {
             r.analyser.getFloatTimeDomainData(buf);
-            r.level = nextSpeechLevel(r.level, rmsDb(buf));
+            // Only speech moves the level: a pause full of the speaker's
+            // room noise would otherwise read as a quiet voice and be
+            // turned up until the noise floor was audible.
+            const db = rmsDb(buf);
+            if (speechWindow(r.gate, db, NORMALIZE_TICK_MS / 1000))
+                r.level = nextSpeechLevel(r.level, db);
             const target = normalizationGain(r.level);
             if (target === null) continue;
             const current = r.norm.gain.value;
@@ -135,7 +144,14 @@ export function createCallAudioGraph(opts: {
                 source.connect(norm);
                 norm.connect(gain);
                 gain.connect(limiter);
-                routed.set(el, { source, analyser, norm, gain, level: null });
+                routed.set(el, {
+                    source,
+                    analyser,
+                    norm,
+                    gain,
+                    level: null,
+                    gate: createSpeechGate(),
+                });
             } catch {
                 return false;
             }
