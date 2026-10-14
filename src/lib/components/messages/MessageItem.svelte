@@ -100,6 +100,10 @@
     import { stripFormattedFallback } from "$lib/utils/replyFallback";
     import { parseVoiceContent } from "$lib/utils/voiceMessage";
     import { isMidiAttachment, midiUrlToWavUrl } from "$lib/utils/midi";
+    import {
+        isTrackerAttachment,
+        trackerUrlToWavUrl,
+    } from "$lib/utils/tracker";
     import { reservedMediaBox } from "$lib/utils/mediaDimensions";
     import { createMediaRetry } from "$lib/stores/mediaAuth.svelte";
     import { utdPlaceholderText } from "$lib/utils/encryptionState";
@@ -1377,9 +1381,22 @@
             mediaFilename,
         ),
     );
+    // Tracker modules (MOD/XM/S3M/IT...) are rendered like MIDI. Browsers
+    // don't give them an audio/ type, so they usually arrive as m.file and
+    // get the player alongside the download card.
+    const audioIsTracker = $derived(
+        isTrackerAttachment(
+            (content?.info as { mimetype?: string } | undefined)?.mimetype,
+            mediaFilename,
+        ),
+    );
+    const audioPlayable = $derived(
+        msgtype === "m.audio" || (msgtype === "m.file" && audioIsTracker),
+    );
     const audioStreamUrl = $derived.by(() => {
-        if (!audioClicked || msgtype !== "m.audio") return null;
-        if (voiceMsg || audioIsMidi || audioStreamFailed) return null;
+        if (!audioClicked || !audioPlayable) return null;
+        if (voiceMsg || audioIsMidi || audioIsTracker || audioStreamFailed)
+            return null;
         if (typeof MediaSource === "undefined") return null;
         const file = content?.file as EncryptedFile | undefined;
         if (file) {
@@ -1394,14 +1411,19 @@
 
     $effect(() => {
         void audioAttempt; // re-run when the user retries a failed load
-        if (!audioClicked || msgtype !== "m.audio") return;
+        if (!audioClicked || !audioPlayable) return;
         if (audioStreamUrl) return;
         const file = content?.file as EncryptedFile | undefined;
         const isMidi = audioIsMidi;
+        const isTracker = audioIsTracker;
         let cancelled = false;
-        // <audio> can't decode MIDI, so synthesize it to WAV first.
+        // <audio> can't decode MIDI or tracker modules, so render to WAV first.
         const toPlayableAudio = (url: string) =>
-            isMidi ? midiUrlToWavUrl(url) : url;
+            isMidi
+                ? midiUrlToWavUrl(url)
+                : isTracker
+                  ? trackerUrlToWavUrl(url)
+                  : url;
         if (file) {
             // Encrypted audio
             audioLoading = true;
@@ -2136,6 +2158,128 @@
                 </div>
             {/snippet}
 
+            <!-- The player row for uploaded audio, and for tracker
+             modules sent as m.file. -->
+            {#snippet audioCard()}
+                <div
+                    class="flex items-center gap-3 p-3 bg-discord-backgroundTertiary rounded-lg mt-1 max-w-sm w-full"
+                >
+                    <!-- svelte-ignore a11y_consider_explicit_label -->
+                    <button
+                        onclick={() => {
+                            if (audioBlobUrl) return;
+                            if (audioFailed) {
+                                audioFailed = false;
+                                audioAttempt++;
+                            } else {
+                                audioClicked = true;
+                            }
+                        }}
+                        class="w-8 h-8 rounded-full bg-discord-accent flex-shrink-0 flex items-center justify-center disabled:opacity-50"
+                        disabled={audioLoading}
+                    >
+                        {#if audioLoading || (audioStreamUrl && !audioStreamReady)}
+                            <div
+                                class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
+                            ></div>
+                        {:else if !audioBlobUrl && !audioStreamUrl}
+                            <svg
+                                class="w-4 h-4 text-white ms-0.5"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                                ><path d="M8 5v14l11-7z" /></svg
+                            >
+                        {:else}
+                            <svg
+                                class="w-4 h-4 text-white"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                                ><path
+                                    d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"
+                                /></svg
+                            >
+                        {/if}
+                    </button>
+                    <div class="flex-1 min-w-0">
+                        <p
+                            class="text-discord-textPrimary text-xs font-medium truncate mb-1"
+                        >
+                            {mediaFilename || t("messageItem.audio")}
+                        </p>
+                        {#snippet audioBar()}
+                            {#if audioProgress?.total}
+                                <div
+                                    class="mt-1 h-1 rounded-full bg-discord-backgroundSecondary overflow-hidden"
+                                    role="progressbar"
+                                    aria-label={t("common.loading")}
+                                    aria-valuemin="0"
+                                    aria-valuemax="100"
+                                    aria-valuenow={Math.round(
+                                        (audioProgress.loaded /
+                                            audioProgress.total) *
+                                            100,
+                                    )}
+                                >
+                                    <div
+                                        class="h-full bg-discord-accent transition-[width] duration-150"
+                                        style="width: {Math.round(
+                                            (audioProgress.loaded /
+                                                audioProgress.total) *
+                                                100,
+                                        )}%"
+                                    ></div>
+                                </div>
+                            {/if}
+                        {/snippet}
+                        {#if audioStreamUrl}
+                            <!-- svelte-ignore a11y_media_has_caption -->
+                            <audio
+                                controls
+                                autoplay
+                                use:authedVideoSrc={{
+                                    url: audioStreamUrl,
+                                    mimetype: (
+                                        content?.info as
+                                            { mimetype?: string } | undefined
+                                    )?.mimetype,
+                                    decrypt:
+                                        (content?.file as
+                                            EncryptedFile | undefined) ??
+                                        undefined,
+                                    expectedSize: (
+                                        content?.info as
+                                            { size?: number } | undefined
+                                    )?.size,
+                                    onProgress: (p) => (audioProgress = p),
+                                    onError: () => (audioStreamFailed = true),
+                                }}
+                                oncanplay={() => (audioStreamReady = true)}
+                                onerror={() => (audioStreamFailed = true)}
+                                class="w-full h-8"
+                            ></audio>
+                            {#if !audioStreamReady}{@render audioBar()}{/if}
+                        {:else if audioBlobUrl}
+                            <!-- svelte-ignore a11y_media_has_caption -->
+                            <audio
+                                controls
+                                autoplay
+                                src={audioBlobUrl}
+                                class="w-full h-8"
+                            ></audio>
+                        {:else}
+                            <p
+                                class="text-xs {audioMode === 'failed'
+                                    ? 'text-discord-danger'
+                                    : 'text-discord-textMuted'}"
+                            >
+                                {audioStatusLabel(audioMode)}
+                            </p>
+                            {#if audioLoading}{@render audioBar()}{/if}
+                        {/if}
+                    </div>
+                </div>
+            {/snippet}
+
             {#snippet mediaCaption()}
                 {#if isEditing}
                     {@render editBox()}
@@ -2388,125 +2532,7 @@
                         durationMs={voiceMsg.durationMs}
                     />
                 {:else}
-                    <div
-                        class="flex items-center gap-3 p-3 bg-discord-backgroundTertiary rounded-lg mt-1 max-w-sm w-full"
-                    >
-                        <!-- svelte-ignore a11y_consider_explicit_label -->
-                        <button
-                            onclick={() => {
-                                if (audioBlobUrl) return;
-                                if (audioFailed) {
-                                    audioFailed = false;
-                                    audioAttempt++;
-                                } else {
-                                    audioClicked = true;
-                                }
-                            }}
-                            class="w-8 h-8 rounded-full bg-discord-accent flex-shrink-0 flex items-center justify-center disabled:opacity-50"
-                            disabled={audioLoading}
-                        >
-                            {#if audioLoading || (audioStreamUrl && !audioStreamReady)}
-                                <div
-                                    class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
-                                ></div>
-                            {:else if !audioBlobUrl && !audioStreamUrl}
-                                <svg
-                                    class="w-4 h-4 text-white ms-0.5"
-                                    fill="currentColor"
-                                    viewBox="0 0 24 24"
-                                    ><path d="M8 5v14l11-7z" /></svg
-                                >
-                            {:else}
-                                <svg
-                                    class="w-4 h-4 text-white"
-                                    fill="currentColor"
-                                    viewBox="0 0 24 24"
-                                    ><path
-                                        d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"
-                                    /></svg
-                                >
-                            {/if}
-                        </button>
-                        <div class="flex-1 min-w-0">
-                            <p
-                                class="text-discord-textPrimary text-xs font-medium truncate mb-1"
-                            >
-                                {mediaFilename || t("messageItem.audio")}
-                            </p>
-                            {#snippet audioBar()}
-                                {#if audioProgress?.total}
-                                    <div
-                                        class="mt-1 h-1 rounded-full bg-discord-backgroundSecondary overflow-hidden"
-                                        role="progressbar"
-                                        aria-label={t("common.loading")}
-                                        aria-valuemin="0"
-                                        aria-valuemax="100"
-                                        aria-valuenow={Math.round(
-                                            (audioProgress.loaded /
-                                                audioProgress.total) *
-                                                100,
-                                        )}
-                                    >
-                                        <div
-                                            class="h-full bg-discord-accent transition-[width] duration-150"
-                                            style="width: {Math.round(
-                                                (audioProgress.loaded /
-                                                    audioProgress.total) *
-                                                    100,
-                                            )}%"
-                                        ></div>
-                                    </div>
-                                {/if}
-                            {/snippet}
-                            {#if audioStreamUrl}
-                                <!-- svelte-ignore a11y_media_has_caption -->
-                                <audio
-                                    controls
-                                    autoplay
-                                    use:authedVideoSrc={{
-                                        url: audioStreamUrl,
-                                        mimetype: (
-                                            content?.info as
-                                                | { mimetype?: string }
-                                                | undefined
-                                        )?.mimetype,
-                                        decrypt:
-                                            (content?.file as
-                                                EncryptedFile | undefined) ??
-                                            undefined,
-                                        expectedSize: (
-                                            content?.info as
-                                                { size?: number } | undefined
-                                        )?.size,
-                                        onProgress: (p) => (audioProgress = p),
-                                        onError: () =>
-                                            (audioStreamFailed = true),
-                                    }}
-                                    oncanplay={() => (audioStreamReady = true)}
-                                    onerror={() => (audioStreamFailed = true)}
-                                    class="w-full h-8"
-                                ></audio>
-                                {#if !audioStreamReady}{@render audioBar()}{/if}
-                            {:else if audioBlobUrl}
-                                <!-- svelte-ignore a11y_media_has_caption -->
-                                <audio
-                                    controls
-                                    autoplay
-                                    src={audioBlobUrl}
-                                    class="w-full h-8"
-                                ></audio>
-                            {:else}
-                                <p
-                                    class="text-xs {audioMode === 'failed'
-                                        ? 'text-discord-danger'
-                                        : 'text-discord-textMuted'}"
-                                >
-                                    {audioStatusLabel(audioMode)}
-                                </p>
-                                {#if audioLoading}{@render audioBar()}{/if}
-                            {/if}
-                        </div>
-                    </div>
+                    {@render audioCard()}
                 {/if}
             {:else if isVerificationRequest}
                 <VerificationRequestMessage
@@ -2532,6 +2558,9 @@
                 {@render mediaCaption()}
                 {#if isSwf && fileUrl}
                     <SwfEmbed getSrc={() => fetchAttachmentBlob(fileUrl)} />
+                {/if}
+                {#if audioIsTracker}
+                    {@render audioCard()}
                 {/if}
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div
