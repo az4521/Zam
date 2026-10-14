@@ -4,6 +4,14 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.20.0
+
+✨ **New**
+
+- **Noise filter plugins:** plugins can now add their own noise suppression for your microphone. It shows up under Voice & Audio > Noise suppression next to DeepFilterNet3, and runs with the rest of Zam's voice processing. If a plugin's filter can't run on your device, or stops keeping up during a call, DeepFilterNet3 takes over without interrupting you.
+- **DPDFNet:** a new plugin in the official plugin repo (Settings > Plugins) adds DPDFNet, an AI noise filter that removes more noise than DeepFilterNet3 while keeping your voice clearer and at its natural volume, even on a quiet microphone. It needs more processing power, so Zam tests it on your device first and keeps using DeepFilterNet3 on devices that are too slow. It downloads about 25 MB the first time, plus its native runtime in the desktop and Android apps.
+- **Plugins can bring native code:** in the desktop and Android apps, a plugin can ship its own native program, for example to run an AI model faster. Zam asks you first in a system dialog, checks every file against what the plugin published, and asks again whenever the plugin updates. Only allow it for plugins you trust: on Android it runs inside Zam with access to your account.
+
 ## v1.19.11
 
 🐛 **Fixed**
