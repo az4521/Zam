@@ -85,6 +85,14 @@ contextBridge.exposeInMainWorld("desktop", {
         setMinimizeToClose: (enabled) =>
             ipcRenderer.send("tray:set-minimize-to-close", !!enabled),
     },
+    // Settings > Debug: Chromium's GPU report and the hardware acceleration
+    // switch (applied on the next launch, hence relaunch).
+    gpu: {
+        info: () => ipcRenderer.invoke("gpu:info"),
+        setHardwareAcceleration: (enabled) =>
+            ipcRenderer.invoke("gpu:set-hardware-acceleration", !!enabled),
+        relaunch: () => ipcRenderer.send("app:relaunch"),
+    },
     // The OS's General MIDI sound bank bytes, or null (see main.cjs).
     readSystemSoundBank: () => ipcRenderer.invoke("soundbank:system"),
     hasSystemSoundBank: () => ipcRenderer.invoke("soundbank:has-system"),

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
     import ExtendedProfileDebug from "$lib/components/settings/ExtendedProfileDebug.svelte";
+    import GpuDebug from "$lib/components/settings/GpuDebug.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import {
@@ -326,6 +327,10 @@
                 )}</pre>
         {/if}
     </section>
+
+    {#if window.desktop?.gpu}
+        <GpuDebug />
+    {/if}
 
     <ExtendedProfileDebug />
 

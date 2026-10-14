@@ -350,6 +350,20 @@ const messages: Record<MessageKey, string> = {
     "debugPanel.pendingEvents": "ܓܕܫ̈ܐ ܕܡܢܛܪܝܢ ({length})",
     "debugPanel.rawTimelineEvents": "ܣܕܪܐ ܕܙܒܢܐ ܚܠܝܐ ({length} ܓܕܫ̈ܐ)",
 
+    // src/lib/components/settings/GpuDebug.svelte
+    "gpuDebug.title": "GPU",
+    "gpuDebug.hardwareAcceleration": "Hardware acceleration",
+    "gpuDebug.hardwareAccelerationHint":
+        "Turn this off if videos show up black or the window draws wrongly. Applies after a restart.",
+    "gpuDebug.restartToApply": "ܫܪܝ ܡܢ ܕܪܝܫ ܩܐ ܦܠܚܬܐ",
+    "gpuDebug.restart": "Restart",
+    "gpuDebug.videoDecoding": "Video decoding",
+    "gpuDebug.decodeHardware": "Hardware",
+    "gpuDebug.decodeSoftware": "Software",
+    "gpuDebug.decodeUnsupported": "ܠܐ ܡܣܘܥܝܐ",
+    "gpuDebug.featureStatus": "Feature status",
+    "gpuDebug.details": "ܦܪ̈ܝܛܐ",
+
     // src/lib/components/settings/DebugSettings.svelte
     "debugSettings.developer": "ܒܢܝܢܐ",
     "debugSettings.showAllEvents": "ܚܘܝ ܟܠ ܓܕܫ̈ܐ",

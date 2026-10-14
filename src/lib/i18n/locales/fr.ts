@@ -363,6 +363,20 @@ const messages: Record<MessageKey, string> = {
     "debugPanel.pendingEvents": "ÉVÉNEMENTS EN ATTENTE ({length})",
     "debugPanel.rawTimelineEvents": "FIL BRUT ({length} événements)",
 
+    // src/lib/components/settings/GpuDebug.svelte
+    "gpuDebug.title": "GPU",
+    "gpuDebug.hardwareAcceleration": "Accélération matérielle",
+    "gpuDebug.hardwareAccelerationHint":
+        "Désactivez cette option si les vidéos s'affichent en noir ou si la fenêtre s'affiche mal. S'applique après un redémarrage.",
+    "gpuDebug.restartToApply": "Redémarrez Zam pour appliquer ce changement.",
+    "gpuDebug.restart": "Redémarrer",
+    "gpuDebug.videoDecoding": "Décodage vidéo",
+    "gpuDebug.decodeHardware": "Matériel",
+    "gpuDebug.decodeSoftware": "Logiciel",
+    "gpuDebug.decodeUnsupported": "Non pris en charge",
+    "gpuDebug.featureStatus": "État des fonctionnalités",
+    "gpuDebug.details": "Détails",
+
     // src/lib/components/settings/DebugSettings.svelte
     "debugSettings.developer": "Développeur",
     "debugSettings.showAllEvents": "Afficher tous les événements",

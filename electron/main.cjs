@@ -534,6 +534,89 @@ ipcMain.on("updates:quit-and-install", () => {
     autoUpdater.quitAndInstall();
 });
 
+// --- GPU (Settings > Debug) ------------------------------------------------
+//
+// Hardware acceleration can be switched off for GPUs whose drivers misrender
+// (black video, corrupt windows). Chromium only reads it at startup, so it is
+// a file in userData applied before the app is ready, and takes effect on the
+// next launch.
+const gpuPrefsPath = () => path.join(app.getPath("userData"), "gpu-prefs.json");
+
+function readGpuPrefs() {
+    try {
+        const prefs = JSON.parse(fs.readFileSync(gpuPrefsPath(), "utf8"));
+        return prefs && typeof prefs === "object" ? prefs : {};
+    } catch {
+        return {};
+    }
+}
+
+const hardwareAccelerationAtLaunch =
+    readGpuPrefs().hardwareAcceleration !== false;
+if (!hardwareAccelerationAtLaunch) app.disableHardwareAcceleration();
+
+ipcMain.handle("gpu:info", async () => {
+    let info;
+    try {
+        info = await app.getGPUInfo("complete");
+    } catch (e) {
+        info = { error: String(e?.message ?? e) };
+    }
+    const cl = app.commandLine;
+    const switches = {};
+    for (const name of [
+        "enable-features",
+        "disable-features",
+        "use-gl",
+        "use-angle",
+        "ozone-platform",
+        "ozone-platform-hint",
+    ]) {
+        if (cl.hasSwitch(name)) switches[name] = cl.getSwitchValue(name);
+    }
+    if (cl.hasSwitch("ignore-gpu-blocklist")) {
+        switches["ignore-gpu-blocklist"] = "";
+    }
+    const env = {};
+    for (const name of [
+        "XDG_SESSION_TYPE",
+        "WAYLAND_DISPLAY",
+        "DISPLAY",
+        "LIBVA_DRIVER_NAME",
+        "NVD_BACKEND",
+        "FLATPAK_ID",
+    ]) {
+        if (process.env[name]) env[name] = process.env[name];
+    }
+    return {
+        hardwareAcceleration: readGpuPrefs().hardwareAcceleration !== false,
+        hardwareAccelerationAtLaunch,
+        featureStatus: app.getGPUFeatureStatus(),
+        info,
+        switches,
+        env,
+    };
+});
+
+ipcMain.handle("gpu:set-hardware-acceleration", (_e, enabled) => {
+    fs.writeFileSync(
+        gpuPrefsPath(),
+        JSON.stringify({ ...readGpuPrefs(), hardwareAcceleration: !!enabled }),
+    );
+});
+
+ipcMain.on("app:relaunch", () => {
+    // In Flatpak, start over through the launcher so zypak and the libva
+    // setup in zam.sh apply again; process.execPath is the bare Electron.
+    app.relaunch(
+        IN_FLATPAK
+            ? { execPath: "/app/bin/zam", args: process.argv.slice(1) }
+            : undefined,
+    );
+    isQuitting = true;
+    app.quit();
+});
+
 // --- Screen sharing --------------------------------------------------------
 //
 // Electron >= 17 rejects every getDisplayMedia() call unless the app installs
@@ -1021,7 +1104,20 @@ const features = [
 // couldn't import. The Flatpak runtime's org.freedesktop.Platform.VAAPI.nvidia
 // 25.08 extension ships 0.0.18, so turn it on there (zam.sh picks the libva
 // driver). Outside Flatpak the host's driver may be older, so leave it off.
-if (IN_FLATPAK) features.push("VaapiOnNvidiaGPUs");
+// Only on Wayland: under X11 Chromium hands decoded frames to the X server
+// (GLX has no dma-buf import), and NVIDIA's come out black, which is worse
+// than the software decode Chromium falls back to without this
+// (github.com/elFarto/nvidia-vaapi-driver/issues/463). Electron runs on
+// Wayland in a Wayland session (Electron 38+ default) unless told otherwise.
+const ozone =
+    app.commandLine.getSwitchValue("ozone-platform") ||
+    app.commandLine.getSwitchValue("ozone-platform-hint");
+const onWayland =
+    ozone && ozone !== "auto"
+        ? ozone === "wayland"
+        : !!process.env.WAYLAND_DISPLAY ||
+          process.env.XDG_SESSION_TYPE === "wayland";
+if (IN_FLATPAK && onWayland) features.push("VaapiOnNvidiaGPUs");
 app.commandLine.appendSwitch(
     "enable-features",
     features.filter(Boolean).join(","),

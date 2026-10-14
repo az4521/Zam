@@ -18,6 +18,22 @@ declare global {
          *  arbitrates screen-share source selection. */
         desktop?: {
             showWindow?: () => void;
+            /** Settings > Debug GPU section (electron/main.cjs). */
+            gpu?: {
+                info: () => Promise<{
+                    /** The saved preference (applies on the next launch). */
+                    hardwareAcceleration: boolean;
+                    /** What this run started with. */
+                    hardwareAccelerationAtLaunch: boolean;
+                    featureStatus: Record<string, string>;
+                    /** app.getGPUInfo("complete"), or `{ error }`. */
+                    info: unknown;
+                    switches: Record<string, string>;
+                    env: Record<string, string>;
+                }>;
+                setHardwareAcceleration: (enabled: boolean) => Promise<void>;
+                relaunch: () => void;
+            };
             /** The OS's General MIDI sound bank (DLS/SF2) bytes, or null. */
             readSystemSoundBank?: () => Promise<Uint8Array | null>;
             /** Whether readSystemSoundBank would find a bank. */

@@ -352,6 +352,20 @@ export const en = {
     "debugPanel.pendingEvents": "PENDING EVENTS ({length})",
     "debugPanel.rawTimelineEvents": "RAW TIMELINE ({length} events)",
 
+    // src/lib/components/settings/GpuDebug.svelte
+    "gpuDebug.title": "GPU",
+    "gpuDebug.hardwareAcceleration": "Hardware acceleration",
+    "gpuDebug.hardwareAccelerationHint":
+        "Turn this off if videos show up black or the window draws wrongly. Applies after a restart.",
+    "gpuDebug.restartToApply": "Restart Zam to apply this change.",
+    "gpuDebug.restart": "Restart",
+    "gpuDebug.videoDecoding": "Video decoding",
+    "gpuDebug.decodeHardware": "Hardware",
+    "gpuDebug.decodeSoftware": "Software",
+    "gpuDebug.decodeUnsupported": "Not supported",
+    "gpuDebug.featureStatus": "Feature status",
+    "gpuDebug.details": "Details",
+
     // src/lib/components/settings/DebugSettings.svelte
     "debugSettings.developer": "Developer",
     "debugSettings.showAllEvents": "Show all events",

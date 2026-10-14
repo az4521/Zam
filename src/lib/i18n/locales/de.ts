@@ -370,6 +370,20 @@ const messages: Record<MessageKey, string> = {
     "debugPanel.pendingEvents": "AUSSTEHENDE EREIGNISSE ({length})",
     "debugPanel.rawTimelineEvents": "ROHER VERLAUF ({length} Ereignisse)",
 
+    // src/lib/components/settings/GpuDebug.svelte
+    "gpuDebug.title": "GPU",
+    "gpuDebug.hardwareAcceleration": "Hardwarebeschleunigung",
+    "gpuDebug.hardwareAccelerationHint":
+        "Deaktiviere das, wenn Videos schwarz bleiben oder das Fenster falsch gezeichnet wird. Wirkt nach einem Neustart.",
+    "gpuDebug.restartToApply": "Starte Zam neu, um diese Änderung anzuwenden.",
+    "gpuDebug.restart": "Neu starten",
+    "gpuDebug.videoDecoding": "Videodekodierung",
+    "gpuDebug.decodeHardware": "Hardware",
+    "gpuDebug.decodeSoftware": "Software",
+    "gpuDebug.decodeUnsupported": "Nicht unterstützt",
+    "gpuDebug.featureStatus": "Funktionsstatus",
+    "gpuDebug.details": "Details",
+
     // src/lib/components/settings/DebugSettings.svelte
     "debugSettings.developer": "Entwickler",
     "debugSettings.showAllEvents": "Alle Ereignisse anzeigen",
