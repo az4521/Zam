@@ -55,8 +55,7 @@ const messages: Record<MessageKey, string> = {
         "Arrastra o usa las flechas para cambiar el tamaño",
     "common.resizePicker": "Cambiar el tamaño del selector",
     "common.noResults": "Sin resultados",
-    "common.memberCount":
-        "{count, plural, one {# miembro} other {# miembros}}",
+    "common.memberCount": "{count, plural, one {# miembro} other {# miembros}}",
     "common.replyCount":
         "{count, plural, one {# respuesta} other {# respuestas}}",
 
@@ -233,8 +232,7 @@ const messages: Record<MessageKey, string> = {
     // src/lib/components/settings/BlockedUsersSettings.svelte
     "blockedUsersSettings.messagesFromBlockedUsersAreHidden":
         "Los mensajes de los usuarios bloqueados se ocultan en todas las salas. La lista se guarda en tu cuenta y se aplica a todas tus sesiones.",
-    "blockedUsersSettings.youHavenTBlockedAnyone":
-        "No has bloqueado a nadie.",
+    "blockedUsersSettings.youHavenTBlockedAnyone": "No has bloqueado a nadie.",
     "blockedUsersSettings.failed": "Error",
 
     // src/lib/components/layout/CallParticipantMenu.svelte
@@ -504,8 +502,7 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/settings/GeneralSettings.svelte
     "generalSettings.desktop": "Escritorio",
-    "generalSettings.minimiseToTrayOnClose":
-        "Minimizar a la bandeja al cerrar",
+    "generalSettings.minimiseToTrayOnClose": "Minimizar a la bandeja al cerrar",
     "generalSettings.keepZamRunningInTheSystem":
         "Mantiene Zam en ejecución en la bandeja del sistema al cerrar la ventana en lugar de salir. Usa el icono de la bandeja para volver a abrirlo o salir.",
     "generalSettings.noGeneralSettingsAreAvailableOn":
@@ -553,8 +550,7 @@ const messages: Record<MessageKey, string> = {
     "imagePackEditor.addToMine": "Añadir a los míos",
     "imagePackEditor.addAllToMyPack":
         "Copia todas las imágenes de este paquete a tu propio paquete",
-    "imagePackEditor.addImageToMyPack":
-        "Copia esta imagen a tu propio paquete",
+    "imagePackEditor.addImageToMyPack": "Copia esta imagen a tu propio paquete",
     "imagePackEditor.addedToYourPack":
         "{count, plural, one {Se añadió # imagen a tu paquete.} other {Se añadieron # imágenes a tu paquete.}}",
     "imagePackEditor.alreadyInYourPack": "Ya está en tu paquete.",
@@ -753,8 +749,7 @@ const messages: Record<MessageKey, string> = {
         "El proveedor de inicio de sesión rechazó la solicitud: {reason}",
     "loginView.oauthCouldNotBeVerified":
         "No se pudo verificar el inicio de sesión. Inténtalo de nuevo.",
-    "loginView.oauthFailed":
-        "No se pudo iniciar sesión. Inténtalo de nuevo.",
+    "loginView.oauthFailed": "No se pudo iniciar sesión. Inténtalo de nuevo.",
     "loginView.oauthRegistrationRefused":
         "Este servidor no permitió que Zam se registrara para iniciar sesión.",
     "loginView.oauthRegistrationRefusedFallback":
@@ -849,8 +844,7 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/messages/MessageItem.svelte
     "messageItem.viewProfile": "Ver perfil",
-    "messageItem.jumpToTheRepliedToMessage":
-        "Saltar al mensaje respondido:",
+    "messageItem.jumpToTheRepliedToMessage": "Saltar al mensaje respondido:",
     "messageItem.originalMessageNotLoaded": "Mensaje original no cargado",
     "messageItem.originalMessageDeleted": "Mensaje original eliminado",
     "messageItem.originalMessageUnavailable": "Mensaje original no disponible",
@@ -1089,8 +1083,7 @@ const messages: Record<MessageKey, string> = {
     "notificationSettings.highlight": "Destacar",
     "notificationSettings.notifyWithAHighlight": "Notificar con un resaltado",
     "notificationSettings.notify": "Notificar",
-    "notificationSettings.notifyWithoutAHighlight":
-        "Notificar sin resaltado",
+    "notificationSettings.notifyWithoutAHighlight": "Notificar sin resaltado",
     "notificationSettings.failedToAddKeyword":
         "No se pudo añadir la palabra clave",
     "notificationSettings.failedToUpdateKeyword":
@@ -1278,8 +1271,7 @@ const messages: Record<MessageKey, string> = {
     "profileFieldsEditor.banner": "Banner",
     "profileFieldsEditor.yourBanner": "Tu banner",
     "profileFieldsEditor.changeBanner": "Cambiar el banner",
-    "profileFieldsEditor.showWhenIAmInA":
-        "Mostrar cuando estoy en una llamada",
+    "profileFieldsEditor.showWhenIAmInA": "Mostrar cuando estoy en una llamada",
     "profileFieldsEditor.addsInACallToYour":
         'Añade "En una llamada" a tu perfil mientras estás conectado a una llamada de voz y lo quita cuando sales.',
     "profileFieldsEditor.pronouns": "Pronombres",
@@ -1289,7 +1281,8 @@ const messages: Record<MessageKey, string> = {
     "profileFieldsEditor.status": "Estado",
     "profileFieldsEditor.statusEmoji": "Emoji de estado",
     "profileFieldsEditor.pickAStatusEmoji": "Elige un emoji de estado",
-    "profileFieldsEditor.onHolidayUntilThe23rd": "De vacaciones hasta el día 23",
+    "profileFieldsEditor.onHolidayUntilThe23rd":
+        "De vacaciones hasta el día 23",
     "profileFieldsEditor.statusText": "Texto del estado",
     "profileFieldsEditor.bio": "Biografía",
     "profileFieldsEditor.tellPeopleAboutYourself":
@@ -1536,7 +1529,8 @@ const messages: Record<MessageKey, string> = {
     "roomSettings.serverAccessControl": "Control de acceso de servidores",
     "roomSettings.controlWhichHomeserversMayParticipateIn":
         "Controla qué servidores base pueden participar en esta sala. Comodines:",
-    "roomSettings.matchesAnyCharacters": "coincide con cualquier secuencia de caracteres,",
+    "roomSettings.matchesAnyCharacters":
+        "coincide con cualquier secuencia de caracteres,",
     "roomSettings.matchesOneDeniedServersAreRemoved":
         "coincide con uno. Los servidores denegados se eliminan de la federación de esta sala.",
     "roomSettings.noServerAclIsSetAll":
@@ -1653,7 +1647,8 @@ const messages: Record<MessageKey, string> = {
     "screenShareQualityChips.resolution": "Resolución",
     "screenShareQualityChips.frameRate": "Fotogramas por segundo",
     "screenShareQualityChips.fps": "{f} FPS",
-    "screenShareQualityChips.shareSystemAudio": "Compartir el audio del sistema",
+    "screenShareQualityChips.shareSystemAudio":
+        "Compartir el audio del sistema",
     "screenShareQualityChips.appliesToNextShare":
         "Se aplica la próxima vez que compartas",
     "screenShareQualityChips.shareSystemAudioAppliesToNext":
@@ -1679,8 +1674,7 @@ const messages: Record<MessageKey, string> = {
     "securitySettings.setUpRecovery": "Configurar la recuperación",
     "securitySettings.approveOnAccountPageHint":
         "Puede que tu servidor te pida que lo apruebes en su página de cuenta.",
-    "securitySettings.approveOnAccountPage":
-        "Aprobar en tu página de cuenta",
+    "securitySettings.approveOnAccountPage": "Aprobar en tu página de cuenta",
     "securitySettings.approveOnAccountPageBody":
         "Tu servidor necesita que permitas este cambio. Abre tu página de cuenta, aprueba el restablecimiento de tu identidad criptográfica y luego vuelve y continúa.",
     "securitySettings.approveOnAccountPageRetry":
@@ -1747,8 +1741,7 @@ const messages: Record<MessageKey, string> = {
         "para verificar esta sesión y restaurar tu historial de mensajes cifrados.",
     "securitySettings.thisSessionIsNowVerified":
         "Esta sesión ya está verificada",
-    "securitySettings.encryptedHistoryRestored":
-        "Historial cifrado restaurado",
+    "securitySettings.encryptedHistoryRestored": "Historial cifrado restaurado",
     "securitySettings.couldNotSetUpRecovery":
         "No se pudo configurar la recuperación",
     "securitySettings.couldNotResetRecovery":
@@ -1832,7 +1825,8 @@ const messages: Record<MessageKey, string> = {
     "sessionSettings.otherSessions": "Otras sesiones {value}",
     "sessionSettings.noOtherSessionsYouReOnly":
         "No hay otras sesiones: solo tienes la sesión iniciada aquí.",
-    "sessionSettings.failedToLoadSessions": "No se pudieron cargar las sesiones",
+    "sessionSettings.failedToLoadSessions":
+        "No se pudieron cargar las sesiones",
     "sessionSettings.failedToRenameSession":
         "No se pudo cambiar el nombre de la sesión",
     "sessionSettings.failedToSignOutSession": "No se pudo cerrar la sesión",
@@ -1899,7 +1893,8 @@ const messages: Record<MessageKey, string> = {
     "spaceSidebar.create": "Crear",
     "spaceSidebar.addExistingRoomToSpace":
         "Añadir una sala existente al espacio",
-    "spaceSidebar.noRoomsAvailableToAdd": "No hay salas disponibles para añadir.",
+    "spaceSidebar.noRoomsAvailableToAdd":
+        "No hay salas disponibles para añadir.",
     "spaceSidebar.spaceSettings": "Ajustes del espacio",
     "spaceSidebar.copySpaceLink": "Copiar el enlace del espacio",
     "spaceSidebar.markAsRead": "Marcar como leído",
@@ -2081,8 +2076,7 @@ const messages: Record<MessageKey, string> = {
         "Pídele que escanee este código.",
     "verificationModal.noCodeToShowRightNow":
         "No hay ningún código que mostrar ahora mismo.",
-    "verificationModal.couldNotLoadTheScanner":
-        "No se pudo cargar el escáner.",
+    "verificationModal.couldNotLoadTheScanner": "No se pudo cargar el escáner.",
     "verificationModal.scanAgain": "Volver a escanear",
     "verificationModal.compareAShortListOfEmoji":
         "Compara una lista corta de emojis para verificar, o usa un código QR.",
@@ -2225,10 +2219,8 @@ const messages: Record<MessageKey, string> = {
     "whatsNewModal.gotIt": "Entendido",
 
     // src/lib/components/layout/VerificationRequestCard.svelte
-    "verificationRequestCard.verifyYourOtherSession":
-        "Verifica tu otra sesión",
-    "verificationRequestCard.verificationRequest":
-        "Solicitud de verificación",
+    "verificationRequestCard.verifyYourOtherSession": "Verifica tu otra sesión",
+    "verificationRequestCard.verificationRequest": "Solicitud de verificación",
     "verificationRequestCard.anotherOfYourSessions": "Otra de tus sesiones",
 
     // src/lib/components/messages/CallEventCard.svelte
@@ -2337,8 +2329,7 @@ const messages: Record<MessageKey, string> = {
     "client.unknownRoom": "Sala desconocida",
     "client.theServerRejectedItYouMay":
         "el servidor lo rechazó; puede que no tengas permiso para unirte a llamadas en esta sala",
-    "client.callMembershipFailed":
-        "Error al unirse a la llamada: {detail}",
+    "client.callMembershipFailed": "Error al unirse a la llamada: {detail}",
     "client.voiceServerRejectedTheJoin":
         "El servidor de voz rechazó la conexión ({status})",
     "client.voiceCallDisconnected": "Llamada de voz desconectada",
@@ -2408,8 +2399,7 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/matrix/media.ts
     "media.notLoggedIn": "No has iniciado sesión",
-    "media.failedToFetchAttachment":
-        "No se pudo obtener el adjunto: {status}",
+    "media.failedToFetchAttachment": "No se pudo obtener el adjunto: {status}",
     "media.encryptedAttachmentHasAnInvalidUrl":
         "El adjunto cifrado tiene una URL no válida",
     "media.failedToFetchEncryptedAttachment":
@@ -2434,8 +2424,7 @@ const messages: Record<MessageKey, string> = {
     "doubleTapReply.reaction": "Reacción",
     "doubleTapReply.reply": "Responder",
     "doubleTapReply.edit": "Editar",
-    "doubleTapReply.doubleTapOtherMessages":
-        "Doble toque en otros mensajes",
+    "doubleTapReply.doubleTapOtherMessages": "Doble toque en otros mensajes",
     "doubleTapReply.reactionEmoji": "Emoji de reacción",
     "doubleTapReply.sentWhenADoubleTapAction":
         "Se envía cuando una acción de doble toque está configurada como Reacción.",
@@ -2576,10 +2565,8 @@ const messages: Record<MessageKey, string> = {
     // src/lib/stores/voiceCall.svelte.ts
     "voiceCall.couldnTLoadTheCallComponent":
         "No se pudo cargar el componente de llamada. Comprueba tu conexión y recarga la página para volver a intentarlo.",
-    "voiceCall.couldNotJoinTheVoiceCall":
-        "No se pudo unir a la llamada de voz",
-    "voiceCall.couldNotMuteYourMicrophone":
-        "No se pudo silenciar tu micrófono",
+    "voiceCall.couldNotJoinTheVoiceCall": "No se pudo unir a la llamada de voz",
+    "voiceCall.couldNotMuteYourMicrophone": "No se pudo silenciar tu micrófono",
     "voiceCall.couldNotUnmuteYourMicrophoneCheck":
         "No se pudo activar tu micrófono; revisa tu dispositivo de entrada",
     "voiceCall.connecting": "Conectando…",
@@ -2595,12 +2582,10 @@ const messages: Record<MessageKey, string> = {
     // src/lib/update.ts
     "update.noReleasesFoundYet": "Todavía no se han encontrado versiones.",
     "update.githubApiError": "Error de la API de GitHub ({status}).",
-    "update.couldNotReadTheLatestVersion":
-        "No se pudo leer la última versión.",
+    "update.couldNotReadTheLatestVersion": "No se pudo leer la última versión.",
 
     // src/lib/utils/accountSecurity.ts
-    "accountSecurity.enterYourCurrentPassword":
-        "Escribe tu contraseña actual.",
+    "accountSecurity.enterYourCurrentPassword": "Escribe tu contraseña actual.",
     "accountSecurity.enterANewPassword": "Escribe una contraseña nueva.",
     "accountSecurity.newPasswordMustBeAtLeast":
         "La nueva contraseña debe tener al menos 8 caracteres.",
@@ -2637,7 +2622,8 @@ const messages: Record<MessageKey, string> = {
         "La sesión cambió antes de que terminara la operación",
 
     // src/lib/utils/customFont.ts
-    "customFont.useAWoff2TtfOrOtf": "Usa un archivo de fuente .woff2, .ttf u .otf.",
+    "customFont.useAWoff2TtfOrOtf":
+        "Usa un archivo de fuente .woff2, .ttf u .otf.",
     "customFont.thatFontFileIsEmpty": "Ese archivo de fuente está vacío.",
     "customFont.fontFileIsTooLargeMax":
         "El archivo de fuente es demasiado grande (máx. 10 MB).",
@@ -2736,8 +2722,7 @@ const messages: Record<MessageKey, string> = {
         "Obteniendo tu historial cifrado…",
     "keyBackup.restoringYourEncryptedHistory":
         "Restaurando tu historial cifrado…",
-    "keyBackup.restoringOfKeys":
-        "Restaurando {successes} de {total} claves…",
+    "keyBackup.restoringOfKeys": "Restaurando {successes} de {total} claves…",
     "keyBackup.noEncryptedHistoryToRestore":
         "No hay historial cifrado que restaurar",
     "keyBackup.restored":
@@ -2869,8 +2854,7 @@ const messages: Record<MessageKey, string> = {
     "pollContent.addAQuestion": "Añade una pregunta.",
     "pollContent.addAtLeastTwoOptions": "Añade al menos dos opciones.",
     "pollContent.atMostOptions": "Como máximo {MAX_ANSWERS} opciones.",
-    "pollContent.invalidNumberOfSelections":
-        "Número de selecciones no válido.",
+    "pollContent.invalidNumberOfSelections": "Número de selecciones no válido.",
     "pollContent.thePollHasEnded": "La encuesta ha terminado.",
 
     // src/lib/utils/powerLevels.ts
@@ -3050,8 +3034,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.restoreMessageHistory":
         "Restaurar el historial de mensajes",
     "settingsSearch.verifyThisSession": "Verificar esta sesión",
-    "settingsSearch.rightAlignMyMessages":
-        "Alinear mis mensajes a la derecha",
+    "settingsSearch.rightAlignMyMessages": "Alinear mis mensajes a la derecha",
     "settingsSearch.showWhenIAmInA": "Mostrar cuando estoy en una llamada",
     "settingsSearch.showNameColours": "Mostrar los colores de los nombres",
     "settingsSearch.textSize": "Tamaño del texto",
@@ -3162,8 +3145,7 @@ const messages: Record<MessageKey, string> = {
     "themePalette.spoilerBackground": "Fondo de spoiler",
     "themePalette.ownMessageBubble": "Burbuja de mis mensajes",
     "themePalette.primaryTextOnBackground": "Texto principal sobre el fondo",
-    "themePalette.secondaryTextOnBackground":
-        "Texto secundario sobre el fondo",
+    "themePalette.secondaryTextOnBackground": "Texto secundario sobre el fondo",
     "themePalette.mutedTextOnTertiaryBackground":
         "Texto atenuado sobre el fondo terciario",
     "themePalette.whiteTextOnAccentButtons":
@@ -3224,8 +3206,7 @@ const messages: Record<MessageKey, string> = {
     // src/lib/utils/verificationMessage.ts
     "verificationMessage.verificationRequestSent":
         "Solicitud de verificación enviada",
-    "verificationMessage.waitingForThemToAccept":
-        "Esperando a que acepte…",
+    "verificationMessage.waitingForThemToAccept": "Esperando a que acepte…",
     "verificationMessage.noLongerPending": "Ya no está pendiente",
     "verificationMessage.wantsToVerify": "{senderName} quiere verificar",
     "verificationMessage.compareEmojiToConfirmThisIs":
