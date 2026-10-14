@@ -1010,7 +1010,22 @@ function createTray() {
 // Chromium ships a JPEG XL decoder (jxl-rs) but keeps it behind a feature
 // flag; switch it on so `<img>` renders image/jxl natively. Must be set before
 // the app is ready. Other platforms fall back to src/lib/utils/jxl.ts.
-app.commandLine.appendSwitch("enable-features", "JXLImageFormat");
+// appendSwitch replaces an existing value, so merge with any --enable-features
+// the user launched with instead of dropping it.
+const features = [
+    app.commandLine.getSwitchValue("enable-features"),
+    "JXLImageFormat",
+];
+// Chromium skips NVIDIA render nodes for VA-API video decode unless this is on,
+// because nvidia-vaapi-driver releases before 0.0.18 handed it surfaces it
+// couldn't import. The Flatpak runtime's org.freedesktop.Platform.VAAPI.nvidia
+// 25.08 extension ships 0.0.18, so turn it on there (zam.sh picks the libva
+// driver). Outside Flatpak the host's driver may be older, so leave it off.
+if (IN_FLATPAK) features.push("VaapiOnNvidiaGPUs");
+app.commandLine.appendSwitch(
+    "enable-features",
+    features.filter(Boolean).join(","),
+);
 
 if (!app.requestSingleInstanceLock()) {
     app.quit();
