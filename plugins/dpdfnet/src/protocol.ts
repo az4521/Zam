@@ -41,16 +41,34 @@ export function parseControl(data: unknown): DpdfnetControl | null {
     }
 }
 
-/** What the Worker needs once, before any connection: ONNX Runtime Web (a
- *  blob: URL of its module and of its wasm glue, plus the wasm bytes) and
- *  the model. */
-export interface WorkerLoad {
-    type: "load";
-    ortModuleUrl: string;
-    ortGlueUrl: string;
-    ortWasm: ArrayBuffer;
-    model: ArrayBuffer;
-}
+/** The Worker's two ways to run the model. */
+export type EngineKind = "wasm" | "webgpu";
+
+/** Main thread to Worker. First, once, the model; then each engine that
+ *  will be used, started once (ONNX Runtime Web: blob: URLs of its module
+ *  and wasm glue plus the wasm bytes; WebGPU: the self-test's expected
+ *  output, see webgpu/selftest.js); then a "connect" with a MessagePort
+ *  per mic chain, each with its own model state, speaking the protocol
+ *  above. */
+export type WorkerMessage =
+    | { type: "model"; model: ArrayBuffer }
+    | {
+          type: "engine";
+          engine: "wasm";
+          ortModuleUrl: string;
+          ortGlueUrl: string;
+          ortWasm: ArrayBuffer;
+      }
+    | { type: "engine"; engine: "webgpu"; selftest: ArrayBuffer }
+    | { type: "connect"; engine: EngineKind };
+
+/** Worker to main thread, answering an "engine". */
+export type WorkerEvent =
+    | { type: "engine-ready"; engine: EngineKind; detail?: string }
+    | { type: "engine-error"; engine: EngineKind; message: string };
+
+/** The model's initial normalisation state. */
+export const MODEL_INIT = initData;
 
 export function initMessage(threads: number, modelBytes?: number): string {
     return control({

@@ -32,6 +32,11 @@ import {
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import {
+    SELFTEST_CHECK,
+    SELFTEST_FRAMES,
+    selftestFrame,
+} from "./src/webgpu/selftest.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..", "..");
@@ -48,7 +53,7 @@ const minAppVersion =
 const PLUGIN = {
     id: PLUGIN_ID,
     name: "DPDFNet noise filter",
-    version: "1.0.0",
+    version: "1.1.0",
     description:
         "Clearer AI noise removal for your microphone in calls (Ceva's DPDFNet-2). Runs on your device; heavier than the built-in DeepFilterNet3, which stands in on devices too slow for it.",
     author: "az4521",
@@ -125,6 +130,39 @@ for (const f of [
 ])
     copy(join(ortWeb, "dist", f), join(out, "assets", f));
 copy(join(here, "LICENSE-onnxruntime"), join(out, "LICENSE-onnxruntime"));
+
+// ---- the WebGPU backend's known answer: ONNX Runtime's output for the
+// self-test frames (src/webgpu/selftest.js) ----
+{
+    const ort = createRequire(join(nm, "onnxruntime-node", "package.json"))(
+        "onnxruntime-node",
+    );
+    const init = JSON.parse(
+        readFileSync(join(here, "model/dpdfnet2_48khz_hr.init.json"), "utf8"),
+    );
+    const sess = await ort.InferenceSession.create(await modelFile(), {
+        intraOpNumThreads: 1,
+    });
+    let state = new Float32Array(init.stateSize);
+    state.set(init.erbNormInit, 0);
+    state.set(init.specNormInit, init.erbNormInit.length);
+    const spec = 481 * 2;
+    const expected = new Float32Array(SELFTEST_CHECK * spec);
+    for (let t = 0; t < SELFTEST_FRAMES; t++) {
+        const r = await sess.run({
+            spec: new ort.Tensor("float32", selftestFrame(t), [1, 1, 481, 2]),
+            state_in: new ort.Tensor("float32", state, [state.length]),
+        });
+        state = r.state_out.data;
+        const k = t - (SELFTEST_FRAMES - SELFTEST_CHECK);
+        if (k >= 0) expected.set(r.spec_e.data, k * spec);
+    }
+    await sess.release?.();
+    writeFileSync(
+        join(out, "assets/selftest.bin"),
+        Buffer.from(expected.buffer),
+    );
+}
 
 // ---- native: the host plus native ONNX Runtime, per platform ----
 const ortNode = join(nm, "onnxruntime-node");
@@ -357,6 +395,7 @@ const manifest = {
         "assets/ort.wasm.min.mjs",
         "assets/ort-wasm-simd-threaded.mjs",
         "assets/ort-wasm-simd-threaded.wasm",
+        "assets/selftest.bin",
     ].map(describe),
     native: {
         platforms: Object.fromEntries(

@@ -11,7 +11,7 @@
         "resolveJsonModule": true,
         "skipLibCheck": true,
         "isolatedModules": true,
-        "types": ["vite/client"],
+        "types": ["vite/client", "@webgpu/types"],
         "baseUrl": ".",
         "paths": {
             "$lib/*": ["../../src/lib/*"]

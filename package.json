@@ -77,6 +77,7 @@
         "@types/qrcode": "^1.5.6",
         "@vitejs/plugin-basic-ssl": "^2.3.0",
         "@vitejs/plugin-legacy": "^6.1.1",
+        "@webgpu/types": "0.1.74",
         "autoprefixer": "^10.4.21",
         "electron": "^44.5.1",
         "electron-builder": "^26.8.1",

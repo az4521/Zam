@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
     createOverloadMonitor,
     fastEnough,
+    GPU_VERDICT_KEY,
     readVerdict,
     slackFor,
     type VerdictStore,
@@ -30,10 +31,15 @@ function stats(over: Partial<WorkletStats>): WorkletStats {
 }
 
 describe("fastEnough", () => {
-    it("needs both the median and the tail under budget", () => {
-        expect(fastEnough({ medianMs: 3.2, p90Ms: 4 })).toBe(true);
-        expect(fastEnough({ medianMs: 7, p90Ms: 8 })).toBe(false);
-        expect(fastEnough({ medianMs: 3, p90Ms: 12 })).toBe(false);
+    it("needs the time per frame and the round-trip tail under budget", () => {
+        // WebGPU: a fixed ~3 ms read-back, frames overlapping.
+        expect(fastEnough({ medianMs: 3, p90Ms: 4, frameMs: 1.5 })).toBe(true);
+        // The Worker, two frames in flight.
+        expect(fastEnough({ medianMs: 6.4, p90Ms: 7, frameMs: 3.2 })).toBe(
+            true,
+        );
+        expect(fastEnough({ medianMs: 14, p90Ms: 15, frameMs: 7 })).toBe(false);
+        expect(fastEnough({ medianMs: 4, p90Ms: 20, frameMs: 2 })).toBe(false);
     });
 });
 
@@ -139,6 +145,27 @@ describe("verdict", () => {
             false,
         );
         expect(readVerdict(store(v("stalled", 61 * 60e3)), now)).toBeNull();
+    });
+
+    it("gives a GPU that wouldn't start another go after a day", () => {
+        expect(readVerdict(store(v("unavailable", 23 * 3600e3)), now)?.ok).toBe(
+            false,
+        );
+        expect(
+            readVerdict(store(v("unavailable", 25 * 3600e3)), now),
+        ).toBeNull();
+    });
+
+    it("keeps the GPU's verdict apart from the CPU's", () => {
+        const keyed = (k: string): VerdictStore => ({
+            get: <T>(key: string, fb?: T) =>
+                (key === k ? v("benchmark", day) : fb) as T,
+            set: () => {},
+        });
+        expect(readVerdict(keyed(GPU_VERDICT_KEY), now)).toBeNull();
+        expect(
+            readVerdict(keyed(GPU_VERDICT_KEY), now, GPU_VERDICT_KEY)?.ok,
+        ).toBe(false);
     });
 
     it("ignores garbage", () => {

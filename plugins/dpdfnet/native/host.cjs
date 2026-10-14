@@ -29,6 +29,15 @@ function loadSession(model, threads) {
         graphOptimizationLevel: "all",
         intraOpNumThreads: n,
         interOpNumThreads: 1,
+        // ONNX Runtime's pool threads spin between calls by default: with a
+        // call every 10 ms that kept 1.25 cores busy for 2 ms of work a frame
+        // (measured 2026-10-14, Ryzen 5800X, 2 threads).
+        extra: {
+            session: {
+                intra_op: { allow_spinning: "0" },
+                inter_op: { allow_spinning: "0" },
+            },
+        },
     });
     session.catch(() => (session = null));
     return session;

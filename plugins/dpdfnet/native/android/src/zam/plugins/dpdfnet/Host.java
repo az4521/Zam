@@ -69,6 +69,10 @@ public final class Host implements PluginNativeHost {
         if (session != null) session.close();
         OrtSession.SessionOptions opts = new OrtSession.SessionOptions();
         opts.setIntraOpNumThreads(threads);
+        // The pool's threads spin between calls by default, burning a core
+        // or more for a call every 10 ms.
+        opts.addConfigEntry("session.intra_op.allow_spinning", "0");
+        opts.addConfigEntry("session.inter_op.allow_spinning", "0");
         opts.setInterOpNumThreads(1);
         opts.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
         session = OrtEnvironment.getEnvironment().createSession(model, opts);

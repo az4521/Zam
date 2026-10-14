@@ -8,24 +8,36 @@
  * device keeps up:
  *
  *  - the audio thread (worklet.js) frames the mic and plays the result back;
- *    model calls go over a MessagePort to a backend:
- *  - the desktop app: native ONNX Runtime in the plugin's native host
- *    (native/host.cjs, via zam.native), about 1.6x as fast as WASM;
- *  - everywhere else, or if that won't start: ONNX Runtime Web in a Worker
- *    (worker.ts).
+ *    model calls go over a MessagePort to a backend, the first of these that
+ *    starts and keeps up:
+ *  - WebGPU: the model as hand-written WGSL kernels in a Worker
+ *    (webgpu/engine.ts), checked against ONNX Runtime's answers before first
+ *    use. The GPU does the work (0.2 ms a frame on a Radeon RX 6000), so it
+ *    barely touches the CPU, which the rest of a call needs;
+ *  - the desktop and Android apps: native ONNX Runtime in the plugin's
+ *    native host (via zam.native), about 1.6x as fast as WASM;
+ *  - ONNX Runtime Web (WASM) in the same Worker (worker.ts).
  *
- * Before a backend is used it is timed (benchmark): a device too slow for it
- * gets Zam's DeepFilterNet3 instead, and the verdict is remembered. During a
- * call the worklet reports misses; a backend that can't keep up after the
- * worklet has given it all the slack it may is reported through onFailure,
- * and Zam swaps DeepFilterNet3 in.
+ * Before a backend is used it is timed (benchmark). A GPU too slow for it
+ * hands over to the CPU backends; a device whose CPU is too slow too gets
+ * Zam's DeepFilterNet3 instead. The verdicts are remembered (the GPU's
+ * apart from the CPU's). During a call the worklet reports misses; a backend
+ * that can't keep up after the worklet has given it all the slack it may is
+ * reported through onFailure, and Zam swaps DeepFilterNet3 in.
  */
 import type {
     MicFilterInstance,
     ZamPluginApi,
 } from "../../../src/lib/plugins/types";
 import { DPDF_BINS, decodeFrame, encodeFrame } from "./worklet.js";
-import { control, initMessage, parseReply } from "./protocol";
+import {
+    control,
+    initMessage,
+    parseReply,
+    type EngineKind,
+    type WorkerEvent,
+    type WorkerMessage,
+} from "./protocol";
 
 export const DPDFNET_SAMPLE_RATE = 48000;
 /** Same cap as Zam's DeepFilterNet3: the pause gate and leveller after it
@@ -40,6 +52,7 @@ export const ASSETS = {
     ortModule: "assets/ort.wasm.min.mjs",
     ortGlue: "assets/ort-wasm-simd-threaded.mjs",
     ortWasm: "assets/ort-wasm-simd-threaded.wasm",
+    selftest: "assets/selftest.bin",
 };
 
 const SLACK_GROWTH = 8;
@@ -63,25 +76,33 @@ export function slackFor(baseLatencyS: number): {
     return { slack, maxSlack: slack + SLACK_GROWTH };
 }
 
-export type BackendKind = "native" | "worker";
+export type BackendKind = "webgpu" | "native" | "worker";
 
-/** Round trip a backend must manage per 10 ms frame, measured from the main
- *  thread over the same port the audio thread will use. The backend has its
- *  own thread, so it may use most of one core; the margin is for the rest of
- *  a call competing for it. (Measured 2026-10-13 on a Ryzen 5800X: Worker
- *  3.2 ms, native about 2 ms.) The overload monitor catches a device that
- *  passes here and still can't keep up. */
-export const BENCH_MAX_MEDIAN_MS = 6;
-export const BENCH_MAX_P90_MS = 9;
+/** What a backend must manage, measured from the main thread over the same
+ *  port the audio thread will use, with BENCH_DEPTH frames in flight as the
+ *  audio thread keeps them (it sends a frame every 10 ms without waiting):
+ *  a frame per BENCH_MAX_FRAME_MS, and 90% of frames answered within
+ *  BENCH_MAX_LATENCY_MS, well inside the smallest slack (20 ms). A CPU
+ *  backend has its own thread, so it may use most of one core; the margin
+ *  is for the rest of a call competing for it. WebGPU's round trip is
+ *  mostly the browser's fixed read-back delay (about 3 ms in Chromium on
+ *  Windows), which overlapping frames hide. The overload monitor catches a
+ *  device that passes here and still can't keep up. */
+export const BENCH_MAX_FRAME_MS = 6;
+export const BENCH_MAX_LATENCY_MS = 15;
+const BENCH_DEPTH = 2;
 const BENCH_WARMUP = 8;
 const BENCH_FRAMES = 32;
 const INIT_TIMEOUT_MS = 30_000;
 /** A device found too slow is not tried again for this long; one whose
  *  backend died mid-call ("stalled", which may have been a one-off crash)
- *  only for the hour. */
+ *  only for the hour; a GPU that wouldn't start, for the day. */
 const VERDICT_TTL_MS = 14 * 24 * 3600 * 1000;
 const STALLED_TTL_MS = 3600 * 1000;
-const VERDICT_KEY = "verdict";
+const UNAVAILABLE_TTL_MS = 24 * 3600 * 1000;
+/** The CPU backends' verdict (native, Worker), and the GPU's. */
+export const VERDICT_KEY = "verdict";
+export const GPU_VERDICT_KEY = "verdict-webgpu";
 
 export interface Verdict {
     ok: boolean;
@@ -100,16 +121,30 @@ export interface VerdictStore {
 export function readVerdict(
     store: VerdictStore,
     now = Date.now(),
+    key = VERDICT_KEY,
 ): Verdict | null {
-    const v = store.get<Verdict | null>(VERDICT_KEY, null);
+    const v = store.get<Verdict | null>(key, null);
     if (!v || typeof v.ok !== "boolean" || typeof v.at !== "number")
         return null;
-    const ttl = v.reason === "stalled" ? STALLED_TTL_MS : VERDICT_TTL_MS;
+    const ttl =
+        v.reason === "stalled"
+            ? STALLED_TTL_MS
+            : v.reason === "unavailable"
+              ? UNAVAILABLE_TTL_MS
+              : VERDICT_TTL_MS;
     return now - v.at > ttl ? null : v;
 }
 
-export function fastEnough(r: { medianMs: number; p90Ms: number }): boolean {
-    return r.medianMs <= BENCH_MAX_MEDIAN_MS && r.p90Ms <= BENCH_MAX_P90_MS;
+export interface BenchResult {
+    /** Round trip of a frame: median and 90th percentile, ms. */
+    medianMs: number;
+    p90Ms: number;
+    /** Time per frame with frames overlapping, ms. */
+    frameMs: number;
+}
+
+export function fastEnough(r: BenchResult): boolean {
+    return r.frameMs <= BENCH_MAX_FRAME_MS && r.p90Ms <= BENCH_MAX_LATENCY_MS;
 }
 
 export class TooSlowError extends Error {}
@@ -189,40 +224,64 @@ function nextMessage<T>(
     });
 }
 
-/** Median and 90th percentile round trip of one frame, in ms. */
-export async function benchmark(
-    port: MessagePort,
-): Promise<{ medianMs: number; p90Ms: number }> {
+/** Time a backend with BENCH_DEPTH frames in flight (see BENCH_MAX_*). */
+export function benchmark(port: MessagePort): Promise<BenchResult> {
     let seed = 7;
     const rand = () =>
         ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff) * 2 -
         1;
     const spec = new Float32Array(DPDF_BINS * 2);
+    const total = BENCH_WARMUP + BENCH_FRAMES;
+    const sentAt = new Map<number, number>();
     const times: number[] = [];
-    for (let i = 0; i < BENCH_WARMUP + BENCH_FRAMES; i++) {
-        // Room-noise-like spectrum, so the model does its usual work.
-        for (let k = 0; k < spec.length; k++) spec[k] = rand() * 0.5;
-        const answer = nextMessage(
-            port,
-            (d) => {
-                const f = decodeFrame(d);
-                if (f?.seq === i) return f;
-                const r = parseReply(d);
-                if (r?.type === "error") throw new Error(r.message);
-                return null;
-            },
-            2000,
-        );
-        const t0 = performance.now();
-        port.postMessage(encodeFrame(i, spec));
-        await answer;
-        if (i >= BENCH_WARMUP) times.push(performance.now() - t0);
-    }
-    times.sort((a, b) => a - b);
-    return {
-        medianMs: times[Math.floor(times.length / 2)],
-        p90Ms: times[Math.floor(times.length * 0.9)],
-    };
+    let next = 0;
+    let answered = 0;
+    let timedFrom = 0;
+    return new Promise((resolve, reject) => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const finish = (err: Error | null, r?: BenchResult) => {
+            clearTimeout(timer);
+            port.onmessage = null;
+            if (err) reject(err);
+            else resolve(r!);
+        };
+        const arm = () => {
+            clearTimeout(timer);
+            timer = setTimeout(
+                () => finish(new Error("DPDFNet backend timed out")),
+                2000,
+            );
+        };
+        const send = () => {
+            // Room-noise-like spectrum, so the model does its usual work.
+            for (let k = 0; k < spec.length; k++) spec[k] = rand() * 0.5;
+            sentAt.set(next, performance.now());
+            port.postMessage(encodeFrame(next++, spec));
+        };
+        port.onmessage = (e) => {
+            const r = parseReply(e.data);
+            if (r?.type === "error") return finish(new Error(r.message));
+            const f = decodeFrame(e.data);
+            const t0 = f ? sentAt.get(f.seq) : undefined;
+            if (!f || t0 === undefined) return;
+            sentAt.delete(f.seq);
+            const now = performance.now();
+            if (f.seq >= BENCH_WARMUP) times.push(now - t0);
+            else if (f.seq === BENCH_WARMUP - 1) timedFrom = now;
+            if (++answered === total) {
+                times.sort((a, b) => a - b);
+                return finish(null, {
+                    medianMs: times[Math.floor(times.length / 2)],
+                    p90Ms: times[Math.floor(times.length * 0.9)],
+                    frameMs: (now - timedFrom) / BENCH_FRAMES,
+                });
+            }
+            arm();
+            if (next < total) send();
+        };
+        arm();
+        for (let i = 0; i < BENCH_DEPTH; i++) send();
+    });
 }
 
 interface Backend {
@@ -240,6 +299,10 @@ function closePort(port: MessagePort): void {
     port.close();
 }
 
+/** WebGPU may be there (whether it starts is up to the Worker). */
+const webgpuPossible = () =>
+    typeof navigator !== "undefined" && "gpu" in navigator;
+
 export function dpdfnetSupported(): boolean {
     return (
         typeof AudioWorkletNode !== "undefined" &&
@@ -250,50 +313,117 @@ export function dpdfnetSupported(): boolean {
 }
 
 export function createDpdfnet(zam: ZamPluginApi) {
-    const writeVerdict = (v: Verdict) => zam.storage.set(VERDICT_KEY, v);
-    const knownTooSlow = () => readVerdict(zam.storage)?.ok === false;
+    const writeVerdict = (v: Verdict) =>
+        zam.storage.set(
+            v.backend === "webgpu" ? GPU_VERDICT_KEY : VERDICT_KEY,
+            v,
+        );
+    const cpuRuledOut = () => readVerdict(zam.storage)?.ok === false;
+    const gpuRuledOut = () =>
+        !webgpuPossible() ||
+        readVerdict(zam.storage, Date.now(), GPU_VERDICT_KEY)?.ok === false;
+    const knownTooSlow = () => cpuRuledOut() && gpuRuledOut();
 
-    // ---- the Worker (one per page) ----
-    let worker: { w: Worker; loaded: Promise<void> } | null = null;
+    // ---- the Worker (one per page), and the engines started in it ----
+    interface WorkerEntry {
+        w: Worker;
+        engines: Map<EngineKind, Promise<string | undefined>>;
+    }
+    let worker: WorkerEntry | null = null;
 
-    async function ensureWorker() {
+    async function ensureWorker(): Promise<WorkerEntry> {
         if (worker) return worker;
-        const [workerUrl, ortModuleUrl, ortGlueUrl, ortWasm, model] =
-            await Promise.all([
-                zam.assets.url(ASSETS.worker, "text/javascript"),
-                zam.assets.url(ASSETS.ortModule, "text/javascript"),
-                zam.assets.url(ASSETS.ortGlue, "text/javascript"),
-                zam.assets.get(ASSETS.ortWasm),
-                zam.assets.get(ASSETS.model),
-            ]);
+        const [workerUrl, model] = await Promise.all([
+            zam.assets.url(ASSETS.worker, "text/javascript"),
+            zam.assets.get(ASSETS.model),
+        ]);
         if (worker) return worker;
         const w = new Worker(workerUrl, {
             type: "module",
             name: "zam-dpdfnet",
         });
-        const loaded = new Promise<void>((resolve, reject) => {
-            w.addEventListener("message", (e) => {
-                if (e.data?.type === "loaded") resolve();
-                else if (e.data?.type === "load-error")
-                    reject(new Error(e.data.message));
-            });
-            w.addEventListener("error", (e) =>
-                reject(
-                    new Error(e.message || "the DPDFNet Worker didn't start"),
-                ),
-            );
-        });
-        w.postMessage(
-            { type: "load", ortModuleUrl, ortGlueUrl, ortWasm, model },
-            [ortWasm, model],
-        );
-        const entry = { w, loaded };
+        w.postMessage({ type: "model", model } satisfies WorkerMessage, [
+            model,
+        ]);
+        const entry: WorkerEntry = { w, engines: new Map() };
         worker = entry;
-        loaded.catch(() => {
+        w.addEventListener("error", (e) => {
+            console.warn("DPDFNet Worker:", e.message);
             if (worker === entry) worker = null;
             w.terminate();
         });
         return entry;
+    }
+
+    /** An engine running in the Worker; resolves with the GPU it runs on,
+     *  if that's what it is. Started once (again if it failed). */
+    function ensureEngine(
+        wk: WorkerEntry,
+        engine: EngineKind,
+    ): Promise<string | undefined> {
+        const started = wk.engines.get(engine);
+        if (started) return started;
+        const p = new Promise<string | undefined>((resolve, reject) => {
+            const done = () => {
+                wk.w.removeEventListener("message", onMessage);
+                wk.w.removeEventListener("error", onError);
+            };
+            const onMessage = (e: MessageEvent) => {
+                const d = e.data as WorkerEvent;
+                if (d?.engine !== engine) return;
+                if (d.type === "engine-ready") resolve(d.detail);
+                else if (d.type === "engine-error")
+                    reject(new Error(d.message));
+                else return;
+                done();
+            };
+            const onError = (e: ErrorEvent) => {
+                done();
+                reject(
+                    new Error(e.message || "the DPDFNet Worker didn't start"),
+                );
+            };
+            wk.w.addEventListener("message", onMessage);
+            wk.w.addEventListener("error", onError);
+            (async () => {
+                if (engine === "webgpu") {
+                    const selftest = await zam.assets.get(ASSETS.selftest);
+                    wk.w.postMessage(
+                        {
+                            type: "engine",
+                            engine,
+                            selftest,
+                        } satisfies WorkerMessage,
+                        [selftest],
+                    );
+                } else {
+                    const [ortModuleUrl, ortGlueUrl, ortWasm] =
+                        await Promise.all([
+                            zam.assets.url(ASSETS.ortModule, "text/javascript"),
+                            zam.assets.url(ASSETS.ortGlue, "text/javascript"),
+                            zam.assets.get(ASSETS.ortWasm),
+                        ]);
+                    wk.w.postMessage(
+                        {
+                            type: "engine",
+                            engine,
+                            ortModuleUrl,
+                            ortGlueUrl,
+                            ortWasm,
+                        } satisfies WorkerMessage,
+                        [ortWasm],
+                    );
+                }
+            })().catch((err) => {
+                done();
+                reject(err);
+            });
+        });
+        wk.engines.set(engine, p);
+        p.catch(() => {
+            if (wk.engines.get(engine) === p) wk.engines.delete(engine);
+        });
+        return p;
     }
 
     async function open(
@@ -307,9 +437,13 @@ export function createDpdfnet(zam: ZamPluginApi) {
             return { b: { kind, port, close: () => closePort(port) }, model };
         }
         const wk = await ensureWorker();
-        await wk.loaded;
+        const engine: EngineKind = kind === "webgpu" ? "webgpu" : "wasm";
+        const gpu = await ensureEngine(wk, engine);
+        if (gpu) console.info(`DPDFNet on WebGPU: ${gpu}`);
         const ch = new MessageChannel();
-        wk.w.postMessage({ type: "connect" }, [ch.port2]);
+        wk.w.postMessage({ type: "connect", engine } satisfies WorkerMessage, [
+            ch.port2,
+        ]);
         return {
             b: { kind, port: ch.port1, close: () => closePort(ch.port1) },
         };
@@ -317,8 +451,9 @@ export function createDpdfnet(zam: ZamPluginApi) {
 
     async function initBackend(b: Backend, model?: ArrayBuffer): Promise<void> {
         const ready = nextMessage(b.port, parseReply, INIT_TIMEOUT_MS);
-        const cores = navigator.hardwareConcurrency || 2;
-        b.port.postMessage(initMessage(cores >= 4 ? 2 : 1, model?.byteLength));
+        // One thread: a second barely shortens a frame (2.3 to 2.15 ms on a
+        // Ryzen 5800X) and costs another tenth of a core.
+        b.port.postMessage(initMessage(1, model?.byteLength));
         // Copied, not transferred: a transferred ArrayBuffer sent to a port
         // whose other end is in Electron's main/utility process is dropped
         // without an error (measured: Electron 44, the init never arrived).
@@ -327,14 +462,28 @@ export function createDpdfnet(zam: ZamPluginApi) {
         if (reply.type === "error") throw new Error(reply.message);
     }
 
-    /** A started backend that passed the benchmark, its state fresh. The
-     *  native one first; one that fails to start (not one that is merely
-     *  slow) falls through to the Worker. */
+    /** A started backend that passed the benchmark, its state fresh: WebGPU,
+     *  then native, then the Worker. One that won't start, and a GPU that
+     *  is too slow, fall through to the next; a CPU too slow means the
+     *  device is (native is the faster of the two). */
     async function startBackend(): Promise<Backend> {
         const order: BackendKind[] = [];
-        if (zam.native.available()) order.push("native");
-        order.push("worker");
-        let lastErr: unknown = new Error("no DPDFNet backend available");
+        if (!gpuRuledOut()) order.push("webgpu");
+        if (!cpuRuledOut()) {
+            if (zam.native.available()) order.push("native");
+            order.push("worker");
+        }
+        let lastErr: unknown = new TooSlowError(
+            "DPDFNet was too slow on this device",
+        );
+        const gpuFailed = (reason: string) =>
+            writeVerdict({
+                ok: false,
+                backend: "webgpu",
+                medianMs: null,
+                reason,
+                at: Date.now(),
+            });
         for (const kind of order) {
             let b: Backend | null = null;
             try {
@@ -345,12 +494,25 @@ export function createDpdfnet(zam: ZamPluginApi) {
                 console.warn(`DPDFNet ${kind} backend unavailable:`, err);
                 b?.close();
                 lastErr = err;
+                if (kind === "webgpu")
+                    gpuFailed(
+                        String(err).includes("self-test")
+                            ? "selftest"
+                            : "unavailable",
+                    );
                 continue;
             }
-            const r = await benchmark(b.port).catch((err) => {
+            let r: BenchResult;
+            try {
+                r = await benchmark(b.port);
+            } catch (err) {
                 b.close();
-                throw err;
-            });
+                if (kind !== "webgpu") throw err;
+                console.warn("DPDFNet webgpu backend failed:", err);
+                gpuFailed("stalled");
+                lastErr = err;
+                continue;
+            }
             const ok = fastEnough(r);
             writeVerdict({
                 ok,
@@ -361,9 +523,11 @@ export function createDpdfnet(zam: ZamPluginApi) {
             });
             if (!ok) {
                 b.close();
-                throw new TooSlowError(
-                    `DPDFNet too slow here (${kind}: median ${r.medianMs.toFixed(1)} ms, p90 ${r.p90Ms.toFixed(1)} ms)`,
-                );
+                const msg = `DPDFNet too slow here (${kind}: a frame per ${r.frameMs.toFixed(1)} ms, round trip p90 ${r.p90Ms.toFixed(1)} ms)`;
+                if (kind !== "webgpu") throw new TooSlowError(msg);
+                console.info(msg);
+                lastErr = new TooSlowError(msg);
+                continue;
             }
             b.port.postMessage(control({ type: "reset" }));
             return b;
