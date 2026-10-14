@@ -1,0 +1,559 @@
+NVD_LINEAR=1: pitch-linear (DRM_FORMAT_MOD_LINEAR) surfaces for nvidia-vaapi-driver v0.0.18.
+
+NVIDIA's Vulkan driver only accepts DRM_FORMAT_MOD_LINEAR for NV12 dma-buf imports,
+so Chromium's Vulkan video path (the one that avoids X11's DRI3 import) fails
+vkCreateImage with VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT on the
+driver's block-linear surfaces. With NVD_LINEAR set, surfaces are allocated pitch
+linear (RM _FORMAT_PITCH, NVKMS NvKmsSurfaceMemoryLayoutPitch), exported with the
+LINEAR modifier in the single-buffer layout, and mapped into CUDA as device memory;
+every CUDA copy to or from a surface goes through nvCopySrcPlane/nvCopyDstPlane.
+Without NVD_LINEAR the driver behaves exactly as upstream.
+
+diff --git a/src/direct/direct-export-buf.c b/src/direct/direct-export-buf.c
+index 5b46717..28fb40d 100644
+--- a/src/direct/direct-export-buf.c
++++ b/src/direct/direct-export-buf.c
+@@ -79,7 +79,8 @@ static void findGPUIndexFromFd(NVDriver *drv) {
+     drv->cudaGpuId = 0;
+ }
+ 
+-static bool import_to_cuda(NVDriver *drv, NVDriverImage *image, int bpc, int channels, NVCudaImage *cudaImage, CUarray *array) {
++static bool import_to_cuda(NVDriver *drv, NVDriverImage *image, int bpc, int channels, NVCudaImage *cudaImage, CUarray *array,
++                           CUdeviceptr *linearPtr) {
+     CUDA_EXTERNAL_MEMORY_HANDLE_DESC extMemDesc = {
+         .type      = CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD,
+         .handle.fd = image->nvFd,
+@@ -96,6 +97,17 @@ static bool import_to_cuda(NVDriver *drv, NVDriverImage *image, int bpc, int cha
+     image->nvFd = 0;
+     image->nvFd2 = 0;
+ 
++    if (image->mods == DRM_FORMAT_MOD_LINEAR) {
++        // Pitch-linear (NVD_LINEAR): map as plain device memory, not an array.
++        CUDA_EXTERNAL_MEMORY_BUFFER_DESC bufferDesc = {
++            .offset = 0,
++            .size = image->memorySize,
++            .flags = 0
++        };
++        CHECK_CUDA_RESULT_RETURN(drv->cu->cuExternalMemoryGetMappedBuffer(linearPtr, cudaImage->extMem, &bufferDesc), false);
++        return true;
++    }
++
+     CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC mipmapArrayDesc = {
+         .arrayDesc = {
+             .Width = image->width,
+@@ -275,12 +287,11 @@ static bool clearBackingImagePlane(NVDriver *drv, BackingImage *img, uint32_t pl
+             .srcMemoryType = CU_MEMORYTYPE_HOST,
+             .srcHost = rows,
+             .srcPitch = widthInBytes,
+-            .dstMemoryType = CU_MEMORYTYPE_ARRAY,
+-            .dstArray = img->arrays[plane],
+             .dstY = y,
+             .WidthInBytes = widthInBytes,
+             .Height = rowsToCopy
+         };
++        nvCopyDstPlane(&cpy, img, plane);
+         if (CHECK_CUDA_RESULT(drv->cu->cuMemcpy2D(&cpy))) {
+             failed = true;
+             break;
+@@ -415,7 +426,7 @@ static BackingImage *direct_allocateBackingImage_perPlane(NVDriver *drv, NVSurfa
+     // with its own modifier, so it keeps its natural per-plane block height and
+     // matches what the decoder produced (see calculate_unified_image_layout).
+     calculate_unified_image_layout(&drv->driverContext, driverImages, surface->width, surface->height,
+-                                   fmtInfo->bppc, fmtInfo->numPlanes, fmtInfo->plane, false);
++                                   fmtInfo->bppc, fmtInfo->numPlanes, fmtInfo->plane, false, false);
+     LOG_DEBUG("Allocating per-plane BackingImage: %p %ux%u", backingImage, surface->width, surface->height);
+ 
+     for (uint32_t i = 0; i < fmtInfo->numPlanes; i++) {
+@@ -509,7 +520,8 @@ static BackingImage *direct_allocateBackingImage_single(NVDriver *drv, NVSurface
+     // Pass unifyBlockHeight=true: all planes are packed into one shared buffer under a
+     // single DRM modifier, so they must agree on one (largest) block height.
+     backingImage->totalSize = calculate_unified_image_layout(&drv->driverContext, driverImages, surface->width, surface->height,
+-                                                             fmtInfo->bppc, fmtInfo->numPlanes, fmtInfo->plane, true);
++                                                             fmtInfo->bppc, fmtInfo->numPlanes, fmtInfo->plane, true,
++                                                             nvdLinearForced());
+     LOG_DEBUG("Allocating single BackingImage: %p %ux%u = %u bytes", backingImage, surface->width, surface->height, backingImage->totalSize);
+ 
+     int memFd = -1;
+@@ -536,7 +548,20 @@ static BackingImage *direct_allocateBackingImage_single(NVDriver *drv, NVSurface
+     memFd = -1;
+     memFd2 = -1;
+ 
+-    for (uint32_t i = 0; i < fmtInfo->numPlanes; i++) {
++    if (nvdLinearForced()) {
++        // Pitch-linear: map the whole buffer as device memory; each plane sits at
++        // its offset with its own pitch (see nvCopyDstPlane).
++        const CUDA_EXTERNAL_MEMORY_BUFFER_DESC bufferDesc = {
++            .offset = 0,
++            .size = backingImage->totalSize,
++            .flags = 0
++        };
++        if (CHECK_CUDA_RESULT(drv->cu->cuExternalMemoryGetMappedBuffer(&backingImage->linearDevicePtr, backingImage->extMem, &bufferDesc))) {
++            goto fail;
++        }
++    }
++
++    for (uint32_t i = 0; i < fmtInfo->numPlanes && !nvdLinearForced(); i++) {
+         // The single buffer is exported under one DRM modifier that carries a
+         // single block height (log2GobsPerBlockY, the max across all planes).
+         // CUDA, however, derives a plane's block-linear layout from the array
+@@ -618,7 +643,7 @@ static BackingImage *direct_allocateBackingImage(NVDriver *drv, NVSurface *surfa
+         // per-plane importers (mpv/GStreamer/ffmpeg), which import each layer as a
+         // standalone dma-buf and can't handle a tiled plane starting at a byte offset. The
+         // single-buffer layout is kept behind NVD_SINGLE_BUFFER for comparison/fallback.
+-        if (nvdSingleBufferForced()) {
++        if (nvdSingleBufferForced() || nvdLinearForced()) {
+             return direct_allocateBackingImage_single(drv, surface);
+         }
+         return direct_allocateBackingImage_perPlane(drv, surface);
+@@ -642,13 +667,14 @@ static BackingImage *direct_allocateBackingImage(NVDriver *drv, NVSurface *surfa
+     LOG_DEBUG("Allocating BackingImages: %p %dx%d", backingImage, surface->width, surface->height);
+     for (uint32_t i = 0; i < fmtInfo->numPlanes; i++) {
+         if (!alloc_image(&drv->driverContext, surface->width >> p[i].ss.x, surface->height >> p[i].ss.y,
+-                         p[i].channelCount, 8 * fmtInfo->bppc, p[i].fourcc, &driverImages[i])) {
++                         p[i].channelCount, 8 * fmtInfo->bppc, p[i].fourcc, nvdLinearForced(), &driverImages[i])) {
+             goto bail;
+         }
+     }
+ 
+     for (uint32_t i = 0; i < fmtInfo->numPlanes; i++) {
+-        if (!import_to_cuda(drv, &driverImages[i], 8 * fmtInfo->bppc, p[i].channelCount, &backingImage->cudaImages[i], &backingImage->arrays[i]))
++        if (!import_to_cuda(drv, &driverImages[i], 8 * fmtInfo->bppc, p[i].channelCount, &backingImage->cudaImages[i], &backingImage->arrays[i],
++                            &backingImage->linearDevicePtr))
+             goto bail;
+     }
+ 
+@@ -715,6 +741,10 @@ static void destroyBackingImage(NVDriver *drv, BackingImage *img) {
+     }
+ 
+     if (!img->borrowedCudaResources) {
++        if (img->linearDevicePtr != 0) {
++            CHECK_CUDA_RESULT(drv->cu->cuMemFree(img->linearDevicePtr));
++            img->linearDevicePtr = 0;
++        }
+         for (uint32_t i = 0; i < fmtInfo->numPlanes; i++) {
+             if (img->arrays[i] != NULL) {
+                 CHECK_CUDA_RESULT(drv->cu->cuArrayDestroy(img->arrays[i]));
+@@ -863,11 +893,10 @@ static bool copyFrameToSurface(NVDriver *drv, CUdeviceptr ptr, NVSurface *surfac
+             .srcDevice = ptr,
+             .srcY = y,
+             .srcPitch = pitch,
+-            .dstMemoryType = CU_MEMORYTYPE_ARRAY,
+-            .dstArray = surface->backingImage->arrays[i],
+             .Height = height,
+             .WidthInBytes = widthInBytes
+         };
++        nvCopyDstPlane(&cpy, surface->backingImage, i);
+         if (i == fmtInfo->numPlanes - 1) {
+             CHECK_CUDA_RESULT(drv->cu->cuMemcpy2D(&cpy));
+         } else {
+diff --git a/src/direct/nv-driver.c b/src/direct/nv-driver.c
+index 658a2d2..ca21862 100644
+--- a/src/direct/nv-driver.c
++++ b/src/direct/nv-driver.c
+@@ -32,6 +32,8 @@
+ #define GOB_WIDTH_IN_BYTES  64
+ #define GOB_HEIGHT_IN_BYTES 8
+ #define SINGLE_BUFFER_PLANE_ALIGNMENT 65536
++// Row pitch of pitch-linear (NVD_LINEAR) images.
++#define LINEAR_PITCH_ALIGNMENT 256
+ 
+ static const NvHandle NULL_OBJECT;
+ 
+@@ -480,10 +482,13 @@ bool free_nvdriver(NVDriverContext *context) {
+     return true;
+ }
+ 
+-bool alloc_memory(const NVDriverContext *context, const uint32_t size, int *fd) {
++bool alloc_memory(const NVDriverContext *context, const uint32_t size, const bool pitchLinear, int *fd) {
+     //allocate the buffer
+     NvHandle bufferObject = {0};
+ 
++    const NvU32 formatAttr = pitchLinear ? DRF_DEF(OS32, _ATTR, _FORMAT, _PITCH)
++                                         : DRF_DEF(OS32, _ATTR, _FORMAT, _BLOCK_LINEAR);
++
+     // Choose memory class based on system type
+     NvU32 memoryClass;
+     NV_MEMORY_ALLOCATION_PARAMS memParams = {
+@@ -506,7 +511,7 @@ bool alloc_memory(const NVDriverContext *context, const uint32_t size, int *fd)
+         memParams.attr = DRF_DEF(OS32, _ATTR, _LOCATION, _PCI) |
+                          DRF_DEF(OS32, _ATTR, _PAGE_SIZE, _BIG) |
+                          DRF_DEF(OS32, _ATTR, _DEPTH, _UNKNOWN) |
+-                         DRF_DEF(OS32, _ATTR, _FORMAT, _BLOCK_LINEAR) |
++                         formatAttr |
+                          DRF_DEF(OS32, _ATTR, _PHYSICALITY, _CONTIGUOUS);
+     } else {
+         // Discrete GPU with local video memory
+@@ -516,7 +521,7 @@ bool alloc_memory(const NVDriverContext *context, const uint32_t size, int *fd)
+                           NVOS32_ALLOC_FLAGS_PERSISTENT_VIDMEM;
+         memParams.attr = DRF_DEF(OS32, _ATTR, _PAGE_SIZE, _BIG) |
+                          DRF_DEF(OS32, _ATTR, _DEPTH, _UNKNOWN) |
+-                         DRF_DEF(OS32, _ATTR, _FORMAT, _BLOCK_LINEAR) |
++                         formatAttr |
+                          DRF_DEF(OS32, _ATTR, _PHYSICALITY, _CONTIGUOUS);
+     }
+     
+@@ -612,7 +617,7 @@ static uint32_t calculate_log2_gobs_per_block_y(const uint32_t height) {
+ 
+ uint32_t calculate_unified_image_layout(const NVDriverContext *context, NVDriverImage images[], const uint32_t width, const uint32_t height,
+                                         const uint32_t bppc, const uint32_t numPlanes, const NVFormatPlane planes[],
+-                                        const bool unifyBlockHeight) {
++                                        const bool unifyBlockHeight, const bool linear) {
+      const uint32_t log2GobsPerBlockX = 0;
+      const uint32_t log2GobsPerBlockZ = 0;
+ 
+@@ -643,20 +648,23 @@ uint32_t calculate_unified_image_layout(const NVDriverContext *context, NVDriver
+ 
+      uint32_t offset = 0;
+      for (uint32_t i = 0; i < numPlanes; i++) {
+-         const uint32_t log2GobsPerBlockY = unifyBlockHeight ? unifiedLog2Y : perPlaneLog2Y[i];
++         const uint32_t log2GobsPerBlockY = linear ? 0 : unifyBlockHeight ? unifiedLog2Y : perPlaneLog2Y[i];
+          const uint32_t planeWidth = width >> planes[i].ss.x;
+          const uint32_t planeHeight = height >> planes[i].ss.y;
+          const uint32_t bytesPerPixel = planes[i].channelCount * bppc;
+ 
+-         const uint32_t widthInBytes = ROUND_UP(planeWidth * bytesPerPixel, GOB_WIDTH_IN_BYTES << log2GobsPerBlockX);
+-         const uint32_t alignedHeight = ROUND_UP(planeHeight, GOB_HEIGHT_IN_BYTES << log2GobsPerBlockY);
++         const uint32_t widthInBytes = linear
++             ? ROUND_UP(planeWidth * bytesPerPixel, LINEAR_PITCH_ALIGNMENT)
++             : ROUND_UP(planeWidth * bytesPerPixel, GOB_WIDTH_IN_BYTES << log2GobsPerBlockX);
++         const uint32_t alignedHeight = linear ? planeHeight
++                                               : ROUND_UP(planeHeight, GOB_HEIGHT_IN_BYTES << log2GobsPerBlockY);
+ 
+          images[i].width = planeWidth;
+          images[i].height = planeHeight;
+          images[i].offset = offset;
+          images[i].memorySize = widthInBytes * alignedHeight;
+          images[i].pitch = widthInBytes;
+-         images[i].mods = DRM_FORMAT_MOD_NVIDIA_BLOCK_LINEAR_2D(0, context->sector_layout, context->page_kind_generation, context->generic_page_kind, log2GobsPerBlockY);
++         images[i].mods = linear ? DRM_FORMAT_MOD_LINEAR : DRM_FORMAT_MOD_NVIDIA_BLOCK_LINEAR_2D(0, context->sector_layout, context->page_kind_generation, context->generic_page_kind, log2GobsPerBlockY);
+          images[i].fourcc = planes[i].fourcc;
+          images[i].log2GobsPerBlockX = log2GobsPerBlockX;
+          images[i].log2GobsPerBlockY = log2GobsPerBlockY;
+@@ -680,7 +688,7 @@ uint32_t calculate_unified_image_layout(const NVDriverContext *context, NVDriver
+ static bool import_and_export_buffer(const NVDriverContext *context, const int memFd, const uint32_t importSize,
+                                      const uint32_t pitchInBlocks, const uint32_t log2GobsPerBlockX,
+                                      const uint32_t log2GobsPerBlockY, const uint32_t log2GobsPerBlockZ,
+-                                     int *nvFd2, int *drmFd) {
++                                     const bool pitchLinear, int *nvFd2, int *drmFd) {
+      int memFd2 = dup(memFd);
+      if (memFd2 == -1) {
+          LOG("dup failed");
+@@ -690,10 +698,10 @@ static bool import_and_export_buffer(const NVDriverContext *context, const int m
+      struct NvKmsKapiPrivImportMemoryParams nvkmsParams = {
+          .memFd = memFd2,
+          .surfaceParams = {
+-             .layout = NvKmsSurfaceMemoryLayoutBlockLinear,
++             .layout = pitchLinear ? NvKmsSurfaceMemoryLayoutPitch : NvKmsSurfaceMemoryLayoutBlockLinear,
+              .blockLinear = {
+                  .genericMemory = context->useSystemMemory ? 1 : 0,
+-                 .pitchInBlocks = pitchInBlocks,
++                 .pitchInBlocks = pitchLinear ? 0 : pitchInBlocks,
+                  .log2GobsPerBlock.x = log2GobsPerBlockX,
+                  .log2GobsPerBlock.y = log2GobsPerBlockY,
+                  .log2GobsPerBlock.z = log2GobsPerBlockZ,
+@@ -761,8 +769,9 @@ err:
+ }
+ 
+ bool alloc_buffer(NVDriverContext *context, const uint32_t totalSize, const NVDriverImage images[], int *nvFd, int *nvFd2, int *drmFd) {
++     const bool linear = images[0].mods == DRM_FORMAT_MOD_LINEAR;
+      int memFd = -1;
+-     bool ret = alloc_memory(context, totalSize, &memFd);
++     bool ret = alloc_memory(context, totalSize, linear, &memFd);
+      if (!ret) {
+          LOG("alloc_memory failed");
+          return false;
+@@ -777,7 +786,7 @@ bool alloc_buffer(NVDriverContext *context, const uint32_t totalSize, const NVDr
+      int memFd2 = -1, primeFd = -1;
+      if (!import_and_export_buffer(context, memFd, imageSizeInBytes, pitchInBlocks,
+                                    images[0].log2GobsPerBlockX, images[0].log2GobsPerBlockY,
+-                                   images[0].log2GobsPerBlockZ, &memFd2, &primeFd)) {
++                                   images[0].log2GobsPerBlockZ, linear, &memFd2, &primeFd)) {
+          close(memFd);
+          return false;
+      }
+@@ -788,7 +797,7 @@ bool alloc_buffer(NVDriverContext *context, const uint32_t totalSize, const NVDr
+      return true;
+ }
+ 
+- bool alloc_image(NVDriverContext *context, uint32_t width, uint32_t height, uint8_t channels, uint8_t bitsPerChannel, uint32_t fourcc, NVDriverImage *image) {
++ bool alloc_image(NVDriverContext *context, uint32_t width, uint32_t height, uint8_t channels, uint8_t bitsPerChannel, uint32_t fourcc, bool linear, NVDriverImage *image) {
+      uint32_t gobWidthInBytes = 64;
+      uint32_t gobHeightInBytes = 8;
+ 
+@@ -797,21 +806,22 @@ bool alloc_buffer(NVDriverContext *context, const uint32_t totalSize, const NVDr
+ 
+      //first figure out the gob layout
+      uint32_t log2GobsPerBlockX = 0; //TODO not sure if these are the correct numbers to start with, but they're the largest ones i've seen used
+-     uint32_t log2GobsPerBlockY = calculate_log2_gobs_per_block_y(height);
++     uint32_t log2GobsPerBlockY = linear ? 0 : calculate_log2_gobs_per_block_y(height);
+      uint32_t log2GobsPerBlockZ = 0;
+ 
+      //LOG("Calculated GOB size: %dx%d (%dx%d)", gobWidthInBytes << log2GobsPerBlockX, gobHeightInBytes << log2GobsPerBlockY, log2GobsPerBlockX, log2GobsPerBlockY);
+ 
+      //These two seem to be correct, but it was discovered by trial and error so I'm not 100% sure
+-     uint32_t widthInBytes = ROUND_UP(width * bytesPerPixel, gobWidthInBytes << log2GobsPerBlockX);
+-     uint32_t alignedHeight = ROUND_UP(height, gobHeightInBytes << log2GobsPerBlockY);
++     uint32_t widthInBytes = linear ? ROUND_UP(width * bytesPerPixel, LINEAR_PITCH_ALIGNMENT)
++                                    : ROUND_UP(width * bytesPerPixel, gobWidthInBytes << log2GobsPerBlockX);
++     uint32_t alignedHeight = linear ? height : ROUND_UP(height, gobHeightInBytes << log2GobsPerBlockY);
+ 
+      uint32_t imageSizeInBytes = widthInBytes * alignedHeight;
+      uint32_t size = imageSizeInBytes;
+ 
+      //this gets us some memory, and the fd to import into cuda
+      int memFd = -1;
+-     bool ret = alloc_memory(context, size, &memFd);
++     bool ret = alloc_memory(context, size, linear, &memFd);
+      if (!ret) {
+          LOG("alloc_memory failed");
+          return false;
+@@ -826,7 +836,7 @@ bool alloc_buffer(NVDriverContext *context, const uint32_t totalSize, const NVDr
+      int memFd2 = -1, primeFd = -1;
+      if (!import_and_export_buffer(context, memFd, imageSizeInBytes, pitchInBlocks,
+                                    log2GobsPerBlockX, log2GobsPerBlockY, log2GobsPerBlockZ,
+-                                   &memFd2, &primeFd)) {
++                                   linear, &memFd2, &primeFd)) {
+          close(memFd);
+          return false;
+      }
+@@ -836,7 +846,7 @@ bool alloc_buffer(NVDriverContext *context, const uint32_t totalSize, const NVDr
+      image->nvFd = memFd;
+      image->nvFd2 = memFd2; //not sure why we can't close this one, we shouldn't need it after importing the image
+      image->drmFd = primeFd;
+-     image->mods = DRM_FORMAT_MOD_NVIDIA_BLOCK_LINEAR_2D(0, context->sector_layout, context->page_kind_generation, context->generic_page_kind, log2GobsPerBlockY);
++     image->mods = linear ? DRM_FORMAT_MOD_LINEAR : DRM_FORMAT_MOD_NVIDIA_BLOCK_LINEAR_2D(0, context->sector_layout, context->page_kind_generation, context->generic_page_kind, log2GobsPerBlockY);
+      image->offset = 0;
+      image->pitch = widthInBytes;
+      image->memorySize = imageSizeInBytes;
+diff --git a/src/direct/nv-driver.h b/src/direct/nv-driver.h
+index 5446002..ea79f85 100644
+--- a/src/direct/nv-driver.h
++++ b/src/direct/nv-driver.h
+@@ -50,11 +50,11 @@ typedef struct {
+ bool init_nvdriver(NVDriverContext *context, int drmFd);
+ bool free_nvdriver(NVDriverContext *context);
+ bool get_device_uuid(const NVDriverContext *context, uint8_t uuid[16]);
+-bool alloc_memory(const NVDriverContext *context, uint32_t size, int *fd);
+-bool alloc_image(NVDriverContext *context, uint32_t width, uint32_t height, uint8_t channels, uint8_t bytesPerChannel, uint32_t fourcc, NVDriverImage *image);
++bool alloc_memory(const NVDriverContext *context, uint32_t size, bool pitchLinear, int *fd);
++bool alloc_image(NVDriverContext *context, uint32_t width, uint32_t height, uint8_t channels, uint8_t bytesPerChannel, uint32_t fourcc, bool linear, NVDriverImage *image);
+ uint32_t calculate_unified_image_layout(const NVDriverContext *context, NVDriverImage images[], uint32_t width, uint32_t height,
+                                         uint32_t bppc, uint32_t numPlanes, const NVFormatPlane planes[],
+-                                        bool unifyBlockHeight);
++                                        bool unifyBlockHeight, bool linear);
+ bool alloc_buffer(NVDriverContext *context, uint32_t totalSize, const NVDriverImage images[], int *nvFd, int *nvFd2, int *drmFd);
+ 
+ #endif
+diff --git a/src/vabackend.c b/src/vabackend.c
+index 1fcbb7f..4ee938f 100644
+--- a/src/vabackend.c
++++ b/src/vabackend.c
+@@ -84,6 +84,7 @@ static FILE *LOG_OUTPUT;
+ static FILE *STATS_OUTPUT;
+ static bool LOG_DEBUG_ENABLED;
+ static bool SINGLE_BUFFER_FORCED;
++static bool LINEAR_FORCED;
+ 
+ // Destination for the statistics dump: the dedicated stats log if one was opened
+ // (NVD_STATS_LOG), otherwise the regular log stream. Used by the stats subsystem.
+@@ -227,6 +228,11 @@ static void init() {
+     // Global toggle read once here (like every other NVD_* env) instead of via a
+     // getenv on each surface allocation in the direct backend.
+     SINGLE_BUFFER_FORCED = getenv("NVD_SINGLE_BUFFER") != NULL;
++    // Pitch-linear surfaces (DRM_FORMAT_MOD_LINEAR) for importers that can't take
++    // NVIDIA's block-linear modifiers, e.g. NVIDIA's own Vulkan driver for NV12,
++    // which Chromium's Vulkan video path needs. Implies the single-buffer layout.
++    char *nvdLinear = getenv("NVD_LINEAR");
++    LINEAR_FORCED = nvdLinear != NULL && strcmp(nvdLinear, "0") != 0;
+     char *nvdStats = getenv("NVD_STATS");
+     if (nvdStats != NULL && strcmp(nvdStats, "0") != 0) {
+         char *nvdStatsLog = getenv("NVD_STATS_LOG");
+@@ -341,6 +347,10 @@ bool nvdSingleBufferForced(void) {
+     return SINGLE_BUFFER_FORCED;
+ }
+ 
++bool nvdLinearForced(void) {
++    return LINEAR_FORCED;
++}
++
+ static uint64_t parseEnvU64(const char *name, uint64_t fallback) {
+     const char *value = getenv(name);
+     if (value == NULL || value[0] == '\0') {
+@@ -1429,6 +1439,7 @@ static BackingImage *createImportedBackingImage(NVDriver *drv, const ImportedSur
+             img->mods[i] = existing->mods[i];
+         }
+         img->totalSize = existing->totalSize != 0 ? existing->totalSize : existing->size[0];
++        img->linearDevicePtr = existing->linearDevicePtr;
+         img->borrowedCudaResources = true;
+         img->borrowedBackingImage = existing;
+         LOG_DEBUG("Imported surface reused backing image color metadata: imported=%p backing=%p color_standard=%s(%d) full_range=%d",
+@@ -2476,7 +2487,7 @@ static void writeRgbPixel(uint8_t *dst, uint32_t fourcc, uint8_t r, uint8_t g, u
+ }
+ 
+ static bool convertNV12ToARGBCuda(NVDriver *drv, BackingImage *srcImg, BackingImage *dstImg, uint32_t width, uint32_t height, bool is16Bit, const ColorMatrix *matrix, VideoProcSampleInfo sampleInfo) {
+-    if (srcImg->arrays[0] == NULL || srcImg->arrays[1] == NULL) {
++    if (srcImg->linearDevicePtr == 0 && (srcImg->arrays[0] == NULL || srcImg->arrays[1] == NULL)) {
+         return false;
+     }
+ 
+@@ -2503,8 +2514,6 @@ static bool convertNV12ToARGBCuda(NVDriver *drv, BackingImage *srcImg, BackingIm
+     }
+ 
+     CUDA_MEMCPY2D yCpy = {
+-        .srcMemoryType = CU_MEMORYTYPE_ARRAY,
+-        .srcArray = srcImg->arrays[0],
+         .dstMemoryType = CU_MEMORYTYPE_DEVICE,
+         .dstDevice = drv->videoProcYBuffer,
+         .dstPitch = width * bpp,
+@@ -2512,14 +2521,14 @@ static bool convertNV12ToARGBCuda(NVDriver *drv, BackingImage *srcImg, BackingIm
+         .Height = height
+     };
+     CUDA_MEMCPY2D uvCpy = {
+-        .srcMemoryType = CU_MEMORYTYPE_ARRAY,
+-        .srcArray = srcImg->arrays[1],
+         .dstMemoryType = CU_MEMORYTYPE_DEVICE,
+         .dstDevice = drv->videoProcUVBuffer,
+         .dstPitch = width * bpp,
+         .WidthInBytes = width * bpp,
+         .Height = uvHeight
+     };
++    nvCopySrcPlane(&yCpy, srcImg, 0);
++    nvCopySrcPlane(&uvCpy, srcImg, 1);
+     // Queue the two input copies async on stream 0; the kernel below runs on
+     // the same stream so it observes them in order, and the frame is fully
+     // synchronised before we signal completion (cuStreamSynchronize for an
+@@ -2597,11 +2606,10 @@ static bool convertNV12ToARGBCuda(NVDriver *drv, BackingImage *srcImg, BackingIm
+             .srcMemoryType = CU_MEMORYTYPE_DEVICE,
+             .srcDevice = drv->videoProcArgbBuffer,
+             .srcPitch = width * 4,
+-            .dstMemoryType = CU_MEMORYTYPE_ARRAY,
+-            .dstArray = dstImg->arrays[0],
+             .WidthInBytes = width * 4,
+             .Height = height
+         };
++        nvCopyDstPlane(&argbCpy, dstImg, 0);
+         if (CHECK_CUDA_RESULT(drv->cu->cuMemcpy2D(&argbCpy))) {
+             goto fail;
+         }
+@@ -2673,8 +2681,6 @@ static bool convertNV12ToARGB(NVDriver *drv, BackingImage *srcImg, BackingImage
+         }
+     } else {
+         CUDA_MEMCPY2D yCpy = {
+-            .srcMemoryType = CU_MEMORYTYPE_ARRAY,
+-            .srcArray = srcImg->arrays[0],
+             .dstMemoryType = CU_MEMORYTYPE_HOST,
+             .dstHost = yPlane,
+             .dstPitch = width * bpp,
+@@ -2682,14 +2688,14 @@ static bool convertNV12ToARGB(NVDriver *drv, BackingImage *srcImg, BackingImage
+             .Height = height
+         };
+         CUDA_MEMCPY2D uvCpy = {
+-            .srcMemoryType = CU_MEMORYTYPE_ARRAY,
+-            .srcArray = srcImg->arrays[1],
+             .dstMemoryType = CU_MEMORYTYPE_HOST,
+             .dstHost = uvPlane,
+             .dstPitch = width * bpp,
+             .WidthInBytes = width * bpp,
+             .Height = (height + 1) / 2
+         };
++        nvCopySrcPlane(&yCpy, srcImg, 0);
++        nvCopySrcPlane(&uvCpy, srcImg, 1);
+ 
+         if (CHECK_CUDA_RESULT(drv->cu->cuMemcpy2D(&yCpy)) ||
+             CHECK_CUDA_RESULT(drv->cu->cuMemcpy2D(&uvCpy))) {
+@@ -2741,11 +2747,10 @@ static bool convertNV12ToARGB(NVDriver *drv, BackingImage *srcImg, BackingImage
+         .srcMemoryType = CU_MEMORYTYPE_HOST,
+         .srcHost = argb,
+         .srcPitch = width * 4,
+-        .dstMemoryType = CU_MEMORYTYPE_ARRAY,
+-        .dstArray = dstImg->arrays[0],
+         .WidthInBytes = width * 4,
+         .Height = height
+     };
++    nvCopyDstPlane(&argbCpy, dstImg, 0);
+     bool failed = CHECK_CUDA_RESULT(drv->cu->cuMemcpy2D(&argbCpy));
+ 
+     pthread_mutex_unlock(&drv->exportMutex);
+@@ -2839,13 +2844,11 @@ static bool copySurfaceBackingImage(NVDriver *drv, NVSurface *src, NVSurface *ds
+     for (uint32_t i = 0; i < fmtInfo->numPlanes; i++) {
+         const NVFormatPlane *p = &fmtInfo->plane[i];
+         CUDA_MEMCPY2D cpy = {
+-            .srcMemoryType = CU_MEMORYTYPE_ARRAY,
+-            .srcArray = srcImg->arrays[i],
+-            .dstMemoryType = CU_MEMORYTYPE_ARRAY,
+-            .dstArray = dstImg->arrays[i],
+             .WidthInBytes = ((uint32_t) srcRegion.width >> p->ss.x) * fmtInfo->bppc * p->channelCount,
+             .Height = (uint32_t) srcRegion.height >> p->ss.y
+         };
++        nvCopySrcPlane(&cpy, srcImg, i);
++        nvCopyDstPlane(&cpy, dstImg, i);
+ 
+         if (i == fmtInfo->numPlanes - 1) {
+             CHECK_CUDA_RESULT(drv->cu->cuMemcpy2D(&cpy));
+@@ -3306,8 +3309,6 @@ static VAStatus nvGetImage(
+         const NVFormatPlane *p = &fmtInfo->plane[i];
+         CUDA_MEMCPY2D memcpy2d = {
+         .srcXInBytes = 0, .srcY = 0,
+-        .srcMemoryType = CU_MEMORYTYPE_ARRAY,
+-        .srcArray = surfaceObj->backingImage->arrays[i],
+ 
+         .dstXInBytes = 0, .dstY = 0,
+         .dstMemoryType = CU_MEMORYTYPE_HOST,
+@@ -3317,6 +3318,7 @@ static VAStatus nvGetImage(
+         .WidthInBytes = (width >> p->ss.x) * fmtInfo->bppc * p->channelCount,
+         .Height = height >> p->ss.y
+         };
++        nvCopySrcPlane(&memcpy2d, surfaceObj->backingImage, i);
+ 
+         CUresult result = cu->cuMemcpy2D(&memcpy2d);
+         if (result != CUDA_SUCCESS) {
+diff --git a/src/vabackend.h b/src/vabackend.h
+index 428178f..565375f 100644
+--- a/src/vabackend.h
++++ b/src/vabackend.h
+@@ -138,10 +138,37 @@ typedef struct _BackingImage {
+     void        *externalMapping;
+     uint32_t    externalMappingSize;
+     CUdeviceptr externalDevicePtr;
++    // NVD_LINEAR: the image is pitch-linear and mapped into CUDA as plain device
++    // memory, used instead of `arrays` (CUDA arrays are always block-linear).
++    CUdeviceptr linearDevicePtr;
+     uint32_t    externalDeviceSize;
+     uint64_t    detachedSerial;
+ } BackingImage;
+ 
++// Points a 2D copy's source at plane `plane` of `img`: its CUDA array, or its
++// device memory when the image is linear (NVD_LINEAR).
++static inline void nvCopySrcPlane(CUDA_MEMCPY2D *cpy, const BackingImage *img, uint32_t plane) {
++    if (img->linearDevicePtr != 0) {
++        cpy->srcMemoryType = CU_MEMORYTYPE_DEVICE;
++        cpy->srcDevice = img->linearDevicePtr + (CUdeviceptr) img->offsets[plane];
++        cpy->srcPitch = (size_t) img->strides[plane];
++    } else {
++        cpy->srcMemoryType = CU_MEMORYTYPE_ARRAY;
++        cpy->srcArray = img->arrays[plane];
++    }
++}
++
++static inline void nvCopyDstPlane(CUDA_MEMCPY2D *cpy, const BackingImage *img, uint32_t plane) {
++    if (img->linearDevicePtr != 0) {
++        cpy->dstMemoryType = CU_MEMORYTYPE_DEVICE;
++        cpy->dstDevice = img->linearDevicePtr + (CUdeviceptr) img->offsets[plane];
++        cpy->dstPitch = (size_t) img->strides[plane];
++    } else {
++        cpy->dstMemoryType = CU_MEMORYTYPE_ARRAY;
++        cpy->dstArray = img->arrays[plane];
++    }
++}
++
+ struct _NVDriver;
+ 
+ typedef struct {
+@@ -310,6 +337,7 @@ bool checkCudaErrors(CUresult err, const char *file, const char *function, const
+ void logger(const char *filename, const char *function, int line, const char *msg, ...);
+ bool nvdLogDebugEnabled(void);
+ bool nvdSingleBufferForced(void);
++bool nvdLinearForced(void);
+ #define CHECK_CUDA_RESULT(err) checkCudaErrors(err, __FILE__, __func__, __LINE__)
+ #define CHECK_CUDA_RESULT_RETURN(err, ret) if (checkCudaErrors(err, __FILE__, __func__, __LINE__)) { return ret; }
+ #define cudaVideoCodec_NONE ((cudaVideoCodec) -1)

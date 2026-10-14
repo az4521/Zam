@@ -40,6 +40,38 @@ modules:
             -o libVkLayer_zam_video_import.so zam_video_import.c -lpthread
           - install -Dm755 libVkLayer_zam_video_import.so /app/lib/libVkLayer_zam_video_import.so
           - install -Dm644 zam_video_import.json /app/share/vulkan/implicit_layer.d/zam_video_import.json
+    # NVIDIA hardware video decode: nvidia-vaapi-driver, the same release the
+    # runtime's org.freedesktop.Platform.VAAPI.nvidia extension ships, plus
+    # NVD_LINEAR (nvidia-vaapi-driver/linear-surfaces.patch) for Chromium's
+    # Vulkan video path on X11. zam.sh points libva here on NVIDIA systems, so
+    # the extension no longer has to be installed by hand.
+    - name: nv-codec-headers
+      buildsystem: simple
+      cleanup: ["/include", "/lib/pkgconfig"]
+      sources:
+          - type: archive
+            url: https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n12.2.72.0.tar.gz
+            sha256: dbeaec433d93b850714760282f1d0992b1254fc3b5a6cb7d76fc1340a1e47563
+      build-commands:
+          - make PREFIX=/app install
+    - name: nvidia-vaapi-driver
+      buildsystem: simple
+      sources:
+          - type: archive
+            url: https://github.com/elFarto/nvidia-vaapi-driver/archive/refs/tags/v0.0.18.tar.gz
+            sha256: 7459205cd1719a5865ab9c8969723c27e9863add5e7229e8e56c5f8816017b2a
+          - type: patch
+            path: nvidia-vaapi-driver/linear-surfaces.patch
+      build-commands:
+          # meson would install into libva's driver dir under /usr; build and
+          # install the module by hand instead.
+          - meson setup build --prefix=/app --buildtype=release
+          - ninja -C build
+          # Fail the build rather than ship a driver without VP9 (it needs
+          # gstreamer-codecparsers, which meson treats as optional).
+          - grep -q 'src/vp9.c' build/compile_commands.json
+          - install -Dm755 build/nvidia_drv_video.so /app/lib/dri/nvidia_drv_video.so
+          - install -Dm644 COPYING /app/share/licenses/nvidia-vaapi-driver/COPYING
     - name: zam
       buildsystem: simple
       sources:
