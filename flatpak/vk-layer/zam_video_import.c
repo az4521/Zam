@@ -1,16 +1,17 @@
-// Vulkan layer for diagnosing (and working around) Chromium failing to import
-// hardware-decoded video frames into Vulkan on NVIDIA under X11.
+// Vulkan layer for Chromium importing hardware-decoded video frames into Vulkan
+// on NVIDIA under X11.
 //
-// Chromium's Vulkan path imports each VA-API frame (a dma-buf with an NVIDIA
-// block-linear DRM modifier) as a VkImage, and every failure on the way is a
-// DLOG, compiled out of release builds; all the user sees is "CreateSharedImage:
-// could not create backing" and a GPU process restart. This layer logs those
-// calls and their results to stderr with a "[zam-vk]" prefix.
+// Chromium's Vulkan path imports each VA-API frame (a dma-buf with a DRM
+// modifier) as a VkImage, and every failure on the way is a DLOG, compiled out
+// of release builds; all the user sees is "CreateSharedImage: could not create
+// backing" and a GPU process restart.
 //
-// Loaded only when ZAM_VK_DEBUG=1 (see the layer manifest). ZAM_VK_FIXUP=1 also
-// clears image usage bits the driver reports as unsupported for the image's
-// DRM modifier: Chromium asks for COLOR_ATTACHMENT on every imported image,
-// which multi-planar (NV12) formats generally can't be, and only samples video.
+// Loaded only when ZAM_VK_LAYER=1 (see the layer manifest; zam.sh sets it on
+// NVIDIA under X11). ZAM_VK_FIXUP=1 clears image usage bits the driver reports
+// as unsupported for the image's DRM modifier: Chromium asks for
+// COLOR_ATTACHMENT on every imported image, which NVIDIA's linear NV12 can't
+// be, and only samples video. ZAM_VK_DEBUG=1 logs the import calls and their
+// results to stderr with a "[zam-vk]" prefix.
 
 #include <errno.h>
 #include <pthread.h>
@@ -26,8 +27,14 @@
 
 #define EXPORT __attribute__((visibility("default")))
 
+static bool debug_enabled(void) {
+    const char *v = getenv("ZAM_VK_DEBUG");
+    return v && *v && strcmp(v, "0") != 0;
+}
+
 static void logf_(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static void logf_(const char *fmt, ...) {
+    if (!debug_enabled()) return;
     char line[1024];
     va_list ap;
     va_start(ap, fmt);
@@ -189,7 +196,7 @@ static void log_image_format_support(DeviceData *dev, const VkImageCreateInfo *c
                                      uint64_t modifier) {
     PFN_vkGetPhysicalDeviceImageFormatProperties2 get =
         dev->instance->GetPhysicalDeviceImageFormatProperties2;
-    if (!get) return;
+    if (!get || !debug_enabled()) return;
     VkPhysicalDeviceImageDrmFormatModifierInfoEXT mod_info = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_DRM_FORMAT_MODIFIER_INFO_EXT,
         .drmFormatModifier = modifier,

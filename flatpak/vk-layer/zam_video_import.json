@@ -6,12 +6,12 @@
         "library_path": "/app/lib/libVkLayer_zam_video_import.so",
         "api_version": "1.3.0",
         "implementation_version": "1",
-        "description": "Zam: logs (and with ZAM_VK_FIXUP=1 fixes) Chromium's import of hardware-decoded video frames",
+        "description": "Zam: fixes (ZAM_VK_FIXUP=1) and logs (ZAM_VK_DEBUG=1) Chromium's import of hardware-decoded video frames",
         "functions": {
             "vkNegotiateLoaderLayerInterfaceVersion": "zam_NegotiateLoaderLayerInterfaceVersion"
         },
         "enable_environment": {
-            "ZAM_VK_DEBUG": "1"
+            "ZAM_VK_LAYER": "1"
         },
         "disable_environment": {
             "ZAM_VK_DISABLE": "1"

@@ -583,7 +583,12 @@ ipcMain.handle("gpu:info", async () => {
         "WAYLAND_DISPLAY",
         "DISPLAY",
         "LIBVA_DRIVER_NAME",
+        "LIBVA_DRIVERS_PATH",
         "NVD_BACKEND",
+        "NVD_LINEAR",
+        "ZAM_NVIDIA_VULKAN_VIDEO",
+        "ZAM_VK_LAYER",
+        "ZAM_VK_FIXUP",
         "FLATPAK_ID",
     ]) {
         if (process.env[name]) env[name] = process.env[name];
@@ -1101,14 +1106,10 @@ const features = [
 ];
 // Chromium skips NVIDIA render nodes for VA-API video decode unless this is on,
 // because nvidia-vaapi-driver releases before 0.0.18 handed it surfaces it
-// couldn't import. The Flatpak runtime's org.freedesktop.Platform.VAAPI.nvidia
-// 25.08 extension ships 0.0.18, so turn it on there (zam.sh picks the libva
-// driver). Outside Flatpak the host's driver may be older, so leave it off.
-// Only on Wayland: under X11 Chromium hands decoded frames to the X server
-// (GLX has no dma-buf import), and NVIDIA's come out black, which is worse
-// than the software decode Chromium falls back to without this
-// (github.com/elFarto/nvidia-vaapi-driver/issues/463). Electron runs on
-// Wayland in a Wayland session (Electron 38+ default) unless told otherwise.
+// couldn't import. The Flatpak bundles 0.0.18 (flatpak/moe.crafty.matrix.yml),
+// so turn it on there. Outside Flatpak the host's driver may be older, so
+// leave it off. Electron runs on Wayland in a Wayland session (Electron 38+
+// default) unless told otherwise.
 const ozone =
     app.commandLine.getSwitchValue("ozone-platform") ||
     app.commandLine.getSwitchValue("ozone-platform-hint");
@@ -1117,7 +1118,29 @@ const onWayland =
         ? ozone === "wayland"
         : !!process.env.WAYLAND_DISPLAY ||
           process.env.XDG_SESSION_TYPE === "wayland";
-if (IN_FLATPAK && onWayland) features.push("VaapiOnNvidiaGPUs");
+// Under X11 Chromium's GL path hands decoded frames to the X server (GLX has no
+// dma-buf import) and NVIDIA's come out black, worse than the software decode
+// Chromium falls back to (github.com/elFarto/nvidia-vaapi-driver/issues/463).
+// Its Vulkan path imports them itself; zam.sh sets ZAM_NVIDIA_VULKAN_VIDEO when
+// NVIDIA drives the screens under X11, along with what NVIDIA's Vulkan driver
+// needs for that import (pitch-linear frames, our Vulkan layer's usage fixup).
+// VaapiIgnoreDriverChecks: Chromium only allows VA-API with Vulkan on Intel.
+const nvidiaVulkanVideo =
+    IN_FLATPAK && !onWayland && process.env.ZAM_NVIDIA_VULKAN_VIDEO === "1";
+if (IN_FLATPAK && (onWayland || nvidiaVulkanVideo)) {
+    features.push("VaapiOnNvidiaGPUs");
+}
+if (nvidiaVulkanVideo) {
+    features.push(
+        "Vulkan",
+        "VulkanFromANGLE",
+        "DefaultANGLEVulkan",
+        "VaapiIgnoreDriverChecks",
+    );
+    if (!app.commandLine.hasSwitch("use-angle")) {
+        app.commandLine.appendSwitch("use-angle", "vulkan");
+    }
+}
 app.commandLine.appendSwitch(
     "enable-features",
     features.filter(Boolean).join(","),

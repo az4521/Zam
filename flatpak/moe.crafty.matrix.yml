@@ -28,8 +28,9 @@ finish-args:
     - --talk-name=org.kde.StatusNotifierWatcher
     - --env=ELECTRON_TRASH=gio
 modules:
-    # Vulkan layer for diagnosing hardware video decode on NVIDIA under X11
-    # (vk-layer/zam_video_import.c). Inert unless ZAM_VK_DEBUG=1.
+    # Vulkan layer that lets Chromium import hardware-decoded video on NVIDIA
+    # under X11 (vk-layer/zam_video_import.c). Loaded only with ZAM_VK_LAYER=1,
+    # which zam.sh sets there.
     - name: vk-layer
       buildsystem: simple
       sources:
