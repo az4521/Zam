@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.20.2
+
+🐛 **Fixed**
+
+- **HEVC videos and hardware video decoding on NVIDIA in the Flatpak:** the Linux Flatpak never used an NVIDIA graphics card to decode video, so HEVC videos didn't play at all and other videos used more processor than they should. It now uses the card, once you install NVIDIA's video decoding driver for Flatpak: `flatpak install flathub org.freedesktop.Platform.VAAPI.nvidia//25.08`.
+- **Chromium features from the command line are no longer ignored:** `--enable-features=...` passed when launching the desktop app was being dropped.
+
 ## v1.20.1
 
 ✨ **New**
