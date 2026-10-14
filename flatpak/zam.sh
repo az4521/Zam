@@ -20,10 +20,12 @@ if [ -z "$LIBVA_DRIVER_NAME" ]; then
     done
     if [ -n "$nv" ] && [ -z "$other" ]; then
         export LIBVA_DRIVER_NAME=nvidia
-        if [ -z "$LIBVA_DRIVERS_PATH" ]; then
-            lib="/usr/lib/$(uname -m)-linux-gnu"
-            export LIBVA_DRIVERS_PATH="/app/lib/dri:$lib/dri:$lib/dri/intel-vaapi-driver:$lib/dri/nvidia-vaapi-driver:$lib/GL/lib/dri"
-        fi
     fi
+fi
+# Also when the user set LIBVA_DRIVER_NAME=nvidia themselves (nvidia-vaapi-driver's
+# README tells them to, and Flatpak passes it through).
+if [ "$LIBVA_DRIVER_NAME" = nvidia ] && [ -z "$LIBVA_DRIVERS_PATH" ]; then
+    lib="/usr/lib/$(uname -m)-linux-gnu"
+    export LIBVA_DRIVERS_PATH="/app/lib/dri:$lib/dri:$lib/dri/intel-vaapi-driver:$lib/dri/nvidia-vaapi-driver:$lib/GL/lib/dri"
 fi
 exec zypak-wrapper /app/zam/zam "$@"
