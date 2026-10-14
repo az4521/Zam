@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.20.6
+
+🐛 **Fixed**
+
+- **Hardware video decoding on NVIDIA under X11 (Flatpak):** with an NVIDIA graphics card in an X11 session, hardware-decoded videos showed up black and HEVC videos didn't play at all. They now play, decoded by your graphics card. If your graphics card draws Zam wrongly with this on, start it with `ZAM_NVIDIA_VULKAN_VIDEO=0` to go back, or turn hardware acceleration off in Settings > Debug.
+- **The bundled NVIDIA video driver is always used:** on some NVIDIA systems the Flatpak still picked up a separately installed copy of the driver instead of the one it ships.
+
 ## v1.20.5
 
 🐛 **Fixed**
