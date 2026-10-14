@@ -7,8 +7,7 @@ export CHROME_DESKTOP=moe.crafty.matrix.desktop
 # NVIDIA hardware video decode goes through nvidia-vaapi-driver, which libva
 # won't choose on its own. Only force it when every render node is NVIDIA, so
 # hybrid laptops keep the integrated GPU's driver for the node Chromium
-# actually opens. Our build (/app/lib/dri, with NVD_LINEAR) comes first; the
-# rest is libva's own search path in the runtime.
+# actually opens.
 if [ -z "$LIBVA_DRIVER_NAME" ]; then
     nv= other=
     for d in /sys/class/drm/renderD*/device/driver; do
@@ -22,9 +21,11 @@ if [ -z "$LIBVA_DRIVER_NAME" ]; then
         export LIBVA_DRIVER_NAME=nvidia
     fi
 fi
-# Also when the user set LIBVA_DRIVER_NAME=nvidia themselves (nvidia-vaapi-driver's
-# README tells them to, and Flatpak passes it through).
-if [ "$LIBVA_DRIVER_NAME" = nvidia ] && [ -z "$LIBVA_DRIVERS_PATH" ]; then
+# Our nvidia-vaapi-driver build (/app/lib/dri, with NVD_LINEAR) ahead of the
+# runtime's, however libva ends up choosing nvidia: the directory holds only
+# nvidia_drv_video.so, so every other driver still comes from libva's own
+# search path in the runtime, which follows.
+if [ -z "$LIBVA_DRIVERS_PATH" ]; then
     lib="/usr/lib/$(uname -m)-linux-gnu"
     export LIBVA_DRIVERS_PATH="/app/lib/dri:$lib/dri:$lib/dri/intel-vaapi-driver:$lib/dri/nvidia-vaapi-driver:$lib/GL/lib/dri"
 fi
