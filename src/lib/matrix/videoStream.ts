@@ -24,6 +24,8 @@ import type { ISOFile, Movie } from "mp4box";
  * at the end can't be remuxed until it is fully downloaded, so it degrades to
  * blob timing. WebM needs no remuxing: once its Tracks header yields a codec
  * list (webmProbe.ts) the bytes are appended to the SourceBuffer as they come.
+ * A Matroska with codecs a WebM SourceBuffer refuses (the usual H.264/AAC
+ * MKV) is remuxed to fragmented MP4 as it arrives instead (mkvRemux.ts).
  * Anything else (another container, an unknown codec, no MediaSource at all)
  * goes the blob way. Seeking only reaches what has already downloaded: without
  * ranges there is no way to fetch ahead.
@@ -281,7 +283,82 @@ export function attachAuthedVideo(
             held.push(buf);
             size += buf.byteLength;
         }
+        if (!mime || !MediaSource.isTypeSupported(mime)) {
+            return streamMatroska(reader, held, ended);
+        }
         return streamBytes(reader, held, mime, ended);
+    }
+
+    /**
+     * A Matroska the WebM route can't take (H.264/HEVC/AAC: an MKV from OBS
+     * or a rip) is remuxed to fragmented MP4 as it arrives (mkvRemux.ts).
+     * Anything the remuxer or the browser can't handle plays as a blob.
+     */
+    async function streamMatroska(
+        reader: ChunkReader,
+        held: ArrayBuffer[],
+        ended: boolean,
+    ) {
+        const { MkvRemuxer } = await import("$lib/utils/mkvRemux");
+        const remux = new MkvRemuxer();
+        for (const buf of held) remux.push(new Uint8Array(buf));
+        while (!remux.header && !remux.unsupported) {
+            if (ended) {
+                remux.end();
+                break;
+            }
+            const { done, value } = await reader.read();
+            if (done) {
+                ended = true;
+                continue;
+            }
+            const buf = ownBuffer(value);
+            held.push(buf);
+            remux.push(new Uint8Array(buf));
+        }
+        if (disposed) return;
+        const header = remux.header;
+        if (
+            !header ||
+            !header.tracks.every((t) => MediaSource.isTypeSupported(t.mime))
+        ) {
+            return playAsBlob(ended ? null : reader, held);
+        }
+        held.length = 0;
+
+        const ms = new MediaSource();
+        const opened = new Promise<void>((resolve) =>
+            ms.addEventListener("sourceopen", () => resolve(), { once: true }),
+        );
+        setSrc(URL.createObjectURL(ms));
+        await opened;
+        if (disposed) return;
+        if (header.duration) ms.duration = header.duration;
+
+        const trackQueues = header.tracks.map((t) => {
+            const q = new AppendQueue(ms.addSourceBuffer(t.mime), video, fail);
+            queues.push(q);
+            q.push({ buffer: t.init });
+            return q;
+        });
+        const pump = () => {
+            for (const seg of remux.take()) {
+                trackQueues[seg.track].push({ buffer: seg.buffer });
+            }
+        };
+        pump();
+        if (!ended) {
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                remux.push(value);
+                pump();
+            }
+            remux.end();
+            pump();
+        }
+        await Promise.all(trackQueues.map((q) => q.drained()));
+        if (!disposed && ms.readyState === "open") ms.endOfStream();
     }
 
     /**

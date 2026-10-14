@@ -48,7 +48,7 @@ export function isWebm(head: Uint8Array): boolean {
 }
 
 /** An element ID, marker bits kept (that is how IDs are written down). */
-function readId(
+export function readId(
     buf: Uint8Array,
     pos: number,
 ): { id: number; length: number } | null {
@@ -64,7 +64,7 @@ function readId(
 }
 
 /** An element size: `null` size means "unknown" (all value bits set). */
-function readSize(
+export function readSize(
     buf: Uint8Array,
     pos: number,
 ): { size: number | null; length: number } | null {
