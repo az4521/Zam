@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.20.3
+
+✨ **New**
+
+- **GPU info and a hardware acceleration switch:** Settings > Debug in the desktop app now shows which video formats your graphics card decodes, what Chromium has hardware acceleration on for, and a full report you can copy into a bug report. If your graphics driver draws videos black or the window wrongly, you can turn hardware acceleration off there; it applies after a restart, and a button restarts Zam for you.
+
+🐛 **Fixed**
+
+- **Black videos with NVIDIA on X11 in the Flatpak:** 1.20.2 sent video to NVIDIA graphics cards for decoding, which only displays properly in a Wayland session. On X11, videos that used to play came out black. Zam now only does this on Wayland.
+
 ## v1.20.2
 
 🐛 **Fixed**
