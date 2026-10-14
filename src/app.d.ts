@@ -77,6 +77,23 @@ declare global {
             contextMenu?: {
                 onSaveImage: (cb: (url: string) => void) => () => void;
             };
+            /** Plugins' native code ($lib/plugins/pluginNative): open()
+             *  installs (after a system consent dialog) and starts the
+             *  plugin's host, whose port arrives as the window message
+             *  "zam:plugin-native-port:<id>". */
+            pluginNative?: {
+                /** `${process.platform}-${process.arch}`, e.g. "win32-x64". */
+                platform: string;
+                open: (req: {
+                    id: string;
+                    pluginId: string;
+                    owner: string;
+                    repo: string;
+                    sha: string;
+                    path: string;
+                }) => Promise<{ ok: boolean; error?: string }>;
+                remove: (pluginId: string) => Promise<void>;
+            };
         };
     }
 }

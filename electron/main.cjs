@@ -28,6 +28,7 @@ const fs = require("fs");
 const path = require("path");
 const { resolveStaticPath, isSafeExternalUrl } = require("./serverGuards.cjs");
 const { parseWindowState, fitToDisplays } = require("./windowState.cjs");
+const { registerPluginNative } = require("./pluginNative.cjs");
 
 const BUILD_DIR = path.join(__dirname, "..", "build");
 // Hand-sized icon set (scripts/gen-icons.py): the .ico carries a real frame per
@@ -192,6 +193,9 @@ function showWindow() {
 // The renderer asks for this when a call notification is clicked while the
 // window is hidden in the tray.
 ipcMain.on("show-window", showWindow);
+
+// Plugins' native code (zam.native), after the user agrees.
+registerPluginNative(ipcMain, () => mainWindow);
 
 // --- Auto-updater (packaged desktop app only) -----------------------------
 //

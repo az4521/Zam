@@ -18,6 +18,8 @@ import {
 } from "./settingsSchema";
 import { settingsStorageKey } from "./pluginSettingsStore";
 import { hostBridge } from "./hostBridge";
+import { createAssetAccess, type PluginFileSource } from "./pluginAssets";
+import { connectNative, nativeAvailable } from "./pluginNative";
 import { sendReaction, getOwnUserId, getClient } from "../matrix/client";
 import {
     sendEventContent,
@@ -35,6 +37,8 @@ export interface BuildHostApiOptions {
     manifest: Manifest;
     registry: PluginRegistryData;
     appVersion: string;
+    /** Where a repo plugin's files come from (null: built-in). */
+    source?: PluginFileSource | null;
 }
 
 export interface PluginHost {
@@ -53,6 +57,7 @@ function warnNoopDisposable(what: string): Disposable {
 
 export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
     const { pluginId, manifest, registry, appVersion } = opts;
+    const source = opts.source ?? null;
 
     // Track every Disposable so disposeAll removes exactly this plugin's
     // contributions. Wrap so self-dispose and disposeAll share one idempotent
@@ -317,6 +322,18 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
 
         unsafe: {
             getClient: () => getClient(),
+        },
+
+        assets: createAssetAccess(pluginId, manifest.assets, source),
+
+        audio: {
+            registerMicFilter: (filter) =>
+                track(addEntry(registry, "micFilters", pluginId, filter)),
+        },
+
+        native: {
+            available: () => nativeAvailable(manifest, source),
+            connect: () => connectNative(pluginId, manifest, source),
         },
 
         storage,

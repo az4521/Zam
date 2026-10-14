@@ -42,6 +42,13 @@
     } from "$lib/utils/noiseSuppressionMode";
     import { planMicProcessing } from "$lib/utils/micProcessing";
     import { deepFilterSupported } from "$lib/audio/deepFilter";
+    import {
+        findMicFilter,
+        isPluginFilterKey,
+        listMicFilters,
+        micFilterUsable,
+    } from "$lib/audio/micFilters";
+    import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import { playSpeakerTestTone } from "$lib/audio/speakerTest";
     import {
         playCallSound,
@@ -136,6 +143,17 @@
     }
 
     const dfSupported = deepFilterSupported();
+    // Noise filters plugins have registered (zam.audio.registerMicFilter).
+    const pluginFilters = $derived(
+        (void pluginRegistry.tick, listMicFilters()),
+    );
+    const nsMode = $derived(settingsState.noiseSuppressionMode);
+    // The chosen plugin filter, if its plugin is loaded (null: not loaded,
+    // or not a plugin mode).
+    const nsFilter = $derived(
+        (void pluginRegistry.tick,
+        isPluginFilterKey(nsMode) ? findMicFilter(nsMode) : null),
+    );
     const micPlan = $derived(
         planMicProcessing(
             settingsState.noiseSuppressionMode,
@@ -525,13 +543,22 @@
                     {t("voiceAudioSettings.noiseSuppression")}
                 </label>
                 <p class="text-xs text-discord-textMuted">
-                    {settingsState.noiseSuppressionMode === "deepfilter"
-                        ? dfSupported
-                            ? t("voiceAudioSettings.nsDeepFilterHint")
-                            : t("voiceAudioSettings.nsDeepFilterUnsupported")
-                        : settingsState.noiseSuppressionMode === "browser"
-                          ? t("voiceAudioSettings.nsBrowserHint")
-                          : t("voiceAudioSettings.nsOffHint")}
+                    {isPluginFilterKey(nsMode)
+                        ? !dfSupported
+                            ? t("voiceAudioSettings.nsPluginUnsupported")
+                            : !nsFilter
+                              ? t("voiceAudioSettings.nsPluginUnavailable")
+                              : !micFilterUsable(nsFilter)
+                                ? t("voiceAudioSettings.nsPluginCantRun")
+                                : (nsFilter.description ??
+                                  t("voiceAudioSettings.nsPluginHint"))
+                        : settingsState.noiseSuppressionMode === "deepfilter"
+                          ? dfSupported
+                              ? t("voiceAudioSettings.nsDeepFilterHint")
+                              : t("voiceAudioSettings.nsDeepFilterUnsupported")
+                          : settingsState.noiseSuppressionMode === "browser"
+                            ? t("voiceAudioSettings.nsBrowserHint")
+                            : t("voiceAudioSettings.nsOffHint")}
                 </p>
             </div>
             <select
@@ -548,6 +575,14 @@
                     void applyConstraints();
                 }}
             >
+                {#each pluginFilters as f (f.key)}
+                    <option value={f.key}>{f.label}</option>
+                {/each}
+                {#if isPluginFilterKey(nsMode) && !nsFilter}
+                    <option value={nsMode}
+                        >{t("voiceAudioSettings.nsPluginMissing")}</option
+                    >
+                {/if}
                 <option value="deepfilter"
                     >{t("voiceAudioSettings.nsDeepFilter")}</option
                 >

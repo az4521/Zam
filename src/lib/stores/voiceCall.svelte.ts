@@ -80,7 +80,7 @@ import {
     getNativeAudioRoute,
     type NativeAudioRoute,
 } from "$lib/nativeCall";
-import { prefetchDeepFilter } from "$lib/audio/deepFilter";
+import { prefetchDenoiser } from "$lib/audio/prepareDenoiser";
 
 /** Leaves startup (sync, crypto, room list) the bandwidth first. */
 const MODEL_PREFETCH_DELAY_MS = 15_000;
@@ -216,11 +216,14 @@ export function initVoiceCall(): () => void {
         sinkId: settingsState.audioOutputDeviceId,
     });
     primeParticipantAudio(settingsState.participantAudio);
-    // Get the noise filter model onto the device ahead of the first call,
-    // once startup has settled (web/PWA only; the apps ship it).
+    // Get the noise filter's files onto the device ahead of the first call,
+    // once startup has settled (DeepFilterNet3's on web/PWA only: the apps
+    // ship it; a plugin filter's wherever it runs).
     const prefetchTimer = setTimeout(() => {
-        if (settingsState.noiseSuppressionMode === "deepfilter")
-            void prefetchDeepFilter();
+        const mode = settingsState.noiseSuppressionMode;
+        // A plugin filter's files, or DeepFilterNet3's (also where the
+        // plugin filter can't run here).
+        if (mode !== "browser" && mode !== "off") void prefetchDenoiser(mode);
     }, MODEL_PREFETCH_DELAY_MS);
 
     let selfSound: SelfSoundState = INITIAL_SELF_SOUND_STATE;

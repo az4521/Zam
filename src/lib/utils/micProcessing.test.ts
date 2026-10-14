@@ -7,6 +7,9 @@ import {
 
 describe("normalizeNoiseSuppressionMode", () => {
     it("keeps a stored mode", () => {
+        expect(
+            normalizeNoiseSuppressionMode("plugin:dpdfnet/dpdfnet", false),
+        ).toBe("plugin:dpdfnet/dpdfnet");
         expect(normalizeNoiseSuppressionMode("browser", true)).toBe("browser");
         expect(normalizeNoiseSuppressionMode("off", true)).toBe("off");
         expect(normalizeNoiseSuppressionMode("deepfilter", false)).toBe(
@@ -23,6 +26,12 @@ describe("normalizeNoiseSuppressionMode", () => {
 describe("effectiveNoiseSuppression", () => {
     it("falls back to the browser's suppressor, not to none", () => {
         expect(effectiveNoiseSuppression("deepfilter", false)).toBe("browser");
+        expect(effectiveNoiseSuppression("plugin:dpdfnet/dpdfnet", false)).toBe(
+            "browser",
+        );
+        expect(effectiveNoiseSuppression("plugin:dpdfnet/dpdfnet", true)).toBe(
+            "plugin:dpdfnet/dpdfnet",
+        );
         expect(effectiveNoiseSuppression("deepfilter", true)).toBe(
             "deepfilter",
         );
@@ -35,7 +44,14 @@ describe("planMicProcessing", () => {
         expect(planMicProcessing("deepfilter", "zam", true)).toEqual({
             noiseSuppression: false,
             autoGainControl: false,
-            chain: { denoise: true, level: true },
+            chain: { denoise: "deepfilter", level: true },
+        });
+        expect(
+            planMicProcessing("plugin:dpdfnet/dpdfnet", "zam", true),
+        ).toEqual({
+            noiseSuppression: false,
+            autoGainControl: false,
+            chain: { denoise: "plugin:dpdfnet/dpdfnet", level: true },
         });
     });
     it("leaves everything to the browser when asked", () => {
@@ -56,7 +72,22 @@ describe("planMicProcessing", () => {
         expect(planMicProcessing("deepfilter", "browser", true)).toEqual({
             noiseSuppression: false,
             autoGainControl: true,
-            chain: { denoise: true, level: false },
+            chain: { denoise: "deepfilter", level: false },
         });
+    });
+});
+
+describe("plugin filter keys", () => {
+    it("rejects malformed plugin keys", () => {
+        expect(normalizeNoiseSuppressionMode("plugin:", true)).toBe(
+            "deepfilter",
+        );
+        expect(normalizeNoiseSuppressionMode("plugin:a/b/c", true)).toBe(
+            "deepfilter",
+        );
+        expect(normalizeNoiseSuppressionMode("plugin:../x", false)).toBe("off");
+        expect(normalizeNoiseSuppressionMode("dpdfnet", true)).toBe(
+            "deepfilter",
+        );
     });
 });

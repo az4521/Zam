@@ -380,3 +380,84 @@ describe("parseManifest", () => {
         );
     });
 });
+
+describe("parseManifest assets and native", () => {
+    const base = {
+        id: "dpdfnet",
+        name: "DPDFNet",
+        version: "1.0.0",
+        description: "Noise filter",
+        author: "a",
+        entry: "main.js",
+    };
+    const file = (path: string) => ({ path, sha256: "a".repeat(64), size: 10 });
+    const win = {
+        host: "native/host.cjs",
+        files: [file("native/host.cjs"), file("native/x.node")],
+    };
+    const android = {
+        host: "native/android/host.dex",
+        entry: "zam.plugins.dpdfnet.Host",
+        files: [
+            file("native/android/host.dex"),
+            file("native/android/lib/libonnxruntime.so"),
+        ],
+    };
+
+    it("keeps valid assets and per-platform native code", () => {
+        const m = parseManifest({
+            ...base,
+            assets: [file("assets/model.onnx")],
+            native: {
+                platforms: { "win32-x64": win, "android-arm64": android },
+            },
+        });
+        expect(m.assets).toEqual([file("assets/model.onnx")]);
+        expect(m.native?.platforms["win32-x64"]).toEqual(win);
+        expect(m.native?.platforms["android-arm64"]).toEqual(android);
+    });
+
+    it("rejects unsafe paths, bad hashes, sizes and duplicates", () => {
+        expect(() =>
+            parseManifest({ ...base, assets: [file("../x")] }),
+        ).toThrow(/path/);
+        expect(() =>
+            parseManifest({
+                ...base,
+                assets: [{ ...file("a"), sha256: "XYZ" }],
+            }),
+        ).toThrow(/sha256/);
+        expect(() =>
+            parseManifest({ ...base, assets: [{ ...file("a"), size: -1 }] }),
+        ).toThrow(/size/);
+        expect(() =>
+            parseManifest({ ...base, assets: [file("a"), file("a")] }),
+        ).toThrow(/twice/);
+        expect(() => parseManifest({ ...base, assets: "a" })).toThrow(/array/);
+    });
+
+    it("rejects unknown platforms, a missing host and the wrong host kind", () => {
+        const native = (platforms: unknown) => () =>
+            parseManifest({ ...base, native: { platforms } });
+        expect(native({ "beos-x64": win })).toThrow(/platform/);
+        expect(
+            native({ "linux-x64": { host: "h.cjs", files: [file("x.node")] } }),
+        ).toThrow(/host/);
+        expect(
+            native({ "linux-x64": { ...win, host: "native/x.node" } }),
+        ).toThrow(/\.cjs/);
+        expect(
+            native({
+                "android-arm64": { ...android, host: "native/host.cjs" },
+            }),
+        ).toThrow(/\.dex/);
+        expect(
+            native({ "android-arm64": { ...android, entry: "not a class" } }),
+        ).toThrow(/entry/);
+    });
+
+    it("knows the audio and native capabilities", () => {
+        expect(KNOWN_CAPABILITIES).toContain("audio");
+        expect(KNOWN_CAPABILITIES).toContain("native");
+    });
+});

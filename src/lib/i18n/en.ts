@@ -2005,6 +2005,15 @@ export const en = {
     "voiceAudioSettings.voiceProcessing": "Voice processing",
     "voiceAudioSettings.noiseSuppression": "Noise suppression",
     "voiceAudioSettings.nsDeepFilter": "DeepFilterNet3",
+    "voiceAudioSettings.nsPluginHint":
+        "Noise removal from a plugin, running on your device. DeepFilterNet3 is used instead wherever it can't run.",
+    "voiceAudioSettings.nsPluginUnavailable":
+        "The plugin for this noise filter isn't enabled, so DeepFilterNet3 is used instead.",
+    "voiceAudioSettings.nsPluginCantRun":
+        "This noise filter can't run on this device, so DeepFilterNet3 is used instead.",
+    "voiceAudioSettings.nsPluginUnsupported":
+        "This browser can't run noise filter plugins, so your browser's own noise suppression is used instead.",
+    "voiceAudioSettings.nsPluginMissing": "Plugin filter (not enabled)",
     "voiceAudioSettings.nsBrowser": "Browser",
     "voiceAudioSettings.nsOff": "Off",
     "voiceAudioSettings.nsDeepFilterHint":

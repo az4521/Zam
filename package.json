@@ -81,6 +81,8 @@
         "electron": "^44.5.1",
         "electron-builder": "^26.8.1",
         "jsdom": "^29.1.1",
+        "onnxruntime-node": "1.30.0",
+        "onnxruntime-web": "1.30.0",
         "postcss": "^8.5.3",
         "prettier": "^3.5.3",
         "prettier-plugin-svelte": "^3.3.3",

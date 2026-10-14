@@ -24,6 +24,7 @@ import type {
     DoubleTapHandler,
     SwipeHandler,
     EventSubscription,
+    MicFilter,
 } from "./types";
 
 export interface RegistryEntry<T> {
@@ -48,6 +49,7 @@ export interface PluginRegistryData {
     doubleTapHandlers: RegistryEntry<DoubleTapHandler>[];
     swipeHandlers: RegistryEntry<SwipeHandler>[];
     eventSubs: RegistryEntry<EventSubscription>[];
+    micFilters: RegistryEntry<MicFilter>[];
     tick: number;
     nextEntryId: number;
 }
@@ -73,6 +75,7 @@ export const EXTENSION_KINDS: ExtensionKind[] = [
     "doubleTapHandlers",
     "swipeHandlers",
     "eventSubs",
+    "micFilters",
 ];
 
 export function createRegistryData(): PluginRegistryData {
@@ -92,6 +95,7 @@ export function createRegistryData(): PluginRegistryData {
         doubleTapHandlers: [],
         swipeHandlers: [],
         eventSubs: [],
+        micFilters: [],
         tick: 0,
         nextEntryId: 1,
     };

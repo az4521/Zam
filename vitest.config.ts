@@ -9,7 +9,11 @@ export default defineConfig({
     plugins: [svelte({ hot: false })],
     test: {
         environment: "jsdom",
-        include: ["src/**/*.{test,spec}.{js,ts}"],
+        include: [
+            "src/**/*.{test,spec}.{js,ts}",
+            // Plugins built from this repo (plugins/<id>/build.mjs).
+            "plugins/*/src/**/*.{test,spec}.{js,ts}",
+        ],
     },
     resolve: {
         // Runes modules pull in svelte's client runtime; the browser condition

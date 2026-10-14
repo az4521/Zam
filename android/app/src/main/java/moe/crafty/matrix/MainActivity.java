@@ -74,6 +74,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(CallServicePlugin.class);
         registerPlugin(UnifiedPushPlugin.class);
         registerPlugin(PushDecryptPlugin.class);
+        registerPlugin(PluginNativePlugin.class);
         bridgeStarted = true;
         super.onCreate(savedInstanceState);
         // Only a FRESH launch carries a fresh action. A recreated activity

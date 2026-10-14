@@ -2062,6 +2062,15 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.voiceProcessing": "Traitement de la voix",
     "voiceAudioSettings.noiseSuppression": "Suppression du bruit",
     "voiceAudioSettings.nsDeepFilter": "DeepFilterNet3",
+    "voiceAudioSettings.nsPluginHint":
+        "Suppression du bruit fournie par un plugin, exécutée sur votre appareil. DeepFilterNet3 est utilisé là où elle ne peut pas fonctionner.",
+    "voiceAudioSettings.nsPluginUnavailable":
+        "Le plugin de ce filtre n'est pas activé : DeepFilterNet3 est utilisé à la place.",
+    "voiceAudioSettings.nsPluginCantRun":
+        "Ce filtre ne peut pas fonctionner sur cet appareil : DeepFilterNet3 est utilisé à la place.",
+    "voiceAudioSettings.nsPluginUnsupported":
+        "Ce navigateur ne peut pas exécuter les filtres de bruit des plugins : la suppression du bruit du navigateur est utilisée à la place.",
+    "voiceAudioSettings.nsPluginMissing": "Filtre de plugin (non activé)",
     "voiceAudioSettings.nsBrowser": "Navigateur",
     "voiceAudioSettings.nsOff": "Désactivé",
     "voiceAudioSettings.nsDeepFilterHint":

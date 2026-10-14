@@ -2082,6 +2082,15 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.voiceProcessing": "Sprachverarbeitung",
     "voiceAudioSettings.noiseSuppression": "Rauschunterdrückung",
     "voiceAudioSettings.nsDeepFilter": "DeepFilterNet3",
+    "voiceAudioSettings.nsPluginHint":
+        "Rauschunterdrückung aus einem Plugin, direkt auf deinem Gerät. Wo sie nicht läuft, wird DeepFilterNet3 verwendet.",
+    "voiceAudioSettings.nsPluginUnavailable":
+        "Das Plugin für diesen Filter ist nicht aktiviert, daher wird DeepFilterNet3 verwendet.",
+    "voiceAudioSettings.nsPluginCantRun":
+        "Dieser Filter läuft auf diesem Gerät nicht, daher wird DeepFilterNet3 verwendet.",
+    "voiceAudioSettings.nsPluginUnsupported":
+        "Dieser Browser kann keine Rauschfilter aus Plugins ausführen, daher wird die Rauschunterdrückung des Browsers verwendet.",
+    "voiceAudioSettings.nsPluginMissing": "Plugin-Filter (nicht aktiviert)",
     "voiceAudioSettings.nsBrowser": "Browser",
     "voiceAudioSettings.nsOff": "Aus",
     "voiceAudioSettings.nsDeepFilterHint":

@@ -49,6 +49,8 @@ import { parseManifest } from "./manifest";
 import { satisfiesMinAppVersion } from "./semver";
 import { checkInstallId, decideRepoLoad } from "./pluginPin";
 import { deleteCachedBundle } from "./bundleCache";
+import { deletePluginFiles } from "./pluginAssets";
+import { removePluginNative } from "./pluginNative";
 import { APP_VERSION } from "$lib/update";
 import { hostBridge } from "./hostBridge";
 import { openPluginPopover } from "./pluginPopover.svelte";
@@ -457,6 +459,7 @@ export function initPlugins(): () => void {
             error: null,
             repoRef: entry.repoRef,
             sha: entry.sha,
+            path: entry.path || `plugins/${id}`,
         });
         const l = repoLoadable(entry.manifest, entry.repoRef);
         loadables.set(id, l);
@@ -626,6 +629,7 @@ export async function installRepoPlugin(
             error: null,
             repoRef,
             sha,
+            path: entry.path,
         });
 
         // Persist with SHA and path
@@ -652,6 +656,8 @@ export async function uninstallRepoPlugin(pluginId: string): Promise<void> {
     if (loader.isLoaded(pluginId)) await loader.disable(pluginId);
     loadables.delete(pluginId);
     await deleteCachedBundle(pluginId);
+    await deletePluginFiles(pluginId);
+    removePluginNative(pluginId);
     removeInstalledPlugin(pluginId);
     setPluginNeedsUpdate(pluginId, false);
     const state = readState();
@@ -915,6 +921,7 @@ export async function updateRepoPlugin(
             error: null,
             repoRef: persisted.repoRef,
             sha,
+            path: pluginPath,
         });
         persisted.manifest = manifest;
         persisted.sha = sha;

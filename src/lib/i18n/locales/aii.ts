@@ -1929,6 +1929,15 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.voiceProcessing": "ܣܘܥܪܢܐ ܕܩܠܐ",
     "voiceAudioSettings.noiseSuppression": "ܒܨܘܪܐ ܕܩܠ̈ܐ ܕܒܣܬܪ",
     "voiceAudioSettings.nsDeepFilter": "DeepFilterNet3",
+    "voiceAudioSettings.nsPluginHint":
+        "ܒܨܘܪܐ ܕܩܠ̈ܐ ܕܒܣܬܪ ܡܢ ܬܘܣܦܬܐ ܥܠ ܡܐܢܐ ܕܝܘܟ.",
+    "voiceAudioSettings.nsPluginUnavailable":
+        "ܬܘܣܦܬܐ ܗܕܐ ܠܐ ܝܠܗ̇ ܕܠܝܩܬܐ، ܒܕܘܟܬܗ ܡܬܦܠܚ DeepFilterNet3.",
+    "voiceAudioSettings.nsPluginCantRun":
+        "ܡܐܢܐ ܗܢܐ ܠܐ ܡܨܐ ܕܡܪܗܛ ܬܘܣܦܬܐ ܗܕܐ، ܒܕܘܟܬܗ ܡܬܦܠܚ DeepFilterNet3.",
+    "voiceAudioSettings.nsPluginUnsupported":
+        "ܡܦܬܫܢܐ ܗܢܐ ܠܐ ܡܨܐ ܕܡܪܗܛ ܬܘܣܦ̈ܬܐ ܕܒܨܘܪܐ ܕܩܠ̈ܐ، ܘܒܨܘܪܐ ܕܩܠ̈ܐ ܕܡܦܬܫܢܐ ܡܬܦܠܚ ܒܕܘܟܬܗ.",
+    "voiceAudioSettings.nsPluginMissing": "ܬܘܣܦܬܐ (ܠܐ ܕܠܝܩܬܐ)",
     "voiceAudioSettings.nsBrowser": "ܡܦܬܫܢܐ",
     "voiceAudioSettings.nsOff": "ܡܛܦܝܐ",
     "voiceAudioSettings.nsDeepFilterHint":

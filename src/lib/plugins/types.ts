@@ -208,6 +208,43 @@ export interface PluginSticker {
     info?: object;
 }
 
+/** One running instance of a mic filter, in the chain's 48 kHz context. */
+export interface MicFilterInstance {
+    /** Input 0: the mic (mono). Output 0: the filtered mic. */
+    node: AudioNode;
+    /** Output carrying the unfiltered mic delayed to line up with output 0,
+     *  if the filter has one: Zam's pause gate then quietens what the filter
+     *  leaves between words. Without it, no gate. */
+    dryOutput?: number;
+    /** Zam sets this: call it if the filter stops coping mid-stream (too
+     *  slow, its backend died) and Zam swaps DeepFilterNet3 in. */
+    onFailure: ((reason: string) => void) | null;
+    /** Release everything; the node is already disconnected. */
+    close(): void;
+}
+
+/** A noise filter for the user's own microphone (zam.audio). It appears in
+ *  Settings > Voice & Audio > Noise suppression; Zam's leveller, soft clipper
+ *  and (with dryOutput) pause gate run after it, and DeepFilterNet3 stands in
+ *  wherever it can't run. */
+export interface MicFilter {
+    id: string;
+    label: string;
+    /** One sentence for the settings page. */
+    description?: string;
+    /** False where it can't run (e.g. a device it found too slow): Zam goes
+     *  straight to DeepFilterNet3. Defaults to true. */
+    available?(): boolean;
+    /** Ahead of a call: get ready so create() is quick. "failed" means it
+     *  won't run here (Zam readies DeepFilterNet3 instead); "timeout" that
+     *  it is still getting ready. */
+    prepare?(timeoutMs: number): Promise<"ready" | "timeout" | "failed">;
+    /** Background download of its files, some time after startup. */
+    prefetch?(): Promise<void>;
+    /** Build an instance for `ctx` (48 kHz). Throw if it can't run here. */
+    create(ctx: AudioContext): Promise<MicFilterInstance>;
+}
+
 /** The `zam` object a plugin's `onload` receives (spec §6). */
 export interface ZamPluginApi {
     app: { version: string };
@@ -342,6 +379,38 @@ export interface ZamPluginApi {
         onChange(
             handler: (values: Record<string, unknown>) => void,
         ): Disposable;
+    };
+
+    /** Files listed in the manifest's `assets`, from the plugin's pinned
+     *  commit, checked against their SHA-256 and kept on the device. Repo
+     *  plugins only. */
+    assets: {
+        get(path: string): Promise<ArrayBuffer>;
+        /** A blob: URL (a worklet or worker module, a wasm file); revoke it
+         *  when done. */
+        url(path: string, type?: string): Promise<string>;
+        /** Whether it is on the device already (no download needed). */
+        cached(path: string): Promise<boolean>;
+    };
+
+    /** Needs the "audio" capability. */
+    audio: {
+        registerMicFilter(filter: MicFilter): Disposable;
+    };
+
+    /** The plugin's own native code (manifest `native`): desktop and
+     *  Android apps, needs the "native" capability, and runs only after the
+     *  user agrees in a system dialog. Zam downloads and checks the files,
+     *  then starts the platform's host: on desktop a script in a utility
+     *  process (it receives each port as a {type: "connect"} message on
+     *  process.parentPort); on Android a class loaded into the app
+     *  (moe.crafty.matrix.PluginNativeHost). Each connect() is a new
+     *  MessagePort to it; send only strings and ArrayBuffers over it, and
+     *  don't transfer the buffers (copy them): Electron drops transferred
+     *  ones, Android's ports carry nothing else. */
+    native: {
+        available(): boolean;
+        connect(): Promise<MessagePort>;
     };
 
     /** Full-power escape hatch (full-trust model). Returns the live matrix-js-sdk

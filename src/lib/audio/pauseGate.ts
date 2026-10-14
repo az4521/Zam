@@ -1,7 +1,7 @@
 /**
  * Loads the pause gate (pauseGate.worklet.js) into an AudioContext. Input 0
- * takes DeepFilterNet3's output, input 1 its input delayed by the model's
- * delay; see the worklet for how it decides.
+ * takes the noise model's output (DPDFNet or DeepFilterNet3), input 1 its
+ * input delayed by the model's delay; see the worklet for how it decides.
  */
 // no-inline: a data: URL worklet module could be refused by a CSP.
 import pauseGateUrl from "./pauseGate.worklet.js?url&no-inline";

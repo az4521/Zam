@@ -2,7 +2,11 @@
 // AudioWorkletProcessor only exist in AudioWorkletGlobalScope); the core is
 // plain JS so tests and the worklet run the same code.
 //
-// Pause gate after DeepFilterNet3. The model's attenuation is capped
+// Pause gate after the noise model (DPDFNet or DeepFilterNet3; tuned on
+// DeepFilterNet3, and measured 2026-10-13 to carry over to DPDFNet unchanged:
+// on 54 real-speech clips it took DPDFNet's DNSMOS background score from 3.46
+// to 3.90 and PESQ from 2.65 to 2.70 without moving the speech score).
+// The model's attenuation is capped
 // (DEEP_FILTER_ATTENUATION_DB) because unlimited suppression muffled speech,
 // but then clicks, keys and room noise in pauses only lose that much, and
 // anything turning the voice up afterwards turns them up too. This gate adds

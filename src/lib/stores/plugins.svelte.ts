@@ -20,6 +20,7 @@ import {
     type PluginRegistryData,
 } from "$lib/plugins/registry";
 import { buildHostApi, type PluginHost } from "$lib/plugins/hostApi";
+import { setMicFilterSource } from "$lib/audio/micFilters";
 import type { Manifest } from "$lib/plugins/manifest";
 
 export type PluginSource = "builtin" | "repo";
@@ -33,11 +34,16 @@ export interface InstalledPluginRecord {
     repoRef?: string;
     /** Commit SHA a repo plugin's code is pinned to (absent until pinned). */
     sha?: string;
+    /** The plugin's directory within its repo (repo plugins). */
+    path?: string;
 }
 
 /** The shared reactive registry all extension points read from. Never
  *  reassigned — only its fields mutate (see reactivity note above). */
 export const pluginRegistry: PluginRegistryData = $state(createRegistryData());
+
+// The mic chain reads plugin noise filters through $lib/audio/micFilters.
+setMicFilterSource(() => pluginRegistry.micFilters);
 
 /** Installed plugins keyed by id (per-device state; the loader in item 3 and
  *  the manager UI in item 4 populate this). */
@@ -57,11 +63,16 @@ export function createPluginHost(
     manifest: Manifest,
 ): PluginHost {
     disposePluginHost(pluginId);
+    const rec = installedPlugins[pluginId];
     const host = buildHostApi({
         pluginId,
         manifest,
         registry: pluginRegistry,
         appVersion: APP_VERSION,
+        source:
+            rec?.source === "repo" && rec.repoRef && rec.sha && rec.path
+                ? { repoRef: rec.repoRef, sha: rec.sha, path: rec.path }
+                : null,
     });
     hosts.set(pluginId, host);
     return host;

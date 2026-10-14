@@ -5,8 +5,25 @@
 
 const { contextBridge, ipcRenderer } = require("electron");
 
+// Plugins' native code (pluginNative.cjs): main answers "plugin-native:open"
+// with a MessagePort to the plugin's host. A port can't cross contextBridge,
+// so it is posted to the page's window, tagged with the id the page asked
+// with; src/lib/plugins/pluginNative.ts picks it up.
+ipcRenderer.on("plugin-native:port", (e, id) => {
+    if (typeof id !== "string" || !e.ports[0]) return;
+    window.postMessage(`zam:plugin-native-port:${id}`, window.location.origin, [
+        e.ports[0],
+    ]);
+});
+
 contextBridge.exposeInMainWorld("desktop", {
     showWindow: () => ipcRenderer.send("show-window"),
+    pluginNative: {
+        platform: `${process.platform}-${process.arch}`,
+        open: (req) => ipcRenderer.invoke("plugin-native:open", req),
+        remove: (pluginId) =>
+            ipcRenderer.invoke("plugin-native:remove", String(pluginId)),
+    },
     sso: {
         // The local server caught an SSO redirect; `url` is its path + query.
         onCallback: (cb) => {

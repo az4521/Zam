@@ -10,6 +10,22 @@ import { isValidSemver } from "./semver";
 
 const VALID_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
+const RAW_BASE = "https://raw.githubusercontent.com/";
+const API_BASE = "https://api.github.com/";
+
+/** Dev builds only: a plugin repo served locally stands in for GitHub
+ *  (localStorage "zam.dev.pluginRawBase" / "zam.dev.pluginApiBase", each an
+ *  absolute URL ending in "/"). Production builds always use GitHub. */
+function devBase(key: string): string | null {
+    if (!import.meta.env?.DEV) return null;
+    try {
+        const v = globalThis.localStorage?.getItem(key) ?? null;
+        return v && /^https?:\/\/[^\s]+\/$/.test(v) ? v : null;
+    } catch {
+        return null;
+    }
+}
+
 export interface RepoRef {
     owner: string;
     repo: string;
@@ -129,7 +145,7 @@ export function normalizeRepoRef(slugOrUrl: string): RepoRef {
 export function rawUrl(ref: RepoRef, path: string): string {
     // Strip one leading slash from path
     const cleanPath = path.startsWith("/") ? path.slice(1) : path;
-    return `https://raw.githubusercontent.com/${ref.owner}/${ref.repo}/${ref.branch}/${cleanPath}`;
+    return `${devBase("zam.dev.pluginRawBase") ?? RAW_BASE}${ref.owner}/${ref.repo}/${ref.branch}/${cleanPath}`;
 }
 
 /**
@@ -176,14 +192,14 @@ export function pinnedFileUrl(
         }
     }
     const path = parts.join("/");
-    return `https://raw.githubusercontent.com/${ref.owner}/${ref.repo}/${sha}/${path}`;
+    return `${devBase("zam.dev.pluginRawBase") ?? RAW_BASE}${ref.owner}/${ref.repo}/${sha}/${path}`;
 }
 
 /**
  * Build the GitHub API URL for resolving a branch to a commit SHA.
  */
 export function commitShaApiUrl(ref: RepoRef): string {
-    return `https://api.github.com/repos/${ref.owner}/${ref.repo}/commits/${encodeURIComponent(ref.branch)}`;
+    return `${devBase("zam.dev.pluginApiBase") ?? API_BASE}repos/${ref.owner}/${ref.repo}/commits/${encodeURIComponent(ref.branch)}`;
 }
 
 /**

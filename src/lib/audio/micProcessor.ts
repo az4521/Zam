@@ -44,7 +44,7 @@ export type MicProcessor = TrackProcessor<
 
 /** Neither stage: the raw mic, still sent through this processor. */
 export const PASSTHROUGH_CHAIN: MicChainOptions = {
-    denoise: false,
+    denoise: null,
     level: false,
 };
 

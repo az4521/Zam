@@ -61,7 +61,8 @@ import {
     PASSTHROUGH_CHAIN,
     type MicProcessor,
 } from "$lib/audio/micProcessor";
-import { deepFilterSupported, prepareDeepFilter } from "$lib/audio/deepFilter";
+import { deepFilterSupported } from "$lib/audio/deepFilter";
+import { prepareDenoiser } from "$lib/audio/prepareDenoiser";
 import type { MicGainMode } from "$lib/utils/micGainMode";
 import type { NoiseSuppressionMode } from "$lib/utils/noiseSuppressionMode";
 import {
@@ -770,12 +771,13 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     // Same for the noise filter: compiled now, awaited before the mic exists
     // so the call never starts unfiltered. Bounded, so a first download on a
     // slow link delays the join rather than blocking it.
-    const denoiseLoad = planMicProcessing(
+    const joinDenoise = planMicProcessing(
         settingsState.noiseSuppressionMode,
         settingsState.micGainMode,
         deepFilterSupported(),
-    ).chain?.denoise
-        ? prepareDeepFilter(DENOISE_JOIN_WAIT_MS)
+    ).chain?.denoise;
+    const denoiseLoad = joinDenoise
+        ? prepareDenoiser(joinDenoise, DENOISE_JOIN_WAIT_MS)
         : Promise.resolve(false);
     await leaveVoiceCallInternal();
     if (seq !== voiceJoinSeq) return; // superseded while leaving
