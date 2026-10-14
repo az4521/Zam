@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.20.4
+
+🔧 **Diagnostics**
+
+- **Hardware video on NVIDIA under X11 (Flatpak):** the Flatpak now includes a diagnostic tool for the step where hardware-decoded video fails to display on NVIDIA graphics cards in an X11 session. It does nothing unless you start Zam with `ZAM_VK_DEBUG=1`; if you're affected and want to help, see the issue tracker for the exact command.
+
 ## v1.20.3
 
 ✨ **New**
