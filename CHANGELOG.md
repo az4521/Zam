@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.20.5
+
+🐛 **Fixed**
+
+- **NVIDIA video decoding works out of the box in the Flatpak:** the Flatpak now includes NVIDIA's video decoding driver itself, so you no longer have to install `org.freedesktop.Platform.VAAPI.nvidia` by hand to get hardware-accelerated video on an NVIDIA graphics card.
+
+🔧 **Diagnostics**
+
+- **Hardware video on NVIDIA under X11:** the bundled driver has an experimental mode for the X11 problem where hardware-decoded video doesn't display. It's off unless you start Zam with `NVD_LINEAR=1`.
+
 ## v1.20.4
 
 🔧 **Diagnostics**
