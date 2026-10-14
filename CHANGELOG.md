@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.21.0
+
+✨ **New**
+
+- **Spanish:** Zam is now available in Spanish (Español). Pick it under Appearance > Language in settings; dates use Spanish month and weekday names too. The translation is machine-drafted and needs review by native speakers.
+
 ## v1.20.6
 
 🐛 **Fixed**
