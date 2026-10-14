@@ -165,6 +165,7 @@ describe("normalizeLocale", () => {
         expect(normalizeLocale("syr-SY")).toBe("aii");
         expect(normalizeLocale("fr-CA")).toBe("fr");
         expect(normalizeLocale("de-AT")).toBe("de");
+        expect(normalizeLocale("es-MX")).toBe("es");
         expect(normalizeLocale("xx")).toBeNull();
         expect(normalizeLocale("")).toBeNull();
     });

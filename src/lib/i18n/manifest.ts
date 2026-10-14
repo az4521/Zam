@@ -55,6 +55,12 @@ export const LOCALES = [
         englishName: "German",
         dir: "ltr",
     },
+    {
+        code: "es",
+        nativeName: "Español",
+        englishName: "Spanish",
+        dir: "ltr",
+    },
 ] as const satisfies readonly LocaleInfo[];
 
 export type Locale = (typeof LOCALES)[number]["code"];
