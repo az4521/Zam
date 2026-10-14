@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.20.1
+
+✨ **New**
+
+- **Tracker music plays in the chat:** MOD, XM, S3M, IT and other tracker module files now get a player above their download card, like MIDI files, so you can listen without downloading them.
+- **DPDFNet on your GPU:** version 1.1.0 of the DPDFNet plugin (update it in Settings > Plugins) runs the noise filter on your graphics card where it can, using a fraction of the processor it needed before. It checks its results against the original model before first use, and falls back to the processor if your GPU is missing, too slow or misbehaves.
+
+🐛 **Fixed**
+
+- **MKV videos play while they load:** Matroska videos with H.264, HEVC or AAC audio, such as OBS recordings, no longer have to download completely before they start playing.
+- **DPDFNet no longer hogs the processor in the desktop and Android apps:** the plugin's native runtime kept more than a whole processor core busy during calls for a fraction of that work. Update the plugin to 1.1.0 to get the fix.
+
 ## v1.20.0
 
 ✨ **New**
