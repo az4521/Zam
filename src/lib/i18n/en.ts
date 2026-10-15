@@ -357,6 +357,16 @@ export const en = {
     "gpuDebug.hardwareAcceleration": "Hardware acceleration",
     "gpuDebug.hardwareAccelerationHint":
         "Turn this off if videos show up black or the window draws wrongly. Applies after a restart.",
+    "gpuDebug.nvidiaVideo": "NVIDIA video decoding",
+    "gpuDebug.nvidiaVideoHint":
+        "Decodes video on NVIDIA GPUs through Chromium's Vulkan renderer. Automatic turns it on when an NVIDIA GPU drives your screens.",
+    "gpuDebug.nvidiaVideoActive": "In use now.",
+    "gpuDebug.nvidiaVideoInactive": "Not in use now.",
+    "gpuDebug.nvidiaVideoFailed":
+        "Zam went back to the GL path after the GPU process crashed. Choose Vulkan to try again.",
+    "gpuDebug.nvidiaVideoAuto": "Automatic",
+    "gpuDebug.nvidiaVideoVulkan": "Vulkan",
+    "gpuDebug.nvidiaVideoOff": "Off",
     "gpuDebug.restartToApply": "Restart Zam to apply this change.",
     "gpuDebug.restart": "Restart",
     "gpuDebug.videoDecoding": "Video decoding",

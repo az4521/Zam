@@ -86,6 +86,25 @@
         }
     }
 
+    type NvidiaMode = "auto" | "vulkan" | "off";
+    // The Vulkan path only takes effect on the next launch (zam.sh).
+    let nvidiaChanged = $state(false);
+
+    async function setNvidiaVideo(mode: NvidiaMode) {
+        const nv = report?.nvidiaVideo;
+        if (!nv) return;
+        const prev = nv.mode;
+        nv.mode = mode;
+        nv.failedAt = null;
+        nvidiaChanged = true;
+        try {
+            await window.desktop?.gpu?.setNvidiaVideo(mode);
+        } catch (e) {
+            nv.mode = prev;
+            error = (e as Error)?.message ?? String(e);
+        }
+    }
+
     const decodeLabel = (d: Decode) =>
         d === "hardware"
             ? t("gpuDebug.decodeHardware")
@@ -150,7 +169,44 @@
             label={t("gpuDebug.hardwareAcceleration")}
         />
     </div>
-    {#if report && report.hardwareAcceleration !== report.hardwareAccelerationAtLaunch}
+    {#if report?.nvidiaVideo}
+        {@const nv = report.nvidiaVideo}
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("gpuDebug.nvidiaVideo")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("gpuDebug.nvidiaVideoHint")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {nv.activeAtLaunch
+                        ? t("gpuDebug.nvidiaVideoActive")
+                        : t("gpuDebug.nvidiaVideoInactive")}
+                </p>
+                {#if nv.failedAt && nv.mode === "auto"}
+                    <p class="text-xs text-discord-warning">
+                        {t("gpuDebug.nvidiaVideoFailed")}
+                    </p>
+                {/if}
+            </div>
+            <select
+                class="bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1.5 border border-discord-divider focus:outline-none focus:ring-2 focus:ring-discord-accent sm:max-w-[16rem]"
+                value={nv.mode}
+                onchange={(e) =>
+                    setNvidiaVideo(e.currentTarget.value as NvidiaMode)}
+                aria-label={t("gpuDebug.nvidiaVideo")}
+            >
+                <option value="auto">{t("gpuDebug.nvidiaVideoAuto")}</option>
+                <option value="vulkan">{t("gpuDebug.nvidiaVideoVulkan")}</option
+                >
+                <option value="off">{t("gpuDebug.nvidiaVideoOff")}</option>
+            </select>
+        </div>
+    {/if}
+    {#if report && (nvidiaChanged || report.hardwareAcceleration !== report.hardwareAccelerationAtLaunch)}
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >

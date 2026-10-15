@@ -376,6 +376,16 @@ const messages: Record<MessageKey, string> = {
     "gpuDebug.decodeUnsupported": "Non pris en charge",
     "gpuDebug.featureStatus": "État des fonctionnalités",
     "gpuDebug.details": "Détails",
+    "gpuDebug.nvidiaVideo": "Décodage vidéo NVIDIA",
+    "gpuDebug.nvidiaVideoHint":
+        "Décode la vidéo sur les GPU NVIDIA via le moteur de rendu Vulkan de Chromium. En automatique, il s'active quand un GPU NVIDIA pilote vos écrans.",
+    "gpuDebug.nvidiaVideoActive": "Utilisé en ce moment.",
+    "gpuDebug.nvidiaVideoInactive": "Pas utilisé en ce moment.",
+    "gpuDebug.nvidiaVideoFailed":
+        "Zam est revenu au rendu GL après un plantage du processus GPU. Choisissez Vulkan pour réessayer.",
+    "gpuDebug.nvidiaVideoAuto": "Automatique",
+    "gpuDebug.nvidiaVideoVulkan": "Vulkan",
+    "gpuDebug.nvidiaVideoOff": "Désactivé",
 
     // src/lib/components/settings/DebugSettings.svelte
     "debugSettings.developer": "Développeur",

@@ -14,10 +14,11 @@ const report = {
     env: { XDG_SESSION_TYPE: "x11", LIBVA_DRIVER_NAME: "nvidia" },
 };
 
-function setup() {
+function setup(extra: Record<string, unknown> = {}) {
     const gpu = {
-        info: vi.fn(async () => structuredClone(report)),
+        info: vi.fn(async () => ({ ...structuredClone(report), ...extra })),
         setHardwareAcceleration: vi.fn(async () => {}),
+        setNvidiaVideo: vi.fn(async () => {}),
         relaunch: vi.fn(),
     };
     (window as unknown as { desktop: unknown }).desktop = { gpu };
@@ -94,5 +95,33 @@ describe("GpuDebug", () => {
             .find((b) => b.textContent?.trim() === "Restart")!
             .click();
         expect(gpu.relaunch).toHaveBeenCalled();
+    });
+
+    it("saves the NVIDIA video path choice and offers a restart", async () => {
+        const gpu = setup({
+            nvidiaVideo: {
+                mode: "auto",
+                activeAtLaunch: false,
+                detected: false,
+                failedAt: 1,
+            },
+        });
+        await render();
+        expect(host!.textContent).toContain("went back to the GL path");
+        const select = host!.querySelector("select")!;
+        select.value = "vulkan";
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        await vi.waitFor(() =>
+            expect(gpu.setNvidiaVideo).toHaveBeenCalledWith("vulkan"),
+        );
+        flushSync();
+        expect(host!.textContent).toContain("Restart Zam");
+        expect(host!.textContent).not.toContain("went back to the GL path");
+    });
+
+    it("hides the NVIDIA video path outside Flatpak", async () => {
+        setup({ nvidiaVideo: null });
+        await render();
+        expect(host!.querySelector("select")).toBeNull();
     });
 });

@@ -593,9 +593,18 @@ ipcMain.handle("gpu:info", async () => {
     ]) {
         if (process.env[name]) env[name] = process.env[name];
     }
+    const prefs = readGpuPrefs();
     return {
-        hardwareAcceleration: readGpuPrefs().hardwareAcceleration !== false,
+        hardwareAcceleration: prefs.hardwareAcceleration !== false,
         hardwareAccelerationAtLaunch,
+        nvidiaVideo: IN_FLATPAK
+            ? {
+                  mode: prefs.nvidiaVideo ?? "auto",
+                  activeAtLaunch: nvidiaVulkanVideo,
+                  detected: !!prefs.nvidiaDetected,
+                  failedAt: prefs.nvidiaVulkanFailed ?? null,
+              }
+            : null,
         featureStatus: app.getGPUFeatureStatus(),
         info,
         switches,
@@ -603,11 +612,71 @@ ipcMain.handle("gpu:info", async () => {
     };
 });
 
+// zam.sh reads gpu-prefs.json with a shell pattern match, so it stays compact
+// JSON.stringify output (no spaces).
+function writeGpuPrefs(patch) {
+    const prefs = { ...readGpuPrefs(), ...patch };
+    for (const k of Object.keys(prefs)) {
+        if (prefs[k] === undefined) delete prefs[k];
+    }
+    fs.writeFileSync(gpuPrefsPath(), JSON.stringify(prefs));
+}
+
 ipcMain.handle("gpu:set-hardware-acceleration", (_e, enabled) => {
-    fs.writeFileSync(
-        gpuPrefsPath(),
-        JSON.stringify({ ...readGpuPrefs(), hardwareAcceleration: !!enabled }),
-    );
+    writeGpuPrefs({ hardwareAcceleration: !!enabled });
+});
+
+// "auto" | "vulkan" | "off" (see zam.sh). Choosing again forgets a fallback
+// recorded after GPU crashes.
+ipcMain.handle("gpu:set-nvidia-video", (_e, mode) => {
+    writeGpuPrefs({
+        nvidiaVideo: mode === "vulkan" || mode === "off" ? mode : undefined,
+        nvidiaVulkanFailed: undefined,
+    });
+});
+
+// zam.sh's sysfs check can miss NVIDIA (no connected outputs listed, odd
+// driver names), so also ask Chromium which GPU it renders on. Recording it
+// takes effect through zam.sh, so restart once to pick it up; the record
+// stops that from repeating even if zam.sh still doesn't act on it.
+async function detectNvidiaVideo() {
+    const prefs = readGpuPrefs();
+    if (
+        !IN_FLATPAK ||
+        nvidiaVulkanVideo ||
+        !hardwareAccelerationAtLaunch ||
+        prefs.nvidiaDetected ||
+        prefs.nvidiaVideo === "off" ||
+        prefs.nvidiaVulkanFailed ||
+        process.env.ZAM_NVIDIA_VULKAN_VIDEO === "0"
+    ) {
+        return;
+    }
+    let info;
+    try {
+        info = await app.getGPUInfo("basic");
+    } catch {
+        return;
+    }
+    const devices = Array.isArray(info?.gpuDevice) ? info.gpuDevice : [];
+    const active = devices.find((d) => d.active) ?? devices[0];
+    if (active?.vendorId !== 0x10de) return;
+    writeGpuPrefs({ nvidiaDetected: true });
+    console.log("NVIDIA GPU detected; restarting for hardware video decode");
+    app.relaunch({ execPath: "/app/bin/zam", args: process.argv.slice(1) });
+    isQuitting = true;
+    app.quit();
+}
+
+// If the Vulkan path makes the GPU process crash, Chromium falls back to
+// software rendering for this run; record it so the next launch goes back to
+// the GL path, unless the user chose Vulkan in Settings.
+let gpuCrashes = 0;
+app.on("child-process-gone", (_e, details) => {
+    if (!nvidiaVulkanVideo || details.type !== "GPU") return;
+    if (details.reason === "clean-exit" || details.reason === "killed") return;
+    if (++gpuCrashes < 2 || readGpuPrefs().nvidiaVideo === "vulkan") return;
+    writeGpuPrefs({ nvidiaVulkanFailed: Date.now() });
 });
 
 ipcMain.on("app:relaunch", () => {
@@ -1118,15 +1187,17 @@ const onWayland =
         ? ozone === "wayland"
         : !!process.env.WAYLAND_DISPLAY ||
           process.env.XDG_SESSION_TYPE === "wayland";
-// Under X11 Chromium's GL path hands decoded frames to the X server (GLX has no
-// dma-buf import) and NVIDIA's come out black, worse than the software decode
-// Chromium falls back to (github.com/elFarto/nvidia-vaapi-driver/issues/463).
-// Its Vulkan path imports them itself; zam.sh sets ZAM_NVIDIA_VULKAN_VIDEO when
-// NVIDIA drives the screens under X11, along with what NVIDIA's Vulkan driver
-// needs for that import (pitch-linear frames, our Vulkan layer's usage fixup).
+// Chromium's GL path can't show NVIDIA's decoded frames: under X11 it hands
+// them to the X server (GLX has no dma-buf import) and they come out black
+// (github.com/elFarto/nvidia-vaapi-driver/issues/463); under Wayland it wants
+// VA-API post-processing, which nvidia-vaapi-driver lacks, and decodes in
+// software. Its Vulkan path imports them itself. zam.sh sets
+// ZAM_NVIDIA_VULKAN_VIDEO when NVIDIA drives the screens (or Settings > Debug
+// asks for it), along with what NVIDIA's Vulkan driver needs for that import
+// (pitch-linear frames, our Vulkan layer's usage fixup).
 // VaapiIgnoreDriverChecks: Chromium only allows VA-API with Vulkan on Intel.
 const nvidiaVulkanVideo =
-    IN_FLATPAK && !onWayland && process.env.ZAM_NVIDIA_VULKAN_VIDEO === "1";
+    IN_FLATPAK && process.env.ZAM_NVIDIA_VULKAN_VIDEO === "1";
 if (IN_FLATPAK && (onWayland || nvidiaVulkanVideo)) {
     features.push("VaapiOnNvidiaGPUs");
 }
@@ -1160,6 +1231,7 @@ if (!app.requestSingleInstanceLock()) {
         createWindow();
         createTray();
         setupAutoUpdater();
+        detectNvidiaVideo();
     });
 
     app.on("activate", () => {

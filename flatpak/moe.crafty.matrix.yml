@@ -29,8 +29,8 @@ finish-args:
     - --env=ELECTRON_TRASH=gio
 modules:
     # Vulkan layer that lets Chromium import hardware-decoded video on NVIDIA
-    # under X11 (vk-layer/zam_video_import.c). Loaded only with ZAM_VK_LAYER=1,
-    # which zam.sh sets there.
+    # (vk-layer/zam_video_import.c). Loaded only with ZAM_VK_LAYER=1, which
+    # zam.sh sets when it picks Chromium's Vulkan path for NVIDIA.
     - name: vk-layer
       buildsystem: simple
       sources:
@@ -44,7 +44,7 @@ modules:
     # NVIDIA hardware video decode: nvidia-vaapi-driver, the same release the
     # runtime's org.freedesktop.Platform.VAAPI.nvidia extension ships, plus
     # NVD_LINEAR (nvidia-vaapi-driver/linear-surfaces.patch) for Chromium's
-    # Vulkan video path on X11. zam.sh points libva here on NVIDIA systems, so
+    # Vulkan video path. zam.sh points libva here on NVIDIA systems, so
     # the extension no longer has to be installed by hand.
     - name: nv-codec-headers
       buildsystem: simple

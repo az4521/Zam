@@ -91,6 +91,8 @@ contextBridge.exposeInMainWorld("desktop", {
         info: () => ipcRenderer.invoke("gpu:info"),
         setHardwareAcceleration: (enabled) =>
             ipcRenderer.invoke("gpu:set-hardware-acceleration", !!enabled),
+        setNvidiaVideo: (mode) =>
+            ipcRenderer.invoke("gpu:set-nvidia-video", String(mode)),
         relaunch: () => ipcRenderer.send("app:relaunch"),
     },
     // The OS's General MIDI sound bank bytes, or null (see main.cjs).

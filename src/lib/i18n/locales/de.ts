@@ -383,6 +383,16 @@ const messages: Record<MessageKey, string> = {
     "gpuDebug.decodeUnsupported": "Nicht unterstützt",
     "gpuDebug.featureStatus": "Funktionsstatus",
     "gpuDebug.details": "Details",
+    "gpuDebug.nvidiaVideo": "NVIDIA-Videodekodierung",
+    "gpuDebug.nvidiaVideoHint":
+        "Dekodiert Videos auf NVIDIA-GPUs über den Vulkan-Renderer von Chromium. Automatisch schaltet es ein, wenn eine NVIDIA-GPU deine Bildschirme ansteuert.",
+    "gpuDebug.nvidiaVideoActive": "Gerade aktiv.",
+    "gpuDebug.nvidiaVideoInactive": "Gerade nicht aktiv.",
+    "gpuDebug.nvidiaVideoFailed":
+        "Zam ist nach einem Absturz des GPU-Prozesses zum GL-Pfad zurückgekehrt. Wähle Vulkan, um es erneut zu versuchen.",
+    "gpuDebug.nvidiaVideoAuto": "Automatisch",
+    "gpuDebug.nvidiaVideoVulkan": "Vulkan",
+    "gpuDebug.nvidiaVideoOff": "Aus",
 
     // src/lib/components/settings/DebugSettings.svelte
     "debugSettings.developer": "Entwickler",

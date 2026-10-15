@@ -25,6 +25,17 @@ declare global {
                     hardwareAcceleration: boolean;
                     /** What this run started with. */
                     hardwareAccelerationAtLaunch: boolean;
+                    /** Flatpak only: NVIDIA's Vulkan video decode path (zam.sh). */
+                    nvidiaVideo: {
+                        /** The saved choice (applies on the next launch). */
+                        mode: "auto" | "vulkan" | "off";
+                        /** Whether this run uses the Vulkan path. */
+                        activeAtLaunch: boolean;
+                        /** Chromium reported an NVIDIA GPU (zam.sh missed it). */
+                        detected: boolean;
+                        /** When automatic mode gave up after GPU crashes. */
+                        failedAt: number | null;
+                    } | null;
                     featureStatus: Record<string, string>;
                     /** app.getGPUInfo("complete"), or `{ error }`. */
                     info: unknown;
@@ -32,6 +43,9 @@ declare global {
                     env: Record<string, string>;
                 }>;
                 setHardwareAcceleration: (enabled: boolean) => Promise<void>;
+                setNvidiaVideo: (
+                    mode: "auto" | "vulkan" | "off",
+                ) => Promise<void>;
                 relaunch: () => void;
             };
             /** The OS's General MIDI sound bank (DLS/SF2) bytes, or null. */
