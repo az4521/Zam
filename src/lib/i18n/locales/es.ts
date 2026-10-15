@@ -2153,7 +2153,7 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.agcBrowser": "Navegador",
     "voiceAudioSettings.agcOff": "Desactivado",
     "voiceAudioSettings.agcZamHint":
-        "Iguala tu voz sin tocar el volumen del micrófono del sistema.",
+        "El AGC2 de WebRTC, tras la supresión de ruido. Iguala tu voz sin tocar el volumen del micrófono del sistema.",
     "voiceAudioSettings.agcBrowserHint":
         "El control automático de ganancia integrado en tu navegador. Puede cambiar el volumen del micrófono del sistema.",
     "voiceAudioSettings.agcOffHint":

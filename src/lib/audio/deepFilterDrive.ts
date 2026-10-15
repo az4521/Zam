@@ -4,8 +4,8 @@
  * worklet: speech at -20 to -30 dBFS passes almost untouched (SDR 24-25 dB),
  * at -40 it starts losing detail (18.5 dB), at -50 it is mangled (2.7 dB, 6 dB
  * of the voice gone) and at -60 it is deleted outright. A mic without the
- * browser's AGC (Zam's leveller runs after the model, so it is off) often sits
- * at -40 to -50, so the model heard the voice as too quiet and the leveller
+ * browser's AGC (Zam's AGC runs after the model, so it is off) often sits
+ * at -40 to -50, so the model heard the voice as too quiet and the AGC
  * then turned the damage up.
  *
  * The mic chain lifts the model's input into its comfortable range with this

@@ -373,7 +373,7 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     {
         tab: "voice",
         label: t("settingsSearch.autoGainControl"),
-        keywords: ["agc", "gain", "leveller", "mic volume"],
+        keywords: ["agc", "gain", "leveller", "agc2", "webrtc", "mic volume"],
     },
     {
         tab: "voice",

@@ -5,12 +5,11 @@
  * DeepFilterNet3:
  *
  *   input -> [drive -> DeepFilterNet3 -> undo drive -> pause gate]
- *         -> [leveller gain] -> soft clipper -> output
+ *         -> [AGC2] -> soft clipper -> output
  *
  * or with a plugin's noise filter ($lib/audio/micFilters):
  *
- *   input -> [plugin filter -> pause gate] -> [leveller gain] -> soft clipper
- *         -> output
+ *   input -> [plugin filter -> pause gate] -> [AGC2] -> soft clipper -> output
  *
  * DeepFilterNet3 mangles speech it hears as quiet ($lib/audio/deepFilterDrive),
  * so the drive lifts a quiet mic into the model's range and the same gain
@@ -21,25 +20,19 @@
  * words; a plugin filter gets it only if it outputs its dry input lined up
  * with its output (MicFilterInstance.dryOutput).
  *
- * The leveller evens out your voice in place of the browser's WebRTC AGC:
- * digital only (it never moves the OS microphone volume), it turns down fast
- * but up slowly, and only speech moves it (speechWindow), so it holds its
- * gain through pauses instead of pumping the noise floor up between
- * sentences. Same maths as incoming-voice normalization.
+ * AGC2 ($lib/audio/agc2) evens out your voice: WebRTC's adaptive digital
+ * gain controller and limiter, the same code the browser's AGC runs after
+ * noise suppression, minus the part that moves the OS microphone volume. It
+ * replaced Zam's own leveller, which ducked every loud word by several dB
+ * and crept back up over seconds.
  *
  * The models load asynchronously: until one is ready, and if all fail, audio
  * passes through unfiltered. A plugin filter that isn't loaded, can't
  * start on this device, or stops coping mid-stream is swapped for
  * DeepFilterNet3 in place.
  */
-import {
-    rmsDb,
-    nextSpeechLevel,
-    normalizationGain,
-    gainTimeConstant,
-    createSpeechGate,
-    speechWindow,
-} from "./voiceNormalization";
+import { rmsDb } from "./voiceNormalization";
+import { createAgc2Node } from "./agc2";
 import { createSoftClipper } from "./softClip";
 import { createDeepFilterNode } from "./deepFilter";
 import {
@@ -57,7 +50,7 @@ import {
     undriveCurve,
 } from "./deepFilterDrive";
 
-const LEVELLER_TICK_MS = 50;
+const DRIVE_TICK_MS = 50;
 
 /** Which noise model the chain runs: DeepFilterNet3, or a plugin's filter
  *  (falling back to DeepFilterNet3 wherever it can't run). */
@@ -86,33 +79,26 @@ export function createMicChain(
     opts: MicChainOptions,
 ): MicChain {
     const input = ctx.createGain();
+    // Where the noise model's output meets AGC2 (or the clipper, until AGC2
+    // has loaded or when it's off).
     const gain = ctx.createGain();
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 2048;
     const clipper = createSoftClipper(ctx);
     input.connect(gain);
-    input.connect(analyser);
     gain.connect(clipper.input);
 
     let destroyed = false;
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let agcNode: AudioWorkletNode | null = null;
     if (opts.level) {
-        const buf = new Float32Array(analyser.fftSize);
-        const speech = createSpeechGate();
-        let level: number | null = null;
-        timer = setInterval(() => {
-            analyser.getFloatTimeDomainData(buf);
-            const db = rmsDb(buf);
-            if (speechWindow(speech, db, LEVELLER_TICK_MS / 1000))
-                level = nextSpeechLevel(level, db);
-            const target = normalizationGain(level);
-            if (target === null) return;
-            gain.gain.setTargetAtTime(
-                target,
-                ctx.currentTime,
-                gainTimeConstant(gain.gain.value, target),
-            );
-        }, LEVELLER_TICK_MS);
+        createAgc2Node(ctx).then(
+            (node) => {
+                if (destroyed) return;
+                agcNode = node;
+                gain.disconnect();
+                gain.connect(node);
+                node.connect(clipper.input);
+            },
+            (err) => console.warn("AGC2 unavailable:", err),
+        );
     }
 
     let dfNode: AudioWorkletNode | null = null;
@@ -153,7 +139,7 @@ export function createMicChain(
             );
             current = next;
             busyUntil = now + DEEP_FILTER_DELAY_S + DRIVE_GLIDE_S;
-        }, LEVELLER_TICK_MS);
+        }, DRIVE_TICK_MS);
     };
 
     // Without the gate the model still runs, just ungated.
@@ -187,8 +173,7 @@ export function createMicChain(
                     return null;
                 }
                 // Splice it in: input -> drive -> df -> undrive ->
-                // [gate, with input -> delay as its reference] ->
-                // (gain, analyser).
+                // [gate, with input -> delay as its reference] -> gain.
                 const oldGate = gateNode;
                 dfNode = node;
                 gateNode = gate;
@@ -203,7 +188,6 @@ export function createMicChain(
                     gateRef.connect(gate, 0, 1);
                 }
                 out.connect(gain);
-                out.connect(analyser);
                 oldGate?.disconnect();
                 dropPlugin();
                 startDrive();
@@ -236,7 +220,7 @@ export function createMicChain(
                     return null;
                 }
                 // input -> filter -> [gate, with the filter's lined-up dry
-                // output as its reference] -> (gain, analyser).
+                // output as its reference] -> gain.
                 plug = inst;
                 const dry = inst.dryOutput;
                 const gated = gate && dry !== undefined ? gate : null;
@@ -248,10 +232,8 @@ export function createMicChain(
                     inst.node.connect(gated, 0, 0);
                     inst.node.connect(gated, dry!, 1);
                     gated.connect(gain);
-                    gated.connect(analyser);
                 } else {
                     inst.node.connect(gain, 0);
-                    inst.node.connect(analyser, 0);
                 }
                 engine = key;
                 // Stopped coping: DeepFilterNet3 takes over; the filter
@@ -288,7 +270,6 @@ export function createMicChain(
         destroy() {
             if (destroyed) return;
             destroyed = true;
-            if (timer !== null) clearInterval(timer);
             if (driveTimer !== null) clearInterval(driveTimer);
             input.disconnect();
             drive.disconnect();
@@ -301,6 +282,7 @@ export function createMicChain(
             // collected; tell it to stop work in the meantime.
             dfNode?.port.postMessage({ type: "setEnabled", value: false });
             gain.disconnect();
+            agcNode?.disconnect();
             clipper.output.disconnect();
         },
     };

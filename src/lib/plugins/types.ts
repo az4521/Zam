@@ -224,7 +224,7 @@ export interface MicFilterInstance {
 }
 
 /** A noise filter for the user's own microphone (zam.audio). It appears in
- *  Settings > Voice & Audio > Noise suppression; Zam's leveller, soft clipper
+ *  Settings > Voice & Audio > Noise suppression; Zam's AGC (WebRTC AGC2), soft clipper
  *  and (with dryOutput) pause gate run after it, and DeepFilterNet3 stands in
  *  wherever it can't run. */
 export interface MicFilter {

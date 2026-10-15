@@ -1,7 +1,7 @@
 /**
  * The call's mic processing as a LiveKit audio processor: the user's mic
  * track runs through Zam's mic chain ($lib/audio/micChain: DeepFilterNet3
- * and/or the leveller) and LiveKit sends the chain's output instead.
+ * and/or AGC2) and LiveKit sends the chain's output instead.
  *
  * Runs in its own 48 kHz AudioContext rather than LiveKit's (whose rate
  * follows the output device): DeepFilterNet3 only works at 48 kHz. A device

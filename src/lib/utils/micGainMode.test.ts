@@ -7,7 +7,7 @@ describe("normalizeMicGainMode", () => {
         expect(normalizeMicGainMode("browser", false)).toBe("browser");
         expect(normalizeMicGainMode("off", true)).toBe("off");
     });
-    it("migrates the legacy boolean: on becomes Zam's leveller, off stays off", () => {
+    it("migrates the legacy boolean: on becomes Zam's AGC, off stays off", () => {
         expect(normalizeMicGainMode(null, true)).toBe("zam");
         expect(normalizeMicGainMode(null, false)).toBe("off");
     });

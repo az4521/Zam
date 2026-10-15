@@ -2131,7 +2131,7 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.agcBrowser": "Browser",
     "voiceAudioSettings.agcOff": "Aus",
     "voiceAudioSettings.agcZamHint":
-        "Gleicht deine Stimme an, ohne die Mikrofonlautstärke deines Systems zu verändern.",
+        "WebRTCs AGC2, nach der Rauschunterdrückung. Gleicht deine Stimme an, ohne die Mikrofonlautstärke deines Systems zu verändern.",
     "voiceAudioSettings.agcBrowserHint":
         "Die eingebaute Pegelanpassung deines Browsers. Sie kann die Mikrofonlautstärke deines Systems verändern.",
     "voiceAudioSettings.agcOffHint":

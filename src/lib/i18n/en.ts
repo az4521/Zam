@@ -2054,7 +2054,7 @@ export const en = {
     "voiceAudioSettings.agcBrowser": "Browser",
     "voiceAudioSettings.agcOff": "Off",
     "voiceAudioSettings.agcZamHint":
-        "Evens out your voice without touching your system microphone volume.",
+        "WebRTC's AGC2, run after noise removal. Evens out your voice without touching your system microphone volume.",
     "voiceAudioSettings.agcBrowserHint":
         "Your browser's built-in AGC. It may change your system microphone volume.",
     "voiceAudioSettings.agcOffHint":
