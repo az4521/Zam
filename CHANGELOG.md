@@ -4,6 +4,32 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.22.0
+
+✨ **New**
+
+- **Keyboard shortcuts:** Zam now has Discord's keyboard shortcuts, on Discord's default keys. Every one can be changed in the new Settings > Keybinds tab. Shortcuts cover moving between channels, unread channels, mentions and spaces, going back and forward, marking things read, the emoji/GIF/sticker pickers, search, pins, the inbox and member list, muting and deafening, answering, declining and starting calls, and more. Press Ctrl+/ to see them all.
+- **Quick switcher:** Ctrl+K opens a quick switcher to jump to any room or DM by typing part of its name.
+- **Push to talk and push to mute:** bind a key, a single modifier key or a mouse side button in Settings > Keybinds. Once push to talk has a key, calls start with your mic closed and it only sends while you hold the key.
+- **Voice shortcuts in other apps:** in the desktop app, turn on "Work when Zam isn't focused" in Settings > Keybinds. Push to talk, push to mute, toggle mute and toggle deafen then work while you're in another app or a game, like Discord's. Zam only listens for the keys you bound.
+    - **Windows and Linux X11:** works out of the box.
+    - **macOS:** asks for the Accessibility permission first, with a button to open the right page in System Settings.
+    - **Wayland:** the shortcuts go through your desktop's global shortcuts (KDE Plasma, GNOME 48 and newer, and others with the GlobalShortcuts portal). Your desktop may ask you to confirm them or pick other keys. Settings shows the keys it assigned.
+- **Double-click + to upload:** double-clicking the + button next to the message box opens the file picker straight away.
+
+🎙️ **Improved**
+
+- **Smoother mic levels:** Zam's microphone leveller is replaced with WebRTC's AGC2, the automatic gain control Chrome uses. Voices no longer pump: the volume dip after a loud word is a fraction of what it was.
+- **NVIDIA hardware video decoding on Wayland (Flatpak):** videos on NVIDIA graphics cards are now decoded by the card in Wayland sessions too, not only X11. NVIDIA systems that Zam didn't recognise before are now detected. Settings > Debug has an Automatic / Vulkan / Off choice for this. If it crashes twice in automatic mode, Zam goes back to the old path on the next launch.
+
+🔧 **Changed**
+
+- **The debug panel moved to Ctrl+Alt+Shift+D.** Ctrl+Shift+D now deafens, as in Discord.
+
+🐛 **Fixed**
+
+- **Room list title in other languages:** the room list header showed "Home" in English whatever language Zam was set to.
+
 ## v1.21.0
 
 ✨ **New**
