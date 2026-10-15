@@ -321,12 +321,12 @@
     const title = $derived.by(() => {
         void roomsState.roomsTick;
         return roomsState.activeSpaceId === null
-            ? "Home"
+            ? t("spaceSidebar.home")
             : roomsState.spaces.find(
                   (s) => s.roomId === roomsState.activeSpaceId,
               )?.name ||
                   roomsState.spaceDrillName ||
-                  "Space";
+                  t("roomDirectory.space");
     });
 
     const visibleRooms = $derived(
