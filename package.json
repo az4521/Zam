@@ -36,6 +36,7 @@
         "asarUnpack": [
             "electron/icons/**"
         ],
+        "npmRebuild": false,
         "files": [
             "electron/**/*",
             "build/**/*",
@@ -119,6 +120,7 @@
         "mp4box": "^2.4.1",
         "qrcode": "^1.5.4",
         "spessasynth_core": "4.3.22",
+        "uiohook-napi": "^1.5.5",
         "unicode-emoji-json": "^0.8.0",
         "uuid": "^11.1.0"
     }

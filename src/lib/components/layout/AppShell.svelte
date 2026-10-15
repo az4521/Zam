@@ -37,6 +37,11 @@
         releaseAllHolds,
         setKeybindHost,
     } from "$lib/keybinds/runner";
+    import {
+        connectGlobalHotkeys,
+        holdsOutliveBlur,
+        syncGlobalHotkeys,
+    } from "$lib/keybinds/desktopHotkeys.svelte";
 
     import {
         auth,
@@ -1247,7 +1252,12 @@
             // Side buttons would otherwise go back / forward.
             if (handleHoldMouse(e, false)) e.preventDefault();
         };
-        const blur = () => releaseAllHolds();
+        // Keyups won't reach the window now, unless the desktop's input
+        // hook is watching (Settings > Keybinds, "Work when Zam isn't
+        // focused").
+        const blur = () => {
+            if (!holdsOutliveBlur()) releaseAllHolds();
+        };
         window.addEventListener("keydown", down, true);
         window.addEventListener("keyup", up, true);
         window.addEventListener("mousedown", mouseDown, true);
@@ -1261,6 +1271,12 @@
             window.removeEventListener("blur", blur);
             releaseAllHolds();
         };
+    });
+
+    // Voice keybinds while Zam isn't focused (desktop app only).
+    $effect(() => connectGlobalHotkeys());
+    $effect(() => {
+        syncGlobalHotkeys();
     });
 
     function acceptIncomingCall(roomId: string) {

@@ -22,8 +22,14 @@
         keybindsState,
         resetAllKeybinds,
         resetKeybind,
+        setGlobalVoiceKeybinds,
         setKeybind,
     } from "$lib/stores/keybinds.svelte";
+    import {
+        globalHotkeysState,
+        requestGlobalHotkeyPermission,
+    } from "$lib/keybinds/desktopHotkeys.svelte";
+    import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import { refreshMicGate } from "$lib/stores/voiceCall.svelte";
     import KeyCaps from "$lib/components/keybinds/KeyCaps.svelte";
 
@@ -195,6 +201,63 @@
             >
                 {keybindCategoryLabel(g.category)}
             </p>
+            {#if g.category === "voice" && globalHotkeysState.status}
+                {@const status = globalHotkeysState.status}
+                <div class="py-2 border-b border-discord-divider">
+                    {#if status.state === "wayland"}
+                        <p class="text-sm text-discord-textPrimary">
+                            {t("keybinds.globalVoice")}
+                        </p>
+                        <p class="text-xs text-discord-textMuted">
+                            {t("keybinds.globalWayland")}
+                        </p>
+                    {:else}
+                        <div class="flex items-center gap-3">
+                            <div class="flex-1">
+                                <p class="text-sm text-discord-textPrimary">
+                                    {t("keybinds.globalVoice")}
+                                </p>
+                                <p class="text-xs text-discord-textMuted">
+                                    {t("keybinds.globalVoiceHint")}
+                                </p>
+                            </div>
+                            <ToggleSwitch
+                                checked={keybindsState.globalVoice}
+                                onChange={setGlobalVoiceKeybinds}
+                                label={t("keybinds.globalVoice")}
+                            />
+                        </div>
+                        {#if keybindsState.globalVoice && status.state === "permission"}
+                            <div
+                                class="mt-2 flex flex-wrap items-center gap-2"
+                                role="status"
+                            >
+                                <p
+                                    class="flex-1 min-w-[12rem] text-xs text-discord-warning"
+                                >
+                                    {t("keybinds.globalPermission")}
+                                </p>
+                                <button
+                                    type="button"
+                                    onclick={() =>
+                                        void requestGlobalHotkeyPermission()}
+                                    class="px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary"
+                                    >{t("keybinds.globalOpenSettings")}</button
+                                >
+                            </div>
+                        {:else if keybindsState.globalVoice && status.state === "error"}
+                            <p
+                                class="mt-2 text-xs text-discord-warning"
+                                role="status"
+                            >
+                                {t("keybinds.globalError", {
+                                    error: status.error ?? "",
+                                })}
+                            </p>
+                        {/if}
+                    {/if}
+                </div>
+            {/if}
             {#each g.rows as row (row.def.id)}
                 {@const id = row.def.id}
                 {@const recording = recordingId === id}

@@ -392,6 +392,16 @@ export const en = {
     "keybinds.pushToTalkHint":
         "Setting a key turns push to talk on: in calls your mic only sends while it is held.",
     "keybinds.pushToMuteHint": "Your mic is muted while this is held.",
+    "keybinds.globalVoice": "Work when Zam isn't focused",
+    "keybinds.globalVoiceHint":
+        "Push to talk, push to mute, toggle mute and toggle deafen also work while you're in another app. Zam only listens for the keys bound to them, and doesn't stop other apps getting them.",
+    "keybinds.globalWayland":
+        "Not available on Wayland: it doesn't let apps see keys pressed in other windows, so voice shortcuts only work while Zam is focused.",
+    "keybinds.globalPermission":
+        "macOS has to allow this first: turn on Zam in System Settings > Privacy & Security > Accessibility, then come back to Zam.",
+    "keybinds.globalOpenSettings": "Open System Settings",
+    "keybinds.globalError":
+        "Zam couldn't start listening for keys in other apps ({error}). Voice shortcuts work while Zam is focused.",
     "keybinds.helpTitle": "Keyboard shortcuts",
     "keybinds.customize": "Customize",
     "keybinds.category.navigation": "Navigation",

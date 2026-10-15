@@ -29,6 +29,7 @@ const path = require("path");
 const { resolveStaticPath, isSafeExternalUrl } = require("./serverGuards.cjs");
 const { parseWindowState, fitToDisplays } = require("./windowState.cjs");
 const { registerPluginNative } = require("./pluginNative.cjs");
+const { registerGlobalHotkeys } = require("./globalHotkeys.cjs");
 
 const BUILD_DIR = path.join(__dirname, "..", "build");
 // Hand-sized icon set (scripts/gen-icons.py): the .ico carries a real frame per
@@ -56,6 +57,9 @@ let isQuitting = false;
 // is plain CommonJS required as-is and cannot import that TS util, so it mirrors
 // the same branch inline.
 let minimizeToTrayOnClose = true;
+
+// Voice keybinds while the window isn't focused (globalHotkeys.cjs).
+const globalHotkeys = registerGlobalHotkeys(() => mainWindow);
 
 const MIME = {
     ".html": "text/html",
@@ -986,7 +990,10 @@ async function createWindow() {
 
     // A taskbar flash lasts until the user comes back; clear it (Linux never
     // clears it by itself) as soon as they do.
-    mainWindow.on("focus", () => mainWindow.flashFrame(false));
+    mainWindow.on("focus", () => {
+        mainWindow.flashFrame(false);
+        globalHotkeys.recheck();
+    });
     mainWindow.on("show", () => mainWindow.flashFrame(false));
 
     mainWindow.loadURL(url);
@@ -1241,6 +1248,7 @@ if (!app.requestSingleInstanceLock()) {
 
     app.on("before-quit", () => {
         isQuitting = true;
+        globalHotkeys.stop();
     });
 
     // With minimise-to-tray ON the window is only hidden on a normal close (X),

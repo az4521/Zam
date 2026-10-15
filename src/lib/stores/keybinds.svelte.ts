@@ -50,11 +50,34 @@ function saveOverrides(o: Overrides): void {
     }
 }
 
+const GLOBAL_KEY = "zam.keybinds.global.v1";
+
+function loadGlobalVoice(): boolean {
+    try {
+        return localStorage.getItem(GLOBAL_KEY) === "1";
+    } catch {
+        return false;
+    }
+}
+
 export const keybindsState = $state({
     overrides: loadOverrides(),
     /** Settings > Keybinds is listening for a new key: shortcuts are off. */
     recording: false,
+    /** Desktop: voice keybinds also work while Zam isn't focused
+     *  ($lib/keybinds/globalHotkeys). Off until the user turns it on, since
+     *  macOS asks for a permission for it. */
+    globalVoice: loadGlobalVoice(),
 });
+
+export function setGlobalVoiceKeybinds(on: boolean): void {
+    keybindsState.globalVoice = on;
+    try {
+        localStorage.setItem(GLOBAL_KEY, on ? "1" : "0");
+    } catch {
+        /* storage blocked: the change still holds for this session */
+    }
+}
 
 /** The binding an action has now, or null when it's unbound. */
 export function bindingFor(id: KeybindAction): Binding | null {

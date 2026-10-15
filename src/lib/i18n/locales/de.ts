@@ -412,6 +412,17 @@ const messages: Record<MessageKey, string> = {
         "Mit einer Taste ist Push-to-Talk an: In Anrufen sendet dein Mikrofon nur, solange sie gedrückt ist.",
     "keybinds.pushToMuteHint":
         "Dein Mikrofon ist stumm, solange diese Taste gedrückt ist.",
+    "keybinds.globalVoice":
+        "Auch funktionieren, wenn Zam nicht im Vordergrund ist",
+    "keybinds.globalVoiceHint":
+        "Push-to-Talk, Push-to-Mute, Stummschalten und Taubschalten funktionieren auch, während du in einer anderen App bist. Zam achtet nur auf die Tasten, die dafür belegt sind, und nimmt sie anderen Apps nicht weg.",
+    "keybinds.globalWayland":
+        "Unter Wayland nicht verfügbar: Wayland lässt Apps keine Tasten sehen, die in anderen Fenstern gedrückt werden, daher funktionieren Sprach-Tastenkürzel nur, solange Zam im Vordergrund ist.",
+    "keybinds.globalPermission":
+        "macOS muss das zuerst erlauben: Aktiviere Zam unter Systemeinstellungen > Datenschutz & Sicherheit > Bedienungshilfen und kehre dann zu Zam zurück.",
+    "keybinds.globalOpenSettings": "Systemeinstellungen öffnen",
+    "keybinds.globalError":
+        "Zam konnte nicht auf Tasten in anderen Apps achten ({error}). Sprach-Tastenkürzel funktionieren, solange Zam im Vordergrund ist.",
     "keybinds.helpTitle": "Tastenkürzel",
     "keybinds.customize": "Anpassen",
     "keybinds.category.navigation": "Navigation",

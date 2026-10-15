@@ -18,6 +18,11 @@ import {
     releasesHold,
     type KeybindAction,
 } from "./keybinds";
+import {
+    GLOBAL_ACTIONS,
+    keyEventFromInput,
+    type GlobalInput,
+} from "./globalHotkeys";
 import { bindingFor, keybindsState } from "$lib/stores/keybinds.svelte";
 import {
     roomsState,
@@ -396,6 +401,52 @@ export function handleHoldMouse(e: MouseEvent, down: boolean): boolean {
 export function releaseAllHolds(): void {
     setHeld("pushToTalk", false);
     setHeld("pushToMute", false);
+}
+
+// ── While Zam isn't focused (desktop; $lib/keybinds/globalHotkeys) ──────
+
+const GLOBAL_PRESSES = GLOBAL_ACTIONS.filter(
+    (id) => !HOLD_IDS.includes(id as (typeof HOLD_IDS)[number]),
+);
+/** Keys the hook reported down, to drop its auto-repeat. */
+const globalDown = new Set<string>();
+
+/**
+ * A key or mouse button from the desktop's input hook. Holds follow it
+ * whether or not Zam is focused (a second press or release of an already
+ * held or released action changes nothing); toggles only run when Zam isn't
+ * focused, since the window's own keydown runs them otherwise.
+ */
+export function handleGlobalInput(ev: GlobalInput, focused: boolean): void {
+    if (keybindsState.recording || !keybindsState.globalVoice) return;
+    if (ev.kind === "mouse") {
+        const key = mouseButtonKey(ev.button);
+        if (!key) return;
+        for (const id of HOLD_IDS)
+            if (bindingFor(id)?.key === key) setHeld(id, ev.down);
+        return;
+    }
+    const e = keyEventFromInput(ev);
+    if (!e) return;
+    if (ev.down && globalDown.has(ev.code)) return;
+    if (ev.down) globalDown.add(ev.code);
+    else globalDown.delete(ev.code);
+    for (const id of HOLD_IDS) {
+        const b = bindingFor(id);
+        if (!b) continue;
+        if (ev.down ? matchesHoldDown(b, e) : releasesHold(b, e))
+            setHeld(id, ev.down);
+    }
+    if (!ev.down || focused) return;
+    for (const id of GLOBAL_PRESSES) {
+        const b = bindingFor(id);
+        if (b && matchesPress(b, e) && run(id)) return;
+    }
+}
+
+/** The hook stopped: forget which keys it last saw down. */
+export function resetGlobalInput(): void {
+    globalDown.clear();
 }
 
 /** Rooms visited this session, most recent first (the quick switcher). */

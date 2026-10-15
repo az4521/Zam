@@ -107,6 +107,32 @@ declare global {
             contextMenu?: {
                 onSaveImage: (cb: (url: string) => void) => () => void;
             };
+            /** Voice keybinds while the window isn't focused
+             *  (electron/globalHotkeys.cjs, $lib/keybinds/globalHotkeys). */
+            hotkeys?: {
+                /** The DOM key codes and mouse buttons to forward; empty
+                 *  lists stop the hook. Resolves to the hook's status. */
+                watch: (
+                    codes: string[],
+                    buttons: number[],
+                ) => Promise<
+                    import("$lib/keybinds/globalHotkeys").GlobalHotkeyStatus
+                >;
+                /** macOS: ask for the Accessibility permission. */
+                requestPermission: () => Promise<
+                    import("$lib/keybinds/globalHotkeys").GlobalHotkeyStatus
+                >;
+                onInput: (
+                    cb: (
+                        ev: import("$lib/keybinds/globalHotkeys").GlobalInput,
+                    ) => void,
+                ) => () => void;
+                onStatus: (
+                    cb: (
+                        s: import("$lib/keybinds/globalHotkeys").GlobalHotkeyStatus,
+                    ) => void,
+                ) => () => void;
+            };
             /** Plugins' native code ($lib/plugins/pluginNative): open()
              *  installs (after a system consent dialog) and starts the
              *  plugin's host, whose port arrives as the window message

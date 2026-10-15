@@ -95,6 +95,24 @@ contextBridge.exposeInMainWorld("desktop", {
             ipcRenderer.invoke("gpu:set-nvidia-video", String(mode)),
         relaunch: () => ipcRenderer.send("app:relaunch"),
     },
+    // Voice keybinds while Zam isn't focused (globalHotkeys.cjs): the page
+    // names the keys / mouse buttons it binds, main forwards only those.
+    hotkeys: {
+        watch: (codes, buttons) =>
+            ipcRenderer.invoke("hotkeys:watch", { codes, buttons }),
+        requestPermission: () =>
+            ipcRenderer.invoke("hotkeys:request-permission"),
+        onInput: (cb) => {
+            const h = (_e, ev) => cb(ev);
+            ipcRenderer.on("hotkeys:input", h);
+            return () => ipcRenderer.removeListener("hotkeys:input", h);
+        },
+        onStatus: (cb) => {
+            const h = (_e, s) => cb(s);
+            ipcRenderer.on("hotkeys:status", h);
+            return () => ipcRenderer.removeListener("hotkeys:status", h);
+        },
+    },
     // The OS's General MIDI sound bank bytes, or null (see main.cjs).
     readSystemSoundBank: () => ipcRenderer.invoke("soundbank:system"),
     hasSystemSoundBank: () => ipcRenderer.invoke("soundbank:has-system"),

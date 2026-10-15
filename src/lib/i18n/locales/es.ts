@@ -405,6 +405,16 @@ const messages: Record<MessageKey, string> = {
         "Asignar una tecla activa pulsar para hablar: en las llamadas tu micrófono solo transmite mientras la mantienes pulsada.",
     "keybinds.pushToMuteHint":
         "Tu micrófono se silencia mientras la mantienes pulsada.",
+    "keybinds.globalVoice": "Funcionar cuando Zam no está en primer plano",
+    "keybinds.globalVoiceHint":
+        "Pulsar para hablar, pulsar para silenciar, silenciar el micrófono y ensordecer también funcionan mientras estás en otra aplicación. Zam solo escucha las teclas asignadas a ellos y no se las quita a otras aplicaciones.",
+    "keybinds.globalWayland":
+        "No disponible en Wayland: no deja que las aplicaciones vean las teclas pulsadas en otras ventanas, así que los atajos de voz solo funcionan mientras Zam está en primer plano.",
+    "keybinds.globalPermission":
+        "macOS tiene que permitirlo primero: activa Zam en Ajustes del Sistema > Privacidad y seguridad > Accesibilidad y vuelve a Zam.",
+    "keybinds.globalOpenSettings": "Abrir Ajustes del Sistema",
+    "keybinds.globalError":
+        "Zam no pudo empezar a escuchar teclas en otras aplicaciones ({error}). Los atajos de voz funcionan mientras Zam está en primer plano.",
     "keybinds.helpTitle": "Atajos de teclado",
     "keybinds.customize": "Personalizar",
     "keybinds.category.navigation": "Navegación",
