@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.22.1
+
+🐛 **Fixed**
+
+- **Stuck on "Restoring session" after changing keybinds (Linux X11):** the input hook for "Work when Zam isn't focused" now runs in a separate process, so if it fails the app stays up and Settings > Keybinds shows an error instead of the app crashing on every launch.
+
 ## v1.22.0
 
 ✨ **New**
