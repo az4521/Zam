@@ -253,6 +253,21 @@ jobs:
               run: |
                   sed -i "s/@VERSION@/$VERSION/g; s/@DATE@/$(date -u +%F)/g" \
                     flatpak/$APP_ID.metainfo.xml
+            - name: Fetch the published repo's history
+              if: env.RELEASE == 'true'
+              run: |
+                  set -euo pipefail
+                  # Each release is a new commit on top of the ones already
+                  # published, so `flatpak update --commit=<hash>` can roll
+                  # back to any earlier release. Starting from an empty repo
+                  # would publish only this version and drop every other one.
+                  BASE="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}"
+                  sudo apt-get install -y ostree
+                  ostree --repo=repo init --mode=archive
+                  ostree --repo=repo remote add --no-gpg-verify previous "$BASE/repo/"
+                  # The first release has nothing to fetch.
+                  ostree --repo=repo pull --mirror --depth=-1 previous                     || echo "::warning::No published repo to carry history from"
+                  ostree --repo=repo remote delete previous
             - name: Build Flatpak repo
               run: |
                   set -euo pipefail
@@ -261,7 +276,7 @@ jobs:
                     --default-branch=stable --repo=repo ${GPG_ARGS:-} \
                     build-dir flatpak/$APP_ID.yml
                   flatpak build-update-repo --title=Zam --default-branch=stable \
-                    --generate-static-deltas --prune ${GPG_ARGS:-} repo
+                    --generate-static-deltas --prune --prune-depth=-1 ${GPG_ARGS:-} repo
             - name: Build Flatpak bundle
               run: |
                   set -euo pipefail
