@@ -2388,10 +2388,23 @@
         >
             <!-- "+" actions menu -->
             <div class="flex-shrink-0 relative">
+                <!-- Double-click: straight to the file picker, as if "Upload a
+                     file" had been chosen from the menu the first click
+                     opened. The button sits above the menu's backdrop so the
+                     second click reaches it. -->
                 <button
-                    onclick={() => openComposerActions(effComposerKey)}
+                    onclick={(e) => {
+                        if (e.detail === 2) {
+                            if (showActionsMenu) closeModal();
+                            fileInputEl?.click();
+                        } else if (showActionsMenu) {
+                            closeModal();
+                        } else {
+                            openComposerActions(effComposerKey);
+                        }
+                    }}
                     {disabled}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    class="relative z-50 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     title={t("common.add")}
                 >
                     <Plus size={20} />
