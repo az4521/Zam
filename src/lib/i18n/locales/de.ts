@@ -417,12 +417,20 @@ const messages: Record<MessageKey, string> = {
     "keybinds.globalVoiceHint":
         "Push-to-Talk, Push-to-Mute, Stummschalten und Taubschalten funktionieren auch, während du in einer anderen App bist. Zam achtet nur auf die Tasten, die dafür belegt sind, und nimmt sie anderen Apps nicht weg.",
     "keybinds.globalWayland":
-        "Unter Wayland nicht verfügbar: Wayland lässt Apps keine Tasten sehen, die in anderen Fenstern gedrückt werden, daher funktionieren Sprach-Tastenkürzel nur, solange Zam im Vordergrund ist.",
+        "Hier nicht verfügbar: Dieser Wayland-Desktop bietet Apps keine globalen Tastenkürzel an (das GlobalShortcuts-Portal), daher funktionieren Sprach-Tastenkürzel nur, solange Zam im Vordergrund ist.",
     "keybinds.globalPermission":
         "macOS muss das zuerst erlauben: Aktiviere Zam unter Systemeinstellungen > Datenschutz & Sicherheit > Bedienungshilfen und kehre dann zu Zam zurück.",
     "keybinds.globalOpenSettings": "Systemeinstellungen öffnen",
     "keybinds.globalError":
         "Zam konnte nicht auf Tasten in anderen Apps achten ({error}). Sprach-Tastenkürzel funktionieren, solange Zam im Vordergrund ist.",
+    "keybinds.globalPortalHint":
+        "Push-to-Talk, Push-to-Mute, Stummschalten und Taubschalten funktionieren auch, während du in einer anderen App bist. Unter Wayland übernimmt dein Desktop diese Tastenkürzel für Zam: Er fragt eventuell nach einer Bestätigung oder wählt andere Tasten, und andere Apps bekommen diese Tasten nicht mehr.",
+    "keybinds.globalPortalAssigned": "Von deinem Desktop zugewiesene Tasten:",
+    "keybinds.globalPortalMouse":
+        "Maustasten können keine Desktop-Tastenkürzel sein: Wähle dafür in den Einstellungen deines Desktops eine Taste.",
+    "keybinds.globalPortalConfigure": "In den Systemeinstellungen ändern",
+    "keybinds.globalPortalError":
+        "Dein Desktop hat die Tastenkürzel nicht eingerichtet ({error}). Schalte dies aus und wieder ein, um es erneut zu versuchen.",
     "keybinds.helpTitle": "Tastenkürzel",
     "keybinds.customize": "Anpassen",
     "keybinds.category.navigation": "Navigation",

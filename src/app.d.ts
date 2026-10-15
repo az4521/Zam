@@ -110,14 +110,18 @@ declare global {
             /** Voice keybinds while the window isn't focused
              *  (electron/globalHotkeys.cjs, $lib/keybinds/globalHotkeys). */
             hotkeys?: {
-                /** The DOM key codes and mouse buttons to forward; empty
-                 *  lists stop the hook. Resolves to the hook's status. */
+                /** The DOM key codes and mouse buttons to forward, or on
+                 *  Wayland the shortcuts to bind through the portal; empty
+                 *  lists stop it. Resolves to the hook's status. */
                 watch: (
                     codes: string[],
                     buttons: number[],
+                    shortcuts: import("$lib/keybinds/globalHotkeys").PortalShortcut[],
                 ) => Promise<
                     import("$lib/keybinds/globalHotkeys").GlobalHotkeyStatus
                 >;
+                /** Wayland, portal v2+: the desktop's shortcut editor. */
+                configure: () => Promise<void>;
                 /** macOS: ask for the Accessibility permission. */
                 requestPermission: () => Promise<
                     import("$lib/keybinds/globalHotkeys").GlobalHotkeyStatus

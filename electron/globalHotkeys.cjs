@@ -17,14 +17,25 @@
 // because electron-builder's rebuild doesn't recognise those file names and
 // would compile from source (X11 headers on the Linux runner) instead.
 //
-// Wayland has no way for a client to see other clients' input; the
-// xdg-desktop-portal GlobalShortcuts portal could be used there instead, but
-// isn't yet, so Wayland sessions report "wayland" and Settings says so.
+// Wayland has no way for a client to see other clients' input, so there the
+// renderer's bindings go to the xdg-desktop-portal GlobalShortcuts portal
+// instead (portalShortcuts.cjs), which reports each action going down and up
+// ({ kind: "action" }). The compositor picks the actual keys. Without the
+// portal, Wayland sessions report "wayland" and Settings says so.
 
 const { ipcMain, systemPreferences, shell } = require("electron");
+const { createPortalShortcuts } = require("./portalShortcuts.cjs");
 
 const CODE = /^[A-Za-z0-9]{1,32}$/;
 const MAX_CODES = 64;
+// The actions the portal may bind (GLOBAL_ACTIONS in the renderer).
+const PORTAL_ACTIONS = new Set([
+    "pushToTalk",
+    "pushToMute",
+    "toggleMute",
+    "toggleDeafen",
+]);
+const TRIGGER = /^[A-Za-z0-9_+]{0,64}$/;
 // DOM MouseEvent.button numbers: middle, back (mouse 4), forward (mouse 5).
 const WATCHABLE_BUTTONS = new Set([1, 3, 4]);
 // uiohook's button numbers -> DOM's.
@@ -73,9 +84,16 @@ function registerGlobalHotkeys(getWindow) {
     /** uiohook keycode -> DOM code. */
     let codeOf = null;
     let running = false;
-    let watch = { codes: new Set(), buttons: new Set() };
-    /** { state: "off" | "active" | "wayland" | "permission" | "error", error? } */
+    let watch = { codes: new Set(), buttons: new Set(), shortcuts: [] };
+    /** { state: "off" | "active" | "wayland" | "permission" | "error",
+     *    error?, backend?: "portal", shortcuts?, configurable? } */
     let status = { state: "off" };
+    let portal = null;
+    let portalVersion = 0;
+    /** The shortcut list last bound (JSON): binding again may show the
+     *  compositor's dialog, so only when it changed. */
+    let portalBound = null;
+    let portalQueue = Promise.resolve();
 
     function send(channel, payload) {
         const win = getWindow();
@@ -83,7 +101,7 @@ function registerGlobalHotkeys(getWindow) {
     }
 
     function setStatus(next) {
-        if (next.state === status.state && next.error === status.error) return;
+        if (JSON.stringify(next) === JSON.stringify(status)) return;
         status = next;
         send("hotkeys:status", status);
     }
@@ -122,7 +140,7 @@ function registerGlobalHotkeys(getWindow) {
         return hook;
     }
 
-    function stop() {
+    function stopHook() {
         if (!running) return;
         running = false;
         try {
@@ -132,16 +150,75 @@ function registerGlobalHotkeys(getWindow) {
         }
     }
 
-    /** Start or stop the hook to match the watch list and the platform. */
-    function apply() {
-        // Reported even with nothing to watch, so Settings can say so
-        // before the user turns the option on.
-        if (onWaylandSession()) {
+    function portalClient() {
+        if (portal) return portal;
+        portal = createPortalShortcuts({
+            // Inside Flatpak the portal knows us by the Flatpak's id.
+            appId: process.env.FLATPAK_ID ? undefined : "moe.crafty.matrix",
+            onAction(id, down) {
+                if (PORTAL_ACTIONS.has(id))
+                    send("hotkeys:input", { kind: "action", id, down });
+            },
+            onChanged(shortcuts) {
+                if (status.backend === "portal" && status.state === "active")
+                    setStatus({ ...status, shortcuts });
+            },
+            onError(err) {
+                console.error("Global shortcuts portal:", err);
+                portal = null;
+                portalBound = null;
+                setStatus({ state: "wayland" });
+            },
+        });
+        return portal;
+    }
+
+    /** Wayland: bind the renderer's shortcuts through the portal. Reported
+     *  even with nothing to bind, so Settings can say whether it's there. */
+    async function applyPortal() {
+        let client;
+        try {
+            client = portalClient();
+            portalVersion = await client.connect();
+        } catch (err) {
+            console.error("Global shortcuts portal unavailable:", err);
+            portal = null;
             setStatus({ state: "wayland" });
             return;
         }
+        const key = JSON.stringify(watch.shortcuts);
+        if (key === portalBound) return;
+        portalBound = key;
+        try {
+            const assigned = await client.bind(watch.shortcuts);
+            if (watch.shortcuts.length === 0)
+                setStatus({ state: "off", backend: "portal" });
+            else
+                setStatus({
+                    state: "active",
+                    backend: "portal",
+                    shortcuts: assigned,
+                    configurable: portalVersion >= 2,
+                });
+        } catch (err) {
+            console.error("Global shortcuts portal: bind failed:", err);
+            portalBound = null;
+            setStatus({
+                state: "error",
+                backend: "portal",
+                error: String(err.message || err),
+            });
+        }
+    }
+
+    /** Start or stop the hook to match the watch list and the platform. */
+    function apply() {
+        if (onWaylandSession()) {
+            portalQueue = portalQueue.then(applyPortal);
+            return portalQueue;
+        }
         if (watch.codes.size === 0 && watch.buttons.size === 0) {
-            stop();
+            stopHook();
             setStatus({ state: "off" });
             return;
         }
@@ -149,7 +226,7 @@ function registerGlobalHotkeys(getWindow) {
             process.platform === "darwin" &&
             !systemPreferences.isTrustedAccessibilityClient(false)
         ) {
-            stop();
+            stopHook();
             setStatus({ state: "permission" });
             return;
         }
@@ -170,7 +247,7 @@ function registerGlobalHotkeys(getWindow) {
         }
     }
 
-    ipcMain.handle("hotkeys:watch", (e, req) => {
+    ipcMain.handle("hotkeys:watch", async (e, req) => {
         const win = getWindow();
         if (!win || e.sender !== win.webContents) return status;
         const codes = Array.isArray(req?.codes)
@@ -181,9 +258,37 @@ function registerGlobalHotkeys(getWindow) {
         const buttons = Array.isArray(req?.buttons)
             ? req.buttons.filter((b) => WATCHABLE_BUTTONS.has(b))
             : [];
-        watch = { codes: new Set(codes), buttons: new Set(buttons) };
-        apply();
+        const shortcuts = Array.isArray(req?.shortcuts)
+            ? req.shortcuts
+                  .filter(
+                      (s) =>
+                          PORTAL_ACTIONS.has(s?.id) &&
+                          typeof s.description === "string" &&
+                          typeof s.trigger === "string" &&
+                          TRIGGER.test(s.trigger),
+                  )
+                  .map((s) => ({
+                      id: s.id,
+                      description: s.description.slice(0, 200),
+                      trigger: s.trigger,
+                  }))
+            : [];
+        watch = {
+            codes: new Set(codes),
+            buttons: new Set(buttons),
+            shortcuts,
+        };
+        await apply();
         return status;
+    });
+
+    // Wayland, portal version 2+: the desktop's own editor for our shortcuts.
+    ipcMain.handle("hotkeys:configure", async () => {
+        try {
+            await portal?.configure();
+        } catch (err) {
+            console.error("Global shortcuts portal: configure failed:", err);
+        }
     });
 
     // macOS: ask for Accessibility (the system shows its own prompt the
@@ -206,7 +311,11 @@ function registerGlobalHotkeys(getWindow) {
         recheck() {
             if (status.state === "permission") apply();
         },
-        stop,
+        stop() {
+            stopHook();
+            portal?.close();
+            portal = null;
+        },
     };
 }
 

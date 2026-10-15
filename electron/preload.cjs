@@ -96,10 +96,12 @@ contextBridge.exposeInMainWorld("desktop", {
         relaunch: () => ipcRenderer.send("app:relaunch"),
     },
     // Voice keybinds while Zam isn't focused (globalHotkeys.cjs): the page
-    // names the keys / mouse buttons it binds, main forwards only those.
+    // names the keys / mouse buttons it binds, main forwards only those (or
+    // on Wayland binds the shortcuts through the desktop's portal).
     hotkeys: {
-        watch: (codes, buttons) =>
-            ipcRenderer.invoke("hotkeys:watch", { codes, buttons }),
+        watch: (codes, buttons, shortcuts) =>
+            ipcRenderer.invoke("hotkeys:watch", { codes, buttons, shortcuts }),
+        configure: () => ipcRenderer.invoke("hotkeys:configure"),
         requestPermission: () =>
             ipcRenderer.invoke("hotkeys:request-permission"),
         onInput: (cb) => {

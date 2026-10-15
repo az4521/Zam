@@ -12,6 +12,7 @@
         isModifierKey,
         eventKey,
         mouseButtonKey,
+        isKeybindAction,
         type Binding,
         type KeybindAction,
     } from "$lib/keybinds/keybinds";
@@ -27,8 +28,10 @@
     } from "$lib/stores/keybinds.svelte";
     import {
         globalHotkeysState,
+        configureGlobalShortcuts,
         requestGlobalHotkeyPermission,
     } from "$lib/keybinds/desktopHotkeys.svelte";
+    import { GLOBAL_ACTIONS } from "$lib/keybinds/globalHotkeys";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import { refreshMicGate } from "$lib/stores/voiceCall.svelte";
     import KeyCaps from "$lib/components/keybinds/KeyCaps.svelte";
@@ -48,6 +51,15 @@
                 isDefault: isDefaultBinding(d.id),
             })),
         }));
+    });
+
+    /** A voice action on a mouse button, which the Wayland portal can't
+     *  bind. */
+    const hasMouseVoiceBinding = $derived.by(() => {
+        void keybindsState.overrides;
+        return GLOBAL_ACTIONS.some((id) =>
+            bindingFor(id)?.key.startsWith("mouse"),
+        );
     });
 
     function hint(id: KeybindAction): string | null {
@@ -218,7 +230,9 @@
                                     {t("keybinds.globalVoice")}
                                 </p>
                                 <p class="text-xs text-discord-textMuted">
-                                    {t("keybinds.globalVoiceHint")}
+                                    {status.backend === "portal"
+                                        ? t("keybinds.globalPortalHint")
+                                        : t("keybinds.globalVoiceHint")}
                                 </p>
                             </div>
                             <ToggleSwitch
@@ -250,10 +264,48 @@
                                 class="mt-2 text-xs text-discord-warning"
                                 role="status"
                             >
-                                {t("keybinds.globalError", {
-                                    error: status.error ?? "",
-                                })}
+                                {t(
+                                    status.backend === "portal"
+                                        ? "keybinds.globalPortalError"
+                                        : "keybinds.globalError",
+                                    { error: status.error ?? "" },
+                                )}
                             </p>
+                        {:else if keybindsState.globalVoice && status.state === "active" && status.backend === "portal"}
+                            <div class="mt-2 flex flex-col gap-1" role="status">
+                                <p class="text-xs text-discord-textMuted">
+                                    {t("keybinds.globalPortalAssigned")}
+                                </p>
+                                {#each status.shortcuts ?? [] as s (s.id)}
+                                    <p class="text-xs text-discord-textPrimary">
+                                        {isKeybindAction(s.id)
+                                            ? keybindLabel(s.id)
+                                            : s.id}:
+                                        <span
+                                            class={s.trigger
+                                                ? "font-medium"
+                                                : "text-discord-textMuted"}
+                                            >{s.trigger ||
+                                                t("keybinds.notSet")}</span
+                                        >
+                                    </p>
+                                {/each}
+                                {#if hasMouseVoiceBinding}
+                                    <p class="text-xs text-discord-warning">
+                                        {t("keybinds.globalPortalMouse")}
+                                    </p>
+                                {/if}
+                                {#if status.configurable}
+                                    <button
+                                        type="button"
+                                        onclick={configureGlobalShortcuts}
+                                        class="self-start mt-1 px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary"
+                                        >{t(
+                                            "keybinds.globalPortalConfigure",
+                                        )}</button
+                                    >
+                                {/if}
+                            </div>
                         {/if}
                     {/if}
                 </div>

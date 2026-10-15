@@ -100,6 +100,7 @@
         "@capacitor/core": "^8.3.0",
         "@capacitor/preferences": "^8.0.1",
         "@capacitor/push-notifications": "^8.0.3",
+        "@homebridge/dbus-native": "^0.7.9",
         "@lofcz/deepfilternet-web": "0.1.0",
         "@ruffle-rs/ruffle": "^0.2.0-nightly.2026.3.26",
         "@twemoji/api": "^17.0.2",

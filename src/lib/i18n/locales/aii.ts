@@ -394,12 +394,20 @@ const messages: Record<MessageKey, string> = {
     "keybinds.globalVoiceHint":
         "Push to talk, push to mute, toggle mute and toggle deafen also work while you're in another app. Zam only listens for the keys bound to them, and doesn't stop other apps getting them.",
     "keybinds.globalWayland":
-        "Not available on Wayland: it doesn't let apps see keys pressed in other windows, so voice shortcuts only work while Zam is focused.",
+        "Not available here: this Wayland desktop doesn't offer global shortcuts to apps (the GlobalShortcuts portal), so voice shortcuts only work while Zam is focused.",
     "keybinds.globalPermission":
         "macOS has to allow this first: turn on Zam in System Settings > Privacy & Security > Accessibility, then come back to Zam.",
     "keybinds.globalOpenSettings": "Open System Settings",
     "keybinds.globalError":
         "Zam couldn't start listening for keys in other apps ({error}). Voice shortcuts work while Zam is focused.",
+    "keybinds.globalPortalHint":
+        "Push to talk, push to mute, toggle mute and toggle deafen also work while you're in another app. On Wayland your desktop runs these shortcuts for Zam: it may ask you to confirm them or pick other keys, and other apps stop getting those keys.",
+    "keybinds.globalPortalAssigned": "Keys your desktop assigned:",
+    "keybinds.globalPortalMouse":
+        "Mouse buttons can't be desktop shortcuts: pick a key for them in your desktop's settings.",
+    "keybinds.globalPortalConfigure": "Change in system settings",
+    "keybinds.globalPortalError":
+        "Your desktop didn't set up the shortcuts ({error}). Turn this off and on again to retry.",
     "keybinds.helpTitle": "Keyboard shortcuts",
     "keybinds.customize": "ܛܘܝܒ̈ܐ",
     "keybinds.category.navigation": "Navigation",

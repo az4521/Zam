@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const rooms = vi.hoisted(() => ({
     state: {
@@ -307,5 +307,89 @@ describe("while Zam isn't focused", () => {
         handleGlobalInput(globalKey("KeyV", true), false);
         keybindsState.recording = false;
         expect(call.setPushToTalkHeld).not.toHaveBeenCalled();
+    });
+});
+
+describe("Wayland shortcut portal actions", () => {
+    beforeEach(() => setGlobalVoiceKeybinds(true));
+    afterEach(() => vi.useRealTimers());
+
+    it("holds push to talk / mute between Activated and Deactivated", () => {
+        handleGlobalInput(
+            { kind: "action", id: "pushToTalk", down: true },
+            true,
+        );
+        expect(call.setPushToTalkHeld).toHaveBeenLastCalledWith(true);
+        handleGlobalInput(
+            { kind: "action", id: "pushToTalk", down: false },
+            false,
+        );
+        expect(call.setPushToTalkHeld).toHaveBeenLastCalledWith(false);
+        handleGlobalInput(
+            { kind: "action", id: "pushToMute", down: true },
+            false,
+        );
+        expect(call.setPushToMuteHeld).toHaveBeenLastCalledWith(true);
+    });
+
+    it("toggles on Activated, focused or not, but only once per press", () => {
+        vi.useFakeTimers();
+        handleGlobalInput(
+            { kind: "action", id: "toggleMute", down: true },
+            true,
+        );
+        handleGlobalInput(
+            { kind: "action", id: "toggleMute", down: false },
+            true,
+        );
+        expect(call.toggleCallMute).toHaveBeenCalledTimes(1);
+        // The compositor also let the window see the same press.
+        expect(
+            handleKeybindDown(
+                key("m", { ctrlKey: true, shiftKey: true }, "KeyM"),
+            ),
+        ).toBe(true);
+        expect(call.toggleCallMute).toHaveBeenCalledTimes(1);
+        // A later press is a new one.
+        vi.advanceTimersByTime(1000);
+        handleGlobalInput(
+            { kind: "action", id: "toggleMute", down: true },
+            true,
+        );
+        expect(call.toggleCallMute).toHaveBeenCalledTimes(2);
+        // Window first, then the portal's copy.
+        vi.advanceTimersByTime(1000);
+        handleKeybindDown(key("d", { ctrlKey: true, shiftKey: true }, "KeyD"));
+        handleGlobalInput(
+            { kind: "action", id: "toggleDeafen", down: true },
+            true,
+        );
+        expect(call.toggleCallDeafen).toHaveBeenCalledTimes(1);
+    });
+
+    it("lets quick window presses through", () => {
+        vi.useFakeTimers();
+        const m = () =>
+            handleKeybindDown(
+                key("m", { ctrlKey: true, shiftKey: true }, "KeyM"),
+            );
+        m();
+        vi.advanceTimersByTime(50);
+        m();
+        expect(call.toggleCallMute).toHaveBeenCalledTimes(2);
+    });
+
+    it("ignores other actions and the setting being off", () => {
+        handleGlobalInput(
+            { kind: "action", id: "nextChannel", down: true },
+            false,
+        );
+        expect(rooms.navigateToRoom).not.toHaveBeenCalled();
+        setGlobalVoiceKeybinds(false);
+        handleGlobalInput(
+            { kind: "action", id: "toggleMute", down: true },
+            false,
+        );
+        expect(call.toggleCallMute).not.toHaveBeenCalled();
     });
 });

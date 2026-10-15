@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type { GlobalHotkeyStatus, GlobalInput } from "./globalHotkeys";
+import type {
+    GlobalHotkeyStatus,
+    GlobalInput,
+    PortalShortcut,
+} from "./globalHotkeys";
 
 const runner = vi.hoisted(() => ({
     handleGlobalInput: vi.fn(),
@@ -25,7 +29,14 @@ function fakeBridge(reply: GlobalHotkeyStatus = { state: "active" }) {
     let input: ((ev: GlobalInput) => void) | null = null;
     let status: ((s: GlobalHotkeyStatus) => void) | null = null;
     const api = {
-        watch: vi.fn(async () => reply),
+        watch: vi.fn<
+            (
+                codes: string[],
+                buttons: number[],
+                shortcuts: PortalShortcut[],
+            ) => Promise<GlobalHotkeyStatus>
+        >(async () => reply),
+        configure: vi.fn(async () => {}),
         requestPermission: vi.fn(async () => reply),
         onInput: (cb: (ev: GlobalInput) => void) => {
             input = cb;
@@ -60,7 +71,7 @@ describe("syncGlobalHotkeys", () => {
     it("watches nothing while the setting is off", async () => {
         const { api } = fakeBridge({ state: "off" });
         syncGlobalHotkeys();
-        expect(api.watch).toHaveBeenCalledWith([], []);
+        expect(api.watch).toHaveBeenCalledWith([], [], []);
         await vi.waitFor(() =>
             expect(globalHotkeysState.status).toEqual({ state: "off" }),
         );
@@ -74,7 +85,22 @@ describe("syncGlobalHotkeys", () => {
         setKeybind("toggleDeafen", null);
         setKeybind("pushToTalk", parseBinding("V")!);
         syncGlobalHotkeys();
-        expect(api.watch).toHaveBeenLastCalledWith(["KeyV"], []);
+        expect(api.watch).toHaveBeenLastCalledWith(
+            ["KeyV"],
+            [],
+            [{ id: "pushToTalk", description: "Push to talk", trigger: "v" }],
+        );
+    });
+
+    it("hands the portal the toggles' default keys", () => {
+        const { api } = fakeBridge();
+        setGlobalVoiceKeybinds(true);
+        syncGlobalHotkeys();
+        const shortcuts = api.watch.mock.lastCall![2];
+        expect(shortcuts.map((s) => [s.id, s.trigger])).toEqual([
+            ["toggleMute", "CTRL+SHIFT+m"],
+            ["toggleDeafen", "CTRL+SHIFT+d"],
+        ]);
     });
 
     it("does nothing outside the desktop app", () => {
@@ -95,7 +121,7 @@ describe("connectGlobalHotkeys", () => {
             document.hasFocus(),
         );
         disconnect();
-        expect(bridge.api.watch).toHaveBeenLastCalledWith([], []);
+        expect(bridge.api.watch).toHaveBeenLastCalledWith([], [], []);
         bridge.input(ev);
         expect(runner.handleGlobalInput).toHaveBeenCalledTimes(1);
     });

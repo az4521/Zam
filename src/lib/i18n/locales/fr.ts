@@ -409,12 +409,20 @@ const messages: Record<MessageKey, string> = {
     "keybinds.globalVoiceHint":
         "Appuyer pour parler, appuyer pour couper le micro, couper le micro et couper le son fonctionnent aussi quand vous êtes dans une autre application. Zam n'écoute que les touches qui leur sont attribuées et ne les retire pas aux autres applications.",
     "keybinds.globalWayland":
-        "Indisponible sous Wayland : il ne laisse pas les applications voir les touches pressées dans d'autres fenêtres, donc les raccourcis vocaux ne fonctionnent que quand Zam est au premier plan.",
+        "Indisponible ici : ce bureau Wayland ne propose pas de raccourcis globaux aux applications (le portail GlobalShortcuts), donc les raccourcis vocaux ne fonctionnent que quand Zam est au premier plan.",
     "keybinds.globalPermission":
         "macOS doit d'abord l'autoriser : activez Zam dans Réglages Système > Confidentialité et sécurité > Accessibilité, puis revenez dans Zam.",
     "keybinds.globalOpenSettings": "Ouvrir les Réglages Système",
     "keybinds.globalError":
         "Zam n'a pas pu écouter les touches des autres applications ({error}). Les raccourcis vocaux fonctionnent quand Zam est au premier plan.",
+    "keybinds.globalPortalHint":
+        "Appuyer pour parler, appuyer pour couper le micro, couper le micro et couper le son fonctionnent aussi quand vous êtes dans une autre application. Sous Wayland, votre bureau gère ces raccourcis pour Zam : il peut vous demander de les confirmer ou choisir d'autres touches, et les autres applications ne reçoivent plus ces touches.",
+    "keybinds.globalPortalAssigned": "Touches attribuées par votre bureau :",
+    "keybinds.globalPortalMouse":
+        "Les boutons de souris ne peuvent pas être des raccourcis du bureau : choisissez-leur une touche dans les paramètres de votre bureau.",
+    "keybinds.globalPortalConfigure": "Modifier dans les paramètres système",
+    "keybinds.globalPortalError":
+        "Votre bureau n'a pas configuré les raccourcis ({error}). Désactivez puis réactivez cette option pour réessayer.",
     "keybinds.helpTitle": "Raccourcis clavier",
     "keybinds.customize": "Personnaliser",
     "keybinds.category.navigation": "Navigation",

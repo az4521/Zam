@@ -351,6 +351,9 @@ export function handleKeybindDown(e: KeyboardEvent): boolean {
         if (typing && !bindingWorksWhileTyping(b) && !NON_TEXT_KEYS.test(b.key))
             continue;
         if (interfaceState.modal && !IN_MODAL.has(def.id)) continue;
+        // Already run by the desktop's shortcut portal for this press.
+        if (GLOBAL_PRESSES.includes(def.id) && !claimToggle(def.id, false))
+            return true;
         if (run(def.id)) return true;
     }
     return false;
@@ -411,14 +414,44 @@ const GLOBAL_PRESSES = GLOBAL_ACTIONS.filter(
 /** Keys the hook reported down, to drop its auto-repeat. */
 const globalDown = new Set<string>();
 
+/** Whether a desktop compositor passes a portal shortcut's key on to the
+ *  focused window as well isn't specified, so a toggle that both the window
+ *  and the portal report is run by whichever comes first. */
+const SAME_PRESS_MS = 300;
+const lastToggle = new Map<KeybindAction, { at: number; portal: boolean }>();
+
+function claimToggle(id: KeybindAction, portal: boolean): boolean {
+    const now = Date.now();
+    const prev = lastToggle.get(id);
+    if (prev && prev.portal !== portal && now - prev.at < SAME_PRESS_MS)
+        return false;
+    lastToggle.set(id, { at: now, portal });
+    return true;
+}
+
+function isHoldId(id: KeybindAction): id is (typeof HOLD_IDS)[number] {
+    return (HOLD_IDS as readonly KeybindAction[]).includes(id);
+}
+
 /**
- * A key or mouse button from the desktop's input hook. Holds follow it
- * whether or not Zam is focused (a second press or release of an already
- * held or released action changes nothing); toggles only run when Zam isn't
- * focused, since the window's own keydown runs them otherwise.
+ * A key or mouse button from the desktop's input hook, or (Wayland) an
+ * action from the shortcut portal. Holds follow it whether or not Zam is
+ * focused (a second press or release of an already held or released action
+ * changes nothing); the hook's toggles only run when Zam isn't focused,
+ * since the window's own keydown runs them otherwise.
  */
 export function handleGlobalInput(ev: GlobalInput, focused: boolean): void {
     if (keybindsState.recording || !keybindsState.globalVoice) return;
+    if (ev.kind === "action") {
+        if (isHoldId(ev.id)) setHeld(ev.id, ev.down);
+        else if (
+            ev.down &&
+            GLOBAL_PRESSES.includes(ev.id) &&
+            claimToggle(ev.id, true)
+        )
+            run(ev.id);
+        return;
+    }
     if (ev.kind === "mouse") {
         const key = mouseButtonKey(ev.button);
         if (!key) return;
@@ -447,6 +480,7 @@ export function handleGlobalInput(ev: GlobalInput, focused: boolean): void {
 /** The hook stopped: forget which keys it last saw down. */
 export function resetGlobalInput(): void {
     globalDown.clear();
+    lastToggle.clear();
 }
 
 /** Rooms visited this session, most recent first (the quick switcher). */

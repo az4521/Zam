@@ -5,18 +5,23 @@ import type { GlobalHotkeyStatus } from "$lib/keybinds/globalHotkeys";
 const hotkeys = vi.hoisted(() => ({
     state: { status: null as GlobalHotkeyStatus | null },
     requestGlobalHotkeyPermission: vi.fn(async () => {}),
+    configureGlobalShortcuts: vi.fn(),
 }));
 vi.mock("$lib/keybinds/desktopHotkeys.svelte", () => ({
     globalHotkeysState: hotkeys.state,
     requestGlobalHotkeyPermission: hotkeys.requestGlobalHotkeyPermission,
+    configureGlobalShortcuts: hotkeys.configureGlobalShortcuts,
 }));
 vi.mock("$lib/stores/voiceCall.svelte", () => ({ refreshMicGate: vi.fn() }));
 
 import KeybindSettings from "./KeybindSettings.svelte";
 import {
     keybindsState,
+    resetAllKeybinds,
     setGlobalVoiceKeybinds,
+    setKeybind,
 } from "$lib/stores/keybinds.svelte";
+import { parseBinding } from "$lib/keybinds/keybinds";
 import { t } from "$lib/i18n";
 
 let instance: Record<string, unknown> | null = null;
@@ -38,6 +43,7 @@ const toggle = () =>
 
 beforeEach(() => {
     localStorage.clear();
+    resetAllKeybinds();
     setGlobalVoiceKeybinds(false);
     vi.clearAllMocks();
 });
@@ -85,5 +91,52 @@ describe("Work when Zam isn't focused", () => {
         setGlobalVoiceKeybinds(true);
         const el = render({ state: "error", error: "UIOHOOK_FAILURE" });
         expect(el.textContent).toContain("UIOHOOK_FAILURE");
+    });
+});
+
+describe("Work when Zam isn't focused, Wayland portal", () => {
+    it("says the desktop runs the shortcuts", () => {
+        const el = render({ state: "off", backend: "portal" });
+        expect(el.textContent).toContain(t("keybinds.globalPortalHint"));
+        expect(toggle()).not.toBeNull();
+    });
+
+    it("shows the keys the desktop assigned and opens its editor", () => {
+        setGlobalVoiceKeybinds(true);
+        setKeybind("pushToTalk", {
+            ...parseBinding("Alt")!,
+            key: "mouse4",
+        });
+        const el = render({
+            state: "active",
+            backend: "portal",
+            configurable: true,
+            shortcuts: [
+                { id: "toggleMute", trigger: "Ctrl+Shift+M" },
+                { id: "pushToTalk", trigger: "" },
+            ],
+        });
+        expect(el.textContent).toContain(t("keybinds.globalPortalAssigned"));
+        expect(el.textContent).toContain("Ctrl+Shift+M");
+        expect(el.textContent).toContain(t("keybinds.globalPortalMouse"));
+        const button = [...el.querySelectorAll("button")].find(
+            (b) => b.textContent === t("keybinds.globalPortalConfigure"),
+        )!;
+        button.click();
+        expect(hotkeys.configureGlobalShortcuts).toHaveBeenCalled();
+    });
+
+    it("explains a refused binding", () => {
+        setGlobalVoiceKeybinds(true);
+        const el = render({
+            state: "error",
+            backend: "portal",
+            error: "BindShortcuts: cancelled",
+        });
+        expect(el.textContent).toContain(
+            t("keybinds.globalPortalError", {
+                error: "BindShortcuts: cancelled",
+            }),
+        );
     });
 });

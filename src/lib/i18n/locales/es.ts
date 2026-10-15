@@ -409,12 +409,20 @@ const messages: Record<MessageKey, string> = {
     "keybinds.globalVoiceHint":
         "Pulsar para hablar, pulsar para silenciar, silenciar el micrófono y ensordecer también funcionan mientras estás en otra aplicación. Zam solo escucha las teclas asignadas a ellos y no se las quita a otras aplicaciones.",
     "keybinds.globalWayland":
-        "No disponible en Wayland: no deja que las aplicaciones vean las teclas pulsadas en otras ventanas, así que los atajos de voz solo funcionan mientras Zam está en primer plano.",
+        "No disponible aquí: este escritorio Wayland no ofrece atajos globales a las aplicaciones (el portal GlobalShortcuts), así que los atajos de voz solo funcionan mientras Zam está en primer plano.",
     "keybinds.globalPermission":
         "macOS tiene que permitirlo primero: activa Zam en Ajustes del Sistema > Privacidad y seguridad > Accesibilidad y vuelve a Zam.",
     "keybinds.globalOpenSettings": "Abrir Ajustes del Sistema",
     "keybinds.globalError":
         "Zam no pudo empezar a escuchar teclas en otras aplicaciones ({error}). Los atajos de voz funcionan mientras Zam está en primer plano.",
+    "keybinds.globalPortalHint":
+        "Pulsar para hablar, pulsar para silenciar, silenciar el micrófono y ensordecer también funcionan mientras estás en otra aplicación. En Wayland tu escritorio gestiona estos atajos para Zam: puede pedirte que los confirmes o elegir otras teclas, y las demás aplicaciones dejan de recibir esas teclas.",
+    "keybinds.globalPortalAssigned": "Teclas que asignó tu escritorio:",
+    "keybinds.globalPortalMouse":
+        "Los botones del ratón no pueden ser atajos del escritorio: elige una tecla para ellos en los ajustes de tu escritorio.",
+    "keybinds.globalPortalConfigure": "Cambiar en los ajustes del sistema",
+    "keybinds.globalPortalError":
+        "Tu escritorio no configuró los atajos ({error}). Desactiva y vuelve a activar esta opción para reintentarlo.",
     "keybinds.helpTitle": "Atajos de teclado",
     "keybinds.customize": "Personalizar",
     "keybinds.category.navigation": "Navegación",

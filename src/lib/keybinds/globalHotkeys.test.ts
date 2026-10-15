@@ -4,6 +4,8 @@ import {
     codesForKey,
     globalWatchList,
     keyEventFromInput,
+    portalShortcuts,
+    portalTrigger,
 } from "./globalHotkeys";
 import { eventKey, matchesPress, parseBinding } from "./keybinds";
 
@@ -82,5 +84,49 @@ describe("globalWatchList", () => {
     it("finds a shifted symbol's key", () => {
         expect(codesForKey("?")).toEqual(["Slash"]);
         expect(codesForKey("+").sort()).toEqual(["Equal", "NumpadAdd"]);
+    });
+});
+
+describe("portalTrigger", () => {
+    it("spells bindings the way the shortcuts spec does", () => {
+        expect(portalTrigger(parseBinding("Ctrl+Shift+M")!)).toBe(
+            "CTRL+SHIFT+m",
+        );
+        expect(portalTrigger(parseBinding("Mod+Alt+Shift+D", true)!)).toBe(
+            "ALT+SHIFT+LOGO+d",
+        );
+        expect(portalTrigger(parseBinding("F13")!)).toBe("F13");
+        expect(portalTrigger(parseBinding("`")!)).toBe("grave");
+        expect(portalTrigger(parseBinding("Ctrl+/")!)).toBe("CTRL+slash");
+        expect(portalTrigger(parseBinding("Space")!)).toBe("space");
+        expect(portalTrigger(parseBinding("Alt+Up")!)).toBe("ALT+Up");
+        expect(portalTrigger(parseBinding("Control")!)).toBe("Control_L");
+    });
+
+    it("leaves mouse buttons and unknown keys for the user to pick", () => {
+        expect(portalTrigger({ ...parseBinding("Alt")!, key: "mouse4" })).toBe(
+            "",
+        );
+        expect(portalTrigger({ ...parseBinding("Alt")!, key: "unknown" })).toBe(
+            "",
+        );
+    });
+});
+
+describe("portalShortcuts", () => {
+    it("lists the bound actions with their descriptions", () => {
+        expect(
+            portalShortcuts(
+                [
+                    ["pushToTalk", parseBinding("V")],
+                    ["pushToMute", null],
+                    ["toggleMute", { ...parseBinding("Alt")!, key: "mouse5" }],
+                ],
+                (id) => `label:${id}`,
+            ),
+        ).toEqual([
+            { id: "pushToTalk", description: "label:pushToTalk", trigger: "v" },
+            { id: "toggleMute", description: "label:toggleMute", trigger: "" },
+        ]);
     });
 });
