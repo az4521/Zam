@@ -20,7 +20,10 @@
  * words; a plugin filter gets it only if it outputs its dry input lined up
  * with its output (MicFilterInstance.dryOutput).
  *
- * AGC2 ($lib/audio/agc2) evens out your voice: WebRTC's adaptive digital
+ * The level stage is either the same normalization incoming voices get
+ * ($lib/audio/voiceNormalization: a slow gain towards a common speech level,
+ * moved only by windows that are speech) or AGC2. AGC2 ($lib/audio/agc2)
+ * evens out your voice: WebRTC's adaptive digital
  * gain controller and limiter, the same code the browser's AGC runs after
  * noise suppression, minus the part that moves the OS microphone volume. It
  * replaced Zam's own leveller, which ducked every loud word by several dB
@@ -31,7 +34,7 @@
  * start on this device, or stops coping mid-stream is swapped for
  * DeepFilterNet3 in place.
  */
-import { rmsDb } from "./voiceNormalization";
+import { rmsDb, createNormalizer, normalizerStep } from "./voiceNormalization";
 import { createAgc2Node } from "./agc2";
 import { createSoftClipper } from "./softClip";
 import { createDeepFilterNode } from "./deepFilter";
@@ -56,10 +59,20 @@ const DRIVE_TICK_MS = 50;
  *  (falling back to DeepFilterNet3 wherever it can't run). */
 export type DenoiseEngine = "deepfilter" | PluginFilterKey;
 
+/** What evens out the user's voice: WebRTC's AGC2, or the same speaker
+ *  normalization incoming voices get (null: nothing). */
+export type MicLevelStage = "agc2" | "normalize" | null;
+
 export interface MicChainOptions {
     denoise: DenoiseEngine | null;
-    level: boolean;
+    level: MicLevelStage;
+    /** Run the pause gate after the noise model. */
+    pauseGate: boolean;
+    /** DeepFilterNet3's cap on how much it may take off, in dB. */
+    attenuationDb: number;
 }
+
+const NORMALIZE_TICK_MS = 100;
 
 export interface MicChain {
     /** Connect the mic source here. */
@@ -88,7 +101,35 @@ export function createMicChain(
 
     let destroyed = false;
     let agcNode: AudioWorkletNode | null = null;
-    if (opts.level) {
+    let normTimer: ReturnType<typeof setInterval> | null = null;
+    if (opts.level === "normalize") {
+        // The inbound normalization, on the processed voice: a slow gain
+        // towards a common speech level, fed only by windows that are speech.
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 2048;
+        const norm = ctx.createGain();
+        gain.disconnect();
+        gain.connect(analyser);
+        gain.connect(norm);
+        norm.connect(clipper.input);
+        const buf = new Float32Array(analyser.fftSize);
+        const state = createNormalizer();
+        normTimer = setInterval(() => {
+            analyser.getFloatTimeDomainData(buf);
+            const step = normalizerStep(
+                state,
+                rmsDb(buf),
+                NORMALIZE_TICK_MS / 1000,
+                norm.gain.value,
+            );
+            if (step !== null)
+                norm.gain.setTargetAtTime(
+                    step.gain,
+                    ctx.currentTime,
+                    step.timeConstant,
+                );
+        }, NORMALIZE_TICK_MS);
+    } else if (opts.level === "agc2") {
         createAgc2Node(ctx).then(
             (node) => {
                 if (destroyed) return;
@@ -144,7 +185,10 @@ export function createMicChain(
 
     // Without the gate the model still runs, just ungated.
     const makeGate = () =>
-        createPauseGateNode(ctx).catch((err) => {
+        (opts.pauseGate
+            ? createPauseGateNode(ctx)
+            : Promise.resolve(null)
+        ).catch((err) => {
             console.warn("Pause gate unavailable:", err);
             return null;
         });
@@ -165,7 +209,10 @@ export function createMicChain(
     };
 
     const spliceDeepFilter = (): Promise<DenoiseEngine | null> =>
-        Promise.all([createDeepFilterNode(ctx), makeGate()]).then(
+        Promise.all([
+            createDeepFilterNode(ctx, opts.attenuationDb),
+            makeGate(),
+        ]).then(
             ([node, gate]) => {
                 if (destroyed) {
                     node.disconnect();
@@ -211,7 +258,10 @@ export function createMicChain(
                 );
             return spliceDeepFilter();
         }
-        return Promise.all([filter.create(ctx), makeGate()]).then(
+        return Promise.all([
+            filter.create(ctx, { attenuationDb: opts.attenuationDb }),
+            makeGate(),
+        ]).then(
             ([inst, gate]) => {
                 if (destroyed) {
                     inst.node.disconnect();
@@ -271,6 +321,7 @@ export function createMicChain(
             if (destroyed) return;
             destroyed = true;
             if (driveTimer !== null) clearInterval(driveTimer);
+            if (normTimer !== null) clearInterval(normTimer);
             input.disconnect();
             drive.disconnect();
             dfNode?.disconnect();

@@ -223,6 +223,14 @@ export interface MicFilterInstance {
     close(): void;
 }
 
+/** What Zam asks of a noise filter when building it. */
+export interface MicFilterOptions {
+    /** Most the filter may take off any part of the signal, in dB (the
+     *  Debug settings slider; 25 by default, 100 is effectively unlimited). A
+     *  filter without such a cap can ignore it. */
+    attenuationDb: number;
+}
+
 /** A noise filter for the user's own microphone (zam.audio). It appears in
  *  Settings > Voice & Audio > Noise suppression; Zam's AGC (WebRTC AGC2), soft clipper
  *  and (with dryOutput) pause gate run after it, and DeepFilterNet3 stands in
@@ -242,7 +250,10 @@ export interface MicFilter {
     /** Background download of its files, some time after startup. */
     prefetch?(): Promise<void>;
     /** Build an instance for `ctx` (48 kHz). Throw if it can't run here. */
-    create(ctx: AudioContext): Promise<MicFilterInstance>;
+    create(
+        ctx: AudioContext,
+        opts?: MicFilterOptions,
+    ): Promise<MicFilterInstance>;
 }
 
 /** The `zam` object a plugin's `onload` receives (spec §6). */

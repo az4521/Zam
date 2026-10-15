@@ -34,9 +34,17 @@
         type WebPushDebug,
     } from "$lib/webPush";
     import {
+        setDfAttenuationDb,
+        setMicPauseGate,
         setShowAllEvents,
         settingsState,
     } from "$lib/stores/settings.svelte";
+    import { setVoiceCaptureConstraints } from "$lib/matrix/livekitCall";
+    import {
+        DEFAULT_ATTENUATION_DB,
+        MAX_ATTENUATION_DB,
+        MIN_ATTENUATION_DB,
+    } from "$lib/utils/micProcessing";
     import { getSyncLog } from "$lib/matrix/syncLog";
 
     let loading = $state(false);
@@ -65,6 +73,15 @@
         } catch {
             /* clipboard denied: the log is still on screen to select */
         }
+    }
+
+    // Rebuild the live mic chain with the new tuning (no-op outside a call).
+    function applyMicTuning() {
+        void setVoiceCaptureConstraints({
+            noiseSuppressionMode: settingsState.noiseSuppressionMode,
+            echoCancellation: settingsState.echoCancellation,
+            micGainMode: settingsState.micGainMode,
+        });
     }
 
     // Flipping the mode needs a fresh client: sliding sync and /sync feed the
@@ -255,6 +272,65 @@
                 checked={settingsState.showAllEvents}
                 onChange={setShowAllEvents}
                 label={t("debugSettings.showAllEvents")}
+            />
+        </div>
+    </section>
+
+    <section>
+        <p
+            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+        >
+            {t("debugSettings.voiceProcessing")}
+        </p>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("debugSettings.pauseGate")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("debugSettings.pauseGateHint")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.micPauseGate}
+                onChange={(v) => {
+                    setMicPauseGate(v);
+                    applyMicTuning();
+                }}
+                label={t("debugSettings.pauseGate")}
+            />
+        </div>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <label
+                    for="df-attenuation"
+                    class="text-sm text-discord-textPrimary"
+                >
+                    {t("debugSettings.noiseAttenuationLimit", {
+                        value: settingsState.dfAttenuationDb,
+                    })}
+                </label>
+                <p class="text-xs text-discord-textMuted">
+                    {t("debugSettings.noiseAttenuationLimitHint", {
+                        value: DEFAULT_ATTENUATION_DB,
+                    })}
+                </p>
+            </div>
+            <input
+                id="df-attenuation"
+                type="range"
+                min={MIN_ATTENUATION_DB}
+                max={MAX_ATTENUATION_DB}
+                step="1"
+                class="w-40 flex-shrink-0"
+                value={settingsState.dfAttenuationDb}
+                oninput={(e) =>
+                    setDfAttenuationDb(Number(e.currentTarget.value))}
+                onchange={applyMicTuning}
             />
         </div>
     </section>

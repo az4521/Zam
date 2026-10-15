@@ -11,12 +11,9 @@
  */
 import {
     rmsDb,
-    nextSpeechLevel,
-    normalizationGain,
-    gainTimeConstant,
-    createSpeechGate,
-    speechWindow,
-    type SpeechGate,
+    createNormalizer,
+    normalizerStep,
+    type NormalizerState,
 } from "./voiceNormalization";
 import { createSoftClipper } from "./softClip";
 
@@ -27,8 +24,7 @@ interface RoutedSource {
     analyser: AnalyserNode;
     norm: GainNode;
     gain: GainNode;
-    level: number | null;
-    gate: SpeechGate;
+    state: NormalizerState;
 }
 
 export interface CallAudioGraph {
@@ -92,20 +88,14 @@ export function createCallAudioGraph(opts: {
         const now = ctx.currentTime;
         for (const r of routed.values()) {
             r.analyser.getFloatTimeDomainData(buf);
-            // Only speech moves the level: a pause full of the speaker's
-            // room noise would otherwise read as a quiet voice and be
-            // turned up until the noise floor was audible.
-            const db = rmsDb(buf);
-            if (speechWindow(r.gate, db, NORMALIZE_TICK_MS / 1000))
-                r.level = nextSpeechLevel(r.level, db);
-            const target = normalizationGain(r.level);
-            if (target === null) continue;
-            const current = r.norm.gain.value;
-            r.norm.gain.setTargetAtTime(
-                target,
-                now,
-                gainTimeConstant(current, target),
+            const step = normalizerStep(
+                r.state,
+                rmsDb(buf),
+                NORMALIZE_TICK_MS / 1000,
+                r.norm.gain.value,
             );
+            if (step === null) continue;
+            r.norm.gain.setTargetAtTime(step.gain, now, step.timeConstant);
         }
     };
     const syncTimer = () => {
@@ -149,8 +139,7 @@ export function createCallAudioGraph(opts: {
                     analyser,
                     norm,
                     gain,
-                    level: null,
-                    gate: createSpeechGate(),
+                    state: createNormalizer(),
                 });
             } catch {
                 return false;
@@ -177,7 +166,7 @@ export function createCallAudioGraph(opts: {
             normalize = on;
             if (!on)
                 for (const r of routed.values()) {
-                    r.level = null;
+                    r.state.level = null;
                     r.norm.gain.setTargetAtTime(1, ctx.currentTime, 0.1);
                 }
             syncTimer();

@@ -42,6 +42,7 @@ import {
 } from "$lib/utils/linkPreviewPolicy";
 import { normalizeGraceMs } from "$lib/utils/activeSession";
 import { normalizeMicGainMode, type MicGainMode } from "$lib/utils/micGainMode";
+import { normalizeAttenuationDb } from "$lib/utils/micProcessing";
 import {
     normalizeNoiseSuppressionMode,
     type NoiseSuppressionMode,
@@ -378,6 +379,14 @@ export const settingsState = $state({
         readAccountString("micGainMode"),
         readAccountBool("autoGainControl", true),
     ),
+    /** Debug: run the pause gate after the noise model (off by default; see
+     *  $lib/audio/pauseGate). */
+    micPauseGate: readAccountBool("micPauseGate", false),
+    /** Debug: most DeepFilterNet3 may take off any part of the signal, in dB
+     *  ($lib/utils/micProcessing normalizes the stored value). */
+    dfAttenuationDb: normalizeAttenuationDb(
+        readAccountString("dfAttenuationDb"),
+    ),
     /** Even out how loud each remote speaker plays (receive side). */
     normalizeCallAudio: readAccountBool("normalizeCallAudio", false),
     /** Mirror the local camera self-view (horizontal flip). Local display
@@ -673,6 +682,10 @@ export function reloadAccountSettings(): void {
     settingsState.micGainMode = normalizeMicGainMode(
         readAccountString("micGainMode"),
         readAccountBool("autoGainControl", true),
+    );
+    settingsState.micPauseGate = readAccountBool("micPauseGate", false);
+    settingsState.dfAttenuationDb = normalizeAttenuationDb(
+        readAccountString("dfAttenuationDb"),
     );
     settingsState.normalizeCallAudio = readAccountBool(
         "normalizeCallAudio",
@@ -995,6 +1008,17 @@ export function setNoiseSuppressionMode(value: NoiseSuppressionMode): void {
 export function setEchoCancellation(value: boolean): void {
     settingsState.echoCancellation = value;
     writeAccountBool("echoCancellation", value);
+}
+
+export function setMicPauseGate(value: boolean): void {
+    settingsState.micPauseGate = value;
+    writeAccountBool("micPauseGate", value);
+}
+
+export function setDfAttenuationDb(value: number): void {
+    const db = normalizeAttenuationDb(String(value));
+    settingsState.dfAttenuationDb = db;
+    writeAccountNumber("dfAttenuationDb", db);
 }
 
 export function setMicGainMode(value: MicGainMode): void {

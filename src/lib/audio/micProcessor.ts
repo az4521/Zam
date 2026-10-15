@@ -45,7 +45,9 @@ export type MicProcessor = TrackProcessor<
 /** Neither stage: the raw mic, still sent through this processor. */
 export const PASSTHROUGH_CHAIN: MicChainOptions = {
     denoise: null,
-    level: false,
+    level: null,
+    pauseGate: false,
+    attenuationDb: 25,
 };
 
 export function createMicProcessor(initial: MicChainOptions): MicProcessor {
@@ -110,7 +112,12 @@ export function createMicProcessor(initial: MicChainOptions): MicProcessor {
     };
 
     const reconfigure = async (next: MicChainOptions): Promise<void> => {
-        if (next.denoise === config.denoise && next.level === config.level)
+        if (
+            next.denoise === config.denoise &&
+            next.level === config.level &&
+            next.pauseGate === config.pauseGate &&
+            next.attenuationDb === config.attenuationDb
+        )
             return;
         config = next;
         // Not running (init failed or not yet called): the next init uses it.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planMicProcessing } from "./micProcessing";
+import { planMicProcessing, normalizeAttenuationDb } from "./micProcessing";
 import {
     normalizeNoiseSuppressionMode,
     effectiveNoiseSuppression,
@@ -44,14 +44,36 @@ describe("planMicProcessing", () => {
         expect(planMicProcessing("deepfilter", "zam", true)).toEqual({
             noiseSuppression: false,
             autoGainControl: false,
-            chain: { denoise: "deepfilter", level: true },
+            chain: {
+                denoise: "deepfilter",
+                level: "agc2",
+                pauseGate: false,
+                attenuationDb: 25,
+            },
         });
         expect(
             planMicProcessing("plugin:dpdfnet/dpdfnet", "zam", true),
         ).toEqual({
             noiseSuppression: false,
             autoGainControl: false,
-            chain: { denoise: "plugin:dpdfnet/dpdfnet", level: true },
+            chain: {
+                denoise: "plugin:dpdfnet/dpdfnet",
+                level: "agc2",
+                pauseGate: false,
+                attenuationDb: 25,
+            },
+        });
+    });
+    it("can normalize the mic like incoming voices", () => {
+        expect(planMicProcessing("deepfilter", "normalize", true)).toEqual({
+            noiseSuppression: false,
+            autoGainControl: false,
+            chain: {
+                denoise: "deepfilter",
+                level: "normalize",
+                pauseGate: false,
+                attenuationDb: 25,
+            },
         });
     });
     it("leaves everything to the browser when asked", () => {
@@ -72,8 +94,36 @@ describe("planMicProcessing", () => {
         expect(planMicProcessing("deepfilter", "browser", true)).toEqual({
             noiseSuppression: false,
             autoGainControl: true,
-            chain: { denoise: "deepfilter", level: false },
+            chain: {
+                denoise: "deepfilter",
+                level: null,
+                pauseGate: false,
+                attenuationDb: 25,
+            },
         });
+    });
+});
+
+describe("mic tuning", () => {
+    it("passes the debug tuning into the chain", () => {
+        expect(
+            planMicProcessing("deepfilter", "off", true, {
+                pauseGate: true,
+                attenuationDb: 40,
+            }).chain,
+        ).toEqual({
+            denoise: "deepfilter",
+            level: null,
+            pauseGate: true,
+            attenuationDb: 40,
+        });
+    });
+    it("clamps the stored attenuation", () => {
+        expect(normalizeAttenuationDb(null)).toBe(25);
+        expect(normalizeAttenuationDb("junk")).toBe(25);
+        expect(normalizeAttenuationDb("1")).toBe(6);
+        expect(normalizeAttenuationDb("500")).toBe(100);
+        expect(normalizeAttenuationDb("30")).toBe(30);
     });
 });
 

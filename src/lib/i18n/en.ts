@@ -469,6 +469,13 @@ export const en = {
     "debugSettings.showAllEvents": "Show all events",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Display every Matrix timeline event in the chat log.",
+    "debugSettings.voiceProcessing": "Voice processing",
+    "debugSettings.pauseGate": "Pause gate",
+    "debugSettings.pauseGateHint":
+        "Takes an extra 20 dB off pauses after noise removal. Off by default; may clip quiet word starts.",
+    "debugSettings.noiseAttenuationLimit": "Noise removal limit: {value} dB",
+    "debugSettings.noiseAttenuationLimitHint":
+        "Most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
     "debugSettings.syncStatus": "Sync Status",
     "debugSettings.syncLog": "Sync log",
     "debugSettings.syncLogEmpty":
@@ -2138,7 +2145,10 @@ export const en = {
         "Your microphone is sent without noise removal.",
     "voiceAudioSettings.echoCancellation": "Echo cancellation",
     "voiceAudioSettings.autoGainControl": "Auto gain control",
-    "voiceAudioSettings.agcZam": "Zam",
+    "voiceAudioSettings.agcNormalize": "Normalize",
+    "voiceAudioSettings.agcNormalizeHint":
+        "The same volume evening-out incoming voices get, applied to your microphone after noise removal. Doesn't touch your system microphone volume.",
+    "voiceAudioSettings.agcZam": "AGC2",
     "voiceAudioSettings.agcBrowser": "Browser",
     "voiceAudioSettings.agcOff": "Off",
     "voiceAudioSettings.agcZamHint":

@@ -467,6 +467,13 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.showAllEvents": "ܚܘܝ ܟܠ ܓܕܫ̈ܐ",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "ܚܘܝ ܟܠ ܓܕܫܐ ܕ Matrix ܓܘ ܣܕܪܐ ܕܡܡܠܠܐ.",
+    "debugSettings.voiceProcessing": "Voice processing",
+    "debugSettings.pauseGate": "Pause gate",
+    "debugSettings.pauseGateHint":
+        "Takes an extra 20 dB off pauses after noise removal. Off by default; may clip quiet word starts.",
+    "debugSettings.noiseAttenuationLimit": "Noise removal limit: {value} dB",
+    "debugSettings.noiseAttenuationLimitHint":
+        "Most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
     "debugSettings.syncStatus": "ܐܝܟܢܝܘܬܐ ܕܐܚܕܝܘܬܐ",
     "debugSettings.syncLog": "ܟܬܒܐ ܕܐܚܕܝܘܬܐ",
     "debugSettings.syncLogEmpty": "ܠܐ ܐܝܬ ܡܕܡ ܟܬܝܒܐ ܗܫܐ.",
@@ -2061,7 +2068,10 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.nsOffHint": "ܡܝܩܪܘܦܘܢ ܕܝܘܟ ܡܫܬܕܪ ܕܠܐ ܒܨܘܪܐ ܕܩܠ̈ܐ.",
     "voiceAudioSettings.echoCancellation": "ܒܘܛܠܐ ܕܩܠܐ ܕܗܦܟ",
     "voiceAudioSettings.autoGainControl": "ܡܕܒܪܢܘܬܐ ܐܘܛܘܡܛܝܩܝܬܐ ܕܪܡܘܬܐ",
-    "voiceAudioSettings.agcZam": "Zam",
+    "voiceAudioSettings.agcNormalize": "Normalize",
+    "voiceAudioSettings.agcNormalizeHint":
+        "The same volume evening-out incoming voices get, applied to your microphone after noise removal. Doesn't touch your system microphone volume.",
+    "voiceAudioSettings.agcZam": "AGC2",
     "voiceAudioSettings.agcBrowser": "ܡܦܬܫܢܐ",
     "voiceAudioSettings.agcOff": "ܡܛܦܝܐ",
     "voiceAudioSettings.agcZamHint":

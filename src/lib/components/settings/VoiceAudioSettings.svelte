@@ -159,6 +159,10 @@
             settingsState.noiseSuppressionMode,
             settingsState.micGainMode,
             dfSupported,
+            {
+                pauseGate: settingsState.micPauseGate,
+                attenuationDb: settingsState.dfAttenuationDb,
+            },
         ),
     );
 
@@ -618,11 +622,13 @@
                     {t("voiceAudioSettings.autoGainControl")}
                 </label>
                 <p class="text-xs text-discord-textMuted">
-                    {settingsState.micGainMode === "zam"
-                        ? t("voiceAudioSettings.agcZamHint")
-                        : settingsState.micGainMode === "browser"
-                          ? t("voiceAudioSettings.agcBrowserHint")
-                          : t("voiceAudioSettings.agcOffHint")}
+                    {settingsState.micGainMode === "normalize"
+                        ? t("voiceAudioSettings.agcNormalizeHint")
+                        : settingsState.micGainMode === "zam"
+                          ? t("voiceAudioSettings.agcZamHint")
+                          : settingsState.micGainMode === "browser"
+                            ? t("voiceAudioSettings.agcBrowserHint")
+                            : t("voiceAudioSettings.agcOffHint")}
                 </p>
             </div>
             <select
@@ -636,6 +642,9 @@
                     void applyConstraints();
                 }}
             >
+                <option value="normalize"
+                    >{t("voiceAudioSettings.agcNormalize")}</option
+                >
                 <option value="zam">{t("voiceAudioSettings.agcZam")}</option>
                 <option value="browser"
                     >{t("voiceAudioSettings.agcBrowser")}</option

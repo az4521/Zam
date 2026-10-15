@@ -491,6 +491,13 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.showAllEvents": "Alle Ereignisse anzeigen",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Jedes Matrix-Ereignis des Verlaufs im Chat anzeigen.",
+    "debugSettings.voiceProcessing": "Voice processing",
+    "debugSettings.pauseGate": "Pause gate",
+    "debugSettings.pauseGateHint":
+        "Takes an extra 20 dB off pauses after noise removal. Off by default; may clip quiet word starts.",
+    "debugSettings.noiseAttenuationLimit": "Noise removal limit: {value} dB",
+    "debugSettings.noiseAttenuationLimitHint":
+        "Most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
     "debugSettings.syncStatus": "Sync-Status",
     "debugSettings.syncLog": "Sync-Protokoll",
     "debugSettings.syncLogEmpty":
@@ -2219,7 +2226,10 @@ const messages: Record<MessageKey, string> = {
         "Dein Mikrofon wird ohne Rauschunterdrückung gesendet.",
     "voiceAudioSettings.echoCancellation": "Echounterdrückung",
     "voiceAudioSettings.autoGainControl": "Automatische Pegelanpassung",
-    "voiceAudioSettings.agcZam": "Zam",
+    "voiceAudioSettings.agcNormalize": "Normalisieren",
+    "voiceAudioSettings.agcNormalizeHint":
+        "Dieselbe Lautstärkeangleichung wie bei eingehenden Stimmen, angewendet auf dein Mikrofon nach der Rauschunterdrückung. Verändert die Mikrofonlautstärke deines Systems nicht.",
+    "voiceAudioSettings.agcZam": "AGC2",
     "voiceAudioSettings.agcBrowser": "Browser",
     "voiceAudioSettings.agcOff": "Aus",
     "voiceAudioSettings.agcZamHint":

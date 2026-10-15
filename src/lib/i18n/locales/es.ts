@@ -482,6 +482,13 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.showAllEvents": "Mostrar todos los eventos",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Muestra cada evento de la cronología de Matrix en el historial del chat.",
+    "debugSettings.voiceProcessing": "Voice processing",
+    "debugSettings.pauseGate": "Pause gate",
+    "debugSettings.pauseGateHint":
+        "Takes an extra 20 dB off pauses after noise removal. Off by default; may clip quiet word starts.",
+    "debugSettings.noiseAttenuationLimit": "Noise removal limit: {value} dB",
+    "debugSettings.noiseAttenuationLimitHint":
+        "Most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
     "debugSettings.syncStatus": "Estado de la sincronización",
     "debugSettings.syncLog": "Registro de sincronización",
     "debugSettings.syncLogEmpty":
@@ -2239,7 +2246,10 @@ const messages: Record<MessageKey, string> = {
         "Tu micrófono se envía sin eliminación de ruido.",
     "voiceAudioSettings.echoCancellation": "Cancelación de eco",
     "voiceAudioSettings.autoGainControl": "Control automático de ganancia",
-    "voiceAudioSettings.agcZam": "Zam",
+    "voiceAudioSettings.agcNormalize": "Normalizar",
+    "voiceAudioSettings.agcNormalizeHint":
+        "La misma igualación de volumen que reciben las voces entrantes, aplicada a tu micrófono tras la supresión de ruido. No toca el volumen del micrófono del sistema.",
+    "voiceAudioSettings.agcZam": "AGC2",
     "voiceAudioSettings.agcBrowser": "Navegador",
     "voiceAudioSettings.agcOff": "Desactivado",
     "voiceAudioSettings.agcZamHint":

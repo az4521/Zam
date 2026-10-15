@@ -68,6 +68,7 @@ import type { NoiseSuppressionMode } from "$lib/utils/noiseSuppressionMode";
 import {
     planMicProcessing,
     type MicProcessingPlan,
+    type MicTuning,
 } from "$lib/utils/micProcessing";
 import { matrixErrorMessage } from "$lib/utils/knock";
 import { shouldRingPeers } from "$lib/utils/callNotify";
@@ -781,6 +782,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         settingsState.noiseSuppressionMode,
         settingsState.micGainMode,
         deepFilterSupported(),
+        micTuning(),
     ).chain?.denoise;
     const denoiseLoad = joinDenoise
         ? prepareDenoiser(joinDenoise, DENOISE_JOIN_WAIT_MS)
@@ -825,6 +827,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         settingsState.noiseSuppressionMode,
         settingsState.micGainMode,
         deepFilterSupported(),
+        micTuning(),
     );
     const lkRoom = new lk.Room({
         audioCaptureDefaults: {
@@ -1104,6 +1107,7 @@ async function setCallMicEnabled(
         settingsState.noiseSuppressionMode,
         settingsState.micGainMode,
         deepFilterSupported(),
+        micTuning(),
     ).chain;
     if (!enabled || !chain || lp.getTrackPublication(source)) {
         await lp.setMicrophoneEnabled(enabled);
@@ -1435,6 +1439,14 @@ async function applyMicProcessor(
     if (chain && !current) await track.setProcessor(createMicProcessor(chain));
 }
 
+/** The debug-screen mic chain tuning, as set now. */
+function micTuning(): MicTuning {
+    return {
+        pauseGate: settingsState.micPauseGate,
+        attenuationDb: settingsState.dfAttenuationDb,
+    };
+}
+
 /** Live NS/EC/AGC change on the published mic track (no-op when not in a
  *  call — the next join reads the settings via audioCaptureDefaults). */
 export async function setVoiceCaptureConstraints(opts: {
@@ -1448,6 +1460,7 @@ export async function setVoiceCaptureConstraints(opts: {
         opts.noiseSuppressionMode,
         opts.micGainMode,
         deepFilterSupported(),
+        micTuning(),
     );
     const c = {
         noiseSuppression: plan.noiseSuppression,

@@ -56,6 +56,35 @@ export function gainTimeConstant(current: number, target: number): number {
     return target < current ? 0.15 : 1.5;
 }
 
+/** One voice's normalization state: its smoothed speech level and the gate
+ *  that decides which windows count as speech. */
+export interface NormalizerState {
+    gate: SpeechGate;
+    level: number | null;
+}
+
+export function createNormalizer(): NormalizerState {
+    return { gate: createSpeechGate(), level: null };
+}
+
+/** Feed one window (`windowS` long, `windowDb` loud) and get the gain to move
+ *  towards, with the time constant to move at it. Null while no speech has
+ *  been heard: hold the gain in place. Only speech moves the level: a pause
+ *  full of room noise would otherwise read as a quiet voice and be turned up
+ *  until the noise floor was audible. */
+export function normalizerStep(
+    state: NormalizerState,
+    windowDb: number,
+    windowS: number,
+    currentGain: number,
+): { gain: number; timeConstant: number } | null {
+    if (speechWindow(state.gate, windowDb, windowS))
+        state.level = nextSpeechLevel(state.level, windowDb);
+    const gain = normalizationGain(state.level);
+    if (gain === null) return null;
+    return { gain, timeConstant: gainTimeConstant(currentGain, gain) };
+}
+
 /** A window counts as speech only this far above the noise floor. A fixed
  *  level gate alone isn't enough: room noise, or what noise suppression
  *  leaves of it, easily sits above -55 dBFS, and a level estimate fed by it
