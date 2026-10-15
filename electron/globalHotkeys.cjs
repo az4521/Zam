@@ -23,7 +23,14 @@
 // ({ kind: "action" }). The compositor picks the actual keys. Without the
 // portal, Wayland sessions report "wayland" and Settings says so.
 
-const { ipcMain, systemPreferences, shell } = require("electron");
+const path = require("path");
+const {
+    ipcMain,
+    systemPreferences,
+    shell,
+    utilityProcess,
+} = require("electron");
+const { domCode } = require("./hotkeyCodes.cjs");
 const { createPortalShortcuts } = require("./portalShortcuts.cjs");
 
 const CODE = /^[A-Za-z0-9]{1,32}$/;
@@ -38,38 +45,6 @@ const PORTAL_ACTIONS = new Set([
 const TRIGGER = /^[A-Za-z0-9_+]{0,64}$/;
 // DOM MouseEvent.button numbers: middle, back (mouse 4), forward (mouse 5).
 const WATCHABLE_BUTTONS = new Set([1, 3, 4]);
-// uiohook's button numbers -> DOM's.
-const DOM_BUTTON = { 3: 1, 4: 3, 5: 4 };
-
-// uiohook's numpad keys with Num Lock off are their own keycodes; the DOM
-// still calls them by the digit's code.
-const NUMPAD_NAV = {
-    NumpadInsert: "Numpad0",
-    NumpadEnd: "Numpad1",
-    NumpadArrowDown: "Numpad2",
-    NumpadPageDown: "Numpad3",
-    NumpadArrowLeft: "Numpad4",
-    NumpadArrowRight: "Numpad6",
-    NumpadHome: "Numpad7",
-    NumpadArrowUp: "Numpad8",
-    NumpadPageUp: "Numpad9",
-    NumpadDelete: "NumpadDecimal",
-};
-const MODIFIER_CODES = {
-    Ctrl: "ControlLeft",
-    CtrlRight: "ControlRight",
-    Alt: "AltLeft",
-    Shift: "ShiftLeft",
-    Meta: "MetaLeft",
-};
-
-/** KeyboardEvent.code for a UiohookKey name (the rest are already spelled
- *  the DOM's way: "F1", "Backquote", "ArrowUp", "ShiftRight"...). */
-function domCode(name) {
-    if (/^[A-Z]$/.test(name)) return `Key${name}`;
-    if (/^\d$/.test(name)) return `Digit${name}`;
-    return MODIFIER_CODES[name] || NUMPAD_NAV[name] || name;
-}
 
 function onWaylandSession() {
     return (
@@ -80,10 +55,13 @@ function onWaylandSession() {
 }
 
 function registerGlobalHotkeys(getWindow) {
-    let hook = null;
-    /** uiohook keycode -> DOM code. */
-    let codeOf = null;
+    /** The utility process running uiohook (hotkeyHook.cjs): native code
+     *  that faults or hangs takes only that process down, not the app. */
+    let child = null;
     let running = false;
+    /** The hook process died on its own: don't relaunch it on every
+     *  watch change (that loops a crash), only once the list has emptied. */
+    let hookFailed = false;
     let watch = { codes: new Set(), buttons: new Set(), shortcuts: [] };
     /** { state: "off" | "active" | "wayland" | "permission" | "error",
      *    error?, backend?: "portal", shortcuts?, configurable? } */
@@ -106,48 +84,52 @@ function registerGlobalHotkeys(getWindow) {
         send("hotkeys:status", status);
     }
 
-    function onKey(e, down) {
-        const code = codeOf.get(e.keycode);
-        if (!code || !watch.codes.has(code)) return;
-        send("hotkeys:input", {
-            kind: "key",
-            code,
-            down,
-            ctrl: !!e.ctrlKey,
-            shift: !!e.shiftKey,
-            alt: !!e.altKey,
-            meta: !!e.metaKey,
-        });
+    function onChildMessage(msg) {
+        if (msg?.type === "key" || msg?.type === "mouse") {
+            const { type, ...input } = msg;
+            send("hotkeys:input", input);
+        } else if (msg?.type === "error") {
+            console.error("Global hotkeys: could not start:", msg.error);
+            killChild();
+            hookFailed = true;
+            setStatus({ state: "error", error: String(msg.error) });
+        }
     }
 
-    function onMouse(e, down) {
-        const button = DOM_BUTTON[e.button];
-        if (button === undefined || !watch.buttons.has(button)) return;
-        send("hotkeys:input", { kind: "mouse", button, down });
-    }
-
-    function load() {
-        if (hook) return hook;
-        const { uIOhook, UiohookKey } = require("uiohook-napi");
-        codeOf = new Map(
-            Object.entries(UiohookKey).map(([name, id]) => [id, domCode(name)]),
+    function spawnChild() {
+        if (child) return child;
+        const proc = utilityProcess.fork(
+            path.join(__dirname, "hotkeyHook.cjs"),
+            [],
+            {
+                serviceName: "Zam input hook",
+            },
         );
-        uIOhook.on("keydown", (e) => onKey(e, true));
-        uIOhook.on("keyup", (e) => onKey(e, false));
-        uIOhook.on("mousedown", (e) => onMouse(e, true));
-        uIOhook.on("mouseup", (e) => onMouse(e, false));
-        hook = uIOhook;
-        return hook;
+        proc.on("message", onChildMessage);
+        proc.on("exit", (code) => {
+            if (child !== proc) return;
+            child = null;
+            running = false;
+            hookFailed = true;
+            console.error("Global hotkeys: hook process exited:", code);
+            setStatus({
+                state: "error",
+                error: `input hook process exited (${code})`,
+            });
+        });
+        child = proc;
+        return proc;
+    }
+
+    function killChild() {
+        const proc = child;
+        child = null;
+        running = false;
+        if (proc) proc.kill();
     }
 
     function stopHook() {
-        if (!running) return;
-        running = false;
-        try {
-            hook.stop();
-        } catch (err) {
-            console.error("Global hotkeys: stop failed:", err);
-        }
+        killChild();
     }
 
     function portalClient() {
@@ -219,6 +201,7 @@ function registerGlobalHotkeys(getWindow) {
         }
         if (watch.codes.size === 0 && watch.buttons.size === 0) {
             stopHook();
+            hookFailed = false;
             setStatus({ state: "off" });
             return;
         }
@@ -230,16 +213,23 @@ function registerGlobalHotkeys(getWindow) {
             setStatus({ state: "permission" });
             return;
         }
-        if (running) {
-            setStatus({ state: "active" });
-            return;
-        }
+        if (hookFailed) return;
         try {
-            load().start();
-            running = true;
+            const proc = spawnChild();
+            proc.postMessage({
+                type: "watch",
+                codes: [...watch.codes],
+                buttons: [...watch.buttons],
+            });
+            if (!running) {
+                proc.postMessage({ type: "start" });
+                running = true;
+            }
             setStatus({ state: "active" });
         } catch (err) {
             console.error("Global hotkeys: could not start:", err);
+            killChild();
+            hookFailed = true;
             setStatus({
                 state: "error",
                 error: String((err && (err.code || err.message)) || err),
