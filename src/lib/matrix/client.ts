@@ -9763,6 +9763,7 @@ export {
     joinVoiceCall,
     leaveVoiceCall,
     setMicMuted,
+    setMicClosedAtJoin,
     setVoicePlaybackMuted,
     setVoiceOutputDevice,
     setVoiceOutputVolume,

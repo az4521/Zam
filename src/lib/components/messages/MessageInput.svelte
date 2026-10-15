@@ -1,5 +1,6 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
+    import { keybindsState, pickerForKey } from "$lib/stores/keybinds.svelte";
     import { tick, untrack } from "svelte";
     import type { MatrixEvent, Room } from "matrix-js-sdk";
     import {
@@ -206,9 +207,11 @@
     $effect(() => {
         if (!isThread) {
             interfaceState.focusComposer = () => textareaEl?.focus();
+            interfaceState.composerUpload = () => fileInputEl?.click();
             return () => {
                 if (interfaceState.focusComposer)
                     interfaceState.focusComposer = null;
+                interfaceState.composerUpload = null;
             };
         }
     });
@@ -1714,15 +1717,10 @@
                 stepUndo(k === "z" && !e.shiftKey ? -1 : 1);
                 return;
             }
-            const picker = e.shiftKey
-                ? null
-                : k === "e"
-                  ? "emoji"
-                  : k === "g"
-                    ? "gif"
-                    : k === "s"
-                      ? "sticker"
-                      : null;
+        }
+        // Picker shortcuts (Settings > Keybinds).
+        if (!keybindsState.recording) {
+            const picker = pickerForKey(e);
             if (picker) {
                 e.preventDefault();
                 openPicker(picker);
@@ -1730,7 +1728,11 @@
             }
         }
 
-        if ((e.key === "PageUp" || e.key === "PageDown") && scrollEl) {
+        if (
+            (e.key === "PageUp" || e.key === "PageDown") &&
+            !e.shiftKey &&
+            scrollEl
+        ) {
             e.preventDefault();
             scrollEl.scrollBy({
                 top:
@@ -1856,7 +1858,14 @@
         }
         // Ctrl+E / Ctrl+S (open pickers) are global shortcuts handled
         // centrally in AppShell.
-        if (e.key === "ArrowUp" && !text) {
+        if (
+            e.key === "ArrowUp" &&
+            !text &&
+            !e.altKey &&
+            !e.ctrlKey &&
+            !e.metaKey &&
+            !e.shiftKey
+        ) {
             e.preventDefault();
             onRequestEditLast?.();
         }

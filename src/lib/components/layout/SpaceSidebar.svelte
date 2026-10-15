@@ -951,6 +951,7 @@
     <!-- Home button -->
     <button
         onclick={onHomeClick}
+        data-nav-space=""
         class="group relative w-12 h-12 flex items-center justify-center transition-all duration-200 flex-shrink-0 {roomsState.activeSpaceId ===
         null
             ? 'bg-[rgb(var(--discord-accent-rgb))]'
@@ -1001,6 +1002,7 @@
             {@const spaceNotifs = getSpaceNotifs(item.space.roomId)}
             <button
                 onclick={() => setActiveSpace(item.space.roomId)}
+                data-nav-space={item.space.roomId}
                 oncontextmenu={(e) =>
                     openSpaceContextMenu(e, item.space.roomId)}
                 draggable="true"
@@ -1188,6 +1190,7 @@
                             {@const isn = getSpaceNotifs(space.roomId)}
                             <button
                                 onclick={() => setActiveSpace(space.roomId)}
+                                data-nav-space={space.roomId}
                                 oncontextmenu={(e) =>
                                     openSpaceContextMenu(
                                         e,

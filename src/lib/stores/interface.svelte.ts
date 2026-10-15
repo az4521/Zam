@@ -77,7 +77,10 @@ export type ModalId =
     | "whats-new"
     // Screen-share quality popover (ScreenShareQualityPopover), used by both
     // CallView and VoiceCallPanel.
-    | "screen-share-quality";
+    | "screen-share-quality"
+    // Ctrl+K quick switcher and the Ctrl+/ shortcut list (AppShell).
+    | "quick-switcher"
+    | "keyboard-shortcuts";
 
 export type SidebarId =
     | "members"
@@ -100,7 +103,7 @@ export const interfaceState = $state({
      *  "lightbox" — maintained here, never written by components. */
     lightboxOpen: false,
     selectedMessageId: null as string | null,
-    /** Dev DebugPanel visibility (toggled by the global Ctrl+Shift+D shortcut). */
+    /** Dev DebugPanel visibility (the toggleDebug keybind). */
     debugOpen: false,
     /** Which composer picker the "composer-picker" modal is showing. */
     composerPicker: null as "emoji" | "sticker" | "gif" | null,
@@ -114,6 +117,11 @@ export const interfaceState = $state({
     composerActionsOwner: null as string | null,
     /** Focuses the message composer, if one is mounted (set by MessageInput). */
     focusComposer: null as null | (() => void),
+    /** Opens the main composer's file picker (set by MessageInput). */
+    composerUpload: null as null | (() => void),
+    /** Scrolls the open room to its oldest unread message (set by
+     *  MessageArea). */
+    jumpToUnread: null as null | (() => void),
 
     /** The single open popup/modal, or null. */
     modal: null as ModalId | null,

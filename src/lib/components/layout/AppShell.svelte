@@ -26,6 +26,17 @@
     import ScreenSharePicker from "$lib/components/layout/ScreenSharePicker.svelte";
     import JoinConsentDialog from "$lib/components/layout/JoinConsentDialog.svelte";
     import PluginPopoverHost from "$lib/components/plugins/PluginPopoverHost.svelte";
+    import QuickSwitcher from "$lib/components/layout/QuickSwitcher.svelte";
+    import QuickActions from "$lib/components/layout/QuickActions.svelte";
+    import KeyboardShortcutsDialog from "$lib/components/keybinds/KeyboardShortcutsDialog.svelte";
+    import {
+        handleHoldKey,
+        handleHoldMouse,
+        handleKeybindDown,
+        recordRoomVisit,
+        releaseAllHolds,
+        setKeybindHost,
+    } from "$lib/keybinds/runner";
 
     import {
         auth,
@@ -47,7 +58,7 @@
         closeModal,
         closeSidebar,
         closeSubPage,
-        openComposerPicker,
+        openAppSettingsTab,
     } from "$lib/stores/interface.svelte";
     import { inviteDialogState } from "$lib/stores/inviteDialog.svelte";
     import { pollDialogState } from "$lib/stores/pollDialog.svelte";
@@ -526,17 +537,22 @@
     }
 
     function onWindowKeydown(e: KeyboardEvent) {
-        // Escape → dismiss the topmost popup/sidebar.
-        if (e.key === "Escape") {
-            if (dismissTopmost()) e.preventDefault();
+        // Escape → dismiss the topmost popup/sidebar. Only when there was
+        // nothing to dismiss does it reach the shortcuts (decline a ringing
+        // call, mark the channel read).
+        if (e.key === "Escape" && !e.shiftKey && dismissTopmost()) {
+            e.preventDefault();
+            return;
+        }
+        // Keyboard shortcuts (Settings > Keybinds). They run before plugin
+        // shortcuts, so a plugin can never take a core key combination.
+        if (handleKeybindDown(e)) {
+            e.preventDefault();
             return;
         }
         // Plugin-registered global shortcuts (spec §7). resolveShortcut skips
-        // any chord that collides with a core global shortcut (Escape /
-        // Ctrl+Shift+D / Ctrl+E/S/G) or lacks a modifier, so core always wins;
-        // a plugin's own combo (e.g. Ctrl+K) fires here — placed before the
-        // Ctrl-only block below, whose blanket `return` would otherwise swallow
-        // it. Plain handler (not $derived): reads the registry array live.
+        // any chord that lacks a modifier or collides with the reserved core
+        // chords. Plain handler (not $derived): reads the registry array live.
         const shortcut = resolveShortcut(
             eventToChord(e),
             pluginRegistry.shortcuts.map((s) => s.value),
@@ -552,40 +568,6 @@
                 }
             } catch (err) {
                 console.error("[zam] plugin shortcut threw", err);
-            }
-            return;
-        }
-        // Ctrl+Shift+D → toggle the debug panel.
-        if (
-            e.ctrlKey &&
-            e.shiftKey &&
-            !e.altKey &&
-            !e.metaKey &&
-            (e.key === "D" || e.key === "d")
-        ) {
-            e.preventDefault();
-            interfaceState.debugOpen = !interfaceState.debugOpen;
-            return;
-        }
-        // Ctrl+E / Ctrl+G / Ctrl+S → open a composer picker (only when a room
-        // with a composer is visible). A focused composer handles these itself
-        // (so a thread composer opens its own picker) and preventDefaults.
-        if (e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
-            if (e.defaultPrevented) return;
-            const k = e.key.toLowerCase();
-            const kind =
-                k === "e"
-                    ? "emoji"
-                    : k === "g"
-                      ? "gif"
-                      : k === "s"
-                        ? "sticker"
-                        : null;
-            if (kind && activeRoom && !roomsState.showInbox) {
-                e.preventDefault();
-                // The main composer's key is its roomId (MessageInput's
-                // effComposerKey), so the picker must be claimed under it.
-                openComposerPicker(kind, activeRoom.roomId);
             }
             return;
         }
@@ -1208,6 +1190,78 @@
             return undefined;
         }
     }
+
+    // ── Keyboard shortcuts (Settings > Keybinds; $lib/keybinds/runner) ──
+    let quickSwitcherOpen = $state(false);
+    let shortcutsHelpOpen = $state(false);
+    let shortcutActions = $state<ReturnType<typeof QuickActions> | null>(null);
+
+    function openQuickSwitcher() {
+        if (interfaceState.modal === "quick-switcher") {
+            closeModal();
+            return;
+        }
+        openModal("quick-switcher", () => (quickSwitcherOpen = false));
+        quickSwitcherOpen = true;
+    }
+
+    function toggleShortcutsHelp() {
+        if (interfaceState.modal === "keyboard-shortcuts") {
+            closeModal();
+            return;
+        }
+        openModal("keyboard-shortcuts", () => (shortcutsHelpOpen = false));
+        shortcutsHelpOpen = true;
+    }
+
+    $effect(() => {
+        setKeybindHost({
+            openSettings: () => {
+                if (interfaceState.modal === "app-settings") closeModal();
+                else openAppSettings();
+            },
+            openQuickSwitcher,
+            openQuickAction: (mode) => shortcutActions?.openMode(mode),
+            acceptIncomingCall,
+            toggleShortcutsHelp,
+        });
+        return () => setKeybindHost(null);
+    });
+
+    // Back / forward and "previous channel" follow the rooms opened.
+    $effect(() => {
+        recordRoomVisit(roomsState.activeRoomId);
+    });
+
+    // Push to talk / push to mute: key and mouse-button holds. Capture
+    // phase so a composer or dialog handling the key doesn't hide it.
+    $effect(() => {
+        const down = (e: KeyboardEvent) => {
+            if (!e.repeat) handleHoldKey(e, true);
+        };
+        const up = (e: KeyboardEvent) => handleHoldKey(e, false);
+        const mouseDown = (e: MouseEvent) => {
+            if (handleHoldMouse(e, true)) e.preventDefault();
+        };
+        const mouseUp = (e: MouseEvent) => {
+            // Side buttons would otherwise go back / forward.
+            if (handleHoldMouse(e, false)) e.preventDefault();
+        };
+        const blur = () => releaseAllHolds();
+        window.addEventListener("keydown", down, true);
+        window.addEventListener("keyup", up, true);
+        window.addEventListener("mousedown", mouseDown, true);
+        window.addEventListener("mouseup", mouseUp, true);
+        window.addEventListener("blur", blur);
+        return () => {
+            window.removeEventListener("keydown", down, true);
+            window.removeEventListener("keyup", up, true);
+            window.removeEventListener("mousedown", mouseDown, true);
+            window.removeEventListener("mouseup", mouseUp, true);
+            window.removeEventListener("blur", blur);
+            releaseAllHolds();
+        };
+    });
 
     function acceptIncomingCall(roomId: string) {
         // Silence FIRST. joinCall's mic probe (getUserMedia) can block on a
@@ -2717,6 +2771,18 @@
 {/if}
 
 <VerificationModal />
+
+<!-- Opened by the Ctrl+Shift+T / Ctrl+Shift+N shortcuts. -->
+<QuickActions headless bind:this={shortcutActions} />
+{#if quickSwitcherOpen && interfaceState.modal === "quick-switcher"}
+    <QuickSwitcher onClose={closeModal} />
+{/if}
+{#if shortcutsHelpOpen && interfaceState.modal === "keyboard-shortcuts"}
+    <KeyboardShortcutsDialog
+        onClose={closeModal}
+        onCustomize={() => openAppSettingsTab("keybinds")}
+    />
+{/if}
 
 {#if showWhatsNew}
     <WhatsNewModal onClose={dismissWhatsNew} />

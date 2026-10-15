@@ -23,7 +23,8 @@
         refreshTick++;
     }
 
-    // Visibility is toggled by the global Ctrl+Shift+D shortcut (+page.svelte).
+    // Visibility is toggled by the toggleDebug keybind (Ctrl+Alt+Shift+D by
+    // default; $lib/keybinds).
     $effect(() => {
         if (interfaceState.debugOpen) refresh();
     });

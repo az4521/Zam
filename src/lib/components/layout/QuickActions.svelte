@@ -41,8 +41,16 @@
          *  Used by the space-rail "+" so it reads as an add-a-server chooser,
          *  not a full create menu. */
         compact?: boolean;
+        /** No buttons, just the dialog, opened through openMode (the
+         *  keyboard shortcuts in AppShell). */
+        headless?: boolean;
     }
-    let { spaceId, onaction, compact = false }: Props = $props();
+    let {
+        spaceId,
+        onaction,
+        compact = false,
+        headless = false,
+    }: Props = $props();
 
     let mode = $state<Mode | null>(null);
     let input1 = $state(""); // room name / space name / user id / room address
@@ -172,6 +180,10 @@
         closeModal();
     }
 
+    export function openMode(m: Mode) {
+        open(m);
+    }
+
     async function submit() {
         error = "";
         loading = true;
@@ -241,88 +253,90 @@
 </script>
 
 <!-- Action buttons -->
-<div class="flex flex-col">
-    {#if !spaceId && !compact}
-        <button
-            onclick={() => open("create-dm")}
-            class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-            style="padding-inline-start: 0.5rem;"
-        >
-            <svg
-                class="w-4 h-4 flex-shrink-0 opacity-70"
-                fill="currentColor"
-                viewBox="0 0 24 24"
+{#if !headless}
+    <div class="flex flex-col">
+        {#if !spaceId && !compact}
+            <button
+                onclick={() => open("create-dm")}
+                class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                style="padding-inline-start: 0.5rem;"
             >
-                <path
-                    d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"
-                />
-            </svg>
-            <span class="flex-1 truncate">{t("quickActions.newDm")}</span>
-        </button>
-    {/if}
-    {#if !compact && (!spaceId || canAddRoomToSpace(spaceId))}
-        <button
-            onclick={() => open("create-room")}
-            class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-            style="padding-inline-start: 0.5rem;"
-        >
-            <svg
-                class="w-4 h-4 flex-shrink-0 opacity-70"
-                fill="currentColor"
-                viewBox="0 0 24 24"
+                <svg
+                    class="w-4 h-4 flex-shrink-0 opacity-70"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"
+                    />
+                </svg>
+                <span class="flex-1 truncate">{t("quickActions.newDm")}</span>
+            </button>
+        {/if}
+        {#if !compact && (!spaceId || canAddRoomToSpace(spaceId))}
+            <button
+                onclick={() => open("create-room")}
+                class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                style="padding-inline-start: 0.5rem;"
             >
-                <path
-                    d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"
-                />
-            </svg>
-            <span class="flex-1 truncate"
-                >{spaceId
-                    ? t("quickActions.createRoomInSpace")
-                    : t("quickActions.createNewRoom")}</span
+                <svg
+                    class="w-4 h-4 flex-shrink-0 opacity-70"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"
+                    />
+                </svg>
+                <span class="flex-1 truncate"
+                    >{spaceId
+                        ? t("quickActions.createRoomInSpace")
+                        : t("quickActions.createNewRoom")}</span
+                >
+            </button>
+        {/if}
+        {#if !spaceId}
+            <button
+                onclick={() => open("create-space")}
+                role={compact ? "menuitem" : undefined}
+                class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                style="padding-inline-start: 0.5rem;"
             >
-        </button>
-    {/if}
-    {#if !spaceId}
-        <button
-            onclick={() => open("create-space")}
-            role={compact ? "menuitem" : undefined}
-            class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-            style="padding-inline-start: 0.5rem;"
-        >
-            <svg
-                class="w-4 h-4 flex-shrink-0 opacity-70"
-                fill="currentColor"
-                viewBox="0 0 24 24"
+                <svg
+                    class="w-4 h-4 flex-shrink-0 opacity-70"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"
+                    />
+                </svg>
+                <span class="flex-1 truncate"
+                    >{t("quickActions.createNewSpace")}</span
+                >
+            </button>
+            <button
+                onclick={() => open("join-room")}
+                role={compact ? "menuitem" : undefined}
+                class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                style="padding-inline-start: 0.5rem;"
             >
-                <path
-                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"
-                />
-            </svg>
-            <span class="flex-1 truncate"
-                >{t("quickActions.createNewSpace")}</span
-            >
-        </button>
-        <button
-            onclick={() => open("join-room")}
-            role={compact ? "menuitem" : undefined}
-            class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-            style="padding-inline-start: 0.5rem;"
-        >
-            <svg
-                class="w-4 h-4 flex-shrink-0 opacity-70"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-            >
-                <path
-                    d="M11 7 9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"
-                />
-            </svg>
-            <span class="flex-1 truncate"
-                >{t("quickActions.joinRoomByAddress")}</span
-            >
-        </button>
-    {/if}
-</div>
+                <svg
+                    class="w-4 h-4 flex-shrink-0 opacity-70"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path
+                        d="M11 7 9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"
+                    />
+                </svg>
+                <span class="flex-1 truncate"
+                    >{t("quickActions.joinRoomByAddress")}</span
+                >
+            </button>
+        {/if}
+    </div>
+{/if}
 
 <!-- Modal -->
 <Portal>

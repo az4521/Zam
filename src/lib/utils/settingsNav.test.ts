@@ -11,7 +11,7 @@ import {
 } from "./settingsNav";
 
 describe("SETTINGS_TABS", () => {
-    it("lists the thirteen settings categories in display order", () => {
+    it("lists the fourteen settings categories in display order", () => {
         expect(SETTINGS_TABS.map((t) => t.id)).toEqual([
             "account",
             "security",
@@ -20,6 +20,7 @@ describe("SETTINGS_TABS", () => {
             "messages-media",
             "notifications",
             "voice",
+            "keybinds",
             "emotes",
             "general",
             "plugins",

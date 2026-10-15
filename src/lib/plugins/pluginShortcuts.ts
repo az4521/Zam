@@ -110,8 +110,9 @@ export function chordsEqual(a: Chord, b: Chord): boolean {
 }
 
 /**
- * Core global shortcuts reserved by AppShell (Ctrl+Shift+D, Ctrl+E, Ctrl+S).
- * Plugins cannot shadow these.
+ * Chords plugins may never register (Ctrl+Shift+D deafen, Ctrl+E emoji,
+ * Ctrl+S stickers). Every other core shortcut ($lib/keybinds) runs before
+ * plugin shortcuts in AppShell, so a plugin can't take those keys either.
  */
 export const CORE_SHORTCUT_CHORDS: Chord[] = [
     { ctrl: true, shift: true, alt: false, meta: false, key: "d" },

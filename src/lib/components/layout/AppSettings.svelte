@@ -15,6 +15,7 @@
     import CustomPackSettings from "$lib/components/settings/CustomPackSettings.svelte";
     import SharedPackSettings from "$lib/components/settings/SharedPackSettings.svelte";
     import VoiceAudioSettings from "$lib/components/settings/VoiceAudioSettings.svelte";
+    import KeybindSettings from "$lib/components/settings/KeybindSettings.svelte";
     import PluginsSettings from "$lib/components/settings/PluginsSettings.svelte";
     import { focusTrap } from "$lib/actions/focusTrap";
     import { fade } from "svelte/transition";
@@ -402,6 +403,8 @@
         <NotificationSettings />
     {:else if tab === "voice"}
         <VoiceAudioSettings />
+    {:else if tab === "keybinds"}
+        <KeybindSettings />
     {:else if tab === "emotes"}
         <CustomPackSettings kind="emotes" />
         <SharedPackSettings />

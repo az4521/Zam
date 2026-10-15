@@ -376,6 +376,23 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         keywords: ["agc", "gain", "leveller", "agc2", "webrtc", "mic volume"],
     },
     {
+        tab: "keybinds",
+        label: t("settingsSearch.keyboardShortcuts"),
+        keywords: ["keybind", "hotkey", "shortcut", "keyboard", "discord"],
+    },
+    {
+        tab: "keybinds",
+        label: t("keybinds.action.pushToTalk"),
+        keywords: ["ptt", "push to talk", "push to mute", "voice activation"],
+        anchor: "keybinds-voice",
+    },
+    {
+        tab: "keybinds",
+        label: t("keybinds.action.toggleMute"),
+        keywords: ["mute", "deafen", "hotkey"],
+        anchor: "keybinds-voice",
+    },
+    {
         tab: "voice",
         label: t("settingsSearch.mirrorMyCamera"),
         keywords: ["flip", "mirror video"],

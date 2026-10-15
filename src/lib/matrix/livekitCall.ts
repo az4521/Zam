@@ -141,6 +141,12 @@ let voicePlaybackMuted = false;
 // The mic state the user last asked for; consulted after connect so a mute
 // toggled during the connect window isn't clobbered.
 let desiredMicMuted = false;
+/** Whether a new call should start with the mic closed (push to talk not
+ *  held); registered by the voice call store. */
+let micClosedAtJoin: () => boolean = () => false;
+export function setMicClosedAtJoin(fn: () => boolean): void {
+    micClosedAtJoin = fn;
+}
 // Whether the user currently wants the camera on. Intent, not LiveKit state:
 // turning the camera off only MUTES the publication, so "is a camera track
 // published" cannot answer this — see ensureVoiceDeviceWatch.
@@ -883,7 +889,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     };
     activeVoice = call;
     ensureVoiceDeviceWatch();
-    desiredMicMuted = false;
+    desiredMicMuted = micClosedAtJoin();
     desiredCameraOn = false;
     notifyVoiceConnState("connecting");
     session.on("membership_manager_error" as never, onMmError as never);

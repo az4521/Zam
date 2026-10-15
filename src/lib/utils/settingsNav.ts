@@ -16,6 +16,7 @@ export type SettingsTab =
     | "messages-media"
     | "notifications"
     | "voice"
+    | "keybinds"
     | "emotes"
     | "general"
     | "plugins"
@@ -51,6 +52,7 @@ export const SETTINGS_GROUPS: readonly {
             { id: "messages-media", label: t("settingsNav.messagesMedia") },
             { id: "notifications", label: t("common.notifications") },
             { id: "voice", label: t("settingsNav.voiceVideo") },
+            { id: "keybinds", label: t("settingsNav.keybinds") },
             { id: "emotes", label: t("settingsNav.emotes") },
         ],
     },

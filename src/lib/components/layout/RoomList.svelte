@@ -1119,6 +1119,9 @@
                 data-room-id={draggable ? room.roomId : undefined}
                 data-section={draggable ? section : undefined}
                 data-list={draggable ? "main" : undefined}
+                data-nav-room={room.roomId}
+                data-nav-unread={unread ? "" : undefined}
+                data-nav-mention={highlight ? "" : undefined}
                 onpointerdown={draggable
                     ? (e) => onRowPointerDown(e, room, section!)
                     : undefined}
@@ -1527,6 +1530,9 @@
                         data-room-id={dmDraggable ? room.roomId : undefined}
                         data-section={dmDraggable ? dmSection : undefined}
                         data-list={dmDraggable ? "dm" : undefined}
+                        data-nav-room={room.roomId}
+                        data-nav-unread={unread ? "" : undefined}
+                        data-nav-mention={highlight ? "" : undefined}
                         onpointerdown={dmDraggable
                             ? (e) => onRowPointerDown(e, room, dmSection!)
                             : undefined}

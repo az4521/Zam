@@ -1,9 +1,11 @@
 import { t } from "$lib/i18n";
 import { untrack } from "svelte";
+import { bindingFor } from "$lib/stores/keybinds.svelte";
 import {
     joinVoiceCall,
     leaveVoiceCall,
     setMicMuted,
+    setMicClosedAtJoin,
     setVoicePlaybackMuted,
     onVoiceSessionsChanged,
     onVoiceConnStateChanged,
@@ -135,6 +137,11 @@ class VoiceCallState {
     /** Android: the system held the call (a cellular call was answered).
      *  Mic and playback are muted underneath the user's own mute state. */
     onHold = $state(false);
+    /** Push to talk is held / push to mute is held (Settings > Keybinds).
+     *  Like a system hold, they close the mic underneath the user's own
+     *  mute state without changing it. */
+    pushToTalkHeld = $state(false);
+    pushToMuteHeld = $state(false);
     /** Android: current audio route and the routes on offer, as the system
      *  call stack reports them. Null route = no route control here. */
     audioRoute = $state<NativeAudioRoute | null>(null);
@@ -208,6 +215,8 @@ async function clearStaleCallStatus(): Promise<void> {
 
 /** Subscribe the store to client voice events. Call once from the app shell. */
 export function initVoiceCall(): () => void {
+    // A call joined in push to talk starts with the mic closed.
+    setMicClosedAtJoin(() => micGated());
     // The sound engine mirrors persisted settings once per boot (account
     // switches hard-reload, so this is also the per-account init).
     configureCallSounds({
@@ -436,14 +445,50 @@ export function leaveCall(): void {
     void leaveVoiceCall();
 }
 
+/** Push to talk is on whenever it has a key: then the mic only opens while
+ *  that key is held. */
+export function pushToTalkEnabled(): boolean {
+    return bindingFor("pushToTalk") !== null;
+}
+
+/** The mic is closed for a reason other than the user's own mute. */
+function micGated(): boolean {
+    return (
+        voiceCallState.onHold ||
+        voiceCallState.pushToMuteHeld ||
+        (pushToTalkEnabled() && !voiceCallState.pushToTalkHeld)
+    );
+}
+
+function applyMicGate(): void {
+    if (!voiceCallState.roomId) return;
+    void setMicMuted(voiceCallState.micMuted || micGated());
+}
+
+export function setPushToTalkHeld(held: boolean): void {
+    if (voiceCallState.pushToTalkHeld === held) return;
+    voiceCallState.pushToTalkHeld = held;
+    applyMicGate();
+}
+
+export function setPushToMuteHeld(held: boolean): void {
+    if (voiceCallState.pushToMuteHeld === held) return;
+    voiceCallState.pushToMuteHeld = held;
+    applyMicGate();
+}
+
+/** Re-apply the gate after push to talk was bound or unbound. */
+export function refreshMicGate(): void {
+    applyMicGate();
+}
+
 function applyMuteState(next: MuteState, prev: MuteState): void {
     voiceCallState.micMuted = next.micMuted;
     voiceCallState.deafened = next.deafened;
     voiceCallState.mutedByDeafen = next.mutedByDeafen;
     // A system hold keeps both muted underneath, whatever the user toggles.
-    const held = voiceCallState.onHold;
-    setVoicePlaybackMuted(next.deafened || held);
-    void setMicMuted(next.micMuted || held).then((ok) => {
+    setVoicePlaybackMuted(next.deafened || voiceCallState.onHold);
+    void setMicMuted(next.micMuted || micGated()).then((ok) => {
         if (ok || voiceCallState.roomId === null) return;
         // The device refused — roll the UI back to the truth and say so.
         voiceCallState.micMuted = prev.micMuted;
@@ -525,7 +570,7 @@ function applySystemHold(held: boolean): void {
     if (!voiceCallState.roomId) return;
     voiceCallState.onHold = held;
     setVoicePlaybackMuted(held || voiceCallState.deafened);
-    void setMicMuted(held || voiceCallState.micMuted);
+    void setMicMuted(voiceCallState.micMuted || micGated());
 }
 
 /** Take the call off a system hold (the other call is over). */

@@ -1442,6 +1442,16 @@
         };
     });
 
+    // Shift+PageUp (Settings > Keybinds): back to the oldest unread message.
+    $effect(() => {
+        interfaceState.jumpToUnread = () => {
+            if (unreadMarkerEventId) void scrollToMessage(unreadMarkerEventId);
+        };
+        return () => {
+            interfaceState.jumpToUnread = null;
+        };
+    });
+
     function scrollToBottom(instant: boolean) {
         if (!scrollEl) return;
         scrollEl.scrollTo({
@@ -2486,7 +2496,7 @@
         </div>
     </div>
 
-    <!-- Debug panel (Ctrl+Shift+D to toggle) -->
+    <!-- Debug panel (toggleDebug keybind, Ctrl+Alt+Shift+D by default) -->
     <div class="contents" dir={uiDir}>
         <DebugPanel {room} />
 
