@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.23.0
+
+🎙️ **Improved**
+
+- **Normalize your own mic:** Settings > Voice & Audio > Auto gain control has a new "Normalize" option, the same volume evening-out incoming voices get, applied to your microphone after noise removal. It is now the default; "AGC2" (the previous choice) is still there.
+- **Noise removal tuning in Settings > Debug:** a new "Voice processing" section has a slider for how much DeepFilterNet3 or DPDFNet may take off the signal (default 25 dB), and a toggle for the pause gate.
+
+🐛 **Fixed**
+
+- **Choppy voice with noise removal on:** the pause gate that cut the gaps between words is now off by default, since it could clip soft word starts. You can turn it back on in Settings > Debug.
+
 ## v1.22.1
 
 🐛 **Fixed**
