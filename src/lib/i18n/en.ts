@@ -359,7 +359,7 @@ export const en = {
         "Turn this off if videos show up black or the window draws wrongly. Applies after a restart.",
     "gpuDebug.nvidiaVideo": "NVIDIA video decoding",
     "gpuDebug.nvidiaVideoHint":
-        "Decodes video on NVIDIA GPUs through Chromium's Vulkan renderer. Automatic turns it on when an NVIDIA GPU drives your screens.",
+        "Decodes video on NVIDIA GPUs through Chromium's Vulkan renderer. Automatic turns it on when an NVIDIA GPU drives your screens. On Wayland, Vulkan is not used and Automatic leaves it off; choosing Vulkan there tries hardware decoding through OpenGL instead (experimental).",
     "gpuDebug.nvidiaVideoActive": "In use now.",
     "gpuDebug.nvidiaVideoInactive": "Not in use now.",
     "gpuDebug.nvidiaVideoFailed":

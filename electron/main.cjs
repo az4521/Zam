@@ -606,7 +606,7 @@ ipcMain.handle("gpu:info", async () => {
         nvidiaVideo: IN_FLATPAK
             ? {
                   mode: prefs.nvidiaVideo ?? "auto",
-                  activeAtLaunch: nvidiaVulkanVideo,
+                  activeAtLaunch: nvidiaVulkanVideo || nvidiaWaylandVideo,
                   detected: !!prefs.nvidiaDetected,
                   failedAt: prefs.nvidiaVulkanFailed ?? null,
               }
@@ -1212,7 +1212,12 @@ const onWayland =
 // allocate buffers and the window shows no video or a stale copy of the screen.
 const nvidiaVulkanVideo =
     IN_FLATPAK && !onWayland && process.env.ZAM_NVIDIA_VULKAN_VIDEO === "1";
-if (IN_FLATPAK && nvidiaVulkanVideo) {
+// Wayland: Chromium's GL path can import NV12 dma-bufs there (EGL), so the
+// Vulkan setup isn't needed, only the VA-API-on-NVIDIA switch. Untested on
+// hardware, so only when Settings > Debug asks for it.
+const nvidiaWaylandVideo =
+    IN_FLATPAK && onWayland && readGpuPrefs().nvidiaVideo === "vulkan";
+if (nvidiaVulkanVideo || nvidiaWaylandVideo) {
     features.push("VaapiOnNvidiaGPUs");
 }
 if (nvidiaVulkanVideo) {
