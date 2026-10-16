@@ -412,6 +412,9 @@ body {
 .message-body a {
     color: var(--discord-link, var(--discord-accent-text));
 }
+.message-body .room-mention {
+    color: var(--discord-link, var(--discord-accent-text));
+}
 .message-body a:hover {
     text-decoration: underline;
 }
@@ -477,6 +480,7 @@ body {
     color: #fff;
 }
 /* Links in own bubbles: white + underline (computed link colour is ~1.8:1 on the bubble). */
+.own-bubble .message-body .room-mention,
 .own-bubble .message-body a {
     color: #fff;
     text-decoration: underline;

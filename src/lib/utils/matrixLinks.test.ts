@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+    highlightRoomMention,
     parseMatrixLink,
     linkifyMatrixIdentifiers,
     linkifyPlainText,
@@ -594,5 +595,26 @@ describe("asciiServerName", () => {
     it("returns the raw input unchanged when it cannot be parsed as a host", () => {
         expect(asciiServerName("")).toBe("");
         expect(asciiServerName("not a host")).toBe("not a host");
+    });
+});
+
+describe("highlightRoomMention", () => {
+    it("wraps a standalone @room in text", () => {
+        expect(highlightRoomMention("hi @room now")).toBe(
+            'hi <span class="room-mention">@room</span> now',
+        );
+        expect(highlightRoomMention("<p>@room</p>")).toBe(
+            '<p><span class="room-mention">@room</span></p>',
+        );
+    });
+    it("leaves lookalikes, links and code alone", () => {
+        for (const h of [
+            "@roomy",
+            "a@room",
+            '<a href="x">@room</a>',
+            "<code>@room</code>",
+            '<a title="@room">x</a>',
+        ])
+            expect(highlightRoomMention(h)).toBe(h);
     });
 });

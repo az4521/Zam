@@ -236,6 +236,31 @@ export function linkifyPlainText(escapedHtml: string): string {
     );
 }
 
+/**
+ * Wrap a standalone "@room" in rendered message HTML in a styled span, like a
+ * user mention. Only touches text between tags (never attributes), and skips
+ * text inside links and code so it can't nest in or break them.
+ */
+export function highlightRoomMention(html: string): string {
+    if (!html.includes("@room")) return html;
+    let skip = 0;
+    return html.replace(
+        /<(\/?)(a|code|pre)(?=[\s/>])[^>]*>|>?[^<]+/gi,
+        (m, close) => {
+            if (m.startsWith("<")) {
+                if (close) skip = Math.max(0, skip - 1);
+                else if (!m.endsWith("/>")) skip++;
+                return m;
+            }
+            if (skip) return m;
+            return m.replace(
+                /(^|[\s(>])@room(?![\w:.-])/g,
+                '$1<span class="room-mention">@room</span>',
+            );
+        },
+    );
+}
+
 // A string that is entirely 7-bit ASCII carries no homograph risk.
 // eslint-disable-next-line no-control-regex
 const ASCII_ONLY_RE = /^[\x00-\x7f]*$/;

@@ -86,6 +86,7 @@
         matrixLinkTitle,
         mergeViaServers,
         linkifyPlainText,
+        highlightRoomMention,
         type MatrixLinkTarget,
     } from "$lib/utils/matrixLinks";
     import {
@@ -1703,7 +1704,10 @@
         // newlines still count as mention boundaries. linkifyPlainText covers
         // http(s) URLs as well as bare mentions — a pasted matrix.to link needs
         // to become an anchor for the matrixLinks action to open it in-app.
-        return linkifyPlainText(escaped).replace(/\n/g, "<br>");
+        return highlightRoomMention(linkifyPlainText(escaped)).replace(
+            /\n/g,
+            "<br>",
+        );
     }
 
     function sanitize(html: string): string {
@@ -1713,8 +1717,10 @@
         // differently across an account switch. A NUL (U+0000) is a safe
         // separator (never present in a URL or in Matrix HTML).
         const base = getHomeserverBaseUrl() ?? "";
-        return sanitizeCache.get(`${base}\u0000${html}`, () =>
-            sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp }),
+        return highlightRoomMention(
+            sanitizeCache.get(`${base}\u0000${html}`, () =>
+                sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp }),
+            ),
         );
     }
 
