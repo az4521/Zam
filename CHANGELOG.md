@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.23.3
+
+🎨 **Improved**
+
+- **@room looks like a ping:** @room in a message is now highlighted blue, like a mention of a person.
+
 ## v1.23.2
 
 🐛 **Fixed**
