@@ -60,7 +60,12 @@ has_nvidia_card() {
     done
     [ -e /sys/module/nvidia_drm ]
 }
-gpu_prefs=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/Zam/gpu-prefs.json" 2>/dev/null)
+# Electron's userData directory is named after package.json "name" ("zam"), not
+# the product name; try both.
+for d in zam Zam; do
+    gpu_prefs=$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/$d/gpu-prefs.json" 2>/dev/null)
+    [ -n "$gpu_prefs" ] && break
+done
 if [ -z "$ZAM_NVIDIA_VULKAN_VIDEO" ]; then
     case "$gpu_prefs" in
     *'"nvidiaVideo":"vulkan"'*) ZAM_NVIDIA_VULKAN_VIDEO=1 ;;
