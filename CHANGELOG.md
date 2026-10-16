@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.23.5
+
+🐛 **Fixed**
+
+- **NVIDIA video on Wayland (Linux Flatpak):** hardware video decoding is now off by default on Wayland with an NVIDIA GPU, so video decodes in software instead of misbehaving. To try hardware decoding there (experimental), pick "Vulkan" in Settings > Debug > NVIDIA video decoding; on Wayland it uses OpenGL, not Vulkan.
+
 ## v1.23.4
 
 🐛 **Fixed**
