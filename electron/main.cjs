@@ -649,6 +649,7 @@ async function detectNvidiaVideo() {
     const prefs = readGpuPrefs();
     if (
         !IN_FLATPAK ||
+        onWayland ||
         nvidiaVulkanVideo ||
         !hardwareAccelerationAtLaunch ||
         prefs.nvidiaDetected ||
@@ -1205,8 +1206,11 @@ const onWayland =
 // asks for it), along with what NVIDIA's Vulkan driver needs for that import
 // (pitch-linear frames, our Vulkan layer's usage fixup).
 // VaapiIgnoreDriverChecks: Chromium only allows VA-API with Vulkan on Intel.
+// Not on Wayland: Chromium's Wayland platform is incompatible with Vulkan
+// ("--ozone-platform=wayland is not compatible with Vulkan"), GBM then fails to
+// allocate buffers and the window shows no video or a stale copy of the screen.
 const nvidiaVulkanVideo =
-    IN_FLATPAK && process.env.ZAM_NVIDIA_VULKAN_VIDEO === "1";
+    IN_FLATPAK && !onWayland && process.env.ZAM_NVIDIA_VULKAN_VIDEO === "1";
 if (IN_FLATPAK && (onWayland || nvidiaVulkanVideo)) {
     features.push("VaapiOnNvidiaGPUs");
 }

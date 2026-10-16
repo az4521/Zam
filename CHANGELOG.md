@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.23.4
+
+🐛 **Fixed**
+
+- **No video on Wayland (Linux Flatpak):** video no longer shows nothing, or a stale copy of the screen, on Wayland with an NVIDIA GPU. The hardware video path added in 1.23.2 doesn't work there, so Wayland goes back to the standard one.
+
 ## v1.23.3
 
 🎨 **Improved**
