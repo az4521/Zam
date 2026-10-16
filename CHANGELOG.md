@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.23.2
+
+🐛 **Fixed**
+
+- **NVIDIA hardware video decode (Linux Flatpak):** Zam now picks up its saved GPU detection and the NVIDIA video choice in Settings > Debug, so hardware H.264, HEVC and VP9 turn on by themselves, including on laptops with an Intel and an NVIDIA GPU. Before, it ignored them and decoded in software unless launched with manual flags.
+
 ## v1.23.1
 
 🐛 **Fixed**
