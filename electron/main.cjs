@@ -494,7 +494,9 @@ ipcMain.on("notify:show", (_e, payload) => {
     const n = new Notification({
         title: clampText(title, 256),
         body: clampText(body, 1024),
-        silent: !!silent,
+        // Windows plays its own toast chime unless silenced; the app already
+        // plays its own sound for loud notifications, so never double up.
+        silent: process.platform === "win32" ? true : !!silent,
         ...(icon.isEmpty() ? {} : { icon }),
     });
     liveNotifications.set(id, n);

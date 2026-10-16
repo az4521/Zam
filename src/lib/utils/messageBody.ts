@@ -27,6 +27,19 @@ export interface FormattedBodyResult {
     html: string | null;
     /** Distinct userIds whose mention token actually appears in `plain`. */
     mentionedUserIds: string[];
+    /** The text contains a standalone "@room" (sets m.mentions.room). */
+    mentionsRoom: boolean;
+}
+
+/** `m.mentions` for an outgoing message, or undefined when it mentions nobody. */
+export function mentionsFromFormatted(
+    f: Pick<FormattedBodyResult, "mentionedUserIds" | "mentionsRoom">,
+): { user_ids?: string[]; room?: boolean } | undefined {
+    if (!f.mentionedUserIds.length && !f.mentionsRoom) return undefined;
+    return {
+        ...(f.mentionedUserIds.length ? { user_ids: f.mentionedUserIds } : {}),
+        ...(f.mentionsRoom ? { room: true } : {}),
+    };
 }
 
 /**
@@ -126,5 +139,7 @@ export function buildFormattedBody(
         }
     }
 
-    return { html: changed ? html : null, mentionedUserIds };
+    const mentionsRoom = /(^|\s)@room(?![\w:.-])/.test(plain);
+
+    return { html: changed ? html : null, mentionedUserIds, mentionsRoom };
 }

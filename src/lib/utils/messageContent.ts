@@ -7,11 +7,14 @@
 /**
  * Build the content for a plain text message. Matches `sendTextMessage`.
  */
-export function buildTextContent(body: string): Record<string, unknown> {
+export function buildTextContent(
+    body: string,
+    mentions?: { user_ids?: string[]; room?: boolean },
+): Record<string, unknown> {
     return {
         msgtype: "m.text",
         body,
-        "m.mentions": {},
+        "m.mentions": mentions ?? {},
     };
 }
 

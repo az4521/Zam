@@ -38,7 +38,10 @@
     } from "$lib/matrix/client";
     import { sendEventContent } from "$lib/matrix/pluginHost";
     import { composerThreadKey } from "$lib/utils/threadContent";
-    import { buildFormattedBody as buildBody } from "$lib/utils/messageBody";
+    import {
+        buildFormattedBody as buildBody,
+        mentionsFromFormatted,
+    } from "$lib/utils/messageBody";
     import { buildReplyContent } from "$lib/utils/replyContent";
     import {
         buildTextContent,
@@ -895,6 +898,7 @@
     function buildFormattedBody(plain: string): {
         html: string | null;
         mentionedUserIds: string[];
+        mentionsRoom: boolean;
     } {
         return buildBody(plain, {
             mentions: pendingMentions,
@@ -1314,10 +1318,9 @@
         renderComposer(0);
 
         try {
-            const mentions =
-                formatted && formatted.mentionedUserIds.length > 0
-                    ? { user_ids: formatted.mentionedUserIds }
-                    : undefined;
+            const mentions = formatted
+                ? mentionsFromFormatted(formatted)
+                : undefined;
             if (command.kind === "emote") {
                 await sendEmote(
                     roomId,
@@ -1555,11 +1558,8 @@
                 online: navigator.onLine,
             })
         ) {
-            const { html, mentionedUserIds } = formatted;
-            const mentions =
-                mentionedUserIds.length > 0
-                    ? { user_ids: mentionedUserIds }
-                    : undefined;
+            const { html } = formatted;
+            const mentions = mentionsFromFormatted(formatted);
             const baseContent: Record<string, unknown> = replyToEvent
                 ? (buildReplyContent({
                       replyEventId: replyToEvent.getId()!,
@@ -1569,7 +1569,7 @@
                   }) as unknown as Record<string, unknown>)
                 : html
                   ? buildFormattedContent(trimmed, html, mentions)
-                  : buildTextContent(trimmed);
+                  : buildTextContent(trimmed, mentions);
             const content = transformOutgoingContent(baseContent);
             queueMessage(targetRoomId, content);
             if (replyToEvent) onCancelReply?.();
@@ -1581,11 +1581,8 @@
 
         try {
             if (trimmed && formatted && !useCaption) {
-                const { html, mentionedUserIds } = formatted;
-                const mentions =
-                    mentionedUserIds.length > 0
-                        ? { user_ids: mentionedUserIds }
-                        : undefined;
+                const { html } = formatted;
+                const mentions = mentionsFromFormatted(formatted);
                 let sentEventId: string;
                 if (isThread) {
                     // Thread replies always route via sendThreadReply; a reply to
@@ -1615,7 +1612,7 @@
                           }) as unknown as Record<string, unknown>)
                         : html
                           ? buildFormattedContent(trimmed, html, mentions)
-                          : buildTextContent(trimmed);
+                          : buildTextContent(trimmed, mentions);
                     const content = transformOutgoingContent(baseContent);
                     sentEventId = await sendEventContent(targetRoomId, content);
                     if (replyToEvent) onCancelReply?.();
@@ -1632,17 +1629,14 @@
                 (item, i) => {
                     uploadPercent = null;
                     if (useCaption && i === 0 && formatted) {
-                        const { html, mentionedUserIds } = formatted;
+                        const { html } = formatted;
                         return sendFile(
                             targetRoomId,
                             item.file,
                             {
                                 body: trimmed,
                                 formattedBody: html ?? undefined,
-                                mentions:
-                                    mentionedUserIds.length > 0
-                                        ? { user_ids: mentionedUserIds }
-                                        : undefined,
+                                mentions: mentionsFromFormatted(formatted),
                             },
                             isThread
                                 ? { rootEventId: threadRootId! }
