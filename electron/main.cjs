@@ -1186,9 +1186,10 @@ const features = [
 // Chromium skips NVIDIA render nodes for VA-API video decode unless this is on,
 // because nvidia-vaapi-driver releases before 0.0.18 handed it surfaces it
 // couldn't import. The Flatpak bundles 0.0.18 (flatpak/moe.crafty.matrix.yml),
-// so turn it on there. Outside Flatpak the host's driver may be older, so
-// leave it off. Electron runs on Wayland in a Wayland session (Electron 38+
-// default) unless told otherwise.
+// so turn it on there, but only for the X11 Vulkan path below: NVIDIA hardware
+// decode on Wayland doesn't work yet, so Wayland decodes in software. Outside
+// Flatpak the host's driver may be older, so leave it off. Electron runs on
+// Wayland in a Wayland session (Electron 38+ default) unless told otherwise.
 const ozone =
     app.commandLine.getSwitchValue("ozone-platform") ||
     app.commandLine.getSwitchValue("ozone-platform-hint");
@@ -1211,7 +1212,7 @@ const onWayland =
 // allocate buffers and the window shows no video or a stale copy of the screen.
 const nvidiaVulkanVideo =
     IN_FLATPAK && !onWayland && process.env.ZAM_NVIDIA_VULKAN_VIDEO === "1";
-if (IN_FLATPAK && (onWayland || nvidiaVulkanVideo)) {
+if (IN_FLATPAK && nvidiaVulkanVideo) {
     features.push("VaapiOnNvidiaGPUs");
 }
 if (nvidiaVulkanVideo) {
