@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.23.1
+
+🐛 **Fixed**
+
+- **@room pings:** messages containing @room now actually notify everyone in the room; before, the mention was never sent.
+- **Double sound on Windows:** loud notifications no longer play the Windows notification sound on top of Zam's own sound. The notifications themselves are unchanged.
+
 ## v1.23.0
 
 🎙️ **Improved**
