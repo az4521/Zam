@@ -2149,6 +2149,9 @@ const messages: Record<MessageKey, string> = {
         "Esta sesión no conoce ninguna de sus sesiones, así que no pueden leer tus mensajes cifrados.",
     "userProfileCard.couldNotLoadSessions":
         "No se pudieron cargar sus sesiones",
+    "userProfileCard.keysChanged": "Claves cambiadas",
+    "userProfileCard.keysChangedHint":
+        "Una sesión marcada como Claves cambiadas perdió sus datos de cifrado y obtuvo claves nuevas con el mismo ID. Tu sesión aún tiene las antiguas, así que esa sesión no puede leer lo que envías. Tiene que cerrar sesión y volver a iniciarla.",
     "userProfileCard.opening": "Abriendo…",
     "userProfileCard.message": "Mensaje",
     "userProfileCard.verifyUser": "Verificar usuario",
@@ -2500,6 +2503,8 @@ const messages: Record<MessageKey, string> = {
     "crypto.roomIsNotEncrypted": "Esta sala no está cifrada.",
     "crypto.roomKeyDiscarded":
         "Tu próximo mensaje aquí usará una nueva clave de sala, compartida de nuevo con todas las sesiones de la sala.",
+    "crypto.encryptionDataLost":
+        "Se perdieron los datos de cifrado de esta sesión (datos del navegador borrados o reinstalación), así que se cerró para que nadie siga cifrando para claves que ya no tiene. Vuelve a iniciar sesión.",
     "crypto.accountApprovalCancelled":
         "Se canceló la aprobación en tu página de cuenta.",
     "crypto.accountPasswordRequired":

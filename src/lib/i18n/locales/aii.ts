@@ -1979,6 +1979,9 @@ const messages: Record<MessageKey, string> = {
     "userProfileCard.noKnownSessions":
         "ܗܢܐ ܣܝܣܘܢ ܠܐ ܝܕܥ ܚܕ ܡܢ ܣ̈ܝܣܘܢܐ ܕܝܠܗܘܢ، ܗܘܝܐ ܠܐ ܡܨܝ ܩܪܝܠܗܘܢ ܠܐܓܪ̈ܬܐ ܕܝܠܘܟ ܣܛܝܪ̈ܬܐ.",
     "userProfileCard.couldNotLoadSessions": "ܣ̈ܝܣܘܢܐ ܕܝܠܗܘܢ ܠܐ ܦܠܚܠܗܘܢ",
+    "userProfileCard.keysChanged": "ܩܠܝܕ̈ܐ ܫܚܠܦܠܗܘܢ",
+    "userProfileCard.keysChangedHint":
+        "ܣܝܣܘܢ ܕܟܬܝܒܐ ܩܠܝܕ̈ܐ ܫܚܠܦܠܗܘܢ ܐܒܕܠܗ ܡܥܠܘܡܘܬܐ ܕܛܘܫܝܐ ܘܩܒܠܠܗ ܩܠܝܕ̈ܐ ܚܕ̈ܬܐ ܒܚܕ ID. ܣܝܣܘܢ ܕܝܠܘܟ ܐܝܬ ܠܗ ܥܬܝܩ̈ܐ، ܗܘܝܐ ܗܿܘ ܣܝܣܘܢ ܠܐ ܡܨܐ ܩܪܐ ܡܐ ܕܫܕܪܬ. ܣܢܝܩ ܝܠܗ ܕܦܠܛ ܘܥܐܠ ܬܘܒ.",
     "userProfileCard.opening": "ܒܦܬܚܐ…",
     "userProfileCard.message": "ܐܓܪܬܐ",
     "userProfileCard.verifyUser": "ܫܪܪ ܡܦܠܚܢܐ",
@@ -2298,6 +2301,8 @@ const messages: Record<MessageKey, string> = {
     "crypto.roomIsNotEncrypted": "ܗܢܐ ܓܘܡܐ ܠܐ ܝܠܗ ܛܘܫܝܐ.",
     "crypto.roomKeyDiscarded":
         "ܐܓܪܬܐ ܕܝܠܘܟ ܐ݇ܚܪܝܬܐ ܟܐ ܡܦܠܚܐ ܩܠܝܕܐ ܚܕܬܐ ܕܓܘܡܐ، ܕܟܐ ܦܐܫ ܡܫܘܬܦܐ ܬܘܒ ܥܡ ܟܠ ܣ̈ܝܣܘܢܐ ܕܓܘܡܐ.",
+    "crypto.encryptionDataLost":
+        "ܡܥܠܘܡܘܬܐ ܕܛܘܫܝܐ ܕܗܢܐ ܣܝܣܘܢ ܐܒܝܕܐ ܝܠܗ̇، ܗܘܝܐ ܦܠܛܠܗ ܕܠܐ ܐ݇ܚܪ̈ܢܐ ܛܫܝ ܠܩܠܝܕ̈ܐ ܕܠܐ ܐܝܬ ܠܗ. ܥܘܠ ܬܘܒ.",
     "crypto.accountApprovalCancelled":
         "Approval on your account page was cancelled.",
     "crypto.accountPasswordRequired":

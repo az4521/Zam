@@ -2107,6 +2107,9 @@ const messages: Record<MessageKey, string> = {
         "Cette session ne connaît aucune de ses sessions, donc vos messages chiffrés lui sont illisibles.",
     "userProfileCard.couldNotLoadSessions":
         "Impossible de charger ses sessions",
+    "userProfileCard.keysChanged": "Clés modifiées",
+    "userProfileCard.keysChangedHint":
+        "Une session marquée Clés modifiées a perdu ses données de chiffrement et a reçu de nouvelles clés sous le même identifiant. Votre session a encore les anciennes, donc cette session ne peut pas lire ce que vous envoyez. Elle doit se déconnecter puis se reconnecter.",
     "userProfileCard.opening": "Ouverture…",
     "userProfileCard.message": "Message",
     "userProfileCard.verifyUser": "Vérifier l'utilisateur",
@@ -2460,6 +2463,8 @@ const messages: Record<MessageKey, string> = {
     "crypto.roomIsNotEncrypted": "Ce salon n'est pas chiffré.",
     "crypto.roomKeyDiscarded":
         "Votre prochain message ici utilisera une nouvelle clé de salon, partagée à nouveau avec toutes les sessions du salon.",
+    "crypto.encryptionDataLost":
+        "Les données de chiffrement de cette session ont été perdues (données du navigateur effacées ou réinstallation) ; elle a donc été déconnectée pour qu'on ne chiffre plus pour des clés qu'elle n'a plus. Reconnectez-vous.",
     "crypto.accountApprovalCancelled":
         "L'approbation sur la page de votre compte a été annulée.",
     "crypto.accountPasswordRequired":

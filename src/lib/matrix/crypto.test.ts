@@ -1788,12 +1788,14 @@ describe("getKnownDevices", () => {
                 displayName: "A phone",
                 isVerified: true,
                 signedByOwner: true,
+                keysChanged: false,
             },
             {
                 deviceId: "B",
                 displayName: "B phone",
                 isVerified: false,
                 signedByOwner: false,
+                keysChanged: false,
             },
         ]);
         // Downloads the list if we don't track them yet.
@@ -1873,6 +1875,116 @@ describe("getKnownDevices", () => {
         const mod = await import("./crypto");
         h.getClient.mockReturnValue({ getCrypto: () => undefined });
         expect(await mod.getKnownDevices(them)).toBeNull();
+    });
+
+    // The crypto engine never takes new identity keys for a session it
+    // already knows, so a session that re-keyed under the same id can't read
+    // anything we send. Compared against the server's copy directly.
+    it("flags a session whose keys changed on the server", async () => {
+        const mod = await import("./crypto");
+        const device = (id: string, curve: string) => ({
+            deviceId: id,
+            displayName: null,
+            getIdentityKey: () => curve,
+            getFingerprint: () => `ed-${id}`,
+        });
+        h.getClient.mockReturnValue({
+            getCrypto: () => ({
+                getUserDeviceInfo: () =>
+                    Promise.resolve(
+                        new Map([
+                            [
+                                them,
+                                new Map([
+                                    ["A", device("A", "oldCurve")],
+                                    ["C", device("C", "sameCurve")],
+                                ]),
+                            ],
+                        ]),
+                    ),
+                getDeviceVerificationStatus,
+            }),
+            downloadKeysForUsers: () =>
+                Promise.resolve({
+                    device_keys: {
+                        [them]: {
+                            A: {
+                                keys: {
+                                    "curve25519:A": "newCurve",
+                                    "ed25519:A": "ed-A",
+                                },
+                            },
+                            C: {
+                                keys: {
+                                    "curve25519:C": "sameCurve",
+                                    "ed25519:C": "ed-C",
+                                },
+                            },
+                        },
+                    },
+                }),
+        });
+
+        const list = await mod.getKnownDevices(them);
+
+        expect(list?.map((d) => [d.deviceId, d.keysChanged])).toEqual([
+            ["A", true],
+            ["C", false],
+        ]);
+    });
+});
+
+describe("ownDeviceKeysReplaced", () => {
+    let mod: typeof import("./crypto");
+
+    beforeEach(async () => {
+        vi.clearAllMocks();
+        vi.resetModules();
+        h.initRustCrypto.mockImplementation(() => Promise.resolve());
+        mod = await import("./crypto");
+    });
+
+    async function withServerKeys(server: Record<string, string> | null) {
+        const client = {
+            ...makeClient(),
+            getUserId: () => "@me:example.org",
+            getDeviceId: () => "DEVICE1",
+            downloadKeysForUsers: () =>
+                Promise.resolve({
+                    device_keys: {
+                        "@me:example.org": server
+                            ? { DEVICE1: { keys: server } }
+                            : {},
+                    },
+                }),
+        };
+        (client.getCrypto() as Record<string, unknown>).getOwnDeviceKeys = () =>
+            Promise.resolve({ curve25519: "freshCurve", ed25519: "freshEd" });
+        h.getClient.mockReturnValue(client);
+        await mod.initCrypto(client as never, "@me:example.org", "DEVICE1");
+        return client;
+    }
+
+    it("is true when the server has another store's keys for this device", async () => {
+        const client = await withServerKeys({
+            "curve25519:DEVICE1": "lostCurve",
+            "ed25519:DEVICE1": "lostEd",
+        });
+        expect(await mod.ownDeviceKeysReplaced(client as never)).toBe(true);
+    });
+
+    it("is false when the server has our own keys", async () => {
+        const client = await withServerKeys({
+            "curve25519:DEVICE1": "freshCurve",
+            "ed25519:DEVICE1": "freshEd",
+        });
+        expect(await mod.ownDeviceKeysReplaced(client as never)).toBe(false);
+    });
+
+    // A new sign-in: nothing uploaded yet.
+    it("is false when the server has no keys for this device", async () => {
+        const client = await withServerKeys(null);
+        expect(await mod.ownDeviceKeysReplaced(client as never)).toBe(false);
     });
 });
 

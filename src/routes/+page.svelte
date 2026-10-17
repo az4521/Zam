@@ -25,7 +25,10 @@
     // an explicit logout does), and sessionTeardown.test.ts asserts on this
     // file's source text to keep it that way. The boot retry below IS wanted: it
     // finishes a wipe that an explicit logout started and IndexedDB blocked.
-    import { retryPendingCryptoWipes } from "$lib/matrix/crypto";
+    import {
+        CryptoStoreLostError,
+        retryPendingCryptoWipes,
+    } from "$lib/matrix/crypto";
     import {
         auth,
         saveSession,
@@ -309,7 +312,14 @@
                         : undefined,
                 );
                 await beginSync(attempt);
-            } catch {
+            } catch (err) {
+                // The device was signed out (its encryption data was lost):
+                // back to login like an expired session, saying why.
+                if (err instanceof CryptoStoreLostError) {
+                    handleSessionExpired();
+                    auth.error = err.message;
+                    return;
+                }
                 // A superseded attempt's owner already published its own state.
                 if (failStartup(attempt, RESTORE_FAILED_MESSAGE)) {
                     auth.error = RESTORE_FAILED_MESSAGE;

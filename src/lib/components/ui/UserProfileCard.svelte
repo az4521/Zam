@@ -689,9 +689,16 @@
                         {:else if devices}
                             <ul class="mt-1 space-y-1 max-h-40 overflow-y-auto">
                                 {#each devices as device (device.deviceId)}
-                                    {@const badge = deviceTrustBadge(device, {
-                                        flagUnsigned: true,
-                                    })}
+                                    {@const badge = device.keysChanged
+                                        ? {
+                                              label: t(
+                                                  "userProfileCard.keysChanged",
+                                              ),
+                                              tone: "warning" as const,
+                                          }
+                                        : deviceTrustBadge(device, {
+                                              flagUnsigned: true,
+                                          })}
                                     <li class="flex items-center gap-2 min-w-0">
                                         <div class="flex-1 min-w-0">
                                             <p
@@ -716,6 +723,11 @@
                                     </li>
                                 {/each}
                             </ul>
+                            {#if devices.some((d) => d.keysChanged)}
+                                <p class="mt-1 text-xs text-discord-warning">
+                                    {t("userProfileCard.keysChangedHint")}
+                                </p>
+                            {/if}
                             {#if devicesError}
                                 <p class="mt-1 text-xs text-discord-danger">
                                     {t("userProfileCard.couldNotLoadSessions")}

@@ -2126,6 +2126,9 @@ const messages: Record<MessageKey, string> = {
         "Diese Sitzung kennt keine ihrer Sitzungen, daher können sie deine verschlüsselten Nachrichten nicht lesen.",
     "userProfileCard.couldNotLoadSessions":
         "Sitzungen konnten nicht geladen werden",
+    "userProfileCard.keysChanged": "Schlüssel geändert",
+    "userProfileCard.keysChangedHint":
+        "Eine Sitzung mit „Schlüssel geändert“ hat ihre Verschlüsselungsdaten verloren und unter derselben ID neue Schlüssel bekommen. Deine Sitzung hat noch die alten, daher kann diese Sitzung nicht lesen, was du sendest. Sie muss sich ab- und wieder anmelden.",
     "userProfileCard.opening": "Wird geöffnet…",
     "userProfileCard.message": "Nachricht",
     "userProfileCard.verifyUser": "Benutzer verifizieren",
@@ -2483,6 +2486,8 @@ const messages: Record<MessageKey, string> = {
     "crypto.roomIsNotEncrypted": "Dieser Raum ist nicht verschlüsselt.",
     "crypto.roomKeyDiscarded":
         "Deine nächste Nachricht hier nutzt einen neuen Raumschlüssel, der wieder an alle Sitzungen im Raum geht.",
+    "crypto.encryptionDataLost":
+        "Die Verschlüsselungsdaten dieser Sitzung sind verloren (Browserdaten gelöscht oder neu installiert), daher wurde sie abgemeldet, damit niemand mehr an Schlüssel verschlüsselt, die sie nicht mehr hat. Bitte melde dich erneut an.",
     "crypto.accountApprovalCancelled":
         "Die Bestätigung auf deiner Kontoseite wurde abgebrochen.",
     "crypto.accountPasswordRequired":

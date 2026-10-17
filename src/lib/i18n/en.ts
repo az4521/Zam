@@ -2052,6 +2052,9 @@ export const en = {
     "userProfileCard.noKnownSessions":
         "This session doesn't know any of their sessions, so they can't read your encrypted messages.",
     "userProfileCard.couldNotLoadSessions": "Could not load their sessions",
+    "userProfileCard.keysChanged": "Keys changed",
+    "userProfileCard.keysChangedHint":
+        "A session marked Keys changed lost its encryption data and got new keys under the same ID. Your session still has the old ones, so that session can't read what you send. It needs to sign out and sign back in.",
     "userProfileCard.opening": "Opening…",
     "userProfileCard.message": "Message",
     "userProfileCard.verifyUser": "Verify user",
@@ -2383,6 +2386,8 @@ export const en = {
     "crypto.roomIsNotEncrypted": "This room isn't encrypted.",
     "crypto.roomKeyDiscarded":
         "Your next message here will use a new room key, shared with every session in the room again.",
+    "crypto.encryptionDataLost":
+        "This session's encryption data was lost (cleared browser data or a reinstall), so it was signed out to keep others from encrypting to keys it no longer has. Sign in again.",
     "crypto.accountApprovalCancelled":
         "Approval on your account page was cancelled.",
     "crypto.accountPasswordRequired":

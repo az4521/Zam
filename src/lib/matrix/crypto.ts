@@ -1611,6 +1611,40 @@ export interface KnownDevice {
     isVerified: boolean;
     /** Null when its trust couldn't be read (the keys query failed). */
     signedByOwner: boolean | null;
+    /**
+     * The server has different identity keys for this session than our store
+     * does. The crypto engine never takes on new keys for a session it already
+     * knows, so it keeps encrypting to the old ones and that session can't read
+     * anything we send. Happens when the session lost its encryption data but
+     * stayed signed in; it has to sign out and back in.
+     */
+    keysChanged: boolean;
+}
+
+/**
+ * The identity keys the server has for each of `userId`'s sessions, read
+ * straight from /keys/query (not through the crypto store, which ignores a
+ * change). Empty when the server can't be asked.
+ */
+async function serverIdentityKeys(
+    client: MatrixClient,
+    userId: string,
+): Promise<Map<string, { curve25519?: string; ed25519?: string }>> {
+    const keys = new Map<string, { curve25519?: string; ed25519?: string }>();
+    try {
+        const result = await client.downloadKeysForUsers([userId]);
+        for (const [deviceId, device] of Object.entries(
+            result.device_keys?.[userId] ?? {},
+        )) {
+            keys.set(deviceId, {
+                curve25519: device.keys?.[`curve25519:${deviceId}`],
+                ed25519: device.keys?.[`ed25519:${deviceId}`],
+            });
+        }
+    } catch (err) {
+        console.warn(`[matrix] couldn't read ${userId}'s keys`, err);
+    }
+    return keys;
 }
 
 /** Ask the server for `userId`'s keys now and wait for the store to have them. */
@@ -1627,6 +1661,45 @@ async function queryUserKeysNow(
 }
 
 /**
+ * Thrown when this session's encryption data is gone but the server still has
+ * the device's old keys (see ownDeviceKeysReplaced). The device has been
+ * signed out; the user has to sign in again.
+ */
+export class CryptoStoreLostError extends Error {
+    constructor() {
+        super(t("crypto.encryptionDataLost"));
+        this.name = "CryptoStoreLostError";
+    }
+}
+
+/**
+ * Whether the server has different identity keys for THIS device than the
+ * crypto engine just opened. That means the store that made this device is
+ * gone (cleared site data, storage eviction, a reinstall that kept the
+ * login) and a fresh one was created under the same device id. Carrying on
+ * would upload new keys for a device everyone already knows, and their
+ * crypto keeps the old ones for good: nothing they send this device could be
+ * read, and no reset on their side fixes it. Call after initCrypto and
+ * before sync, which is what uploads our keys. False when the server has no
+ * keys for us yet (a new sign-in) or can't be asked.
+ */
+export async function ownDeviceKeysReplaced(
+    client: MatrixClient,
+): Promise<boolean> {
+    const crypto = client.getCrypto();
+    const userId = client.getUserId();
+    const deviceId = client.getDeviceId();
+    if (!cryptoAvailable || !crypto || !userId || !deviceId) return false;
+    const server = (await serverIdentityKeys(client, userId)).get(deviceId);
+    if (!server?.curve25519 && !server?.ed25519) return false;
+    const ours = await crypto.getOwnDeviceKeys();
+    return (
+        (!!server.curve25519 && server.curve25519 !== ours.curve25519) ||
+        (!!server.ed25519 && server.ed25519 !== ours.ed25519)
+    );
+}
+
+/**
  * Every session of `userId` that this session's crypto knows, with its trust.
  * For someone we share an encrypted room with, these are exactly the sessions
  * our messages are encrypted for: one missing here gets no keys from us. With
@@ -1638,8 +1711,9 @@ export async function getKnownDevices(
     userId: string,
     { refresh = false }: { refresh?: boolean } = {},
 ): Promise<KnownDevice[] | null> {
-    const crypto = getClient()?.getCrypto();
-    if (!crypto) return null;
+    const client = getClient();
+    const crypto = client?.getCrypto();
+    if (!client || !crypto) return null;
     let queried = refresh && (await queryUserKeysNow(crypto, userId));
     // Downloads the list when we don't track this user, but without storing
     // it, so their trust can't be read from the store yet.
@@ -1655,13 +1729,23 @@ export async function getKnownDevices(
         queried = await queryUserKeysNow(crypto, userId);
         if (queried) trust = await readTrust();
     }
+    const onServer = await serverIdentityKeys(client, userId);
     return list
-        .map((device, i): KnownDevice => ({
-            deviceId: device.deviceId,
-            displayName: device.displayName ?? null,
-            isVerified: trust[i]?.isVerified ?? false,
-            signedByOwner: trust[i]?.signedByOwner ?? null,
-        }))
+        .map((device, i): KnownDevice => {
+            const server = onServer.get(device.deviceId);
+            const changed = (theirs: string | undefined, ours: unknown) =>
+                !!theirs && theirs !== ours;
+            return {
+                deviceId: device.deviceId,
+                displayName: device.displayName ?? null,
+                isVerified: trust[i]?.isVerified ?? false,
+                signedByOwner: trust[i]?.signedByOwner ?? null,
+                keysChanged:
+                    !!server &&
+                    (changed(server.curve25519, device.getIdentityKey()) ||
+                        changed(server.ed25519, device.getFingerprint())),
+            };
+        })
         .sort((a, b) => a.deviceId.localeCompare(b.deviceId));
 }
 

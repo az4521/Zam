@@ -270,6 +270,8 @@ import {
 import {
     initCrypto,
     isCryptoAvailable,
+    ownDeviceKeysReplaced,
+    CryptoStoreLostError,
     getCryptoCallbacks,
     ensureRoomCryptoConfigured,
     releaseCryptoStoreLocks,
@@ -608,6 +610,22 @@ async function createAuthenticatedClient(opts: {
     // failure degrades gracefully (unencrypted rooms keep working; encrypted
     // rooms render UTD placeholders).
     await initCrypto(client, opts.userId, opts.deviceId);
+
+    // A fresh crypto store under a device the server already has keys for:
+    // the old store is gone. Sign the device out (which takes its stale keys
+    // off the server, so senders stop encrypting to them) rather than give
+    // it new keys nobody's crypto will accept.
+    if (await ownDeviceKeysReplaced(client)) {
+        console.warn(
+            `[matrix] encryption data for ${opts.deviceId} is gone; signing it out`,
+        );
+        try {
+            await client.logout(true);
+        } catch (err) {
+            console.warn("[matrix] signing out the lost session failed", err);
+        }
+        throw new CryptoStoreLostError();
+    }
 
     // Ask the browser not to evict our IndexedDB (crypto + sync stores).
     // Fire-and-forget: never block boot, never throw. Idempotent — a no-op
