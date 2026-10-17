@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.27.0
+
+🐛 **Fixed**
+
+- **One person can't read anything you send, even after resetting the room key:** this happens when their session lost its encryption data (cleared browser data, a reinstall) but stayed signed in, and came back with new keys under the same session ID. Sessions that already knew it keep the old keys, so nothing they send it can be read. Zam now notices when its own encryption data is gone and signs that session out instead, with a message asking you to sign in again.
+
+✨ **New**
+
+- **"Keys changed" in someone's Sessions list:** a session whose keys changed on the server is marked, with a note that it needs to sign out and back in. If you already have one stuck like this, signing out and back in on either side fixes it.
+
 ## v1.26.0
 
 🐛 **Fixed**
