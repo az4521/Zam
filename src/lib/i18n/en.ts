@@ -2551,6 +2551,10 @@ export const en = {
         "Could not send the verification request",
     "verification.sessionNotKnownYet":
         "This session doesn't know about that one yet. Wait a few seconds and try again, or start verification from the new session.",
+    "verification.sessionHasNoKeys":
+        "That session hasn't published its encryption keys, so it can't be verified or receive encrypted messages. Sign it out and sign back in.",
+    "verification.sessionKeysRejected":
+        "That session's encryption keys were rejected by this session. Sign it out and sign back in.",
     "verification.identityChanged": "Identity changed",
     "verification.couldnTAcceptThisRequestTry":
         "Couldn't accept this request. Try again.",

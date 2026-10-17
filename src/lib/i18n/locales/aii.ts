@@ -2462,6 +2462,10 @@ const messages: Record<MessageKey, string> = {
     "verification.identityChanged": "ܗܝܝܘܬܐ ܫܚܠܦܬܠܗ̇",
     "verification.sessionNotKnownYet":
         "ܓܠܣܐ ܗܿܘ ܠܐ ܝܠܗ ܝܕܝܥܐ ܗܵܪܟܐ ܥܕܟܡܐ. ܡܘܚܪ ܩܠܝܠ ܘܢܣܝ ܙܒܢܐ ܐܚܪܢܐ، ܐܘ ܫܪܝ ܫܘܪܪܐ ܡܢ ܓܠܣܐ ܚܕܬܐ.",
+    "verification.sessionHasNoKeys":
+        "ܓܠܣܐ ܗܿܘ ܠܐ ܦܪܣܡܠܗ ܩܠܝܕ̈ܐ ܕܛܘܫܝܐ ܕܝܼܠܗ، ܡܛܠ ܗܕܐ ܠܐ ܡܨܐ ܕܡܫܪܪ ܐܘ ܕܩܒܠ ܡܫܕܪ̈ܬܐ ܛܫܝ̈ܬܐ. ܦܠܘܛ ܡܢܗ ܘܥܘܠ ܙܒܢܐ ܐܚܪܢܐ.",
+    "verification.sessionKeysRejected":
+        "ܩܠܝܕ̈ܐ ܕܛܘܫܝܐ ܕܓܠܣܐ ܗܿܘ ܐܬܣܠܝܼ ܡܢ ܗܢܐ ܓܠܣܐ. ܦܠܘܛ ܡܢܗ ܘܥܘܠ ܙܒܢܐ ܐܚܪܢܐ.",
     "verification.couldnTAcceptThisRequestTry":
         "ܩܘܒܠܐ ܕܗܕܐ ܒܥܝܬܐ ܠܐ ܦܠܚܠܗ. ܢܣܝ ܡܢ ܕܪܝܫ.",
 

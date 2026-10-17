@@ -12,7 +12,7 @@
  * and enable-encryption UI are Layers 2–4.
  */
 
-import { t } from "$lib/i18n";
+import { t, type MessageKey } from "$lib/i18n";
 import {
     ClientEvent,
     EventTimeline,
@@ -1347,44 +1347,94 @@ export async function startDeviceVerification(
     // requestDeviceVerification throws "Not a known device" for unknown
     // devices. Make sure the fresh device is resolvable first.
     if (!(await ensureOwnDeviceKnown(crypto, userId, deviceId))) {
-        throw new Error(t("verification.sessionNotKnownYet"));
+        throw new Error(
+            t(await whyOwnDeviceUnknown(client!, userId, deviceId)),
+        );
     }
     const request = await crypto.requestDeviceVerification(userId, deviceId);
     return createVerificationController(request);
 }
 
+/** RustCrypto internals used to refresh just our own device list. */
+interface RustKeysQueryHooks {
+    olmMachine?: {
+        readonly userId: unknown;
+        queryKeysForUsers(users: unknown[]): unknown;
+    };
+    outgoingRequestProcessor?: {
+        makeOutgoingRequest(request: unknown): Promise<unknown>;
+    };
+    markAllTrackedUsersAsDirty?: () => Promise<void>;
+    onSyncCompleted?: (d: object) => void;
+}
+
 /**
- * Wait (briefly) until our crypto store knows `deviceId`. getUserDeviceInfo's
+ * Make sure our crypto store knows `deviceId`. getUserDeviceInfo's
  * `downloadUncached` never re-downloads our OWN list (we're always tracked),
  * so a device whose `device_lists.changed` hasn't reached us yet stays unknown
- * until the next sync. Mark device lists dirty and kick the SDK's outgoing
- * request loop so the /keys/query goes out now, then poll for the device.
+ * until the next sync.
+ *
+ * Queries ONLY our own keys and waits for the answer, the same way the SDK
+ * fetches a sender's devices before an in-room verification request. Marking
+ * every tracked user dirty instead re-queries everyone we share an encrypted
+ * room with, which over federation easily outlasts any sensible wait. That is
+ * kept only as a fallback for an SDK without those internals.
  */
 async function ensureOwnDeviceKnown(
     crypto: NonNullable<ReturnType<MatrixClient["getCrypto"]>>,
     userId: string,
     deviceId: string,
-    attempts = 8,
+    fallbackAttempts = 20,
 ): Promise<boolean> {
     // getUserDeviceInfo waits up to 1s for an in-flight keys query itself.
     const known = async () =>
         (await crypto.getUserDeviceInfo([userId])).get(userId)?.has(deviceId) ??
         false;
     if (await known()) return true;
-    // Both live on RustCrypto (its sync-callback side), not the CryptoApi type.
-    const rust = crypto as {
-        markAllTrackedUsersAsDirty?: () => Promise<void>;
-        onSyncCompleted?: (d: object) => void;
-    };
+    const rust = crypto as RustKeysQueryHooks;
+    if (rust.olmMachine && rust.outgoingRequestProcessor) {
+        const request = rust.olmMachine.queryKeysForUsers([
+            rust.olmMachine.userId,
+        ]);
+        await rust.outgoingRequestProcessor.makeOutgoingRequest(request);
+        return known();
+    }
     await rust.markAllTrackedUsersAsDirty?.();
     // RustCrypto sends queued key queries when a sync completes; calling its
     // sync hook sends them now instead of after the next long-poll returns.
     rust.onSyncCompleted?.({});
-    for (let i = 0; i < attempts; i++) {
+    for (let i = 0; i < fallbackAttempts; i++) {
         if (await known()) return true;
         await new Promise((r) => setTimeout(r, 500));
     }
     return false;
+}
+
+/**
+ * Our crypto store still doesn't know `deviceId` after a fresh keys query.
+ * Ask the server directly which of two very different problems it is: the
+ * session never published encryption keys (its encryption never started, or
+ * its upload failed), or it did and our crypto rejected them. Falls back to
+ * the generic "not known yet" when the server can't be asked.
+ */
+async function whyOwnDeviceUnknown(
+    client: MatrixClient,
+    userId: string,
+    deviceId: string,
+): Promise<MessageKey> {
+    try {
+        const result = await client.downloadKeysForUsers([userId]);
+        const onServer = !!result.device_keys?.[userId]?.[deviceId];
+        console.warn(
+            `[matrix] own device ${deviceId} unknown to crypto after a keys ` +
+                `query; server ${onServer ? "has" : "has no"} keys for it`,
+        );
+        return onServer
+            ? "verification.sessionKeysRejected"
+            : "verification.sessionHasNoKeys";
+    } catch {
+        return "verification.sessionNotKnownYet";
+    }
 }
 
 /**

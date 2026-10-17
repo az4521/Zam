@@ -2660,6 +2660,10 @@ const messages: Record<MessageKey, string> = {
         "Verifizierungsanfrage konnte nicht gesendet werden",
     "verification.sessionNotKnownYet":
         "Diese Sitzung ist hier noch nicht bekannt. Warte ein paar Sekunden und versuche es erneut, oder starte die Verifizierung von der neuen Sitzung aus.",
+    "verification.sessionHasNoKeys":
+        "Diese Sitzung hat ihre Verschlüsselungsschlüssel nicht veröffentlicht, daher kann sie weder verifiziert werden noch verschlüsselte Nachrichten empfangen. Melde sie ab und wieder an.",
+    "verification.sessionKeysRejected":
+        "Die Verschlüsselungsschlüssel dieser Sitzung wurden von dieser Sitzung abgelehnt. Melde sie ab und wieder an.",
     "verification.identityChanged": "Identität geändert",
     "verification.couldnTAcceptThisRequestTry":
         "Diese Anfrage konnte nicht angenommen werden. Versuche es erneut.",

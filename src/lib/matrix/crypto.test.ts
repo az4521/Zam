@@ -1522,7 +1522,7 @@ describe("verification room hold", () => {
 
 // getUserDeviceInfo's downloadUncached never re-downloads our OWN list, so a
 // session that signed in after our last device_lists update was "Not a known
-// device" (reported 2026-10-17). The lookup now forces a keys query.
+// device" (reported 2026-10-17). The lookup now queries our own keys first.
 describe("startDeviceVerification device lookup", () => {
     beforeEach(() => {
         vi.resetModules();
@@ -1532,61 +1532,122 @@ describe("startDeviceVerification device lookup", () => {
     const known = new Map([["@me:example.org", new Map([["NEW", {}]])]]);
     const unknown = new Map([["@me:example.org", new Map()]]);
 
-    it("refreshes device lists when the target isn't known yet", async () => {
-        const mod = await import("./crypto");
-        const getUserDeviceInfo = vi
-            .fn()
-            .mockResolvedValueOnce(unknown)
-            .mockResolvedValue(known);
+    function makeRequest() {
+        return {
+            transactionId: "txn",
+            phase: 2,
+            verifier: undefined,
+            on: vi.fn(),
+            off: vi.fn(),
+            otherPartySupportsMethod: () => false,
+            otherUserId: "@me:example.org",
+            otherDeviceId: "NEW",
+            isSelfVerification: true,
+            initiatedByMe: true,
+        };
+    }
+
+    /** RustCrypto stand-in with the internals the targeted query uses. */
+    function makeRustCrypto(getUserDeviceInfo: ReturnType<typeof vi.fn>) {
+        const ownUserId = { toString: () => "@me:example.org" };
+        const keysQuery = { type: "KeysQuery" };
+        const queryKeysForUsers = vi.fn(() => keysQuery);
+        const makeOutgoingRequest = vi.fn(() => Promise.resolve());
         const markAllTrackedUsersAsDirty = vi.fn(() => Promise.resolve());
-        const onSyncCompleted = vi.fn();
         const requestDeviceVerification = vi.fn(() =>
-            Promise.resolve({
-                transactionId: "txn",
-                phase: 2,
-                verifier: undefined,
-                on: vi.fn(),
-                off: vi.fn(),
-                otherPartySupportsMethod: () => false,
-                otherUserId: "@me:example.org",
-                otherDeviceId: "NEW",
-                isSelfVerification: true,
-                initiatedByMe: true,
-            }),
+            Promise.resolve(makeRequest()),
+        );
+        return {
+            crypto: {
+                getUserDeviceInfo,
+                olmMachine: { userId: ownUserId, queryKeysForUsers },
+                outgoingRequestProcessor: { makeOutgoingRequest },
+                markAllTrackedUsersAsDirty,
+                requestDeviceVerification,
+            },
+            ownUserId,
+            keysQuery,
+            queryKeysForUsers,
+            makeOutgoingRequest,
+            markAllTrackedUsersAsDirty,
+            requestDeviceVerification,
+        };
+    }
+
+    it("queries only our own keys when the target isn't known yet", async () => {
+        const mod = await import("./crypto");
+        const r = makeRustCrypto(
+            vi.fn().mockResolvedValueOnce(unknown).mockResolvedValue(known),
         );
         h.getClient.mockReturnValue({
             getUserId: () => "@me:example.org",
-            getCrypto: () => ({
-                getUserDeviceInfo,
-                markAllTrackedUsersAsDirty,
-                onSyncCompleted,
-                requestDeviceVerification,
-            }),
+            getCrypto: () => r.crypto,
         });
 
         const controller = await mod.startDeviceVerification("NEW");
         controller.dispose();
 
-        expect(markAllTrackedUsersAsDirty).toHaveBeenCalledTimes(1);
-        expect(onSyncCompleted).toHaveBeenCalledTimes(1);
-        expect(requestDeviceVerification).toHaveBeenCalledWith(
+        expect(r.queryKeysForUsers).toHaveBeenCalledWith([r.ownUserId]);
+        expect(r.makeOutgoingRequest).toHaveBeenCalledWith(r.keysQuery);
+        // Not everyone we share a room with: that's what made it time out.
+        expect(r.markAllTrackedUsersAsDirty).not.toHaveBeenCalled();
+        expect(r.requestDeviceVerification).toHaveBeenCalledWith(
             "@me:example.org",
             "NEW",
         );
     });
 
-    it("gives a clear error when the session never shows up", async () => {
+    it("says the session has no keys when the server has none either", async () => {
+        const mod = await import("./crypto");
+        const r = makeRustCrypto(vi.fn().mockResolvedValue(unknown));
+        h.getClient.mockReturnValue({
+            getUserId: () => "@me:example.org",
+            getCrypto: () => r.crypto,
+            downloadKeysForUsers: () =>
+                Promise.resolve({
+                    device_keys: { "@me:example.org": { OLD: {} } },
+                }),
+        });
+
+        await expect(mod.startDeviceVerification("NEW")).rejects.toThrow(
+            "hasn't published its encryption keys",
+        );
+        expect(r.requestDeviceVerification).not.toHaveBeenCalled();
+    });
+
+    it("says the keys were rejected when the server does have them", async () => {
+        const mod = await import("./crypto");
+        const r = makeRustCrypto(vi.fn().mockResolvedValue(unknown));
+        h.getClient.mockReturnValue({
+            getUserId: () => "@me:example.org",
+            getCrypto: () => r.crypto,
+            downloadKeysForUsers: () =>
+                Promise.resolve({
+                    device_keys: { "@me:example.org": { NEW: {} } },
+                }),
+        });
+
+        await expect(mod.startDeviceVerification("NEW")).rejects.toThrow(
+            "were rejected by this session",
+        );
+    });
+
+    it("falls back to refreshing every device list without SDK internals", async () => {
         vi.useFakeTimers();
         try {
             const mod = await import("./crypto");
-            const requestDeviceVerification = vi.fn();
+            const markAllTrackedUsersAsDirty = vi.fn(() => Promise.resolve());
+            const onSyncCompleted = vi.fn();
             h.getClient.mockReturnValue({
                 getUserId: () => "@me:example.org",
                 getCrypto: () => ({
                     getUserDeviceInfo: () => Promise.resolve(unknown),
-                    markAllTrackedUsersAsDirty: () => Promise.resolve(),
-                    requestDeviceVerification,
+                    markAllTrackedUsersAsDirty,
+                    onSyncCompleted,
+                    requestDeviceVerification: vi.fn(),
                 }),
+                downloadKeysForUsers: () =>
+                    Promise.reject(new Error("offline")),
             });
 
             const result = mod.startDeviceVerification("NEW");
@@ -1595,7 +1656,8 @@ describe("startDeviceVerification device lookup", () => {
             );
             await vi.runAllTimersAsync();
             await assertion;
-            expect(requestDeviceVerification).not.toHaveBeenCalled();
+            expect(markAllTrackedUsersAsDirty).toHaveBeenCalledTimes(1);
+            expect(onSyncCompleted).toHaveBeenCalledTimes(1);
         } finally {
             vi.useRealTimers();
         }

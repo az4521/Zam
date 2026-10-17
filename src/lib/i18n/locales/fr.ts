@@ -2636,6 +2636,10 @@ const messages: Record<MessageKey, string> = {
         "Impossible d'envoyer la demande de vérification",
     "verification.sessionNotKnownYet":
         "Cette session ne connaît pas encore l'autre. Patientez quelques secondes et réessayez, ou lancez la vérification depuis la nouvelle session.",
+    "verification.sessionHasNoKeys":
+        "Cette session n'a pas publié ses clés de chiffrement : elle ne peut donc ni être vérifiée ni recevoir de messages chiffrés. Déconnectez-la puis reconnectez-vous.",
+    "verification.sessionKeysRejected":
+        "Les clés de chiffrement de cette session ont été rejetées par celle-ci. Déconnectez-la puis reconnectez-vous.",
     "verification.identityChanged": "Identité modifiée",
     "verification.couldnTAcceptThisRequestTry":
         "Impossible d'accepter cette demande. Réessayez.",
