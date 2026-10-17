@@ -2460,6 +2460,8 @@ const messages: Record<MessageKey, string> = {
     "verification.useAnotherDevice": "ܦܠܚ ܒܡܐܢܐ ܐܚܪܢܐ",
     "verification.couldNotSendVerificationRequest": "ܒܥܝܬܐ ܕܫܘܪܪܐ ܠܐ ܐܬܫܕܪܬ",
     "verification.identityChanged": "ܗܝܝܘܬܐ ܫܚܠܦܬܠܗ̇",
+    "verification.sessionNotKnownYet":
+        "ܓܠܣܐ ܗܿܘ ܠܐ ܝܠܗ ܝܕܝܥܐ ܗܵܪܟܐ ܥܕܟܡܐ. ܡܘܚܪ ܩܠܝܠ ܘܢܣܝ ܙܒܢܐ ܐܚܪܢܐ، ܐܘ ܫܪܝ ܫܘܪܪܐ ܡܢ ܓܠܣܐ ܚܕܬܐ.",
     "verification.couldnTAcceptThisRequestTry":
         "ܩܘܒܠܐ ܕܗܕܐ ܒܥܝܬܐ ܠܐ ܦܠܚܠܗ. ܢܣܝ ܡܢ ܕܪܝܫ.",
 

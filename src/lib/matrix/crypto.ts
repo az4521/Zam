@@ -1344,11 +1344,47 @@ export async function startDeviceVerification(
         throw new Error(t("crypto.encryptionIsNotReadyOnThis"));
     }
     // A device that just signed in may not be in our crypto store yet;
-    // requestDeviceVerification throws "not a known device" for unknown
-    // devices. Force a keys download first so the fresh device is resolvable.
-    await crypto.getUserDeviceInfo([userId], true);
+    // requestDeviceVerification throws "Not a known device" for unknown
+    // devices. Make sure the fresh device is resolvable first.
+    if (!(await ensureOwnDeviceKnown(crypto, userId, deviceId))) {
+        throw new Error(t("verification.sessionNotKnownYet"));
+    }
     const request = await crypto.requestDeviceVerification(userId, deviceId);
     return createVerificationController(request);
+}
+
+/**
+ * Wait (briefly) until our crypto store knows `deviceId`. getUserDeviceInfo's
+ * `downloadUncached` never re-downloads our OWN list (we're always tracked),
+ * so a device whose `device_lists.changed` hasn't reached us yet stays unknown
+ * until the next sync. Mark device lists dirty and kick the SDK's outgoing
+ * request loop so the /keys/query goes out now, then poll for the device.
+ */
+async function ensureOwnDeviceKnown(
+    crypto: NonNullable<ReturnType<MatrixClient["getCrypto"]>>,
+    userId: string,
+    deviceId: string,
+    attempts = 8,
+): Promise<boolean> {
+    // getUserDeviceInfo waits up to 1s for an in-flight keys query itself.
+    const known = async () =>
+        (await crypto.getUserDeviceInfo([userId])).get(userId)?.has(deviceId) ??
+        false;
+    if (await known()) return true;
+    // Both live on RustCrypto (its sync-callback side), not the CryptoApi type.
+    const rust = crypto as {
+        markAllTrackedUsersAsDirty?: () => Promise<void>;
+        onSyncCompleted?: (d: object) => void;
+    };
+    await rust.markAllTrackedUsersAsDirty?.();
+    // RustCrypto sends queued key queries when a sync completes; calling its
+    // sync hook sends them now instead of after the next long-poll returns.
+    rust.onSyncCompleted?.({});
+    for (let i = 0; i < attempts; i++) {
+        if (await known()) return true;
+        await new Promise((r) => setTimeout(r, 500));
+    }
+    return false;
 }
 
 /**

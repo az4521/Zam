@@ -2549,6 +2549,8 @@ export const en = {
     "verification.useAnotherDevice": "Use another device",
     "verification.couldNotSendVerificationRequest":
         "Could not send the verification request",
+    "verification.sessionNotKnownYet":
+        "This session doesn't know about that one yet. Wait a few seconds and try again, or start verification from the new session.",
     "verification.identityChanged": "Identity changed",
     "verification.couldnTAcceptThisRequestTry":
         "Couldn't accept this request. Try again.",

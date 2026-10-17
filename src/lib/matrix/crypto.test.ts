@@ -1503,7 +1503,12 @@ describe("verification room hold", () => {
         h.getClient.mockReturnValue({
             getUserId: () => "@me:example.org",
             getCrypto: () => ({
-                getUserDeviceInfo: () => Promise.resolve(new Map()),
+                getUserDeviceInfo: () =>
+                    Promise.resolve(
+                        new Map([
+                            ["@me:example.org", new Map([["OTHER", {}]])],
+                        ]),
+                    ),
                 requestDeviceVerification: () => Promise.resolve(request),
             }),
         });
@@ -1512,6 +1517,88 @@ describe("verification room hold", () => {
         controller.dispose();
 
         expect(h.holdSlidingSyncRoom).not.toHaveBeenCalled();
+    });
+});
+
+// getUserDeviceInfo's downloadUncached never re-downloads our OWN list, so a
+// session that signed in after our last device_lists update was "Not a known
+// device" (reported 2026-10-17). The lookup now forces a keys query.
+describe("startDeviceVerification device lookup", () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+    });
+
+    const known = new Map([["@me:example.org", new Map([["NEW", {}]])]]);
+    const unknown = new Map([["@me:example.org", new Map()]]);
+
+    it("refreshes device lists when the target isn't known yet", async () => {
+        const mod = await import("./crypto");
+        const getUserDeviceInfo = vi
+            .fn()
+            .mockResolvedValueOnce(unknown)
+            .mockResolvedValue(known);
+        const markAllTrackedUsersAsDirty = vi.fn(() => Promise.resolve());
+        const onSyncCompleted = vi.fn();
+        const requestDeviceVerification = vi.fn(() =>
+            Promise.resolve({
+                transactionId: "txn",
+                phase: 2,
+                verifier: undefined,
+                on: vi.fn(),
+                off: vi.fn(),
+                otherPartySupportsMethod: () => false,
+                otherUserId: "@me:example.org",
+                otherDeviceId: "NEW",
+                isSelfVerification: true,
+                initiatedByMe: true,
+            }),
+        );
+        h.getClient.mockReturnValue({
+            getUserId: () => "@me:example.org",
+            getCrypto: () => ({
+                getUserDeviceInfo,
+                markAllTrackedUsersAsDirty,
+                onSyncCompleted,
+                requestDeviceVerification,
+            }),
+        });
+
+        const controller = await mod.startDeviceVerification("NEW");
+        controller.dispose();
+
+        expect(markAllTrackedUsersAsDirty).toHaveBeenCalledTimes(1);
+        expect(onSyncCompleted).toHaveBeenCalledTimes(1);
+        expect(requestDeviceVerification).toHaveBeenCalledWith(
+            "@me:example.org",
+            "NEW",
+        );
+    });
+
+    it("gives a clear error when the session never shows up", async () => {
+        vi.useFakeTimers();
+        try {
+            const mod = await import("./crypto");
+            const requestDeviceVerification = vi.fn();
+            h.getClient.mockReturnValue({
+                getUserId: () => "@me:example.org",
+                getCrypto: () => ({
+                    getUserDeviceInfo: () => Promise.resolve(unknown),
+                    markAllTrackedUsersAsDirty: () => Promise.resolve(),
+                    requestDeviceVerification,
+                }),
+            });
+
+            const result = mod.startDeviceVerification("NEW");
+            const assertion = expect(result).rejects.toThrow(
+                "This session doesn't know about that one yet",
+            );
+            await vi.runAllTimersAsync();
+            await assertion;
+            expect(requestDeviceVerification).not.toHaveBeenCalled();
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
 

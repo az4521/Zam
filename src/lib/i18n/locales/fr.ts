@@ -2634,6 +2634,8 @@ const messages: Record<MessageKey, string> = {
     "verification.useAnotherDevice": "Utiliser un autre appareil",
     "verification.couldNotSendVerificationRequest":
         "Impossible d'envoyer la demande de vérification",
+    "verification.sessionNotKnownYet":
+        "Cette session ne connaît pas encore l'autre. Patientez quelques secondes et réessayez, ou lancez la vérification depuis la nouvelle session.",
     "verification.identityChanged": "Identité modifiée",
     "verification.couldnTAcceptThisRequestTry":
         "Impossible d'accepter cette demande. Réessayez.",
