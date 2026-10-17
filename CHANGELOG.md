@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.24.1
+
+🐛 **Fixed**
+
+- **New sessions now show as unverified:** a session you just signed in on said "Encryption setup incomplete" instead of "This session isn't verified yet", which hid the new "Verify with another device" button. It now shows as unverified and offers both ways to verify.
+
 ## v1.24.0
 
 ✨ **New**
