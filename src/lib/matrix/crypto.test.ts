@@ -606,6 +606,44 @@ describe("posture reads report their outcome", () => {
         h.getClient.mockReturnValue({ getCrypto: () => undefined });
         expect((await mod.getBackupStatus()).read).toBe("unavailable");
     });
+
+    // rust-crypto reports our own device as locally trusted straight after
+    // sign-in, so isVerified() is true before any verification happened.
+    it("own status ignores local trust: a fresh session reads unverified", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue(
+            makeStatusClient({
+                getDeviceVerificationStatus: () =>
+                    Promise.resolve({
+                        crossSigningVerified: false,
+                        signedByOwner: false,
+                        isVerified: () => true,
+                    }),
+            }),
+        );
+        const { deviceTrust, setupState } =
+            await mod.getOwnVerificationStatusInputs();
+        expect(setupState).toBe("partial");
+        expect(deviceTrust?.isVerified).toBe(false);
+    });
+
+    it("own status reads verified once this session is cross-signed", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue(
+            makeStatusClient({
+                getDeviceVerificationStatus: () =>
+                    Promise.resolve({
+                        crossSigningVerified: true,
+                        signedByOwner: true,
+                        isVerified: () => true,
+                    }),
+            }),
+        );
+        const { deviceTrust, setupState } =
+            await mod.getOwnVerificationStatusInputs();
+        expect(setupState).toBe("ready");
+        expect(deviceTrust?.isVerified).toBe(true);
+    });
 });
 
 // `resetRecovery` destroys the old recovery key and backup BEFORE it mints the

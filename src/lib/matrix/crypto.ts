@@ -2078,8 +2078,15 @@ export async function getOwnVerificationStatusInputs(): Promise<{
 
         const userId = client.getUserId();
         const deviceId = client.getDeviceId();
-        const deviceTrust =
+        const trust =
             userId && deviceId ? await getDeviceTrust(userId, deviceId) : null;
+        // rust-crypto marks our OWN device as locally trusted from the moment
+        // it signs in, so `isVerified()` is always true here. For this session
+        // only cross-signing means anything; without this a fresh, unverified
+        // session reads "setup incomplete" and never offers verification.
+        const deviceTrust = trust
+            ? { ...trust, isVerified: sec.thisDeviceVerified ?? false }
+            : null;
 
         return { deviceTrust, setupState };
     } catch {
