@@ -1477,6 +1477,75 @@ describe("verification room hold", () => {
     });
 });
 
+describe("requestOwnVerification", () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+    });
+
+    function makeOwnRequest() {
+        return {
+            transactionId: "txn-own",
+            phase: 2, // Requested: broadcast, nobody has answered yet
+            verifier: undefined,
+            on: vi.fn(),
+            off: vi.fn(),
+            otherPartySupportsMethod: () => false,
+            otherUserId: "@me:example.org",
+            otherDeviceId: undefined,
+            isSelfVerification: true,
+            initiatedByMe: true,
+        };
+    }
+
+    it("refreshes our device list, then broadcasts to all our sessions", async () => {
+        const calls: string[] = [];
+        const getUserDeviceInfo = vi.fn(() => {
+            calls.push("getUserDeviceInfo");
+            return Promise.resolve(new Map());
+        });
+        const requestOwnUserVerification = vi.fn(() => {
+            calls.push("requestOwnUserVerification");
+            return Promise.resolve(makeOwnRequest());
+        });
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue({
+            getUserId: () => "@me:example.org",
+            getCrypto: () => ({
+                getUserDeviceInfo,
+                requestOwnUserVerification,
+            }),
+        });
+
+        const controller = await mod.requestOwnVerification();
+
+        expect(getUserDeviceInfo).toHaveBeenCalledWith(
+            ["@me:example.org"],
+            true,
+        );
+        expect(calls).toEqual([
+            "getUserDeviceInfo",
+            "requestOwnUserVerification",
+        ]);
+        expect(controller.id).toBe("txn-own");
+        const view = controller.view();
+        expect(view.isSelfVerification).toBe(true);
+        // No target device: any sibling may answer.
+        expect(view.otherDeviceId).toBeNull();
+        controller.dispose();
+    });
+
+    it("throws when crypto isn't ready", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue({
+            getUserId: () => "@me:example.org",
+            getCrypto: () => undefined,
+        });
+
+        await expect(mod.requestOwnVerification()).rejects.toThrow();
+    });
+});
+
 describe("startUserVerification", () => {
     // Minimal VerificationRequest stand-in: only what createVerificationController
     // touches while wrapping it (it calls advance() once, synchronously).

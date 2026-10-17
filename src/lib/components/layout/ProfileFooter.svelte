@@ -23,7 +23,11 @@
         dismissVerificationNudge,
     } from "$lib/stores/verificationStatus.svelte";
     import { securityState } from "$lib/stores/security.svelte";
-    import { verificationState } from "$lib/stores/verification.svelte";
+    import {
+        verificationState,
+        verifyWithAnotherDevice,
+    } from "$lib/stores/verification.svelte";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
 
     interface Props {
         onLogout: () => void;
@@ -73,6 +77,21 @@
             ? verificationStatusState.view
             : null,
     );
+
+    // An unverified session can ask its siblings directly instead of going
+    // through Security settings first. The footer has no error line, so a
+    // failure to send surfaces as a toast.
+    async function startVerifyWithAnotherDevice() {
+        try {
+            await verifyWithAnotherDevice();
+        } catch (e) {
+            showErrorToast(
+                e instanceof Error
+                    ? e.message
+                    : t("verification.couldNotSendVerificationRequest"),
+            );
+        }
+    }
 </script>
 
 {#if nudge}
@@ -97,6 +116,14 @@
                 class="px-2 py-0.5 text-xs {toneClass} hover:underline"
             >
                 {nudge.actionLabel}
+            </button>
+        {/if}
+        {#if nudge.kind === "unverified"}
+            <button
+                onclick={startVerifyWithAnotherDevice}
+                class="px-2 py-0.5 text-xs {toneClass} hover:underline whitespace-nowrap"
+            >
+                {t("verification.useAnotherDevice")}
             </button>
         {/if}
         <button

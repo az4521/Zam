@@ -115,6 +115,34 @@ describe("deviceTrustBadge — from a device verification status", () => {
             signedByOwner: true,
         });
         expect(badge.tone).toBe("unverified");
+        expect(badge.label).toBe("Unverified");
+    });
+
+    // An unverified session doesn't trust its own master key, so every sibling
+    // reads unverified. Signed-by-owner is what still marks the real ones.
+    it("says Signed by you for an own device signed but not trusted yet", () => {
+        const badge = deviceTrustBadge(
+            { isVerified: false, signedByOwner: true },
+            { ownDevice: true },
+        );
+        expect(badge.tone).toBe("unverified");
+        expect(badge.label).toBe("Signed by you");
+    });
+
+    it("keeps Verified over Signed by you for an own device", () => {
+        const badge = deviceTrustBadge(
+            { isVerified: true, signedByOwner: true },
+            { ownDevice: true },
+        );
+        expect(badge.tone).toBe("verified");
+    });
+
+    it("is Unverified for an own device nobody signed", () => {
+        const badge = deviceTrustBadge(
+            { isVerified: false, signedByOwner: false },
+            { ownDevice: true },
+        );
+        expect(badge.label).toBe("Unverified");
     });
 });
 

@@ -2653,6 +2653,11 @@ const messages: Record<MessageKey, string> = {
     "verification.verificationCancelled": "Verifizierung abgebrochen",
     "verification.verified": "Verifiziert",
     "verification.unverified": "Nicht verifiziert",
+    "verification.signedByYou": "Von dir signiert",
+    "verification.verifyWithAnotherDevice": "Mit anderem Gerät verifizieren",
+    "verification.useAnotherDevice": "Anderes Gerät verwenden",
+    "verification.couldNotSendVerificationRequest":
+        "Verifizierungsanfrage konnte nicht gesendet werden",
     "verification.identityChanged": "Identität geändert",
     "verification.couldnTAcceptThisRequestTry":
         "Diese Anfrage konnte nicht angenommen werden. Versuche es erneut.",

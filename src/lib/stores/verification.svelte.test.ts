@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // needed. Only `acceptIncoming` / `declineIncoming` behaviour is under test.
 vi.mock("$lib/matrix/crypto", () => ({
     startDeviceVerification: vi.fn(),
+    requestOwnVerification: vi.fn(),
     startUserVerification: vi.fn(),
     onIncomingVerificationRequest: vi.fn(() => () => {}),
     getPendingVerificationControllers: vi.fn(() => []),
@@ -16,7 +17,9 @@ import {
     closeActive,
     isAcceptingRequest,
     acceptRequestError,
+    verifyWithAnotherDevice,
 } from "./verification.svelte";
+import { requestOwnVerification } from "$lib/matrix/crypto";
 import { VerificationPhaseValue } from "$lib/utils/verification";
 
 /** The one line a failed accept ever shows (acceptFailureText). */
@@ -447,5 +450,42 @@ describe("closeActive", () => {
         closeActive();
 
         expect(verificationState.acceptErrors).toEqual({});
+    });
+});
+
+describe("verifyWithAnotherDevice", () => {
+    it("opens the broadcast request as the active flow", async () => {
+        const c = fakeController("$own", async () => {});
+        vi.mocked(requestOwnVerification).mockResolvedValueOnce(
+            asController(c),
+        );
+
+        await verifyWithAnotherDevice();
+
+        expect(requestOwnVerification).toHaveBeenCalledTimes(1);
+        expect(verificationState.active?.id).toBe("$own");
+    });
+
+    it("replaces (and disposes) whatever flow was active", async () => {
+        const prev = fakeController("$prev", async () => {});
+        verificationState.active = asController(prev);
+        const c = fakeController("$own", async () => {});
+        vi.mocked(requestOwnVerification).mockResolvedValueOnce(
+            asController(c),
+        );
+
+        await verifyWithAnotherDevice();
+
+        expect(prev.dispose).toHaveBeenCalled();
+        expect(verificationState.active?.id).toBe("$own");
+    });
+
+    it("leaves the store alone when the request can't be sent", async () => {
+        vi.mocked(requestOwnVerification).mockRejectedValueOnce(
+            new Error("not ready"),
+        );
+
+        await expect(verifyWithAnotherDevice()).rejects.toThrow("not ready");
+        expect(verificationState.active).toBeNull();
     });
 });

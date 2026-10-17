@@ -26,6 +26,7 @@
     import {
         verificationState,
         verifyOwnDevice,
+        verifyWithAnotherDevice,
     } from "$lib/stores/verification.svelte";
     import {
         verificationStatusState,
@@ -205,6 +206,18 @@
         }
     }
 
+    async function startVerifyWithAnotherDevice() {
+        verifyError = "";
+        try {
+            await verifyWithAnotherDevice();
+        } catch (e) {
+            verifyError =
+                e instanceof Error
+                    ? e.message
+                    : t("verification.couldNotSendVerificationRequest");
+        }
+    }
+
     $effect(() => {
         if (!attemptedInitialLoad) {
             attemptedInitialLoad = true;
@@ -242,7 +255,9 @@
     {@const badge = cryptoActive
         ? isCurrent
             ? verificationStatusState.view
-            : deviceTrustBadge(trust[device.deviceId] ?? null)
+            : deviceTrustBadge(trust[device.deviceId] ?? null, {
+                  ownDevice: true,
+              })
         : null}
     <div class="rounded bg-discord-backgroundTertiary px-4 py-3 space-y-3">
         <div class="flex items-start justify-between gap-3">
@@ -309,6 +324,16 @@
                 <p class="text-xs text-discord-textMuted mt-1">{details}</p>
             </div>
             <div class="flex gap-2 flex-shrink-0">
+                <!-- This session is unverified: ask the others to verify it.
+                     It can't tell which siblings are trusted, so it broadcasts
+                     and lets any verified one answer. Needs a sibling. -->
+                {#if isCurrent && cryptoActive && verificationStatusState.view?.kind === "unverified" && others.length > 0}
+                    <button
+                        onclick={startVerifyWithAnotherDevice}
+                        class="px-2.5 py-1 bg-discord-accent/20 text-discord-accent rounded text-xs"
+                        >{t("verification.verifyWithAnotherDevice")}</button
+                    >
+                {/if}
                 {#if !isCurrent && badge && badge.tone !== "verified"}
                     <button
                         onclick={() => startVerify(device.deviceId)}

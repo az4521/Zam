@@ -89,12 +89,20 @@ export interface TrustBadge {
  * Badge for a single device from its `DeviceVerificationStatus` (reduced to the
  * one field that decides trust). A device counts as verified only when the SDK
  * says `isVerified()`; being merely signed by its owner is not enough on its own.
+ *
+ * `ownDevice`: the device is one of OUR sessions. Then "signed by owner but not
+ * verified" can only mean THIS session doesn't trust our master key yet, so the
+ * device is labelled "Signed by you" — still unverified-toned, but it tells an
+ * unverified session which of its siblings are the real, cross-signed ones.
  */
 export function deviceTrustBadge(
     status: { isVerified: boolean; signedByOwner?: boolean } | null,
+    { ownDevice = false }: { ownDevice?: boolean } = {},
 ): TrustBadge {
     if (status?.isVerified)
         return { label: t("verification.verified"), tone: "verified" };
+    if (ownDevice && status?.signedByOwner)
+        return { label: t("verification.signedByYou"), tone: "unverified" };
     return { label: t("verification.unverified"), tone: "unverified" };
 }
 

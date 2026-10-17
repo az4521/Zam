@@ -2455,6 +2455,10 @@ const messages: Record<MessageKey, string> = {
     "verification.verificationCancelled": "ܫܘܪܪܐ ܒܛܝܠܐ ܝܠܗ",
     "verification.verified": "ܡܫܪܪܐ",
     "verification.unverified": "ܠܐ ܡܫܪܪܐ",
+    "verification.signedByYou": "ܚܬܝܡܐ ܡܢܘܟ",
+    "verification.verifyWithAnotherDevice": "ܫܪܪ ܒܡܐܢܐ ܐܚܪܢܐ",
+    "verification.useAnotherDevice": "ܦܠܚ ܒܡܐܢܐ ܐܚܪܢܐ",
+    "verification.couldNotSendVerificationRequest": "ܒܥܝܬܐ ܕܫܘܪܪܐ ܠܐ ܐܬܫܕܪܬ",
     "verification.identityChanged": "ܗܝܝܘܬܐ ܫܚܠܦܬܠܗ̇",
     "verification.couldnTAcceptThisRequestTry":
         "ܩܘܒܠܐ ܕܗܕܐ ܒܥܝܬܐ ܠܐ ܦܠܚܠܗ. ܢܣܝ ܡܢ ܕܪܝܫ.",

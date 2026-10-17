@@ -21,6 +21,7 @@
         verificationStatusState,
         refreshVerificationStatus,
     } from "$lib/stores/verificationStatus.svelte";
+    import { verifyWithAnotherDevice } from "$lib/stores/verification.svelte";
     import {
         formatRecoveryKey,
         isLikelyRecoveryKey,
@@ -234,6 +235,26 @@
             (!(status?.thisDeviceVerified ?? false) ||
                 ((backup?.exists ?? false) && !(backup?.active ?? false))),
     );
+
+    // This session is unverified on an account that HAS cross-signing, so a
+    // verified sibling can vouch for it. Offered beside the recovery key, and
+    // alone when the account never set recovery up (the only way in then).
+    const canVerifyWithDevice = $derived(
+        panel.authoritative &&
+            verificationStatusState.view?.kind === "unverified",
+    );
+
+    async function startVerifyWithAnotherDevice() {
+        unlockError = "";
+        try {
+            await verifyWithAnotherDevice();
+        } catch (e) {
+            unlockError =
+                e instanceof Error
+                    ? e.message
+                    : t("verification.couldNotSendVerificationRequest");
+        }
+    }
 
     // loadStatus runs from the tick-driven $effect below and from every flow
     // that finishes, so two runs can overlap — and the later-RESOLVING run is
@@ -1096,13 +1117,24 @@
 
             {#if needsUnlock}
                 {#if unlockStep === "idle"}
-                    <button
-                        onclick={beginUnlock}
-                        class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm font-medium"
-                        >{t(
-                            "securitySettings.verifyThisSessionRestoreHistory",
-                        )}</button
-                    >
+                    <div class="flex flex-wrap gap-2">
+                        <button
+                            onclick={beginUnlock}
+                            class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm font-medium"
+                            >{t(
+                                "securitySettings.verifyThisSessionRestoreHistory",
+                            )}</button
+                        >
+                        {#if canVerifyWithDevice}
+                            <button
+                                onclick={startVerifyWithAnotherDevice}
+                                class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm font-medium"
+                                >{t(
+                                    "verification.verifyWithAnotherDevice",
+                                )}</button
+                            >
+                        {/if}
+                    </div>
                 {:else if unlockStep === "entry"}
                     <div class="space-y-2">
                         {#if canUnlockByPassphrase}
@@ -1198,6 +1230,12 @@
                         </div>
                     </div>
                 {/if}
+            {:else if canVerifyWithDevice}
+                <button
+                    onclick={startVerifyWithAnotherDevice}
+                    class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm font-medium"
+                    >{t("verification.verifyWithAnotherDevice")}</button
+                >
             {/if}
 
             {#if unlockStep === "done" && unlockResult}

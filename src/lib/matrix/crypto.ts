@@ -1352,6 +1352,27 @@ export async function startDeviceVerification(
 }
 
 /**
+ * Ask ALL of our other sessions to verify THIS one (to-device broadcast), the
+ * way Element's "Use another device" works. Meant for an unverified session:
+ * it can't tell which of its siblings are trusted (it doesn't trust its own
+ * master key yet), so it lets any of them answer. The first one to accept
+ * takes the flow; the SDK cancels the request on the rest.
+ */
+export async function requestOwnVerification(): Promise<VerificationController> {
+    const client = getClient();
+    const crypto = client?.getCrypto();
+    const userId = client?.getUserId();
+    if (!crypto || !userId) {
+        throw new Error(t("crypto.encryptionIsNotReadyOnThis"));
+    }
+    // Same freshness concern as startDeviceVerification: the broadcast goes to
+    // the devices in our store, so pull the current list first.
+    await crypto.getUserDeviceInfo([userId], true);
+    const request = await crypto.requestOwnUserVerification();
+    return createVerificationController(request);
+}
+
+/**
  * Start verifying ANOTHER user. Verification rides in a DM with them (created
  * if one doesn't exist yet), matching Element's in-room verification model.
  */

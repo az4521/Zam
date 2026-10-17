@@ -1,6 +1,7 @@
 import { t } from "$lib/i18n";
 import {
     startDeviceVerification,
+    requestOwnVerification,
     startUserVerification,
     onIncomingVerificationRequest,
     getPendingVerificationControllers,
@@ -221,6 +222,14 @@ export function initVerification(): () => void {
 /** Start verifying one of our own other sessions (opens the modal). */
 export async function verifyOwnDevice(deviceId: string): Promise<void> {
     setActive(await startDeviceVerification(deviceId));
+}
+
+/**
+ * Ask our other sessions to verify this one (opens the modal). Any verified
+ * sibling can answer; used from an unverified session.
+ */
+export async function verifyWithAnotherDevice(): Promise<void> {
+    setActive(await requestOwnVerification());
 }
 
 /** Start verifying another user (opens the modal). */

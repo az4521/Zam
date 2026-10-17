@@ -2544,6 +2544,11 @@ export const en = {
     "verification.verificationCancelled": "Verification cancelled",
     "verification.verified": "Verified",
     "verification.unverified": "Unverified",
+    "verification.signedByYou": "Signed by you",
+    "verification.verifyWithAnotherDevice": "Verify with another device",
+    "verification.useAnotherDevice": "Use another device",
+    "verification.couldNotSendVerificationRequest":
+        "Could not send the verification request",
     "verification.identityChanged": "Identity changed",
     "verification.couldnTAcceptThisRequestTry":
         "Couldn't accept this request. Try again.",
