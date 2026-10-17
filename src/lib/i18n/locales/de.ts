@@ -2128,7 +2128,7 @@ const messages: Record<MessageKey, string> = {
         "Sitzungen konnten nicht geladen werden",
     "userProfileCard.keysChanged": "Schlüssel geändert",
     "userProfileCard.keysChangedHint":
-        "Eine Sitzung mit „Schlüssel geändert“ hat ihre Verschlüsselungsdaten verloren und unter derselben ID neue Schlüssel bekommen. Deine Sitzung hat noch die alten, daher kann diese Sitzung nicht lesen, was du sendest. Sie muss sich ab- und wieder anmelden.",
+        "Eine Sitzung mit „Schlüssel geändert“ hat neue Schlüssel, die diese Sitzung nicht übernehmen konnte. Sie muss sich eventuell ab- und wieder anmelden.",
     "userProfileCard.opening": "Wird geöffnet…",
     "userProfileCard.message": "Nachricht",
     "userProfileCard.verifyUser": "Benutzer verifizieren",

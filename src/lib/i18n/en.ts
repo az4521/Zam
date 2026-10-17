@@ -2054,7 +2054,7 @@ export const en = {
     "userProfileCard.couldNotLoadSessions": "Could not load their sessions",
     "userProfileCard.keysChanged": "Keys changed",
     "userProfileCard.keysChangedHint":
-        "A session marked Keys changed lost its encryption data and got new keys under the same ID. Your session still has the old ones, so that session can't read what you send. It needs to sign out and sign back in.",
+        "A session marked Keys changed has new keys this session couldn't take on. It may need to sign out and sign back in.",
     "userProfileCard.opening": "Opening…",
     "userProfileCard.message": "Message",
     "userProfileCard.verifyUser": "Verify user",

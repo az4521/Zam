@@ -52,6 +52,7 @@ import { createDirectMessage, holdSlidingSyncRoom } from "$lib/matrix/client";
 import { VerificationPhaseValue } from "$lib/utils/verification";
 import { getClient } from "$lib/matrix/runtime";
 import { attachKeyBackfill } from "$lib/matrix/keyBackfill";
+import { installRekeyRepair } from "$lib/matrix/rekeyRepair";
 import {
     ROOM_ENCRYPTION_EVENT_TYPE,
     shouldEncryptNewDm,
@@ -406,6 +407,8 @@ export async function initCrypto(
         attachDecryptionListener(client);
         attachSecurityListeners(client);
         detachKeyBackfill = attachKeyBackfill(client);
+        if (!(await installRekeyRepair(cryptoApi, { userId, deviceId })))
+            console.warn("[matrix] can't watch for re-keyed sessions");
     } catch (err) {
         console.warn(
             "[matrix] rust-crypto init failed; encrypted rooms will show " +
@@ -1709,7 +1712,10 @@ export async function ownDeviceKeysReplaced(
  */
 export async function getKnownDevices(
     userId: string,
-    { refresh = false }: { refresh?: boolean } = {},
+    {
+        refresh = false,
+        repaired = false,
+    }: { refresh?: boolean; repaired?: boolean } = {},
 ): Promise<KnownDevice[] | null> {
     const client = getClient();
     const crypto = client?.getCrypto();
@@ -1730,7 +1736,7 @@ export async function getKnownDevices(
         if (queried) trust = await readTrust();
     }
     const onServer = await serverIdentityKeys(client, userId);
-    return list
+    const known = list
         .map((device, i): KnownDevice => {
             const server = onServer.get(device.deviceId);
             const changed = (theirs: string | undefined, ours: unknown) =>
@@ -1747,6 +1753,16 @@ export async function getKnownDevices(
             };
         })
         .sort((a, b) => a.deviceId.localeCompare(b.deviceId));
+    // A re-keyed session is replaced by the next keys query (rekeyRepair.ts):
+    // the first drops our stale copy, the second stores its new keys.
+    if (!repaired && known.some((d) => d.keysChanged)) {
+        if (
+            (await queryUserKeysNow(crypto, userId)) &&
+            (await queryUserKeysNow(crypto, userId))
+        )
+            return getKnownDevices(userId, { repaired: true });
+    }
+    return known;
 }
 
 /**

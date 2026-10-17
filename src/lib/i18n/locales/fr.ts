@@ -2109,7 +2109,7 @@ const messages: Record<MessageKey, string> = {
         "Impossible de charger ses sessions",
     "userProfileCard.keysChanged": "Clés modifiées",
     "userProfileCard.keysChangedHint":
-        "Une session marquée Clés modifiées a perdu ses données de chiffrement et a reçu de nouvelles clés sous le même identifiant. Votre session a encore les anciennes, donc cette session ne peut pas lire ce que vous envoyez. Elle doit se déconnecter puis se reconnecter.",
+        "Une session marquée Clés modifiées a de nouvelles clés que cette session n'a pas pu adopter. Elle devra peut-être se déconnecter puis se reconnecter.",
     "userProfileCard.opening": "Ouverture…",
     "userProfileCard.message": "Message",
     "userProfileCard.verifyUser": "Vérifier l'utilisateur",

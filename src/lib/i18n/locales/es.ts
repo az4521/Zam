@@ -2151,7 +2151,7 @@ const messages: Record<MessageKey, string> = {
         "No se pudieron cargar sus sesiones",
     "userProfileCard.keysChanged": "Claves cambiadas",
     "userProfileCard.keysChangedHint":
-        "Una sesión marcada como Claves cambiadas perdió sus datos de cifrado y obtuvo claves nuevas con el mismo ID. Tu sesión aún tiene las antiguas, así que esa sesión no puede leer lo que envías. Tiene que cerrar sesión y volver a iniciarla.",
+        "Una sesión marcada como Claves cambiadas tiene claves nuevas que esta sesión no pudo adoptar. Puede que tenga que cerrar sesión y volver a iniciarla.",
     "userProfileCard.opening": "Abriendo…",
     "userProfileCard.message": "Mensaje",
     "userProfileCard.verifyUser": "Verificar usuario",

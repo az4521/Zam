@@ -1981,7 +1981,7 @@ const messages: Record<MessageKey, string> = {
     "userProfileCard.couldNotLoadSessions": "ܣ̈ܝܣܘܢܐ ܕܝܠܗܘܢ ܠܐ ܦܠܚܠܗܘܢ",
     "userProfileCard.keysChanged": "ܩܠܝܕ̈ܐ ܫܚܠܦܠܗܘܢ",
     "userProfileCard.keysChangedHint":
-        "ܣܝܣܘܢ ܕܟܬܝܒܐ ܩܠܝܕ̈ܐ ܫܚܠܦܠܗܘܢ ܐܒܕܠܗ ܡܥܠܘܡܘܬܐ ܕܛܘܫܝܐ ܘܩܒܠܠܗ ܩܠܝܕ̈ܐ ܚܕ̈ܬܐ ܒܚܕ ID. ܣܝܣܘܢ ܕܝܠܘܟ ܐܝܬ ܠܗ ܥܬܝܩ̈ܐ، ܗܘܝܐ ܗܿܘ ܣܝܣܘܢ ܠܐ ܡܨܐ ܩܪܐ ܡܐ ܕܫܕܪܬ. ܣܢܝܩ ܝܠܗ ܕܦܠܛ ܘܥܐܠ ܬܘܒ.",
+        "ܣܝܣܘܢ ܕܟܬܝܒܐ ܩܠܝܕ̈ܐ ܫܚܠܦܠܗܘܢ ܐܝܬ ܠܗ ܩܠܝܕ̈ܐ ܚܕ̈ܬܐ ܕܗܢܐ ܣܝܣܘܢ ܠܐ ܡܨܐ ܠܗ ܩܒܠܬܐ. ܒܠܟܐ ܣܢܝܩ ܝܠܗ ܕܦܠܛ ܘܥܐܠ ܬܘܒ.",
     "userProfileCard.opening": "ܒܦܬܚܐ…",
     "userProfileCard.message": "ܐܓܪܬܐ",
     "userProfileCard.verifyUser": "ܫܪܪ ܡܦܠܚܢܐ",
