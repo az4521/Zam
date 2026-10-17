@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.24.2
+
+🐛 **Fixed**
+
+- **Verification crash:** verifying could crash when the same emoji appeared twice in the comparison.
+- **"Not a known device":** verifying a session you just signed in on from an older session no longer fails with this error. The older session now fetches your latest session list first.
+
 ## v1.24.1
 
 🐛 **Fixed**
