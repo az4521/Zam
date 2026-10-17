@@ -129,6 +129,12 @@ export const SLASH_COMMANDS: SlashCommand[] = [
         kind: "action",
         requiresArg: true,
     },
+    {
+        name: "discardsession",
+        description: t("slashCommands.discardSession"),
+        argKind: "none",
+        kind: "action",
+    },
 ];
 
 /** Adapt a plugin's command into a `SlashCommand` the pure matchers + the

@@ -290,6 +290,8 @@ const messages: Record<MessageKey, string> = {
     "cryptoUnavailableBanner.encryptionIsUnavailableThisSessionEncrypted":
         "ܛܘܫܝܐ ܠܐ ܝܠܗ ܡܫܟܚܐ ܒܗܢܐ ܓܠܣܐ: ܐܓܪ̈ܬܐ ܡܛܫܝ̈ܬܐ ܠܐ ܡܨܝܐ ܕܩܪܝ ܝܢ ܕܫܕܪ. ܛܥܘܢ ܡܢ ܕܪܝܫ ܩܐ ܢܣܝܢܐ ܐܚܪܢܐ.",
     "cryptoUnavailableBanner.reload": "ܛܥܘܢ ܡܢ ܕܪܝܫ",
+    "cryptoUnavailableBanner.syncPaused":
+        "ܛܘܫܝܐ ܠܐ ܦܠܚܠܗ ܡܫܪܝܐ، ܗܘܝܐ ܗܢܐ ܣܝܣܘܢ ܟܠܝܠܗ ܡܢ ܣܘܢܟܪܘܢܐ ܕܢܛܪ ܠܩܠܝܕ̈ܐ ܕܟܐ ܫܕܪܝ ܠܘܟ ܐ݇ܚܪ̈ܢܐ. ܡܛܥܢ ܬܘܒ ܕܢܢܣܐ ܬܘܒ.",
     "cryptoUnavailableBanner.dismissEncryptionWarning": "ܫܩܘܠ ܙܘܗܪܐ ܕܛܘܫܝܐ",
 
     // src/lib/components/settings/CustomPackSettings.svelte
@@ -1531,6 +1533,11 @@ const messages: Record<MessageKey, string> = {
     "roomSettings.notEncrypted": "ܠܐ ܡܛܫܝܐ",
     "roomSettings.messagesInThisRoomAreEnd":
         "ܐܓܪ̈ܬܐ ܓܘ ܗܢܐ ܓܘܡܐ ܡܛܫܝ̈ܬܐ ܝܢ ܡܢ ܪܫܐ ܠܪܫܐ. ܗܕܐ ܠܐ ܦܝܫܐ ܛܦܝܬܐ.",
+    "roomSettings.roomKey": "ܩܠܝܕܐ ܕܓܘܡܐ",
+    "roomSettings.resetRoomKey": "ܡܚܕܬ ܩܠܝܕܐ ܕܓܘܡܐ",
+    "roomSettings.resetRoomKeyHint":
+        "ܐܢ ܠܐ ܡܨܝ ܩܪܝܠܗܘܢ ܠܐܓܪ̈ܬܐ ܕܝܠܘܟ ܗܪܟܐ، ܐܓܪܬܐ ܕܝܠܘܟ ܐ݇ܚܪܝܬܐ ܟܐ ܡܦܠܚܐ ܩܠܝܕܐ ܚܕܬܐ ܘܟܐ ܡܫܘܬܦܐ ܠܗ ܬܘܒ ܥܡ ܟܠ ܣ̈ܝܣܘܢܐ ܕܓܘܡܐ.",
+    "roomSettings.couldNotResetRoomKey": "ܩܠܝܕܐ ܕܓܘܡܐ ܠܐ ܦܠܚܠܗ ܡܚܘܕܬܐ",
     "roomSettings.enableEncryption": "ܕܠܩ ܛܘܫܝܐ",
     "roomSettings.typeToConfirm":
         "ܟܬܘܒ {ENABLE_ENCRYPTION_CONFIRM_PHRASE} ܩܐ ܫܘܪܪܐ",
@@ -2288,6 +2295,9 @@ const messages: Record<MessageKey, string> = {
     "crypto.couldNotConfirmTheQrMatch": "ܫܘܪܪܐ ܕܙܘܘܓܐ ܕ QR ܠܐ ܦܠܚܠܗ",
     "crypto.couldNotCancelTheQrMatch": "ܒܘܛܠܐ ܕܙܘܘܓܐ ܕ QR ܠܐ ܦܠܚܠܗ",
     "crypto.encryptionIsNotReadyOnThis": "ܛܘܫܝܐ ܠܐ ܝܠܗ ܡܛܝܒܐ ܒܗܢܐ ܓܠܣܐ",
+    "crypto.roomIsNotEncrypted": "ܗܢܐ ܓܘܡܐ ܠܐ ܝܠܗ ܛܘܫܝܐ.",
+    "crypto.roomKeyDiscarded":
+        "ܐܓܪܬܐ ܕܝܠܘܟ ܐ݇ܚܪܝܬܐ ܟܐ ܡܦܠܚܐ ܩܠܝܕܐ ܚܕܬܐ ܕܓܘܡܐ، ܕܟܐ ܦܐܫ ܡܫܘܬܦܐ ܬܘܒ ܥܡ ܟܠ ܣ̈ܝܣܘܢܐ ܕܓܘܡܐ.",
     "crypto.accountApprovalCancelled":
         "Approval on your account page was cancelled.",
     "crypto.accountPasswordRequired":
@@ -2989,6 +2999,8 @@ const messages: Record<MessageKey, string> = {
     "slashCommands.setAUserSPowerLevel": "ܛܝܒ ܕܪܓܐ ܕܚܝܠܐ ܕܡܦܠܚܢܐ",
     "slashCommands.userServerLevel": "<@user:server> [ܕܪܓܐ]",
     "slashCommands.resetAUserSPowerLevel": "ܕܥܘܪ ܕܪܓܐ ܕܚܝܠܐ ܕܡܦܠܚܢܐ ܠܥܕܝܠܐ",
+    "slashCommands.discardSession":
+        "ܡܦܠܚ ܩܠܝܕܐ ܚܕܬܐ ܕܓܘܡܐ ܠܐܓܪܬܐ ܐ݇ܚܪܝܬܐ، ܐܢ ܠܐ ܡܨܝ ܩܪܝܠܗܘܢ ܠܐܓܪ̈ܬܐ ܕܝܠܘܟ",
     "slashCommands.usage": "ܦܘܠܚܢܐ: /{name} {argHint}",
     "slashCommands.usage2": "ܦܘܠܚܢܐ: /{name}",
 

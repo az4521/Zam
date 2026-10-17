@@ -12,6 +12,9 @@ class SessionHealthState {
     syncStoreFallback = $state(false);
     // The user dismissed the crypto banner for this session.
     cryptoBannerDismissed = $state(false);
+    // Sync was not started because crypto failed and it would have deleted
+    // the room keys sent to this session (see startSync in client.ts).
+    syncHeldForCrypto = $state(false);
 }
 
 export const sessionHealthState = new SessionHealthState();
@@ -30,12 +33,19 @@ export function resetSyncStoreFallback(): void {
     sessionHealthState.syncStoreFallback = false;
 }
 
+export function setSyncHeldForCrypto(held: boolean): void {
+    sessionHealthState.syncHeldForCrypto = held;
+}
+
 export function dismissCryptoBanner(): void {
     sessionHealthState.cryptoBannerDismissed = true;
 }
 
 /** Whether the crypto-unavailable banner should be visible right now. */
 export function shouldShowCryptoBanner(): boolean {
+    // Not dismissible while sync is held: it's the only explanation for a
+    // session that has stopped updating.
+    if (sessionHealthState.syncHeldForCrypto) return true;
     return (
         sessionHealthState.cryptoAvailable === false &&
         !sessionHealthState.cryptoBannerDismissed

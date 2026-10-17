@@ -302,6 +302,8 @@ const messages: Record<MessageKey, string> = {
     "cryptoUnavailableBanner.encryptionIsUnavailableThisSessionEncrypted":
         "El cifrado no está disponible en esta sesión: no se pueden leer ni enviar mensajes cifrados. Recarga para volver a intentarlo.",
     "cryptoUnavailableBanner.reload": "Recargar",
+    "cryptoUnavailableBanner.syncPaused":
+        "El cifrado no pudo iniciarse, así que esta sesión dejó de sincronizar para conservar las claves que otros te envían. Recarga para intentarlo de nuevo.",
     "cryptoUnavailableBanner.dismissEncryptionWarning":
         "Descartar el aviso de cifrado",
 
@@ -1659,6 +1661,12 @@ const messages: Record<MessageKey, string> = {
     "roomSettings.notEncrypted": "Sin cifrar",
     "roomSettings.messagesInThisRoomAreEnd":
         "Los mensajes de esta sala están cifrados de extremo a extremo. Esto no se puede desactivar.",
+    "roomSettings.roomKey": "Clave de la sala",
+    "roomSettings.resetRoomKey": "Restablecer la clave de la sala",
+    "roomSettings.resetRoomKeyHint":
+        "Si no pueden leer tus mensajes aquí, esto hace que tu próximo mensaje use una clave nueva y la comparta otra vez con todas las sesiones de la sala.",
+    "roomSettings.couldNotResetRoomKey":
+        "No se pudo restablecer la clave de la sala",
     "roomSettings.enableEncryption": "Activar el cifrado",
     "roomSettings.typeToConfirm":
         "Escribe {ENABLE_ENCRYPTION_CONFIRM_PHRASE} para confirmar",
@@ -2489,6 +2497,9 @@ const messages: Record<MessageKey, string> = {
         "No se pudo cancelar la coincidencia del QR",
     "crypto.encryptionIsNotReadyOnThis":
         "El cifrado no está listo en esta sesión",
+    "crypto.roomIsNotEncrypted": "Esta sala no está cifrada.",
+    "crypto.roomKeyDiscarded":
+        "Tu próximo mensaje aquí usará una nueva clave de sala, compartida de nuevo con todas las sesiones de la sala.",
     "crypto.accountApprovalCancelled":
         "Se canceló la aprobación en tu página de cuenta.",
     "crypto.accountPasswordRequired":
@@ -3244,6 +3255,8 @@ const messages: Record<MessageKey, string> = {
     "slashCommands.userServerLevel": "<@usuario:servidor> [nivel]",
     "slashCommands.resetAUserSPowerLevel":
         "Restablecer el nivel de poder de un usuario al predeterminado",
+    "slashCommands.discardSession":
+        "Usar una nueva clave de sala en tu próximo mensaje, si no pueden leer los tuyos",
     "slashCommands.usage": "Uso: /{name} {argHint}",
     "slashCommands.usage2": "Uso: /{name}",
 

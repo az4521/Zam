@@ -102,7 +102,7 @@
     import { focusTrap } from "$lib/actions/focusTrap";
     import { ChevronRight, ArrowLeft, Circle } from "lucide-svelte";
 
-    import { isRoomEncrypted } from "$lib/matrix/crypto";
+    import { discardRoomSession, isRoomEncrypted } from "$lib/matrix/crypto";
     import {
         getEnableEncryptionState,
         matchesEnableEncryptionConfirmation,
@@ -395,6 +395,27 @@
         (void roomsState.roomsTick,
         roomStateTrustBadge(isRoomStateHealed(room.roomId))),
     );
+
+    let roomKeyResetting = $state(false);
+    let roomKeyResetDone = $state(false);
+    let roomKeyResetError = $state("");
+
+    async function doResetRoomKey() {
+        roomKeyResetting = true;
+        roomKeyResetDone = false;
+        roomKeyResetError = "";
+        try {
+            await discardRoomSession(room.roomId);
+            roomKeyResetDone = true;
+        } catch (e) {
+            roomKeyResetError =
+                e instanceof Error
+                    ? e.message
+                    : t("roomSettings.couldNotResetRoomKey");
+        } finally {
+            roomKeyResetting = false;
+        }
+    }
 
     async function doEnableEncryption() {
         if (!matchesEnableEncryptionConfirmation(encConfirmInput)) return;
@@ -2190,6 +2211,43 @@
                                     {/if}
                                 </p>
                             </div>
+
+                            {#if encrypted}
+                                <div>
+                                    <p
+                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                    >
+                                        {t("roomSettings.roomKey")}
+                                    </p>
+                                    <p
+                                        class="text-xs text-discord-textMuted mb-2"
+                                    >
+                                        {t("roomSettings.resetRoomKeyHint")}
+                                    </p>
+                                    <button
+                                        onclick={doResetRoomKey}
+                                        disabled={roomKeyResetting}
+                                        class="px-4 py-2 bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                        >{t(
+                                            "roomSettings.resetRoomKey",
+                                        )}</button
+                                    >
+                                    {#if roomKeyResetDone}
+                                        <p
+                                            class="text-sm text-discord-online mt-2"
+                                        >
+                                            {t("crypto.roomKeyDiscarded")}
+                                        </p>
+                                    {/if}
+                                    {#if roomKeyResetError}
+                                        <p
+                                            class="text-sm text-discord-danger mt-2"
+                                        >
+                                            {roomKeyResetError}
+                                        </p>
+                                    {/if}
+                                </div>
+                            {/if}
 
                             {#if !encrypted}
                                 {#if !encState.canEnable}

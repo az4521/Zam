@@ -7,6 +7,7 @@
     import {
         shouldShowCryptoBanner,
         dismissCryptoBanner,
+        sessionHealthState,
     } from "$lib/stores/sessionHealth.svelte";
 
     const visible = $derived(shouldShowCryptoBanner());
@@ -32,9 +33,11 @@
             />
         </svg>
         <span class="min-w-0 text-sm text-discord-textPrimary">
-            {t(
-                "cryptoUnavailableBanner.encryptionIsUnavailableThisSessionEncrypted",
-            )}
+            {sessionHealthState.syncHeldForCrypto
+                ? t("cryptoUnavailableBanner.syncPaused")
+                : t(
+                      "cryptoUnavailableBanner.encryptionIsUnavailableThisSessionEncrypted",
+                  )}
         </span>
         <button
             onclick={reload}
@@ -42,25 +45,29 @@
         >
             {t("cryptoUnavailableBanner.reload")}
         </button>
-        <button
-            onclick={dismissCryptoBanner}
-            aria-label={t("cryptoUnavailableBanner.dismissEncryptionWarning")}
-            class="flex-shrink-0 text-discord-textMuted hover:text-discord-textPrimary"
-        >
-            <svg
-                class="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
+        {#if !sessionHealthState.syncHeldForCrypto}
+            <button
+                onclick={dismissCryptoBanner}
+                aria-label={t(
+                    "cryptoUnavailableBanner.dismissEncryptionWarning",
+                )}
+                class="flex-shrink-0 text-discord-textMuted hover:text-discord-textPrimary"
             >
-                <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M6 18L18 6M6 6l12 12"
-                />
-            </svg>
-        </button>
+                <svg
+                    class="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                >
+                    <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M6 18L18 6M6 6l12 12"
+                    />
+                </svg>
+            </button>
+        {/if}
     </div>
 {/if}

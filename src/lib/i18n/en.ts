@@ -291,6 +291,8 @@ export const en = {
     "cryptoUnavailableBanner.encryptionIsUnavailableThisSessionEncrypted":
         "Encryption is unavailable this session: encrypted messages can't be read or sent. Reload to try again.",
     "cryptoUnavailableBanner.reload": "Reload",
+    "cryptoUnavailableBanner.syncPaused":
+        "Encryption couldn't start, so this session has stopped syncing to keep the encryption keys others send you. Reload to try again.",
     "cryptoUnavailableBanner.dismissEncryptionWarning":
         "Dismiss encryption warning",
 
@@ -1597,6 +1599,11 @@ export const en = {
     "roomSettings.notEncrypted": "Not encrypted",
     "roomSettings.messagesInThisRoomAreEnd":
         "Messages in this room are end-to-end encrypted. This can't be turned off.",
+    "roomSettings.roomKey": "Room key",
+    "roomSettings.resetRoomKey": "Reset room key",
+    "roomSettings.resetRoomKeyHint":
+        "If people can't read your messages here, this makes your next message use a new key and share it with every session in the room again.",
+    "roomSettings.couldNotResetRoomKey": "Could not reset the room key",
     "roomSettings.enableEncryption": "Enable encryption",
     "roomSettings.typeToConfirm":
         "Type {ENABLE_ENCRYPTION_CONFIRM_PHRASE} to confirm",
@@ -2373,6 +2380,9 @@ export const en = {
     "crypto.couldNotCancelTheQrMatch": "Could not cancel the QR match",
     "crypto.encryptionIsNotReadyOnThis":
         "Encryption is not ready on this session",
+    "crypto.roomIsNotEncrypted": "This room isn't encrypted.",
+    "crypto.roomKeyDiscarded":
+        "Your next message here will use a new room key, shared with every session in the room again.",
     "crypto.accountApprovalCancelled":
         "Approval on your account page was cancelled.",
     "crypto.accountPasswordRequired":
@@ -3089,6 +3099,8 @@ export const en = {
     "slashCommands.userServerLevel": "<@user:server> [level]",
     "slashCommands.resetAUserSPowerLevel":
         "Reset a user's power level to default",
+    "slashCommands.discardSession":
+        "Use a new room key for your next message, if people can't read yours",
     "slashCommands.usage": "Usage: /{name} {argHint}",
     "slashCommands.usage2": "Usage: /{name}",
 

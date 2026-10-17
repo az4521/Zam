@@ -131,6 +131,7 @@ import { showErrorToast } from "$lib/stores/toasts.svelte";
 import {
     markSyncStoreFallback,
     resetSyncStoreFallback,
+    setSyncHeldForCrypto,
 } from "$lib/stores/sessionHealth.svelte";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { classifyWellKnown } from "$lib/utils/wellKnown";
@@ -268,6 +269,7 @@ import {
 } from "$lib/matrix/notifications";
 import {
     initCrypto,
+    isCryptoAvailable,
     getCryptoCallbacks,
     ensureRoomCryptoConfigured,
     releaseCryptoStoreLocks,
@@ -1387,8 +1389,17 @@ export async function startSync(
     };
     document.addEventListener("visibilitychange", onHidden);
 
+    // Without crypto, sync would still receive the room keys other sessions
+    // send this one and acknowledge them, and the server deletes what was
+    // acknowledged: those keys would be gone for good, and every message
+    // they unlock unreadable. Sliding sync can leave them on the server;
+    // classic /sync can't, so it isn't started at all.
+    const cryptoDown = !isCryptoAvailable();
+    setSyncHeldForCrypto(false);
+
     try {
         const slidingSync = await buildSlidingSync(client, {
+            keepToDeviceOnServer: cryptoDown,
             onFallback: onSlidingSyncFallback,
             onListComplete: () => markRoomListComplete(client),
             onDroppedTimelines: (roomIds) =>
@@ -1405,6 +1416,15 @@ export async function startSync(
                     ),
                 ),
         });
+        if (cryptoDown && !slidingSync) {
+            logSync(
+                "not syncing: encryption failed to start, and /sync would " +
+                    "delete the room keys sent to this session",
+            );
+            setSyncHeldForCrypto(true);
+            onStateChange("STOPPED");
+            return dispose;
+        }
         await client.startClient({
             slidingSync: slidingSync,
             initialSyncLimit: 8,

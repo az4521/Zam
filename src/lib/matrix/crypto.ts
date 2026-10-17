@@ -51,6 +51,7 @@ import type {
 import { createDirectMessage, holdSlidingSyncRoom } from "$lib/matrix/client";
 import { VerificationPhaseValue } from "$lib/utils/verification";
 import { getClient } from "$lib/matrix/runtime";
+import { attachKeyBackfill } from "$lib/matrix/keyBackfill";
 import {
     ROOM_ENCRYPTION_EVENT_TYPE,
     shouldEncryptNewDm,
@@ -146,6 +147,15 @@ export async function waitForCryptoEngineIdle(
     if (!engineWorkTracked) return false;
     return engineWork.waitForIdle(timeoutMs);
 }
+
+// Teardown for the key backfill attached to the running engine's client.
+let detachKeyBackfill: (() => void) | null = null;
+
+// How many times initCrypto tries to start the engine, and the pause before
+// each retry. Most failures are passing (the WASM download, an IndexedDB
+// hiccup), and running without crypto loses the room keys sent meanwhile.
+const CRYPTO_INIT_ATTEMPTS = 3;
+const CRYPTO_INIT_RETRY_MS = 2000;
 
 // Those handlers, as added by the last initRustCrypto on `engineClient`.
 let engineHandlers: [string, (...args: unknown[]) => void][] = [];
@@ -324,6 +334,8 @@ export async function initCrypto(
 ): Promise<void> {
     cryptoAvailable = false;
     setSessionCryptoStatus(null);
+    detachKeyBackfill?.();
+    detachKeyBackfill = null;
     // Session expiry drops back to the login view in place (no reload), so a
     // re-login re-enters here in the same JS context — against a fresh crypto
     // store that knows nothing about sender devices. Verdicts memoised for the
@@ -347,9 +359,23 @@ export async function initCrypto(
         const before = new Map(
             RUST_CRYPTO_CLIENT_EVENTS.map((e) => [e, handlersOf(e)]),
         );
-        await client.initRustCrypto({
-            cryptoDatabasePrefix: getCryptoDbName(userId, deviceId),
-        });
+        for (let attempt = 1; ; attempt++) {
+            try {
+                await client.initRustCrypto({
+                    cryptoDatabasePrefix: getCryptoDbName(userId, deviceId),
+                });
+                break;
+            } catch (err) {
+                if (attempt >= CRYPTO_INIT_ATTEMPTS) throw err;
+                console.warn(
+                    `[matrix] rust-crypto init attempt ${attempt} failed, retrying`,
+                    err,
+                );
+                await new Promise((r) =>
+                    setTimeout(r, CRYPTO_INIT_RETRY_MS * attempt),
+                );
+            }
+        }
         engineClient = client;
         engineHandlers = RUST_CRYPTO_CLIENT_EVENTS.flatMap((e) =>
             handlersOf(e)
@@ -379,6 +405,7 @@ export async function initCrypto(
         }
         attachDecryptionListener(client);
         attachSecurityListeners(client);
+        detachKeyBackfill = attachKeyBackfill(client);
     } catch (err) {
         console.warn(
             "[matrix] rust-crypto init failed; encrypted rooms will show " +
@@ -643,6 +670,30 @@ export async function ensureRoomCryptoConfigured(room: Room): Promise<void> {
             err,
         );
     }
+}
+
+/**
+ * Drop this session's outgoing room key for `roomId`, so the next message
+ * starts a new one and shares it with every session in the room again. The
+ * SDK only shares a room key once per session and keeps using it for up to a
+ * week or 100 messages; if that one share never arrived, the recipient can't
+ * read anything this session sends until it rotates. Throws when crypto isn't
+ * running or the room isn't encrypted.
+ */
+export async function discardRoomSession(roomId: string): Promise<void> {
+    const client = getClient();
+    const crypto = client?.getCrypto();
+    if (!cryptoAvailable || !crypto) {
+        throw new Error(t("crypto.encryptionIsNotReadyOnThis"));
+    }
+    const room = client!.getRoom(roomId);
+    if (!room || !isRoomEncrypted(room)) {
+        throw new Error(t("crypto.roomIsNotEncrypted"));
+    }
+    // forceDiscardSession is a no-op for a room whose encryptor hasn't been
+    // built yet this run.
+    await ensureRoomCryptoConfigured(room);
+    await crypto.forceDiscardSession(roomId);
 }
 
 /**

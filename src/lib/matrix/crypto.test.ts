@@ -150,6 +150,42 @@ describe("ensureRoomCryptoConfigured", () => {
         expect(h.onCryptoEvent).toHaveBeenCalledWith(room, event);
     });
 
+    describe("discardRoomSession", () => {
+        function withRoom(encrypted: boolean) {
+            const client = makeClient() as ReturnType<typeof makeClient> & {
+                getRoom?: () => unknown;
+            };
+            const forceDiscardSession = vi.fn(() => Promise.resolve());
+            (
+                client.getCrypto() as Record<string, unknown>
+            ).forceDiscardSession = forceDiscardSession;
+            const event = { fake: "m.room.encryption event" };
+            client.getRoom = () => ({
+                ...makeRoom(event),
+                hasEncryptionStateEvent: () => encrypted,
+            });
+            h.getClient.mockReturnValue(client);
+            return { forceDiscardSession };
+        }
+
+        // The SDK's discard is a silent no-op for a room whose encryptor
+        // hasn't been built this run, so it is built first.
+        it("configures the room, then drops its outgoing key", async () => {
+            const { forceDiscardSession } = withRoom(true);
+            await mod.discardRoomSession(ROOM_ID);
+            expect(h.onCryptoEvent).toHaveBeenCalledTimes(1);
+            expect(forceDiscardSession).toHaveBeenCalledWith(ROOM_ID);
+        });
+
+        it("refuses an unencrypted room", async () => {
+            const { forceDiscardSession } = withRoom(false);
+            await expect(mod.discardRoomSession(ROOM_ID)).rejects.toThrow(
+                "isn't encrypted",
+            );
+            expect(forceDiscardSession).not.toHaveBeenCalled();
+        });
+    });
+
     it("no-ops when the sync loop already configured the room", async () => {
         h.roomEncryptors[ROOM_ID] = { alreadyThere: true };
 
@@ -178,12 +214,49 @@ describe("ensureRoomCryptoConfigured", () => {
         // failed re-init leaves the module in the "no crypto" state under test.
         const client = makeClient();
         h.getClient.mockReturnValue(client);
-        h.initRustCrypto.mockRejectedValueOnce(new Error("no WASM"));
-        await mod.initCrypto(client as never, "@me:example.org", "DEVICE1");
+        // Every attempt fails (initCrypto retries a passing failure).
+        h.initRustCrypto
+            .mockRejectedValueOnce(new Error("no WASM"))
+            .mockRejectedValueOnce(new Error("no WASM"))
+            .mockRejectedValueOnce(new Error("no WASM"));
+        vi.useFakeTimers();
+        try {
+            const init = mod.initCrypto(
+                client as never,
+                "@me:example.org",
+                "DEVICE1",
+            );
+            await vi.runAllTimersAsync();
+            await init;
+        } finally {
+            vi.useRealTimers();
+        }
 
         await mod.ensureRoomCryptoConfigured(makeRoom({ e: 1 }) as never);
 
         expect(h.onCryptoEvent).not.toHaveBeenCalled();
+        expect(mod.isCryptoAvailable()).toBe(false);
+    });
+
+    it("retries a crypto start that fails once", async () => {
+        const client = makeClient();
+        h.getClient.mockReturnValue(client);
+        const before = h.initRustCrypto.mock.calls.length;
+        h.initRustCrypto.mockRejectedValueOnce(new Error("WASM fetch failed"));
+        vi.useFakeTimers();
+        try {
+            const init = mod.initCrypto(
+                client as never,
+                "@me:example.org",
+                "DEVICE1",
+            );
+            await vi.runAllTimersAsync();
+            await init;
+        } finally {
+            vi.useRealTimers();
+        }
+
+        expect(h.initRustCrypto.mock.calls.length - before).toBe(2);
     });
 
     // The gate MUST be the in-memory roomEncryptors map, never
@@ -2142,14 +2215,22 @@ describe("restartCrypto", () => {
         const { client } = makeRestartableClient();
         h.getClient.mockReturnValue(client);
         await mod.initCrypto(client as never, "@me:example.org", "DEVICE1");
-        client.initRustCrypto.mockRejectedValueOnce(new Error("no WASM"));
+        client.initRustCrypto
+            .mockRejectedValueOnce(new Error("no WASM"))
+            .mockRejectedValueOnce(new Error("no WASM"))
+            .mockRejectedValueOnce(new Error("no WASM"));
 
-        expect(
-            await mod.restartCrypto(
+        vi.useFakeTimers();
+        try {
+            const restarted = mod.restartCrypto(
                 client as never,
                 "@me:example.org",
                 "DEVICE1",
-            ),
-        ).toBe(false);
+            );
+            await vi.runAllTimersAsync();
+            expect(await restarted).toBe(false);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

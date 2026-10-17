@@ -301,6 +301,8 @@ const messages: Record<MessageKey, string> = {
     "cryptoUnavailableBanner.encryptionIsUnavailableThisSessionEncrypted":
         "Le chiffrement est indisponible pour cette session : les messages chiffrés ne peuvent être ni lus ni envoyés. Rechargez pour réessayer.",
     "cryptoUnavailableBanner.reload": "Recharger",
+    "cryptoUnavailableBanner.syncPaused":
+        "Le chiffrement n'a pas pu démarrer : cette session ne se synchronise plus, pour conserver les clés que les autres vous envoient. Rechargez pour réessayer.",
     "cryptoUnavailableBanner.dismissEncryptionWarning":
         "Ignorer l'avertissement de chiffrement",
 
@@ -1613,6 +1615,12 @@ const messages: Record<MessageKey, string> = {
     "roomSettings.notEncrypted": "Non chiffré",
     "roomSettings.messagesInThisRoomAreEnd":
         "Les messages de ce salon sont chiffrés de bout en bout. Cela ne peut pas être désactivé.",
+    "roomSettings.roomKey": "Clé du salon",
+    "roomSettings.resetRoomKey": "Réinitialiser la clé du salon",
+    "roomSettings.resetRoomKeyHint":
+        "Si on ne peut pas lire vos messages ici, votre prochain message utilisera une nouvelle clé, partagée à nouveau avec toutes les sessions du salon.",
+    "roomSettings.couldNotResetRoomKey":
+        "Impossible de réinitialiser la clé du salon",
     "roomSettings.enableEncryption": "Activer le chiffrement",
     "roomSettings.typeToConfirm":
         "Tapez {ENABLE_ENCRYPTION_CONFIRM_PHRASE} pour confirmer",
@@ -2449,6 +2457,9 @@ const messages: Record<MessageKey, string> = {
         "Impossible d'annuler la correspondance QR",
     "crypto.encryptionIsNotReadyOnThis":
         "Le chiffrement n'est pas prêt dans cette session",
+    "crypto.roomIsNotEncrypted": "Ce salon n'est pas chiffré.",
+    "crypto.roomKeyDiscarded":
+        "Votre prochain message ici utilisera une nouvelle clé de salon, partagée à nouveau avec toutes les sessions du salon.",
     "crypto.accountApprovalCancelled":
         "L'approbation sur la page de votre compte a été annulée.",
     "crypto.accountPasswordRequired":
@@ -3207,6 +3218,8 @@ const messages: Record<MessageKey, string> = {
     "slashCommands.userServerLevel": "<@user:server> [niveau]",
     "slashCommands.resetAUserSPowerLevel":
         "Rétablir le niveau de pouvoir par défaut d'un utilisateur",
+    "slashCommands.discardSession":
+        "Utiliser une nouvelle clé de salon pour votre prochain message, si on ne peut pas lire les vôtres",
     "slashCommands.usage": "Utilisation : /{name} {argHint}",
     "slashCommands.usage2": "Utilisation : /{name}",
 

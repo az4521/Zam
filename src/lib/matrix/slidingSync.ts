@@ -242,6 +242,12 @@ export async function buildSlidingSync(
             fromToken: string,
             stopAtEventId: string,
         ) => void;
+        /**
+         * Leave to-device messages on the server: crypto isn't running, and
+         * receiving them would acknowledge (and so delete) the room keys in
+         * them without storing them anywhere.
+         */
+        keepToDeviceOnServer?: boolean;
     },
 ): Promise<SlidingSync | undefined> {
     activeSlidingSync = null;
@@ -340,6 +346,20 @@ export async function buildSlidingSync(
         client,
         SLIDING_TIMEOUT_MS,
     );
+
+    if (hooks.keepToDeviceOnServer) {
+        // The SDK registers its extensions inside startClient().
+        const register = sliding.registerExtension.bind(sliding);
+        sliding.registerExtension = (ext) => {
+            if (ext.name() === "to_device") {
+                logSync(
+                    "crypto is down: leaving to-device messages on the server",
+                );
+                return;
+            }
+            register(ext);
+        };
+    }
 
     // A listener that throws inside the loop kills sync for good; restart it
     // instead (see keepSlidingSyncAlive).

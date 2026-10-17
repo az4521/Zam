@@ -121,7 +121,8 @@
     import type { SedEditResult } from "$lib/matrix/editMessage";
     import { pluginComposerButtons } from "$lib/utils/pluginComposer";
     import { resolveUserArg } from "$lib/utils/userSearch";
-    import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import { showErrorToast, showToast } from "$lib/stores/toasts.svelte";
+    import { discardRoomSession } from "$lib/matrix/crypto";
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { scrollBehavior } from "$lib/utils/motionPreference";
     import { suppressNextClick } from "$lib/utils/suppressNextClick";
@@ -1198,6 +1199,10 @@
                 await applyPowerLevel(r.user, 0);
                 break;
             }
+            case "discardsession":
+                await discardRoomSession(roomId);
+                showToast(t("crypto.roomKeyDiscarded"), { tone: "accent" });
+                break;
             default:
                 throw new Error(
                     t("messageInput.unhandledCommand", { name: command.name }),

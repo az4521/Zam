@@ -307,6 +307,8 @@ const messages: Record<MessageKey, string> = {
     "cryptoUnavailableBanner.encryptionIsUnavailableThisSessionEncrypted":
         "Verschlüsselung ist in dieser Sitzung nicht verfügbar: Verschlüsselte Nachrichten können weder gelesen noch gesendet werden. Neu laden, um es erneut zu versuchen.",
     "cryptoUnavailableBanner.reload": "Neu laden",
+    "cryptoUnavailableBanner.syncPaused":
+        "Die Verschlüsselung konnte nicht starten, daher synchronisiert diese Sitzung nicht mehr, damit die Schlüssel, die andere dir senden, erhalten bleiben. Neu laden, um es erneut zu versuchen.",
     "cryptoUnavailableBanner.dismissEncryptionWarning":
         "Verschlüsselungswarnung schließen",
 
@@ -1634,6 +1636,12 @@ const messages: Record<MessageKey, string> = {
     "roomSettings.notEncrypted": "Nicht verschlüsselt",
     "roomSettings.messagesInThisRoomAreEnd":
         "Nachrichten in diesem Raum sind Ende-zu-Ende-verschlüsselt. Das kann nicht deaktiviert werden.",
+    "roomSettings.roomKey": "Raumschlüssel",
+    "roomSettings.resetRoomKey": "Raumschlüssel zurücksetzen",
+    "roomSettings.resetRoomKeyHint":
+        "Wenn andere deine Nachrichten hier nicht lesen können, nutzt deine nächste Nachricht damit einen neuen Schlüssel und teilt ihn erneut mit allen Sitzungen im Raum.",
+    "roomSettings.couldNotResetRoomKey":
+        "Raumschlüssel konnte nicht zurückgesetzt werden",
     "roomSettings.enableEncryption": "Verschlüsselung aktivieren",
     "roomSettings.typeToConfirm":
         "Zum Bestätigen {ENABLE_ENCRYPTION_CONFIRM_PHRASE} eingeben",
@@ -2472,6 +2480,9 @@ const messages: Record<MessageKey, string> = {
         "QR-Übereinstimmung konnte nicht abgebrochen werden",
     "crypto.encryptionIsNotReadyOnThis":
         "Die Verschlüsselung ist in dieser Sitzung nicht bereit",
+    "crypto.roomIsNotEncrypted": "Dieser Raum ist nicht verschlüsselt.",
+    "crypto.roomKeyDiscarded":
+        "Deine nächste Nachricht hier nutzt einen neuen Raumschlüssel, der wieder an alle Sitzungen im Raum geht.",
     "crypto.accountApprovalCancelled":
         "Die Bestätigung auf deiner Kontoseite wurde abgebrochen.",
     "crypto.accountPasswordRequired":
@@ -3236,6 +3247,8 @@ const messages: Record<MessageKey, string> = {
     "slashCommands.userServerLevel": "<@user:server> [Stufe]",
     "slashCommands.resetAUserSPowerLevel":
         "Berechtigungsstufe eines Benutzers auf Standard zurücksetzen",
+    "slashCommands.discardSession":
+        "Für die nächste Nachricht einen neuen Raumschlüssel nutzen, falls andere deine nicht lesen können",
     "slashCommands.usage": "Verwendung: /{name} {argHint}",
     "slashCommands.usage2": "Verwendung: /{name}",
 
