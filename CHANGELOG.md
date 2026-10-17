@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.26.0
+
+🐛 **Fixed**
+
+- **Messages you can't decrypt, from one of someone's sessions:** a session missing a message's key now asks the sending session for it, and Zam sends it back. This works for keys that never arrived, which used to leave every later message from that sender session unreadable until it switched keys. The sending session only re-sends to someone joined to the room, in rooms where members can see past messages, and only keys it created itself. Both sides need this version.
+- **Encryption failing to start no longer loses keys:** if encryption couldn't start, a session used to keep syncing and the server deleted the keys other people sent it, so their messages stayed unreadable even after a reload. Encryption now retries a few times before giving up. If it still can't start, sliding sync leaves those keys on the server, and classic sync pauses until a reload instead.
+
+✨ **New**
+
+- **Reset a room's key:** `/discardsession`, or Room settings > Security > Reset room key, makes your next message in that room use a new key, shared with every session in the room again. Use it when people can't read what you send.
+
 ## v1.25.0
 
 ✨ **New**
