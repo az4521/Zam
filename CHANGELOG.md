@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.25.0
+
+✨ **New**
+
+- **See someone's sessions:** a user's profile card now has a Sessions list showing each of their sessions that yours knows about, marked Verified, Unverified or Not signed by owner. Your encrypted messages only reach the sessions on this list. If someone can't read your messages, check whether their session is listed; the refresh button asks the server for their current sessions.
+
 ## v1.24.3
 
 🐛 **Fixed**
