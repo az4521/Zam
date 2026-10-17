@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.24.3
+
+🐛 **Fixed**
+
+- **Verifying a new session from an older one:** the older session now fetches just your own sessions before starting, instead of everyone you share an encrypted room with. That could take long enough to fail with "This session doesn't know about that one yet". If it still can't find the session, the error now says why: the session never published its encryption keys, or its keys were rejected. Either way, signing that session out and back in fixes it.
+
 ## v1.24.2
 
 🐛 **Fixed**
