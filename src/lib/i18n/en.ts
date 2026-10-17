@@ -2038,6 +2038,13 @@ export const en = {
     "userProfileCard.notAMemberOfThisRoom": "Not a member of this room",
     "userProfileCard.mutualRooms": "Mutual rooms: {total}",
     "userProfileCard.more": "+{moreCount} more",
+    "userProfileCard.sessions": "Sessions",
+    "userProfileCard.sessionsCount": "Sessions: {total}",
+    "userProfileCard.refreshSessions":
+        "Ask the server for their current sessions",
+    "userProfileCard.noKnownSessions":
+        "This session doesn't know any of their sessions, so they can't read your encrypted messages.",
+    "userProfileCard.couldNotLoadSessions": "Could not load their sessions",
     "userProfileCard.opening": "Opening…",
     "userProfileCard.message": "Message",
     "userProfileCard.verifyUser": "Verify user",
@@ -2545,6 +2552,7 @@ export const en = {
     "verification.verified": "Verified",
     "verification.unverified": "Unverified",
     "verification.signedByYou": "Signed by you",
+    "verification.notSignedByOwner": "Not signed by owner",
     "verification.verifyWithAnotherDevice": "Verify with another device",
     "verification.useAnotherDevice": "Use another device",
     "verification.couldNotSendVerificationRequest":

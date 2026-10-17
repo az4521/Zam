@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { untrack } from "svelte";
     import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
@@ -70,9 +71,15 @@
     import {
         isCryptoAvailable,
         getUserTrust,
+        getKnownDevices,
         isRoomEncrypted,
+        type KnownDevice,
     } from "$lib/matrix/crypto";
-    import { userTrustBadge } from "$lib/utils/verification";
+    import {
+        deviceTrustBadge,
+        userTrustBadge,
+        type TrustTone,
+    } from "$lib/utils/verification";
     import { createStaleGuard } from "$lib/utils/staleGuard";
     import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
     import {
@@ -188,6 +195,41 @@
     // they run concurrently and neither should supersede the other.
     const trustRequests = createStaleGuard();
     const actionRequests = createStaleGuard();
+    const deviceRequests = createStaleGuard();
+
+    // Their sessions as this session's crypto knows them: the ones our
+    // messages are encrypted for. Loaded on first expand (it can mean a keys
+    // download), and again after a verification finishes.
+    let sessionsOpen = $state(false);
+    let devices = $state<KnownDevice[] | null>(null);
+    let devicesLoading = $state(false);
+    let devicesError = $state(false);
+
+    async function loadDevices(refresh = false) {
+        if (isSelf || !userId || !isCryptoAvailable()) return;
+        const target = userId;
+        devicesLoading = true;
+        devicesError = false;
+        const outcome = await deviceRequests.run(() =>
+            getKnownDevices(target, { refresh }),
+        );
+        if (outcome.status === "stale" || target !== userId) return;
+        devicesLoading = false;
+        if (outcome.status === "ok" && outcome.value) devices = outcome.value;
+        else devicesError = true;
+    }
+
+    function toggleSessions() {
+        sessionsOpen = !sessionsOpen;
+        if (sessionsOpen && devices === null) void loadDevices();
+    }
+
+    const toneClass = (tone: TrustTone) =>
+        tone === "verified"
+            ? "bg-discord-online/20 text-discord-online"
+            : tone === "warning"
+              ? "bg-discord-warning/20 text-discord-warning"
+              : "bg-discord-messageHover text-discord-textMuted";
 
     async function loadTrust() {
         userTrust = null;
@@ -212,6 +254,11 @@
         void profileCardState.userId;
         trustRequests.cancel();
         actionRequests.cancel();
+        deviceRequests.cancel();
+        sessionsOpen = false;
+        devices = null;
+        devicesLoading = false;
+        devicesError = false;
         pending = null;
         confirming = null;
         errorMsg = null;
@@ -223,6 +270,7 @@
     $effect(() => {
         void verificationState.verificationTick;
         loadTrust();
+        if (untrack(() => devices !== null)) void loadDevices();
     });
 
     async function startVerifyUser() {
@@ -564,6 +612,116 @@
                                 moreCount: mutual.moreCount,
                             })}
                         </p>
+                    {/if}
+                </div>
+            {/if}
+
+            {#if !isSelf && isCryptoAvailable()}
+                <div class="mt-3 pt-3 border-t border-discord-divider">
+                    <div class="flex items-center gap-1">
+                        <button
+                            onclick={toggleSessions}
+                            aria-expanded={sessionsOpen}
+                            class="flex-1 flex items-center gap-1 min-w-0 text-start text-xs font-semibold text-discord-textMuted uppercase tracking-wide hover:text-discord-textPrimary transition-colors"
+                        >
+                            <svg
+                                class="w-3 h-3 flex-shrink-0 transition-transform {sessionsOpen
+                                    ? 'rotate-90'
+                                    : 'rtl:rotate-180'}"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                                aria-hidden="true"
+                            >
+                                <path
+                                    fill-rule="evenodd"
+                                    d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.17 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z"
+                                    clip-rule="evenodd"
+                                />
+                            </svg>
+                            <span class="truncate"
+                                >{devices
+                                    ? t("userProfileCard.sessionsCount", {
+                                          total: devices.length,
+                                      })
+                                    : t("userProfileCard.sessions")}</span
+                            >
+                        </button>
+                        {#if sessionsOpen}
+                            <button
+                                onclick={() => loadDevices(true)}
+                                disabled={devicesLoading}
+                                title={t("userProfileCard.refreshSessions")}
+                                aria-label={t(
+                                    "userProfileCard.refreshSessions",
+                                )}
+                                class="flex-shrink-0 p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                            >
+                                <svg
+                                    class="w-3.5 h-3.5 {devicesLoading
+                                        ? 'animate-spin'
+                                        : ''}"
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                    aria-hidden="true"
+                                >
+                                    <path
+                                        fill-rule="evenodd"
+                                        d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Zm1.23-3.723a.75.75 0 0 0 .219-.53V2.929a.75.75 0 0 0-1.5 0V5.36l-.31-.31A7 7 0 0 0 3.239 8.188a.75.75 0 1 0 1.448.389A5.5 5.5 0 0 1 13.89 6.11l.311.31h-2.432a.75.75 0 0 0 0 1.5h4.243a.75.75 0 0 0 .53-.219Z"
+                                        clip-rule="evenodd"
+                                    />
+                                </svg>
+                            </button>
+                        {/if}
+                    </div>
+                    {#if sessionsOpen}
+                        {#if devices === null && devicesLoading}
+                            <p class="mt-1 text-xs text-discord-textMuted">
+                                {t("common.loading")}
+                            </p>
+                        {:else if devicesError && devices === null}
+                            <p class="mt-1 text-xs text-discord-danger">
+                                {t("userProfileCard.couldNotLoadSessions")}
+                            </p>
+                        {:else if devices && devices.length === 0}
+                            <p class="mt-1 text-xs text-discord-warning">
+                                {t("userProfileCard.noKnownSessions")}
+                            </p>
+                        {:else if devices}
+                            <ul class="mt-1 space-y-1 max-h-40 overflow-y-auto">
+                                {#each devices as device (device.deviceId)}
+                                    {@const badge = deviceTrustBadge(device, {
+                                        flagUnsigned: true,
+                                    })}
+                                    <li class="flex items-center gap-2 min-w-0">
+                                        <div class="flex-1 min-w-0">
+                                            <p
+                                                class="text-xs text-discord-textSecondary truncate"
+                                            >
+                                                {device.displayName ||
+                                                    device.deviceId}
+                                            </p>
+                                            {#if device.displayName}
+                                                <p
+                                                    class="text-[10px] font-mono text-discord-textMuted truncate"
+                                                >
+                                                    {device.deviceId}
+                                                </p>
+                                            {/if}
+                                        </div>
+                                        <span
+                                            class="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {toneClass(
+                                                badge.tone,
+                                            )}">{badge.label}</span
+                                        >
+                                    </li>
+                                {/each}
+                            </ul>
+                            {#if devicesError}
+                                <p class="mt-1 text-xs text-discord-danger">
+                                    {t("userProfileCard.couldNotLoadSessions")}
+                                </p>
+                            {/if}
+                        {/if}
                     {/if}
                 </div>
             {/if}

@@ -1553,6 +1553,67 @@ export async function getDeviceTrust(
     }
 }
 
+/** One of another user's sessions, as THIS session's crypto store knows it. */
+export interface KnownDevice {
+    deviceId: string;
+    displayName: string | null;
+    isVerified: boolean;
+    /** Null when its trust couldn't be read (the keys query failed). */
+    signedByOwner: boolean | null;
+}
+
+/** Ask the server for `userId`'s keys now and wait for the store to have them. */
+async function queryUserKeysNow(
+    crypto: NonNullable<ReturnType<MatrixClient["getCrypto"]>>,
+    userId: string,
+): Promise<boolean> {
+    const rust = crypto as RustKeysQueryHooks;
+    if (!rust.olmMachine || !rust.outgoingRequestProcessor) return false;
+    const { UserId } = await import("@matrix-org/matrix-sdk-crypto-wasm");
+    const request = rust.olmMachine.queryKeysForUsers([new UserId(userId)]);
+    await rust.outgoingRequestProcessor.makeOutgoingRequest(request);
+    return true;
+}
+
+/**
+ * Every session of `userId` that this session's crypto knows, with its trust.
+ * For someone we share an encrypted room with, these are exactly the sessions
+ * our messages are encrypted for: one missing here gets no keys from us. With
+ * `refresh`, their keys are queried from the server first and the answer
+ * awaited, rather than waiting for a sync to report the change (which also
+ * brings our room-key sharing up to date). Null when crypto isn't ready.
+ */
+export async function getKnownDevices(
+    userId: string,
+    { refresh = false }: { refresh?: boolean } = {},
+): Promise<KnownDevice[] | null> {
+    const crypto = getClient()?.getCrypto();
+    if (!crypto) return null;
+    let queried = refresh && (await queryUserKeysNow(crypto, userId));
+    // Downloads the list when we don't track this user, but without storing
+    // it, so their trust can't be read from the store yet.
+    const devices = (await crypto.getUserDeviceInfo([userId], true)).get(
+        userId,
+    );
+    const list = [...(devices?.values() ?? [])];
+    const readTrust = () =>
+        Promise.all(list.map((d) => getDeviceTrust(userId, d.deviceId)));
+    let trust = await readTrust();
+    // A keys query stores what it gets, tracked or not.
+    if (!queried && trust.some((t) => t === null)) {
+        queried = await queryUserKeysNow(crypto, userId);
+        if (queried) trust = await readTrust();
+    }
+    return list
+        .map((device, i): KnownDevice => ({
+            deviceId: device.deviceId,
+            displayName: device.displayName ?? null,
+            isVerified: trust[i]?.isVerified ?? false,
+            signedByOwner: trust[i]?.signedByOwner ?? null,
+        }))
+        .sort((a, b) => a.deviceId.localeCompare(b.deviceId));
+}
+
 /**
  * Shield inputs for a single timeline event, reduced from the SDK's
  * `EventEncryptionInfo` to plain numbers so the pure view-model in

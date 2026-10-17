@@ -129,6 +129,32 @@ describe("deviceTrustBadge — from a device verification status", () => {
         expect(badge.label).toBe("Signed by you");
     });
 
+    it("flags another user's session its owner never signed", () => {
+        const badge = deviceTrustBadge(
+            { isVerified: false, signedByOwner: false },
+            { flagUnsigned: true },
+        );
+        expect(badge.tone).toBe("warning");
+        expect(badge.label).toBe("Not signed by owner");
+    });
+
+    it("doesn't flag a session whose trust couldn't be read", () => {
+        const badge = deviceTrustBadge(
+            { isVerified: false, signedByOwner: null },
+            { flagUnsigned: true },
+        );
+        expect(badge.label).toBe("Unverified");
+    });
+
+    it("keeps a signed session of an unverified user plain Unverified", () => {
+        const badge = deviceTrustBadge(
+            { isVerified: false, signedByOwner: true },
+            { flagUnsigned: true },
+        );
+        expect(badge.tone).toBe("unverified");
+        expect(badge.label).toBe("Unverified");
+    });
+
     it("keeps Verified over Signed by you for an own device", () => {
         const badge = deviceTrustBadge(
             { isVerified: true, signedByOwner: true },

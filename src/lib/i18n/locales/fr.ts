@@ -2091,6 +2091,14 @@ const messages: Record<MessageKey, string> = {
     "userProfileCard.notAMemberOfThisRoom": "N'est pas membre de ce salon",
     "userProfileCard.mutualRooms": "Salons en commun : {total}",
     "userProfileCard.more": "+{moreCount} autres",
+    "userProfileCard.sessions": "Sessions",
+    "userProfileCard.sessionsCount": "Sessions : {total}",
+    "userProfileCard.refreshSessions":
+        "Demander au serveur ses sessions actuelles",
+    "userProfileCard.noKnownSessions":
+        "Cette session ne connaît aucune de ses sessions, donc vos messages chiffrés lui sont illisibles.",
+    "userProfileCard.couldNotLoadSessions":
+        "Impossible de charger ses sessions",
     "userProfileCard.opening": "Ouverture…",
     "userProfileCard.message": "Message",
     "userProfileCard.verifyUser": "Vérifier l'utilisateur",
@@ -2630,6 +2638,7 @@ const messages: Record<MessageKey, string> = {
     "verification.verified": "Vérifié",
     "verification.unverified": "Non vérifié",
     "verification.signedByYou": "Signé par vous",
+    "verification.notSignedByOwner": "Non signée par son propriétaire",
     "verification.verifyWithAnotherDevice": "Vérifier avec un autre appareil",
     "verification.useAnotherDevice": "Utiliser un autre appareil",
     "verification.couldNotSendVerificationRequest":

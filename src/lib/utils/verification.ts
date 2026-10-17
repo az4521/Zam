@@ -96,13 +96,20 @@ export interface TrustBadge {
  * unverified session which of its siblings are the real, cross-signed ones.
  */
 export function deviceTrustBadge(
-    status: { isVerified: boolean; signedByOwner?: boolean } | null,
-    { ownDevice = false }: { ownDevice?: boolean } = {},
+    status: { isVerified: boolean; signedByOwner?: boolean | null } | null,
+    {
+        ownDevice = false,
+        flagUnsigned = false,
+    }: { ownDevice?: boolean; flagUnsigned?: boolean } = {},
 ): TrustBadge {
     if (status?.isVerified)
         return { label: t("verification.verified"), tone: "verified" };
     if (ownDevice && status?.signedByOwner)
         return { label: t("verification.signedByYou"), tone: "unverified" };
+    // `flagUnsigned`: another user's session that its owner never
+    // cross-signed. Verifying the user won't vouch for it.
+    if (flagUnsigned && status?.signedByOwner === false)
+        return { label: t("verification.notSignedByOwner"), tone: "warning" };
     return { label: t("verification.unverified"), tone: "unverified" };
 }
 

@@ -1664,6 +1664,145 @@ describe("startDeviceVerification device lookup", () => {
     });
 });
 
+describe("getKnownDevices", () => {
+    beforeEach(() => {
+        vi.resetModules();
+        vi.clearAllMocks();
+    });
+
+    const them = "@them:example.org";
+    const devicesOf = (...ids: string[]) =>
+        new Map([
+            [
+                them,
+                new Map(
+                    ids.map((id) => [
+                        id,
+                        { deviceId: id, displayName: `${id} phone` },
+                    ]),
+                ),
+            ],
+        ]);
+    const trust: Record<string, { verified: boolean; signed: boolean }> = {
+        A: { verified: true, signed: true },
+        B: { verified: false, signed: false },
+        C: { verified: false, signed: true },
+    };
+    const getDeviceVerificationStatus = (_u: string, id: string) =>
+        Promise.resolve({
+            isVerified: () => trust[id].verified,
+            signedByOwner: trust[id].signed,
+        });
+
+    it("lists their sessions with trust, without asking the server", async () => {
+        const mod = await import("./crypto");
+        const queryKeysForUsers = vi.fn();
+        const getUserDeviceInfo = vi.fn(() =>
+            Promise.resolve(devicesOf("B", "A")),
+        );
+        h.getClient.mockReturnValue({
+            getCrypto: () => ({
+                getUserDeviceInfo,
+                getDeviceVerificationStatus,
+                olmMachine: { userId: {}, queryKeysForUsers },
+                outgoingRequestProcessor: { makeOutgoingRequest: vi.fn() },
+            }),
+        });
+
+        expect(await mod.getKnownDevices(them)).toEqual([
+            {
+                deviceId: "A",
+                displayName: "A phone",
+                isVerified: true,
+                signedByOwner: true,
+            },
+            {
+                deviceId: "B",
+                displayName: "B phone",
+                isVerified: false,
+                signedByOwner: false,
+            },
+        ]);
+        // Downloads the list if we don't track them yet.
+        expect(getUserDeviceInfo).toHaveBeenCalledWith([them], true);
+        expect(queryKeysForUsers).not.toHaveBeenCalled();
+    });
+
+    class FakeUserId {
+        constructor(public readonly id: string) {}
+    }
+
+    it("re-queries their keys from the server on refresh", async () => {
+        vi.doMock("@matrix-org/matrix-sdk-crypto-wasm", () => ({
+            UserId: FakeUserId,
+        }));
+        const mod = await import("./crypto");
+        const keysQuery = { type: "KeysQuery" };
+        const order: string[] = [];
+        const queryKeysForUsers = vi.fn(() => keysQuery);
+        const makeOutgoingRequest = vi.fn(() => {
+            order.push("query");
+            return Promise.resolve();
+        });
+        h.getClient.mockReturnValue({
+            getCrypto: () => ({
+                getUserDeviceInfo: vi.fn(() => {
+                    order.push("list");
+                    return Promise.resolve(devicesOf("A", "C"));
+                }),
+                getDeviceVerificationStatus,
+                olmMachine: { userId: {}, queryKeysForUsers },
+                outgoingRequestProcessor: { makeOutgoingRequest },
+            }),
+        });
+
+        const list = await mod.getKnownDevices(them, { refresh: true });
+
+        expect(queryKeysForUsers).toHaveBeenCalledWith([new FakeUserId(them)]);
+        expect(makeOutgoingRequest).toHaveBeenCalledWith(keysQuery);
+        expect(order).toEqual(["query", "list"]);
+        expect(list?.map((d) => d.deviceId)).toEqual(["A", "C"]);
+        vi.doUnmock("@matrix-org/matrix-sdk-crypto-wasm");
+    });
+
+    // An untracked user's list is downloaded but not stored, so their trust
+    // can't be read until a keys query stores it.
+    it("queries their keys when their trust isn't in the store", async () => {
+        vi.doMock("@matrix-org/matrix-sdk-crypto-wasm", () => ({
+            UserId: FakeUserId,
+        }));
+        const mod = await import("./crypto");
+        let stored = false;
+        const makeOutgoingRequest = vi.fn(() => {
+            stored = true;
+            return Promise.resolve();
+        });
+        h.getClient.mockReturnValue({
+            getCrypto: () => ({
+                getUserDeviceInfo: () => Promise.resolve(devicesOf("C")),
+                getDeviceVerificationStatus: (u: string, id: string) =>
+                    stored
+                        ? getDeviceVerificationStatus(u, id)
+                        : Promise.resolve(null),
+                olmMachine: { userId: {}, queryKeysForUsers: vi.fn() },
+                outgoingRequestProcessor: { makeOutgoingRequest },
+            }),
+        });
+
+        const list = await mod.getKnownDevices(them);
+
+        expect(makeOutgoingRequest).toHaveBeenCalledTimes(1);
+        expect(list?.[0].signedByOwner).toBe(true);
+        vi.doUnmock("@matrix-org/matrix-sdk-crypto-wasm");
+    });
+
+    it("is null when crypto isn't ready", async () => {
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue({ getCrypto: () => undefined });
+        expect(await mod.getKnownDevices(them)).toBeNull();
+    });
+});
+
 describe("requestOwnVerification", () => {
     beforeEach(() => {
         vi.resetModules();
