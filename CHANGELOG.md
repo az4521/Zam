@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.28.0
+
+🐛 **Fixed**
+
+- **No more signing out because someone else's session re-keyed:** when one of someone's sessions comes back with new encryption keys under the same session ID, Zam now drops its old copy and takes on the new keys automatically, the same as for a session that just signed in. Before, your messages stayed unreadable to that session until you signed out and back in. The replaced session starts unverified, unless its owner has cross-signed its new keys.
+
 ## v1.27.0
 
 🐛 **Fixed**
