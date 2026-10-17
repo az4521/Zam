@@ -285,7 +285,9 @@
                 <div class="mt-4 space-y-2">
                     {#each emojiRows as row, rowIndex (rowIndex)}
                         <div class="flex justify-center gap-2">
-                            {#each row as emoji (emoji.symbol + emoji.name)}
+                            <!-- Keyed by position: SAS picks each emoji
+                                 independently, so one can appear twice. -->
+                            {#each row as emoji, i (i)}
                                 <div
                                     class="flex w-16 flex-col items-center gap-1 rounded bg-discord-backgroundTertiary px-1 py-2"
                                 >
