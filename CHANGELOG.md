@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.24.0
+
+✨ **New**
+
+- **Verify a new session from the new session:** a session that isn't verified yet can now ask your other sessions to verify it, with "Verify with another device" (in Settings > Security, on this session in Settings > Sessions, and in the sidebar prompt). Accept the request on any of your verified sessions and compare the emoji. Entering your recovery key still works too.
+
 ## v1.23.5
 
 🐛 **Fixed**
