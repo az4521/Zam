@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.27.2
+
+🐛 **Fixed**
+
+- **MIDI attachments play the right instruments:** the included sound bank had no real equivalent for 44 General MIDI instruments and used the nearest MT-32 sound instead, so Kalimba played a square wave, Distortion Guitar sounded clean, Breath Noise was a pan flute and Gunshot a snare. Those now have their own sounds.
+
+✨ **New**
+
+- **GS sounds in the included bank:** all 98 GS variation sounds that Windows' MIDI synth has, including Ukulele, Mandolin, 12-string guitar, Sine Wave and the sound effects (Rain, Thunder, Dog, Siren, Explosion, ...). MIDI files made for Windows or Roland Sound Canvas modules now sound as intended. The bank grows from 0.9 to 1.8 MB, and is only downloaded the first time you play a MIDI.
+- **MIDI sounds the same everywhere:** MIDI attachments now play with the included sound bank by default, rather than your device's own. You can still pick System or a custom bank under Settings > Messages & media > MIDI.
+
 ## v1.27.1
 
 🐛 **Fixed**
