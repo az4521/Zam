@@ -441,8 +441,8 @@
         </div>
     </section>
 
-    <!-- Attribution for bundled CC BY assets. Collapsed: it's for the record,
-         not something anyone needs to see day to day. -->
+    <!-- Attribution for the bundled sound bank's sources. Collapsed: it's
+         for the record, not something anyone needs to see day to day. -->
     <details class="group">
         <summary
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide cursor-pointer select-none hover:text-discord-textPrimary"
@@ -464,6 +464,21 @@
                     author: "W.D. Tharinda Perera",
                     original: "Jexu",
                 })}
+            </p>
+            <p class="text-xs text-discord-textMuted">
+                {t("aboutSettings.creditsSoundFontGaps", {
+                    microgm: "microgm",
+                    microgmAuthor: "michael",
+                    generalUser: "GeneralUser GS",
+                    generalUserAuthor: "S. Christian Collins",
+                })}
+                <a
+                    href="https://github.com/mrbumpy409/GeneralUser-GS"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-discord-accent hover:underline"
+                    >github.com/mrbumpy409/GeneralUser-GS</a
+                >
             </p>
         </div>
     </details>

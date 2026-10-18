@@ -72,6 +72,8 @@ const messages: Record<MessageKey, string> = {
     "aboutSettings.creditsMidiInstruments": "ܡܐܢ̈ܐ ܕ MIDI",
     "aboutSettings.creditsSoundFont":
         "ܡܢ {author}، ܥܠ ܫܬܐܣܐ ܕ Phoenix ܡܢ {original}. ܬܚܝܬ ܦܣܩܐ CC BY؛ ܫܘܚܠܦܐ ܠ General MIDI ܘܟܒܝܫܐ ܠ Zam.",
+    "aboutSettings.creditsSoundFontGaps":
+        "ܡܐܢ̈ܐ ܕܠܝܬ ܒ MT-32: {microgm} ܡܢ {microgmAuthor} (WTFPL) ܘ {generalUser} ܡܢ {generalUserAuthor}.",
     "aboutSettings.troubleshooting": "ܬܘܪܨܐ ܕܦܘܕ̈ܐ",
     "aboutSettings.clearCacheAndResync": "ܫܘܦ ܓܙܐ ܘܛܥܘܢ ܡܢ ܕܪܝܫ",
     "aboutSettings.reDownloadsYourRoomsFromThe":

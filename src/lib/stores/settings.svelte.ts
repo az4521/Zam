@@ -258,9 +258,9 @@ export const settingsState = $state({
      *  turn off to upload files byte-for-byte as picked. Local-only. */
     faststartVideos: readBool("faststartVideos", true),
     /** Device-global: which sound bank plays MIDI attachments (see
-     *  utils/midiSoundBank). Default "system", which falls back to the bundled
-     *  bank where the OS has none. Local-only: a custom bank lives in this
-     *  device's IndexedDB. */
+     *  utils/midiSoundBank). Default "bundled", the SoundFont Zam ships, so
+     *  MIDI sounds the same everywhere. Local-only: a custom bank lives in
+     *  this device's IndexedDB. */
     midiSoundBank: normalizeMidiSoundBank(readString("midiSoundBank")),
     /** Device-global: minimise animations and transitions (battery-saver /
      *  accessibility). Default OFF (motion on). Additive to the OS

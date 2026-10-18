@@ -1,18 +1,32 @@
 /**
  * Build static/soundfonts/default.sf3 from "Phoenix MT-32" (W.D. Tharinda
- * Perera, based on Jexu's Phoenix; CC BY; https://musical-artifacts.com/artifacts/1481).
+ * Perera, based on Jexu's Phoenix; CC BY; https://musical-artifacts.com/artifacts/1481),
+ * with its gaps filled from two small free banks:
  *
- *   node scripts/build-soundfont.mjs <Phoenix_MT-32.sf2> [out.sf3]
+ *   node scripts/build-soundfont.mjs <Phoenix_MT-32.sf2> <microgm-opt.sf2> \
+ *       <GeneralUser-GS.sf2> [out.sf3]
+ *
+ * - microgm-opt.sf2: "gm soundfont for tiny devices" by michael, WTFPL.
+ * - GeneralUser-GS.sf2: GeneralUser GS v2.0.3 by S. Christian Collins,
+ *   https://github.com/mrbumpy409/GeneralUser-GS (its license allows use in
+ *   software and modification).
  *
  * The source bank lays its bank-0 presets out like a Roland MT-32, so General
  * MIDI files (nearly every .mid people share) would get the wrong instruments:
  * GM program 24 "Nylon Guitar" is its "Synth Brass 1", and so on. This:
  *
  * 1. Moves the original MT-32 presets to bank 127, unchanged.
- * 2. Adds 128 General MIDI presets in bank 0, each reusing the zones of the
- *    closest-sounding MT-32 preset (GM_TO_MT32 below). No samples are copied.
- *    The GS drum kits are already in GM layout and are left alone.
- * 3. Re-encodes every sample as Opus (ffmpeg with libopus must be on PATH),
+ * 2. Adds 128 General MIDI presets in bank 0. Most reuse the zones of the
+ *    closest-sounding MT-32 preset (GM_TO_MT32 below; no samples copied).
+ *    The 44 the MT-32 has nothing like (Kalimba, Distortion Guitar, Breath
+ *    Noise, ...) are copied from microgm instead.
+ * 3. Adds the 98 GS variation tones (banks 1-32), so every patch Windows'
+ *    GS synth knows has its own sound: 52 reuse an MT-32 preset (GS_TO_MT32;
+ *    Roland built many from MT-32 tones), and the 46 the MT-32 can't play
+ *    (Ukulele, Mandolin, Sine Wave, the sound effects, ...) are copied from
+ *    GeneralUser GS. The GS drum kits are already in GM layout and are left
+ *    alone.
+ * 4. Re-encodes every sample as Opus (ffmpeg with libopus must be on PATH),
  *    packed as src/lib/utils/opusSample.ts describes. Plain SF3 would use
  *    Vorbis, but its per-sample headers alone came to ~1.4 MB here; Opus is
  *    0.8 MB for the whole bank. Opus only runs at 48 kHz, so each sample is
@@ -29,41 +43,90 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { BasicPreset, BasicSoundBank, SoundBankLoader } from "spessasynth_core";
 import { packOpusSample } from "../src/lib/utils/opusSample.ts";
 
-/** GM program -> MT-32 program (the source bank's bank-0 numbering). */
+/**
+ * GM program -> MT-32 program (the source bank's bank-0 numbering), or null
+ * where the MT-32 has no such instrument and microgm's is used instead.
+ */
 // prettier-ignore
 const GM_TO_MT32 = [
     // 0-7 piano
-    0, 1, 2, 7, 3, 4, 16, 19,
+    0, 1, null, 7, 3, 4, 16, 19,
     // 8-15 chromatic percussion
-    22, 101, 23, 97, 104, 103, 102, 105,
+    22, 101, null, 97, 104, 103, 102, null,
     // 16-23 organ
-    8, 9, 10, 12, 14, 15, 87, 15,
+    8, 9, 10, 12, 14, 15, 87, null,
     // 24-31 guitar
-    59, 60, 61, 62, 61, 62, 62, 60,
+    59, 60, 61, 62, null, null, null, null,
     // 32-39 bass
     64, 66, 67, 70, 68, 69, 28, 29,
     // 40-47 strings
-    52, 53, 54, 56, 49, 51, 57, 112,
+    52, null, 54, 56, null, 51, 57, 112,
     // 48-55 ensemble
-    48, 50, 49, 50, 34, 34, 34, 122,
+    48, 50, null, null, 34, null, null, 122,
     // 56-63 brass
-    88, 90, 94, 89, 92, 95, 24, 25,
+    88, 90, 94, null, 92, 95, 24, 25,
     // 64-71 reed
     78, 79, 80, 81, 84, 85, 86, 82,
     // 72-79 pipe
-    74, 72, 76, 77, 110, 107, 108, 73,
+    74, 72, 76, 77, 110, 107, 108, null,
     // 80-87 synth lead
-    47, 44, 111, 111, 62, 39, 27, 31,
+    47, 44, null, null, null, 39, null, null,
     // 88-95 synth pad
-    32, 36, 26, 34, 49, 35, 46, 37,
+    32, null, null, null, null, 35, 46, null,
     // 96-103 synth effects
-    41, 36, 40, 37, 32, 43, 43, 45,
+    41, 36, 40, 37, null, null, 43, null,
     // 104-111 ethnic
-    63, 60, 105, 105, 99, 106, 53, 84,
+    63, null, null, 105, null, null, null, null,
     // 112-119 percussive
-    100, 115, 99, 120, 117, 113, 116, 119,
+    100, null, null, null, 117, 113, 116, 119,
     // 120-127 sound effects
-    118, 111, 37, 124, 123, 119, 119, 114,
+    null, null, null, 124, 123, null, null, null,
+];
+
+/**
+ * GS variation tones (the Sound Canvas set, as in Windows' gm.dls) played by
+ * an MT-32 preset, as [bank, program, MT-32 program, name]. Many GS
+ * variations began as MT-32 tones, and these cost nothing: no samples.
+ */
+// prettier-ignore
+const GS_TO_MT32 = [
+    [8, 0, 0, "Piano 1w"], [16, 0, 0, "Piano 1d"], [8, 1, 1, "Piano 2w"],
+    [8, 2, 2, "Piano 3w"], [8, 3, 7, "Honky-tonk w"],
+    [8, 4, 5, "Detuned EP 1"], [16, 4, 3, "E.Piano 1v"], [24, 4, 6, "60's E.Piano"],
+    [8, 5, 6, "Detuned EP 2"], [16, 5, 4, "E.Piano 2v"],
+    [8, 6, 17, "Coupled Hps."], [16, 6, 16, "Harpsi.w"], [24, 6, 18, "Harpsi.o"],
+    [8, 11, 98, "Vibraphone w"], [8, 12, 104, "Marimba w"],
+    [8, 14, 102, "Church Bell"], [9, 14, 38, "Carillon"],
+    [8, 16, 11, "Detuned Or.1"], [16, 16, 9, "60's Organ 1"], [32, 16, 11, "Organ 4"],
+    [8, 17, 10, "Detuned Or.2"], [32, 17, 11, "Organ 5"],
+    [8, 19, 13, "Church Org.2"], [16, 19, 14, "Church Org.3"],
+    [8, 21, 15, "Accordion It"],
+    [16, 24, 59, "Nylon Gt.o"], [32, 24, 59, "Nylon Gt.2"],
+    [8, 27, 61, "Chorus Gt."], [8, 28, 61, "Funk Gt."], [16, 28, 62, "Funk Gt.2"],
+    [1, 38, 28, "SynthBass101"], [8, 38, 30, "Synth Bass 3"],
+    [8, 39, 31, "Synth Bass 4"], [16, 39, 29, "Rubber Bass"],
+    [8, 40, 53, "Slow Violin"], [8, 48, 50, "Orchestra"], [8, 50, 49, "Syn.Strings3"],
+    [32, 52, 34, "Choir Aahs 2"], [1, 57, 91, "Trombone 2"], [1, 60, 93, "Fr.Horn 2"],
+    [8, 61, 96, "Brass 2"], [8, 62, 26, "Synth Brass3"], [16, 62, 24, "AnalogBrass1"],
+    [8, 63, 27, "Synth Brass4"], [16, 63, 25, "AnalogBrass2"],
+    [8, 81, 44, "Doctor Solo"], [1, 98, 99, "Syn Mallet"], [1, 102, 40, "Echo Bell"],
+    [2, 102, 43, "Echo Pan"], [1, 104, 63, "Sitar 2"], [8, 115, 120, "Castanets"],
+    [9, 118, 115, "Elec Perc."],
+];
+
+/**
+ * The rest of the GS variations, taken from GeneralUser GS as [bank,
+ * program]: instruments the MT-32 has nothing like, and the sound effects.
+ */
+// prettier-ignore
+const GS_FROM_GENERALUSER = [
+    [8, 24], [8, 25], [16, 25], [8, 26], [8, 30], [8, 31], [1, 80], [8, 80],
+    [1, 81], [8, 107], [8, 116], [8, 117], [8, 118], [1, 120], [2, 120],
+    [1, 121], [1, 122], [2, 122], [3, 122], [4, 122], [5, 122], [1, 123],
+    [2, 123], [3, 123], [1, 124], [2, 124], [3, 124], [4, 124], [5, 124],
+    [1, 125], [2, 125], [3, 125], [4, 125], [5, 125], [6, 125], [7, 125],
+    [8, 125], [9, 125], [1, 126], [2, 126], [3, 126], [4, 126], [5, 126],
+    [1, 127], [2, 127], [3, 127],
 ];
 
 // prettier-ignore
@@ -96,16 +159,28 @@ if (GM_TO_MT32.length !== 128 || GM_NAMES.length !== 128) {
     throw new Error("GM mapping tables must have 128 entries");
 }
 
-const [input, output = "static/soundfonts/default.sf3"] = process.argv.slice(2);
-if (!input) {
-    console.error("usage: node scripts/build-soundfont.mjs <in.sf2> [out.sf3]");
+const [
+    input,
+    microgmPath,
+    generalUserPath,
+    output = "static/soundfonts/default.sf3",
+] = process.argv.slice(2);
+if (!input || !microgmPath || !generalUserPath) {
+    console.error(
+        "usage: node scripts/build-soundfont.mjs <Phoenix_MT-32.sf2> " +
+            "<microgm-opt.sf2> <GeneralUser-GS.sf2> [out.sf3]",
+    );
     process.exit(1);
 }
 
+function load(path) {
+    const data = readFileSync(path);
+    return SoundBankLoader.fromArrayBuffer(
+        data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength),
+    );
+}
 const file = readFileSync(input);
-const bank = SoundBankLoader.fromArrayBuffer(
-    file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength),
-);
+const bank = load(input);
 await BasicSoundBank.isSF3DecoderReady;
 
 const mt32 = new Map();
@@ -120,19 +195,78 @@ if (mt32.size !== 128) {
 // 1. Originals out of the way.
 for (const p of mt32.values()) p.bankMSB = MT32_BANK;
 
-// 2. GM presets sharing the MT-32 instruments.
-const gmPresets = GM_TO_MT32.map((mtProgram, gmProgram) => {
+/** The melodic preset at bank:program in `source`, or throw. */
+function findPreset(source, bankMSB, program, label) {
+    const p = source.presets.find(
+        (x) => !x.isDrum && x.bankMSB === bankMSB && x.program === program,
+    );
+    if (!p) throw new Error(`${label} has no preset ${bankMSB}:${program}`);
+    return p;
+}
+
+/**
+ * Prefix every instrument and sample name in `source` with a tag unique to
+ * it: cloneInstrument/cloneSample reuse whatever already has the same name,
+ * which would silently swap in a Phoenix instrument called "Flute".
+ */
+function tagNames(source, tag) {
+    const rename = (item, i) => {
+        item.name = `${tag}${i.toString(36)} ${item.name}`.slice(0, 20);
+    };
+    source.instruments.forEach(rename);
+    source.samples.forEach(rename);
+}
+
+let imported = 0;
+/** Copy `src`, with its instruments and samples, in as bank:program. */
+function importPreset(src, bankMSB, program, name) {
+    // clonePreset also reuses presets by name; give it one nothing has.
+    src.name = `~import ${imported++}`;
+    const p = bank.clonePreset(src);
+    p.name = name.slice(0, 19); // SF2 preset names: 20 bytes
+    p.bankMSB = bankMSB;
+    p.bankLSB = 0;
+    p.program = program;
+}
+
+/** A new preset at bank:program sharing an MT-32 preset's zones. */
+function mt32Alias(mtProgram, bankMSB, program, name) {
     const src = mt32.get(mtProgram);
     const p = new BasicPreset(bank);
-    p.name = GM_NAMES[gmProgram].slice(0, 19); // SF2 preset names: 20 bytes
-    p.program = gmProgram;
-    p.bankMSB = 0;
+    p.name = name.slice(0, 19);
+    p.program = program;
+    p.bankMSB = bankMSB;
     p.bankLSB = 0;
     p.globalZone.copyFrom(src.globalZone);
     for (const zone of src.zones) p.createZone(zone.instrument).copyFrom(zone);
     return p;
+}
+
+// 2. GM presets: the MT-32 instruments where one fits, microgm's elsewhere.
+const microgm = load(microgmPath);
+tagNames(microgm, "m");
+const aliases = [];
+GM_TO_MT32.forEach((mtProgram, gmProgram) => {
+    if (mtProgram === null) {
+        const src = findPreset(microgm, 0, gmProgram, "microgm");
+        importPreset(src, 0, gmProgram, GM_NAMES[gmProgram]);
+    } else {
+        aliases.push(mt32Alias(mtProgram, 0, gmProgram, GM_NAMES[gmProgram]));
+    }
 });
-bank.addPresets(...gmPresets);
+
+// 3. GS variation tones: MT-32 presets where Roland's came from one,
+// GeneralUser GS for the rest.
+for (const [bankMSB, program, mtProgram, name] of GS_TO_MT32) {
+    aliases.push(mt32Alias(mtProgram, bankMSB, program, name));
+}
+bank.addPresets(...aliases);
+const generalUser = load(generalUserPath);
+tagNames(generalUser, "g");
+for (const [bankMSB, program] of GS_FROM_GENERALUSER) {
+    const src = findPreset(generalUser, bankMSB, program, "GeneralUser GS");
+    importPreset(src, bankMSB, program, src.name.trim());
+}
 bank.flush();
 
 bank.soundBankInfo.name = "Phoenix MT-32 GM";
@@ -141,9 +275,11 @@ bank.soundBankInfo.comment =
     "by Jexu), CC BY, https://musical-artifacts.com/artifacts/1481. Changes: " +
     "MT-32 presets moved to bank 127; General MIDI presets added in bank 0 " +
     "mapped to the closest MT-32 instruments; samples re-encoded as Ogg " +
-    "Opus. Built by scripts/build-soundfont.mjs.";
+    "Opus. GM instruments the MT-32 lacks are from microgm (by michael, " +
+    "WTFPL); GS variation tones are from GeneralUser GS v2.0.3 by S. " +
+    "Christian Collins. Built by scripts/build-soundfont.mjs.";
 
-// 3. Opus-compress every sample.
+// 4. Opus-compress every sample.
 
 /** Kaiser window (beta 8, ~-80 dB sidelobes), tabulated over |x| in [0, 1]. */
 const KAISER = (() => {

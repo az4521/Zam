@@ -149,7 +149,7 @@
         customBank = null;
         resetSoundBank();
         if (settingsState.midiSoundBank === "custom")
-            setMidiSoundBank("system");
+            setMidiSoundBank("bundled");
         bankUploadBusy = false;
     }
 </script>

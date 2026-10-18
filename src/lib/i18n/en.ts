@@ -68,6 +68,8 @@ export const en = {
     "aboutSettings.creditsMidiInstruments": "MIDI instruments",
     "aboutSettings.creditsSoundFont":
         "by {author}, based on Phoenix by {original}. Licensed under CC BY; remapped to General MIDI and compressed for Zam.",
+    "aboutSettings.creditsSoundFontGaps":
+        "Instruments the MT-32 lacks: {microgm} by {microgmAuthor} (WTFPL) and {generalUser} by {generalUserAuthor}.",
     "aboutSettings.troubleshooting": "Troubleshooting",
     "aboutSettings.clearCacheAndResync": "Clear cache and resync",
     "aboutSettings.reDownloadsYourRoomsFromThe":

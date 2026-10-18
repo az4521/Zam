@@ -6,8 +6,8 @@
  * - "system": the OS's own bank, desktop app only (electron/main.cjs reads
  *   it): gm.dls on Windows, i.e. the Microsoft GS Wavetable Synth's sounds;
  *   Apple's gs_instruments.dls on macOS; a distro SoundFont on Linux.
- * - "bundled": the SoundFont shipped at BUNDLED_SOUND_BANK_URL (see
- *   static/soundfonts/README.md).
+ * - "bundled" (the default): the SoundFont shipped at BUNDLED_SOUND_BANK_URL
+ *   (see static/soundfonts/README.md).
  * - "custom": an SF2/SF3/DLS the user picked, kept in IndexedDB
  *   (./customSoundBank.ts).
  *

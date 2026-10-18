@@ -73,6 +73,8 @@ const messages: Record<MessageKey, string> = {
     "aboutSettings.creditsMidiInstruments": "Instrumentos MIDI",
     "aboutSettings.creditsSoundFont":
         "por {author}, basado en Phoenix de {original}. Con licencia CC BY; reasignado a General MIDI y comprimido para Zam.",
+    "aboutSettings.creditsSoundFontGaps":
+        "Instrumentos que le faltan al MT-32: {microgm} de {microgmAuthor} (WTFPL) y {generalUser} de {generalUserAuthor}.",
     "aboutSettings.troubleshooting": "Solución de problemas",
     "aboutSettings.clearCacheAndResync": "Borrar la caché y resincronizar",
     "aboutSettings.reDownloadsYourRoomsFromThe":
