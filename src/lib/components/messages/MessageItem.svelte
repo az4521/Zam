@@ -1394,6 +1394,35 @@
     const audioPlayable = $derived(
         msgtype === "m.audio" || (msgtype === "m.file" && audioIsTracker),
     );
+
+    /**
+     * Save the attachment as it was sent, decrypted if need be. The audio
+     * player's own download can't stand in: for MIDI and tracker modules it
+     * holds a WAV rendered here, and for streamed audio a MediaSource.
+     */
+    async function downloadAttachment(e: MouseEvent) {
+        const quiet = e.shiftKey;
+        const file = content?.file as EncryptedFile | undefined;
+        const fileUrl = file ? null : mxcToHttp(content?.url as string);
+        if (!file && !fileUrl) return;
+        try {
+            const blobUrl = file
+                ? await fetchDecryptedAttachmentBlob(
+                      file,
+                      (content?.info as { mimetype?: string } | undefined)
+                          ?.mimetype,
+                  )
+                : await fetchAttachmentBlob(fileUrl!);
+            try {
+                await saveObjectUrl(blobUrl, mediaFilename, { quiet });
+            } finally {
+                revokeLater(blobUrl);
+            }
+        } catch (err) {
+            console.error("Failed to download attachment", err);
+            showErrorToast("Failed to download attachment");
+        }
+    }
     const audioStreamUrl = $derived.by(() => {
         if (!audioClicked || !audioPlayable) return null;
         if (voiceMsg || audioIsMidi || audioIsTracker || audioStreamFailed)
@@ -2265,6 +2294,9 @@
                             ></audio>
                             {#if !audioStreamReady}{@render audioBar()}{/if}
                         {:else if audioBlobUrl}
+                            <!-- For MIDI and trackers, this <audio>'s own
+                             download saves the rendered WAV; the button
+                             beside it saves the original. -->
                             <!-- svelte-ignore a11y_media_has_caption -->
                             <audio
                                 controls
@@ -2283,6 +2315,26 @@
                             {#if audioLoading}{@render audioBar()}{/if}
                         {/if}
                     </div>
+                    <!-- A tracker sent as m.file has the file card's
+                     download button under this already. -->
+                    {#if msgtype !== "m.file" && (content?.file || content?.url)}
+                        <button
+                            onclick={downloadAttachment}
+                            class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                            title={t("messageItem.download")}
+                            aria-label={t("messageItem.download")}
+                        >
+                            <svg
+                                class="w-5 h-5"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"
+                                />
+                            </svg>
+                        </button>
+                    {/if}
                 </div>
             {/snippet}
 
@@ -2603,32 +2655,7 @@
                     </div>
                     {#if fileUrl || file}
                         <button
-                            onclick={async (e) => {
-                                const quiet = e.shiftKey;
-                                try {
-                                    const blobUrl = file
-                                        ? await fetchDecryptedAttachmentBlob(
-                                              file,
-                                              (content?.info as any)?.mimetype,
-                                          )
-                                        : await fetchAttachmentBlob(fileUrl!);
-                                    try {
-                                        await saveObjectUrl(blobUrl, fileName, {
-                                            quiet,
-                                        });
-                                    } finally {
-                                        revokeLater(blobUrl);
-                                    }
-                                } catch (e) {
-                                    console.error(
-                                        "Failed to download attachment",
-                                        e,
-                                    );
-                                    showErrorToast(
-                                        "Failed to download attachment",
-                                    );
-                                }
-                            }}
+                            onclick={downloadAttachment}
                             class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
                             title={t("messageItem.download")}
                         >
