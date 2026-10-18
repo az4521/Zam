@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.27.3
+
+🐛 **Fixed**
+
+- **Download the original MIDI or tracker file:** MIDI and tracker modules (.mid, .xm, .mod, .s3m, .it, ...) play as audio rendered on your device, so the player's download only saved that rendered WAV, and a MIDI sent as audio couldn't be downloaded as the original file at all. The player now has a download button that saves the file as it was sent. The player's own download still saves the rendered WAV.
+
 ## v1.27.2
 
 🐛 **Fixed**
