@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.27.4
+
+🐛 **Fixed**
+
+- **Read receipts no longer cover message text:** when a message's last line reached the edge of the screen, the read-receipt avatars in the corner sat on top of it. The text now wraps clear of them.
+- **Edited messages always say (edited):** in encrypted rooms, an edit showed the new text but often without the (edited) label. It now appears as soon as the edit decrypts.
+
 ## v1.27.3
 
 🐛 **Fixed**
