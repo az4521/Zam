@@ -368,6 +368,20 @@
     const receiptCluster = $derived(
         orderReadReceipts(receipts, auth.userId, receiptCap),
     );
+    // Width the receipt cluster button occupies: 16px avatars with a 2px gap,
+    // the "+N" label (ms-1 + text), and 4px of breathing room. Only the
+    // bottom-right anchor can overlap trailing text; right-aligned own bubbles
+    // move the cluster to the left.
+    const receiptSpacerWidth = $derived.by(() => {
+        if (receipts.length === 0 || bubble.alignOwn) return 0;
+        const n = receiptCluster.shown.length;
+        const avatars = Math.max(24, n * 16 + Math.max(0, n - 1) * 2);
+        const overflow =
+            receiptCluster.overflow > 0
+                ? 4 + 6 * (String(receiptCluster.overflow).length + 1)
+                : 0;
+        return avatars + overflow + 4;
+    });
     const receiptReaderList = $derived(
         orderReadReceipts(receipts, auth.userId, 20),
     );
@@ -717,6 +731,10 @@
     );
     const isEdited = $derived.by(() => {
         reactionTick;
+        // An encrypted edit is applied once it decrypts; content re-reads on
+        // this tick then, so the indicator must too or the edited text shows
+        // without it.
+        void messagesState.timelineTick;
         return !!event.replacingEvent();
     });
 
@@ -2703,6 +2721,17 @@
                             <span class="text-xs text-discord-textMuted ms-1"
                                 >{t("messageItem.edited")}</span
                             >
+                        {/if}
+                        {#if receiptSpacerWidth > 0}
+                            <!-- Zero-height stand-in for the out-of-flow receipt
+                             cluster: free when the last line has room, and wraps
+                             to its own line when the text would otherwise run
+                             under the avatars at the row's bottom corner. -->
+                            <span
+                                aria-hidden="true"
+                                class="inline-block h-0 align-baseline"
+                                style="width: {receiptSpacerWidth}px"
+                            ></span>
                         {/if}
                     </div>
                 </div>

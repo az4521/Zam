@@ -4556,8 +4556,25 @@ export function onEditEvent(
             callback(event, room);
         }
     };
+    // The Timeline check above misses encrypted edits (they arrive as
+    // m.room.encrypted with the relation inside the ciphertext) and edits the
+    // SDK applies from bundled/late relations. The SDK emits Replaced on the
+    // TARGET whenever its replacement changes, whatever the path, so listen
+    // for that too; the callback gets the target event.
+    const onReplaced = (target: MatrixEvent) => {
+        const roomId = target.getRoomId();
+        const room = roomId ? matrixClient?.getRoom(roomId) : null;
+        if (room) callback(target, room);
+    };
     matrixClient.on(RoomEvent.Timeline, handler as never);
-    return () => matrixClient?.off(RoomEvent.Timeline, handler as never);
+    matrixClient.on(MatrixEventEvent.Replaced as never, onReplaced as never);
+    return () => {
+        matrixClient?.off(RoomEvent.Timeline, handler as never);
+        matrixClient?.off(
+            MatrixEventEvent.Replaced as never,
+            onReplaced as never,
+        );
+    };
 }
 
 // ── Default push rule helpers ──────────────────────────────────────────────
