@@ -496,6 +496,17 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.noiseAttenuationLimitHint":
         "Most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
     "debugSettings.syncStatus": "État de la synchronisation",
+    "debugSettings.clientLogs": "Journaux du client",
+    "debugSettings.clientLogsHint":
+        "Tout ce que l'application a journalisé depuis son démarrage, sans jetons, mots de passe ni clés. Envoyez-le pour signaler un bug.",
+    "debugSettings.copyLogs": "Copier les journaux",
+    "debugSettings.saveLogs": "Enregistrer les journaux",
+    "debugSettings.clientLogsCopyFailed": "Impossible de copier les journaux",
+    "debugSettings.clientLogsSaveFailed":
+        "Impossible d'enregistrer les journaux",
+    "debugSettings.webViewDebugging": "Débogage WebView",
+    "debugSettings.webViewDebuggingHint":
+        "Permet à un ordinateur connecté en USB d'inspecter l'application via chrome://inspect. Reste activé après un redémarrage jusqu'à ce que vous le désactiviez.",
     "debugSettings.syncLog": "Journal de synchronisation",
     "debugSettings.syncLogEmpty":
         "Rien n'est encore journalisé. Les redémarrages, les requêtes échouées et les réinitialisations de fil apparaissent ici.",

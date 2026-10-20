@@ -46,6 +46,13 @@
         MIN_ATTENUATION_DB,
     } from "$lib/utils/micProcessing";
     import { getSyncLog } from "$lib/matrix/syncLog";
+    import { buildLogExport, saveLogExport } from "$lib/logExport";
+    import {
+        canToggleWebViewDebugging,
+        getWebViewDebugging,
+        setWebViewDebugging,
+    } from "$lib/debugTools";
+    import { showToast } from "$lib/stores/toasts.svelte";
 
     let loading = $state(false);
     let pushers = $state<RegisteredPusher[] | null>(null);
@@ -72,6 +79,56 @@
             setTimeout(() => (syncLogCopied = false), 2000);
         } catch {
             /* clipboard denied: the log is still on screen to select */
+        }
+    }
+
+    // Client logs: everything logCapture.ts kept since launch, redacted.
+    let logsBusy = $state(false);
+    let logsCopied = $state(false);
+    async function copyLogs() {
+        logsBusy = true;
+        try {
+            await navigator.clipboard.writeText(await buildLogExport());
+            logsCopied = true;
+            setTimeout(() => (logsCopied = false), 2000);
+        } catch (e) {
+            console.warn("[debug] copying client logs failed", e);
+            showToast(t("debugSettings.clientLogsCopyFailed"), {
+                tone: "danger",
+            });
+        } finally {
+            logsBusy = false;
+        }
+    }
+    async function saveLogs() {
+        logsBusy = true;
+        try {
+            await saveLogExport();
+        } catch (e) {
+            console.warn("[debug] saving client logs failed", e);
+            showToast(t("debugSettings.clientLogsSaveFailed"), {
+                tone: "danger",
+            });
+        } finally {
+            logsBusy = false;
+        }
+    }
+
+    const webViewDebugAvailable = canToggleWebViewDebugging();
+    let webViewDebug = $state(false);
+    if (webViewDebugAvailable) {
+        getWebViewDebugging().then(
+            (on) => (webViewDebug = on),
+            () => {},
+        );
+    }
+    async function toggleWebViewDebug(on: boolean) {
+        webViewDebug = on;
+        try {
+            webViewDebug = await setWebViewDebugging(on);
+        } catch (e) {
+            console.warn("[debug] toggling WebView debugging failed", e);
+            webViewDebug = !on;
         }
     }
 
@@ -251,6 +308,56 @@
 </script>
 
 <div class="space-y-6">
+    <section>
+        <p
+            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+        >
+            {t("debugSettings.clientLogs")}
+        </p>
+        <div
+            class="flex flex-wrap items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <p class="flex-1 min-w-48 text-xs text-discord-textMuted">
+                {t("debugSettings.clientLogsHint")}
+            </p>
+            <div class="flex gap-2">
+                <button
+                    onclick={copyLogs}
+                    disabled={logsBusy}
+                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
+                    >{logsCopied
+                        ? t("debugSettings.copied")
+                        : t("debugSettings.copyLogs")}</button
+                >
+                <button
+                    onclick={saveLogs}
+                    disabled={logsBusy}
+                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
+                    >{t("debugSettings.saveLogs")}</button
+                >
+            </div>
+        </div>
+        {#if webViewDebugAvailable}
+            <div
+                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+            >
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-discord-textPrimary">
+                        {t("debugSettings.webViewDebugging")}
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        {t("debugSettings.webViewDebuggingHint")}
+                    </p>
+                </div>
+                <ToggleSwitch
+                    checked={webViewDebug}
+                    onChange={toggleWebViewDebug}
+                    label={t("debugSettings.webViewDebugging")}
+                />
+            </div>
+        {/if}
+    </section>
+
     <section>
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"

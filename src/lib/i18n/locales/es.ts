@@ -494,6 +494,17 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.noiseAttenuationLimitHint":
         "Most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
     "debugSettings.syncStatus": "Estado de la sincronización",
+    "debugSettings.clientLogs": "Registros del cliente",
+    "debugSettings.clientLogsHint":
+        "Todo lo que la aplicación ha registrado desde que se inició, sin tokens, contraseñas ni claves. Envíalo al informar de un error.",
+    "debugSettings.copyLogs": "Copiar registros",
+    "debugSettings.saveLogs": "Guardar registros",
+    "debugSettings.clientLogsCopyFailed": "No se pudieron copiar los registros",
+    "debugSettings.clientLogsSaveFailed":
+        "No se pudieron guardar los registros",
+    "debugSettings.webViewDebugging": "Depuración de WebView",
+    "debugSettings.webViewDebuggingHint":
+        "Permite que un ordenador conectado por USB inspeccione la aplicación en chrome://inspect. Sigue activada tras reiniciar hasta que la desactives.",
     "debugSettings.syncLog": "Registro de sincronización",
     "debugSettings.syncLogEmpty":
         "Todavía no hay nada registrado. Aquí aparecen los reinicios, las solicitudes fallidas y los reinicios de la cronología.",

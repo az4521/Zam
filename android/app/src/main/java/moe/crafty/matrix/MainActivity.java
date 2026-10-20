@@ -75,8 +75,11 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(UnifiedPushPlugin.class);
         registerPlugin(PushDecryptPlugin.class);
         registerPlugin(PluginNativePlugin.class);
+        registerPlugin(DebugToolsPlugin.class);
         bridgeStarted = true;
         super.onCreate(savedInstanceState);
+        // After the bridge, which sets debugging from the build type.
+        DebugToolsPlugin.applySaved(this);
         // Only a FRESH launch carries a fresh action. A recreated activity
         // (savedInstanceState) gets its old intent back, and Recents relaunches
         // with the task's original intent: acting on either again would re-send

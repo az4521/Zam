@@ -172,6 +172,19 @@ export function isCryptoAvailable(): boolean {
     return cryptoAvailable;
 }
 
+// Why the last initCrypto failed, for the client-log export header.
+let cryptoInitError: string | null = null;
+
+function describeError(err: unknown): string {
+    if (err instanceof Error) return `${err.name}: ${err.message}`;
+    return String(err);
+}
+
+/** The last initCrypto failure ("Name: message"), or null if it succeeded. */
+export function getCryptoInitError(): string | null {
+    return cryptoInitError;
+}
+
 /**
  * Apply the account's "only send to verified devices" preference.
  *
@@ -334,7 +347,9 @@ export async function initCrypto(
     deviceId: string,
 ): Promise<void> {
     cryptoAvailable = false;
+    cryptoInitError = null;
     setSessionCryptoStatus(null);
+    console.info(`[matrix] rust-crypto init starting for device ${deviceId}`);
     detachKeyBackfill?.();
     detachKeyBackfill = null;
     // Session expiry drops back to the login view in place (no reload), so a
@@ -367,11 +382,11 @@ export async function initCrypto(
                 });
                 break;
             } catch (err) {
-                if (attempt >= CRYPTO_INIT_ATTEMPTS) throw err;
-                console.warn(
-                    `[matrix] rust-crypto init attempt ${attempt} failed, retrying`,
+                console.error(
+                    `[matrix] rust-crypto init attempt ${attempt}/${CRYPTO_INIT_ATTEMPTS} failed: ${describeError(err)}`,
                     err,
                 );
+                if (attempt >= CRYPTO_INIT_ATTEMPTS) throw err;
                 await new Promise((r) =>
                     setTimeout(r, CRYPTO_INIT_RETRY_MS * attempt),
                 );
@@ -385,6 +400,7 @@ export async function initCrypto(
         );
         cryptoAvailable = true;
         setSessionCryptoStatus(true);
+        console.info(`[matrix] rust-crypto initialised for device ${deviceId}`);
         // `globalBlacklistUnverifiedDevices` is in-memory only on the crypto
         // api, so the persisted preference has to be re-applied every session.
         // Read straight from storage, scoped to the `userId` we were handed,
@@ -410,9 +426,12 @@ export async function initCrypto(
         if (!(await installRekeyRepair(cryptoApi, { userId, deviceId })))
             console.warn("[matrix] can't watch for re-keyed sessions");
     } catch (err) {
-        console.warn(
-            "[matrix] rust-crypto init failed; encrypted rooms will show " +
-                "placeholders and this session can't send to encrypted rooms",
+        cryptoInitError = describeError(err);
+        console.error(
+            `[matrix] RUST-CRYPTO INIT FAILED for device ${deviceId}: ` +
+                `${cryptoInitError}. Encrypted rooms will show placeholders, ` +
+                "this session can't send to encrypted rooms and its device " +
+                "keys won't be published",
             err,
         );
         setSessionCryptoStatus(false);

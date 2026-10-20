@@ -481,6 +481,16 @@ export const en = {
     "debugSettings.noiseAttenuationLimitHint":
         "Most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
     "debugSettings.syncStatus": "Sync Status",
+    "debugSettings.clientLogs": "Client logs",
+    "debugSettings.clientLogsHint":
+        "Everything the app has logged since it started, with tokens, passwords and keys removed. Send this when reporting a bug.",
+    "debugSettings.copyLogs": "Copy logs",
+    "debugSettings.saveLogs": "Save logs",
+    "debugSettings.clientLogsCopyFailed": "Couldn't copy the logs",
+    "debugSettings.clientLogsSaveFailed": "Couldn't save the logs",
+    "debugSettings.webViewDebugging": "WebView debugging",
+    "debugSettings.webViewDebuggingHint":
+        "Lets a computer connected over USB inspect the app at chrome://inspect. Stays on across restarts until you turn it off.",
     "debugSettings.syncLog": "Sync log",
     "debugSettings.syncLogEmpty":
         "Nothing logged yet. Restarts, failed requests and timeline resets show up here.",

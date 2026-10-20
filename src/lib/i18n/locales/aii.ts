@@ -479,6 +479,16 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.noiseAttenuationLimitHint":
         "Most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
     "debugSettings.syncStatus": "ܐܝܟܢܝܘܬܐ ܕܐܚܕܝܘܬܐ",
+    "debugSettings.clientLogs": "ܟܬܒܐ ܕܬܚܒܝܫܬܐ",
+    "debugSettings.clientLogsHint":
+        "ܟܠ ܡܕܡ ܕܬܚܒܝܫܬܐ ܟܬܒܠܗ ܡܢ ܕܫܪܝܠܗ، ܒܠܐ tokens، ܡܠܐ ܕܥܒܪܐ ܘܩܠܝܕܐ. ܫܕܪ ܠܗ ܐܡܬܝ ܕܡܘܕܥܬ ܥܠ ܦܘܕܐ.",
+    "debugSettings.copyLogs": "ܢܣܘܚ ܟܬܒܐ",
+    "debugSettings.saveLogs": "ܢܛܘܪ ܟܬܒܐ",
+    "debugSettings.clientLogsCopyFailed": "ܠܐ ܡܨܐ ܠܢܣܘܚ ܟܬܒܐ",
+    "debugSettings.clientLogsSaveFailed": "ܠܐ ܡܨܐ ܠܢܛܘܪ ܟܬܒܐ",
+    "debugSettings.webViewDebugging": "WebView debugging",
+    "debugSettings.webViewDebuggingHint":
+        "ܡܦܣܐ ܠܚܫܘܒܬܐ ܕܡܚܝܕܐ ܒ USB ܕܒܨܝܐ ܠܬܚܒܝܫܬܐ ܒ chrome://inspect. ܦܐܫ ܦܬܝܚܐ ܒܬܪ ܫܘܪܝܐ ܚܕܬܐ ܥܕܡܐ ܕܡܫܟܪܬ ܠܗ.",
     "debugSettings.syncLog": "ܟܬܒܐ ܕܐܚܕܝܘܬܐ",
     "debugSettings.syncLogEmpty": "ܠܐ ܐܝܬ ܡܕܡ ܟܬܝܒܐ ܗܫܐ.",
     "debugSettings.refresh": "ܚܘܕܬ",

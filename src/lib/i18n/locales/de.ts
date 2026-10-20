@@ -503,6 +503,18 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.noiseAttenuationLimitHint":
         "Most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
     "debugSettings.syncStatus": "Sync-Status",
+    "debugSettings.clientLogs": "Client-Protokolle",
+    "debugSettings.clientLogsHint":
+        "Alles, was die App seit dem Start protokolliert hat, ohne Tokens, Passwörter und Schlüssel. Schick das mit, wenn du einen Fehler meldest.",
+    "debugSettings.copyLogs": "Protokolle kopieren",
+    "debugSettings.saveLogs": "Protokolle speichern",
+    "debugSettings.clientLogsCopyFailed":
+        "Protokolle konnten nicht kopiert werden",
+    "debugSettings.clientLogsSaveFailed":
+        "Protokolle konnten nicht gespeichert werden",
+    "debugSettings.webViewDebugging": "WebView-Debugging",
+    "debugSettings.webViewDebuggingHint":
+        "Erlaubt einem per USB verbundenen Computer, die App unter chrome://inspect zu untersuchen. Bleibt auch nach Neustarts an, bis du es ausschaltest.",
     "debugSettings.syncLog": "Sync-Protokoll",
     "debugSettings.syncLogEmpty":
         "Noch nichts protokolliert. Neustarts, fehlgeschlagene Anfragen und Zeitleisten-Resets erscheinen hier.",
