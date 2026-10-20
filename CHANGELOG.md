@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.28.1
+
+🐛 **Fixed**
+
+- **Running out of storage is no longer silent:** when your device is full, Zam couldn't save messages or encryption keys and carried on without saying so, sometimes with encryption quietly switched off. A banner now tells you the device is out of storage and stays until there is space again. Zam also warns you early when space is running low.
+- **Encryption problems say why:** when encryption can't start on a device, the banner now says it is off on this device and why (for example, no storage left). Once space is back, Try again starts it again.
+
 ## v1.28.0
 
 ✨ **New**
