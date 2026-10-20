@@ -95,14 +95,19 @@ import {
 import { bumpTimelineTick } from "$lib/stores/messages.svelte";
 import { bumpSecurityTick } from "$lib/stores/security.svelte";
 import { setSessionCryptoStatus } from "$lib/stores/sessionHealth.svelte";
+import { reportStorageError } from "$lib/stores/storageHealth.svelte";
+import { cryptoFailureKind } from "$lib/utils/storageFull";
 import {
     setIdentityAlert,
     clearIdentityAlerts,
 } from "$lib/stores/identityAlerts.svelte";
 
 // Graceful-degradation flag. Stays false if rust-crypto fails to initialise
-// (e.g. WASM can't load): the app keeps working for unencrypted rooms and
-// encrypted rooms render UTD placeholders instead of crashing.
+// (e.g. WASM can't load, or the device is out of storage): the app keeps
+// working for unencrypted rooms and encrypted rooms render UTD placeholders
+// instead of crashing. That is never silent: the failure and its reason go
+// to sessionHealth, whose banner says encryption is off on this device and
+// why, and a storage-full cause also raises the out-of-storage banner.
 let cryptoAvailable = false;
 
 // The client events initRustCrypto subscribes the crypto engine it creates to
@@ -386,6 +391,7 @@ export async function initCrypto(
                     `[matrix] rust-crypto init attempt ${attempt}/${CRYPTO_INIT_ATTEMPTS} failed: ${describeError(err)}`,
                     err,
                 );
+                reportStorageError(err, { fromIndexedDB: true });
                 if (attempt >= CRYPTO_INIT_ATTEMPTS) throw err;
                 await new Promise((r) =>
                     setTimeout(r, CRYPTO_INIT_RETRY_MS * attempt),
@@ -434,7 +440,11 @@ export async function initCrypto(
                 "keys won't be published",
             err,
         );
-        setSessionCryptoStatus(false);
+        reportStorageError(err, { fromIndexedDB: true });
+        setSessionCryptoStatus(false, {
+            kind: cryptoFailureKind(err),
+            detail: cryptoInitError,
+        });
     }
 }
 

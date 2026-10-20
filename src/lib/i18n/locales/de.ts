@@ -306,9 +306,14 @@ const messages: Record<MessageKey, string> = {
         "Umfrage konnte nicht erstellt werden",
 
     // src/lib/components/layout/CryptoUnavailableBanner.svelte
-    "cryptoUnavailableBanner.encryptionIsUnavailableThisSessionEncrypted":
-        "Verschlüsselung ist in dieser Sitzung nicht verfügbar: Verschlüsselte Nachrichten können weder gelesen noch gesendet werden. Neu laden, um es erneut zu versuchen.",
-    "cryptoUnavailableBanner.reload": "Neu laden",
+    "cryptoUnavailableBanner.offOutOfStorage":
+        "Die Verschlüsselung ist auf diesem Gerät aus, weil der Speicher voll ist: Verschlüsselte Nachrichten können weder gelesen noch gesendet werden. Gib Speicherplatz frei und versuche es dann erneut.",
+    "cryptoUnavailableBanner.offLocked":
+        "Die Verschlüsselung ist auf diesem Gerät aus, weil eine Benachrichtigung ihre Schlüssel noch verwendet hat: Verschlüsselte Nachrichten können weder gelesen noch gesendet werden.",
+    "cryptoUnavailableBanner.offOther":
+        "Die Verschlüsselung ist auf diesem Gerät aus: Verschlüsselte Nachrichten können weder gelesen noch gesendet werden, und die Schlüssel dieses Geräts wurden nicht veröffentlicht.",
+    "cryptoUnavailableBanner.tryAgain": "Erneut versuchen",
+    "cryptoUnavailableBanner.freeUpSpaceFirst": "Gib zuerst Speicherplatz frei",
     "cryptoUnavailableBanner.syncPaused":
         "Die Verschlüsselung konnte nicht starten, daher synchronisiert diese Sitzung nicht mehr, damit die Schlüssel, die andere dir senden, erhalten bleiben. Neu laden, um es erneut zu versuchen.",
     "cryptoUnavailableBanner.dismissEncryptionWarning":
@@ -2101,6 +2106,14 @@ const messages: Record<MessageKey, string> = {
     "threadsListPanel.filterThreads": "Threads filtern",
     "threadsListPanel.noThreadsYouParticipatedIn":
         "Du hast hier noch keinen Thread gestartet oder beantwortet.",
+
+    // src/lib/components/layout/StorageBanner.svelte
+    "storageBanner.outOfStorage":
+        "Dein Gerät hat keinen freien Speicher mehr. Zam kann keine Nachrichten oder Schlüssel speichern, bis du Speicherplatz freigibst.",
+    "storageBanner.lowStorage":
+        "Dein Gerät hat kaum noch freien Speicher ({free} übrig). Gib bald Speicherplatz frei, sonst kann Zam keine Nachrichten oder Schlüssel mehr speichern.",
+    "storageBanner.checkAgain": "Erneut prüfen",
+    "storageBanner.dismissLowStorageWarning": "Speicherwarnung schließen",
 
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification": "Update-Hinweis schließen",

@@ -300,9 +300,14 @@ const messages: Record<MessageKey, string> = {
     "createPollDialog.failedToCreatePoll": "Impossible de créer le sondage",
 
     // src/lib/components/layout/CryptoUnavailableBanner.svelte
-    "cryptoUnavailableBanner.encryptionIsUnavailableThisSessionEncrypted":
-        "Le chiffrement est indisponible pour cette session : les messages chiffrés ne peuvent être ni lus ni envoyés. Rechargez pour réessayer.",
-    "cryptoUnavailableBanner.reload": "Recharger",
+    "cryptoUnavailableBanner.offOutOfStorage":
+        "Le chiffrement est désactivé sur cet appareil car son stockage est plein : les messages chiffrés ne peuvent être ni lus ni envoyés. Libérez de l'espace, puis réessayez.",
+    "cryptoUnavailableBanner.offLocked":
+        "Le chiffrement est désactivé sur cet appareil car une notification utilisait encore ses clés : les messages chiffrés ne peuvent être ni lus ni envoyés.",
+    "cryptoUnavailableBanner.offOther":
+        "Le chiffrement est désactivé sur cet appareil : les messages chiffrés ne peuvent être ni lus ni envoyés, et ses clés de chiffrement n'ont pas été publiées.",
+    "cryptoUnavailableBanner.tryAgain": "Réessayer",
+    "cryptoUnavailableBanner.freeUpSpaceFirst": "Libérez d'abord de l'espace",
     "cryptoUnavailableBanner.syncPaused":
         "Le chiffrement n'a pas pu démarrer : cette session ne se synchronise plus, pour conserver les clés que les autres vous envoient. Rechargez pour réessayer.",
     "cryptoUnavailableBanner.dismissEncryptionWarning":
@@ -2079,6 +2084,15 @@ const messages: Record<MessageKey, string> = {
     "threadsListPanel.filterThreads": "Filtrer les fils",
     "threadsListPanel.noThreadsYouParticipatedIn":
         "Vous n'avez lancé ni répondu à aucun fil ici.",
+
+    // src/lib/components/layout/StorageBanner.svelte
+    "storageBanner.outOfStorage":
+        "Votre appareil n'a plus d'espace de stockage. Zam ne peut pas enregistrer les messages ni les clés de chiffrement tant que vous n'avez pas libéré de l'espace.",
+    "storageBanner.lowStorage":
+        "Votre appareil n'a presque plus d'espace de stockage ({free} restants). Libérez de l'espace rapidement, sinon Zam ne pourra plus enregistrer les messages ni les clés de chiffrement.",
+    "storageBanner.checkAgain": "Vérifier à nouveau",
+    "storageBanner.dismissLowStorageWarning":
+        "Fermer l'avertissement de stockage",
 
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification":

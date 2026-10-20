@@ -23,6 +23,7 @@ import {
     type Room,
 } from "matrix-js-sdk";
 import { matrixClient } from "./runtime";
+import { reportStorageError } from "$lib/stores/storageHealth.svelte";
 import { isRoomEncrypted, deleteDatabaseWithOutcome } from "./crypto";
 import { isSyncStale } from "./client";
 import {
@@ -208,7 +209,10 @@ function flush(): Promise<void> {
             const db = await s.db;
             for (const [roomId, b] of batch) await writeRoom(db, roomId, b);
         })
-        .catch((e) => console.warn("[eventIndex] write failed", e));
+        .catch((e) => {
+            reportStorageError(e, { fromIndexedDB: true });
+            console.warn("[eventIndex] write failed", e);
+        });
     return writeChain;
 }
 

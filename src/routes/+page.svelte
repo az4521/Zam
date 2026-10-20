@@ -49,6 +49,7 @@
     import AppShell from "$lib/components/layout/AppShell.svelte";
     import Splash from "$lib/components/layout/Splash.svelte";
     import LoginView from "$lib/components/layout/LoginView.svelte";
+    import HealthBanners from "$lib/components/layout/HealthBanners.svelte";
 
     const RESTORE_FAILED_MESSAGE = t("rootPage.failedToReconnectPleaseLogIn");
     const SYNC_START_FAILED_MESSAGE = t("rootPage.signedInButSyncingCouldNot");
@@ -437,3 +438,5 @@
         onBackToActive={backToActive}
     />
 {/if}
+
+<HealthBanners />

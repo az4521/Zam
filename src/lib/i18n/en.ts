@@ -290,9 +290,14 @@ export const en = {
     "createPollDialog.failedToCreatePoll": "Failed to create poll",
 
     // src/lib/components/layout/CryptoUnavailableBanner.svelte
-    "cryptoUnavailableBanner.encryptionIsUnavailableThisSessionEncrypted":
-        "Encryption is unavailable this session: encrypted messages can't be read or sent. Reload to try again.",
-    "cryptoUnavailableBanner.reload": "Reload",
+    "cryptoUnavailableBanner.offOutOfStorage":
+        "Encryption is off on this device because it ran out of storage: encrypted messages can't be read or sent. Free up space, then try again.",
+    "cryptoUnavailableBanner.offLocked":
+        "Encryption is off on this device because a notification was still using its keys: encrypted messages can't be read or sent.",
+    "cryptoUnavailableBanner.offOther":
+        "Encryption is off on this device: encrypted messages can't be read or sent, and its encryption keys weren't published.",
+    "cryptoUnavailableBanner.tryAgain": "Try again",
+    "cryptoUnavailableBanner.freeUpSpaceFirst": "Free up space first",
     "cryptoUnavailableBanner.syncPaused":
         "Encryption couldn't start, so this session has stopped syncing to keep the encryption keys others send you. Reload to try again.",
     "cryptoUnavailableBanner.dismissEncryptionWarning":
@@ -2026,6 +2031,14 @@ export const en = {
     "threadsListPanel.filterThreads": "Filter threads",
     "threadsListPanel.noThreadsYouParticipatedIn":
         "You haven't started or replied to any threads here.",
+
+    // src/lib/components/layout/StorageBanner.svelte
+    "storageBanner.outOfStorage":
+        "Your device is out of storage. Zam can't save messages or encryption keys until you free up space.",
+    "storageBanner.lowStorage":
+        "Your device is almost out of storage ({free} left). Free up space soon, or Zam won't be able to save messages or encryption keys.",
+    "storageBanner.checkAgain": "Check again",
+    "storageBanner.dismissLowStorageWarning": "Dismiss storage warning",
 
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification": "Dismiss update notification",

@@ -301,9 +301,14 @@ const messages: Record<MessageKey, string> = {
     "createPollDialog.failedToCreatePoll": "No se pudo crear la encuesta",
 
     // src/lib/components/layout/CryptoUnavailableBanner.svelte
-    "cryptoUnavailableBanner.encryptionIsUnavailableThisSessionEncrypted":
-        "El cifrado no está disponible en esta sesión: no se pueden leer ni enviar mensajes cifrados. Recarga para volver a intentarlo.",
-    "cryptoUnavailableBanner.reload": "Recargar",
+    "cryptoUnavailableBanner.offOutOfStorage":
+        "El cifrado está desactivado en este dispositivo porque se quedó sin almacenamiento: no se pueden leer ni enviar mensajes cifrados. Libera espacio y vuelve a intentarlo.",
+    "cryptoUnavailableBanner.offLocked":
+        "El cifrado está desactivado en este dispositivo porque una notificación aún estaba usando sus claves: no se pueden leer ni enviar mensajes cifrados.",
+    "cryptoUnavailableBanner.offOther":
+        "El cifrado está desactivado en este dispositivo: no se pueden leer ni enviar mensajes cifrados y sus claves de cifrado no se publicaron.",
+    "cryptoUnavailableBanner.tryAgain": "Reintentar",
+    "cryptoUnavailableBanner.freeUpSpaceFirst": "Libera espacio primero",
     "cryptoUnavailableBanner.syncPaused":
         "El cifrado no pudo iniciarse, así que esta sesión dejó de sincronizar para conservar las claves que otros te envían. Recarga para intentarlo de nuevo.",
     "cryptoUnavailableBanner.dismissEncryptionWarning":
@@ -2121,6 +2126,14 @@ const messages: Record<MessageKey, string> = {
     "threadsListPanel.filterThreads": "Filtrar hilos",
     "threadsListPanel.noThreadsYouParticipatedIn":
         "No has iniciado ni respondido a ningún hilo aquí.",
+
+    // src/lib/components/layout/StorageBanner.svelte
+    "storageBanner.outOfStorage":
+        "Tu dispositivo se quedó sin almacenamiento. Zam no puede guardar mensajes ni claves de cifrado hasta que liberes espacio.",
+    "storageBanner.lowStorage":
+        "A tu dispositivo casi no le queda almacenamiento (quedan {free}). Libera espacio pronto o Zam no podrá guardar mensajes ni claves de cifrado.",
+    "storageBanner.checkAgain": "Comprobar de nuevo",
+    "storageBanner.dismissLowStorageWarning": "Cerrar aviso de almacenamiento",
 
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification":

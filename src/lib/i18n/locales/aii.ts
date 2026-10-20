@@ -289,9 +289,14 @@ const messages: Record<MessageKey, string> = {
     "createPollDialog.failedToCreatePoll": "ܒܪܝܐ ܕܫܘܐܠܬܐ ܠܐ ܦܠܚܠܗ",
 
     // src/lib/components/layout/CryptoUnavailableBanner.svelte
-    "cryptoUnavailableBanner.encryptionIsUnavailableThisSessionEncrypted":
-        "ܛܘܫܝܐ ܠܐ ܝܠܗ ܡܫܟܚܐ ܒܗܢܐ ܓܠܣܐ: ܐܓܪ̈ܬܐ ܡܛܫܝ̈ܬܐ ܠܐ ܡܨܝܐ ܕܩܪܝ ܝܢ ܕܫܕܪ. ܛܥܘܢ ܡܢ ܕܪܝܫ ܩܐ ܢܣܝܢܐ ܐܚܪܢܐ.",
-    "cryptoUnavailableBanner.reload": "ܛܥܘܢ ܡܢ ܕܪܝܫ",
+    "cryptoUnavailableBanner.offOutOfStorage":
+        "ܛܘܫܝܐ ܠܐ ܝܠܗ ܦܥܠܐ ܒܗܢܐ ܡܐܢܐ ܡܛܠ ܕܓܙܐ ܕܝܠܗ ܡܠܝܐ ܝܠܗ: ܐܓܪ̈ܬܐ ܡܛܫܝ̈ܬܐ ܠܐ ܡܨܝܐ ܕܩܪܝ ܝܢ ܕܫܕܪ. ܡܣܦܝ ܕܘܟܬܐ ܘܢܣܝ ܡܢ ܕܪܝܫ.",
+    "cryptoUnavailableBanner.offLocked":
+        "ܛܘܫܝܐ ܠܐ ܝܠܗ ܦܥܠܐ ܒܗܢܐ ܡܐܢܐ ܡܛܠ ܕܚܕܐ ܡܘܕܥܢܘܬܐ ܗܝܓ ܟܐ ܦܠܚܐ ܗܘܝܐ ܒܩܠܝܕ̈ܐ ܕܝܠܗ: ܐܓܪ̈ܬܐ ܡܛܫܝ̈ܬܐ ܠܐ ܡܨܝܐ ܕܩܪܝ ܝܢ ܕܫܕܪ.",
+    "cryptoUnavailableBanner.offOther":
+        "ܛܘܫܝܐ ܠܐ ܝܠܗ ܦܥܠܐ ܒܗܢܐ ܡܐܢܐ: ܐܓܪ̈ܬܐ ܡܛܫܝ̈ܬܐ ܠܐ ܡܨܝܐ ܕܩܪܝ ܝܢ ܕܫܕܪ، ܘܩܠܝܕ̈ܐ ܕܛܘܫܝܐ ܕܝܠܗ ܠܐ ܦܝܫܝܠܗܘܢ ܡܦܪܣܝ̈ܐ.",
+    "cryptoUnavailableBanner.tryAgain": "ܢܣܝ ܡܢ ܕܪܝܫ",
+    "cryptoUnavailableBanner.freeUpSpaceFirst": "ܩܕܡܝܐ ܡܣܦܝ ܕܘܟܬܐ",
     "cryptoUnavailableBanner.syncPaused":
         "ܛܘܫܝܐ ܠܐ ܦܠܚܠܗ ܡܫܪܝܐ، ܗܘܝܐ ܗܢܐ ܣܝܣܘܢ ܟܠܝܠܗ ܡܢ ܣܘܢܟܪܘܢܐ ܕܢܛܪ ܠܩܠܝܕ̈ܐ ܕܟܐ ܫܕܪܝ ܠܘܟ ܐ݇ܚܪ̈ܢܐ. ܡܛܥܢ ܬܘܒ ܕܢܢܣܐ ܬܘܒ.",
     "cryptoUnavailableBanner.dismissEncryptionWarning": "ܫܩܘܠ ܙܘܗܪܐ ܕܛܘܫܝܐ",
@@ -1954,6 +1959,14 @@ const messages: Record<MessageKey, string> = {
     "threadsListPanel.filterThreads": "ܨܦܝ ܚܘ̈ܛܐ",
     "threadsListPanel.noThreadsYouParticipatedIn":
         "ܠܐ ܫܘܬܦܠܘܟ ܓܘ ܚܘ̈ܛܐ ܗܪܟܐ ܗܠ ܗܫܐ.",
+
+    // src/lib/components/layout/StorageBanner.svelte
+    "storageBanner.outOfStorage":
+        "ܓܙܐ ܕܡܐܢܐ ܕܝܠܘܟ ܡܠܝܐ ܝܠܗ. Zam ܠܐ ܡܨܐ ܕܢܛܪ ܐܓܪ̈ܬܐ ܝܢ ܩܠܝܕ̈ܐ ܕܛܘܫܝܐ ܗܕܟܡܐ ܕܠܐ ܡܣܦܝܬ ܕܘܟܬܐ.",
+    "storageBanner.lowStorage":
+        "ܓܙܐ ܕܡܐܢܐ ܕܝܠܘܟ ܩܪܝܒܐ ܝܠܗ ܕܡܠܐ ({free} ܦܝܫܐ). ܡܣܦܝ ܕܘܟܬܐ ܒܥܓܠ، ܝܢ Zam ܠܐ ܒܕ ܡܨܐ ܕܢܛܪ ܐܓܪ̈ܬܐ ܝܢ ܩܠܝܕ̈ܐ ܕܛܘܫܝܐ.",
+    "storageBanner.checkAgain": "ܒܨܝ ܬܘܒ",
+    "storageBanner.dismissLowStorageWarning": "ܫܩܘܠ ܙܘܗܪܐ ܕܓܙܐ",
 
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification": "ܫܩܘܠ ܡܘܕܥܢܘܬܐ ܕܚܘܕܬܐ",

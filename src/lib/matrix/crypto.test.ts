@@ -2346,3 +2346,149 @@ describe("restartCrypto", () => {
         }
     });
 });
+
+// A device that ran out of space: the crypto store refused its writes, so
+// rust-crypto never came up and no device keys were published. That must be
+// said (sessionHealth + storageHealth), and must leave nothing behind that
+// stops the next launch, with space again, from starting crypto on this
+// device and uploading its keys rather than signing the device out.
+describe("crypto start on a full disk", () => {
+    const quotaError = () =>
+        new DOMException("The quota has been exceeded.", "QuotaExceededError");
+
+    // Like matrix-js-sdk: initRustCrypto only sets the engine once it has
+    // come up, and the server has no keys for a device that never had any.
+    function makeClient() {
+        const client = {
+            cryptoBackend: undefined as unknown,
+            on: vi.fn(),
+            off: vi.fn(),
+            getUserId: () => "@me:example.org",
+            getDeviceId: () => "DEVICE1",
+            downloadKeysForUsers: vi.fn(() =>
+                Promise.resolve({ device_keys: { "@me:example.org": {} } }),
+            ),
+            getCrypto: () => client.cryptoBackend,
+            initRustCrypto: vi.fn(async () => {
+                if (client.cryptoBackend) return;
+                client.cryptoBackend = {
+                    setDeviceIsolationMode: vi.fn(),
+                    getOwnDeviceKeys: () =>
+                        Promise.resolve({ curve25519: "c", ed25519: "e" }),
+                };
+            }),
+        };
+        return client;
+    }
+
+    // A fresh page: new module instances of crypto and both health stores.
+    async function freshPage() {
+        vi.resetModules();
+        return {
+            mod: await import("./crypto"),
+            health: await import("$lib/stores/sessionHealth.svelte"),
+            storage: await import("$lib/stores/storageHealth.svelte"),
+        };
+    }
+
+    // initCrypto's retries wait on setTimeout, which is faked; nothing else
+    // is, so its lazy import of the crypto WASM still completes. The clock is
+    // stepped until init settles, whenever it reaches the retries.
+    async function initWithTimers(
+        mod: typeof import("./crypto"),
+        client: ReturnType<typeof makeClient>,
+    ) {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            let settled = false;
+            const init = mod
+                .initCrypto(client as never, "@me:example.org", "DEVICE1")
+                .finally(() => (settled = true));
+            while (!settled) {
+                await vi.advanceTimersByTimeAsync(1000);
+                await new Promise((r) => setImmediate(r));
+            }
+            await init;
+        } finally {
+            vi.useRealTimers();
+        }
+    }
+
+    // Re-importing the crypto module graph is slow on a loaded run (the
+    // whole suite in parallel), so the first page loads in the hook and both
+    // get room for the second.
+    const SLOW_IMPORT_MS = 30_000;
+    let page: Awaited<ReturnType<typeof freshPage>>;
+    beforeEach(async () => {
+        vi.clearAllMocks();
+        page = await freshPage();
+    }, SLOW_IMPORT_MS);
+
+    it(
+        "reports encryption off for lack of space, and the next launch starts it",
+        async () => {
+            // First launch: every attempt hits the full disk.
+            let { mod, health, storage } = page;
+            let client = makeClient();
+            h.getClient.mockReturnValue(client);
+            client.initRustCrypto.mockRejectedValue(quotaError());
+            await initWithTimers(mod, client);
+
+            expect(mod.isCryptoAvailable()).toBe(false);
+            expect(client.getCrypto()).toBeUndefined();
+            expect(mod.getCryptoInitError()).toMatch(/QuotaExceededError/);
+            expect(health.sessionHealthState.cryptoAvailable).toBe(false);
+            expect(health.sessionHealthState.cryptoFailureKind).toBe("storage");
+            expect(storage.storageHealthState.full).toBe(true);
+            // Nothing came up, so nothing to compare: never a reason to sign out.
+            expect(await mod.ownDeviceKeysReplaced(client as never)).toBe(
+                false,
+            );
+
+            // Next launch, with space: a fresh page and a fresh client.
+            ({ mod, health, storage } = await freshPage());
+            expect(storage.storageHealthState.full).toBe(false);
+            client = makeClient();
+            h.getClient.mockReturnValue(client);
+            await initWithTimers(mod, client);
+
+            expect(client.initRustCrypto).toHaveBeenCalledTimes(1);
+            expect(mod.isCryptoAvailable()).toBe(true);
+            expect(mod.getCryptoInitError()).toBeNull();
+            expect(health.sessionHealthState.cryptoFailureKind).toBeNull();
+            // The server has no keys for this device: boot keeps the device and
+            // the first sync uploads the new engine's keys.
+            expect(await mod.ownDeviceKeysReplaced(client as never)).toBe(
+                false,
+            );
+            expect(client.downloadKeysForUsers).toHaveBeenCalled();
+        },
+        SLOW_IMPORT_MS,
+    );
+
+    it(
+        "starts in place once space is back (restartCrypto)",
+        async () => {
+            const { mod } = page;
+            const client = makeClient();
+            h.getClient.mockReturnValue(client);
+            client.initRustCrypto
+                .mockRejectedValueOnce(quotaError())
+                .mockRejectedValueOnce(quotaError())
+                .mockRejectedValueOnce(quotaError());
+            await initWithTimers(mod, client);
+            expect(mod.isCryptoAvailable()).toBe(false);
+
+            // The failed start left no engine or lock behind to refuse this.
+            const ok = await mod.restartCrypto(
+                client as never,
+                "@me:example.org",
+                "DEVICE1",
+            );
+            expect(ok).toBe(true);
+            expect(mod.isCryptoAvailable()).toBe(true);
+            expect(mod.getCryptoInitError()).toBeNull();
+        },
+        SLOW_IMPORT_MS,
+    );
+});

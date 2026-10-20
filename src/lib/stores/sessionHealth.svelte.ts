@@ -3,10 +3,16 @@
  * (audit SEC-M6). `crypto.ts` and `client.ts` mirror their otherwise-silent
  * failures here so AppShell can show a banner / toast.
  */
+import type { CryptoFailureKind } from "$lib/utils/storageFull";
+
 class SessionHealthState {
     // null = crypto init has not finished (banner hidden); true = available;
     // false = init failed this session (banner shown).
     cryptoAvailable = $state<boolean | null>(null);
+    // Why crypto init failed (set with cryptoAvailable = false), and the
+    // error itself ("Name: message") for the banner's detail line.
+    cryptoFailureKind = $state<CryptoFailureKind | null>(null);
+    cryptoFailureDetail = $state<string | null>(null);
     // True when the IndexedDB sync store failed and we fell back to memory
     // (no offline cache; full re-sync next boot).
     syncStoreFallback = $state(false);
@@ -19,9 +25,19 @@ class SessionHealthState {
 
 export const sessionHealthState = new SessionHealthState();
 
-/** Record crypto availability. Any non-failed status clears a stale dismiss. */
-export function setSessionCryptoStatus(status: boolean | null): void {
+/**
+ * Record crypto availability, and for a failure why. Any non-failed status
+ * clears a stale dismiss and the failure reason.
+ */
+export function setSessionCryptoStatus(
+    status: boolean | null,
+    failure?: { kind: CryptoFailureKind; detail: string },
+): void {
     sessionHealthState.cryptoAvailable = status;
+    sessionHealthState.cryptoFailureKind =
+        status === false ? (failure?.kind ?? "other") : null;
+    sessionHealthState.cryptoFailureDetail =
+        status === false ? (failure?.detail ?? null) : null;
     if (status !== false) sessionHealthState.cryptoBannerDismissed = false;
 }
 

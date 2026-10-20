@@ -16,6 +16,7 @@ import {
     type IEvent,
     type MatrixClient,
 } from "matrix-js-sdk";
+import { reportStorageError } from "$lib/stores/storageHealth.svelte";
 import type { SpaceChildInfo } from "./client";
 
 const SNAPSHOT_VERSION = 1;
@@ -254,6 +255,7 @@ export async function saveSnapshot(
     try {
         await withStore("readwrite", (s) => s.put(snapshot, key));
     } catch (err) {
+        reportStorageError(err, { fromIndexedDB: true });
         console.warn("[roomListCache] save failed", err);
     }
 }

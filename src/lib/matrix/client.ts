@@ -115,6 +115,7 @@ import {
 import { isMxcPreviewMedia } from "$lib/utils/linkPreviewPolicy";
 import { serializeServerAcl, type ServerAcl } from "$lib/utils/serverAcl";
 import { requestPersistentStorage } from "$lib/utils/persistentStorage";
+import { reportStorageError } from "$lib/stores/storageHealth.svelte";
 import { parseLoginFlows, type LoginOptions } from "$lib/utils/loginFlows";
 import { resolveDisplayName } from "$lib/utils/displayName";
 import { nestedSpaceIds, topLevelSpaceOf } from "$lib/utils/spaceTree";
@@ -598,6 +599,7 @@ async function createAuthenticatedClient(opts: {
                 "[matrix] IndexedDB store startup failed; falling back to memory store",
                 err,
             );
+            reportStorageError(err, { fromIndexedDB: true });
             markSyncStoreFallback();
             client = createClient(commonOpts);
         }
