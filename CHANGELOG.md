@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.28.0
+
+✨ **New**
+
+- **Export client logs:** Settings > Debug Info now has Copy logs and Save logs, on every platform including the Android app. The export holds everything the app has logged since it started, with tokens, passwords and keys removed, plus a header with your app version, device and encryption status. Send it along when reporting a bug.
+- **WebView debugging on Android:** a switch under Settings > Debug Info lets a computer connected over USB inspect the app at chrome://inspect. It stays on across restarts until you turn it off.
+
+🐛 **Fixed**
+
+- **Encryption setup failures are reported clearly:** when end-to-end encryption fails to start, the reason is now logged as an error on every attempt and shown in the exported logs.
+
 ## v1.27.4
 
 🐛 **Fixed**
