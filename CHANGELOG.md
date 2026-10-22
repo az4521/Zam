@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.28.3
+
+✨ **New**
+
+- **GIFs send as KLIPY links:** picking a GIF now sends its klipy.com page link (like klipy.com/gifs/nukes-true) instead of a long file address. GIFs you star from search are saved the same way, and older favourites switch over when they show up in your search results.
+
+🐛 **Fixed**
+
+- **GIF search plays straight away:** GIFs in the picker's search results only started moving once they had fully downloaded. They now play while they load, and so do GIFs you star from search.
+
 ## v1.28.2
 
 ✨ **New**
