@@ -1598,49 +1598,69 @@
             return;
         }
 
-        try {
-            if (trimmed && formatted && !useCaption) {
-                const { html } = formatted;
-                const mentions = mentionsFromFormatted(formatted);
-                let sentEventId: string;
-                if (isThread) {
-                    // Thread replies always route via sendThreadReply; a reply to
-                    // a specific thread message rides along as its quote target.
-                    await sendThreadReply(
-                        targetRoomId,
-                        threadRootId!,
-                        trimmed,
-                        mentions,
-                        html ?? undefined,
-                        transformOutgoingContent,
-                        replyToEvent?.getId() ?? undefined,
-                    );
-                    if (replyToEvent) onCancelReply?.();
-                } else {
-                    // Build the content in-component (byte-identical to the
-                    // sendReply/sendFormattedMessage/sendTextMessage wrappers, see
-                    // utils/messageContent.ts), apply plugin content transforms,
-                    // then send. Thread replies + captions keep their own send
-                    // paths, which apply the same transforms.
-                    const baseContent: Record<string, unknown> = replyToEvent
-                        ? (buildReplyContent({
-                              replyEventId: replyToEvent.getId()!,
-                              text: trimmed,
-                              formattedText: html ?? undefined,
-                              mentions,
-                          }) as unknown as Record<string, unknown>)
-                        : html
-                          ? buildFormattedContent(trimmed, html, mentions)
-                          : buildTextContent(trimmed, mentions);
-                    const content = transformOutgoingContent(baseContent);
-                    sentEventId = await sendEventContent(targetRoomId, content);
-                    if (replyToEvent) onCancelReply?.();
-                    if (createThreadArmed) {
-                        createThreadArmed = false;
-                        onThreadCreated?.(sentEventId);
-                    }
-                }
+        // Plain text (no attachments: text + files always goes out as a
+        // caption). The SDK puts the local echo in the timeline synchronously,
+        // with its own retry/delete affordance on failure, so the composer must
+        // NOT wait for the server's ack: on a slow homeserver (matrix.org) or a
+        // first send that has to share room keys, that ack takes seconds and
+        // blocked the next message behind a spinner. Reported in issue #40.
+        if (trimmed && formatted && !useCaption) {
+            const { html } = formatted;
+            const mentions = mentionsFromFormatted(formatted);
+            const replyId = replyToEvent?.getId() ?? undefined;
+            const threadArmed = createThreadArmed;
+            createThreadArmed = false;
+            let sent: Promise<unknown>;
+            if (isThread) {
+                // Thread replies always route via sendThreadReply; a reply to
+                // a specific thread message rides along as its quote target.
+                sent = sendThreadReply(
+                    targetRoomId,
+                    threadRootId!,
+                    trimmed,
+                    mentions,
+                    html ?? undefined,
+                    transformOutgoingContent,
+                    replyId,
+                );
+            } else {
+                // Build the content in-component (byte-identical to the
+                // sendReply/sendFormattedMessage/sendTextMessage wrappers, see
+                // utils/messageContent.ts), apply plugin content transforms,
+                // then send. Thread replies + captions keep their own send
+                // paths, which apply the same transforms.
+                const baseContent: Record<string, unknown> = replyId
+                    ? (buildReplyContent({
+                          replyEventId: replyId,
+                          text: trimmed,
+                          formattedText: html ?? undefined,
+                          mentions,
+                      }) as unknown as Record<string, unknown>)
+                    : html
+                      ? buildFormattedContent(trimmed, html, mentions)
+                      : buildTextContent(trimmed, mentions);
+                const content = transformOutgoingContent(baseContent);
+                sent = sendEventContent(targetRoomId, content).then(
+                    (sentEventId) => {
+                        if (threadArmed) onThreadCreated?.(sentEventId);
+                    },
+                );
             }
+            if (replyToEvent) onCancelReply?.();
+            sent.catch((err) => {
+                console.error("Failed to send:", err);
+                showErrorToast(
+                    matrixErrorMessage(err, t("messageInput.failedToSend")),
+                );
+            });
+            isSending = false;
+            await tick();
+            if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+            textareaEl?.focus();
+            return;
+        }
+
+        try {
             // Commit each file as it lands: a failure halfway must leave the
             // unsent files queued so a retry sends only those (audit MEDIA-03).
             await sendQueuedFilesInOrder(
