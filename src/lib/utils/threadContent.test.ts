@@ -3,6 +3,7 @@ import {
     buildThreadReplyContent,
     isThreadReplyContent,
     withThreadRelation,
+    withMessageRelation,
     composerThreadKey,
     threadRootForQuickReply,
 } from "./threadContent";
@@ -230,5 +231,48 @@ describe("threadRootForQuickReply — extract thread root for reply routing", ()
         expect(threadRootForQuickReply(undefined)).toBe(null);
         expect(threadRootForQuickReply("string")).toBe(null);
         expect(threadRootForQuickReply(123)).toBe(null);
+    });
+});
+
+describe("withMessageRelation — thread and/or reply on non-text content", () => {
+    const base = { msgtype: "m.audio", body: "Voice message" };
+
+    it("returns the content unchanged with neither", () => {
+        expect(withMessageRelation(base, undefined, undefined)).toBe(base);
+    });
+
+    it("adds a plain reply outside a thread", () => {
+        expect(withMessageRelation(base, undefined, "$q")).toEqual({
+            ...base,
+            "m.relates_to": { "m.in_reply_to": { event_id: "$q" } },
+        });
+    });
+
+    it("keeps the thread fallback when not replying", () => {
+        const out = withMessageRelation(
+            base,
+            { rootEventId: "$root", latestEventId: "$latest" },
+            undefined,
+        );
+        expect(out["m.relates_to"]).toEqual({
+            rel_type: "m.thread",
+            event_id: "$root",
+            is_falling_back: true,
+            "m.in_reply_to": { event_id: "$latest" },
+        });
+    });
+
+    it("quotes a thread message for real when replying in a thread", () => {
+        const out = withMessageRelation(
+            base,
+            { rootEventId: "$root", latestEventId: "$latest" },
+            "$q",
+        );
+        expect(out["m.relates_to"]).toEqual({
+            rel_type: "m.thread",
+            event_id: "$root",
+            is_falling_back: false,
+            "m.in_reply_to": { event_id: "$q" },
+        });
     });
 });

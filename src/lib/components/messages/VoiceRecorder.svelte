@@ -2,6 +2,7 @@
     import { t } from "$lib/i18n";
     import { onDestroy } from "svelte";
     import { sendVoiceMessage } from "$lib/matrix/client";
+    import type { MediaRelation } from "$lib/matrix/client";
     import {
         computeWaveform,
         pickAudioMimeType,
@@ -20,9 +21,13 @@
 
     interface Props {
         roomId: string;
+        /** Thread to post into and/or message being replied to, read at send. */
+        getRelation?: () => MediaRelation | undefined;
+        /** Called once the voice message is sent (before onClose). */
+        onSent?: (relation: MediaRelation | undefined) => void;
         onClose: () => void;
     }
-    let { roomId, onClose }: Props = $props();
+    let { roomId, getRelation, onSent, onClose }: Props = $props();
 
     const MAX_MS = 5 * 60 * 1000; // safety cap
     const WAVE_BARS = 48;
@@ -171,13 +176,16 @@
             return;
         }
         phase = "sending";
+        const relation = getRelation?.();
         try {
             await sendVoiceMessage(
                 roomId,
                 recordedBlob,
                 previewDurationMs,
                 waveform,
+                relation,
             );
+            onSent?.(relation);
             cleanup();
             onClose();
         } catch (err) {

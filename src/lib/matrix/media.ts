@@ -7,7 +7,7 @@ import { threadRelationParams } from "./client";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { faststartMp4 } from "$lib/utils/mp4Faststart";
 import { isRoomEncrypted, isRoomEncryptedForSend } from "$lib/matrix/crypto";
-import { withThreadRelation } from "$lib/utils/threadContent";
+import { withMessageRelation } from "$lib/utils/threadContent";
 import {
     decryptAttachment,
     type EncryptedFileInfo,
@@ -76,6 +76,26 @@ async function captureVideoThumbnail(file: File): Promise<{
         };
         video.src = objectUrl;
     });
+}
+
+/** Where a media send lands: a thread (by root) and/or a reply target. */
+export interface MediaRelation {
+    rootEventId?: string;
+    replyToEventId?: string;
+}
+
+function relationFor(
+    roomId: string,
+    content: Record<string, unknown>,
+    relation: MediaRelation | undefined,
+): Record<string, unknown> {
+    return withMessageRelation(
+        content,
+        relation?.rootEventId
+            ? threadRelationParams(roomId, relation.rootEventId)
+            : undefined,
+        relation?.replyToEventId,
+    );
 }
 
 export interface MediaCaption {
@@ -182,7 +202,8 @@ export async function sendFile(
     roomId: string,
     file: File,
     caption?: MediaCaption,
-    thread?: { rootEventId: string },
+    // Thread to post into and/or message this file replies to.
+    relation?: MediaRelation,
     // Plugin outgoing content transforms: run over the fully-built event
     // content (thread relation included), right before the send.
     transformContent?: (
@@ -288,12 +309,7 @@ export async function sendFile(
         }
     }
 
-    const finalContent = thread
-        ? withThreadRelation(
-              content,
-              threadRelationParams(roomId, thread.rootEventId),
-          )
-        : content;
+    const finalContent = relationFor(roomId, content, relation);
     const outgoing = transformContent
         ? transformContent(finalContent)
         : finalContent;
@@ -310,6 +326,7 @@ export async function sendVoiceMessage(
     blob: Blob,
     durationMs: number,
     waveform: number[],
+    relation?: MediaRelation,
 ): Promise<void> {
     const owner = captureClient();
     const ext = blob.type.includes("ogg")
@@ -325,7 +342,7 @@ export async function sendVoiceMessage(
         msgtype: "m.audio",
     });
     const duration = Math.round(durationMs);
-    await ownedClientOrThrow(owner).sendMessage(roomId, {
+    const content: Record<string, unknown> = {
         msgtype: "m.audio",
         body: "Voice message",
         ...uploadResult, // { url } or { file } — never both
@@ -333,7 +350,11 @@ export async function sendVoiceMessage(
         "org.matrix.msc3245.voice": {},
         "org.matrix.msc1767.audio": { duration, waveform },
         "org.matrix.msc1767.text": "Voice message",
-    } as never);
+    };
+    await ownedClientOrThrow(owner).sendMessage(
+        roomId,
+        relationFor(roomId, content, relation) as never,
+    );
 }
 export function mxcToHttp(
     mxcUrl: string | null | undefined,

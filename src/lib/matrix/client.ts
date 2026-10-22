@@ -160,6 +160,7 @@ import {
     buildThreadReplyContent,
     isThreadReplyContent,
     withThreadRelation,
+    withMessageRelation,
     threadRootForQuickReply,
 } from "$lib/utils/threadContent";
 import {
@@ -378,7 +379,7 @@ export {
     fetchRoomMediaPage,
     uploadContent,
 } from "./media";
-export type { MediaCaption, RoomMediaPage } from "./media";
+export type { MediaCaption, MediaRelation, RoomMediaPage } from "./media";
 
 // Local index of encrypted rooms (search + media drawer); see eventIndex.ts.
 import { deleteEventIndex } from "./eventIndex";
@@ -8816,30 +8817,11 @@ export async function sendSticker(
         // body-scan push rules; a sticker never carries intentional mentions.
         "m.mentions": {},
     };
-    let finalContent: Record<string, unknown> = content;
-    if (thread) {
-        const threaded = withThreadRelation(
-            content,
-            threadRelationParams(roomId, thread.rootEventId),
-        );
-        // A reply to a specific thread message quotes it for real, same as
-        // buildThreadReplyContent.
-        finalContent = replyToEventId
-            ? {
-                  ...threaded,
-                  "m.relates_to": {
-                      ...threaded["m.relates_to"],
-                      is_falling_back: false,
-                      "m.in_reply_to": { event_id: replyToEventId },
-                  },
-              }
-            : threaded;
-    } else if (replyToEventId) {
-        finalContent = {
-            ...content,
-            "m.relates_to": { "m.in_reply_to": { event_id: replyToEventId } },
-        };
-    }
+    const finalContent = withMessageRelation(
+        content,
+        thread ? threadRelationParams(roomId, thread.rootEventId) : undefined,
+        replyToEventId,
+    );
     await matrixClient.sendEvent(roomId, "m.sticker" as any, finalContent);
 }
 

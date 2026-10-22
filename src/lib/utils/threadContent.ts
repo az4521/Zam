@@ -149,3 +149,36 @@ export function withThreadRelation<T extends Record<string, unknown>>(
         },
     };
 }
+
+/**
+ * Attach the thread and/or reply relation to a non-text message content
+ * (file, voice message, sticker), returning a NEW object. In a thread, a reply
+ * to a specific message quotes it for real (`is_falling_back: false`), same as
+ * buildThreadReplyContent; outside one it is a plain `m.in_reply_to`. With
+ * neither, the content is returned as-is.
+ */
+export function withMessageRelation<T extends Record<string, unknown>>(
+    content: T,
+    thread: { rootEventId: string; latestEventId?: string } | undefined,
+    replyToEventId: string | undefined,
+): Record<string, unknown> {
+    if (thread) {
+        const threaded = withThreadRelation(content, thread);
+        if (!replyToEventId) return threaded;
+        return {
+            ...threaded,
+            "m.relates_to": {
+                ...threaded["m.relates_to"],
+                is_falling_back: false,
+                "m.in_reply_to": { event_id: replyToEventId },
+            },
+        };
+    }
+    if (replyToEventId) {
+        return {
+            ...content,
+            "m.relates_to": { "m.in_reply_to": { event_id: replyToEventId } },
+        };
+    }
+    return content;
+}

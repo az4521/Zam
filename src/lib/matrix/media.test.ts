@@ -103,6 +103,17 @@ describe("sendFile content transform", () => {
             event_id: "$root",
         });
     });
+
+    it("sends a captioned file as a reply", async () => {
+        await sendFile("!r", file, { body: "hello" }, { replyToEventId: "$q" });
+        const content = sentContent(
+            slot.client as ReturnType<typeof makeClient>,
+        );
+        expect(content["m.relates_to"]).toEqual({
+            "m.in_reply_to": { event_id: "$q" },
+        });
+        expect(content.body).toBe("hello");
+    });
 });
 
 describe("sendFile video faststart", () => {

@@ -1530,11 +1530,25 @@
         // reads pendingMentions, which we reset up front).
         const formatted = trimmed ? buildFormattedBody(trimmed) : null;
 
-        // When files are queued alongside text (and we're not replying), attach
-        // the text to the first file as a caption (MSC2530) rather than sending
-        // it as a separate message.
-        const useCaption =
-            !!trimmed && !!formatted && filesToSend.length > 0 && !replyToEvent;
+        // When files are queued alongside text, attach the text to the first
+        // file as a caption (MSC2530) rather than sending it as a separate
+        // message.
+        const useCaption = !!trimmed && !!formatted && filesToSend.length > 0;
+        // A reply rides on the first file whenever no separate text message
+        // carries it (caption, or attachments alone). Snapshotted so a reply
+        // picked mid-upload isn't retargeted or cancelled by this send.
+        const replyTarget = replyToEvent;
+        const fileReplyToId =
+            replyTarget && filesToSend.length > 0 && (useCaption || !trimmed)
+                ? (replyTarget.getId() ?? undefined)
+                : undefined;
+        const fileRelation = (i: number) =>
+            isThread || (i === 0 && fileReplyToId)
+                ? {
+                      rootEventId: isThread ? threadRootId! : undefined,
+                      replyToEventId: i === 0 ? fileReplyToId : undefined,
+                  }
+                : undefined;
 
         // The SDK creates the local echo synchronously, so a text message shows
         // in the timeline the moment we send it — with a retry/delete affordance
@@ -1643,9 +1657,7 @@
                                 formattedBody: html ?? undefined,
                                 mentions: mentionsFromFormatted(formatted),
                             },
-                            isThread
-                                ? { rootEventId: threadRootId! }
-                                : undefined,
+                            fileRelation(i),
                             transformOutgoingContent,
                             onUploadProgress,
                         );
@@ -1654,7 +1666,7 @@
                         targetRoomId,
                         item.file,
                         undefined,
-                        isThread ? { rootEventId: threadRootId! } : undefined,
+                        fileRelation(i),
                         undefined,
                         onUploadProgress,
                     );
@@ -1663,6 +1675,12 @@
                     // The drawer was already cleared optimistically; just record
                     // the success so a later failure won't restore this file.
                     sentIds.add(item.id);
+                    if (
+                        i === 0 &&
+                        fileReplyToId &&
+                        replyToEvent === replyTarget
+                    )
+                        onCancelReply?.();
                     // The caption rode on the first file — it's only safely
                     // sent once that file is.
                     if (useCaption && i === 0)
@@ -2379,7 +2397,24 @@
     {/if}
 
     {#if voiceRecorderOpen}
-        <VoiceRecorder {roomId} onClose={() => (voiceRecorderOpen = false)} />
+        <VoiceRecorder
+            {roomId}
+            getRelation={() =>
+                isThread || replyToEvent
+                    ? {
+                          rootEventId: isThread ? threadRootId! : undefined,
+                          replyToEventId: replyToEvent?.getId() ?? undefined,
+                      }
+                    : undefined}
+            onSent={(relation) => {
+                if (
+                    relation?.replyToEventId &&
+                    replyToEvent?.getId() === relation.replyToEventId
+                )
+                    onCancelReply?.();
+            }}
+            onClose={() => (voiceRecorderOpen = false)}
+        />
     {:else}
         <div
             class="input-box relative flex items-end gap-2 bg-discord-backgroundSecondary rounded-lg px-2.5 py-2.5 border border-transparent transition-colors"
