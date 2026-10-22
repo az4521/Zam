@@ -4,6 +4,7 @@ import {
     dateSeparatorLabel,
     unreadDividerBefore,
     isNearBottom,
+    timelineKey,
 } from "./timelineDisplay";
 
 // Minimal structural stand-in for a MatrixEvent in chronological lists.
@@ -126,5 +127,21 @@ describe("isNearBottom", () => {
 
     it("is true when the content does not fill the viewport", () => {
         expect(isNearBottom(0, 500, 300)).toBe(true);
+    });
+});
+
+describe("timelineKey", () => {
+    it("stays the same when a local echo gets its real event id", () => {
+        let id = "~!room:txn1";
+        const echo = { getId: () => id, getTxnId: () => "txn1" };
+        const before = timelineKey(echo);
+        id = "$real";
+        expect(timelineKey(echo)).toBe(before);
+    });
+
+    it("falls back to the event id for events with no transaction id", () => {
+        expect(
+            timelineKey({ getId: () => "$other", getTxnId: () => undefined }),
+        ).toBe("$other");
     });
 });

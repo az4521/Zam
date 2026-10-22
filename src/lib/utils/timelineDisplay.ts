@@ -61,6 +61,21 @@ export function unreadDividerBefore(
 }
 
 /**
+ * The `{#each}` key for a timeline row: the transaction id when the event has
+ * one, else the event id. Our own message starts as a local echo with a
+ * `~room:txn` id that the SDK swaps for the real `$id` on the SAME event object
+ * once the server accepts it. Keyed by event id, that swap destroyed and
+ * rebuilt the row, so its image or link-preview card collapsed to nothing and
+ * grew back, and the chat jumped up and back right after sending (issue #38).
+ */
+export function timelineKey(event: {
+    getId(): string | undefined;
+    getTxnId(): string | undefined;
+}): string | undefined {
+    return event.getTxnId() ?? event.getId();
+}
+
+/**
  * Whether a scroll position counts as "at the bottom" of a normal
  * top-to-bottom scroll container, within `slack` pixels.
  */

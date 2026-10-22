@@ -690,7 +690,13 @@
     let editTextareaEl: HTMLTextAreaElement | undefined = $state();
 
     const reactionTick = $derived(messagesState.reactionTick);
-    const eventId = $derived(event.getId() ?? "");
+    // Own messages swap their local `~` id for the real `$id` on the same event
+    // object, and the row is keyed by transaction id so it survives that swap
+    // (see timelineKey). Re-read on timelineTick, which the local-echo update
+    // bumps, so actions gated on a real id light up once the send lands.
+    const eventId = $derived(
+        (void messagesState.timelineTick, event.getId() ?? ""),
+    );
     const mobileSelected = $derived(
         interfaceState.isTouchscreen &&
             interfaceState.selectedMessageId === eventId,
@@ -2612,7 +2618,7 @@
                 {/if}
             {:else if isVerificationRequest}
                 <VerificationRequestMessage
-                    eventId={event.getId() ?? ""}
+                    {eventId}
                     senderName={displayName}
                     isOwn={isOwnMessage}
                 />

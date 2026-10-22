@@ -100,6 +100,7 @@
         dateSeparatorLabel,
         unreadDividerBefore,
         isNearBottom,
+        timelineKey,
     } from "$lib/utils/timelineDisplay";
     import { shouldDismissSelectionOnScroll } from "$lib/utils/scrollDismiss";
     import { targetCanScrollHoriz } from "$lib/utils/scrollHoriz";
@@ -2281,7 +2282,7 @@
 
             <!-- Message list (chronological: DOM order matches visual order,
                  so selection and copy across messages behave natively) -->
-            {#each messages as event, i (event.getId())}
+            {#each messages as event, i (timelineKey(event))}
                 {@const sepTs = dateSeparatorLabel(messages, i)}
                 {@const receipts = settingsState.showReadReceiptAvatars
                     ? (void receiptTick, getReceiptsForEvent(room, event))

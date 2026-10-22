@@ -26,6 +26,7 @@
     import MessageInput from "$lib/components/messages/MessageInput.svelte";
     import { composerThreadKey } from "$lib/utils/threadContent";
     import { canSendReceipt } from "$lib/utils/receiptGate";
+    import { timelineKey } from "$lib/utils/timelineDisplay";
 
     interface Props {
         room: Room;
@@ -347,7 +348,7 @@
                 </button>
             </div>
         {/if}
-        {#each messages as event, i (event.getId())}
+        {#each messages as event, i (timelineKey(event))}
             <MessageItem
                 {event}
                 {room}
