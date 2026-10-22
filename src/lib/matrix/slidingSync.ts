@@ -29,6 +29,7 @@ import {
 import { describeSyncError, logSync } from "$lib/matrix/syncLog";
 import { keepSlidingSyncAlive } from "$lib/matrix/slidingSyncKeepAlive";
 import { adaptSlidingSyncTimeout } from "$lib/matrix/slidingSyncTimeout";
+import { resendRoomSubscriptions } from "$lib/matrix/slidingSyncSubscriptions";
 import {
     isSlidingSyncEnabled,
     setSlidingSyncEnabled,
@@ -336,13 +337,21 @@ export async function buildSlidingSync(
             ),
     });
 
+    const roomSubscription = {
+        timeline_limit: SLIDING_ROOM_TIMELINE,
+        required_state: SLIDING_ROOM_STATE,
+    };
+    // Room subscriptions are not sticky on every server; repeat them on each
+    // request (see withAllRoomSubscriptions).
+    resendRoomSubscriptions(
+        client,
+        () => (activeSlidingSync ? slidingRoomSubscriptions() : []),
+        roomSubscription,
+    );
     const sliding = new SlidingSync(
         client.getHomeserverUrl(),
         lists,
-        {
-            timeline_limit: SLIDING_ROOM_TIMELINE,
-            required_state: SLIDING_ROOM_STATE,
-        },
+        roomSubscription,
         client,
         SLIDING_TIMEOUT_MS,
     );
