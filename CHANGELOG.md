@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.28.2
+
+✨ **New**
+
+- **Reply with attachments:** images, videos, files and voice messages can now be sent as replies. Pick Reply, then attach or record as usual. Text typed alongside attachments becomes the caption on the first one, which carries the reply. This works in threads too.
+
+🐛 **Fixed**
+
+- **Voice messages stay in their thread:** a voice message recorded in a thread was posted to the main room. It now lands in the thread.
+
 ## v1.28.1
 
 🐛 **Fixed**
