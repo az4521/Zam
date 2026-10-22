@@ -949,6 +949,15 @@
     let loadingNewer = $state(false);
     const messages = $derived(contextMessages ?? getMessages(roomId));
     const isContextView = $derived(contextMessages !== null);
+    // Mention highlights, re-derived whenever the message list is replaced. A
+    // per-row isHighlightEvent(event) call never re-ran: decryption mutates the
+    // SAME MatrixEvent, so the row saw no change and a mention that arrived as
+    // ciphertext stayed unhighlighted (issue #39).
+    const highlightedIds = $derived(
+        new Set(
+            messages.filter(isHighlightEvent).map((event) => event.getId()),
+        ),
+    );
     // Liveness comes from the room's MatrixRTC memberships, which the SDK
     // recomputes asynchronously AFTER the m.call.member event reaches the
     // timeline; voiceTick re-folds once it lands, or a just-started call
@@ -2339,7 +2348,7 @@
                         editRequested={editRequestedEventId === event.getId()}
                         onEditDone={() => messageInputEl?.focus()}
                         {receipts}
-                        mentionHighlight={isHighlightEvent(event)}
+                        mentionHighlight={highlightedIds.has(event.getId())}
                         callSummary={callSummaries.get(event.getId() ?? "") ??
                             null}
                     />

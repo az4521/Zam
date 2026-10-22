@@ -3875,6 +3875,9 @@ export function getOwnUserId(): string | null {
     return matrixClient?.getUserId() ?? null;
 }
 
+/** Encrypted events whose push actions were re-evaluated on their cleartext. */
+const pushActionsRecomputed = new WeakSet<MatrixEvent>();
+
 /**
  * Does this event personally concern the user — a mention, a reply to them,
  * @room, or a keyword — and so warrant the timeline highlight?
@@ -3887,6 +3890,23 @@ export function isHighlightEvent(event: MatrixEvent): boolean {
     if (!matrixClient) return false;
     if (event.getSender() === matrixClient.getUserId()) return false;
     try {
+        // Push actions are cached on the event, and the SDK caches them while
+        // it is still ciphertext (sync's unread-count pass). Its own
+        // recompute-on-decrypt (fixNotificationCountOnDecryption) skips events
+        // the user has already READ, so a mention you'd seen lost its highlight
+        // the moment the timeline was rebuilt (room re-entry, reset, reload):
+        // issue #39. Recompute once per event, after it has cleartext.
+        if (event.isEncrypted()) {
+            if (!event.getClearContent()) return false;
+            if (!pushActionsRecomputed.has(event)) {
+                pushActionsRecomputed.add(event);
+                const actions = matrixClient.getPushActionsForEvent(
+                    event,
+                    true,
+                );
+                return !!(actions?.notify && isHighlightAction(actions));
+            }
+        }
         const actions = matrixClient.getPushActionsForEvent(event);
         return !!(actions?.notify && isHighlightAction(actions));
     } catch {
