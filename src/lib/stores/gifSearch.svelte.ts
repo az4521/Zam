@@ -56,7 +56,10 @@ async function run(
     // survive into this request's in-flight window or an error.
     if (!append) gifSearchState.exhausted = false;
     try {
-        const { items, hasNext } = await fetchKlipy(urlFor(kind, query, page));
+        const { items, hasNext } = await fetchKlipy(
+            urlFor(kind, query, page),
+            kind,
+        );
         if (seq !== requestSeq) return; // a newer request superseded this one
         if (append) {
             const seen = new Set(gifSearchState.items.map((i) => i.id));

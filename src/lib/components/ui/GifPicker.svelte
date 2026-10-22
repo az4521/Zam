@@ -6,11 +6,12 @@
         removeFavouriteGif,
         isFavouriteGif,
         setFavouriteGifTags,
+        upgradeFavouriteGifs,
         type FavouriteGif,
     } from "$lib/stores/favourites.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
-    import { type GifKind, type GifResult } from "$lib/utils/klipy";
+    import { gifSendUrl, type GifKind, type GifResult } from "$lib/utils/klipy";
     import {
         gifSearchState,
         loadGifs,
@@ -124,7 +125,7 @@
     const activeKeys: string[] = $derived(
         tab === "favourites"
             ? visibleFavourites.map((g) => g.url)
-            : gifSearchState.items.map((r) => r.url),
+            : gifSearchState.items.map(gifSendUrl),
     );
 
     // Re-clamped (anchoredActiveIndex defers to clampActiveIndex) AND anchored,
@@ -205,12 +206,30 @@
         return ratio ? `aspect-ratio: ${ratio}` : undefined;
     }
 
+    // Favourites starred before the picker sent klipy.com page links are keyed
+    // by the static CDN URL, which carries no slug. When one of them turns up
+    // in the results, move it onto the page link so it is sent as one too.
+    $effect(() => {
+        const upgrades = gifSearchState.items
+            .filter((r) => r.pageUrl && isFavouriteGif(r.url))
+            .map((r) => ({
+                from: r.url,
+                to: r.pageUrl!,
+                previewVideoUrl: r.previewVideoUrl,
+            }));
+        if (upgrades.length) untrack(() => upgradeFavouriteGifs(upgrades));
+    });
+
     function toggleStar(r: GifResult) {
-        if (isFavouriteGif(r.url)) removeFavouriteGif(r.url);
+        const url = gifSendUrl(r);
+        if (isFavouriteGif(url)) removeFavouriteGif(url);
         else
             addFavouriteGif({
-                url: r.url,
+                url,
                 previewUrl: r.previewUrl,
+                ...(r.previewVideoUrl
+                    ? { previewVideoUrl: r.previewVideoUrl }
+                    : {}),
                 ...(r.width > 0 && r.height > 0
                     ? { width: r.width, height: r.height }
                     : {}),
@@ -505,23 +524,37 @@
                                 class:ring-discord-accent={activeIndex === idx}
                                 class="block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
                             >
-                                <img
-                                    src={gif.previewUrl}
-                                    alt=""
-                                    class="w-full h-auto block rounded bg-discord-backgroundTertiary"
-                                    loading="lazy"
-                                    decoding="async"
-                                    style={favouriteAspectStyle(gif)}
-                                    onload={(e) => {
-                                        const img =
-                                            e.currentTarget as HTMLImageElement;
-                                        learnGifAspect(
-                                            gif.previewUrl,
-                                            img.naturalWidth,
-                                            img.naturalHeight,
-                                        );
-                                    }}
-                                />
+                                {#if gif.previewVideoUrl}
+                                    <video
+                                        src={gif.previewVideoUrl}
+                                        class="w-full h-auto block rounded bg-discord-backgroundTertiary pointer-events-none"
+                                        style={favouriteAspectStyle(gif)}
+                                        autoplay
+                                        muted
+                                        loop
+                                        playsinline
+                                        disablepictureinpicture
+                                        aria-hidden="true"
+                                    ></video>
+                                {:else}
+                                    <img
+                                        src={gif.previewUrl}
+                                        alt=""
+                                        class="w-full h-auto block rounded bg-discord-backgroundTertiary"
+                                        loading="lazy"
+                                        decoding="async"
+                                        style={favouriteAspectStyle(gif)}
+                                        onload={(e) => {
+                                            const img =
+                                                e.currentTarget as HTMLImageElement;
+                                            learnGifAspect(
+                                                gif.previewUrl,
+                                                img.naturalWidth,
+                                                img.naturalHeight,
+                                            );
+                                        }}
+                                    />
+                                {/if}
                             </button>
                             <!-- Touchscreens have no hover, so the controls stay
                                  visible there instead of revealing on hover.
@@ -641,7 +674,7 @@
                                  position is the only honest name available --
                                  which still beats nameless. -->
                             <button
-                                onclick={() => pickUrl(r.url)}
+                                onclick={() => pickUrl(gifSendUrl(r))}
                                 id={optionId(listId, idx)}
                                 role="option"
                                 aria-selected={activeIndex === idx}
@@ -654,30 +687,50 @@
                                 class:ring-discord-accent={activeIndex === idx}
                                 class="block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
                             >
-                                <img
-                                    src={r.previewUrl}
-                                    alt=""
-                                    class="w-full h-auto block rounded bg-discord-backgroundTertiary"
-                                    loading="lazy"
-                                    decoding="async"
-                                    style={gifAspectRatioStyle(
-                                        r.width,
-                                        r.height,
-                                    )}
-                                />
+                                {#if r.previewVideoUrl}
+                                    <!-- Video, not the animated webp: webp only
+                                         starts animating once fully downloaded,
+                                         mp4 plays while it streams. -->
+                                    <video
+                                        src={r.previewVideoUrl}
+                                        class="w-full h-auto block rounded bg-discord-backgroundTertiary pointer-events-none"
+                                        style={gifAspectRatioStyle(
+                                            r.width,
+                                            r.height,
+                                        )}
+                                        autoplay
+                                        muted
+                                        loop
+                                        playsinline
+                                        disablepictureinpicture
+                                        aria-hidden="true"
+                                    ></video>
+                                {:else}
+                                    <img
+                                        src={r.previewUrl}
+                                        alt=""
+                                        class="w-full h-auto block rounded bg-discord-backgroundTertiary"
+                                        loading="lazy"
+                                        decoding="async"
+                                        style={gifAspectRatioStyle(
+                                            r.width,
+                                            r.height,
+                                        )}
+                                    />
+                                {/if}
                             </button>
                             <button
                                 onclick={(e) => {
                                     e.stopPropagation();
                                     toggleStar(r);
                                 }}
-                                title={isFavouriteGif(r.url)
+                                title={isFavouriteGif(gifSendUrl(r))
                                     ? t("common.removeFromFavourites")
                                     : t("common.addToFavourites")}
                                 aria-label={t("gifPicker.favourite")}
-                                aria-pressed={isFavouriteGif(r.url)}
+                                aria-pressed={isFavouriteGif(gifSendUrl(r))}
                                 class="absolute top-1 end-1 transition-opacity {favBtnClass} {isFavouriteGif(
-                                    r.url,
+                                    gifSendUrl(r),
                                 )
                                     ? 'text-discord-warning opacity-100'
                                     : activeIndex === idx

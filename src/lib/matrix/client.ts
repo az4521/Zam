@@ -1495,6 +1495,9 @@ const LEGACY_FAV_GIFS_KEY = "m.favourite_gifs";
 export interface FavouriteGif {
     url: string;
     previewUrl: string;
+    /** Small mp4 tile for the picker grid (KLIPY favourites). Untrusted on
+     *  read (account data), same as previewUrl. */
+    previewVideoUrl?: string;
     addedAt: number;
     tags?: string[];
     /** Natural size of the GIF, when known at the time it was starred. Lets

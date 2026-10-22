@@ -58,6 +58,12 @@ describe("normalizeKlipyItems", () => {
                             },
                         },
                         sm: {
+                            mp4: {
+                                url: "https://static2.klipy.com/sm.mp4",
+                                width: 320,
+                                height: 240,
+                                size: 30,
+                            },
                             gif: {
                                 url: "https://static2.klipy.com/sm.gif",
                                 width: 220,
@@ -87,10 +93,27 @@ describe("normalizeKlipyItems", () => {
         expect(page.items[0]).toEqual({
             id: "42",
             url: "https://static2.klipy.com/hd.gif", // full: gif, largest
+            pageUrl: "https://klipy.com/gifs/abc", // what gets sent
             previewUrl: "https://static2.klipy.com/md.webp", // thumb: webp, mid
+            previewVideoUrl: "https://static2.klipy.com/sm.mp4", // grid tile
             width: 498,
             height: 373,
         });
+    });
+
+    it("builds the page url from the requested kind", () => {
+        const page = normalizeKlipyItems(sample, "memes");
+        expect(page.items[0].pageUrl).toBe("https://klipy.com/memes/abc");
+    });
+
+    it("omits the page url for a missing or unsafe slug", () => {
+        const item = sample.data.data[0];
+        for (const slug of [undefined, "../x", "a b"]) {
+            const page = normalizeKlipyItems({
+                data: { data: [{ ...item, slug }] },
+            });
+            expect(page.items[0].pageUrl).toBeUndefined();
+        }
     });
 
     it("returns an empty page for garbage input", () => {

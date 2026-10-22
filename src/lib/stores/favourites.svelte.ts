@@ -85,6 +85,49 @@ export function setFavouriteGifTags(
     );
 }
 
+/** A favourite saved under an old URL that now has a better one. */
+export interface FavouriteGifUpgrade {
+    from: string;
+    to: string;
+    previewVideoUrl?: string;
+}
+
+/**
+ * Re-key favourites from an old URL to a new one, keeping their tags, order
+ * and addedAt. Used to move KLIPY favourites starred before the picker sent
+ * klipy.com page links off their static CDN URLs: the CDN path carries no
+ * slug, so the page link is only learned when the GIF shows up in a search.
+ * If the new URL is already a favourite, the old entry is just dropped.
+ */
+export function upgradeFavouriteGifs(
+    upgrades: FavouriteGifUpgrade[],
+): Promise<void> {
+    const byFrom = new Map(upgrades.map((u) => [u.from, u]));
+    if (!favouritesState.gifs.some((g) => byFrom.has(g.url)))
+        return Promise.resolve();
+    return mutate((gifs) => {
+        const urls = new Set(gifs.map((g) => g.url));
+        const out: FavouriteGif[] = [];
+        for (const g of gifs) {
+            const u = byFrom.get(g.url);
+            if (!u) out.push(g);
+            else if (!urls.has(u.to)) {
+                urls.add(u.to);
+                out.push({
+                    ...g,
+                    url: u.to,
+                    ...(u.previewVideoUrl && !g.previewVideoUrl
+                        ? { previewVideoUrl: u.previewVideoUrl }
+                        : {}),
+                });
+            }
+        }
+        return out.length === gifs.length && out.every((g, i) => g === gifs[i])
+            ? gifs
+            : out;
+    });
+}
+
 export function removeFavouriteGif(url: string): Promise<void> {
     return mutate((gifs) => gifs.filter((g) => g.url !== url));
 }
