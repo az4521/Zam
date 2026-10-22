@@ -4,6 +4,14 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.28.4
+
+🐛 **Fixed**
+
+- **Chat no longer jumps when messages arrive:** on matrix.org and other Synapse servers, a new message in the open chat could make it jump up or go blank for a few seconds while it reloaded, and closed any image you had open. It now stays put.
+- **Mentions stay highlighted:** in encrypted rooms, a message that mentioned you lost its highlight after you left the room and came back, or after the chat reloaded.
+- **Send messages back to back:** after sending a message, the send button showed a spinner until the server confirmed it, which could take several seconds. You can now send the next message straight away.
+
 ## v1.28.3
 
 ✨ **New**
