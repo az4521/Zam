@@ -31,6 +31,13 @@
         /** Mimetype and size of the attachment, from the event. */
         mimetype?: string | null;
         sizeHint?: number | null;
+        /** Images only: stand-ins painted behind `src` until it loads, best
+         *  first (a server thumbnail, then the sender's tiny one). `src` may
+         *  be "" while an encrypted original is still decrypting. */
+        placeholders?: readonly (string | null | undefined)[];
+        /** Images only: the full image's (untrusted) size, so its box is laid
+         *  out before it loads and the stand-ins have somewhere to show. */
+        dims?: { w: unknown; h: unknown } | null;
     }
 
     import {
@@ -51,6 +58,8 @@
     import { STREAM_ENCRYPTED_MIN_BYTES } from "$lib/matrix/videoStream";
     import type { EncryptedFileInfo } from "$lib/utils/decryptAttachment";
     import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
+    import { placeholderStyle } from "$lib/utils/imagePlaceholder";
+    import { safeDimension } from "$lib/utils/mediaDimensions";
     import { focusTrap } from "$lib/actions/focusTrap";
     import MediaProgress from "$lib/components/ui/MediaProgress.svelte";
     import type { DownloadProgress } from "$lib/utils/downloadProgress";
@@ -72,6 +81,8 @@
         encryptedFile,
         mimetype = null,
         sizeHint = null,
+        placeholders = [],
+        dims = null,
     }: Props = $props();
 
     const isVideo = $derived(kind === "video");
@@ -128,6 +139,8 @@
 
     async function download(e: MouseEvent) {
         e.stopPropagation();
+        // An encrypted original still decrypting: nothing to save yet.
+        if (!src) return;
         const name = filenameFromSrc();
         const quiet = e.shiftKey;
         try {
@@ -258,8 +271,36 @@
             scale = 1;
             tx = 0;
             ty = 0;
+            imgLoaded = false;
         });
     });
+
+    // ── Progressive stand-ins ──────────────────────────────────────────────
+    // Until `src` loads, the <img> shows `placeholders` as background layers
+    // in a box sized from `dims` (otherwise an unloaded <img> is 0×0). They
+    // are dropped once it loads so a transparent image doesn't show them.
+    let imgLoaded = $state(false);
+    const viewGutter = $derived(interfaceState.isMobile ? "6em" : "2em");
+    const imgBoxStyle = $derived.by(() => {
+        const w = safeDimension(dims?.w);
+        const h = safeDimension(dims?.h);
+        if (w === null || h === null) return "";
+        // What the loaded image would get from the max-width/max-height caps
+        // below: never past its own size, never past the viewport.
+        return (
+            `width: min(${w}px, calc(100dvw - ${viewGutter}), ` +
+            `calc((100dvh - ${viewGutter}) * ${w} / ${h})); ` +
+            `height: auto; aspect-ratio: ${w} / ${h};`
+        );
+    });
+    // No size to lay out a box with and no original yet: show the best
+    // stand-in as the image itself rather than nothing.
+    const shownSrc = $derived(
+        src || (imgBoxStyle ? "" : (placeholders.find((p) => !!p) ?? "")),
+    );
+    const imgPlaceholderStyle = $derived(
+        imgLoaded || !imgBoxStyle ? "" : placeholderStyle(placeholders),
+    );
 
     // Active pointers for pinch/pan.
     const pointers = new Map<number, { x: number; y: number }>();
@@ -739,9 +780,12 @@
             <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
             <img
                 bind:this={imgEl}
-                {src}
+                src={shownSrc || undefined}
                 {alt}
                 class="pointer-events-auto"
+                onload={() => {
+                    if (src) imgLoaded = true;
+                }}
                 onpointerdown={onPointerDown}
                 onpointermove={onPointerMove}
                 onpointerup={onPointerUp}
@@ -754,7 +798,9 @@
                     : '2em'}); object-fit: contain; border-radius: 0.5em; touch-action: none; transform: translate({tx}px, {ty}px) scale({scale}); transition: {pointers.size ===
                 0
                     ? 'transform 0.2s ease'
-                    : 'none'}; cursor: {scale > 1 ? 'grab' : 'zoom-in'};"
+                    : 'none'}; cursor: {scale > 1
+                    ? 'grab'
+                    : 'zoom-in'}; {imgBoxStyle} {imgPlaceholderStyle}"
             />
         {/if}
     </div>

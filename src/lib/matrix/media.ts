@@ -6,6 +6,7 @@ import type { ClientOwnership } from "$lib/utils/clientGeneration";
 import { threadRelationParams } from "./client";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { faststartMp4 } from "$lib/utils/mp4Faststart";
+import { createImageThumbnail } from "$lib/utils/imageThumbnail";
 import { isRoomEncrypted, isRoomEncryptedForSend } from "$lib/matrix/crypto";
 import { withMessageRelation } from "$lib/utils/threadContent";
 import {
@@ -209,7 +210,7 @@ export async function sendFile(
     transformContent?: (
         content: Record<string, unknown>,
     ) => Record<string, unknown>,
-    // Upload progress of the main file (the video thumbnail is not counted).
+    // Upload progress of the main file (its thumbnail is not counted).
     onProgress?: (loaded: number, total: number) => void,
 ): Promise<void> {
     const owner = captureClient();
@@ -249,6 +250,9 @@ export async function sendFile(
             ? await faststartMp4(file)
             : file;
 
+    // Decode and encode the image thumbnail while the main file uploads.
+    const imageThumb = isImage ? createImageThumbnail(file) : null;
+
     // Upload the main file, encrypting it if the room is encrypted.
     const uploadResult = await uploadAttachment(owner, roomId, toUpload, {
         name: file.name,
@@ -260,6 +264,35 @@ export async function sendFile(
         mimetype: file.type,
         size: file.size,
     };
+
+    if (imageThumb) {
+        const thumb = await imageThumb;
+        if (thumb) {
+            info.w = thumb.w;
+            info.h = thumb.h;
+        }
+        if (thumb?.blob) {
+            ownedClientOrThrow(owner);
+            const mimetype = thumb.blob.type;
+            const name =
+                mimetype === "image/webp" ? "thumbnail.webp" : "thumbnail.jpg";
+            // Same encryption decision as the image: `thumbnail_file` in an
+            // encrypted room, `thumbnail_url` otherwise.
+            const thumbUpload = await uploadAttachment(
+                owner,
+                roomId,
+                new File([thumb.blob], name, { type: mimetype }),
+                { name, msgtype },
+            );
+            Object.assign(info, thumbnailFields(thumbUpload));
+            info.thumbnail_info = {
+                mimetype,
+                w: thumb.thumbW,
+                h: thumb.thumbH,
+                size: thumb.blob.size,
+            };
+        }
+    }
 
     if (isVideo) {
         const thumb = await captureVideoThumbnail(file);

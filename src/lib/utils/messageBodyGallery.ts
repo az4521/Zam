@@ -31,6 +31,10 @@ export interface BodyImageInput {
 export interface GalleryImage {
     src: string;
     alt: string;
+    /** Stand-ins shown until `src` loads, best first (see Lightbox). */
+    placeholders?: (string | null)[];
+    /** The sender's untrusted `info.w`/`info.h`, to size the viewer early. */
+    dims?: { w: unknown; h: unknown };
 }
 
 /** A body `<img>` counts as gallery media iff it has a real src and is neither

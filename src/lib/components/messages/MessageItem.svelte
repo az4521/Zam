@@ -106,6 +106,8 @@
         trackerUrlToWavUrl,
     } from "$lib/utils/tracker";
     import { reservedMediaBox } from "$lib/utils/mediaDimensions";
+    import { videoPoster } from "$lib/utils/roomMedia";
+    import { placeholderStyle } from "$lib/utils/imagePlaceholder";
     import { createMediaRetry } from "$lib/stores/mediaAuth.svelte";
     import { utdPlaceholderText } from "$lib/utils/encryptionState";
     import { matrixErrorMessage } from "$lib/utils/knock";
@@ -653,10 +655,20 @@
             url?: string;
             filename?: string;
             body?: string;
+            info?: { w?: unknown; h?: unknown; mimetype?: string };
         };
+        const sender = videoPoster(c as Record<string, unknown>);
+        const isGifUpload = c.info?.mimetype === "image/gif";
         return {
             src: mxcToHttp(c.url as string) ?? "",
             alt: (c.filename ?? c.body ?? "") as string,
+            placeholders: [
+                isGifUpload
+                    ? null
+                    : mxcToHttp(c.url as string, 800, 600, "scale"),
+                sender?.kind === "plain" ? mxcToHttp(sender.mxc) : null,
+            ],
+            dims: { w: c.info?.w, h: c.info?.h },
         };
     }
 
@@ -1369,6 +1381,69 @@
             encryptedImageThumbUrl = null;
             encryptedImageFullUrl = null;
         };
+    });
+
+    // The sender's own small thumbnail (info.thumbnail_url / thumbnail_file),
+    // shown as a stand-in until the real image loads: behind the server's
+    // thumbnail in the tile, and behind the full image in the lightbox. The
+    // poster helper is not video-specific: it reads the same thumbnail fields.
+    const senderThumbSrc = $derived(
+        msgtype === "m.image" ? videoPoster(content) : null,
+    );
+    let encryptedSenderThumbUrl = $state<string | null>(null);
+    const senderThumbUrl = $derived(
+        !senderThumbSrc
+            ? null
+            : senderThumbSrc.kind === "plain"
+              ? mxcToHttp(senderThumbSrc.mxc)
+              : encryptedSenderThumbUrl,
+    );
+    // Keyed on the thumbnail's mxc so a re-render with equal content doesn't
+    // decrypt it again.
+    const encryptedSenderThumbKey = $derived(
+        senderThumbSrc?.kind === "encrypted" ? senderThumbSrc.file.url : null,
+    );
+    $effect(() => {
+        if (encryptedSenderThumbKey === null) return;
+        const src = untrack(() => senderThumbSrc);
+        if (src?.kind !== "encrypted") return;
+        let capturedUrl: string | null = null;
+        let cancelled = false;
+        fetchDecryptedAttachmentBlob(src.file, src.mimetype ?? undefined)
+            .then((url) => {
+                if (cancelled) {
+                    URL.revokeObjectURL(url);
+                    return;
+                }
+                capturedUrl = url;
+                encryptedSenderThumbUrl = url;
+            })
+            .catch(() => {
+                // No stand-in: the progress bar shows on its own, as before.
+            });
+        return () => {
+            cancelled = true;
+            if (capturedUrl) URL.revokeObjectURL(capturedUrl);
+            encryptedSenderThumbUrl = null;
+        };
+    });
+    // Dropped once the tile's own image has loaded, so a transparent image
+    // doesn't show the stand-in through it.
+    let imageTileLoaded = $state(false);
+    $effect(() => {
+        void mediaImgRetry.src;
+        imageTileLoaded = false;
+    });
+    const imageTilePlaceholder = $derived(
+        imageTileLoaded ? undefined : placeholderStyle([senderThumbUrl]),
+    );
+    // Lightbox stand-ins, best first. Unencrypted: the server's thumbnail (most
+    // likely cached from the tile) over the sender's. Encrypted: the sender's
+    // only. A GIF's tile already loads the original, so it adds nothing.
+    const lightboxPlaceholders = $derived.by(() => {
+        if (content?.file) return [senderThumbUrl];
+        const server = imageThumbUrl();
+        return [server !== imageFullUrl() ? server : null, senderThumbUrl];
     });
 
     // Audio: lazy-load blob only after play is clicked
@@ -2437,14 +2512,36 @@
                 {@const full = file ? encryptedImageFullUrl : imageFullUrl()}
                 {#if file && imageDecrypting}
                     <!-- The canvas is always mounted (the effect paints into
-                     it) but only shown once a first partial frame is drawn. -->
+                     it) but only shown once a first partial frame is drawn.
+                     With a sender thumbnail, that sits underneath at the
+                     reserved size and the canvas paints over it. -->
                     <div class="relative inline-block mt-1 max-w-full">
+                        {#if senderThumbUrl}
+                            <button
+                                type="button"
+                                class="block cursor-pointer"
+                                title={mediaFilename || undefined}
+                                onclick={openImageUpload}
+                            >
+                                <img
+                                    src={senderThumbUrl}
+                                    alt={mediaFilename}
+                                    width={imageBox?.width}
+                                    height={imageBox?.height}
+                                    class="block rounded-lg {imageBox
+                                        ? 'max-w-full h-auto'
+                                        : 'max-w-lg max-h-96 w-auto h-auto'}"
+                                />
+                            </button>
+                        {/if}
                         <canvas
                             bind:this={imagePreviewCanvas}
-                            class="block max-w-lg max-h-96 w-auto h-auto rounded-lg"
+                            class={senderThumbUrl
+                                ? "absolute inset-0 w-full h-full rounded-lg pointer-events-none"
+                                : "block max-w-lg max-h-96 w-auto h-auto rounded-lg"}
                             class:hidden={!imagePreviewing}
                         ></canvas>
-                        {#if imagePreviewing}
+                        {#if imagePreviewing || senderThumbUrl}
                             <div
                                 class="absolute inset-x-2 bottom-2 pointer-events-none"
                             >
@@ -2455,7 +2552,7 @@
                             </div>
                         {/if}
                     </div>
-                    {#if !imagePreviewing}
+                    {#if !imagePreviewing && !senderThumbUrl}
                         <MediaProgress
                             label={t("messageItem.decryptingImage")}
                             progress={imageProgress}
@@ -2500,6 +2597,8 @@
                                     loading="lazy"
                                     data-own-retry
                                     onerror={mediaImgRetry.onError}
+                                    style={imageTilePlaceholder}
+                                    onload={() => (imageTileLoaded = true)}
                                 />
                             {:else}
                                 <img
@@ -2510,6 +2609,8 @@
                                     loading="lazy"
                                     data-own-retry
                                     onerror={mediaImgRetry.onError}
+                                    style={imageTilePlaceholder}
+                                    onload={() => (imageTileLoaded = true)}
                                 />
                             {/if}
                         </a>
@@ -2549,17 +2650,6 @@
                             </button>
                         {/if}
                     </div>
-                    {#if imageLightboxOpen && full}
-                        <Lightbox
-                            src={full}
-                            alt={mediaFilename}
-                            filename={mediaFilename || undefined}
-                            favourite={isGif
-                                ? { url: full, previewUrl: thumb ?? full }
-                                : undefined}
-                            onClose={() => (imageLightboxOpen = false)}
-                        />
-                    {/if}
                     {#if uploadGallery}
                         {@const ug = uploadGallery}
                         {@const unav = galleryNav(ug.images.length, ug.index)}
@@ -2570,6 +2660,8 @@
                             <Lightbox
                                 src={ucur.src}
                                 alt={ucur.alt}
+                                placeholders={ucur.placeholders}
+                                dims={ucur.dims}
                                 onClose={() => (uploadGallery = null)}
                                 onPrev={uprev !== null
                                     ? () =>
@@ -2596,6 +2688,22 @@
                     <span class="text-xs text-discord-textMuted italic"
                         >{t("messageItem.imageUnavailable")}</span
                     >
+                {/if}
+                <!-- Outside the branches above so an encrypted image's viewer,
+                 opened on its thumbnail mid-decrypt, stays open when the
+                 full image lands. -->
+                {#if imageLightboxOpen && (full || senderThumbUrl)}
+                    <Lightbox
+                        src={full ?? ""}
+                        alt={mediaFilename}
+                        filename={mediaFilename || undefined}
+                        placeholders={lightboxPlaceholders}
+                        dims={{ w: imgInfoW, h: imgInfoH }}
+                        favourite={isGif && full
+                            ? { url: full, previewUrl: thumb ?? full }
+                            : undefined}
+                        onClose={() => (imageLightboxOpen = false)}
+                    />
                 {/if}
             {:else if msgtype === "m.video"}
                 {@render mediaCaption()}
