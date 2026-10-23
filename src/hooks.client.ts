@@ -1,3 +1,5 @@
+// Before anything else: some Android WebViews lack APIs the SDK calls.
+import "$lib/polyfills";
 // First, so everything logged from here on (crypto init included) is kept
 // for Settings > Debug Info > Client logs.
 import { installLogCapture } from "$lib/logCapture";

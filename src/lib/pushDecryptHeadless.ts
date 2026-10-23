@@ -27,6 +27,8 @@ import {
     initAsync,
 } from "@matrix-org/matrix-sdk-crypto-wasm";
 import { getCryptoDbName, getCryptoLockName } from "./utils/cryptoStore";
+// AbortSignal.timeout, below, is newer than some Android WebViews.
+import "./polyfills";
 
 export interface HeadlessDecryptParams {
     homeserverUrl: string;
