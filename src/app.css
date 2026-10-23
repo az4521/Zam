@@ -646,3 +646,66 @@ body {
     animation-duration: 1.5s !important;
     animation-iteration-count: infinite !important;
 }
+
+/* Rich contenteditable editors: the composer (MessageInput) and the inline
+   message editor (MessageEditBox). Decorations come from composerDecorate.ts. */
+.composer-editor {
+    min-height: 1.625rem;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.composer-editor:empty::before {
+    content: attr(placeholder);
+    color: var(--discord-text-muted);
+    pointer-events: none;
+}
+
+.composer-editor .composer-mention {
+    padding: 0 0.2rem;
+    border-radius: 3px;
+    color: rgb(var(--discord-accent-rgb));
+    background-color: rgb(var(--discord-accent-rgb) / 0.18);
+    font-weight: 500;
+}
+
+.composer-editor .composer-custom-emoji {
+    color: var(--discord-text-primary);
+}
+
+.composer-editor .composer-link {
+    color: rgb(var(--discord-accent-rgb));
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.composer-editor .composer-custom-emoji img {
+    display: inline-block;
+    width: auto;
+    height: 1.25em;
+    margin-inline-end: 0.15rem;
+    vertical-align: -0.25em;
+    object-fit: contain;
+}
+
+.composer-editor .composer-spoiler {
+    padding: 0 3px;
+    border-radius: 3px;
+    color: transparent;
+    background-color: var(--discord-spoiler-bg);
+    text-shadow: none;
+}
+
+.composer-editor code {
+    padding: 0.05rem 0.25rem;
+    border-radius: 3px;
+    background-color: var(--discord-bg-tertiary);
+    font-family:
+        ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    font-size: 0.875em;
+}
+
+.composer-editor a {
+    color: rgb(var(--discord-accent-rgb));
+    text-decoration: none;
+}

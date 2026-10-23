@@ -74,6 +74,8 @@
         getHomeserverBaseUrl,
         EventStatus,
     } from "$lib/matrix/client";
+    import MessageEditBox from "$lib/components/messages/MessageEditBox.svelte";
+    import { emoticonsFromHtml } from "$lib/utils/messageBody";
     import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
     import {
         editableBody,
@@ -699,7 +701,7 @@
     let editText = $state("");
     let isSavingEdit = $state(false);
     let rootEl: HTMLElement | undefined = $state();
-    let editTextareaEl: HTMLTextAreaElement | undefined = $state();
+    let editBoxEl: HTMLDivElement | undefined = $state();
 
     const reactionTick = $derived(messagesState.reactionTick);
     // Own messages swap their local `~` id for the real `$id` on the same event
@@ -1747,7 +1749,7 @@
         if (editRequested) {
             editFromKeyboard = true;
             startEdit();
-            tick().then(() => editTextareaEl?.focus());
+            tick().then(() => editBoxEl?.focus());
         }
     });
 
@@ -1769,7 +1771,7 @@
             // entry points (this button, ArrowUp-in-composer, double-tap)
             // land in the same place. The other two already focus after their
             // own tick(); focus() on the already-focused element is a no-op.
-            editTextareaEl?.focus();
+            editBoxEl?.focus();
         });
     }
 
@@ -1808,17 +1810,6 @@
             console.error("Failed to edit message:", err);
         } finally {
             isSavingEdit = false;
-        }
-    }
-
-    function onEditKeydown(e: KeyboardEvent) {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            saveEdit();
-        }
-        if (e.key === "Escape") {
-            e.preventDefault();
-            cancelEdit();
         }
     }
 
@@ -2260,15 +2251,17 @@
              attachment itself stays rendered below it). -->
             {#snippet editBox()}
                 <div class="mt-1">
-                    <textarea
-                        dir="auto"
-                        bind:this={editTextareaEl}
-                        bind:value={editText}
-                        onkeydown={onEditKeydown}
-                        rows="1"
-                        class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1.5 outline-none resize-none focus:ring-1 focus:ring-discord-accent/50"
-                        style="field-sizing: content; max-height: 200px;"
-                    ></textarea>
+                    <MessageEditBox
+                        bind:text={editText}
+                        bind:editorEl={editBoxEl}
+                        {room}
+                        messageEmotes={emoticonsFromHtml(
+                            event.getContent().formatted_body as
+                                string | undefined,
+                        )}
+                        onSave={saveEdit}
+                        onCancel={cancelEdit}
+                    />
                     <p class="text-xs text-discord-textMuted mt-1">
                         <kbd class="font-mono">Enter</kbd>
                         {t("messageItem.toSave")}

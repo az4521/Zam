@@ -14,7 +14,6 @@
         getRoomMembers,
         loadRoomMembersIfNeeded,
         getCustomEmojis,
-        USER_EMOJI_SOURCE,
         mxcToHttp,
         sendTyping,
         onTypingEvent,
@@ -55,14 +54,28 @@
     import { hostBridge } from "$lib/plugins/hostBridge";
     import { shouldQueueSend } from "$lib/utils/sendGating";
     import { queueMessage } from "$lib/stores/outbox.svelte";
-    import { ALL_EMOJIS } from "$lib/data/emojis";
     import { textSymbolPresentation } from "$lib/utils/twemoji";
     import {
         convertTrailingShortcode,
         replaceEmojiShortcodes,
-        shortcodesFor,
     } from "$lib/data/emojiShortcodes";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
+    import EmojiSuggestions from "$lib/components/messages/EmojiSuggestions.svelte";
+    import {
+        caretOffset,
+        editorText,
+        pastedPlainText,
+        selectedLength,
+        setCaretOffset as setCaretOffsetIn,
+    } from "$lib/utils/composerDom";
+    import { decorateComposerText } from "$lib/utils/composerDecorate";
+    import { TextUndoHistory, diffCaret, undoKind } from "$lib/utils/textUndo";
+    import {
+        applyEmojiCandidate,
+        findEmojiQuery,
+        rankEmojiCandidates,
+        type EmojiCandidate,
+    } from "$lib/utils/emojiAutocomplete";
     import StickerPicker from "$lib/components/ui/StickerPicker.svelte";
     import GifPicker from "$lib/components/ui/GifPicker.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
@@ -392,50 +405,11 @@
     });
 
     function getComposerText(): string {
-        const raw = textareaEl?.innerText.replace(/\u00a0/g, " ") ?? "";
-        // The canonical DOM keeps a placeholder <br> after a trailing line
-        // break (and browsers keep one in an emptied contenteditable), which
-        // innerText reports as one extra newline — drop exactly one.
-        return raw.replace(/\n$/, "");
-    }
-
-    /**
-     * Length of a node's content in composer-model characters: text length
-     * plus one per <br>. The model (`text`, from innerText) represents line
-     * breaks as "\n", but Range.toString() and text-node walks don't see
-     * <br> elements at all \u2014 using them uncorrected desyncs every caret
-     * offset by one per line break above it, scrambling edits and pastes in
-     * multiline messages.
-     */
-    function modelLength(root: Node): number {
-        let length = 0;
-        const walker = document.createTreeWalker(
-            root,
-            NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
-        );
-        let node = walker.nextNode();
-        while (node) {
-            if (node.nodeType === Node.TEXT_NODE) {
-                length += node.textContent?.length ?? 0;
-            } else if ((node as Element).tagName === "BR") {
-                length += 1;
-            }
-            node = walker.nextNode();
-        }
-        return length;
+        return textareaEl ? editorText(textareaEl) : "";
     }
 
     function getCaretOffset(): number {
-        if (!textareaEl) return text.length;
-        const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0) return text.length;
-        const range = selection.getRangeAt(0);
-        if (!textareaEl.contains(range.endContainer)) return text.length;
-
-        const preCaret = range.cloneRange();
-        preCaret.selectNodeContents(textareaEl);
-        preCaret.setEnd(range.endContainer, range.endOffset);
-        return modelLength(preCaret.cloneContents());
+        return textareaEl ? caretOffset(textareaEl, text.length) : text.length;
     }
 
     function setCaretOffset(offset: number): void {
@@ -446,47 +420,7 @@
         // tap will place it naturally.
         if (interfaceState.isMobile && document.activeElement !== textareaEl)
             return;
-        const target = Math.max(0, Math.min(offset, getComposerText().length));
-        const walker = document.createTreeWalker(
-            textareaEl,
-            NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
-        );
-        let remaining = target;
-        let node = walker.nextNode();
-        while (node) {
-            if (node.nodeType === Node.TEXT_NODE) {
-                const len = node.textContent?.length ?? 0;
-                if (remaining <= len) {
-                    const range = document.createRange();
-                    const selection = window.getSelection();
-                    range.setStart(node, remaining);
-                    range.collapse(true);
-                    selection?.removeAllRanges();
-                    selection?.addRange(range);
-                    return;
-                }
-                remaining -= len;
-            } else if ((node as Element).tagName === "BR") {
-                if (remaining === 0) {
-                    const range = document.createRange();
-                    const selection = window.getSelection();
-                    range.setStartBefore(node);
-                    range.collapse(true);
-                    selection?.removeAllRanges();
-                    selection?.addRange(range);
-                    return;
-                }
-                remaining -= 1;
-            }
-            node = walker.nextNode();
-        }
-
-        const range = document.createRange();
-        const selection = window.getSelection();
-        range.selectNodeContents(textareaEl);
-        range.collapse(false);
-        selection?.removeAllRanges();
-        selection?.addRange(range);
+        setCaretOffsetIn(textareaEl, offset);
     }
 
     function detectMentionQuery() {
@@ -553,70 +487,18 @@
     }
 
     // Emoji autocomplete
-    type EmojiCandidate =
-        | { kind: "unicode"; emoji: string; name: string }
-        | {
-              kind: "custom";
-              shortcode: string;
-              url: string;
-              /** The room or space its pack lives in (CustomEmoji.source). */
-              source?: string;
-          };
-
     let emojiQuery = $state<string | null>(null);
     let emojiStart = $state(0);
     let emojiSelectedIdx = $state(0);
 
-    const emojiCandidates = $derived.by((): EmojiCandidate[] => {
-        if (emojiQuery === null || emojiQuery.length < 2) return [];
-        const q = emojiQuery.toLowerCase();
-        const custom = getCustomEmojis(room, roomsState.activeSpaceId)
-            .filter((e) => e.shortcode.toLowerCase().includes(q))
-            .slice(0, 5)
-            .map((e): EmojiCandidate => ({
-                kind: "custom",
-                shortcode: e.shortcode,
-                url: e.url,
-                source: e.source,
-            }));
-        // Discord-style ranking: an exact shortcode (":tm" → ™️) first, then
-        // shortcodes starting with the query, then any shortcode or name
-        // containing it. The row shows the shortcode that matched.
-        const ranked: { rank: number; candidate: EmojiCandidate }[] = [];
-        for (const e of ALL_EMOJIS) {
-            const codes = shortcodesFor(e.emoji);
-            const exact = codes.find((c) => c === q);
-            const prefix = codes.find((c) => c.startsWith(q));
-            const partial = codes.find((c) => c.includes(q));
-            const rank = exact
-                ? 0
-                : prefix
-                  ? 1
-                  : partial || e.name.toLowerCase().includes(q)
-                    ? 2
-                    : -1;
-            if (rank < 0) continue;
-            ranked.push({
-                rank,
-                candidate: {
-                    kind: "unicode",
-                    emoji: e.emoji,
-                    name:
-                        exact ??
-                        prefix ??
-                        partial ??
-                        codes[0] ??
-                        e.name.replace(/ /g, "_"),
-                },
-            });
-        }
-        // Array sort is stable, so equal ranks keep the emoji-picker order.
-        const unicode = ranked
-            .sort((a, b) => a.rank - b.rank)
-            .slice(0, 8 - custom.length)
-            .map((r) => r.candidate);
-        return [...custom, ...unicode];
-    });
+    const emojiCandidates = $derived.by((): EmojiCandidate[] =>
+        emojiQuery === null
+            ? []
+            : rankEmojiCandidates(
+                  emojiQuery,
+                  getCustomEmojis(room, roomsState.activeSpaceId),
+              ),
+    );
 
     $effect(() => {
         if (emojiSelectedIdx >= emojiCandidates.length) emojiSelectedIdx = 0;
@@ -685,39 +567,23 @@
     }
 
     function detectEmojiQuery() {
-        const pos = getCaretOffset();
-        const before = text.slice(0, pos);
-        // Match :word with no closing colon yet (at least 1 char after :)
-        const match = before.match(/:(\w+)$/);
-        if (match) {
-            emojiQuery = match[1];
-            emojiStart = pos - match[0].length;
-        } else {
-            emojiQuery = null;
-        }
+        const q = findEmojiQuery(text, getCaretOffset());
+        emojiQuery = q?.query ?? null;
+        emojiStart = q?.start ?? 0;
     }
 
     function commitEmoji(candidate: EmojiCandidate) {
-        const queryLen = emojiQuery?.length ?? 0;
-        const before = text.slice(0, emojiStart);
-        const after = text.slice(emojiStart + 1 + queryLen);
-        if (candidate.kind === "unicode") {
-            const emoji = textSymbolPresentation(candidate.emoji);
-            text = before + emoji + " " + after.replace(/^\S*/, "");
-            const newPos = emojiStart + emoji.length + 1;
-            tick().then(() => {
-                renderComposer(newPos);
-                textareaEl?.focus();
-            });
-        } else {
-            const insertion = `:${candidate.shortcode}: `;
-            text = before + insertion + after.replace(/^\S*/, "");
-            const newPos = emojiStart + insertion.length;
-            tick().then(() => {
-                renderComposer(newPos);
-                textareaEl?.focus();
-            });
-        }
+        if (emojiQuery === null) return;
+        const next = applyEmojiCandidate(
+            text,
+            { query: emojiQuery, start: emojiStart },
+            candidate,
+        );
+        text = next.text;
+        tick().then(() => {
+            renderComposer(next.caret);
+            textareaEl?.focus();
+        });
         emojiQuery = null;
     }
 
@@ -910,27 +776,6 @@
         });
     }
 
-    function escapeHtml(plain: string): string {
-        return plain
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;");
-    }
-
-    function renderCustomEmojiToken(token: string): string | null {
-        // Every inline token comes through here, so `*emoji*` or `_emoji_`
-        // would otherwise lose its markers and match an emote named "emoji".
-        if (!/^:[a-zA-Z0-9_+-]+:$/.test(token)) return null;
-        const shortcode = token.slice(1, -1);
-        const emoji = getCustomEmojis(room, roomsState.activeSpaceId).find(
-            (e) => e.shortcode === shortcode,
-        );
-        const src = emoji ? mxcToHttp(emoji.mxcUrl) : null;
-        if (!src) return null;
-        return `<span class="composer-custom-emoji"><img src="${escapeHtml(src)}" alt="" draggable="false" contenteditable="false" />${escapeHtml(token)}</span>`;
-    }
-
     function isMentionToken(token: string): boolean {
         if (!token.startsWith("@") || token.length < 2) return false;
         // Keys include the leading "@" (e.g. "@alice" or "@alice:hs").
@@ -946,51 +791,14 @@
     }
 
     function decorateInline(plain: string): string {
-        const tokenRe =
-            /(https?:\/\/[^\s<>)"']+|@[^\s<]+|`[^`\n]+`|\*\*\*[^*\n][\s\S]*?\*\*\*|\*\*[^*\n][\s\S]*?\*\*|(?<![\w])__[^_\n][\s\S]*?__(?![\w])|\*[^*\n]+\*|(?<![\w])_[^_\n]+_(?![\w])|~~[^~\n]+~~|\|\|[^|\n]+\|\||:[a-zA-Z0-9_+-]+:)/g;
-        let html = "";
-        let pos = 0;
-        for (const match of plain.matchAll(tokenRe)) {
-            const token = match[0];
-            const index = match.index ?? 0;
-            html += escapeHtml(plain.slice(pos, index));
-
-            const customEmoji = renderCustomEmojiToken(token);
-            if (customEmoji) {
-                html += customEmoji;
-            } else if (token.startsWith("@") && isMentionToken(token)) {
-                html += `<span class="composer-mention">${escapeHtml(token)}</span>`;
-            } else if (
-                token.startsWith("http://") ||
-                token.startsWith("https://")
-            ) {
-                html += `<span class="composer-link">${escapeHtml(token)}</span>`;
-            } else if (token.startsWith("`")) {
-                html += `<code>${escapeHtml(token)}</code>`;
-            } else if (token.startsWith("||")) {
-                html += `<span class="composer-spoiler">${escapeHtml(token)}</span>`;
-            } else if (token.startsWith("~~")) {
-                html += `<del>${escapeHtml(token)}</del>`;
-            } else if (token.startsWith("***")) {
-                html += `<strong><em>${escapeHtml(token)}</em></strong>`;
-            } else if (token.startsWith("**")) {
-                html += `<strong>${escapeHtml(token)}</strong>`;
-            } else if (token.startsWith("__")) {
-                html += `<u>${escapeHtml(token)}</u>`;
-            } else if (token.startsWith("*") || token.startsWith("_")) {
-                html += `<em>${escapeHtml(token)}</em>`;
-            } else {
-                html += escapeHtml(token);
-            }
-            pos = index + token.length;
-        }
-        html += escapeHtml(plain.slice(pos));
-        let out = html.replace(/\n/g, "<br>");
-        // A trailing <br> renders as nothing in a contenteditable (and drops
-        // out of innerText), so a message ending in a newline needs a
-        // placeholder <br> to keep the empty line visible and round-trippable.
-        if (plain.endsWith("\n")) out += "<br>";
-        return out;
+        const emojis = getCustomEmojis(room, roomsState.activeSpaceId);
+        return decorateComposerText(plain, {
+            emojiSrc: (shortcode) => {
+                const emoji = emojis.find((e) => e.shortcode === shortcode);
+                return emoji ? mxcToHttp(emoji.mxcUrl) : null;
+            },
+            isMention: isMentionToken,
+        });
     }
 
     function renderComposer(caretOffset = getCaretOffset()): void {
@@ -1006,82 +814,31 @@
         tick().then(() => renderComposer(caretOffset));
     }
 
-    // Undo/redo history. renderComposer rewrites innerHTML on every change,
-    // which wipes the browser's native undo stack, so Ctrl+Z is driven from
-    // the model instead. The stack holds successive `text` values; a watcher
+    // Undo/redo history, driven from the model (see textUndo.ts). A watcher
     // records every change however it happened (typing, paste, picker
-    // inserts, mention commits). Consecutive typing/deleting within a short
-    // window coalesces into one step, like a native text field.
-    const UNDO_LIMIT = 200;
-    const UNDO_COALESCE_MS = 1000;
-    let undoHistory: string[] = [""];
-    let undoIndex = 0;
-    let undoLastKind: string | null = null;
-    let undoLastAt = 0;
+    // inserts, mention commits).
+    const undo = new TextUndoHistory();
     // inputType of the in-flight native edit (set in onBeforeInput, consumed
     // by the watcher). null → a programmatic change.
     let pendingInputKind: string | null = null;
 
     function resetUndoHistory(current: string): void {
-        undoHistory = [current];
-        undoIndex = 0;
-        undoLastKind = null;
-    }
-
-    function recordUndo(next: string): void {
-        if (next === undoHistory[undoIndex]) return;
-        const kind = pendingInputKind;
-        pendingInputKind = null;
-        // A programmatic clear is a send / command completing: start fresh so
-        // Ctrl+Z doesn't resurrect an already-sent message.
-        if (next === "" && kind === null) {
-            resetUndoHistory("");
-            return;
-        }
-        const now = Date.now();
-        const coalesce =
-            kind !== null &&
-            kind === undoLastKind &&
-            now - undoLastAt < UNDO_COALESCE_MS &&
-            undoIndex > 0;
-        undoLastKind = kind;
-        undoLastAt = now;
-        undoHistory.length = undoIndex + 1; // drop the redo branch
-        if (coalesce) {
-            undoHistory[undoIndex] = next;
-            return;
-        }
-        undoHistory.push(next);
-        if (undoHistory.length > UNDO_LIMIT) undoHistory.shift();
-        undoIndex = undoHistory.length - 1;
+        undo.reset(current);
     }
 
     $effect(() => {
         const t = text;
-        untrack(() => recordUndo(t));
+        untrack(() => {
+            const kind = pendingInputKind;
+            pendingInputKind = null;
+            undo.record(t, kind);
+        });
     });
 
-    /** Caret for `to` after a jump from `from`: the end of the changed span. */
-    function diffCaret(from: string, to: string): number {
-        const max = Math.min(from.length, to.length);
-        let prefix = 0;
-        while (prefix < max && from[prefix] === to[prefix]) prefix++;
-        let suffix = 0;
-        while (
-            suffix < max - prefix &&
-            from[from.length - 1 - suffix] === to[to.length - 1 - suffix]
-        )
-            suffix++;
-        return to.length - suffix;
-    }
-
     function stepUndo(delta: -1 | 1): void {
-        const target = undoIndex + delta;
-        if (target < 0 || target >= undoHistory.length) return;
+        const to = undo.step(delta);
+        if (to === null) return;
         const from = text;
-        const to = undoHistory[target];
-        undoIndex = target;
-        undoLastKind = null;
         text = to;
         renderComposer(diffCaret(from, to));
         detectMentionQuery();
@@ -1972,11 +1729,7 @@
 
     /** Model length of the current selection ("" when collapsed). */
     function getSelectedLength(): number {
-        const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0) return 0;
-        const range = selection.getRangeAt(0);
-        if (!textareaEl?.contains(range.endContainer)) return 0;
-        return modelLength(range.cloneContents());
+        return textareaEl ? selectedLength(textareaEl) : 0;
     }
 
     function insertLineBreakAtCaret(): void {
@@ -1998,11 +1751,7 @@
             return;
         }
         // Group consecutive typing / deleting into single undo steps.
-        pendingInputKind = e.inputType.startsWith("insertText")
-            ? "insert"
-            : e.inputType.startsWith("delete")
-              ? "delete"
-              : e.inputType;
+        pendingInputKind = undoKind(e.inputType);
         if (
             e.inputType === "insertLineBreak" ||
             e.inputType === "insertParagraph"
@@ -2034,15 +1783,7 @@
         // into the contenteditable. If only text/html is available, project it
         // down to plain text via textContent (parsing does not execute scripts).
         e.preventDefault();
-        let pastedText = e.clipboardData?.getData("text/plain") ?? "";
-        if (!pastedText) {
-            const html = e.clipboardData?.getData("text/html");
-            if (html) {
-                pastedText =
-                    new DOMParser().parseFromString(html, "text/html").body
-                        .textContent ?? "";
-            }
-        }
+        const pastedText = pastedPlainText(e.clipboardData);
         if (!pastedText) return;
         const end = getCaretOffset();
         const selected = getSelectedLength();
@@ -2266,52 +2007,12 @@
     {/if}
     <!-- Emoji autocomplete picker -->
     {#if emojiQuery !== null && emojiCandidates.length > 0}
-        <div
-            class="mb-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg overflow-hidden shadow-lg"
-        >
-            {#each emojiCandidates as candidate, i}
-                <button
-                    onpointerdown={(e) => {
-                        e.preventDefault();
-                        // See the mention picker: swallow the trailing click so
-                        // it can't open a link behind the unmounted picker.
-                        suppressNextClick();
-                        commitEmoji(candidate);
-                    }}
-                    onpointerenter={() => (emojiSelectedIdx = i)}
-                    class="w-full flex items-center gap-2.5 px-3 py-1.5 text-start transition-colors"
-                    class:bg-discord-messageHover={i === emojiSelectedIdx}
-                >
-                    {#if candidate.kind === "unicode"}
-                        <span class="text-xl w-6 text-center flex-shrink-0"
-                            >{candidate.emoji}</span
-                        >
-                        <span class="text-sm text-discord-textPrimary truncate"
-                            >:{candidate.name}:</span
-                        >
-                        <span class="text-xs text-discord-textMuted"
-                            >{candidate.emoji}</span
-                        >
-                    {:else}
-                        <img
-                            src={candidate.url}
-                            alt={candidate.shortcode}
-                            class="w-6 h-6 object-contain flex-shrink-0"
-                        />
-                        <span class="text-sm text-discord-textPrimary truncate"
-                            >:{candidate.shortcode}:</span
-                        >
-                        <span
-                            class="ms-auto ps-2 text-xs text-discord-textMuted truncate max-w-[50%]"
-                            >{candidate.source === USER_EMOJI_SOURCE
-                                ? t("messageInput.yourEmotes")
-                                : (candidate.source ??
-                                  t("messageInput.custom"))}</span
-                        >
-                    {/if}
-                </button>
-            {/each}
-        </div>
+        <EmojiSuggestions
+            class="mb-1"
+            candidates={emojiCandidates}
+            bind:selectedIdx={emojiSelectedIdx}
+            onPick={commitEmoji}
+        />
     {/if}
 
     <!-- Mention autocomplete picker -->
@@ -2769,66 +2470,5 @@
     .input-box:focus-within {
         outline: none;
         border-color: rgb(var(--discord-accent-rgb) / 0.3);
-    }
-
-    .composer-editor {
-        min-height: 1.625rem;
-        overflow-wrap: anywhere;
-        white-space: pre-wrap;
-    }
-
-    .composer-editor:empty::before {
-        content: attr(placeholder);
-        color: var(--discord-text-muted);
-        pointer-events: none;
-    }
-
-    .composer-editor :global(.composer-mention) {
-        padding: 0 0.2rem;
-        border-radius: 3px;
-        color: rgb(var(--discord-accent-rgb));
-        background-color: rgb(var(--discord-accent-rgb) / 0.18);
-        font-weight: 500;
-    }
-
-    .composer-editor :global(.composer-custom-emoji) {
-        color: var(--discord-text-primary);
-    }
-
-    .composer-editor :global(.composer-link) {
-        color: rgb(var(--discord-accent-rgb));
-        text-decoration: underline;
-        text-underline-offset: 2px;
-    }
-
-    .composer-editor :global(.composer-custom-emoji img) {
-        display: inline-block;
-        width: auto;
-        height: 1.25em;
-        margin-inline-end: 0.15rem;
-        vertical-align: -0.25em;
-        object-fit: contain;
-    }
-
-    .composer-editor :global(.composer-spoiler) {
-        padding: 0 3px;
-        border-radius: 3px;
-        color: transparent;
-        background-color: var(--discord-spoiler-bg);
-        text-shadow: none;
-    }
-
-    .composer-editor :global(code) {
-        padding: 0.05rem 0.25rem;
-        border-radius: 3px;
-        background-color: var(--discord-bg-tertiary);
-        font-family:
-            ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
-        font-size: 0.875em;
-    }
-
-    .composer-editor :global(a) {
-        color: rgb(var(--discord-accent-rgb));
-        text-decoration: none;
     }
 </style>
