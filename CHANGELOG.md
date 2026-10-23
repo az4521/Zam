@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.29.1
+
+🐛 **Fixed**
+
+- **Verifying sessions works after a bumpy recovery setup:** if the password step failed the first time you set up recovery, trying again said "Recovery is set up" but never sent your cross-signing keys to the server, so none of your sessions could verify each other. Setting up recovery now makes sure the keys reach the server. If your account is already affected, the session where you set up recovery shows "Your cross-signing keys never reached the server" in Settings > Security & Encryption, with a button to upload them.
+
 ## v1.29.0
 
 ✨ **New**
