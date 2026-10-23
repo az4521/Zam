@@ -21,6 +21,7 @@ const {
     clipboard,
     Notification,
     screen,
+    powerMonitor,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const http = require("http");
@@ -30,6 +31,7 @@ const { resolveStaticPath, isSafeExternalUrl } = require("./serverGuards.cjs");
 const { parseWindowState, fitToDisplays } = require("./windowState.cjs");
 const { registerPluginNative } = require("./pluginNative.cjs");
 const { registerGlobalHotkeys } = require("./globalHotkeys.cjs");
+const { createUpdateSchedule } = require("./updateSchedule.cjs");
 
 const BUILD_DIR = path.join(__dirname, "..", "build");
 // Hand-sized icon set (scripts/gen-icons.py): the .ico carries a real frame per
@@ -326,10 +328,16 @@ function setupAutoUpdater() {
         sendUpdateStatus(mapUpdateError(err));
     });
 
-    // First check ~10s after launch so it never blocks or races startup. This
-    // is the ONLY background check, and the one that may auto-download (when the
-    // persisted preference is on).
-    setTimeout(() => runUpdateCheck(false), 10000);
+    // Background checks: ~10s after launch (so it never blocks or races
+    // startup), then every few hours and after waking from sleep, so an app
+    // left open for days still hears about a release (see updateSchedule.cjs).
+    // These are the only checks that may auto-download (when the persisted
+    // preference is on).
+    const schedule = createUpdateSchedule({
+        check: () => runUpdateCheck(false),
+    });
+    schedule.start();
+    powerMonitor.on("resume", () => schedule.onResume());
 }
 
 // Renderer → main. Every handler is inert in dev (guarded on app.isPackaged).
