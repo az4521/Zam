@@ -53,9 +53,12 @@ function processInline(raw: string): { html: string; changed: boolean } {
     s = s.replace(/~~(.+?)~~/g, "<del>$1</del>");
     s = s.replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>");
     s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    s = s.replace(/(?<![\w])__(.+?)__(?![\w])/g, "<u>$1</u>");
+    // `(^|\W)` stands in for a lookbehind (Safari < 16.4 can't parse one)
+    // and is put back. Same matches: a previous match ends in `_`, a word
+    // character, so it never takes a boundary the next one needed.
+    s = s.replace(/(^|\W)__(.+?)__(?!\w)/g, "$1<u>$2</u>");
     s = s.replace(/\*([^*\n]+?)\*/g, "<em>$1</em>");
-    s = s.replace(/(?<![\w])_([^_\n]+?)_(?![\w])/g, "<em>$1</em>");
+    s = s.replace(/(^|\W)_([^_\n]+?)_(?!\w)/g, "$1<em>$2</em>");
 
     // Restore escaped characters and code spans
     s = s.replace(/\x04(\d+)\x05/g, (_, i) => escaped[+i]);

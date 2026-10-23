@@ -17,6 +17,25 @@ export default defineConfig(({ mode }) => ({
     plugins: [
         ...(mode === "https" ? [basicSsl()] : []),
         sveltekit(),
+        // matrix-js-sdk builds its keyword push-rule regex with a lookbehind,
+        // which throws on Safari < 16.4. It's only ever tested for a match
+        // (`!!val.match(regex)`), so consuming the boundary is equivalent.
+        // Fails the build if the SDK changes, rather than silently skipping.
+        {
+            name: "zam:sdk-no-lookbehind",
+            transform(code, id) {
+                if (!/matrix-js-sdk[\\/]lib[\\/]pushprocessor\.js$/.test(id)) {
+                    return null;
+                }
+                const from = '"(?<=^|\\\\W)"';
+                if (!code.includes(from)) {
+                    this.error(
+                        "zam:sdk-no-lookbehind: pushprocessor.js changed; recheck its lookbehind",
+                    );
+                }
+                return { code: code.replace(from, '"(?:^|\\\\W)"'), map: null };
+            },
+        },
         {
             ...legacy({
                 targets: ["ios >= 15.8", "> 0.5%", "not dead"],

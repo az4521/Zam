@@ -67,6 +67,11 @@
     import { motionOK } from "$lib/utils/motionPreference";
     import { onMount, untrack } from "svelte";
 
+    // Dynamic viewport units (dvw/dvh) are Safari 15.4+; before that a style
+    // using them is dropped whole, so fall back to plain vw/vh there.
+    const vu =
+        typeof CSS !== "undefined" && CSS.supports("height", "1dvh") ? "d" : "";
+
     let {
         src,
         alt = "",
@@ -288,8 +293,8 @@
         // What the loaded image would get from the max-width/max-height caps
         // below: never past its own size, never past the viewport.
         return (
-            `width: min(${w}px, calc(100dvw - ${viewGutter}), ` +
-            `calc((100dvh - ${viewGutter}) * ${w} / ${h})); ` +
+            `width: min(${w}px, calc(100${vu}vw - ${viewGutter}), ` +
+            `calc((100${vu}vh - ${viewGutter}) * ${w} / ${h})); ` +
             `height: auto; aspect-ratio: ${w} / ${h};`
         );
     });
@@ -692,9 +697,9 @@
                  Svelte's click delegation and by the root's containClicks. -->
             <div
                 class="relative pointer-events-auto flex items-center justify-center"
-                style="max-width: calc(100dvw - {interfaceState.isMobile
+                style="max-width: calc(100{vu}vw - {interfaceState.isMobile
                     ? '6em'
-                    : '2em'}); max-height: calc(100dvh - {interfaceState.isMobile
+                    : '2em'}); max-height: calc(100{vu}vh - {interfaceState.isMobile
                     ? '6em'
                     : '2em'});"
             >
@@ -722,7 +727,7 @@
                                 oncanplay={() => (videoReady = true)}
                                 onerror={onVideoBroke}
                                 class="max-w-full max-h-full rounded-lg bg-black"
-                                style="max-height: calc(100dvh - {interfaceState.isMobile
+                                style="max-height: calc(100{vu}vh - {interfaceState.isMobile
                                     ? '6em'
                                     : '2em'});"
                             ></video>
@@ -791,9 +796,9 @@
                 onpointerup={onPointerUp}
                 onpointercancel={onPointerUp}
                 ondragstart={(e) => e.preventDefault()}
-                style="max-width: calc(100dvw - {interfaceState.isMobile
+                style="max-width: calc(100{vu}vw - {interfaceState.isMobile
                     ? '6em'
-                    : '2em'}); max-height: calc(100dvh - {interfaceState.isMobile
+                    : '2em'}); max-height: calc(100{vu}vh - {interfaceState.isMobile
                     ? '6em'
                     : '2em'}); object-fit: contain; border-radius: 0.5em; touch-action: none; transform: translate({tx}px, {ty}px) scale({scale}); transition: {pointers.size ===
                 0

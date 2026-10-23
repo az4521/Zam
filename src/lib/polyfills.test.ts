@@ -29,4 +29,28 @@ describe("polyfills", () => {
         await import("./polyfills");
         expect(Promise.withResolvers).toBe(native);
     });
+
+    it("adds a v4 crypto.randomUUID when the runtime lacks it", async () => {
+        const original = crypto.randomUUID;
+        Object.defineProperty(crypto, "randomUUID", {
+            configurable: true,
+            writable: true,
+            value: undefined,
+        });
+        try {
+            vi.resetModules();
+            await import("./polyfills");
+            const id = crypto.randomUUID();
+            expect(id).toMatch(
+                /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+            );
+            expect(crypto.randomUUID()).not.toBe(id);
+        } finally {
+            Object.defineProperty(crypto, "randomUUID", {
+                configurable: true,
+                writable: true,
+                value: original,
+            });
+        }
+    });
 });

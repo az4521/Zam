@@ -17,8 +17,28 @@ export interface DecorateOptions {
     isMention?: (token: string) => boolean;
 }
 
+// `__u__` and `_em_` must not follow a word character. That used to be a
+// lookbehind, which Safari < 16.4 can't parse (here, at module level, it
+// stopped the whole app loading); `inlineTokens` checks it instead.
 const TOKEN_RE =
-    /(https?:\/\/[^\s<>)"']+|@[^\s<]+|`[^`\n]+`|\*\*\*[^*\n][\s\S]*?\*\*\*|\*\*[^*\n][\s\S]*?\*\*|(?<![\w])__[^_\n][\s\S]*?__(?![\w])|\*[^*\n]+\*|(?<![\w])_[^_\n]+_(?![\w])|~~[^~\n]+~~|\|\|[^|\n]+\|\||:[a-zA-Z0-9_+-]+:)/g;
+    /(https?:\/\/[^\s<>)"']+|@[^\s<]+|`[^`\n]+`|\*\*\*[^*\n][\s\S]*?\*\*\*|\*\*[^*\n][\s\S]*?\*\*|__[^_\n][\s\S]*?__(?![\w])|\*[^*\n]+\*|_[^_\n]+_(?![\w])|~~[^~\n]+~~|\|\|[^|\n]+\|\||:[a-zA-Z0-9_+-]+:)/g;
+
+/** TOKEN_RE's matches, minus `_`/`__` tokens glued to a word. A rejected one
+ *  rescans from the next character, as the lookbehind's failed match did. */
+function* inlineTokens(plain: string): Generator<RegExpExecArray> {
+    const re = new RegExp(TOKEN_RE.source, "g");
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(plain))) {
+        if (
+            match[0].startsWith("_") &&
+            /\w/.test(plain[match.index - 1] ?? "")
+        ) {
+            re.lastIndex = match.index + 1;
+            continue;
+        }
+        yield match;
+    }
+}
 
 function customEmojiHtml(
     token: string,
@@ -38,7 +58,7 @@ export function decorateComposerText(
 ): string {
     let html = "";
     let pos = 0;
-    for (const match of plain.matchAll(TOKEN_RE)) {
+    for (const match of inlineTokens(plain)) {
         const token = match[0];
         const index = match.index ?? 0;
         html += escapeHtml(plain.slice(pos, index));

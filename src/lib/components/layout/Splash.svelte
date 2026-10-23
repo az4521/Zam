@@ -7,7 +7,7 @@
 
 <div
     class="flex items-center justify-center bg-discord-backgroundTertiary p-4"
-    style="min-height: 100dvh;"
+    style="min-height: 100vh; min-height: 100dvh;"
 >
     <div class="flex items-center gap-3 text-discord-textMuted">
         <div

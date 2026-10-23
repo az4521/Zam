@@ -348,7 +348,9 @@
     class="{interfaceState.isTouchscreen
         ? 'w-full rounded-t-xl'
         : 'rounded-xl'} relative bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
-    style={interfaceState.isTouchscreen ? "height: 50dvh;" : undefined}
+    style={interfaceState.isTouchscreen
+        ? "height: 50vh; height: 50dvh;"
+        : undefined}
     onkeydown={onKeydown}
 >
     {#if !interfaceState.isTouchscreen}

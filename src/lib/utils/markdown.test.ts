@@ -143,6 +143,19 @@ describe("parseMarkdown — inline formatting", () => {
     });
 });
 
+describe("parseMarkdown — underscores need a word boundary", () => {
+    it("leaves snake_case and glued __ alone", () => {
+        expect(parseMarkdown("snake_case_name").hasFormatting).toBe(false);
+        expect(parseMarkdown("a__b__").hasFormatting).toBe(false);
+    });
+
+    it("formats at the start, after spaces and after punctuation", () => {
+        expect(parseMarkdown("__u__ and (_e_)").formattedBody).toBe(
+            "<u>u</u> and (<em>e</em>)",
+        );
+    });
+});
+
 describe("parseMarkdown — block formatting", () => {
     it("renders # heading", () => {
         const result = parseMarkdown("# Title");
