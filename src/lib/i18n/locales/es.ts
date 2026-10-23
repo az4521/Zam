@@ -1087,6 +1087,10 @@ const messages: Record<MessageKey, string> = {
         "Enviar vídeos que se reproducen antes",
     "messagesMediaSettings.rearrangeMp4VideosYouSend":
         "Reorganiza los vídeos MP4 que envías para que empiecen a reproducirse mientras se descargan. No se vuelve a codificar nada y la imagen no cambia. Desactívalo para enviar los archivos tal cual.",
+    "messagesMediaSettings.sendPhotosThatAppearSooner":
+        "Enviar fotos que aparecen antes",
+    "messagesMediaSettings.rewriteJpegPhotosYouSend":
+        "Reorganiza las fotos JPEG que envías para que se vea la imagen completa enseguida y se vaya definiendo mientras se descarga. No se vuelve a codificar nada y la imagen no cambia. Desactívalo para enviar los archivos tal cual.",
     "messagesMediaSettings.defaultTab": "Pestaña predeterminada",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "La pestaña en la que se abre el selector de GIF.",
@@ -3232,6 +3236,8 @@ const messages: Record<MessageKey, string> = {
         "Pausar los vídeos fuera de la pantalla",
     "settingsSearch.sendVideosThatStreamFaster":
         "Enviar vídeos que se reproducen antes",
+    "settingsSearch.sendPhotosThatAppearSooner":
+        "Enviar fotos que aparecen antes",
     "settingsSearch.midiSoundBank": "Banco de sonidos MIDI",
     "settingsSearch.holdToOpenMessageMenu":
         "Mantener pulsado para abrir el menú del mensaje",

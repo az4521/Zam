@@ -1047,6 +1047,10 @@ export const en = {
         "Send videos that stream faster",
     "messagesMediaSettings.rearrangeMp4VideosYouSend":
         "Rearrange MP4 videos you send so they can start playing while they download. Nothing is re-encoded and the picture is unchanged. Turn this off to send files exactly as they are.",
+    "messagesMediaSettings.sendPhotosThatAppearSooner":
+        "Send photos that appear sooner",
+    "messagesMediaSettings.rewriteJpegPhotosYouSend":
+        "Rewrite JPEG photos you send so people see the whole picture straight away and it sharpens as it downloads. Nothing is re-encoded and the picture is unchanged. Turn this off to send files exactly as they are.",
     "messagesMediaSettings.defaultTab": "Default tab",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "Which tab the GIF picker opens on.",
@@ -3079,6 +3083,8 @@ export const en = {
     "settingsSearch.pauseVideosOffScreen": "Pause videos off-screen",
     "settingsSearch.sendVideosThatStreamFaster":
         "Send videos that stream faster",
+    "settingsSearch.sendPhotosThatAppearSooner":
+        "Send photos that appear sooner",
     "settingsSearch.midiSoundBank": "MIDI sound bank",
     "settingsSearch.holdToOpenMessageMenu": "Hold to open message menu",
     "settingsSearch.gifDefaultTab": "GIF default tab",

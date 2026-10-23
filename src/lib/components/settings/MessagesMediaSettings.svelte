@@ -9,6 +9,7 @@
         setLinkPreviewsEnabled,
         setPauseVideoOnScrollOff,
         setFaststartVideos,
+        setProgressiveJpegs,
         setGifDefaultTab,
         setMidiSoundBank,
         settingsState,
@@ -257,6 +258,21 @@
                 checked={settingsState.faststartVideos}
                 onChange={setFaststartVideos}
                 label={t("messagesMediaSettings.sendVideosThatStreamFaster")}
+            />
+        </div>
+        <div class="flex items-center gap-3 py-2">
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("messagesMediaSettings.sendPhotosThatAppearSooner")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("messagesMediaSettings.rewriteJpegPhotosYouSend")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.progressiveJpegs}
+                onChange={setProgressiveJpegs}
+                label={t("messagesMediaSettings.sendPhotosThatAppearSooner")}
             />
         </div>
     </section>

@@ -6,6 +6,7 @@ import type { ClientOwnership } from "$lib/utils/clientGeneration";
 import { threadRelationParams } from "./client";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { faststartMp4 } from "$lib/utils/mp4Faststart";
+import { progressiveJpegForUpload } from "$lib/utils/progressiveJpegUpload";
 import { createImageThumbnail } from "$lib/utils/imageThumbnail";
 import { isRoomEncrypted, isRoomEncryptedForSend } from "$lib/matrix/crypto";
 import { withMessageRelation } from "$lib/utils/threadContent";
@@ -241,17 +242,22 @@ export async function sendFile(
             ? "m.audio"
             : "m.file";
 
+    // Decode and encode the image thumbnail while the main file is prepared
+    // and uploads.
+    const imageThumb = isImage ? createImageThumbnail(file) : null;
+
     // An MP4/MOV with its index at the end only starts playing once fully
-    // downloaded; move the index to the front so receivers can stream it. The
-    // media itself is untouched, and the original is sent if anything about the
-    // file is unexpected (see utils/mp4Faststart).
+    // downloaded; move the index to the front so receivers can stream it. A
+    // baseline JPEG only shows the part that has arrived; rewrite it as
+    // progressive so receivers see the whole picture early. Neither changes
+    // the picture, and the original is sent if anything about the file is
+    // unexpected (see utils/mp4Faststart, utils/jpegProgressive).
     const toUpload =
         isVideo && settingsState.faststartVideos
             ? await faststartMp4(file)
-            : file;
-
-    // Decode and encode the image thumbnail while the main file uploads.
-    const imageThumb = isImage ? createImageThumbnail(file) : null;
+            : file.type === "image/jpeg" && settingsState.progressiveJpegs
+              ? await progressiveJpegForUpload(file)
+              : file;
 
     // Upload the main file, encrypting it if the room is encrypted.
     const uploadResult = await uploadAttachment(owner, roomId, toUpload, {
@@ -262,7 +268,7 @@ export async function sendFile(
 
     const info: Record<string, unknown> = {
         mimetype: file.type,
-        size: file.size,
+        size: toUpload.size,
     };
 
     if (imageThumb) {

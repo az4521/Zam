@@ -257,6 +257,12 @@ export const settingsState = $state({
      *  it downloads (see utils/mp4Faststart). Nothing is re-encoded. Default ON;
      *  turn off to upload files byte-for-byte as picked. Local-only. */
     faststartVideos: readBool("faststartVideos", true),
+    /** Device-global: before sending a baseline JPEG, rewrite it as a
+     *  progressive JPEG so receivers see the whole picture early and it
+     *  sharpens as it downloads (see utils/jpegProgressive). Lossless: same
+     *  pixels and metadata. Default ON; turn off to upload files byte-for-byte
+     *  as picked. Local-only. */
+    progressiveJpegs: readBool("progressiveJpegs", true),
     /** Device-global: which sound bank plays MIDI attachments (see
      *  utils/midiSoundBank). Default "bundled", the SoundFont Zam ships, so
      *  MIDI sounds the same everywhere. Local-only: a custom bank lives in
@@ -813,6 +819,11 @@ export function setPauseVideoOnScrollOff(value: boolean): void {
 export function setFaststartVideos(value: boolean): void {
     settingsState.faststartVideos = value;
     writeBool("faststartVideos", value);
+}
+
+export function setProgressiveJpegs(value: boolean): void {
+    settingsState.progressiveJpegs = value;
+    writeBool("progressiveJpegs", value);
 }
 
 export function setMidiSoundBank(value: MidiSoundBankChoice): void {

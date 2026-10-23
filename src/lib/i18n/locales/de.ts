@@ -1068,6 +1068,10 @@ const messages: Record<MessageKey, string> = {
         "Videos senden, die schneller starten",
     "messagesMediaSettings.rearrangeMp4VideosYouSend":
         "Ordnet MP4-Videos, die du sendest, so um, dass sie schon während des Downloads starten können. Es wird nichts neu kodiert und das Bild bleibt unverändert. Deaktiviere das, um Dateien unverändert zu senden.",
+    "messagesMediaSettings.sendPhotosThatAppearSooner":
+        "Fotos senden, die schneller erscheinen",
+    "messagesMediaSettings.rewriteJpegPhotosYouSend":
+        "Schreibt JPEG-Fotos, die du sendest, so um, dass Empfänger sofort das ganze Bild sehen und es beim Herunterladen schärfer wird. Es wird nichts neu kodiert und das Bild bleibt unverändert. Deaktiviere das, um Dateien unverändert zu senden.",
     "messagesMediaSettings.defaultTab": "Standard-Tab",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "Welcher Tab in der GIF-Auswahl zuerst geöffnet wird.",
@@ -3225,6 +3229,8 @@ const messages: Record<MessageKey, string> = {
         "Videos außerhalb des Bildschirms pausieren",
     "settingsSearch.sendVideosThatStreamFaster":
         "Videos senden, die schneller starten",
+    "settingsSearch.sendPhotosThatAppearSooner":
+        "Fotos senden, die schneller erscheinen",
     "settingsSearch.midiSoundBank": "MIDI-Soundbank",
     "settingsSearch.holdToOpenMessageMenu":
         "Gedrückt halten für Nachrichtenmenü",

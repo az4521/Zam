@@ -996,6 +996,10 @@ const messages: Record<MessageKey, string> = {
         "Send videos that stream faster",
     "messagesMediaSettings.rearrangeMp4VideosYouSend":
         "Rearrange MP4 videos you send so they can start playing while they download. Nothing is re-encoded and the picture is unchanged. Turn this off to send files exactly as they are.",
+    "messagesMediaSettings.sendPhotosThatAppearSooner":
+        "Send photos that appear sooner",
+    "messagesMediaSettings.rewriteJpegPhotosYouSend":
+        "Rewrite JPEG photos you send so people see the whole picture straight away and it sharpens as it downloads. Nothing is re-encoded and the picture is unchanged. Turn this off to send files exactly as they are.",
     "messagesMediaSettings.defaultTab": "ܠܘܚܐ ܥܕܝܠܐ",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "ܐܝܢܐ ܠܘܚܐ ܦܬܚ ܓܒܝܬܐ ܕ GIF.",
@@ -2980,6 +2984,8 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.pauseVideosOffScreen": "ܦܣܘܩ ܒܝܕܝܘ̈ܐ ܠܒܪ ܡܢ ܡܚܙܝܬܐ",
     "settingsSearch.sendVideosThatStreamFaster":
         "Send videos that stream faster",
+    "settingsSearch.sendPhotosThatAppearSooner":
+        "Send photos that appear sooner",
     "settingsSearch.midiSoundBank": "ܒܝܬ ܓܢܙܐ ܕܩ̈ܠܐ ܕ MIDI",
     "settingsSearch.holdToOpenMessageMenu": "ܐܚܘܕ ܩܐ ܦܬܚܐ ܪܫܝܡܬܐ ܕܐܓܪܬܐ",
     "settingsSearch.gifDefaultTab": "ܠܘܚܐ ܥܕܝܠܐ ܕ GIF",

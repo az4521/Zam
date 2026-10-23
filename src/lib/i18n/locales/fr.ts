@@ -1052,6 +1052,10 @@ const messages: Record<MessageKey, string> = {
         "Envoyer des vidéos qui démarrent plus vite",
     "messagesMediaSettings.rearrangeMp4VideosYouSend":
         "Réorganise les vidéos MP4 que vous envoyez pour qu'elles puissent démarrer pendant le téléchargement. Rien n'est ré-encodé et l'image reste identique. Désactivez cette option pour envoyer les fichiers tels quels.",
+    "messagesMediaSettings.sendPhotosThatAppearSooner":
+        "Envoyer des photos qui s'affichent plus vite",
+    "messagesMediaSettings.rewriteJpegPhotosYouSend":
+        "Réorganise les photos JPEG que vous envoyez pour qu'on voie tout de suite l'image entière, qui devient plus nette pendant le téléchargement. Rien n'est ré-encodé et l'image reste identique. Désactivez cette option pour envoyer les fichiers tels quels.",
     "messagesMediaSettings.defaultTab": "Onglet par défaut",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "L'onglet sur lequel s'ouvre le sélecteur de GIF.",
@@ -3194,6 +3198,8 @@ const messages: Record<MessageKey, string> = {
         "Mettre en pause les vidéos hors écran",
     "settingsSearch.sendVideosThatStreamFaster":
         "Envoyer des vidéos qui démarrent plus vite",
+    "settingsSearch.sendPhotosThatAppearSooner":
+        "Envoyer des photos qui s'affichent plus vite",
     "settingsSearch.midiSoundBank": "Banque de sons MIDI",
     "settingsSearch.holdToOpenMessageMenu":
         "Maintenir pour ouvrir le menu du message",

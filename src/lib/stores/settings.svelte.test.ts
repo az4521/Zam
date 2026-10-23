@@ -683,6 +683,38 @@ describe("faststartVideos", () => {
     });
 });
 
+describe("progressiveJpegs", () => {
+    const PK = "settings:progressiveJpegs";
+
+    async function boot(stored: string | null) {
+        if (stored === null) localStorage.removeItem(PK);
+        else localStorage.setItem(PK, stored);
+        vi.resetModules();
+        return await import("./settings.svelte");
+    }
+
+    afterEach(() => {
+        localStorage.removeItem(PK);
+    });
+
+    it("defaults to true so sent photos load progressively", async () => {
+        const fresh = await boot(null);
+        expect(fresh.settingsState.progressiveJpegs).toBe(true);
+    });
+
+    it("reads a stored false at boot", async () => {
+        const fresh = await boot("false");
+        expect(fresh.settingsState.progressiveJpegs).toBe(false);
+    });
+
+    it("persists the setter's value to localStorage", async () => {
+        const fresh = await boot(null);
+        fresh.setProgressiveJpegs(false);
+        expect(fresh.settingsState.progressiveJpegs).toBe(false);
+        expect(localStorage.getItem(PK)).toBe("false");
+    });
+});
+
 describe("holdToOpenMessageMenu (device-local)", () => {
     it("persists to the bare (non-account-scoped) key", () => {
         setHoldToOpenMessageMenu(true);
