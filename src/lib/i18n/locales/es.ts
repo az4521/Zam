@@ -1840,6 +1840,12 @@ const messages: Record<MessageKey, string> = {
     "securitySettings.iVeSavedMyRecoveryKey":
         "He guardado mi clave de recuperación en un lugar seguro.",
     "securitySettings.done": "Hecho",
+    "securitySettings.keysNotOnServer":
+        "Tus claves de firma cruzada nunca llegaron al servidor",
+    "securitySettings.keysNotOnServerHint":
+        "Esta sesión las creó al configurar la recuperación, pero la subida no terminó, así que tus sesiones no pueden verificarse entre sí. Súbelas ahora para arreglarlo.",
+    "securitySettings.uploadKeys": "Subir claves",
+    "securitySettings.couldNotUploadKeys": "No se pudieron subir tus claves",
     "securitySettings.recoveryIsSetUp": "La recuperación está configurada",
     "securitySettings.yourCrossSigningKeysAndA":
         "Tus claves de firma cruzada y una copia de seguridad de claves están guardadas de forma segura en el servidor, protegidas por tu clave de recuperación.",
@@ -2727,7 +2733,7 @@ const messages: Record<MessageKey, string> = {
     "verification.sessionNotKnownYet":
         "Esta sesión aún no conoce esa sesión. Espera unos segundos y vuelve a intentarlo, o inicia la verificación desde la sesión nueva.",
     "verification.accountHasNoIdentity":
-        "Tu cuenta aún no ha configurado la firma cruzada, así que tus otras sesiones no pueden verificar esta. Abre Ajustes > Seguridad y cifrado en cualquier sesión y configura la recuperación; luego usa la clave de recuperación en las demás.",
+        "Las claves de firma cruzada de tu cuenta no están en el servidor, así que tus otras sesiones no pueden verificar esta. Abre Ajustes > Seguridad y cifrado en la sesión donde configuraste la recuperación: si ofrece subir tus claves, hazlo. Si nunca configuraste la recuperación, configúrala en cualquier sesión.",
     "verification.sessionHasNoKeys":
         "Esa sesión no ha publicado sus claves de cifrado, así que no se puede verificar ni recibir mensajes cifrados. Cierra la sesión y vuelve a iniciarla.",
     "verification.sessionKeysRejected":

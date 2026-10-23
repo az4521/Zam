@@ -1698,6 +1698,12 @@ const messages: Record<MessageKey, string> = {
     "securitySettings.iVeSavedMyRecoveryKey":
         "ܢܛܝܪܠܝ ܩܠܝܕܐ ܕܦܘܪܩܢܐ ܕܝܝ ܒܕܘܟܐ ܫܠܝܡܬܐ.",
     "securitySettings.done": "ܫܠܡܠܗ",
+    "securitySettings.keysNotOnServer":
+        "ܩܠܝܕ̈ܐ ܕܚܬܡܐ ܚܠܦܢܝܐ ܕܝܘܟ ܠܐ ܡܛܝܠܗܘܢ ܠܣܝܪܒܪ",
+    "securitySettings.keysNotOnServerHint":
+        "ܓܠܣܐ ܗܢܐ ܥܒܕܠܗ ܐܢܝ̈ ܒܛܘܝܒܐ ܕܦܘܪܩܢܐ، ܐܠܐ ܡܣܩܬܐ ܠܐ ܫܠܡܠܗ، ܡܛܠ ܗܕܐ ܓܠܣ̈ܐ ܕܝܘܟ ܠܐ ܡܨܝܢ ܕܡܫܪܪܝ ܚܕ̈ܕܐ. ܡܣܩ ܐܢܝ̈ ܗܫܐ ܕܬܬܩܢ ܗܕܐ.",
+    "securitySettings.uploadKeys": "ܡܣܩ ܩܠܝܕ̈ܐ",
+    "securitySettings.couldNotUploadKeys": "ܠܐ ܡܨܝܠܗ ܕܡܣܩ ܩܠܝܕ̈ܐ ܕܝܘܟ",
     "securitySettings.recoveryIsSetUp": "ܦܘܪܩܢܐ ܡܛܘܝܒܐ ܝܠܗ",
     "securitySettings.yourCrossSigningKeysAndA":
         "ܩܠܝܕ̈ܐ ܕܚܬܡܐ ܕܝܘܟ ܘܢܘܣܚܐ ܕܒܣܬܪ ܕܩܠܝܕ̈ܐ ܢܛܝܪ̈ܐ ܝܢ ܒܫܠܡܘܬܐ ܥܠ ܣܝܪܒܪ، ܢܛܝܪ̈ܐ ܒܩܠܝܕܐ ܕܦܘܪܩܢܐ ܕܝܘܟ.",
@@ -2510,7 +2516,7 @@ const messages: Record<MessageKey, string> = {
     "verification.sessionNotKnownYet":
         "ܓܠܣܐ ܗܿܘ ܠܐ ܝܠܗ ܝܕܝܥܐ ܗܵܪܟܐ ܥܕܟܡܐ. ܡܘܚܪ ܩܠܝܠ ܘܢܣܝ ܙܒܢܐ ܐܚܪܢܐ، ܐܘ ܫܪܝ ܫܘܪܪܐ ܡܢ ܓܠܣܐ ܚܕܬܐ.",
     "verification.accountHasNoIdentity":
-        "ܚܫܒܘܢܐ ܕܝܘܟ ܠܐ ܛܝܒܠܗ ܚܬܡܐ ܚܠܦܢܝܐ ܗܠ ܗܫܐ، ܡܛܠ ܗܕܐ ܓܠܣ̈ܐ ܐܚܪ̈ܢܐ ܕܝܘܟ ܠܐ ܡܨܝܢ ܕܡܫܪܪܝ ܠܗܢܐ. ܦܬܚ ܛܘܝܒ̈ܐ > ܫܠܡܘܬܐ ܘܛܘܫܝܐ ܒܟܠ ܓܠܣܐ ܘܛܝܒ ܦܘܪܩܢܐ، ܘܒܬܪ ܗܕܐ ܡܦܠܚ ܩܠܝܕܐ ܕܦܘܪܩܢܐ ܒܐܚܪ̈ܢܐ.",
+        "ܩܠܝܕ̈ܐ ܕܚܬܡܐ ܚܠܦܢܝܐ ܕܚܫܒܘܢܐ ܕܝܘܟ ܠܝܬ ܥܠ ܣܝܪܒܪ، ܡܛܠ ܗܕܐ ܓܠܣ̈ܐ ܐܚܪ̈ܢܐ ܕܝܘܟ ܠܐ ܡܨܝܢ ܕܡܫܪܪܝ ܠܗܢܐ. ܦܬܚ ܛܘܝܒ̈ܐ > ܫܠܡܘܬܐ ܘܛܘܫܝܐ ܒܓܠܣܐ ܕܛܝܒܠܘܟ ܦܘܪܩܢܐ ܒܓܘܗ: ܐܢ ܡܩܪܒ ܠܡܣܩ ܩܠܝܕ̈ܐ ܕܝܘܟ، ܥܒܘܕ ܗܕܐ. ܐܢ ܠܐ ܛܝܒܠܘܟ ܦܘܪܩܢܐ ܡܢ ܩܕܡ، ܛܝܒ ܠܗ ܒܟܠ ܓܠܣܐ.",
     "verification.sessionHasNoKeys":
         "ܓܠܣܐ ܗܿܘ ܠܐ ܦܪܣܡܠܗ ܩܠܝܕ̈ܐ ܕܛܘܫܝܐ ܕܝܼܠܗ، ܡܛܠ ܗܕܐ ܠܐ ܡܨܐ ܕܡܫܪܪ ܐܘ ܕܩܒܠ ܡܫܕܪ̈ܬܐ ܛܫܝ̈ܬܐ. ܦܠܘܛ ܡܢܗ ܘܥܘܠ ܙܒܢܐ ܐܚܪܢܐ.",
     "verification.sessionKeysRejected":

@@ -742,6 +742,10 @@ describe("resetRecovery reports which half failed", () => {
             getUserId: () => "@me:example.org",
             getDeviceId: () => "DEVICE1",
             getAccountDataFromServer: vi.fn(() => Promise.resolve(null)),
+            // The server has our master key unless a test says otherwise.
+            downloadKeysForUsers: vi.fn(() =>
+                Promise.resolve({ master_keys: { "@me:example.org": {} } }),
+            ),
             getCrypto: () => ({
                 resetEncryption: vi.fn(() => {
                     calls.push("resetEncryption");
@@ -989,6 +993,75 @@ describe("resetRecovery reports which half failed", () => {
             expect(bootstrapCrossSigning).toHaveBeenCalledWith(
                 expect.not.objectContaining({ setupNewCrossSigning: true }),
             );
+        });
+    });
+
+    // A failed upload during an earlier setup leaves the keys on this session
+    // only, and the SDK's bootstrap then never uploads them again.
+    describe("cross-signing keys that never reached the server", () => {
+        class FakeUserId {
+            constructor(public readonly id: string) {}
+        }
+
+        function unpublished() {
+            vi.doMock("@matrix-org/matrix-sdk-crypto-wasm", () => ({
+                UserId: FakeUserId,
+            }));
+            const sent: unknown[] = [];
+            const bootstrapCrossSigning = vi.fn(() =>
+                Promise.resolve({
+                    uploadKeysRequest: undefined,
+                    uploadSigningKeysRequest: "signing-keys",
+                    uploadSignaturesRequest: "signatures",
+                }),
+            );
+            const { client, calls } = makeResetClient({
+                getCrossSigningStatus: () =>
+                    Promise.resolve({
+                        privateKeysCachedLocally: {
+                            masterKey: true,
+                            selfSigningKey: true,
+                            userSigningKey: true,
+                        },
+                    }),
+                olmMachine: {
+                    bootstrapCrossSigning,
+                    queryKeysForUsers: () => "keys-query",
+                },
+                outgoingRequestProcessor: {
+                    makeOutgoingRequest: vi.fn((request: unknown) => {
+                        sent.push(request);
+                        return Promise.resolve();
+                    }),
+                },
+            });
+            client.downloadKeysForUsers.mockResolvedValue({} as never);
+            return { client, calls, sent, bootstrapCrossSigning };
+        }
+
+        it("setupRecovery uploads the keys this session already holds", async () => {
+            const mod = await import("./crypto");
+            const { client, calls, sent, bootstrapCrossSigning } =
+                unpublished();
+            h.getClient.mockReturnValue(client);
+
+            await mod.setupRecovery("pw");
+
+            // The EXISTING identity, never a new one.
+            expect(bootstrapCrossSigning).toHaveBeenCalledWith(false);
+            expect(sent).toEqual(["signing-keys", "signatures", "keys-query"]);
+            expect(calls).toContain("bootstrapSecretStorage");
+        });
+
+        it("publishCrossSigningKeys uploads them on their own", async () => {
+            const mod = await import("./crypto");
+            const { client, calls, sent } = unpublished();
+            h.getClient.mockReturnValue(client);
+
+            await mod.publishCrossSigningKeys("pw");
+
+            expect(sent).toEqual(["signing-keys", "signatures", "keys-query"]);
+            expect(calls).toEqual([]);
         });
     });
 
@@ -2055,7 +2128,7 @@ describe("requestOwnVerification", () => {
         });
 
         await expect(mod.requestOwnVerification()).rejects.toThrow(
-            /hasn't set up cross-signing/,
+            /aren't on the server/,
         );
         expect(requestOwnUserVerification).not.toHaveBeenCalled();
     });

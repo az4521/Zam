@@ -5,6 +5,7 @@
         getSecurityStatus,
         setupRecovery,
         resetRecovery,
+        publishCrossSigningKeys,
         isRecoverySetupIncomplete,
         getBackupStatus,
         unlockWithRecoveryKey,
@@ -360,6 +361,30 @@
         saved = false;
         error = "";
         step = "idle";
+    }
+
+    // Keys this session made but never got onto the server (a failed upload
+    // during an earlier setup): "Recovery is set up", yet no session can
+    // verify another until they're uploaded. Same password/approval as setup.
+    let publishBusy = $state(false);
+    const publishBlocked = $derived(!oauthSession && !password);
+
+    async function runPublish() {
+        if (publishBusy || publishBlocked) return;
+        error = "";
+        publishBusy = true;
+        try {
+            await publishCrossSigningKeys(password, approveOnAccountPage);
+            password = "";
+            await loadStatus();
+        } catch (e) {
+            error =
+                e instanceof Error
+                    ? e.message
+                    : t("securitySettings.couldNotUploadKeys");
+        } finally {
+            publishBusy = false;
+        }
     }
 
     function beginReset() {
@@ -874,6 +899,40 @@
                     <p class="text-xs text-discord-textMuted">
                         {t("securitySettings.thisAccountHasNoRecoveryKey")}
                     </p>
+                </div>
+            {/if}
+
+            {#if resetStep === "idle" && status?.crossSigningUnpublished && panel.authoritative}
+                <div class="space-y-2 pt-3 border-t border-discord-divider">
+                    <p class="text-sm font-medium text-discord-warning">
+                        {t("securitySettings.keysNotOnServer")}
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        {t("securitySettings.keysNotOnServerHint")}
+                    </p>
+                    {#if oauthSession}
+                        <p class="text-xs text-discord-textMuted">
+                            {t("securitySettings.approveOnAccountPageHint")}
+                        </p>
+                    {:else}
+                        <input
+                            type="password"
+                            bind:value={password}
+                            placeholder={t("securitySettings.accountPassword")}
+                            disabled={publishBusy}
+                            onkeydown={(e) =>
+                                e.key === "Enter" && password && runPublish()}
+                            class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                        />
+                    {/if}
+                    <button
+                        onclick={runPublish}
+                        disabled={publishBusy || publishBlocked}
+                        class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
+                        >{publishBusy
+                            ? t("securitySettings.working")
+                            : t("securitySettings.uploadKeys")}</button
+                    >
                 </div>
             {/if}
 

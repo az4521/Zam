@@ -1767,6 +1767,12 @@ export const en = {
     "securitySettings.iVeSavedMyRecoveryKey":
         "I've saved my recovery key somewhere safe.",
     "securitySettings.done": "Done",
+    "securitySettings.keysNotOnServer":
+        "Your cross-signing keys never reached the server",
+    "securitySettings.keysNotOnServerHint":
+        "This session made them while setting up recovery, but the upload didn't finish, so none of your sessions can verify each other. Upload them now to fix this.",
+    "securitySettings.uploadKeys": "Upload keys",
+    "securitySettings.couldNotUploadKeys": "Could not upload your keys",
     "securitySettings.recoveryIsSetUp": "Recovery is set up",
     "securitySettings.yourCrossSigningKeysAndA":
         "Your cross-signing keys and a key backup are stored securely on the server, protected by your recovery key.",
@@ -2600,7 +2606,7 @@ export const en = {
     "verification.sessionNotKnownYet":
         "This session doesn't know about that one yet. Wait a few seconds and try again, or start verification from the new session.",
     "verification.accountHasNoIdentity":
-        "Your account hasn't set up cross-signing yet, so there's nothing for your other sessions to verify this one against. Open Settings > Security & Encryption on any session and set up recovery, then use the recovery key on the others.",
+        "Your account's cross-signing keys aren't on the server, so your other sessions can't verify this one. Open Settings > Security & Encryption on the session where you set up recovery: if it offers to upload your keys, do that. If you never set up recovery, set it up on any session.",
     "verification.sessionHasNoKeys":
         "That session hasn't published its encryption keys, so it can't be verified or receive encrypted messages. Sign it out and sign back in.",
     "verification.sessionKeysRejected":

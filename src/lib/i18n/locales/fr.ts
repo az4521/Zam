@@ -1799,6 +1799,12 @@ const messages: Record<MessageKey, string> = {
     "securitySettings.iVeSavedMyRecoveryKey":
         "J'ai conservé ma clé de récupération en lieu sûr.",
     "securitySettings.done": "Terminé",
+    "securitySettings.keysNotOnServer":
+        "Vos clés de signature croisée ne sont jamais arrivées sur le serveur",
+    "securitySettings.keysNotOnServerHint":
+        "Cette session les a créées lors de la configuration de la récupération, mais l'envoi n'a pas abouti : vos sessions ne peuvent donc pas se vérifier entre elles. Envoyez-les maintenant pour corriger cela.",
+    "securitySettings.uploadKeys": "Envoyer les clés",
+    "securitySettings.couldNotUploadKeys": "Impossible d'envoyer vos clés",
     "securitySettings.recoveryIsSetUp": "La récupération est configurée",
     "securitySettings.yourCrossSigningKeysAndA":
         "Vos clés de signature croisée et une sauvegarde des clés sont stockées en sécurité sur le serveur, protégées par votre clé de récupération.",
@@ -2689,7 +2695,7 @@ const messages: Record<MessageKey, string> = {
     "verification.sessionNotKnownYet":
         "Cette session ne connaît pas encore l'autre. Patientez quelques secondes et réessayez, ou lancez la vérification depuis la nouvelle session.",
     "verification.accountHasNoIdentity":
-        "Votre compte n'a pas encore configuré la signature croisée : vos autres sessions ne peuvent donc pas vérifier celle-ci. Ouvrez Paramètres > Sécurité et chiffrement sur n'importe quelle session et configurez la récupération, puis utilisez la clé de récupération sur les autres.",
+        "Les clés de signature croisée de votre compte ne sont pas sur le serveur : vos autres sessions ne peuvent donc pas vérifier celle-ci. Ouvrez Paramètres > Sécurité et chiffrement sur la session où vous avez configuré la récupération : si elle propose d'envoyer vos clés, faites-le. Si vous n'avez jamais configuré la récupération, configurez-la sur n'importe quelle session.",
     "verification.sessionHasNoKeys":
         "Cette session n'a pas publié ses clés de chiffrement : elle ne peut donc ni être vérifiée ni recevoir de messages chiffrés. Déconnectez-la puis reconnectez-vous.",
     "verification.sessionKeysRejected":

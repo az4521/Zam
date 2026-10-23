@@ -2051,6 +2051,100 @@ async function hasDeletedCrossSigningSecrets(
     return false;
 }
 
+/** Whether the server publishes a master cross-signing key for `userId`. */
+async function masterKeyOnServer(
+    client: MatrixClient,
+    userId: string,
+): Promise<boolean> {
+    const result = await client.downloadKeysForUsers([userId]);
+    return !!result.master_keys?.[userId];
+}
+
+/** All three cross-signing private keys are held by this session's store. */
+async function crossSigningKeysCachedLocally(
+    crypto: NonNullable<ReturnType<MatrixClient["getCrypto"]>>,
+): Promise<boolean> {
+    const local = (await crypto.getCrossSigningStatus())
+        .privateKeysCachedLocally;
+    return !!(local?.masterKey && local.selfSigningKey && local.userSigningKey);
+}
+
+/** The rust crypto internals `publishLocalCrossSigning` drives directly. */
+interface RustCrossSigningHooks {
+    olmMachine?: {
+        bootstrapCrossSigning(reset: boolean): Promise<{
+            uploadKeysRequest?: unknown;
+            uploadSigningKeysRequest?: unknown;
+            uploadSignaturesRequest?: unknown;
+        }>;
+    };
+    outgoingRequestProcessor?: {
+        makeOutgoingRequest(
+            request: unknown,
+            uia?: UIAuthCallback<void>,
+        ): Promise<unknown>;
+    };
+}
+
+/**
+ * Upload the cross-signing identity this session already holds. The SDK's
+ * `resetCrossSigning` makes the keys locally BEFORE the UIA-guarded upload,
+ * so a failed upload (wrong password, cancelled approval) leaves them here
+ * unpublished, and every later `bootstrapCrossSigning` sees local keys and
+ * skips the upload (its own TODO says so). `setupRecovery` then stores them
+ * in 4S anyway: "Recovery is set up" on an account the server has no
+ * identity for, so no session can verify another. `bootstrapCrossSigning(
+ * false)` on the olm machine builds the upload for the EXISTING keys.
+ */
+async function publishLocalCrossSigning(
+    crypto: NonNullable<ReturnType<MatrixClient["getCrypto"]>>,
+    userId: string,
+    uia: UIAuthCallback<void>,
+): Promise<void> {
+    const rust = crypto as RustCrossSigningHooks;
+    if (!rust.olmMachine || !rust.outgoingRequestProcessor) {
+        throw new Error(t("crypto.encryptionIsNotReadyOnThis"));
+    }
+    const requests = await rust.olmMachine.bootstrapCrossSigning(false);
+    for (const request of [
+        requests.uploadKeysRequest,
+        requests.uploadSigningKeysRequest,
+        requests.uploadSignaturesRequest,
+    ]) {
+        if (request) {
+            await rust.outgoingRequestProcessor.makeOutgoingRequest(
+                request,
+                uia,
+            );
+        }
+    }
+    // Pull our keys back so the store holds the identity as published.
+    await queryUserKeysNow(crypto, userId);
+}
+
+/**
+ * Repair an account stuck as described in `publishLocalCrossSigning`: this
+ * session holds the cross-signing keys but the server never got them.
+ * UIA-guarded like `setupRecovery`.
+ */
+export async function publishCrossSigningKeys(
+    password: string,
+    approve?: AccountApprovalPrompt,
+): Promise<void> {
+    const client = getClient();
+    const crypto = client?.getCrypto();
+    const userId = client?.getUserId();
+    if (!client || !crypto || !userId) {
+        throw new Error(t("crypto.encryptionIsNotReadyOnThis"));
+    }
+    await publishLocalCrossSigning(
+        crypto,
+        userId,
+        makeUiaCallback(userId, password, approve),
+    );
+    bumpSecurityTick();
+}
+
 /** Result of a successful `setupRecovery` run. */
 export interface RecoverySetupResult {
     /** The encoded recovery key (`EsT…`), to display to the user exactly once. */
@@ -2110,6 +2204,19 @@ export async function setupRecovery(
         }
     } else {
         await crypto.bootstrapCrossSigning({ authUploadDeviceSigningKeys });
+    }
+    // A bootstrap that found keys already on this session uploads nothing, so
+    // keys left behind by an earlier failed upload would otherwise go into
+    // 4S below and never reach the server (see publishLocalCrossSigning).
+    if (
+        !(await masterKeyOnServer(client, userId)) &&
+        (await crossSigningKeysCachedLocally(crypto))
+    ) {
+        await publishLocalCrossSigning(
+            crypto,
+            userId,
+            authUploadDeviceSigningKeys,
+        );
     }
 
     // 2. Mint the recovery key. With a passphrase the SDK derives the key via
@@ -2226,6 +2333,11 @@ export interface SecurityStatus {
     passphraseRecovery: boolean;
     /** This device is verified via cross-signing. */
     thisDeviceVerified: boolean;
+    /**
+     * This session holds cross-signing keys the server never got (a failed
+     * upload; see publishLocalCrossSigning), so no session can verify another.
+     */
+    crossSigningUnpublished: boolean;
 }
 
 const EMPTY_SECURITY_STATUS: SecurityStatus = {
@@ -2236,6 +2348,7 @@ const EMPTY_SECURITY_STATUS: SecurityStatus = {
     defaultKeyId: null,
     passphraseRecovery: false,
     thisDeviceVerified: false,
+    crossSigningUnpublished: false,
 };
 
 /**
@@ -2279,6 +2392,21 @@ export async function getSecurityStatus(): Promise<SecurityStatus> {
             );
             thisDeviceVerified = dev?.crossSigningVerified ?? false;
         }
+        // Only a session holding all three keys can fix it, so only it asks
+        // the server. A failed ask isn't evidence of anything: no nag.
+        const local = crossStatus.privateKeysCachedLocally;
+        let crossSigningUnpublished = false;
+        if (
+            userId &&
+            local?.masterKey &&
+            local.selfSigningKey &&
+            local.userSigningKey
+        ) {
+            crossSigningUnpublished = !(await masterKeyOnServer(
+                client,
+                userId,
+            ).catch(() => true));
+        }
         return {
             read: "ok",
             crossSigningReady,
@@ -2287,6 +2415,7 @@ export async function getSecurityStatus(): Promise<SecurityStatus> {
             defaultKeyId: ssStatus.defaultKeyId,
             passphraseRecovery: passphraseParams(keyTuple?.[1]) !== null,
             thisDeviceVerified,
+            crossSigningUnpublished,
         };
     } catch {
         // The read failed — say so. The all-false payload underneath is a

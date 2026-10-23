@@ -1820,6 +1820,13 @@ const messages: Record<MessageKey, string> = {
     "securitySettings.iVeSavedMyRecoveryKey":
         "Ich habe meinen Wiederherstellungsschlüssel sicher aufbewahrt.",
     "securitySettings.done": "Fertig",
+    "securitySettings.keysNotOnServer":
+        "Deine Cross-Signing-Schlüssel sind nie auf dem Server angekommen",
+    "securitySettings.keysNotOnServerHint":
+        "Diese Sitzung hat sie beim Einrichten der Wiederherstellung erstellt, aber das Hochladen wurde nicht abgeschlossen, daher können sich deine Sitzungen nicht gegenseitig verifizieren. Lade sie jetzt hoch, um das zu beheben.",
+    "securitySettings.uploadKeys": "Schlüssel hochladen",
+    "securitySettings.couldNotUploadKeys":
+        "Deine Schlüssel konnten nicht hochgeladen werden",
     "securitySettings.recoveryIsSetUp": "Wiederherstellung ist eingerichtet",
     "securitySettings.yourCrossSigningKeysAndA":
         "Deine Cross-Signing-Schlüssel und ein Schlüssel-Backup sind sicher auf dem Server gespeichert, geschützt durch deinen Wiederherstellungsschlüssel.",
@@ -2712,7 +2719,7 @@ const messages: Record<MessageKey, string> = {
     "verification.sessionNotKnownYet":
         "Diese Sitzung ist hier noch nicht bekannt. Warte ein paar Sekunden und versuche es erneut, oder starte die Verifizierung von der neuen Sitzung aus.",
     "verification.accountHasNoIdentity":
-        "Dein Konto hat noch kein Cross-Signing eingerichtet, daher können deine anderen Sitzungen diese nicht verifizieren. Öffne in einer beliebigen Sitzung Einstellungen > Sicherheit und Verschlüsselung und richte die Wiederherstellung ein, dann nutze den Wiederherstellungsschlüssel in den anderen.",
+        "Die Cross-Signing-Schlüssel deines Kontos sind nicht auf dem Server, daher können deine anderen Sitzungen diese nicht verifizieren. Öffne Einstellungen > Sicherheit und Verschlüsselung in der Sitzung, in der du die Wiederherstellung eingerichtet hast: Wenn sie anbietet, deine Schlüssel hochzuladen, tu das. Hast du die Wiederherstellung nie eingerichtet, richte sie in einer beliebigen Sitzung ein.",
     "verification.sessionHasNoKeys":
         "Diese Sitzung hat ihre Verschlüsselungsschlüssel nicht veröffentlicht, daher kann sie weder verifiziert werden noch verschlüsselte Nachrichten empfangen. Melde sie ab und wieder an.",
     "verification.sessionKeysRejected":
