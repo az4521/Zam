@@ -4,6 +4,19 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.30.0
+
+✨ **New**
+
+- **Photos appear sooner:** JPEG photos you send are now rearranged so the people who receive them see the whole picture straight away, blurry at first and sharpening as it downloads, instead of filling in from the top. Nothing is re-encoded and the picture is exactly the same; files usually come out a little smaller too. You can turn this off in Settings > Messages & Media > Send photos that appear sooner.
+
+🐛 **Fixed**
+
+- **Big images in encrypted rooms load visibly:** large photos used to show a sliver at the top and then nothing until the whole file had arrived. They now paint in as they download, in the chat and when you open them.
+- **GIFs play while they load:** in encrypted rooms, an animated GIF sat on its first frame until it had fully downloaded. It now starts playing as soon as its first frame is in.
+- **Rooms open at the newest message:** going back into a room could leave it scrolled far up, at an old message, especially in rooms with images. It now opens at the bottom and stays there while images load.
+- **Works on Android 12's built-in WebView:** Zam now runs on the WebView that ships with Android 12 (Chrome 95 and 96). Encryption needs WebView 97 or newer, so update Android System WebView from the Play Store if you can.
+
 ## v1.29.2
 
 🐛 **Fixed**
