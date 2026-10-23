@@ -213,6 +213,9 @@ export async function sendFile(
     ) => Record<string, unknown>,
     // Upload progress of the main file (its thumbnail is not counted).
     onProgress?: (loaded: number, total: number) => void,
+    // Awaited after the uploads, right before the event is sent, so a batch
+    // can upload in parallel yet post in order (utils/queuedFileSend).
+    beforeSend?: () => Promise<void>,
 ): Promise<void> {
     const owner = captureClient();
     // Precheck the size against the server's advertised upload limit so an
@@ -352,6 +355,7 @@ export async function sendFile(
     const outgoing = transformContent
         ? transformContent(finalContent)
         : finalContent;
+    if (beforeSend) await beforeSend();
     await ownedClientOrThrow(owner).sendMessage(roomId, outgoing as never);
 }
 

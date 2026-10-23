@@ -112,7 +112,7 @@
         clearFileQueue,
         type QueuedFile,
     } from "$lib/stores/composerFileQueue.svelte";
-    import { sendQueuedFilesInOrder } from "$lib/utils/queuedFileSend";
+    import { sendQueuedFiles } from "$lib/utils/queuedFileSend";
     import { filesToRestoreAfterSend } from "$lib/utils/composerFileRestore";
     import {
         shouldClearComposerAfterSend,
@@ -195,11 +195,21 @@
     // In-flight attachment send, scoped to the room the send targeted so a
     // room switch mid-upload doesn't show room A's "sending" note in room B.
     let sendingFileCount = $state(0);
-    // Percent of the current file's bytes sent; null before its first
-    // progress event. Shows whether a slow send is the upload or what follows.
+    // Percent of the batch's bytes sent; null before the first progress event.
+    // Shows whether a slow send is the upload or what follows. Files upload in
+    // parallel, so this sums every file, each counted at its own size until
+    // its upload reports a real total.
     let uploadPercent = $state<number | null>(null);
-    const onUploadProgress = (loaded: number, total: number) => {
-        if (total > 0) uploadPercent = Math.floor((loaded / total) * 100);
+    let uploadLoaded: number[] = [];
+    let uploadTotal: number[] = [];
+    const onUploadProgress = (i: number) => (loaded: number, total: number) => {
+        if (total <= 0) return;
+        uploadLoaded[i] = loaded;
+        uploadTotal[i] = total;
+        const sum = (a: number[]) => a.reduce((s, n) => s + n, 0);
+        const all = sum(uploadTotal);
+        if (all > 0)
+            uploadPercent = Math.floor((sum(uploadLoaded) / all) * 100);
     };
     let sendingRoomId = $state<string | null>(null);
     // Queued attachments live in a per-room store, not here: this component
@@ -1282,6 +1292,9 @@
             clearFileQueue(targetComposerKey);
             sendingRoomId = targetRoomId;
             sendingFileCount = filesToSend.length;
+            uploadPercent = null;
+            uploadLoaded = filesToSend.map(() => 0);
+            uploadTotal = filesToSend.map((item) => item.file.size);
         }
         // Resolve mentions before clearing the composer below (buildFormattedBody
         // reads pendingMentions, which we reset up front).
@@ -1418,12 +1431,13 @@
         }
 
         try {
-            // Commit each file as it lands: a failure halfway must leave the
-            // unsent files queued so a retry sends only those (audit MEDIA-03).
-            await sendQueuedFilesInOrder(
+            // Upload in parallel, post in queue order, and commit each file as
+            // it lands. A failed file doesn't stop the rest (their uploads
+            // would be orphaned); only the failed files are restored below,
+            // so a retry sends just those (audit MEDIA-03).
+            await sendQueuedFiles(
                 filesToSend,
-                (item, i) => {
-                    uploadPercent = null;
+                (item, i, ready) => {
                     if (useCaption && i === 0 && formatted) {
                         const { html } = formatted;
                         return sendFile(
@@ -1436,7 +1450,8 @@
                             },
                             fileRelation(i),
                             transformOutgoingContent,
-                            onUploadProgress,
+                            onUploadProgress(i),
+                            ready,
                         );
                     }
                     return sendFile(
@@ -1445,7 +1460,8 @@
                         undefined,
                         fileRelation(i),
                         undefined,
-                        onUploadProgress,
+                        onUploadProgress(i),
+                        ready,
                     );
                 },
                 (item, i) => {
