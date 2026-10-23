@@ -78,9 +78,22 @@ export function entryFromEvent(ev: IndexSourceEvent): IndexEntry | null {
  *  that appending to a room doesn't rewrite much. */
 export const BLOCK_SIZE = 250;
 
-const hasCompression = (): boolean =>
-    typeof CompressionStream === "function" &&
-    typeof DecompressionStream === "function";
+let compressionOk: boolean | null = null;
+
+/** CompressionStream with the "deflate-raw" format. The constructor alone
+ *  isn't enough: Chrome 80-102 have it but reject that format. */
+const hasCompression = (): boolean => {
+    if (compressionOk === null) {
+        try {
+            new CompressionStream("deflate-raw");
+            new DecompressionStream("deflate-raw");
+            compressionOk = true;
+        } catch {
+            compressionOk = false;
+        }
+    }
+    return compressionOk;
+};
 
 async function pipeBytes(
     bytes: Uint8Array,

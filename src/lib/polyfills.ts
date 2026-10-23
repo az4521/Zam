@@ -54,6 +54,57 @@ if (typeof Promise.withResolvers !== "function") {
     });
 }
 
+// Chrome 98 / Safari 15.4: abort(reason) and signal.reason. Older engines
+// ignore the argument, so whatever reads `reason` (p-retry, our timeouts)
+// gets undefined instead of the error it was aborted with.
+if (
+    typeof AbortController !== "undefined" &&
+    !("reason" in AbortSignal.prototype)
+) {
+    const abort = AbortController.prototype.abort;
+    Object.defineProperty(AbortController.prototype, "abort", {
+        configurable: true,
+        writable: true,
+        value: function (this: AbortController, reason?: unknown) {
+            if (!this.signal.aborted) {
+                Object.defineProperty(this.signal, "reason", {
+                    configurable: true,
+                    value:
+                        reason === undefined
+                            ? new DOMException(
+                                  "signal is aborted without reason",
+                                  "AbortError",
+                              )
+                            : reason,
+                });
+            }
+            abort.call(this);
+        },
+    });
+}
+
+// Chrome 100 / Safari 15.4.
+if (
+    typeof AbortSignal !== "undefined" &&
+    typeof AbortSignal.prototype.throwIfAborted !== "function"
+) {
+    Object.defineProperty(AbortSignal.prototype, "throwIfAborted", {
+        configurable: true,
+        writable: true,
+        value: function (this: AbortSignal) {
+            if (this.aborted) {
+                throw (
+                    this.reason ??
+                    new DOMException(
+                        "signal is aborted without reason",
+                        "AbortError",
+                    )
+                );
+            }
+        },
+    });
+}
+
 // Chrome 103, Safari 16.
 if (typeof AbortSignal !== "undefined" && !("timeout" in AbortSignal)) {
     Object.defineProperty(AbortSignal, "timeout", {

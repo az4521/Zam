@@ -53,4 +53,39 @@ describe("polyfills", () => {
             });
         }
     });
+
+    it("adds signal.reason and throwIfAborted when the runtime lacks them", async () => {
+        const proto = AbortSignal.prototype;
+        const reason = Object.getOwnPropertyDescriptor(proto, "reason")!;
+        const throwIf = Object.getOwnPropertyDescriptor(
+            proto,
+            "throwIfAborted",
+        )!;
+        const abort = Object.getOwnPropertyDescriptor(
+            AbortController.prototype,
+            "abort",
+        )!;
+        delete (proto as { reason?: unknown }).reason;
+        delete (proto as { throwIfAborted?: unknown }).throwIfAborted;
+        try {
+            vi.resetModules();
+            await import("./polyfills");
+            const controller = new AbortController();
+            expect(() => controller.signal.throwIfAborted()).not.toThrow();
+            const why = new Error("stop");
+            controller.abort(why);
+            expect(controller.signal.reason).toBe(why);
+            expect(() => controller.signal.throwIfAborted()).toThrow("stop");
+
+            const bare = new AbortController();
+            bare.abort();
+            expect((bare.signal.reason as DOMException).name).toBe(
+                "AbortError",
+            );
+        } finally {
+            Object.defineProperty(proto, "reason", reason);
+            Object.defineProperty(proto, "throwIfAborted", throwIf);
+            Object.defineProperty(AbortController.prototype, "abort", abort);
+        }
+    });
 });
