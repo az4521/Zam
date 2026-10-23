@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.29.2
+
+🐛 **Fixed**
+
+- **New sessions on older Android phones can be verified:** on phones with an older Android System WebView, the app crashed in the background on every sync, so a new session never sent its encryption keys to the server. Your other sessions couldn't verify it, and nobody could send it encrypted messages. If one of your sessions is affected, sign it out and back in after updating.
+- **Works on older iPhones:** Zam now runs on iOS 15 and 16 Safari (iPhone 8 and similar). Before, it got stuck before the login screen, or (like the Android bug above) new sessions never sent their encryption keys.
+
 ## v1.29.1
 
 🐛 **Fixed**
