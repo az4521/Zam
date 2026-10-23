@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.28.5
+
+🐛 **Fixed**
+
+- **No jump after sending an image or link:** right after you sent an image, or a message with a link preview, the chat jumped up and back down. It now stays still.
+
 ## v1.28.4
 
 🐛 **Fixed**
