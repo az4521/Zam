@@ -103,13 +103,17 @@ class FakeAnimatedDecoder {
     received = 0;
     closed = false;
     waiters: (() => void)[] = [];
+    firstRead: Promise<void>;
     constructor(init: { data: ReadableStream<Uint8Array> }) {
+        let readOnce!: () => void;
+        this.firstRead = new Promise((r) => (readOnce = r));
         void (async () => {
             const reader = init.data.getReader();
             for (;;) {
                 const { done } = await reader.read();
                 if (done) return;
                 this.received++;
+                readOnce();
                 this.waiters.splice(0).forEach((w) => w());
             }
         })();
@@ -120,6 +124,7 @@ class FakeAnimatedDecoder {
             complete: this.received > i,
         });
         if (o.frameIndex === 0 && o.completeFramesOnly === false) {
+            await this.firstRead;
             return frame(0);
         }
         while (this.received <= o.frameIndex) {
@@ -168,5 +173,46 @@ describe("loadImageProgressively", () => {
         expect(shown.every((i) => i === 0)).toBe(true);
         chunks.end();
         await done;
+    });
+
+    it("redraws a single-pass image from the bytes so far", async () => {
+        // Like Chromium on a baseline JPEG: a decoder answers one partial
+        // decode with what it has read, then holds every later one until the
+        // file is complete, which never happens on an open stream.
+        class FakeSinglePassDecoder {
+            bytes = 0;
+            answered = false;
+            firstRead: Promise<void>;
+            constructor(init: { data: ReadableStream<Uint8Array> }) {
+                const reader = init.data.getReader();
+                this.firstRead = reader.read().then(({ value }) => {
+                    this.bytes += value?.length ?? 0;
+                });
+            }
+            async decode() {
+                await this.firstRead;
+                if (this.answered) return new Promise(() => {});
+                this.answered = true;
+                return {
+                    image: { id: this.bytes, duration: null, close: () => {} },
+                    complete: false,
+                };
+            }
+            close() {}
+        }
+        vi.stubGlobal("ImageDecoder", FakeSinglePassDecoder);
+        const shown: number[] = [];
+        const done = loadImageProgressively("https://hs/x", {
+            mimetype: "image/jpeg",
+            onPreview: (f) => shown.push((f as unknown as { id: number }).id),
+        });
+        chunks.push(new Uint8Array(10));
+        await vi.waitFor(() => expect(shown).toContain(10));
+        chunks.push(new Uint8Array(10));
+        await vi.waitFor(() => expect(shown).toContain(20));
+        chunks.push(new Uint8Array(10));
+        await vi.waitFor(() => expect(shown).toContain(30));
+        chunks.end();
+        expect((await done).size).toBe(30);
     });
 });

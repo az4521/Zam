@@ -85,6 +85,7 @@ export async function loadImageProgressively(
     const decoder = new ImageDecoder({ type: opts.mimetype, data: feed });
 
     const parts: Uint8Array[] = [];
+    let received = 0;
     let finished = false;
 
     // Settles (and is replaced) each time a chunk arrives or the load ends, so
@@ -104,9 +105,36 @@ export async function loadImageProgressively(
         }
     };
 
-    // Frame 0 is redrawn as it fills in, at most once per interval: GIF's
-    // decode() answers at once with whatever it has, so an unthrottled loop
-    // would spin. Once frame 0 is whole, an animated image (GIF, APNG,
+    // Frame 0 as far as the bytes so far go. The streamed decoder can't do
+    // this: Chromium answers its partial decode once, then holds the next one
+    // until there is a new pass to show, which for a baseline JPEG or a
+    // non-interlaced PNG (one pass) is the whole file. A fresh decoder over the
+    // bytes so far, in a stream left open so it knows more is coming, decodes
+    // as far as they go. A copy, so `parts` stays whole for the final blob.
+    const snapshot = async (use: (r: ImageDecodeResult) => void) => {
+        const bytes = new Uint8Array(received);
+        let at = 0;
+        for (const p of parts) {
+            bytes.set(p, at);
+            at += p.length;
+        }
+        const data = new ReadableStream<Uint8Array>({
+            start(c) {
+                c.enqueue(bytes);
+            },
+        });
+        const d = new ImageDecoder({ type: opts.mimetype, data });
+        try {
+            use(await d.decode({ frameIndex: 0, completeFramesOnly: false }));
+        } finally {
+            d.close();
+        }
+    };
+
+    // Frame 0 is redrawn from a snapshot as it fills in. Each one decodes from
+    // the start, so on a big image they are spaced by twice the decode time
+    // (and never closer than the interval) to leave the decoder some room.
+    // Once frame 0 is whole, an animated image (GIF, APNG,
     // animated WebP/AVIF) plays like a buffering video: each frame is shown as
     // soon as it has fully arrived and the previous one has had its delay, and
     // playback holds on the last complete frame while the download catches up.
@@ -116,22 +144,25 @@ export async function loadImageProgressively(
     // a decoder error); the real result is the verified blob below.
     const play = async () => {
         let delay = 0;
-        while (!finished) {
-            await arrived;
+        let whole = false;
+        let decodedUpTo = 0;
+        while (!finished && !whole) {
+            // Only when nothing new came in during the last decode and wait.
+            if (received === decodedUpTo) await arrived;
             if (finished) return;
+            decodedUpTo = received;
             const started = Date.now();
             try {
-                const { image, complete } = await decoder.decode({
-                    frameIndex: 0,
-                    completeFramesOnly: false,
+                await snapshot(({ image, complete }) => {
+                    delay = frameDelayMs(image);
+                    whole = complete;
+                    draw(image);
                 });
-                delay = frameDelayMs(image);
-                draw(image);
-                if (complete) break;
             } catch {
                 /* see above */
             }
-            await sleep(PREVIEW_INTERVAL_MS - (Date.now() - started));
+            const took = Date.now() - started;
+            await sleep(Math.max(PREVIEW_INTERVAL_MS, 2 * took) - took);
         }
         let index = 0;
         let due = Date.now() + delay;
@@ -164,6 +195,7 @@ export async function loadImageProgressively(
             const { done, value } = await reader.read();
             if (done) break;
             parts.push(value);
+            received += value.length;
             // A copy: the decoder may take ownership of what it is handed, and
             // `parts` has to stay whole for the final blob.
             controller.enqueue(value.slice());
