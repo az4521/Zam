@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.30.2
+
+✨ **New**
+
+- **Several attachments send faster:** when you send more than one file at once, they now upload side by side instead of one after another. They still arrive in the chat in the order you added them, and the progress shown covers the whole batch.
+
+🐛 **Fixed**
+
+- **One failed file no longer holds back the rest:** if one attachment in a batch failed to send, the files after it were held back too. Now everything else still goes through, and only the file that failed stays in the composer for you to retry.
+
 ## v1.30.1
 
 🐛 **Fixed**
