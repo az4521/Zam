@@ -1464,6 +1464,11 @@
 
     function scrollToBottom(instant: boolean) {
         if (!scrollEl) return;
+        // Set here, not left to onScroll: a scroll that doesn't move (content
+        // still shorter than the viewport on entering a room) fires no scroll
+        // event, which would leave the previous room's verdict in place and
+        // keep the stick-to-bottom observer below switched off.
+        isAtBottom = true;
         scrollEl.scrollTo({
             top: scrollEl.scrollHeight,
             behavior: scrollBehavior(instant ? "instant" : "smooth"),
@@ -1911,6 +1916,47 @@
         return () => {
             mo.disconnect();
             root.removeEventListener("load", onMediaLoad, true);
+        };
+    });
+
+    // Stay at the bottom while content grows under a user who is there. Native
+    // `overflow-anchor` (the bottom anchor row) is meant to do this, but Chrome
+    // never anchors a scroller sitting at offset 0: on entering a room the
+    // scroll-to-bottom runs while the rows and image boxes are still mounting,
+    // and if what has rendered by then fits the viewport, scrollTop stays 0 and
+    // the view was left at the OLDEST rendered message once the rest grew in
+    // (re-entering a room "scrolled it back up far"). A ResizeObserver on the
+    // rows fires after layout and before paint, so the correction never shows.
+    // Gated on isAtBottom, which onScroll keeps honest whenever the user scrolls.
+    $effect(() => {
+        const root = scrollEl;
+        roomId; // re-establish per room
+        if (!root || typeof ResizeObserver === "undefined") return;
+        const stick = () => {
+            if (!isAtBottom || isContextView || jumpingToEventId !== null) {
+                return;
+            }
+            const gap = root.scrollHeight - root.scrollTop - root.clientHeight;
+            if (gap > 1) root.scrollTop = root.scrollHeight;
+        };
+        const ro = new ResizeObserver(stick);
+        for (const child of root.children) ro.observe(child);
+        // Rows mount and unmount as the timeline changes: follow them.
+        const mo = new MutationObserver((records) => {
+            for (const r of records) {
+                for (const n of r.addedNodes) {
+                    if (n instanceof Element) ro.observe(n);
+                }
+                for (const n of r.removedNodes) {
+                    if (n instanceof Element) ro.unobserve(n);
+                }
+            }
+        });
+        mo.observe(root, { childList: true });
+        ro.observe(root);
+        return () => {
+            ro.disconnect();
+            mo.disconnect();
         };
     });
 
