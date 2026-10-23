@@ -38,6 +38,10 @@
         /** Images only: the full image's (untrusted) size, so its box is laid
          *  out before it loads and the stand-ins have somewhere to show. */
         dims?: { w: unknown; h: unknown } | null;
+        /** Images only: frames of the image drawn as it arrives (an encrypted
+         *  original painting in while it decrypts), shown over the stand-ins
+         *  until `src` loads. */
+        preview?: FrameRelay | null;
     }
 
     import {
@@ -59,6 +63,7 @@
     import type { EncryptedFileInfo } from "$lib/utils/decryptAttachment";
     import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
     import { placeholderStyle } from "$lib/utils/imagePlaceholder";
+    import { frameSink, type FrameRelay } from "$lib/utils/frameRelay";
     import { safeDimension } from "$lib/utils/mediaDimensions";
     import { focusTrap } from "$lib/actions/focusTrap";
     import MediaProgress from "$lib/components/ui/MediaProgress.svelte";
@@ -88,6 +93,7 @@
         sizeHint = null,
         placeholders = [],
         dims = null,
+        preview = null,
     }: Props = $props();
 
     const isVideo = $derived(kind === "video");
@@ -306,6 +312,12 @@
     const imgPlaceholderStyle = $derived(
         imgLoaded || !imgBoxStyle ? "" : placeholderStyle(placeholders),
     );
+    // Set once `preview` has drawn a frame on the canvas over the image. With
+    // a box to lay it over, the canvas covers the <img> (which keeps the
+    // gestures); without one, it stands in for the <img>, which would be 0×0
+    // or thumbnail-sized.
+    let previewDrawn = $state(false);
+    const previewShown = $derived(!!preview && previewDrawn && !imgLoaded);
 
     // Active pointers for pinch/pan.
     const pointers = new Map<number, { x: number; y: number }>();
@@ -782,31 +794,55 @@
                  sibling button, and the root's DELEGATED containClicks handler
                  stops any image tap from bubbling to the surrounding message
                  row.) -->
-            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-            <img
-                bind:this={imgEl}
-                src={shownSrc || undefined}
-                {alt}
-                class="pointer-events-auto"
-                onload={() => {
-                    if (src) imgLoaded = true;
-                }}
-                onpointerdown={onPointerDown}
-                onpointermove={onPointerMove}
-                onpointerup={onPointerUp}
-                onpointercancel={onPointerUp}
-                ondragstart={(e) => e.preventDefault()}
-                style="max-width: calc(100{vu}vw - {interfaceState.isMobile
-                    ? '6em'
-                    : '2em'}); max-height: calc(100{vu}vh - {interfaceState.isMobile
-                    ? '6em'
-                    : '2em'}); object-fit: contain; border-radius: 0.5em; touch-action: none; transform: translate({tx}px, {ty}px) scale({scale}); transition: {pointers.size ===
-                0
-                    ? 'transform 0.2s ease'
-                    : 'none'}; cursor: {scale > 1
-                    ? 'grab'
-                    : 'zoom-in'}; {imgBoxStyle} {imgPlaceholderStyle}"
-            />
+            <!-- The wrapper is sized by the <img> so a preview canvas can lie
+                 exactly over it. -->
+            <div class="relative flex pointer-events-none">
+                <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+                <img
+                    bind:this={imgEl}
+                    src={shownSrc || undefined}
+                    {alt}
+                    class="pointer-events-auto"
+                    onload={() => {
+                        if (src) imgLoaded = true;
+                    }}
+                    onpointerdown={onPointerDown}
+                    onpointermove={onPointerMove}
+                    onpointerup={onPointerUp}
+                    onpointercancel={onPointerUp}
+                    ondragstart={(e) => e.preventDefault()}
+                    style="max-width: calc(100{vu}vw - {interfaceState.isMobile
+                        ? '6em'
+                        : '2em'}); max-height: calc(100{vu}vh - {interfaceState.isMobile
+                        ? '6em'
+                        : '2em'}); object-fit: contain; border-radius: 0.5em; touch-action: none; transform: translate({tx}px, {ty}px) scale({scale}); transition: {pointers.size ===
+                    0
+                        ? 'transform 0.2s ease'
+                        : 'none'}; cursor: {scale > 1
+                        ? 'grab'
+                        : 'zoom-in'}; {imgBoxStyle} {imgPlaceholderStyle}"
+                    class:hidden={previewShown && !imgBoxStyle}
+                />
+                {#if preview && !imgLoaded}
+                    <!-- Same box and transform as the <img>, so it pans and
+                         zooms with it; the <img> underneath takes the
+                         pointer events. -->
+                    <canvas
+                        use:frameSink={{
+                            relay: preview,
+                            onFrame: () => (previewDrawn = true),
+                        }}
+                        class={imgBoxStyle
+                            ? "absolute inset-0 w-full h-full pointer-events-none"
+                            : "block"}
+                        class:hidden={!previewShown}
+                        style="max-width: calc(100{vu}vw - {viewGutter}); max-height: calc(100{vu}vh - {viewGutter}); object-fit: contain; border-radius: 0.5em; transform: translate({tx}px, {ty}px) scale({scale}); transition: {pointers.size ===
+                        0
+                            ? 'transform 0.2s ease'
+                            : 'none'};"
+                    ></canvas>
+                {/if}
+            </div>
         {/if}
     </div>
 </div>

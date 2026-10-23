@@ -25,6 +25,7 @@
         loadImageProgressively,
         PROGRESSIVE_IMAGE_MIN_BYTES,
     } from "$lib/matrix/progressiveImage";
+    import { createFrameRelay, frameSink } from "$lib/utils/frameRelay";
     import type { DownloadProgress } from "$lib/utils/downloadProgress";
     import LocationBody from "$lib/components/messages/LocationBody.svelte";
     import VerificationRequestMessage from "$lib/components/messages/VerificationRequestMessage.svelte";
@@ -1271,24 +1272,11 @@
     let imageDecrypting = $state(false);
     let imageDecryptFailed = $state(false);
     let imageProgress = $state<DownloadProgress | null>(null);
-    // A large encrypted image paints onto this canvas while it downloads (see
+    // A large encrypted image paints onto the tile's canvas (and the
+    // lightbox's, if it is opened) while it downloads (see
     // progressiveImage.ts); it is replaced by the real <img> once verified.
-    let imagePreviewCanvas = $state<HTMLCanvasElement | null>(null);
+    const imagePreview = createFrameRelay();
     let imagePreviewing = $state(false);
-
-    function drawImagePreview(frame: VideoFrame) {
-        const canvas = imagePreviewCanvas;
-        if (!canvas) return;
-        if (
-            canvas.width !== frame.displayWidth ||
-            canvas.height !== frame.displayHeight
-        ) {
-            canvas.width = frame.displayWidth;
-            canvas.height = frame.displayHeight;
-        }
-        canvas.getContext("2d")?.drawImage(frame, 0, 0);
-        imagePreviewing = true;
-    }
 
     // Image/sticker media 401s when the media service worker isn't authenticating
     // it (notably a hard reload, which leaves the page uncontrolled). createMediaRetry
@@ -1346,7 +1334,7 @@
                         signal: abort.signal,
                         onProgress,
                         onPreview: (frame) => {
-                            if (!cancelled) drawImagePreview(frame);
+                            if (!cancelled) imagePreview.draw(frame);
                         },
                     });
                     return URL.createObjectURL(blob);
@@ -2528,7 +2516,10 @@
                             </button>
                         {/if}
                         <canvas
-                            bind:this={imagePreviewCanvas}
+                            use:frameSink={{
+                                relay: imagePreview,
+                                onFrame: () => (imagePreviewing = true),
+                            }}
                             class={senderThumbUrl
                                 ? "absolute inset-0 w-full h-full rounded-lg pointer-events-none"
                                 : "block max-w-lg max-h-96 w-auto h-auto rounded-lg"}
@@ -2691,6 +2682,7 @@
                         alt={mediaFilename}
                         filename={mediaFilename || undefined}
                         placeholders={lightboxPlaceholders}
+                        preview={file ? imagePreview : null}
                         dims={{ w: imgInfoW, h: imgInfoH }}
                         favourite={isGif && full
                             ? { url: full, previewUrl: thumb ?? full }
