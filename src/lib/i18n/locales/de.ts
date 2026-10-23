@@ -2711,6 +2711,8 @@ const messages: Record<MessageKey, string> = {
         "Verifizierungsanfrage konnte nicht gesendet werden",
     "verification.sessionNotKnownYet":
         "Diese Sitzung ist hier noch nicht bekannt. Warte ein paar Sekunden und versuche es erneut, oder starte die Verifizierung von der neuen Sitzung aus.",
+    "verification.accountHasNoIdentity":
+        "Dein Konto hat noch kein Cross-Signing eingerichtet, daher können deine anderen Sitzungen diese nicht verifizieren. Öffne in einer beliebigen Sitzung Einstellungen > Sicherheit und Verschlüsselung und richte die Wiederherstellung ein, dann nutze den Wiederherstellungsschlüssel in den anderen.",
     "verification.sessionHasNoKeys":
         "Diese Sitzung hat ihre Verschlüsselungsschlüssel nicht veröffentlicht, daher kann sie weder verifiziert werden noch verschlüsselte Nachrichten empfangen. Melde sie ab und wieder an.",
     "verification.sessionKeysRejected":

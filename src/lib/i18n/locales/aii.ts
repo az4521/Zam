@@ -2509,6 +2509,8 @@ const messages: Record<MessageKey, string> = {
     "verification.identityChanged": "ܗܝܝܘܬܐ ܫܚܠܦܬܠܗ̇",
     "verification.sessionNotKnownYet":
         "ܓܠܣܐ ܗܿܘ ܠܐ ܝܠܗ ܝܕܝܥܐ ܗܵܪܟܐ ܥܕܟܡܐ. ܡܘܚܪ ܩܠܝܠ ܘܢܣܝ ܙܒܢܐ ܐܚܪܢܐ، ܐܘ ܫܪܝ ܫܘܪܪܐ ܡܢ ܓܠܣܐ ܚܕܬܐ.",
+    "verification.accountHasNoIdentity":
+        "ܚܫܒܘܢܐ ܕܝܘܟ ܠܐ ܛܝܒܠܗ ܚܬܡܐ ܚܠܦܢܝܐ ܗܠ ܗܫܐ، ܡܛܠ ܗܕܐ ܓܠܣ̈ܐ ܐܚܪ̈ܢܐ ܕܝܘܟ ܠܐ ܡܨܝܢ ܕܡܫܪܪܝ ܠܗܢܐ. ܦܬܚ ܛܘܝܒ̈ܐ > ܫܠܡܘܬܐ ܘܛܘܫܝܐ ܒܟܠ ܓܠܣܐ ܘܛܝܒ ܦܘܪܩܢܐ، ܘܒܬܪ ܗܕܐ ܡܦܠܚ ܩܠܝܕܐ ܕܦܘܪܩܢܐ ܒܐܚܪ̈ܢܐ.",
     "verification.sessionHasNoKeys":
         "ܓܠܣܐ ܗܿܘ ܠܐ ܦܪܣܡܠܗ ܩܠܝܕ̈ܐ ܕܛܘܫܝܐ ܕܝܼܠܗ، ܡܛܠ ܗܕܐ ܠܐ ܡܨܐ ܕܡܫܪܪ ܐܘ ܕܩܒܠ ܡܫܕܪ̈ܬܐ ܛܫܝ̈ܬܐ. ܦܠܘܛ ܡܢܗ ܘܥܘܠ ܙܒܢܐ ܐܚܪܢܐ.",
     "verification.sessionKeysRejected":

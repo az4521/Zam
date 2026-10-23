@@ -2009,11 +2009,11 @@ describe("requestOwnVerification", () => {
         };
     }
 
-    it("refreshes our device list, then broadcasts to all our sessions", async () => {
+    it("re-queries our keys, then broadcasts to all our sessions", async () => {
         const calls: string[] = [];
-        const getUserDeviceInfo = vi.fn(() => {
-            calls.push("getUserDeviceInfo");
-            return Promise.resolve(new Map());
+        const userHasCrossSigningKeys = vi.fn(() => {
+            calls.push("userHasCrossSigningKeys");
+            return Promise.resolve(true);
         });
         const requestOwnUserVerification = vi.fn(() => {
             calls.push("requestOwnUserVerification");
@@ -2023,19 +2023,16 @@ describe("requestOwnVerification", () => {
         h.getClient.mockReturnValue({
             getUserId: () => "@me:example.org",
             getCrypto: () => ({
-                getUserDeviceInfo,
+                userHasCrossSigningKeys,
                 requestOwnUserVerification,
             }),
         });
 
         const controller = await mod.requestOwnVerification();
 
-        expect(getUserDeviceInfo).toHaveBeenCalledWith(
-            ["@me:example.org"],
-            true,
-        );
+        expect(userHasCrossSigningKeys).toHaveBeenCalledWith("@me:example.org");
         expect(calls).toEqual([
-            "getUserDeviceInfo",
+            "userHasCrossSigningKeys",
             "requestOwnUserVerification",
         ]);
         expect(controller.id).toBe("txn-own");
@@ -2044,6 +2041,23 @@ describe("requestOwnVerification", () => {
         // No target device: any sibling may answer.
         expect(view.otherDeviceId).toBeNull();
         controller.dispose();
+    });
+
+    it("explains a missing cross-signing identity instead of asking", async () => {
+        const requestOwnUserVerification = vi.fn();
+        const mod = await import("./crypto");
+        h.getClient.mockReturnValue({
+            getUserId: () => "@me:example.org",
+            getCrypto: () => ({
+                userHasCrossSigningKeys: () => Promise.resolve(false),
+                requestOwnUserVerification,
+            }),
+        });
+
+        await expect(mod.requestOwnVerification()).rejects.toThrow(
+            /hasn't set up cross-signing/,
+        );
+        expect(requestOwnUserVerification).not.toHaveBeenCalled();
     });
 
     it("throws when crypto isn't ready", async () => {

@@ -2599,6 +2599,8 @@ export const en = {
         "Could not send the verification request",
     "verification.sessionNotKnownYet":
         "This session doesn't know about that one yet. Wait a few seconds and try again, or start verification from the new session.",
+    "verification.accountHasNoIdentity":
+        "Your account hasn't set up cross-signing yet, so there's nothing for your other sessions to verify this one against. Open Settings > Security & Encryption on any session and set up recovery, then use the recovery key on the others.",
     "verification.sessionHasNoKeys":
         "That session hasn't published its encryption keys, so it can't be verified or receive encrypted messages. Sign it out and sign back in.",
     "verification.sessionKeysRejected":

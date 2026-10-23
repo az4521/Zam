@@ -1535,8 +1535,16 @@ export async function requestOwnVerification(): Promise<VerificationController> 
         throw new Error(t("crypto.encryptionIsNotReadyOnThis"));
     }
     // Same freshness concern as startDeviceVerification: the broadcast goes to
-    // the devices in our store, so pull the current list first.
-    await crypto.getUserDeviceInfo([userId], true);
+    // the devices in our store, and the SDK refuses outright when the store
+    // has no master key for us. getUserDeviceInfo never re-queries our own
+    // (always tracked) user, but userHasCrossSigningKeys does, so it both
+    // refreshes the store and tells us whether there's an identity at all.
+    // None means the account never set up cross-signing: no other session
+    // can vouch for this one, so say how to fix that instead of the SDK's
+    // "no existing cross-signing key".
+    if (!(await crypto.userHasCrossSigningKeys(userId))) {
+        throw new Error(t("verification.accountHasNoIdentity"));
+    }
     const request = await crypto.requestOwnUserVerification();
     return createVerificationController(request);
 }

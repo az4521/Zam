@@ -2726,6 +2726,8 @@ const messages: Record<MessageKey, string> = {
         "No se pudo enviar la solicitud de verificación",
     "verification.sessionNotKnownYet":
         "Esta sesión aún no conoce esa sesión. Espera unos segundos y vuelve a intentarlo, o inicia la verificación desde la sesión nueva.",
+    "verification.accountHasNoIdentity":
+        "Tu cuenta aún no ha configurado la firma cruzada, así que tus otras sesiones no pueden verificar esta. Abre Ajustes > Seguridad y cifrado en cualquier sesión y configura la recuperación; luego usa la clave de recuperación en las demás.",
     "verification.sessionHasNoKeys":
         "Esa sesión no ha publicado sus claves de cifrado, así que no se puede verificar ni recibir mensajes cifrados. Cierra la sesión y vuelve a iniciarla.",
     "verification.sessionKeysRejected":
