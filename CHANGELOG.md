@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.30.1
+
+🐛 **Fixed**
+
+- **Desktop finds updates while it's open:** the desktop app only checked for a new version when it started, so if you left it running you didn't hear about updates until you restarted it. It now also checks every few hours and when your computer wakes from sleep.
+
 ## v1.30.0
 
 ✨ **New**
