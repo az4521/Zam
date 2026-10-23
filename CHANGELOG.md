@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.29.0
+
+✨ **New**
+
+- **Emoji and emotes when editing:** editing a message now works like the composer: `:shortcode` suggestions, custom emotes shown as images, Ctrl+Z/Ctrl+Y undo and Shift+Enter for a new line. The suggestion list floats over the chat, so opening it doesn't push messages around.
+- **Image previews while loading:** images you send now include a small preview, so the people who receive them see a blurry version straight away instead of an empty box while the full image loads. In encrypted rooms you can open an image before it has finished decrypting.
+
+🐛 **Fixed**
+
+- **Clearer message when a session can't be verified:** asking your other sessions to verify a new one failed with "no existing cross-signing key" if your account had never set up cross-signing. It now explains what's wrong and points you to Set up recovery in Settings > Security & Encryption. It also checks the server for your latest keys before asking.
+
 ## v1.28.5
 
 🐛 **Fixed**
