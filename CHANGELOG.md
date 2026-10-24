@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.30.4
+
+🐛 **Fixed**
+
+- **The shrug keeps its arm:** sending ¯\\\_(ツ)\_/¯ used to drop the backslash, so it showed up as ¯\_(ツ)\_/¯. It now arrives exactly as you typed it.
+
 ## v1.30.3
 
 🐛 **Fixed**
