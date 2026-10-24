@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.30.3
+
+🐛 **Fixed**
+
+- **Your status goes idle when you step away:** leaving Zam open on a computer used to keep you shown as online forever. After 5 minutes without any input you now show as away, and you're back online as soon as you return. In the desktop app, using other apps still counts as being at the computer, and locking the screen shows you as away right away. If you set yourself to away or invisible, that's left as it is.
+
 ## v1.30.2
 
 ✨ **New**
