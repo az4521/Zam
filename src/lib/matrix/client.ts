@@ -3967,6 +3967,23 @@ export async function fetchOwnProfile(): Promise<{
     };
 }
 
+/**
+ * Anyone's global profile, for surfaces that have no room to read a member
+ * from (a draft DM). Null fields when the server has none or refuses.
+ */
+export async function fetchUserProfile(
+    userId: string,
+): Promise<{ displayName: string | null; avatarUrl: string | null }> {
+    if (!matrixClient) return { displayName: null, avatarUrl: null };
+    const profile = await matrixClient
+        .getProfileInfo(userId)
+        .catch(() => ({}) as { displayname?: string; avatar_url?: string });
+    return {
+        displayName: profile.displayname ?? null,
+        avatarUrl: mxcToHttp(profile.avatar_url ?? null, 96),
+    };
+}
+
 export async function setOwnDisplayName(name: string): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.setDisplayName(name);
@@ -6347,6 +6364,40 @@ export function createDirectMessage(
     );
 }
 
+/** The joined DM room `m.direct` lists for `userId`, if any. */
+function reusableDmRoom(userId: string): string | null {
+    const existing = matrixClient
+        ?.getAccountData(EventType.Direct)
+        ?.getContent() as Record<string, string[]> | undefined;
+    // Reuse the first room we are actually JOINED to — never blindly [0]. A
+    // stale first entry (a DM the user left/forgot, or a federated room whose
+    // state never synced so the client doesn't hold it) has no "join"
+    // membership; checking only [0] made a dead first entry skip a live DM at
+    // [1+] and mint a duplicate room on every open. See utils/dmReuse.
+    return (
+        firstReusableDmRoom(existing?.[userId], (id) =>
+            matrixClient?.getRoom(id)?.getMyMembership(),
+        ) ?? null
+    );
+}
+
+/**
+ * Whether opening a DM with `userId` would land on a room that already exists
+ * — a joined DM, or one stranded by a failed `m.direct` write this session —
+ * rather than creating one. The lazy-DM entry points ask this first: an
+ * existing DM opens straight away through `createDirectMessage`, and only a
+ * genuinely new one becomes a draft that is created on its first message.
+ */
+export function hasExistingDirectMessage(userId: string): boolean {
+    if (!matrixClient) return false;
+    if (reusableDmRoom(userId)) return true;
+    return (
+        strandedDmRoom(pendingFollowUps, userId, (id) =>
+            isRoomGone(matrixClient?.getRoom(id)?.getMyMembership()),
+        ) !== null
+    );
+}
+
 async function openDirectMessage(
     userId: string,
     getEncrypt: () => boolean,
@@ -6354,17 +6405,7 @@ async function openDirectMessage(
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // Reuse existing DM room if one exists. An existing DM keeps its own
     // encryption state — we never change it here (encryption is irreversible).
-    const existing = matrixClient
-        .getAccountData(EventType.Direct)
-        ?.getContent() as Record<string, string[]> | undefined;
-    // Reuse the first room we are actually JOINED to — never blindly [0]. A
-    // stale first entry (a DM the user left/forgot, or a federated room whose
-    // state never synced so the client doesn't hold it) has no "join"
-    // membership; checking only [0] made a dead first entry skip a live DM at
-    // [1+] and mint a duplicate room on every open. See utils/dmReuse.
-    const reusable = firstReusableDmRoom(existing?.[userId], (id) =>
-        matrixClient?.getRoom(id)?.getMyMembership(),
-    );
+    const reusable = reusableDmRoom(userId);
     if (reusable) return { roomId: reusable, followUp: NO_FOLLOW_UP };
     // A DM whose m.direct write failed earlier this session is NOT in m.direct,
     // so the check above cannot see it. Retry that write against the existing

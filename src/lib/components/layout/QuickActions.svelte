@@ -4,6 +4,7 @@
         createRoom,
         createSpace,
         createDirectMessage,
+        hasExistingDirectMessage,
         joinRoomByAlias,
         knockRoom,
         canAddRoomToSpace,
@@ -20,7 +21,7 @@
         PLAINTEXT_DM_REUSE_WARNING,
     } from "$lib/utils/roomEncryption";
     import { settingsState } from "$lib/stores/settings.svelte";
-    import { setActiveRoom } from "$lib/stores/rooms.svelte";
+    import { setActiveRoom, openDraftDm } from "$lib/stores/rooms.svelte";
     import {
         interfaceState,
         openModal,
@@ -100,6 +101,12 @@
                 cryptoReady,
                 setting: encrypt,
             });
+            // No DM yet: open a draft, created on its first message.
+            if (!hasExistingDirectMessage(userId)) {
+                openDraftDm(userId, wantEncrypted);
+                close();
+                return;
+            }
             const { roomId, followUp } = await createDirectMessage(
                 userId,
                 wantEncrypted,

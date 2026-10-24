@@ -4,7 +4,11 @@
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
     import { auth } from "$lib/stores/auth.svelte";
-    import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
+    import {
+        roomsState,
+        setActiveRoom,
+        openDraftDm,
+    } from "$lib/stores/rooms.svelte";
     import { showChatView } from "$lib/stores/interface.svelte";
     import { hostBridge } from "$lib/plugins/hostBridge";
     import {
@@ -15,6 +19,7 @@
         kickUser,
         banUser,
         createDirectMessage,
+        hasExistingDirectMessage,
         retryRoomFollowUp,
         getRoom,
         setVoiceInputDevice,
@@ -309,6 +314,12 @@
                 cryptoReady: isCryptoAvailable(),
                 setting: settingsState.encryptNewDms,
             });
+            // No DM yet: open a draft, created on its first message, rather
+            // than inviting someone the user may only have meant to look at.
+            if (!hasExistingDirectMessage(userId)) {
+                openDraftDm(userId, wantEncrypted);
+                return;
+            }
             const { roomId, followUp } = await createDirectMessage(
                 userId,
                 wantEncrypted,

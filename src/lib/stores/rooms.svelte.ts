@@ -103,6 +103,15 @@ export const roomsState = $state({
      * so no steady-state reactivity depends on it.
      */
     pendingJump: null as { roomId: string; eventId: string } | null,
+    /**
+     * A DM that does not exist yet. Opening a DM with someone you have no room
+     * with shows a draft instead of creating the room (and sending the invite)
+     * up front; the room is created when the first message is sent. While set,
+     * the main pane renders the draft over `activeRoomId`, which is left alone
+     * so dropping the draft returns to wherever the user was. Every real
+     * navigation clears it.
+     */
+    draftDm: null as { userId: string; encrypt: boolean } | null,
 });
 
 export function bumpUnreadTick(): void {
@@ -261,6 +270,7 @@ export function setActiveSpace(
     drill?: { parentId: string; name?: string; depth?: number },
 ): void {
     if (spaceId === roomsState.activeSpaceId) return;
+    roomsState.draftDm = null;
     roomsState.activeSpaceId = spaceId;
     roomsState.activeRoomId = getLastRoom(spaceId);
     // Restoring a space's last room is a navigation too: if that room is a
@@ -297,6 +307,7 @@ export function setActiveRoom(roomId: string): void {
     // it, and no future create/join wrapper has to remember to opt in.
     // Deliberately not done in `landOnRoom`: see markRoomPendingArrival.
     markRoomPendingArrival(roomId);
+    roomsState.draftDm = null;
     roomsState.activeRoomId = roomId;
     roomsState.showInbox = false;
     // Ordinary rooms show their timeline; video rooms show their call. The
@@ -334,6 +345,32 @@ export function navigateToRoom(roomId: string, eventId?: string): void {
     }
     setActiveRoom(roomId);
     roomsState.pendingJump = eventId ? { roomId, eventId } : null;
+}
+
+/**
+ * Show a draft DM with `userId` — see `roomsState.draftDm`. Callers check
+ * `hasExistingDirectMessage` first; an existing DM opens as a room instead.
+ */
+export function openDraftDm(userId: string, encrypt: boolean): void {
+    roomsState.draftDm = { userId, encrypt };
+    roomsState.showInbox = false;
+    // A DM is a Home destination, so leave whatever space was being browsed.
+    if (roomsState.activeSpaceId !== null) {
+        roomsState.activeSpaceId = null;
+        roomsState.spaceHierarchy = [];
+        roomsState.spaceDrillParentId = null;
+        roomsState.spaceDrillName = null;
+        roomsState.spaceDrillDepth = 0;
+        saveLastSpace(null);
+        roomsState.activeRoomId = getLastRoom(null);
+        applyDefaultSurface(roomsState.activeRoomId);
+    }
+    if (interfaceState.isMobile) interfaceState.leftOpen = false;
+}
+
+/** Drop the draft DM, if any, returning the main pane to `activeRoomId`. */
+export function closeDraftDm(): void {
+    roomsState.draftDm = null;
 }
 
 export function getActiveRoom(): Room | undefined {

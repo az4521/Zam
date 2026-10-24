@@ -644,7 +644,9 @@
     });
 
     function roomButton(room: Room) {
-        const isActive = roomsState.activeRoomId === room.roomId;
+        // A draft DM covers the main pane, so the room under it is not active.
+        const isActive =
+            roomsState.activeRoomId === room.roomId && !roomsState.draftDm;
         roomsState.unreadTick; // track read receipt / new message changes
         const { unread, highlight } = getRoomUnreadInfo(room);
         const loud = hasLoudInRoom(room.roomId);
@@ -970,6 +972,7 @@
                 onclick={() => {
                     roomsState.showInbox = true;
                     roomsState.activeRoomId = null;
+                    roomsState.draftDm = null;
                     // The inbox fills the main area like a room — always close.
                     if (interfaceState.isMobile)
                         interfaceState.leftOpen = false;

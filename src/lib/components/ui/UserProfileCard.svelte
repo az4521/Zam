@@ -9,7 +9,11 @@
         profileCardState,
         closeProfileCard,
     } from "$lib/stores/profileCard.svelte";
-    import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
+    import {
+        roomsState,
+        setActiveRoom,
+        openDraftDm,
+    } from "$lib/stores/rooms.svelte";
     import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
     import {
         isUserBlocked,
@@ -23,6 +27,7 @@
         getUserPowerLevel,
         getRoomPowerLevels,
         createDirectMessage,
+        hasExistingDirectMessage,
         retryRoomFollowUp,
         kickUser,
         banUser,
@@ -353,6 +358,14 @@
             cryptoReady: isCryptoAvailable(),
             setting: settingsState.encryptNewDms,
         });
+        // No DM yet: open a draft, created on its first message, rather than
+        // creating the room (and inviting them) just for looking.
+        if (!hasExistingDirectMessage(target)) {
+            pending = null;
+            closeProfileCard();
+            openDraftDm(target, wantEncrypted);
+            return;
+        }
         let followUpStatus = "none";
         const outcome = await actionRequests.run(async () => {
             const { roomId, followUp } = await createDirectMessage(

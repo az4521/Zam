@@ -9,6 +9,7 @@
     import ProfileFooter from "$lib/components/layout/ProfileFooter.svelte";
     import ReconnectPill from "$lib/components/layout/ReconnectPill.svelte";
     import MessageArea from "$lib/components/layout/MessageArea.svelte";
+    import DraftDmView from "$lib/components/layout/DraftDmView.svelte";
     import CallView from "$lib/components/layout/CallView.svelte";
     import RoomSettings from "$lib/components/layout/RoomSettings.svelte";
     import InviteModal from "$lib/components/layout/InviteModal.svelte";
@@ -2657,6 +2658,13 @@
         >
             {#if roomsState.showInbox}
                 <InboxPanel
+                    isMobile={interfaceState.isMobile}
+                    onMenuOpen={() => (interfaceState.leftOpen = true)}
+                />
+            {:else if roomsState.draftDm}
+                <DraftDmView
+                    userId={roomsState.draftDm.userId}
+                    encrypt={roomsState.draftDm.encrypt}
                     isMobile={interfaceState.isMobile}
                     onMenuOpen={() => (interfaceState.leftOpen = true)}
                 />
