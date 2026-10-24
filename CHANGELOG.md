@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.30.5
+
+✨ **New**
+
+- **Slash commands can be replies:** /shrug, /tableflip, /unflip, /lenny, /spoiler and /plain used to drop the message you were replying to. Now they're sent as a reply to it, in threads too. /me still sends on its own.
+
 ## v1.30.4
 
 🐛 **Fixed**
