@@ -1079,6 +1079,12 @@
         // reads pendingMentions, reset below).
         const formatted = usePlain ? null : buildFormattedBody(body);
         const replyTarget = replyToEvent;
+        // A text command (/shrug, /tableflip, /plain…) answers the open reply
+        // like a normal message would; /me still goes out on its own.
+        const replyId =
+            command.kind === "emote"
+                ? undefined
+                : (replyTarget?.getId() ?? undefined);
 
         isSending = true;
         text = "";
@@ -1112,6 +1118,20 @@
                     body,
                     mentions,
                     usePlain ? undefined : (formatted?.html ?? undefined),
+                    undefined,
+                    replyId,
+                );
+            } else if (replyId) {
+                await sendEventContent(
+                    roomId,
+                    buildReplyContent({
+                        replyEventId: replyId,
+                        text: body,
+                        formattedText: usePlain
+                            ? undefined
+                            : (formatted?.html ?? undefined),
+                        mentions,
+                    }) as unknown as Record<string, unknown>,
                 );
             } else if (usePlain) {
                 await sendTextMessage(roomId, body);
@@ -1125,8 +1145,8 @@
             } else {
                 await sendTextMessage(roomId, body);
             }
-            // A slash message-command is not a reply — clear any in-progress
-            // reply so the banner doesn't leak onto the user's next message.
+            // The reply was used (or, for /me, dropped) — clear it so the
+            // banner doesn't leak onto the user's next message.
             if (replyTarget) onCancelReply?.();
             await tick();
             if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
