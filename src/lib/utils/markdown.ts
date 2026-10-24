@@ -37,6 +37,13 @@ function processInline(raw: string): { html: string; changed: boolean } {
         return `\x02${spans.length - 1}\x03`;
     });
     const hadSpans = spans.length > 0;
+    // Keep the shrug whole: its `\_` is an arm, not an escape, and `_(ツ)_`
+    // would italicise. Typed with 0-3 backslashes it comes out as ¯\_(ツ)_/¯.
+    // Stashed after hadSpans so a bare shrug still sends as plain text.
+    s = s.replace(/¯\\{0,3}_\(ツ\)\\?_\/¯/g, () => {
+        spans.push("¯\\_(ツ)_/¯");
+        return `\x02${spans.length - 1}\x03`;
+    });
 
     // Stash backslash-escaped characters so they survive formatting passes
     const escaped: string[] = [];

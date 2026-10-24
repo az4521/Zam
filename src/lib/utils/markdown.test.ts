@@ -143,6 +143,25 @@ describe("parseMarkdown — inline formatting", () => {
     });
 });
 
+describe("parseMarkdown — shrug", () => {
+    it("keeps the arm of a bare shrug and sends it as plain text", () => {
+        expect(parseMarkdown("¯\\_(ツ)_/¯").hasFormatting).toBe(false);
+        expect(parseMarkdown("ok ¯\\_(ツ)_/¯ sure").hasFormatting).toBe(false);
+    });
+
+    it("renders the shrug intact next to other formatting", () => {
+        for (const shrug of [
+            "¯\\_(ツ)_/¯",
+            "¯\\\\_(ツ)_/¯",
+            "¯\\\\\\_(ツ)\\_/¯",
+        ]) {
+            expect(parseMarkdown(`**eh** ${shrug}`).formattedBody).toBe(
+                "<strong>eh</strong> ¯\\_(ツ)_/¯",
+            );
+        }
+    });
+});
+
 describe("parseMarkdown — underscores need a word boundary", () => {
     it("leaves snake_case and glued __ alone", () => {
         expect(parseMarkdown("snake_case_name").hasFormatting).toBe(false);
