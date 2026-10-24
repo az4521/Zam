@@ -52,6 +52,7 @@ import {
     setVideoInputDeviceId,
 } from "$lib/stores/settings.svelte";
 import { lazyModule } from "$lib/utils/lazyModule";
+import type { RawStat } from "$lib/utils/callStats";
 import {
     createCallAudioGraph,
     type CallAudioGraph,
@@ -1535,4 +1536,126 @@ export function getRemoteAudioStreams(): MediaStream[] {
     for (const el of activeVoice.audioEls)
         if (el.srcObject instanceof MediaStream) streams.push(el.srcObject);
     return streams;
+}
+
+/** One participant as the call debug panel shows them. */
+export interface CallDebugParticipant {
+    identity: string;
+    userId: string;
+    /** LiveKit's server-side grade of THEIR connection: excellent/good/poor/lost. */
+    quality: string;
+    /** Their microphone's receive-side stats, or null when not subscribed. */
+    audio: RawStat[] | null;
+}
+
+/** One LiveKit connection of the call (the publishing one, or a listen-only remote SFU). */
+export interface CallDebugConnection {
+    /** Stable across polls: the publish key, or the remote's key. */
+    key: string;
+    /** The SFU's service host, for display. */
+    server: string;
+    publishing: boolean;
+    state: string;
+    /** WebSocket signalling round trip, ms. */
+    signalRttMs: number | null;
+    region: string | null;
+    serverVersion: string | null;
+    publisher: RawStat[] | null;
+    subscriber: RawStat[] | null;
+    /** LiveKit's grade of OUR connection to this SFU. */
+    localQuality: string;
+    participants: CallDebugParticipant[];
+}
+
+async function reportValues(
+    report: Promise<RTCStatsReport | undefined> | undefined,
+): Promise<RawStat[] | null> {
+    try {
+        const r = await report;
+        return r ? ([...r.values()] as RawStat[]) : null;
+    } catch {
+        return null;
+    }
+}
+
+function serverHost(key: string): string {
+    const serviceUrl = key.split("|")[0];
+    try {
+        return new URL(serviceUrl).host;
+    } catch {
+        return serviceUrl;
+    }
+}
+
+/**
+ * A raw stats snapshot of every connection of the active call, for the debug
+ * panel (utils/callStats folds it). Null when not in a call. Reads LiveKit's
+ * transports through `engine.pcManager`, which is public on the engine but
+ * not part of the documented surface, so every step is optional: a library
+ * update that moves it degrades to empty transports, never a throw.
+ */
+export async function getCallDebugStats(): Promise<
+    CallDebugConnection[] | null
+> {
+    const call = activeVoice;
+    if (!call) return null;
+    const entries: [string, LivekitRoom, boolean][] = [
+        [call.publishKey, call.lkRoom, true],
+        ...[...call.remotes].map(
+            ([key, r]) => [key, r, false] as [string, LivekitRoom, boolean],
+        ),
+    ];
+    return Promise.all(
+        entries.map(async ([key, lkRoom, publishing]) => {
+            const engine = lkRoom.engine as
+                | {
+                      pcManager?: {
+                          publisher?: {
+                              getStats(): Promise<RTCStatsReport> | undefined;
+                          };
+                          subscriber?: {
+                              getStats(): Promise<RTCStatsReport> | undefined;
+                          };
+                      };
+                      client?: { rtt?: number };
+                  }
+                | undefined;
+            const pcm = engine?.pcManager;
+            const [publisher, subscriber, participants] = await Promise.all([
+                reportValues(pcm?.publisher?.getStats()),
+                reportValues(pcm?.subscriber?.getStats()),
+                Promise.all(
+                    [...lkRoom.remoteParticipants.values()].map(async (p) => {
+                        const pub = p.getTrackPublication(
+                            call.lk.Track.Source.Microphone,
+                        );
+                        return {
+                            identity: p.identity,
+                            userId: userIdFromIdentity(p.identity),
+                            quality: String(p.connectionQuality),
+                            audio: pub?.track
+                                ? await reportValues(
+                                      pub.track.getRTCStatsReport(),
+                                  )
+                                : null,
+                        };
+                    }),
+                ),
+            ]);
+            const rtt = engine?.client?.rtt;
+            return {
+                key,
+                server: serverHost(key),
+                publishing,
+                state: String(lkRoom.state),
+                signalRttMs: typeof rtt === "number" && rtt > 0 ? rtt : null,
+                region: lkRoom.serverInfo?.region || null,
+                serverVersion: lkRoom.serverInfo?.version || null,
+                publisher,
+                subscriber,
+                localQuality: String(lkRoom.localParticipant.connectionQuality),
+                participants,
+            };
+        }),
+    );
 }

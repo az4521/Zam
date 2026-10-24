@@ -80,7 +80,9 @@ export type ModalId =
     | "screen-share-quality"
     // Ctrl+K quick switcher and the Ctrl+/ shortcut list (AppShell).
     | "quick-switcher"
-    | "keyboard-shortcuts";
+    | "keyboard-shortcuts"
+    // Call connection stats (CallStatsPanel, opened from VoiceCallPanel).
+    | "call-stats";
 
 export type SidebarId =
     | "members"

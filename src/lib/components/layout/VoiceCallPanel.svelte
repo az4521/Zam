@@ -9,6 +9,7 @@
         Video,
         VideoOff,
         MonitorUp,
+        Signal,
     } from "lucide-svelte";
     import {
         voiceCallState,
@@ -30,6 +31,7 @@
     } from "$lib/matrix/client";
     import { navigateToRoom, roomsState } from "$lib/stores/rooms.svelte";
     import ScreenShareQualityPopover from "./ScreenShareQualityPopover.svelte";
+    import CallStatsPanel from "./CallStatsPanel.svelte";
 
     // Fixed for the session, same as CallView — hides share where unsupported.
     const screenShareSupported = screenShareSupportedHere();
@@ -79,6 +81,8 @@
         const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
         sharePopover = { x: r.left, y: r.top };
     }
+
+    let statsOpen = $state(false);
 </script>
 
 {#if voiceCallState.roomId}
@@ -93,29 +97,39 @@
                 {t("voiceCallPanel.enableAudio")}
             </button>
         {/if}
-        <button
-            class="block w-full min-w-0 text-start"
-            onclick={openCallView}
-            title={t("voiceCallPanel.openCallView")}
-        >
-            <!-- spans, not <p>: a button may only contain phrasing content. -->
-            <span
-                class="block text-xs font-semibold {voiceCallState.connState ===
-                'connected'
-                    ? 'text-discord-accent'
-                    : 'text-discord-warning'}"
+        <div class="flex items-start gap-1">
+            <button
+                class="block flex-1 min-w-0 text-start"
+                onclick={openCallView}
+                title={t("voiceCallPanel.openCallView")}
             >
-                {connStateLabel(voiceCallState.connState)}
-                {#if elapsed}
-                    <span class="ms-1 font-normal text-discord-textMuted"
-                        >{elapsed}</span
-                    >
-                {/if}
-            </span>
-            <span class="block text-xs text-discord-textMuted truncate">
-                {locationLabel}
-            </span>
-        </button>
+                <!-- spans, not <p>: a button may only contain phrasing content. -->
+                <span
+                    class="block text-xs font-semibold {voiceCallState.connState ===
+                    'connected'
+                        ? 'text-discord-accent'
+                        : 'text-discord-warning'}"
+                >
+                    {connStateLabel(voiceCallState.connState)}
+                    {#if elapsed}
+                        <span class="ms-1 font-normal text-discord-textMuted"
+                            >{elapsed}</span
+                        >
+                    {/if}
+                </span>
+                <span class="block text-xs text-discord-textMuted truncate">
+                    {locationLabel}
+                </span>
+            </button>
+            <button
+                onclick={() => (statsOpen = true)}
+                class="p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover flex-shrink-0"
+                title={t("voiceCallPanel.connectionStats")}
+                aria-label={t("voiceCallPanel.connectionStats")}
+            >
+                <Signal size={16} />
+            </button>
+        </div>
         <!-- Own row, not beside the status text: five 32px controls plus gaps
              leave ~60px of a 240px sidebar, which truncates "Connected" to an
              ellipsis. Discord splits the same way. -->
@@ -202,5 +216,8 @@
             touch={interfaceState.isTouchscreen}
             onClose={() => (sharePopover = null)}
         />
+    {/if}
+    {#if statsOpen}
+        <CallStatsPanel onClose={() => (statsOpen = false)} />
     {/if}
 {/if}
