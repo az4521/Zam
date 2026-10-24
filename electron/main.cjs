@@ -569,6 +569,11 @@ const hardwareAccelerationAtLaunch =
     readGpuPrefs().hardwareAcceleration !== false;
 if (!hardwareAccelerationAtLaunch) app.disableHardwareAcceleration();
 
+ipcMain.handle("idle:get", () => ({
+    seconds: powerMonitor.getSystemIdleTime(),
+    locked: powerMonitor.getSystemIdleState(1) === "locked",
+}));
+
 ipcMain.handle("gpu:info", async () => {
     let info;
     try {

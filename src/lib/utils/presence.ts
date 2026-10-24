@@ -29,6 +29,26 @@ export function normalizePresence(value: unknown): PresenceState {
     return isPresenceState(value) ? value : "offline";
 }
 
+/**
+ * How long a device may sit without input before it advertises "unavailable"
+ * instead of "online". Matches tuwunel's default presence_idle_timeout_s.
+ */
+export const AUTO_AWAY_MS = 300_000;
+
+/**
+ * What this device should advertise. Only a chosen "online" is automatic;
+ * a chosen away or invisible is the user's call and stays as it is. The
+ * server combines devices and shows the highest state, so an idle desktop
+ * going away never hides a phone that is in use.
+ */
+export function advertisedPresence(
+    chosen: PresenceState,
+    idleMs: number,
+): PresenceState {
+    if (chosen !== "online") return chosen;
+    return idleMs >= AUTO_AWAY_MS ? "unavailable" : "online";
+}
+
 /** Matrix "unavailable" renders as Discord-style idle (orange). */
 export function presenceDot(state: PresenceState): PresenceDot {
     return state === "unavailable" ? "idle" : state;

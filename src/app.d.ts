@@ -48,6 +48,10 @@ declare global {
                 ) => Promise<void>;
                 relaunch: () => void;
             };
+            /** System-wide input idleness, for presence auto-away. */
+            idle?: {
+                get: () => Promise<{ seconds: number; locked: boolean }>;
+            };
             /** The OS's General MIDI sound bank (DLS/SF2) bytes, or null. */
             readSystemSoundBank?: () => Promise<Uint8Array | null>;
             /** Whether readSystemSoundBank would find a bank. */

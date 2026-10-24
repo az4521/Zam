@@ -115,6 +115,11 @@ contextBridge.exposeInMainWorld("desktop", {
             return () => ipcRenderer.removeListener("hotkeys:status", h);
         },
     },
+    // Seconds since the last input anywhere on the computer, and whether the
+    // screen is locked: auto-away for presence ($lib/stores/presence).
+    idle: {
+        get: () => ipcRenderer.invoke("idle:get"),
+    },
     // The OS's General MIDI sound bank bytes, or null (see main.cjs).
     readSystemSoundBank: () => ipcRenderer.invoke("soundbank:system"),
     hasSystemSoundBank: () => ipcRenderer.invoke("soundbank:has-system"),

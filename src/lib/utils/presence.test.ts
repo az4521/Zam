@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+    AUTO_AWAY_MS,
+    advertisedPresence,
     isPresenceState,
     normalizePresence,
     presenceDot,
@@ -40,6 +42,26 @@ describe("normalizePresence", () => {
         // MSC3026 unstable busy state — not supported, degrade safely.
         expect(normalizePresence("org.matrix.msc3026.busy")).toBe("offline");
         expect(normalizePresence(123)).toBe("offline");
+    });
+});
+
+describe("advertisedPresence", () => {
+    it("stays online while the device is in use", () => {
+        expect(advertisedPresence("online", 0)).toBe("online");
+        expect(advertisedPresence("online", AUTO_AWAY_MS - 1)).toBe("online");
+    });
+
+    it("goes away once the device has been idle long enough", () => {
+        expect(advertisedPresence("online", AUTO_AWAY_MS)).toBe("unavailable");
+        expect(advertisedPresence("online", AUTO_AWAY_MS * 10)).toBe(
+            "unavailable",
+        );
+    });
+
+    it("leaves a chosen away or invisible alone", () => {
+        expect(advertisedPresence("unavailable", 0)).toBe("unavailable");
+        expect(advertisedPresence("offline", 0)).toBe("offline");
+        expect(advertisedPresence("offline", AUTO_AWAY_MS)).toBe("offline");
     });
 });
 
