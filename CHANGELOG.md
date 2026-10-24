@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.31.0
+
+✨ **New**
+
+- **New DMs wait for your first message:** clicking "Message" on someone you haven't talked to used to create the conversation and invite them straight away, even if you were only looking. Now you get a draft, and nothing is created and no invite is sent until you send your first message. If they message you while the draft is open, you're moved into that conversation instead.
+- **Call connection stats:** a signal icon next to the call status in the sidebar opens a live view of your call connection: your ping, upload and download, packet loss, and whether your audio is going over UDP, TCP or a relay. TCP is flagged, since it's a common cause of audio lagging or drifting out of sync. It also shows how good the server thinks each other person's connection is, so you can tell whether a problem is on your end or theirs. "Copy as JSON" grabs a snapshot to share.
+
 ## v1.30.5
 
 ✨ **New**
