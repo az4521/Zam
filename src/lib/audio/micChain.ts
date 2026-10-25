@@ -34,7 +34,14 @@
  * start on this device, or stops coping mid-stream is swapped for
  * DeepFilterNet3 in place.
  */
-import { rmsDb, createNormalizer, normalizerStep } from "./voiceNormalization";
+import {
+    rmsDb,
+    createNormalizer,
+    normalizationGain,
+    normalizerStep,
+    type NormalizerState,
+} from "./voiceNormalization";
+import { rememberLevel, rememberedLevel } from "./normalizerMemory";
 import { createAgc2Node } from "./agc2";
 import { createSoftClipper } from "./softClip";
 import { createDeepFilterNode } from "./deepFilter";
@@ -73,6 +80,8 @@ export interface MicChainOptions {
 }
 
 const NORMALIZE_TICK_MS = 100;
+/** normalizerMemory key for your own voice. */
+const SELF_LEVEL_KEY = "self";
 
 export interface MicChain {
     /** Connect the mic source here. */
@@ -102,6 +111,7 @@ export function createMicChain(
     let destroyed = false;
     let agcNode: AudioWorkletNode | null = null;
     let normTimer: ReturnType<typeof setInterval> | null = null;
+    let state: NormalizerState | null = null;
     if (opts.level === "normalize") {
         // The inbound normalization, on the processed voice: a slow gain
         // towards a common speech level, fed only by windows that are speech.
@@ -113,21 +123,29 @@ export function createMicChain(
         gain.connect(norm);
         norm.connect(clipper.input);
         const buf = new Float32Array(analyser.fftSize);
-        const state = createNormalizer();
+        // Resume your mic's last level, so a call doesn't open with a few
+        // seconds of you at the wrong volume while it learns your voice.
+        const st = createNormalizer(
+            rememberedLevel(SELF_LEVEL_KEY) ?? undefined,
+        );
+        state = st;
+        const startGain = normalizationGain(st.level);
+        if (startGain !== null) norm.gain.value = startGain;
         normTimer = setInterval(() => {
             analyser.getFloatTimeDomainData(buf);
             const step = normalizerStep(
-                state,
+                st,
                 rmsDb(buf),
                 NORMALIZE_TICK_MS / 1000,
                 norm.gain.value,
             );
-            if (step !== null)
-                norm.gain.setTargetAtTime(
-                    step.gain,
-                    ctx.currentTime,
-                    step.timeConstant,
-                );
+            if (step === null) return;
+            norm.gain.setTargetAtTime(
+                step.gain,
+                ctx.currentTime,
+                step.timeConstant,
+            );
+            rememberLevel(SELF_LEVEL_KEY, st);
         }, NORMALIZE_TICK_MS);
     } else if (opts.level === "agc2") {
         createAgc2Node(ctx).then(
@@ -322,6 +340,7 @@ export function createMicChain(
             destroyed = true;
             if (driveTimer !== null) clearInterval(driveTimer);
             if (normTimer !== null) clearInterval(normTimer);
+            if (state) rememberLevel(SELF_LEVEL_KEY, state, true);
             input.disconnect();
             drive.disconnect();
             dfNode?.disconnect();

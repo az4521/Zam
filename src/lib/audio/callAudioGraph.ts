@@ -12,9 +12,11 @@
 import {
     rmsDb,
     createNormalizer,
+    normalizationGain,
     normalizerStep,
     type NormalizerState,
 } from "./voiceNormalization";
+import { rememberLevel, rememberedLevel } from "./normalizerMemory";
 import { createSoftClipper } from "./softClip";
 
 const NORMALIZE_TICK_MS = 100;
@@ -25,13 +27,16 @@ interface RoutedSource {
     norm: GainNode;
     gain: GainNode;
     state: NormalizerState;
+    /** Whose voice, for remembering its level between calls. */
+    key: string | null;
 }
 
 export interface CallAudioGraph {
     /** Route an element's stream through the graph. False when it cannot
      *  (no MediaStream yet, or the graph throws); the caller keeps the
-     *  element on its direct path. */
-    route(el: HTMLAudioElement): boolean;
+     *  element on its direct path. `key` names the voice (a user id) so
+     *  normalization resumes the level it had last time. */
+    route(el: HTMLAudioElement, key?: string): boolean;
     has(el: HTMLAudioElement): boolean;
     remove(el: HTMLAudioElement): void;
     /** Linear user gain (master x per-user level, 0..5) for a routed element. */
@@ -96,6 +101,7 @@ export function createCallAudioGraph(opts: {
             );
             if (step === null) continue;
             r.norm.gain.setTargetAtTime(step.gain, now, step.timeConstant);
+            if (r.key) rememberLevel(r.key, r.state);
         }
     };
     const syncTimer = () => {
@@ -120,7 +126,7 @@ export function createCallAudioGraph(opts: {
     void start();
 
     return {
-        route(el) {
+        route(el, key) {
             if (closed || routed.has(el)) return routed.has(el);
             const stream = el.srcObject;
             if (!(stream instanceof MediaStream)) return false;
@@ -134,12 +140,20 @@ export function createCallAudioGraph(opts: {
                 source.connect(norm);
                 norm.connect(gain);
                 gain.connect(limiter);
+                const seed = key ? rememberedLevel(key) : null;
+                const state = createNormalizer(seed ?? undefined);
+                // Start at the remembered gain rather than gliding up to it.
+                const startGain = normalize
+                    ? normalizationGain(state.level)
+                    : null;
+                if (startGain !== null) norm.gain.value = startGain;
                 routed.set(el, {
                     source,
                     analyser,
                     norm,
                     gain,
-                    state: createNormalizer(),
+                    state,
+                    key: key ?? null,
                 });
             } catch {
                 return false;
@@ -153,6 +167,7 @@ export function createCallAudioGraph(opts: {
             const r = routed.get(el);
             if (!r) return;
             routed.delete(el);
+            if (r.key && normalize) rememberLevel(r.key, r.state, true);
             r.source.disconnect();
             r.gain.disconnect();
             syncTimer();
@@ -183,6 +198,9 @@ export function createCallAudioGraph(opts: {
             if (closed) return;
             closed = true;
             syncTimer();
+            if (normalize)
+                for (const r of routed.values())
+                    if (r.key) rememberLevel(r.key, r.state, true);
             routed.clear();
             ctx.onstatechange = null;
             out.pause();

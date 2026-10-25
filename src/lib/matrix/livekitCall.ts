@@ -203,7 +203,8 @@ function applyElementVolume(el: HTMLAudioElement, identity: string): void {
     let graph = call?.audioGraph || null;
     if (call && !graph?.has(el) && (voiceNormalize || needsBoost(gain))) {
         graph = ensureAudioGraph(call);
-        if (graph?.route(el)) refreshPlaybackBlocked(call);
+        if (graph?.route(el, userIdFromIdentity(identity)))
+            refreshPlaybackBlocked(call);
     }
     if (graph?.has(el)) {
         graph.setGain(el, gain);

@@ -63,8 +63,16 @@ export interface NormalizerState {
     level: number | null;
 }
 
-export function createNormalizer(): NormalizerState {
-    return { gate: createSpeechGate(), level: null };
+/** A fresh normalizer, or one resuming a remembered level and noise floor
+ *  ($lib/audio/normalizerMemory) so it needn't learn the voice again. */
+export function createNormalizer(seed?: {
+    level: number;
+    floor: number | null;
+}): NormalizerState {
+    return {
+        gate: { floor: seed?.floor ?? null },
+        level: seed?.level ?? null,
+    };
 }
 
 /** Feed one window (`windowS` long, `windowDb` loud) and get the gain to move
