@@ -4,6 +4,23 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.32.0
+
+✨ **New**
+
+- **Share one app's audio:** the screen-share picker has an Audio menu. Share the sound of the window you're sharing, everything except Zam, any single app that's playing, or nothing. Before, Windows shared all system sound, including the call itself, and Linux shared none. Works on Windows 10 (version 2004) and later, and on Linux with PipeWire.
+- **Built-in proxy setting (desktop):** Settings > General > Network sets a proxy for Zam: a SOCKS or HTTP proxy, a PAC file, none, or your system settings (launch flags still work). Calls can follow the proxy as before, connect straight to the call servers so audio never goes through the proxy, or go only through the proxy so call servers never see your IP address.
+- **More call stats:** the call stats panel now lists every audio and video stream, yours and everyone else's: codec, bitrate, audio frame size, resolution and frame rate, and whether video is encoded in hardware or software and what's holding its quality back. Screen shares included. It also says when the call server has switched you to TCP, which is different from your network blocking UDP.
+- **FLAC plays right away:** FLAC files now start playing while they download, like MP3s, instead of waiting for the whole file.
+- **Voices start at the right volume:** volume normalization remembers each person's level, and your own, between calls, so calls no longer spend their first few seconds evening out.
+- **Calls hold up under load (desktop):** while you're in a call, Zam asks the system to give its call audio and video work priority over other programs. On Linux this needs extra permissions, and without them nothing changes.
+
+🐛 **Fixed**
+
+- **Rejoining no longer distorts someone's voice:** each time someone left and rejoined a call, their voice got louder and more distorted, because every earlier copy of their audio started playing again alongside the new one.
+- **Your own mute shows next to your name:** in the call list under a room, muting yourself now shows the muted icon by your name, like it does for everyone else.
+- **24-bit FLAC in videos:** 24-bit FLAC audio tracks in MKV files now play.
+
 ## v1.31.0
 
 ✨ **New**
