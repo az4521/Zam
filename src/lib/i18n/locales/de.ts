@@ -2350,6 +2350,10 @@ const messages: Record<MessageKey, string> = {
     "callStats.notInCall": "Kein Anruf aktiv",
     "callStats.tcpWarning":
         "Medien laufen über TCP. Ein verlorenes Paket hält alles dahinter auf, bis es erneut gesendet wurde. Das zeigt sich als verzögerter oder nicht mehr synchroner Ton. Meist blockiert eine Firewall oder das Netzwerk UDP.",
+    "callStats.serverSwitchedTcp":
+        "Der Anrufserver hat dich auf TCP umgestellt: Er bietet diesem Gerät kein UDP mehr an. Das tut er, wenn eine UDP-Verbindung fehlschlägt oder abbricht, während die Signalisierung weiterläuft, und merkt es sich für diesen Anruf, sodass ein erneuter Beitritt von diesem Gerät eine Weile bei TCP bleibt. Dein Netzwerk kann UDP durchaus übertragen; das ist nicht dasselbe wie eine Firewall, die es blockiert.",
+    "callStats.serverCandidates": "Server-Kandidaten",
+    "callStats.serverCandidatesNoUdp": "Nur TCP (vom Server umgestellt)",
     "callStats.publishing": "sendet",
     "callStats.listening": "hört zu",
     "callStats.signalRtt": "Signalisierungs-Ping",

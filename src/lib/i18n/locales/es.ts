@@ -2369,6 +2369,10 @@ const messages: Record<MessageKey, string> = {
     "callStats.notInCall": "No estás en una llamada",
     "callStats.tcpWarning":
         "El audio va por TCP. Un paquete perdido retiene todo lo que viene detrás hasta que se reenvía, y eso se nota como audio que se retrasa o se desincroniza. Suele deberse a un cortafuegos o una red que bloquea UDP.",
+    "callStats.serverSwitchedTcp":
+        "El servidor de llamadas te ha pasado a TCP: ya no ofrece UDP a este dispositivo. Lo hace cuando una conexión UDP falla o se corta mientras la señalización sigue funcionando, y lo recuerda para esta llamada, así que al volver a unirte desde este dispositivo seguirás en TCP un tiempo. Puede que tu red transmita UDP sin problemas; no es lo mismo que un cortafuegos que lo bloquea.",
+    "callStats.serverCandidates": "Candidatos del servidor",
+    "callStats.serverCandidatesNoUdp": "Solo TCP (cambiado por el servidor)",
     "callStats.publishing": "publicando",
     "callStats.listening": "escuchando",
     "callStats.signalRtt": "Ping de señalización",

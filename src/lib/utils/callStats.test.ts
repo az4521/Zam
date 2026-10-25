@@ -421,3 +421,44 @@ describe("codecLabel / opusFeatures", () => {
         expect(opusFeatures("useinbandfec=0")).toEqual([]);
     });
 });
+
+describe("serverOfferedNoUdp", () => {
+    const report = (protocols: (string | undefined)[]): RawStat[] =>
+        protocols.map((protocol, i) => ({
+            id: `R${i}`,
+            type: "remote-candidate",
+            protocol,
+        }));
+
+    it("flags an SFU that offers only TCP candidates", () => {
+        expect(
+            summarizeTransport(report(["tcp", "tcp"]), 0).serverOfferedNoUdp,
+        ).toBe(true);
+    });
+
+    it("ignores peer-reflexive UDP candidates learned from checks", () => {
+        const stats: RawStat[] = [
+            ...report(["tcp"]),
+            {
+                id: "P",
+                type: "remote-candidate",
+                protocol: "udp",
+                candidateType: "prflx",
+            },
+        ];
+        expect(summarizeTransport(stats, 0).serverOfferedNoUdp).toBe(true);
+    });
+
+    it("does not flag when the SFU still offers UDP", () => {
+        expect(
+            summarizeTransport(report(["udp", "tcp"]), 0).serverOfferedNoUdp,
+        ).toBe(false);
+    });
+
+    it("does not guess without protocols or candidates", () => {
+        expect(
+            summarizeTransport(report([undefined]), 0).serverOfferedNoUdp,
+        ).toBe(false);
+        expect(summarizeTransport([], 0).serverOfferedNoUdp).toBe(false);
+    });
+});

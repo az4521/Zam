@@ -2330,6 +2330,11 @@ const messages: Record<MessageKey, string> = {
     "callStats.notInCall": "Pas d'appel en cours",
     "callStats.tcpWarning":
         "Le son passe par TCP. Un paquet perdu bloque tout ce qui suit jusqu'à son renvoi, ce qui donne un son en retard ou désynchronisé. C'est généralement un pare-feu ou un réseau qui bloque l'UDP.",
+    "callStats.serverSwitchedTcp":
+        "Le serveur d'appel vous a basculé en TCP : il ne propose plus UDP à cet appareil. Il le fait quand une connexion UDP échoue ou se coupe alors que la signalisation fonctionne toujours, et s'en souvient pour cet appel, donc en rejoignant depuis cet appareil vous restez en TCP un moment. Votre réseau transmet peut-être très bien UDP ; ce n'est pas la même chose qu'un pare-feu qui le bloque.",
+    "callStats.serverCandidates": "Candidats du serveur",
+    "callStats.serverCandidatesNoUdp":
+        "TCP uniquement (basculé par le serveur)",
     "callStats.publishing": "émission",
     "callStats.listening": "écoute",
     "callStats.signalRtt": "Ping de signalisation",

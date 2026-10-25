@@ -2186,6 +2186,10 @@ const messages: Record<MessageKey, string> = {
     "callStats.notInCall": "ܠܝܬ ܩܪܝܬܐ",
     "callStats.tcpWarning":
         "ܩܠܐ ܟܐ ܐܙܠ ܒܝܕ TCP. ܦܐܩܛܐ ܛܥܝܐ ܟܐ ܟܠܐ ܟܠ ܡܕܡ ܕܒܬܪܗ ܗܕܟܡܐ ܕܡܫܬܕܪܐ ܬܘܒ، ܘܩܠܐ ܟܐ ܡܬܐܚܪ ܝܢ ܟܐ ܦܪܩ. ܒܝܫܐ ܟܐ ܗܘܐ ܡܢ ܫܘܪܐ ܕܢܘܪܐ ܝܢ ܡܨܝܕܬܐ ܕܟܐ ܟܠܝܐ UDP.",
+    "callStats.serverSwitchedTcp":
+        "The call server has switched you to TCP: it no longer offers UDP to this device. It does that after a UDP connection fails or drops while signalling keeps working, and remembers it for this call, so rejoining from this device stays on TCP for a while. Your network may well carry UDP fine; this isn't the same as a firewall blocking it.",
+    "callStats.serverCandidates": "Server candidates",
+    "callStats.serverCandidatesNoUdp": "TCP only (switched by server)",
     "callStats.publishing": "ܟܐ ܡܦܪܣܡ",
     "callStats.listening": "ܟܐ ܫܡܥ",
     "callStats.signalRtt": "Ping ܕܐܬܘܬܐ",

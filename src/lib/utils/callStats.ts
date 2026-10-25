@@ -46,6 +46,16 @@ export interface TransportSummary {
     path: CallPath;
     localCandidateType: CandidateType | null;
     remoteCandidateType: CandidateType | null;
+    /**
+     * The SFU offered candidates but no UDP one. LiveKit's server does this
+     * after it decides UDP failed for this client (ICE failed, or dropped
+     * soon after connecting, while signalling stayed up): it switches the
+     * client to TCP, strips its UDP candidates, and remembers that per room
+     * and identity, so rejoining starts on TCP too. Tells a server-made
+     * switch apart from a network that blocks UDP, where the server still
+     * offers UDP and the client just can't reach it.
+     */
+    serverOfferedNoUdp: boolean;
     /** remote address:port of the selected pair. */
     remoteAddress: string | null;
     /** ICE (STUN consent) round trip on the selected pair, ms. */
@@ -191,6 +201,19 @@ export function summarizeTransport(
 
     const iceRtt = num(pair?.currentRoundTripTime);
     const available = num(pair?.availableOutgoingBitrate);
+    // Only what the server offered: a peer-reflexive candidate is learned
+    // from the far end's connectivity checks, and Chromium lists UDP ones
+    // even when every UDP candidate was stripped from the offer.
+    const remoteProtocols = stats
+        .filter(
+            (s) =>
+                s.type === "remote-candidate" &&
+                candidateType(s.candidateType) !== "prflx",
+        )
+        .map((s) => str(s.protocol)?.toLowerCase());
+    // Only on positive evidence: a candidate without a protocol says nothing.
+    const serverOfferedNoUdp =
+        remoteProtocols.includes("tcp") && !remoteProtocols.includes("udp");
     const remoteAddr = str(remote?.address) ?? str(remote?.ip);
     const remotePort = num(remote?.port);
     const audioIn = summarizeAudioIn(stats);
@@ -210,6 +233,7 @@ export function summarizeTransport(
         path: classifyPath(local),
         localCandidateType: candidateType(local?.candidateType),
         remoteCandidateType: candidateType(remote?.candidateType),
+        serverOfferedNoUdp,
         remoteAddress: remoteAddr
             ? remotePort !== null
                 ? `${remoteAddr}:${remotePort}`

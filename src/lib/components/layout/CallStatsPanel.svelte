@@ -304,6 +304,14 @@
         ) ?? false,
     );
 
+    const serverSwitchedTcp = $derived(
+        connections?.some(
+            (c) =>
+                c.publisher?.serverOfferedNoUdp ||
+                c.subscriber?.serverOfferedNoUdp,
+        ) ?? false,
+    );
+
     async function copyJson(): Promise<void> {
         const snapshot = {
             takenAt: new Date().toISOString(),
@@ -390,6 +398,13 @@
                 {/if}
                 {#if s.remoteAddress}
                     {@render row(t("callStats.remoteAddress"), s.remoteAddress)}
+                {/if}
+                {#if s.serverOfferedNoUdp}
+                    {@render row(
+                        t("callStats.serverCandidates"),
+                        t("callStats.serverCandidatesNoUdp"),
+                        "bad",
+                    )}
                 {/if}
                 {#if s.localCandidateType}
                     {@render row(
@@ -523,7 +538,14 @@
             {:else if connections.length === 0}
                 <p class="text-discord-textMuted">{t("callStats.notInCall")}</p>
             {:else}
-                {#if anyTcp}
+                {#if serverSwitchedTcp}
+                    <p
+                        role="status"
+                        class="rounded px-3 py-2 bg-discord-danger/15 text-discord-textPrimary"
+                    >
+                        {t("callStats.serverSwitchedTcp")}
+                    </p>
+                {:else if anyTcp}
                     <p
                         role="status"
                         class="rounded px-3 py-2 bg-discord-danger/15 text-discord-textPrimary"

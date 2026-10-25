@@ -2263,6 +2263,10 @@ export const en = {
     "callStats.notInCall": "Not in a call",
     "callStats.tcpWarning":
         "Media is going over TCP. A lost packet holds up everything behind it until it is resent, which shows up as audio falling behind or drifting out of sync. A firewall or network blocking UDP usually causes this.",
+    "callStats.serverSwitchedTcp":
+        "The call server has switched you to TCP: it no longer offers UDP to this device. It does that after a UDP connection fails or drops while signalling keeps working, and remembers it for this call, so rejoining from this device stays on TCP for a while. Your network may well carry UDP fine; this isn't the same as a firewall blocking it.",
+    "callStats.serverCandidates": "Server candidates",
+    "callStats.serverCandidatesNoUdp": "TCP only (switched by server)",
     "callStats.publishing": "publishing",
     "callStats.listening": "listening",
     "callStats.signalRtt": "Signalling ping",
