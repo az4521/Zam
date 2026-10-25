@@ -1,6 +1,7 @@
 import { safeAttachmentMimeType } from "$lib/utils/attachmentMime";
 import type { EncryptedFileInfo } from "$lib/utils/decryptAttachment";
 import { isWebm, probeWebm } from "$lib/utils/webmProbe";
+import { id3Size, isFlac } from "$lib/utils/flacProbe";
 import type { DownloadProgress } from "$lib/utils/downloadProgress";
 import { openAuthedReader, type ChunkReader } from "./mediaStream";
 import type { ISOFile, Movie } from "mp4box";
@@ -93,6 +94,17 @@ export function isMp3(head: Uint8Array): boolean {
     return (
         head[0] === 0xff && (head[1] & 0xe0) === 0xe0 && (head[1] & 0x06) !== 0
     );
+}
+
+/** A FLAC stream: the "fLaC" marker, possibly behind an ID3v2 tag. A tag too
+ *  big to see past in the first chunk (cover art) is taken on the event's
+ *  mimetype, since an MP3 can open with one too. */
+function looksLikeFlac(head: Uint8Array, mimetype?: string | null): boolean {
+    if (isFlac(head)) return true;
+    const tag = id3Size(head);
+    if (tag === 0) return false;
+    if (head.length >= tag + 4) return isFlac(head.subarray(tag));
+    return /flac/i.test(mimetype ?? "");
 }
 
 function isMp4(head: Uint8Array): boolean {
@@ -362,6 +374,63 @@ export function attachAuthedVideo(
     }
 
     /**
+     * Raw FLAC has no SourceBuffer of its own: it is re-boxed into fragmented
+     * MP4 as it arrives (flacRemux.ts). Plays as a blob if that fails.
+     */
+    async function streamFlac(reader: ChunkReader, held: ArrayBuffer[]) {
+        const { FlacRemuxer } = await import("$lib/utils/flacRemux");
+        const remux = new FlacRemuxer();
+        let ended = false;
+        for (const buf of held) remux.push(new Uint8Array(buf));
+        while (!remux.header && !remux.unsupported) {
+            const { done, value } = await reader.read();
+            if (done) {
+                ended = true;
+                remux.end();
+                break;
+            }
+            const buf = ownBuffer(value);
+            held.push(buf);
+            remux.push(new Uint8Array(buf));
+        }
+        if (disposed) return;
+        const header = remux.header;
+        const track = header?.tracks[0];
+        if (!header || !track || !MediaSource.isTypeSupported(track.mime)) {
+            return playAsBlob(ended ? null : reader, held);
+        }
+        held.length = 0;
+
+        const ms = new MediaSource();
+        const opened = new Promise<void>((resolve) =>
+            ms.addEventListener("sourceopen", () => resolve(), { once: true }),
+        );
+        setSrc(URL.createObjectURL(ms));
+        await opened;
+        if (disposed) return;
+        if (header.duration) ms.duration = header.duration;
+        const q = new AppendQueue(ms.addSourceBuffer(track.mime), video, fail);
+        queues.push(q);
+        q.push({ buffer: track.init });
+        const pump = () => {
+            for (const seg of remux.take()) q.push({ buffer: seg.buffer });
+        };
+        pump();
+        if (!ended) {
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                remux.push(value);
+                pump();
+            }
+            remux.end();
+            pump();
+        }
+        await q.drained();
+        if (!disposed && ms.readyState === "open") ms.endOfStream();
+    }
+
+    /**
      * Append the bytes to a SourceBuffer of type `mime` as they arrive, or, when
      * there is no usable `mime`, download everything and play it as a blob.
      * `held` is what has been read so far, `ended` whether the reader is spent.
@@ -419,6 +488,8 @@ export function attachAuthedVideo(
         held.push(ownBuffer(first.value));
         if (!isMp4(first.value)) {
             if (isWebm(first.value)) return streamWebm(reader, held);
+            if (looksLikeFlac(first.value, opts.mimetype))
+                return streamFlac(reader, held);
             // MP3 is a bare frame stream: no header to parse, no remuxing.
             if (isMp3(first.value)) {
                 return streamBytes(reader, held, "audio/mpeg", false);

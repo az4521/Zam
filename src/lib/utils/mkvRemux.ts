@@ -705,7 +705,7 @@ function readFloat(b: Uint8Array): number {
 
 // --- Track description -------------------------------------------------
 
-interface TrackPlan {
+export interface TrackPlan {
     kind: "video" | "audio";
     mime: string;
     timescale: number;
@@ -772,6 +772,7 @@ function describeTrack(e: TrackEntry): TrackPlan | null {
             e.channels,
             rate,
             fullBox("dfLa", 0, 0, cp.subarray(4)),
+            flacBitsPerSample(cp.subarray(8)),
         );
     } else {
         return null;
@@ -783,6 +784,12 @@ function describeTrack(e: TrackEntry): TrackPlan | null {
         frameNs,
         entry,
     };
+}
+
+/** Bits per sample from a STREAMINFO block body (16 if it's cut short). */
+export function flacBitsPerSample(si: Uint8Array): number {
+    if (si.length < 14) return 16;
+    return (((si[12] & 1) << 4) | (si[13] >> 4)) + 1;
 }
 
 /** `hvc1.<profile>.<compat>.<tier><level>.<constraints>` (ISO 14496-15 E.3). */
@@ -887,7 +894,7 @@ function box(type: string, ...parts: Part[]): Uint8Array {
     return concat([u32(body.length + 8), ascii(type), body]);
 }
 
-function fullBox(
+export function fullBox(
     type: string,
     version: number,
     flags: number,
@@ -917,11 +924,14 @@ function visualEntry(type: string, e: TrackEntry, config: Uint8Array) {
     );
 }
 
-function audioEntry(
+/** `sampleSize` matters for FLAC: Chromium rejects an entry whose size
+ *  differs from STREAMINFO's bits per sample. */
+export function audioEntry(
     type: string,
     channels: number,
     rate: number,
     config: Uint8Array,
+    sampleSize = 16,
 ) {
     return box(
         type,
@@ -929,7 +939,7 @@ function audioEntry(
         u16(1),
         zeros(8),
         u16(channels),
-        u16(16),
+        u16(sampleSize),
         zeros(4),
         u32(rate < 65536 ? rate * 65536 : 0),
         config,
@@ -965,7 +975,10 @@ function esds(asc: Uint8Array): Uint8Array {
     );
 }
 
-function initSegment(plan: TrackPlan, e: TrackEntry): ArrayBuffer {
+export function initSegment(
+    plan: TrackPlan,
+    e: { width: number; height: number },
+): ArrayBuffer {
     const isVideo = plan.kind === "video";
     const moov = box(
         "moov",
@@ -1060,7 +1073,7 @@ function initSegment(plan: TrackPlan, e: TrackEntry): ArrayBuffer {
     return concat([ftyp, moov]).buffer as ArrayBuffer;
 }
 
-interface TrunRow {
+export interface TrunRow {
     duration: number;
     size: number;
     flags: number;
@@ -1068,11 +1081,11 @@ interface TrunRow {
 }
 
 /** moof+mdat for one run of samples of one track. */
-function fragment(
+export function fragment(
     seq: number,
     baseDts: number,
     rows: TrunRow[],
-    samples: Sample[],
+    samples: { data: Uint8Array }[],
     bytes: number,
 ): ArrayBuffer {
     const moof = (dataOffset: number) =>
