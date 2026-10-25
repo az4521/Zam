@@ -52,7 +52,7 @@ import {
     setVideoInputDeviceId,
 } from "$lib/stores/settings.svelte";
 import { lazyModule } from "$lib/utils/lazyModule";
-import type { RawStat } from "$lib/utils/callStats";
+import type { RawStat, StreamOwner } from "$lib/utils/callStats";
 import {
     createCallAudioGraph,
     type CallAudioGraph,
@@ -1576,6 +1576,37 @@ export interface CallDebugConnection {
     /** LiveKit's grade of OUR connection to this SFU. */
     localQuality: string;
     participants: CallDebugParticipant[];
+    /** MediaStreamTrack id -> whose track it is and what it carries, so
+     *  the RTP streams in the reports can be labelled. */
+    owners: Record<string, StreamOwner>;
+}
+
+/** Every track of this connection by MediaStreamTrack id: ours (both the
+ *  captured track and a processor's output, which is what is sent) and each
+ *  remote participant's subscribed ones. */
+function trackOwners(lkRoom: LivekitRoom): Record<string, StreamOwner> {
+    const owners: Record<string, StreamOwner> = {};
+    const add = (
+        track: unknown,
+        source: string,
+        identity: string | null,
+    ): void => {
+        const t = track as
+            | {
+                  mediaStreamTrack?: MediaStreamTrack;
+                  processor?: { processedTrack?: MediaStreamTrack };
+              }
+            | undefined;
+        const owner = { source: source as StreamOwner["source"], identity };
+        for (const mst of [t?.mediaStreamTrack, t?.processor?.processedTrack])
+            if (mst) owners[mst.id] = owner;
+    };
+    for (const pub of lkRoom.localParticipant.trackPublications.values())
+        add(pub.track, pub.source, null);
+    for (const p of lkRoom.remoteParticipants.values())
+        for (const pub of p.trackPublications.values())
+            add(pub.track, pub.source, p.identity);
+    return owners;
 }
 
 async function reportValues(
@@ -1666,6 +1697,7 @@ export async function getCallDebugStats(): Promise<
                 subscriber,
                 localQuality: String(lkRoom.localParticipant.connectionQuality),
                 participants,
+                owners: trackOwners(lkRoom),
             };
         }),
     );

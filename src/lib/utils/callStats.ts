@@ -228,6 +228,235 @@ export function summarizeTransport(
     };
 }
 
+/** What a sent or received track carries (LiveKit's Track.Source). */
+export type StreamSource =
+    "microphone" | "camera" | "screen_share" | "screen_share_audio" | "unknown";
+
+/** Whose track an RTP stream belongs to, keyed by MediaStreamTrack id. */
+export interface StreamOwner {
+    source: StreamSource;
+    /** Remote participant identity; null for our own tracks. */
+    identity: string | null;
+}
+
+export interface StreamCodec {
+    /** e.g. "audio/opus", "video/VP9". */
+    mimeType: string;
+    clockRate: number | null;
+    channels: number | null;
+    /** The SDP fmtp line: Opus FEC/DTX/stereo, H.264 profile, VP9 profile. */
+    fmtp: string | null;
+}
+
+/**
+ * One RTP stream (a sent `outbound-rtp` or received `inbound-rtp`) with its
+ * codec and what the debug panel shows for it. Video fields are null for
+ * audio and vice versa.
+ */
+export interface RtpStreamSummary {
+    id: string;
+    direction: "send" | "receive";
+    kind: "audio" | "video";
+    source: StreamSource;
+    identity: string | null;
+    codec: StreamCodec | null;
+    /** Simulcast layer ("f"/"h"/"q"), when the stream is one. */
+    rid: string | null;
+    active: boolean | null;
+    /** Payload plus RTP headers, for the rate. */
+    bytes: number;
+    packets: number;
+    /** Over the interval since the previous summary, kbit/s. */
+    kbps: number | null;
+    /** What the encoder aims for (send only), kbit/s. */
+    targetKbps: number | null;
+    /** Media per packet over the interval, ms: Opus's frame size. */
+    packetMs: number | null;
+    packetsLost: number | null;
+    jitterMs: number | null;
+    width: number | null;
+    height: number | null;
+    fps: number | null;
+    /** e.g. "libvpx", "ExternalEncoder", "VaapiVideoEncoder", "OpenH264". */
+    implementation: string | null;
+    /** True when a hardware encoder/decoder is doing the work. */
+    hardware: boolean | null;
+    /** Why the encoder holds back quality: "cpu", "bandwidth", "none". */
+    qualityLimitation: string | null;
+    scalabilityMode: string | null;
+    /** Average time per encoded (send) or decoded (receive) frame, ms. */
+    frameTimeMs: number | null;
+    framesDropped: number | null;
+    nackCount: number | null;
+    pliCount: number | null;
+    keyFrames: number | null;
+    /** Retransmitted share of the bytes sent over the interval, 0..1. */
+    retransmitShare: number | null;
+    /** Raw counters, kept for the next interval. */
+    retransmittedBytes: number;
+    frames: number;
+    framesTotalTime: number;
+    at: number;
+}
+
+/**
+ * Fold every RTP stream in one transport's report. `owners` maps track ids
+ * to their source (a sent stream names its track through its media-source
+ * stat, a received one directly); `prev` is the previous result for the
+ * same transport, for interval rates.
+ */
+export function summarizeRtpStreams(
+    stats: readonly RawStat[],
+    at: number,
+    owners: Readonly<Record<string, StreamOwner>> = {},
+    prev: readonly RtpStreamSummary[] = [],
+): RtpStreamSummary[] {
+    const byId = new Map(stats.map((s) => [s.id, s]));
+    const prevById = new Map(prev.map((p) => [p.id, p]));
+    const out: RtpStreamSummary[] = [];
+    for (const s of stats) {
+        const send = s.type === "outbound-rtp";
+        if (!send && s.type !== "inbound-rtp") continue;
+        const kind = s.kind ?? s.mediaType;
+        if (kind !== "audio" && kind !== "video") continue;
+
+        const codecStat = byId.get(str(s.codecId) ?? "");
+        const codec: StreamCodec | null = codecStat
+            ? {
+                  mimeType: str(codecStat.mimeType) ?? "?",
+                  clockRate: num(codecStat.clockRate),
+                  channels: num(codecStat.channels),
+                  fmtp: str(codecStat.sdpFmtpLine) || null,
+              }
+            : null;
+
+        const trackId = send
+            ? str(byId.get(str(s.mediaSourceId) ?? "")?.trackIdentifier)
+            : str(s.trackIdentifier);
+        const owner = trackId ? owners[trackId] : undefined;
+
+        const bytes =
+            (num(send ? s.bytesSent : s.bytesReceived) ?? 0) +
+            (num(send ? s.headerBytesSent : s.headerBytesReceived) ?? 0);
+        const packets = num(send ? s.packetsSent : s.packetsReceived) ?? 0;
+        const retransmittedBytes = num(s.retransmittedBytesSent) ?? 0;
+        const frames = num(send ? s.framesEncoded : s.framesDecoded) ?? 0;
+        const framesTotalTime =
+            num(send ? s.totalEncodeTime : s.totalDecodeTime) ?? 0;
+
+        const p = prevById.get(s.id);
+        const dtMs = p ? at - p.at : null;
+        let packetMs: number | null = null;
+        if (kind === "audio" && p && dtMs && dtMs > 0) {
+            const dp = packets - p.packets;
+            // With DTX, Opus sends almost nothing in silence: too few
+            // packets to read a frame size off.
+            if (dp >= 5) packetMs = dtMs / dp;
+        }
+        let retransmitShare: number | null = null;
+        if (send && p) {
+            const db = bytes - p.bytes;
+            const dr = retransmittedBytes - p.retransmittedBytes;
+            if (db > 0 && dr >= 0) retransmitShare = dr / db;
+        }
+        let frameTimeMs: number | null = null;
+        if (p ? frames > p.frames : frames > 0) {
+            const df = frames - (p?.frames ?? 0);
+            const dt = framesTotalTime - (p?.framesTotalTime ?? 0);
+            frameTimeMs = (dt / df) * 1000;
+        }
+
+        const powerEfficient = send
+            ? s.powerEfficientEncoder
+            : s.powerEfficientDecoder;
+        const target = num(s.targetBitrate);
+        const jitter = num(s.jitter);
+
+        out.push({
+            id: s.id,
+            direction: send ? "send" : "receive",
+            kind,
+            source: streamSource(owner?.source),
+            identity: owner?.identity ?? null,
+            codec,
+            rid: str(s.rid),
+            active: typeof s.active === "boolean" ? s.active : null,
+            bytes,
+            packets,
+            kbps: rateKbps(bytes, p?.bytes, dtMs),
+            targetKbps: target !== null ? target / 1000 : null,
+            packetMs,
+            packetsLost: send ? null : num(s.packetsLost),
+            jitterMs: jitter !== null ? jitter * 1000 : null,
+            width: num(s.frameWidth),
+            height: num(s.frameHeight),
+            fps: num(s.framesPerSecond),
+            implementation: str(
+                send ? s.encoderImplementation : s.decoderImplementation,
+            ),
+            hardware:
+                typeof powerEfficient === "boolean" ? powerEfficient : null,
+            qualityLimitation: str(s.qualityLimitationReason),
+            scalabilityMode: str(s.scalabilityMode),
+            frameTimeMs,
+            framesDropped: num(s.framesDropped),
+            nackCount: num(s.nackCount),
+            pliCount: num(s.pliCount),
+            keyFrames: num(send ? s.keyFramesEncoded : s.keyFramesDecoded),
+            retransmitShare,
+            retransmittedBytes,
+            frames,
+            framesTotalTime,
+            at,
+        });
+    }
+    return out;
+}
+
+function streamSource(v: unknown): StreamSource {
+    return v === "microphone" ||
+        v === "camera" ||
+        v === "screen_share" ||
+        v === "screen_share_audio"
+        ? v
+        : "unknown";
+}
+
+/** "opus 48 kHz stereo", "VP9 profile-id=2", "H264 42e01f". */
+export function codecLabel(c: StreamCodec | null): string {
+    if (!c) return "-";
+    const name = c.mimeType.split("/")[1] ?? c.mimeType;
+    const parts = [name];
+    if (c.mimeType.toLowerCase().startsWith("audio/")) {
+        if (c.clockRate) parts.push(`${c.clockRate / 1000} kHz`);
+        // Opus always signals 2 channels in SDP; stereo=1 is the real flag.
+        const stereo = /(^|;)\s*stereo=1/.test(c.fmtp ?? "");
+        parts.push(stereo ? "stereo" : "mono");
+    } else if (c.fmtp) {
+        const profile =
+            /profile-level-id=([0-9a-f]+)/i.exec(c.fmtp)?.[1] ??
+            /profile-id=\d+/.exec(c.fmtp)?.[0] ??
+            /profile=\d+/.exec(c.fmtp)?.[0];
+        if (profile) parts.push(profile);
+    }
+    return parts.join(" ");
+}
+
+/** The Opus features an fmtp line turns on, for display: FEC, DTX, CBR. */
+export function opusFeatures(fmtp: string | null): string[] {
+    if (!fmtp) return [];
+    const on = (k: string) => new RegExp(`(^|;)\\s*${k}=1`).test(fmtp);
+    const out: string[] = [];
+    if (on("useinbandfec")) out.push("FEC");
+    if (on("usedtx")) out.push("DTX");
+    if (on("cbr")) out.push("CBR");
+    const ptime = /(^|;)\s*minptime=(\d+)/.exec(fmtp)?.[2];
+    if (ptime) out.push(`minptime ${ptime} ms`);
+    const max = /(^|;)\s*maxaveragebitrate=(\d+)/.exec(fmtp)?.[2];
+    if (max) out.push(`max ${Math.round(Number(max) / 1000)} kbit/s`);
+    return out;
+}
+
 /** Coarse health for colouring a value: fine, worth a look, or bad. */
 export type StatTone = "ok" | "warn" | "bad";
 

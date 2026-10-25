@@ -13,12 +13,17 @@
     } from "$lib/matrix/livekitCall";
     import {
         summarizeTransport,
+        summarizeRtpStreams,
+        codecLabel,
+        opusFeatures,
         pathIsTcp,
         rttTone,
         lossTone,
         jitterTone,
         type CallPath,
+        type RtpStreamSummary,
         type StatTone,
+        type StreamSource,
         type TransportSummary,
     } from "$lib/utils/callStats";
     import { showToast } from "$lib/stores/toasts.svelte";
@@ -48,11 +53,59 @@
         publisher: TransportSummary | null;
         subscriber: TransportSummary | null;
         participants: ParticipantView[];
+        /** Sent streams first, then received; inactive simulcast layers
+         *  left out. */
+        streams: RtpStreamSummary[];
     }
 
     let connections = $state<ConnectionView[] | null>(null);
     // Previous summary per transport / participant, for interval rates.
     const prev = new Map<string, TransportSummary>();
+    const prevStreams = new Map<string, RtpStreamSummary[]>();
+
+    const SOURCE_ORDER: StreamSource[] = [
+        "microphone",
+        "camera",
+        "screen_share",
+        "screen_share_audio",
+        "unknown",
+    ];
+
+    function foldStreams(
+        key: string,
+        stats: CallDebugConnection["publisher"],
+        owners: CallDebugConnection["owners"],
+        at: number,
+    ): RtpStreamSummary[] {
+        if (!stats) return [];
+        const s = summarizeRtpStreams(
+            stats,
+            at,
+            owners,
+            prevStreams.get(key) ?? [],
+        );
+        prevStreams.set(key, s);
+        return s;
+    }
+
+    function streamsOf(c: CallDebugConnection, at: number) {
+        const all = [
+            ...foldStreams(`${c.key}|pub`, c.publisher, c.owners, at),
+            ...foldStreams(`${c.key}|sub`, c.subscriber, c.owners, at),
+        ].filter((s) => s.active !== false);
+        return all.sort(
+            (a, b) =>
+                (a.direction === b.direction
+                    ? 0
+                    : a.direction === "send"
+                      ? -1
+                      : 1) ||
+                (a.identity ?? "").localeCompare(b.identity ?? "") ||
+                SOURCE_ORDER.indexOf(a.source) -
+                    SOURCE_ORDER.indexOf(b.source) ||
+                (b.width ?? 0) - (a.width ?? 0),
+        );
+    }
 
     function fold(
         key: string,
@@ -88,6 +141,7 @@
                 quality: p.quality,
                 audio: fold(`${c.key}|p|${p.identity}`, p.audio, at),
             })),
+            streams: streamsOf(c, at),
         }));
     }
 
@@ -162,6 +216,80 @@
         }
     }
 
+    function sourceLabel(source: StreamSource): string {
+        switch (source) {
+            case "microphone":
+                return t("callStats.sourceMicrophone");
+            case "camera":
+                return t("callStats.sourceCamera");
+            case "screen_share":
+                return t("callStats.sourceScreenShare");
+            case "screen_share_audio":
+                return t("callStats.sourceScreenShareAudio");
+            default:
+                return t("callStats.sourceUnknown");
+        }
+    }
+
+    function streamTitle(s: RtpStreamSummary): string {
+        const who =
+            s.direction === "send"
+                ? t("callStats.you")
+                : s.identity
+                  ? displayName(
+                        s.identity.slice(0, s.identity.lastIndexOf(":")),
+                    )
+                  : "?";
+        return `${who} · ${sourceLabel(s.source)}`;
+    }
+
+    function limitLabel(reason: string): string {
+        switch (reason) {
+            case "cpu":
+                return t("callStats.limitCpu");
+            case "bandwidth":
+                return t("callStats.limitBandwidth");
+            case "none":
+                return t("callStats.limitNone");
+            default:
+                return t("callStats.limitOther");
+        }
+    }
+
+    function limitTone(reason: string): StatTone {
+        if (reason === "cpu") return "bad";
+        return reason === "bandwidth" ? "warn" : "ok";
+    }
+
+    function implLabel(s: RtpStreamSummary): string {
+        const kind =
+            s.hardware === null
+                ? ""
+                : ` (${s.hardware ? t("callStats.hardware") : t("callStats.software")})`;
+        return `${s.implementation ?? "?"}${kind}`;
+    }
+
+    function bitrateLabel(s: RtpStreamSummary): string {
+        if (s.targetKbps === null || s.kind === "audio") return kbps(s.kbps);
+        return t("callStats.bitrateTarget", {
+            rate: kbps(s.kbps),
+            target: kbps(s.targetKbps),
+        });
+    }
+
+    const sendsVideo = (c: ConnectionView) =>
+        c.streams.filter((s) => s.direction === "send" && s.kind === "video");
+    const softwareEncode = $derived(
+        connections?.some((c) =>
+            sendsVideo(c).some((s) => s.hardware === false),
+        ) ?? false,
+    );
+    const cpuLimited = $derived(
+        connections?.some((c) =>
+            sendsVideo(c).some((s) => s.qualityLimitation === "cpu"),
+        ) ?? false,
+    );
+
     const TONE_CLASS: Record<StatTone, string> = {
         ok: "text-discord-textPrimary",
         warn: "text-discord-warning",
@@ -196,6 +324,7 @@
                     audioIn: p.audio?.audioIn ?? null,
                     intervalAudioLoss: p.audio?.intervalAudioLoss ?? null,
                 })),
+                streams: c.streams,
             })),
         };
         try {
@@ -273,6 +402,89 @@
     </div>
 {/snippet}
 
+{#snippet stream(s: RtpStreamSummary)}
+    <div class="min-w-0 rounded bg-discord-backgroundSecondary px-3 py-2">
+        <h4 class="flex flex-wrap items-baseline gap-x-2 mb-1">
+            <span class="font-medium text-discord-textPrimary"
+                >{streamTitle(s)}</span
+            >
+            <span class="text-xs text-discord-textMuted">
+                {s.direction === "send"
+                    ? t("callStats.sent")
+                    : t("callStats.received")}
+                {#if s.rid}· {t("callStats.layer", { rid: s.rid })}{/if}
+            </span>
+        </h4>
+        <dl class="text-xs">
+            {@render row(t("callStats.codec"), codecLabel(s.codec))}
+            {#if s.kind === "audio" && opusFeatures(s.codec?.fmtp ?? null).length}
+                {@render row(
+                    t("callStats.codecOptions"),
+                    opusFeatures(s.codec?.fmtp ?? null).join(", "),
+                )}
+            {/if}
+            {@render row(t("callStats.bitrate"), bitrateLabel(s))}
+            {#if s.packetMs !== null}
+                {@render row(
+                    t("callStats.packetDuration"),
+                    `${Math.round(s.packetMs)} ms`,
+                )}
+            {/if}
+            {#if s.width && s.height}
+                {@render row(
+                    t("callStats.resolution"),
+                    `${s.width}×${s.height}${s.fps !== null ? ` @ ${Math.round(s.fps)} fps` : ""}`,
+                )}
+            {/if}
+            {#if s.implementation || s.hardware !== null}
+                {@render row(
+                    s.direction === "send"
+                        ? t("callStats.encoder")
+                        : t("callStats.decoder"),
+                    implLabel(s),
+                    s.kind === "video" && s.hardware === false ? "warn" : "ok",
+                )}
+            {/if}
+            {#if s.qualityLimitation}
+                {@render row(
+                    t("callStats.limitedBy"),
+                    limitLabel(s.qualityLimitation),
+                    limitTone(s.qualityLimitation),
+                )}
+            {/if}
+            {#if s.kind === "video" && s.frameTimeMs !== null}
+                {@render row(t("callStats.frameTime"), ms(s.frameTimeMs))}
+            {/if}
+            {#if s.retransmitShare !== null && s.kind === "video"}
+                {@render row(
+                    t("callStats.resent"),
+                    pct(s.retransmitShare),
+                    lossTone(s.retransmitShare),
+                )}
+            {/if}
+            {#if s.framesDropped}
+                {@render row(
+                    t("callStats.droppedFrames"),
+                    String(s.framesDropped),
+                )}
+            {/if}
+            {#if s.kind === "video" && (s.nackCount !== null || s.pliCount !== null)}
+                {@render row(
+                    t("callStats.nackPli"),
+                    `${s.nackCount ?? "-"} / ${s.pliCount ?? "-"}`,
+                )}
+            {/if}
+            {#if s.direction === "receive" && s.jitterMs !== null}
+                {@render row(
+                    t("callStats.jitter"),
+                    ms(s.jitterMs),
+                    jitterTone(s.jitterMs),
+                )}
+            {/if}
+        </dl>
+    </div>
+{/snippet}
+
 <Portal>
     <ModalDialog
         {onClose}
@@ -317,6 +529,22 @@
                         class="rounded px-3 py-2 bg-discord-danger/15 text-discord-textPrimary"
                     >
                         {t("callStats.tcpWarning")}
+                    </p>
+                {/if}
+                {#if cpuLimited}
+                    <p
+                        role="status"
+                        class="rounded px-3 py-2 bg-discord-danger/15 text-discord-textPrimary"
+                    >
+                        {t("callStats.cpuLimitHint")}
+                    </p>
+                {/if}
+                {#if softwareEncode}
+                    <p
+                        role="status"
+                        class="rounded px-3 py-2 bg-discord-warning/15 text-discord-textPrimary"
+                    >
+                        {t("callStats.softwareEncodeHint")}
                     </p>
                 {/if}
                 {#each connections as c (c.raw.key)}
@@ -449,6 +677,20 @@
                                         {/each}
                                     </tbody>
                                 </table>
+                            </div>
+                        {/if}
+                        {#if c.streams.length > 0}
+                            <div>
+                                <h4
+                                    class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted mb-1"
+                                >
+                                    {t("callStats.streams")}
+                                </h4>
+                                <div class="grid gap-2 sm:grid-cols-2">
+                                    {#each c.streams as s (s.id)}
+                                        {@render stream(s)}
+                                    {/each}
+                                </div>
                             </div>
                         {/if}
                     </section>

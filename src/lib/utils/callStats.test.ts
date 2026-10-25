@@ -6,6 +6,9 @@ import {
     summarizeTransport,
     rttTone,
     lossTone,
+    summarizeRtpStreams,
+    codecLabel,
+    opusFeatures,
     type RawStat,
 } from "./callStats";
 
@@ -247,5 +250,174 @@ describe("tones", () => {
         expect(lossTone(0.01)).toBe("ok");
         expect(lossTone(0.05)).toBe("warn");
         expect(lossTone(0.2)).toBe("bad");
+    });
+});
+
+describe("summarizeRtpStreams", () => {
+    const opus = {
+        id: "C1",
+        type: "codec",
+        mimeType: "audio/opus",
+        clockRate: 48000,
+        channels: 2,
+        sdpFmtpLine: "minptime=10;useinbandfec=1;usedtx=1",
+    };
+    const vp9 = {
+        id: "C2",
+        type: "codec",
+        mimeType: "video/VP9",
+        clockRate: 90000,
+        sdpFmtpLine: "profile-id=0",
+    };
+    const sendReport = (n: number): RawStat[] => [
+        opus,
+        vp9,
+        { id: "MS1", type: "media-source", trackIdentifier: "mic-track" },
+        { id: "MS2", type: "media-source", trackIdentifier: "screen-track" },
+        {
+            id: "OA",
+            type: "outbound-rtp",
+            kind: "audio",
+            codecId: "C1",
+            mediaSourceId: "MS1",
+            packetsSent: 50 * n,
+            bytesSent: 4000 * n,
+            headerBytesSent: 600 * n,
+        },
+        {
+            id: "OV",
+            type: "outbound-rtp",
+            kind: "video",
+            codecId: "C2",
+            mediaSourceId: "MS2",
+            bytesSent: 250_000 * n,
+            retransmittedBytesSent: 2500 * n,
+            targetBitrate: 2_500_000,
+            frameWidth: 1920,
+            frameHeight: 1080,
+            framesPerSecond: 30,
+            framesEncoded: 30 * n,
+            totalEncodeTime: 0.15 * n,
+            encoderImplementation: "libvpx",
+            powerEfficientEncoder: false,
+            qualityLimitationReason: "cpu",
+        },
+    ];
+    const owners = {
+        "mic-track": { source: "microphone" as const, identity: null },
+        "screen-track": { source: "screen_share" as const, identity: null },
+    };
+
+    it("labels each sent stream by its track and codec", () => {
+        const [audio, video] = summarizeRtpStreams(sendReport(1), 0, owners);
+        expect(audio).toMatchObject({
+            direction: "send",
+            kind: "audio",
+            source: "microphone",
+            codec: { mimeType: "audio/opus", clockRate: 48000 },
+        });
+        expect(video).toMatchObject({
+            source: "screen_share",
+            width: 1920,
+            height: 1080,
+            implementation: "libvpx",
+            hardware: false,
+            qualityLimitation: "cpu",
+            targetKbps: 2500,
+        });
+    });
+
+    it("reads bitrate, packet duration and encode time over an interval", () => {
+        const first = summarizeRtpStreams(sendReport(1), 1000, owners);
+        const [audio, video] = summarizeRtpStreams(
+            sendReport(2),
+            2000,
+            owners,
+            first,
+        );
+        // 4600 bytes in 1 s, 50 packets in 1 s.
+        expect(audio.kbps).toBeCloseTo(36.8);
+        expect(audio.packetMs).toBeCloseTo(20);
+        expect(video.kbps).toBeCloseTo(2000);
+        expect(video.retransmitShare).toBeCloseTo(0.01);
+        expect(video.frameTimeMs).toBeCloseTo(5);
+    });
+
+    it("names received streams after their participant", () => {
+        const [s] = summarizeRtpStreams(
+            [
+                opus,
+                {
+                    id: "IA",
+                    type: "inbound-rtp",
+                    kind: "audio",
+                    codecId: "C1",
+                    trackIdentifier: "remote-mic",
+                    packetsReceived: 10,
+                    bytesReceived: 900,
+                    packetsLost: 1,
+                    jitter: 0.012,
+                },
+            ],
+            0,
+            { "remote-mic": { source: "microphone", identity: "@a:s:DEV" } },
+        );
+        expect(s).toMatchObject({
+            direction: "receive",
+            identity: "@a:s:DEV",
+            packetsLost: 1,
+        });
+        expect(s.jitterMs).toBeCloseTo(12);
+    });
+
+    it("skips non-RTP stats and unknown kinds", () => {
+        expect(
+            summarizeRtpStreams(
+                [opus, { id: "X", type: "outbound-rtp", kind: "data" }],
+                0,
+            ),
+        ).toEqual([]);
+    });
+});
+
+describe("codecLabel / opusFeatures", () => {
+    it("describes Opus by rate and the stereo flag, not SDP channels", () => {
+        expect(
+            codecLabel({
+                mimeType: "audio/opus",
+                clockRate: 48000,
+                channels: 2,
+                fmtp: "useinbandfec=1",
+            }),
+        ).toBe("opus 48 kHz mono");
+        expect(
+            codecLabel({
+                mimeType: "audio/opus",
+                clockRate: 48000,
+                channels: 2,
+                fmtp: "stereo=1;useinbandfec=1",
+            }),
+        ).toBe("opus 48 kHz stereo");
+    });
+
+    it("adds the video profile", () => {
+        expect(
+            codecLabel({
+                mimeType: "video/H264",
+                clockRate: 90000,
+                channels: null,
+                fmtp: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f",
+            }),
+        ).toBe("H264 42e01f");
+        expect(codecLabel(null)).toBe("-");
+    });
+
+    it("lists the Opus options that are on", () => {
+        expect(
+            opusFeatures(
+                "minptime=10;useinbandfec=1;usedtx=1;maxaveragebitrate=64000",
+            ),
+        ).toEqual(["FEC", "DTX", "minptime 10 ms", "max 64 kbit/s"]);
+        expect(opusFeatures("useinbandfec=0")).toEqual([]);
     });
 });
