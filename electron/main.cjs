@@ -32,6 +32,7 @@ const { parseWindowState, fitToDisplays } = require("./windowState.cjs");
 const { registerPluginNative } = require("./pluginNative.cjs");
 const { registerGlobalHotkeys } = require("./globalHotkeys.cjs");
 const { createUpdateSchedule } = require("./updateSchedule.cjs");
+const { createCallPriority } = require("./callPriority.cjs");
 
 const BUILD_DIR = path.join(__dirname, "..", "build");
 // Hand-sized icon set (scripts/gen-icons.py): the .ico carries a real frame per
@@ -547,6 +548,15 @@ ipcMain.on("updates:quit-and-install", () => {
     isQuitting = true;
     autoUpdater.quitAndInstall();
 });
+
+// --- Call priority -------------------------------------------------------
+
+// Raised while a call is connected (callPriority.cjs); the page says when.
+const callPriority = createCallPriority(app);
+ipcMain.on("call:set-active", (e, active) => {
+    callPriority.set(!!active, e.sender);
+});
+app.on("will-quit", () => callPriority.restore());
 
 // --- GPU (Settings > Debug) ------------------------------------------------
 //

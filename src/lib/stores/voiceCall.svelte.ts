@@ -305,6 +305,9 @@ export function initVoiceCall(): () => void {
                 getRoom(roomId)?.name ?? "",
                 getDirectRoomIds().has(roomId),
             );
+        // Desktop: run the call's processes above normal priority.
+        if (state === "connected") window.desktop?.call?.setActive(true);
+        else if (state === null) window.desktop?.call?.setActive(false);
         voiceCallState.connState = state;
         voiceCallState.roomId = state === null ? null : roomId;
         if (state === null) {

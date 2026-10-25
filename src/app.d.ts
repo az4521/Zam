@@ -18,6 +18,9 @@ declare global {
          *  arbitrates screen-share source selection. */
         desktop?: {
             showWindow?: () => void;
+            /** Tell main a call is (dis)connected, to raise process
+             *  priority during it (electron/callPriority.cjs). */
+            call?: { setActive: (active: boolean) => void };
             /** Settings > Debug GPU section (electron/main.cjs). */
             gpu?: {
                 info: () => Promise<{

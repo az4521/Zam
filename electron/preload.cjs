@@ -85,6 +85,11 @@ contextBridge.exposeInMainWorld("desktop", {
         setMinimizeToClose: (enabled) =>
             ipcRenderer.send("tray:set-minimize-to-close", !!enabled),
     },
+    // While a call is connected, main raises the OS priority of the
+    // processes it runs through (callPriority.cjs).
+    call: {
+        setActive: (active) => ipcRenderer.send("call:set-active", !!active),
+    },
     // Settings > Debug: Chromium's GPU report and the hardware acceleration
     // switch (applied on the next launch, hence relaunch).
     gpu: {
