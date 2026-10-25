@@ -85,7 +85,20 @@ declare global {
                     requestId: number,
                     sourceId: string | null,
                     sourceName?: string,
+                    audio?: string,
                 ) => void;
+                /** How a picked share's audio was set up; a PCM port
+                 *  comes separately, posted to the window as
+                 *  "zam:share-audio-port:<id>". */
+                onAudio?: (
+                    cb: (info: {
+                        id: number;
+                        kind: string;
+                        label?: string;
+                    }) => void,
+                ) => () => void;
+                /** Stop the share-audio capture. */
+                stopAudio?: () => void;
             };
             notify?: {
                 flash: () => void;

@@ -1788,6 +1788,13 @@ const messages: Record<MessageKey, string> = {
     // src/lib/components/layout/ScreenSharePicker.svelte
     "screenSharePicker.chooseWhatToShare": "Elige qué compartir",
     "screenSharePicker.noPreview": "Sin vista previa",
+    "screenSharePicker.audio": "Audio",
+    "screenSharePicker.audioAuto":
+        "La app de la ventana, o todo el audio para una pantalla",
+    "screenSharePicker.audioSystemExceptZam": "Todo el audio excepto Zam",
+    "screenSharePicker.audioSystem": "Todo el audio del sistema",
+    "screenSharePicker.audioApps": "Aplicaciones",
+    "screenSharePicker.audioNone": "Sin audio",
 
     // src/lib/components/layout/ScreenShareQualityChips.svelte
     "screenShareQualityChips.resolution": "Resolución",
@@ -2596,6 +2603,7 @@ const messages: Record<MessageKey, string> = {
         "No se pudo cambiar de {what}; elige otro dispositivo",
     "client.couldNotStartScreenShare":
         "No se pudo empezar a compartir la pantalla",
+    "client.couldNotShareScreenAudio": "La pantalla se comparte sin audio",
     "client.couldnTChangeScreenShareQuality":
         "No se pudo cambiar la calidad de la pantalla compartida",
     "client.couldNotStartTheCameraCheck":

@@ -16,19 +16,33 @@
     import {
         shapeDisplaySources,
         groupDisplaySources,
+        shareAudioOptions,
+        defaultShareAudioChoice,
         type DisplaySource,
+        type ShareAudioOption,
     } from "$lib/utils/displaySources";
+    import { settingsState } from "$lib/stores/settings.svelte";
 
     let requestId = $state<number | null>(null);
     let sources = $state<DisplaySource[]>([]);
+    // The share's audio, chosen before clicking a source (a click shares).
+    let audioOptions = $state<ShareAudioOption[]>([]);
+    let audioChoice = $state("none");
 
     const groups = $derived(groupDisplaySources(sources));
+    const generalAudio = $derived(audioOptions.filter((o) => !o.app));
+    const appAudio = $derived(audioOptions.filter((o) => o.app));
 
     // Subscribe once on mount; no reactive reads, so this effect never re-runs.
     $effect(() => {
         const unsubRequest = onScreenShareRequest((req) => {
             requestId = req.requestId;
             sources = shapeDisplaySources(req.sources);
+            audioOptions = shareAudioOptions(req.audio);
+            audioChoice = defaultShareAudioChoice(
+                audioOptions,
+                settingsState.shareSystemAudio,
+            );
         });
         const unsubCancel = onScreenShareCancel((id) => {
             if (requestId === id) close();
@@ -42,11 +56,17 @@
     function close() {
         requestId = null;
         sources = [];
+        audioOptions = [];
     }
 
     function pick(source: DisplaySource) {
         if (requestId === null) return;
-        respondToScreenShare(requestId, source.id, source.name);
+        respondToScreenShare(
+            requestId,
+            source.id,
+            source.name,
+            audioOptions.length ? audioChoice : "none",
+        );
         close();
     }
 
@@ -131,8 +151,36 @@
                 </div>
 
                 <div
-                    class="flex justify-end gap-2 border-t border-discord-divider px-4 py-3"
+                    class="flex flex-wrap items-center justify-end gap-2 border-t border-discord-divider px-4 py-3"
                 >
+                    {#if audioOptions.length}
+                        <label
+                            class="me-auto flex min-w-0 max-w-full items-center gap-2 text-sm text-discord-textSecondary"
+                        >
+                            {t("screenSharePicker.audio")}
+                            <select
+                                bind:value={audioChoice}
+                                class="min-w-0 max-w-[20rem] rounded bg-discord-backgroundTertiary px-3 py-2 text-sm text-discord-textPrimary focus:outline-none focus:ring-2 focus:ring-discord-accent"
+                            >
+                                {#each generalAudio as option (option.value)}
+                                    <option value={option.value}
+                                        >{option.label}</option
+                                    >
+                                {/each}
+                                {#if appAudio.length}
+                                    <optgroup
+                                        label={t("screenSharePicker.audioApps")}
+                                    >
+                                        {#each appAudio as option (option.value)}
+                                            <option value={option.value}
+                                                >{option.label}</option
+                                            >
+                                        {/each}
+                                    </optgroup>
+                                {/if}
+                            </select>
+                        </label>
+                    {/if}
                     <button
                         type="button"
                         class="rounded px-4 py-2 text-sm text-discord-textSecondary hover:text-discord-textPrimary"

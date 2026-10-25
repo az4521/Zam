@@ -3,6 +3,8 @@ import {
     sourceKind,
     shapeDisplaySources,
     groupDisplaySources,
+    shareAudioOptions,
+    defaultShareAudioChoice,
 } from "./displaySources";
 
 describe("sourceKind", () => {
@@ -98,5 +100,54 @@ describe("groupDisplaySources", () => {
 
     it("returns empty arrays for an empty list", () => {
         expect(groupDisplaySources([])).toEqual({ screens: [], windows: [] });
+    });
+});
+
+describe("shareAudioOptions", () => {
+    it("offers automatic, all audio, each app and none, in that order", () => {
+        const options = shareAudioOptions({
+            system: "exclude-self",
+            windowApp: true,
+            apps: [
+                { id: "pid:5", name: "Spotify", active: true },
+                { id: "pid:5", name: "Spotify again", active: true },
+                { id: "pid:6", name: "  ", active: false },
+            ],
+        });
+        expect(options.map((o) => [o.value, o.app])).toEqual([
+            ["auto", false],
+            ["system", false],
+            ["app:pid:5", true],
+            ["none", false],
+        ]);
+    });
+
+    it("offers nothing when there is nothing to choose", () => {
+        expect(shareAudioOptions(null)).toEqual([]);
+        expect(
+            shareAudioOptions({ system: null, windowApp: false, apps: [] }),
+        ).toEqual([]);
+    });
+
+    it("starts from the broadest choice, or none when audio is off", () => {
+        const full = shareAudioOptions({
+            system: "exclude-self",
+            windowApp: true,
+            apps: [],
+        });
+        expect(defaultShareAudioChoice(full, true)).toBe("auto");
+        expect(defaultShareAudioChoice(full, false)).toBe("none");
+        const loopback = shareAudioOptions({
+            system: "loopback",
+            windowApp: false,
+            apps: [],
+        });
+        expect(defaultShareAudioChoice(loopback, true)).toBe("system");
+        const appsOnly = shareAudioOptions({
+            system: null,
+            windowApp: false,
+            apps: [{ id: "pw:mpv", name: "mpv", active: false }],
+        });
+        expect(defaultShareAudioChoice(appsOnly, true)).toBe("none");
     });
 });

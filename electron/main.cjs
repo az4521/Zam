@@ -33,6 +33,8 @@ const { registerPluginNative } = require("./pluginNative.cjs");
 const { registerGlobalHotkeys } = require("./globalHotkeys.cjs");
 const { createUpdateSchedule } = require("./updateSchedule.cjs");
 const { createCallPriority } = require("./callPriority.cjs");
+const { createAppAudio } = require("./appAudio.cjs");
+const { resolveShareAudio } = require("./shareAudio.cjs");
 
 const BUILD_DIR = path.join(__dirname, "..", "build");
 // Hand-sized icon set (scripts/gen-icons.py): the .ico carries a real frame per
@@ -734,8 +736,21 @@ ipcMain.on("app:relaunch", () => {
 // including LiveKit's internals, which we do not control.
 
 const SHARE_PICK_TIMEOUT_MS = 120000;
-// requestId -> {callback, timer, audioRequested, sourceIds}
+// requestId -> {callback, timer, audio, appTargets, sourceIds}
 const pendingShareRequests = new Map();
+// Per-application share audio (appAudio.cjs); null backend where there is
+// none, and then "system" falls back to Electron's loopback on Windows.
+const appAudio = createAppAudio(app);
+app.on("will-quit", () => appAudio.stop());
+ipcMain.on("share-audio:stop", () => appAudio.stop());
+// A reload or a crashed page can't stop its share any more.
+app.on("web-contents-created", (_e, contents) => {
+    const end = () => {
+        if (mainWindow && contents === mainWindow.webContents) appAudio.stop();
+    };
+    contents.on("render-process-gone", end);
+    contents.on("did-navigate", end);
+});
 let nextShareRequestId = 1;
 
 // Granting nothing makes getDisplayMedia() reject with NotAllowedError, which
@@ -751,7 +766,30 @@ function denyShareRequest(pending) {
     }
 }
 
-function resolveShareRequest(requestId, sourceId, sourceName) {
+// What "system" means here: Zam's own capture that leaves Zam out, else
+// Electron's loopback (Windows only; asking for it elsewhere would fail the
+// whole request), else nothing.
+function systemAudioMode(backend) {
+    if (backend) return "exclude-self";
+    return process.platform === "win32" ? "loopback" : null;
+}
+
+// Tell the page how the share's audio turned out, so it isn't left waiting:
+// appAudio.cjs sends "share-audio:ready" for a capture, this for the rest
+// ("failed": the capture the user picked didn't start).
+function sendShareAudioNone(requestId, kind = "none") {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    try {
+        mainWindow.webContents.send("share-audio:ready", {
+            id: requestId,
+            kind,
+        });
+    } catch (err) {
+        console.error("share audio notify failed:", err);
+    }
+}
+
+function resolveShareRequest(requestId, sourceId, sourceName, audioChoice) {
     const pending = pendingShareRequests.get(requestId);
     if (!pending) return; // already timed out or answered twice
     pendingShareRequests.delete(requestId);
@@ -764,30 +802,79 @@ function resolveShareRequest(requestId, sourceId, sourceName) {
     }
     clearTimeout(pending.timer);
     const streams = { video: { id: sourceId, name: sourceName || "" } };
-    // Loopback system audio is Windows-only in Electron; asking for it
-    // elsewhere would fail the whole request.
-    if (pending.audioRequested && process.platform === "win32") {
-        streams.audio = "loopback";
-    }
+    const backend = pending.audio ? appAudio.backend : null;
+    // Like the source, an app target can only be one this request offered.
+    const plan = pending.audio
+        ? resolveShareAudio(
+              audioChoice,
+              sourceId,
+              {
+                  system: pending.audio.system,
+                  systemTarget: backend?.systemTarget ?? null,
+                  windowTarget: (id) => backend?.windowTarget(id) ?? null,
+              },
+              pending.appTargets,
+          )
+        : { kind: "none" };
+    if (plan.kind === "loopback") streams.audio = "loopback";
     try {
         pending.callback(streams);
     } catch (err) {
         console.error("screen-share grant failed:", err);
     }
+    if (!pending.audio) return;
+    if (plan.kind !== "capture" || !backend || !mainWindow) {
+        sendShareAudioNone(requestId);
+        return;
+    }
+    backend
+        .start(plan.target, mainWindow.webContents, requestId)
+        .then((ok) => {
+            if (!ok) sendShareAudioNone(requestId, "failed");
+        })
+        .catch((err) => {
+            console.error("share audio capture failed:", err);
+            sendShareAudioNone(requestId, "failed");
+        });
 }
 
 function setupDisplayMediaHandler() {
     session.defaultSession.setDisplayMediaRequestHandler(
         async (request, callback) => {
             let sources = [];
-            try {
-                sources = await desktopCapturer.getSources({
-                    types: ["screen", "window"],
-                    thumbnailSize: { width: 320, height: 180 },
-                });
-            } catch (err) {
-                console.error("desktopCapturer.getSources failed:", err);
-            }
+            const audioRequested = !!request.audioRequested;
+            const backend = audioRequested ? appAudio.backend : null;
+            const [, apps] = await Promise.all([
+                desktopCapturer
+                    .getSources({
+                        types: ["screen", "window"],
+                        thumbnailSize: { width: 320, height: 180 },
+                    })
+                    .then((s) => (sources = s))
+                    .catch((err) =>
+                        console.error(
+                            "desktopCapturer.getSources failed:",
+                            err,
+                        ),
+                    ),
+                backend
+                    ? backend.listApps().catch((err) => {
+                          console.error("share audio app list failed:", err);
+                          return [];
+                      })
+                    : [],
+            ]);
+            const audio = audioRequested
+                ? {
+                      system: systemAudioMode(backend),
+                      windowApp: !!backend && backend.name === "wasapi",
+                      apps: apps.map((a) => ({
+                          id: a.id,
+                          name: a.name,
+                          active: a.active,
+                      })),
+                  }
+                : null;
             if (!sources.length || !mainWindow || mainWindow.isDestroyed()) {
                 callback({});
                 return;
@@ -820,7 +907,8 @@ function setupDisplayMediaHandler() {
             pendingShareRequests.set(requestId, {
                 callback,
                 timer,
-                audioRequested: !!request.audioRequested,
+                audio,
+                appTargets: new Map(apps.map((a) => [a.id, a.target])),
                 sourceIds: new Set(sources.map((s) => s.id)),
             });
             // From here the pending entry (and its 120s timer) already exist,
@@ -830,7 +918,8 @@ function setupDisplayMediaHandler() {
             try {
                 mainWindow.webContents.send("screenshare:request", {
                     requestId,
-                    audioRequested: !!request.audioRequested,
+                    audioRequested,
+                    audio,
                     sources: sources.map((s) => ({
                         id: s.id,
                         name: s.name,
@@ -876,14 +965,17 @@ function sanitizeSourceName(raw) {
 // every field before it reaches a Map key or the capture callback. A throw in
 // an ipcMain listener is an uncaught main-process exception — it kills the app.
 ipcMain.on("screenshare:respond", (_e, payload) => {
-    const { requestId, sourceId, sourceName } = payload || {};
+    const { requestId, sourceId, sourceName, audio } = payload || {};
     const id = Number(requestId);
     // Unknown/stale/garbage ids stay a silent no-op, as before.
     if (!Number.isFinite(id) || !pendingShareRequests.has(id)) return;
     // Only a non-empty string is a pick; anything else is a cancellation.
     const picked = typeof sourceId === "string" && sourceId ? sourceId : null;
     const name = sanitizeSourceName(sourceName);
-    resolveShareRequest(id, picked, name);
+    // Checked against what this request offered, in resolveShareAudio.
+    const audioChoice =
+        typeof audio === "string" ? audio.slice(0, 300) : "none";
+    resolveShareRequest(id, picked, name, audioChoice);
 });
 
 // Only ever hand http(s) URLs to the OS shell (audit SEC-M7). Blocking every

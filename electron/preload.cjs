@@ -16,6 +16,30 @@ ipcRenderer.on("plugin-native:port", (e, id) => {
     ]);
 });
 
+// Screen-share audio (appAudio.cjs). A Windows capture comes with a
+// MessagePort of PCM, which is posted to the window the same way, as
+// "zam:share-audio-port:<request id>"; src/lib/desktopScreenShare.ts hands
+// it to the page's AudioWorklet.
+const shareAudioListeners = new Set();
+ipcRenderer.on("share-audio:ready", (e, meta) => {
+    if (!meta || typeof meta !== "object") return;
+    const id = Number(meta.id);
+    if (!Number.isFinite(id)) return;
+    if (e.ports[0]) {
+        window.postMessage(
+            `zam:share-audio-port:${id}`,
+            window.location.origin,
+            [e.ports[0]],
+        );
+    }
+    const info = {
+        id,
+        kind: String(meta.kind),
+        label: typeof meta.label === "string" ? meta.label : undefined,
+    };
+    for (const cb of shareAudioListeners) cb(info);
+});
+
 contextBridge.exposeInMainWorld("desktop", {
     showWindow: () => ipcRenderer.send("show-window"),
     pluginNative: {
@@ -63,12 +87,20 @@ contextBridge.exposeInMainWorld("desktop", {
             return () => ipcRenderer.removeListener("screenshare:cancel", h);
         },
         // sourceId null = the user cancelled.
-        respond: (requestId, sourceId, sourceName) =>
+        // audio: the picker's audio choice (electron/shareAudio.cjs).
+        respond: (requestId, sourceId, sourceName, audio) =>
             ipcRenderer.send("screenshare:respond", {
                 requestId,
                 sourceId,
                 sourceName,
+                audio,
             }),
+        // How a share's audio was set up, after a pick (see above).
+        onAudio: (cb) => {
+            shareAudioListeners.add(cb);
+            return () => shareAudioListeners.delete(cb);
+        },
+        stopAudio: () => ipcRenderer.send("share-audio:stop"),
     },
     notify: {
         flash: () => ipcRenderer.send("notify:flash"),

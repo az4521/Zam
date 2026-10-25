@@ -19,6 +19,10 @@ finish-args:
     - --socket=wayland
     - --socket=fallback-x11
     - --socket=pulseaudio
+    # Per-application screen-share audio: @vencord/venmic talks to PipeWire
+    # directly to link the chosen apps into a virtual microphone
+    # (electron/appAudio.cjs).
+    - --filesystem=xdg-run/pipewire-0
     # GPU and camera (for video calls); there is no narrower webcam
     # permission that Chromium's V4L2 capture works with.
     - --device=all

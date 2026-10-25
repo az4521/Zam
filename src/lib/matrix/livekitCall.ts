@@ -73,6 +73,17 @@ import {
 } from "$lib/utils/micProcessing";
 import { matrixErrorMessage } from "$lib/utils/knock";
 import { shouldRingPeers } from "$lib/utils/callNotify";
+import {
+    pickerOffersShareAudio,
+    takeShareAudio,
+    cancelShareAudioWait,
+    releaseShareAudio,
+    stopShareAudioCapture,
+} from "$lib/desktopScreenShare";
+import {
+    openShareAudioTrack,
+    type ShareAudioTrack,
+} from "$lib/audio/shareAudioTrack";
 
 type LivekitModule = typeof import("livekit-client");
 type LivekitRoom = LivekitClient.Room;
@@ -143,6 +154,13 @@ let voiceJoinSeq = 0;
 // (WebRTC requires each setParameters to be preceded by a fresh getParameters
 // with nothing else calling setParameters in between).
 let screenShareQualityChain: Promise<void> = Promise.resolve();
+/** The desktop app's per-application share audio, published beside the
+ *  screen share (LiveKit only publishes audio getDisplayMedia returns). */
+let shareAudio: {
+    call: ActiveVoiceCall;
+    track: LivekitClient.LocalAudioTrack;
+    handle: ShareAudioTrack;
+} | null = null;
 let voicePlaybackMuted = false;
 // The mic state the user last asked for; consulted after connect so a mute
 // toggled during the connect window isn't clobbered.
@@ -950,9 +968,14 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         lkRoom.on(lk.RoomEvent.LocalTrackPublished, () =>
             notifyCallVideo(call),
         );
-        lkRoom.on(lk.RoomEvent.LocalTrackUnpublished, () =>
-            notifyCallVideo(call),
-        );
+        lkRoom.on(lk.RoomEvent.LocalTrackUnpublished, (publication) => {
+            // However the share ended (our button, the OS's stop sharing),
+            // its separately published audio ends with it.
+            if (publication.source === lk.Track.Source.ScreenShare) {
+                stopShareAudio();
+            }
+            notifyCallVideo(call);
+        });
         lkRoom.on(lk.RoomEvent.Reconnecting, () => {
             if (activeVoice !== call) return;
             notifyVoiceConnState("reconnecting");
@@ -1051,6 +1074,9 @@ async function leaveVoiceCallInternal(): Promise<void> {
     if (!call) return;
     const run = (async () => {
         activeVoice = null;
+        // The room disconnect below unpublishes it; this stops the capture.
+        stopShareAudio();
+        cancelShareAudioWait();
         // These only ever hold the call they belong to; dropping them here
         // keeps a finished call's LiveKit Room and audio elements collectable.
         audioInputGoneNotified = null;
@@ -1307,7 +1333,10 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
         await call.lkRoom.localParticipant.setScreenShareEnabled(
             on,
             {
-                audio: settingsState.shareSystemAudio,
+                // The desktop picker asks about audio itself (defaulting to
+                // this setting), and per-application choices need it asked.
+                audio:
+                    pickerOffersShareAudio() || settingsState.shareSystemAudio,
                 resolution: screenShareCaptureResolution(
                     settingsState.screenShareResolution,
                     Number(settingsState.screenShareFps),
@@ -1327,8 +1356,11 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
                 degradationPreference: "maintain-resolution",
             },
         );
+        if (on) void publishShareAudio(call);
+        else stopShareAudio();
         return on;
     } catch (err) {
+        if (on) cancelShareAudioWait();
         if (isUserCancel(err)) return false;
         console.error("Screen share failed:", err);
         // Left the call while the picker was open: LiveKit already dropped
@@ -1336,6 +1368,67 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
         if (activeVoice !== call) return false;
         notifyVoiceNotice(t("client.couldNotStartScreenShare"));
         return false;
+    }
+}
+
+/** Publish the audio the desktop picker set up for the share just started,
+ *  if any. Failure leaves the share running without audio. */
+async function publishShareAudio(call: ActiveVoiceCall): Promise<void> {
+    const audio = await takeShareAudio();
+    if (!audio || audio.kind === "none") return;
+    let handle: ShareAudioTrack | null = null;
+    try {
+        if (audio.kind !== "failed") handle = await openShareAudioTrack(audio);
+    } catch (err) {
+        console.error("Screen share audio failed:", err);
+    }
+    if (!handle) {
+        releaseShareAudio(audio);
+        if (activeVoice === call) {
+            notifyVoiceNotice(t("client.couldNotShareScreenAudio"));
+        }
+        return;
+    }
+    const lp = call.lkRoom.localParticipant;
+    const sharing = () =>
+        activeVoice === call &&
+        !!lp.getTrackPublication(call.lk.Track.Source.ScreenShare);
+    if (!sharing()) {
+        handle.close();
+        stopShareAudioCapture();
+        return;
+    }
+    stopShareAudio();
+    const track = new call.lk.LocalAudioTrack(handle.track, undefined, false);
+    shareAudio = { call, track, handle };
+    try {
+        await lp.publishTrack(track, {
+            source: call.lk.Track.Source.ScreenShareAudio,
+            audioPreset: call.lk.AudioPresets.musicHighQualityStereo,
+            forceStereo: true,
+            dtx: false,
+            red: false,
+        });
+    } catch (err) {
+        console.error("Screen share audio publish failed:", err);
+        if (shareAudio?.track === track) stopShareAudio();
+        return;
+    }
+    // The share may have ended while this published.
+    if (!sharing() && shareAudio?.track === track) stopShareAudio();
+}
+
+/** Stop and unpublish the share's own audio track, if there is one. */
+function stopShareAudio(): void {
+    const s = shareAudio;
+    shareAudio = null;
+    if (!s) return;
+    s.handle.close();
+    stopShareAudioCapture();
+    if (activeVoice === s.call) {
+        void s.call.lkRoom.localParticipant
+            .unpublishTrack(s.track)
+            .catch(() => {});
     }
 }
 

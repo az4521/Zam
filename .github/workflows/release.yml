@@ -180,6 +180,11 @@ jobs:
               env:
                   VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
                   VITE_VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
+            # Windows: the per-application screen-share audio helper
+            # (native/app-audio), packed by build.win.extraResources. A no-op
+            # on the other runners.
+            - name: Build app audio helper
+              run: npm run build:app-audio
             - name: Build desktop app
               run: npx electron-builder --publish never
               env:

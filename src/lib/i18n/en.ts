@@ -1719,6 +1719,13 @@ export const en = {
     // src/lib/components/layout/ScreenSharePicker.svelte
     "screenSharePicker.chooseWhatToShare": "Choose what to share",
     "screenSharePicker.noPreview": "No preview",
+    "screenSharePicker.audio": "Audio",
+    "screenSharePicker.audioAuto":
+        "The window's app, or all audio for a screen",
+    "screenSharePicker.audioSystemExceptZam": "All audio except Zam",
+    "screenSharePicker.audioSystem": "All system audio",
+    "screenSharePicker.audioApps": "Applications",
+    "screenSharePicker.audioNone": "No audio",
 
     // src/lib/components/layout/ScreenShareQualityChips.svelte
     "screenShareQualityChips.resolution": "Resolution",
@@ -2482,6 +2489,7 @@ export const en = {
     "client.couldnTSwitchToThatPick":
         "Couldn't switch to that {what} - pick another device",
     "client.couldNotStartScreenShare": "Could not start screen share",
+    "client.couldNotShareScreenAudio": "Screen share started without its audio",
     "client.couldnTChangeScreenShareQuality":
         "Couldn't change screen share quality",
     "client.couldNotStartTheCameraCheck":

@@ -20,11 +20,86 @@ export interface RawDisplaySource {
     displayId?: string;
 }
 
+/** The audio a share may carry (electron/main.cjs, electron/shareAudio.cjs). */
+export interface ShareAudioOffer {
+    /** What "system audio" is here: everything but Zam (our own capture),
+     *  Electron's full loopback (includes Zam), or not available. */
+    system: "exclude-self" | "loopback" | null;
+    /** A window share can carry just that window's application. */
+    windowApp: boolean;
+    /** Applications with audio right now, to share one of. */
+    apps: { id: string; name: string; active: boolean }[];
+}
+
 /** The `screenshare:request` payload pushed from the main process. */
 export interface DisplaySourceRequest {
     requestId: number;
     audioRequested: boolean;
+    /** Null when the share asked for no audio (or an older main process). */
+    audio?: ShareAudioOffer | null;
     sources: RawDisplaySource[];
+}
+
+/** One entry of the picker's audio menu; `value` is what main is sent. */
+export interface ShareAudioOption {
+    value: string;
+    label: string;
+    /** Listed under the applications heading. */
+    app: boolean;
+}
+
+/** The picker's audio menu for an offer, in display order: automatic, all
+ *  audio, each application, none. Empty when there's nothing to choose. */
+export function shareAudioOptions(
+    offer: ShareAudioOffer | null | undefined,
+): ShareAudioOption[] {
+    if (!offer) return [];
+    const out: ShareAudioOption[] = [];
+    if (offer.windowApp) {
+        out.push({
+            value: "auto",
+            label: t("screenSharePicker.audioAuto"),
+            app: false,
+        });
+    }
+    if (offer.system) {
+        out.push({
+            value: "system",
+            label:
+                offer.system === "exclude-self"
+                    ? t("screenSharePicker.audioSystemExceptZam")
+                    : t("screenSharePicker.audioSystem"),
+            app: false,
+        });
+    }
+    const seen = new Set<string>();
+    for (const a of offer.apps ?? []) {
+        const id = typeof a?.id === "string" ? a.id : "";
+        const name = typeof a?.name === "string" ? a.name.trim() : "";
+        if (!id || !name || seen.has(id)) continue;
+        seen.add(id);
+        out.push({ value: `app:${id}`, label: name, app: true });
+    }
+    if (!out.length) return [];
+    out.push({
+        value: "none",
+        label: t("screenSharePicker.audioNone"),
+        app: false,
+    });
+    return out;
+}
+
+/** Where the audio menu starts: no audio when the user turned share audio
+ *  off, otherwise the broadest automatic choice there is. */
+export function defaultShareAudioChoice(
+    options: ShareAudioOption[],
+    shareAudio: boolean,
+): string {
+    if (!shareAudio) return "none";
+    for (const value of ["auto", "system"]) {
+        if (options.some((o) => o.value === value)) return value;
+    }
+    return "none";
 }
 
 export interface DisplaySource {

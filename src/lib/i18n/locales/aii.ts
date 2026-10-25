@@ -1650,6 +1650,13 @@ const messages: Record<MessageKey, string> = {
     // src/lib/components/layout/ScreenSharePicker.svelte
     "screenSharePicker.chooseWhatToShare": "ܓܒܝ ܡܘܕܝ ܒܕ ܫܘܬܦܬ",
     "screenSharePicker.noPreview": "ܠܝܬ ܚܙܝܬܐ ܩܕܡܝܬܐ",
+    "screenSharePicker.audio": "Audio",
+    "screenSharePicker.audioAuto":
+        "The window's app, or all audio for a screen",
+    "screenSharePicker.audioSystemExceptZam": "All audio except Zam",
+    "screenSharePicker.audioSystem": "All system audio",
+    "screenSharePicker.audioApps": "Applications",
+    "screenSharePicker.audioNone": "No audio",
 
     // src/lib/components/layout/ScreenShareQualityChips.svelte
     "screenShareQualityChips.resolution": "ܦܫܝܩܘܬܐ",
@@ -2400,6 +2407,7 @@ const messages: Record<MessageKey, string> = {
     "client.couldnTSwitchToThatPick":
         "ܫܘܚܠܦܐ ܠܗܘ {what} ܠܐ ܦܠܚܠܗ - ܓܒܝ ܡܐܢܐ ܐܚܪܢܐ",
     "client.couldNotStartScreenShare": "ܫܘܪܝܐ ܕܫܘܬܦܘܬܐ ܕܡܚܙܝܬܐ ܠܐ ܦܠܚܠܗ",
+    "client.couldNotShareScreenAudio": "Screen share started without its audio",
     "client.couldnTChangeScreenShareQuality":
         "ܫܘܚܠܦܐ ܕܐܝܢܝܘܬܐ ܕܫܘܬܦܘܬܐ ܕܡܚܙܝܬܐ ܠܐ ܦܠܚܠܗ",
     "client.couldNotStartTheCameraCheck": "ܫܘܪܝܐ ܕܟܡܪܐ ܠܐ ܦܠܚܠܗ - ܒܨܝ ܦܣ̈ܐ",

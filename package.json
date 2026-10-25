@@ -15,7 +15,8 @@
         "format": "prettier --write .",
         "electron": "electron .",
         "electron:dev": "npm run build && electron .",
-        "electron:build": "npm run build && electron-builder",
+        "electron:build": "npm run build && npm run build:app-audio && electron-builder",
+        "build:app-audio": "node scripts/build-app-audio.mjs",
         "test": "vitest run",
         "test:watch": "vitest",
         "dev:https": "vite dev --mode https --port 5443 --strictPort"
@@ -34,7 +35,8 @@
             "output": "dist-electron"
         },
         "asarUnpack": [
-            "electron/icons/**"
+            "electron/icons/**",
+            "node_modules/@vencord/venmic/**"
         ],
         "npmRebuild": false,
         "files": [
@@ -47,7 +49,13 @@
                 "nsis",
                 "portable"
             ],
-            "icon": "electron/icons/icon.ico"
+            "icon": "electron/icons/icon.ico",
+            "extraResources": [
+                {
+                    "from": "native/app-audio/build/zam-app-audio.exe",
+                    "to": "zam-app-audio.exe"
+                }
+            ]
         },
         "nsis": {
             "artifactName": "${productName}-Setup-${version}.${ext}"
@@ -125,5 +133,8 @@
         "uiohook-napi": "^1.5.5",
         "unicode-emoji-json": "^0.8.0",
         "uuid": "^11.1.0"
+    },
+    "optionalDependencies": {
+        "@vencord/venmic": "^7.2.3"
     }
 }
