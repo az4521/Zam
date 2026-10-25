@@ -1,6 +1,7 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
+    import ProxySettings from "./ProxySettings.svelte";
     import {
         setMinimizeToTrayOnClose,
         settingsState,
@@ -39,6 +40,7 @@
                 />
             </div>
         </section>
+        <ProxySettings />
     {:else}
         <p class="text-sm text-discord-textMuted">
             {t("generalSettings.noGeneralSettingsAreAvailableOn")}

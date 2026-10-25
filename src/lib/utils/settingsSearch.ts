@@ -222,6 +222,13 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         keywords: ["system tray", "background", "desktop"],
         anchor: "cust-behavior",
     },
+    {
+        tab: "general",
+        label: t("settingsSearch.proxy"),
+        keywords: ["proxy", "socks", "tor", "pac", "bypass", "network"],
+        anchor: "cust-network",
+        available: (p) => p.desktopTray,
+    },
     // appearance (language)
     {
         tab: "appearance",

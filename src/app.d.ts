@@ -8,6 +8,28 @@ declare global {
         // interface Platform {}
     }
 
+    /** Settings > General > Network (electron/proxy.cjs). */
+    interface DesktopProxyPrefs {
+        mode: "system" | "direct" | "manual" | "pac";
+        /** Manual mode: Chromium proxy rules, e.g. "socks5://127.0.0.1:9050". */
+        rules: string;
+        /** Manual mode: hosts, IPs or CIDRs that skip the proxy. */
+        bypass: string;
+        pacUrl: string;
+        /** How calls treat the proxy: Chromium's default (UDP direct, TCP
+         *  through it), straight to the call servers, or only through it. */
+        calls: "default" | "direct" | "proxy";
+    }
+    interface DesktopProxyInfo extends DesktopProxyPrefs {
+        /** The --proxy-* flags Zam was launched with. */
+        launchFlags: string[];
+        /** Addresses calls currently send direct. */
+        callBypassAddresses: string[];
+        /** False when calls can't bypass (OS proxy settings in use). */
+        callBypassAvailable: boolean;
+        error: string | null;
+    }
+
     /** App version, injected from package.json at build time (see vite.config.ts). */
     const __APP_VERSION__: string;
 
@@ -18,6 +40,14 @@ declare global {
          *  arbitrates screen-share source selection. */
         desktop?: {
             showWindow?: () => void;
+            /** Settings > General > Network (electron/proxy.cjs). */
+            proxy?: {
+                info: () => Promise<DesktopProxyInfo>;
+                set: (prefs: DesktopProxyPrefs) => Promise<DesktopProxyInfo>;
+                /** Hosts of call servers about to be connected to, so they
+                 *  can bypass the proxy; resolves once the rules apply. */
+                callTargets: (hosts: string[]) => Promise<void>;
+            };
             /** Tell main a call is (dis)connected, to raise process
              *  priority during it (electron/callPriority.cjs). */
             call?: { setActive: (active: boolean) => void };

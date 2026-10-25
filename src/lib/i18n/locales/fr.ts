@@ -637,6 +637,35 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/settings/GeneralSettings.svelte
     "generalSettings.desktop": "Bureau",
+    "proxySettings.network": "Réseau",
+    "proxySettings.proxy": "Proxy",
+    "proxySettings.modeSystem": "Utiliser les paramètres du système",
+    "proxySettings.modeDirect": "Pas de proxy",
+    "proxySettings.modeManual": "Manuel",
+    "proxySettings.modePac": "Configuration automatique (PAC)",
+    "proxySettings.launchFlagsInUse": "Paramètres de lancement actifs :",
+    "proxySettings.server": "Serveur proxy",
+    "proxySettings.serverHint":
+        "socks5://, socks4://, http:// ou https:// avec hôte et port. Tor est en général socks5://127.0.0.1:9050.",
+    "proxySettings.bypass": "Ne pas utiliser le proxy pour",
+    "proxySettings.pacUrl": "URL du fichier PAC",
+    "proxySettings.calls": "Appels",
+    "proxySettings.callsDefault": "Par défaut (UDP direct, TCP par le proxy)",
+    "proxySettings.callsDirect":
+        "Se connecter directement aux serveurs d'appel",
+    "proxySettings.callsProxy": "Uniquement par le proxy",
+    "proxySettings.callsDefaultHint":
+        "UDP ne passe pas par un proxy : le son des appels va donc normalement en direct et ne passe par le proxy que lorsqu'un appel doit utiliser TCP.",
+    "proxySettings.callsDirectHint":
+        "Les serveurs d'appel contournent aussi le proxy en TCP, donc un repli sur TCP ne fait pas passer le son par le proxy. Les serveurs d'appel voient votre adresse IP.",
+    "proxySettings.callsProxyHint":
+        "Aucune connexion directe, et les serveurs d'appel ne voient jamais votre adresse IP : les appels passent par le proxy vers le relais TURN du serveur d'appel en TCP ou TLS. Si le serveur ne propose pas de relais TURN, les appels ne se connecteront pas. Attendez-vous à plus de latence.",
+    "proxySettings.callsDirectUnavailable":
+        "Les appels ne peuvent pas contourner les paramètres de proxy du système. Réglez le proxy ici (Manuel ou PAC) pour que cela fonctionne.",
+    "proxySettings.callsDirectAddresses": "Envoyé en direct :",
+    "proxySettings.save": "Enregistrer",
+    "proxySettings.saved": "Enregistré",
+    "proxySettings.applyFailed": "Impossible d'appliquer : {error}",
     "generalSettings.minimiseToTrayOnClose":
         "Réduire dans la zone de notification à la fermeture",
     "generalSettings.keepZamRunningInTheSystem":
@@ -3304,6 +3333,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.gifDefaultTab": "Onglet GIF par défaut",
     "settingsSearch.minimiseToTrayOnClose":
         "Réduire dans la zone de notification à la fermeture",
+    "settingsSearch.proxy": "Proxy",
     "settingsSearch.reduceMotion": "Réduire les animations",
     "settingsSearch.keepRoomListOpen": "Garder la liste des salons ouverte",
     "settingsSearch.customEmotes": "Émotes personnalisées",

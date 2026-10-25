@@ -754,7 +754,9 @@ async function connectRemoteSfu(
             notifyCallSpeakers(call);
             setTimeout(() => void syncRemoteSfus(call), REMOTE_SFU_RETRY_MS);
         });
+        await bypassProxyFor(url);
         await lkRoom.connect(url, jwt);
+        reportCallAddresses(lkRoom);
         if (activeVoice !== call) {
             await lkRoom.disconnect().catch(() => {});
             return;
@@ -983,6 +985,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         lkRoom.on(lk.RoomEvent.Reconnected, () => {
             if (activeVoice !== call) return;
             notifyVoiceConnState("connected");
+            reportCallAddresses(lkRoom);
         });
         lkRoom.on(lk.RoomEvent.Disconnected, () => {
             // SFU kicked us or the connection died for good — tear down
@@ -1017,8 +1020,10 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             );
         });
 
+        await bypassProxyFor(url);
         await lkRoom.connect(url, jwt);
         connected = true;
+        reportCallAddresses(lkRoom);
         if (seq !== voiceJoinSeq) {
             await lkRoom.disconnect().catch(() => {});
             return;
@@ -1701,6 +1706,69 @@ function trackOwners(lkRoom: LivekitRoom): Record<string, StreamOwner> {
         for (const pub of p.trackPublications.values())
             add(pub.track, pub.source, p.identity);
     return owners;
+}
+
+/** Desktop, when calls are set to bypass the proxy (electron/proxy.cjs):
+ *  name the SFU before connecting so its addresses are already exempt.
+ *  Resolves once the rules apply; never throws. */
+async function bypassProxyFor(url: string): Promise<void> {
+    const proxy = window.desktop?.proxy;
+    if (!proxy) return;
+    try {
+        await proxy.callTargets([new URL(url).hostname]);
+    } catch {
+        /* the call goes on with the rules it has */
+    }
+}
+
+/** After connecting, the addresses media actually uses: the SFU's ICE
+ *  candidates (an SFU can advertise an address its hostname doesn't resolve
+ *  to) and any TURN servers. Added to the proxy bypass for later ICE
+ *  attempts, reconnects and the next join. Checked again once ICE has had
+ *  time to finish. */
+function reportCallAddresses(lkRoom: LivekitRoom): void {
+    const proxy = window.desktop?.proxy;
+    if (!proxy) return;
+    const collect = async () => {
+        const pcm = (
+            lkRoom.engine as
+                | {
+                      pcManager?: {
+                          publisher?: {
+                              getStats(): Promise<RTCStatsReport> | undefined;
+                          };
+                          subscriber?: {
+                              getStats(): Promise<RTCStatsReport> | undefined;
+                          };
+                      };
+                  }
+                | undefined
+        )?.pcManager;
+        const hosts = new Set<string>();
+        for (const report of await Promise.all([
+            reportValues(pcm?.publisher?.getStats()),
+            reportValues(pcm?.subscriber?.getStats()),
+        ]))
+            for (const s of report ?? []) {
+                if (
+                    s.type === "remote-candidate" &&
+                    s.candidateType !== "prflx"
+                ) {
+                    const addr = s.address ?? s.ip;
+                    if (typeof addr === "string" && addr) hosts.add(addr);
+                } else if (
+                    s.type === "local-candidate" &&
+                    typeof s.url === "string"
+                ) {
+                    // A relay candidate names its TURN server: turn:host:port?...
+                    const host = /^turns?:(\[[^\]]+\]|[^:?]+)/.exec(s.url)?.[1];
+                    if (host) hosts.add(host);
+                }
+            }
+        if (hosts.size) await proxy.callTargets([...hosts]).catch(() => {});
+    };
+    void collect();
+    setTimeout(() => void collect(), 5000);
 }
 
 async function reportValues(

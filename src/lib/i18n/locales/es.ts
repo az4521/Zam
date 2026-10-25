@@ -638,6 +638,36 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/settings/GeneralSettings.svelte
     "generalSettings.desktop": "Escritorio",
+    "proxySettings.network": "Red",
+    "proxySettings.proxy": "Proxy",
+    "proxySettings.modeSystem": "Usar la configuración del sistema",
+    "proxySettings.modeDirect": "Sin proxy",
+    "proxySettings.modeManual": "Manual",
+    "proxySettings.modePac": "Configuración automática (PAC)",
+    "proxySettings.launchFlagsInUse": "Parámetros de inicio en uso:",
+    "proxySettings.server": "Servidor proxy",
+    "proxySettings.serverHint":
+        "socks5://, socks4://, http:// o https:// con host y puerto. Tor suele ser socks5://127.0.0.1:9050.",
+    "proxySettings.bypass": "No usar el proxy para",
+    "proxySettings.pacUrl": "URL del archivo PAC",
+    "proxySettings.calls": "Llamadas",
+    "proxySettings.callsDefault":
+        "Predeterminado (UDP directo, TCP por el proxy)",
+    "proxySettings.callsDirect":
+        "Conectar directamente a los servidores de llamadas",
+    "proxySettings.callsProxy": "Solo a través del proxy",
+    "proxySettings.callsDefaultHint":
+        "UDP no pasa por un proxy, así que el audio de las llamadas normalmente va directo y solo pasa por el proxy cuando una llamada tiene que usar TCP.",
+    "proxySettings.callsDirectHint":
+        "Los servidores de llamadas evitan el proxy también con TCP, así que pasar a TCP no lleva el audio por el proxy. Los servidores de llamadas ven tu dirección IP.",
+    "proxySettings.callsProxyHint":
+        "Sin conexiones directas, y los servidores de llamadas nunca ven tu dirección IP: las llamadas van por el proxy al relé TURN del servidor de llamadas por TCP o TLS. Si el servidor no ofrece relé TURN, las llamadas no se conectarán. Habrá más retraso.",
+    "proxySettings.callsDirectUnavailable":
+        "Las llamadas no pueden evitar la configuración de proxy del sistema. Configura el proxy aquí (Manual o PAC) para que funcione.",
+    "proxySettings.callsDirectAddresses": "Enviado directo:",
+    "proxySettings.save": "Guardar",
+    "proxySettings.saved": "Guardado",
+    "proxySettings.applyFailed": "No se pudo aplicar: {error}",
     "generalSettings.minimiseToTrayOnClose": "Minimizar a la bandeja al cerrar",
     "generalSettings.keepZamRunningInTheSystem":
         "Mantiene Zam en ejecución en la bandeja del sistema al cerrar la ventana en lugar de salir. Usa el icono de la bandeja para volver a abrirlo o salir.",
@@ -3340,6 +3370,7 @@ const messages: Record<MessageKey, string> = {
         "Mantener pulsado para abrir el menú del mensaje",
     "settingsSearch.gifDefaultTab": "Pestaña de GIF predeterminada",
     "settingsSearch.minimiseToTrayOnClose": "Minimizar a la bandeja al cerrar",
+    "settingsSearch.proxy": "Proxy",
     "settingsSearch.reduceMotion": "Reducir el movimiento",
     "settingsSearch.keepRoomListOpen": "Mantener abierta la lista de salas",
     "settingsSearch.customEmotes": "Emotes personalizados",

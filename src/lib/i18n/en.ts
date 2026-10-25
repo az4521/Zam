@@ -619,6 +619,34 @@ export const en = {
 
     // src/lib/components/settings/GeneralSettings.svelte
     "generalSettings.desktop": "Desktop",
+    "proxySettings.network": "Network",
+    "proxySettings.proxy": "Proxy",
+    "proxySettings.modeSystem": "Use system settings",
+    "proxySettings.modeDirect": "No proxy",
+    "proxySettings.modeManual": "Manual",
+    "proxySettings.modePac": "Automatic configuration (PAC)",
+    "proxySettings.launchFlagsInUse": "Launch flags in use:",
+    "proxySettings.server": "Proxy server",
+    "proxySettings.serverHint":
+        "socks5://, socks4://, http:// or https:// with host and port. Tor is usually socks5://127.0.0.1:9050.",
+    "proxySettings.bypass": "Don't use the proxy for",
+    "proxySettings.pacUrl": "PAC file URL",
+    "proxySettings.calls": "Calls",
+    "proxySettings.callsDefault": "Default (UDP direct, TCP through the proxy)",
+    "proxySettings.callsDirect": "Connect directly to call servers",
+    "proxySettings.callsProxy": "Only through the proxy",
+    "proxySettings.callsDefaultHint":
+        "There is no UDP through a proxy, so call audio normally goes direct and only goes through the proxy when a call has to fall back to TCP.",
+    "proxySettings.callsDirectHint":
+        "Call servers skip the proxy for TCP as well, so a TCP fallback doesn't route audio through the proxy. Call servers see your IP address.",
+    "proxySettings.callsProxyHint":
+        "No direct connections, and call servers never see your IP address: calls go through the proxy to the call server's TURN relay over TCP or TLS. If the server offers no TURN relay, calls won't connect. Expect more delay.",
+    "proxySettings.callsDirectUnavailable":
+        "Calls can't bypass the system proxy settings. Set the proxy here (Manual or PAC) for this to work.",
+    "proxySettings.callsDirectAddresses": "Sent direct:",
+    "proxySettings.save": "Save",
+    "proxySettings.saved": "Saved",
+    "proxySettings.applyFailed": "Couldn't apply: {error}",
     "generalSettings.minimiseToTrayOnClose": "Minimise to tray on close",
     "generalSettings.keepZamRunningInTheSystem":
         "Keep Zam running in the system tray when you close the window instead of quitting. Use the tray icon to reopen or quit.",
@@ -3186,6 +3214,7 @@ export const en = {
     "settingsSearch.holdToOpenMessageMenu": "Hold to open message menu",
     "settingsSearch.gifDefaultTab": "GIF default tab",
     "settingsSearch.minimiseToTrayOnClose": "Minimise to tray on close",
+    "settingsSearch.proxy": "Proxy",
     "settingsSearch.reduceMotion": "Reduce motion",
     "settingsSearch.keepRoomListOpen": "Keep room list open",
     "settingsSearch.customEmotes": "Custom emotes",

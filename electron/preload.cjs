@@ -117,6 +117,18 @@ contextBridge.exposeInMainWorld("desktop", {
         setMinimizeToClose: (enabled) =>
             ipcRenderer.send("tray:set-minimize-to-close", !!enabled),
     },
+    // Settings > General > Network: Zam's proxy setting and call routing
+    // (proxy.cjs). callTargets names the call servers about to be used so
+    // they can bypass the proxy; resolves once the rules are in place.
+    proxy: {
+        info: () => ipcRenderer.invoke("proxy:info"),
+        set: (prefs) => ipcRenderer.invoke("proxy:set", prefs),
+        callTargets: (hosts) =>
+            ipcRenderer.invoke(
+                "proxy:call-targets",
+                Array.isArray(hosts) ? hosts.map(String) : [],
+            ),
+    },
     // While a call is connected, main raises the OS priority of the
     // processes it runs through (callPriority.cjs).
     call: {

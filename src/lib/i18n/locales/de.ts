@@ -645,6 +645,34 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/settings/GeneralSettings.svelte
     "generalSettings.desktop": "Desktop",
+    "proxySettings.network": "Netzwerk",
+    "proxySettings.proxy": "Proxy",
+    "proxySettings.modeSystem": "Systemeinstellungen verwenden",
+    "proxySettings.modeDirect": "Kein Proxy",
+    "proxySettings.modeManual": "Manuell",
+    "proxySettings.modePac": "Automatische Konfiguration (PAC)",
+    "proxySettings.launchFlagsInUse": "Aktive Startparameter:",
+    "proxySettings.server": "Proxy-Server",
+    "proxySettings.serverHint":
+        "socks5://, socks4://, http:// oder https:// mit Host und Port. Tor ist meist socks5://127.0.0.1:9050.",
+    "proxySettings.bypass": "Proxy nicht verwenden für",
+    "proxySettings.pacUrl": "URL der PAC-Datei",
+    "proxySettings.calls": "Anrufe",
+    "proxySettings.callsDefault": "Standard (UDP direkt, TCP über den Proxy)",
+    "proxySettings.callsDirect": "Direkt mit Anrufservern verbinden",
+    "proxySettings.callsProxy": "Nur über den Proxy",
+    "proxySettings.callsDefaultHint":
+        "UDP geht nicht über einen Proxy, daher läuft Anrufaudio normalerweise direkt und nur über den Proxy, wenn ein Anruf auf TCP ausweichen muss.",
+    "proxySettings.callsDirectHint":
+        "Anrufserver umgehen den Proxy auch bei TCP, sodass ein TCP-Ausweichen das Audio nicht über den Proxy leitet. Anrufserver sehen deine IP-Adresse.",
+    "proxySettings.callsProxyHint":
+        "Keine direkten Verbindungen, und Anrufserver sehen deine IP-Adresse nie: Anrufe laufen über den Proxy zum TURN-Relay des Anrufservers per TCP oder TLS. Bietet der Server kein TURN-Relay an, kommen Anrufe nicht zustande. Rechne mit mehr Verzögerung.",
+    "proxySettings.callsDirectUnavailable":
+        "Anrufe können die System-Proxy-Einstellungen nicht umgehen. Stelle den Proxy hier ein (Manuell oder PAC), damit das funktioniert.",
+    "proxySettings.callsDirectAddresses": "Direkt gesendet:",
+    "proxySettings.save": "Speichern",
+    "proxySettings.saved": "Gespeichert",
+    "proxySettings.applyFailed": "Konnte nicht angewendet werden: {error}",
     "generalSettings.minimiseToTrayOnClose":
         "Beim Schließen in den Infobereich minimieren",
     "generalSettings.keepZamRunningInTheSystem":
@@ -3334,6 +3362,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.gifDefaultTab": "Standard-GIF-Tab",
     "settingsSearch.minimiseToTrayOnClose":
         "Beim Schließen in den Infobereich minimieren",
+    "settingsSearch.proxy": "Proxy",
     "settingsSearch.reduceMotion": "Bewegung reduzieren",
     "settingsSearch.keepRoomListOpen": "Raumliste geöffnet lassen",
     "settingsSearch.customEmotes": "Eigene Emotes",

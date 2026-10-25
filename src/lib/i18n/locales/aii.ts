@@ -611,6 +611,34 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/settings/GeneralSettings.svelte
     "generalSettings.desktop": "ܡܚܫܒܐ",
+    "proxySettings.network": "Network",
+    "proxySettings.proxy": "Proxy",
+    "proxySettings.modeSystem": "Use system settings",
+    "proxySettings.modeDirect": "No proxy",
+    "proxySettings.modeManual": "Manual",
+    "proxySettings.modePac": "Automatic configuration (PAC)",
+    "proxySettings.launchFlagsInUse": "Launch flags in use:",
+    "proxySettings.server": "Proxy server",
+    "proxySettings.serverHint":
+        "socks5://, socks4://, http:// or https:// with host and port. Tor is usually socks5://127.0.0.1:9050.",
+    "proxySettings.bypass": "Don't use the proxy for",
+    "proxySettings.pacUrl": "PAC file URL",
+    "proxySettings.calls": "Calls",
+    "proxySettings.callsDefault": "Default (UDP direct, TCP through the proxy)",
+    "proxySettings.callsDirect": "Connect directly to call servers",
+    "proxySettings.callsProxy": "Only through the proxy",
+    "proxySettings.callsDefaultHint":
+        "There is no UDP through a proxy, so call audio normally goes direct and only goes through the proxy when a call has to fall back to TCP.",
+    "proxySettings.callsDirectHint":
+        "Call servers skip the proxy for TCP as well, so a TCP fallback doesn't route audio through the proxy. Call servers see your IP address.",
+    "proxySettings.callsProxyHint":
+        "No direct connections, and call servers never see your IP address: calls go through the proxy to the call server's TURN relay over TCP or TLS. If the server offers no TURN relay, calls won't connect. Expect more delay.",
+    "proxySettings.callsDirectUnavailable":
+        "Calls can't bypass the system proxy settings. Set the proxy here (Manual or PAC) for this to work.",
+    "proxySettings.callsDirectAddresses": "Sent direct:",
+    "proxySettings.save": "Save",
+    "proxySettings.saved": "Saved",
+    "proxySettings.applyFailed": "Couldn't apply: {error}",
     "generalSettings.minimiseToTrayOnClose": "ܙܥܘܪ ܠܣܠܐ ܒܣܟܪܐ",
     "generalSettings.keepZamRunningInTheSystem":
         "ܦܘܫ Zam ܦܠܚܐ ܓܘ ܣܠܐ ܕܣܝܣܛܡ ܐܡܬܝ ܕܣܟܪܬ ܟܘܬܐ، ܒܕܘܟ ܕܡܦܩܬܐ. ܦܠܚ ܒܨܘܪܬܐ ܕܣܠܐ ܩܐ ܦܬܚܐ ܡܢ ܕܪܝܫ ܝܢ ܡܦܩܬܐ.",
@@ -3087,6 +3115,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.holdToOpenMessageMenu": "ܐܚܘܕ ܩܐ ܦܬܚܐ ܪܫܝܡܬܐ ܕܐܓܪܬܐ",
     "settingsSearch.gifDefaultTab": "ܠܘܚܐ ܥܕܝܠܐ ܕ GIF",
     "settingsSearch.minimiseToTrayOnClose": "ܙܥܘܪ ܠܣܠܐ ܒܣܟܪܐ",
+    "settingsSearch.proxy": "Proxy",
     "settingsSearch.reduceMotion": "ܒܨܪ ܙܘܥܐ",
     "settingsSearch.keepRoomListOpen": "ܦܘܫ ܪܫܝܡܬܐ ܕܓܘܡ̈ܐ ܦܬܝܚܬܐ",
     "settingsSearch.customEmotes": "ܐܝܡܘܓܝ ܦܪܨܘܦܝܐ",

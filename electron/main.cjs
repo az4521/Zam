@@ -22,6 +22,7 @@ const {
     Notification,
     screen,
     powerMonitor,
+    net,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const http = require("http");
@@ -33,6 +34,7 @@ const { registerPluginNative } = require("./pluginNative.cjs");
 const { registerGlobalHotkeys } = require("./globalHotkeys.cjs");
 const { createUpdateSchedule } = require("./updateSchedule.cjs");
 const { createCallPriority } = require("./callPriority.cjs");
+const { createProxyManager } = require("./proxy.cjs");
 const { createAppAudio } = require("./appAudio.cjs");
 const { resolveShareAudio } = require("./shareAudio.cjs");
 
@@ -551,6 +553,22 @@ ipcMain.on("updates:quit-and-install", () => {
     autoUpdater.quitAndInstall();
 });
 
+// --- Proxy (Settings > General > Network) ----------------------------------
+
+// Zam's own proxy setting and call routing (proxy.cjs). Applied before the
+// window loads; the page reports call servers so they can bypass it.
+const proxyManager = createProxyManager({
+    app,
+    session,
+    net,
+    getWindow: () => mainWindow,
+});
+ipcMain.handle("proxy:info", () => proxyManager.info());
+ipcMain.handle("proxy:set", (_e, prefs) => proxyManager.set(prefs));
+ipcMain.handle("proxy:call-targets", (_e, hosts) =>
+    proxyManager.addCallTargets(hosts),
+);
+
 // --- Call priority -------------------------------------------------------
 
 // Raised while a call is connected (callPriority.cjs); the page says when.
@@ -1067,6 +1085,7 @@ async function createWindow() {
             backgroundThrottling: false,
         },
     });
+    proxyManager.applyIpPolicy();
 
     if (savedState.maximized) mainWindow.maximize();
 
@@ -1362,7 +1381,8 @@ if (!app.requestSingleInstanceLock()) {
         app.setAppUserModelId(APP_USER_MODEL_ID);
         // Must be installed before any renderer can call getDisplayMedia().
         setupDisplayMediaHandler();
-        createWindow();
+        // The proxy first, so the page's first requests already use it.
+        proxyManager.apply().finally(() => createWindow());
         createTray();
         setupAutoUpdater();
         detectNvidiaVideo();
