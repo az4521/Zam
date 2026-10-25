@@ -124,8 +124,21 @@ describe("rosterCallStatus", () => {
         isSelf: false,
         muted: false,
         speaking: false,
+        selfMicMuted: false,
         selfDeafened: false,
     };
+
+    it("shows the mic-off icon on the self row when my mic is muted", () => {
+        expect(
+            rosterCallStatus({ ...base, isSelf: true, selfMicMuted: true }),
+        ).toEqual({ micOff: true, deafened: false });
+    });
+
+    it("ignores selfMicMuted on a remote row", () => {
+        expect(
+            rosterCallStatus({ ...base, isSelf: false, selfMicMuted: true }),
+        ).toEqual({ micOff: false, deafened: false });
+    });
 
     it("shows the deafen icon on the self row when deafened", () => {
         expect(
@@ -164,6 +177,7 @@ describe("rosterCallStatus", () => {
                 isSelf: true,
                 muted: false,
                 speaking: true,
+                selfMicMuted: false,
                 selfDeafened: true,
             }),
         ).toEqual({ micOff: false, deafened: true });

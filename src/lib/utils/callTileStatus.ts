@@ -69,6 +69,9 @@ export interface RosterCallStatusInput {
     muted: boolean;
     /** The participant is currently speaking (voiceCallState.speakingUserIds). */
     speaking: boolean;
+    /** The local user's own mic is muted (voiceCallState.micMuted); only
+     *  read for the self row, since `muted` never includes us. */
+    selfMicMuted: boolean;
     /** The local user is deafened (voiceCallState.deafened). Remote deafen is
      *  not knowable over matrixRTC (see client.ts onParticipantMuteChanged), so
      *  this only ever surfaces on the self row. */
@@ -88,7 +91,9 @@ export function rosterCallStatus(
     input: RosterCallStatusInput,
 ): RosterCallStatus {
     return {
-        micOff: input.muted && !input.speaking,
+        micOff: input.isSelf
+            ? input.selfMicMuted
+            : input.muted && !input.speaking,
         deafened: input.isSelf && input.selfDeafened,
     };
 }

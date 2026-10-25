@@ -1025,10 +1025,15 @@
                         {@const avatar =
                             (void roomsState.roomsTick,
                             getMemberAvatar(room, p.userId))}
+                        {@const inThisCall =
+                            voiceCallState.roomId === room.roomId}
                         {@const status = rosterCallStatus({
-                            isSelf: p.userId === auth.userId,
+                            // Our state is only known for the call this
+                            // device is in, not one we're in elsewhere.
+                            isSelf: p.userId === auth.userId && inThisCall,
                             muted: muted.has(p.userId),
                             speaking: speaking.has(p.userId),
+                            selfMicMuted: voiceCallState.micMuted,
                             selfDeafened: voiceCallState.deafened,
                         })}
                         <button
