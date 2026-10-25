@@ -117,6 +117,10 @@ interface ActiveVoiceCall {
     /** identity ("@user:server:DEVICE") → that publication's elements, so a
      *  per-user volume can be applied without disturbing anyone else. */
     elsByIdentity: Map<string, Set<HTMLAudioElement>>;
+    /** Each subscribed audio track's element. Not `track.detach()`: LiveKit
+     *  detaches before it emits TrackUnsubscribed, so that returns nothing
+     *  there. */
+    elByTrack: Map<RemoteTrack, HTMLAudioElement>;
     /** Web Audio path for boosted (>100%) and normalized users, built on
      *  first need. `false` once building failed: stay on plain elements. */
     audioGraph: CallAudioGraph | null | false;
@@ -611,6 +615,7 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
                 if (el.muted !== want) el.muted = want;
             });
             call.audioEls.add(el);
+            call.elByTrack.set(track, el);
             let els = call.elsByIdentity.get(participant.identity);
             if (!els) {
                 els = new Set();
@@ -624,16 +629,21 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
         },
     );
     lkRoom.on(lk.RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
-        for (const el of track.detach()) {
-            const audioEl = el as HTMLAudioElement;
-            if (call.audioGraph) call.audioGraph.remove(audioEl);
-            call.audioEls.delete(audioEl);
-            for (const [identity, els] of call.elsByIdentity) {
-                els.delete(audioEl);
-                if (els.size === 0) call.elsByIdentity.delete(identity);
-            }
-            el.remove();
+        const el = call.elByTrack.get(track);
+        if (!el) return;
+        call.elByTrack.delete(track);
+        // Must leave the graph: a remote track is only disabled on
+        // unsubscribe, and a rejoin can re-enable the same receiver track,
+        // so a forgotten graph source would play again alongside the new
+        // one (each rejoin adding another copy).
+        if (call.audioGraph) call.audioGraph.remove(el);
+        call.audioEls.delete(el);
+        for (const [identity, els] of call.elsByIdentity) {
+            els.delete(el);
+            if (els.size === 0) call.elsByIdentity.delete(identity);
         }
+        el.srcObject = null;
+        el.remove();
     });
     lkRoom.on(lk.RoomEvent.ActiveSpeakersChanged, (speakers) => {
         call.speakersByRoom.set(
@@ -888,6 +898,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         audioEls: new Set(),
         audioGraph: null,
         elsByIdentity: new Map(),
+        elByTrack: new Map(),
         onMmError,
         onMyMembership,
     };
