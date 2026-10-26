@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.32.4
+
+🐛 **Fixed**
+
+- **SVG images showed up blank:** after 1.32.2, most SVG images showed as empty once any formatted message had been on screen, and downloading one gave back a broken file. They display properly again, and animated SVGs keep their animation.
+
 ## v1.32.3
 
 🔒 **Security**
