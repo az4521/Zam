@@ -26,6 +26,7 @@ import {
     setVideoInputDevice,
     onVideoTracksChanged,
     onCallCodecsChanged,
+    onCallEncryptionChanged,
     fetchOwnExtendedProfile,
     selfHasActiveCall,
     setOwnProfileField,
@@ -38,7 +39,7 @@ import {
 } from "$lib/utils/extendedProfile";
 import { setCachedProfile } from "$lib/stores/profileFields.svelte";
 import { nextFocus, type VideoTileDescriptor } from "$lib/utils/videoTiles";
-import type { CallCodecState } from "$lib/matrix/client";
+import type { CallCodecState, CallEncryptionState } from "$lib/matrix/client";
 import {
     DEFAULT_PARTICIPANT_AUDIO,
     withVolume,
@@ -133,6 +134,9 @@ class VoiceCallState {
     /** Which video codecs we can send in this call, which everyone can
      *  watch, and the one in use. Null outside a call. */
     codecs = $state<CallCodecState | null>(null);
+    /** Whether the call is end-to-end encrypted, and who isn't. Null
+     *  outside a call. */
+    encryption = $state<CallEncryptionState | null>(null);
     /** Whether WE are currently publishing a screen share / camera. Derived
      *  from videoTiles so the browser's native "Stop sharing" bar flips it. */
     screenSharing = $state(false);
@@ -385,6 +389,9 @@ export function initVoiceCall(): () => void {
     const unsubCodecs = onCallCodecsChanged((codecs) => {
         voiceCallState.codecs = codecs;
     });
+    const unsubEncryption = onCallEncryptionChanged((encryption) => {
+        voiceCallState.encryption = encryption;
+    });
     const unsubVideo = onVideoTracksChanged((tiles) => {
         voiceCallState.videoTiles = tiles;
         voiceCallState.screenSharing = tiles.some(
@@ -426,6 +433,7 @@ export function initVoiceCall(): () => void {
         unsubBlocked();
         unsubVideo();
         unsubCodecs();
+        unsubEncryption();
     };
 }
 

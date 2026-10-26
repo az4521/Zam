@@ -27,6 +27,7 @@
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import CallParticipantMenu from "$lib/components/layout/CallParticipantMenu.svelte";
     import ScreenShareQualityPopover from "$lib/components/layout/ScreenShareQualityPopover.svelte";
+    import CallEncryptionBadge from "$lib/components/layout/CallEncryptionBadge.svelte";
     import UserProfileCard from "$lib/components/ui/UserProfileCard.svelte";
     import VideoTile from "$lib/components/layout/VideoTile.svelte";
     import {
@@ -360,6 +361,9 @@
         <h2 class="font-semibold text-discord-textPrimary truncate">
             {roomName}
         </h2>
+        {#if inThisCall}
+            <CallEncryptionBadge roomId={room.roomId} showLabel={!isMobile} />
+        {/if}
         {#if ringingOut}
             <span class="text-sm text-discord-textMuted flex-shrink-0">
                 {t("callView.ringing")}

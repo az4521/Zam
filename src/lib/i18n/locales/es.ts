@@ -258,6 +258,14 @@ const messages: Record<MessageKey, string> = {
     "callParticipantMenu.couldNotBan": "No se pudo vetar a {name}",
 
     // src/lib/components/layout/CallView.svelte
+    "callEncryption.encrypted":
+        "Cifrada de extremo a extremo: solo las personas de esta llamada pueden verla y oírla.",
+    "callEncryption.encryptedShort": "Cifrada",
+    "callEncryption.partial":
+        "Cifrada de extremo a extremo, salvo {names}: su aplicación envía audio y vídeo sin cifrar. Tú puedes oírles y verles, pero ellos no a ti hasta que su aplicación admita llamadas cifradas.",
+    "callEncryption.partialShort": "Cifrada en parte",
+    "callEncryption.notEncrypted":
+        "No está cifrada de extremo a extremo: el servidor de llamadas puede ver y oír esta llamada. Las llamadas en salas cifradas sí lo están.",
     "callView.ringing": "Llamando…",
     "callView.showChat": "Mostrar el chat",
     "callView.noOneIsInThisCall": "No hay nadie en esta llamada",

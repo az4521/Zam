@@ -621,6 +621,11 @@ function notifyCallSpeakers(call: ActiveVoiceCall): void {
  *  mute and video-tile views. */
 function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
     const lk = call.lk;
+    // Who sends unencrypted media in an encrypted call (the indicator).
+    const encryptionChanged = () => notifyCallEncryption(call);
+    lkRoom.on(lk.RoomEvent.TrackPublished, encryptionChanged);
+    lkRoom.on(lk.RoomEvent.TrackUnpublished, encryptionChanged);
+    lkRoom.on(lk.RoomEvent.ParticipantDisconnected, encryptionChanged);
     // What the people we publish to decode (utils/videoCodecs): LiveKit
     // hands over everyone's attributes on joining and reports changes.
     if (lkRoom === call.lkRoom) {
@@ -802,6 +807,7 @@ async function connectRemoteSfu(
         }
         call.remotes.set(key, lkRoom);
         announceCodecs(call, lkRoom);
+        notifyCallEncryption(call);
         call.remoteFailuresNotified.delete(key);
         // Settles anything that changed while connecting (incl. the SFU no
         // longer being wanted) and refreshes the merged views.
@@ -1095,6 +1101,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         // The server's enabled codecs are known now.
         announceCodecs(call, lkRoom);
         notifyCallCodecs(call);
+        notifyCallEncryption(call);
         if (seq !== voiceJoinSeq) {
             await lkRoom.disconnect().catch(() => {});
             return;
@@ -1166,6 +1173,7 @@ async function leaveVoiceCallInternal(): Promise<void> {
         for (const cb of participantMuteSubscribers) cb([]);
         for (const cb of videoTracksSubscribers) cb([]);
         for (const cb of codecSubscribers) cb(null);
+        for (const cb of encryptionSubscribers) cb(null);
         call.e2ee?.stop();
         notifyVoiceConnState(null);
         setVoicePlaybackBlocked(false);
@@ -1925,6 +1933,46 @@ async function setupCallE2EE(
             }, 5000);
         },
     };
+}
+
+export interface CallEncryptionState {
+    /** Whether we encrypt, and expect others to. */
+    encrypted: boolean;
+    /** In an encrypted call, who sends unencrypted media (an app without
+     *  encryption): we still play it, since LiveKit passes a participant's
+     *  frames through when the server marks their tracks unencrypted, but
+     *  they can't play ours. User ids, once each. */
+    unencrypted: string[];
+}
+
+const encryptionSubscribers = new Set<
+    (state: CallEncryptionState | null) => void
+>();
+
+/** Fires with the call's encryption state whenever it changes; null when the
+ *  call ends. */
+export function onCallEncryptionChanged(
+    cb: (state: CallEncryptionState | null) => void,
+): () => void {
+    encryptionSubscribers.add(cb);
+    return () => encryptionSubscribers.delete(cb);
+}
+
+function notifyCallEncryption(call: ActiveVoiceCall): void {
+    if (activeVoice !== call) return;
+    const unencrypted = new Set<string>();
+    if (call.e2ee) {
+        for (const lkRoom of callLkRooms(call))
+            for (const p of lkRoom.remoteParticipants.values())
+                for (const pub of p.trackPublications.values())
+                    if (!pub.isEncrypted)
+                        unencrypted.add(userIdFromIdentity(p.identity));
+    }
+    const state: CallEncryptionState = {
+        encrypted: call.e2ee !== null,
+        unencrypted: [...unencrypted].sort(),
+    };
+    for (const cb of encryptionSubscribers) cb(state);
 }
 
 // --- video codecs -------------------------------------------------------------

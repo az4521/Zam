@@ -31,6 +31,7 @@
     } from "$lib/matrix/client";
     import { navigateToRoom, roomsState } from "$lib/stores/rooms.svelte";
     import ScreenShareQualityPopover from "./ScreenShareQualityPopover.svelte";
+    import CallEncryptionBadge from "./CallEncryptionBadge.svelte";
     import CallStatsPanel from "./CallStatsPanel.svelte";
 
     // Fixed for the session, same as CallView — hides share where unsupported.
@@ -111,6 +112,12 @@
                         : 'text-discord-warning'}"
                 >
                     {connStateLabel(voiceCallState.connState)}
+                    {#if voiceCallState.roomId}
+                        <CallEncryptionBadge
+                            roomId={voiceCallState.roomId}
+                            inline
+                        />
+                    {/if}
                     {#if elapsed}
                         <span class="ms-1 font-normal text-discord-textMuted"
                             >{elapsed}</span

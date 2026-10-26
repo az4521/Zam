@@ -246,6 +246,14 @@ const messages: Record<MessageKey, string> = {
     "callParticipantMenu.couldNotBan": "ܐܣܪܐ ܕ{name} ܠܐ ܦܠܚܠܗ",
 
     // src/lib/components/layout/CallView.svelte
+    "callEncryption.encrypted":
+        "End-to-end encrypted: only the people in this call can see and hear it.",
+    "callEncryption.encryptedShort": "Encrypted",
+    "callEncryption.partial":
+        "End-to-end encrypted, except {names}: their app sends audio and video without encryption. You can hear and see them, but they can't hear or see you until their app supports encrypted calls.",
+    "callEncryption.partialShort": "Partly encrypted",
+    "callEncryption.notEncrypted":
+        "Not end-to-end encrypted: the call server can see and hear this call. Calls in encrypted rooms are encrypted.",
     "callView.ringing": "ܒܩܪܝܐ…",
     "callView.showChat": "ܚܘܝ ܡܡܠܠܐ",
     "callView.noOneIsInThisCall": "ܠܝܬ ܚܕ ܢܫܐ ܓܘ ܗܕܐ ܩܪܝܬܐ",

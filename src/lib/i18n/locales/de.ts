@@ -262,6 +262,14 @@ const messages: Record<MessageKey, string> = {
     "callParticipantMenu.couldNotBan": "{name} konnte nicht gebannt werden",
 
     // src/lib/components/layout/CallView.svelte
+    "callEncryption.encrypted":
+        "Ende-zu-Ende-verschlüsselt: Nur die Personen in diesem Anruf können ihn sehen und hören.",
+    "callEncryption.encryptedShort": "Verschlüsselt",
+    "callEncryption.partial":
+        "Ende-zu-Ende-verschlüsselt, außer {names}: deren App sendet Ton und Video unverschlüsselt. Du kannst sie hören und sehen, sie dich aber nicht, bis ihre App verschlüsselte Anrufe unterstützt.",
+    "callEncryption.partialShort": "Teilweise verschlüsselt",
+    "callEncryption.notEncrypted":
+        "Nicht Ende-zu-Ende-verschlüsselt: Der Anrufserver kann diesen Anruf sehen und hören. Anrufe in verschlüsselten Räumen sind verschlüsselt.",
     "callView.ringing": "Klingelt…",
     "callView.showChat": "Chat anzeigen",
     "callView.noOneIsInThisCall": "Niemand ist in diesem Anruf",

@@ -257,6 +257,14 @@ const messages: Record<MessageKey, string> = {
     "callParticipantMenu.couldNotBan": "Impossible de bannir {name}",
 
     // src/lib/components/layout/CallView.svelte
+    "callEncryption.encrypted":
+        "Chiffré de bout en bout : seules les personnes de cet appel peuvent le voir et l'entendre.",
+    "callEncryption.encryptedShort": "Chiffré",
+    "callEncryption.partial":
+        "Chiffré de bout en bout, sauf {names} : leur application envoie le son et la vidéo sans chiffrement. Vous pouvez les entendre et les voir, mais pas l'inverse tant que leur application ne prend pas en charge les appels chiffrés.",
+    "callEncryption.partialShort": "Partiellement chiffré",
+    "callEncryption.notEncrypted":
+        "Pas chiffré de bout en bout : le serveur d'appel peut voir et entendre cet appel. Les appels dans les salons chiffrés sont chiffrés.",
     "callView.ringing": "Sonnerie…",
     "callView.showChat": "Afficher la discussion",
     "callView.noOneIsInThisCall": "Personne n'est dans cet appel",
