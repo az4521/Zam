@@ -4,6 +4,20 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.36.0
+
+✨ **New**
+
+- **Find the call view:** the call panel at the bottom of the sidebar now has an "Open call" button (with how many videos are on), and the call bar above a room's messages has an "Open" button. The room header's button for it is now an expand icon labelled "Open call view".
+- **Know when someone shares their screen:** if someone starts sharing while you're not looking at the call, a message tells you, with a Watch button that opens their share.
+- **Simpler screen sharing:** the share button goes straight to choosing what to share. On desktop the quality settings are in that same window, so sharing is one step instead of two. While you share, the sidebar shows "Sharing your screen" with Quality and Stop buttons.
+- **Video troubleshooting:** the connection stats window (the signal icon in the call panel) has a Video section that says, for each camera and screen share, whether it's working and if not, where it breaks: your capture stopped, the call server paused it because your connection is too slow, nothing is arriving, it can't be decrypted (often someone on an older Zam), or this device can't decode it. On desktop, a Proxy section shows whether the call goes through your proxy or direct.
+
+🐛 **Fixed**
+
+- **"Connect directly to call servers" still used the proxy (desktop):** joining the call and the connection to the call server still went through the proxy, so a slow or blocking proxy broke calls in that mode too. The whole call now skips the proxy, and everything else keeps using it.
+- **Sharing your screen showed you your own screen:** starting a share no longer puts your own screen in the spotlight. Other people's shares still are.
+
 ## v1.35.0
 
 ✨ **New**
