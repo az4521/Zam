@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import {
     buildVideoTiles,
     nextFocus,
+    newRemoteShares,
     canScreenShare,
     screenShareSupportedHere,
     type VideoPublicationInput,
@@ -100,6 +101,14 @@ describe("nextFocus", () => {
         );
     });
 
+    it("does not auto-focus our own new screenshare", () => {
+        const own = tiles(["@me:x:D:screenshare"]).map((t) => ({
+            ...t,
+            isLocal: true,
+        }));
+        expect(nextFocus([], own, null)).toBeNull();
+    });
+
     it("does not auto-focus a screenshare that was already present", () => {
         expect(
             nextFocus(
@@ -118,6 +127,20 @@ describe("nextFocus", () => {
                 "@a:x:D:camera",
             ),
         ).toBe("@a:x:D:camera");
+    });
+});
+
+describe("newRemoteShares", () => {
+    it("lists only other people's shares that just appeared", () => {
+        const tiles = buildVideoTiles([
+            pub({ identity: "@a:x:D", source: "screenshare" }),
+            pub({ identity: "@b:x:D", source: "screenshare" }),
+            pub({ identity: "@c:x:D", source: "camera" }),
+            pub({ identity: "@me:x:D", source: "screenshare", isLocal: true }),
+        ]);
+        expect(
+            newRemoteShares(["@a:x:D:screenshare"], tiles).map((t) => t.key),
+        ).toEqual(["@b:x:D:screenshare"]);
     });
 });
 

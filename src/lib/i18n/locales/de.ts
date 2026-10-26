@@ -159,6 +159,7 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/layout/ActiveCallBanner.svelte
     "activeCallBanner.openCall": "Anruf öffnen",
+    "activeCallBanner.open": "Öffnen",
     "activeCallBanner.ringing": "Klingelt…",
     "activeCallBanner.voiceCallInCall": "Sprachanruf · {length} im Anruf",
     "activeCallBanner.leave": "Verlassen",
@@ -681,7 +682,7 @@ const messages: Record<MessageKey, string> = {
     "proxySettings.callsDefaultHint":
         "UDP geht nicht über einen Proxy, daher läuft Anrufaudio normalerweise direkt und nur über den Proxy, wenn ein Anruf auf TCP ausweichen muss.",
     "proxySettings.callsDirectHint":
-        "Anrufserver umgehen den Proxy auch bei TCP, sodass ein TCP-Ausweichen das Audio nicht über den Proxy leitet. Anrufserver sehen deine IP-Adresse.",
+        "Der ganze Anruf umgeht den Proxy: der Beitritt, die Verbindung zum Anrufserver sowie Audio und Video über UDP oder TCP. Alles andere läuft weiter über den Proxy. Anrufserver sehen deine IP-Adresse.",
     "proxySettings.callsProxyHint":
         "Keine direkten Verbindungen, und Anrufserver sehen deine IP-Adresse nie: Anrufe laufen über den Proxy zum TURN-Relay des Anrufservers per TCP oder TLS. Bietet der Server kein TURN-Relay an, kommen Anrufe nicht zustande. Rechne mit mehr Verzögerung.",
     "proxySettings.callsDirectUnavailable":
@@ -1047,7 +1048,7 @@ const messages: Record<MessageKey, string> = {
     "messageArea.encryptionEnabled": "Verschlüsselung aktiviert",
     "messageArea.joiningVoiceCall": "Sprachanruf wird beigetreten…",
     "messageArea.startVoiceCall": "Sprachanruf starten",
-    "messageArea.showCall": "Anruf anzeigen",
+    "messageArea.showCall": "Anrufansicht öffnen",
     "messageArea.searchMessages": "Nachrichten durchsuchen",
     "messageArea.threads": "Threads",
     "messageArea.toggleThreadsList": "Threadliste ein-/ausblenden",
@@ -1936,6 +1937,9 @@ const messages: Record<MessageKey, string> = {
     // src/lib/components/layout/ScreenSharePicker.svelte
     "screenSharePicker.chooseWhatToShare": "Wähle aus, was du teilen möchtest",
     "screenSharePicker.noPreview": "Keine Vorschau",
+    "screenSharePicker.screens": "Bildschirme",
+    "screenSharePicker.windows": "Fenster",
+    "screenSharePicker.quality": "Qualität: {quality}",
     "screenSharePicker.audio": "Audio",
     "screenSharePicker.audioAuto":
         "Die App des Fensters, bei einem Bildschirm alles",
@@ -1974,7 +1978,7 @@ const messages: Record<MessageKey, string> = {
         "Systemaudio teilen (gilt für die nächste Freigabe)",
 
     // src/lib/components/layout/ScreenShareQualityPopover.svelte
-    "screenShareQualityPopover.goLive": "Live gehen",
+
     "screenShareQualityPopover.screenShareQuality":
         "Qualität der Bildschirmfreigabe",
 
@@ -2532,6 +2536,12 @@ const messages: Record<MessageKey, string> = {
     "voiceCallPanel.enableAudio": "Audio aktivieren",
     "voiceCallPanel.openCallView": "Anrufansicht öffnen",
     "voiceCallPanel.connectionStats": "Verbindungsstatistik",
+    "voiceCallPanel.openCall": "Anruf öffnen",
+    "voiceCallPanel.openCallWithVideo":
+        "Anruf öffnen ({n, plural, one {# Video} other {# Videos}})",
+    "voiceCallPanel.sharingYourScreen": "Du teilst deinen Bildschirm",
+    "voiceCallPanel.shareQuality": "Qualität der Bildschirmfreigabe",
+    "voiceCallPanel.stop": "Beenden",
     "callStats.title": "Anrufverbindung",
     "callStats.copyJson": "Als JSON kopieren",
     "callStats.copied": "Anrufstatistik kopiert",
@@ -2558,6 +2568,44 @@ const messages: Record<MessageKey, string> = {
     "callStats.legend":
         "Deren Verbindung ist die Bewertung des Servers für die Leitung dieser Person. Eine schlechte Bewertung dort deutet auf deren Netzwerk hin, nicht auf deins. Verlust und Jitter gelten für deren Ton, wie er bei dir ankommt, in der letzten Sekunde.",
     "callStats.noTransport": "Nicht verbunden",
+    "callStats.video": "Video",
+    "callStats.videoChecking": "Wird geprüft…",
+    "callStats.videoSending": "Wird gesendet",
+    "callStats.videoNotSending": "Wird noch nicht gesendet",
+    "callStats.videoCaptureEnded": "Aufnahme beendet: starte sie neu",
+    "callStats.videoCaptureStalled":
+        "Keine neuen Bilder: Das geteilte Fenster ist vielleicht minimiert oder verdeckt, oder die Kamera ist belegt",
+    "callStats.videoPlaying": "Wird abgespielt",
+    "callStats.videoNotSubscribed": "Noch nicht empfangen",
+    "callStats.videoHiddenByYou": "Von dir ausgeblendet",
+    "callStats.videoTurnedOff": "Von der Person ausgeschaltet",
+    "callStats.videoPausedByServer":
+        "Vom Anrufserver pausiert: Deine Verbindung schafft es gerade nicht",
+    "callStats.videoNoPackets":
+        "Es kommt nichts an: Prüfe die Senderseite oder deine Verbindung",
+    "callStats.videoCantDecrypt":
+        "Kommt an, lässt sich aber nicht entschlüsseln: Einer von euch nutzt vielleicht ein älteres Zam, oder der Schlüssel ist nicht angekommen",
+    "callStats.videoCantDecode":
+        "Kommt an, aber dieses Gerät kann es nicht dekodieren: Probiere im Qualitätsmenü der Bildschirmfreigabe einen anderen Videocodec",
+    "callStats.videoNotShown":
+        "Empfangen, aber nicht auf dem Bildschirm: Öffne die Anrufansicht",
+    "callStats.videoNotPainting":
+        "Dekodiert, wird aber nicht angezeigt: Schließe die Anrufansicht und öffne sie erneut",
+    "callStats.capture": "Aufnahme",
+    "callStats.framesArrivedDecoded": "Bilder angekommen / dekodiert",
+    "callStats.framesEncoded": "Kodierte Bilder",
+    "callStats.onScreen": "Auf dem Bildschirm",
+    "callStats.onScreenNo": "Nein",
+    "callStats.onScreenNoPicture": "Noch kein Bild",
+    "callStats.decryptErrors": "Entschlüsselungsfehler",
+    "callStats.trackState": "Spur",
+    "callStats.trackNoFrames": "Gerade keine Bilder",
+    "callStats.proxyRoute": "Proxy",
+    "callStats.routeSignalling": "Verbindung zum Anrufserver",
+    "callStats.routeSending": "Gesendete Medien",
+    "callStats.routeReceiving": "Empfangene Medien",
+    "callStats.routeDirect": "Direkt",
+    "callStats.routeProxy": "Über {proxy}",
     "callStats.path": "Pfad",
     "callStats.iceRtt": "ICE-Ping",
     "callStats.mediaRtt": "Medien-Ping",
@@ -3033,6 +3081,8 @@ const messages: Record<MessageKey, string> = {
     "voiceCall.couldNotUnmuteYourMicrophoneCheck":
         "Die Stummschaltung deines Mikrofons konnte nicht aufgehoben werden - prüfe dein Eingabegerät",
     "voiceCall.connecting": "Verbinde…",
+    "voiceCall.startedSharing": "{name} teilt den Bildschirm",
+    "voiceCall.watch": "Ansehen",
     "voiceCall.voiceConnected": "Sprache verbunden",
     "voiceCall.reconnecting": "Verbindung wird wiederhergestellt…",
     "voiceCall.youWereBannedFromThisRoom":

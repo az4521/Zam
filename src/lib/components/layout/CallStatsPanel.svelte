@@ -14,6 +14,7 @@
     import {
         summarizeTransport,
         summarizeRtpStreams,
+        diagnoseVideo,
         codecLabel,
         opusFeatures,
         pathIsTcp,
@@ -25,6 +26,8 @@
         type StatTone,
         type StreamSource,
         type TransportSummary,
+        type VideoStatus,
+        type VideoTrackDebug,
     } from "$lib/utils/callStats";
     import { showToast } from "$lib/stores/toasts.svelte";
 
@@ -48,6 +51,25 @@
         quality: string;
         audio: TransportSummary | null;
     }
+    interface VideoView {
+        key: string;
+        track: VideoTrackDebug;
+        /** The RTP stream carrying it (the largest active layer when sent). */
+        stream: RtpStreamSummary | null;
+        status: VideoStatus;
+        tone: StatTone;
+        /** Frames decoded (received) or encoded (sent) per second, from the
+         *  interval. */
+        framesPerSec: number | null;
+        /** Frames that arrived per second (received only). */
+        receivedPerSec: number | null;
+    }
+    /** How a connection's traffic is routed (desktop proxy), PAC style. */
+    interface RouteView {
+        signalling: string | null;
+        sending: string | null;
+        receiving: string | null;
+    }
     interface ConnectionView {
         raw: CallDebugConnection;
         publisher: TransportSummary | null;
@@ -56,12 +78,98 @@
         /** Sent streams first, then received; inactive simulcast layers
          *  left out. */
         streams: RtpStreamSummary[];
+        videos: VideoView[];
+        routes: RouteView | null;
     }
 
     let connections = $state<ConnectionView[] | null>(null);
     // Previous summary per transport / participant, for interval rates.
     const prev = new Map<string, TransportSummary>();
     const prevStreams = new Map<string, RtpStreamSummary[]>();
+    // Per video: its stream and painted-frame count at the previous poll.
+    const prevVideo = new Map<
+        string,
+        { stream: RtpStreamSummary | null; elementFrames: number | null }
+    >();
+
+    function videosOf(
+        c: CallDebugConnection,
+        streams: RtpStreamSummary[],
+    ): VideoView[] {
+        return c.videos.map((v) => {
+            const key = `${c.key}|v|${v.identity ?? "me"}|${v.source}`;
+            const direction = v.identity === null ? "send" : "receive";
+            const stream =
+                streams
+                    .filter(
+                        (s) =>
+                            s.kind === "video" &&
+                            s.direction === direction &&
+                            s.source === v.source &&
+                            (direction === "send" || s.identity === v.identity),
+                    )
+                    .sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0] ?? null;
+            const before = prevVideo.get(key);
+            const { status, tone } = diagnoseVideo(
+                v,
+                stream,
+                before?.stream?.id === stream?.id
+                    ? (before?.stream ?? null)
+                    : null,
+                before?.elementFrames ?? null,
+            );
+            prevVideo.set(key, { stream, elementFrames: v.elementFrames });
+            const dt =
+                stream && before?.stream ? stream.at - before.stream.at : 0;
+            const perSec = (now: number | null, then: number | null) =>
+                dt > 0 && now !== null && then !== null && now >= then
+                    ? ((now - then) * 1000) / dt
+                    : null;
+            return {
+                key,
+                track: v,
+                stream,
+                status,
+                tone,
+                framesPerSec: perSec(
+                    stream?.frames ?? null,
+                    before?.stream?.frames ?? null,
+                ),
+                receivedPerSec: perSec(
+                    stream?.framesReceived ?? null,
+                    before?.stream?.framesReceived ?? null,
+                ),
+            };
+        });
+    }
+
+    /** Desktop only: ask main how each leg is routed right now. UDP never
+     *  goes through a proxy, so only TCP media paths are asked about. */
+    async function routesOf(
+        c: CallDebugConnection,
+        pub: TransportSummary | null,
+        sub: TransportSummary | null,
+    ): Promise<RouteView | null> {
+        const route = window.desktop?.proxy?.route;
+        if (!route) return null;
+        const media = async (s: TransportSummary | null) => {
+            if (!s?.remoteAddress) return null;
+            if (s.path === "udp" || s.path === "relay-udp")
+                return "DIRECT (UDP)";
+            const addr = s.remoteAddress.includes("]")
+                ? s.remoteAddress
+                : s.remoteAddress.split(":").length > 2
+                  ? `[${s.remoteAddress.replace(/:(\d+)$/, "]:$1")}`
+                  : s.remoteAddress;
+            return route(`https://${addr}/`).catch(() => null);
+        };
+        const [signalling, sending, receiving] = await Promise.all([
+            c.sfuUrl ? route(c.sfuUrl).catch(() => null) : null,
+            media(pub),
+            media(sub),
+        ]);
+        return { signalling, sending, receiving };
+    }
 
     const SOURCE_ORDER: StreamSource[] = [
         "microphone",
@@ -131,18 +239,27 @@
             connections = [];
             return;
         }
-        connections = raw.map((c) => ({
-            raw: c,
-            publisher: fold(`${c.key}|pub`, c.publisher, at),
-            subscriber: fold(`${c.key}|sub`, c.subscriber, at),
-            participants: c.participants.map((p) => ({
-                identity: p.identity,
-                name: displayName(p.userId),
-                quality: p.quality,
-                audio: fold(`${c.key}|p|${p.identity}`, p.audio, at),
-            })),
-            streams: streamsOf(c, at),
-        }));
+        connections = await Promise.all(
+            raw.map(async (c) => {
+                const publisher = fold(`${c.key}|pub`, c.publisher, at);
+                const subscriber = fold(`${c.key}|sub`, c.subscriber, at);
+                const streams = streamsOf(c, at);
+                return {
+                    raw: c,
+                    publisher,
+                    subscriber,
+                    participants: c.participants.map((p) => ({
+                        identity: p.identity,
+                        name: displayName(p.userId),
+                        quality: p.quality,
+                        audio: fold(`${c.key}|p|${p.identity}`, p.audio, at),
+                    })),
+                    streams,
+                    videos: videosOf(c, streams),
+                    routes: await routesOf(c, publisher, subscriber),
+                };
+            }),
+        );
     }
 
     $effect(() => {
@@ -243,6 +360,64 @@
         return `${who} · ${sourceLabel(s.source)}`;
     }
 
+    function videoStatusLabel(status: VideoStatus): string {
+        switch (status) {
+            case "checking":
+                return t("callStats.videoChecking");
+            case "sending":
+                return t("callStats.videoSending");
+            case "notSending":
+                return t("callStats.videoNotSending");
+            case "captureEnded":
+                return t("callStats.videoCaptureEnded");
+            case "captureStalled":
+                return t("callStats.videoCaptureStalled");
+            case "playing":
+                return t("callStats.videoPlaying");
+            case "notSubscribed":
+                return t("callStats.videoNotSubscribed");
+            case "hiddenByYou":
+                return t("callStats.videoHiddenByYou");
+            case "turnedOff":
+                return t("callStats.videoTurnedOff");
+            case "pausedByServer":
+                return t("callStats.videoPausedByServer");
+            case "noPackets":
+                return t("callStats.videoNoPackets");
+            case "cantDecrypt":
+                return t("callStats.videoCantDecrypt");
+            case "cantDecode":
+                return t("callStats.videoCantDecode");
+            case "notShown":
+                return t("callStats.videoNotShown");
+            case "notPainting":
+                return t("callStats.videoNotPainting");
+        }
+    }
+
+    function videoTitle(v: VideoView): string {
+        const who = v.track.identity
+            ? displayName(
+                  v.track.identity.slice(0, v.track.identity.lastIndexOf(":")),
+              )
+            : t("callStats.you");
+        return `${who} · ${sourceLabel(v.track.source)}`;
+    }
+
+    const fpsLabel = (v: number | null) =>
+        v === null ? "-" : `${Math.round(v)} fps`;
+
+    function routeLabel(r: string | null): string {
+        if (!r) return "-";
+        if (r.startsWith("DIRECT")) return t("callStats.routeDirect");
+        return t("callStats.routeProxy", {
+            proxy: r.split(";")[0].trim(),
+        });
+    }
+    function routeTone(r: string | null): StatTone {
+        return r && !r.startsWith("DIRECT") ? "warn" : "ok";
+    }
+
     function limitLabel(reason: string): string {
         switch (reason) {
             case "cpu":
@@ -333,6 +508,13 @@
                     intervalAudioLoss: p.audio?.intervalAudioLoss ?? null,
                 })),
                 streams: c.streams,
+                videos: c.videos.map((v) => ({
+                    ...v.track,
+                    status: v.status,
+                    framesPerSec: v.framesPerSec,
+                    receivedPerSec: v.receivedPerSec,
+                })),
+                routes: c.routes,
             })),
         };
         try {
@@ -500,6 +682,83 @@
     </div>
 {/snippet}
 
+{#snippet video(v: VideoView)}
+    {@const tr = v.track}
+    {@const s = v.stream}
+    <div class="min-w-0 rounded bg-discord-backgroundSecondary px-3 py-2">
+        <h4 class="font-medium text-discord-textPrimary mb-1">
+            {videoTitle(v)}
+        </h4>
+        <p class="text-xs mb-1 {TONE_CLASS[v.tone]}">
+            {videoStatusLabel(v.status)}
+        </p>
+        <dl class="text-xs">
+            {#if tr.identity === null && tr.captureWidth && tr.captureHeight}
+                {@render row(
+                    t("callStats.capture"),
+                    `${tr.captureWidth}×${tr.captureHeight}${tr.captureFps ? ` @ ${Math.round(tr.captureFps)} fps` : ""}${tr.displaySurface ? ` · ${tr.displaySurface}` : ""}`,
+                )}
+            {/if}
+            {#if s}
+                {@render row(t("callStats.codec"), codecLabel(s.codec))}
+                {#if s.width && s.height}
+                    {@render row(
+                        t("callStats.resolution"),
+                        `${s.width}×${s.height}`,
+                    )}
+                {/if}
+                {#if tr.identity !== null}
+                    {@render row(
+                        t("callStats.framesArrivedDecoded"),
+                        `${fpsLabel(v.receivedPerSec)} / ${fpsLabel(v.framesPerSec)}`,
+                        v.status === "cantDecode" || v.status === "cantDecrypt"
+                            ? "bad"
+                            : "ok",
+                    )}
+                {:else}
+                    {@render row(
+                        t("callStats.framesEncoded"),
+                        fpsLabel(v.framesPerSec),
+                        v.status === "captureStalled" ? "bad" : "ok",
+                    )}
+                {/if}
+                {#if s.implementation}
+                    {@render row(
+                        s.direction === "send"
+                            ? t("callStats.encoder")
+                            : t("callStats.decoder"),
+                        implLabel(s),
+                    )}
+                {/if}
+            {/if}
+            {#if tr.identity !== null}
+                {@render row(
+                    t("callStats.onScreen"),
+                    tr.elements === 0
+                        ? t("callStats.onScreenNo")
+                        : tr.elementWidth
+                          ? `${tr.elementWidth}×${tr.elementHeight}`
+                          : t("callStats.onScreenNoPicture"),
+                )}
+            {/if}
+            {#if tr.decryptErrors > 0}
+                {@render row(
+                    t("callStats.decryptErrors"),
+                    String(tr.decryptErrors),
+                    "bad",
+                )}
+            {/if}
+            {#if tr.trackMuted}
+                {@render row(
+                    t("callStats.trackState"),
+                    t("callStats.trackNoFrames"),
+                    "warn",
+                )}
+            {/if}
+        </dl>
+    </div>
+{/snippet}
+
 <Portal>
     <ModalDialog
         {onClose}
@@ -609,6 +868,46 @@
                                 c.subscriber,
                             )}
                         </div>
+                        {#if c.routes}
+                            <div>
+                                <h4
+                                    class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted mb-1"
+                                >
+                                    {t("callStats.proxyRoute")}
+                                </h4>
+                                <dl>
+                                    {@render row(
+                                        t("callStats.routeSignalling"),
+                                        routeLabel(c.routes.signalling),
+                                        routeTone(c.routes.signalling),
+                                    )}
+                                    {@render row(
+                                        t("callStats.routeSending"),
+                                        routeLabel(c.routes.sending),
+                                        routeTone(c.routes.sending),
+                                    )}
+                                    {@render row(
+                                        t("callStats.routeReceiving"),
+                                        routeLabel(c.routes.receiving),
+                                        routeTone(c.routes.receiving),
+                                    )}
+                                </dl>
+                            </div>
+                        {/if}
+                        {#if c.videos.length > 0}
+                            <div>
+                                <h4
+                                    class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted mb-1"
+                                >
+                                    {t("callStats.video")}
+                                </h4>
+                                <div class="grid gap-2 sm:grid-cols-2">
+                                    {#each c.videos as v (v.key)}
+                                        {@render video(v)}
+                                    {/each}
+                                </div>
+                            </div>
+                        {/if}
                         {#if c.participants.length > 0}
                             <div class="overflow-x-auto">
                                 <table class="w-full text-xs">

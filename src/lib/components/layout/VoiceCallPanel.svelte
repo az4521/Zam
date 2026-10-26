@@ -10,6 +10,8 @@
         VideoOff,
         MonitorUp,
         Signal,
+        Maximize2,
+        Settings2,
     } from "lucide-svelte";
     import {
         voiceCallState,
@@ -63,6 +65,13 @@
         return parent ? `${name} / ${getRoomDisplayName(parent)}` : name;
     });
 
+    const callViewShowing = $derived(
+        !!voiceCallState.roomId &&
+            interfaceState.callViewRoomId === voiceCallState.roomId &&
+            roomsState.activeRoomId === voiceCallState.roomId &&
+            !roomsState.showInbox,
+    );
+
     // The call can live in a room outside the selected space, so switch space +
     // active room (navigateToRoom) before flipping to the call view — the shell
     // only renders CallView when callViewRoomId matches the active room.
@@ -73,15 +82,18 @@
         showCallView(roomId);
     }
 
+    // Sharing starts straight away (the picker asks what to share; quality is
+    // changed live from the "Sharing your screen" row below).
     let sharePopover = $state<{ x: number; y: number } | null>(null);
-    function onShareClick(e: MouseEvent): void {
-        if (voiceCallState.screenSharing) {
-            void toggleScreenShare();
-            return;
-        }
+    function openShareQuality(e: MouseEvent): void {
         const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
         sharePopover = { x: r.left, y: r.top };
     }
+    // A share ended from the browser's own "Stop sharing" bar must not
+    // strand the quality popover.
+    $effect(() => {
+        if (!voiceCallState.screenSharing) sharePopover = null;
+    });
 
     let statsOpen = $state(false);
 </script>
@@ -137,6 +149,49 @@
                 <Signal size={16} />
             </button>
         </div>
+        <!-- The full call view (video grid, screen shares) used to open only
+             from the status text above, which nobody found. -->
+        {#if !callViewShowing}
+            <button
+                onclick={openCallView}
+                class="mt-1.5 w-full flex items-center justify-center gap-1.5 px-2 py-1 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-xs font-medium text-discord-textPrimary"
+            >
+                <Maximize2 size={14} />
+                {voiceCallState.videoTiles.some((t) => !t.isLocal)
+                    ? t("voiceCallPanel.openCallWithVideo", {
+                          n: voiceCallState.videoTiles.filter((t) => !t.isLocal)
+                              .length,
+                      })
+                    : t("voiceCallPanel.openCall")}
+            </button>
+        {/if}
+        {#if voiceCallState.screenSharing}
+            <div
+                class="mt-1.5 flex items-center gap-1 px-2 py-1 rounded bg-discord-accent/15 text-xs"
+                role="status"
+            >
+                <MonitorUp
+                    size={14}
+                    class="text-discord-accent flex-shrink-0"
+                />
+                <span class="flex-1 min-w-0 truncate text-discord-textPrimary"
+                    >{t("voiceCallPanel.sharingYourScreen")}</span
+                >
+                <button
+                    onclick={openShareQuality}
+                    class="p-0.5 rounded text-discord-textMuted hover:text-discord-textPrimary"
+                    title={t("voiceCallPanel.shareQuality")}
+                    aria-label={t("voiceCallPanel.shareQuality")}
+                >
+                    <Settings2 size={14} />
+                </button>
+                <button
+                    onclick={() => void toggleScreenShare()}
+                    class="px-1.5 py-0.5 rounded bg-discord-danger hover:bg-discord-dangerHover text-white font-medium"
+                    >{t("voiceCallPanel.stop")}</button
+                >
+            </div>
+        {/if}
         <!-- Own row, not beside the status text: five 32px controls plus gaps
              leave ~60px of a 240px sidebar, which truncates "Connected" to an
              ellipsis. Discord splits the same way. -->
@@ -191,7 +246,7 @@
             </button>
             {#if screenShareSupported}
                 <button
-                    onclick={onShareClick}
+                    onclick={() => void toggleScreenShare()}
                     class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.screenSharing
                         ? 'text-discord-accent'
                         : 'text-discord-textMuted hover:text-discord-textPrimary'}"
@@ -219,7 +274,6 @@
         <ScreenShareQualityPopover
             x={sharePopover.x}
             y={sharePopover.y}
-            mode="pre-share"
             touch={interfaceState.isTouchscreen}
             onClose={() => (sharePopover = null)}
         />

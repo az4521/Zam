@@ -8,18 +8,16 @@
     import { focusTrap } from "$lib/actions/focusTrap";
     import { dismissOnOutsidePointer } from "$lib/actions/dismissOnOutsidePointer";
     import ScreenShareQualityChips from "./ScreenShareQualityChips.svelte";
-    import { toggleScreenShare } from "$lib/stores/voiceCall.svelte";
     import { setScreenShareQuality } from "$lib/matrix/client";
     import { openModal, clearModalIfOwner } from "$lib/stores/interface.svelte";
 
     interface Props {
         x: number;
         y: number;
-        mode: "pre-share" | "live";
         touch?: boolean;
         onClose: () => void;
     }
-    let { x, y, mode, touch = false, onClose }: Props = $props();
+    let { x, y, touch = false, onClose }: Props = $props();
 
     onMount(() => {
         const token = openModal("screen-share-quality", onClose);
@@ -27,11 +25,6 @@
             clearModalIfOwner(token);
         };
     });
-
-    function goLive(): void {
-        onClose();
-        void toggleScreenShare();
-    }
 
     // Copied verbatim from CallParticipantMenu.svelte:83-121 — clamps into the
     // viewport and flips up when the anchor (a share button near the bottom
@@ -84,19 +77,8 @@
         <BottomSheet {onClose}>
             <div class="p-4 space-y-4">
                 <ScreenShareQualityChips
-                    onQualityChange={mode === "live"
-                        ? setScreenShareQuality
-                        : undefined}
+                    onQualityChange={setScreenShareQuality}
                 />
-                {#if mode === "pre-share"}
-                    <button
-                        type="button"
-                        class="w-full py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-medium"
-                        onclick={goLive}
-                    >
-                        {t("screenShareQualityPopover.goLive")}
-                    </button>
-                {/if}
             </div>
         </BottomSheet>
     {:else}
@@ -113,20 +95,7 @@
             role="dialog"
             aria-label={t("screenShareQualityPopover.screenShareQuality")}
         >
-            <ScreenShareQualityChips
-                onQualityChange={mode === "live"
-                    ? setScreenShareQuality
-                    : undefined}
-            />
-            {#if mode === "pre-share"}
-                <button
-                    type="button"
-                    class="w-full py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-medium"
-                    onclick={goLive}
-                >
-                    {t("screenShareQualityPopover.goLive")}
-                </button>
-            {/if}
+            <ScreenShareQualityChips onQualityChange={setScreenShareQuality} />
         </div>
     {/if}
 </Portal>

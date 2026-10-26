@@ -22,6 +22,13 @@
         type ShareAudioOption,
     } from "$lib/utils/displaySources";
     import { settingsState } from "$lib/stores/settings.svelte";
+    import ScreenShareQualityChips from "./ScreenShareQualityChips.svelte";
+    import { SCREEN_RESOLUTIONS } from "$lib/utils/voiceCall";
+
+    // Quality used to be a separate popover before this dialog; it lives
+    // here now so a share is one dialog. Changes apply once the share starts
+    // (setScreenShareEnabled), and live from the share's gear afterwards.
+    let showQuality = $state(false);
 
     let requestId = $state<number | null>(null);
     let sources = $state<DisplaySource[]>([]);
@@ -103,7 +110,7 @@
                 </div>
 
                 <div class="flex-1 overflow-y-auto px-4 py-3">
-                    {#each [{ label: "Screens", items: groups.screens }, { label: "Windows", items: groups.windows }] as group (group.label)}
+                    {#each [{ label: t("screenSharePicker.screens"), items: groups.screens }, { label: t("screenSharePicker.windows"), items: groups.windows }] as group (group.label)}
                         {#if group.items.length}
                             <h3
                                 class="mb-2 mt-1 text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
@@ -150,12 +157,31 @@
                     {/each}
                 </div>
 
+                {#if showQuality}
+                    <div
+                        id="screenshare-picker-quality"
+                        class="border-t border-discord-divider px-4 py-3 space-y-3 max-h-[40vh] overflow-y-auto"
+                    >
+                        <ScreenShareQualityChips />
+                    </div>
+                {/if}
                 <div
                     class="flex flex-wrap items-center justify-end gap-2 border-t border-discord-divider px-4 py-3"
                 >
+                    <button
+                        type="button"
+                        onclick={() => (showQuality = !showQuality)}
+                        aria-expanded={showQuality}
+                        aria-controls="screenshare-picker-quality"
+                        class="me-auto rounded px-3 py-2 text-sm text-discord-textSecondary hover:text-discord-textPrimary hover:bg-discord-messageHover"
+                        >{showQuality ? "▾" : "▸"}
+                        {t("screenSharePicker.quality", {
+                            quality: `${SCREEN_RESOLUTIONS.find((r) => r.key === settingsState.screenShareResolution)?.label ?? settingsState.screenShareResolution} · ${settingsState.screenShareFps} fps`,
+                        })}</button
+                    >
                     {#if audioOptions.length}
                         <label
-                            class="me-auto flex min-w-0 max-w-full items-center gap-2 text-sm text-discord-textSecondary"
+                            class="flex min-w-0 max-w-full items-center gap-2 text-sm text-discord-textSecondary"
                         >
                             {t("screenSharePicker.audio")}
                             <select

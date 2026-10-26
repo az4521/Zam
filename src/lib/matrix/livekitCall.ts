@@ -57,6 +57,7 @@ import {
     availableOutgoingBitrate,
     type RawStat,
     type StreamOwner,
+    type VideoTrackDebug,
 } from "$lib/utils/callStats";
 import { clampBitrate } from "$lib/utils/screenShareBitrate";
 import {
@@ -111,6 +112,7 @@ type RemoteTrackPublication = LivekitClient.RemoteTrackPublication;
 type RemoteParticipant = LivekitClient.RemoteParticipant;
 type LocalParticipant = LivekitClient.LocalParticipant;
 type TrackPublication = LivekitClient.TrackPublication;
+type Track = LivekitClient.Track;
 
 /** livekit-client is ~half a megabyte of WebRTC that a text-only session
  *  never touches. It is fetched when a call starts; every value use in
@@ -160,7 +162,12 @@ interface ActiveVoiceCall {
     codecs: LocalVideoCodecs;
     /** End-to-end encryption, when the room is encrypted (setupCallE2EE). */
     e2ee: CallE2EE | null;
+    /** identity -> media from them that failed to decrypt (debug panel). */
+    decryptErrors: Map<string, number>;
 }
+
+/** The SFU URL each connection was opened to (debug panel). */
+const sfuUrlOf = new WeakMap<LivekitRoom, string>();
 
 let activeVoice: ActiveVoiceCall | null = null;
 
@@ -571,6 +578,7 @@ async function fetchSfuJwt(
 ): Promise<{ url: string; jwt: string }> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const openIdToken = await matrixClient.getOpenIdToken();
+    await bypassProxyFor(target.serviceUrl);
     const res = await fetch(sfuJwtUrl(target.serviceUrl), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -624,6 +632,16 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
     // Who sends unencrypted media in an encrypted call (the indicator).
     const encryptionChanged = () => notifyCallEncryption(call);
     lkRoom.on(lk.RoomEvent.TrackPublished, encryptionChanged);
+    // Counted for the debug panel: a viewer whose video arrives but never
+    // decodes is told it doesn't decrypt (an older client, a missing key).
+    lkRoom.on(
+        lk.RoomEvent.EncryptionError,
+        (_err: Error, participant?: { identity: string }) => {
+            const id = participant?.identity;
+            if (!id || participant === lkRoom.localParticipant) return;
+            call.decryptErrors.set(id, (call.decryptErrors.get(id) ?? 0) + 1);
+        },
+    );
     lkRoom.on(lk.RoomEvent.TrackUnpublished, encryptionChanged);
     lkRoom.on(lk.RoomEvent.ParticipantDisconnected, encryptionChanged);
     // What the people we publish to decode (utils/videoCodecs): LiveKit
@@ -799,8 +817,8 @@ async function connectRemoteSfu(
         });
         await bypassProxyFor(url);
         if (call.e2ee) await lkRoom.setE2EEEnabled(true);
+        sfuUrlOf.set(lkRoom, url);
         await lkRoom.connect(url, jwt);
-        reportCallAddresses(lkRoom);
         if (activeVoice !== call) {
             await lkRoom.disconnect().catch(() => {});
             return;
@@ -988,6 +1006,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         onMyMembership,
         codecs: localCodecs,
         e2ee,
+        decryptErrors: new Map(),
     };
     activeVoice = call;
     startUploadSampling(call);
@@ -1058,7 +1077,6 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         lkRoom.on(lk.RoomEvent.Reconnected, () => {
             if (activeVoice !== call) return;
             notifyVoiceConnState("connected");
-            reportCallAddresses(lkRoom);
         });
         lkRoom.on(lk.RoomEvent.Disconnected, () => {
             // SFU kicked us or the connection died for good — tear down
@@ -1095,9 +1113,9 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
 
         await bypassProxyFor(url);
         if (e2ee) await lkRoom.setE2EEEnabled(true);
+        sfuUrlOf.set(lkRoom, url);
         await lkRoom.connect(url, jwt);
         connected = true;
-        reportCallAddresses(lkRoom);
         // The server's enabled codecs are known now.
         announceCodecs(call, lkRoom);
         notifyCallCodecs(call);
@@ -1409,12 +1427,21 @@ function isUserCancel(err: unknown): boolean {
     );
 }
 
+/** The screen-share quality settings, to notice a change mid-picker. */
+function screenShareQualityKey(): string {
+    return `${settingsState.screenShareResolution}|${settingsState.screenShareFps}|${screenShareBitrateNow()}`;
+}
+
 /** Start/stop publishing a screen share (with system audio per settings).
  *  Returns whether a share is now being published. The store drives its UI
  *  state from LocalTrackPublished/Unpublished, so this return is advisory. */
 export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
     const call = activeVoice;
     if (!call) return false;
+    // The capture and encoding below are read now, but the desktop picker
+    // (which offers the quality settings too) answers later: a change made
+    // there is applied once the share is up.
+    const startedWith = screenShareQualityKey();
     try {
         await call.lkRoom.localParticipant.setScreenShareEnabled(
             on,
@@ -1445,6 +1472,11 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
         );
         if (on) void publishShareAudio(call);
         else stopShareAudio();
+        if (on && screenShareQualityKey() !== startedWith)
+            void setScreenShareQuality(
+                settingsState.screenShareResolution,
+                Number(settingsState.screenShareFps),
+            );
         return on;
     } catch (err) {
         if (on) cancelShareAudioWait();
@@ -1770,6 +1802,81 @@ export interface CallDebugConnection {
     /** MediaStreamTrack id -> whose track it is and what it carries, so
      *  the RTP streams in the reports can be labelled. */
     owners: Record<string, StreamOwner>;
+    /** Every camera and screen share on this connection, ours included. */
+    videos: VideoTrackDebug[];
+    /** The SFU's signalling URL, to ask how it is routed (proxy). */
+    sfuUrl: string | null;
+}
+
+/** What the debug panel needs to know about one video track. */
+function videoTrackDebug(
+    call: ActiveVoiceCall,
+    pub: TrackPublication,
+    identity: string | null,
+): VideoTrackDebug {
+    const lk = call.lk;
+    const track = pub.track as
+        | (Track & {
+              streamState?: unknown;
+              attachedElements: HTMLMediaElement[];
+          })
+        | undefined;
+    const mst = track?.mediaStreamTrack;
+    const settings = (identity === null ? mst?.getSettings() : undefined) as
+        (MediaTrackSettings & { displaySurface?: string }) | undefined;
+    const els = (track?.attachedElements ?? []).filter(
+        (el): el is HTMLVideoElement => el instanceof HTMLVideoElement,
+    );
+    let elementFrames: number | null = null;
+    for (const el of els) {
+        const q = el.getVideoPlaybackQuality?.();
+        if (q) elementFrames = (elementFrames ?? 0) + q.totalVideoFrames;
+    }
+    const remote = pub as TrackPublication & {
+        isSubscribed?: boolean;
+        isEnabled?: boolean;
+    };
+    return {
+        identity,
+        source:
+            pub.source === lk.Track.Source.ScreenShare
+                ? "screen_share"
+                : pub.source === lk.Track.Source.Camera
+                  ? "camera"
+                  : "unknown",
+        subscribed: identity === null ? true : !!remote.isSubscribed,
+        muted: pub.isMuted,
+        enabled: identity === null ? true : remote.isEnabled !== false,
+        streamPaused: track?.streamState === lk.Track.StreamState.Paused,
+        trackState: mst?.readyState ?? null,
+        trackMuted: mst ? mst.muted : null,
+        captureWidth: settings?.width ?? null,
+        captureHeight: settings?.height ?? null,
+        captureFps: settings?.frameRate ?? null,
+        displaySurface: settings?.displaySurface ?? null,
+        elements: els.length,
+        elementFrames,
+        elementWidth: els[0]?.videoWidth ?? null,
+        elementHeight: els[0]?.videoHeight ?? null,
+        decryptErrors: identity ? (call.decryptErrors.get(identity) ?? 0) : 0,
+    };
+}
+
+function connectionVideos(
+    call: ActiveVoiceCall,
+    lkRoom: LivekitRoom,
+    publishing: boolean,
+): VideoTrackDebug[] {
+    const out: VideoTrackDebug[] = [];
+    if (publishing)
+        for (const pub of lkRoom.localParticipant.videoTrackPublications.values())
+            out.push(videoTrackDebug(call, pub as TrackPublication, null));
+    for (const p of lkRoom.remoteParticipants.values())
+        for (const pub of p.videoTrackPublications.values())
+            out.push(
+                videoTrackDebug(call, pub as TrackPublication, p.identity),
+            );
+    return out;
 }
 
 /** Every track of this connection by MediaStreamTrack id: ours (both the
@@ -1800,67 +1907,25 @@ function trackOwners(lkRoom: LivekitRoom): Record<string, StreamOwner> {
     return owners;
 }
 
-/** Desktop, when calls are set to bypass the proxy (electron/proxy.cjs):
- *  name the SFU before connecting so its addresses are already exempt.
- *  Resolves once the rules apply; never throws. */
+/** Desktop, when calls are set to go direct (electron/proxy.cjs): name a
+ *  call server (token service or SFU) before connecting to it, so its
+ *  host skips the proxy. Media needs nothing: every IP address goes direct
+ *  in that mode. The homeserver's own host is never named, so a call
+ *  server sharing it keeps the homeserver on the proxy. Resolves once the
+ *  rules apply; never throws. */
 async function bypassProxyFor(url: string): Promise<void> {
     const proxy = window.desktop?.proxy;
     if (!proxy) return;
     try {
-        await proxy.callTargets([new URL(url).hostname]);
+        const host = new URL(url).hostname;
+        const homeserver = matrixClient
+            ? new URL(matrixClient.getHomeserverUrl()).hostname
+            : null;
+        if (host === homeserver) return;
+        await proxy.callTargets([host]);
     } catch {
         /* the call goes on with the rules it has */
     }
-}
-
-/** After connecting, the addresses media actually uses: the SFU's ICE
- *  candidates (an SFU can advertise an address its hostname doesn't resolve
- *  to) and any TURN servers. Added to the proxy bypass for later ICE
- *  attempts, reconnects and the next join. Checked again once ICE has had
- *  time to finish. */
-function reportCallAddresses(lkRoom: LivekitRoom): void {
-    const proxy = window.desktop?.proxy;
-    if (!proxy) return;
-    const collect = async () => {
-        const pcm = (
-            lkRoom.engine as
-                | {
-                      pcManager?: {
-                          publisher?: {
-                              getStats(): Promise<RTCStatsReport> | undefined;
-                          };
-                          subscriber?: {
-                              getStats(): Promise<RTCStatsReport> | undefined;
-                          };
-                      };
-                  }
-                | undefined
-        )?.pcManager;
-        const hosts = new Set<string>();
-        for (const report of await Promise.all([
-            reportValues(pcm?.publisher?.getStats()),
-            reportValues(pcm?.subscriber?.getStats()),
-        ]))
-            for (const s of report ?? []) {
-                if (
-                    s.type === "remote-candidate" &&
-                    s.candidateType !== "prflx"
-                ) {
-                    const addr = s.address ?? s.ip;
-                    if (typeof addr === "string" && addr) hosts.add(addr);
-                } else if (
-                    s.type === "local-candidate" &&
-                    typeof s.url === "string"
-                ) {
-                    // A relay candidate names its TURN server: turn:host:port?...
-                    const host = /^turns?:(\[[^\]]+\]|[^:?]+)/.exec(s.url)?.[1];
-                    if (host) hosts.add(host);
-                }
-            }
-        if (hosts.size) await proxy.callTargets([...hosts]).catch(() => {});
-    };
-    void collect();
-    setTimeout(() => void collect(), 5000);
 }
 
 // --- end-to-end encryption ----------------------------------------------------
@@ -2342,6 +2407,8 @@ export async function getCallDebugStats(): Promise<
                 localQuality: String(lkRoom.localParticipant.connectionQuality),
                 participants,
                 owners: trackOwners(lkRoom),
+                videos: connectionVideos(call, lkRoom, publishing),
+                sfuUrl: sfuUrlOf.get(lkRoom) ?? null,
             };
         }),
     );

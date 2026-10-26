@@ -148,6 +148,7 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/layout/ActiveCallBanner.svelte
     "activeCallBanner.openCall": "ܦܬܘܚ ܩܪܝܬܐ",
+    "activeCallBanner.open": "ܦܬܘܚ",
     "activeCallBanner.ringing": "ܒܩܪܝܐ…",
     "activeCallBanner.voiceCallInCall": "ܩܪܝܬܐ ܕܩܠܐ · {length} ܓܘ ܩܪܝܬܐ",
     "activeCallBanner.leave": "ܫܒܘܩ",
@@ -647,7 +648,7 @@ const messages: Record<MessageKey, string> = {
     "proxySettings.callsDefaultHint":
         "There is no UDP through a proxy, so call audio normally goes direct and only goes through the proxy when a call has to fall back to TCP.",
     "proxySettings.callsDirectHint":
-        "Call servers skip the proxy for TCP as well, so a TCP fallback doesn't route audio through the proxy. Call servers see your IP address.",
+        "The whole call skips the proxy: joining, the connection to the call server, and audio and video over UDP or TCP. Everything else still uses the proxy. Call servers see your IP address.",
     "proxySettings.callsProxyHint":
         "No direct connections, and call servers never see your IP address: calls go through the proxy to the call server's TURN relay over TCP or TLS. If the server offers no TURN relay, calls won't connect. Expect more delay.",
     "proxySettings.callsDirectUnavailable":
@@ -978,7 +979,7 @@ const messages: Record<MessageKey, string> = {
     "messageArea.encryptionEnabled": "ܛܘܫܝܐ ܕܠܝܩܐ ܝܠܗ",
     "messageArea.joiningVoiceCall": "ܒܥܠܠܐ ܠܩܪܝܬܐ ܕܩܠܐ…",
     "messageArea.startVoiceCall": "ܫܪܝ ܩܪܝܬܐ ܕܩܠܐ",
-    "messageArea.showCall": "ܚܘܝ ܩܪܝܬܐ",
+    "messageArea.showCall": "ܦܬܘܚ ܚܙܘܐ ܕܩܪܝܬܐ",
     "messageArea.searchMessages": "ܒܨܝ ܐܓܪ̈ܬܐ",
     "messageArea.threads": "ܚܘ̈ܛܐ",
     "messageArea.toggleThreadsList": "ܦܬܘܚ/ܣܟܘܪ ܪܫܝܡܬܐ ܕܚܘ̈ܛܐ",
@@ -1802,6 +1803,9 @@ const messages: Record<MessageKey, string> = {
     // src/lib/components/layout/ScreenSharePicker.svelte
     "screenSharePicker.chooseWhatToShare": "ܓܒܝ ܡܘܕܝ ܒܕ ܫܘܬܦܬ",
     "screenSharePicker.noPreview": "ܠܝܬ ܚܙܝܬܐ ܩܕܡܝܬܐ",
+    "screenSharePicker.screens": "ܦܪ̈ܣܐ",
+    "screenSharePicker.windows": "ܟܘ̈ܐ",
+    "screenSharePicker.quality": "ܐܝܟܢܝܘܬܐ: {quality}",
     "screenSharePicker.audio": "Audio",
     "screenSharePicker.audioAuto":
         "The window's app, or all audio for a screen",
@@ -1837,7 +1841,7 @@ const messages: Record<MessageKey, string> = {
         "ܫܘܬܦ ܩܠܐ ܕܣܝܣܛܡ (ܦܠܚܐ ܥܠ ܫܘܬܦܘܬܐ ܒܬܪܝܬܐ)",
 
     // src/lib/components/layout/ScreenShareQualityPopover.svelte
-    "screenShareQualityPopover.goLive": "ܫܪܝ ܚܝܐ",
+
     "screenShareQualityPopover.screenShareQuality": "ܐܝܢܝܘܬܐ ܕܫܘܬܦܘܬܐ ܕܡܚܙܝܬܐ",
 
     // src/lib/components/settings/SecuritySettings.svelte
@@ -2350,6 +2354,12 @@ const messages: Record<MessageKey, string> = {
     "voiceCallPanel.enableAudio": "ܕܠܩ ܩܠܐ",
     "voiceCallPanel.openCallView": "ܦܬܘܚ ܚܙܝܬܐ ܕܩܪܝܬܐ",
     "voiceCallPanel.connectionStats": "ܡܢܝܢ̈ܐ ܕܚܘܝܕܐ",
+    "voiceCallPanel.openCall": "ܦܬܘܚ ܩܪܝܬܐ",
+    "voiceCallPanel.openCallWithVideo":
+        "ܦܬܘܚ ܩܪܝܬܐ ({n, plural, one {# ܒܝܕܝܘ} other {# ܒܝܕܝܘ̈ܣ}})",
+    "voiceCallPanel.sharingYourScreen": "ܒܫܘܬܦܐ ܦܪܣܐ ܕܝܠܘܟ݂",
+    "voiceCallPanel.shareQuality": "ܐܝܟܢܝܘܬܐ ܕܫܘܬܦܘܬ ܦܪܣܐ",
+    "voiceCallPanel.stop": "ܦܣܘܩ",
     "callStats.title": "ܚܘܝܕܐ ܕܩܪܝܬܐ",
     "callStats.copyJson": "ܢܣܘܟ ܐܝܟ JSON",
     "callStats.copied": "ܡܢܝܢ̈ܐ ܕܩܪܝܬܐ ܢܣܝܟܐ ܝܢܐ",
@@ -2376,6 +2386,43 @@ const messages: Record<MessageKey, string> = {
     "callStats.legend":
         "ܚܘܝܕܐ ܕܝܗܝ ܝܠܗ ܕܪܓܐ ܕܡܫܡܫܢܐ ܠܚܘܝܕܐ ܕܗܘ ܒܪܢܫܐ: ܕܪܓܐ ܒܝܫܐ ܟܐ ܚܘܐ ܠܡܨܝܕܬܐ ܕܝܗܝ، ܠܐ ܕܝܘܟ. ܛܥܝܘܬܐ ܘjitter ܝܢܐ ܕܩܠܐ ܕܝܗܝ ܐܝܟ ܕܟܐ ܡܛܐ ܠܘܬܘܟ، ܒܪܦܦܐ ܐܚܪܝܐ.",
     "callStats.noTransport": "ܠܐ ܚܘܝܕܐ",
+    "callStats.video": "ܒܝܕܝܘ",
+    "callStats.videoChecking": "ܒܒܨܝܐ…",
+    "callStats.videoSending": "ܒܫܕܪܐ",
+    "callStats.videoNotSending": "ܠܐ ܫܕܝܪܐ ܥܕܡܐ ܠܗܫܐ",
+    "callStats.videoCaptureEnded": "ܠܒܟܬܐ ܦܣܝܩܬܐ: ܫܪܝ ܠܗ̇ ܐܚܪܢܐ ܙܒܢܐ",
+    "callStats.videoCaptureStalled":
+        "ܠܝܬ ܨܘܪ̈ܬܐ ܚܕ̈ܬܐ: ܟܘܬܐ ܕܡܫܘܬܦܐ ܝܠܗ̇ ܡܨܝܐ ܗܘܝܐ ܙܥܘܪܬܐ ܐܘ ܟܣܝܬܐ، ܐܘ ܟܡܪܐ ܡܫܓܠܐ ܝܠܗ̇",
+    "callStats.videoPlaying": "ܒܡܚܘܝܐ",
+    "callStats.videoNotSubscribed": "ܠܐ ܡܛܝܐ ܥܕܡܐ ܠܗܫܐ",
+    "callStats.videoHiddenByYou": "ܟܣܝܐ ܡܢܘܟ݂",
+    "callStats.videoTurnedOff": "ܛܦܝܐ ܡܢܗ",
+    "callStats.videoPausedByServer":
+        "ܟܠܝܐ ܡܢ ܣܝܪܒܪ ܕܩܪܝܬܐ: ܚܝܕܘܬܐ ܕܝܠܘܟ݂ ܠܐ ܡܨܝܐ ܗܫܐ",
+    "callStats.videoNoPackets":
+        "ܠܐ ܡܛܐ ܡܕܡ: ܒܨܝ ܓܢܒܐ ܕܡܫܕܪܢܐ، ܐܘ ܚܝܕܘܬܐ ܕܝܠܘܟ݂",
+    "callStats.videoCantDecrypt":
+        "ܡܛܐ ܐܠܐ ܠܐ ܡܨܝܐ ܡܬܦܫܩܐ: ܚܕ ܡܢܘܟ݂ܘܢ ܡܨܐ ܗܘܐ ܥܠ Zam ܥܬܝܩܐ، ܐܘ ܩܠܝܕܐ ܠܐ ܡܛܐ",
+    "callStats.videoCantDecode":
+        "ܡܛܐ ܐܠܐ ܗܢܐ ܡܐܢܐ ܠܐ ܡܨܐ ܦܫܩ ܠܗ: ܢܣܝ ܟܘܕܝܟ ܐܚܪܢܐ ܒܡܢܝܘܬܐ ܕܐܝܟܢܝܘܬ ܫܘܬܦܘܬ ܦܪܣܐ",
+    "callStats.videoNotShown": "ܡܛܝܐ، ܠܐ ܥܠ ܦܪܣܐ: ܦܬܘܚ ܚܙܘܐ ܕܩܪܝܬܐ",
+    "callStats.videoNotPainting":
+        "ܦܫܝܩܐ ܐܠܐ ܠܐ ܡܚܘܝܐ: ܣܟܘܪ ܘܦܬܘܚ ܚܙܘܐ ܕܩܪܝܬܐ ܐܚܪܢܐ ܙܒܢܐ",
+    "callStats.capture": "ܠܒܟܬܐ",
+    "callStats.framesArrivedDecoded": "ܨܘܪ̈ܬܐ ܡܛܝ̈ܬܐ / ܦܫܝ̈ܩܬܐ",
+    "callStats.framesEncoded": "ܨܘܪ̈ܬܐ ܡܟܘܕ̈ܬܐ",
+    "callStats.onScreen": "ܥܠ ܦܪܣܐ",
+    "callStats.onScreenNo": "ܠܐ",
+    "callStats.onScreenNoPicture": "ܠܝܬ ܨܘܪܬܐ ܥܕܡܐ ܠܗܫܐ",
+    "callStats.decryptErrors": "ܦܘܕ̈ܐ ܕܦܫܩܐ",
+    "callStats.trackState": "ܫܒܝܠܐ",
+    "callStats.trackNoFrames": "ܠܝܬ ܨܘܪ̈ܬܐ ܗܫܐ",
+    "callStats.proxyRoute": "Proxy",
+    "callStats.routeSignalling": "ܚܝܕܘܬܐ ܥܡ ܣܝܪܒܪ ܕܩܪܝܬܐ",
+    "callStats.routeSending": "ܡܝܕܝܐ ܕܫܕܪܬ",
+    "callStats.routeReceiving": "ܡܝܕܝܐ ܕܡܩܒܠܬ",
+    "callStats.routeDirect": "ܬܪܝܨܐ",
+    "callStats.routeProxy": "ܒܝܕ {proxy}",
     "callStats.path": "ܐܘܪܚܐ",
     "callStats.iceRtt": "Ping ICE",
     "callStats.mediaRtt": "Ping ܕܡܝܕܝܐ",
@@ -2808,6 +2855,8 @@ const messages: Record<MessageKey, string> = {
     "voiceCall.couldNotUnmuteYourMicrophoneCheck":
         "ܫܪܝܐ ܕܫܬܩܐ ܕܡܝܩܪܘܦܘܢ ܕܝܘܟ ܠܐ ܦܠܚܠܗ - ܒܨܝ ܡܐܢܐ ܕܡܥܠܢܐ ܕܝܘܟ",
     "voiceCall.connecting": "ܒܐܚܕܐ…",
+    "voiceCall.startedSharing": "{name} ܒܫܘܬܦܐ ܦܪܣܐ ܕܝܠܗ",
+    "voiceCall.watch": "ܚܙܝ",
     "voiceCall.voiceConnected": "ܩܠܐ ܐܚܝܕܐ ܝܠܗ",
     "voiceCall.reconnecting": "ܒܐܚܕܐ ܡܢ ܕܪܝܫ…",
     "voiceCall.youWereBannedFromThisRoom":

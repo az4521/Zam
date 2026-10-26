@@ -10,7 +10,10 @@ import {
     codecLabel,
     opusFeatures,
     availableOutgoingBitrate,
+    diagnoseVideo,
     type RawStat,
+    type RtpStreamSummary,
+    type VideoTrackDebug,
 } from "./callStats";
 
 function chromiumReport(opts: {
@@ -477,5 +480,77 @@ describe("availableOutgoingBitrate", () => {
                 { id: "P", type: "candidate-pair", state: "succeeded" },
             ]),
         ).toBeNull();
+    });
+});
+
+describe("diagnoseVideo", () => {
+    const remote: VideoTrackDebug = {
+        identity: "@a:x:D",
+        source: "screen_share",
+        subscribed: true,
+        muted: false,
+        enabled: true,
+        streamPaused: false,
+        trackState: "live",
+        trackMuted: false,
+        captureWidth: null,
+        captureHeight: null,
+        captureFps: null,
+        displaySurface: null,
+        elements: 1,
+        elementFrames: 100,
+        elementWidth: 1920,
+        elementHeight: 1080,
+        decryptErrors: 0,
+    };
+    const local: VideoTrackDebug = { ...remote, identity: null };
+    const stream = (packets: number, frames: number) =>
+        ({ id: "S", packets, frames }) as RtpStreamSummary;
+    const status = (
+        t: VideoTrackDebug,
+        now: RtpStreamSummary | null,
+        before: RtpStreamSummary | null,
+        prevFrames: number | null = 50,
+    ) => diagnoseVideo(t, now, before, prevFrames).status;
+
+    it("plays when frames arrive, decode and get painted", () => {
+        expect(status(remote, stream(20, 10), stream(10, 5))).toBe("playing");
+    });
+
+    it("names the first broken link from the sender to the screen", () => {
+        expect(status({ ...remote, subscribed: false }, null, null)).toBe(
+            "notSubscribed",
+        );
+        expect(status({ ...remote, streamPaused: true }, null, null)).toBe(
+            "pausedByServer",
+        );
+        expect(status(remote, stream(10, 5), stream(10, 5))).toBe("noPackets");
+        expect(status(remote, stream(20, 5), stream(10, 5))).toBe("cantDecode");
+        expect(
+            status({ ...remote, elements: 0 }, stream(20, 9), stream(10, 5)),
+        ).toBe("notShown");
+        expect(status(remote, stream(20, 9), stream(10, 5), 100)).toBe(
+            "notPainting",
+        );
+    });
+
+    it("blames decryption when packets don't decode and decryption failed", () => {
+        expect(
+            status(
+                { ...remote, decryptErrors: 3 },
+                stream(20, 5),
+                stream(10, 5),
+            ),
+        ).toBe("cantDecrypt");
+    });
+
+    it("tells a stalled or ended capture apart on our own video", () => {
+        expect(status({ ...local, trackState: "ended" }, null, null)).toBe(
+            "captureEnded",
+        );
+        expect(status(local, stream(20, 5), stream(10, 5))).toBe(
+            "captureStalled",
+        );
+        expect(status(local, stream(20, 9), stream(10, 5))).toBe("sending");
     });
 });

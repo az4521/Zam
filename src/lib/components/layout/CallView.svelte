@@ -292,35 +292,27 @@
     // slot strands and swallows the next Escape.
     $effect(() => () => clearModalIfOwner(participantMenuToken));
 
-    let sharePopover = $state<{
-        x: number;
-        y: number;
-        mode: "pre-share" | "live";
-    } | null>(null);
-    function onShareBtnClick(e: MouseEvent): void {
-        if (voiceCallState.screenSharing) {
-            void toggleScreenShare();
-            return;
-        }
-        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        sharePopover = { x: r.left, y: r.top, mode: "pre-share" };
+    // Sharing starts straight away: the picker asks what to share, and the
+    // quality is changed live (the gear on your share tile). A quality step
+    // before the picker was a second dialog in a row for every share.
+    let sharePopover = $state<{ x: number; y: number } | null>(null);
+    function onShareBtnClick(): void {
+        void toggleScreenShare();
     }
     function openLiveQuality(e: MouseEvent): void {
         e.stopPropagation();
         const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        sharePopover = { x: r.left, y: r.top, mode: "live" };
+        sharePopover = { x: r.left, y: r.top };
     }
 
     // The browser's own "Stop sharing" control ends the share without touching
-    // our popover, so a live quality popover would strand open. Close it when
-    // the share goes away. Guard on "live": a pre-share popover is open while
-    // screenSharing is still false, so an unguarded check would close it
-    // instantly. untrack() keeps the effect's only dependency the screenSharing
-    // flag — writing sharePopover here never retriggers it.
+    // our popover, so it would strand open. Close it when the share goes away.
+    // untrack() keeps the effect's only dependency the screenSharing flag —
+    // writing sharePopover here never retriggers it.
     $effect(() => {
         if (voiceCallState.screenSharing) return;
         untrack(() => {
-            if (sharePopover?.mode === "live") sharePopover = null;
+            sharePopover = null;
         });
     });
 
@@ -978,7 +970,6 @@
     <ScreenShareQualityPopover
         x={sharePopover.x}
         y={sharePopover.y}
-        mode={sharePopover.mode}
         touch={interfaceState.isTouchscreen}
         onClose={() => (sharePopover = null)}
     />

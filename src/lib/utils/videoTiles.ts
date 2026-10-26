@@ -52,7 +52,9 @@ export function buildVideoTiles(
 
 /** Spotlight selection. Manual focus (a non-null `current` still present)
  *  always wins; a focus that left falls back to the grid; an unfocused grid
- *  auto-promotes the first screenshare that has just appeared. */
+ *  auto-promotes the first screenshare that has just appeared, unless it is
+ *  our own: the sharer would only see their own screen (a hall of mirrors
+ *  when sharing the whole screen) instead of the call. */
 export function nextFocus(
     prevKeys: string[],
     tiles: VideoTileDescriptor[],
@@ -63,9 +65,20 @@ export function nextFocus(
     if (current) return null;
     const prev = new Set(prevKeys);
     const fresh = tiles.find(
-        (t) => t.source === "screenshare" && !prev.has(t.key),
+        (t) => t.source === "screenshare" && !t.isLocal && !prev.has(t.key),
     );
     return fresh?.key ?? null;
+}
+
+/** Other people's screen shares that weren't there last time. */
+export function newRemoteShares(
+    prevKeys: string[],
+    tiles: VideoTileDescriptor[],
+): VideoTileDescriptor[] {
+    const prev = new Set(prevKeys);
+    return tiles.filter(
+        (t) => t.source === "screenshare" && !t.isLocal && !prev.has(t.key),
+    );
 }
 
 /** Whether this environment can capture a screen (web/desktop yes; Capacitor

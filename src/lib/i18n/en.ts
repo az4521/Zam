@@ -145,6 +145,7 @@ export const en = {
 
     // src/lib/components/layout/ActiveCallBanner.svelte
     "activeCallBanner.openCall": "Open call",
+    "activeCallBanner.open": "Open",
     "activeCallBanner.ringing": "Ringing…",
     "activeCallBanner.voiceCallInCall": "Voice call · {length} in call",
     "activeCallBanner.leave": "Leave",
@@ -655,7 +656,7 @@ export const en = {
     "proxySettings.callsDefaultHint":
         "There is no UDP through a proxy, so call audio normally goes direct and only goes through the proxy when a call has to fall back to TCP.",
     "proxySettings.callsDirectHint":
-        "Call servers skip the proxy for TCP as well, so a TCP fallback doesn't route audio through the proxy. Call servers see your IP address.",
+        "The whole call skips the proxy: joining, the connection to the call server, and audio and video over UDP or TCP. Everything else still uses the proxy. Call servers see your IP address.",
     "proxySettings.callsProxyHint":
         "No direct connections, and call servers never see your IP address: calls go through the proxy to the call server's TURN relay over TCP or TLS. If the server offers no TURN relay, calls won't connect. Expect more delay.",
     "proxySettings.callsDirectUnavailable":
@@ -1035,7 +1036,7 @@ export const en = {
     "messageArea.encryptionEnabled": "Encryption enabled",
     "messageArea.joiningVoiceCall": "Joining voice call…",
     "messageArea.startVoiceCall": "Start voice call",
-    "messageArea.showCall": "Show call",
+    "messageArea.showCall": "Open call view",
     "messageArea.searchMessages": "Search messages",
     "messageArea.threads": "Threads",
     "messageArea.toggleThreadsList": "Toggle threads list",
@@ -1880,6 +1881,9 @@ export const en = {
     // src/lib/components/layout/ScreenSharePicker.svelte
     "screenSharePicker.chooseWhatToShare": "Choose what to share",
     "screenSharePicker.noPreview": "No preview",
+    "screenSharePicker.screens": "Screens",
+    "screenSharePicker.windows": "Windows",
+    "screenSharePicker.quality": "Quality: {quality}",
     "screenSharePicker.audio": "Audio",
     "screenSharePicker.audioAuto":
         "The window's app, or all audio for a screen",
@@ -1915,7 +1919,7 @@ export const en = {
         "Share system audio (applies to next share)",
 
     // src/lib/components/layout/ScreenShareQualityPopover.svelte
-    "screenShareQualityPopover.goLive": "Go Live",
+
     "screenShareQualityPopover.screenShareQuality": "Screen share quality",
 
     // src/lib/components/settings/SecuritySettings.svelte
@@ -2436,6 +2440,12 @@ export const en = {
     "voiceCallPanel.enableAudio": "Enable audio",
     "voiceCallPanel.openCallView": "Open call view",
     "voiceCallPanel.connectionStats": "Connection stats",
+    "voiceCallPanel.openCall": "Open call",
+    "voiceCallPanel.openCallWithVideo":
+        "Open call ({n, plural, one {# video} other {# videos}})",
+    "voiceCallPanel.sharingYourScreen": "Sharing your screen",
+    "voiceCallPanel.shareQuality": "Screen share quality",
+    "voiceCallPanel.stop": "Stop",
     "callStats.title": "Call connection",
     "callStats.copyJson": "Copy as JSON",
     "callStats.copied": "Copied call stats",
@@ -2462,6 +2472,44 @@ export const en = {
     "callStats.legend":
         "Their connection is the server's grade of that person's link, so a poor grade there points at their network, not yours. Loss and jitter are for their audio as it reaches you, over the last second.",
     "callStats.noTransport": "Not connected",
+    "callStats.video": "Video",
+    "callStats.videoChecking": "Checking…",
+    "callStats.videoSending": "Sending",
+    "callStats.videoNotSending": "Not being sent yet",
+    "callStats.videoCaptureEnded": "Capture stopped: start it again",
+    "callStats.videoCaptureStalled":
+        "No new frames: the shared window may be minimized or covered, or the camera is busy",
+    "callStats.videoPlaying": "Playing",
+    "callStats.videoNotSubscribed": "Not received yet",
+    "callStats.videoHiddenByYou": "Hidden by you",
+    "callStats.videoTurnedOff": "Turned off by them",
+    "callStats.videoPausedByServer":
+        "Paused by the call server: your connection can't take it right now",
+    "callStats.videoNoPackets":
+        "Nothing is arriving: check their sending side, or your connection",
+    "callStats.videoCantDecrypt":
+        "Arriving but can't be decrypted: one of you may be on an older Zam, or the key hasn't arrived",
+    "callStats.videoCantDecode":
+        "Arriving but this device can't decode it: try another video codec in the screen-share quality menu",
+    "callStats.videoNotShown":
+        "Received, not on screen: open the call view to watch",
+    "callStats.videoNotPainting":
+        "Decoded but not being drawn: try closing and reopening the call view",
+    "callStats.capture": "Capture",
+    "callStats.framesArrivedDecoded": "Frames arriving / decoded",
+    "callStats.framesEncoded": "Frames encoded",
+    "callStats.onScreen": "On screen",
+    "callStats.onScreenNo": "No",
+    "callStats.onScreenNoPicture": "No picture yet",
+    "callStats.decryptErrors": "Decryption errors",
+    "callStats.trackState": "Track",
+    "callStats.trackNoFrames": "No frames right now",
+    "callStats.proxyRoute": "Proxy",
+    "callStats.routeSignalling": "Call server connection",
+    "callStats.routeSending": "Media you send",
+    "callStats.routeReceiving": "Media you receive",
+    "callStats.routeDirect": "Direct",
+    "callStats.routeProxy": "Through {proxy}",
     "callStats.path": "Path",
     "callStats.iceRtt": "ICE ping",
     "callStats.mediaRtt": "Media ping",
@@ -2908,6 +2956,8 @@ export const en = {
     "voiceCall.couldNotUnmuteYourMicrophoneCheck":
         "Could not unmute your microphone - check your input device",
     "voiceCall.connecting": "Connecting…",
+    "voiceCall.startedSharing": "{name} is sharing their screen",
+    "voiceCall.watch": "Watch",
     "voiceCall.voiceConnected": "Voice connected",
     "voiceCall.reconnecting": "Reconnecting…",
     "voiceCall.youWereBannedFromThisRoom":

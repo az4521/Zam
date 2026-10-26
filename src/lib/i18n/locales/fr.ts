@@ -154,6 +154,7 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/layout/ActiveCallBanner.svelte
     "activeCallBanner.openCall": "Ouvrir l'appel",
+    "activeCallBanner.open": "Ouvrir",
     "activeCallBanner.ringing": "Sonnerie…",
     "activeCallBanner.voiceCallInCall": "Appel vocal · {length} dans l'appel",
     "activeCallBanner.leave": "Quitter",
@@ -674,7 +675,7 @@ const messages: Record<MessageKey, string> = {
     "proxySettings.callsDefaultHint":
         "UDP ne passe pas par un proxy : le son des appels va donc normalement en direct et ne passe par le proxy que lorsqu'un appel doit utiliser TCP.",
     "proxySettings.callsDirectHint":
-        "Les serveurs d'appel contournent aussi le proxy en TCP, donc un repli sur TCP ne fait pas passer le son par le proxy. Les serveurs d'appel voient votre adresse IP.",
+        "Tout l'appel contourne le proxy : la connexion à l'appel, au serveur d'appel, et l'audio et la vidéo en UDP ou en TCP. Tout le reste passe toujours par le proxy. Les serveurs d'appel voient votre adresse IP.",
     "proxySettings.callsProxyHint":
         "Aucune connexion directe, et les serveurs d'appel ne voient jamais votre adresse IP : les appels passent par le proxy vers le relais TURN du serveur d'appel en TCP ou TLS. Si le serveur ne propose pas de relais TURN, les appels ne se connecteront pas. Attendez-vous à plus de latence.",
     "proxySettings.callsDirectUnavailable":
@@ -1035,7 +1036,7 @@ const messages: Record<MessageKey, string> = {
     "messageArea.encryptionEnabled": "Chiffrement activé",
     "messageArea.joiningVoiceCall": "Connexion à l'appel vocal…",
     "messageArea.startVoiceCall": "Démarrer un appel vocal",
-    "messageArea.showCall": "Afficher l'appel",
+    "messageArea.showCall": "Ouvrir la vue de l'appel",
     "messageArea.searchMessages": "Rechercher des messages",
     "messageArea.threads": "Fils",
     "messageArea.toggleThreadsList": "Afficher/masquer la liste des fils",
@@ -1913,6 +1914,9 @@ const messages: Record<MessageKey, string> = {
     "screenSharePicker.chooseWhatToShare":
         "Choisissez ce que vous voulez partager",
     "screenSharePicker.noPreview": "Aucun aperçu",
+    "screenSharePicker.screens": "Écrans",
+    "screenSharePicker.windows": "Fenêtres",
+    "screenSharePicker.quality": "Qualité : {quality}",
     "screenSharePicker.audio": "Audio",
     "screenSharePicker.audioAuto":
         "L'appli de la fenêtre, ou tout le son pour un écran",
@@ -1949,7 +1953,7 @@ const messages: Record<MessageKey, string> = {
         "Partager le son du système (s'applique au prochain partage)",
 
     // src/lib/components/layout/ScreenShareQualityPopover.svelte
-    "screenShareQualityPopover.goLive": "Passer en direct",
+
     "screenShareQualityPopover.screenShareQuality":
         "Qualité du partage d'écran",
 
@@ -2509,6 +2513,12 @@ const messages: Record<MessageKey, string> = {
     "voiceCallPanel.enableAudio": "Activer l'audio",
     "voiceCallPanel.openCallView": "Ouvrir la vue de l'appel",
     "voiceCallPanel.connectionStats": "Statistiques de connexion",
+    "voiceCallPanel.openCall": "Ouvrir l'appel",
+    "voiceCallPanel.openCallWithVideo":
+        "Ouvrir l'appel ({n, plural, one {# vidéo} other {# vidéos}})",
+    "voiceCallPanel.sharingYourScreen": "Partage de votre écran",
+    "voiceCallPanel.shareQuality": "Qualité du partage d'écran",
+    "voiceCallPanel.stop": "Arrêter",
     "callStats.title": "Connexion de l'appel",
     "callStats.copyJson": "Copier en JSON",
     "callStats.copied": "Statistiques de l'appel copiées",
@@ -2536,6 +2546,44 @@ const messages: Record<MessageKey, string> = {
     "callStats.legend":
         "Sa connexion est la note donnée par le serveur au lien de cette personne : une mauvaise note pointe vers son réseau, pas le vôtre. La perte et la gigue concernent son son tel qu'il vous parvient, sur la dernière seconde.",
     "callStats.noTransport": "Non connecté",
+    "callStats.video": "Vidéo",
+    "callStats.videoChecking": "Vérification…",
+    "callStats.videoSending": "Envoi en cours",
+    "callStats.videoNotSending": "Pas encore envoyé",
+    "callStats.videoCaptureEnded": "Capture arrêtée : relancez-la",
+    "callStats.videoCaptureStalled":
+        "Aucune nouvelle image : la fenêtre partagée est peut-être réduite ou masquée, ou la caméra est occupée",
+    "callStats.videoPlaying": "Lecture en cours",
+    "callStats.videoNotSubscribed": "Pas encore reçu",
+    "callStats.videoHiddenByYou": "Masqué par vous",
+    "callStats.videoTurnedOff": "Désactivé par cette personne",
+    "callStats.videoPausedByServer":
+        "Mis en pause par le serveur d'appel : votre connexion ne suit pas pour le moment",
+    "callStats.videoNoPackets":
+        "Rien n'arrive : vérifiez du côté de l'expéditeur, ou votre connexion",
+    "callStats.videoCantDecrypt":
+        "Arrive mais ne peut pas être déchiffré : l'un de vous utilise peut-être une ancienne version de Zam, ou la clé n'est pas arrivée",
+    "callStats.videoCantDecode":
+        "Arrive mais cet appareil ne peut pas le décoder : essayez un autre codec vidéo dans le menu de qualité du partage d'écran",
+    "callStats.videoNotShown":
+        "Reçu, mais pas à l'écran : ouvrez la vue de l'appel pour regarder",
+    "callStats.videoNotPainting":
+        "Décodé mais pas affiché : fermez puis rouvrez la vue de l'appel",
+    "callStats.capture": "Capture",
+    "callStats.framesArrivedDecoded": "Images reçues / décodées",
+    "callStats.framesEncoded": "Images encodées",
+    "callStats.onScreen": "À l'écran",
+    "callStats.onScreenNo": "Non",
+    "callStats.onScreenNoPicture": "Pas encore d'image",
+    "callStats.decryptErrors": "Erreurs de déchiffrement",
+    "callStats.trackState": "Piste",
+    "callStats.trackNoFrames": "Aucune image pour le moment",
+    "callStats.proxyRoute": "Proxy",
+    "callStats.routeSignalling": "Connexion au serveur d'appel",
+    "callStats.routeSending": "Médias envoyés",
+    "callStats.routeReceiving": "Médias reçus",
+    "callStats.routeDirect": "Direct",
+    "callStats.routeProxy": "Via {proxy}",
     "callStats.path": "Chemin",
     "callStats.iceRtt": "Ping ICE",
     "callStats.mediaRtt": "Ping média",
@@ -3005,6 +3053,8 @@ const messages: Record<MessageKey, string> = {
     "voiceCall.couldNotUnmuteYourMicrophoneCheck":
         "Impossible de réactiver votre micro - vérifiez votre périphérique d'entrée",
     "voiceCall.connecting": "Connexion…",
+    "voiceCall.startedSharing": "{name} partage son écran",
+    "voiceCall.watch": "Regarder",
     "voiceCall.voiceConnected": "Vocal connecté",
     "voiceCall.reconnecting": "Reconnexion…",
     "voiceCall.youWereBannedFromThisRoom":

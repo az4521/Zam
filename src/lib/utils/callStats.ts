@@ -325,6 +325,10 @@ export interface RtpStreamSummary {
     keyFrames: number | null;
     /** Retransmitted share of the bytes sent over the interval, 0..1. */
     retransmitShare: number | null;
+    /** Video frames that arrived complete (receive only); compared with
+     *  `frames` (decoded) it tells a decoder or decryption failure apart
+     *  from frames that never came. */
+    framesReceived: number | null;
     /** Raw counters, kept for the next interval. */
     retransmittedBytes: number;
     frames: number;
@@ -437,6 +441,7 @@ export function summarizeRtpStreams(
             pliCount: num(s.pliCount),
             keyFrames: num(send ? s.keyFramesEncoded : s.keyFramesDecoded),
             retransmitShare,
+            framesReceived: send ? null : num(s.framesReceived),
             retransmittedBytes,
             frames,
             framesTotalTime,
@@ -488,6 +493,107 @@ export function opusFeatures(fmtp: string | null): string[] {
     const max = /(^|;)\s*maxaveragebitrate=(\d+)/.exec(fmtp)?.[2];
     if (max) out.push(`max ${Math.round(Number(max) / 1000)} kbit/s`);
     return out;
+}
+
+/**
+ * One camera or screen-share track as LiveKit and the page see it, for the
+ * video section of the debug panel: everything between "the sender has a
+ * picture" and "it is painted on this screen".
+ */
+export interface VideoTrackDebug {
+    /** Remote participant identity; null for our own tracks. */
+    identity: string | null;
+    source: StreamSource;
+    /** Remote: we receive it. Always true for our own. */
+    subscribed: boolean;
+    /** The sender turned it off (a camera mutes rather than unpublishing). */
+    muted: boolean;
+    /** Remote: false when this device hid it (per-user "hide video"). */
+    enabled: boolean;
+    /** The call server paused it for us, usually for lack of bandwidth. */
+    streamPaused: boolean;
+    /** MediaStreamTrack readyState: "ended" means the capture stopped. */
+    trackState: string | null;
+    /** MediaStreamTrack.muted: no frames are reaching the track right now. */
+    trackMuted: boolean | null;
+    /** Our capture's actual settings (local tracks). */
+    captureWidth: number | null;
+    captureHeight: number | null;
+    captureFps: number | null;
+    /** What a screen share captures: "monitor", "window", "browser". */
+    displaySurface: string | null;
+    /** <video> elements this track is attached to on this device. */
+    elements: number;
+    /** Frames those elements have painted, summed (null: not measurable). */
+    elementFrames: number | null;
+    /** Size of the picture the first element has, 0 before the first frame. */
+    elementWidth: number | null;
+    elementHeight: number | null;
+    /** LiveKit could not decrypt this participant's media (encrypted calls). */
+    decryptErrors: number;
+}
+
+export type VideoStatus =
+    | "checking"
+    | "sending"
+    | "notSending"
+    | "captureEnded"
+    | "captureStalled"
+    | "playing"
+    | "notSubscribed"
+    | "hiddenByYou"
+    | "turnedOff"
+    | "pausedByServer"
+    | "noPackets"
+    | "cantDecrypt"
+    | "cantDecode"
+    | "notShown"
+    | "notPainting";
+
+/**
+ * Why a video does or doesn't show, from its LiveKit state, its RTP stream
+ * (this poll and the previous one) and the elements it is attached to.
+ * Ordered from the sender's end to this screen, so the first broken link
+ * is the one named.
+ */
+export function diagnoseVideo(
+    track: VideoTrackDebug,
+    stream: RtpStreamSummary | null,
+    prevStream: RtpStreamSummary | null,
+    prevElementFrames: number | null,
+): { status: VideoStatus; tone: StatTone } {
+    const local = track.identity === null;
+    if (local) {
+        if (track.trackState === "ended")
+            return { status: "captureEnded", tone: "bad" };
+        if (!stream) return { status: "notSending", tone: "warn" };
+        if (!prevStream) return { status: "checking", tone: "ok" };
+        if (stream.frames <= prevStream.frames)
+            return { status: "captureStalled", tone: "bad" };
+        return { status: "sending", tone: "ok" };
+    }
+    if (!track.subscribed) return { status: "notSubscribed", tone: "warn" };
+    if (!track.enabled) return { status: "hiddenByYou", tone: "ok" };
+    if (track.muted) return { status: "turnedOff", tone: "ok" };
+    if (track.streamPaused) return { status: "pausedByServer", tone: "warn" };
+    if (!stream || !prevStream) return { status: "checking", tone: "ok" };
+    if (stream.packets <= prevStream.packets)
+        return { status: "noPackets", tone: "bad" };
+    if (stream.frames <= prevStream.frames) {
+        // Packets but no decoded frames: the decoder rejects them, or (in an
+        // encrypted call) they never decrypt into anything it can read.
+        return track.decryptErrors > 0
+            ? { status: "cantDecrypt", tone: "bad" }
+            : { status: "cantDecode", tone: "bad" };
+    }
+    if (track.elements === 0) return { status: "notShown", tone: "ok" };
+    if (
+        track.elementFrames !== null &&
+        prevElementFrames !== null &&
+        track.elementFrames <= prevElementFrames
+    )
+        return { status: "notPainting", tone: "bad" };
+    return { status: "playing", tone: "ok" };
 }
 
 /** Coarse health for colouring a value: fine, worth a look, or bad. */

@@ -2,7 +2,14 @@
     import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
-    import { Phone, PhoneOff, Video, VideoOff, MonitorUp } from "lucide-svelte";
+    import {
+        Phone,
+        PhoneOff,
+        Video,
+        VideoOff,
+        MonitorUp,
+        Maximize2,
+    } from "lucide-svelte";
     import {
         getRoomCallMemberships,
         getMemberName,
@@ -157,6 +164,18 @@
                     </button>
                 {/if}
             </div>
+            <!-- The body above opens the call too, but nothing said so: users
+             couldn't find the call view. -->
+            <button
+                onclick={() => showCallView(room.roomId)}
+                class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm font-medium transition-colors flex-shrink-0"
+                title={t("activeCallBanner.openCall")}
+            >
+                <Maximize2 size={14} />
+                <span class="hidden sm:inline"
+                    >{t("activeCallBanner.open")}</span
+                >
+            </button>
             <button
                 onclick={leaveCall}
                 class="flex items-center gap-1.5 px-3 py-1 rounded bg-discord-danger hover:bg-discord-dangerHover text-white text-sm font-medium transition-colors flex-shrink-0"
@@ -166,10 +185,22 @@
             </button>
         {:else}
             {@const joining = voiceCallState.joinPendingRoomId === room.roomId}
+            <!-- The body above opens the call too, but nothing said so: users
+             couldn't find the call view. -->
+            <button
+                onclick={() => showCallView(room.roomId)}
+                class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm font-medium transition-colors flex-shrink-0"
+                title={t("activeCallBanner.openCall")}
+            >
+                <Maximize2 size={14} />
+                <span class="hidden sm:inline"
+                    >{t("activeCallBanner.open")}</span
+                >
+            </button>
             <button
                 onclick={() => joinCall(room.roomId)}
                 disabled={voiceCallState.joinPendingRoomId !== null}
-                class="ms-auto flex items-center gap-1.5 px-3 py-1 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-medium transition-colors disabled:opacity-60"
+                class="flex items-center gap-1.5 px-3 py-1 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-medium transition-colors disabled:opacity-60"
             >
                 <Phone size={14} />
                 {joining ? t("common.joining") : t("common.join")}

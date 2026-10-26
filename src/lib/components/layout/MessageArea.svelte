@@ -130,7 +130,7 @@
     import LiveLocationBanner from "$lib/components/layout/LiveLocationBanner.svelte";
     import {
         Phone,
-        Volume2,
+        Maximize2,
         Lock,
         Users,
         Hash,
@@ -2103,7 +2103,7 @@
                     title={t("messageArea.showCall")}
                     aria-label={t("messageArea.showCall")}
                 >
-                    <Volume2 size={20} />
+                    <Maximize2 size={20} />
                 </button>
             {/if}
             <!-- Search messages button -->

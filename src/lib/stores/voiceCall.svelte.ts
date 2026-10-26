@@ -19,6 +19,7 @@ import {
     setParticipantVideoHidden,
     primeParticipantAudio,
     getRoom,
+    getMemberName,
     getDirectRoomIds,
     getRoomCallMemberships,
     setScreenShareEnabled,
@@ -38,7 +39,11 @@ import {
     type ExtendedProfile,
 } from "$lib/utils/extendedProfile";
 import { setCachedProfile } from "$lib/stores/profileFields.svelte";
-import { nextFocus, type VideoTileDescriptor } from "$lib/utils/videoTiles";
+import {
+    nextFocus,
+    newRemoteShares,
+    type VideoTileDescriptor,
+} from "$lib/utils/videoTiles";
 import type { CallCodecState, CallEncryptionState } from "$lib/matrix/client";
 import {
     DEFAULT_PARTICIPANT_AUDIO,
@@ -71,7 +76,9 @@ import {
     setParticipantAudioSetting,
 } from "$lib/stores/settings.svelte";
 import { auth } from "$lib/stores/auth.svelte";
-import { showErrorToast } from "$lib/stores/toasts.svelte";
+import { showErrorToast, showToast } from "$lib/stores/toasts.svelte";
+import { interfaceState, showCallView } from "$lib/stores/interface.svelte";
+import { navigateToRoom, roomsState } from "$lib/stores/rooms.svelte";
 import { matrixErrorMessage } from "$lib/utils/knock";
 import { micErrorMessage } from "$lib/utils/micErrorMessage";
 import { isChunkLoadError } from "$lib/utils/chunkLoadError";
@@ -405,6 +412,7 @@ export function initVoiceCall(): () => void {
             tiles,
             voiceCallState.focusedTileKey,
         );
+        announceNewShares(newRemoteShares(prevVideoKeys, tiles));
         prevVideoKeys = tiles.map((t) => t.key);
         voiceCallState.voiceTick++;
     });
@@ -614,6 +622,35 @@ export function toggleSpeaker(): void {
 }
 
 /** Promote a tile to the spotlight; clicking the focused tile again clears it. */
+/**
+ * Someone started sharing their screen while this device isn't showing the
+ * call: say so, with a button that opens the call on their share. A share
+ * only shows in the call view, so without this it went unnoticed.
+ */
+function announceNewShares(shares: VideoTileDescriptor[]): void {
+    const roomId = voiceCallState.roomId;
+    if (!roomId || shares.length === 0) return;
+    const showing =
+        interfaceState.callViewRoomId === roomId &&
+        roomsState.activeRoomId === roomId &&
+        !roomsState.showInbox;
+    if (showing) return;
+    const share = shares[0];
+    const room = getRoom(roomId);
+    const name = (room && getMemberName(room, share.userId)) || share.userId;
+    showToast(t("voiceCall.startedSharing", { name }), {
+        tone: "accent",
+        action: {
+            label: t("voiceCall.watch"),
+            run: () => {
+                navigateToRoom(roomId);
+                showCallView(roomId);
+                voiceCallState.focusedTileKey = share.key;
+            },
+        },
+    });
+}
+
 export function focusTile(key: string): void {
     voiceCallState.focusedTileKey =
         voiceCallState.focusedTileKey === key ? null : key;
