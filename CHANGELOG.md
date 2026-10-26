@@ -4,6 +4,20 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.35.0
+
+✨ **New**
+
+- **Guided encryption setup:** after you sign in, Zam walks you through encryption in one dialog instead of a small notice pointing at Settings. On a new account it sets up recovery in one step (no need to type your password again) and shows your recovery key with Copy and Download buttons. On a new device for an existing account, it lets you confirm it's you with another device or your recovery key. The "Verify" / "Set up" notice above your profile opens the same dialog.
+- **Clearer sign-up on matrix.org:** creating an account on matrix.org now says up front that it happens on matrix.org's own account page and brings you straight back signed in, with a "Create account on matrix.org" button.
+- **Sign-up checks as you go:** the form now checks whether your username is free and shows your full address (@name:server), asks you to confirm your password, and says up front when a server needs a registration token or isn't taking new accounts (with a link to create one on matrix.org instead). Sliding sync moved under "Advanced options".
+
+🐛 **Fixed**
+
+- **Signing up on servers that ask for extra steps:** servers that ask you to accept terms, confirm an email address, solve a captcha or pass any other sign-up step now walk you through it, instead of failing with "MatrixError: [401] Unknown message". A wrong registration token is asked for again.
+- **Readable sign-up errors:** a taken username, a weak password, closed sign-ups and similar problems are now explained in plain words.
+- **Encryption setup could replace your identity:** setting up encryption on a new device of an account that already uses encryption now verifies the device first, so devices you verified before stay trusted.
+
 ## v1.34.0
 
 ⚠️ **Update everyone at once**
