@@ -2731,8 +2731,19 @@
                 {@const fileName = mediaFilename}
                 {@const isSwf = fileName.toLowerCase().endsWith(".swf")}
                 {@render mediaCaption()}
-                {#if isSwf && fileUrl}
-                    <SwfEmbed getSrc={() => fetchAttachmentBlob(fileUrl)} />
+                {#if isSwf && (file || fileUrl)}
+                    <SwfEmbed
+                        getSrc={() =>
+                            file
+                                ? fetchDecryptedAttachmentBlob(
+                                      file,
+                                      (
+                                          content?.info as
+                                              { mimetype?: string } | undefined
+                                      )?.mimetype,
+                                  )
+                                : fetchAttachmentBlob(fileUrl!)}
+                    />
                 {/if}
                 {#if audioIsTracker}
                     {@render audioCard()}
