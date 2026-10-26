@@ -42,6 +42,7 @@ import type {
     RoomMember,
     ReceiptType,
     Beacon,
+    RegisterResponse,
 } from "matrix-js-sdk";
 import { VerificationMethod } from "matrix-js-sdk/lib/types";
 import {
@@ -117,6 +118,13 @@ import { serializeServerAcl, type ServerAcl } from "$lib/utils/serverAcl";
 import { requestPersistentStorage } from "$lib/utils/persistentStorage";
 import { reportStorageError } from "$lib/stores/storageHealth.svelte";
 import { parseLoginFlows, type LoginOptions } from "$lib/utils/loginFlows";
+import {
+    describeRegistrationError,
+    readRegistrationProbe,
+    runRegistration,
+    type RegistrationPrompter,
+    type RegistrationSupport,
+} from "$lib/matrix/registration";
 import { resolveDisplayName } from "$lib/utils/displayName";
 import { nestedSpaceIds, topLevelSpaceOf } from "$lib/utils/spaceTree";
 import {
@@ -129,6 +137,7 @@ import {
     type MaterializedCache,
 } from "./roomListCache";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
+import { forgetSignInPassword } from "$lib/stores/onboarding.svelte";
 import {
     markSyncStoreFallback,
     resetSyncStoreFallback,
@@ -954,8 +963,11 @@ export async function register(
     homeserverUrl: string,
     username: string,
     password: string,
-    registrationToken?: string,
-    slidingSync = false,
+    opts: {
+        registrationToken?: string;
+        slidingSync?: boolean;
+        prompt: RegistrationPrompter;
+    },
 ): Promise<LoginResult> {
     const resolvedBase = await resolveHomeserver(homeserverUrl);
     const tempClient = createClient({ baseUrl: resolvedBase });
@@ -967,15 +979,96 @@ export async function register(
         inhibit_login: false,
     };
 
-    if (registrationToken) {
-        body.auth = {
-            type: "m.login.registration_token",
-            token: registrationToken,
-        };
+    try {
+        const response = await runRegistration<RegisterResponse>({
+            baseUrl: resolvedBase,
+            token: opts.registrationToken,
+            prompt: opts.prompt,
+            driver: {
+                submit: (auth) =>
+                    tempClient.registerRequest(auth ? { ...body, auth } : body),
+                requestEmailToken: (email, clientSecret, attempt) =>
+                    tempClient.requestRegisterEmailToken(
+                        email,
+                        clientSecret,
+                        attempt,
+                    ),
+            },
+        });
+        return await finishLogin(
+            tempClient,
+            response,
+            opts.slidingSync ?? false,
+        );
+    } catch (err) {
+        tempClient.stopClient();
+        throw err;
     }
+}
 
-    const response = await tempClient.registerRequest(body);
-    return finishLogin(tempClient, response, slidingSync);
+/**
+ * What the homeserver at the resolved `baseUrl` allows for sign-up (open,
+ * token-only or closed), read by sending an empty `POST /register`, which
+ * only returns the UIA challenge. Never throws.
+ */
+export async function probeRegistration(
+    baseUrl: string,
+): Promise<RegistrationSupport> {
+    try {
+        const res = await fetch(`${baseUrl}/_matrix/client/v3/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+            errcode?: string;
+        };
+        if (res.ok) return { kind: "unknown" };
+        return readRegistrationProbe({
+            httpStatus: res.status,
+            errcode: data.errcode,
+            data,
+        });
+    } catch {
+        return { kind: "unknown" };
+    }
+}
+
+/**
+ * Whether `username` is free on the resolved homeserver `baseUrl`: true /
+ * false, or null when the server can't say. A name the server refuses
+ * outright reads false, with `issue` saying why.
+ */
+export async function checkUsernameAvailable(
+    baseUrl: string,
+    username: string,
+): Promise<{ available: boolean | null; issue?: string }> {
+    try {
+        const res = await fetch(
+            `${baseUrl}/_matrix/client/v3/register/available?username=${encodeURIComponent(username)}`,
+        );
+        const data = (await res.json().catch(() => ({}))) as {
+            available?: boolean;
+            errcode?: string;
+            error?: string;
+        };
+        if (res.ok) return { available: data.available === true };
+        if (data.errcode === "M_USER_IN_USE") return { available: false };
+        if (
+            data.errcode === "M_INVALID_USERNAME" ||
+            data.errcode === "M_EXCLUSIVE"
+        )
+            return {
+                available: false,
+                issue: describeRegistrationError({
+                    errcode: data.errcode,
+                    data,
+                }),
+            };
+        return { available: null };
+    } catch {
+        return { available: null };
+    }
 }
 
 export async function reconnect(
@@ -1660,6 +1753,7 @@ export function onSyncReconnected(callback: () => void): () => void {
 }
 
 export async function logout(): Promise<void> {
+    forgetSignInPassword();
     const client = matrixClient;
     const owner = client ? captureOwnership(client, clientGeneration) : null;
     // Only release the module slot if we still own it — a successor account's

@@ -21,6 +21,12 @@
     import SpaceLandingPanel from "./SpaceLandingPanel.svelte";
     import IncomingCallCard from "$lib/components/layout/IncomingCallCard.svelte";
     import VerificationModal from "$lib/components/layout/VerificationModal.svelte";
+    import EncryptionSetupDialog from "$lib/components/layout/EncryptionSetupDialog.svelte";
+    import {
+        onboardingState,
+        openEncryptionSetup,
+        takeFreshSignIn,
+    } from "$lib/stores/onboarding.svelte";
     import WhatsNewModal from "$lib/components/layout/WhatsNewModal.svelte";
     import VerificationRequestCard from "$lib/components/layout/VerificationRequestCard.svelte";
     import ErrorToasts from "$lib/components/ui/ErrorToasts.svelte";
@@ -1544,6 +1550,23 @@
     // Electron right-click "Save image as" (fetches with auth; see module).
     onMount(installDesktopSaveImage);
 
+    // A sign-in just landed on this device: walk through encryption setup.
+    // The dialog stays hidden (and closes itself) when nothing is needed.
+    onMount(() => {
+        if (takeFreshSignIn(auth.userId)) openEncryptionSetup(true);
+    });
+    // Device verification started from that dialog: come back to it once the
+    // verification modal closes, so recovery setup (if still missing) follows.
+    $effect(() => {
+        if (
+            onboardingState.resumeAfterVerification &&
+            !verificationState.active
+        ) {
+            onboardingState.resumeAfterVerification = false;
+            openEncryptionSetup(false);
+        }
+    });
+
     onMount(() => {
         reloadAccountSettings();
 
@@ -2794,6 +2817,9 @@
 {/if}
 
 <VerificationModal />
+{#if onboardingState.encryptionSetupOpen}
+    <EncryptionSetupDialog />
+{/if}
 
 <!-- Opened by the Ctrl+Shift+T / Ctrl+Shift+N shortcuts. -->
 <QuickActions headless bind:this={shortcutActions} />

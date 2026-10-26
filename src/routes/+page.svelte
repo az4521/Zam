@@ -49,6 +49,7 @@
     import AppShell from "$lib/components/layout/AppShell.svelte";
     import Splash from "$lib/components/layout/Splash.svelte";
     import LoginView from "$lib/components/layout/LoginView.svelte";
+    import { markFreshSignIn } from "$lib/stores/onboarding.svelte";
     import HealthBanners from "$lib/components/layout/HealthBanners.svelte";
 
     const RESTORE_FAILED_MESSAGE = t("rootPage.failedToReconnectPleaseLogIn");
@@ -381,6 +382,7 @@
                     : {}),
             };
         };
+        markFreshSignIn(result.userId);
         if (isAddAccountMode) {
             // No sync starts in this document: persisting and reloading IS the
             // switch, and the reload's restore path is the transaction.

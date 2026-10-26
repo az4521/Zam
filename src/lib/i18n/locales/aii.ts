@@ -854,6 +854,113 @@ const messages: Record<MessageKey, string> = {
     "loginView.oauthRegistrationRefusedFallback":
         "ܗܢܐ ܣܝܪܒܪ ܠܐ ܩܒܠܗ Zam ܠܥܠܠܐ. ܐܣܬܡܫ ܒܚܕܐ ܡܢ ܐܪܚܐ ܐܚܪܢܐ ܠܬܚܬ.",
     "loginView.checkingServer": "ܒܒܨܝܐ ܣܝܪܒܪ…",
+    "loginView.homeserverHint":
+        "ܣܝܪܒܪ ܕܚܘܫܒܢܘܟ݂: ܡܢܬܐ ܒܬܪ ܬܪܬܝܢ ܢܘܩܙܐ ܒ @ܐܢܬ:ܣܝܪܒܪ.",
+    "loginView.homeserverHintRegister":
+        "ܚܘܫܒܢܘܟ݂ ܒܕ ܗܘܐ ܥܠ ܗܢܐ ܣܝܪܒܪ. ܠܐ ܝܕܥܬ؟ matrix.org ܡܓܢ ܝܠܗ ܘܦܬܝܚܐ ܠܟܠ ܐܢܫ.",
+    "loginView.oauthLoginExplainer":
+        "{server} ܡܥܠܠ ܠܘܟ݂ ܒܦܐܬܐ ܕܚܘܫܒܢܐ ܕܝܠܗ. Zam ܦܬܚ ܠܗ̇، ܘܒܬܪ ܗܕܟ݂ܐ ܕܥܪܬ ܠܟܐ ܥܠܝܠܐ.",
+    "loginView.oauthRegisterExplainer":
+        "{server} ܒܪܐ ܚܘܫܒܢܐ ܚܕܬܐ ܒܦܐܬܐ ܕܚܘܫܒܢܐ ܕܝܠܗ. Zam ܦܬܚ ܠܗ̇؛ ܓܒܝ ܫܡܐ ܕܡܦܠܚܢܐ ܘܡܠܬܐ ܕܥܒܪܐ ܬܡܢ، ܘܕܥܪ ܠܟܐ ܥܠܝܠܐ.",
+    "loginView.continueTo": "ܦܘܫ ܠܩܕܡ ܠ {host}",
+    "loginView.createAccountOn": "ܒܪܝ ܚܘܫܒܢܐ ܥܠ {server}",
+    "loginView.advancedOptions": "ܓܒܝܬܐ ܡܬܩܕܡܬܐ",
+    "encryptionSetup.setupTitle": "ܢܛܘܪ ܠܐܓܪ̈ܬܘܟ݂",
+    "encryptionSetup.setupBody":
+        "ܡܡܠܠ̈ܐ ܦܪ̈ܨܘܦܝܐ ܕܝܠܘܟ݂ ܡܛܫܝ̈ܐ ܝܢܐ ܡܢ ܪܫܐ ܠܪܫܐ. ܛܝܒ ܠܡܦܢܝܬܐ ܕܡܨܝܬ ܩܪܝܬ ܠܗܘܢ ܥܠ ܟܠ ܡܐܢܐ ܕܥܐܠܬ ܒܗ ܒܬܪ ܗܕܟ݂ܐ، ܐܦܢ ܐܢ ܓܢܝܐ ܗܢܐ. ܫܩܠ ܩܠܝܠ ܪ̈ܦܦܐ.",
+    "encryptionSetup.passwordBody": "ܡܥܠܝ ܡܠܬܐ ܕܥܒܪܐ ܕܚܘܫܒܢܘܟ݂ ܠܫܪܪܐ ܕܐܢܬ ܝܘܬ.",
+    "encryptionSetup.setUp": "ܛܝܒ ܡܦܢܝܬܐ",
+    "encryptionSetup.later": "ܠܐ ܗܫܐ",
+    "encryptionSetup.saveKeyTitle": "ܢܛܘܪ ܩܠܝܕܐ ܕܡܦܢܝܬܐ",
+    "encryptionSetup.saveKeyBody":
+        "ܗܢܐ ܩܠܝܕܐ ܦܬܚ ܐܓܪ̈ܬܐ ܡܛܫܝ̈ܬܐ ܕܝܠܘܟ݂ ܥܠ ܡܐܢܐ ܚܕܬܐ. ܡܚܘܝܐ ܝܠܗ ܚܕ ܙܒܢܐ ܒܠܚܘܕ: ܢܛܘܪ ܠܗ ܒܡܕܒܪܢܐ ܕܡ̈ܠܐ ܕܥܒܪܐ ܐܘ ܐܚܬ ܠܗ. ܕܠܐ ܗܘ، ܓܢܝܐ ܕܡܐܢܐ ܡܨܐ ܗܘܐ ܓܢܝܐ ܕܐܓܪ̈ܬܐ.",
+    "encryptionSetup.downloadKey": "ܐܚܬ",
+    "encryptionSetup.keyFileHeader": "ܩܠܝܕܐ ܕܡܦܢܝܬܐ ܕ Zam ܩܐ {userId}",
+    "encryptionSetup.doneTitle": "ܟܠ ܡܕܡ ܛܝܒܐ ܝܠܗ",
+    "encryptionSetup.doneBody":
+        "ܛܫܝܬܐ ܡܛܝܒܬܐ ܝܠܗ̇ ܥܠ ܗܢܐ ܡܐܢܐ. ܐܓܪ̈ܬܘܟ݂ ܘܬܫܥܝܬܐ ܕܡܐܢ̈ܐ ܐܚܪ̈ܢܐ ܐܝܬ ܠܟܐ.",
+    "encryptionSetup.confirmTitle": "ܫܪܪ ܕܐܢܬ ܝܘܬ",
+    "encryptionSetup.confirmBody":
+        "ܗܢܐ ܚܘܫܒܢܐ ܡܦܠܚ ܝܠܗ ܒܛܫܝܬܐ. ܫܪܪ ܗܢܐ ܡܐܢܐ ܚܕܬܐ ܕܡܨܐ ܩܪܐ ܐܓܪ̈ܬܘܟ݂ ܡܛܫܝ̈ܬܐ ܘܬܫܥܝܬܘܟ݂.",
+    "encryptionSetup.useAnotherDevice": "ܡܦܠܚ ܡܐܢܐ ܐܚܪܢܐ",
+    "encryptionSetup.useRecoveryKey": "ܡܦܠܚ ܩܠܝܕܐ ܕܡܦܢܝܬܐ",
+    "encryptionSetup.anotherDeviceHint":
+        "ܡܐܢܐ ܐܚܪܢܐ ܝܠܗ ܚܕ ܕܥܠܝܠܐ ܝܘܬ ܒܗ، ܐܝܟ ܬܛܒܝܩܐ ܕ Zam ܐܘ Element ܥܠ ܬܠܦܘܢܘܟ݂. ܒܕ ܡܚܘܐ ܒܥܬܐ ܠܡܩܒܠܬܐ.",
+    "encryptionSetup.recoveryKeyHint":
+        'ܩܠܝܕܐ ܕܡܦܢܝܬܐ ܕܝܠܘܟ݂ ܡܫܪܐ ܒ "EsT". ܢܛܝܪܘܟ݂ ܠܗ ܟܕ ܛܝܒܘܟ݂ ܛܫܝܬܐ ܩܕܡܝܬܐ.',
+    "encryptionSetup.cantConfirm": "ܓܢܝܐ ܩܠܝܕܐ ܕܡܦܢܝܬܐ ܘܡܐܢ̈ܐ ܐܚܪ̈ܢܐ؟",
+    "encryptionSetup.enterKeyTitle": "ܡܥܠܝ ܩܠܝܕܐ ܕܡܦܢܝܬܐ",
+    "encryptionSetup.enterKeyBody":
+        "ܕܒܘܩ ܩܠܝܕܐ ܕܡܦܢܝܬܐ ܕܢܛܝܪܘܟ݂ ܟܕ ܛܝܒܘܟ݂ ܛܫܝܬܐ. ܦܪ̈ܩܐ ܠܐ ܡܫܚܠܦܝ.",
+    "encryptionSetup.enterPassphraseBody":
+        "ܡܥܠܝ ܦܬܓܡܐ ܕܡܦܢܝܬܐ ܕܓܒܝܘܟ݂ ܟܕ ܛܝܒܘܟ݂ ܛܫܝܬܐ.",
+    "encryptionSetup.back": "ܠܒܣܬܪܐ",
+    "encryptionSetup.connectBackupTitle": "ܡܦܢܝ ܬܫܥܝܬܐ ܕܐܓܪ̈ܬܘܟ݂",
+    "encryptionSetup.connectBackupBody":
+        "ܗܢܐ ܡܐܢܐ ܡܫܪܪܐ ܝܠܗ، ܐܠܐ ܠܐ ܝܠܗ ܡܚܝܕܐ ܥܡ ܢܛܘܪܘܬܐ ܡܛܫܝܬܐ ܕܐܓܪ̈ܬܘܟ݂. ܡܥܠܝ ܩܠܝܕܐ ܕܡܦܢܝܬܐ ܠܡܦܢܝܬܐ ܕܬܫܥܝܬܘܟ݂.",
+    "encryptionSetup.checking": "ܒܒܨܝܐ ܛܫܝܬܐ ܕܝܠܘܟ݂…",
+    "encryptionSetup.tryAgain": "ܢܣܝ ܐܚܪܢܐ ܙܒܢܐ",
+    "encryptionSetup.openSecuritySettings": "ܦܬܘܚ ܛܘܝܒ̈ܐ ܕܫܘܝܢܐ",
+    "registration.cancelled": "ܒܪܝܬܐ ܕܚܘܫܒܢܐ ܒܛܝܠܬܐ ܝܠܗ̇.",
+    "registration.noSupportedFlow":
+        "ܗܢܐ ܣܝܪܒܪ ܒܥܐ ܕܪܓܐ ܕܪܫܡܐ ܕ Zam ܠܐ ܡܨܐ ܡܫܠܡ ܠܗ. ܢܣܝ ܠܒܪܝܬܐ ܕܚܘܫܒܢܐ ܥܠ ܡܘܩܥܐ ܕܣܝܪܒܪ.",
+    "registration.stageKeptFailing":
+        "ܣܝܪܒܪ ܠܐ ܩܒܠ ܕܪܓܐ ܕܪܫܡܐ ܒܙܒ̈ܢܐ ܣܓܝܐ̈ܐ. ܢܣܝ ܐܚܪܢܐ ܙܒܢܐ.",
+    "registration.userInUse": "ܗܢܐ ܫܡܐ ܕܡܦܠܚܢܐ ܫܩܝܠܐ ܝܠܗ. ܢܣܝ ܐܚܪܢܐ.",
+    "registration.invalidUsername":
+        "ܗܢܐ ܫܡܐ ܕܡܦܠܚܢܐ ܠܐ ܝܠܗ ܦܣܝܩܐ. ܡܦܠܚ ܐܬ̈ܘܬܐ ܙܥܘܪ̈ܬܐ، ܡܢܝܢ̈ܐ ܘ . _ = - /",
+    "registration.exclusiveUsername":
+        "ܗܢܐ ܫܡܐ ܕܡܦܠܚܢܐ ܛܫܝܐ ܝܠܗ ܥܠ ܗܢܐ ܣܝܪܒܪ. ܢܣܝ ܐܚܪܢܐ.",
+    "registration.weakPassword": "ܗܕܐ ܡܠܬܐ ܕܥܒܪܐ ܟܪܝܗܬܐ ܝܠܗ̇. ܢܣܝ ܚܕܐ ܐܪܝܟ݂ܬܐ.",
+    "registration.weakPasswordReason": "ܗܕܐ ܡܠܬܐ ܕܥܒܪܐ ܟܪܝܗܬܐ ܝܠܗ̇: {reason}",
+    "registration.emailInUse":
+        "ܗܢܐ ܒܝܬ ܐܓܪܬܐ ܐܠܩܛܪܘܢܝܐ ܡܦܠܚܐ ܝܠܗ ܒܚܘܫܒܢܐ ܐܚܪܢܐ.",
+    "registration.emailNotAllowed": "ܗܢܐ ܣܝܪܒܪ ܠܐ ܩܒܠ ܗܢܐ ܒܝܬ ܐܓܪܬܐ ܐܠܩܛܪܘܢܝܐ.",
+    "registration.rateLimited": "ܢܣܝܢ̈ܐ ܣܓܝܐ̈ܐ. ܡܘܪܟ݂ ܚܕ ܩܛܝܢܐ ܘܢܣܝ ܐܚܪܢܐ ܙܒܢܐ.",
+    "registration.stepNotAccepted": "ܣܝܪܒܪ ܠܐ ܩܒܠ ܗܢܐ ܕܪܓܐ. ܢܣܝ ܐܚܪܢܐ ܙܒܢܐ.",
+    "registration.closed": "ܗܢܐ ܣܝܪܒܪ ܠܐ ܩܒܠ ܚܘܫܒܢ̈ܐ ܚܕ̈ܬܐ.",
+    "registration.invalidToken":
+        "ܗܢܐ ܛܘܥܢܐ ܕܪܫܡܐ ܠܐ ܝܠܗ ܫܪܝܪܐ. ܒܨܝ ܠܗ ܘܢܣܝ ܐܚܪܢܐ ܙܒܢܐ.",
+    "registration.refused": "ܣܝܪܒܪ ܠܐ ܩܒܠ ܕܒܪܐ ܚܘܫܒܢܐ.",
+    "registration.refusedReason": "ܣܝܪܒܪ ܠܐ ܩܒܠ ܕܒܪܐ ܚܘܫܒܢܐ: {reason}",
+    "registration.serverUnreachable":
+        "ܠܐ ܡܨܝܢ ܡܛܝܐ ܠܣܝܪܒܪ. ܒܨܝ ܡܘܢܐܐ ܘܚܝܕܘܬܐ ܕܝܠܘܟ݂.",
+    "registration.usernameLowercase": "ܫܡܗ̈ܐ ܕܡܦܠܚܢ̈ܐ ܓܪܓ ܗܘܝ ܒܐܬ̈ܘܬܐ ܙܥܘܪ̈ܬܐ.",
+    "registration.usernameCharacters":
+        "ܡܦܠܚ ܒܠܚܘܕ ܐܬ̈ܘܬܐ ܙܥܘܪ̈ܬܐ، ܡܢܝܢ̈ܐ ܘ . _ = - /",
+    "registration.usernameHint": "ܓܒܝ ܫܡܐ ܕܡܦܠܚܢܐ. ܐܢܫ̈ܐ ܒܕ ܡܚܙܝ ܠܘܟ݂ ܒܗ.",
+    "registration.usernameAvailable": "{userId} ܐܝܬ ܝܠܗ",
+    "registration.yourAddressWillBe": "ܡܘܢܐܐ ܕܝܠܘܟ݂ ܒܕ ܗܘܐ {userId}",
+    "registration.confirmPassword": "ܫܪܪ ܡܠܬܐ ܕܥܒܪܐ",
+    "registration.passwordsDontMatch": "ܡ̈ܠܐ ܕܥܒܪܐ ܠܐ ܡܫܚܠܦ̈ܢ ܥܡ ܚܕ̈ܕܐ.",
+    "registration.closedOnServer":
+        "{server} ܠܐ ܩܒܠ ܚܘܫܒܢ̈ܐ ܚܕ̈ܬܐ ܗܫܐ. ܓܒܝ ܣܝܪܒܪ ܐܚܪܢܐ ܠܒܪܝܬܐ ܕܚܕ.",
+    "registration.useOtherServer": "ܒܪܝ ܚܘܫܒܢܐ ܥܠ {server} ܒܕܘܟ݂ܬܐ",
+
+    "registration.tokenTitle": "ܛܘܥܢܐ ܕܪܫܡܐ",
+    "registration.tokenBody":
+        "{server} ܒܠܚܘܕ ܒܩܪܝܬܐ ܝܠܗ. ܡܥܠܝ ܛܘܥܢܐ ܕܪܫܡܐ ܕܝܗܒܠܗ ܠܘܟ݂ ܡܕܒܪܢܐ ܕܣܝܪܒܪ.",
+    "registration.termsTitle": "ܩܒܘܠ ܫܪ̈ܛܐ ܕܣܝܪܒܪ",
+    "registration.termsBody": "{server} ܒܥܐ ܕܩܒܠܬ ܗܠܝܢ ܩܕܡ ܒܪܝܬܐ ܕܚܘܫܒܢܘܟ݂:",
+    "registration.termsAccept": "ܩܪܐܠܝ ܘܩܒܠܝ ܗܠܝܢ ܫܪ̈ܛܐ",
+    "registration.emailTitle": "ܫܪܪ ܒܝܬ ܐܓܪܬܐ ܐܠܩܛܪܘܢܝܐ",
+    "registration.emailBody":
+        "{server} ܣܢܝܩ ܝܠܗ ܠܒܝܬ ܐܓܪܬܐ ܐܠܩܛܪܘܢܝܐ ܠܒܪܝܬܐ ܕܚܘܫܒܢܘܟ݂. ܒܕ ܫܕܪܚ ܠܘܟ݂ ܐܣܘܪܐ ܠܫܪܪܐ.",
+    "registration.emailPlaceholder": "you@example.com",
+    "registration.sendEmail": "ܫܕܪ ܐܓܪܬܐ",
+    "registration.emailSent":
+        "ܫܕܪܠܢ ܐܣܘܪܐ ܠ {email}. ܦܬܘܚ ܠܗ، ܘܕܥܪ ܠܟܐ ܘܕܘܫ ܥܠ ܦܘܫ ܠܩܕܡ.",
+    "registration.emailNotConfirmed":
+        "ܐܓܪܬܐ ܠܐ ܝܠܗ̇ ܡܫܪܪܬܐ ܥܕܡܐ ܠܗܫܐ. ܦܬܘܚ ܐܣܘܪܐ ܕܒܓܘܗ̇، ܘܕܘܫ ܥܠ ܦܘܫ ܠܩܕܡ.",
+    "registration.emailConfirmed": "ܦܘܫ ܠܩܕܡ",
+    "registration.captchaTitle": "ܚܘܝ ܕܠܐ ܝܘܬ ܪܘܒܘܛ",
+    "registration.captchaBody":
+        "{server} ܒܥܐ ܕܫܪܝܬ ܟܦܬܫܐ. ܦܬܝܚܐ ܝܠܗ ܒܦܐܬܐ ܕܣܝܪܒܪ؛ ܕܥܪ ܠܟܐ ܟܕ ܡܫܘܠܡܘܟ݂.",
+    "registration.fallbackTitle": "ܚܕ ܕܪܓܐ ܐܚܪܢܐ",
+    "registration.fallbackBody":
+        "{server} ܒܥܐ ܕܡܫܠܡܬ ܕܪܓܐ ܒܦܐܬܐ ܕܝܠܗ. ܕܥܪ ܠܟܐ ܟܕ ܡܫܘܠܡܘܟ݂.",
+    "registration.openStepPage": "ܦܬܘܚ ܦܐܬܐ",
+    "registration.stepDone": "ܡܫܘܠܡܠܝ",
 
     // src/lib/components/layout/MemberList.svelte
     "memberList.members": "ܗܕܡ̈ܐ: {length}",

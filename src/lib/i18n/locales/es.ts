@@ -938,6 +938,124 @@ const messages: Record<MessageKey, string> = {
     "loginView.oauthRegistrationRefusedFallback":
         "Este servidor no permitió que Zam se registrara para iniciar sesión. Usa una de las otras opciones de abajo.",
     "loginView.checkingServer": "Comprobando el servidor…",
+    "loginView.homeserverHint":
+        "El servidor donde está tu cuenta: la parte después de los dos puntos en @tú:servidor.",
+    "loginView.homeserverHintRegister":
+        "Tu cuenta vivirá en este servidor. ¿No sabes cuál? matrix.org es gratuito y abierto a todos.",
+    "loginView.oauthLoginExplainer":
+        "{server} inicia sesión en su propia página de cuenta. Zam la abre y vuelves aquí con la sesión iniciada.",
+    "loginView.oauthRegisterExplainer":
+        "{server} crea cuentas nuevas en su propia página de cuenta. Zam la abre; elige allí tu nombre de usuario y contraseña, y vuelves aquí con la sesión iniciada.",
+    "loginView.continueTo": "Continuar a {host}",
+    "loginView.createAccountOn": "Crear cuenta en {server}",
+    "loginView.advancedOptions": "Opciones avanzadas",
+    "encryptionSetup.setupTitle": "Protege tus mensajes",
+    "encryptionSetup.setupBody":
+        "Tus chats privados están cifrados de extremo a extremo. Configura la recuperación para poder leerlos en cualquier dispositivo en el que inicies sesión más adelante, incluso si pierdes este. Solo tarda unos segundos.",
+    "encryptionSetup.passwordBody":
+        "Introduce la contraseña de tu cuenta para confirmar que eres tú.",
+    "encryptionSetup.setUp": "Configurar recuperación",
+    "encryptionSetup.later": "Ahora no",
+    "encryptionSetup.saveKeyTitle": "Guarda tu clave de recuperación",
+    "encryptionSetup.saveKeyBody":
+        "Esta clave desbloquea tus mensajes cifrados en un dispositivo nuevo. Solo se muestra una vez: guárdala en un gestor de contraseñas o descárgala. Sin ella, perder un dispositivo puede significar perder mensajes.",
+    "encryptionSetup.downloadKey": "Descargar",
+    "encryptionSetup.keyFileHeader":
+        "Clave de recuperación de Zam para {userId}",
+    "encryptionSetup.doneTitle": "Todo listo",
+    "encryptionSetup.doneBody":
+        "El cifrado está configurado en este dispositivo. Tus mensajes, y tu historial de otros dispositivos, están disponibles aquí.",
+    "encryptionSetup.confirmTitle": "Confirma que eres tú",
+    "encryptionSetup.confirmBody":
+        "Esta cuenta ya usa cifrado. Confirma este dispositivo nuevo para que pueda leer tus mensajes cifrados y tu historial.",
+    "encryptionSetup.useAnotherDevice": "Usar otro dispositivo",
+    "encryptionSetup.useRecoveryKey": "Usar clave de recuperación",
+    "encryptionSetup.anotherDeviceHint":
+        "Otro dispositivo es uno en el que ya has iniciado sesión, como la app de Zam o Element en tu móvil. Mostrará una solicitud para aprobar.",
+    "encryptionSetup.recoveryKeyHint":
+        'Tu clave de recuperación empieza por "EsT". La guardaste al configurar el cifrado por primera vez.',
+    "encryptionSetup.cantConfirm":
+        "¿Has perdido tu clave de recuperación y tus otros dispositivos?",
+    "encryptionSetup.enterKeyTitle": "Introduce tu clave de recuperación",
+    "encryptionSetup.enterKeyBody":
+        "Pega la clave de recuperación que guardaste al configurar el cifrado. Los espacios no importan.",
+    "encryptionSetup.enterPassphraseBody":
+        "Introduce la frase de recuperación que elegiste al configurar el cifrado.",
+    "encryptionSetup.back": "Atrás",
+    "encryptionSetup.connectBackupTitle": "Restaura tu historial de mensajes",
+    "encryptionSetup.connectBackupBody":
+        "Este dispositivo está verificado, pero aún no está conectado a tu copia de seguridad cifrada de mensajes. Introduce tu clave de recuperación para restaurar tu historial.",
+    "encryptionSetup.checking": "Comprobando tu cifrado…",
+    "encryptionSetup.tryAgain": "Reintentar",
+    "encryptionSetup.openSecuritySettings": "Abrir ajustes de seguridad",
+    "registration.cancelled": "Se canceló la creación de la cuenta.",
+    "registration.noSupportedFlow":
+        "Este servidor pide un paso de registro que Zam no puede completar. Prueba a crear la cuenta en la web del servidor.",
+    "registration.stageKeptFailing":
+        "El servidor rechazó un paso de registro varias veces. Inténtalo de nuevo.",
+    "registration.userInUse":
+        "Ese nombre de usuario está ocupado. Prueba otro.",
+    "registration.invalidUsername":
+        "Ese nombre de usuario no está permitido. Usa minúsculas, números y . _ = - /",
+    "registration.exclusiveUsername":
+        "Ese nombre de usuario está reservado en este servidor. Prueba otro.",
+    "registration.weakPassword":
+        "Esa contraseña es demasiado débil. Prueba una más larga.",
+    "registration.weakPasswordReason":
+        "Esa contraseña es demasiado débil: {reason}",
+    "registration.emailInUse": "Ese correo ya lo usa otra cuenta.",
+    "registration.emailNotAllowed": "Este servidor no acepta ese correo.",
+    "registration.rateLimited":
+        "Demasiados intentos. Espera un minuto y vuelve a intentarlo.",
+    "registration.stepNotAccepted":
+        "El servidor no aceptó ese paso. Inténtalo de nuevo.",
+    "registration.closed": "Este servidor no acepta cuentas nuevas.",
+    "registration.invalidToken":
+        "Ese token de registro no es válido. Revísalo e inténtalo de nuevo.",
+    "registration.refused": "El servidor se negó a crear la cuenta.",
+    "registration.refusedReason":
+        "El servidor se negó a crear la cuenta: {reason}",
+    "registration.serverUnreachable":
+        "No se pudo contactar con el servidor. Revisa la dirección y tu conexión.",
+    "registration.usernameLowercase":
+        "Los nombres de usuario deben ir en minúsculas.",
+    "registration.usernameCharacters":
+        "Usa solo minúsculas, números y . _ = - /",
+    "registration.usernameHint":
+        "Elige un nombre de usuario. La gente te encontrará por él.",
+    "registration.usernameAvailable": "{userId} está disponible",
+    "registration.yourAddressWillBe": "Tu dirección será {userId}",
+    "registration.confirmPassword": "Confirmar contraseña",
+    "registration.passwordsDontMatch": "Las contraseñas no coinciden.",
+    "registration.closedOnServer":
+        "{server} no acepta cuentas nuevas ahora mismo. Elige otro servidor para crear una.",
+    "registration.useOtherServer": "Crear una cuenta en {server}",
+
+    "registration.tokenTitle": "Token de registro",
+    "registration.tokenBody":
+        "{server} es solo por invitación. Introduce el token de registro que te dio la administración del servidor.",
+    "registration.termsTitle": "Acepta las condiciones del servidor",
+    "registration.termsBody":
+        "{server} te pide aceptar esto antes de crear tu cuenta:",
+    "registration.termsAccept": "He leído y acepto estas condiciones",
+    "registration.emailTitle": "Confirma tu correo",
+    "registration.emailBody":
+        "{server} necesita un correo para crear tu cuenta. Te enviaremos un enlace para confirmarlo.",
+    "registration.emailPlaceholder": "tu@example.com",
+    "registration.sendEmail": "Enviar correo",
+    "registration.emailSent":
+        "Enviamos un enlace a {email}. Ábrelo, vuelve aquí y pulsa Continuar.",
+    "registration.emailNotConfirmed":
+        "El correo aún no está confirmado. Abre el enlace que contiene y pulsa Continuar.",
+    "registration.emailConfirmed": "Continuar",
+    "registration.captchaTitle": "Demuestra que no eres un robot",
+    "registration.captchaBody":
+        "{server} quiere que resuelvas un captcha. Se abre en la página del servidor; vuelve aquí cuando termines.",
+    "registration.fallbackTitle": "Un paso más",
+    "registration.fallbackBody":
+        "{server} necesita que completes un paso en su propia página. Vuelve aquí cuando termines.",
+    "registration.openStepPage": "Abrir página",
+    "registration.stepDone": "Ya está",
 
     // src/lib/components/layout/MemberList.svelte
     "memberList.members": "Miembros: {length}",

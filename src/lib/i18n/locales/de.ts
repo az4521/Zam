@@ -907,6 +907,129 @@ const messages: Record<MessageKey, string> = {
     "loginView.oauthRegistrationRefusedFallback":
         "Dieser Server erlaubt es Zam nicht, sich für die Anmeldung zu registrieren. Nutze eine der anderen Optionen unten.",
     "loginView.checkingServer": "Server wird geprüft…",
+    "loginView.homeserverHint":
+        "Der Server, auf dem dein Konto liegt: der Teil nach dem Doppelpunkt in @du:server.",
+    "loginView.homeserverHintRegister":
+        "Dein Konto liegt auf diesem Server. Unsicher? matrix.org ist kostenlos und für alle offen.",
+    "loginView.oauthLoginExplainer":
+        "{server} meldet dich auf seiner eigenen Kontoseite an. Zam öffnet sie, und danach bist du direkt wieder hier und angemeldet.",
+    "loginView.oauthRegisterExplainer":
+        "{server} erstellt neue Konten auf seiner eigenen Kontoseite. Zam öffnet sie; wähle dort Benutzername und Passwort, danach bist du direkt wieder hier und angemeldet.",
+    "loginView.continueTo": "Weiter zu {host}",
+    "loginView.createAccountOn": "Konto auf {server} erstellen",
+    "loginView.advancedOptions": "Erweiterte Optionen",
+    "encryptionSetup.setupTitle": "Sichere deine Nachrichten",
+    "encryptionSetup.setupBody":
+        "Deine privaten Chats sind Ende-zu-Ende-verschlüsselt. Richte die Wiederherstellung ein, damit du sie auf jedem Gerät lesen kannst, auf dem du dich später anmeldest, auch wenn dieses verloren geht. Das dauert nur ein paar Sekunden.",
+    "encryptionSetup.passwordBody":
+        "Gib dein Kontopasswort ein, um zu bestätigen, dass du es bist.",
+    "encryptionSetup.setUp": "Wiederherstellung einrichten",
+    "encryptionSetup.later": "Nicht jetzt",
+    "encryptionSetup.saveKeyTitle":
+        "Speichere deinen Wiederherstellungsschlüssel",
+    "encryptionSetup.saveKeyBody":
+        "Dieser Schlüssel entsperrt deine verschlüsselten Nachrichten auf einem neuen Gerät. Er wird nur einmal angezeigt: Speichere ihn in einem Passwortmanager oder lade ihn herunter. Ohne ihn kann ein verlorenes Gerät verlorene Nachrichten bedeuten.",
+    "encryptionSetup.downloadKey": "Herunterladen",
+    "encryptionSetup.keyFileHeader":
+        "Zam-Wiederherstellungsschlüssel für {userId}",
+    "encryptionSetup.doneTitle": "Alles erledigt",
+    "encryptionSetup.doneBody":
+        "Die Verschlüsselung ist auf diesem Gerät eingerichtet. Deine Nachrichten und dein Verlauf von anderen Geräten sind hier verfügbar.",
+    "encryptionSetup.confirmTitle": "Bestätige, dass du es bist",
+    "encryptionSetup.confirmBody":
+        "Dieses Konto nutzt bereits Verschlüsselung. Bestätige dieses neue Gerät, damit es deine verschlüsselten Nachrichten und deinen Verlauf lesen kann.",
+    "encryptionSetup.useAnotherDevice": "Anderes Gerät verwenden",
+    "encryptionSetup.useRecoveryKey": "Wiederherstellungsschlüssel verwenden",
+    "encryptionSetup.anotherDeviceHint":
+        "Ein anderes Gerät ist eines, auf dem du bereits angemeldet bist, etwa die Zam- oder Element-App auf deinem Handy. Dort erscheint eine Anfrage zum Bestätigen.",
+    "encryptionSetup.recoveryKeyHint":
+        'Dein Wiederherstellungsschlüssel beginnt mit "EsT". Du hast ihn beim ersten Einrichten der Verschlüsselung gespeichert.',
+    "encryptionSetup.cantConfirm":
+        "Wiederherstellungsschlüssel und andere Geräte verloren?",
+    "encryptionSetup.enterKeyTitle": "Wiederherstellungsschlüssel eingeben",
+    "encryptionSetup.enterKeyBody":
+        "Füge den Wiederherstellungsschlüssel ein, den du beim Einrichten der Verschlüsselung gespeichert hast. Leerzeichen spielen keine Rolle.",
+    "encryptionSetup.enterPassphraseBody":
+        "Gib die Wiederherstellungspassphrase ein, die du beim Einrichten der Verschlüsselung gewählt hast.",
+    "encryptionSetup.back": "Zurück",
+    "encryptionSetup.connectBackupTitle": "Nachrichtenverlauf wiederherstellen",
+    "encryptionSetup.connectBackupBody":
+        "Dieses Gerät ist verifiziert, aber noch nicht mit deiner verschlüsselten Nachrichtensicherung verbunden. Gib deinen Wiederherstellungsschlüssel ein, um deinen Verlauf wiederherzustellen.",
+    "encryptionSetup.checking": "Verschlüsselung wird geprüft…",
+    "encryptionSetup.tryAgain": "Erneut versuchen",
+    "encryptionSetup.openSecuritySettings": "Sicherheitseinstellungen öffnen",
+    "registration.cancelled": "Die Kontoerstellung wurde abgebrochen.",
+    "registration.noSupportedFlow":
+        "Dieser Server verlangt einen Registrierungsschritt, den Zam nicht ausführen kann. Erstelle das Konto auf der Website des Servers.",
+    "registration.stageKeptFailing":
+        "Der Server hat einen Registrierungsschritt wiederholt abgelehnt. Bitte versuche es erneut.",
+    "registration.userInUse":
+        "Dieser Benutzername ist vergeben. Versuche einen anderen.",
+    "registration.invalidUsername":
+        "Dieser Benutzername ist nicht erlaubt. Verwende Kleinbuchstaben, Ziffern und . _ = - /",
+    "registration.exclusiveUsername":
+        "Dieser Benutzername ist auf diesem Server reserviert. Versuche einen anderen.",
+    "registration.weakPassword":
+        "Dieses Passwort ist zu schwach. Versuche ein längeres.",
+    "registration.weakPasswordReason":
+        "Dieses Passwort ist zu schwach: {reason}",
+    "registration.emailInUse":
+        "Diese E-Mail-Adresse wird bereits von einem anderen Konto verwendet.",
+    "registration.emailNotAllowed":
+        "Dieser Server akzeptiert diese E-Mail-Adresse nicht.",
+    "registration.rateLimited":
+        "Zu viele Versuche. Warte eine Minute und versuche es dann erneut.",
+    "registration.stepNotAccepted":
+        "Der Server hat diesen Schritt nicht akzeptiert. Bitte versuche es erneut.",
+    "registration.closed": "Dieser Server nimmt keine neuen Konten an.",
+    "registration.invalidToken":
+        "Dieses Registrierungstoken ist ungültig. Prüfe es und versuche es erneut.",
+    "registration.refused": "Der Server hat die Kontoerstellung abgelehnt.",
+    "registration.refusedReason":
+        "Der Server hat die Kontoerstellung abgelehnt: {reason}",
+    "registration.serverUnreachable":
+        "Der Server ist nicht erreichbar. Prüfe die Adresse und deine Verbindung.",
+    "registration.usernameLowercase":
+        "Benutzernamen müssen kleingeschrieben sein.",
+    "registration.usernameCharacters":
+        "Verwende nur Kleinbuchstaben, Ziffern und . _ = - /",
+    "registration.usernameHint":
+        "Wähle einen Benutzernamen. Andere finden dich darüber.",
+    "registration.usernameAvailable": "{userId} ist verfügbar",
+    "registration.yourAddressWillBe": "Deine Adresse wird {userId}",
+    "registration.confirmPassword": "Passwort bestätigen",
+    "registration.passwordsDontMatch": "Die Passwörter stimmen nicht überein.",
+    "registration.closedOnServer":
+        "{server} nimmt gerade keine neuen Konten an. Wähle einen anderen Server, um eines zu erstellen.",
+    "registration.useOtherServer":
+        "Stattdessen ein Konto auf {server} erstellen",
+
+    "registration.tokenTitle": "Registrierungstoken",
+    "registration.tokenBody":
+        "{server} ist nur auf Einladung. Gib das Registrierungstoken ein, das du von der Serveradministration bekommen hast.",
+    "registration.termsTitle": "Bedingungen des Servers akzeptieren",
+    "registration.termsBody":
+        "{server} bittet dich, Folgendes vor der Kontoerstellung zu akzeptieren:",
+    "registration.termsAccept":
+        "Ich habe diese Bedingungen gelesen und akzeptiere sie",
+    "registration.emailTitle": "E-Mail bestätigen",
+    "registration.emailBody":
+        "{server} benötigt eine E-Mail-Adresse, um dein Konto zu erstellen. Wir schicken dir einen Link zur Bestätigung.",
+    "registration.emailPlaceholder": "du@example.com",
+    "registration.sendEmail": "E-Mail senden",
+    "registration.emailSent":
+        "Wir haben einen Link an {email} geschickt. Öffne ihn, komm dann zurück und tippe auf Weiter.",
+    "registration.emailNotConfirmed":
+        "Die E-Mail ist noch nicht bestätigt. Öffne den Link darin und tippe dann auf Weiter.",
+    "registration.emailConfirmed": "Weiter",
+    "registration.captchaTitle": "Beweise, dass du kein Roboter bist",
+    "registration.captchaBody":
+        "{server} möchte, dass du ein Captcha löst. Es öffnet sich auf der Seite des Servers; komm danach hierher zurück.",
+    "registration.fallbackTitle": "Noch ein Schritt",
+    "registration.fallbackBody":
+        "{server} möchte, dass du einen Schritt auf seiner eigenen Seite abschließt. Komm danach hierher zurück.",
+    "registration.openStepPage": "Seite öffnen",
+    "registration.stepDone": "Fertig",
 
     // src/lib/components/layout/MemberList.svelte
     "memberList.members": "Mitglieder: {length}",

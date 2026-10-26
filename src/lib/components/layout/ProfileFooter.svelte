@@ -1,5 +1,6 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
+    import { openEncryptionSetup } from "$lib/stores/onboarding.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import AccountSwitcher from "$lib/components/layout/AccountSwitcher.svelte";
     import { auth } from "$lib/stores/auth.svelte";
@@ -11,11 +12,7 @@
         presenceLabel,
     } from "$lib/utils/presence";
     import { settingsState } from "$lib/stores/settings.svelte";
-    import {
-        openModal,
-        closeModal,
-        openAppSettingsTab,
-    } from "$lib/stores/interface.svelte";
+    import { openModal, closeModal } from "$lib/stores/interface.svelte";
     import { getOwnAvatarUrl } from "$lib/matrix/client";
     import {
         verificationStatusState,
@@ -112,7 +109,7 @@
         </p>
         {#if nudge.actionLabel}
             <button
-                onclick={() => openAppSettingsTab("security")}
+                onclick={() => openEncryptionSetup()}
                 class="px-2 py-0.5 text-xs {toneClass} hover:underline"
             >
                 {nudge.actionLabel}

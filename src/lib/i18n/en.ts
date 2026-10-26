@@ -902,6 +902,122 @@ export const en = {
     "loginView.oauthRegistrationRefusedFallback":
         "This server would not let Zam register for sign-in. Use one of the other options below.",
     "loginView.checkingServer": "Checking server…",
+    "loginView.homeserverHint":
+        "The server your account is on: the part after the colon in @you:server.",
+    "loginView.homeserverHintRegister":
+        "Your account lives on this server. Not sure? matrix.org is free and open to everyone.",
+    "loginView.oauthLoginExplainer":
+        "{server} signs you in on its own account page. Zam opens it, and you come straight back here signed in.",
+    "loginView.oauthRegisterExplainer":
+        "{server} creates new accounts on its own account page. Zam opens it; pick a username and password there, and you come straight back here signed in.",
+    "loginView.continueTo": "Continue to {host}",
+    "loginView.createAccountOn": "Create account on {server}",
+    "loginView.advancedOptions": "Advanced options",
+
+    // src/lib/components/layout/EncryptionSetupDialog.svelte
+    "encryptionSetup.setupTitle": "Secure your messages",
+    "encryptionSetup.setupBody":
+        "Your private chats are end-to-end encrypted. Set up recovery so you can read them on any device you sign in to later, even if you lose this one. It takes a few seconds.",
+    "encryptionSetup.passwordBody":
+        "Enter your account password to confirm it's you.",
+    "encryptionSetup.setUp": "Set up recovery",
+    "encryptionSetup.later": "Not now",
+    "encryptionSetup.saveKeyTitle": "Save your recovery key",
+    "encryptionSetup.saveKeyBody":
+        "This key unlocks your encrypted messages on a new device. It's shown only once: save it in a password manager or download it. Without it, a lost device can mean lost messages.",
+    "encryptionSetup.downloadKey": "Download",
+    "encryptionSetup.keyFileHeader": "Zam recovery key for {userId}",
+    "encryptionSetup.doneTitle": "You're all set",
+    "encryptionSetup.doneBody":
+        "Encryption is set up on this device. Your messages, and your history from other devices, are available here.",
+    "encryptionSetup.confirmTitle": "Confirm it's you",
+    "encryptionSetup.confirmBody":
+        "This account already uses encryption. Confirm this new device so it can read your encrypted messages and history.",
+    "encryptionSetup.useAnotherDevice": "Use another device",
+    "encryptionSetup.useRecoveryKey": "Use recovery key",
+    "encryptionSetup.anotherDeviceHint":
+        "Another device means one where you're already signed in, like the Zam or Element app on your phone. It'll show a request to approve.",
+    "encryptionSetup.recoveryKeyHint":
+        'Your recovery key starts with "EsT". You saved it when you first set up encryption.',
+    "encryptionSetup.cantConfirm": "Lost your recovery key and other devices?",
+    "encryptionSetup.enterKeyTitle": "Enter your recovery key",
+    "encryptionSetup.enterKeyBody":
+        "Paste the recovery key you saved when you set up encryption. Spaces don't matter.",
+    "encryptionSetup.enterPassphraseBody":
+        "Enter the recovery passphrase you chose when you set up encryption.",
+    "encryptionSetup.back": "Back",
+    "encryptionSetup.connectBackupTitle": "Restore your message history",
+    "encryptionSetup.connectBackupBody":
+        "This device is verified, but isn't connected to your encrypted message backup yet. Enter your recovery key to restore your history.",
+    "encryptionSetup.checking": "Checking your encryption…",
+    "encryptionSetup.tryAgain": "Try again",
+    "encryptionSetup.openSecuritySettings": "Open security settings",
+
+    // src/lib/matrix/registration.ts
+    "registration.cancelled": "Account creation was cancelled.",
+    "registration.noSupportedFlow":
+        "This server asks for a sign-up step Zam can't complete. Try creating the account on the server's own website.",
+    "registration.stageKeptFailing":
+        "The server kept rejecting a sign-up step. Please try again.",
+    "registration.userInUse": "That username is taken. Try another one.",
+    "registration.invalidUsername":
+        "That username isn't allowed. Use lowercase letters, numbers and . _ = - /",
+    "registration.exclusiveUsername":
+        "That username is reserved on this server. Try another one.",
+    "registration.weakPassword": "That password is too weak. Try a longer one.",
+    "registration.weakPasswordReason": "That password is too weak: {reason}",
+    "registration.emailInUse":
+        "That email address is already used by another account.",
+    "registration.emailNotAllowed":
+        "This server doesn't accept that email address.",
+    "registration.rateLimited":
+        "Too many attempts. Wait a minute, then try again.",
+    "registration.stepNotAccepted":
+        "The server didn't accept that step. Please try again.",
+    "registration.closed": "This server isn't accepting new accounts.",
+    "registration.invalidToken":
+        "That registration token isn't valid. Check it and try again.",
+    "registration.refused": "The server refused to create the account.",
+    "registration.refusedReason":
+        "The server refused to create the account: {reason}",
+    "registration.serverUnreachable":
+        "Couldn't reach the server. Check the address and your connection.",
+    "registration.usernameLowercase": "Usernames must be lowercase.",
+    "registration.usernameCharacters":
+        "Use only lowercase letters, numbers and . _ = - /",
+    "registration.usernameHint": "Pick a username. People will find you by it.",
+    "registration.usernameAvailable": "{userId} is available",
+    "registration.yourAddressWillBe": "Your address will be {userId}",
+    "registration.confirmPassword": "Confirm password",
+    "registration.passwordsDontMatch": "The passwords don't match.",
+    "registration.closedOnServer":
+        "{server} isn't accepting new accounts right now. Pick another server to create one.",
+    "registration.useOtherServer": "Create an account on {server} instead",
+    "registration.tokenTitle": "Registration token",
+    "registration.tokenBody":
+        "{server} is invite-only. Enter the registration token the server's admin gave you.",
+    "registration.termsTitle": "Accept the server's terms",
+    "registration.termsBody":
+        "{server} asks you to accept these before creating your account:",
+    "registration.termsAccept": "I've read and accept these terms",
+    "registration.emailTitle": "Confirm your email",
+    "registration.emailBody":
+        "{server} needs an email address to create your account. We'll send you a link to confirm it.",
+    "registration.emailPlaceholder": "you@example.com",
+    "registration.sendEmail": "Send email",
+    "registration.emailSent":
+        "We sent a link to {email}. Open it, then come back and press Continue.",
+    "registration.emailNotConfirmed":
+        "The email isn't confirmed yet. Open the link in it, then press Continue.",
+    "registration.emailConfirmed": "Continue",
+    "registration.captchaTitle": "Prove you're not a robot",
+    "registration.captchaBody":
+        "{server} wants you to solve a captcha. It opens on the server's page; come back here when you're done.",
+    "registration.fallbackTitle": "One more step",
+    "registration.fallbackBody":
+        "{server} needs you to finish a step on its own page. Come back here when you're done.",
+    "registration.openStepPage": "Open page",
+    "registration.stepDone": "I'm done",
 
     // src/lib/components/layout/MemberList.svelte
     "memberList.members": "Members: {length}",

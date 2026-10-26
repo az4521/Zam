@@ -2060,6 +2060,25 @@ async function masterKeyOnServer(
     return !!result.master_keys?.[userId];
 }
 
+/**
+ * Whether the account already has a cross-signing identity on the server
+ * (another session set it up), asked of the server rather than read from
+ * the local store, which may not have synced it yet. Setting up recovery
+ * from a session that lacks those keys would mint a NEW identity over it,
+ * so first-run setup verifies against it instead. Null when the server
+ * can't be asked.
+ */
+export async function accountHasCrossSigning(): Promise<boolean | null> {
+    const client = getClient();
+    const userId = client?.getUserId();
+    if (!client || !userId) return null;
+    try {
+        return await masterKeyOnServer(client, userId);
+    } catch {
+        return null;
+    }
+}
+
 /** All three cross-signing private keys are held by this session's store. */
 async function crossSigningKeysCachedLocally(
     crypto: NonNullable<ReturnType<MatrixClient["getCrypto"]>>,
