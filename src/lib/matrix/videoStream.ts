@@ -2,9 +2,17 @@ import { safeAttachmentMimeType } from "$lib/utils/attachmentMime";
 import type { EncryptedFileInfo } from "$lib/utils/decryptAttachment";
 import { isWebm, probeWebm } from "$lib/utils/webmProbe";
 import { id3Size, isFlac } from "$lib/utils/flacProbe";
+import { WebmInterleaver } from "$lib/utils/webmInterleave";
 import type { DownloadProgress } from "$lib/utils/downloadProgress";
 import { openAuthedReader, type ChunkReader } from "./mediaStream";
 import type { ISOFile, Movie } from "mp4box";
+import {
+    FragmentLog,
+    initTimescale,
+    Mp3Index,
+    WebmIndex,
+    type Refill,
+} from "$lib/utils/seekIndex";
 
 /**
  * Authenticated media (`/_matrix/client/v1/media/download/...`) needs an
@@ -25,6 +33,8 @@ import type { ISOFile, Movie } from "mp4box";
  * at the end can't be remuxed until it is fully downloaded, so it degrades to
  * blob timing. WebM needs no remuxing: once its Tracks header yields a codec
  * list (webmProbe.ts) the bytes are appended to the SourceBuffer as they come.
+ * (one with several tracks a Cluster at a time, its blocks put in timestamp
+ * order for Chromium: webmInterleave.ts).
  * A Matroska with codecs a WebM SourceBuffer refuses (the usual H.264/AAC
  * MKV) is remuxed to fragmented MP4 as it arrives instead (mkvRemux.ts).
  * Anything else (another container, an unknown codec, no MediaSource at all)
@@ -120,10 +130,46 @@ function ownBuffer(chunk: Uint8Array): ArrayBuffer {
     return chunk.slice().buffer as ArrayBuffer;
 }
 
-interface QueuedAppend {
-    buffer: ArrayBuffer;
-    after?: () => void;
+/** `held`, then the rest of `reader` unless `ended`, run through a
+ *  WebmInterleaver (webmInterleave.ts). */
+function interleaved(
+    reader: ChunkReader,
+    held: ArrayBuffer[],
+    ended: boolean,
+): ChunkReader {
+    const sorter = new WebmInterleaver();
+    const ready: Uint8Array[] = [];
+    let done = false;
+    return {
+        async read() {
+            while (!ready.length && !done) {
+                const next = held.shift();
+                if (next) {
+                    ready.push(...sorter.push(new Uint8Array(next)));
+                    continue;
+                }
+                const r = ended
+                    ? { done: true as const, value: undefined }
+                    : await reader.read();
+                if (r.done) {
+                    done = true;
+                    ready.push(...sorter.end());
+                } else ready.push(...sorter.push(r.value));
+            }
+            const value = ready.shift();
+            return value
+                ? { done: false, value }
+                : { done: true, value: undefined };
+        },
+    };
 }
+
+type QueuedAppend =
+    | { buffer: ArrayBuffer; after?: () => void }
+    /** Empty the SourceBuffer (see AppendQueue.restart). */
+    | { removeAll: true }
+    /** Reset the parser, and say where the next generated timestamps start. */
+    | { reset: true; timestampOffset?: number };
 
 /**
  * Serialises appends into one SourceBuffer (it rejects a second append while
@@ -143,7 +189,7 @@ class AppendQueue {
         sb.addEventListener("updateend", () => {
             const done = this.current;
             this.current = null;
-            done?.after?.();
+            if (done && "after" in done) done.after?.();
             this.pump();
         });
     }
@@ -163,6 +209,15 @@ class AppendQueue {
         return new Promise((resolve) => this.waiters.push(resolve));
     }
 
+    /** Drop everything buffered or still queued, then append `items`.
+     *  Waiters on drained() carry over to the new queue. */
+    restart(items: QueuedAppend[]) {
+        if (this.retryTimer) clearTimeout(this.retryTimer);
+        this.retryTimer = null;
+        this.queue = [{ removeAll: true }, ...items];
+        this.pump();
+    }
+
     dispose() {
         if (this.retryTimer) clearTimeout(this.retryTimer);
         this.queue = [];
@@ -171,7 +226,20 @@ class AppendQueue {
 
     private pump() {
         if (this.sb.updating || this.current || this.retryTimer) return;
-        const next = this.queue[0];
+        let next = this.queue[0];
+        // A reset completes at once, with no updateend to wait for.
+        while (next && "reset" in next) {
+            try {
+                this.sb.abort();
+                if (next.timestampOffset !== undefined)
+                    this.sb.timestampOffset = next.timestampOffset;
+            } catch (err) {
+                this.fail(err);
+                return;
+            }
+            this.queue.shift();
+            next = this.queue[0];
+        }
         if (!next) {
             const waiters = this.waiters;
             this.waiters = [];
@@ -179,7 +247,8 @@ class AppendQueue {
             return;
         }
         try {
-            this.sb.appendBuffer(next.buffer);
+            if ("buffer" in next) this.sb.appendBuffer(next.buffer);
+            else this.sb.remove(0, Infinity);
             this.queue.shift();
             this.current = next;
         } catch (err) {
@@ -221,6 +290,7 @@ export function attachAuthedVideo(
     const objectUrls: string[] = [];
     let mp4: ISOFile<AppendQueue, unknown> | null = null;
     const queues: AppendQueue[] = [];
+    const cleanups: Array<() => void> = [];
     let disposed = false;
     let failed = false;
 
@@ -235,6 +305,52 @@ export function attachAuthedVideo(
     function setSrc(url: string) {
         objectUrls.push(url);
         video.src = url;
+    }
+
+    /**
+     * The browser evicts what has played once a SourceBuffer reaches its cap
+     * (Chromium: about 12 MB of audio, 150 MB of video), and nothing can be
+     * re-fetched. So on a seek to a time a SourceBuffer no longer holds, it is
+     * emptied and refilled from `refill` (seekIndex.ts). Returns the stream's
+     * ending, to await once everything has been queued.
+     */
+    function refillOnSeek(
+        ms: MediaSource,
+        tracks: Array<{
+            sb: SourceBuffer;
+            q: AppendQueue;
+            refill: (t: number) => Refill | null;
+        }>,
+    ) {
+        let finished = false;
+        const end = async () => {
+            await Promise.all(tracks.map((t) => t.q.drained()));
+            if (!disposed && ms.readyState === "open") ms.endOfStream();
+        };
+        const onSeeking = () => {
+            if (disposed || ms.readyState === "closed") return;
+            const t = video.currentTime;
+            let restarted = false;
+            for (const track of tracks) {
+                const b = track.sb.buffered;
+                let held = false;
+                for (let i = 0; i < b.length && !held; i++)
+                    held = b.start(i) <= t && t < b.end(i);
+                if (held) continue;
+                const items = track.refill(t);
+                if (!items) continue;
+                track.q.restart(items);
+                restarted = true;
+            }
+            // Emptying a SourceBuffer reopened the ended MediaSource.
+            if (restarted && finished) void end();
+        };
+        video.addEventListener("seeking", onSeeking);
+        cleanups.push(() => video.removeEventListener("seeking", onSeeking));
+        return async () => {
+            await end();
+            finished = true;
+        };
     }
 
     async function readAll(reader: ChunkReader, parts: BlobPart[]) {
@@ -298,7 +414,12 @@ export function attachAuthedVideo(
         if (!mime || !MediaSource.isTypeSupported(mime)) {
             return streamMatroska(reader, held, ended);
         }
-        return streamBytes(reader, held, mime, ended);
+        if (!mime.includes(",")) {
+            return streamBytes(reader, held, mime, ended, new WebmIndex());
+        }
+        // Several tracks: their blocks may need putting in order first.
+        const sorted = interleaved(reader, held, ended);
+        return streamBytes(sorted, [], mime, false, new WebmIndex());
     }
 
     /**
@@ -347,15 +468,21 @@ export function attachAuthedVideo(
         if (disposed) return;
         if (header.duration) ms.duration = header.duration;
 
-        const trackQueues = header.tracks.map((t) => {
-            const q = new AppendQueue(ms.addSourceBuffer(t.mime), video, fail);
+        const tracks = header.tracks.map((t) => {
+            const sb = ms.addSourceBuffer(t.mime);
+            const q = new AppendQueue(sb, video, fail);
             queues.push(q);
             q.push({ buffer: t.init });
-            return q;
+            const log = new FragmentLog(
+                initTimescale(new Uint8Array(t.init)) ?? 1,
+            );
+            return { sb, q, log, refill: (at: number) => log.from(at) };
         });
+        const finish = refillOnSeek(ms, tracks);
         const pump = () => {
             for (const seg of remux.take()) {
-                trackQueues[seg.track].push({ buffer: seg.buffer });
+                tracks[seg.track].log.add(seg.buffer);
+                tracks[seg.track].q.push({ buffer: seg.buffer });
             }
         };
         pump();
@@ -369,8 +496,7 @@ export function attachAuthedVideo(
             remux.end();
             pump();
         }
-        await Promise.all(trackQueues.map((q) => q.drained()));
-        if (!disposed && ms.readyState === "open") ms.endOfStream();
+        await finish();
     }
 
     /**
@@ -409,11 +535,21 @@ export function attachAuthedVideo(
         await opened;
         if (disposed) return;
         if (header.duration) ms.duration = header.duration;
-        const q = new AppendQueue(ms.addSourceBuffer(track.mime), video, fail);
+        const sb = ms.addSourceBuffer(track.mime);
+        const q = new AppendQueue(sb, video, fail);
         queues.push(q);
         q.push({ buffer: track.init });
+        const log = new FragmentLog(
+            initTimescale(new Uint8Array(track.init)) ?? 1,
+        );
+        const finish = refillOnSeek(ms, [
+            { sb, q, refill: (t) => log.from(t) },
+        ]);
         const pump = () => {
-            for (const seg of remux.take()) q.push({ buffer: seg.buffer });
+            for (const seg of remux.take()) {
+                log.add(seg.buffer);
+                q.push({ buffer: seg.buffer });
+            }
         };
         pump();
         if (!ended) {
@@ -426,20 +562,21 @@ export function attachAuthedVideo(
             remux.end();
             pump();
         }
-        await q.drained();
-        if (!disposed && ms.readyState === "open") ms.endOfStream();
+        await finish();
     }
 
     /**
      * Append the bytes to a SourceBuffer of type `mime` as they arrive, or, when
      * there is no usable `mime`, download everything and play it as a blob.
      * `held` is what has been read so far, `ended` whether the reader is spent.
+     * `index` keeps the bytes for refilling after a seek (seekIndex.ts).
      */
     async function streamBytes(
         reader: ChunkReader,
         held: ArrayBuffer[],
         mime: string | null,
         ended: boolean,
+        index: { push(b: ArrayBuffer): void; from(t: number): Refill | null },
     ) {
         if (disposed) return;
         if (!mime || !MediaSource.isTypeSupported(mime)) {
@@ -454,19 +591,26 @@ export function attachAuthedVideo(
         await opened;
         if (disposed) return;
 
-        const q = new AppendQueue(ms.addSourceBuffer(mime), video, fail);
+        const sb = ms.addSourceBuffer(mime);
+        const q = new AppendQueue(sb, video, fail);
         queues.push(q);
-        for (const buffer of held) q.push({ buffer });
+        const finish = refillOnSeek(ms, [
+            { sb, q, refill: (t) => index.from(t) },
+        ]);
+        const append = (buffer: ArrayBuffer) => {
+            index.push(buffer);
+            q.push({ buffer });
+        };
+        for (const buffer of held) append(buffer);
         held.length = 0;
         if (!ended) {
             for (;;) {
                 const { done, value } = await reader.read();
                 if (done) break;
-                q.push({ buffer: ownBuffer(value) });
+                append(ownBuffer(value));
             }
         }
-        await q.drained();
-        if (!disposed && ms.readyState === "open") ms.endOfStream();
+        await finish();
     }
 
     async function run() {
@@ -492,7 +636,13 @@ export function attachAuthedVideo(
                 return streamFlac(reader, held);
             // MP3 is a bare frame stream: no header to parse, no remuxing.
             if (isMp3(first.value)) {
-                return streamBytes(reader, held, "audio/mpeg", false);
+                return streamBytes(
+                    reader,
+                    held,
+                    "audio/mpeg",
+                    false,
+                    new Mp3Index(),
+                );
             }
             return playAsBlob(reader, held);
         }
@@ -561,22 +711,25 @@ export function attachAuthedVideo(
             ms.duration = movie.duration / movie.timescale;
         }
 
-        tracks.forEach((track, i) => {
-            const q = new AppendQueue(
-                ms.addSourceBuffer(mimes[i]),
-                video,
-                fail,
-            );
+        const logs = new Map<AppendQueue, FragmentLog>();
+        const refillable = tracks.map((track, i) => {
+            const sb = ms.addSourceBuffer(mimes[i]);
+            const q = new AppendQueue(sb, video, fail);
             queues.push(q);
+            const log = new FragmentLog(track.timescale);
+            logs.set(q, log);
             file.setSegmentOptions(track.id, q, {
                 nbSamples: SAMPLES_PER_SEGMENT,
             });
+            return { sb, q, refill: (t: number) => log.from(t) };
         });
+        const finish = refillOnSeek(ms, refillable);
         file.onSegment = (id, q, buffer, nextSample) => {
+            logs.get(q)?.add(buffer);
             q.push({
                 buffer,
-                // Let mp4box drop the source samples once MSE has them, so a
-                // long clip isn't held twice in memory.
+                // Let mp4box drop the source samples once MSE has them: the
+                // fragment log already holds them once.
                 after: () => file.releaseUsedSamples(id, nextSample),
             });
         };
@@ -593,8 +746,7 @@ export function attachAuthedVideo(
             }
             file.flush();
         }
-        await Promise.all(queues.map((q) => q.drained()));
-        if (!disposed && ms.readyState === "open") ms.endOfStream();
+        await finish();
     }
 
     run().catch((err) => {
@@ -608,6 +760,7 @@ export function attachAuthedVideo(
             abort.abort();
             mp4?.stop();
             for (const q of queues) q.dispose();
+            for (const cleanup of cleanups) cleanup();
             // Detach before revoking so the element stops decoding.
             video.pause();
             video.removeAttribute("src");
