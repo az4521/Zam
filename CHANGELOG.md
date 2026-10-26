@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.36.1
+
+✨ **New**
+
+- **Plugins for embedded pages (desktop):** plugins can now adjust the pages embedded in Zam, such as YouTube players, with the new "frames" permission. The first to use it is Fix YouTube Embeds in the plugin list, which makes YouTube videos that say "This video is unavailable" in Zam (music videos from big labels, for example) play.
+
 ## v1.36.0
 
 ✨ **New**
