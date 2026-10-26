@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.36.2
+
+🐛 **Fixed**
+
+- **Flash (SWF) files in encrypted rooms:** SWF files sent in encrypted rooms now play inline like they do in unencrypted rooms, instead of showing only as a file card.
+
 ## v1.36.1
 
 ✨ **New**
