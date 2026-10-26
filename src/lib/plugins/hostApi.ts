@@ -20,6 +20,7 @@ import { settingsStorageKey } from "./pluginSettingsStore";
 import { hostBridge } from "./hostBridge";
 import { createAssetAccess, type PluginFileSource } from "./pluginAssets";
 import { connectNative, nativeAvailable } from "./pluginNative";
+import { framesAvailable, injectFrameScript } from "./pluginFrames";
 import { sendReaction, getOwnUserId, getClient } from "../matrix/client";
 import {
     sendEventContent,
@@ -334,6 +335,12 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
         native: {
             available: () => nativeAvailable(manifest, source),
             connect: () => connectNative(pluginId, manifest, source),
+        },
+
+        frames: {
+            available: () => framesAvailable(manifest),
+            inject: (rule) =>
+                track(injectFrameScript(pluginId, manifest, rule)),
         },
 
         storage,

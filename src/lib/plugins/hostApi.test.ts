@@ -341,3 +341,66 @@ describe("buildHostApi — storage + settings", () => {
         expect(client.getClient).toHaveBeenCalled();
     });
 });
+
+describe("buildHostApi — zam.frames", () => {
+    const withCaps = (id: string, capabilities: string[]): Manifest => ({
+        ...manifest(id),
+        capabilities,
+    });
+
+    it("hands rules to the desktop bridge; disposeAll removes them", async () => {
+        const add = vi.fn().mockResolvedValue(true);
+        const remove = vi.fn().mockResolvedValue(undefined);
+        (window as any).desktop = { pluginFrames: { add, remove } };
+        try {
+            const host = buildHostApi({
+                pluginId: "p",
+                manifest: withCaps("p", ["frames"]),
+                registry: createRegistryData(),
+                appVersion: "1",
+            });
+            expect(host.zam.frames.available()).toBe(true);
+            host.zam.frames.inject({
+                urlPrefixes: ["https://www.youtube.com/"],
+                script: "1",
+            });
+            const sent = add.mock.calls[0][0];
+            expect(sent).toMatchObject({
+                urlPrefixes: ["https://www.youtube.com/"],
+                script: "1",
+            });
+            expect(sent.id).toMatch(/^p:/);
+            host.disposeAll();
+            expect(remove).toHaveBeenCalledWith(add.mock.calls[0][0].id);
+        } finally {
+            delete (window as any).desktop;
+        }
+    });
+
+    it("does nothing without the capability or the desktop bridge", () => {
+        const add = vi.fn().mockResolvedValue(true);
+        (window as any).desktop = { pluginFrames: { add, remove: vi.fn() } };
+        try {
+            const host = buildHostApi({
+                pluginId: "p",
+                manifest: manifest("p"),
+                registry: createRegistryData(),
+                appVersion: "1",
+            });
+            expect(host.zam.frames.available()).toBe(false);
+            host.zam.frames
+                .inject({ urlPrefixes: ["https://a.example/"], script: "" })
+                .dispose();
+            expect(add).not.toHaveBeenCalled();
+        } finally {
+            delete (window as any).desktop;
+        }
+        const host = buildHostApi({
+            pluginId: "p",
+            manifest: withCaps("p", ["frames"]),
+            registry: createRegistryData(),
+            appVersion: "1",
+        });
+        expect(host.zam.frames.available()).toBe(false);
+    });
+});

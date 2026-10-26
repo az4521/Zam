@@ -24,6 +24,9 @@ export const KNOWN_CAPABILITIES = [
     /** zam.native: run the plugin's own native code (desktop only, after the
      *  user agrees in a system dialog). Full access to the computer. */
     "native",
+    /** zam.frames: run scripts in the pages embedded in Zam, e.g. a YouTube
+     *  player (desktop only). */
+    "frames",
 ] as const;
 
 export type Capability = (typeof KNOWN_CAPABILITIES)[number];

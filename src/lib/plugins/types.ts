@@ -231,6 +231,19 @@ export interface MicFilterOptions {
     attenuationDb: number;
 }
 
+/** A rule for embedded pages (zam.frames): a script, a referrer, or both. */
+export interface FrameScript {
+    /** Each names at least a whole origin, e.g. "https://www.youtube.com/"
+     *  or "https://www.youtube.com/embed/". */
+    urlPrefixes: string[];
+    /** Source run in the frame's page, as with a <script> there. */
+    script?: string;
+    /** Sent as the Referer when a frame loads a matching URL, in place of
+     *  Zam's own address (an absolute http(s) URL, e.g.
+     *  "https://example.com/"). With several rules, the first added wins. */
+    referrer?: string;
+}
+
 /** A noise filter for the user's own microphone (zam.audio). It appears in
  *  Settings > Voice & Audio > Noise suppression; Zam's AGC (WebRTC AGC2), soft clipper
  *  and (with dryOutput) pause gate run after it, and DeepFilterNet3 stands in
@@ -422,6 +435,17 @@ export interface ZamPluginApi {
     native: {
         available(): boolean;
         connect(): Promise<MessagePort>;
+    };
+
+    /** Rules for the pages embedded in Zam (a YouTube player, say). For
+     *  every iframe whose URL starts with one of `urlPrefixes`, the desktop
+     *  app sends `referrer` as its Referer, and runs `script` each time it
+     *  finishes loading its DOM, in that page's own context (where the
+     *  plugin's own code can't reach across origins). Desktop only, needs
+     *  the "frames" capability; elsewhere inject() does nothing. */
+    frames: {
+        available(): boolean;
+        inject(rule: FrameScript): Disposable;
     };
 
     /** Full-power escape hatch (full-trust model). Returns the live matrix-js-sdk

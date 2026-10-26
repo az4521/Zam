@@ -31,6 +31,7 @@ const path = require("path");
 const { resolveStaticPath, isSafeExternalUrl } = require("./serverGuards.cjs");
 const { parseWindowState, fitToDisplays } = require("./windowState.cjs");
 const { registerPluginNative } = require("./pluginNative.cjs");
+const { registerPluginFrames } = require("./pluginFrames.cjs");
 const { registerGlobalHotkeys } = require("./globalHotkeys.cjs");
 const { createUpdateSchedule } = require("./updateSchedule.cjs");
 const { createCallPriority } = require("./callPriority.cjs");
@@ -207,6 +208,9 @@ ipcMain.on("show-window", showWindow);
 
 // Plugins' native code (zam.native), after the user agrees.
 registerPluginNative(ipcMain, () => mainWindow);
+
+// Plugins' scripts for the pages embedded in the window (zam.frames).
+registerPluginFrames(app, ipcMain, () => mainWindow);
 
 // --- Auto-updater (packaged desktop app only) -----------------------------
 //

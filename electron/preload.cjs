@@ -48,6 +48,11 @@ contextBridge.exposeInMainWorld("desktop", {
         remove: (pluginId) =>
             ipcRenderer.invoke("plugin-native:remove", String(pluginId)),
     },
+    // Plugins' rules for embedded pages (pluginFrames.cjs, zam.frames).
+    pluginFrames: {
+        add: (rule) => ipcRenderer.invoke("plugin-frames:add", rule),
+        remove: (id) => ipcRenderer.invoke("plugin-frames:remove", String(id)),
+    },
     sso: {
         // The local server caught an SSO redirect; `url` is its path + query.
         onCallback: (cb) => {

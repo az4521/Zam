@@ -492,7 +492,12 @@ live SDK objects), `storage` (per-plugin namespaced key/value), `settings` (sche
 below), and `unsafe` (`getClient()` — the escape hatch). The curated `matrix` API is a
 stability/ergonomics layer and a seam for a future sandbox, not a security cage.
 **`zam.unsafe.getClient()`** hands a plugin the live matrix-js-sdk client instance for anything the
-curated API doesn't cover, with the plugin owning the stability and safety risk. Every `register` /
+curated API doesn't cover, with the plugin owning the stability and safety risk.
+**`zam.frames.inject({ urlPrefixes, script, referrer })`** (desktop, "frames" capability) is for
+the window's iframes whose URL matches, such as the YouTube player: the renderer hands the rule
+to main (`electron/pluginFrames.cjs`), which sends `referrer` as the frame's Referer
+(`webRequest.onBeforeSendHeaders`, subframe loads of the main window only) and runs `script` on
+each frame's `dom-ready` through `WebFrameMain.executeJavaScript`, as Vencord's native hooks do. Every `register` /
 `add` / `on` returns a **`Disposable`**, and the host tracks all of a plugin's disposables so
 disabling it removes exactly its contributions.
 

@@ -225,6 +225,18 @@ declare global {
                 }) => Promise<{ ok: boolean; error?: string }>;
                 remove: (pluginId: string) => Promise<void>;
             };
+            /** zam.frames (electron/pluginFrames.cjs): the Referer main
+             *  sends and the script it runs for the window's iframes whose
+             *  URL starts with a rule's prefix. */
+            pluginFrames?: {
+                add: (rule: {
+                    id: string;
+                    urlPrefixes: string[];
+                    script?: string;
+                    referrer?: string;
+                }) => Promise<boolean>;
+                remove: (id: string) => Promise<void>;
+            };
         };
     }
 }
