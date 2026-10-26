@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.36.3
+
+🐛 **Fixed**
+
+- **Video download button on mobile:** the download button on videos in chat did nothing on phones. Videos now have their own download button that saves the original file.
+
 ## v1.36.2
 
 🐛 **Fixed**
