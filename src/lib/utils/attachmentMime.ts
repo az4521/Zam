@@ -51,6 +51,30 @@ export function isSvgMimeType(mimetype: string | null | undefined): boolean {
     return (mimetype ?? "").toLowerCase().split(";")[0].trim() === SVG;
 }
 
+/** SMIL animation values. DOMPurify drops them all because an animation of
+ *  `href` could set it to `javascript:`; svgPurifier allows them on anything
+ *  else, so animated SVGs keep moving. */
+const ANIMATION_VALUES = new Set(["from", "to", "by", "values"]);
+
+let purifier: ReturnType<typeof DOMPurify> | null = null;
+
+/**
+ * A DOMPurify instance of our own. The default export is shared with
+ * sanitizeHtml.ts, whose global hooks drop every attribute not on its
+ * message-HTML allowlist, which left every SVG blank once a formatted message
+ * had been rendered.
+ */
+function svgPurifier(): ReturnType<typeof DOMPurify> {
+    if (purifier) return purifier;
+    purifier = DOMPurify(window);
+    purifier.addHook("uponSanitizeAttribute", (node, data) => {
+        if (!ANIMATION_VALUES.has(data.attrName)) return;
+        const target = (node as Element).getAttribute("attributeName") ?? "";
+        if (/href/i.test(target)) data.keepAttr = false;
+    });
+    return purifier;
+}
+
 /**
  * An encrypted SVG made safe to keep its real type. safeAttachmentMimeType
  * turns SVG into octet-stream, which an `<img>` won't render at all, so an
@@ -69,9 +93,10 @@ export function sanitizedSvgBlob(bytes: ArrayBuffer | Uint8Array): Blob | null {
         doc.getElementsByTagName("parsererror").length
     )
         return null;
-    DOMPurify.sanitize(root, {
+    svgPurifier().sanitize(root, {
         IN_PLACE: true,
         USE_PROFILES: { svg: true, svgFilters: true },
+        ADD_ATTR: [...ANIMATION_VALUES],
     });
     return new Blob([new XMLSerializer().serializeToString(root)], {
         type: SVG,

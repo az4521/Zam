@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "fs";
+import DOMPurify from "dompurify";
 import {
     isSvgMimeType,
     safeAttachmentMimeType,
@@ -143,5 +145,39 @@ describe("safeMediaBlob", () => {
             type: "image/png",
         });
         expect(await safeMediaBlob(png)).toBe(png);
+    });
+});
+
+describe("sanitizedSvgBlob animation and shared hooks", () => {
+    const enc = (s: string) => new TextEncoder().encode(s);
+
+    it("keeps animation values unless the animation targets href", async () => {
+        const blob = sanitizedSvgBlob(
+            enc(
+                '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">' +
+                    '<path d="M0 0h1"><animateTransform attributeName="transform" type="rotate" from="0 5 5" to="360 5 5" dur="5s"/></path>' +
+                    '<a xlink:href="#x"><animate attributeName="xlink:href" to="javascript:alert(1)"/><text>x</text></a>' +
+                    "</svg>",
+            ),
+        );
+        const out = await blob!.text();
+        expect(out).toContain('from="0 5 5"');
+        expect(out).toContain('to="360 5 5"');
+        expect(out).not.toContain("javascript");
+    });
+
+    it("ignores hooks other code put on the shared DOMPurify", async () => {
+        DOMPurify.addHook("uponSanitizeAttribute", (_node, data) => {
+            data.keepAttr = false;
+        });
+        try {
+            const blob = sanitizedSvgBlob(
+                readFileSync("static/favicon_foreground.svg"),
+            );
+            const out = await blob!.text();
+            expect(out).toMatch(/<path[^>]+d="/);
+        } finally {
+            DOMPurify.removeAllHooks();
+        }
     });
 });
