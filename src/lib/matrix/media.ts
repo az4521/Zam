@@ -20,7 +20,11 @@ import {
     thumbnailFields,
     type UploadedAttachment,
 } from "$lib/utils/encryptAttachment";
-import { safeAttachmentMimeType } from "$lib/utils/attachmentMime";
+import {
+    isSvgMimeType,
+    safeAttachmentMimeType,
+    sanitizedSvgBlob,
+} from "$lib/utils/attachmentMime";
 import { exceedsUploadLimit, FileTooLargeError } from "$lib/utils/uploadLimits";
 import { parseMxc, isSameOrigin } from "$lib/utils/mxcUri";
 import {
@@ -489,10 +493,11 @@ export async function fetchDecryptedAttachmentBlob(
     const plaintext = await decryptAttachment(ciphertext, file);
     // The sender controls `mimetype`; pin it to an inert-media allowlist so a
     // future open-in-tab/iframe sink can't execute e.g. an image/svg+xml or
-    // text/html blob in our origin (audit SEC-L9).
-    const blob = new Blob([plaintext], {
-        type: safeAttachmentMimeType(mimetype),
-    });
+    // text/html blob in our origin (audit SEC-L9). SVG is the exception: it is
+    // sanitized instead, so it keeps the type an <img> needs to render it.
+    const blob =
+        (isSvgMimeType(mimetype) && sanitizedSvgBlob(plaintext)) ||
+        new Blob([plaintext], { type: safeAttachmentMimeType(mimetype) });
     return URL.createObjectURL(blob);
 }
 

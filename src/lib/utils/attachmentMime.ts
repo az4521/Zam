@@ -11,7 +11,10 @@
  * app association), so nothing legitimate regresses.
  */
 
+import DOMPurify from "dompurify";
+
 const OCTET_STREAM = "application/octet-stream";
+const SVG = "image/svg+xml";
 
 /**
  * The safe blob MIME for a decrypted attachment: the sender's type when it is an
@@ -41,4 +44,36 @@ export function safeAttachmentMimeType(
         return trimmed;
     }
     return OCTET_STREAM;
+}
+
+/** True when `mimetype` is SVG, ignoring case and parameters. */
+export function isSvgMimeType(mimetype: string | null | undefined): boolean {
+    return (mimetype ?? "").toLowerCase().split(";")[0].trim() === SVG;
+}
+
+/**
+ * An encrypted SVG made safe to keep its real type. safeAttachmentMimeType
+ * turns SVG into octet-stream, which an `<img>` won't render at all, so an
+ * E2EE SVG showed as a broken image. Instead the markup is parsed as XML and
+ * run through DOMPurify's SVG profile (no `<script>`, no `on*` handlers, no
+ * `javascript:` links, no `<foreignObject>`), so the `image/svg+xml` blob stays
+ * inert even if its URL is opened in a tab of our origin. Null when the bytes
+ * aren't a well-formed SVG; the caller then keeps the octet-stream blob.
+ */
+export function sanitizedSvgBlob(bytes: ArrayBuffer | Uint8Array): Blob | null {
+    const text = new TextDecoder().decode(bytes);
+    const doc = new DOMParser().parseFromString(text, SVG);
+    const root = doc.documentElement;
+    if (
+        root.localName !== "svg" ||
+        doc.getElementsByTagName("parsererror").length
+    )
+        return null;
+    DOMPurify.sanitize(root, {
+        IN_PLACE: true,
+        USE_PROFILES: { svg: true, svgFilters: true },
+    });
+    return new Blob([new XMLSerializer().serializeToString(root)], {
+        type: SVG,
+    });
 }
