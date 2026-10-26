@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.32.3
+
+🔒 **Security**
+
+- **Unencrypted SVG images can't run code:** opening an unencrypted SVG image in a new tab could, in some cases, run code inside it with access to your Zam session. Every SVG now has that code removed first, the same as SVGs in encrypted rooms.
+
 ## v1.32.2
 
 🐛 **Fixed**
