@@ -3,8 +3,11 @@
     import { untrack } from "svelte";
     import {
         mxcToHttp,
+        fetchAttachmentBlob,
         fetchDecryptedAttachmentBlob,
     } from "$lib/matrix/client";
+    import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import {
         videoSource,
@@ -203,6 +206,37 @@
         };
     });
 
+    /**
+     * Save the video as sent. The element's own download control can't do it:
+     * the player holds a MediaSource or blob URL, which mobile browsers fail to
+     * save, so that control is hidden (`nodownload`) and this stands in.
+     */
+    async function downloadVideo(e: MouseEvent) {
+        e.stopPropagation();
+        const quiet = e.shiftKey;
+        const src = videoSrc;
+        if (!src) return;
+        try {
+            const blobUrl =
+                src.kind === "encrypted"
+                    ? (encryptedVideoUrl ??
+                      (await fetchDecryptedAttachmentBlob(
+                          src.file,
+                          src.mimetype ?? undefined,
+                      )))
+                    : await fetchAttachmentBlob(mxcToHttp(src.mxc)!);
+            try {
+                await saveObjectUrl(blobUrl, filename || "video", { quiet });
+            } finally {
+                // The playing copy is owned by the decrypt effect.
+                if (blobUrl !== encryptedVideoUrl) revokeLater(blobUrl);
+            }
+        } catch (err) {
+            console.error("Failed to download video", err);
+            showErrorToast("Failed to download video");
+        }
+    }
+
     function retryVideoDecrypt() {
         videoDecryptAttempt += 1;
     }
@@ -309,42 +343,56 @@
      sizes to its intrinsic dimensions, which (a) jumps the
      box vs the poster on play and (b) lets a wide clip's
      min-content width push past the column and overflow. -->
-    <video
-        src={videoSrc?.kind === "plain"
-            ? videoStreamUrl
-                ? undefined
-                : mxcToHttp(videoSrc.mxc)
-            : encryptedStreamUrl
-              ? undefined
-              : encryptedVideoUrl}
-        use:authedVideoSrc={{
-            url: videoStreamUrl ?? encryptedStreamUrl,
-            mimetype: videoMimetype,
-            decrypt:
-                encryptedStreamUrl && videoSrc?.kind === "encrypted"
-                    ? videoSrc.file
-                    : undefined,
-            expectedSize: videoSize,
-            forceBlob: videoForceBlob,
-            onProgress: (p) => (videoProgress = p),
-            onError: () =>
-                encryptedStreamUrl
-                    ? fallBackToVerifiedDownload()
-                    : onPlainStreamBroke(),
-        }}
-        controls
-        autoplay
-        playsinline
-        preload="auto"
-        class="max-w-lg w-full rounded-lg block object-contain bg-black {extraClass}"
-        style={`aspect-ratio: ${effectiveVideoAspect}; max-height: 24rem;`}
-        onloadedmetadata={onVideoMetadata}
-        oncanplay={() => (videoStreamReady = true)}
-        onerror={onVideoError}
-        use:pauseOffscreen={{
-            enabled: settingsState.pauseVideoOnScrollOff,
-        }}
-    ></video>
+    <div class="relative max-w-lg w-full {extraClass}">
+        <video
+            src={videoSrc?.kind === "plain"
+                ? videoStreamUrl
+                    ? undefined
+                    : mxcToHttp(videoSrc.mxc)
+                : encryptedStreamUrl
+                  ? undefined
+                  : encryptedVideoUrl}
+            use:authedVideoSrc={{
+                url: videoStreamUrl ?? encryptedStreamUrl,
+                mimetype: videoMimetype,
+                decrypt:
+                    encryptedStreamUrl && videoSrc?.kind === "encrypted"
+                        ? videoSrc.file
+                        : undefined,
+                expectedSize: videoSize,
+                forceBlob: videoForceBlob,
+                onProgress: (p) => (videoProgress = p),
+                onError: () =>
+                    encryptedStreamUrl
+                        ? fallBackToVerifiedDownload()
+                        : onPlainStreamBroke(),
+            }}
+            controls
+            controlsList="nodownload"
+            autoplay
+            playsinline
+            preload="auto"
+            class="w-full rounded-lg block object-contain bg-black"
+            style={`aspect-ratio: ${effectiveVideoAspect}; max-height: 24rem;`}
+            onloadedmetadata={onVideoMetadata}
+            oncanplay={() => (videoStreamReady = true)}
+            onerror={onVideoError}
+            use:pauseOffscreen={{
+                enabled: settingsState.pauseVideoOnScrollOff,
+            }}
+        ></video>
+        <button
+            type="button"
+            onclick={downloadVideo}
+            title={t("messageItem.download")}
+            aria-label={t("messageItem.download")}
+            class="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+        >
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"
+                ><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z" /></svg
+            >
+        </button>
+    </div>
 {/snippet}
 
 {#if videoDecrypting}
