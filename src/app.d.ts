@@ -69,6 +69,13 @@ declare global {
                         /** When automatic mode gave up after GPU crashes. */
                         failedAt: number | null;
                     } | null;
+                    /** Linux only: VA-API video encoding (AcceleratedVideoEncoder). */
+                    videoEncode: {
+                        /** The saved choice (applies on the next launch). */
+                        enabled: boolean;
+                        /** Whether this run has the flag on. */
+                        activeAtLaunch: boolean;
+                    } | null;
                     featureStatus: Record<string, string>;
                     /** app.getGPUInfo("complete"), or `{ error }`. */
                     info: unknown;
@@ -76,6 +83,7 @@ declare global {
                     env: Record<string, string>;
                 }>;
                 setHardwareAcceleration: (enabled: boolean) => Promise<void>;
+                setVideoEncode: (enabled: boolean) => Promise<void>;
                 setNvidiaVideo: (
                     mode: "auto" | "vulkan" | "off",
                 ) => Promise<void>;

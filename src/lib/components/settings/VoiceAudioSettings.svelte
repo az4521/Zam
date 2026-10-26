@@ -17,6 +17,7 @@
         setRingEnabled,
         setRingVolume,
         setMirrorCamera,
+        setCallVideoCodec,
     } from "$lib/stores/settings.svelte";
     import {
         toDeviceOptions,
@@ -684,6 +685,25 @@
                 onChange={(v) => setMirrorCamera(v)}
                 label={t("voiceAudioSettings.mirrorMyCamera")}
             />
+        </div>
+        <div class="flex items-center justify-between gap-3 py-2">
+            <div>
+                <div class="text-sm font-medium text-discord-textPrimary">
+                    {t("voiceAudioSettings.videoCodec")}
+                </div>
+                <div class="text-xs text-discord-textMuted">
+                    {t("voiceAudioSettings.videoCodecHint")}
+                </div>
+            </div>
+            <select
+                class="bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1.5 border border-discord-divider focus:outline-none focus:ring-2 focus:ring-discord-accent"
+                value={settingsState.callVideoCodec}
+                onchange={(e) => setCallVideoCodec(e.currentTarget.value)}
+                aria-label={t("voiceAudioSettings.videoCodec")}
+            >
+                <option value="h264">H.264</option>
+                <option value="vp8">VP8</option>
+            </select>
         </div>
         <button
             onclick={() => void toggleCamera()}

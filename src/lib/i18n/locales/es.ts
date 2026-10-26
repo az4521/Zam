@@ -383,6 +383,12 @@ const messages: Record<MessageKey, string> = {
     "gpuDebug.decodeHardware": "Hardware",
     "gpuDebug.decodeSoftware": "Software",
     "gpuDebug.decodeUnsupported": "No compatible",
+    "gpuDebug.videoEncode": "Codificación de vídeo por hardware",
+    "gpuDebug.videoEncodeHint":
+        "Codifica tu cámara y tu pantalla compartida en la GPU (VA-API) para los códecs que admite tu controlador. Desactívalo si los demás ven tu imagen en negro, congelada o dañada. Se aplica tras reiniciar.",
+    "gpuDebug.videoEncoding": "Codificación de vídeo",
+    "gpuDebug.videoEncodingHint":
+        "Las llamadas envían el códec elegido en Voz y vídeo (H.264 por defecto). El panel de estadísticas de la llamada muestra qué codificador usa.",
     "gpuDebug.featureStatus": "Estado de las funciones",
     "gpuDebug.details": "Detalles",
     "gpuDebug.nvidiaVideo": "Decodificación de vídeo NVIDIA",
@@ -2366,6 +2372,9 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.mirrorMyCamera": "Reflejar mi cámara",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
         "Voltea tu propia vista previa. Los demás siempre te ven sin reflejar.",
+    "voiceAudioSettings.videoCodec": "Códec de vídeo",
+    "voiceAudioSettings.videoCodecHint":
+        "El formato en que se envían tu cámara y tu pantalla compartida. H.264 se codifica en la GPU en la mayoría de equipos; prueba VP8 si los demás ven tu imagen dañada. Se aplica la próxima vez que las actives.",
     "voiceAudioSettings.stopPreview": "Detener la vista previa",
     "voiceAudioSettings.preview": "Vista previa",
     "voiceAudioSettings.callSounds": "Sonidos de llamada",
@@ -3395,6 +3404,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.autoGainControl": "Control automático de ganancia",
     "settingsSearch.normalizeVoices": "Igualar el volumen de las voces",
     "settingsSearch.mirrorMyCamera": "Reflejar mi cámara",
+    "settingsSearch.videoCodec": "Códec de vídeo",
     "settingsSearch.callVolume": "Volumen de las llamadas",
     "settingsSearch.playCallSounds": "Reproducir sonidos de llamada",
     "settingsSearch.ringForIncomingDmCalls":

@@ -654,6 +654,13 @@ ipcMain.handle("gpu:info", async () => {
                   failedAt: prefs.nvidiaVulkanFailed ?? null,
               }
             : null,
+        videoEncode:
+            process.platform === "linux"
+                ? {
+                      enabled: prefs.videoEncode !== false,
+                      activeAtLaunch: hardwareVideoEncode,
+                  }
+                : null,
         featureStatus: app.getGPUFeatureStatus(),
         info,
         switches,
@@ -673,6 +680,10 @@ function writeGpuPrefs(patch) {
 
 ipcMain.handle("gpu:set-hardware-acceleration", (_e, enabled) => {
     writeGpuPrefs({ hardwareAcceleration: !!enabled });
+});
+
+ipcMain.handle("gpu:set-video-encode", (_e, enabled) => {
+    writeGpuPrefs({ videoEncode: enabled ? undefined : false });
 });
 
 // "auto" | "vulkan" | "off" (see zam.sh). Choosing again forgets a fallback
@@ -1365,6 +1376,16 @@ if (nvidiaVulkanVideo) {
         app.commandLine.appendSwitch("use-angle", "vulkan");
     }
 }
+// Chromium only encodes video on the GPU under Linux (VA-API) behind this
+// flag; Windows and macOS already do by default. WebRTC (calls, screen
+// shares) and WebCodecs use it for the codecs the driver can encode, and
+// fall back to software for the rest. Settings > Debug can turn it off for
+// drivers that produce broken streams.
+const hardwareVideoEncode =
+    process.platform === "linux" &&
+    hardwareAccelerationAtLaunch &&
+    readGpuPrefs().videoEncode !== false;
+if (hardwareVideoEncode) features.push("AcceleratedVideoEncoder");
 app.commandLine.appendSwitch(
     "enable-features",
     features.filter(Boolean).join(","),

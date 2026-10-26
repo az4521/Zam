@@ -383,6 +383,12 @@ const messages: Record<MessageKey, string> = {
     "gpuDebug.decodeHardware": "Matériel",
     "gpuDebug.decodeSoftware": "Logiciel",
     "gpuDebug.decodeUnsupported": "Non pris en charge",
+    "gpuDebug.videoEncode": "Encodage vidéo matériel",
+    "gpuDebug.videoEncodeHint":
+        "Encode votre caméra et votre partage d'écran sur le GPU (VA-API) pour les codecs pris en charge par votre pilote. Désactivez-le si les autres voient votre flux noir, figé ou corrompu. S'applique après un redémarrage.",
+    "gpuDebug.videoEncoding": "Encodage vidéo",
+    "gpuDebug.videoEncodingHint":
+        "Les appels envoient le codec choisi dans Voix et vidéo (H.264 par défaut). Le panneau des statistiques d'appel indique quel encodeur un appel utilise.",
     "gpuDebug.featureStatus": "État des fonctionnalités",
     "gpuDebug.details": "Détails",
     "gpuDebug.nvidiaVideo": "Décodage vidéo NVIDIA",
@@ -2326,6 +2332,9 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.mirrorMyCamera": "Afficher ma caméra en miroir",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
         "Retourne votre propre aperçu. Les autres vous voient toujours sans effet miroir.",
+    "voiceAudioSettings.videoCodec": "Codec vidéo",
+    "voiceAudioSettings.videoCodecHint":
+        "Le format dans lequel votre caméra et votre partage d'écran sont envoyés. Le H.264 est encodé par le GPU sur la plupart des appareils ; essayez le VP8 si les autres voient votre flux corrompu. S'applique la prochaine fois que vous les activez.",
     "voiceAudioSettings.stopPreview": "Arrêter l'aperçu",
     "voiceAudioSettings.preview": "Aperçu",
     "voiceAudioSettings.callSounds": "Sons des appels",
@@ -3357,6 +3366,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.autoGainControl": "Contrôle automatique du gain",
     "settingsSearch.normalizeVoices": "Égaliser le volume des voix",
     "settingsSearch.mirrorMyCamera": "Afficher ma caméra en miroir",
+    "settingsSearch.videoCodec": "Codec vidéo",
     "settingsSearch.callVolume": "Volume des appels",
     "settingsSearch.playCallSounds": "Jouer les sons des appels",
     "settingsSearch.ringForIncomingDmCalls":

@@ -869,6 +869,9 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             autoGainControl: micPlan.autoGainControl,
             // No `processor` here: see setCallMicEnabled.
         },
+        // No VP9/AV1 fallback layers: we only send WebRTC's mandatory codecs
+        // (settingsState.callVideoCodec).
+        publishDefaults: { backupCodec: false },
     });
     voiceOutputDeviceId = settingsState.audioOutputDeviceId;
     voiceOutputVolume = settingsState.callOutputVolume;
@@ -1359,6 +1362,7 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
                     Number(settingsState.screenShareFps),
                 ),
                 degradationPreference: "maintain-resolution",
+                videoCodec: settingsState.callVideoCodec,
             },
         );
         if (on) void publishShareAudio(call);
@@ -1501,9 +1505,11 @@ export async function setCameraEnabled(on: boolean): Promise<boolean> {
     const call = activeVoice;
     if (!call) return false;
     try {
-        await call.lkRoom.localParticipant.setCameraEnabled(on, {
-            deviceId: settingsState.videoInputDeviceId ?? undefined,
-        });
+        await call.lkRoom.localParticipant.setCameraEnabled(
+            on,
+            { deviceId: settingsState.videoInputDeviceId ?? undefined },
+            { videoCodec: settingsState.callVideoCodec },
+        );
         if (activeVoice === call) desiredCameraOn = on;
         return on;
     } catch (err) {

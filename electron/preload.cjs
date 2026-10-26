@@ -140,6 +140,8 @@ contextBridge.exposeInMainWorld("desktop", {
         info: () => ipcRenderer.invoke("gpu:info"),
         setHardwareAcceleration: (enabled) =>
             ipcRenderer.invoke("gpu:set-hardware-acceleration", !!enabled),
+        setVideoEncode: (enabled) =>
+            ipcRenderer.invoke("gpu:set-video-encode", !!enabled),
         setNvidiaVideo: (mode) =>
             ipcRenderer.invoke("gpu:set-nvidia-video", String(mode)),
         relaunch: () => ipcRenderer.send("app:relaunch"),

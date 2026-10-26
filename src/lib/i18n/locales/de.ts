@@ -390,6 +390,12 @@ const messages: Record<MessageKey, string> = {
     "gpuDebug.decodeHardware": "Hardware",
     "gpuDebug.decodeSoftware": "Software",
     "gpuDebug.decodeUnsupported": "Nicht unterstützt",
+    "gpuDebug.videoEncode": "Hardware-Videokodierung",
+    "gpuDebug.videoEncodeHint":
+        "Kodiert Kamera und Bildschirmfreigabe auf der GPU (VA-API) für die Codecs, die dein Treiber unterstützt. Schalte dies aus, wenn andere von dir ein schwarzes, eingefrorenes oder fehlerhaftes Bild sehen. Gilt nach einem Neustart.",
+    "gpuDebug.videoEncoding": "Videokodierung",
+    "gpuDebug.videoEncodingHint":
+        "Anrufe senden den unter Sprache und Video gewählten Codec (standardmäßig H.264). Das Anrufstatistik-Fenster zeigt, welchen Encoder ein Anruf verwendet.",
     "gpuDebug.featureStatus": "Funktionsstatus",
     "gpuDebug.details": "Details",
     "gpuDebug.nvidiaVideo": "NVIDIA-Videodekodierung",
@@ -2345,6 +2351,9 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.mirrorMyCamera": "Meine Kamera spiegeln",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
         "Spiegelt deine eigene Vorschau. Andere sehen dich immer ungespiegelt.",
+    "voiceAudioSettings.videoCodec": "Videocodec",
+    "voiceAudioSettings.videoCodecHint":
+        "Das Format, in dem Kamera und Bildschirmfreigabe gesendet werden. H.264 wird auf den meisten Geräten von der GPU kodiert; versuche VP8, wenn andere von dir ein fehlerhaftes Bild sehen. Gilt beim nächsten Einschalten.",
     "voiceAudioSettings.stopPreview": "Vorschau beenden",
     "voiceAudioSettings.preview": "Vorschau",
     "voiceAudioSettings.callSounds": "Anruftöne",
@@ -3386,6 +3395,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.autoGainControl": "Automatische Pegelanpassung",
     "settingsSearch.normalizeVoices": "Stimmlautstärke angleichen",
     "settingsSearch.mirrorMyCamera": "Meine Kamera spiegeln",
+    "settingsSearch.videoCodec": "Videocodec",
     "settingsSearch.callVolume": "Anruflautstärke",
     "settingsSearch.playCallSounds": "Anruftöne abspielen",
     "settingsSearch.ringForIncomingDmCalls":

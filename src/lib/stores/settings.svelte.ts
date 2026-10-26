@@ -405,6 +405,12 @@ export const settingsState = $state({
      *  <select>s; fps is parsed to a number at the call site. */
     screenShareResolution: readAccountString("screenShareResolution") ?? "1080",
     screenShareFps: readAccountString("screenShareFps") ?? "30",
+    /** Codec for the camera and screen share we send. Only WebRTC's two
+     *  mandatory codecs: anything else (VP9, AV1) some receivers can't show,
+     *  iOS Safari PWAs among them. */
+    callVideoCodec: normalizeCallVideoCodec(
+        readAccountString("callVideoCodec"),
+    ),
     callSoundsEnabled: readAccountBool("callSoundsEnabled", true),
     callSoundsVolume: readAccountNumber("callSoundsVolume", 0.5),
     /** Ring for incoming DM calls. Deliberately independent of
@@ -702,6 +708,9 @@ export function reloadAccountSettings(): void {
     settingsState.screenShareResolution =
         readAccountString("screenShareResolution") ?? "1080";
     settingsState.screenShareFps = readAccountString("screenShareFps") ?? "30";
+    settingsState.callVideoCodec = normalizeCallVideoCodec(
+        readAccountString("callVideoCodec"),
+    );
     settingsState.callSoundsEnabled = readAccountBool(
         "callSoundsEnabled",
         true,
@@ -1060,6 +1069,20 @@ export function setScreenShareResolution(value: string): void {
 export function setScreenShareFps(value: string): void {
     settingsState.screenShareFps = value;
     writeAccountString("screenShareFps", value);
+}
+
+export type CallVideoCodec = "h264" | "vp8";
+
+/** H.264 unless VP8 was chosen: most GPUs encode H.264, few encode VP8. */
+export function normalizeCallVideoCodec(
+    value: string | null | undefined,
+): CallVideoCodec {
+    return value === "vp8" ? "vp8" : "h264";
+}
+
+export function setCallVideoCodec(value: string): void {
+    settingsState.callVideoCodec = normalizeCallVideoCodec(value);
+    writeAccountString("callVideoCodec", settingsState.callVideoCodec);
 }
 
 export function setCallSoundsEnabled(value: boolean): void {

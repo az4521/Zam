@@ -19,6 +19,7 @@ function setup(extra: Record<string, unknown> = {}) {
         info: vi.fn(async () => ({ ...structuredClone(report), ...extra })),
         setHardwareAcceleration: vi.fn(async () => {}),
         setNvidiaVideo: vi.fn(async () => {}),
+        setVideoEncode: vi.fn(async () => {}),
         relaunch: vi.fn(),
     };
     (window as unknown as { desktop: unknown }).desktop = { gpu };
@@ -60,6 +61,7 @@ afterEach(() => {
     host?.remove();
     host = null;
     delete (window as unknown as { desktop?: unknown }).desktop;
+    delete (globalThis as unknown as { VideoEncoder?: unknown }).VideoEncoder;
     flushSync();
 });
 
@@ -123,5 +125,56 @@ describe("GpuDebug", () => {
         setup({ nvidiaVideo: null });
         await render();
         expect(host!.querySelector("select")).toBeNull();
+    });
+
+    it("shows which codecs encode on the GPU", async () => {
+        setup();
+        // VP8 on the GPU, H.264 in software only, the rest unsupported.
+        (globalThis as unknown as { VideoEncoder: unknown }).VideoEncoder = {
+            isConfigSupported: async ({
+                codec,
+                hardwareAcceleration,
+            }: {
+                codec: string;
+                hardwareAcceleration: string;
+            }) => ({
+                supported:
+                    codec === "vp8" ||
+                    (codec.startsWith("avc1") &&
+                        hardwareAcceleration !== "prefer-hardware"),
+            }),
+        };
+        await render();
+        const rows = [...host!.querySelectorAll("div")].filter(
+            (d) => d.childElementCount === 2,
+        );
+        const row = (name: string) =>
+            rows.filter((d) => d.firstElementChild?.textContent === name).at(-1)
+                ?.lastElementChild?.textContent;
+        expect(host!.textContent).toContain("Video encoding");
+        expect(row("VP8")).toBe("Hardware");
+        expect(row("H.264")).toBe("Software");
+        expect(row("AV1")).toBe("Not supported");
+    });
+
+    it("saves the Linux encode switch and offers a restart", async () => {
+        const gpu = setup({
+            videoEncode: { enabled: true, activeAtLaunch: true },
+        });
+        await render();
+        const switches = host!.querySelectorAll<HTMLElement>('[role="switch"]');
+        expect(switches).toHaveLength(2);
+        switches[1].click();
+        await vi.waitFor(() =>
+            expect(gpu.setVideoEncode).toHaveBeenCalledWith(false),
+        );
+        flushSync();
+        expect(host!.textContent).toContain("Restart Zam");
+    });
+
+    it("hides the encode switch off Linux", async () => {
+        setup({ videoEncode: null });
+        await render();
+        expect(host!.querySelectorAll('[role="switch"]')).toHaveLength(1);
     });
 });

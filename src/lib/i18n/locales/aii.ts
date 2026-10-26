@@ -370,6 +370,12 @@ const messages: Record<MessageKey, string> = {
     "gpuDebug.decodeHardware": "Hardware",
     "gpuDebug.decodeSoftware": "Software",
     "gpuDebug.decodeUnsupported": "ܠܐ ܡܣܘܥܝܐ",
+    "gpuDebug.videoEncode": "Hardware video encoding",
+    "gpuDebug.videoEncodeHint":
+        "Encodes your camera and screen share on the GPU (VA-API) for the codecs your driver supports. Turn this off if others see a black, frozen or corrupted stream from you. Applies after a restart.",
+    "gpuDebug.videoEncoding": "Video encoding",
+    "gpuDebug.videoEncodingHint":
+        "Calls send the codec chosen in Voice & Video (H.264 by default). The call stats panel shows which encoder a call is using.",
     "gpuDebug.featureStatus": "Feature status",
     "gpuDebug.details": "ܦܪ̈ܝܛܐ",
     "gpuDebug.nvidiaVideo": "NVIDIA video decoding",
@@ -2182,6 +2188,9 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.mirrorMyCamera": "ܚܘܝ ܟܡܪܐ ܕܝܝ ܐܝܟ ܡܚܙܝܬܐ",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
         "ܗܦܘܟ ܚܙܝܬܐ ܩܕܡܝܬܐ ܕܝܘܟ. ܐܚܪ̈ܢܐ ܟܠ ܙܒܢܐ ܚܙܝ ܠܘܟ ܕܠܐ ܗܦܟܐ.",
+    "voiceAudioSettings.videoCodec": "Video codec",
+    "voiceAudioSettings.videoCodecHint":
+        "What your camera and screen share are sent as. H.264 encodes on the GPU on most hardware; try VP8 if others see a broken stream from you. Applies the next time you turn them on.",
     "voiceAudioSettings.stopPreview": "ܦܣܘܩ ܚܙܝܬܐ ܩܕܡܝܬܐ",
     "voiceAudioSettings.preview": "ܚܙܝܬܐ ܩܕܡܝܬܐ",
     "voiceAudioSettings.callSounds": "ܩܠ̈ܐ ܕܩܪ̈ܝܬܐ",
@@ -3138,6 +3147,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.autoGainControl": "ܡܕܒܪܢܘܬܐ ܐܘܛܘܡܛܝܩܝܬܐ ܕܪܡܘܬܐ",
     "settingsSearch.normalizeVoices": "ܫܘܝ ܪܡܘܬܐ ܕܩܠ̈ܐ",
     "settingsSearch.mirrorMyCamera": "ܚܘܝ ܟܡܪܐ ܕܝܝ ܐܝܟ ܡܚܙܝܬܐ",
+    "settingsSearch.videoCodec": "Video codec",
     "settingsSearch.callVolume": "ܪܡܘܬܐ ܕܩܠܐ ܕܩܪܝܬܐ",
     "settingsSearch.playCallSounds": "ܦܠܚ ܩܠ̈ܐ ܕܩܪ̈ܝܬܐ",
     "settingsSearch.ringForIncomingDmCalls":

@@ -412,6 +412,11 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     },
     {
         tab: "voice",
+        label: t("settingsSearch.videoCodec"),
+        keywords: ["h264", "h.264", "vp8", "encoder", "hardware encoding"],
+    },
+    {
+        tab: "voice",
         label: t("settingsSearch.callVolume"),
         keywords: ["volume", "loudness"],
     },

@@ -17,6 +17,8 @@ import {
     renameCustomPreset,
     setHoldToOpenMessageMenu,
     setMinimizeToTrayOnClose,
+    setCallVideoCodec,
+    normalizeCallVideoCodec,
 } from "./settings.svelte";
 import { auth } from "$lib/stores/auth.svelte";
 import * as themeModule from "$lib/utils/theme";
@@ -777,5 +779,23 @@ describe("minimizeToTrayOnClose", () => {
             k.includes("minimizeToTrayOnClose"),
         );
         expect(keys).toEqual([MTT_KEY]);
+    });
+});
+
+describe("callVideoCodec", () => {
+    afterEach(() => setCallVideoCodec("h264"));
+
+    it("defaults to H.264 and only ever holds a mandatory WebRTC codec", () => {
+        expect(normalizeCallVideoCodec(null)).toBe("h264");
+        expect(normalizeCallVideoCodec("vp9")).toBe("h264");
+        expect(normalizeCallVideoCodec("av1")).toBe("h264");
+        expect(normalizeCallVideoCodec("vp8")).toBe("vp8");
+    });
+
+    it("stores the choice, normalized", () => {
+        setCallVideoCodec("vp8");
+        expect(settingsState.callVideoCodec).toBe("vp8");
+        setCallVideoCodec("av1");
+        expect(settingsState.callVideoCodec).toBe("h264");
     });
 });

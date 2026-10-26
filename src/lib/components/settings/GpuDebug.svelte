@@ -4,8 +4,9 @@
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
 
     // Desktop only (rendered when window.desktop.gpu exists): Chromium's GPU
-    // report, which video codecs decode on the GPU, and the switch to turn
-    // hardware acceleration off for drivers that misrender.
+    // report, which video codecs decode and encode on the GPU, and the
+    // switches to turn hardware acceleration (or Linux GPU encoding) off for
+    // drivers that misbehave.
     type GpuReport = Awaited<
         ReturnType<NonNullable<NonNullable<Window["desktop"]>["gpu"]>["info"]>
     >;
@@ -21,8 +22,18 @@
         ["AV1", 'video/mp4; codecs="av01.0.08M.08"'],
     ];
 
+    // WebCodecs names for the codecs a call can send. Calls send VP8 (LiveKit's
+    // default), so that row is what decides whether a call encodes on the GPU.
+    const ENCODE_CODECS: [string, string][] = [
+        ["VP8", "vp8"],
+        ["VP9", "vp09.00.10.08"],
+        ["H.264", "avc1.42001f"],
+        ["AV1", "av01.0.04M.08"],
+    ];
+
     let report = $state<GpuReport | null>(null);
     let decode = $state<[string, Decode][]>([]);
+    let encode = $state<[string, Decode][]>([]);
     let error = $state("");
     let loading = $state(false);
     let copied = $state(false);
@@ -49,13 +60,42 @@
         }
     }
 
+    // WebCodecs refuses a "prefer-hardware" config when no GPU encoder takes
+    // it, so asking twice tells hardware from software. A 720p30 stream is
+    // what a call's top camera layer sends.
+    async function probeEncode(codec: string): Promise<Decode> {
+        const config = {
+            codec,
+            width: 1280,
+            height: 720,
+            bitrate: 2_500_000,
+            framerate: 30,
+        };
+        const supported = async (
+            hardwareAcceleration: HardwareAcceleration,
+        ) => {
+            try {
+                return !!(
+                    await VideoEncoder.isConfigSupported({
+                        ...config,
+                        hardwareAcceleration,
+                    })
+                ).supported;
+            } catch {
+                return false;
+            }
+        };
+        if (await supported("prefer-hardware")) return "hardware";
+        return (await supported("no-preference")) ? "software" : "unsupported";
+    }
+
     async function load() {
         const gpu = window.desktop?.gpu;
         if (!gpu) return;
         loading = true;
         error = "";
         try {
-            const [next, codecs] = await Promise.all([
+            const [next, codecs, encoders] = await Promise.all([
                 gpu.info(),
                 Promise.all(
                     CODECS.map(
@@ -63,9 +103,21 @@
                             [name, await probe(type)] as [string, Decode],
                     ),
                 ),
+                typeof VideoEncoder === "undefined"
+                    ? []
+                    : Promise.all(
+                          ENCODE_CODECS.map(
+                              async ([name, codec]) =>
+                                  [name, await probeEncode(codec)] as [
+                                      string,
+                                      Decode,
+                                  ],
+                          ),
+                      ),
             ]);
             report = next;
             decode = codecs;
+            encode = encoders;
         } catch (e) {
             error = (e as Error)?.message ?? String(e);
         } finally {
@@ -82,6 +134,18 @@
             await window.desktop?.gpu?.setHardwareAcceleration(enabled);
         } catch (e) {
             report.hardwareAcceleration = !enabled;
+            error = (e as Error)?.message ?? String(e);
+        }
+    }
+
+    async function setVideoEncode(enabled: boolean) {
+        const ve = report?.videoEncode;
+        if (!ve) return;
+        ve.enabled = enabled;
+        try {
+            await window.desktop?.gpu?.setVideoEncode(enabled);
+        } catch (e) {
+            ve.enabled = !enabled;
             error = (e as Error)?.message ?? String(e);
         }
     }
@@ -105,6 +169,14 @@
         }
     }
 
+    // The flag is only on with hardware acceleration, so a run without it
+    // can't tell whether the encode choice changed.
+    const encodeChanged = $derived(
+        !!report?.videoEncode &&
+            report.hardwareAccelerationAtLaunch &&
+            report.videoEncode.enabled !== report.videoEncode.activeAtLaunch,
+    );
+
     const decodeLabel = (d: Decode) =>
         d === "hardware"
             ? t("gpuDebug.decodeHardware")
@@ -115,7 +187,11 @@
     const reportJson = $derived(
         report
             ? JSON.stringify(
-                  { ...report, videoDecode: Object.fromEntries(decode) },
+                  {
+                      ...report,
+                      videoDecode: Object.fromEntries(decode),
+                      videoEncode: Object.fromEntries(encode),
+                  },
                   null,
                   2,
               )
@@ -169,6 +245,31 @@
             label={t("gpuDebug.hardwareAcceleration")}
         />
     </div>
+    {#if report?.videoEncode}
+        {@const ve = report.videoEncode}
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("gpuDebug.videoEncode")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("gpuDebug.videoEncodeHint")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {ve.activeAtLaunch
+                        ? t("gpuDebug.nvidiaVideoActive")
+                        : t("gpuDebug.nvidiaVideoInactive")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={ve.enabled}
+                onChange={setVideoEncode}
+                label={t("gpuDebug.videoEncode")}
+            />
+        </div>
+    {/if}
     {#if report?.nvidiaVideo}
         {@const nv = report.nvidiaVideo}
         <div
@@ -206,7 +307,7 @@
             </select>
         </div>
     {/if}
-    {#if report && (nvidiaChanged || report.hardwareAcceleration !== report.hardwareAccelerationAtLaunch)}
+    {#if report && (nvidiaChanged || report.hardwareAcceleration !== report.hardwareAccelerationAtLaunch || encodeChanged)}
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
@@ -249,6 +350,33 @@
                 >
             </div>
         {/each}
+
+        {#if encode.length}
+            <p
+                class="mt-3 mb-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+            >
+                {t("gpuDebug.videoEncoding")}
+            </p>
+            {#each encode as [name, d]}
+                <div
+                    class="flex items-start gap-3 text-sm py-1 border-b border-discord-divider"
+                >
+                    <span class="text-discord-textMuted flex-shrink-0 w-44"
+                        >{name}</span
+                    >
+                    <span
+                        class="font-mono text-xs {d === 'hardware'
+                            ? 'text-discord-textPositive'
+                            : d === 'software'
+                              ? 'text-discord-warning'
+                              : 'text-discord-danger'}">{decodeLabel(d)}</span
+                    >
+                </div>
+            {/each}
+            <p class="mt-1 text-xs text-discord-textMuted">
+                {t("gpuDebug.videoEncodingHint")}
+            </p>
+        {/if}
 
         <p
             class="mt-3 mb-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"

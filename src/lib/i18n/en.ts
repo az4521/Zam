@@ -382,6 +382,12 @@ export const en = {
     "gpuDebug.decodeHardware": "Hardware",
     "gpuDebug.decodeSoftware": "Software",
     "gpuDebug.decodeUnsupported": "Not supported",
+    "gpuDebug.videoEncode": "Hardware video encoding",
+    "gpuDebug.videoEncodeHint":
+        "Encodes your camera and screen share on the GPU (VA-API) for the codecs your driver supports. Turn this off if others see a black, frozen or corrupted stream from you. Applies after a restart.",
+    "gpuDebug.videoEncoding": "Video encoding",
+    "gpuDebug.videoEncodingHint":
+        "Calls send the codec chosen in Voice & Video (H.264 by default). The call stats panel shows which encoder a call is using.",
     "gpuDebug.featureStatus": "Feature status",
     "gpuDebug.details": "Details",
     "settingsNav.keybinds": "Keybinds",
@@ -2260,6 +2266,9 @@ export const en = {
     "voiceAudioSettings.mirrorMyCamera": "Mirror my camera",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
         "Flip your own preview. Others always see you un-mirrored.",
+    "voiceAudioSettings.videoCodec": "Video codec",
+    "voiceAudioSettings.videoCodecHint":
+        "What your camera and screen share are sent as. H.264 encodes on the GPU on most hardware; try VP8 if others see a broken stream from you. Applies the next time you turn them on.",
     "voiceAudioSettings.stopPreview": "Stop preview",
     "voiceAudioSettings.preview": "Preview",
     "voiceAudioSettings.callSounds": "Call sounds",
@@ -3238,6 +3247,7 @@ export const en = {
     "settingsSearch.autoGainControl": "Auto gain control",
     "settingsSearch.normalizeVoices": "Even out voice volumes",
     "settingsSearch.mirrorMyCamera": "Mirror my camera",
+    "settingsSearch.videoCodec": "Video codec",
     "settingsSearch.callVolume": "Call volume",
     "settingsSearch.playCallSounds": "Play call sounds",
     "settingsSearch.ringForIncomingDmCalls": "Ring for incoming DM calls",
