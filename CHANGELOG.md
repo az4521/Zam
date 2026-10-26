@@ -4,6 +4,15 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.33.0
+
+✨ **New**
+
+- **Pick your screen-share bitrate:** the screen-share quality menu has a bitrate slider of its own, separate from resolution and frame rate. It goes from 300 kbps up to just under your measured upload speed, instead of a fixed bitrate for each resolution. Zam measures your upload while you're sending video, so until your first share on a device the slider goes up to 10 Mbps.
+- **Choose your video codec:** Settings > Voice & Video > Camera has a video codec setting for your camera and screen shares. H.264 is the new default, since most graphics cards can encode it; VP8 is the other choice. Both play everywhere, including iPhones and iPads.
+- **Hardware video encoding on Linux (desktop):** the desktop app on Linux now encodes your camera and screen share on the graphics card, for codecs the driver supports. Settings > Debug can turn this off and shows which codecs your system encodes in hardware.
+- **NVIDIA video encoding on Linux, experimental (Flatpak):** NVIDIA cards can now encode H.264 calls and screen shares on the GPU in the Flatpak. Turn it on in Settings > Debug and restart.
+
 ## v1.32.4
 
 🐛 **Fixed**
