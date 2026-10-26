@@ -1839,6 +1839,14 @@ const messages: Record<MessageKey, string> = {
     "screenShareQualityChips.resolution": "Resolución",
     "screenShareQualityChips.frameRate": "Fotogramas por segundo",
     "screenShareQualityChips.fps": "{f} FPS",
+    "screenShareQualityChips.videoCodec": "Códec de vídeo",
+    "screenShareQualityChips.hw": "HW",
+    "screenShareQualityChips.codecHardware": "Lo codifica tu tarjeta gráfica",
+    "screenShareQualityChips.codecSoftware": "Lo codifica tu procesador",
+    "screenShareQualityChips.codecHint":
+        "Para tu cámara y pantalla compartida. Solo aparecen los códecs que todos en la llamada pueden reproducir.",
+    "screenShareQualityChips.codecBackupHint":
+        "Alguien en la llamada no puede reproducir {codec}, así que recibe una copia en H.264, que usa más subida.",
     "screenShareQualityChips.bitrate": "Tasa de bits",
     "screenShareQualityChips.kbps": "{n} kbps",
     "screenShareQualityChips.mbps": "{n} Mbps",
@@ -2384,7 +2392,7 @@ const messages: Record<MessageKey, string> = {
         "Voltea tu propia vista previa. Los demás siempre te ven sin reflejar.",
     "voiceAudioSettings.videoCodec": "Códec de vídeo",
     "voiceAudioSettings.videoCodecHint":
-        "El formato en que se envían tu cámara y tu pantalla compartida. H.264 se codifica en la GPU en la mayoría de equipos; prueba VP8 si los demás ven tu imagen dañada. Se aplica la próxima vez que las actives.",
+        "El formato en que se envían tu cámara y tu pantalla compartida. Quien en la llamada no pueda reproducirlo recibe una copia en H.264, y también puedes cambiarlo desde la llamada. Se aplica la próxima vez que las actives.",
     "voiceAudioSettings.stopPreview": "Detener la vista previa",
     "voiceAudioSettings.preview": "Vista previa",
     "voiceAudioSettings.callSounds": "Sonidos de llamada",
@@ -2654,6 +2662,7 @@ const messages: Record<MessageKey, string> = {
         "No se pudo cambiar de {what}; se usa el dispositivo predeterminado",
     "client.couldnTSwitchToThatPick":
         "No se pudo cambiar de {what}; elige otro dispositivo",
+    "client.couldNotSwitchVideoCodec": "No se pudo cambiar el códec de vídeo",
     "client.couldNotStartScreenShare":
         "No se pudo empezar a compartir la pantalla",
     "client.couldNotShareScreenAudio": "La pantalla se comparte sin audio",

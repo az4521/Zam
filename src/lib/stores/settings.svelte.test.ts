@@ -785,10 +785,11 @@ describe("minimizeToTrayOnClose", () => {
 describe("callVideoCodec", () => {
     afterEach(() => setCallVideoCodec("h264"));
 
-    it("defaults to H.264 and only ever holds a mandatory WebRTC codec", () => {
+    it("defaults to H.264 and only ever holds a known codec", () => {
         expect(normalizeCallVideoCodec(null)).toBe("h264");
-        expect(normalizeCallVideoCodec("vp9")).toBe("h264");
-        expect(normalizeCallVideoCodec("av1")).toBe("h264");
+        expect(normalizeCallVideoCodec("theora")).toBe("h264");
+        expect(normalizeCallVideoCodec("vp9")).toBe("vp9");
+        expect(normalizeCallVideoCodec("h265")).toBe("h265");
         expect(normalizeCallVideoCodec("vp8")).toBe("vp8");
     });
 
@@ -796,6 +797,8 @@ describe("callVideoCodec", () => {
         setCallVideoCodec("vp8");
         expect(settingsState.callVideoCodec).toBe("vp8");
         setCallVideoCodec("av1");
+        expect(settingsState.callVideoCodec).toBe("av1");
+        setCallVideoCodec("mpeg2");
         expect(settingsState.callVideoCodec).toBe("h264");
     });
 });

@@ -9858,6 +9858,8 @@ export {
     onActiveSpeakersChanged,
     onParticipantMuteChanged,
     onVideoTracksChanged,
+    onCallCodecsChanged,
+    switchCallVideoCodec,
     onVoiceCallError,
     onVoiceNotice,
     onVoicePlaybackBlockedChanged,
@@ -9879,3 +9881,4 @@ export {
     setVoiceCaptureConstraints,
     getRemoteAudioStreams,
 } from "./livekitCall";
+export type { CallCodecState } from "./livekitCall";

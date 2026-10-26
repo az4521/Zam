@@ -1699,6 +1699,14 @@ const messages: Record<MessageKey, string> = {
     "screenShareQualityChips.resolution": "ܦܫܝܩܘܬܐ",
     "screenShareQualityChips.frameRate": "ܡܢܝܢܐ ܕܨܘܪ̈ܝܬܐ",
     "screenShareQualityChips.fps": "{f} FPS",
+    "screenShareQualityChips.videoCodec": "Video codec",
+    "screenShareQualityChips.hw": "HW",
+    "screenShareQualityChips.codecHardware": "Encoded on your graphics card",
+    "screenShareQualityChips.codecSoftware": "Encoded on your processor",
+    "screenShareQualityChips.codecHint":
+        "For your camera and screen share. Only codecs everyone in the call can play are listed.",
+    "screenShareQualityChips.codecBackupHint":
+        "Someone in the call can't play {codec}, so they get an H.264 copy, which takes more upload.",
     "screenShareQualityChips.bitrate": "Bitrate",
     "screenShareQualityChips.kbps": "{n} kbps",
     "screenShareQualityChips.mbps": "{n} Mbps",
@@ -2200,7 +2208,7 @@ const messages: Record<MessageKey, string> = {
         "ܗܦܘܟ ܚܙܝܬܐ ܩܕܡܝܬܐ ܕܝܘܟ. ܐܚܪ̈ܢܐ ܟܠ ܙܒܢܐ ܚܙܝ ܠܘܟ ܕܠܐ ܗܦܟܐ.",
     "voiceAudioSettings.videoCodec": "Video codec",
     "voiceAudioSettings.videoCodecHint":
-        "What your camera and screen share are sent as. H.264 encodes on the GPU on most hardware; try VP8 if others see a broken stream from you. Applies the next time you turn them on.",
+        "What your camera and screen share are sent as. Anyone in the call who can't play it gets an H.264 copy, and you can switch it from the call too. Applies the next time you turn them on.",
     "voiceAudioSettings.stopPreview": "ܦܣܘܩ ܚܙܝܬܐ ܩܕܡܝܬܐ",
     "voiceAudioSettings.preview": "ܚܙܝܬܐ ܩܕܡܝܬܐ",
     "voiceAudioSettings.callSounds": "ܩܠ̈ܐ ܕܩܪ̈ܝܬܐ",
@@ -2457,6 +2465,7 @@ const messages: Record<MessageKey, string> = {
         "ܫܘܚܠܦܐ ܠܗܘ {what} ܠܐ ܦܠܚܠܗ - ܒܦܠܚܐ ܒܡܐܢܐ ܥܕܝܠܐ",
     "client.couldnTSwitchToThatPick":
         "ܫܘܚܠܦܐ ܠܗܘ {what} ܠܐ ܦܠܚܠܗ - ܓܒܝ ܡܐܢܐ ܐܚܪܢܐ",
+    "client.couldNotSwitchVideoCodec": "Couldn't switch the video codec",
     "client.couldNotStartScreenShare": "ܫܘܪܝܐ ܕܫܘܬܦܘܬܐ ܕܡܚܙܝܬܐ ܠܐ ܦܠܚܠܗ",
     "client.couldNotShareScreenAudio": "Screen share started without its audio",
     "client.couldnTChangeScreenShareQuality":

@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { VIDEO_CODECS, VIDEO_CODEC_LABELS } from "$lib/utils/videoCodecs";
     import { t } from "$lib/i18n";
     import { onMount, onDestroy } from "svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
@@ -701,8 +702,9 @@
                 onchange={(e) => setCallVideoCodec(e.currentTarget.value)}
                 aria-label={t("voiceAudioSettings.videoCodec")}
             >
-                <option value="h264">H.264</option>
-                <option value="vp8">VP8</option>
+                {#each VIDEO_CODECS as codec (codec)}
+                    <option value={codec}>{VIDEO_CODEC_LABELS[codec]}</option>
+                {/each}
             </select>
         </div>
         <button

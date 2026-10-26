@@ -25,6 +25,7 @@ import {
     setCameraEnabled,
     setVideoInputDevice,
     onVideoTracksChanged,
+    onCallCodecsChanged,
     fetchOwnExtendedProfile,
     selfHasActiveCall,
     setOwnProfileField,
@@ -37,6 +38,7 @@ import {
 } from "$lib/utils/extendedProfile";
 import { setCachedProfile } from "$lib/stores/profileFields.svelte";
 import { nextFocus, type VideoTileDescriptor } from "$lib/utils/videoTiles";
+import type { CallCodecState } from "$lib/matrix/client";
 import {
     DEFAULT_PARTICIPANT_AUDIO,
     withVolume,
@@ -128,6 +130,9 @@ class VoiceCallState {
     lastLeftCall = $state<LastLeftCall | null>(null);
     /** Renderable video tiles for the current call (remote + local). */
     videoTiles = $state<VideoTileDescriptor[]>([]);
+    /** Which video codecs we can send in this call, which everyone can
+     *  watch, and the one in use. Null outside a call. */
+    codecs = $state<CallCodecState | null>(null);
     /** Whether WE are currently publishing a screen share / camera. Derived
      *  from videoTiles so the browser's native "Stop sharing" bar flips it. */
     screenSharing = $state(false);
@@ -377,6 +382,9 @@ export function initVoiceCall(): () => void {
         voiceCallState.playbackBlocked = blocked;
     });
     let prevVideoKeys: string[] = [];
+    const unsubCodecs = onCallCodecsChanged((codecs) => {
+        voiceCallState.codecs = codecs;
+    });
     const unsubVideo = onVideoTracksChanged((tiles) => {
         voiceCallState.videoTiles = tiles;
         voiceCallState.screenSharing = tiles.some(
@@ -417,6 +425,7 @@ export function initVoiceCall(): () => void {
         for (const unsub of unsubNative) unsub();
         unsubBlocked();
         unsubVideo();
+        unsubCodecs();
     };
 }
 

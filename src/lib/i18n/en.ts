@@ -1768,6 +1768,14 @@ export const en = {
     "screenShareQualityChips.resolution": "Resolution",
     "screenShareQualityChips.frameRate": "Frame rate",
     "screenShareQualityChips.fps": "{f} FPS",
+    "screenShareQualityChips.videoCodec": "Video codec",
+    "screenShareQualityChips.hw": "HW",
+    "screenShareQualityChips.codecHardware": "Encoded on your graphics card",
+    "screenShareQualityChips.codecSoftware": "Encoded on your processor",
+    "screenShareQualityChips.codecHint":
+        "For your camera and screen share. Only codecs everyone in the call can play are listed.",
+    "screenShareQualityChips.codecBackupHint":
+        "Someone in the call can't play {codec}, so they get an H.264 copy, which takes more upload.",
     "screenShareQualityChips.bitrate": "Bitrate",
     "screenShareQualityChips.kbps": "{n} kbps",
     "screenShareQualityChips.mbps": "{n} Mbps",
@@ -2278,7 +2286,7 @@ export const en = {
         "Flip your own preview. Others always see you un-mirrored.",
     "voiceAudioSettings.videoCodec": "Video codec",
     "voiceAudioSettings.videoCodecHint":
-        "What your camera and screen share are sent as. H.264 encodes on the GPU on most hardware; try VP8 if others see a broken stream from you. Applies the next time you turn them on.",
+        "What your camera and screen share are sent as. Anyone in the call who can't play it gets an H.264 copy, and you can switch it from the call too. Applies the next time you turn them on.",
     "voiceAudioSettings.stopPreview": "Stop preview",
     "voiceAudioSettings.preview": "Preview",
     "voiceAudioSettings.callSounds": "Call sounds",
@@ -2539,6 +2547,7 @@ export const en = {
         "Couldn't switch to that {what} - using the default device",
     "client.couldnTSwitchToThatPick":
         "Couldn't switch to that {what} - pick another device",
+    "client.couldNotSwitchVideoCodec": "Couldn't switch the video codec",
     "client.couldNotStartScreenShare": "Could not start screen share",
     "client.couldNotShareScreenAudio": "Screen share started without its audio",
     "client.couldnTChangeScreenShareQuality":

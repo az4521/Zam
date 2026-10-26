@@ -12,6 +12,12 @@
         measuredUpload,
         screenShareBitrateCeiling,
     } from "$lib/stores/uploadEstimate.svelte";
+    import { voiceCallState } from "$lib/stores/voiceCall.svelte";
+    import { switchCallVideoCodec } from "$lib/matrix/client";
+    import {
+        VIDEO_CODEC_LABELS,
+        type VideoCodec,
+    } from "$lib/utils/videoCodecs";
     import {
         BITRATE_SLIDER_STEPS,
         bitrateFromSlider,
@@ -69,6 +75,22 @@
         );
     }
 
+    // In a call: the codecs we can send that everyone can watch, plus the one
+    // in use if someone who joined since can't (they get an H.264 backup).
+    const codecs = $derived(voiceCallState.codecs);
+    const codecChoices = $derived(
+        codecs
+            ? codecs.sendable.filter(
+                  (c) => codecs.available.includes(c) || c === codecs.current,
+              )
+            : [],
+    );
+
+    function pickCodec(codec: VideoCodec): void {
+        if (codec === codecs?.current) return;
+        void switchCallVideoCodec(codec);
+    }
+
     const chipBase =
         "px-2.5 py-1 rounded text-xs font-medium border transition-colors";
     const chipOn = "bg-discord-accent text-white border-discord-accent";
@@ -121,6 +143,44 @@
             {/each}
         </div>
     </div>
+    {#if codecs && codecChoices.length > 0}
+        <div>
+            <div
+                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+            >
+                {t("screenShareQualityChips.videoCodec")}
+            </div>
+            <div class="flex flex-wrap gap-1.5">
+                {#each codecChoices as codec (codec)}
+                    <button
+                        type="button"
+                        class="{chipBase} {codecs.current === codec
+                            ? chipOn
+                            : chipOff}"
+                        aria-pressed={codecs.current === codec}
+                        title={codecs.hardware.includes(codec)
+                            ? t("screenShareQualityChips.codecHardware")
+                            : t("screenShareQualityChips.codecSoftware")}
+                        onclick={() => pickCodec(codec)}
+                    >
+                        {VIDEO_CODEC_LABELS[codec]}
+                        {#if codecs.hardware.includes(codec)}
+                            <span class="ml-0.5 opacity-75"
+                                >{t("screenShareQualityChips.hw")}</span
+                            >
+                        {/if}
+                    </button>
+                {/each}
+            </div>
+            <div class="text-xs text-discord-textMuted mt-0.5">
+                {codecs.available.includes(codecs.current)
+                    ? t("screenShareQualityChips.codecHint")
+                    : t("screenShareQualityChips.codecBackupHint", {
+                          codec: VIDEO_CODEC_LABELS[codecs.current],
+                      })}
+            </div>
+        </div>
+    {/if}
     <div>
         <div class="flex items-baseline justify-between gap-2 mb-1.5">
             <div

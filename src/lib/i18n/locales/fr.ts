@@ -1796,6 +1796,14 @@ const messages: Record<MessageKey, string> = {
     "screenShareQualityChips.resolution": "Résolution",
     "screenShareQualityChips.frameRate": "Fréquence d'images",
     "screenShareQualityChips.fps": "{f} i/s",
+    "screenShareQualityChips.videoCodec": "Codec vidéo",
+    "screenShareQualityChips.hw": "GPU",
+    "screenShareQualityChips.codecHardware": "Encodé par votre carte graphique",
+    "screenShareQualityChips.codecSoftware": "Encodé par votre processeur",
+    "screenShareQualityChips.codecHint":
+        "Pour votre caméra et votre partage d'écran. Seuls les codecs que tout le monde dans l'appel peut lire sont proposés.",
+    "screenShareQualityChips.codecBackupHint":
+        "Quelqu'un dans l'appel ne peut pas lire le {codec} et reçoit une copie en H.264, qui demande plus de débit montant.",
     "screenShareQualityChips.bitrate": "Débit",
     "screenShareQualityChips.kbps": "{n} kbit/s",
     "screenShareQualityChips.mbps": "{n} Mbit/s",
@@ -2344,7 +2352,7 @@ const messages: Record<MessageKey, string> = {
         "Retourne votre propre aperçu. Les autres vous voient toujours sans effet miroir.",
     "voiceAudioSettings.videoCodec": "Codec vidéo",
     "voiceAudioSettings.videoCodecHint":
-        "Le format dans lequel votre caméra et votre partage d'écran sont envoyés. Le H.264 est encodé par le GPU sur la plupart des appareils ; essayez le VP8 si les autres voient votre flux corrompu. S'applique la prochaine fois que vous les activez.",
+        "Le format dans lequel votre caméra et votre partage d'écran sont envoyés. Les personnes de l'appel qui ne peuvent pas le lire reçoivent une copie en H.264, et vous pouvez aussi le changer depuis l'appel. S'applique la prochaine fois que vous les activez.",
     "voiceAudioSettings.stopPreview": "Arrêter l'aperçu",
     "voiceAudioSettings.preview": "Aperçu",
     "voiceAudioSettings.callSounds": "Sons des appels",
@@ -2615,6 +2623,7 @@ const messages: Record<MessageKey, string> = {
         "Impossible de changer de {what} - utilisation du périphérique par défaut",
     "client.couldnTSwitchToThatPick":
         "Impossible de changer de {what} - choisissez un autre périphérique",
+    "client.couldNotSwitchVideoCodec": "Impossible de changer le codec vidéo",
     "client.couldNotStartScreenShare":
         "Impossible de démarrer le partage d'écran",
     "client.couldNotShareScreenAudio": "Partage d'écran lancé sans le son",

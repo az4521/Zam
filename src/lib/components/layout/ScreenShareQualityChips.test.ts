@@ -1,10 +1,19 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+
+const { switchCallVideoCodec } = vi.hoisted(() => ({
+    switchCallVideoCodec: vi.fn(async () => {}),
+}));
+vi.mock("$lib/matrix/client", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("$lib/matrix/client")>()),
+    switchCallVideoCodec,
+}));
 import { mount, unmount, flushSync } from "svelte";
 import ScreenShareQualityChips from "./ScreenShareQualityChips.svelte";
 import {
     settingsState,
     setScreenShareBitrate,
 } from "$lib/stores/settings.svelte";
+import { voiceCallState } from "$lib/stores/voiceCall.svelte";
 import {
     uploadEstimate,
     noteUploadEstimate,
@@ -38,6 +47,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    voiceCallState.codecs = null;
+    switchCallVideoCodec.mockClear();
     if (instance) unmount(instance);
     instance = null;
     host?.remove();
@@ -84,5 +95,49 @@ describe("ScreenShareQualityChips bitrate", () => {
             settingsState.screenShareResolution,
             Number(settingsState.screenShareFps),
         );
+    });
+});
+
+describe("ScreenShareQualityChips codec", () => {
+    const chip = (label: string) =>
+        [...host!.querySelectorAll("button")].find((b) =>
+            b.textContent?.trim().startsWith(label),
+        );
+
+    it("isn't shown outside a call", () => {
+        render();
+        expect(host!.textContent).not.toContain("Video codec");
+    });
+
+    it("lists what everyone can play, marks hardware, and switches", () => {
+        voiceCallState.codecs = {
+            sendable: ["av1", "h265", "vp9", "h264", "vp8"],
+            available: ["vp9", "h264", "vp8"],
+            hardware: ["h264"],
+            current: "h264",
+        };
+        render();
+        expect(chip("AV1")).toBeUndefined();
+        expect(chip("HEVC")).toBeUndefined();
+        expect(chip("H.264")?.getAttribute("aria-pressed")).toBe("true");
+        expect(chip("H.264")?.textContent).toContain("HW");
+        expect(chip("VP9")?.textContent).not.toContain("HW");
+        expect(host!.textContent).toContain("everyone in the call can play");
+        chip("VP9")!.click();
+        expect(switchCallVideoCodec).toHaveBeenCalledWith("vp9");
+        chip("H.264")!.click();
+        expect(switchCallVideoCodec).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps a codec someone can't play, and says they get H.264", () => {
+        voiceCallState.codecs = {
+            sendable: ["h265", "h264", "vp8"],
+            available: ["h264", "vp8"],
+            hardware: ["h265", "h264"],
+            current: "h265",
+        };
+        render();
+        expect(chip("HEVC")?.getAttribute("aria-pressed")).toBe("true");
+        expect(host!.textContent).toContain("can't play HEVC");
     });
 });

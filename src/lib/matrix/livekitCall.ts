@@ -50,6 +50,7 @@ import {
     settingsState,
     setAudioInputDeviceId,
     setVideoInputDeviceId,
+    setCallVideoCodec,
 } from "$lib/stores/settings.svelte";
 import { lazyModule } from "$lib/utils/lazyModule";
 import {
@@ -58,6 +59,16 @@ import {
     type StreamOwner,
 } from "$lib/utils/callStats";
 import { clampBitrate } from "$lib/utils/screenShareBitrate";
+import {
+    backupCodecFor,
+    codecsEveryoneDecodes,
+    codecsFromMimeTypes,
+    effectiveCodec,
+    DECODE_ATTRIBUTE,
+    encodeDecodeAttribute,
+    parseDecodeAttribute,
+    type VideoCodec,
+} from "$lib/utils/videoCodecs";
 import {
     clearLiveUploadEstimate,
     noteUploadEstimate,
@@ -147,6 +158,8 @@ interface ActiveVoiceCall {
     audioGraph: CallAudioGraph | null | false;
     onMmError: (err: unknown) => void;
     onMyMembership: (room: Room, membership: string) => void;
+    /** What this device can send and decode (localVideoCodecs). */
+    codecs: LocalVideoCodecs;
 }
 
 let activeVoice: ActiveVoiceCall | null = null;
@@ -608,6 +621,19 @@ function notifyCallSpeakers(call: ActiveVoiceCall): void {
  *  mute and video-tile views. */
 function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
     const lk = call.lk;
+    // What the people we publish to decode (utils/videoCodecs): LiveKit
+    // hands over everyone's attributes on joining and reports changes.
+    if (lkRoom === call.lkRoom) {
+        const codecsChanged = () => notifyCallCodecs(call);
+        lkRoom.on(lk.RoomEvent.ParticipantConnected, codecsChanged);
+        lkRoom.on(lk.RoomEvent.ParticipantDisconnected, codecsChanged);
+        lkRoom.on(
+            lk.RoomEvent.ParticipantAttributesChanged,
+            (changed: Record<string, string>) => {
+                if (DECODE_ATTRIBUTE in changed) codecsChanged();
+            },
+        );
+    }
     lkRoom.on(
         lk.RoomEvent.TrackSubscribed,
         (
@@ -772,6 +798,7 @@ async function connectRemoteSfu(
             return;
         }
         call.remotes.set(key, lkRoom);
+        announceCodecs(call, lkRoom);
         call.remoteFailuresNotified.delete(key);
         // Settles anything that changed while connecting (incl. the SFU no
         // longer being wanted) and refreshes the merged views.
@@ -865,6 +892,8 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     const lk = await livekitLoad;
     await denoiseLoad;
     if (seq !== voiceJoinSeq) return; // superseded while loading livekit
+    const localCodecs = await localVideoCodecs(lk);
+    if (seq !== voiceJoinSeq) return;
     const micPlan = planMicProcessing(
         settingsState.noiseSuppressionMode,
         settingsState.micGainMode,
@@ -879,8 +908,8 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             autoGainControl: micPlan.autoGainControl,
             // No `processor` here: see setCallMicEnabled.
         },
-        // No VP9/AV1 fallback layers: we only send WebRTC's mandatory codecs
-        // (settingsState.callVideoCodec).
+        // Each video publish sets its own backup codec
+        // (videoCodecPublishOptions).
         publishDefaults: { backupCodec: false },
     });
     voiceOutputDeviceId = settingsState.audioOutputDeviceId;
@@ -935,6 +964,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         elByTrack: new Map(),
         onMmError,
         onMyMembership,
+        codecs: localCodecs,
     };
     activeVoice = call;
     startUploadSampling(call);
@@ -987,7 +1017,10 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         lkRoom.on(lk.RoomEvent.LocalTrackUnpublished, (publication) => {
             // However the share ended (our button, the OS's stop sharing),
             // its separately published audio ends with it.
-            if (publication.source === lk.Track.Source.ScreenShare) {
+            if (
+                publication.source === lk.Track.Source.ScreenShare &&
+                republishingSource !== publication.source
+            ) {
                 stopShareAudio();
             }
             notifyCallVideo(call);
@@ -1038,6 +1071,9 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         await lkRoom.connect(url, jwt);
         connected = true;
         reportCallAddresses(lkRoom);
+        // The server's enabled codecs are known now.
+        announceCodecs(call, lkRoom);
+        notifyCallCodecs(call);
         if (seq !== voiceJoinSeq) {
             await lkRoom.disconnect().catch(() => {});
             return;
@@ -1108,6 +1144,7 @@ async function leaveVoiceCallInternal(): Promise<void> {
         for (const cb of activeSpeakerSubscribers) cb([]);
         for (const cb of participantMuteSubscribers) cb([]);
         for (const cb of videoTracksSubscribers) cb([]);
+        for (const cb of codecSubscribers) cb(null);
         notifyVoiceConnState(null);
         setVoicePlaybackBlocked(false);
         call.session.off(
@@ -1373,7 +1410,7 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
                     Number(settingsState.screenShareFps),
                 ),
                 degradationPreference: "maintain-resolution",
-                videoCodec: settingsState.callVideoCodec,
+                ...videoCodecPublishOptions(call),
             },
         );
         if (on) void publishShareAudio(call);
@@ -1527,7 +1564,7 @@ export async function setCameraEnabled(on: boolean): Promise<boolean> {
         await call.lkRoom.localParticipant.setCameraEnabled(
             on,
             { deviceId: settingsState.videoInputDeviceId ?? undefined },
-            { videoCodec: settingsState.callVideoCodec },
+            videoCodecPublishOptions(call),
         );
         if (activeVoice === call) desiredCameraOn = on;
         return on;
@@ -1794,6 +1831,219 @@ function reportCallAddresses(lkRoom: LivekitRoom): void {
     };
     void collect();
     setTimeout(() => void collect(), 5000);
+}
+
+// --- video codecs -------------------------------------------------------------
+
+interface LocalVideoCodecs {
+    /** What this browser can send that LiveKit will publish as asked. */
+    send: VideoCodec[];
+    /** What it can decode; announced to the others. */
+    decode: VideoCodec[];
+    /** The sendable ones it encodes on the GPU. */
+    hardware: VideoCodec[];
+}
+
+const WEBRTC_MIME: Record<VideoCodec, string> = {
+    av1: "video/AV1",
+    h265: "video/H265",
+    vp9: "video/VP9",
+    h264: "video/H264",
+    vp8: "video/VP8",
+};
+
+function rtpCodecMimes(kind: "send" | "receive"): string[] {
+    try {
+        const api = kind === "send" ? RTCRtpSender : RTCRtpReceiver;
+        return (
+            api.getCapabilities?.("video")?.codecs.map((c) => c.mimeType) ?? []
+        );
+    } catch {
+        return [];
+    }
+}
+
+async function localVideoCodecs(lk: LivekitModule): Promise<LocalVideoCodecs> {
+    // LiveKit quietly publishes its default instead of AV1, VP9 or HEVC where
+    // it doesn't trust the browser's support, so those aren't offered there.
+    const send = codecsFromMimeTypes(rtpCodecMimes("send")).filter((c) =>
+        c === "av1"
+            ? lk.supportsAV1()
+            : c === "vp9"
+              ? lk.supportsVP9()
+              : c === "h265"
+                ? lk.supportsH265()
+                : true,
+    );
+    const hardware = await Promise.all(
+        send.map(async (codec) => {
+            try {
+                const info = await navigator.mediaCapabilities.encodingInfo({
+                    type: "webrtc",
+                    video: {
+                        contentType: WEBRTC_MIME[codec],
+                        width: 1920,
+                        height: 1080,
+                        bitrate: 4_000_000,
+                        framerate: 30,
+                    },
+                });
+                return info.powerEfficient ? codec : null;
+            } catch {
+                return null;
+            }
+        }),
+    );
+    return {
+        send,
+        decode: codecsFromMimeTypes(rtpCodecMimes("receive")),
+        hardware: hardware.filter((c): c is VideoCodec => c !== null),
+    };
+}
+
+/** What we can send on the publishing connection: our codecs, less any the
+ *  server doesn't accept (it lists those once connected). */
+function sendableCodecs(call: ActiveVoiceCall): VideoCodec[] {
+    const enabled =
+        (
+            call.lkRoom.localParticipant as unknown as {
+                enabledPublishVideoCodecs?: { mime: string }[];
+            }
+        ).enabledPublishVideoCodecs ?? [];
+    if (enabled.length === 0) return call.codecs.send;
+    const allowed = codecsFromMimeTypes(enabled.map((c) => c.mime));
+    return call.codecs.send.filter((c) => allowed.includes(c));
+}
+
+/** The codec part of a video publish: the picked codec if we can send it,
+ *  and for anything but VP8/H.264 an H.264 (or VP8) backup. The server asks
+ *  for the backup only once a viewer can't decode the main stream, and sends
+ *  it to them alone; everyone else keeps the picked codec. */
+function videoCodecPublishOptions(call: ActiveVoiceCall) {
+    const sendable = sendableCodecs(call);
+    const videoCodec = effectiveCodec(settingsState.callVideoCodec, sendable);
+    const backup = backupCodecFor(videoCodec, sendable);
+    return {
+        videoCodec,
+        backupCodec: backup ? { codec: backup } : false,
+        backupCodecPolicy: call.lk.BackupCodecPolicy.SIMULCAST,
+    } as const;
+}
+
+/** Tell everyone on `lkRoom` what we decode. Set on every connection, since
+ *  whoever publishes on a remote one needs it too. */
+function announceCodecs(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
+    if (activeVoice !== call) return;
+    void lkRoom.localParticipant
+        .setAttributes({
+            [DECODE_ATTRIBUTE]: encodeDecodeAttribute(call.codecs.decode),
+        })
+        .catch((err: unknown) =>
+            console.warn("Couldn't announce video codecs:", err),
+        );
+}
+
+/** What each participant we publish to decodes, for those who said. */
+function peerDecode(call: ActiveVoiceCall): VideoCodec[][] {
+    const lists: VideoCodec[][] = [];
+    for (const p of call.lkRoom.remoteParticipants.values()) {
+        const decode = parseDecodeAttribute(p.attributes[DECODE_ATTRIBUTE]);
+        if (decode) lists.push(decode);
+    }
+    return lists;
+}
+
+export interface CallCodecState {
+    /** What we can send. */
+    sendable: VideoCodec[];
+    /** What we can send that everyone who said what they decode can watch. */
+    available: VideoCodec[];
+    /** The sendable codecs this device encodes on the GPU. */
+    hardware: VideoCodec[];
+    /** What our camera and screen share use. */
+    current: VideoCodec;
+}
+
+const codecSubscribers = new Set<(state: CallCodecState | null) => void>();
+
+/** Fires with the call's codec choices whenever they change; null when the
+ *  call ends. */
+export function onCallCodecsChanged(
+    cb: (state: CallCodecState | null) => void,
+): () => void {
+    codecSubscribers.add(cb);
+    return () => codecSubscribers.delete(cb);
+}
+
+function notifyCallCodecs(call: ActiveVoiceCall): void {
+    if (activeVoice !== call) return;
+    const sendable = sendableCodecs(call);
+    const state: CallCodecState = {
+        sendable,
+        available: codecsEveryoneDecodes(sendable, peerDecode(call)),
+        hardware: call.codecs.hardware,
+        current: effectiveCodec(settingsState.callVideoCodec, sendable),
+    };
+    for (const cb of codecSubscribers) cb(state);
+}
+
+// Set while a video track is unpublished to come straight back with another
+// codec, so LocalTrackUnpublished doesn't take it for the share ending.
+let republishingSource: string | null = null;
+let codecSwitchChain: Promise<void> = Promise.resolve();
+
+/** Pick the codec for the camera and screen share, and move whatever is
+ *  being sent now over to it. A published track can't change codec, so each
+ *  is unpublished and published again: viewers see it drop for a moment. */
+export function switchCallVideoCodec(codec: VideoCodec): Promise<void> {
+    setCallVideoCodec(codec);
+    const call = activeVoice;
+    if (call) notifyCallCodecs(call);
+    codecSwitchChain = codecSwitchChain.then(async () => {
+        const c = activeVoice;
+        if (!c) return;
+        for (const source of [
+            c.lk.Track.Source.Camera,
+            c.lk.Track.Source.ScreenShare,
+        ])
+            await republishVideo(c, source);
+    });
+    return codecSwitchChain;
+}
+
+async function republishVideo(
+    call: ActiveVoiceCall,
+    source: LivekitClient.Track.Source,
+): Promise<void> {
+    const lp = call.lkRoom.localParticipant;
+    const pub = lp.getTrackPublication(source);
+    const track = pub?.videoTrack;
+    if (!pub || !track) return;
+    const codecOptions = videoCodecPublishOptions(call);
+    if (pub.options?.videoCodec === codecOptions.videoCodec) return;
+    const options = { ...pub.options, ...codecOptions, source };
+    if (source === call.lk.Track.Source.ScreenShare) {
+        options.screenShareEncoding = screenShareEncodingFor(
+            screenShareBitrateNow(),
+            Number(settingsState.screenShareFps),
+        );
+    }
+    republishingSource = source;
+    try {
+        await lp.unpublishTrack(track, false);
+        if (activeVoice !== call) {
+            track.stop();
+            return;
+        }
+        await lp.publishTrack(track, options);
+    } catch (err) {
+        console.error("Video codec switch failed:", err);
+        if (activeVoice === call) {
+            notifyVoiceNotice(t("client.couldNotSwitchVideoCodec"));
+        }
+    } finally {
+        republishingSource = null;
+    }
 }
 
 // Upload bandwidth for the screen-share bitrate slider

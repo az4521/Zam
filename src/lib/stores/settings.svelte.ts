@@ -81,6 +81,11 @@ import {
 } from "$lib/utils/customFont";
 
 import {
+    DEFAULT_VIDEO_CODEC,
+    isVideoCodec,
+    type VideoCodec,
+} from "$lib/utils/videoCodecs";
+import {
     DEFAULT_SCREEN_SHARE_BITRATE,
     MIN_SCREEN_SHARE_BITRATE,
 } from "$lib/utils/screenShareBitrate";
@@ -414,9 +419,8 @@ export const settingsState = $state({
      *  fps. Clamped to the measured upload when applied
      *  (utils/screenShareBitrate). */
     screenShareBitrate: readScreenShareBitrate(),
-    /** Codec for the camera and screen share we send. Only WebRTC's two
-     *  mandatory codecs: anything else (VP9, AV1) some receivers can't show,
-     *  iOS Safari PWAs among them. */
+    /** Codec for the camera and screen share we send. Anyone in the call who
+     *  can't decode it gets an H.264 backup stream (utils/videoCodecs). */
     callVideoCodec: normalizeCallVideoCodec(
         readAccountString("callVideoCodec"),
     ),
@@ -1100,13 +1104,13 @@ export function setScreenShareBitrate(bps: number): void {
     );
 }
 
-export type CallVideoCodec = "h264" | "vp8";
+export type CallVideoCodec = VideoCodec;
 
-/** H.264 unless VP8 was chosen: most GPUs encode H.264, few encode VP8. */
+/** H.264 unless another codec was chosen: most GPUs encode H.264. */
 export function normalizeCallVideoCodec(
     value: string | null | undefined,
 ): CallVideoCodec {
-    return value === "vp8" ? "vp8" : "h264";
+    return isVideoCodec(value) ? value : DEFAULT_VIDEO_CODEC;
 }
 
 export function setCallVideoCodec(value: string): void {

@@ -1817,6 +1817,16 @@ const messages: Record<MessageKey, string> = {
     "screenShareQualityChips.resolution": "Auflösung",
     "screenShareQualityChips.frameRate": "Bildrate",
     "screenShareQualityChips.fps": "{f} FPS",
+    "screenShareQualityChips.videoCodec": "Videocodec",
+    "screenShareQualityChips.hw": "HW",
+    "screenShareQualityChips.codecHardware":
+        "Wird von deiner Grafikkarte kodiert",
+    "screenShareQualityChips.codecSoftware":
+        "Wird von deinem Prozessor kodiert",
+    "screenShareQualityChips.codecHint":
+        "Für Kamera und Bildschirmfreigabe. Es stehen nur Codecs zur Wahl, die alle im Anruf abspielen können.",
+    "screenShareQualityChips.codecBackupHint":
+        "Jemand im Anruf kann {codec} nicht abspielen und bekommt eine H.264-Kopie, die mehr Upload braucht.",
     "screenShareQualityChips.bitrate": "Bitrate",
     "screenShareQualityChips.kbps": "{n} kbit/s",
     "screenShareQualityChips.mbps": "{n} Mbit/s",
@@ -2363,7 +2373,7 @@ const messages: Record<MessageKey, string> = {
         "Spiegelt deine eigene Vorschau. Andere sehen dich immer ungespiegelt.",
     "voiceAudioSettings.videoCodec": "Videocodec",
     "voiceAudioSettings.videoCodecHint":
-        "Das Format, in dem Kamera und Bildschirmfreigabe gesendet werden. H.264 wird auf den meisten Geräten von der GPU kodiert; versuche VP8, wenn andere von dir ein fehlerhaftes Bild sehen. Gilt beim nächsten Einschalten.",
+        "Das Format, in dem Kamera und Bildschirmfreigabe gesendet werden. Wer es im Anruf nicht abspielen kann, bekommt eine H.264-Kopie; im Anruf lässt es sich auch umstellen. Gilt beim nächsten Einschalten.",
     "voiceAudioSettings.stopPreview": "Vorschau beenden",
     "voiceAudioSettings.preview": "Vorschau",
     "voiceAudioSettings.callSounds": "Anruftöne",
@@ -2637,6 +2647,8 @@ const messages: Record<MessageKey, string> = {
         "{what}-Wechsel fehlgeschlagen - das Standardgerät wird verwendet",
     "client.couldnTSwitchToThatPick":
         "{what}-Wechsel fehlgeschlagen - wähle ein anderes Gerät",
+    "client.couldNotSwitchVideoCodec":
+        "Der Videocodec konnte nicht gewechselt werden",
     "client.couldNotStartScreenShare":
         "Bildschirmfreigabe konnte nicht gestartet werden",
     "client.couldNotShareScreenAudio": "Bildschirmfreigabe läuft ohne Ton",
