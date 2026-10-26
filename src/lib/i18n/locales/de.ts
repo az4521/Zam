@@ -1827,6 +1827,8 @@ const messages: Record<MessageKey, string> = {
         "Für Kamera und Bildschirmfreigabe. Es stehen nur Codecs zur Wahl, die alle im Anruf abspielen können.",
     "screenShareQualityChips.codecBackupHint":
         "Jemand im Anruf kann {codec} nicht abspielen und bekommt eine H.264-Kopie, die mehr Upload braucht.",
+    "screenShareQualityChips.codecEncryptedFallbackHint":
+        "Jemand in diesem verschlüsselten Anruf kann {picked} nicht abspielen, daher sendest du {current}, bis die Person den Anruf verlässt.",
     "screenShareQualityChips.bitrate": "Bitrate",
     "screenShareQualityChips.kbps": "{n} kbit/s",
     "screenShareQualityChips.mbps": "{n} Mbit/s",
@@ -2647,6 +2649,8 @@ const messages: Record<MessageKey, string> = {
         "{what}-Wechsel fehlgeschlagen - das Standardgerät wird verwendet",
     "client.couldnTSwitchToThatPick":
         "{what}-Wechsel fehlgeschlagen - wähle ein anderes Gerät",
+    "client.encryptedCallsUnsupported":
+        "Dieser Anruf ist Ende-zu-Ende-verschlüsselt, und dieser Browser kann Anrufmedien nicht verschlüsseln. Versuche ein aktuelles Chrome, Firefox oder Safari oder die Desktop-App.",
     "client.couldNotSwitchVideoCodec":
         "Der Videocodec konnte nicht gewechselt werden",
     "client.couldNotStartScreenShare":

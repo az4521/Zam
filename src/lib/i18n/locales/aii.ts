@@ -1707,6 +1707,8 @@ const messages: Record<MessageKey, string> = {
         "For your camera and screen share. Only codecs everyone in the call can play are listed.",
     "screenShareQualityChips.codecBackupHint":
         "Someone in the call can't play {codec}, so they get an H.264 copy, which takes more upload.",
+    "screenShareQualityChips.codecEncryptedFallbackHint":
+        "Someone in this encrypted call can't play {picked}, so you're sending {current} until they leave.",
     "screenShareQualityChips.bitrate": "Bitrate",
     "screenShareQualityChips.kbps": "{n} kbps",
     "screenShareQualityChips.mbps": "{n} Mbps",
@@ -2465,6 +2467,8 @@ const messages: Record<MessageKey, string> = {
         "ܫܘܚܠܦܐ ܠܗܘ {what} ܠܐ ܦܠܚܠܗ - ܒܦܠܚܐ ܒܡܐܢܐ ܥܕܝܠܐ",
     "client.couldnTSwitchToThatPick":
         "ܫܘܚܠܦܐ ܠܗܘ {what} ܠܐ ܦܠܚܠܗ - ܓܒܝ ܡܐܢܐ ܐܚܪܢܐ",
+    "client.encryptedCallsUnsupported":
+        "This call is end-to-end encrypted, and this browser can't encrypt call media. Try a recent Chrome, Firefox or Safari, or the desktop app.",
     "client.couldNotSwitchVideoCodec": "Couldn't switch the video codec",
     "client.couldNotStartScreenShare": "ܫܘܪܝܐ ܕܫܘܬܦܘܬܐ ܕܡܚܙܝܬܐ ܠܐ ܦܠܚܠܗ",
     "client.couldNotShareScreenAudio": "Screen share started without its audio",

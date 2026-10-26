@@ -1847,6 +1847,8 @@ const messages: Record<MessageKey, string> = {
         "Para tu cámara y pantalla compartida. Solo aparecen los códecs que todos en la llamada pueden reproducir.",
     "screenShareQualityChips.codecBackupHint":
         "Alguien en la llamada no puede reproducir {codec}, así que recibe una copia en H.264, que usa más subida.",
+    "screenShareQualityChips.codecEncryptedFallbackHint":
+        "Alguien en esta llamada cifrada no puede reproducir {picked}, así que envías {current} hasta que se vaya.",
     "screenShareQualityChips.bitrate": "Tasa de bits",
     "screenShareQualityChips.kbps": "{n} kbps",
     "screenShareQualityChips.mbps": "{n} Mbps",
@@ -2662,6 +2664,8 @@ const messages: Record<MessageKey, string> = {
         "No se pudo cambiar de {what}; se usa el dispositivo predeterminado",
     "client.couldnTSwitchToThatPick":
         "No se pudo cambiar de {what}; elige otro dispositivo",
+    "client.encryptedCallsUnsupported":
+        "Esta llamada está cifrada de extremo a extremo y este navegador no puede cifrar el audio y el vídeo. Prueba con un Chrome, Firefox o Safari reciente, o con la aplicación de escritorio.",
     "client.couldNotSwitchVideoCodec": "No se pudo cambiar el códec de vídeo",
     "client.couldNotStartScreenShare":
         "No se pudo empezar a compartir la pantalla",

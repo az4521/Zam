@@ -60,10 +60,8 @@ import {
 } from "$lib/utils/callStats";
 import { clampBitrate } from "$lib/utils/screenShareBitrate";
 import {
-    backupCodecFor,
-    codecsEveryoneDecodes,
     codecsFromMimeTypes,
-    effectiveCodec,
+    planCodecs,
     DECODE_ATTRIBUTE,
     encodeDecodeAttribute,
     parseDecodeAttribute,
@@ -160,6 +158,8 @@ interface ActiveVoiceCall {
     onMyMembership: (room: Room, membership: string) => void;
     /** What this device can send and decode (localVideoCodecs). */
     codecs: LocalVideoCodecs;
+    /** End-to-end encryption, when the room is encrypted (setupCallE2EE). */
+    e2ee: CallE2EE | null;
 }
 
 let activeVoice: ActiveVoiceCall | null = null;
@@ -774,7 +774,9 @@ async function connectRemoteSfu(
     target: LivekitTarget,
 ): Promise<void> {
     call.remotesConnecting.add(key);
-    const lkRoom = new call.lk.Room();
+    const lkRoom = new call.lk.Room(
+        call.e2ee ? { e2ee: call.e2ee.roomOptions() } : undefined,
+    );
     try {
         const { url, jwt } = await fetchSfuJwt(target);
         if (activeVoice !== call) return;
@@ -791,6 +793,7 @@ async function connectRemoteSfu(
             setTimeout(() => void syncRemoteSfus(call), REMOTE_SFU_RETRY_MS);
         });
         await bypassProxyFor(url);
+        if (call.e2ee) await lkRoom.setE2EEEnabled(true);
         await lkRoom.connect(url, jwt);
         reportCallAddresses(lkRoom);
         if (activeVoice !== call) {
@@ -894,6 +897,18 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     if (seq !== voiceJoinSeq) return; // superseded while loading livekit
     const localCodecs = await localVideoCodecs(lk);
     if (seq !== voiceJoinSeq) return;
+    // Element Call's rule: a call in an encrypted room is encrypted end to
+    // end. Sending plain media into it would leave everyone else unable to
+    // play ours, so a device that can't encrypt doesn't join.
+    const encrypted = room.hasEncryptionStateEvent();
+    if (encrypted && !lk.isE2EESupported()) {
+        throw new Error(t("client.encryptedCallsUnsupported"));
+    }
+    const e2ee = encrypted ? await setupCallE2EE(lk, session) : null;
+    if (seq !== voiceJoinSeq) {
+        e2ee?.stop();
+        return;
+    }
     const micPlan = planMicProcessing(
         settingsState.noiseSuppressionMode,
         settingsState.micGainMode,
@@ -901,6 +916,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         micTuning(),
     );
     const lkRoom = new lk.Room({
+        ...(e2ee ? { e2ee: e2ee.roomOptions() } : {}),
         audioCaptureDefaults: {
             deviceId: settingsState.audioInputDeviceId ?? undefined,
             noiseSuppression: micPlan.noiseSuppression,
@@ -965,6 +981,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         onMmError,
         onMyMembership,
         codecs: localCodecs,
+        e2ee,
     };
     activeVoice = call;
     startUploadSampling(call);
@@ -999,6 +1016,9 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             ownTarget ? transport : undefined,
             {
                 membershipEventExpiryMs: 4 * 60 * 60 * 1000,
+                // Make our media key, send it to everyone's devices, and
+                // report theirs (setupCallE2EE).
+                manageMediaKeys: encrypted,
                 ...(ring
                     ? { notificationType: "ring" as const, callIntent: "audio" }
                     : {}),
@@ -1068,6 +1088,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         });
 
         await bypassProxyFor(url);
+        if (e2ee) await lkRoom.setE2EEEnabled(true);
         await lkRoom.connect(url, jwt);
         connected = true;
         reportCallAddresses(lkRoom);
@@ -1145,6 +1166,7 @@ async function leaveVoiceCallInternal(): Promise<void> {
         for (const cb of participantMuteSubscribers) cb([]);
         for (const cb of videoTracksSubscribers) cb([]);
         for (const cb of codecSubscribers) cb(null);
+        call.e2ee?.stop();
         notifyVoiceConnState(null);
         setVoicePlaybackBlocked(false);
         call.session.off(
@@ -1833,6 +1855,78 @@ function reportCallAddresses(lkRoom: LivekitRoom): void {
     setTimeout(() => void collect(), 5000);
 }
 
+// --- end-to-end encryption ----------------------------------------------------
+//
+// Element Call's scheme, so the two can share an encrypted call (its
+// sdk/src/media-backend/livekit): every participant encrypts with a key of
+// its own. matrix-js-sdk makes ours and sends it to each participant's
+// devices over Matrix (manageMediaKeys), then reports every key with the
+// LiveKit identity it belongs to; each goes to LiveKit as HKDF key material
+// for that identity. Every LiveKit connection gets a worker of its own, as
+// one worker gets confused by streams from several rooms.
+
+interface CallE2EE {
+    /** `e2ee` options for a new LiveKit Room. */
+    roomOptions: () => {
+        keyProvider: LivekitClient.BaseKeyProvider;
+        worker: Worker;
+    };
+    /** Stop listening for keys and end the workers. */
+    stop: () => void;
+}
+
+const MEDIA_KEY_EVENT = "encryption_key_changed"; // MatrixRTCSessionEvent
+
+async function setupCallE2EE(
+    lk: LivekitModule,
+    session: ReturnType<MatrixClient["matrixRTC"]["getRoomSession"]>,
+): Promise<CallE2EE> {
+    // Element Call's MatrixKeyProvider settings.
+    class MatrixKeyProvider extends lk.BaseKeyProvider {
+        constructor() {
+            super({ ratchetWindowSize: 10, keyringSize: 256 });
+        }
+        setParticipantKey(key: CryptoKey, identity: string, index: number) {
+            this.onSetEncryptionKey(key, identity, index);
+        }
+    }
+    const keyProvider = new MatrixKeyProvider();
+    const onKey = (
+        key: Uint8Array<ArrayBuffer>,
+        index: number,
+        _membership: unknown,
+        identity: string,
+    ) => {
+        crypto.subtle
+            .importKey("raw", key, "HKDF", false, ["deriveBits", "deriveKey"])
+            .then(
+                (material) =>
+                    keyProvider.setParticipantKey(material, identity, index),
+                (err: unknown) =>
+                    console.error("Couldn't import a call media key:", err),
+            );
+    };
+    session.on(MEDIA_KEY_EVENT as never, onKey as never);
+    session.reemitEncryptionKeys();
+    const { default: E2EEWorker } =
+        await import("livekit-client/e2ee-worker?worker");
+    const workers: Worker[] = [];
+    return {
+        roomOptions: () => {
+            const worker = new E2EEWorker();
+            workers.push(worker);
+            return { keyProvider, worker };
+        },
+        stop: () => {
+            session.off(MEDIA_KEY_EVENT as never, onKey as never);
+            // After the rooms have disconnected, which flushes their streams.
+            setTimeout(() => {
+                for (const worker of workers) worker.terminate();
+            }, 5000);
+        },
+    };
+}
+
 // --- video codecs -------------------------------------------------------------
 
 interface LocalVideoCodecs {
@@ -1919,12 +2013,19 @@ function sendableCodecs(call: ActiveVoiceCall): VideoCodec[] {
  *  and for anything but VP8/H.264 an H.264 (or VP8) backup. The server asks
  *  for the backup only once a viewer can't decode the main stream, and sends
  *  it to them alone; everyone else keeps the picked codec. */
+function codecPlan(call: ActiveVoiceCall) {
+    return planCodecs(
+        settingsState.callVideoCodec,
+        sendableCodecs(call),
+        peerDecode(call),
+        call.e2ee !== null,
+    );
+}
+
 function videoCodecPublishOptions(call: ActiveVoiceCall) {
-    const sendable = sendableCodecs(call);
-    const videoCodec = effectiveCodec(settingsState.callVideoCodec, sendable);
-    const backup = backupCodecFor(videoCodec, sendable);
+    const { current, backup } = codecPlan(call);
     return {
-        videoCodec,
+        videoCodec: current,
         backupCodec: backup ? { codec: backup } : false,
         backupCodecPolicy: call.lk.BackupCodecPolicy.SIMULCAST,
     } as const;
@@ -1943,14 +2044,12 @@ function announceCodecs(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
         );
 }
 
-/** What each participant we publish to decodes, for those who said. */
-function peerDecode(call: ActiveVoiceCall): VideoCodec[][] {
-    const lists: VideoCodec[][] = [];
-    for (const p of call.lkRoom.remoteParticipants.values()) {
-        const decode = parseDecodeAttribute(p.attributes[DECODE_ATTRIBUTE]);
-        if (decode) lists.push(decode);
-    }
-    return lists;
+/** What each participant we publish to decodes; null for those who didn't
+ *  say. */
+function peerDecode(call: ActiveVoiceCall): (VideoCodec[] | null)[] {
+    return [...call.lkRoom.remoteParticipants.values()].map((p) =>
+        parseDecodeAttribute(p.attributes[DECODE_ATTRIBUTE]),
+    );
 }
 
 export interface CallCodecState {
@@ -1962,6 +2061,11 @@ export interface CallCodecState {
     hardware: VideoCodec[];
     /** What our camera and screen share use. */
     current: VideoCodec;
+    /** What the user picked; differs from `current` in an encrypted call
+     *  while someone can't watch the pick. */
+    picked: VideoCodec;
+    /** Whether the call is end-to-end encrypted. */
+    encrypted: boolean;
 }
 
 const codecSubscribers = new Set<(state: CallCodecState | null) => void>();
@@ -1977,14 +2081,19 @@ export function onCallCodecsChanged(
 
 function notifyCallCodecs(call: ActiveVoiceCall): void {
     if (activeVoice !== call) return;
-    const sendable = sendableCodecs(call);
+    const plan = codecPlan(call);
     const state: CallCodecState = {
-        sendable,
-        available: codecsEveryoneDecodes(sendable, peerDecode(call)),
+        sendable: sendableCodecs(call),
+        available: plan.available,
         hardware: call.codecs.hardware,
-        current: effectiveCodec(settingsState.callVideoCodec, sendable),
+        current: plan.current,
+        picked: settingsState.callVideoCodec,
+        encrypted: call.e2ee !== null,
     };
     for (const cb of codecSubscribers) cb(state);
+    // Encrypted, the codec follows who's in the call (planCodecs): move what
+    // we're sending when that changes. A no-op when it already matches.
+    if (call.e2ee) queueVideoRepublish();
 }
 
 // Set while a video track is unpublished to come straight back with another
@@ -1999,6 +2108,12 @@ export function switchCallVideoCodec(codec: VideoCodec): Promise<void> {
     setCallVideoCodec(codec);
     const call = activeVoice;
     if (call) notifyCallCodecs(call);
+    return queueVideoRepublish();
+}
+
+/** Republish the camera and screen share wherever their codec isn't the
+ *  one codecPlan wants. */
+function queueVideoRepublish(): Promise<void> {
     codecSwitchChain = codecSwitchChain.then(async () => {
         const c = activeVoice;
         if (!c) return;

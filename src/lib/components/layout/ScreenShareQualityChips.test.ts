@@ -115,6 +115,8 @@ describe("ScreenShareQualityChips codec", () => {
             available: ["vp9", "h264", "vp8"],
             hardware: ["h264"],
             current: "h264",
+            picked: "h264",
+            encrypted: false,
         };
         render();
         expect(chip("AV1")).toBeUndefined();
@@ -135,9 +137,31 @@ describe("ScreenShareQualityChips codec", () => {
             available: ["h264", "vp8"],
             hardware: ["h265", "h264"],
             current: "h265",
+            picked: "h265",
+            encrypted: false,
         };
         render();
         expect(chip("HEVC")?.getAttribute("aria-pressed")).toBe("true");
         expect(host!.textContent).toContain("can't play HEVC");
+    });
+
+    it("says when an encrypted call falls back from the pick", () => {
+        voiceCallState.codecs = {
+            sendable: ["h265", "h264", "vp8"],
+            available: ["h264", "vp8"],
+            hardware: [],
+            current: "h264",
+            picked: "h265",
+            encrypted: true,
+        };
+        render();
+        expect(chip("HEVC")).toBeUndefined();
+        expect(chip("H.264")?.getAttribute("aria-pressed")).toBe("true");
+        expect(host!.textContent).toContain(
+            "can't play HEVC, so you're sending H.264",
+        );
+        // Settling on what's being sent is still a pick.
+        chip("H.264")!.click();
+        expect(switchCallVideoCodec).toHaveBeenCalledWith("h264");
     });
 });

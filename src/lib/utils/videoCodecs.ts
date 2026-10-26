@@ -99,6 +99,41 @@ export function effectiveCodec(
     return sendable[0] ?? DEFAULT_VIDEO_CODEC;
 }
 
+export interface CodecPlan {
+    /** What we can send that everyone can watch. */
+    available: VideoCodec[];
+    /** What to send. */
+    current: VideoCodec;
+    /** The stream for viewers who can't decode `current`, if any. */
+    backup: "h264" | "vp8" | null;
+}
+
+/** What to send in a call. `peers` holds each participant's decode list,
+ *  null for those who didn't say (not Zam).
+ *
+ *  Unencrypted, a participant who didn't say doesn't narrow the choice:
+ *  LiveKit's backup stream covers them. LiveKit can't send that backup on an
+ *  end-to-end encrypted track, so in an encrypted call they count as
+ *  decoding only the mandatory codecs, and a pick someone can't watch falls
+ *  back to H.264 (or VP8) until they leave. */
+export function planCodecs(
+    picked: VideoCodec,
+    sendable: readonly VideoCodec[],
+    peers: readonly (readonly VideoCodec[] | null)[],
+    encrypted: boolean,
+): CodecPlan {
+    const known = peers.flatMap((p) =>
+        p ? [p] : encrypted ? [MANDATORY_CODECS] : [],
+    );
+    const available = codecsEveryoneDecodes(sendable, known);
+    const current = effectiveCodec(picked, encrypted ? available : sendable);
+    return {
+        available,
+        current,
+        backup: encrypted ? null : backupCodecFor(current, sendable),
+    };
+}
+
 /** The participant attribute holding what a Zam client decodes, as codec
  *  names separated by commas ("h265,h264,vp8"). */
 export const DECODE_ATTRIBUTE = "zam.decode";

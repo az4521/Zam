@@ -87,7 +87,7 @@
     );
 
     function pickCodec(codec: VideoCodec): void {
-        if (codec === codecs?.current) return;
+        if (codec === codecs?.current && codec === codecs.picked) return;
         void switchCallVideoCodec(codec);
     }
 
@@ -173,11 +173,16 @@
                 {/each}
             </div>
             <div class="text-xs text-discord-textMuted mt-0.5">
-                {codecs.available.includes(codecs.current)
-                    ? t("screenShareQualityChips.codecHint")
-                    : t("screenShareQualityChips.codecBackupHint", {
-                          codec: VIDEO_CODEC_LABELS[codecs.current],
-                      })}
+                {codecs.picked !== codecs.current
+                    ? t("screenShareQualityChips.codecEncryptedFallbackHint", {
+                          picked: VIDEO_CODEC_LABELS[codecs.picked],
+                          current: VIDEO_CODEC_LABELS[codecs.current],
+                      })
+                    : codecs.available.includes(codecs.current)
+                      ? t("screenShareQualityChips.codecHint")
+                      : t("screenShareQualityChips.codecBackupHint", {
+                            codec: VIDEO_CODEC_LABELS[codecs.current],
+                        })}
             </div>
         </div>
     {/if}

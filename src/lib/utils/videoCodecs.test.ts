@@ -6,6 +6,7 @@ import {
     effectiveCodec,
     encodeDecodeAttribute,
     parseDecodeAttribute,
+    planCodecs,
 } from "./videoCodecs";
 
 describe("codecsFromMimeTypes", () => {
@@ -101,5 +102,52 @@ describe("the decode attribute", () => {
         ]);
         expect(parseDecodeAttribute("")).toEqual([]);
         expect(parseDecodeAttribute(undefined)).toBeNull();
+    });
+});
+
+describe("planCodecs", () => {
+    const sendable = ["av1", "h265", "vp9", "h264", "vp8"] as const;
+
+    it("unencrypted: sends the pick, with an H.264 backup for silent viewers", () => {
+        expect(
+            planCodecs("h265", sendable, [null, ["h265", "h264"]], false),
+        ).toEqual({
+            available: ["h265", "h264", "vp8"],
+            current: "h265",
+            backup: "h264",
+        });
+    });
+
+    it("unencrypted: keeps the pick even when an announced viewer can't play it", () => {
+        const plan = planCodecs("av1", sendable, [["vp9", "h264"]], false);
+        expect(plan.available).not.toContain("av1");
+        expect(plan.current).toBe("av1");
+        expect(plan.backup).toBe("h264");
+    });
+
+    it("encrypted: silent viewers only play the mandatory codecs, and there's no backup", () => {
+        expect(planCodecs("h265", sendable, [null, ["h265"]], true)).toEqual({
+            available: ["h264", "vp8"],
+            current: "h264",
+            backup: null,
+        });
+    });
+
+    it("encrypted: sends the pick when everyone can play it", () => {
+        expect(
+            planCodecs(
+                "vp9",
+                sendable,
+                [
+                    ["vp9", "h264"],
+                    ["av1", "vp9"],
+                ],
+                true,
+            ),
+        ).toEqual({
+            available: ["vp9", "h264", "vp8"],
+            current: "vp9",
+            backup: null,
+        });
     });
 });

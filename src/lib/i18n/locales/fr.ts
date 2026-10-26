@@ -1804,6 +1804,8 @@ const messages: Record<MessageKey, string> = {
         "Pour votre caméra et votre partage d'écran. Seuls les codecs que tout le monde dans l'appel peut lire sont proposés.",
     "screenShareQualityChips.codecBackupHint":
         "Quelqu'un dans l'appel ne peut pas lire le {codec} et reçoit une copie en H.264, qui demande plus de débit montant.",
+    "screenShareQualityChips.codecEncryptedFallbackHint":
+        "Quelqu'un dans cet appel chiffré ne peut pas lire le {picked}, vous envoyez donc du {current} jusqu'à son départ.",
     "screenShareQualityChips.bitrate": "Débit",
     "screenShareQualityChips.kbps": "{n} kbit/s",
     "screenShareQualityChips.mbps": "{n} Mbit/s",
@@ -2623,6 +2625,8 @@ const messages: Record<MessageKey, string> = {
         "Impossible de changer de {what} - utilisation du périphérique par défaut",
     "client.couldnTSwitchToThatPick":
         "Impossible de changer de {what} - choisissez un autre périphérique",
+    "client.encryptedCallsUnsupported":
+        "Cet appel est chiffré de bout en bout, et ce navigateur ne peut pas chiffrer les médias d'appel. Essayez une version récente de Chrome, Firefox ou Safari, ou l'application de bureau.",
     "client.couldNotSwitchVideoCodec": "Impossible de changer le codec vidéo",
     "client.couldNotStartScreenShare":
         "Impossible de démarrer le partage d'écran",
