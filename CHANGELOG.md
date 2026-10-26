@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.34.0
+
+⚠️ **Update everyone at once**
+
+- Calls in encrypted rooms are now end-to-end encrypted. Someone still on an older Zam in the same call can't hear or see you until they update, though you can still hear and see them. Element Call users in encrypted rooms can now hear you, and you them.
+
+✨ **New**
+
+- **End-to-end encrypted calls:** calls in encrypted rooms are now encrypted end to end, the same way Element Call does it, so only the people in the call can hear and see it. A lock next to the room name in the call view, and next to the call status, shows whether the call is encrypted. If someone's app sends audio and video without encryption, it says who.
+- **Pick your video codec in the call:** the screen-share quality menu now has a video codec choice for your camera and screen share: AV1, HEVC, VP9, H.264 or VP8, from those your device can send. It only lists codecs everyone in the call can play, and marks the ones your graphics card encodes. Switching takes effect straight away. Settings > Voice & Video lists all five.
+- **Viewers who can't play your codec still see you:** in unencrypted calls, anyone whose app can't play the codec you picked automatically gets an H.264 copy instead. In encrypted calls Zam sends H.264 until they leave.
+
 ## v1.33.0
 
 ✨ **New**
