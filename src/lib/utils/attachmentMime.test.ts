@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
     isSvgMimeType,
     safeAttachmentMimeType,
+    safeMediaBlob,
     sanitizedSvgBlob,
 } from "./attachmentMime";
 
@@ -111,5 +112,36 @@ describe("sanitizedSvgBlob", () => {
         expect(isSvgMimeType("IMAGE/SVG+XML; charset=utf-8")).toBe(true);
         expect(isSvgMimeType("image/png")).toBe(false);
         expect(isSvgMimeType(undefined)).toBe(false);
+    });
+});
+
+describe("safeMediaBlob", () => {
+    const svg =
+        '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script><rect width="1" height="1"/></svg>';
+
+    it("sanitizes an SVG typed by the blob itself", async () => {
+        const out = await safeMediaBlob(
+            new Blob([svg], { type: "image/svg+xml" }),
+        );
+        expect(out.type).toBe("image/svg+xml");
+        const text = (await out.text()).toLowerCase();
+        expect(text).not.toContain("alert");
+        expect(text).toContain("<rect");
+    });
+
+    it("falls back to octet-stream for unparseable SVG and active types", async () => {
+        const bad = await safeMediaBlob(new Blob(["<"]), "image/svg+xml");
+        expect(bad.type).toBe(FALLBACK);
+        const html = await safeMediaBlob(
+            new Blob(["<script>alert(1)</script>"], { type: "text/html" }),
+        );
+        expect(html.type).toBe(FALLBACK);
+    });
+
+    it("passes inert media through untouched", async () => {
+        const png = new Blob([new Uint8Array([1, 2, 3])], {
+            type: "image/png",
+        });
+        expect(await safeMediaBlob(png)).toBe(png);
     });
 });

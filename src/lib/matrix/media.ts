@@ -20,11 +20,7 @@ import {
     thumbnailFields,
     type UploadedAttachment,
 } from "$lib/utils/encryptAttachment";
-import {
-    isSvgMimeType,
-    safeAttachmentMimeType,
-    sanitizedSvgBlob,
-} from "$lib/utils/attachmentMime";
+import { safeMediaBlob } from "$lib/utils/attachmentMime";
 import { exceedsUploadLimit, FileTooLargeError } from "$lib/utils/uploadLimits";
 import { parseMxc, isSameOrigin } from "$lib/utils/mxcUri";
 import {
@@ -450,9 +446,12 @@ export async function fetchAttachmentBlob(
             t("media.failedToFetchAttachment", { status: resp.status }),
         );
     const chunks = await readBodyWithProgress(resp, opts);
-    const blob = new Blob(chunks as BlobPart[], {
-        type: resp.headers.get("content-type") ?? "",
-    });
+    // Same allowlist as a decrypted attachment: the server's sandbox CSP
+    // doesn't follow the bytes into a blob URL of our origin.
+    const blob = await safeMediaBlob(
+        new Blob(chunks as BlobPart[]),
+        resp.headers.get("content-type"),
+    );
     return URL.createObjectURL(blob);
 }
 
@@ -495,9 +494,7 @@ export async function fetchDecryptedAttachmentBlob(
     // future open-in-tab/iframe sink can't execute e.g. an image/svg+xml or
     // text/html blob in our origin (audit SEC-L9). SVG is the exception: it is
     // sanitized instead, so it keeps the type an <img> needs to render it.
-    const blob =
-        (isSvgMimeType(mimetype) && sanitizedSvgBlob(plaintext)) ||
-        new Blob([plaintext], { type: safeAttachmentMimeType(mimetype) });
+    const blob = await safeMediaBlob(new Blob([plaintext]), mimetype);
     return URL.createObjectURL(blob);
 }
 

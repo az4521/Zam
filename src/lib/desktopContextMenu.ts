@@ -8,6 +8,7 @@ import { t } from "$lib/i18n";
 
 import { fetchAttachmentBlob, getHomeserverBaseUrl } from "$lib/matrix/client";
 import { isSameOrigin } from "$lib/utils/mxcUri";
+import { safeMediaBlob } from "$lib/utils/attachmentMime";
 import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 
@@ -63,7 +64,9 @@ async function saveImage(srcUrl: string): Promise<void> {
             // Foreign / same-app media: no token, plain fetch.
             const resp = await fetch(srcUrl);
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            objectUrl = URL.createObjectURL(await resp.blob());
+            objectUrl = URL.createObjectURL(
+                await safeMediaBlob(await resp.blob()),
+            );
         }
     }
     try {

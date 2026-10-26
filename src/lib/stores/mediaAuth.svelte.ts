@@ -2,6 +2,7 @@ import { untrack } from "svelte";
 import { getActiveAccount } from "$lib/stores/accounts.svelte";
 import { jxlFallbackUrl, maybeDecodeJxl } from "$lib/utils/jxl";
 import { logSync } from "$lib/matrix/syncLog";
+import { safeMediaBlob } from "$lib/utils/attachmentMime";
 
 /**
  * Authenticated Matrix media (`/_matrix/client/v1/media/...`) needs an
@@ -54,7 +55,9 @@ export async function authedMediaBlobUrl(src: string): Promise<string | null> {
             headers: { Authorization: `Bearer ${c.token}` },
         });
         if (!res.ok) return null;
-        const blob = await res.blob();
+        // Retyped like any attachment: these URLs sit in an <img>, where
+        // "Open image in new tab" would run an unsanitized SVG in our origin.
+        const blob = await safeMediaBlob(await res.blob());
         return URL.createObjectURL((await maybeDecodeJxl(blob)) ?? blob);
     } catch {
         return null;

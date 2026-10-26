@@ -77,3 +77,23 @@ export function sanitizedSvgBlob(bytes: ArrayBuffer | Uint8Array): Blob | null {
         type: SVG,
     });
 }
+
+/**
+ * `blob` retyped by the rules above, for any media we wrap in an object URL
+ * ourselves. Unencrypted homeserver media is just as sender-controlled as an
+ * encrypted attachment: the server's response carries a sandbox CSP that keeps
+ * an SVG inert, but a blob URL has no headers and belongs to our origin, so
+ * the same allowlist and SVG sanitizing apply. `mimetype` defaults to the
+ * blob's own (the response's Content-Type).
+ */
+export async function safeMediaBlob(
+    blob: Blob,
+    mimetype: string | null | undefined = blob.type,
+): Promise<Blob> {
+    if (isSvgMimeType(mimetype)) {
+        const svg = sanitizedSvgBlob(await blob.arrayBuffer());
+        if (svg) return svg;
+    }
+    const type = safeAttachmentMimeType(mimetype);
+    return type === blob.type ? blob : new Blob([blob], { type });
+}

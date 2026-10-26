@@ -59,6 +59,7 @@
         fetchDecryptedAttachmentBlob,
     } from "$lib/matrix/client";
     import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
+    import { safeMediaBlob } from "$lib/utils/attachmentMime";
     import { STREAM_ENCRYPTED_MIN_BYTES } from "$lib/matrix/videoStream";
     import type { EncryptedFileInfo } from "$lib/utils/decryptAttachment";
     import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
@@ -177,7 +178,7 @@
                 // Non-homeserver media (e.g. an embedded tweet photo): fetch it
                 // directly, with no auth attached.
                 objectUrl = URL.createObjectURL(
-                    await (await fetch(src)).blob(),
+                    await safeMediaBlob(await (await fetch(src)).blob()),
                 );
             }
             try {
