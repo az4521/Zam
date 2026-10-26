@@ -77,6 +77,20 @@ modules:
           - grep -q 'src/vp9.c' build/compile_commands.json
           - install -Dm755 build/nvidia_drv_video.so /app/lib/dri/nvidia_drv_video.so
           - install -Dm644 COPYING /app/share/licenses/nvidia-vaapi-driver/COPYING
+    # NVIDIA hardware video encode (va-nvenc/zam_va_nvenc.c): a VA-API driver
+    # named like nvidia-vaapi-driver that encodes H.264 with NVENC and passes
+    # everything else to the one above. In its own directory, which zam.sh
+    # puts first only when Settings > Debug turns it on. Needs the
+    # nv-codec-headers module above.
+    - name: va-nvenc
+      buildsystem: simple
+      sources:
+          - type: dir
+            path: va-nvenc
+      build-commands:
+          - cc -std=c11 -D_GNU_SOURCE -O2 -Wall -fPIC -shared -fvisibility=hidden -I/app/include
+            -o nvidia_drv_video.so zam_va_nvenc.c -ldl -lpthread
+          - install -Dm755 nvidia_drv_video.so /app/lib/dri-nvenc/nvidia_drv_video.so
     - name: zam
       buildsystem: simple
       sources:

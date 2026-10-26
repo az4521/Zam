@@ -376,6 +376,9 @@ const messages: Record<MessageKey, string> = {
     "gpuDebug.videoEncoding": "Video encoding",
     "gpuDebug.videoEncodingHint":
         "Calls send the codec chosen in Voice & Video (H.264 by default). The call stats panel shows which encoder a call is using.",
+    "gpuDebug.nvidiaEncode": "NVIDIA video encoding (experimental)",
+    "gpuDebug.nvidiaEncodeHint":
+        "Encodes H.264 calls and screen shares with NVENC, through Zam's own VA-API driver. Video decoding stays as set above. Applies after a restart.",
     "gpuDebug.featureStatus": "Feature status",
     "gpuDebug.details": "ܦܪ̈ܝܛܐ",
     "gpuDebug.nvidiaVideo": "NVIDIA video decoding",

@@ -69,6 +69,13 @@ declare global {
                         /** When automatic mode gave up after GPU crashes. */
                         failedAt: number | null;
                     } | null;
+                    /** Flatpak only: NVENC encoding through flatpak/va-nvenc (zam.sh). */
+                    nvidiaEncode: {
+                        /** The saved choice (applies on the next launch). */
+                        enabled: boolean;
+                        /** Whether this run has the driver and flags. */
+                        activeAtLaunch: boolean;
+                    } | null;
                     /** Linux only: VA-API video encoding (AcceleratedVideoEncoder). */
                     videoEncode: {
                         /** The saved choice (applies on the next launch). */
@@ -84,6 +91,7 @@ declare global {
                 }>;
                 setHardwareAcceleration: (enabled: boolean) => Promise<void>;
                 setVideoEncode: (enabled: boolean) => Promise<void>;
+                setNvidiaEncode: (enabled: boolean) => Promise<void>;
                 setNvidiaVideo: (
                     mode: "auto" | "vulkan" | "off",
                 ) => Promise<void>;

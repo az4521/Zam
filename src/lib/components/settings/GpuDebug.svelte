@@ -150,6 +150,23 @@
         }
     }
 
+    // Applies on the next launch (zam.sh); a flag rather than a comparison with
+    // activeAtLaunch, which stays false on machines zam.sh finds no NVIDIA in.
+    let nvidiaEncodeChanged = $state(false);
+
+    async function setNvidiaEncode(enabled: boolean) {
+        const ne = report?.nvidiaEncode;
+        if (!ne) return;
+        ne.enabled = enabled;
+        nvidiaEncodeChanged = true;
+        try {
+            await window.desktop?.gpu?.setNvidiaEncode(enabled);
+        } catch (e) {
+            ne.enabled = !enabled;
+            error = (e as Error)?.message ?? String(e);
+        }
+    }
+
     type NvidiaMode = "auto" | "vulkan" | "off";
     // The Vulkan path only takes effect on the next launch (zam.sh).
     let nvidiaChanged = $state(false);
@@ -307,7 +324,32 @@
             </select>
         </div>
     {/if}
-    {#if report && (nvidiaChanged || report.hardwareAcceleration !== report.hardwareAccelerationAtLaunch || encodeChanged)}
+    {#if report?.nvidiaEncode}
+        {@const ne = report.nvidiaEncode}
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("gpuDebug.nvidiaEncode")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("gpuDebug.nvidiaEncodeHint")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {ne.activeAtLaunch
+                        ? t("gpuDebug.nvidiaVideoActive")
+                        : t("gpuDebug.nvidiaVideoInactive")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={ne.enabled}
+                onChange={setNvidiaEncode}
+                label={t("gpuDebug.nvidiaEncode")}
+            />
+        </div>
+    {/if}
+    {#if report && (nvidiaChanged || report.hardwareAcceleration !== report.hardwareAccelerationAtLaunch || encodeChanged || nvidiaEncodeChanged)}
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >

@@ -90,6 +90,20 @@ if [ "$ZAM_NVIDIA_VULKAN_VIDEO" = 1 ]; then
     export ZAM_VK_LAYER=1
     export ZAM_VK_FIXUP="${ZAM_VK_FIXUP:-1}"
 fi
+# NVIDIA hardware video encoding: nvidia-vaapi-driver only decodes, so
+# /app/lib/dri-nvenc holds a driver of the same name (va-nvenc/zam_va_nvenc.c)
+# that encodes H.264 with NVENC and passes everything else to the one in
+# /app/lib/dri. Experimental, so only when Settings > Debug turns it on
+# ("nvidiaEncode":true) or ZAM_NVENC=1; main.cjs adds the Chromium flags.
+if [ -z "$ZAM_NVENC" ]; then
+    case "$gpu_prefs" in
+    *'"nvidiaEncode":true'*) ZAM_NVENC=1 ;;
+    esac
+fi
+if [ "$ZAM_NVENC" = 1 ] && has_nvidia_card; then
+    export ZAM_NVENC
+    export LIBVA_DRIVERS_PATH="/app/lib/dri-nvenc:$LIBVA_DRIVERS_PATH"
+fi
 # ZAM_VK_DEBUG=1 logs the layer's view of every frame import.
 if [ "${ZAM_VK_DEBUG:-0}" != 0 ]; then
     export ZAM_VK_LAYER=1

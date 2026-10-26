@@ -618,6 +618,7 @@ ipcMain.handle("gpu:info", async () => {
         "disable-features",
         "use-gl",
         "use-angle",
+        "disable-accelerated-video-decode",
         "ozone-platform",
         "ozone-platform-hint",
     ]) {
@@ -638,6 +639,7 @@ ipcMain.handle("gpu:info", async () => {
         "ZAM_NVIDIA_VULKAN_VIDEO",
         "ZAM_VK_LAYER",
         "ZAM_VK_FIXUP",
+        "ZAM_NVENC",
         "FLATPAK_ID",
     ]) {
         if (process.env[name]) env[name] = process.env[name];
@@ -652,6 +654,12 @@ ipcMain.handle("gpu:info", async () => {
                   activeAtLaunch: nvidiaVulkanVideo || nvidiaWaylandVideo,
                   detected: !!prefs.nvidiaDetected,
                   failedAt: prefs.nvidiaVulkanFailed ?? null,
+              }
+            : null,
+        nvidiaEncode: IN_FLATPAK
+            ? {
+                  enabled: prefs.nvidiaEncode === true,
+                  activeAtLaunch: nvidiaEncode,
               }
             : null,
         videoEncode:
@@ -680,6 +688,11 @@ function writeGpuPrefs(patch) {
 
 ipcMain.handle("gpu:set-hardware-acceleration", (_e, enabled) => {
     writeGpuPrefs({ hardwareAcceleration: !!enabled });
+});
+
+// Read by zam.sh, which only takes "true".
+ipcMain.handle("gpu:set-nvidia-encode", (_e, enabled) => {
+    writeGpuPrefs({ nvidiaEncode: enabled ? true : undefined });
 });
 
 ipcMain.handle("gpu:set-video-encode", (_e, enabled) => {
@@ -1386,6 +1399,21 @@ const hardwareVideoEncode =
     hardwareAccelerationAtLaunch &&
     readGpuPrefs().videoEncode !== false;
 if (hardwareVideoEncode) features.push("AcceleratedVideoEncoder");
+// NVIDIA in Flatpak: zam.sh put our NVENC encoding driver in front of
+// nvidia-vaapi-driver (flatpak/va-nvenc) and set ZAM_NVENC. Chromium only opens
+// NVIDIA render nodes with VaapiOnNvidiaGPUs; without the Vulkan path its
+// decoded frames would then render black (see above), so decode stays in
+// software and VA-API only encodes.
+const nvidiaEncode =
+    IN_FLATPAK && hardwareVideoEncode && process.env.ZAM_NVENC === "1";
+if (nvidiaEncode) {
+    if (!features.includes("VaapiOnNvidiaGPUs")) {
+        features.push("VaapiOnNvidiaGPUs");
+    }
+    if (!nvidiaVulkanVideo && !nvidiaWaylandVideo) {
+        app.commandLine.appendSwitch("disable-accelerated-video-decode");
+    }
+}
 app.commandLine.appendSwitch(
     "enable-features",
     features.filter(Boolean).join(","),

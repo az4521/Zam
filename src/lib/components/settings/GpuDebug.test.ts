@@ -20,6 +20,7 @@ function setup(extra: Record<string, unknown> = {}) {
         setHardwareAcceleration: vi.fn(async () => {}),
         setNvidiaVideo: vi.fn(async () => {}),
         setVideoEncode: vi.fn(async () => {}),
+        setNvidiaEncode: vi.fn(async () => {}),
         relaunch: vi.fn(),
     };
     (window as unknown as { desktop: unknown }).desktop = { gpu };
@@ -176,5 +177,26 @@ describe("GpuDebug", () => {
         setup({ videoEncode: null });
         await render();
         expect(host!.querySelectorAll('[role="switch"]')).toHaveLength(1);
+    });
+
+    it("saves the NVIDIA encode switch and offers a restart", async () => {
+        const gpu = setup({
+            nvidiaEncode: { enabled: false, activeAtLaunch: false },
+        });
+        await render();
+        expect(host!.textContent).toContain("NVIDIA video encoding");
+        const switches = host!.querySelectorAll<HTMLElement>('[role="switch"]');
+        switches[switches.length - 1].click();
+        await vi.waitFor(() =>
+            expect(gpu.setNvidiaEncode).toHaveBeenCalledWith(true),
+        );
+        flushSync();
+        expect(host!.textContent).toContain("Restart Zam");
+    });
+
+    it("hides the NVIDIA encode switch outside Flatpak", async () => {
+        setup({ nvidiaEncode: null });
+        await render();
+        expect(host!.textContent).not.toContain("NVIDIA video encoding");
     });
 });
