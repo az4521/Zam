@@ -568,6 +568,7 @@ ipcMain.handle("proxy:set", (_e, prefs) => proxyManager.set(prefs));
 ipcMain.handle("proxy:call-targets", (_e, hosts) =>
     proxyManager.addCallTargets(hosts),
 );
+ipcMain.handle("proxy:route", (_e, url) => proxyManager.route(url));
 
 // --- Call priority -------------------------------------------------------
 

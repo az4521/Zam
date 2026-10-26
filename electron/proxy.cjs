@@ -13,17 +13,22 @@
 //  - "default": Chromium's own behaviour. WebRTC sends UDP directly (there is
 //    no UDP through an HTTP or SOCKS proxy) and TCP through the proxy, so a
 //    call that falls back to TCP rides the proxy.
-//  - "direct": call servers bypass the proxy for TCP too. Before each SFU
-//    connect the page names the SFU's host; it is resolved here and its
-//    addresses (not the name) added to the bypass rules, along with the ICE
-//    candidate and TURN addresses the page reports once connected. Only
-//    media is exempt: the signalling WebSocket and every other request name
-//    hosts, so they stay on the proxy. They have to be IPs:
-//    WebRTC connects to the SFU's ICE candidates, which are addresses, and
-//    Chromium matches proxy rules against what it connects to (tested: an IP
-//    or CIDR in the bypass list, or a PAC returning DIRECT for it, sends
-//    WebRTC's TCP direct). Resolving the host means a DNS lookup outside the
-//    proxy, which is fine for a mode whose point is to go direct.
+//  - "direct": the whole call skips the proxy: the call token service, the
+//    SFU's signalling WebSocket, and media over UDP and TCP alike.
+//     - Media: WebRTC connects to ICE candidates and TURN servers, which are
+//       always IP addresses, and Chromium matches proxy rules against what a
+//       connection names. So every IP literal goes direct ("0.0.0.0/0" and
+//       "::/0" in the bypass list, or the PAC equivalent). That covers
+//       addresses the SFU advertises that its hostname doesn't resolve to,
+//       from the first connect. Ordinary requests name hosts, so they stay
+//       on the proxy.
+//     - Token service and signalling: the page names their hosts before
+//       connecting, and those names go direct too. It never names the
+//       homeserver's own host, so a call server sharing it keeps the
+//       homeserver on the proxy (that call's signalling stays proxied).
+//    Tested in Electron 44 against HTTP and SOCKS5 proxies (2026-10-26):
+//    with these rules a passive TCP ICE candidate and hosts named in the
+//    list connect direct, other names still go through the proxy.
 //  - "proxy": calls only go through the proxy: WebRTC's IP handling policy
 //    "disable_non_proxied_udp", so the call servers never see this device's
 //    address. Tested: Chromium then gathers no host candidates at all and
@@ -34,8 +39,11 @@
 // at startup, before the window loads, and again on every change.
 const fs = require("fs");
 const path = require("path");
-const dns = require("dns").promises;
 const net = require("net");
+
+/** Bypass entries meaning "every IPv4 / IPv6 literal" (call media). */
+const ANY_IPV4 = "0.0.0.0/0";
+const ANY_IPV6 = "::/0";
 
 const MODES = new Set(["system", "direct", "manual", "pac"]);
 const CALL_MODES = new Set(["default", "direct", "proxy"]);
@@ -89,21 +97,27 @@ function flagProxy(commandLine) {
 }
 
 /**
- * A PAC script that answers DIRECT for `direct` hosts and asks the user's
- * PAC for everything else. The original runs in its own function scope so
- * that our FindProxyForURL (hoisted at top level) doesn't replace the one
- * we call into.
+ * A PAC script that answers DIRECT for `direct` hosts (and, when the list
+ * holds ANY_IPV4 / ANY_IPV6, for every IP literal of that family) and asks
+ * the user's PAC for everything else. The original runs in its own
+ * function scope so that our FindProxyForURL (hoisted at top level)
+ * doesn't replace the one we call into.
  */
 function wrapPac(original, direct) {
+    const hosts = direct.filter((d) => d !== ANY_IPV4 && d !== ANY_IPV6);
     return [
-        "var __zamDirect = " + JSON.stringify(direct) + ";",
+        "var __zamDirect = " + JSON.stringify(hosts) + ";",
+        "var __zamAnyV4 = " + JSON.stringify(direct.includes(ANY_IPV4)) + ";",
+        "var __zamAnyV6 = " + JSON.stringify(direct.includes(ANY_IPV6)) + ";",
         "var __zamOriginal = (function () {",
         original,
         "\nreturn FindProxyForURL;",
         "})();",
         "function FindProxyForURL(url, host) {",
-        '    var h = host.replace(/^\\[|\\]$/g, "");',
+        '    var h = host.replace(/^\\[|\\]$/g, "").toLowerCase();',
         '    if (__zamDirect.indexOf(h) >= 0) return "DIRECT";',
+        '    if (__zamAnyV4 && /^\\d+\\.\\d+\\.\\d+\\.\\d+$/.test(h)) return "DIRECT";',
+        '    if (__zamAnyV6 && h.indexOf(":") >= 0) return "DIRECT";',
         "    return __zamOriginal(url, host);",
         "}",
     ].join("\n");
@@ -165,9 +179,9 @@ function createProxyManager({ app, session, getWindow, net: electronNet }) {
     } catch {
         /* none saved yet */
     }
-    // Call server addresses to send direct (calls = "direct"); grows over
-    // the app's run, since an SFU's addresses don't stop being its own.
-    const direct = new Set();
+    // Call server hosts (token service, SFU) to send direct when calls =
+    // "direct"; grows over the app's run.
+    const directHosts = new Set();
     let lastApplied = null;
     let lastError = null;
 
@@ -189,7 +203,10 @@ function createProxyManager({ app, session, getWindow, net: electronNet }) {
     }
 
     async function apply() {
-        const extra = prefs.calls === "direct" ? [...direct] : [];
+        const extra =
+            prefs.calls === "direct"
+                ? [ANY_IPV4, ANY_IPV6, ...directHosts]
+                : [];
         let config;
         try {
             config = await buildProxyConfig(
@@ -222,36 +239,35 @@ function createProxyManager({ app, session, getWindow, net: electronNet }) {
         }
     }
 
-    /** Hosts (names or addresses) of call servers about to be used. */
+    /**
+     * Host names of call servers (token service, SFU) about to be used, to
+     * send direct. IP literals need no entry: they all go direct already.
+     * The page leaves out the homeserver's host.
+     */
     async function addCallTargets(hosts) {
         if (prefs.calls !== "direct" || !Array.isArray(hosts)) return;
-        const before = direct.size;
+        const before = directHosts.size;
         for (const raw of hosts.slice(0, 64)) {
             if (typeof raw !== "string") continue;
-            const host = raw
-                .replace(/^\[|\]$/g, "")
-                .trim()
-                .slice(0, 255);
-            if (!host) continue;
-            if (net.isIP(host)) {
-                direct.add(host);
-                continue;
-            }
-            if (!/^[a-z0-9.-]+$/i.test(host)) continue;
-            // Addresses only, never the name: Chromium matches bypass rules
-            // against the host a connection names, and WebRTC names IPs
-            // while everything else names hosts. So this exempts call media
-            // and nothing else, even when the SFU shares a hostname with the
-            // homeserver (whose traffic must stay on the proxy). Signalling
-            // stays on the proxy too.
-            try {
-                for (const { address } of await dns.lookup(host, { all: true }))
-                    direct.add(address);
-            } catch (err) {
-                console.warn("Couldn't resolve call server", host, err.code);
-            }
+            const host = raw.trim().toLowerCase().slice(0, 255);
+            if (!host || net.isIP(host.replace(/^\[|\]$/g, ""))) continue;
+            if (!/^[a-z0-9.-]+$/.test(host)) continue;
+            directHosts.add(host);
         }
-        if (direct.size !== before) await apply();
+        if (directHosts.size !== before) await apply();
+    }
+
+    /** How a request to `url` is routed right now ("DIRECT", "PROXY h:p"…). */
+    async function route(url) {
+        if (typeof url !== "string" || !/^(https?|wss?):\/\//.test(url))
+            return null;
+        try {
+            return await session.defaultSession.resolveProxy(
+                url.replace(/^ws/, "http"),
+            );
+        } catch {
+            return null;
+        }
     }
 
     function info() {
@@ -281,7 +297,7 @@ function createProxyManager({ app, session, getWindow, net: electronNet }) {
                               : [],
                       )
                 : [],
-            callBypassAddresses: [...direct],
+            callBypassAddresses: [...directHosts],
             // Calls can't bypass the OS proxy settings, only Zam's own or
             // the launch flags'.
             callBypassAvailable: !(prefs.mode === "system" && !flags),
@@ -301,7 +317,7 @@ function createProxyManager({ app, session, getWindow, net: electronNet }) {
         return info();
     }
 
-    return { apply, applyIpPolicy, addCallTargets, info, set };
+    return { apply, applyIpPolicy, addCallTargets, route, info, set };
 }
 
 module.exports = {

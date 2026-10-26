@@ -128,6 +128,8 @@ contextBridge.exposeInMainWorld("desktop", {
                 "proxy:call-targets",
                 Array.isArray(hosts) ? hosts.map(String) : [],
             ),
+        // How a request to `url` is routed now: "DIRECT", "PROXY h:p", ...
+        route: (url) => ipcRenderer.invoke("proxy:route", String(url)),
     },
     // While a call is connected, main raises the OS priority of the
     // processes it runs through (callPriority.cjs).

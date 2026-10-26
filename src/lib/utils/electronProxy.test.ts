@@ -85,6 +85,18 @@ describe("buildProxyConfig", () => {
         );
     });
 
+    it("keeps the any-IP entries as CIDRs in a bypass list", async () => {
+        const c = await buildProxyConfig(
+            manual,
+            ["0.0.0.0/0", "::/0", "sfu.example"],
+            commandLine(),
+            noPac,
+        );
+        expect(c?.proxyBypassRules).toBe(
+            "example.org,10.0.0.0/8,0.0.0.0/0,::/0,sfu.example",
+        );
+    });
+
     it("leaves Chromium alone in system mode without flags", async () => {
         expect(
             await buildProxyConfig(
@@ -169,6 +181,19 @@ describe("wrapPac", () => {
             "DIRECT",
         );
         expect(run(s, "https://example.org/", "example.org")).toBe(
+            "SOCKS5 127.0.0.1:9050",
+        );
+    });
+    it("sends every IP literal direct for calls, but not other names", () => {
+        const s = wrapPac(original, ["0.0.0.0/0", "::/0", "sfu.example"]);
+        expect(run(s, "https://198.51.100.7:7881/", "198.51.100.7")).toBe(
+            "DIRECT",
+        );
+        expect(run(s, "https://[2001:db8::9]:443/", "[2001:db8::9]")).toBe(
+            "DIRECT",
+        );
+        expect(run(s, "https://SFU.example/", "SFU.example")).toBe("DIRECT");
+        expect(run(s, "https://matrix.example/", "matrix.example")).toBe(
             "SOCKS5 127.0.0.1:9050",
         );
     });

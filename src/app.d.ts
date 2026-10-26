@@ -23,7 +23,8 @@ declare global {
     interface DesktopProxyInfo extends DesktopProxyPrefs {
         /** The --proxy-* flags Zam was launched with. */
         launchFlags: string[];
-        /** Addresses calls currently send direct. */
+        /** Call server hosts currently sent direct (every IP address goes
+         *  direct too while calls are "direct"). */
         callBypassAddresses: string[];
         /** False when calls can't bypass (OS proxy settings in use). */
         callBypassAvailable: boolean;
@@ -47,6 +48,10 @@ declare global {
                 /** Hosts of call servers about to be connected to, so they
                  *  can bypass the proxy; resolves once the rules apply. */
                 callTargets: (hosts: string[]) => Promise<void>;
+                /** How a request to `url` is routed right now, in PAC form
+                 *  ("DIRECT", "PROXY host:port", "SOCKS5 host:port"); null
+                 *  when it can't be told. */
+                route?: (url: string) => Promise<string | null>;
             };
             /** Tell main a call is (dis)connected, to raise process
              *  priority during it (electron/callPriority.cjs). */
