@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.32.1
+
+🐛 **Fixed**
+
+- **Seeking back in long audio and video:** in a FLAC, a long MP3 or a big video that was streaming, jumping back to a part that had already played could leave it stuck loading forever. The browser throws away what has played once it holds too much, and now Zam hands it that part again.
+- **WebM videos with sound play in Chrome:** streamed WebM files with both video and audio (most of what ffmpeg makes) failed to play at all in Chrome-based browsers and the desktop app.
+
 ## v1.32.0
 
 ✨ **New**
