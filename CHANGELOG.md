@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.32.2
+
+🐛 **Fixed**
+
+- **SVG images in encrypted rooms:** SVG images sent in end-to-end encrypted rooms showed as "Image unavailable". They now display, with anything in them that could run code removed first.
+
 ## v1.32.1
 
 🐛 **Fixed**
