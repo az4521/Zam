@@ -1796,6 +1796,13 @@ const messages: Record<MessageKey, string> = {
     "screenShareQualityChips.resolution": "Résolution",
     "screenShareQualityChips.frameRate": "Fréquence d'images",
     "screenShareQualityChips.fps": "{f} i/s",
+    "screenShareQualityChips.bitrate": "Débit",
+    "screenShareQualityChips.kbps": "{n} kbit/s",
+    "screenShareQualityChips.mbps": "{n} Mbit/s",
+    "screenShareQualityChips.bitrateMeasured":
+        "Votre débit montant mesure {upload}, donc ceci va jusqu'à {max}.",
+    "screenShareQualityChips.bitrateUnmeasured":
+        "Votre débit montant n'a pas encore été mesuré. Il l'est pendant que vous envoyez de la vidéo, donc ceci va jusqu'à {max} pour l'instant.",
     "screenShareQualityChips.shareSystemAudio": "Partager le son du système",
     "screenShareQualityChips.appliesToNextShare":
         "S'applique au prochain partage",

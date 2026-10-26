@@ -1817,6 +1817,13 @@ const messages: Record<MessageKey, string> = {
     "screenShareQualityChips.resolution": "Auflösung",
     "screenShareQualityChips.frameRate": "Bildrate",
     "screenShareQualityChips.fps": "{f} FPS",
+    "screenShareQualityChips.bitrate": "Bitrate",
+    "screenShareQualityChips.kbps": "{n} kbit/s",
+    "screenShareQualityChips.mbps": "{n} Mbit/s",
+    "screenShareQualityChips.bitrateMeasured":
+        "Dein Upload liegt bei {upload}, daher geht dies bis {max}.",
+    "screenShareQualityChips.bitrateUnmeasured":
+        "Dein Upload wurde noch nicht gemessen. Er wird gemessen, während du Video sendest, daher geht dies vorerst bis {max}.",
     "screenShareQualityChips.shareSystemAudio": "Systemaudio teilen",
     "screenShareQualityChips.appliesToNextShare":
         "Gilt für die nächste Freigabe",

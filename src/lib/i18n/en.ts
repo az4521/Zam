@@ -1768,6 +1768,13 @@ export const en = {
     "screenShareQualityChips.resolution": "Resolution",
     "screenShareQualityChips.frameRate": "Frame rate",
     "screenShareQualityChips.fps": "{f} FPS",
+    "screenShareQualityChips.bitrate": "Bitrate",
+    "screenShareQualityChips.kbps": "{n} kbps",
+    "screenShareQualityChips.mbps": "{n} Mbps",
+    "screenShareQualityChips.bitrateMeasured":
+        "Your upload measures {upload}, so this goes up to {max}.",
+    "screenShareQualityChips.bitrateUnmeasured":
+        "Your upload hasn't been measured yet. It's measured while you send video, so this goes up to {max} for now.",
     "screenShareQualityChips.shareSystemAudio": "Share system audio",
     "screenShareQualityChips.appliesToNextShare": "Applies to next share",
     "screenShareQualityChips.shareSystemAudioAppliesToNext":

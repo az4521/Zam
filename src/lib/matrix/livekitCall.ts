@@ -52,7 +52,17 @@ import {
     setVideoInputDeviceId,
 } from "$lib/stores/settings.svelte";
 import { lazyModule } from "$lib/utils/lazyModule";
-import type { RawStat, StreamOwner } from "$lib/utils/callStats";
+import {
+    availableOutgoingBitrate,
+    type RawStat,
+    type StreamOwner,
+} from "$lib/utils/callStats";
+import { clampBitrate } from "$lib/utils/screenShareBitrate";
+import {
+    clearLiveUploadEstimate,
+    noteUploadEstimate,
+    screenShareBitrateCeiling,
+} from "$lib/stores/uploadEstimate.svelte";
 import {
     createCallAudioGraph,
     type CallAudioGraph,
@@ -927,6 +937,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         onMyMembership,
     };
     activeVoice = call;
+    startUploadSampling(call);
     ensureVoiceDeviceWatch();
     desiredMicMuted = micClosedAtJoin();
     desiredCameraOn = false;
@@ -1358,7 +1369,7 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
             },
             {
                 screenShareEncoding: screenShareEncodingFor(
-                    settingsState.screenShareResolution,
+                    screenShareBitrateNow(),
                     Number(settingsState.screenShareFps),
                 ),
                 degradationPreference: "maintain-resolution",
@@ -1441,6 +1452,14 @@ function stopShareAudio(): void {
     }
 }
 
+/** The picked screen-share bitrate, held under the measured upload. */
+function screenShareBitrateNow(): number {
+    return clampBitrate(
+        settingsState.screenShareBitrate,
+        screenShareBitrateCeiling(),
+    );
+}
+
 /** Re-target the currently published screen share to a new quality without
  *  re-acquiring the capture: applyConstraints moves the running capture's
  *  resolution/fps, then the publish encoding (bitrate/framerate cap) follows.
@@ -1474,7 +1493,7 @@ async function applyScreenShareQualityNow(
         if (
             applyScreenShareEncoding(
                 params,
-                screenShareEncodingFor(resKey, fps),
+                screenShareEncodingFor(screenShareBitrateNow(), fps),
             )
         ) {
             // Match setScreenShareEnabled: screen content prefers a sharp
@@ -1775,6 +1794,50 @@ function reportCallAddresses(lkRoom: LivekitRoom): void {
     };
     void collect();
     setTimeout(() => void collect(), 5000);
+}
+
+// Upload bandwidth for the screen-share bitrate slider
+// (stores/uploadEstimate.svelte): WebRTC's estimate on the publishing
+// connection, sampled only while we send video, since with just a microphone
+// it barely probes and reads far too low.
+const UPLOAD_SAMPLE_MS = 3000;
+
+function startUploadSampling(call: ActiveVoiceCall): void {
+    clearLiveUploadEstimate();
+    const timer = setInterval(() => {
+        if (activeVoice !== call) {
+            clearInterval(timer);
+            clearLiveUploadEstimate();
+            return;
+        }
+        void sampleUpload(call);
+    }, UPLOAD_SAMPLE_MS);
+}
+
+async function sampleUpload(call: ActiveVoiceCall): Promise<void> {
+    const lp = call.lkRoom.localParticipant;
+    const sendingVideo = [
+        call.lk.Track.Source.ScreenShare,
+        call.lk.Track.Source.Camera,
+    ].some((source) => {
+        const pub = lp.getTrackPublication(source);
+        return !!pub?.track && !pub.isMuted;
+    });
+    if (!sendingVideo) return;
+    const pcm = (
+        call.lkRoom.engine as
+            | {
+                  pcManager?: {
+                      publisher?: {
+                          getStats(): Promise<RTCStatsReport> | undefined;
+                      };
+                  };
+              }
+            | undefined
+    )?.pcManager;
+    const stats = await reportValues(pcm?.publisher?.getStats());
+    const bps = stats ? availableOutgoingBitrate(stats) : null;
+    if (bps !== null && activeVoice === call) noteUploadEstimate(bps);
 }
 
 async function reportValues(

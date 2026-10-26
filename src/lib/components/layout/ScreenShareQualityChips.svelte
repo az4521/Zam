@@ -6,7 +6,19 @@
         setScreenShareResolution,
         setScreenShareFps,
         setShareSystemAudio,
+        setScreenShareBitrate,
     } from "$lib/stores/settings.svelte";
+    import {
+        measuredUpload,
+        screenShareBitrateCeiling,
+    } from "$lib/stores/uploadEstimate.svelte";
+    import {
+        BITRATE_SLIDER_STEPS,
+        bitrateFromSlider,
+        bitrateParts,
+        clampBitrate,
+        sliderFromBitrate,
+    } from "$lib/utils/screenShareBitrate";
     import {
         SCREEN_RESOLUTIONS,
         SCREEN_FPS_OPTIONS,
@@ -28,6 +40,33 @@
     function pickFps(fps: number): void {
         setScreenShareFps(String(fps));
         onQualityChange?.(settingsState.screenShareResolution, fps);
+    }
+
+    // The bitrate is picked apart from resolution and fps, from about 240p's
+    // bitrate up to 10% under the measured upload. While dragging only the
+    // label follows; the pick is saved (and a live share retargeted) on
+    // release.
+    const ceiling = $derived(screenShareBitrateCeiling());
+    const measured = $derived(measuredUpload());
+    let draftBitrate = $state<number | null>(null);
+    const shownBitrate = $derived(
+        draftBitrate ?? clampBitrate(settingsState.screenShareBitrate, ceiling),
+    );
+
+    function bitrateLabel(bps: number): string {
+        const { unit, n } = bitrateParts(bps);
+        return unit === "kbps"
+            ? t("screenShareQualityChips.kbps", { n })
+            : t("screenShareQualityChips.mbps", { n });
+    }
+
+    function commitBitrate(position: number): void {
+        draftBitrate = null;
+        setScreenShareBitrate(bitrateFromSlider(position, ceiling));
+        onQualityChange?.(
+            settingsState.screenShareResolution,
+            Number(settingsState.screenShareFps),
+        );
     }
 
     const chipBase =
@@ -80,6 +119,44 @@
                     {t("screenShareQualityChips.fps", { f })}
                 </button>
             {/each}
+        </div>
+    </div>
+    <div>
+        <div class="flex items-baseline justify-between gap-2 mb-1.5">
+            <div
+                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+            >
+                {t("screenShareQualityChips.bitrate")}
+            </div>
+            <div class="text-xs text-discord-textPrimary tabular-nums">
+                {bitrateLabel(shownBitrate)}
+            </div>
+        </div>
+        <input
+            type="range"
+            min="0"
+            max={BITRATE_SLIDER_STEPS}
+            step="1"
+            class="w-full accent-discord-accent"
+            value={sliderFromBitrate(shownBitrate, ceiling)}
+            aria-label={t("screenShareQualityChips.bitrate")}
+            aria-valuetext={bitrateLabel(shownBitrate)}
+            oninput={(e) =>
+                (draftBitrate = bitrateFromSlider(
+                    Number(e.currentTarget.value),
+                    ceiling,
+                ))}
+            onchange={(e) => commitBitrate(Number(e.currentTarget.value))}
+        />
+        <div class="text-xs text-discord-textMuted mt-0.5">
+            {measured === null
+                ? t("screenShareQualityChips.bitrateUnmeasured", {
+                      max: bitrateLabel(ceiling),
+                  })
+                : t("screenShareQualityChips.bitrateMeasured", {
+                      upload: bitrateLabel(measured),
+                      max: bitrateLabel(ceiling),
+                  })}
         </div>
     </div>
     <div class="flex items-center justify-between gap-3">

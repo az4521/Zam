@@ -1839,6 +1839,13 @@ const messages: Record<MessageKey, string> = {
     "screenShareQualityChips.resolution": "Resolución",
     "screenShareQualityChips.frameRate": "Fotogramas por segundo",
     "screenShareQualityChips.fps": "{f} FPS",
+    "screenShareQualityChips.bitrate": "Tasa de bits",
+    "screenShareQualityChips.kbps": "{n} kbps",
+    "screenShareQualityChips.mbps": "{n} Mbps",
+    "screenShareQualityChips.bitrateMeasured":
+        "Tu subida mide {upload}, así que esto llega hasta {max}.",
+    "screenShareQualityChips.bitrateUnmeasured":
+        "Tu subida aún no se ha medido. Se mide mientras envías vídeo, así que por ahora esto llega hasta {max}.",
     "screenShareQualityChips.shareSystemAudio":
         "Compartir el audio del sistema",
     "screenShareQualityChips.appliesToNextShare":

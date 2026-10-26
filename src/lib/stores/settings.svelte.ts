@@ -80,6 +80,11 @@ import {
     unregisterCustomFontFace,
 } from "$lib/utils/customFont";
 
+import {
+    DEFAULT_SCREEN_SHARE_BITRATE,
+    MIN_SCREEN_SHARE_BITRATE,
+} from "$lib/utils/screenShareBitrate";
+
 const STORAGE_PREFIX = "settings:";
 
 function readBool(key: string, fallback: boolean): boolean {
@@ -405,6 +410,10 @@ export const settingsState = $state({
      *  <select>s; fps is parsed to a number at the call site. */
     screenShareResolution: readAccountString("screenShareResolution") ?? "1080",
     screenShareFps: readAccountString("screenShareFps") ?? "30",
+    /** Screen-share bitrate cap (bits/sec), picked apart from resolution and
+     *  fps. Clamped to the measured upload when applied
+     *  (utils/screenShareBitrate). */
+    screenShareBitrate: readScreenShareBitrate(),
     /** Codec for the camera and screen share we send. Only WebRTC's two
      *  mandatory codecs: anything else (VP9, AV1) some receivers can't show,
      *  iOS Safari PWAs among them. */
@@ -708,6 +717,7 @@ export function reloadAccountSettings(): void {
     settingsState.screenShareResolution =
         readAccountString("screenShareResolution") ?? "1080";
     settingsState.screenShareFps = readAccountString("screenShareFps") ?? "30";
+    settingsState.screenShareBitrate = readScreenShareBitrate();
     settingsState.callVideoCodec = normalizeCallVideoCodec(
         readAccountString("callVideoCodec"),
     );
@@ -1069,6 +1079,25 @@ export function setScreenShareResolution(value: string): void {
 export function setScreenShareFps(value: string): void {
     settingsState.screenShareFps = value;
     writeAccountString("screenShareFps", value);
+}
+
+function readScreenShareBitrate(): number {
+    const n = Number(readAccountString("screenShareBitrate"));
+    return Number.isFinite(n) && n >= MIN_SCREEN_SHARE_BITRATE
+        ? n
+        : DEFAULT_SCREEN_SHARE_BITRATE;
+}
+
+export function setScreenShareBitrate(bps: number): void {
+    if (!Number.isFinite(bps)) return;
+    settingsState.screenShareBitrate = Math.max(
+        MIN_SCREEN_SHARE_BITRATE,
+        Math.round(bps),
+    );
+    writeAccountString(
+        "screenShareBitrate",
+        String(settingsState.screenShareBitrate),
+    );
 }
 
 export type CallVideoCodec = "h264" | "vp8";

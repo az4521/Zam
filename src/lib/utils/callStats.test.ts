@@ -9,6 +9,7 @@ import {
     summarizeRtpStreams,
     codecLabel,
     opusFeatures,
+    availableOutgoingBitrate,
     type RawStat,
 } from "./callStats";
 
@@ -460,5 +461,21 @@ describe("serverOfferedNoUdp", () => {
             summarizeTransport(report([undefined]), 0).serverOfferedNoUdp,
         ).toBe(false);
         expect(summarizeTransport([], 0).serverOfferedNoUdp).toBe(false);
+    });
+});
+
+describe("availableOutgoingBitrate", () => {
+    it("reads the selected pair's upload estimate", () => {
+        expect(availableOutgoingBitrate(chromiumReport({}))).toBe(1_500_000);
+    });
+
+    it("is null without a selected pair or an estimate", () => {
+        expect(availableOutgoingBitrate([])).toBeNull();
+        expect(
+            availableOutgoingBitrate([
+                { id: "T", type: "transport", selectedCandidatePairId: "P" },
+                { id: "P", type: "candidate-pair", state: "succeeded" },
+            ]),
+        ).toBeNull();
     });
 });

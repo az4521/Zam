@@ -164,6 +164,15 @@ export function summarizeAudioIn(stats: readonly RawStat[]): AudioInSummary {
     return out;
 }
 
+/** WebRTC's estimate of the upload bandwidth (bits/sec) on a publisher
+ *  transport: the selected pair's availableOutgoingBitrate, or null. */
+export function availableOutgoingBitrate(
+    stats: readonly RawStat[],
+): number | null {
+    const v = num(selectedPair(stats)?.availableOutgoingBitrate);
+    return v !== null && v > 0 ? v : null;
+}
+
 /**
  * Fold one transport's stats report. Pass the previous summary of the SAME
  * transport to get interval rates; without it the rates are null.
