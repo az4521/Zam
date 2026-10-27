@@ -980,6 +980,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     await denoiseLoad;
     if (seq !== voiceJoinSeq) return; // superseded while loading livekit
     const localCodecs = await localVideoCodecs(lk);
+    platformBlocked = await platformUndecodable();
     if (seq !== voiceJoinSeq) return;
     // Element Call's rule: a call in an encrypted room is encrypted end to
     // end. Sending plain media into it would leave everyone else unable to
@@ -2229,13 +2230,34 @@ function videoCodecPublishOptions(call: ActiveVoiceCall) {
     } as const;
 }
 
+/** Codecs this platform lists but can't show, known from how it is set up
+ *  (filled in at the start of a call, see platformUndecodable). */
+let platformBlocked: VideoCodec[] = [];
+
+/** Codecs left out of what we decode: the user's list plus the platform's. */
+function blockedCodecs(): VideoCodec[] {
+    return [
+        ...new Set([...settingsState.blockedDecodeCodecs, ...platformBlocked]),
+    ];
+}
+
+/** The Flatpak's NVIDIA video decoding (Settings > Debug) is the only way
+ *  Chromium decodes HEVC on Linux, and what it produces for HEVC is a black
+ *  picture, while H.264 and VP9 through the same path are fine. Treat HEVC
+ *  as undecodable there so senders use H.264 instead. */
+async function platformUndecodable(): Promise<VideoCodec[]> {
+    try {
+        const info = await window.desktop?.gpu?.info();
+        return info?.nvidiaVideo?.activeAtLaunch ? ["h265"] : [];
+    } catch {
+        return [];
+    }
+}
+
 /** What this device tells the call it can watch: what it has, less what is
  *  known not to work (settings). */
 function localDecode(call: ActiveVoiceCall): VideoCodec[] {
-    return withoutBlocked(
-        call.codecs.decode,
-        settingsState.blockedDecodeCodecs,
-    );
+    return withoutBlocked(call.codecs.decode, blockedCodecs());
 }
 
 /** The blocked-codec list changed (Settings, or a stream that never decoded):
@@ -2286,7 +2308,7 @@ function installDecodePreferences(): void {
         ...args: Parameters<RTCPeerConnection["setRemoteDescription"]>
     ) {
         const result = await original.apply(this, args);
-        const blocked = settingsState.blockedDecodeCodecs;
+        const blocked = blockedCodecs();
         if (blocked.length > 0 && args[0]?.type === "offer") {
             try {
                 const codecs = RTCRtpReceiver.getCapabilities("video")?.codecs;
@@ -2349,7 +2371,7 @@ async function checkDecodeHealth(call: ActiveVoiceCall): Promise<void> {
         if (
             !codec ||
             isMandatoryCodec(codec) ||
-            isBlockedMime(mime, settingsState.blockedDecodeCodecs) ||
+            isBlockedMime(mime, blockedCodecs()) ||
             !isDecodeStall({
                 bytes: Number(s.bytesReceived) || 0,
                 framesDecoded: Number(s.framesDecoded) || 0,
