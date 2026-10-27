@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.36.4
+
+✨ **New**
+
+- **Power level on profiles:** a member's profile card now shows their exact power level in the room (for example 50 or 100, or a custom value), not just whether they are a moderator or admin.
+- **Send GIFs as animated WebP:** a new option in Settings > Messages & Media (off by default) converts GIFs to smaller animated WebP files when you send them.
+
 ## v1.36.3
 
 🐛 **Fixed**
@@ -265,7 +272,7 @@ commit list is appended below it.
 ✨ **New**
 
 - **GS sounds in the included bank:** all 98 GS variation sounds that Windows' MIDI synth has, including Ukulele, Mandolin, 12-string guitar, Sine Wave and the sound effects (Rain, Thunder, Dog, Siren, Explosion, ...). MIDI files made for Windows or Roland Sound Canvas modules now sound as intended. The bank grows from 0.9 to 1.8 MB, and is only downloaded the first time you play a MIDI.
-- **MIDI sounds the same everywhere:** MIDI attachments now play with the included sound bank by default, rather than your device's own. You can still pick System or a custom bank under Settings > Messages & media > MIDI.
+- **MIDI sounds the same everywhere:** MIDI attachments now play with the included sound bank by default, rather than your device's own. You can still pick System or a custom bank under Settings > Messages & Media > MIDI.
 
 ## v1.27.1
 
