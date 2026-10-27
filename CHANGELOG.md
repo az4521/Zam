@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.36.5
+
+🐛 **Fixed**
+
+- **Settings > Debug showed H.264 encoding as Software on NVIDIA (Linux):** the check asked for a variable bitrate that GPU encoding does not use. It now matches what calls send, so the list shows Hardware when the GPU encodes.
+
 ## v1.36.4
 
 ✨ **New**
