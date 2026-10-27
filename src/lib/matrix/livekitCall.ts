@@ -2317,6 +2317,11 @@ function installDecodePreferences(): void {
 const decodeWatch = new Map<string, { samples: number }>();
 
 async function checkDecodeHealth(call: ActiveVoiceCall): Promise<void> {
+    // In an encrypted call a stream whose frames can't be decrypted (no key
+    // yet, an older client) never reaches the decoder either, which looks
+    // the same as a decoder that doesn't work. Don't blame the codec there;
+    // the announced decode list and the Settings picker still apply.
+    if (call.e2ee !== null) return;
     const pcm = (
         call.lkRoom.engine as
             | {
