@@ -7,7 +7,12 @@ import {
     withShareVolume,
 } from "./participantAudio";
 import { bitrateCeiling } from "./screenShareBitrate";
-import { isBlockedMime, isDecodeStall, withoutBlocked } from "./videoCodecs";
+import {
+    isBlockedMime,
+    isDecodeStall,
+    planCodecs,
+    withoutBlocked,
+} from "./videoCodecs";
 
 describe("share volume", () => {
     it("is separate from the voice level", () => {
@@ -66,5 +71,20 @@ describe("blocked decode codecs", () => {
         expect(
             isDecodeStall({ bytes: 100, framesDecoded: 0, samples: 5 }),
         ).toBe(false);
+    });
+});
+
+describe("planCodecs in encrypted calls", () => {
+    const sendable = ["av1", "h264", "vp8"] as const;
+    const peers = [["av1", "h264", "vp8"]] as const;
+
+    it("never sends AV1, which end-to-end encryption can't carry", () => {
+        const plan = planCodecs("av1", sendable, peers, true);
+        expect(plan.available).not.toContain("av1");
+        expect(plan.current).toBe("h264");
+    });
+
+    it("still sends AV1 unencrypted", () => {
+        expect(planCodecs("av1", sendable, peers, false).current).toBe("av1");
     });
 });

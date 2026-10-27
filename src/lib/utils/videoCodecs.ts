@@ -125,7 +125,10 @@ export function planCodecs(
     const known = peers.flatMap((p) =>
         p ? [p] : encrypted ? [MANDATORY_CODECS] : [],
     );
-    const available = codecsEveryoneDecodes(sendable, known);
+    // LiveKit's end-to-end encryption can't frame AV1 yet (its worker throws),
+    // so an AV1 stream in an encrypted call reaches nobody.
+    const usable = encrypted ? sendable.filter((c) => c !== "av1") : sendable;
+    const available = codecsEveryoneDecodes(usable, known);
     const current = effectiveCodec(picked, encrypted ? available : sendable);
     return {
         available,
