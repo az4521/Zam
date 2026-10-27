@@ -7,10 +7,12 @@
         setScreenShareFps,
         setShareSystemAudio,
         setScreenShareBitrate,
+        setUploadSpeedOverride,
     } from "$lib/stores/settings.svelte";
     import {
         measuredUpload,
         screenShareBitrateCeiling,
+        uploadOverride,
     } from "$lib/stores/uploadEstimate.svelte";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
     import { switchCallVideoCodec } from "$lib/matrix/client";
@@ -54,6 +56,7 @@
     // release.
     const ceiling = $derived(screenShareBitrateCeiling());
     const measured = $derived(measuredUpload());
+    const overridden = $derived(uploadOverride() !== null);
     let draftBitrate = $state<number | null>(null);
     const shownBitrate = $derived(
         draftBitrate ?? clampBitrate(settingsState.screenShareBitrate, ceiling),
@@ -64,6 +67,21 @@
         return unit === "kbps"
             ? t("screenShareQualityChips.kbps", { n })
             : t("screenShareQualityChips.mbps", { n });
+    }
+
+    // The typed-in upload speed is in Mbps; empty or 0 goes back to measuring.
+    function commitUploadOverride(text: string): void {
+        const mbps = Number(text.replace(",", "."));
+        setUploadSpeedOverride(
+            text.trim() !== "" && Number.isFinite(mbps) && mbps > 0
+                ? mbps * 1_000_000
+                : 0,
+        );
+        // The ceiling moved: bring a live share's cap along with it.
+        onQualityChange?.(
+            settingsState.screenShareResolution,
+            Number(settingsState.screenShareFps),
+        );
     }
 
     function commitBitrate(position: number): void {
@@ -194,6 +212,7 @@
                 {t("screenShareQualityChips.bitrate")}
             </div>
             <div class="text-xs text-discord-textPrimary tabular-nums">
+                {t("screenShareQualityChips.bitrateUpTo")}
                 {bitrateLabel(shownBitrate)}
             </div>
         </div>
@@ -214,14 +233,50 @@
             onchange={(e) => commitBitrate(Number(e.currentTarget.value))}
         />
         <div class="text-xs text-discord-textMuted mt-0.5">
-            {measured === null
-                ? t("screenShareQualityChips.bitrateUnmeasured", {
-                      max: bitrateLabel(ceiling),
-                  })
-                : t("screenShareQualityChips.bitrateMeasured", {
+            {t("screenShareQualityChips.bitrateCapHint")}
+        </div>
+        <div class="text-xs text-discord-textMuted mt-0.5">
+            {overridden && measured !== null
+                ? t("screenShareQualityChips.bitrateOverridden", {
                       upload: bitrateLabel(measured),
                       max: bitrateLabel(ceiling),
-                  })}
+                  })
+                : measured === null
+                  ? t("screenShareQualityChips.bitrateUnmeasured", {
+                        max: bitrateLabel(ceiling),
+                    })
+                  : t("screenShareQualityChips.bitrateMeasured", {
+                        upload: bitrateLabel(measured),
+                        max: bitrateLabel(ceiling),
+                    })}
+        </div>
+        <div class="flex items-center justify-between gap-2 mt-1.5">
+            <label
+                for="upload-speed-override"
+                class="text-xs text-discord-textMuted"
+            >
+                {t("screenShareQualityChips.uploadOverride")}
+            </label>
+            <input
+                id="upload-speed-override"
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                class="w-24 px-2 py-1 rounded text-xs bg-discord-backgroundTertiary text-discord-textPrimary border border-transparent focus:border-discord-accent outline-none text-end"
+                placeholder={t("screenShareQualityChips.uploadOverrideAuto")}
+                value={settingsState.uploadSpeedOverride > 0
+                    ? String(
+                          Math.round(
+                              (settingsState.uploadSpeedOverride / 1_000_000) *
+                                  10,
+                          ) / 10,
+                      )
+                    : ""}
+                onchange={(e) => commitUploadOverride(e.currentTarget.value)}
+            />
+        </div>
+        <div class="text-xs text-discord-textMuted mt-0.5">
+            {t("screenShareQualityChips.uploadOverrideHint")}
         </div>
     </div>
     <div class="flex items-center justify-between gap-3">

@@ -235,6 +235,7 @@ export const en = {
     "callParticipantMenu.message": "Message",
     "callParticipantMenu.mention": "Mention",
     "callParticipantMenu.userVolume": "User Volume",
+    "callParticipantMenu.shareVolume": "Share Volume",
     "callParticipantMenu.hideVideo": "Hide video",
     "callParticipantMenu.kicking": "Kicking…",
     "callParticipantMenu.confirmKick": "Confirm kick {name}?",
@@ -1910,7 +1911,16 @@ export const en = {
         "Someone in the call can't play {codec}, so they get an H.264 copy, which takes more upload.",
     "screenShareQualityChips.codecEncryptedFallbackHint":
         "Someone in this encrypted call can't play {picked}, so you're sending {current} until they leave.",
-    "screenShareQualityChips.bitrate": "Bitrate",
+    "screenShareQualityChips.bitrate": "Max bitrate",
+    "screenShareQualityChips.bitrateUpTo": "Up to",
+    "screenShareQualityChips.bitrateCapHint":
+        "A limit, not a target: the share uses only what the picture needs and your connection can carry, up to this.",
+    "screenShareQualityChips.bitrateOverridden":
+        "Using the upload speed you entered, {upload}, so this goes up to {max}.",
+    "screenShareQualityChips.uploadOverride": "Upload speed (Mbps)",
+    "screenShareQualityChips.uploadOverrideAuto": "Auto",
+    "screenShareQualityChips.uploadOverrideHint":
+        "The automatic measurement can read well under your real speed. Enter your own figure to raise the limit; leave it empty to measure.",
     "screenShareQualityChips.kbps": "{n} kbps",
     "screenShareQualityChips.mbps": "{n} Mbps",
     "screenShareQualityChips.bitrateMeasured":
@@ -2419,6 +2429,9 @@ export const en = {
     "voiceAudioSettings.mirrorMyCamera": "Mirror my camera",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
         "Flip your own preview. Others always see you un-mirrored.",
+    "voiceAudioSettings.cannotWatch": "Video I can't watch",
+    "voiceAudioSettings.cannotWatchHint":
+        "Pick the codecs that show nothing (or a black picture) on this device. Others in the call then send you H.264 instead. Zam also fills this in when a stream arrives and never decodes.",
     "voiceAudioSettings.videoCodec": "Video codec",
     "voiceAudioSettings.videoCodecHint":
         "What your camera and screen share are sent as. Anyone in the call who can't play it gets an H.264 copy, and you can switch it from the call too. Applies the next time you turn them on.",
@@ -2548,7 +2561,7 @@ export const en = {
     "callStats.codec": "Codec",
     "callStats.codecOptions": "Codec options",
     "callStats.bitrate": "Bitrate",
-    "callStats.bitrateTarget": "{rate} of {target}",
+    "callStats.bitrateTarget": "{rate} of max {target}",
     "callStats.packetDuration": "Audio per packet",
     "callStats.resolution": "Resolution",
     "callStats.encoder": "Encoder",
@@ -2728,6 +2741,8 @@ export const en = {
         "Couldn't switch to that {what} - pick another device",
     "client.encryptedCallsUnsupported":
         "This call is end-to-end encrypted, and this browser can't encrypt call media. Try a recent Chrome, Firefox or Safari, or the desktop app.",
+    "client.codecCouldNotBeDecoded":
+        "This device can't decode {codec} video. Asking for H.264 instead.",
     "client.couldNotSwitchVideoCodec": "Couldn't switch the video codec",
     "client.couldNotStartScreenShare": "Could not start screen share",
     "client.couldNotShareScreenAudio": "Screen share started without its audio",

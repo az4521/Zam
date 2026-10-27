@@ -15,6 +15,7 @@ import {
     onVoicePlaybackBlockedChanged,
     onParticipantMuteChanged,
     setParticipantVolume,
+    setParticipantShareVolume,
     setParticipantLocalMute,
     setParticipantVideoHidden,
     primeParticipantAudio,
@@ -48,6 +49,7 @@ import type { CallCodecState, CallEncryptionState } from "$lib/matrix/client";
 import {
     DEFAULT_PARTICIPANT_AUDIO,
     withVolume,
+    withShareVolume,
     withLocalMute,
     withVideoHidden,
     type ParticipantAudio,
@@ -496,6 +498,8 @@ function applyMicGate(): void {
 export function setPushToTalkHeld(held: boolean): void {
     if (voiceCallState.pushToTalkHeld === held) return;
     voiceCallState.pushToTalkHeld = held;
+    if (voiceCallState.roomId && pushToTalkEnabled())
+        playCallSound(held ? "pttOn" : "pttOff");
     applyMicGate();
 }
 
@@ -566,6 +570,13 @@ export function setUserVolume(userId: string, volume: number): void {
     const next = withVolume(participantAudioFor(userId), volume);
     setParticipantAudioSetting(userId, next);
     setParticipantVolume(userId, next.volume);
+}
+
+/** The same for the sound of the screen or application they share. */
+export function setUserShareVolume(userId: string, volume: number): void {
+    const next = withShareVolume(participantAudioFor(userId), volume);
+    setParticipantAudioSetting(userId, next);
+    setParticipantShareVolume(userId, next.shareVolume);
 }
 
 export function setUserLocalMute(userId: string, muted: boolean): void {

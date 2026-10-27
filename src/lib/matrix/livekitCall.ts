@@ -41,20 +41,26 @@ import {
     effectiveVolume,
     needsBoost,
     withVolume,
+    withShareVolume,
     withLocalMute,
     withVideoHidden,
     DEFAULT_PARTICIPANT_AUDIO,
+    type AudioKind,
     type ParticipantAudio,
 } from "$lib/utils/participantAudio";
+import { runWithMediaTitle } from "$lib/utils/mediaTitle";
 import {
     settingsState,
     setAudioInputDeviceId,
     setVideoInputDeviceId,
     setCallVideoCodec,
+    setBlockedDecodeCodecs,
 } from "$lib/stores/settings.svelte";
 import { lazyModule } from "$lib/utils/lazyModule";
 import {
     availableOutgoingBitrate,
+    summarizeTransport,
+    type TransportSummary,
     type RawStat,
     type StreamOwner,
     type VideoTrackDebug,
@@ -62,6 +68,12 @@ import {
 import { clampBitrate } from "$lib/utils/screenShareBitrate";
 import {
     codecsFromMimeTypes,
+    codecFromMime,
+    isBlockedMime,
+    isDecodeStall,
+    isMandatoryCodec,
+    withoutBlocked,
+    VIDEO_CODEC_LABELS,
     planCodecs,
     DECODE_ATTRIBUTE,
     encodeDecodeAttribute,
@@ -218,6 +230,9 @@ let voiceNormalize = false;
 // settings at init and kept here so a track that subscribes later (a late
 // joiner, or a reconnect re-subscribing everything) gets the right level.
 let participantAudio = new Map<string, ParticipantAudio>();
+/** Whether an element plays someone's voice or the sound of their share, so
+ *  each follows its own slider. */
+const elKind = new WeakMap<HTMLAudioElement, AudioKind>();
 
 /** "@user:server:DEVICE" → "@user:server". Device ids never contain ":". */
 function userIdFromIdentity(identity: string): string {
@@ -247,6 +262,7 @@ function applyElementVolume(el: HTMLAudioElement, identity: string): void {
     const gain = effectiveVolume(
         voiceOutputVolume,
         participantAudio.get(userIdFromIdentity(identity)),
+        elKind.get(el) ?? "voice",
     );
     let graph = call?.audioGraph || null;
     if (call && !graph?.has(el) && (voiceNormalize || needsBoost(gain))) {
@@ -282,6 +298,28 @@ export function setParticipantVolume(userId: string, volume: number): void {
     const current = participantAudio.get(userId) ?? DEFAULT_PARTICIPANT_AUDIO;
     participantAudio.set(userId, withVolume(current, volume));
     applyVolumeForUser(userId);
+}
+
+export function setParticipantShareVolume(
+    userId: string,
+    volume: number,
+): void {
+    const current = participantAudio.get(userId) ?? DEFAULT_PARTICIPANT_AUDIO;
+    participantAudio.set(userId, withShareVolume(current, volume));
+    applyVolumeForUser(userId);
+}
+
+/** Whether this user is sharing the sound of a screen or application right
+ *  now, which is what makes a second volume slider worth showing. */
+export function participantHasShareAudio(userId: string): boolean {
+    if (!activeVoice) return false;
+    const source = activeVoice.lk.Track.Source.ScreenShareAudio;
+    for (const lkRoom of callLkRooms(activeVoice))
+        for (const p of lkRoom.remoteParticipants.values()) {
+            if (userIdFromIdentity(p.identity) !== userId) continue;
+            if (p.getTrackPublication(source)) return true;
+        }
+    return false;
 }
 
 export function setParticipantLocalMute(userId: string, muted: boolean): void {
@@ -680,36 +718,58 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
                 track.detach().forEach((el) => el.remove());
                 return;
             }
-            const el = track.attach() as HTMLAudioElement;
-            applyVoiceSink(el);
-            // LiveKit's startAudio() unmutes every attached element (ours via
-            // resumeVoicePlayback, Safari's on each return to the page), which
-            // would undo deafen and double up graph-routed audio: put it back.
-            el.addEventListener("volumechange", () => {
-                if (activeVoice !== call) return;
-                const want =
-                    voicePlaybackMuted ||
-                    (!!call.audioGraph && call.audioGraph.has(el));
-                if (el.muted !== want) el.muted = want;
-            });
+            const kind: AudioKind =
+                pub.source === lk.Track.Source.ScreenShareAudio
+                    ? "share"
+                    : "voice";
+            const el = document.createElement("audio");
+            elKind.set(el, kind);
             call.audioEls.add(el);
             call.elByTrack.set(track, el);
-            let els = call.elsByIdentity.get(participant.identity);
-            if (!els) {
-                els = new Set();
-                call.elsByIdentity.set(participant.identity, els);
-            }
-            els.add(el);
-            document.body.appendChild(el);
-            // Last: routing into the graph reads the attached stream, and the
-            // element must already be tracked for later level changes.
-            applyElementVolume(el, participant.identity);
+            // Named for DevTools' Media panel; the source is set inside.
+            void runWithMediaTitle(
+                el,
+                `Call audio: ${participant.identity} (${
+                    kind === "share" ? "screen share" : "voice"
+                })`,
+                () => track.attach(el),
+            ).then(() => {
+                if (activeVoice !== call || call.elByTrack.get(track) !== el) {
+                    // Left, or unsubscribed again, while it waited its turn.
+                    track.detach(el);
+                    el.remove();
+                    return;
+                }
+                applyVoiceSink(el);
+                // LiveKit's startAudio() unmutes every attached element (ours
+                // via resumeVoicePlayback, Safari's on each return to the
+                // page), which would undo deafen and double up graph-routed
+                // audio: put it back.
+                el.addEventListener("volumechange", () => {
+                    if (activeVoice !== call) return;
+                    const want =
+                        voicePlaybackMuted ||
+                        (!!call.audioGraph && call.audioGraph.has(el));
+                    if (el.muted !== want) el.muted = want;
+                });
+                let els = call.elsByIdentity.get(participant.identity);
+                if (!els) {
+                    els = new Set();
+                    call.elsByIdentity.set(participant.identity, els);
+                }
+                els.add(el);
+                document.body.appendChild(el);
+                // Last: routing into the graph reads the attached stream, and
+                // the element must already be tracked for later level changes.
+                applyElementVolume(el, participant.identity);
+            });
         },
     );
     lkRoom.on(lk.RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
         const el = call.elByTrack.get(track);
         if (!el) return;
         call.elByTrack.delete(track);
+        elKind.delete(el);
         // Must leave the graph: a remote track is only disabled on
         // unsubscribe, and a rejoin can re-enable the same receiver track,
         // so a forgotten graph source would play again alongside the new
@@ -1009,6 +1069,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         decryptErrors: new Map(),
     };
     activeVoice = call;
+    installDecodePreferences();
     startUploadSampling(call);
     ensureVoiceDeviceWatch();
     desiredMicMuted = micClosedAtJoin();
@@ -2101,9 +2162,33 @@ async function localVideoCodecs(lk: LivekitModule): Promise<LocalVideoCodecs> {
             }
         }),
     );
+    // The receiver's capability list is what the call server and the other
+    // participants go by, and it can name codecs no decoder here backs. Ask
+    // MediaCapabilities too, and keep only what it confirms.
+    const listed = codecsFromMimeTypes(rtpCodecMimes("receive"));
+    const decode = await Promise.all(
+        listed.map(async (codec) => {
+            if (isMandatoryCodec(codec)) return codec;
+            try {
+                const info = await navigator.mediaCapabilities.decodingInfo({
+                    type: "webrtc",
+                    video: {
+                        contentType: WEBRTC_MIME[codec],
+                        width: 1920,
+                        height: 1080,
+                        bitrate: 4_000_000,
+                        framerate: 30,
+                    },
+                });
+                return info.supported ? codec : null;
+            } catch {
+                return codec; // can't tell: believe the capability list
+            }
+        }),
+    );
     return {
         send,
-        decode: codecsFromMimeTypes(rtpCodecMimes("receive")),
+        decode: decode.filter((c): c is VideoCodec => c !== null),
         hardware: hardware.filter((c): c is VideoCodec => c !== null),
     };
 }
@@ -2144,13 +2229,148 @@ function videoCodecPublishOptions(call: ActiveVoiceCall) {
     } as const;
 }
 
+/** What this device tells the call it can watch: what it has, less what is
+ *  known not to work (settings). */
+function localDecode(call: ActiveVoiceCall): VideoCodec[] {
+    return withoutBlocked(
+        call.codecs.decode,
+        settingsState.blockedDecodeCodecs,
+    );
+}
+
+/** The blocked-codec list changed (Settings, or a stream that never decoded):
+ *  tell everyone and renegotiate what we receive. */
+export function refreshDecodeSupport(): void {
+    const call = activeVoice;
+    if (!call) return;
+    for (const lkRoom of callLkRooms(call)) announceCodecs(call, lkRoom);
+    resubscribeVideo(call);
+}
+
+/** Drop and re-take video subscriptions so the server offers them again
+ *  and, with the codecs we can't show now out of our answer (see
+ *  installDecodePreferences), sends the backup stream instead. */
+function resubscribeVideo(call: ActiveVoiceCall): void {
+    const camera = call.lk.Track.Source.Camera;
+    const share = call.lk.Track.Source.ScreenShare;
+    for (const lkRoom of callLkRooms(call))
+        for (const p of lkRoom.remoteParticipants.values())
+            for (const pub of p.videoTrackPublications.values()) {
+                if (pub.source !== camera && pub.source !== share) continue;
+                pub.setSubscribed(false);
+                setTimeout(() => {
+                    if (activeVoice === call) pub.setSubscribed(true);
+                }, 500);
+            }
+}
+
+let decodePreferencesInstalled = false;
+
+/** The codecs a subscription is answered with come from the browser's
+ *  capability list, so a codec listed but not working here would still be
+ *  accepted, and the server would send it instead of the H.264 backup. Take
+ *  the blocked ones out of every video receiver once the server's offer is
+ *  in. Does nothing while nothing is blocked. */
+function installDecodePreferences(): void {
+    if (decodePreferencesInstalled) return;
+    if (
+        typeof RTCPeerConnection === "undefined" ||
+        typeof RTCRtpReceiver === "undefined" ||
+        !RTCRtpReceiver.getCapabilities
+    )
+        return;
+    decodePreferencesInstalled = true;
+    const original = RTCPeerConnection.prototype.setRemoteDescription;
+    RTCPeerConnection.prototype.setRemoteDescription = async function (
+        this: RTCPeerConnection,
+        ...args: Parameters<RTCPeerConnection["setRemoteDescription"]>
+    ) {
+        const result = await original.apply(this, args);
+        const blocked = settingsState.blockedDecodeCodecs;
+        if (blocked.length > 0 && args[0]?.type === "offer") {
+            try {
+                const codecs = RTCRtpReceiver.getCapabilities("video")?.codecs;
+                const kept = codecs?.filter(
+                    (c) => !isBlockedMime(c.mimeType, blocked),
+                );
+                if (kept && codecs && kept.length < codecs.length) {
+                    for (const tr of this.getTransceivers()) {
+                        if (tr.receiver.track.kind !== "video") continue;
+                        if (tr.direction === "inactive") continue;
+                        try {
+                            tr.setCodecPreferences(kept);
+                        } catch {
+                            /* leave this one as negotiated */
+                        }
+                    }
+                }
+            } catch {
+                /* keep the original answer */
+            }
+        }
+        return result;
+    } as RTCPeerConnection["setRemoteDescription"];
+}
+
+// A received video stream that has delivered data for a few samples and
+// decoded nothing means this device can't decode its codec.
+const decodeWatch = new Map<string, { samples: number }>();
+
+async function checkDecodeHealth(call: ActiveVoiceCall): Promise<void> {
+    const pcm = (
+        call.lkRoom.engine as
+            | {
+                  pcManager?: {
+                      subscriber?: {
+                          getStats(): Promise<RTCStatsReport> | undefined;
+                      };
+                  };
+              }
+            | undefined
+    )?.pcManager;
+    const stats = await reportValues(pcm?.subscriber?.getStats());
+    if (!stats || activeVoice !== call) return;
+    const byId = new Map(stats.map((s) => [s.id, s]));
+    const seen = new Set<string>();
+    for (const s of stats) {
+        if (s.type !== "inbound-rtp" || (s.kind ?? s.mediaType) !== "video")
+            continue;
+        seen.add(s.id);
+        const w = decodeWatch.get(s.id) ?? { samples: 0 };
+        w.samples++;
+        decodeWatch.set(s.id, w);
+        const mime = String(byId.get(String(s.codecId ?? ""))?.mimeType ?? "");
+        const codec = codecFromMime(mime);
+        if (
+            !codec ||
+            isMandatoryCodec(codec) ||
+            isBlockedMime(mime, settingsState.blockedDecodeCodecs) ||
+            !isDecodeStall({
+                bytes: Number(s.bytesReceived) || 0,
+                framesDecoded: Number(s.framesDecoded) || 0,
+                samples: w.samples,
+            })
+        )
+            continue;
+        setBlockedDecodeCodecs([...settingsState.blockedDecodeCodecs, codec]);
+        notifyVoiceNotice(
+            t("client.codecCouldNotBeDecoded", {
+                codec: VIDEO_CODEC_LABELS[codec],
+            }),
+        );
+        refreshDecodeSupport();
+    }
+    for (const id of [...decodeWatch.keys()])
+        if (!seen.has(id)) decodeWatch.delete(id);
+}
+
 /** Tell everyone on `lkRoom` what we decode. Set on every connection, since
  *  whoever publishes on a remote one needs it too. */
 function announceCodecs(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
     if (activeVoice !== call) return;
     void lkRoom.localParticipant
         .setAttributes({
-            [DECODE_ATTRIBUTE]: encodeDecodeAttribute(call.codecs.decode),
+            [DECODE_ATTRIBUTE]: encodeDecodeAttribute(localDecode(call)),
         })
         .catch((err: unknown) =>
             console.warn("Couldn't announce video codecs:", err),
@@ -2289,6 +2509,7 @@ function startUploadSampling(call: ActiveVoiceCall): void {
             return;
         }
         void sampleUpload(call);
+        void checkDecodeHealth(call);
     }, UPLOAD_SAMPLE_MS);
 }
 
@@ -2314,9 +2535,25 @@ async function sampleUpload(call: ActiveVoiceCall): Promise<void> {
             | undefined
     )?.pcManager;
     const stats = await reportValues(pcm?.publisher?.getStats());
-    const bps = stats ? availableOutgoingBitrate(stats) : null;
-    if (bps !== null && activeVoice === call) noteUploadEstimate(bps);
+    if (!stats) return;
+    // WebRTC's estimate only climbs as far as the sender gives it reason to,
+    // so it can sit well under the line's speed. What actually went out
+    // proves at least that much fits, so the larger of the two counts.
+    const summary = summarizeTransport(
+        stats,
+        Date.now(),
+        lastPublisherSample.get(call) ?? null,
+    );
+    lastPublisherSample.set(call, summary);
+    const bps = Math.max(
+        availableOutgoingBitrate(stats) ?? 0,
+        (summary.sendKbps ?? 0) * 1000,
+    );
+    if (bps > 0 && activeVoice === call) noteUploadEstimate(bps);
 }
+
+/** The previous publisher-transport sample of a call, for send rates. */
+const lastPublisherSample = new WeakMap<ActiveVoiceCall, TransportSummary>();
 
 async function reportValues(
     report: Promise<RTCStatsReport | undefined> | undefined,

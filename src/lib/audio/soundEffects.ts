@@ -221,6 +221,28 @@ export const SOUND_RECIPES: Record<CallSoundName, ToneSegment[]> = {
             peak: 0.45,
         },
     ],
+    // Push to talk: a short click up when the mic opens and down when it
+    // closes. Sine so they stay soft and clearly apart from mute/unmute.
+    pttOn: [
+        {
+            type: "sine",
+            from: 700,
+            to: 1000,
+            at: 0,
+            duration: 0.05,
+            peak: 0.35,
+        },
+    ],
+    pttOff: [
+        {
+            type: "sine",
+            from: 800,
+            to: 500,
+            at: 0,
+            duration: 0.06,
+            peak: 0.3,
+        },
+    ],
     error: [
         {
             type: "sawtooth",

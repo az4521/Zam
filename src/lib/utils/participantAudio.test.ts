@@ -55,6 +55,7 @@ describe("effectiveVolume", () => {
         expect(
             effectiveVolume(1, {
                 volume: 0.5,
+                shareVolume: 1,
                 muted: false,
                 videoHidden: false,
             }),
@@ -62,6 +63,7 @@ describe("effectiveVolume", () => {
         expect(
             effectiveVolume(0.5, {
                 volume: 0.5,
+                shareVolume: 1,
                 muted: false,
                 videoHidden: false,
             }),
@@ -69,7 +71,12 @@ describe("effectiveVolume", () => {
     });
     it("is silent when locally muted, whatever the slider says", () => {
         expect(
-            effectiveVolume(1, { volume: 1, muted: true, videoHidden: false }),
+            effectiveVolume(1, {
+                volume: 1,
+                shareVolume: 1,
+                muted: true,
+                videoHidden: false,
+            }),
         ).toBe(0);
     });
     it("treats an unknown participant as unity", () => {
@@ -77,17 +84,28 @@ describe("effectiveVolume", () => {
     });
     it("boosts above unity, capped by a unity master and 500% per user", () => {
         expect(
-            effectiveVolume(1, { volume: 3, muted: false, videoHidden: false }),
+            effectiveVolume(1, {
+                volume: 3,
+                shareVolume: 1,
+                muted: false,
+                videoHidden: false,
+            }),
         ).toBe(3);
         expect(
             effectiveVolume(0.5, {
                 volume: 4,
+                shareVolume: 1,
                 muted: false,
                 videoHidden: false,
             }),
         ).toBe(2);
         expect(
-            effectiveVolume(2, { volume: 9, muted: false, videoHidden: false }),
+            effectiveVolume(2, {
+                volume: 9,
+                shareVolume: 1,
+                muted: false,
+                videoHidden: false,
+            }),
         ).toBe(5);
     });
 });
@@ -95,9 +113,13 @@ describe("effectiveVolume", () => {
 describe("withVolume / withLocalMute", () => {
     it("sets a clamped volume without touching mute", () => {
         expect(
-            withVolume({ volume: 1, muted: true, videoHidden: false }, 7),
+            withVolume(
+                { volume: 1, shareVolume: 1, muted: true, videoHidden: false },
+                7,
+            ),
         ).toEqual({
             volume: 5,
+            shareVolume: 1,
             muted: true,
             videoHidden: false,
         });
@@ -105,11 +127,17 @@ describe("withVolume / withLocalMute", () => {
     it("sets mute without touching the slider", () => {
         expect(
             withLocalMute(
-                { volume: 0.3, muted: false, videoHidden: false },
+                {
+                    volume: 0.3,
+                    shareVolume: 1,
+                    muted: false,
+                    videoHidden: false,
+                },
                 true,
             ),
         ).toEqual({
             volume: 0.3,
+            shareVolume: 1,
             muted: true,
             videoHidden: false,
         });
@@ -119,8 +147,19 @@ describe("withVolume / withLocalMute", () => {
 describe("serializeAudioMap / parseAudioMap", () => {
     it("round-trips non-default entries", () => {
         const map = new Map<string, ParticipantAudio>([
-            ["@a:s", { volume: 0.25, muted: false, videoHidden: false }],
-            ["@b:s", { volume: 1, muted: true, videoHidden: false }],
+            [
+                "@a:s",
+                {
+                    volume: 0.25,
+                    shareVolume: 1,
+                    muted: false,
+                    videoHidden: false,
+                },
+            ],
+            [
+                "@b:s",
+                { volume: 1, shareVolume: 1, muted: true, videoHidden: false },
+            ],
         ]);
         expect(parseAudioMap(serializeAudioMap(map))).toEqual(map);
     });
@@ -144,11 +183,24 @@ describe("serializeAudioMap / parseAudioMap", () => {
     it("clamps hostile stored volumes", () => {
         expect(
             parseAudioMap('{"@a:s":{"v":99,"m":false}}').get("@a:s"),
-        ).toEqual({ volume: 5, muted: false, videoHidden: false });
+        ).toEqual({
+            volume: 5,
+            shareVolume: 1,
+            muted: false,
+            videoHidden: false,
+        });
     });
     it("keeps a stored boost", () => {
         const map = new Map<string, ParticipantAudio>([
-            ["@a:s", { volume: 3.5, muted: false, videoHidden: false }],
+            [
+                "@a:s",
+                {
+                    volume: 3.5,
+                    shareVolume: 1,
+                    muted: false,
+                    videoHidden: false,
+                },
+            ],
         ]);
         expect(parseAudioMap(serializeAudioMap(map)).get("@a:s")?.volume).toBe(
             3.5,
@@ -163,35 +215,52 @@ describe("videoHidden", () => {
     it("withVideoHidden preserves volume and muted", () => {
         const p: ParticipantAudio = {
             volume: 0.5,
+            shareVolume: 1,
             muted: true,
             videoHidden: false,
         };
         expect(withVideoHidden(p, true)).toEqual({
             volume: 0.5,
+            shareVolume: 1,
             muted: true,
             videoHidden: true,
         });
     });
     it("serializes a videoHidden-only entry (default volume/mute) instead of dropping it", () => {
         const map = new Map<string, ParticipantAudio>([
-            ["@a:x", { volume: 1, muted: false, videoHidden: true }],
+            [
+                "@a:x",
+                { volume: 1, shareVolume: 1, muted: false, videoHidden: true },
+            ],
         ]);
         const json = JSON.parse(serializeAudioMap(map));
         expect(json["@a:x"]).toEqual({ v: 1, m: false, h: true });
     });
     it("drops a fully-default entry", () => {
         const map = new Map<string, ParticipantAudio>([
-            ["@a:x", { volume: 1, muted: false, videoHidden: false }],
+            [
+                "@a:x",
+                { volume: 1, shareVolume: 1, muted: false, videoHidden: false },
+            ],
         ]);
         expect(serializeAudioMap(map)).toBe("{}");
     });
     it("round-trips videoHidden through serialize→parse", () => {
         const map = new Map<string, ParticipantAudio>([
-            ["@a:x", { volume: 0.5, muted: false, videoHidden: true }],
+            [
+                "@a:x",
+                {
+                    volume: 0.5,
+                    shareVolume: 1,
+                    muted: false,
+                    videoHidden: true,
+                },
+            ],
         ]);
         const back = parseAudioMap(serializeAudioMap(map));
         expect(back.get("@a:x")).toEqual({
             volume: 0.5,
+            shareVolume: 1,
             muted: false,
             videoHidden: true,
         });
@@ -202,6 +271,7 @@ describe("videoHidden", () => {
         );
         expect(back.get("@a:x")).toEqual({
             volume: 0.5,
+            shareVolume: 1,
             muted: true,
             videoHidden: false,
         });

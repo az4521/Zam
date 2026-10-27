@@ -13,10 +13,18 @@ export const DEFAULT_SCREEN_SHARE_BITRATE = 4_000_000;
 export const BITRATE_SLIDER_STEPS = 1000;
 
 /** The most the slider offers: 10% under the measured upload, or
- *  UNMEASURED_CEILING with no measurement. Never below the minimum. */
-export function bitrateCeiling(measuredBps: number | null): number {
+ *  UNMEASURED_CEILING with no measurement. A number the user typed in
+ *  (`overridden`) is taken as it is: they know their line better than the
+ *  estimate does. Never below the minimum. */
+export function bitrateCeiling(
+    measuredBps: number | null,
+    overridden = false,
+): number {
     if (measuredBps === null || !(measuredBps > 0)) return UNMEASURED_CEILING;
-    return Math.max(MIN_SCREEN_SHARE_BITRATE, Math.floor(measuredBps * 0.9));
+    return Math.max(
+        MIN_SCREEN_SHARE_BITRATE,
+        Math.floor(measuredBps * (overridden ? 1 : 0.9)),
+    );
 }
 
 /** A stored or picked bitrate, kept inside [minimum, ceiling]. */

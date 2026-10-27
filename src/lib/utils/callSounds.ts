@@ -15,6 +15,8 @@ export type CallSoundName =
     | "unmute"
     | "deafen"
     | "undeafen"
+    | "pttOn"
+    | "pttOff"
     | "error";
 
 export interface SelfSoundState {

@@ -3802,6 +3802,22 @@ const messages: Record<MessageKey, string> = {
     "sharedPackSettings.packSummary":
         "{room}, {count, plural, one {# image} other {# images}}",
     "sharedPackSettings.failedToSave": "Échec de l'enregistrement",
+    // Not translated yet; shown in English.
+    "callParticipantMenu.shareVolume": "Share Volume",
+    "screenShareQualityChips.bitrateUpTo": "Up to",
+    "screenShareQualityChips.bitrateCapHint":
+        "A limit, not a target: the share uses only what the picture needs and your connection can carry, up to this.",
+    "screenShareQualityChips.bitrateOverridden":
+        "Using the upload speed you entered, {upload}, so this goes up to {max}.",
+    "screenShareQualityChips.uploadOverride": "Upload speed (Mbps)",
+    "screenShareQualityChips.uploadOverrideAuto": "Auto",
+    "screenShareQualityChips.uploadOverrideHint":
+        "The automatic measurement can read well under your real speed. Enter your own figure to raise the limit; leave it empty to measure.",
+    "voiceAudioSettings.cannotWatch": "Video I can't watch",
+    "voiceAudioSettings.cannotWatchHint":
+        "Pick the codecs that show nothing (or a black picture) on this device. Others in the call then send you H.264 instead. Zam also fills this in when a stream arrives and never decodes.",
+    "client.codecCouldNotBeDecoded":
+        "This device can't decode {codec} video. Asking for H.264 instead.",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: fr };

@@ -8,6 +8,9 @@ export interface ParticipantAudio {
     /** Slider position, 0–MAX_PARTICIPANT_VOLUME. Above unity the boost is
      *  applied through Web Audio (HTMLMediaElement.volume caps at 1.0). */
     volume: number;
+    /** Slider position for the audio of their screen or application share,
+     *  kept apart from `volume` (their voice). Same range. */
+    shareVolume: number;
     /** Local mute, held apart from the slider so unmuting restores the level. */
     muted: boolean;
     /** Local per-user video hide flag. */
@@ -16,9 +19,14 @@ export interface ParticipantAudio {
 
 export const DEFAULT_PARTICIPANT_AUDIO: ParticipantAudio = {
     volume: 1,
+    shareVolume: 1,
     muted: false,
     videoHidden: false,
 };
+
+/** Which of a user's audio tracks an element plays: their microphone, or the
+ *  sound of a screen or application they share. */
+export type AudioKind = "voice" | "share";
 
 /** Per-user slider ceiling: 500%. */
 export const MAX_PARTICIPANT_VOLUME = 5;
@@ -38,14 +46,17 @@ export function clampParticipantVolume(v: number): number {
 }
 
 /** The linear gain a user's audio should play at: the call-output master
- *  (0–1) scaled by this user's level (0–5), or silence when locally muted.
+ *  (0–1) scaled by this user's level for `kind` (0–5), or silence when
+ *  locally muted.
  *  Above 1 an <audio> element alone cannot produce it; see needsBoost. */
 export function effectiveVolume(
     master: number,
     p: ParticipantAudio | undefined,
+    kind: AudioKind = "voice",
 ): number {
     if (p?.muted) return 0;
-    return clampVolume(master) * clampParticipantVolume(p?.volume ?? 1);
+    const level = kind === "share" ? p?.shareVolume : p?.volume;
+    return clampVolume(master) * clampParticipantVolume(level ?? 1);
 }
 
 /** Whether a gain from effectiveVolume needs the Web Audio path. */
@@ -55,6 +66,13 @@ export function needsBoost(gain: number): boolean {
 
 export function withVolume(p: ParticipantAudio, v: number): ParticipantAudio {
     return { ...p, volume: clampParticipantVolume(v) };
+}
+
+export function withShareVolume(
+    p: ParticipantAudio,
+    v: number,
+): ParticipantAudio {
+    return { ...p, shareVolume: clampParticipantVolume(v) };
 }
 
 export function withLocalMute(
@@ -71,18 +89,25 @@ export function withVideoHidden(
     return { ...p, videoHidden };
 }
 
-/** Persisted shape: {"@user:server": {v: 0.5, m: true, h?: true}}. Defaults are dropped. */
+/** Persisted shape: {"@user:server": {v: 0.5, s?: 2, m: true, h?: true}}. Defaults are dropped. */
 export function serializeAudioMap(map: Map<string, ParticipantAudio>): string {
-    const out: Record<string, { v: number; m: boolean; h?: boolean }> = {};
+    const out: Record<
+        string,
+        { v: number; s?: number; m: boolean; h?: boolean }
+    > = {};
     for (const [userId, p] of map) {
         if (
             p.volume === DEFAULT_PARTICIPANT_AUDIO.volume &&
+            p.shareVolume === DEFAULT_PARTICIPANT_AUDIO.shareVolume &&
             !p.muted &&
             !p.videoHidden
         )
             continue;
         out[userId] = {
             v: p.volume,
+            ...(p.shareVolume !== DEFAULT_PARTICIPANT_AUDIO.shareVolume
+                ? { s: p.shareVolume }
+                : {}),
             m: p.muted,
             ...(p.videoHidden ? { h: true } : {}),
         };
@@ -109,15 +134,25 @@ export function parseAudioMap(
         raw as Record<string, unknown>,
     )) {
         if (typeof value !== "object" || value === null) continue;
-        const { v, m, h } = value as { v?: unknown; m?: unknown; h?: unknown };
+        const { v, s, m, h } = value as {
+            v?: unknown;
+            s?: unknown;
+            m?: unknown;
+            h?: unknown;
+        };
         const hasVolume = typeof v === "number";
+        const hasShareVolume = typeof s === "number";
         const hasMute = typeof m === "boolean";
         const hasVideoHidden = typeof h === "boolean";
-        if (!hasVolume && !hasMute && !hasVideoHidden) continue;
+        if (!hasVolume && !hasShareVolume && !hasMute && !hasVideoHidden)
+            continue;
         map.set(userId, {
             volume: hasVolume
                 ? clampParticipantVolume(v)
                 : DEFAULT_PARTICIPANT_AUDIO.volume,
+            shareVolume: hasShareVolume
+                ? clampParticipantVolume(s)
+                : DEFAULT_PARTICIPANT_AUDIO.shareVolume,
             muted: m === true,
             videoHidden: h === true,
         });

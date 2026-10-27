@@ -1,5 +1,9 @@
 <script lang="ts">
-    import { VIDEO_CODECS, VIDEO_CODEC_LABELS } from "$lib/utils/videoCodecs";
+    import {
+        VIDEO_CODECS,
+        VIDEO_CODEC_LABELS,
+        isMandatoryCodec,
+    } from "$lib/utils/videoCodecs";
     import { t } from "$lib/i18n";
     import { onMount, onDestroy } from "svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
@@ -19,6 +23,7 @@
         setRingVolume,
         setMirrorCamera,
         setCallVideoCodec,
+        setBlockedDecodeCodecs,
     } from "$lib/stores/settings.svelte";
     import {
         toDeviceOptions,
@@ -71,6 +76,7 @@
         updateServiceWorkerRingEnabled,
         setVoiceCaptureConstraints,
         getRemoteAudioStreams,
+        refreshDecodeSupport,
     } from "$lib/matrix/client";
     import { syncNativeRingEnabled } from "$lib/nativeSession";
     import {
@@ -706,6 +712,42 @@
                     <option value={codec}>{VIDEO_CODEC_LABELS[codec]}</option>
                 {/each}
             </select>
+        </div>
+        <div class="py-2">
+            <div class="text-sm font-medium text-discord-textPrimary">
+                {t("voiceAudioSettings.cannotWatch")}
+            </div>
+            <div class="text-xs text-discord-textMuted mb-1.5">
+                {t("voiceAudioSettings.cannotWatchHint")}
+            </div>
+            <div class="flex flex-wrap gap-1.5">
+                {#each VIDEO_CODECS.filter((c) => !isMandatoryCodec(c)) as codec (codec)}
+                    {@const blocked =
+                        settingsState.blockedDecodeCodecs.includes(codec)}
+                    <button
+                        type="button"
+                        aria-pressed={blocked}
+                        class="px-2.5 py-1 rounded text-xs font-medium border transition-colors {blocked
+                            ? 'bg-discord-accent text-white border-discord-accent'
+                            : 'bg-discord-backgroundTertiary text-discord-textMuted border-transparent hover:bg-discord-messageHover'}"
+                        onclick={() => {
+                            setBlockedDecodeCodecs(
+                                blocked
+                                    ? settingsState.blockedDecodeCodecs.filter(
+                                          (c) => c !== codec,
+                                      )
+                                    : [
+                                          ...settingsState.blockedDecodeCodecs,
+                                          codec,
+                                      ],
+                            );
+                            refreshDecodeSupport();
+                        }}
+                    >
+                        {VIDEO_CODEC_LABELS[codec]}
+                    </button>
+                {/each}
+            </div>
         </div>
         <button
             onclick={() => void toggleCamera()}

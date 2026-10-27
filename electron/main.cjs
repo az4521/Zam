@@ -171,21 +171,40 @@ function startServer() {
         } catch {
             /* first run — no saved port yet */
         }
+        // After an update the old process can still hold the port for a
+        // moment while the new one starts. Falling back to a random port at
+        // that point would change the origin and sign the user out, so wait
+        // for the port to free up before giving up on it.
+        const PORT_RETRY_MS = 250;
+        const PORT_RETRY_LIMIT = 40; // ~10 s
+        let retries = 0;
+        let fellBack = false;
         const onListening = () => {
             const { port } = server.address();
-            try {
-                fs.writeFileSync(portFile, String(port));
-            } catch {
-                /* best-effort — an unpersisted port still works this session */
+            // A fallback port is for this run only: keeping the saved one
+            // lets the next launch get its origin (and login) back.
+            if (!fellBack) {
+                try {
+                    fs.writeFileSync(portFile, String(port));
+                } catch {
+                    /* best-effort: an unpersisted port still works this session */
+                }
             }
             resolve(`http://127.0.0.1:${port}`);
         };
         server.on("error", (e) => {
-            // Saved port taken (rare) → let the OS assign one this time. Only
-            // then does the origin change (a one-off re-login); the steady
-            // state stays stable.
             if (e.code === "EADDRINUSE" && preferred !== 0) {
-                preferred = 0;
+                if (retries++ < PORT_RETRY_LIMIT) {
+                    setTimeout(
+                        () =>
+                            server.listen(preferred, "127.0.0.1", onListening),
+                        PORT_RETRY_MS,
+                    );
+                    return;
+                }
+                // Still taken (another program has it): this run only gets
+                // a different origin, so a login made now won't carry over.
+                fellBack = true;
                 server.listen(0, "127.0.0.1", onListening);
             } else {
                 reject(e);

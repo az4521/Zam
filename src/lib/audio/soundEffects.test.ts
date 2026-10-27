@@ -18,6 +18,8 @@ const ALL_NAMES = [
     "unmute",
     "deafen",
     "undeafen",
+    "pttOn",
+    "pttOff",
     "error",
 ] as const;
 

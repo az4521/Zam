@@ -1,14 +1,18 @@
 // Measured upload bandwidth, for the screen-share bitrate slider.
 //
-// The number is WebRTC's own estimate on the call's publishing connection
-// (availableOutgoingBitrate), sampled by matrix/livekitCall while video goes
-// out. With only a microphone sending it barely probes and reads far too low,
-// so audio-only samples aren't taken. The highest sample is kept per device:
+// The number is the higher of WebRTC's own estimate on the call's publishing
+// connection (availableOutgoingBitrate) and what is actually being sent,
+// sampled by matrix/livekitCall while video goes out. The estimate only
+// climbs as far as the sender gives it reason to, so it can read well under
+// the line's real speed; Settings can override it with a typed-in figure.
+// With only a microphone sending it barely probes and reads far too low, so
+// audio-only samples aren't taken. The highest sample is kept per device:
 // the slider can then offer a sensible range before the next share starts,
 // and since the picked bitrate is only a cap, a stale high value never makes
 // WebRTC send more than it currently estimates.
 
 import { bitrateCeiling } from "$lib/utils/screenShareBitrate";
+import { settingsState } from "$lib/stores/settings.svelte";
 
 const PEAK_KEY = "uploadEstimate:peak";
 
@@ -45,8 +49,17 @@ export function clearLiveUploadEstimate(): void {
     uploadEstimate.live = null;
 }
 
-/** The upload the slider is measured against, or null before any sample. */
+/** The upload speed the user typed in (bits/sec), or null for "measure it". */
+export function uploadOverride(): number | null {
+    const n = settingsState.uploadSpeedOverride;
+    return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** The upload the slider is measured against: the user's own figure if they
+ *  gave one, else the best measurement, or null before any sample. */
 export function measuredUpload(): number | null {
+    const override = uploadOverride();
+    if (override !== null) return override;
     const { live, peak } = uploadEstimate;
     if (live === null) return peak;
     return peak === null ? live : Math.max(live, peak);
@@ -54,5 +67,5 @@ export function measuredUpload(): number | null {
 
 /** The most the bitrate slider offers right now. */
 export function screenShareBitrateCeiling(): number {
-    return bitrateCeiling(measuredUpload());
+    return bitrateCeiling(measuredUpload(), uploadOverride() !== null);
 }

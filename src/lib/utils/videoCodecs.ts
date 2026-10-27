@@ -153,3 +153,45 @@ export function parseDecodeAttribute(
         .map((name) => name.trim())
         .filter(isVideoCodec);
 }
+
+/** Codecs the browser lists but this device can't actually show (a missing
+ *  or broken decoder), taken out of what it announces and negotiates. The
+ *  mandatory codecs always stay: they are the way back to a picture. */
+export function withoutBlocked(
+    decode: readonly VideoCodec[],
+    blocked: readonly VideoCodec[],
+): VideoCodec[] {
+    return decode.filter((c) => isMandatoryCodec(c) || !blocked.includes(c));
+}
+
+/** The codec behind an RTP codec mime type ("video/H265"), or null. */
+export function codecFromMime(mimeType: string): VideoCodec | null {
+    return codecsFromMimeTypes([mimeType])[0] ?? null;
+}
+
+/** Whether `mimeType` is a codec we have taken out (RTX and the like are
+ *  never blocked, so a kept codec's retransmissions keep working). */
+export function isBlockedMime(
+    mimeType: string,
+    blocked: readonly VideoCodec[],
+): boolean {
+    const codec = codecFromMime(mimeType);
+    return (
+        codec !== null && !isMandatoryCodec(codec) && blocked.includes(codec)
+    );
+}
+
+/** Enough bytes of a video stream to expect a first picture from. */
+const STALL_MIN_BYTES = 60_000;
+
+/** A received video stream that keeps delivering data but never produces a
+ *  decoded frame: the decoder behind its codec doesn't work here. */
+export function isDecodeStall(s: {
+    bytes: number;
+    framesDecoded: number;
+    samples: number;
+}): boolean {
+    return (
+        s.samples >= 2 && s.bytes >= STALL_MIN_BYTES && s.framesDecoded === 0
+    );
+}

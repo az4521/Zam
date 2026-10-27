@@ -9946,6 +9946,9 @@ export {
 export {
     primeParticipantAudio,
     setParticipantVolume,
+    setParticipantShareVolume,
+    refreshDecodeSupport,
+    participantHasShareAudio,
     setParticipantLocalMute,
     setParticipantVideoHidden,
     onVoiceConnStateChanged,

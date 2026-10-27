@@ -24,6 +24,7 @@
         getRoom,
         setVoiceInputDevice,
         setVoiceOutputDevice,
+        participantHasShareAudio,
     } from "$lib/matrix/client";
     import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
     import { MAX_PARTICIPANT_VOLUME } from "$lib/utils/participantAudio";
@@ -41,6 +42,7 @@
     import { isCryptoAvailable, isRoomEncrypted } from "$lib/matrix/crypto";
     import {
         setUserVolume,
+        setUserShareVolume,
         setUserLocalMute,
         participantAudioFor,
         setUserVideoHidden,
@@ -101,6 +103,9 @@
         });
     });
     const audio = $derived(participantAudioFor(userId));
+    // Read when the menu opens (or is retargeted): a second slider only
+    // matters while they are sharing sound.
+    const sharesAudio = $derived(participantHasShareAudio(userId));
     const blocked = $derived(isUserBlocked(userId));
 
     // Device enumeration for self audio device switching.
@@ -550,6 +555,38 @@
                 <option value="100"></option>
             </datalist>
         </div>
+        {#if sharesAudio}
+            <div class="px-3 py-1.5">
+                <div class="flex items-center justify-between gap-2">
+                    <label
+                        for="user-share-volume-{userId}"
+                        class="text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
+                    >
+                        {t("callParticipantMenu.shareVolume")}
+                    </label>
+                    <span
+                        class="text-xs text-discord-textMuted tabular-nums flex-shrink-0"
+                    >
+                        {Math.round(audio.shareVolume * 100)}%
+                    </span>
+                </div>
+                <input
+                    id="user-share-volume-{userId}"
+                    type="range"
+                    min="0"
+                    max={MAX_PARTICIPANT_VOLUME * 100}
+                    step="1"
+                    list="user-volume-ticks-{userId}"
+                    value={Math.round(audio.shareVolume * 100)}
+                    oninput={(e) =>
+                        setUserShareVolume(
+                            userId,
+                            e.currentTarget.valueAsNumber / 100,
+                        )}
+                    class="w-full mt-1.5 accent-discord-accent"
+                />
+            </div>
+        {/if}
         <button
             onclick={() => setUserLocalMute(userId, !audio.muted)}
             aria-pressed={audio.muted}

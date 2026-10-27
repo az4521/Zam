@@ -424,6 +424,13 @@ export const settingsState = $state({
      *  fps. Clamped to the measured upload when applied
      *  (utils/screenShareBitrate). */
     screenShareBitrate: readScreenShareBitrate(),
+    /** Video codecs this device lists but can't show (set by the user, or by
+     *  a stream that arrived and never decoded). Left out of what it tells
+     *  the call it can watch (utils/videoCodecs). */
+    blockedDecodeCodecs: readBlockedDecodeCodecs(),
+    /** Upload speed typed in by the user (bits/sec; 0 = measure it), which
+     *  stands in for the estimate when capping the bitrate slider. */
+    uploadSpeedOverride: readUploadSpeedOverride(),
     /** Codec for the camera and screen share we send. Anyone in the call who
      *  can't decode it gets an H.264 backup stream (utils/videoCodecs). */
     callVideoCodec: normalizeCallVideoCodec(
@@ -727,6 +734,8 @@ export function reloadAccountSettings(): void {
         readAccountString("screenShareResolution") ?? "1080";
     settingsState.screenShareFps = readAccountString("screenShareFps") ?? "30";
     settingsState.screenShareBitrate = readScreenShareBitrate();
+    settingsState.uploadSpeedOverride = readUploadSpeedOverride();
+    settingsState.blockedDecodeCodecs = readBlockedDecodeCodecs();
     settingsState.callVideoCodec = normalizeCallVideoCodec(
         readAccountString("callVideoCodec"),
     );
@@ -1102,6 +1111,21 @@ function readScreenShareBitrate(): number {
         : DEFAULT_SCREEN_SHARE_BITRATE;
 }
 
+function readUploadSpeedOverride(): number {
+    const n = Number(readAccountString("uploadSpeedOverride"));
+    return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** 0 (or anything not a positive number) goes back to measuring. */
+export function setUploadSpeedOverride(bps: number): void {
+    settingsState.uploadSpeedOverride =
+        Number.isFinite(bps) && bps > 0 ? Math.round(bps) : 0;
+    writeAccountString(
+        "uploadSpeedOverride",
+        String(settingsState.uploadSpeedOverride),
+    );
+}
+
 export function setScreenShareBitrate(bps: number): void {
     if (!Number.isFinite(bps)) return;
     settingsState.screenShareBitrate = Math.max(
@@ -1121,6 +1145,25 @@ export function normalizeCallVideoCodec(
     value: string | null | undefined,
 ): CallVideoCodec {
     return isVideoCodec(value) ? value : DEFAULT_VIDEO_CODEC;
+}
+
+function readBlockedDecodeCodecs(): CallVideoCodec[] {
+    return (readAccountString("blockedDecodeCodecs") ?? "")
+        .split(",")
+        .map((c) => c.trim())
+        .filter(isVideoCodec);
+}
+
+export function setBlockedDecodeCodecs(
+    codecs: readonly CallVideoCodec[],
+): void {
+    settingsState.blockedDecodeCodecs = [...new Set(codecs)].filter(
+        isVideoCodec,
+    );
+    writeAccountString(
+        "blockedDecodeCodecs",
+        settingsState.blockedDecodeCodecs.join(","),
+    );
 }
 
 export function setCallVideoCodec(value: string): void {
