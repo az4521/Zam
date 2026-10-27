@@ -2486,6 +2486,25 @@ function queueVideoRepublish(): Promise<void> {
     return codecSwitchChain;
 }
 
+/** publishTrack, tried once more after a short wait: publishing right after
+ *  an unpublish occasionally fails while the server is still dropping the
+ *  old track. */
+async function publishWithRetry(
+    lp: LivekitRoom["localParticipant"],
+    track: Parameters<LivekitRoom["localParticipant"]["publishTrack"]>[0],
+    options: Parameters<LivekitRoom["localParticipant"]["publishTrack"]>[1],
+): Promise<void> {
+    try {
+        await lp.publishTrack(track, options);
+    } catch (err) {
+        const media =
+            "mediaStreamTrack" in track ? track.mediaStreamTrack : track;
+        if (media.readyState === "ended") throw err;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await lp.publishTrack(track, options);
+    }
+}
+
 async function republishVideo(
     call: ActiveVoiceCall,
     source: LivekitClient.Track.Source,
@@ -2496,6 +2515,8 @@ async function republishVideo(
     if (!pub || !track) return;
     const codecOptions = videoCodecPublishOptions(call);
     if (pub.options?.videoCodec === codecOptions.videoCodec) return;
+    // What it was published with, to go back to if the new codec won't start.
+    const previous = { ...pub.options, source };
     const options = { ...pub.options, ...codecOptions, source };
     if (source === call.lk.Track.Source.ScreenShare) {
         options.screenShareEncoding = screenShareEncodingFor(
@@ -2510,10 +2531,18 @@ async function republishVideo(
             track.stop();
             return;
         }
-        await lp.publishTrack(track, options);
+        await publishWithRetry(lp, track, options);
     } catch (err) {
         console.error("Video codec switch failed:", err);
         if (activeVoice === call) {
+            // The old publication is already gone, so a failure here would
+            // end the share. Put it back the way it was while the capture
+            // still runs.
+            try {
+                await publishWithRetry(lp, track, previous);
+            } catch (restoreErr) {
+                console.error("Couldn't restore the video track:", restoreErr);
+            }
             notifyVoiceNotice(t("client.couldNotSwitchVideoCodec"));
         }
     } finally {
