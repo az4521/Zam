@@ -1296,6 +1296,8 @@ EXPORT VAStatus __vaDriverInit_1_0(VADriverContextP ctx) {
     s->next = shims;
     shims = s;
     pthread_mutex_unlock(&shims_lock);
-    LOG("wrapping %s", path);
+    // Always, so a launch from a terminal shows whether the shim is in play at
+    // all; the rest of its output needs ZAM_NVENC_DEBUG=1.
+    LOG_ALWAYS("wrapping %s", path);
     return VA_STATUS_SUCCESS;
 }

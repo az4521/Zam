@@ -62,13 +62,16 @@
 
     // WebCodecs refuses a "prefer-hardware" config when no GPU encoder takes
     // it, so asking twice tells hardware from software. A 720p30 stream is
-    // what a call's top camera layer sends.
+    // what a call's top camera layer sends. Calls encode at a constant bitrate
+    // (WebRTC on Linux asks VA-API for CBR); WebCodecs' default is variable,
+    // which a CBR-only encoder like Zam's NVENC driver would fail.
     async function probeEncode(codec: string): Promise<Decode> {
         const config = {
             codec,
             width: 1280,
             height: 720,
             bitrate: 2_500_000,
+            bitrateMode: "constant" as const,
             framerate: 30,
         };
         const supported = async (
