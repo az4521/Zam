@@ -2195,7 +2195,8 @@
                         }
                     }}
                     {disabled}
-                    class="relative z-50 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    class="relative p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    class:z-50={showActionsMenu}
                     title={t("common.add")}
                 >
                     <Plus size={20} />
