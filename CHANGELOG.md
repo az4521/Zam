@@ -4,6 +4,23 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.37.0
+
+✨ **New**
+
+- **Separate volume for shared audio:** when someone shares a screen or application with sound, their menu in a call now has a second slider, so you can set their share apart from their voice.
+- **Push to talk sounds:** a short click plays when you press and release push to talk during a call.
+- **Upload speed override:** the screen share quality panel has an Upload speed field. If the automatic measurement reads lower than your real connection, enter your own figure to raise the bitrate limit. The measurement also counts what is actually being sent now.
+- **Video I can't watch:** Settings > Voice & Audio lets you list video codecs your device can't show, so others send you H.264 instead.
+
+🐛 **Fixed**
+
+- **Black or missing video in calls:** devices announce only the video codecs they can really decode, and a stream that arrives but never decodes is now handled by asking for H.264. HEVC is no longer offered on the Flatpak's NVIDIA video decoding, where it showed black. AV1 is no longer sent in encrypted calls, which can't carry it.
+- **Screen share ending when switching codec:** if the switch failed to restart the share, it is now retried and restored with the previous codec.
+- **Signed out after an update (desktop):** the app waits for its saved local port to free up instead of switching to a new one, which signed you out.
+- **Clearer bitrate limit:** the screen share bitrate is now labelled as the maximum.
+- **Call media in DevTools:** call audio and video players get descriptive names in the Media panel.
+
 ## v1.36.5
 
 🐛 **Fixed**
