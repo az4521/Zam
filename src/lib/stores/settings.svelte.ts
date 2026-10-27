@@ -273,6 +273,11 @@ export const settingsState = $state({
      *  pixels and metadata. Default ON; turn off to upload files byte-for-byte
      *  as picked. Local-only. */
     progressiveJpegs: readBool("progressiveJpegs", true),
+    /** Device-global: before sending an animated GIF, re-encode it as an
+     *  animated WebP (lossless, see utils/gifToWebp) so it is smaller and
+     *  receivers can watch it as it downloads. Only used when the result is
+     *  smaller. Default OFF, since the file type changes. Local-only. */
+    gifsAsWebp: readBool("gifsAsWebp", false),
     /** Device-global: which sound bank plays MIDI attachments (see
      *  utils/midiSoundBank). Default "bundled", the SoundFont Zam ships, so
      *  MIDI sounds the same everywhere. Local-only: a custom bank lives in
@@ -847,6 +852,11 @@ export function setFaststartVideos(value: boolean): void {
 export function setProgressiveJpegs(value: boolean): void {
     settingsState.progressiveJpegs = value;
     writeBool("progressiveJpegs", value);
+}
+
+export function setGifsAsWebp(value: boolean): void {
+    settingsState.gifsAsWebp = value;
+    writeBool("gifsAsWebp", value);
 }
 
 export function setMidiSoundBank(value: MidiSoundBankChoice): void {

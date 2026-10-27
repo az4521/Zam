@@ -7,6 +7,7 @@ import { threadRelationParams } from "./client";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { faststartMp4 } from "$lib/utils/mp4Faststart";
 import { progressiveJpegForUpload } from "$lib/utils/progressiveJpegUpload";
+import { gifToAnimatedWebp } from "$lib/utils/gifToWebp";
 import { createImageThumbnail } from "$lib/utils/imageThumbnail";
 import { isRoomEncrypted, isRoomEncryptedForSend } from "$lib/matrix/crypto";
 import { withMessageRelation } from "$lib/utils/threadContent";
@@ -260,17 +261,19 @@ export async function sendFile(
             ? await faststartMp4(file)
             : file.type === "image/jpeg" && settingsState.progressiveJpegs
               ? await progressiveJpegForUpload(file)
-              : file;
+              : file.type === "image/gif" && settingsState.gifsAsWebp
+                ? await gifToAnimatedWebp(file)
+                : file;
 
     // Upload the main file, encrypting it if the room is encrypted.
     const uploadResult = await uploadAttachment(owner, roomId, toUpload, {
-        name: file.name,
+        name: toUpload.name,
         msgtype,
         onProgress,
     });
 
     const info: Record<string, unknown> = {
-        mimetype: file.type,
+        mimetype: toUpload.type || file.type,
         size: toUpload.size,
     };
 
@@ -336,7 +339,7 @@ export async function sendFile(
     // caption, `body` is just the file name and no `filename` is sent.
     const content: Record<string, unknown> = {
         msgtype,
-        body: caption ? caption.body : file.name,
+        body: caption ? caption.body : toUpload.name,
         ...uploadResult, // { url } or { file } — never both
         info,
         // Always present (spec recommendation): an m.mentions key — even empty —
@@ -344,7 +347,7 @@ export async function sendFile(
         "m.mentions": caption?.mentions ?? {},
     };
     if (caption) {
-        content.filename = file.name;
+        content.filename = toUpload.name;
         if (caption.formattedBody) {
             content.format = "org.matrix.custom.html";
             content.formatted_body = caption.formattedBody;

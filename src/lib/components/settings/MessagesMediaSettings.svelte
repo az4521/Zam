@@ -10,6 +10,7 @@
         setPauseVideoOnScrollOff,
         setFaststartVideos,
         setProgressiveJpegs,
+        setGifsAsWebp,
         setGifDefaultTab,
         setMidiSoundBank,
         settingsState,
@@ -273,6 +274,21 @@
                 checked={settingsState.progressiveJpegs}
                 onChange={setProgressiveJpegs}
                 label={t("messagesMediaSettings.sendPhotosThatAppearSooner")}
+            />
+        </div>
+        <div class="flex items-center gap-3 py-2">
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("messagesMediaSettings.sendGifsAsAnimatedWebp")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("messagesMediaSettings.reencodeGifsYouSend")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.gifsAsWebp}
+                onChange={setGifsAsWebp}
+                label={t("messagesMediaSettings.sendGifsAsAnimatedWebp")}
             />
         </div>
     </section>

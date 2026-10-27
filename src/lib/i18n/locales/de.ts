@@ -1250,6 +1250,10 @@ const messages: Record<MessageKey, string> = {
         "Fotos senden, die schneller erscheinen",
     "messagesMediaSettings.rewriteJpegPhotosYouSend":
         "Schreibt JPEG-Fotos, die du sendest, so um, dass Empfänger sofort das ganze Bild sehen und es beim Herunterladen schärfer wird. Es wird nichts neu kodiert und das Bild bleibt unverändert. Deaktiviere das, um Dateien unverändert zu senden.",
+    "messagesMediaSettings.sendGifsAsAnimatedWebp":
+        "GIFs als animiertes WebP senden",
+    "messagesMediaSettings.reencodeGifsYouSend":
+        "Kodiert GIFs, die Sie senden, verlustfrei als animiertes WebP um. Das ist meist kleiner und kann schon beim Herunterladen abgespielt werden. Das Bild bleibt unverändert. Ein GIF, das dadurch nicht kleiner würde, wird unverändert gesendet.",
     "messagesMediaSettings.defaultTab": "Standard-Tab",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "Welcher Tab in der GIF-Auswahl zuerst geöffnet wird.",
@@ -3572,6 +3576,7 @@ const messages: Record<MessageKey, string> = {
         "Videos senden, die schneller starten",
     "settingsSearch.sendPhotosThatAppearSooner":
         "Fotos senden, die schneller erscheinen",
+    "settingsSearch.sendGifsAsAnimatedWebp": "GIFs als animiertes WebP senden",
     "settingsSearch.midiSoundBank": "MIDI-Soundbank",
     "settingsSearch.holdToOpenMessageMenu":
         "Gedrückt halten für Nachrichtenmenü",

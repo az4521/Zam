@@ -1266,6 +1266,10 @@ const messages: Record<MessageKey, string> = {
         "Enviar fotos que aparecen antes",
     "messagesMediaSettings.rewriteJpegPhotosYouSend":
         "Reorganiza las fotos JPEG que envías para que se vea la imagen completa enseguida y se vaya definiendo mientras se descarga. No se vuelve a codificar nada y la imagen no cambia. Desactívalo para enviar los archivos tal cual.",
+    "messagesMediaSettings.sendGifsAsAnimatedWebp":
+        "Enviar GIF como WebP animado",
+    "messagesMediaSettings.reencodeGifsYouSend":
+        "Recodifica los GIF que envías como WebP animado sin pérdida, que suele ser más pequeño y puede reproducirse mientras se descarga. La imagen no cambia. Un GIF que no se reduciría se envía tal cual.",
     "messagesMediaSettings.defaultTab": "Pestaña predeterminada",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "La pestaña en la que se abre el selector de GIF.",
@@ -3573,6 +3577,7 @@ const messages: Record<MessageKey, string> = {
         "Enviar vídeos que se reproducen antes",
     "settingsSearch.sendPhotosThatAppearSooner":
         "Enviar fotos que aparecen antes",
+    "settingsSearch.sendGifsAsAnimatedWebp": "Enviar GIF como WebP animado",
     "settingsSearch.midiSoundBank": "Banco de sonidos MIDI",
     "settingsSearch.holdToOpenMessageMenu":
         "Mantener pulsado para abrir el menú del mensaje",

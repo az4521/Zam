@@ -802,3 +802,30 @@ describe("callVideoCodec", () => {
         expect(settingsState.callVideoCodec).toBe("h264");
     });
 });
+
+describe("gifsAsWebp", () => {
+    const GK = "settings:gifsAsWebp";
+
+    async function boot(stored: string | null) {
+        if (stored === null) localStorage.removeItem(GK);
+        else localStorage.setItem(GK, stored);
+        vi.resetModules();
+        return await import("./settings.svelte");
+    }
+
+    afterEach(() => {
+        localStorage.removeItem(GK);
+    });
+
+    it("defaults to false so GIFs are sent as picked", async () => {
+        const fresh = await boot(null);
+        expect(fresh.settingsState.gifsAsWebp).toBe(false);
+    });
+
+    it("persists the setter's value to localStorage", async () => {
+        const fresh = await boot(null);
+        fresh.setGifsAsWebp(true);
+        expect(fresh.settingsState.gifsAsWebp).toBe(true);
+        expect(localStorage.getItem(GK)).toBe("true");
+    });
+});
