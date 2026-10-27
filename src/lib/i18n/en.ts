@@ -2280,6 +2280,7 @@ export const en = {
     "userProfileCard.copied": "Copied",
     "userProfileCard.localTime": "{localTime} local time ({timezone})",
     "userProfileCard.notAMemberOfThisRoom": "Not a member of this room",
+    "userProfileCard.powerLevel": "Power level: {level}",
     "userProfileCard.mutualRooms": "Mutual rooms: {total}",
     "userProfileCard.more": "+{moreCount} more",
     "userProfileCard.sessions": "Sessions",

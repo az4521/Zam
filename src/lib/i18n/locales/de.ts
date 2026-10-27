@@ -2366,6 +2366,7 @@ const messages: Record<MessageKey, string> = {
     "userProfileCard.copied": "Kopiert",
     "userProfileCard.localTime": "{localTime} Ortszeit ({timezone})",
     "userProfileCard.notAMemberOfThisRoom": "Kein Mitglied dieses Raums",
+    "userProfileCard.powerLevel": "Berechtigungsstufe: {level}",
     "userProfileCard.mutualRooms": "Gemeinsame Räume: {total}",
     "userProfileCard.more": "+{moreCount} weitere",
     "userProfileCard.sessions": "Sitzungen",

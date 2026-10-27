@@ -2342,6 +2342,7 @@ const messages: Record<MessageKey, string> = {
     "userProfileCard.copied": "Copié",
     "userProfileCard.localTime": "{localTime} heure locale ({timezone})",
     "userProfileCard.notAMemberOfThisRoom": "N'est pas membre de ce salon",
+    "userProfileCard.powerLevel": "Niveau de pouvoir : {level}",
     "userProfileCard.mutualRooms": "Salons en commun : {total}",
     "userProfileCard.more": "+{moreCount} autres",
     "userProfileCard.sessions": "Sessions",

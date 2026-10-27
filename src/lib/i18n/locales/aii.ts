@@ -2199,6 +2199,7 @@ const messages: Record<MessageKey, string> = {
     "userProfileCard.copied": "ܢܣܝܚܐ",
     "userProfileCard.localTime": "{localTime} ܙܒܢܐ ܕܐܬܪܐ ({timezone})",
     "userProfileCard.notAMemberOfThisRoom": "ܠܐ ܝܠܗ ܗܕܡܐ ܕܗܢܐ ܓܘܡܐ",
+    "userProfileCard.powerLevel": "Power level: {level}",
     "userProfileCard.mutualRooms": "ܓܘܡ̈ܐ ܓܘܢܝ̈ܐ: {total}",
     "userProfileCard.more": "+{moreCount} ܝܬܝܪ",
     "userProfileCard.sessions": "ܣ̈ܝܣܘܢܐ",

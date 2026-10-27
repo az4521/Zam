@@ -599,6 +599,15 @@
                     {/each}
                 </ul>
             {/if}
+            {#if member}
+                <p class="mt-1 text-xs text-discord-textMuted">
+                    {t("userProfileCard.powerLevel", {
+                        level:
+                            (void roomsState.roomsTick,
+                            getUserPowerLevel(room, member.userId)),
+                    })}
+                </p>
+            {/if}
             {#if !member && !isSelf}
                 <p class="mt-1 text-xs text-discord-textMuted">
                     {t("userProfileCard.notAMemberOfThisRoom")}
