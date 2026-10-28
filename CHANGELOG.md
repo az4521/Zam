@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.37.1
+
+✨ **New**
+
+- **Skia Graphite toggle (desktop):** Settings > Debug > GPU can switch Chromium to its newer Graphite renderer, for testing rendering problems. Off by default; applies after a restart.
+
 ## v1.37.0
 
 ✨ **New**
