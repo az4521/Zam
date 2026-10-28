@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.37.2
+
+✨ **New**
+
+- **Automatic video codec:** Settings > Voice & Audio has an Automatic option for the video codec, now the default. It picks the best codec your GPU encodes that everyone in the call can play, and stays on H.264 when someone's support is unknown.
+- **Changelog since your last version:** after an update, What's New lists every release since the one you last saw, not just the newest.
+
+🐛 **Fixed**
+
+- **Skia Graphite can no longer lock you out (desktop):** if a launch with it on doesn't come up cleanly, or the GPU process crashes, it is switched off automatically and Settings > Debug says so. `--no-skia-graphite` (or `ZAM_NO_SKIA_GRAPHITE=1`) forces it off.
+- **Noise removal limit wording:** the hint now reads "The most the noise filter may take off".
+
 ## v1.37.1
 
 ✨ **New**
