@@ -401,6 +401,8 @@ export const en = {
     "gpuDebug.skiaGraphite": "Skia Graphite renderer (experimental)",
     "gpuDebug.skiaGraphiteHint":
         "Draws the interface with Chromium's newer Graphite renderer instead of Ganesh. Turn this on to test rendering, or off if the window flickers or draws wrongly. Needs hardware acceleration. Applies after a restart.",
+    "gpuDebug.skiaGraphiteFailed":
+        "Turned off automatically because it failed to start or crashed the GPU process. Turn it on again to retry.",
     "gpuDebug.nvidiaEncode": "NVIDIA video encoding (experimental)",
     "gpuDebug.nvidiaEncodeHint":
         "Encodes H.264 calls and screen shares with NVENC, through Zam's own VA-API driver. Video decoding stays as set above. Applies after a restart.",
@@ -515,7 +517,7 @@ export const en = {
         "Takes an extra 20 dB off pauses after noise removal. Off by default; may clip quiet word starts.",
     "debugSettings.noiseAttenuationLimit": "Noise removal limit: {value} dB",
     "debugSettings.noiseAttenuationLimitHint":
-        "Most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
+        "The most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
     "debugSettings.syncStatus": "Sync Status",
     "debugSettings.clientLogs": "Client logs",
     "debugSettings.clientLogsHint":
@@ -2437,7 +2439,8 @@ export const en = {
         "Pick the codecs that show nothing (or a black picture) on this device. Others in the call then send you H.264 instead. Zam also fills this in when a stream arrives and never decodes.",
     "voiceAudioSettings.videoCodec": "Video codec",
     "voiceAudioSettings.videoCodecHint":
-        "What your camera and screen share are sent as. Anyone in the call who can't play it gets an H.264 copy, and you can switch it from the call too. Applies the next time you turn them on.",
+        "What your camera and screen share are sent as. Automatic picks the best codec your GPU encodes that everyone in the call can play. Anyone who can't play it gets an H.264 copy, and you can switch it from the call too. Applies the next time you turn them on.",
+    "voiceAudioSettings.videoCodecAuto": "Automatic",
     "voiceAudioSettings.stopPreview": "Stop preview",
     "voiceAudioSettings.preview": "Preview",
     "voiceAudioSettings.callSounds": "Call sounds",
@@ -2614,6 +2617,7 @@ export const en = {
 
     // src/lib/components/layout/WhatsNewModal.svelte
     "whatsNewModal.whatSNew": "What's New",
+    "whatsNewModal.whatSNewSince": "What's New since v{from}",
     "whatsNewModal.whatSNewInV": "What's New in v{APP_VERSION}",
     "whatsNewModal.releaseNotesUnavailable": "Release notes unavailable.",
     "whatsNewModal.viewOnGithub": "View on GitHub",

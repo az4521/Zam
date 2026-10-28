@@ -708,6 +708,9 @@
                 onchange={(e) => setCallVideoCodec(e.currentTarget.value)}
                 aria-label={t("voiceAudioSettings.videoCodec")}
             >
+                <option value="auto"
+                    >{t("voiceAudioSettings.videoCodecAuto")}</option
+                >
                 {#each VIDEO_CODECS as codec (codec)}
                     <option value={codec}>{VIDEO_CODEC_LABELS[codec]}</option>
                 {/each}

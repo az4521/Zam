@@ -2218,6 +2218,7 @@ function codecPlan(call: ActiveVoiceCall) {
         sendableCodecs(call),
         peerDecode(call),
         call.e2ee !== null,
+        call.codecs.hardware,
     );
 }
 
@@ -2447,7 +2448,11 @@ function notifyCallCodecs(call: ActiveVoiceCall): void {
         available: plan.available,
         hardware: call.codecs.hardware,
         current: plan.current,
-        picked: settingsState.callVideoCodec,
+        // Automatic never differs from what it sends.
+        picked:
+            settingsState.callVideoCodec === "auto"
+                ? plan.current
+                : settingsState.callVideoCodec,
         encrypted: call.e2ee !== null,
     };
     for (const cb of codecSubscribers) cb(state);

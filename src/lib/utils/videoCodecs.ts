@@ -26,6 +26,15 @@ export const MANDATORY_CODECS: readonly VideoCodec[] = ["h264", "vp8"];
 
 export const DEFAULT_VIDEO_CODEC: VideoCodec = "h264";
 
+/** What the user picks: a codec, or "auto" to let the call choose. */
+export type VideoCodecChoice = VideoCodec | "auto";
+
+export const DEFAULT_VIDEO_CODEC_CHOICE: VideoCodecChoice = "auto";
+
+export function isVideoCodecChoice(value: unknown): value is VideoCodecChoice {
+    return value === "auto" || isVideoCodec(value);
+}
+
 export const VIDEO_CODEC_LABELS: Record<VideoCodec, string> = {
     av1: "AV1",
     h265: "HEVC",
@@ -99,6 +108,20 @@ export function effectiveCodec(
     return sendable[0] ?? DEFAULT_VIDEO_CODEC;
 }
 
+/** The automatic pick: the best-ranked codec this device encodes on the GPU
+ *  (software AV1 or HEVC would cost more than the picture gains), else
+ *  H.264, else VP8. */
+export function autoCodec(
+    candidates: readonly VideoCodec[],
+    hardware: readonly VideoCodec[],
+): VideoCodec {
+    return (
+        VIDEO_CODECS.find(
+            (c) => candidates.includes(c) && hardware.includes(c),
+        ) ?? effectiveCodec("h264", candidates)
+    );
+}
+
 export interface CodecPlan {
     /** What we can send that everyone can watch. */
     available: VideoCodec[];
@@ -115,12 +138,17 @@ export interface CodecPlan {
  *  LiveKit's backup stream covers them. LiveKit can't send that backup on an
  *  end-to-end encrypted track, so in an encrypted call they count as
  *  decoding only the mandatory codecs, and a pick someone can't watch falls
- *  back to H.264 (or VP8) until they leave. */
+ *  back to H.264 (or VP8) until they leave.
+ *
+ *  "auto" picks the best codec the device encodes on the GPU and everyone
+ *  is known to decode; with an unknown participant in an unencrypted call
+ *  it stays on a mandatory codec, so no backup stream doubles the upload. */
 export function planCodecs(
-    picked: VideoCodec,
+    picked: VideoCodecChoice,
     sendable: readonly VideoCodec[],
     peers: readonly (readonly VideoCodec[] | null)[],
     encrypted: boolean,
+    hardware: readonly VideoCodec[] = [],
 ): CodecPlan {
     const known = peers.flatMap((p) =>
         p ? [p] : encrypted ? [MANDATORY_CODECS] : [],
@@ -129,7 +157,15 @@ export function planCodecs(
     // so an AV1 stream in an encrypted call reaches nobody.
     const usable = encrypted ? sendable.filter((c) => c !== "av1") : sendable;
     const available = codecsEveryoneDecodes(usable, known);
-    const current = effectiveCodec(picked, encrypted ? available : sendable);
+    const current =
+        picked === "auto"
+            ? autoCodec(
+                  encrypted || peers.every((p) => p)
+                      ? available
+                      : available.filter(isMandatoryCodec),
+                  hardware,
+              )
+            : effectiveCodec(picked, encrypted ? available : sendable);
     return {
         available,
         current,

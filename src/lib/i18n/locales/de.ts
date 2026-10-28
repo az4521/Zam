@@ -408,6 +408,8 @@ const messages: Record<MessageKey, string> = {
     "gpuDebug.skiaGraphite": "Skia-Graphite-Renderer (experimentell)",
     "gpuDebug.skiaGraphiteHint":
         "Zeichnet die Oberfläche mit Chromiums neuerem Graphite-Renderer statt Ganesh. Zum Testen des Renderings aktivieren oder deaktivieren, wenn das Fenster flackert oder falsch gezeichnet wird. Erfordert Hardwarebeschleunigung. Wird nach einem Neustart wirksam.",
+    "gpuDebug.skiaGraphiteFailed":
+        "Automatisch deaktiviert, weil der Start fehlschlug oder der GPU-Prozess abstürzte. Zum erneuten Versuch wieder aktivieren.",
     "gpuDebug.nvidiaEncode": "NVIDIA-Videokodierung (experimentell)",
     "gpuDebug.nvidiaEncodeHint":
         "Kodiert H.264-Anrufe und Bildschirmfreigaben mit NVENC über Zams eigenen VA-API-Treiber. Die Videodekodierung bleibt wie oben eingestellt. Gilt nach einem Neustart.",
@@ -536,7 +538,7 @@ const messages: Record<MessageKey, string> = {
         "Takes an extra 20 dB off pauses after noise removal. Off by default; may clip quiet word starts.",
     "debugSettings.noiseAttenuationLimit": "Noise removal limit: {value} dB",
     "debugSettings.noiseAttenuationLimitHint":
-        "Most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
+        "The most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
     "debugSettings.syncStatus": "Sync-Status",
     "debugSettings.clientLogs": "Client-Protokolle",
     "debugSettings.clientLogsHint":
@@ -2516,6 +2518,7 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.mirrorMyCamera": "Meine Kamera spiegeln",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
         "Spiegelt deine eigene Vorschau. Andere sehen dich immer ungespiegelt.",
+    "voiceAudioSettings.videoCodecAuto": "Automatisch",
     "voiceAudioSettings.videoCodec": "Videocodec",
     "voiceAudioSettings.videoCodecHint":
         "Das Format, in dem Kamera und Bildschirmfreigabe gesendet werden. Wer es im Anruf nicht abspielen kann, bekommt eine H.264-Kopie; im Anruf lässt es sich auch umstellen. Gilt beim nächsten Einschalten.",
@@ -2699,6 +2702,7 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/layout/WhatsNewModal.svelte
     "whatsNewModal.whatSNew": "Neuigkeiten",
+    "whatsNewModal.whatSNewSince": "Neuigkeiten seit v{from}",
     "whatsNewModal.whatSNewInV": "Neu in v{APP_VERSION}",
     "whatsNewModal.releaseNotesUnavailable":
         "Versionshinweise nicht verfügbar.",

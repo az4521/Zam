@@ -785,9 +785,10 @@ describe("minimizeToTrayOnClose", () => {
 describe("callVideoCodec", () => {
     afterEach(() => setCallVideoCodec("h264"));
 
-    it("defaults to H.264 and only ever holds a known codec", () => {
-        expect(normalizeCallVideoCodec(null)).toBe("h264");
-        expect(normalizeCallVideoCodec("theora")).toBe("h264");
+    it("defaults to automatic and only ever holds a known choice", () => {
+        expect(normalizeCallVideoCodec(null)).toBe("auto");
+        expect(normalizeCallVideoCodec("theora")).toBe("auto");
+        expect(normalizeCallVideoCodec("auto")).toBe("auto");
         expect(normalizeCallVideoCodec("vp9")).toBe("vp9");
         expect(normalizeCallVideoCodec("h265")).toBe("h265");
         expect(normalizeCallVideoCodec("vp8")).toBe("vp8");
@@ -799,7 +800,7 @@ describe("callVideoCodec", () => {
         setCallVideoCodec("av1");
         expect(settingsState.callVideoCodec).toBe("av1");
         setCallVideoCodec("mpeg2");
-        expect(settingsState.callVideoCodec).toBe("h264");
+        expect(settingsState.callVideoCodec).toBe("auto");
     });
 });
 

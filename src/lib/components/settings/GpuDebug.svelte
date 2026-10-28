@@ -300,6 +300,11 @@
                         ? t("gpuDebug.nvidiaVideoActive")
                         : t("gpuDebug.nvidiaVideoInactive")}
                 </p>
+                {#if sg.failedAt && !sg.enabled}
+                    <p class="text-xs text-discord-warning">
+                        {t("gpuDebug.skiaGraphiteFailed")}
+                    </p>
+                {/if}
             </div>
             <ToggleSwitch
                 checked={sg.enabled}

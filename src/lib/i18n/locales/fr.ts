@@ -401,6 +401,8 @@ const messages: Record<MessageKey, string> = {
     "gpuDebug.skiaGraphite": "Moteur de rendu Skia Graphite (expérimental)",
     "gpuDebug.skiaGraphiteHint":
         "Dessine l'interface avec le moteur Graphite de Chromium au lieu de Ganesh. À activer pour tester le rendu, ou à désactiver si la fenêtre scintille ou s'affiche mal. Nécessite l'accélération matérielle. S'applique après un redémarrage.",
+    "gpuDebug.skiaGraphiteFailed":
+        "Désactivé automatiquement car le démarrage a échoué ou le processus GPU a planté. Réactivez-le pour réessayer.",
     "gpuDebug.nvidiaEncode": "Encodage vidéo NVIDIA (expérimental)",
     "gpuDebug.nvidiaEncodeHint":
         "Encode les appels et partages d'écran en H.264 avec NVENC, via le pilote VA-API de Zam. Le décodage vidéo reste tel que réglé ci-dessus. S'applique après un redémarrage.",
@@ -529,7 +531,7 @@ const messages: Record<MessageKey, string> = {
         "Takes an extra 20 dB off pauses after noise removal. Off by default; may clip quiet word starts.",
     "debugSettings.noiseAttenuationLimit": "Noise removal limit: {value} dB",
     "debugSettings.noiseAttenuationLimitHint":
-        "Most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
+        "The most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
     "debugSettings.syncStatus": "État de la synchronisation",
     "debugSettings.clientLogs": "Journaux du client",
     "debugSettings.clientLogsHint":
@@ -2493,6 +2495,7 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.mirrorMyCamera": "Afficher ma caméra en miroir",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
         "Retourne votre propre aperçu. Les autres vous voient toujours sans effet miroir.",
+    "voiceAudioSettings.videoCodecAuto": "Automatique",
     "voiceAudioSettings.videoCodec": "Codec vidéo",
     "voiceAudioSettings.videoCodecHint":
         "Le format dans lequel votre caméra et votre partage d'écran sont envoyés. Les personnes de l'appel qui ne peuvent pas le lire reçoivent une copie en H.264, et vous pouvez aussi le changer depuis l'appel. S'applique la prochaine fois que vous les activez.",
@@ -2676,6 +2679,7 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/layout/WhatsNewModal.svelte
     "whatsNewModal.whatSNew": "Nouveautés",
+    "whatsNewModal.whatSNewSince": "Nouveautés depuis la v{from}",
     "whatsNewModal.whatSNewInV": "Nouveautés de la v{APP_VERSION}",
     "whatsNewModal.releaseNotesUnavailable": "Notes de version indisponibles.",
     "whatsNewModal.viewOnGithub": "Voir sur GitHub",

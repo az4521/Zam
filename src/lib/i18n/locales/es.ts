@@ -401,6 +401,8 @@ const messages: Record<MessageKey, string> = {
     "gpuDebug.skiaGraphite": "Renderizador Skia Graphite (experimental)",
     "gpuDebug.skiaGraphiteHint":
         "Dibuja la interfaz con el renderizador Graphite de Chromium en lugar de Ganesh. Actívalo para probar el renderizado, o desactívalo si la ventana parpadea o se dibuja mal. Requiere aceleración por hardware. Se aplica tras reiniciar.",
+    "gpuDebug.skiaGraphiteFailed":
+        "Desactivado automáticamente porque falló al iniciar o bloqueó el proceso de GPU. Actívalo de nuevo para reintentar.",
     "gpuDebug.nvidiaEncode": "Codificación de vídeo NVIDIA (experimental)",
     "gpuDebug.nvidiaEncodeHint":
         "Codifica las llamadas y pantallas compartidas en H.264 con NVENC, mediante el controlador VA-API propio de Zam. La decodificación de vídeo sigue como está configurada arriba. Se aplica tras reiniciar.",
@@ -527,7 +529,7 @@ const messages: Record<MessageKey, string> = {
         "Takes an extra 20 dB off pauses after noise removal. Off by default; may clip quiet word starts.",
     "debugSettings.noiseAttenuationLimit": "Noise removal limit: {value} dB",
     "debugSettings.noiseAttenuationLimitHint":
-        "Most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
+        "The most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
     "debugSettings.syncStatus": "Estado de la sincronización",
     "debugSettings.clientLogs": "Registros del cliente",
     "debugSettings.clientLogsHint":
@@ -2530,6 +2532,7 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.mirrorMyCamera": "Reflejar mi cámara",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
         "Voltea tu propia vista previa. Los demás siempre te ven sin reflejar.",
+    "voiceAudioSettings.videoCodecAuto": "Automático",
     "voiceAudioSettings.videoCodec": "Códec de vídeo",
     "voiceAudioSettings.videoCodecHint":
         "El formato en que se envían tu cámara y tu pantalla compartida. Quien en la llamada no pueda reproducirlo recibe una copia en H.264, y también puedes cambiarlo desde la llamada. Se aplica la próxima vez que las actives.",
@@ -2714,6 +2717,7 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/layout/WhatsNewModal.svelte
     "whatsNewModal.whatSNew": "Novedades",
+    "whatsNewModal.whatSNewSince": "Novedades desde la v{from}",
     "whatsNewModal.whatSNewInV": "Novedades de la v{APP_VERSION}",
     "whatsNewModal.releaseNotesUnavailable":
         "Las notas de la versión no están disponibles.",

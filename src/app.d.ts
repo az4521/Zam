@@ -94,6 +94,9 @@ declare global {
                         enabled: boolean;
                         /** Whether this run has the flag on. */
                         activeAtLaunch: boolean;
+                        /** When it was switched off after a failed launch or
+                         *  GPU crash. */
+                        failedAt: number | null;
                     };
                     featureStatus: Record<string, string>;
                     /** app.getGPUInfo("complete"), or `{ error }`. */

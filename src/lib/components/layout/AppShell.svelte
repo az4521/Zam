@@ -294,6 +294,8 @@
 
     // One-time "What's New" popup on version change
     let showWhatsNew = $state(false);
+    // The version recorded before this update, where the popup's notes start.
+    let whatsNewSince = $state<string | null>(null);
 
     function dismissWhatsNew() {
         showWhatsNew = false;
@@ -1576,6 +1578,7 @@
         // recorded version equals the current build so it never re-fires.
         const lastSeenVersion = getLastSeenVersion();
         if (shouldShowWhatsNew(lastSeenVersion, APP_VERSION)) {
+            whatsNewSince = lastSeenVersion;
             showWhatsNew = true;
         } else if (lastSeenVersion === null) {
             setLastSeenVersion(APP_VERSION);
@@ -2834,7 +2837,7 @@
 {/if}
 
 {#if showWhatsNew}
-    <WhatsNewModal onClose={dismissWhatsNew} />
+    <WhatsNewModal onClose={dismissWhatsNew} lastSeen={whatsNewSince} />
 {/if}
 
 <ErrorToasts />

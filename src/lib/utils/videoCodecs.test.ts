@@ -151,3 +151,28 @@ describe("planCodecs", () => {
         });
     });
 });
+
+describe("planCodecs with auto", () => {
+    const sendable = ["av1", "h265", "vp9", "h264", "vp8"] as const;
+
+    it("takes the best codec the GPU encodes and everyone decodes", () => {
+        const plan = planCodecs(
+            "auto",
+            sendable,
+            [["h265", "vp9", "h264"]],
+            false,
+            ["av1", "h265", "h264"],
+        );
+        expect(plan.current).toBe("h265");
+    });
+
+    it("stays on H.264 when nothing is encoded on the GPU", () => {
+        expect(planCodecs("auto", sendable, [], false).current).toBe("h264");
+    });
+
+    it("stays on a mandatory codec while someone unknown is in an open call", () => {
+        const plan = planCodecs("auto", sendable, [null], false, ["av1"]);
+        expect(plan.current).toBe("h264");
+        expect(plan.backup).toBeNull();
+    });
+});

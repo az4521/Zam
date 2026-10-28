@@ -5,6 +5,7 @@ import {
     normalizeRelease,
     pickReleaseForVersion,
     shouldShowWhatsNew,
+    releasesBetween,
     type ChangelogRelease,
 } from "./changelog";
 
@@ -84,5 +85,24 @@ describe("shouldShowWhatsNew", () => {
     });
     it("is true on a real version change", () => {
         expect(shouldShowWhatsNew("1.5.0", "1.5.1")).toBe(true);
+    });
+});
+
+describe("releasesBetween", () => {
+    const list = ["v1.37.1", "v1.37.0", "v1.36.5", "v1.9.0", "v1.10.0"].map(
+        (tag_name) => rel({ tag_name }),
+    );
+    it("returns everything after lastSeen up to current, newest first", () => {
+        expect(
+            releasesBetween(list, "1.36.5", "1.37.1").map((r) => r.tag_name),
+        ).toEqual(["v1.37.1", "v1.37.0"]);
+    });
+    it("compares numerically, not as text", () => {
+        expect(
+            releasesBetween(list, "1.9.0", "1.36.5").map((r) => r.tag_name),
+        ).toEqual(["v1.36.5", "v1.10.0"]);
+    });
+    it("is empty without a recorded version", () => {
+        expect(releasesBetween(list, null, "1.37.1")).toEqual([]);
     });
 });

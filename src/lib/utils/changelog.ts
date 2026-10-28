@@ -65,3 +65,42 @@ export function shouldShowWhatsNew(
     if (lastSeen === null) return false;
     return normalizeVersion(lastSeen) !== normalizeVersion(current);
 }
+
+/** Numeric parts of "1.37.1" (a "-beta" tail or a leading "v" is ignored). */
+function versionParts(v: string): number[] {
+    return normalizeVersion(v)
+        .split("-")[0]
+        .split(".")
+        .map((n) => parseInt(n, 10) || 0);
+}
+
+/** Negative, zero or positive as `a` is older than, equal to or newer than `b`. */
+export function compareVersions(a: string, b: string): number {
+    const pa = versionParts(a);
+    const pb = versionParts(b);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+        if (d !== 0) return d;
+    }
+    return 0;
+}
+
+/**
+ * The releases after `lastSeen` up to and including `current`, newest first,
+ * so an update that skipped versions shows everything that changed. Empty when
+ * `lastSeen` is unknown or nothing in the list falls in that range.
+ */
+export function releasesBetween(
+    releases: ChangelogRelease[],
+    lastSeen: string | null,
+    current: string,
+): ChangelogRelease[] {
+    if (lastSeen === null) return [];
+    return releases
+        .filter(
+            (r) =>
+                compareVersions(r.tag_name, lastSeen) > 0 &&
+                compareVersions(r.tag_name, current) <= 0,
+        )
+        .sort((a, b) => compareVersions(b.tag_name, a.tag_name));
+}

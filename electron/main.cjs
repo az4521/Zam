@@ -696,6 +696,7 @@ ipcMain.handle("gpu:info", async () => {
         skiaGraphite: {
             enabled: prefs.skiaGraphite === true,
             activeAtLaunch: skiaGraphiteAtLaunch,
+            failedAt: prefs.skiaGraphiteFailed ?? null,
         },
         featureStatus: app.getGPUFeatureStatus(),
         info,
@@ -728,7 +729,11 @@ ipcMain.handle("gpu:set-video-encode", (_e, enabled) => {
 });
 
 ipcMain.handle("gpu:set-skia-graphite", (_e, enabled) => {
-    writeGpuPrefs({ skiaGraphite: enabled ? true : undefined });
+    writeGpuPrefs({
+        skiaGraphite: enabled ? true : undefined,
+        skiaGraphitePending: undefined,
+        skiaGraphiteFailed: undefined,
+    });
 });
 
 // "auto" | "vulkan" | "off" (see zam.sh). Choosing again forgets a fallback
@@ -1448,9 +1453,46 @@ if (nvidiaEncode) {
 }
 // Skia's Graphite backend (Dawn: D3D11/D3D12/Metal/Vulkan) instead of Ganesh,
 // for debugging rendering. Needs hardware acceleration; off by default.
+// If it breaks the window the settings can't be reached to turn it off, so a
+// launch that never got confirmed (see below) or a GPU crash switches it off
+// for good, and --no-skia-graphite / ZAM_NO_SKIA_GRAPHITE=1 force it off.
+const skiaGraphiteForcedOff =
+    process.argv.includes("--no-skia-graphite") ||
+    process.env.ZAM_NO_SKIA_GRAPHITE === "1";
+{
+    const prefs = readGpuPrefs();
+    if (prefs.skiaGraphite === true && prefs.skiaGraphitePending) {
+        writeGpuPrefs({
+            skiaGraphite: undefined,
+            skiaGraphitePending: undefined,
+            skiaGraphiteFailed: Date.now(),
+        });
+    }
+}
 const skiaGraphiteAtLaunch =
-    hardwareAccelerationAtLaunch && readGpuPrefs().skiaGraphite === true;
-if (skiaGraphiteAtLaunch) features.push("SkiaGraphite");
+    hardwareAccelerationAtLaunch &&
+    !skiaGraphiteForcedOff &&
+    readGpuPrefs().skiaGraphite === true;
+if (skiaGraphiteAtLaunch) {
+    features.push("SkiaGraphite");
+    writeGpuPrefs({ skiaGraphitePending: Date.now() });
+    // A run that stays up this long drew fine; a closed window counts too.
+    const confirmGraphite = () =>
+        writeGpuPrefs({ skiaGraphitePending: undefined });
+    setTimeout(confirmGraphite, 20_000).unref();
+    app.on("before-quit", confirmGraphite);
+    app.on("child-process-gone", (_e, details) => {
+        if (details.type !== "GPU") return;
+        if (details.reason === "clean-exit" || details.reason === "killed") {
+            return;
+        }
+        writeGpuPrefs({
+            skiaGraphite: undefined,
+            skiaGraphitePending: undefined,
+            skiaGraphiteFailed: Date.now(),
+        });
+    });
+}
 app.commandLine.appendSwitch(
     "enable-features",
     features.filter(Boolean).join(","),

@@ -3,16 +3,24 @@
     import { onMount } from "svelte";
     import {
         APP_VERSION,
+        fetchReleaseList,
         fetchReleaseNotes,
         openReleasePage,
     } from "$lib/update";
+    import { releasesBetween, normalizeVersion } from "$lib/utils/changelog";
     import { GITHUB_OWNER, GITHUB_REPO } from "$lib/utils/androidUpdate";
     import ReleaseNotesBody from "$lib/components/settings/ReleaseNotesBody.svelte";
     import ModalDialog from "$lib/components/ui/ModalDialog.svelte";
     import { openModal, clearModalIfOwner } from "$lib/stores/interface.svelte";
 
-    let { onClose }: { onClose: () => void } = $props();
+    let {
+        onClose,
+        lastSeen = null,
+    }: { onClose: () => void; lastSeen?: string | null } = $props();
 
+    // Every release since the one last seen, newest first; empty when only
+    // the current version's notes could be had.
+    let sections = $state<{ version: string; body: string }[]>([]);
     let body = $state<string | null>(null);
     let loading = $state(true);
     let failed = $state(false);
@@ -22,7 +30,21 @@
 
         void (async () => {
             try {
-                body = await fetchReleaseNotes(APP_VERSION);
+                try {
+                    sections = releasesBetween(
+                        await fetchReleaseList(30),
+                        lastSeen,
+                        APP_VERSION,
+                    ).map((r) => ({
+                        version: normalizeVersion(r.tag_name),
+                        body: r.body,
+                    }));
+                } catch {
+                    // Fall back to just this version's notes below.
+                }
+                if (sections.length === 0) {
+                    body = await fetchReleaseNotes(APP_VERSION);
+                }
             } catch {
                 failed = true;
             } finally {
@@ -41,13 +63,18 @@
     label={t("whatsNewModal.whatSNew")}
     layerClass="z-[60] flex items-center justify-center p-4"
     backdropClass="bg-black/50"
-    panelClass="relative w-full max-w-md rounded-lg bg-discord-backgroundSecondary shadow-xl flex flex-col max-h-[80vh]"
+    panelClass="relative w-full max-w-lg rounded-lg bg-discord-backgroundSecondary shadow-xl flex flex-col max-h-[80vh]"
 >
     <header
         class="flex items-center justify-between border-b border-discord-divider px-4 py-3 flex-shrink-0"
     >
         <h2 class="text-base font-semibold text-discord-textPrimary">
-            {t("whatsNewModal.whatSNewInV", { APP_VERSION })}
+            {sections.length > 1 && lastSeen
+                ? t("whatsNewModal.whatSNewSince", {
+                      from: normalizeVersion(lastSeen),
+                      APP_VERSION,
+                  })
+                : t("whatsNewModal.whatSNewInV", { APP_VERSION })}
         </h2>
         <button
             type="button"
@@ -75,6 +102,17 @@
                     {t("whatsNewModal.viewOnGithub")}
                 </button>
             </p>
+        {:else if sections.length > 0}
+            {#each sections as section (section.version)}
+                {#if sections.length > 1}
+                    <h3
+                        class="text-sm font-semibold text-discord-textPrimary mt-3 first:mt-0 mb-1"
+                    >
+                        v{section.version}
+                    </h3>
+                {/if}
+                <ReleaseNotesBody body={section.body} />
+            {/each}
         {:else}
             <ReleaseNotesBody body={body ?? ""} />
         {/if}

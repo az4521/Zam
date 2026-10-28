@@ -388,6 +388,8 @@ const messages: Record<MessageKey, string> = {
     "gpuDebug.skiaGraphite": "Skia Graphite renderer (experimental)",
     "gpuDebug.skiaGraphiteHint":
         "Draws the interface with Chromium's newer Graphite renderer instead of Ganesh. Turn this on to test rendering, or off if the window flickers or draws wrongly. Needs hardware acceleration. Applies after a restart.",
+    "gpuDebug.skiaGraphiteFailed":
+        "Turned off automatically because it failed to start or crashed the GPU process. Turn it on again to retry.",
     "gpuDebug.nvidiaEncode": "NVIDIA video encoding (experimental)",
     "gpuDebug.nvidiaEncodeHint":
         "Encodes H.264 calls and screen shares with NVENC, through Zam's own VA-API driver. Video decoding stays as set above. Applies after a restart.",
@@ -512,7 +514,7 @@ const messages: Record<MessageKey, string> = {
         "Takes an extra 20 dB off pauses after noise removal. Off by default; may clip quiet word starts.",
     "debugSettings.noiseAttenuationLimit": "Noise removal limit: {value} dB",
     "debugSettings.noiseAttenuationLimitHint":
-        "Most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
+        "The most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
     "debugSettings.syncStatus": "ܐܝܟܢܝܘܬܐ ܕܐܚܕܝܘܬܐ",
     "debugSettings.clientLogs": "ܟܬܒܐ ܕܬܚܒܝܫܬܐ",
     "debugSettings.clientLogsHint":
@@ -2335,6 +2337,7 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.mirrorMyCamera": "ܚܘܝ ܟܡܪܐ ܕܝܝ ܐܝܟ ܡܚܙܝܬܐ",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
         "ܗܦܘܟ ܚܙܝܬܐ ܩܕܡܝܬܐ ܕܝܘܟ. ܐܚܪ̈ܢܐ ܟܠ ܙܒܢܐ ܚܙܝ ܠܘܟ ܕܠܐ ܗܦܟܐ.",
+    "voiceAudioSettings.videoCodecAuto": "Automatic",
     "voiceAudioSettings.videoCodec": "Video codec",
     "voiceAudioSettings.videoCodecHint":
         "What your camera and screen share are sent as. Anyone in the call who can't play it gets an H.264 copy, and you can switch it from the call too. Applies the next time you turn them on.",
@@ -2514,6 +2517,7 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/layout/WhatsNewModal.svelte
     "whatsNewModal.whatSNew": "ܡܘܕܝ ܐܝܬ ܚܕܬܐ",
+    "whatsNewModal.whatSNewSince": "What's New since v{from}",
     "whatsNewModal.whatSNewInV": "ܡܘܕܝ ܐܝܬ ܚܕܬܐ ܓܘ v{APP_VERSION}",
     "whatsNewModal.releaseNotesUnavailable": "ܬܘܟܣ̈ܐ ܕܢܘܣܚܐ ܠܐ ܝܢ ܡܫܟܚ̈ܐ.",
     "whatsNewModal.viewOnGithub": "ܚܙܝ ܥܠ GitHub",

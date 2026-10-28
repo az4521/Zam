@@ -81,9 +81,11 @@ import {
 } from "$lib/utils/customFont";
 
 import {
-    DEFAULT_VIDEO_CODEC,
+    DEFAULT_VIDEO_CODEC_CHOICE,
     isVideoCodec,
+    isVideoCodecChoice,
     type VideoCodec,
+    type VideoCodecChoice,
 } from "$lib/utils/videoCodecs";
 import {
     DEFAULT_SCREEN_SHARE_BITRATE,
@@ -1138,25 +1140,23 @@ export function setScreenShareBitrate(bps: number): void {
     );
 }
 
-export type CallVideoCodec = VideoCodec;
+export type CallVideoCodec = VideoCodecChoice;
 
-/** H.264 unless another codec was chosen: most GPUs encode H.264. */
+/** Automatic unless a codec was chosen. */
 export function normalizeCallVideoCodec(
     value: string | null | undefined,
 ): CallVideoCodec {
-    return isVideoCodec(value) ? value : DEFAULT_VIDEO_CODEC;
+    return isVideoCodecChoice(value) ? value : DEFAULT_VIDEO_CODEC_CHOICE;
 }
 
-function readBlockedDecodeCodecs(): CallVideoCodec[] {
+function readBlockedDecodeCodecs(): VideoCodec[] {
     return (readAccountString("blockedDecodeCodecs") ?? "")
         .split(",")
         .map((c) => c.trim())
         .filter(isVideoCodec);
 }
 
-export function setBlockedDecodeCodecs(
-    codecs: readonly CallVideoCodec[],
-): void {
+export function setBlockedDecodeCodecs(codecs: readonly VideoCodec[]): void {
     settingsState.blockedDecodeCodecs = [...new Set(codecs)].filter(
         isVideoCodec,
     );
