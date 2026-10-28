@@ -153,6 +153,18 @@
         }
     }
 
+    async function setSkiaGraphite(enabled: boolean) {
+        const sg = report?.skiaGraphite;
+        if (!sg) return;
+        sg.enabled = enabled;
+        try {
+            await window.desktop?.gpu?.setSkiaGraphite(enabled);
+        } catch (e) {
+            sg.enabled = !enabled;
+            error = (e as Error)?.message ?? String(e);
+        }
+    }
+
     // Applies on the next launch (zam.sh); a flag rather than a comparison with
     // activeAtLaunch, which stays false on machines zam.sh finds no NVIDIA in.
     let nvidiaEncodeChanged = $state(false);
@@ -195,6 +207,12 @@
         !!report?.videoEncode &&
             report.hardwareAccelerationAtLaunch &&
             report.videoEncode.enabled !== report.videoEncode.activeAtLaunch,
+    );
+
+    const graphiteChanged = $derived(
+        !!report?.skiaGraphite &&
+            report.hardwareAccelerationAtLaunch &&
+            report.skiaGraphite.enabled !== report.skiaGraphite.activeAtLaunch,
     );
 
     const decodeLabel = (d: Decode) =>
@@ -265,6 +283,31 @@
             label={t("gpuDebug.hardwareAcceleration")}
         />
     </div>
+    {#if report?.skiaGraphite}
+        {@const sg = report.skiaGraphite}
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("gpuDebug.skiaGraphite")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("gpuDebug.skiaGraphiteHint")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {sg.activeAtLaunch
+                        ? t("gpuDebug.nvidiaVideoActive")
+                        : t("gpuDebug.nvidiaVideoInactive")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={sg.enabled}
+                onChange={setSkiaGraphite}
+                label={t("gpuDebug.skiaGraphite")}
+            />
+        </div>
+    {/if}
     {#if report?.videoEncode}
         {@const ve = report.videoEncode}
         <div
@@ -352,7 +395,7 @@
             />
         </div>
     {/if}
-    {#if report && (nvidiaChanged || report.hardwareAcceleration !== report.hardwareAccelerationAtLaunch || encodeChanged || nvidiaEncodeChanged)}
+    {#if report && (nvidiaChanged || report.hardwareAcceleration !== report.hardwareAccelerationAtLaunch || encodeChanged || graphiteChanged || nvidiaEncodeChanged)}
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >

@@ -405,6 +405,9 @@ const messages: Record<MessageKey, string> = {
     "gpuDebug.videoEncoding": "Videokodierung",
     "gpuDebug.videoEncodingHint":
         "Anrufe senden den unter Sprache und Video gewählten Codec (standardmäßig H.264). Das Anrufstatistik-Fenster zeigt, welchen Encoder ein Anruf verwendet.",
+    "gpuDebug.skiaGraphite": "Skia-Graphite-Renderer (experimentell)",
+    "gpuDebug.skiaGraphiteHint":
+        "Zeichnet die Oberfläche mit Chromiums neuerem Graphite-Renderer statt Ganesh. Zum Testen des Renderings aktivieren oder deaktivieren, wenn das Fenster flackert oder falsch gezeichnet wird. Erfordert Hardwarebeschleunigung. Wird nach einem Neustart wirksam.",
     "gpuDebug.nvidiaEncode": "NVIDIA-Videokodierung (experimentell)",
     "gpuDebug.nvidiaEncodeHint":
         "Kodiert H.264-Anrufe und Bildschirmfreigaben mit NVENC über Zams eigenen VA-API-Treiber. Die Videodekodierung bleibt wie oben eingestellt. Gilt nach einem Neustart.",

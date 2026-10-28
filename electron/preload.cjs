@@ -151,6 +151,8 @@ contextBridge.exposeInMainWorld("desktop", {
             ipcRenderer.invoke("gpu:set-nvidia-encode", !!enabled),
         setVideoEncode: (enabled) =>
             ipcRenderer.invoke("gpu:set-video-encode", !!enabled),
+        setSkiaGraphite: (enabled) =>
+            ipcRenderer.invoke("gpu:set-skia-graphite", !!enabled),
         setNvidiaVideo: (mode) =>
             ipcRenderer.invoke("gpu:set-nvidia-video", String(mode)),
         relaunch: () => ipcRenderer.send("app:relaunch"),

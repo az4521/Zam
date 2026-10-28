@@ -88,6 +88,13 @@ declare global {
                         /** Whether this run has the flag on. */
                         activeAtLaunch: boolean;
                     } | null;
+                    /** Skia Graphite renderer (SkiaGraphite feature). */
+                    skiaGraphite: {
+                        /** The saved choice (applies on the next launch). */
+                        enabled: boolean;
+                        /** Whether this run has the flag on. */
+                        activeAtLaunch: boolean;
+                    };
                     featureStatus: Record<string, string>;
                     /** app.getGPUInfo("complete"), or `{ error }`. */
                     info: unknown;
@@ -96,6 +103,7 @@ declare global {
                 }>;
                 setHardwareAcceleration: (enabled: boolean) => Promise<void>;
                 setVideoEncode: (enabled: boolean) => Promise<void>;
+                setSkiaGraphite: (enabled: boolean) => Promise<void>;
                 setNvidiaEncode: (enabled: boolean) => Promise<void>;
                 setNvidiaVideo: (
                     mode: "auto" | "vulkan" | "off",

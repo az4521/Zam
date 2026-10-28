@@ -693,6 +693,10 @@ ipcMain.handle("gpu:info", async () => {
                       activeAtLaunch: hardwareVideoEncode,
                   }
                 : null,
+        skiaGraphite: {
+            enabled: prefs.skiaGraphite === true,
+            activeAtLaunch: skiaGraphiteAtLaunch,
+        },
         featureStatus: app.getGPUFeatureStatus(),
         info,
         switches,
@@ -721,6 +725,10 @@ ipcMain.handle("gpu:set-nvidia-encode", (_e, enabled) => {
 
 ipcMain.handle("gpu:set-video-encode", (_e, enabled) => {
     writeGpuPrefs({ videoEncode: enabled ? undefined : false });
+});
+
+ipcMain.handle("gpu:set-skia-graphite", (_e, enabled) => {
+    writeGpuPrefs({ skiaGraphite: enabled ? true : undefined });
 });
 
 // "auto" | "vulkan" | "off" (see zam.sh). Choosing again forgets a fallback
@@ -1438,6 +1446,11 @@ if (nvidiaEncode) {
         app.commandLine.appendSwitch("disable-accelerated-video-decode");
     }
 }
+// Skia's Graphite backend (Dawn: D3D11/D3D12/Metal/Vulkan) instead of Ganesh,
+// for debugging rendering. Needs hardware acceleration; off by default.
+const skiaGraphiteAtLaunch =
+    hardwareAccelerationAtLaunch && readGpuPrefs().skiaGraphite === true;
+if (skiaGraphiteAtLaunch) features.push("SkiaGraphite");
 app.commandLine.appendSwitch(
     "enable-features",
     features.filter(Boolean).join(","),

@@ -398,6 +398,9 @@ const messages: Record<MessageKey, string> = {
     "gpuDebug.videoEncoding": "Codificación de vídeo",
     "gpuDebug.videoEncodingHint":
         "Las llamadas envían el códec elegido en Voz y vídeo (H.264 por defecto). El panel de estadísticas de la llamada muestra qué codificador usa.",
+    "gpuDebug.skiaGraphite": "Renderizador Skia Graphite (experimental)",
+    "gpuDebug.skiaGraphiteHint":
+        "Dibuja la interfaz con el renderizador Graphite de Chromium en lugar de Ganesh. Actívalo para probar el renderizado, o desactívalo si la ventana parpadea o se dibuja mal. Requiere aceleración por hardware. Se aplica tras reiniciar.",
     "gpuDebug.nvidiaEncode": "Codificación de vídeo NVIDIA (experimental)",
     "gpuDebug.nvidiaEncodeHint":
         "Codifica las llamadas y pantallas compartidas en H.264 con NVENC, mediante el controlador VA-API propio de Zam. La decodificación de vídeo sigue como está configurada arriba. Se aplica tras reiniciar.",
