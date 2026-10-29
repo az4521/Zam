@@ -94,6 +94,116 @@
         return (await supported("no-preference")) ? "software" : "unsupported";
     }
 
+    // isConfigSupported only asks whether an encoder could exist. This runs
+    // one: 60 frames of H.264 at the settings a call sends (baseline, constant
+    // bitrate), once per size, hardware then software. A GPU encoder that
+    // creates fine but then errors shows its message here, and the per-frame
+    // times tell hardware from OpenH264. Opt-in and not on Linux: WebCodecs
+    // there hands the GPU process dma-bufs that crash it on NVIDIA.
+    const canRunEncodeTest =
+        typeof VideoEncoder !== "undefined" &&
+        /Windows|Macintosh/.test(navigator.userAgent);
+    const ENCODE_TEST_SIZES: [number, number, number][] = [
+        [1280, 720, 2_500_000],
+        [640, 360, 800_000],
+        [320, 180, 200_000],
+    ];
+    let encodeTest = $state<[string, string][]>([]);
+    let encodeTesting = $state(false);
+
+    async function encodeRun(
+        width: number,
+        height: number,
+        bitrate: number,
+        hardwareAcceleration: HardwareAcceleration,
+    ): Promise<string> {
+        const config: VideoEncoderConfig = {
+            codec: "avc1.42001f",
+            width,
+            height,
+            bitrate,
+            bitrateMode: "constant",
+            framerate: 30,
+            hardwareAcceleration,
+            latencyMode: "realtime",
+        };
+        try {
+            const { supported } = await VideoEncoder.isConfigSupported(config);
+            if (!supported) return t("gpuDebug.encodeTestRejected");
+        } catch (e) {
+            return (e as Error)?.message ?? String(e);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        let failure = "";
+        let chunks = 0;
+        const encoder = new VideoEncoder({
+            output: () => chunks++,
+            error: (e) => (failure = e.message || String(e)),
+        });
+        const frames = 60;
+        try {
+            encoder.configure(config);
+            const started = performance.now();
+            for (let i = 0; i < frames && !failure; i++) {
+                ctx!.fillStyle = `hsl(${(i * 9) % 360},70%,45%)`;
+                ctx!.fillRect(0, 0, width, height);
+                ctx!.fillStyle = "#fff";
+                ctx!.fillRect(
+                    (i * 17) % (width - 80),
+                    (i * 11) % (height - 80),
+                    80,
+                    80,
+                );
+                const frame = new VideoFrame(canvas, { timestamp: i * 33_333 });
+                encoder.encode(frame, { keyFrame: i === 0 });
+                frame.close();
+                if (encoder.encodeQueueSize > 4) await encoder.flush();
+            }
+            if (!failure) await encoder.flush();
+            const ms = performance.now() - started;
+            if (failure) return failure;
+            return t("gpuDebug.encodeTestResult", {
+                chunks,
+                ms: (ms / frames).toFixed(1),
+            });
+        } catch (e) {
+            return failure || ((e as Error)?.message ?? String(e));
+        } finally {
+            try {
+                encoder.close();
+            } catch {
+                /* already closed by an error */
+            }
+        }
+    }
+
+    async function runEncodeTest() {
+        encodeTesting = true;
+        encodeTest = [];
+        try {
+            for (const [w, h, bitrate] of ENCODE_TEST_SIZES) {
+                for (const mode of [
+                    "prefer-hardware",
+                    "prefer-software",
+                ] as const) {
+                    const result = await encodeRun(w, h, bitrate, mode);
+                    encodeTest = [
+                        ...encodeTest,
+                        [
+                            `${w}x${h} ${mode === "prefer-hardware" ? t("gpuDebug.decodeHardware") : t("gpuDebug.decodeSoftware")}`,
+                            result,
+                        ],
+                    ];
+                }
+            }
+        } finally {
+            encodeTesting = false;
+        }
+    }
+
     async function load() {
         const gpu = window.desktop?.gpu;
         if (!gpu) return;
@@ -471,6 +581,32 @@
             <p class="mt-1 text-xs text-discord-textMuted">
                 {t("gpuDebug.videoEncodingHint")}
             </p>
+            {#if canRunEncodeTest}
+                <div class="mt-2 flex items-center gap-2">
+                    <button
+                        onclick={runEncodeTest}
+                        disabled={encodeTesting}
+                        class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
+                        >{t("gpuDebug.encodeTest")}</button
+                    >
+                    <span class="text-xs text-discord-textMuted"
+                        >{t("gpuDebug.encodeTestHint")}</span
+                    >
+                </div>
+                {#each encodeTest as [label, result]}
+                    <div
+                        class="flex items-start gap-3 text-sm py-1 border-b border-discord-divider"
+                    >
+                        <span class="text-discord-textMuted flex-shrink-0 w-44"
+                            >{label}</span
+                        >
+                        <span
+                            class="font-mono text-xs text-discord-textPrimary break-all"
+                            >{result}</span
+                        >
+                    </div>
+                {/each}
+            {/if}
         {/if}
 
         <p
