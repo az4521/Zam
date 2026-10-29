@@ -2343,6 +2343,8 @@ let platformBlocked: VideoCodec[] = [];
 
 /** Codecs left out of what we decode: the user's list plus the platform's. */
 function blockedCodecs(): VideoCodec[] {
+    // Debug override: offer and accept every codec the browser lists.
+    if (settingsState.ignoreCodecSupport) return [];
     return [
         ...new Set([...settingsState.blockedDecodeCodecs, ...platformBlocked]),
     ];
@@ -2459,6 +2461,8 @@ async function checkDecodeHealth(call: ActiveVoiceCall): Promise<void> {
     // the same as a decoder that doesn't work. Don't blame the codec there;
     // the announced decode list and the Settings picker still apply.
     if (call.e2ee !== null) return;
+    // Debug override: let a codec that doesn't decode fail visibly.
+    if (settingsState.ignoreCodecSupport) return;
     const pcm = (
         call.lkRoom.engine as
             | {
@@ -2522,6 +2526,10 @@ function announceCodecs(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
 /** What each participant we publish to decodes; null for those who didn't
  *  say. */
 function peerDecode(call: ActiveVoiceCall): (VideoCodec[] | null)[] {
+    // Debug override: treat every peer as not having said, so the picked
+    // codec is sent even to someone who reports they can't decode it.
+    if (settingsState.ignoreCodecSupport)
+        return [...call.lkRoom.remoteParticipants.values()].map(() => null);
     return [...call.lkRoom.remoteParticipants.values()].map((p) =>
         parseDecodeAttribute(p.attributes[DECODE_ATTRIBUTE]),
     );

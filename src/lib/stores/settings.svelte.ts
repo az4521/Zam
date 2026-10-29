@@ -424,6 +424,7 @@ export const settingsState = $state({
     /** Mirror the local camera self-view (horizontal flip). Local display
      *  only — remote participants always see you un-mirrored. */
     mirrorCamera: readAccountBool("mirrorCamera", true),
+    ignoreCodecSupport: readAccountBool("ignoreCodecSupport", false),
     /** Push to talk on/off. It only takes effect while a key is bound. */
     pushToTalk: readAccountBool("pushToTalk", true),
     /** Include system/tab audio when screen sharing. */
@@ -742,6 +743,10 @@ export function reloadAccountSettings(): void {
         false,
     );
     settingsState.mirrorCamera = readAccountBool("mirrorCamera", true);
+    settingsState.ignoreCodecSupport = readAccountBool(
+        "ignoreCodecSupport",
+        false,
+    );
     settingsState.pushToTalk = readAccountBool("pushToTalk", true);
     settingsState.shareSystemAudio = readAccountBool("shareSystemAudio", true);
     settingsState.screenShareResolution =
@@ -1106,6 +1111,11 @@ export function setMicGainMode(value: MicGainMode): void {
 export function setNormalizeCallAudio(value: boolean): void {
     settingsState.normalizeCallAudio = value;
     writeAccountBool("normalizeCallAudio", value);
+}
+
+export function setIgnoreCodecSupport(value: boolean): void {
+    settingsState.ignoreCodecSupport = value;
+    writeAccountBool("ignoreCodecSupport", value);
 }
 
 export function setMirrorCamera(value: boolean): void {

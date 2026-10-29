@@ -399,6 +399,19 @@
             <div
                 class="relative flex-1 min-h-0 rounded-lg overflow-hidden cursor-zoom-out"
                 onclick={clearFocus}
+                oncontextmenu={(e) => {
+                    e.preventDefault();
+                    openParticipantMenu(
+                        focusedTile.userId,
+                        e.clientX,
+                        e.clientY,
+                        false,
+                    );
+                }}
+                use:longPress={{
+                    onTrigger: (x, y) =>
+                        openParticipantMenu(focusedTile.userId, x, y, true),
+                }}
                 title={t("callView.backToGrid")}
             >
                 <VideoTile
@@ -434,6 +447,19 @@
                             ? 'border-discord-accent'
                             : 'border-transparent'}"
                         onclick={() => focusTile(tile.key)}
+                        oncontextmenu={(e) => {
+                            e.preventDefault();
+                            openParticipantMenu(
+                                tile.userId,
+                                e.clientX,
+                                e.clientY,
+                                false,
+                            );
+                        }}
+                        use:longPress={{
+                            onTrigger: (x, y) =>
+                                openParticipantMenu(tile.userId, x, y, true),
+                        }}
                         title={tileLabel(tile.identity, tile.source)}
                     >
                         <VideoTile
@@ -567,6 +593,19 @@
                             ? 'border-discord-accent'
                             : 'border-transparent'}"
                         onclick={() => focusTile(tile.key)}
+                        oncontextmenu={(e) => {
+                            e.preventDefault();
+                            openParticipantMenu(
+                                tile.userId,
+                                e.clientX,
+                                e.clientY,
+                                false,
+                            );
+                        }}
+                        use:longPress={{
+                            onTrigger: (x, y) =>
+                                openParticipantMenu(tile.userId, x, y, true),
+                        }}
                     >
                         <VideoTile
                             {tile}
