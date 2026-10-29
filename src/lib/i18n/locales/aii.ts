@@ -385,6 +385,11 @@ const messages: Record<MessageKey, string> = {
     "gpuDebug.videoEncoding": "Video encoding",
     "gpuDebug.videoEncodingHint":
         "Calls send the codec chosen in Voice & Video (H.264 by default). The call stats panel shows which encoder a call is using.",
+    "gpuDebug.encodeTest": "Run H.264 encode test",
+    "gpuDebug.encodeTestHint":
+        "Encodes 60 frames per size the way a call does. Hardware should be much faster per frame than software.",
+    "gpuDebug.encodeTestRejected": "Rejected by the encoder",
+    "gpuDebug.encodeTestResult": "{chunks} chunks, {ms} ms per frame",
     "gpuDebug.skiaGraphite": "Skia Graphite renderer (experimental)",
     "gpuDebug.skiaGraphiteHint":
         "Draws the interface with Chromium's newer Graphite renderer instead of Ganesh. Turn this on to test rendering, or off if the window flickers or draws wrongly. Needs hardware acceleration. Applies after a restart.",
@@ -508,6 +513,9 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.showAllEvents": "ܚܘܝ ܟܠ ܓܕܫ̈ܐ",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "ܚܘܝ ܟܠ ܓܕܫܐ ܕ Matrix ܓܘ ܣܕܪܐ ܕܡܡܠܠܐ.",
+    "debugSettings.ignoreCodecSupport": "Ignore reported codec support",
+    "debugSettings.ignoreCodecSupportHint":
+        "Send the picked codec even if others say they can't decode it, and accept every codec this device lists (including ones blocked as broken). For testing, e.g. HEVC on Linux.",
     "debugSettings.voiceProcessing": "Voice processing",
     "debugSettings.pauseGate": "Pause gate",
     "debugSettings.pauseGateHint":
@@ -1173,6 +1181,9 @@ const messages: Record<MessageKey, string> = {
         "Strip EXIF, GPS location, camera details and other hidden metadata from photos and videos you send. The picture is unchanged, and the rotation is kept so photos still show upright.",
     "messagesMediaSettings.stripMetadataWarning":
         "Warning: with this off, files you send can leak your personal information, including the location where they were taken.",
+    "messagesMediaSettings.randomizeFileNames": "Randomize file names",
+    "messagesMediaSettings.randomizeFileNamesDescription":
+        "Upload files under a random name made of letters and numbers instead of their real name. The file extension is kept, including ones like .tar.gz.",
     "messagesMediaSettings.sendGifsAsAnimatedWebp":
         "Send GIFs as animated WebP",
     "messagesMediaSettings.reencodeGifsYouSend":
@@ -2303,13 +2314,18 @@ const messages: Record<MessageKey, string> = {
         "ܩܠܐ ܕܩܪܝܬܐ ܕܐܬܝܐ - ܐܢ ܗܕܐ ܙܝܥܐ ܐܝܢܐ ܠܐ ܫܡܥܐ ܝܘܬ ܡܕܡ، ܒܨܝ ܡܐܢܐ ܕܡܦܩܢܐ ܓܒܝܐ ܘܪܡܘܬܐ ܕܩܠܐ ܕܣܝܣܛܡ.",
     "voiceAudioSettings.voiceProcessing": "ܣܘܥܪܢܐ ܕܩܠܐ",
     "voiceAudioSettings.noiseSuppression": "ܒܨܘܪܐ ܕܩܠ̈ܐ ܕܒܣܬܪ",
+    "voiceAudioSettings.nsRnnoise": "RNNoise",
+    "voiceAudioSettings.nsRnnoiseHint":
+        "Runs on your device and ships with the app, so there is nothing to download. Small and steady: it keeps your voice at an even level. The default.",
+    "voiceAudioSettings.nsRnnoiseUnsupported":
+        "This browser can't run RNNoise, so your browser's own noise suppression is used instead.",
     "voiceAudioSettings.nsDeepFilter": "DeepFilterNet3",
     "voiceAudioSettings.nsPluginHint":
         "ܒܨܘܪܐ ܕܩܠ̈ܐ ܕܒܣܬܪ ܡܢ ܬܘܣܦܬܐ ܥܠ ܡܐܢܐ ܕܝܘܟ.",
     "voiceAudioSettings.nsPluginUnavailable":
-        "ܬܘܣܦܬܐ ܗܕܐ ܠܐ ܝܠܗ̇ ܕܠܝܩܬܐ، ܒܕܘܟܬܗ ܡܬܦܠܚ DeepFilterNet3.",
+        "ܬܘܣܦܬܐ ܗܕܐ ܠܐ ܝܠܗ̇ ܕܠܝܩܬܐ، ܒܕܘܟܬܗ ܡܬܦܠܚ RNNoise.",
     "voiceAudioSettings.nsPluginCantRun":
-        "ܡܐܢܐ ܗܢܐ ܠܐ ܡܨܐ ܕܡܪܗܛ ܬܘܣܦܬܐ ܗܕܐ، ܒܕܘܟܬܗ ܡܬܦܠܚ DeepFilterNet3.",
+        "ܡܐܢܐ ܗܢܐ ܠܐ ܡܨܐ ܕܡܪܗܛ ܬܘܣܦܬܐ ܗܕܐ، ܒܕܘܟܬܗ ܡܬܦܠܚ RNNoise.",
     "voiceAudioSettings.nsPluginUnsupported":
         "ܡܦܬܫܢܐ ܗܢܐ ܠܐ ܡܨܐ ܕܡܪܗܛ ܬܘܣܦ̈ܬܐ ܕܒܨܘܪܐ ܕܩܠ̈ܐ، ܘܒܨܘܪܐ ܕܩܠ̈ܐ ܕܡܦܬܫܢܐ ܡܬܦܠܚ ܒܕܘܟܬܗ.",
     "voiceAudioSettings.nsPluginMissing": "ܬܘܣܦܬܐ (ܠܐ ܕܠܝܩܬܐ)",

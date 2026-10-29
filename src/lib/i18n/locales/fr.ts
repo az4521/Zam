@@ -398,6 +398,11 @@ const messages: Record<MessageKey, string> = {
     "gpuDebug.videoEncoding": "Encodage vidéo",
     "gpuDebug.videoEncodingHint":
         "Les appels envoient le codec choisi dans Voix et vidéo (H.264 par défaut). Le panneau des statistiques d'appel indique quel encodeur un appel utilise.",
+    "gpuDebug.encodeTest": "Lancer le test d'encodage H.264",
+    "gpuDebug.encodeTestHint":
+        "Encode 60 images par taille comme le fait un appel. Le matériel devrait être bien plus rapide par image que le logiciel.",
+    "gpuDebug.encodeTestRejected": "Refusé par l'encodeur",
+    "gpuDebug.encodeTestResult": "{chunks} blocs, {ms} ms par image",
     "gpuDebug.skiaGraphite": "Moteur de rendu Skia Graphite (expérimental)",
     "gpuDebug.skiaGraphiteHint":
         "Dessine l'interface avec le moteur Graphite de Chromium au lieu de Ganesh. À activer pour tester le rendu, ou à désactiver si la fenêtre scintille ou s'affiche mal. Nécessite l'accélération matérielle. S'applique après un redémarrage.",
@@ -525,6 +530,9 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.showAllEvents": "Afficher tous les événements",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Afficher chaque événement Matrix du fil dans la discussion.",
+    "debugSettings.ignoreCodecSupport": "Ignore reported codec support",
+    "debugSettings.ignoreCodecSupportHint":
+        "Send the picked codec even if others say they can't decode it, and accept every codec this device lists (including ones blocked as broken). For testing, e.g. HEVC on Linux.",
     "debugSettings.voiceProcessing": "Voice processing",
     "debugSettings.pauseGate": "Pause gate",
     "debugSettings.pauseGateHint":
@@ -1244,6 +1252,9 @@ const messages: Record<MessageKey, string> = {
         "Supprime l'EXIF, la position GPS, les détails de l'appareil et les autres métadonnées cachées des photos et vidéos que vous envoyez. L'image reste inchangée et la rotation est conservée pour que les photos s'affichent à l'endroit.",
     "messagesMediaSettings.stripMetadataWarning":
         "Avertissement : si cette option est désactivée, les fichiers que vous envoyez peuvent divulguer vos informations personnelles, y compris le lieu où ils ont été pris.",
+    "messagesMediaSettings.randomizeFileNames": "Randomize file names",
+    "messagesMediaSettings.randomizeFileNamesDescription":
+        "Upload files under a random name made of letters and numbers instead of their real name. The file extension is kept, including ones like .tar.gz.",
     "messagesMediaSettings.sendGifsAsAnimatedWebp":
         "Envoyer les GIF en WebP animé",
     "messagesMediaSettings.reencodeGifsYouSend":
@@ -2460,13 +2471,18 @@ const messages: Record<MessageKey, string> = {
         "Audio des appels entrants - si cela bouge mais que vous n'entendez rien, vérifiez le périphérique de sortie choisi et le volume du système.",
     "voiceAudioSettings.voiceProcessing": "Traitement de la voix",
     "voiceAudioSettings.noiseSuppression": "Suppression du bruit",
+    "voiceAudioSettings.nsRnnoise": "RNNoise",
+    "voiceAudioSettings.nsRnnoiseHint":
+        "Fonctionne sur votre appareil et est inclus dans l'application, il n'y a donc rien à télécharger. Petit et stable : il garde votre voix à un niveau régulier. C'est le choix par défaut.",
+    "voiceAudioSettings.nsRnnoiseUnsupported":
+        "Ce navigateur ne peut pas exécuter RNNoise, la suppression de bruit du navigateur est donc utilisée à la place.",
     "voiceAudioSettings.nsDeepFilter": "DeepFilterNet3",
     "voiceAudioSettings.nsPluginHint":
-        "Suppression du bruit fournie par un plugin, exécutée sur votre appareil. DeepFilterNet3 est utilisé là où elle ne peut pas fonctionner.",
+        "Suppression du bruit fournie par un plugin, exécutée sur votre appareil. RNNoise est utilisé là où elle ne peut pas fonctionner.",
     "voiceAudioSettings.nsPluginUnavailable":
-        "Le plugin de ce filtre n'est pas activé : DeepFilterNet3 est utilisé à la place.",
+        "Le plugin de ce filtre n'est pas activé : RNNoise est utilisé à la place.",
     "voiceAudioSettings.nsPluginCantRun":
-        "Ce filtre ne peut pas fonctionner sur cet appareil : DeepFilterNet3 est utilisé à la place.",
+        "Ce filtre ne peut pas fonctionner sur cet appareil : RNNoise est utilisé à la place.",
     "voiceAudioSettings.nsPluginUnsupported":
         "Ce navigateur ne peut pas exécuter les filtres de bruit des plugins : la suppression du bruit du navigateur est utilisée à la place.",
     "voiceAudioSettings.nsPluginMissing": "Filtre de plugin (non activé)",

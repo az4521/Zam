@@ -1,8 +1,12 @@
 /**
  * Zam's processing for the user's own microphone, used by the call (as a
  * LiveKit audio processor, $lib/audio/micProcessor) and by the settings mic
- * test, so what you hear in the test is what the call sends. With
- * DeepFilterNet3:
+ * test, so what you hear in the test is what the call sends. With RNNoise,
+ * the default:
+ *
+ *   input -> [RNNoise] -> [AGC2] -> soft clipper -> output
+ *
+ * With DeepFilterNet3:
  *
  *   input -> [drive -> DeepFilterNet3 -> undo drive -> pause gate]
  *         -> [AGC2] -> soft clipper -> output
@@ -31,8 +35,9 @@
  *
  * The models load asynchronously: until one is ready, and if all fail, audio
  * passes through unfiltered. A plugin filter that isn't loaded, can't
- * start on this device, or stops coping mid-stream is swapped for
- * DeepFilterNet3 in place.
+ * start on this device, or stops coping mid-stream is swapped for RNNoise
+ * in place. RNNoise needs neither the drive nor the pause gate: it holds a
+ * voice at one level, and silences pauses itself.
  */
 import {
     rmsDb,
@@ -45,6 +50,7 @@ import { rememberLevel, rememberedLevel } from "./normalizerMemory";
 import { createAgc2Node } from "./agc2";
 import { createSoftClipper } from "./softClip";
 import { createDeepFilterNode } from "./deepFilter";
+import { createRnnoiseNode } from "./rnnoise";
 import {
     findMicFilter,
     micFilterUsable,
@@ -62,9 +68,9 @@ import {
 
 const DRIVE_TICK_MS = 50;
 
-/** Which noise model the chain runs: DeepFilterNet3, or a plugin's filter
- *  (falling back to DeepFilterNet3 wherever it can't run). */
-export type DenoiseEngine = "deepfilter" | PluginFilterKey;
+/** Which noise model the chain runs: RNNoise, DeepFilterNet3, or a plugin's
+ *  filter (falling back to RNNoise wherever it can't run). */
+export type DenoiseEngine = "rnnoise" | "deepfilter" | PluginFilterKey;
 
 /** What evens out the user's voice: WebRTC's AGC2, or the same speaker
  *  normalization incoming voices get (null: nothing). */
@@ -161,6 +167,7 @@ export function createMicChain(
     }
 
     let dfNode: AudioWorkletNode | null = null;
+    let rnnNode: AudioWorkletNode | null = null;
     let gateNode: AudioWorkletNode | null = null;
     let plug: MicFilterInstance | null = null;
     let engine: DenoiseEngine | null = null;
@@ -265,16 +272,40 @@ export function createMicChain(
             },
         );
 
+    const spliceRnnoise = (): Promise<DenoiseEngine | null> =>
+        createRnnoiseNode(ctx).then(
+            (node) => {
+                if (destroyed) {
+                    node.disconnect();
+                    return null;
+                }
+                // input -> RNNoise -> gain. Anything else in the path
+                // (DeepFilterNet3's drive and gate, a plugin's filter) is
+                // replaced.
+                const old = rnnNode;
+                rnnNode = node;
+                input.disconnect();
+                input.connect(node);
+                node.connect(gain);
+                old?.disconnect();
+                dropPlugin();
+                engine = "rnnoise";
+                return engine;
+            },
+            (err) => {
+                console.warn("RNNoise unavailable:", err);
+                return null;
+            },
+        );
+
     const splicePlugin = (
         key: PluginFilterKey,
     ): Promise<DenoiseEngine | null> => {
         const filter = findMicFilter(key);
         if (!filter || !micFilterUsable(filter)) {
             if (!filter)
-                console.info(
-                    `Noise filter ${key} isn't loaded: DeepFilterNet3`,
-                );
-            return spliceDeepFilter();
+                console.info(`Noise filter ${key} isn't loaded: RNNoise`);
+            return spliceRnnoise();
         }
         return Promise.all([
             filter.create(ctx, { attenuationDb: opts.attenuationDb }),
@@ -308,25 +339,27 @@ export function createMicChain(
                 // carries on until it is in.
                 inst.onFailure = (reason) => {
                     console.warn(
-                        `Noise filter ${key} failed (${reason}): DeepFilterNet3`,
+                        `Noise filter ${key} failed (${reason}): RNNoise`,
                     );
-                    if (!destroyed && plug === inst) void spliceDeepFilter();
+                    if (!destroyed && plug === inst) void spliceRnnoise();
                 };
                 return engine;
             },
             (err) => {
                 console.info(`Noise filter ${key} can't run here:`, err);
-                return destroyed ? null : spliceDeepFilter();
+                return destroyed ? null : spliceRnnoise();
             },
         );
     };
 
     const denoiseReady: Promise<DenoiseEngine | null> =
-        opts.denoise === "deepfilter"
-            ? spliceDeepFilter()
-            : opts.denoise
-              ? splicePlugin(opts.denoise)
-              : Promise.resolve(null);
+        opts.denoise === "rnnoise"
+            ? spliceRnnoise()
+            : opts.denoise === "deepfilter"
+              ? spliceDeepFilter()
+              : opts.denoise
+                ? splicePlugin(opts.denoise)
+                : Promise.resolve(null);
 
     return {
         input,
@@ -344,6 +377,7 @@ export function createMicChain(
             input.disconnect();
             drive.disconnect();
             dfNode?.disconnect();
+            rnnNode?.disconnect();
             undrive.disconnect();
             gateRef.disconnect();
             gateNode?.disconnect();
