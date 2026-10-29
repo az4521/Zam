@@ -16,8 +16,8 @@ describe("normalizeNoiseSuppressionMode", () => {
             "deepfilter",
         );
     });
-    it("migrates the legacy boolean: on becomes RNNoise", () => {
-        expect(normalizeNoiseSuppressionMode(null, true)).toBe("rnnoise");
+    it("migrates the legacy boolean: on becomes FastEnhancer", () => {
+        expect(normalizeNoiseSuppressionMode(null, true)).toBe("fastenhancer");
         expect(normalizeNoiseSuppressionMode(null, false)).toBe("off");
         expect(normalizeNoiseSuppressionMode("deepfilter", false)).toBe(
             "deepfilter",
@@ -132,11 +132,15 @@ describe("mic tuning", () => {
 
 describe("plugin filter keys", () => {
     it("rejects malformed plugin keys", () => {
-        expect(normalizeNoiseSuppressionMode("plugin:", true)).toBe("rnnoise");
+        expect(normalizeNoiseSuppressionMode("plugin:", true)).toBe(
+            "fastenhancer",
+        );
         expect(normalizeNoiseSuppressionMode("plugin:a/b/c", true)).toBe(
-            "rnnoise",
+            "fastenhancer",
         );
         expect(normalizeNoiseSuppressionMode("plugin:../x", false)).toBe("off");
-        expect(normalizeNoiseSuppressionMode("dpdfnet", true)).toBe("rnnoise");
+        expect(normalizeNoiseSuppressionMode("dpdfnet", true)).toBe(
+            "fastenhancer",
+        );
     });
 });

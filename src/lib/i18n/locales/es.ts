@@ -2508,6 +2508,11 @@ const messages: Record<MessageKey, string> = {
         "Audio entrante de la llamada: si esto se mueve pero no oyes nada, comprueba el dispositivo de salida seleccionado y el volumen del sistema.",
     "voiceAudioSettings.voiceProcessing": "Procesamiento de voz",
     "voiceAudioSettings.noiseSuppression": "Supresión de ruido",
+    "voiceAudioSettings.nsFastEnhancer": "FastEnhancer",
+    "voiceAudioSettings.nsFastEnhancerHint":
+        "Se ejecuta en tu dispositivo y viene incluido en la app, así que no hay nada que descargar. Pequeño y estable: mantiene tu voz a un volumen uniforme. Es el predeterminado.",
+    "voiceAudioSettings.nsFastEnhancerUnsupported":
+        "Este navegador no puede ejecutar FastEnhancer, así que se usa RNNoise.",
     "voiceAudioSettings.nsRnnoise": "RNNoise",
     "voiceAudioSettings.nsRnnoiseHint":
         "Se ejecuta en tu dispositivo y viene incluido en la app, así que no hay nada que descargar. Pequeño y estable: mantiene tu voz a un volumen uniforme. Es el predeterminado.",
@@ -2515,11 +2520,11 @@ const messages: Record<MessageKey, string> = {
         "Este navegador no puede ejecutar RNNoise, así que se usa la supresión de ruido del propio navegador.",
     "voiceAudioSettings.nsDeepFilter": "DeepFilterNet3",
     "voiceAudioSettings.nsPluginHint":
-        "Eliminación de ruido de un plugin, ejecutada en tu dispositivo. Donde no pueda ejecutarse se usa RNNoise.",
+        "Eliminación de ruido de un plugin, ejecutada en tu dispositivo. Donde no pueda ejecutarse se usa FastEnhancer.",
     "voiceAudioSettings.nsPluginUnavailable":
-        "El plugin de este filtro de ruido no está activado, así que se usa RNNoise.",
+        "El plugin de este filtro de ruido no está activado, así que se usa FastEnhancer.",
     "voiceAudioSettings.nsPluginCantRun":
-        "Este filtro de ruido no puede ejecutarse en este dispositivo, así que se usa RNNoise.",
+        "Este filtro de ruido no puede ejecutarse en este dispositivo, así que se usa FastEnhancer.",
     "voiceAudioSettings.nsPluginUnsupported":
         "Este navegador no puede ejecutar plugins de filtro de ruido, así que se usa la supresión de ruido del propio navegador.",
     "voiceAudioSettings.nsPluginMissing": "Filtro de plugin (no activado)",

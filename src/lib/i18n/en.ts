@@ -2410,18 +2410,23 @@ export const en = {
         "Incoming call audio - if this moves but you hear nothing, check the selected output device and system volume.",
     "voiceAudioSettings.voiceProcessing": "Voice processing",
     "voiceAudioSettings.noiseSuppression": "Noise suppression",
+    "voiceAudioSettings.nsFastEnhancer": "FastEnhancer",
+    "voiceAudioSettings.nsFastEnhancerHint":
+        "Runs on your device and ships with the app, so there is nothing to download. Small and steady: it keeps your voice at an even level. The default.",
+    "voiceAudioSettings.nsFastEnhancerUnsupported":
+        "This browser can't run FastEnhancer, so RNNoise is used instead.",
     "voiceAudioSettings.nsRnnoise": "RNNoise",
     "voiceAudioSettings.nsRnnoiseHint":
-        "Runs on your device and ships with the app, so there is nothing to download. Small and steady: it keeps your voice at an even level. The default.",
+        "Runs on your device and ships with the app, so there is nothing to download. Small and steady: it keeps your voice at an even level.",
     "voiceAudioSettings.nsRnnoiseUnsupported":
         "This browser can't run RNNoise, so your browser's own noise suppression is used instead.",
     "voiceAudioSettings.nsDeepFilter": "DeepFilterNet3",
     "voiceAudioSettings.nsPluginHint":
-        "Noise removal from a plugin, running on your device. RNNoise is used instead wherever it can't run.",
+        "Noise removal from a plugin, running on your device. FastEnhancer is used instead wherever it can't run.",
     "voiceAudioSettings.nsPluginUnavailable":
-        "The plugin for this noise filter isn't enabled, so RNNoise is used instead.",
+        "The plugin for this noise filter isn't enabled, so FastEnhancer is used instead.",
     "voiceAudioSettings.nsPluginCantRun":
-        "This noise filter can't run on this device, so RNNoise is used instead.",
+        "This noise filter can't run on this device, so FastEnhancer is used instead.",
     "voiceAudioSettings.nsPluginUnsupported":
         "This browser can't run noise filter plugins, so your browser's own noise suppression is used instead.",
     "voiceAudioSettings.nsPluginMissing": "Plugin filter (not enabled)",

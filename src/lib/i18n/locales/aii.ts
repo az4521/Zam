@@ -2314,18 +2314,23 @@ const messages: Record<MessageKey, string> = {
         "ܩܠܐ ܕܩܪܝܬܐ ܕܐܬܝܐ - ܐܢ ܗܕܐ ܙܝܥܐ ܐܝܢܐ ܠܐ ܫܡܥܐ ܝܘܬ ܡܕܡ، ܒܨܝ ܡܐܢܐ ܕܡܦܩܢܐ ܓܒܝܐ ܘܪܡܘܬܐ ܕܩܠܐ ܕܣܝܣܛܡ.",
     "voiceAudioSettings.voiceProcessing": "ܣܘܥܪܢܐ ܕܩܠܐ",
     "voiceAudioSettings.noiseSuppression": "ܒܨܘܪܐ ܕܩܠ̈ܐ ܕܒܣܬܪ",
+    "voiceAudioSettings.nsFastEnhancer": "FastEnhancer",
+    "voiceAudioSettings.nsFastEnhancerHint":
+        "Runs on your device and ships with the app, so there is nothing to download. Small and steady: it keeps your voice at an even level. The default.",
+    "voiceAudioSettings.nsFastEnhancerUnsupported":
+        "This browser can't run FastEnhancer, so RNNoise is used instead.",
     "voiceAudioSettings.nsRnnoise": "RNNoise",
     "voiceAudioSettings.nsRnnoiseHint":
-        "Runs on your device and ships with the app, so there is nothing to download. Small and steady: it keeps your voice at an even level. The default.",
+        "Runs on your device and ships with the app, so there is nothing to download. Small and steady: it keeps your voice at an even level.",
     "voiceAudioSettings.nsRnnoiseUnsupported":
         "This browser can't run RNNoise, so your browser's own noise suppression is used instead.",
     "voiceAudioSettings.nsDeepFilter": "DeepFilterNet3",
     "voiceAudioSettings.nsPluginHint":
         "ܒܨܘܪܐ ܕܩܠ̈ܐ ܕܒܣܬܪ ܡܢ ܬܘܣܦܬܐ ܥܠ ܡܐܢܐ ܕܝܘܟ.",
     "voiceAudioSettings.nsPluginUnavailable":
-        "ܬܘܣܦܬܐ ܗܕܐ ܠܐ ܝܠܗ̇ ܕܠܝܩܬܐ، ܒܕܘܟܬܗ ܡܬܦܠܚ RNNoise.",
+        "ܬܘܣܦܬܐ ܗܕܐ ܠܐ ܝܠܗ̇ ܕܠܝܩܬܐ، ܒܕܘܟܬܗ ܡܬܦܠܚ FastEnhancer.",
     "voiceAudioSettings.nsPluginCantRun":
-        "ܡܐܢܐ ܗܢܐ ܠܐ ܡܨܐ ܕܡܪܗܛ ܬܘܣܦܬܐ ܗܕܐ، ܒܕܘܟܬܗ ܡܬܦܠܚ RNNoise.",
+        "ܡܐܢܐ ܗܢܐ ܠܐ ܡܨܐ ܕܡܪܗܛ ܬܘܣܦܬܐ ܗܕܐ، ܒܕܘܟܬܗ ܡܬܦܠܚ FastEnhancer.",
     "voiceAudioSettings.nsPluginUnsupported":
         "ܡܦܬܫܢܐ ܗܢܐ ܠܐ ܡܨܐ ܕܡܪܗܛ ܬܘܣܦ̈ܬܐ ܕܒܨܘܪܐ ܕܩܠ̈ܐ، ܘܒܨܘܪܐ ܕܩܠ̈ܐ ܕܡܦܬܫܢܐ ܡܬܦܠܚ ܒܕܘܟܬܗ.",
     "voiceAudioSettings.nsPluginMissing": "ܬܘܣܦܬܐ (ܠܐ ܕܠܝܩܬܐ)",

@@ -2494,6 +2494,11 @@ const messages: Record<MessageKey, string> = {
         "Audio eingehender Anrufe - wenn sich das bewegt, du aber nichts hörst, prüfe das gewählte Ausgabegerät und die Systemlautstärke.",
     "voiceAudioSettings.voiceProcessing": "Sprachverarbeitung",
     "voiceAudioSettings.noiseSuppression": "Rauschunterdrückung",
+    "voiceAudioSettings.nsFastEnhancer": "FastEnhancer",
+    "voiceAudioSettings.nsFastEnhancerHint":
+        "Läuft auf deinem Gerät und ist in der App enthalten, es gibt also nichts herunterzuladen. Klein und stabil: Es hält deine Stimme auf gleichmäßiger Lautstärke. Die Standardeinstellung.",
+    "voiceAudioSettings.nsFastEnhancerUnsupported":
+        "Dieser Browser kann FastEnhancer nicht ausführen, daher wird stattdessen RNNoise verwendet.",
     "voiceAudioSettings.nsRnnoise": "RNNoise",
     "voiceAudioSettings.nsRnnoiseHint":
         "Läuft auf deinem Gerät und ist in der App enthalten, es gibt also nichts herunterzuladen. Klein und stabil: Es hält deine Stimme auf gleichmäßiger Lautstärke. Die Standardeinstellung.",
@@ -2501,11 +2506,11 @@ const messages: Record<MessageKey, string> = {
         "Dieser Browser kann RNNoise nicht ausführen, daher wird stattdessen die Rauschunterdrückung deines Browsers verwendet.",
     "voiceAudioSettings.nsDeepFilter": "DeepFilterNet3",
     "voiceAudioSettings.nsPluginHint":
-        "Rauschunterdrückung aus einem Plugin, direkt auf deinem Gerät. Wo sie nicht läuft, wird RNNoise verwendet.",
+        "Rauschunterdrückung aus einem Plugin, direkt auf deinem Gerät. Wo sie nicht läuft, wird FastEnhancer verwendet.",
     "voiceAudioSettings.nsPluginUnavailable":
-        "Das Plugin für diesen Filter ist nicht aktiviert, daher wird RNNoise verwendet.",
+        "Das Plugin für diesen Filter ist nicht aktiviert, daher wird FastEnhancer verwendet.",
     "voiceAudioSettings.nsPluginCantRun":
-        "Dieser Filter läuft auf diesem Gerät nicht, daher wird RNNoise verwendet.",
+        "Dieser Filter läuft auf diesem Gerät nicht, daher wird FastEnhancer verwendet.",
     "voiceAudioSettings.nsPluginUnsupported":
         "Dieser Browser kann keine Rauschfilter aus Plugins ausführen, daher wird die Rauschunterdrückung des Browsers verwendet.",
     "voiceAudioSettings.nsPluginMissing": "Plugin-Filter (nicht aktiviert)",

@@ -51,6 +51,7 @@
     import { planMicProcessing } from "$lib/utils/micProcessing";
     import { deepFilterSupported } from "$lib/audio/deepFilter";
     import { rnnoiseSupported } from "$lib/audio/rnnoise";
+    import { fastEnhancerSupported } from "$lib/audio/fastenhancer";
     import {
         findMicFilter,
         isPluginFilterKey,
@@ -176,6 +177,7 @@
 
     const dfSupported = deepFilterSupported();
     const rnnSupported = rnnoiseSupported();
+    const feSupported = fastEnhancerSupported();
     // Noise filters plugins have registered (zam.audio.registerMicFilter).
     const pluginFilters = $derived(
         (void pluginRegistry.tick, listMicFilters()),
@@ -618,19 +620,26 @@
                                 ? t("voiceAudioSettings.nsPluginCantRun")
                                 : (nsFilter.description ??
                                   t("voiceAudioSettings.nsPluginHint"))
-                        : settingsState.noiseSuppressionMode === "rnnoise"
-                          ? rnnSupported
-                              ? t("voiceAudioSettings.nsRnnoiseHint")
-                              : t("voiceAudioSettings.nsRnnoiseUnsupported")
-                          : settingsState.noiseSuppressionMode === "deepfilter"
-                            ? dfSupported
-                                ? t("voiceAudioSettings.nsDeepFilterHint")
-                                : t(
-                                      "voiceAudioSettings.nsDeepFilterUnsupported",
-                                  )
-                            : settingsState.noiseSuppressionMode === "browser"
-                              ? t("voiceAudioSettings.nsBrowserHint")
-                              : t("voiceAudioSettings.nsOffHint")}
+                        : settingsState.noiseSuppressionMode === "fastenhancer"
+                          ? feSupported
+                              ? t("voiceAudioSettings.nsFastEnhancerHint")
+                              : t(
+                                    "voiceAudioSettings.nsFastEnhancerUnsupported",
+                                )
+                          : settingsState.noiseSuppressionMode === "rnnoise"
+                            ? rnnSupported
+                                ? t("voiceAudioSettings.nsRnnoiseHint")
+                                : t("voiceAudioSettings.nsRnnoiseUnsupported")
+                            : settingsState.noiseSuppressionMode ===
+                                "deepfilter"
+                              ? dfSupported
+                                  ? t("voiceAudioSettings.nsDeepFilterHint")
+                                  : t(
+                                        "voiceAudioSettings.nsDeepFilterUnsupported",
+                                    )
+                              : settingsState.noiseSuppressionMode === "browser"
+                                ? t("voiceAudioSettings.nsBrowserHint")
+                                : t("voiceAudioSettings.nsOffHint")}
                 </p>
             </div>
             <select
@@ -647,6 +656,9 @@
                     void applyConstraints();
                 }}
             >
+                <option value="fastenhancer"
+                    >{t("voiceAudioSettings.nsFastEnhancer")}</option
+                >
                 <option value="rnnoise"
                     >{t("voiceAudioSettings.nsRnnoise")}</option
                 >

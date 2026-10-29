@@ -56,3 +56,4 @@ Thumbs.db
 .claude/
 .pi-subagents
 .omp/
+scripts/fastenhancer/target/

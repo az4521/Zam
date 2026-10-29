@@ -58,7 +58,10 @@ export function planMicProcessing(
 ): MicProcessingPlan {
     const ns = effectiveNoiseSuppression(noise, neuralSupported);
     const denoise: DenoiseEngine | null =
-        ns === "rnnoise" || ns === "deepfilter" || isPluginFilterKey(ns)
+        ns === "fastenhancer" ||
+        ns === "rnnoise" ||
+        ns === "deepfilter" ||
+        isPluginFilterKey(ns)
             ? ns
             : null;
     const level: MicLevelStage =

@@ -387,6 +387,7 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
             "filter",
             "deepfilternet",
             "rnnoise",
+            "fastenhancer",
             "denoise",
             "background noise",
         ],

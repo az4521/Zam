@@ -1,10 +1,11 @@
 /**
  * Get the mic's noise model ready ahead of a call, so the mic is filtered
- * from its first sample: a plugin's filter where it runs, else RNNoise (or
- * DeepFilterNet3 where it was asked for).
+ * from its first sample: a plugin's filter where it runs, else FastEnhancer
+ * (RNNoise or DeepFilterNet3 where they were asked for).
  */
 import { prepareDeepFilter } from "./deepFilter";
 import { prepareRnnoise } from "./rnnoise";
+import { prepareFastEnhancer } from "./fastenhancer";
 import { micFilterUsable, waitForMicFilter } from "./micFilters";
 import type { DenoiseEngine } from "./micChain";
 
@@ -17,6 +18,8 @@ export async function prepareDenoiser(
     engine: DenoiseEngine,
     timeoutMs: number,
 ): Promise<boolean> {
+    if (engine === "fastenhancer")
+        return (await prepareFastEnhancer()) || prepareRnnoise();
     if (engine === "rnnoise") return prepareRnnoise();
     if (engine !== "deepfilter") {
         const filter = await waitForMicFilter(engine, PLUGIN_LOAD_WAIT_MS);
@@ -26,18 +29,18 @@ export async function prepareDenoiser(
                 .prepare(timeoutMs)
                 .catch((): "failed" => "failed");
             // Still getting ready: the chain tries it again and falls back
-            // to RNNoise itself if it must.
+            // to FastEnhancer itself if it must.
             if (r !== "failed") return r === "ready";
         }
-        return prepareRnnoise();
+        return (await prepareFastEnhancer()) || prepareRnnoise();
     }
     return prepareDeepFilter(timeoutMs);
 }
 
 /** Background download of whatever the chosen mode will need. */
 export async function prefetchDenoiser(engine: DenoiseEngine): Promise<void> {
-    if (engine === "rnnoise") {
-        await prepareRnnoise();
+    if (engine === "fastenhancer" || engine === "rnnoise") {
+        await (engine === "rnnoise" ? prepareRnnoise() : prepareFastEnhancer());
         return;
     }
     const { prefetchDeepFilter } = await import("./deepFilter");
@@ -52,7 +55,7 @@ export async function prefetchDenoiser(engine: DenoiseEngine): Promise<void> {
                 );
             return;
         }
-        await prepareRnnoise();
+        await prepareFastEnhancer();
         return;
     }
     await prefetchDeepFilter();

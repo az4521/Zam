@@ -2471,6 +2471,11 @@ const messages: Record<MessageKey, string> = {
         "Audio des appels entrants - si cela bouge mais que vous n'entendez rien, vérifiez le périphérique de sortie choisi et le volume du système.",
     "voiceAudioSettings.voiceProcessing": "Traitement de la voix",
     "voiceAudioSettings.noiseSuppression": "Suppression du bruit",
+    "voiceAudioSettings.nsFastEnhancer": "FastEnhancer",
+    "voiceAudioSettings.nsFastEnhancerHint":
+        "Fonctionne sur votre appareil et est inclus dans l'application, il n'y a donc rien à télécharger. Petit et stable : il garde votre voix à un niveau régulier. C'est le choix par défaut.",
+    "voiceAudioSettings.nsFastEnhancerUnsupported":
+        "Ce navigateur ne peut pas exécuter FastEnhancer, RNNoise est donc utilisé à la place.",
     "voiceAudioSettings.nsRnnoise": "RNNoise",
     "voiceAudioSettings.nsRnnoiseHint":
         "Fonctionne sur votre appareil et est inclus dans l'application, il n'y a donc rien à télécharger. Petit et stable : il garde votre voix à un niveau régulier. C'est le choix par défaut.",
@@ -2478,11 +2483,11 @@ const messages: Record<MessageKey, string> = {
         "Ce navigateur ne peut pas exécuter RNNoise, la suppression de bruit du navigateur est donc utilisée à la place.",
     "voiceAudioSettings.nsDeepFilter": "DeepFilterNet3",
     "voiceAudioSettings.nsPluginHint":
-        "Suppression du bruit fournie par un plugin, exécutée sur votre appareil. RNNoise est utilisé là où elle ne peut pas fonctionner.",
+        "Suppression du bruit fournie par un plugin, exécutée sur votre appareil. FastEnhancer est utilisé là où elle ne peut pas fonctionner.",
     "voiceAudioSettings.nsPluginUnavailable":
-        "Le plugin de ce filtre n'est pas activé : RNNoise est utilisé à la place.",
+        "Le plugin de ce filtre n'est pas activé : FastEnhancer est utilisé à la place.",
     "voiceAudioSettings.nsPluginCantRun":
-        "Ce filtre ne peut pas fonctionner sur cet appareil : RNNoise est utilisé à la place.",
+        "Ce filtre ne peut pas fonctionner sur cet appareil : FastEnhancer est utilisé à la place.",
     "voiceAudioSettings.nsPluginUnsupported":
         "Ce navigateur ne peut pas exécuter les filtres de bruit des plugins : la suppression du bruit du navigateur est utilisée à la place.",
     "voiceAudioSettings.nsPluginMissing": "Filtre de plugin (non activé)",
