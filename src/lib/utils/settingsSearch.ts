@@ -198,6 +198,12 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     },
     {
         tab: "messages-media",
+        label: t("settingsSearch.removeLocationAndMetadata"),
+        keywords: ["exif", "gps", "location", "privacy", "strip", "upload"],
+        anchor: "cust-messages",
+    },
+    {
+        tab: "messages-media",
         label: t("settingsSearch.sendGifsAsAnimatedWebp"),
         keywords: ["gif", "webp", "animated", "convert", "upload", "optimize"],
         anchor: "cust-messages",

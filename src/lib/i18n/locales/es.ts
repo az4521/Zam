@@ -1271,6 +1271,12 @@ const messages: Record<MessageKey, string> = {
         "Enviar fotos que aparecen antes",
     "messagesMediaSettings.rewriteJpegPhotosYouSend":
         "Reorganiza las fotos JPEG que envías para que se vea la imagen completa enseguida y se vaya definiendo mientras se descarga. No se vuelve a codificar nada y la imagen no cambia. Desactívalo para enviar los archivos tal cual.",
+    "messagesMediaSettings.removeLocationAndMetadata":
+        "Quitar la ubicación y otros metadatos de los archivos subidos",
+    "messagesMediaSettings.stripMetadataDescription":
+        "Elimina EXIF, ubicación GPS, datos de la cámara y otros metadatos ocultos de las fotos y vídeos que envías. La imagen no cambia y se conserva la rotación para que las fotos se vean derechas.",
+    "messagesMediaSettings.stripMetadataWarning":
+        "Advertencia: si esto está desactivado, los archivos que envíes pueden revelar tu información personal, incluida la ubicación donde se tomaron.",
     "messagesMediaSettings.sendGifsAsAnimatedWebp":
         "Enviar GIF como WebP animado",
     "messagesMediaSettings.reencodeGifsYouSend":
@@ -3593,6 +3599,8 @@ const messages: Record<MessageKey, string> = {
         "Enviar vídeos que se reproducen antes",
     "settingsSearch.sendPhotosThatAppearSooner":
         "Enviar fotos que aparecen antes",
+    "settingsSearch.removeLocationAndMetadata":
+        "Quitar la ubicación y otros metadatos de los archivos subidos",
     "settingsSearch.sendGifsAsAnimatedWebp": "Enviar GIF como WebP animado",
     "settingsSearch.midiSoundBank": "Banco de sonidos MIDI",
     "settingsSearch.holdToOpenMessageMenu":

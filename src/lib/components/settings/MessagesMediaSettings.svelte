@@ -10,6 +10,7 @@
         setPauseVideoOnScrollOff,
         setFaststartVideos,
         setProgressiveJpegs,
+        setStripMetadata,
         setGifsAsWebp,
         setGifDefaultTab,
         setMidiSoundBank,
@@ -274,6 +275,24 @@
                 checked={settingsState.progressiveJpegs}
                 onChange={setProgressiveJpegs}
                 label={t("messagesMediaSettings.sendPhotosThatAppearSooner")}
+            />
+        </div>
+        <div class="flex items-center gap-3 py-2">
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("messagesMediaSettings.removeLocationAndMetadata")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("messagesMediaSettings.stripMetadataDescription")}
+                </p>
+                <p class="mt-1 text-xs font-semibold text-discord-danger">
+                    {t("messagesMediaSettings.stripMetadataWarning")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.stripMetadata}
+                onChange={setStripMetadata}
+                label={t("messagesMediaSettings.removeLocationAndMetadata")}
             />
         </div>
         <div class="flex items-center gap-3 py-2">

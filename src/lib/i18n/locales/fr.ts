@@ -1238,6 +1238,12 @@ const messages: Record<MessageKey, string> = {
         "Envoyer des photos qui s'affichent plus vite",
     "messagesMediaSettings.rewriteJpegPhotosYouSend":
         "Réorganise les photos JPEG que vous envoyez pour qu'on voie tout de suite l'image entière, qui devient plus nette pendant le téléchargement. Rien n'est ré-encodé et l'image reste identique. Désactivez cette option pour envoyer les fichiers tels quels.",
+    "messagesMediaSettings.removeLocationAndMetadata":
+        "Supprimer la position et les autres métadonnées des envois",
+    "messagesMediaSettings.stripMetadataDescription":
+        "Supprime l'EXIF, la position GPS, les détails de l'appareil et les autres métadonnées cachées des photos et vidéos que vous envoyez. L'image reste inchangée et la rotation est conservée pour que les photos s'affichent à l'endroit.",
+    "messagesMediaSettings.stripMetadataWarning":
+        "Avertissement : si cette option est désactivée, les fichiers que vous envoyez peuvent divulguer vos informations personnelles, y compris le lieu où ils ont été pris.",
     "messagesMediaSettings.sendGifsAsAnimatedWebp":
         "Envoyer les GIF en WebP animé",
     "messagesMediaSettings.reencodeGifsYouSend":
@@ -3558,6 +3564,8 @@ const messages: Record<MessageKey, string> = {
         "Envoyer des vidéos qui démarrent plus vite",
     "settingsSearch.sendPhotosThatAppearSooner":
         "Envoyer des photos qui s'affichent plus vite",
+    "settingsSearch.removeLocationAndMetadata":
+        "Supprimer la position et les autres métadonnées des envois",
     "settingsSearch.sendGifsAsAnimatedWebp": "Envoyer les GIF en WebP animé",
     "settingsSearch.midiSoundBank": "Banque de sons MIDI",
     "settingsSearch.holdToOpenMessageMenu":

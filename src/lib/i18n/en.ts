@@ -1228,6 +1228,12 @@ export const en = {
         "Send photos that appear sooner",
     "messagesMediaSettings.rewriteJpegPhotosYouSend":
         "Rewrite JPEG photos you send so people see the whole picture straight away and it sharpens as it downloads. Nothing is re-encoded and the picture is unchanged. Turn this off to send files exactly as they are.",
+    "messagesMediaSettings.removeLocationAndMetadata":
+        "Remove location and other metadata from uploads",
+    "messagesMediaSettings.stripMetadataDescription":
+        "Strip EXIF, GPS location, camera details and other hidden metadata from photos and videos you send. The picture is unchanged, and the rotation is kept so photos still show upright.",
+    "messagesMediaSettings.stripMetadataWarning":
+        "Warning: with this off, files you send can leak your personal information, including the location where they were taken.",
     "messagesMediaSettings.sendGifsAsAnimatedWebp":
         "Send GIFs as animated WebP",
     "messagesMediaSettings.reencodeGifsYouSend":
@@ -3451,6 +3457,8 @@ export const en = {
         "Send videos that stream faster",
     "settingsSearch.sendPhotosThatAppearSooner":
         "Send photos that appear sooner",
+    "settingsSearch.removeLocationAndMetadata":
+        "Remove location and other metadata from uploads",
     "settingsSearch.sendGifsAsAnimatedWebp": "Send GIFs as animated WebP",
     "settingsSearch.midiSoundBank": "MIDI sound bank",
     "settingsSearch.holdToOpenMessageMenu": "Hold to open message menu",

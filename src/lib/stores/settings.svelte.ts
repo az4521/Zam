@@ -275,6 +275,11 @@ export const settingsState = $state({
      *  pixels and metadata. Default ON; turn off to upload files byte-for-byte
      *  as picked. Local-only. */
     progressiveJpegs: readBool("progressiveJpegs", true),
+    /** Device-global: strip location and other identifying metadata (Exif GPS,
+     *  XMP, IPTC, video location atoms; see utils/stripMetadata) from files
+     *  before upload, keeping only the Exif orientation. Default ON; turning
+     *  it off can leak where a photo or video was taken. Local-only. */
+    stripMetadata: readBool("stripMetadata", true),
     /** Device-global: before sending an animated GIF, re-encode it as an
      *  animated WebP (lossless, see utils/gifToWebp) so it is smaller and
      *  receivers can watch it as it downloads. Only used when the result is
@@ -863,6 +868,11 @@ export function setFaststartVideos(value: boolean): void {
 export function setProgressiveJpegs(value: boolean): void {
     settingsState.progressiveJpegs = value;
     writeBool("progressiveJpegs", value);
+}
+
+export function setStripMetadata(value: boolean): void {
+    settingsState.stripMetadata = value;
+    writeBool("stripMetadata", value);
 }
 
 export function setGifsAsWebp(value: boolean): void {

@@ -7,6 +7,7 @@ import { threadRelationParams } from "./client";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { faststartMp4 } from "$lib/utils/mp4Faststart";
 import { progressiveJpegForUpload } from "$lib/utils/progressiveJpegUpload";
+import { stripLocationMetadata } from "$lib/utils/stripMetadata";
 import { gifToAnimatedWebp } from "$lib/utils/gifToWebp";
 import { createImageThumbnail } from "$lib/utils/imageThumbnail";
 import { isRoomEncrypted, isRoomEncryptedForSend } from "$lib/matrix/crypto";
@@ -256,14 +257,20 @@ export async function sendFile(
     // progressive so receivers see the whole picture early. Neither changes
     // the picture, and the original is sent if anything about the file is
     // unexpected (see utils/mp4Faststart, utils/jpegProgressive).
+    // Location and other identifying metadata comes off first, whatever the
+    // file type (utils/stripMetadata); the steps below then work on the clean
+    // copy.
+    const source = settingsState.stripMetadata
+        ? await stripLocationMetadata(file)
+        : file;
     const toUpload =
         isVideo && settingsState.faststartVideos
-            ? await faststartMp4(file)
+            ? await faststartMp4(source)
             : file.type === "image/jpeg" && settingsState.progressiveJpegs
-              ? await progressiveJpegForUpload(file)
+              ? await progressiveJpegForUpload(source)
               : file.type === "image/gif" && settingsState.gifsAsWebp
-                ? await gifToAnimatedWebp(file)
-                : file;
+                ? await gifToAnimatedWebp(source)
+                : source;
 
     // Upload the main file, encrypting it if the room is encrypted.
     const uploadResult = await uploadAttachment(owner, roomId, toUpload, {
@@ -591,8 +598,12 @@ export async function fetchRoomMediaPage(
 }
 export async function uploadContent(file: File): Promise<string> {
     if (!matrixClient) throw new Error(t("media.notLoggedIn"));
-    const { content_uri } = await matrixClient.uploadContent(file, {
-        name: file.name,
+    // Avatars, banners and emote images are photos too.
+    const upload = settingsState.stripMetadata
+        ? await stripLocationMetadata(file)
+        : file;
+    const { content_uri } = await matrixClient.uploadContent(upload, {
+        name: upload.name,
     });
     return content_uri;
 }
