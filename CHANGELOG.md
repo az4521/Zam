@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.37.4
+
+🐛 **Fixed**
+
+- **Video downloads no longer fail on big files:** saving a video could end in "Failed to download video" when the browser couldn't re-read the video it had just fetched. The download now goes ahead without that step.
+
+✨ **New**
+
+- **HEVC encoding in the GPU debug list (desktop):** Settings > Debug > GPU now probes HEVC and HEVC 10-bit encoding alongside H.264, VP8, VP9 and AV1.
+
 ## v1.37.3
 
 🐛 **Fixed**
