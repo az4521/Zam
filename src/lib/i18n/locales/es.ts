@@ -3103,6 +3103,14 @@ const messages: Record<MessageKey, string> = {
     "voiceCall.watch": "Ver",
     "voiceCall.voiceConnected": "Voz conectada",
     "voiceCall.reconnecting": "Reconectando…",
+    "voiceCall.gpuGivenUp":
+        "Los gráficos siguieron fallando, así que la GPU está desactivada hasta que reinicies Zam y el vídeo se codifica por software.",
+    "voiceCall.gpuRecovered":
+        "Los gráficos se reiniciaron, así que la llamada se volvió a conectar para seguir codificando el vídeo en la GPU.",
+    "voiceCall.gpuRecoveryFailed":
+        "Los gráficos fallaron otra vez justo después de recuperarse, así que el vídeo se codifica por software. Recarga para volver a usar la GPU.",
+    "voiceCall.restartZam": "Reiniciar Zam",
+    "voiceCall.reload": "Recargar",
     "voiceCall.youWereBannedFromThisRoom":
         "Te han vetado en esta sala; la llamada ha terminado",
     "voiceCall.youLeftThisRoomCallEnded":

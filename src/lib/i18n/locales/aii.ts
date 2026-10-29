@@ -2871,6 +2871,14 @@ const messages: Record<MessageKey, string> = {
     "voiceCall.watch": "ܚܙܝ",
     "voiceCall.voiceConnected": "ܩܠܐ ܐܚܝܕܐ ܝܠܗ",
     "voiceCall.reconnecting": "ܒܐܚܕܐ ܡܢ ܕܪܝܫ…",
+    "voiceCall.gpuGivenUp":
+        "ܓܪܐܦܝܩܣ ܐܬܬܒܪ ܙܒܢܐ ܣܓܝܐܐ، ܘ GPU ܫܒܝܩܐ ܥܕܡܐ ܕ Zam ܡܫܪܐ ܡܢ ܕܪܝܫ، ܘܚܙܝܐ ܒܝܕ ܪܟܝܟܘܬܐ ܡܬܩܘܕ.",
+    "voiceCall.gpuRecovered":
+        "ܓܪܐܦܝܩܣ ܐܬܚܕܬ، ܘܩܪܝܬܐ ܐܬܚܒܪܬ ܡܢ ܕܪܝܫ ܕܢܩܘܕ ܒܝܕ GPU.",
+    "voiceCall.gpuRecoveryFailed":
+        "ܓܪܐܦܝܩܣ ܐܬܬܒܪ ܬܘܒ ܒܬܪ ܚܘܠܡܢܐ، ܘܗܫܐ ܒܝܕ ܪܟܝܟܘܬܐ ܡܬܩܘܕ. ܛܥܢ ܬܘܒ ܕܬܗܦܟ ܠ GPU.",
+    "voiceCall.restartZam": "ܫܪܝ Zam ܡܢ ܕܪܝܫ",
+    "voiceCall.reload": "ܛܥܢ ܬܘܒ",
     "voiceCall.youWereBannedFromThisRoom":
         "ܐܣܝܪܐ ܝܘܬ ܡܢ ܗܢܐ ܓܘܡܐ - ܩܪܝܬܐ ܫܠܡܠܗ̇",
     "voiceCall.youLeftThisRoomCallEnded": "ܫܒܩܠܘܟ ܗܢܐ ܓܘܡܐ - ܩܪܝܬܐ ܫܠܡܠܗ̇",

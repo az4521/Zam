@@ -2987,6 +2987,14 @@ export const en = {
     "voiceCall.watch": "Watch",
     "voiceCall.voiceConnected": "Voice connected",
     "voiceCall.reconnecting": "Reconnecting…",
+    "voiceCall.gpuGivenUp":
+        "Graphics kept crashing, so the GPU is off until Zam restarts and video is encoded in software.",
+    "voiceCall.gpuRecovered":
+        "Graphics restarted, so the call reconnected to keep video encoding on the GPU.",
+    "voiceCall.gpuRecoveryFailed":
+        "Graphics crashed again right after recovering, so video is now encoded in software. Reload to get the GPU back.",
+    "voiceCall.restartZam": "Restart Zam",
+    "voiceCall.reload": "Reload",
     "voiceCall.youWereBannedFromThisRoom":
         "You were banned from this room - call ended",
     "voiceCall.youLeftThisRoomCallEnded": "You left this room - call ended",

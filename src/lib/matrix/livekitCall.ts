@@ -14,6 +14,18 @@ import type * as LivekitClient from "livekit-client";
 import { matrixClient } from "./runtime";
 import { getDirectRoomIds, getRoomCallMemberships } from "./client";
 import {
+    ensureFreshWebrtcRealm,
+    gpuExitAction,
+    markWebrtcRealmStale,
+    onWebrtcRealm,
+    webrtcWindow,
+} from "./webrtcRealm";
+import {
+    dismissToast,
+    showToast,
+    type ToastAction,
+} from "$lib/stores/toasts.svelte";
+import {
     callEndedMembershipMessage,
     pickLivekitTransport,
     pickOwnLivekitTransport,
@@ -549,6 +561,90 @@ function notifyVoiceNotice(message: string): void {
     for (const cb of voiceNoticeSubscribers) cb(message);
 }
 
+// --- GPU-process exits ------------------------------------------------------
+
+/** The last recovery from a GPU exit in a call; `doneAt` is null while its
+ *  reconnect runs. */
+let gpuRecovery: { call: ActiveVoiceCall; doneAt: number | null } | null = null;
+/** The sticky GPU notice on screen, replaced by the next one. */
+let gpuNoticeId: number | null = null;
+/** Chromium gave up on the GPU, which lasts for the rest of the run. */
+let gpuGivenUp = false;
+
+function showGpuNotice(message: string, action: ToastAction): void {
+    if (gpuNoticeId !== null) dismissToast(gpuNoticeId);
+    gpuNoticeId = showToast(message, { action, sticky: true });
+}
+
+/** How the GPU stands after its process exited: off by the user's choice,
+ *  given up on by Chromium for the rest of this run (it falls back to
+ *  software after repeated GPU crashes, and only a restart undoes that), or
+ *  still in use. */
+async function gpuStateAfterExit(): Promise<"off" | "given-up" | "on"> {
+    try {
+        const info = await window.desktop?.gpu?.info();
+        if (!info) return "on";
+        if (!info.hardwareAccelerationAtLaunch) return "off";
+        const compositing = info.featureStatus?.gpu_compositing ?? "";
+        return compositing.startsWith("disabled") ? "given-up" : "on";
+    } catch {
+        return "on";
+    }
+}
+
+/** Chromium's GPU process exited. Every video encoder and decoder of this
+ *  window's peer connections is in software from now on (webrtcRealm.ts), so
+ *  a call reconnects with peer connections from a fresh window. When that
+ *  doesn't hold (another exit straight away), stop and offer a reload; when
+ *  Chromium has given up on the GPU, only a restart helps. */
+async function onGpuProcessGone(): Promise<void> {
+    markWebrtcRealmStale();
+    const call = activeVoice;
+    if (!call) return;
+    const last = gpuRecovery?.call === call ? gpuRecovery : null;
+    const action = gpuExitAction(last, Date.now());
+    const gpu = await gpuStateAfterExit();
+    if (activeVoice !== call || gpu === "off" || gpuGivenUp) return;
+    if (gpu === "given-up") {
+        gpuGivenUp = true;
+        gpuRecovery = null;
+        showGpuNotice(t("voiceCall.gpuGivenUp"), {
+            label: t("voiceCall.restartZam"),
+            run: () => window.desktop?.gpu?.relaunch(),
+        });
+        return;
+    }
+    if (action === "give-up") {
+        // Another exit soon after this one gives up again, not reconnects.
+        gpuRecovery = { call, doneAt: Date.now() };
+        showGpuNotice(t("voiceCall.gpuRecoveryFailed"), {
+            label: t("voiceCall.reload"),
+            run: () => location.reload(),
+        });
+        return;
+    }
+    if (!ensureFreshWebrtcRealm()) return;
+    const recovery: { call: ActiveVoiceCall; doneAt: number | null } = {
+        call,
+        doneAt: null,
+    };
+    gpuRecovery = recovery;
+    call.lkRoom.once(call.lk.RoomEvent.Reconnected, () => {
+        if (activeVoice !== call || gpuRecovery !== recovery) return;
+        recovery.doneAt = Date.now();
+        if (gpuNoticeId !== null) dismissToast(gpuNoticeId);
+        gpuNoticeId = null;
+        showToast(t("voiceCall.gpuRecovered"), { tone: "accent" });
+    });
+    for (const lkRoom of callLkRooms(call))
+        void lkRoom.simulateScenario("full-reconnect").catch((err) => {
+            console.error("Call reconnect after a GPU exit failed:", err);
+        });
+}
+
+if (typeof window !== "undefined")
+    window.desktop?.gpu?.onProcessGone?.(() => void onGpuProcessGone());
+
 let voicePlaybackBlocked = false;
 const voicePlaybackBlockedSubscribers = new Set<(blocked: boolean) => void>();
 
@@ -979,6 +1075,9 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     const lk = await livekitLoad;
     await denoiseLoad;
     if (seq !== voiceJoinSeq) return; // superseded while loading livekit
+    // A GPU-process exit since the last call left this window's WebRTC in
+    // software; this call's peer connections come from a fresh window.
+    ensureFreshWebrtcRealm();
     const localCodecs = await localVideoCodecs(lk);
     platformBlocked = await platformUndecodable();
     if (seq !== voiceJoinSeq) return;
@@ -2123,7 +2222,8 @@ const WEBRTC_MIME: Record<VideoCodec, string> = {
 
 function rtpCodecMimes(kind: "send" | "receive"): string[] {
     try {
-        const api = kind === "send" ? RTCRtpSender : RTCRtpReceiver;
+        const win = webrtcWindow();
+        const api = kind === "send" ? win.RTCRtpSender : win.RTCRtpReceiver;
         return (
             api.getCapabilities?.("video")?.codecs.map((c) => c.mimeType) ?? []
         );
@@ -2147,16 +2247,19 @@ async function localVideoCodecs(lk: LivekitModule): Promise<LocalVideoCodecs> {
     const hardware = await Promise.all(
         send.map(async (codec) => {
             try {
-                const info = await navigator.mediaCapabilities.encodingInfo({
-                    type: "webrtc",
-                    video: {
-                        contentType: WEBRTC_MIME[codec],
-                        width: 1920,
-                        height: 1080,
-                        bitrate: 4_000_000,
-                        framerate: 30,
-                    },
-                });
+                const info =
+                    await webrtcWindow().navigator.mediaCapabilities.encodingInfo(
+                        {
+                            type: "webrtc",
+                            video: {
+                                contentType: WEBRTC_MIME[codec],
+                                width: 1920,
+                                height: 1080,
+                                bitrate: 4_000_000,
+                                framerate: 30,
+                            },
+                        },
+                    );
                 return info.powerEfficient ? codec : null;
             } catch {
                 return null;
@@ -2171,16 +2274,19 @@ async function localVideoCodecs(lk: LivekitModule): Promise<LocalVideoCodecs> {
         listed.map(async (codec) => {
             if (isMandatoryCodec(codec)) return codec;
             try {
-                const info = await navigator.mediaCapabilities.decodingInfo({
-                    type: "webrtc",
-                    video: {
-                        contentType: WEBRTC_MIME[codec],
-                        width: 1920,
-                        height: 1080,
-                        bitrate: 4_000_000,
-                        framerate: 30,
-                    },
-                });
+                const info =
+                    await webrtcWindow().navigator.mediaCapabilities.decodingInfo(
+                        {
+                            type: "webrtc",
+                            video: {
+                                contentType: WEBRTC_MIME[codec],
+                                width: 1920,
+                                height: 1080,
+                                bitrate: 4_000_000,
+                                framerate: 30,
+                            },
+                        },
+                    );
                 return info.supported ? codec : null;
             } catch {
                 return codec; // can't tell: believe the capability list
@@ -2303,8 +2409,13 @@ function installDecodePreferences(): void {
     )
         return;
     decodePreferencesInstalled = true;
-    const original = RTCPeerConnection.prototype.setRemoteDescription;
-    RTCPeerConnection.prototype.setRemoteDescription = async function (
+    // On the RTCPeerConnection of every window calls use (webrtcRealm).
+    onWebrtcRealm(patchDecodePreferences);
+}
+
+function patchDecodePreferences(pc: typeof RTCPeerConnection): void {
+    const original = pc.prototype.setRemoteDescription;
+    pc.prototype.setRemoteDescription = async function (
         this: RTCPeerConnection,
         ...args: Parameters<RTCPeerConnection["setRemoteDescription"]>
     ) {
@@ -2312,7 +2423,10 @@ function installDecodePreferences(): void {
         const blocked = blockedCodecs();
         if (blocked.length > 0 && args[0]?.type === "offer") {
             try {
-                const codecs = RTCRtpReceiver.getCapabilities("video")?.codecs;
+                const codecs =
+                    webrtcWindow().RTCRtpReceiver.getCapabilities(
+                        "video",
+                    )?.codecs;
                 const kept = codecs?.filter(
                     (c) => !isBlockedMime(c.mimeType, blocked),
                 );

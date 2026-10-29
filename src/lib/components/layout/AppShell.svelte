@@ -146,6 +146,7 @@
     import { APP_VERSION } from "$lib/update";
     import { isDesktopTray, setMinimizeToTray } from "$lib/desktopTray";
     import { installDesktopSaveImage } from "$lib/desktopContextMenu";
+    import { watchVideoPlayback } from "$lib/utils/videoPlaybackWatch";
     import { initUpdateWatch } from "$lib/stores/updateBanner.svelte";
     import UpdateBanner from "$lib/components/layout/UpdateBanner.svelte";
     import UpdateToastWatch from "$lib/components/layout/UpdateToastWatch.svelte";
@@ -1551,6 +1552,12 @@
 
     // Electron right-click "Save image as" (fetches with auth; see module).
     onMount(installDesktopSaveImage);
+
+    // Tell the main process when video plays (it weighs GPU crashes by it).
+    onMount(() => {
+        const report = window.desktop?.gpu?.setVideoPlaying;
+        return report ? watchVideoPlayback(report) : undefined;
+    });
 
     // A sign-in just landed on this device: walk through encryption setup.
     // The dialog stays hidden (and closes itself) when nothing is needed.

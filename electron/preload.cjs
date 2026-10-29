@@ -156,6 +156,16 @@ contextBridge.exposeInMainWorld("desktop", {
         setNvidiaVideo: (mode) =>
             ipcRenderer.invoke("gpu:set-nvidia-video", String(mode)),
         relaunch: () => ipcRenderer.send("app:relaunch"),
+        // Whether a <video> is playing (src/lib/utils/videoPlaybackWatch.ts).
+        setVideoPlaying: (playing) =>
+            ipcRenderer.send("gpu:video-playing", !!playing),
+        // Chromium's GPU process exited (crash or restart); see
+        // src/lib/matrix/webrtcRealm.ts for why calls care.
+        onProcessGone: (cb) => {
+            const h = (_e, reason) => cb(String(reason));
+            ipcRenderer.on("gpu:process-gone", h);
+            return () => ipcRenderer.removeListener("gpu:process-gone", h);
+        },
     },
     // Voice keybinds while Zam isn't focused (globalHotkeys.cjs): the page
     // names the keys / mouse buttons it binds, main forwards only those (or

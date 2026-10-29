@@ -112,6 +112,10 @@ declare global {
                     mode: "auto" | "vulkan" | "off",
                 ) => Promise<void>;
                 relaunch: () => void;
+                /** Whether a <video> on the page is playing. */
+                setVideoPlaying?: (playing: boolean) => void;
+                /** Chromium's GPU process exited; `reason` is Electron's. */
+                onProcessGone?: (cb: (reason: string) => void) => () => void;
             };
             /** System-wide input idleness, for presence auto-away. */
             idle?: {

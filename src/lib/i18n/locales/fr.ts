@@ -3069,6 +3069,14 @@ const messages: Record<MessageKey, string> = {
     "voiceCall.watch": "Regarder",
     "voiceCall.voiceConnected": "Vocal connecté",
     "voiceCall.reconnecting": "Reconnexion…",
+    "voiceCall.gpuGivenUp":
+        "Les graphismes ont planté à répétition, le GPU est donc désactivé jusqu’au redémarrage de Zam et la vidéo est encodée en logiciel.",
+    "voiceCall.gpuRecovered":
+        "Les graphismes ont redémarré, l’appel s’est donc reconnecté pour continuer à encoder la vidéo sur le GPU.",
+    "voiceCall.gpuRecoveryFailed":
+        "Les graphismes ont de nouveau planté juste après la récupération, la vidéo est donc encodée en logiciel. Rechargez pour retrouver le GPU.",
+    "voiceCall.restartZam": "Redémarrer Zam",
+    "voiceCall.reload": "Recharger",
     "voiceCall.youWereBannedFromThisRoom":
         "Vous avez été banni de ce salon - appel terminé",
     "voiceCall.youLeftThisRoomCallEnded":

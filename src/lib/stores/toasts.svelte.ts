@@ -30,17 +30,20 @@ class ToastsState {
 
 export const toastsState = new ToastsState();
 
-/** Show a toast with an explicit tone (and optional action). */
+/** Show a toast with an explicit tone (and optional action). A `sticky` one
+ *  stays until dismissed, for an action the user shouldn't miss. Returns its
+ *  id, for dismissToast. */
 export function showToast(
     message: string,
-    opts?: { action?: ToastAction; tone?: ToastTone },
-): void {
+    opts?: { action?: ToastAction; tone?: ToastTone; sticky?: boolean },
+): number {
     const id = nextId++;
     toastsState.toasts = [
         ...toastsState.toasts,
         { id, message, action: opts?.action, tone: opts?.tone ?? "danger" },
     ];
-    setTimeout(() => dismissToast(id), TOAST_TTL_MS);
+    if (!opts?.sticky) setTimeout(() => dismissToast(id), TOAST_TTL_MS);
+    return id;
 }
 
 /** Show a red error toast — the app's generic failure surface. */

@@ -779,15 +779,37 @@ async function detectNvidiaVideo() {
     app.quit();
 }
 
+// Whether a <video> is playing (src/lib/utils/videoPlaybackWatch.ts), and
+// when the last one stopped.
+let videoPlaying = false;
+let videoStoppedAt = 0;
+ipcMain.on("gpu:video-playing", (_e, playing) => {
+    if (videoPlaying && !playing) videoStoppedAt = Date.now();
+    videoPlaying = !!playing;
+});
+
 // If the Vulkan path makes the GPU process crash, Chromium falls back to
 // software rendering for this run; record it so the next launch goes back to
-// the GL path, unless the user chose Vulkan in Settings.
+// the GL path, unless the user chose Vulkan in Settings. The Vulkan path fails
+// importing decoded frames, so only crashes while video plays count: other
+// GPU crashes (some NVIDIA setups crash on shaders now and then) would
+// otherwise turn hardware decoding off for nothing.
 let gpuCrashes = 0;
 app.on("child-process-gone", (_e, details) => {
     if (!nvidiaVulkanVideo || details.type !== "GPU") return;
     if (details.reason === "clean-exit" || details.reason === "killed") return;
+    if (!videoPlaying && Date.now() - videoStoppedAt > 5000) return;
     if (++gpuCrashes < 2 || readGpuPrefs().nvidiaVideo === "vulkan") return;
     writeGpuPrefs({ nvidiaVulkanFailed: Date.now() });
+});
+
+// Any GPU-process exit, crash or not, leaves the page's WebRTC video stuck in
+// software until it moves its peer connections to a new window
+// (src/lib/matrix/webrtcRealm.ts).
+app.on("child-process-gone", (_e, details) => {
+    if (details.type !== "GPU") return;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send("gpu:process-gone", details.reason);
 });
 
 ipcMain.on("app:relaunch", () => {
