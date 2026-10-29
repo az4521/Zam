@@ -4,6 +4,21 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.38.0
+
+✨ **New**
+
+- **A steadier noise filter, now the default:** the built-in noise removal for your microphone is now FastEnhancer, a small model that ships with Zam (nothing to download). DeepFilterNet3 and DPDFNet sometimes dipped your voice by 8 to 13 dB for a moment inside a word, which came across as your volume jumping around, most noticeably with automatic gain control on. FastEnhancer keeps your voice at an even level. Where your device can't run it, Zam uses RNNoise, which is also in the list. If you had picked DeepFilterNet3 or a plugin filter yourself, that choice stays; pick FastEnhancer under Settings > Voice & Audio > Noise suppression.
+- **Push to talk switch in voice settings:** turn push to talk on or off in Settings > Voice & Audio, with a link to the keybinds when no key is set yet.
+- **Randomize file names (off by default):** Settings > Messages & media can upload files under a random name instead of their real one. The file extension is kept.
+- **Right-click a screen share to set its volume.**
+- **H.264 encode test (desktop):** Settings > Debug > GPU can time H.264 encoding at a few sizes, to show whether it runs on the GPU.
+- **Ignore reported codec support (debug):** Settings > Debug can send the picked video codec even when others report they can't decode it, for testing codecs like HEVC.
+
+🐛 **Fixed**
+
+- **Call stats no longer show a stray "Other track" after a codec switch.**
+
 ## v1.37.5
 
 🔒 **Privacy**
