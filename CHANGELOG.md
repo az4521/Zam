@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.37.3
+
+🐛 **Fixed**
+
+- **Calls keep GPU video encoding after a graphics crash (desktop):** when Chromium's GPU process crashed during a call, your camera and screen share switched to software encoding for the rest of the session, while Settings > Debug still said hardware. The call now reconnects on its own to get the GPU back and tells you so. If graphics crash again straight away it offers a reload, and once Chromium has turned the GPU off it offers to restart Zam.
+- **NVIDIA hardware decoding stays on through unrelated crashes (Flatpak):** the automatic switch back from the Vulkan video path now only counts GPU crashes that happen while video is playing.
+
 ## v1.37.2
 
 ✨ **New**
