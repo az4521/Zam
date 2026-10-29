@@ -72,17 +72,25 @@ export async function saveObjectUrl(
     name: string,
     opts: { quiet?: boolean } = {},
 ): Promise<void> {
-    const blob = await (await fetch(objectUrl)).blob();
-    name = withExtension(name, blob.type);
+    const quietSave = opts.quiet ? window.desktop?.saveToDownloads : undefined;
+    // The bytes are only needed by the quiet and Android paths; the anchor
+    // download below uses the URL directly. Re-reading a large blob URL can
+    // reject ("Failed to fetch"), which must not fail an otherwise fine save.
+    let blob: Blob | null = null;
+    try {
+        blob = await (await fetch(objectUrl)).blob();
+    } catch (err) {
+        if (quietSave || isAndroid()) throw err;
+    }
+    if (blob) name = withExtension(name, blob.type);
     // Desktop shift+click: skip the save dialog and drop the file straight
     // into the Downloads folder, as Android does.
-    const quietSave = opts.quiet ? window.desktop?.saveToDownloads : undefined;
-    if (quietSave) {
+    if (quietSave && blob) {
         await quietSave(name, await blob.arrayBuffer());
         showToast(t("saveFile.savedToDownloads"), { tone: "accent" });
         return;
     }
-    if (isAndroid()) {
+    if (isAndroid() && blob) {
         await MediaSaver.save({
             data: await blobToBase64(blob),
             filename: name,
