@@ -280,6 +280,10 @@ export const settingsState = $state({
      *  before upload, keeping only the Exif orientation. Default ON; turning
      *  it off can leak where a photo or video was taken. Local-only. */
     stripMetadata: readBool("stripMetadata", true),
+    /** Device-global: upload files under a random alphanumeric name, keeping
+     *  the extension (including compound ones like .tar.gz), so the original
+     *  file name is not revealed. Default OFF. Local-only. */
+    randomizeFileNames: readBool("randomizeFileNames", false),
     /** Device-global: before sending an animated GIF, re-encode it as an
      *  animated WebP (lossless, see utils/gifToWebp) so it is smaller and
      *  receivers can watch it as it downloads. Only used when the result is
@@ -876,6 +880,11 @@ export function setProgressiveJpegs(value: boolean): void {
 export function setStripMetadata(value: boolean): void {
     settingsState.stripMetadata = value;
     writeBool("stripMetadata", value);
+}
+
+export function setRandomizeFileNames(value: boolean): void {
+    settingsState.randomizeFileNames = value;
+    writeBool("randomizeFileNames", value);
 }
 
 export function setGifsAsWebp(value: boolean): void {

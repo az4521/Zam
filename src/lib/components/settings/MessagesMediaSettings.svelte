@@ -11,6 +11,7 @@
         setFaststartVideos,
         setProgressiveJpegs,
         setStripMetadata,
+        setRandomizeFileNames,
         setGifsAsWebp,
         setGifDefaultTab,
         setMidiSoundBank,
@@ -293,6 +294,21 @@
                 checked={settingsState.stripMetadata}
                 onChange={setStripMetadata}
                 label={t("messagesMediaSettings.removeLocationAndMetadata")}
+            />
+        </div>
+        <div class="flex items-center gap-3 py-2">
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("messagesMediaSettings.randomizeFileNames")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("messagesMediaSettings.randomizeFileNamesDescription")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.randomizeFileNames}
+                onChange={setRandomizeFileNames}
+                label={t("messagesMediaSettings.randomizeFileNames")}
             />
         </div>
         <div class="flex items-center gap-3 py-2">

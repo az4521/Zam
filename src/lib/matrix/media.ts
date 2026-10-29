@@ -8,6 +8,7 @@ import { settingsState } from "$lib/stores/settings.svelte";
 import { faststartMp4 } from "$lib/utils/mp4Faststart";
 import { progressiveJpegForUpload } from "$lib/utils/progressiveJpegUpload";
 import { stripLocationMetadata } from "$lib/utils/stripMetadata";
+import { withRandomFileName } from "$lib/utils/randomFileName";
 import { gifToAnimatedWebp } from "$lib/utils/gifToWebp";
 import { createImageThumbnail } from "$lib/utils/imageThumbnail";
 import { isRoomEncrypted, isRoomEncryptedForSend } from "$lib/matrix/crypto";
@@ -263,7 +264,7 @@ export async function sendFile(
     const source = settingsState.stripMetadata
         ? await stripLocationMetadata(file)
         : file;
-    const toUpload =
+    const processed =
         isVideo && settingsState.faststartVideos
             ? await faststartMp4(source)
             : file.type === "image/jpeg" && settingsState.progressiveJpegs
@@ -271,6 +272,9 @@ export async function sendFile(
               : file.type === "image/gif" && settingsState.gifsAsWebp
                 ? await gifToAnimatedWebp(source)
                 : source;
+    const toUpload = settingsState.randomizeFileNames
+        ? withRandomFileName(processed)
+        : processed;
 
     // Upload the main file, encrypting it if the room is encrypted.
     const uploadResult = await uploadAttachment(owner, roomId, toUpload, {
