@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.37.5
+
+🔒 **Privacy**
+
+- **Location and metadata stripped from uploads:** photos and videos you send (and avatars, banners and emote images) no longer carry GPS location, camera details, XMP/IPTC data or comments. Works for JPEG, PNG, WebP, GIF, TIFF/DNG, HEIC/AVIF and MP4/MOV/M4A files, without re-encoding, and photos stay upright. On by default; turn it off in Settings > Messages & media (not recommended, as files you send could reveal where they were taken).
+
 ## v1.37.4
 
 🐛 **Fixed**
