@@ -2339,6 +2339,12 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.normalizeVoices": "ܫܘܝ ܪܡܘܬܐ ܕܩܠ̈ܐ",
     "voiceAudioSettings.normalizeVoicesHint":
         "ܐܘܛܘܡܛܝܩܐܝܬ ܡܪܝܡ ܩܠ̈ܐ ܙܥܘܪ̈ܐ ܘܡܢܚܬ ܩܠ̈ܐ ܪ̈ܡܐ.",
+    "voiceAudioSettings.pushToTalk": "Push to talk",
+    "voiceAudioSettings.pushToTalkHint":
+        "In calls your mic only sends while the push to talk key is held.",
+    "voiceAudioSettings.pushToTalkNoKey":
+        "Push to talk needs a key before it can work.",
+    "voiceAudioSettings.pushToTalkSetKey": "Set a push to talk key",
     "voiceAudioSettings.camera": "ܟܡܪܐ",
     "voiceAudioSettings.mirrorMyCamera": "ܚܘܝ ܟܡܪܐ ܕܝܝ ܐܝܟ ܡܚܙܝܬܐ",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":

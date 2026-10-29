@@ -2497,6 +2497,13 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.normalizeVoices": "Égaliser le volume des voix",
     "voiceAudioSettings.normalizeVoicesHint":
         "Monte automatiquement les personnes trop faibles et baisse celles trop fortes, pour ne pas avoir à régler le volume de chacun à la main.",
+    "voiceAudioSettings.pushToTalk": "Appuyer pour parler",
+    "voiceAudioSettings.pushToTalkHint":
+        "Dans les appels, votre micro n'émet que tant que la touche d'appui pour parler est maintenue.",
+    "voiceAudioSettings.pushToTalkNoKey":
+        "L'appui pour parler a besoin d'une touche pour fonctionner.",
+    "voiceAudioSettings.pushToTalkSetKey":
+        "Définir une touche d'appui pour parler",
     "voiceAudioSettings.camera": "Caméra",
     "voiceAudioSettings.mirrorMyCamera": "Afficher ma caméra en miroir",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":

@@ -22,6 +22,7 @@
         setRingEnabled,
         setRingVolume,
         setMirrorCamera,
+        setPushToTalk,
         setCallVideoCodec,
         setBlockedDecodeCodecs,
     } from "$lib/stores/settings.svelte";
@@ -87,7 +88,10 @@
     import {
         voiceCallState,
         setCallVideoInputDevice,
+        refreshMicGate,
     } from "$lib/stores/voiceCall.svelte";
+    import { bindingFor, keybindsState } from "$lib/stores/keybinds.svelte";
+    import { openAppSettingsTab } from "$lib/stores/interface.svelte";
     import {
         newCaptureLifecycle,
         beginCapture,
@@ -148,6 +152,25 @@
         inputs = toDeviceOptions(all, "audioinput");
         outputs = toDeviceOptions(all, "audiooutput");
         cameras = toDeviceOptions(all, "videoinput");
+    }
+
+    const pttBound = $derived(
+        (void keybindsState.overrides, bindingFor("pushToTalk") !== null),
+    );
+    // Set when the user tried to turn push to talk on with no key bound.
+    let pttNeedsKey = $state(false);
+    $effect(() => {
+        if (pttBound) pttNeedsKey = false;
+    });
+
+    function togglePushToTalk(on: boolean): void {
+        if (on && !pttBound) {
+            pttNeedsKey = true;
+            return;
+        }
+        pttNeedsKey = false;
+        setPushToTalk(on);
+        refreshMicGate();
     }
 
     const dfSupported = deepFilterSupported();
@@ -544,6 +567,35 @@
         >
             {t("voiceAudioSettings.voiceProcessing")}
         </p>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("voiceAudioSettings.pushToTalk")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("voiceAudioSettings.pushToTalkHint")}
+                </p>
+                {#if pttNeedsKey}
+                    <p class="text-xs text-discord-warning mt-1">
+                        {t("voiceAudioSettings.pushToTalkNoKey")}
+                        <button
+                            type="button"
+                            class="underline text-discord-accent hover:no-underline"
+                            onclick={() => openAppSettingsTab("keybinds")}
+                        >
+                            {t("voiceAudioSettings.pushToTalkSetKey")}
+                        </button>
+                    </p>
+                {/if}
+            </div>
+            <ToggleSwitch
+                checked={settingsState.pushToTalk && pttBound}
+                onChange={togglePushToTalk}
+                label={t("voiceAudioSettings.pushToTalk")}
+            />
+        </div>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >

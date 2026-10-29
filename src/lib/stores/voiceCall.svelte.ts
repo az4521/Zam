@@ -475,10 +475,10 @@ export function leaveCall(): void {
     void leaveVoiceCall();
 }
 
-/** Push to talk is on whenever it has a key: then the mic only opens while
- *  that key is held. */
+/** Push to talk is on when the setting is on and it has a key: then the mic
+ *  only opens while that key is held. */
 export function pushToTalkEnabled(): boolean {
-    return bindingFor("pushToTalk") !== null;
+    return settingsState.pushToTalk && bindingFor("pushToTalk") !== null;
 }
 
 /** The mic is closed for a reason other than the user's own mute. */

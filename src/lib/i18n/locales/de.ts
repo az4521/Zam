@@ -2520,6 +2520,12 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.normalizeVoices": "Stimmlautstärke angleichen",
     "voiceAudioSettings.normalizeVoicesHint":
         "Macht leise Personen automatisch lauter und laute leiser, damit du nicht die Lautstärke jeder Person einzeln einstellen musst.",
+    "voiceAudioSettings.pushToTalk": "Push-to-Talk",
+    "voiceAudioSettings.pushToTalkHint":
+        "In Anrufen sendet dein Mikrofon nur, solange die Push-to-Talk-Taste gedrückt ist.",
+    "voiceAudioSettings.pushToTalkNoKey":
+        "Push-to-Talk braucht eine Taste, damit es funktioniert.",
+    "voiceAudioSettings.pushToTalkSetKey": "Push-to-Talk-Taste festlegen",
     "voiceAudioSettings.camera": "Kamera",
     "voiceAudioSettings.mirrorMyCamera": "Meine Kamera spiegeln",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":

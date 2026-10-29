@@ -2534,6 +2534,13 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.normalizeVoices": "Igualar el volumen de las voces",
     "voiceAudioSettings.normalizeVoicesHint":
         "Sube automáticamente a quien habla bajo y baja a quien habla alto, para que no tengas que ajustar el volumen de cada persona a mano.",
+    "voiceAudioSettings.pushToTalk": "Pulsar para hablar",
+    "voiceAudioSettings.pushToTalkHint":
+        "En las llamadas tu micrófono solo transmite mientras mantienes pulsada la tecla de pulsar para hablar.",
+    "voiceAudioSettings.pushToTalkNoKey":
+        "Pulsar para hablar necesita una tecla para funcionar.",
+    "voiceAudioSettings.pushToTalkSetKey":
+        "Definir una tecla de pulsar para hablar",
     "voiceAudioSettings.camera": "Cámara",
     "voiceAudioSettings.mirrorMyCamera": "Reflejar mi cámara",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":

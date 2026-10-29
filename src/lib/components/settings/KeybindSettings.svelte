@@ -34,6 +34,7 @@
     import { GLOBAL_ACTIONS } from "$lib/keybinds/globalHotkeys";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import { refreshMicGate } from "$lib/stores/voiceCall.svelte";
+    import { setPushToTalk } from "$lib/stores/settings.svelte";
     import KeyCaps from "$lib/components/keybinds/KeyCaps.svelte";
 
     let recordingId = $state<KeybindAction | null>(null);
@@ -97,7 +98,11 @@
 
     function commit(id: KeybindAction, b: Binding | null) {
         const cleared = setKeybind(id, b);
-        if (id === "pushToTalk") refreshMicGate();
+        if (id === "pushToTalk") {
+            // Binding a key switches push to talk on, as the hint says.
+            if (b) setPushToTalk(true);
+            refreshMicGate();
+        }
         notice = cleared.length
             ? t("keybinds.removedFrom", {
                   actions: cleared.map(keybindLabel).join(", "),

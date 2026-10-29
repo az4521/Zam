@@ -2436,6 +2436,12 @@ export const en = {
     "voiceAudioSettings.normalizeVoices": "Even out voice volumes",
     "voiceAudioSettings.normalizeVoicesHint":
         "Automatically turns quiet people up and loud people down, so you don't have to set everyone's volume by hand.",
+    "voiceAudioSettings.pushToTalk": "Push to talk",
+    "voiceAudioSettings.pushToTalkHint":
+        "In calls your mic only sends while the push to talk key is held.",
+    "voiceAudioSettings.pushToTalkNoKey":
+        "Push to talk needs a key before it can work.",
+    "voiceAudioSettings.pushToTalkSetKey": "Set a push to talk key",
     "voiceAudioSettings.camera": "Camera",
     "voiceAudioSettings.mirrorMyCamera": "Mirror my camera",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":

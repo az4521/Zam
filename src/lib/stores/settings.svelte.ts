@@ -420,6 +420,8 @@ export const settingsState = $state({
     /** Mirror the local camera self-view (horizontal flip). Local display
      *  only — remote participants always see you un-mirrored. */
     mirrorCamera: readAccountBool("mirrorCamera", true),
+    /** Push to talk on/off. It only takes effect while a key is bound. */
+    pushToTalk: readAccountBool("pushToTalk", true),
     /** Include system/tab audio when screen sharing. */
     shareSystemAudio: readAccountBool("shareSystemAudio", true),
     /** Screen-share capture target, applied when a share starts (a mid-share
@@ -736,6 +738,7 @@ export function reloadAccountSettings(): void {
         false,
     );
     settingsState.mirrorCamera = readAccountBool("mirrorCamera", true);
+    settingsState.pushToTalk = readAccountBool("pushToTalk", true);
     settingsState.shareSystemAudio = readAccountBool("shareSystemAudio", true);
     settingsState.screenShareResolution =
         readAccountString("screenShareResolution") ?? "1080";
@@ -1099,6 +1102,11 @@ export function setNormalizeCallAudio(value: boolean): void {
 export function setMirrorCamera(value: boolean): void {
     settingsState.mirrorCamera = value;
     writeAccountBool("mirrorCamera", value);
+}
+
+export function setPushToTalk(value: boolean): void {
+    settingsState.pushToTalk = value;
+    writeAccountBool("pushToTalk", value);
 }
 
 export function setShareSystemAudio(value: boolean): void {
