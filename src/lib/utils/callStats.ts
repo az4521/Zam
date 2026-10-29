@@ -356,6 +356,11 @@ export function summarizeRtpStreams(
         if (!send && s.type !== "inbound-rtp") continue;
         const kind = s.kind ?? s.mediaType;
         if (kind !== "audio" && kind !== "video") continue;
+        // A sender that was unpublished (a codec switch republishes) leaves
+        // its outbound-rtp behind in the report, but its media-source is
+        // gone. It would show as a dead "Other track" for every switch.
+        const sourceId = str(s.mediaSourceId);
+        if (send && sourceId && !byId.has(sourceId)) continue;
 
         const codecStat = byId.get(str(s.codecId) ?? "");
         const codec: StreamCodec | null = codecStat
