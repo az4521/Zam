@@ -279,6 +279,27 @@ describe("updateStatusView for a web bundle", () => {
         expect(v.actionLabel).toBe("Reload to apply");
     });
 
+    it("says reload on Android too, not the APK installer", () => {
+        const v = updateStatusView({
+            phase: "downloaded",
+            autoEnabled: true,
+            platform: "android",
+            kind: "bundle",
+        });
+        expect(v.action).toBe("restart");
+        expect(v.actionLabel).toBe("Reload to apply");
+    });
+
+    it("still offers the APK installer on Android for an APK update", () => {
+        const v = updateStatusView({
+            phase: "downloaded",
+            autoEnabled: true,
+            platform: "android",
+            kind: "shell",
+        });
+        expect(v.action).toBe("install");
+    });
+
     it("still says restart for an installer", () => {
         const v = updateStatusView({
             phase: "downloaded",

@@ -442,7 +442,7 @@ drives the custom APK plugin. `UpdateBanner.svelte` renders only the actionable 
 **Desktop web bundles (no reinstall).** The desktop shell serves `build/` from a folder, so a release
 that only changes the web UI ships it as a signed bundle (`scripts/build-bundle.mjs` → `zam-bundle.json`
 
-- `.zbundle` on the release). `electron/bundleUpdater.cjs` verifies the Ed25519 manifest
+- `.zbundle` on the release). `electron/bundleUpdater.cjs` verifies the ECDSA P-256 manifest
   (`bundleKey.cjs`), checks the SHA-512, unpacks into `userData/web-bundles/<version>`, and the server
   root (`webRoot` in `main.cjs`) switches to it. A bundle only applies to a shell with the same
   fingerprint (`scripts/shell-hash-lib.mjs`: `electron/**`, native sources, Electron version, deps and
@@ -455,6 +455,19 @@ that only changes the web UI ships it as a signed bundle (`scripts/build-bundle.
   The page confirms each applied bundle with `updates:bundle-ready`; one that never does is banned at the
   next launch. Debug > "Hide update prompts" hides the banner and toast only; checking and auto-apply
   carry on. Flatpak gets bundles too, but its shell still updates through `flatpak update`.
+
+**Android web bundles.** Same bundle and rules, in Java: `WebBundlePlugin` (check, download, apply, ready,
+setAuto), `WebBundleStore` (staging, rollback, the same state files as desktop) and `WebBundleFormat` (the
+archive and ECDSA P-256 check; the key is `WebBundleKey.java`, kept equal to `bundleKey.cjs` by a test).
+The shell fingerprint covers the Java, resources, manifest, Gradle files and the dependencies that become
+Capacitor plugins (`gen-android-shell-hash.mjs` writes `assets/shell-hash.json` before the build). The
+served folder is Capacitor's own: native writes `serverBasePath` and `setServerBasePath` reloads onto it
+(Capacitor ignores it after an APK update). A backgrounded app is frozen after about 30 seconds, so nothing
+waits for idleness: the check and download run while the app is open, and native applies a staged bundle at
+launch (`WebBundleHost.prepareLaunch`, before the WebView exists) or in `handleOnStop`, the moment the app
+leaves the screen. It does not apply in or near a call (`CallService`, `TelecomCalls.hasCall`) or when the
+stop is the app opening a file picker, camera or browser (`MainActivity.leftForAnotherScreen`). The JVM
+tests (`./gradlew :app:testDebugUnitTest`) read a fixture the desktop tooling signed and packed.
 
 ### Electron (`electron/main.cjs`)
 

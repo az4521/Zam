@@ -134,6 +134,11 @@ jobs:
                   GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
               run: |
                   echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > android/app/google-services.json
+            # The shell's fingerprint, packed into the APK so it only accepts web
+            # bundles built for it (scripts/shell-hash-lib.mjs). From committed
+            # sources, before cap sync rewrites anything.
+            - name: Fingerprint the Android shell
+              run: node scripts/gen-android-shell-hash.mjs
             - run: npx cap sync android
             - name: Decode signing keystore
               if: env.ANDROID_KEYSTORE_BASE64 != ''

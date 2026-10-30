@@ -65,10 +65,36 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    // Set when this activity starts another one (a file picker, the camera, a
+    // share sheet, the browser for SSO), cleared when it comes back. Stopping
+    // for one of those is not the user leaving the app, so a staged web bundle
+    // must not reload the page under it (WebBundlePlugin.handleOnStop).
+    private static volatile boolean leftForAnotherScreen = false;
+
+    static boolean leftForAnotherScreen() {
+        return leftForAnotherScreen;
+    }
+
+    @Override
+    public void startActivityForResult(Intent intent, int requestCode, Bundle options) {
+        leftForAnotherScreen = true;
+        super.startActivityForResult(intent, requestCode, options);
+    }
+
+    @Override
+    public void startActivity(Intent intent, Bundle options) {
+        leftForAnotherScreen = true;
+        super.startActivity(intent, options);
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Decide which web UI the WebView serves (a downloaded web bundle or
+        // the one packed in the APK) before the bridge reads it.
+        WebBundleHost.prepareLaunch(this);
         // Register custom plugins BEFORE the Capacitor bridge is created in
         // super.onCreate — plugins added afterwards are not picked up.
+        registerPlugin(WebBundlePlugin.class);
         registerPlugin(ApkUpdaterPlugin.class);
         registerPlugin(MediaSaverPlugin.class);
         registerPlugin(CallServicePlugin.class);
@@ -107,6 +133,7 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         inForeground = true;
+        leftForAnotherScreen = false;
     }
 
     @Override

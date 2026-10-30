@@ -19,7 +19,7 @@ export interface UpdateStatusInput {
      *  electron restarts into the new build; android fires the OS installer.
      *  Defaults to the restart (electron/web) mapping when omitted. */
     platform?: "electron" | "android" | "web";
-    /** What the desktop is updating: the installer ("shell", the default) or
+    /** What is being updated: the installer or APK ("shell", the default) or
      *  just the web UI ("bundle"), which applies with a reload, not a restart. */
     kind?: "shell" | "bundle";
 }
@@ -98,7 +98,8 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
         case "downloaded":
             // Android cannot restart-to-apply: a sideloaded APK install is a
             // user tap in the OS package installer. Fire that instead.
-            if (platform === "android") {
+            // A web bundle needs a reload on every platform, not the APK installer.
+            if (platform === "android" && kind !== "bundle") {
                 return {
                     label: t("updateStatus.updateReadyInstall", {
                         versionSuffix,

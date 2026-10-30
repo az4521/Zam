@@ -145,6 +145,7 @@
         desktopBundleReady,
     } from "$lib/desktopUpdater";
     import { APP_VERSION } from "$lib/update";
+    import { webBundleReady, webBundleSetAuto } from "$lib/androidWebBundle";
     import { isDesktopTray, setMinimizeToTray } from "$lib/desktopTray";
     import { installDesktopSaveImage } from "$lib/desktopContextMenu";
     import { watchVideoPlayback } from "$lib/utils/videoPlaybackWatch";
@@ -1612,6 +1613,12 @@
             // This page loaded, so a web bundle that was just applied is good.
             desktopBundleReady();
         }
+
+        // Android web bundles: native applies a staged one as the app goes to
+        // the background, so it needs the persisted choice, and the page
+        // confirms it loaded. No-ops off Android.
+        webBundleSetAuto(settingsState.autoUpdateEnabled);
+        webBundleReady();
 
         // Desktop (Electron): tell the main process the persisted minimise-to-
         // tray preference at boot, so a previously-set OFF takes effect on the

@@ -80,6 +80,12 @@ final class TelecomCalls {
 
     private TelecomCalls() {}
 
+    /** Whether a call is ringing or in progress here (the web UI must not be
+     *  reloaded under it). */
+    static boolean hasCall() {
+        return activeRoomId != null || !connections.isEmpty() || !pendingOutgoing.isEmpty();
+    }
+
     // ── Availability / account ──────────────────────────────────────────────
 
     static boolean isSupported(Context context) {

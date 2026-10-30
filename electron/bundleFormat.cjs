@@ -106,13 +106,15 @@ async function unpackBundle(archive, destDir) {
 
 /**
  * The exact bytes that are signed. Everything the app trusts about a bundle is
- * in here: which release, which shell it runs on, and which file.
+ * in here: which release, which shells (desktop and Android) it runs on, and
+ * which file.
  */
 function manifestSigningPayload(m) {
     return [
-        "zam-web-bundle-v1",
+        "zam-web-bundle-v2",
         m.version,
         m.shellHash,
+        m.androidShellHash,
         m.file,
         m.sha512,
         String(m.size),
@@ -126,7 +128,7 @@ function signManifest(manifest, privateKeyDerBase64) {
         type: "pkcs8",
     });
     return crypto
-        .sign(null, Buffer.from(manifestSigningPayload(manifest)), key)
+        .sign("sha256", Buffer.from(manifestSigningPayload(manifest)), key)
         .toString("base64");
 }
 
@@ -136,6 +138,7 @@ function verifyManifest(manifest, publicKeyDerBase64) {
             !manifest ||
             typeof manifest.version !== "string" ||
             typeof manifest.shellHash !== "string" ||
+            typeof manifest.androidShellHash !== "string" ||
             typeof manifest.file !== "string" ||
             typeof manifest.sha512 !== "string" ||
             !Number.isInteger(manifest.size) ||
@@ -148,7 +151,7 @@ function verifyManifest(manifest, publicKeyDerBase64) {
             type: "spki",
         });
         return crypto.verify(
-            null,
+            "sha256",
             Buffer.from(manifestSigningPayload(manifest)),
             key,
             Buffer.from(manifest.signature, "base64"),

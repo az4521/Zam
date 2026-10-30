@@ -19,7 +19,7 @@ const {
     compareVersions,
 } = require("../../../electron/bundleUpdater.cjs");
 
-const keys = generateKeyPairSync("ed25519");
+const keys = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
 const PRIVATE = keys.privateKey
     .export({ format: "der", type: "pkcs8" })
     .toString("base64");
@@ -109,6 +109,7 @@ describe("manifest signature", () => {
     const manifest = {
         version: "1.39.0",
         shellHash: "abc",
+        androidShellHash: "def",
         file: "zam-bundle-1.39.0.zbundle",
         sha512: "h",
         size: 10,
@@ -123,6 +124,7 @@ describe("manifest signature", () => {
         for (const change of [
             { version: "9.9.9" },
             { shellHash: "other" },
+            { androidShellHash: "other" },
             { sha512: "x" },
             { size: 11 },
             { file: "evil.zbundle" },
@@ -133,7 +135,7 @@ describe("manifest signature", () => {
     });
 
     it("rejects another key and malformed manifests", () => {
-        const other = generateKeyPairSync("ed25519")
+        const other = generateKeyPairSync("ec", { namedCurve: "prime256v1" })
             .publicKey.export({ format: "der", type: "spki" })
             .toString("base64");
         const signed = {
@@ -170,6 +172,7 @@ describe("bundle updater", () => {
         const manifest: Record<string, unknown> = {
             version,
             shellHash,
+            androidShellHash: "d".repeat(64),
             file: `zam-bundle-${version}.zbundle`,
             sha512: sha512(archive),
             size: archive.length,

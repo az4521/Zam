@@ -22,6 +22,12 @@ import { readIdleMs } from "$lib/stores/presence.svelte";
 import { voiceCallState } from "$lib/stores/voiceCall.svelte";
 import { incomingCallsState } from "$lib/stores/incomingCalls.svelte";
 import { isAndroidUpdater, downloadApk, installApk } from "$lib/androidUpdater";
+import {
+    isAndroidWebBundle,
+    webBundleApply,
+    webBundleCheck,
+    webBundleDownload,
+} from "$lib/androidWebBundle";
 import { pickApkAsset, versionCodeFromSemver } from "$lib/utils/androidUpdate";
 import { checkForUpdate, openReleasePage } from "$lib/update";
 import { settingsState } from "$lib/stores/settings.svelte";
@@ -83,11 +89,61 @@ export function dismissUpdateBanner(): void {
     updateBannerState.dismissed = true;
 }
 
+/**
+ * Android: a release that only changes the web UI updates through a signed
+ * bundle (WebBundlePlugin), not the APK. "offer" reports it, "auto" also
+ * downloads it when automatic updates are on, "download" always does. Native
+ * applies a staged bundle itself, at launch or the moment the app goes to the
+ * background (the app is frozen about 30 seconds after that, so JS cannot
+ * wait for a quiet moment); the banner's Reload applies it on request.
+ * Returns true when the bundle path owns this release, so the APK flow must
+ * not also offer it; false for anything else, including any trouble.
+ */
+export async function androidBundleStep(
+    mode: "offer" | "auto" | "download",
+): Promise<boolean> {
+    if (!isAndroidWebBundle()) return false;
+    try {
+        const found = await webBundleCheck();
+        if (found.kind !== "bundle") return false;
+        const base = {
+            platform: "android" as const,
+            kind: "bundle" as const,
+            version: found.version,
+        };
+        if (found.staged) {
+            setStatus({ phase: "downloaded", ...base });
+            return true;
+        }
+        setStatus({ phase: "available", ...base });
+        if (
+            mode === "offer" ||
+            (mode === "auto" && !settingsState.autoUpdateEnabled)
+        )
+            return true;
+        setStatus({ phase: "downloading", percent: 0, ...base });
+        await webBundleDownload((percent) =>
+            setStatus({ phase: "downloading", percent }),
+        );
+        setStatus({ phase: "downloaded", ...base });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// The last time the Android launch-style check ran, so coming back to the app
+// can re-check without doing it on every switch.
+let lastAndroidCheckAt = 0;
+const ANDROID_RECHECK_MS = 4 * 60 * 60 * 1000;
+
 // Android has no background process, so the "auto" check runs here at boot.
 // `force` downloads even with the toggle off (the banner's manual Download).
 async function androidFlow(force: boolean): Promise<void> {
+    lastAndroidCheckAt = Date.now();
     try {
-        setStatus({ phase: "checking", platform: "android" });
+        setStatus({ phase: "checking", platform: "android", kind: "shell" });
+        if (await androidBundleStep(force ? "download" : "auto")) return;
         const info = await checkForUpdate();
         updateBannerState.releaseUrl = info.url || RELEASES_URL;
         if (!info.updateAvailable) {
@@ -144,6 +200,22 @@ export function initUpdateWatch(): () => void {
     }
     if (isAndroidUpdater()) {
         void androidFlow(false);
+        // The app is frozen in the background, so a long-open session never
+        // re-checks by itself; coming back after a while does.
+        const onVisible = () => {
+            const phase = updateBannerState.status.phase;
+            if (
+                document.visibilityState !== "visible" ||
+                phase === "downloading" ||
+                phase === "downloaded" ||
+                Date.now() - lastAndroidCheckAt < ANDROID_RECHECK_MS
+            )
+                return;
+            void androidFlow(false);
+        };
+        document.addEventListener("visibilitychange", onVisible);
+        return () =>
+            document.removeEventListener("visibilitychange", onVisible);
     }
     return () => {};
 }
@@ -186,7 +258,17 @@ async function applyDownloadedUpdateWhenIdle(): Promise<void> {
 export async function runBannerAction(): Promise<void> {
     switch (bannerView().action) {
         case "restart":
-            desktopRestartToInstall();
+            if (isAndroidWebBundle()) {
+                // Only ever offered for a downloaded web bundle.
+                try {
+                    await webBundleApply();
+                } catch (e) {
+                    setStatus({
+                        phase: "error",
+                        message: (e as Error)?.message,
+                    });
+                }
+            } else desktopRestartToInstall();
             break;
         case "install":
             // `apkPath` stays the "a download completed" marker; it is no

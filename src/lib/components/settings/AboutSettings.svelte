@@ -41,6 +41,11 @@
         settingsState,
         setAutoUpdateEnabled,
     } from "$lib/stores/settings.svelte";
+    import {
+        androidBundleStep,
+        updateBannerState,
+    } from "$lib/stores/updateBanner.svelte";
+    import { webBundleApply, webBundleSetAuto } from "$lib/androidWebBundle";
 
     let checking = $state(false);
     let info = $state<UpdateInfo | null>(null);
@@ -71,9 +76,13 @@
         autoEnabled: settingsState.autoUpdateEnabled,
     });
     let androidApkPath = $state<string | null>(null);
+    // A web-bundle update (no new APK) lives in the app-wide update state, which
+    // also carries its download progress; everything else is this tab's own APK
+    // state machine above.
+    const androidBundle = $derived(updateBannerState.status.kind === "bundle");
     const androidView = $derived(
         updateStatusView({
-            ...androidStatus,
+            ...(androidBundle ? updateBannerState.status : androidStatus),
             platform: "android",
             autoEnabled: settingsState.autoUpdateEnabled,
         }),
@@ -127,8 +136,11 @@
     }
 
     async function androidCheck(manual = false): Promise<void> {
-        androidStatus = { ...androidStatus, phase: "checking" };
+        androidStatus = { ...androidStatus, phase: "checking", kind: "shell" };
         try {
+            // A release that only changes the web UI updates as a bundle; the
+            // APK flow below must not also offer it.
+            if (await androidBundleStep(manual ? "offer" : "auto")) return;
             const result = await checkForUpdate();
             info = result;
             if (!result.updateAvailable) {
@@ -228,7 +240,12 @@
                 void androidCheck(true);
                 break;
             case "download":
-                void androidDownload();
+                if (androidBundle) void androidBundleStep("download");
+                else void androidDownload();
+                break;
+            case "restart":
+                // Only offered for a downloaded web bundle.
+                void webBundleApply().catch(() => {});
                 break;
             case "install":
                 void androidInstall();
@@ -246,6 +263,7 @@
         // flipping this setting never starts an unconfirmed download.
         setAutoUpdateEnabled(next);
         desktopSetAutoDownload(next);
+        webBundleSetAuto(next);
     }
 
     function clearCache() {
