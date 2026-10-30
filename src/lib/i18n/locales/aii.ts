@@ -994,6 +994,9 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/layout/MessageArea.svelte
     "messageArea.dropToAttach": "ܫܒܘܩ ܩܐ ܐܣܝܪܬܐ",
+    "messageArea.cachedRoomTitle": "You are offline",
+    "messageArea.cachedRoomHint":
+        "Showing the messages saved on this device. Sending works again once the connection is back.",
     "messageArea.unreadNotifications": "ܡܘܕܥܢܘ̈ܬܐ ܕܠܐ ܩܪܝ̈ܐ",
     "messageArea.encryptionEnabled": "ܛܘܫܝܐ ܕܠܝܩܐ ܝܠܗ",
     "messageArea.joiningVoiceCall": "ܒܥܠܠܐ ܠܩܪܝܬܐ ܕܩܠܐ…",
