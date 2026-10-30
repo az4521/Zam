@@ -34,7 +34,7 @@ const FRAMES_PER_FRAGMENT = 8;
  *  few KB to a few tens of KB. */
 const MAX_FRAME = 1024 * 1024;
 const STREAMINFO_TYPE = 0;
-const STREAMINFO_LENGTH = 34;
+export const STREAMINFO_LENGTH = 34;
 
 const CRC8 = (() => {
     const t = new Uint8Array(256);
@@ -58,14 +58,15 @@ const CRC16 = (() => {
     return t;
 })();
 
-function crc8(b: Uint8Array, from: number, to: number): number {
+export function crc8(b: Uint8Array, from: number, to: number): number {
     let c = 0;
     for (let i = from; i < to; i++) c = CRC8[c ^ b[i]];
     return c;
 }
 
-/** CRC-16 of a whole frame, its own trailing CRC included: 0 when intact. */
-function crc16(b: Uint8Array, from: number, to: number): number {
+/** CRC-16 of `b[from..to]`; of a whole frame with its own trailing CRC
+ *  included it is 0 when the frame is intact. */
+export function crc16(b: Uint8Array, from: number, to: number): number {
     let c = 0;
     for (let i = from; i < to; i++)
         c = ((c << 8) & 0xffff) ^ CRC16[(c >> 8) ^ b[i]];
@@ -130,6 +131,41 @@ export function parseFrameHeader(
     if (q + 1 > b.length) return "short";
     if (crc8(b, p, q) !== b[q]) return null;
     return { length: q + 1 - p, blockSize };
+}
+
+/** The init segment and duration for a FLAC stream with this STREAMINFO. */
+export function flacHeader(si: Uint8Array): RemuxHeader {
+    const rate = (si[10] << 12) | (si[11] << 4) | (si[12] >> 4);
+    const channels = ((si[12] >> 1) & 0x07) + 1;
+    const total =
+        (si[13] & 0x0f) * 2 ** 32 +
+        ((si[14] << 24) >>> 0) +
+        (si[15] << 16) +
+        (si[16] << 8) +
+        si[17];
+    if (!rate) throw new Error("FLAC sample rate unknown");
+    // dfLa holds metadata blocks; STREAMINFO alone, flagged as the last.
+    const dfLa = fullBox("dfLa", 0, 0, [0x80, 0, 0, STREAMINFO_LENGTH], si);
+    const init = initSegment(
+        {
+            kind: "audio",
+            mime: 'audio/mp4; codecs="flac"',
+            timescale: rate,
+            frameNs: null,
+            entry: audioEntry(
+                "fLaC",
+                channels,
+                rate,
+                dfLa,
+                flacBitsPerSample(si),
+            ),
+        },
+        { width: 0, height: 0 },
+    );
+    return {
+        tracks: [{ kind: "audio", mime: 'audio/mp4; codecs="flac"', init }],
+        duration: total > 0 ? total / rate : null,
+    };
 }
 
 /** See the file header. Feed with push(), finish with end(). */
@@ -258,38 +294,7 @@ export class FlacRemuxer {
     }
 
     private makeHeader(): RemuxHeader {
-        const si = this.streamInfo!;
-        const rate = (si[10] << 12) | (si[11] << 4) | (si[12] >> 4);
-        const channels = ((si[12] >> 1) & 0x07) + 1;
-        const total =
-            (si[13] & 0x0f) * 2 ** 32 +
-            ((si[14] << 24) >>> 0) +
-            (si[15] << 16) +
-            (si[16] << 8) +
-            si[17];
-        if (!rate) throw new Error("FLAC sample rate unknown");
-        // dfLa holds metadata blocks; STREAMINFO alone, flagged as the last.
-        const dfLa = fullBox("dfLa", 0, 0, [0x80, 0, 0, STREAMINFO_LENGTH], si);
-        const init = initSegment(
-            {
-                kind: "audio",
-                mime: 'audio/mp4; codecs="flac"',
-                timescale: rate,
-                frameNs: null,
-                entry: audioEntry(
-                    "fLaC",
-                    channels,
-                    rate,
-                    dfLa,
-                    flacBitsPerSample(si),
-                ),
-            },
-            { width: 0, height: 0 },
-        );
-        return {
-            tracks: [{ kind: "audio", mime: 'audio/mp4; codecs="flac"', init }],
-            duration: total > 0 ? total / rate : null,
-        };
+        return flacHeader(this.streamInfo!);
     }
 
     private scanFrames() {

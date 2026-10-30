@@ -151,6 +151,15 @@ export function soundFileProblem(file: {
     return null;
 }
 
+/** Whether an audio file is an MP4 container (an .m4a), the kind whose index
+ *  may sit after the audio and so needs moving to the front to stream. */
+export function isMp4Audio(file: { type: string; name: string }): boolean {
+    return (
+        /^audio\/(x-)?(mp4|m4a)$/i.test(file.type) ||
+        (file.type.startsWith("audio/") && /\.(m4a|m4b|mp4)$/i.test(file.name))
+    );
+}
+
 export interface SoundboardMessage {
     mxcUrl: string;
     name: string;

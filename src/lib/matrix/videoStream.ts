@@ -2,6 +2,7 @@ import { safeAttachmentMimeType } from "$lib/utils/attachmentMime";
 import type { EncryptedFileInfo } from "$lib/utils/decryptAttachment";
 import { isWebm, probeWebm } from "$lib/utils/webmProbe";
 import { id3Size, isFlac } from "$lib/utils/flacProbe";
+import { isOgg, isWav } from "$lib/utils/audioProbe";
 import { WebmInterleaver } from "$lib/utils/webmInterleave";
 import type { DownloadProgress } from "$lib/utils/downloadProgress";
 import { openAuthedReader, type ChunkReader } from "./mediaStream";
@@ -83,6 +84,12 @@ export interface AuthedVideoStreamOptions {
     /** Skip MediaSource entirely: download (and verify) the whole file, then
      *  play it as a blob. What a failed stream falls back to. */
     forceBlob?: boolean;
+    /** Each chunk as it comes off the network (after any decryption). The
+     *  chunk is the reader's own: copy it to keep it. */
+    onData?: (chunk: Uint8Array) => void;
+    /** Once the whole body has been read. Not called if the stream is
+     *  disposed or fails first. */
+    onDownloaded?: () => void;
 }
 
 export interface AuthedVideoStream {
@@ -123,6 +130,26 @@ function isMp4(head: Uint8Array): boolean {
     if (head.length < 8) return false;
     const type = String.fromCharCode(head[4], head[5], head[6], head[7]);
     return type === "ftyp" || type === "styp" || type === "moov";
+}
+
+/** `reader`, reporting its chunks and its end to the caller's hooks. */
+function teeReader(
+    reader: ChunkReader,
+    opts: Pick<AuthedVideoStreamOptions, "onData" | "onDownloaded">,
+): ChunkReader {
+    if (!opts.onData && !opts.onDownloaded) return reader;
+    let ended = false;
+    return {
+        async read() {
+            const r = await reader.read();
+            if (!r.done) opts.onData?.(r.value);
+            else if (!ended) {
+                ended = true;
+                opts.onDownloaded?.();
+            }
+            return r;
+        },
+    };
 }
 
 /** Copy a reader chunk into its own exactly-sized ArrayBuffer. */
@@ -501,11 +528,19 @@ export function attachAuthedVideo(
 
     /**
      * Raw FLAC has no SourceBuffer of its own: it is re-boxed into fragmented
-     * MP4 as it arrives (flacRemux.ts). Plays as a blob if that fails.
+     * MP4 as it arrives (flacRemux.ts). A WAV takes the same route, its PCM
+     * wrapped as FLAC on the way (wavRemux.ts). Plays as a blob if that fails.
      */
-    async function streamFlac(reader: ChunkReader, held: ArrayBuffer[]) {
-        const { FlacRemuxer } = await import("$lib/utils/flacRemux");
-        const remux = new FlacRemuxer();
+    async function streamFlac(
+        reader: ChunkReader,
+        held: ArrayBuffer[],
+        source: "flac" | "wav" = "flac",
+    ) {
+        // A WAV is wrapped in FLAC frames and then goes the same way.
+        const remux =
+            source === "wav"
+                ? new (await import("$lib/utils/wavRemux")).WavRemuxer()
+                : new (await import("$lib/utils/flacRemux")).FlacRemuxer();
         let ended = false;
         for (const buf of held) remux.push(new Uint8Array(buf));
         while (!remux.header && !remux.unsupported) {
@@ -566,6 +601,53 @@ export function attachAuthedVideo(
     }
 
     /**
+     * Ogg Opus and Vorbis have no SourceBuffer of their own: the packets are
+     * re-written as a WebM as they arrive (oggRemux.ts), which then goes in
+     * as any WebM does. Plays as a blob if that fails.
+     */
+    async function streamOgg(reader: ChunkReader, held: ArrayBuffer[]) {
+        const { OggWebmRemuxer } = await import("$lib/utils/oggRemux");
+        const remux = new OggWebmRemuxer();
+        let ended = false;
+        for (const buf of held) remux.push(new Uint8Array(buf));
+        while (!remux.mime && !remux.unsupported) {
+            const { done, value } = await reader.read();
+            if (done) {
+                ended = true;
+                remux.end();
+                break;
+            }
+            const buf = ownBuffer(value);
+            held.push(buf);
+            remux.push(new Uint8Array(buf));
+        }
+        if (disposed) return;
+        const mime = remux.mime;
+        if (!mime || !MediaSource.isTypeSupported(mime)) {
+            return playAsBlob(ended ? null : reader, held);
+        }
+        held.length = 0;
+        const ready: Uint8Array[] = remux.take();
+        const webm: ChunkReader = {
+            async read() {
+                while (!ready.length && !ended) {
+                    const r = await reader.read();
+                    if (r.done) {
+                        ended = true;
+                        remux.end();
+                    } else remux.push(r.value);
+                    ready.push(...remux.take());
+                }
+                const value = ready.shift();
+                return value
+                    ? { done: false, value }
+                    : { done: true, value: undefined };
+            },
+        };
+        return streamBytes(webm, [], mime, false, new WebmIndex());
+    }
+
+    /**
      * Append the bytes to a SourceBuffer of type `mime` as they arrive, or, when
      * there is no usable `mime`, download everything and play it as a blob.
      * `held` is what has been read so far, `ended` whether the reader is spent.
@@ -614,12 +696,15 @@ export function attachAuthedVideo(
     }
 
     async function run() {
-        const reader = await openAuthedReader(httpUrl, {
-            decrypt: opts.decrypt,
-            expectedSize: opts.expectedSize,
-            onProgress: opts.onProgress,
-            signal: abort.signal,
-        });
+        const reader = teeReader(
+            await openAuthedReader(httpUrl, {
+                decrypt: opts.decrypt,
+                expectedSize: opts.expectedSize,
+                onProgress: opts.onProgress,
+                signal: abort.signal,
+            }),
+            opts,
+        );
         if (opts.forceBlob || typeof MediaSource === "undefined") {
             return playAsBlob(reader, []);
         }
@@ -634,6 +719,8 @@ export function attachAuthedVideo(
             if (isWebm(first.value)) return streamWebm(reader, held);
             if (looksLikeFlac(first.value, opts.mimetype))
                 return streamFlac(reader, held);
+            if (isOgg(first.value)) return streamOgg(reader, held);
+            if (isWav(first.value)) return streamFlac(reader, held, "wav");
             // MP3 is a bare frame stream: no header to parse, no remuxing.
             if (isMp3(first.value)) {
                 return streamBytes(

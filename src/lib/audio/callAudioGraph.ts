@@ -52,6 +52,10 @@ export interface CallAudioGraph {
         gain: number,
         onEnd?: () => void,
     ): (() => void) | null;
+    /** Route a media element (a streamed soundboard clip) into the mix at
+     *  `gain`. The element's own output is replaced by the graph's, for good.
+     *  Returns a function that disconnects it, or null when it cannot. */
+    playElement(el: HTMLMediaElement, gain: number): (() => void) | null;
     setNormalize(on: boolean): void;
     setSink(deviceId: string | null): void;
     setMuted(muted: boolean): void;
@@ -238,6 +242,23 @@ export function createCallAudioGraph(opts: {
                     } catch {
                         /* already stopped */
                     }
+                };
+            } catch {
+                return null;
+            }
+        },
+        playElement(el, gain) {
+            if (closed) return null;
+            try {
+                const src = ctx.createMediaElementSource(el);
+                const g = ctx.createGain();
+                g.gain.value = gain;
+                src.connect(g);
+                g.connect(limiter);
+                void start();
+                return () => {
+                    src.disconnect();
+                    g.disconnect();
                 };
             } catch {
                 return null;

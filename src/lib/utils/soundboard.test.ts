@@ -6,6 +6,7 @@ import {
     createSenderLimiter,
     decodeSoundboardMessage,
     encodeSoundboardMessage,
+    isMp4Audio,
     isValidSoundName,
     soundFileProblem,
     soundGain,
@@ -129,5 +130,15 @@ describe("soundGain", () => {
         expect(soundGain(1, 99, false)).toBe(5);
         expect(soundGain(1, NaN, false)).toBe(1);
         expect(soundGain(1, undefined, false)).toBe(1);
+    });
+});
+
+describe("isMp4Audio", () => {
+    it("spots m4a by type or by name", () => {
+        expect(isMp4Audio({ type: "audio/mp4", name: "a" })).toBe(true);
+        expect(isMp4Audio({ type: "audio/x-m4a", name: "a" })).toBe(true);
+        expect(isMp4Audio({ type: "audio/aac", name: "clip.M4A" })).toBe(true);
+        expect(isMp4Audio({ type: "audio/mpeg", name: "a.mp3" })).toBe(false);
+        expect(isMp4Audio({ type: "video/mp4", name: "a.mp4" })).toBe(false);
     });
 });

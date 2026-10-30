@@ -8,6 +8,7 @@ import { t } from "$lib/i18n";
 import { EventTimeline, type Room } from "matrix-js-sdk";
 import { matrixClient } from "./runtime";
 import { getParentSpaceIds } from "./client";
+import { faststartMp4 } from "$lib/utils/mp4Faststart";
 import {
     ROOM_SOUNDBOARD_TYPE,
     USER_SOUNDBOARD_TYPE,
@@ -15,6 +16,7 @@ import {
     isValidSoundName,
     normalizeSoundName,
     soundFileProblem,
+    isMp4Audio,
     soundsFromContent,
     uniqueSoundName,
     withSound,
@@ -279,14 +281,17 @@ export async function uploadSoundFile(
         throw new Error(
             t("soundboard.tooLong", { seconds: MAX_SOUND_SECONDS }),
         );
-    const { content_uri } = await client.uploadContent(file, {
-        name: file.name,
+    // Listeners stream a clip while it downloads, which an MP4 with its index
+    // at the end cannot do: move the index to the front, as for chat videos.
+    const upload = isMp4Audio(file) ? await faststartMp4(file) : file;
+    const { content_uri } = await client.uploadContent(upload, {
+        name: upload.name,
     });
     return {
         mxcUrl: content_uri,
         info: {
-            mimetype: file.type,
-            size: file.size,
+            mimetype: upload.type,
+            size: upload.size,
             duration: Math.round(duration * 100) / 100,
         },
     };

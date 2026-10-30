@@ -63,7 +63,13 @@ import {
     type ParticipantAudio,
 } from "$lib/utils/participantAudio";
 import { runWithMediaTitle } from "$lib/utils/mediaTitle";
-import { fetchMediaBytes, mxcToHttp } from "./media";
+import { mxcToHttp } from "./media";
+import {
+    deleteCachedSound,
+    getCachedSound,
+    putCachedSound,
+} from "./soundCache";
+import { streamSound } from "./soundStream";
 import {
     MAX_SOUND_BYTES,
     MAX_SOUND_SECONDS,
@@ -943,60 +949,104 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
 }
 
 // Soundboard. A sound is sent as a reference (a data message naming the
-// media); every client fetches and plays it locally, so each listener sets
-// how loud each person's sounds are, apart from that person's voice.
+// media); every client plays it locally, so each listener sets how loud each
+// person's sounds are, apart from that person's voice. A sound not seen
+// before is streamed while it downloads (soundStream.ts) and stored on the
+// device (soundCache.ts); every later play decodes the stored copy.
 const soundLimiter = createSenderLimiter();
-/** Raw clips by mxc, most recently used last. */
+/** Raw clips by mxc, most recently used last: the first stop before disk. */
 const soundBytes = new Map<string, ArrayBuffer>();
-const SOUND_CACHE_MAX_BYTES = 8 * MAX_SOUND_BYTES;
+const SOUND_MEMORY_MAX_BYTES = 8 * MAX_SOUND_BYTES;
 let soundBytesTotal = 0;
 const soundBuffers = new WeakMap<CallAudioGraph, Map<string, AudioBuffer>>();
-const soundFetches = new Map<string, Promise<ArrayBuffer>>();
+/** Streams still downloading, resolved with the file (null if cut short), so
+ *  a second play of the same sound waits instead of downloading it again. */
+const soundDownloads = new Map<string, Promise<ArrayBuffer | null>>();
+
+function forgetSoundBytes(mxcUrl: string): void {
+    const old = soundBytes.get(mxcUrl);
+    if (!old) return;
+    soundBytes.delete(mxcUrl);
+    soundBytesTotal -= old.byteLength;
+}
 
 function rememberSoundBytes(mxcUrl: string, bytes: ArrayBuffer): void {
-    soundBytes.delete(mxcUrl);
+    forgetSoundBytes(mxcUrl);
     soundBytes.set(mxcUrl, bytes);
     soundBytesTotal += bytes.byteLength;
-    for (const [key, old] of soundBytes) {
-        if (soundBytesTotal <= SOUND_CACHE_MAX_BYTES || key === mxcUrl) break;
-        soundBytes.delete(key);
-        soundBytesTotal -= old.byteLength;
+    for (const key of [...soundBytes.keys()]) {
+        if (soundBytesTotal <= SOUND_MEMORY_MAX_BYTES || key === mxcUrl) break;
+        forgetSoundBytes(key);
     }
 }
 
-async function loadSoundBytes(mxcUrl: string): Promise<ArrayBuffer> {
-    const cached = soundBytes.get(mxcUrl);
-    if (cached) return cached;
-    let pending = soundFetches.get(mxcUrl);
-    if (!pending) {
-        const url = mxcToHttp(mxcUrl);
-        if (!url) throw new Error("Invalid sound reference");
-        pending = fetchMediaBytes(url, MAX_SOUND_BYTES).then((bytes) => {
-            rememberSoundBytes(mxcUrl, bytes);
-            return bytes;
-        });
-        soundFetches.set(mxcUrl, pending);
-        const clear = () => soundFetches.delete(mxcUrl);
-        pending.then(clear, clear);
-    }
-    return pending;
+/** The clip from memory or the on-device cache; null when never downloaded. */
+async function storedSoundBytes(mxcUrl: string): Promise<ArrayBuffer | null> {
+    const held = soundBytes.get(mxcUrl);
+    if (held) return held;
+    const stored = await getCachedSound(mxcUrl);
+    if (stored) rememberSoundBytes(mxcUrl, stored);
+    return stored;
 }
 
 async function soundBuffer(
     graph: CallAudioGraph,
     mxcUrl: string,
+    bytes: ArrayBuffer,
 ): Promise<AudioBuffer | null> {
     let buffers = soundBuffers.get(graph);
     if (!buffers) soundBuffers.set(graph, (buffers = new Map()));
     const have = buffers.get(mxcUrl);
     if (have) return have;
-    // decodeAudioData detaches its input; keep the cached original intact.
-    const bytes = (await loadSoundBytes(mxcUrl)).slice(0);
-    const buffer = await graph.decode(bytes);
-    // Cheap size limits can lie about the length once decoded.
-    if (!buffer || buffer.duration > MAX_SOUND_SECONDS + 1) return null;
+    // decodeAudioData detaches its input; keep the stored original intact.
+    const buffer = await graph.decode(bytes.slice(0));
+    // Cheap size limits can lie about the length once decoded. A file that
+    // fails here will fail every time: stop keeping it.
+    if (!buffer || buffer.duration > MAX_SOUND_SECONDS + 1) {
+        forgetSoundBytes(mxcUrl);
+        void deleteCachedSound(mxcUrl);
+        return null;
+    }
     buffers.set(mxcUrl, buffer);
     return buffer;
+}
+
+/** Stream a clip that is not stored yet, and store it when it has arrived.
+ *  False when nothing started. */
+function streamNewSound(
+    graph: CallAudioGraph,
+    userId: string,
+    mxcUrl: string,
+    gain: number,
+): boolean {
+    const httpUrl = mxcToHttp(mxcUrl);
+    if (!httpUrl) return false;
+    let settle: (bytes: ArrayBuffer | null) => void = () => {};
+    const pending = new Promise<ArrayBuffer | null>((r) => (settle = r));
+    soundDownloads.set(mxcUrl, pending);
+    const settled = (bytes: ArrayBuffer | null) => {
+        if (soundDownloads.get(mxcUrl) === pending)
+            soundDownloads.delete(mxcUrl);
+        settle(bytes);
+    };
+    const stop = streamSound({
+        graph,
+        httpUrl,
+        gain,
+        maxBytes: MAX_SOUND_BYTES,
+        maxSeconds: MAX_SOUND_SECONDS,
+        onDownloaded(bytes) {
+            rememberSoundBytes(mxcUrl, bytes);
+            void putCachedSound(mxcUrl, bytes);
+            settled(bytes);
+        },
+        onEnd() {
+            soundLimiter.done(userId);
+            settled(null);
+        },
+    });
+    if (!stop) settled(null);
+    return !!stop;
 }
 
 /** Play one soundboard clip from `userId` at their soundboard level. */
@@ -1017,11 +1067,21 @@ async function playSoundboardClip(
     try {
         const graph = ensureAudioGraph(call);
         if (!graph || activeVoice !== call) return;
-        const buffer = await soundBuffer(graph, mxcUrl);
-        if (!buffer || activeVoice !== call) return;
-        started =
-            graph.playBuffer(buffer, gain, () => soundLimiter.done(userId)) !==
-            null;
+        let buffer = soundBuffers.get(graph)?.get(mxcUrl) ?? null;
+        if (!buffer) {
+            let bytes = await storedSoundBytes(mxcUrl);
+            if (!bytes) bytes = (await soundDownloads.get(mxcUrl)) ?? null;
+            if (bytes) buffer = await soundBuffer(graph, mxcUrl, bytes);
+        }
+        if (activeVoice !== call) return;
+        if (buffer) {
+            started =
+                graph.playBuffer(buffer, gain, () =>
+                    soundLimiter.done(userId),
+                ) !== null;
+        } else {
+            started = streamNewSound(graph, userId, mxcUrl, gain);
+        }
     } catch (err) {
         console.warn("[voice] couldn't play soundboard clip", err);
     } finally {
