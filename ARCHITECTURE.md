@@ -439,6 +439,23 @@ GitHub Releases **on demand** against a build-time-injected version (`initUpdate
 web — there is no background poll), desktop streams `electron-updater` events over IPC, and Android
 drives the custom APK plugin. `UpdateBanner.svelte` renders only the actionable phases.
 
+**Desktop web bundles (no reinstall).** The desktop shell serves `build/` from a folder, so a release
+that only changes the web UI ships it as a signed bundle (`scripts/build-bundle.mjs` → `zam-bundle.json`
+
+- `.zbundle` on the release). `electron/bundleUpdater.cjs` verifies the Ed25519 manifest
+  (`bundleKey.cjs`), checks the SHA-512, unpacks into `userData/web-bundles/<version>`, and the server
+  root (`webRoot` in `main.cjs`) switches to it. A bundle only applies to a shell with the same
+  fingerprint (`scripts/shell-hash-lib.mjs`: `electron/**`, native sources, Electron version, deps and
+  build config, written to `electron/shell-hash.json` by `gen-shell-hash.mjs` before packaging); any
+  other release takes the `electron-updater` installer path. Status events carry `kind: "bundle" | "shell"`.
+  The renderer applies a downloaded update (reload for a bundle, restart for an installer) through
+  `applyDownloadedUpdateWhenIdle` in `stores/updateBanner.svelte.ts`, only when "Automatic updates" is on and
+  `canApplyUpdateNow` allows it: never in or ringing for a call, and only with the window out of sight
+  or the user idle for `AUTO_AWAY_MS`. A staged bundle is also taken at launch, before any page exists.
+  The page confirms each applied bundle with `updates:bundle-ready`; one that never does is banned at the
+  next launch. Debug > "Hide update prompts" hides the banner and toast only; checking and auto-apply
+  carry on. Flatpak gets bundles too, but its shell still updates through `flatpak update`.
+
 ### Electron (`electron/main.cjs`)
 
 Serves the static `build/` over a small local HTTP server with SPA fallback, on a **persisted

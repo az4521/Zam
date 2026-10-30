@@ -244,6 +244,9 @@ export const settingsState = $state({
     /** Device-global: whether the packaged desktop/Android build auto-downloads
      *  updates. Default ON; the escape hatch is this toggle. */
     autoUpdateEnabled: readBool("autoUpdateEnabled", true),
+    /** Debug: hide the update banner and toast. The checker still runs, and
+     *  automatic updates still apply. Default OFF (prompts shown). */
+    updateNagDisabled: readBool("updateNagDisabled", false),
     /** Device-global (desktop/Electron only): when the window close (X) button
      *  is pressed, keep Zam running in the system tray instead of quitting.
      *  Default ON (today's hardcoded behaviour). Pushed to the Electron main
@@ -839,6 +842,11 @@ export function setShowAllEvents(value: boolean): void {
 export function setAutoUpdateEnabled(value: boolean): void {
     settingsState.autoUpdateEnabled = value;
     writeBool("autoUpdateEnabled", value);
+}
+
+export function setUpdateNagDisabled(value: boolean): void {
+    settingsState.updateNagDisabled = value;
+    writeBool("updateNagDisabled", value);
 }
 
 export function setMinimizeToTrayOnClose(value: boolean): void {

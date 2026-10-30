@@ -12,6 +12,7 @@
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { showToast } from "$lib/stores/toasts.svelte";
     import { shouldFireUpdateToast } from "$lib/utils/updateToast";
+    import { settingsState } from "$lib/stores/settings.svelte";
     import type { UpdatePhase } from "$lib/utils/updateStatus";
 
     let prevPhase: UpdatePhase = "idle";
@@ -19,7 +20,10 @@
     $effect(() => {
         const phase = updateBannerState.status.phase;
         const mobile = interfaceState.isMobile;
-        if (shouldFireUpdateToast(prevPhase, phase, mobile)) {
+        if (
+            !settingsState.updateNagDisabled &&
+            shouldFireUpdateToast(prevPhase, phase, mobile)
+        ) {
             const view = bannerView();
             const action =
                 view.action !== "none" && view.actionLabel

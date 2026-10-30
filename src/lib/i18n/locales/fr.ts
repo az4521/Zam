@@ -608,6 +608,9 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.pushEnabledInBuild": "Push activé dans la version",
     "debugSettings.yes": "Oui",
     "debugSettings.no": "Non",
+    "debugSettings.hideUpdatePrompts": "Masquer les invites de mise à jour",
+    "debugSettings.hideUpdatePromptsHint":
+        "Masque la bannière et la notification de mise à jour. Les mises à jour sont toujours recherchées et s'installent seules si les mises à jour automatiques sont activées.",
     "debugSettings.gatewayUrl": "URL de la passerelle",
     "debugSettings.appId2": "ID de l'application",
     "debugSettings.notificationPermission": "Autorisation des notifications",
@@ -3740,6 +3743,9 @@ const messages: Record<MessageKey, string> = {
     "updateStatus.updateReadyRestartToApply":
         "Mise à jour prête{versionSuffix} - redémarrez pour l'appliquer",
     "updateStatus.restartToApply": "Redémarrer pour appliquer",
+    "updateStatus.updateReadyReloadToApply":
+        "Mise à jour prête{versionSuffix} - recharger pour appliquer",
+    "updateStatus.reloadToApply": "Recharger pour appliquer",
     "updateStatus.aNewVersionIsAvailable":
         "Une nouvelle version est disponible{versionSuffix}",
     "updateStatus.openReleasePage": "Ouvrir la page de la version",

@@ -19,6 +19,9 @@ export interface UpdateStatusInput {
      *  electron restarts into the new build; android fires the OS installer.
      *  Defaults to the restart (electron/web) mapping when omitted. */
     platform?: "electron" | "android" | "web";
+    /** What the desktop is updating: the installer ("shell", the default) or
+     *  just the web UI ("bundle"), which applies with a reload, not a restart. */
+    kind?: "shell" | "bundle";
 }
 
 export interface UpdateStatusView {
@@ -37,7 +40,7 @@ export interface UpdateStatusView {
  * omits the `(v…)` fragment rather than printing `(undefined)`.
  */
 export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
-    const { phase, percent, version, message, platform } = input;
+    const { phase, percent, version, message, platform, kind } = input;
 
     const versionSuffix = version ? ` (v${version})` : "";
     const clampedPercent = Math.max(0, Math.min(100, Math.round(percent ?? 0)));
@@ -102,6 +105,17 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
                     }),
                     action: "install",
                     actionLabel: t("updateStatus.install"),
+                    busy: false,
+                    percent: null,
+                };
+            }
+            if (kind === "bundle") {
+                return {
+                    label: t("updateStatus.updateReadyReloadToApply", {
+                        versionSuffix,
+                    }),
+                    action: "restart",
+                    actionLabel: t("updateStatus.reloadToApply"),
                     busy: false,
                     percent: null,
                 };

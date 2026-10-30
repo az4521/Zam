@@ -17,6 +17,10 @@ import {
     desktopRestartToInstall,
     onDesktopUpdateStatus,
 } from "$lib/desktopUpdater";
+import { canApplyUpdateNow } from "$lib/utils/updateApplyGate";
+import { readIdleMs } from "$lib/stores/presence.svelte";
+import { voiceCallState } from "$lib/stores/voiceCall.svelte";
+import { incomingCallsState } from "$lib/stores/incomingCalls.svelte";
 import { isAndroidUpdater, downloadApk, installApk } from "$lib/androidUpdater";
 import { pickApkAsset, versionCodeFromSemver } from "$lib/utils/androidUpdate";
 import { checkForUpdate, openReleasePage } from "$lib/update";
@@ -50,6 +54,8 @@ export function bannerView(): UpdateStatusView {
 
 /** Whether the banner should currently be shown. */
 export function bannerVisible(): boolean {
+    // Debug > "Hide update prompts": the checker and auto-apply carry on.
+    if (settingsState.updateNagDisabled) return false;
     return shouldShowUpdateBanner(
         updateBannerState.status.phase,
         updateBannerState.dismissed,
@@ -118,12 +124,62 @@ async function androidFlow(force: boolean): Promise<void> {
  */
 export function initUpdateWatch(): () => void {
     if (isDesktopUpdater()) {
-        return onDesktopUpdateStatus((s) => setStatus(s));
+        const unsub = onDesktopUpdateStatus((s) => {
+            setStatus(s);
+            void applyDownloadedUpdateWhenIdle();
+        });
+        // A download that finished while the user was busy applies at the first
+        // quiet moment, so keep looking; the page being hidden is one too.
+        const timer = setInterval(
+            () => void applyDownloadedUpdateWhenIdle(),
+            APPLY_CHECK_MS,
+        );
+        const onVisibility = () => void applyDownloadedUpdateWhenIdle();
+        document.addEventListener("visibilitychange", onVisibility);
+        return () => {
+            unsub();
+            clearInterval(timer);
+            document.removeEventListener("visibilitychange", onVisibility);
+        };
     }
     if (isAndroidUpdater()) {
         void androidFlow(false);
     }
     return () => {};
+}
+
+const APPLY_CHECK_MS = 30_000;
+// A restart or reload that did not take effect (say the main process refused)
+// must not leave the watch stuck thinking it is applying.
+const APPLY_RETRY_MS = 60_000;
+let applyingSince = 0;
+
+/**
+ * Desktop, automatic updates on: once an update has downloaded, apply it (a
+ * reload for a web bundle, a restart for an installer) at a moment nobody is
+ * using the app, never in a call. Reads idleness first and decides on fresh
+ * state afterwards, so a click during the read still wins.
+ */
+async function applyDownloadedUpdateWhenIdle(): Promise<void> {
+    if (
+        updateBannerState.status.phase !== "downloaded" ||
+        !settingsState.autoUpdateEnabled ||
+        Date.now() - applyingSince < APPLY_RETRY_MS
+    )
+        return;
+    const idleMs = await readIdleMs();
+    if (
+        updateBannerState.status.phase !== "downloaded" ||
+        !canApplyUpdateNow({
+            inCall: voiceCallState.connState !== null,
+            ringing: incomingCallsState.ringing.length > 0,
+            windowVisible: document.visibilityState === "visible",
+            idleMs,
+        })
+    )
+        return;
+    applyingSince = Date.now();
+    desktopRestartToInstall();
 }
 
 /** The banner's primary button, dispatched off the current view's action. */

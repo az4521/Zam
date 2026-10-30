@@ -15,7 +15,7 @@
         "format": "prettier --write .",
         "electron": "electron .",
         "electron:dev": "npm run build && electron .",
-        "electron:build": "npm run build && npm run build:app-audio && electron-builder",
+        "electron:build": "npm run build && npm run build:app-audio && node scripts/gen-shell-hash.mjs && electron-builder",
         "build:app-audio": "node scripts/build-app-audio.mjs",
         "test": "vitest run",
         "test:watch": "vitest",

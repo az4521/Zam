@@ -134,6 +134,8 @@ declare global {
                 download: () => void;
                 restartToInstall: () => void;
                 setAutoDownload: (enabled: boolean) => void;
+                /** The page loaded, so a web bundle just applied is good. */
+                bundleReady: () => void;
                 onStatus: (
                     cb: (
                         s: import("$lib/utils/updateStatus").UpdateStatusInput,

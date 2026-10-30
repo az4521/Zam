@@ -615,6 +615,9 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.pushEnabledInBuild": "Push im Build aktiviert",
     "debugSettings.yes": "Ja",
     "debugSettings.no": "Nein",
+    "debugSettings.hideUpdatePrompts": "Update-Hinweise ausblenden",
+    "debugSettings.hideUpdatePromptsHint":
+        "Blendet das Update-Banner und den Hinweis aus. Updates werden weiterhin gesucht und bei aktivierten automatischen Updates selbstständig installiert.",
     "debugSettings.gatewayUrl": "Gateway-URL",
     "debugSettings.appId2": "App-ID",
     "debugSettings.notificationPermission": "Benachrichtigungsberechtigung",
@@ -3770,6 +3773,9 @@ const messages: Record<MessageKey, string> = {
     "updateStatus.updateReadyRestartToApply":
         "Update bereit{versionSuffix} - zum Anwenden neu starten",
     "updateStatus.restartToApply": "Zum Anwenden neu starten",
+    "updateStatus.updateReadyReloadToApply":
+        "Update bereit{versionSuffix} - zum Anwenden neu laden",
+    "updateStatus.reloadToApply": "Zum Anwenden neu laden",
     "updateStatus.aNewVersionIsAvailable":
         "Eine neue Version ist verfügbar{versionSuffix}",
     "updateStatus.openReleasePage": "Versionsseite öffnen",

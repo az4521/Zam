@@ -50,6 +50,34 @@ jobs:
                     echo "v$CURR is not released yet (latest: v${LATEST:-none}), will release."
                   fi
 
+    # The web UI as a signed bundle, so desktop apps update it without a
+    # reinstall (electron/bundleUpdater.cjs). Repository secret
+    # ZAM_BUNDLE_SIGNING_KEY = the private key from scripts/gen-bundle-key.mjs
+    # (its public half is electron/bundleKey.cjs). Without the secret no bundle
+    # is made and the release is installers only, which every app still takes.
+    bundle:
+        needs: [check, verify]
+        runs-on: ubuntu-latest
+        env:
+            ZAM_BUNDLE_SIGNING_KEY: ${{ secrets.ZAM_BUNDLE_SIGNING_KEY }}
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+            - run: npm ci
+            - run: npm run build
+              env:
+                  VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
+                  VITE_VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
+            - run: node scripts/build-bundle.mjs
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: web-bundle
+                  path: dist-bundle/*
+                  if-no-files-found: ignore
+
     # Code gate: types, tests and formatting. The build jobs wait on it, so a
     # red gate never produces installers or a release.
     verify:
@@ -185,6 +213,10 @@ jobs:
             # on the other runners.
             - name: Build app audio helper
               run: npm run build:app-audio
+            # The shell's fingerprint, packed into the app so it only accepts
+            # web bundles built for it (scripts/shell-hash-lib.mjs).
+            - name: Fingerprint the desktop shell
+              run: node scripts/gen-shell-hash.mjs
             - name: Build desktop app
               run: npx electron-builder --publish never
               env:
@@ -229,6 +261,8 @@ jobs:
               env:
                   VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
                   VITE_VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
+            - name: Fingerprint the desktop shell
+              run: node scripts/gen-shell-hash.mjs
             - name: Build unpacked Linux app
               run: npx electron-builder --linux dir --publish never
             - name: Install Flatpak tooling
@@ -340,7 +374,7 @@ jobs:
                   path: site
 
     release:
-        needs: [check, android, desktop, flatpak]
+        needs: [check, android, desktop, flatpak, bundle]
         if: needs.check.outputs.release == 'true'
         runs-on: ubuntu-latest
         steps:
@@ -362,7 +396,7 @@ jobs:
               with:
                   path: artifacts
                   # Not the github-pages artifact (the Flatpak repo tarball).
-                  pattern: "{android,desktop-*,flatpak}"
+                  pattern: "{android,desktop-*,flatpak,web-bundle}"
             - name: Create GitHub release
               uses: softprops/action-gh-release@v2
               with:

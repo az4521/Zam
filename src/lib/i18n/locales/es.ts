@@ -608,6 +608,9 @@ const messages: Record<MessageKey, string> = {
         "Notificaciones push activadas en la compilación",
     "debugSettings.yes": "Sí",
     "debugSettings.no": "No",
+    "debugSettings.hideUpdatePrompts": "Ocultar avisos de actualización",
+    "debugSettings.hideUpdatePromptsHint":
+        "Oculta el banner y el aviso de actualización. Se siguen buscando actualizaciones y se instalan solas si las actualizaciones automáticas están activadas.",
     "debugSettings.gatewayUrl": "URL de la pasarela",
     "debugSettings.appId2": "ID de la aplicación",
     "debugSettings.notificationPermission": "Permiso de notificaciones",
@@ -3772,6 +3775,9 @@ const messages: Record<MessageKey, string> = {
     "updateStatus.updateReadyRestartToApply":
         "Actualización lista{versionSuffix} - reinicia para aplicarla",
     "updateStatus.restartToApply": "Reiniciar para aplicar",
+    "updateStatus.updateReadyReloadToApply":
+        "Actualización lista{versionSuffix} - recarga para aplicar",
+    "updateStatus.reloadToApply": "Recargar para aplicar",
     "updateStatus.aNewVersionIsAvailable":
         "Hay una nueva versión disponible{versionSuffix}",
     "updateStatus.openReleasePage": "Abrir la página de la versión",

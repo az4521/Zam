@@ -265,3 +265,26 @@ describe("updateStatusView — fold updater phase + toggle into a view model", (
         expect(view.action).toBe("restart");
     });
 });
+
+describe("updateStatusView for a web bundle", () => {
+    it("says reload, not restart, once a bundle has downloaded", () => {
+        const v = updateStatusView({
+            phase: "downloaded",
+            autoEnabled: true,
+            kind: "bundle",
+            version: "1.39.0",
+        });
+        expect(v.action).toBe("restart");
+        expect(v.label).toContain("reload");
+        expect(v.actionLabel).toBe("Reload to apply");
+    });
+
+    it("still says restart for an installer", () => {
+        const v = updateStatusView({
+            phase: "downloaded",
+            autoEnabled: true,
+            kind: "shell",
+        });
+        expect(v.actionLabel).toBe("Restart to apply");
+    });
+});

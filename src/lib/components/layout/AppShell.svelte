@@ -142,6 +142,7 @@
     import {
         isDesktopUpdater,
         desktopSetAutoDownload,
+        desktopBundleReady,
     } from "$lib/desktopUpdater";
     import { APP_VERSION } from "$lib/update";
     import { isDesktopTray, setMinimizeToTray } from "$lib/desktopTray";
@@ -1606,8 +1607,11 @@
         // Desktop (Electron) auto-updater: tell the main process the persisted
         // auto-update preference at boot, so the ~10s launch update-check
         // honours a previously-set OFF before it fires. No-op off Electron.
-        if (isDesktopUpdater())
+        if (isDesktopUpdater()) {
             desktopSetAutoDownload(settingsState.autoUpdateEnabled);
+            // This page loaded, so a web bundle that was just applied is good.
+            desktopBundleReady();
+        }
 
         // Desktop (Electron): tell the main process the persisted minimise-to-
         // tray preference at boot, so a previously-set OFF takes effect on the

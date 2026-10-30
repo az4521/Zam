@@ -38,6 +38,7 @@
         setIgnoreCodecSupport,
         setMicPauseGate,
         setShowAllEvents,
+        setUpdateNagDisabled,
         settingsState,
     } from "$lib/stores/settings.svelte";
     import {
@@ -763,4 +764,22 @@
             {/each}
         </section>
     {/if}
+
+    <section>
+        <div class="flex items-center gap-3 py-2">
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("debugSettings.hideUpdatePrompts")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("debugSettings.hideUpdatePromptsHint")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.updateNagDisabled}
+                onChange={setUpdateNagDisabled}
+                label={t("debugSettings.hideUpdatePrompts")}
+            />
+        </div>
+    </section>
 </div>

@@ -82,7 +82,7 @@ const IDLE_CHECK_MS = 15_000;
  *  so typing in another window still counts as being at the computer and a
  *  locked screen counts as away at once; elsewhere only input to the page
  *  counts. */
-async function readIdleMs(): Promise<number> {
+export async function readIdleMs(): Promise<number> {
     const system = await window.desktop?.idle?.get().catch(() => null);
     if (system) return system.locked ? Infinity : system.seconds * 1000;
     return Math.max(0, Date.now() - lastInputTs);

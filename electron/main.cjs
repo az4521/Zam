@@ -29,6 +29,8 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { resolveStaticPath, isSafeExternalUrl } = require("./serverGuards.cjs");
+const { createBundleUpdater } = require("./bundleUpdater.cjs");
+const { BUNDLE_PUBLIC_KEY } = require("./bundleKey.cjs");
 const { parseWindowState, fitToDisplays } = require("./windowState.cjs");
 const { registerPluginNative } = require("./pluginNative.cjs");
 const { registerPluginFrames } = require("./pluginFrames.cjs");
@@ -40,6 +42,10 @@ const { createAppAudio } = require("./appAudio.cjs");
 const { resolveShareAudio } = require("./shareAudio.cjs");
 
 const BUILD_DIR = path.join(__dirname, "..", "build");
+// What the local server serves: the site packed in the app, or a newer web
+// bundle that was downloaded without a reinstall (bundleUpdater.cjs). Set once
+// at launch, and again when a bundle is applied to the running app.
+let webRoot = BUILD_DIR;
 // Hand-sized icon set (scripts/gen-icons.py): the .ico carries a real frame per
 // size so Windows never has to scale a 1024px PNG down for the taskbar/title
 // bar, and the tray glyphs are white-with-black-outline silhouettes.
@@ -125,7 +131,7 @@ function startServer() {
                 return;
             }
             // Safely resolve and validate the requested path.
-            let filePath = resolveStaticPath(BUILD_DIR, req.url || "/");
+            let filePath = resolveStaticPath(webRoot, req.url || "/");
             if (!filePath) {
                 // Malformed URL or path traversal attempt.
                 res.writeHead(400);
@@ -144,7 +150,7 @@ function startServer() {
             }
             if (!stat) {
                 // SPA fallback — the static adapter writes the fallback to index.html.
-                filePath = path.join(BUILD_DIR, "index.html");
+                filePath = path.join(webRoot, "index.html");
             }
             fs.readFile(filePath, (err, data) => {
                 if (err) {
@@ -260,6 +266,9 @@ const IN_FLATPAK = !!process.env.FLATPAK_ID;
 let lastUpdateStatus = null;
 
 function sendUpdateStatus(payload) {
+    // `kind` says what is being updated, so the renderer words "restart" vs
+    // "reload" right and a bundle's kind never lingers into an installer update.
+    payload = { kind: "shell", ...payload };
     lastUpdateStatus = payload;
     if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send("updates:status", payload);
@@ -285,12 +294,200 @@ function mapUpdateError(err) {
 // "available" so the renderer can offer a download choice. Only the background
 // launch check honours the persisted auto-update preference.
 function runUpdateCheck(manual) {
-    if (!app.isPackaged || IN_FLATPAK) return;
+    if (!app.isPackaged) return;
     const phase = lastUpdateStatus?.phase;
     if (phase === "downloading" || phase === "downloaded") {
         sendUpdateStatus(lastUpdateStatus);
         return;
     }
+    void checkBundleThenInstaller(manual);
+}
+
+// --- Web bundle updates (bundleUpdater.cjs) --------------------------------
+//
+// A release that only changes the web UI updates through a signed bundle: it
+// is staged in the background, then the renderer applies it at a moment that
+// suits the user (startup, idle, or in the background; never in a call), by
+// asking for "updates:quit-and-install". Status events carry kind "bundle" so
+// the UI says "reload" instead of "restart". A release that needs a new shell
+// (or any trouble reading bundles) takes the installer path below, as before.
+
+let bundleUpdater = null;
+// What the last check found and is ready to download.
+let foundBundle = null;
+
+const UPDATE_PREFS_FILE = () =>
+    path.join(app.getPath("userData"), "update-prefs.json");
+
+// The renderer's "automatic updates" choice, kept here too so a launch can
+// apply a staged bundle before any page exists to tell us. On unless turned off.
+function readAutoUpdatePref() {
+    try {
+        return (
+            JSON.parse(fs.readFileSync(UPDATE_PREFS_FILE(), "utf8")).auto !==
+            false
+        );
+    } catch {
+        return true;
+    }
+}
+
+function writeAutoUpdatePref(auto) {
+    try {
+        fs.writeFileSync(UPDATE_PREFS_FILE(), JSON.stringify({ auto }));
+    } catch {
+        /* best-effort: the renderer re-sends it every launch */
+    }
+}
+
+// Pick the folder to serve, before the server starts. Never throws: any
+// trouble leaves the site packed in the app in place.
+function setupBundleUpdater() {
+    if (!app.isPackaged) return;
+    try {
+        const { hash } = JSON.parse(
+            fs.readFileSync(path.join(__dirname, "shell-hash.json"), "utf8"),
+        );
+        if (typeof hash !== "string" || !hash) return;
+        bundleUpdater = createBundleUpdater({
+            dir: path.join(app.getPath("userData"), "web-bundles"),
+            shellVersion: app.getVersion(),
+            shellHash: hash,
+            publicKey: BUNDLE_PUBLIC_KEY,
+            releaseUrl:
+                "https://api.github.com/repos/az4521/Zam/releases/latest",
+            assetUrlPrefix: "https://github.com/az4521/Zam/releases/download/",
+            fetchJson: async (url) => {
+                const res = await net.fetch(url, {
+                    headers: { Accept: "application/json" },
+                });
+                if (!res.ok) throw new Error(`${url} answered ${res.status}`);
+                return res.json();
+            },
+            download: downloadToFile,
+            log: (...a) => console.log("[bundle]", ...a),
+        });
+        const root = bundleUpdater.activeRoot({
+            applyStaged: readAutoUpdatePref(),
+        });
+        if (root) webRoot = root;
+    } catch (err) {
+        bundleUpdater = null;
+        webRoot = BUILD_DIR;
+        console.error("[bundle] disabled:", err);
+    }
+}
+
+// net.fetch (so the user's proxy setting applies) streamed to a file, hashing
+// and counting as it goes and stopping at maxBytes.
+async function downloadToFile(url, dest, { maxBytes, onProgress }) {
+    const res = await net.fetch(url);
+    if (!res.ok || !res.body) throw new Error(`${url} answered ${res.status}`);
+    const total = Number(res.headers.get("content-length")) || maxBytes;
+    const hash = require("crypto").createHash("sha512");
+    const out = fs.createWriteStream(dest);
+    let size = 0;
+    try {
+        const reader = res.body.getReader();
+        for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            size += value.length;
+            if (size > maxBytes)
+                throw new Error("web bundle is larger than expected");
+            hash.update(value);
+            if (!out.write(value))
+                await new Promise((r) => out.once("drain", r));
+            onProgress(Math.min(1, size / total));
+        }
+    } finally {
+        await new Promise((r) => out.end(r));
+    }
+    return { sha512: hash.digest("base64"), size };
+}
+
+async function checkBundleThenInstaller(manual) {
+    let shellVersion = null;
+    if (bundleUpdater) {
+        sendUpdateStatus({ phase: "checking" });
+        try {
+            const found = await bundleUpdater.check();
+            if (found.kind === "bundle") {
+                foundBundle = found;
+                const status = { version: found.version, kind: "bundle" };
+                if (found.staged) {
+                    sendUpdateStatus({ phase: "downloaded", ...status });
+                    return;
+                }
+                sendUpdateStatus({ phase: "available", ...status });
+                // A manual check only offers the download; the background check
+                // takes it when automatic updates are on.
+                if (!manual && autoUpdatePref) await downloadFoundBundle();
+                return;
+            }
+            if (found.kind === "shell") shellVersion = found.version;
+        } catch (err) {
+            // Not fatal: the installer path can still tell the user.
+            console.error("[bundle] check failed:", err);
+        }
+    }
+    if (IN_FLATPAK) {
+        // `flatpak update` owns shell updates; there is nothing to install here.
+        sendUpdateStatus(
+            shellVersion
+                ? { phase: "unsupported", version: shellVersion }
+                : {
+                      phase: "up-to-date",
+                      version:
+                          bundleUpdater?.currentVersion() ?? app.getVersion(),
+                  },
+        );
+        return;
+    }
+    runInstallerCheck(manual);
+}
+
+async function downloadFoundBundle() {
+    const found = foundBundle;
+    if (!bundleUpdater || !found || found.staged) return;
+    const status = { version: found.version, kind: "bundle" };
+    sendUpdateStatus({ phase: "downloading", percent: 0, ...status });
+    let lastSent = 0;
+    try {
+        await bundleUpdater.download(found, (fraction) => {
+            const percent = Math.round(fraction * 100);
+            if (percent === lastSent) return;
+            lastSent = percent;
+            sendUpdateStatus({ phase: "downloading", percent, ...status });
+        });
+        found.staged = true;
+        sendUpdateStatus({ phase: "downloaded", ...status });
+    } catch (err) {
+        console.error("[bundle] download failed:", err);
+        sendUpdateStatus(mapUpdateError(err));
+    }
+}
+
+// Serve the staged bundle and reload the page onto it. The page's lazy chunks
+// are hashed per build, so the root changes only now, when the reload follows.
+async function applyStagedBundle() {
+    const version = foundBundle?.version;
+    if (!bundleUpdater || !version || !mainWindow || mainWindow.isDestroyed())
+        return;
+    webRoot = bundleUpdater.apply(version);
+    foundBundle = null;
+    lastUpdateStatus = null;
+    // The offline shell worker would answer the reload from its old cache.
+    // Dropping it makes the reload take the new files; the page registers a
+    // fresh worker as it boots.
+    await session.defaultSession
+        .clearStorageData({ storages: ["serviceworkers"] })
+        .catch(() => {});
+    mainWindow.webContents.reloadIgnoringCache();
+}
+
+function runInstallerCheck(manual) {
+    if (IN_FLATPAK) return;
     autoUpdater.autoDownload = manual ? false : autoUpdatePref;
     try {
         const p = autoUpdater.checkForUpdates();
@@ -304,9 +501,7 @@ function runUpdateCheck(manual) {
 
 // Wire the updater once, from whenReady (NOT createWindow, which re-runs on
 // `activate` and would double-register these listeners).
-function setupAutoUpdater() {
-    if (!app.isPackaged || IN_FLATPAK) return;
-
+function setupInstallerUpdater() {
     autoUpdater.autoInstallOnAppQuit = true;
     // Fail-safe default: stay OFF until the renderer seeds the persisted preference at boot (see app shell onMount). Prevents a forced silent download when the user has turned auto-updates OFF but hasn't opened Settings before the launch check.
     autoUpdater.autoDownload = false;
@@ -355,6 +550,16 @@ function setupAutoUpdater() {
         }
         sendUpdateStatus(mapUpdateError(err));
     });
+}
+
+function setupAutoUpdater() {
+    if (!app.isPackaged) return;
+    // The saved choice (on unless turned off) governs from the first check; the
+    // renderer re-sends it at boot.
+    autoUpdatePref = readAutoUpdatePref();
+    // Flatpak builds take their shell from `flatpak update`; they still check
+    // for web bundles below.
+    if (!IN_FLATPAK) setupInstallerUpdater();
 
     // Background checks: ~10s after launch (so it never blocks or races
     // startup), then every few hours and after waking from sleep, so an app
@@ -374,7 +579,12 @@ function setupAutoUpdater() {
 ipcMain.on("updates:check", () => runUpdateCheck(true));
 
 ipcMain.on("updates:download", () => {
-    if (!app.isPackaged || IN_FLATPAK) return;
+    if (!app.isPackaged) return;
+    if (lastUpdateStatus?.kind === "bundle") {
+        void downloadFoundBundle();
+        return;
+    }
+    if (IN_FLATPAK) return;
     try {
         const p = autoUpdater.downloadUpdate();
         if (p && typeof p.catch === "function") {
@@ -390,7 +600,11 @@ ipcMain.on("updates:set-auto", (_e, enabled) => {
     // Stored, not applied to autoDownload directly: each check sets autoDownload
     // from its own manual/background context (a manual check always stays off).
     autoUpdatePref = !!enabled;
+    writeAutoUpdatePref(autoUpdatePref);
 });
+
+// The page finished loading: a web bundle that was just applied is good.
+ipcMain.on("updates:bundle-ready", () => bundleUpdater?.markReady());
 
 // The OS's own General MIDI sound bank, for playing MIDI attachments with the
 // sounds the user's system synth uses (src/lib/utils/midiSoundBank.ts). Only
@@ -569,6 +783,11 @@ ipcMain.on("tray:set-minimize-to-close", (_e, enabled) => {
 
 ipcMain.on("updates:quit-and-install", () => {
     if (!app.isPackaged) return;
+    // A staged web bundle needs a reload, not a restart.
+    if (lastUpdateStatus?.kind === "bundle") {
+        void applyStagedBundle();
+        return;
+    }
     // The window's close handler hides to tray unless isQuitting is set, so
     // set it first (mirrors the tray Quit item) or quitAndInstall would just
     // minimise instead of restarting.
@@ -1531,6 +1750,8 @@ if (!app.requestSingleInstanceLock()) {
         app.setAppUserModelId(APP_USER_MODEL_ID);
         // Must be installed before any renderer can call getDisplayMedia().
         setupDisplayMediaHandler();
+        // Before the server starts: it serves whichever UI this picks.
+        setupBundleUpdater();
         // The proxy first, so the page's first requests already use it.
         proxyManager.apply().finally(() => createWindow());
         createTray();

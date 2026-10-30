@@ -27,6 +27,11 @@ export function desktopRestartToInstall(): void {
     bridge()?.restartToInstall();
 }
 
+/** The page loaded: a web bundle just applied is confirmed good. */
+export function desktopBundleReady(): void {
+    bridge()?.bundleReady?.();
+}
+
 export function desktopSetAutoDownload(enabled: boolean): void {
     bridge()?.setAutoDownload(enabled);
 }

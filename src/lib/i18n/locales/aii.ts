@@ -588,6 +588,9 @@ const messages: Record<MessageKey, string> = {
     "debugSettings.pushEnabledInBuild": "ܡܘܕܥܢܘ̈ܬܐ ܕܠܝܩ̈ܐ ܓܘ ܒܢܝܢܐ",
     "debugSettings.yes": "ܐܝܢ",
     "debugSettings.no": "ܠܐ",
+    "debugSettings.hideUpdatePrompts": "Hide update prompts",
+    "debugSettings.hideUpdatePromptsHint":
+        "Stops the update banner and toast. Updates are still checked for, and still install on their own when automatic updates are on.",
     "debugSettings.gatewayUrl": "URL ܕܬܪܥܐ",
     "debugSettings.appId2": "ܗܝܝܘܬܐ ܕܬܘܟܢܝܬܐ",
     "debugSettings.notificationPermission": "ܦܣܐ ܕܡܘܕܥܢܘ̈ܬܐ",
@@ -3495,6 +3498,9 @@ const messages: Record<MessageKey, string> = {
     "updateStatus.updateReadyRestartToApply":
         "ܚܘܕܬܐ ܡܛܝܒܬܐ ܝܠܗ̇{versionSuffix} - ܫܪܝ ܡܢ ܕܪܝܫ ܩܐ ܦܠܚܬܐ",
     "updateStatus.restartToApply": "ܫܪܝ ܡܢ ܕܪܝܫ ܩܐ ܦܠܚܬܐ",
+    "updateStatus.updateReadyReloadToApply":
+        "Update ready{versionSuffix} - reload to apply",
+    "updateStatus.reloadToApply": "Reload to apply",
     "updateStatus.aNewVersionIsAvailable": "ܐܝܬ ܢܘܣܚܐ ܚܕܬܐ{versionSuffix}",
     "updateStatus.openReleasePage": "ܦܬܘܚ ܦܐܬܐ ܕܢܘܣܚܐ",
     "updateStatus.updateCheckFailed": "ܒܘܨܝܐ ܕܚܘܕ̈ܬܐ ܠܐ ܦܠܚܠܗ",

@@ -592,6 +592,9 @@ export const en = {
     "debugSettings.pushEnabledInBuild": "Push enabled in build",
     "debugSettings.yes": "Yes",
     "debugSettings.no": "No",
+    "debugSettings.hideUpdatePrompts": "Hide update prompts",
+    "debugSettings.hideUpdatePromptsHint":
+        "Stops the update banner and toast. Updates are still checked for, and still install on their own when automatic updates are on.",
     "debugSettings.gatewayUrl": "Gateway URL",
     "debugSettings.appId2": "App ID",
     "debugSettings.notificationPermission": "Notification permission",
@@ -3621,6 +3624,9 @@ export const en = {
     "updateStatus.updateReadyRestartToApply":
         "Update ready{versionSuffix} - restart to apply",
     "updateStatus.restartToApply": "Restart to apply",
+    "updateStatus.updateReadyReloadToApply":
+        "Update ready{versionSuffix} - reload to apply",
+    "updateStatus.reloadToApply": "Reload to apply",
     "updateStatus.aNewVersionIsAvailable":
         "A new version is available{versionSuffix}",
     "updateStatus.openReleasePage": "Open release page",

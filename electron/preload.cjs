@@ -61,23 +61,24 @@ contextBridge.exposeInMainWorld("desktop", {
             return () => ipcRenderer.removeListener("sso:callback", h);
         },
     },
-    // Flatpak builds are updated by `flatpak update`, not electron-updater,
-    // so they get no updater bridge (the renderer then treats them like web).
-    updates: process.env.FLATPAK_ID
-        ? undefined
-        : {
-              check: () => ipcRenderer.send("updates:check"),
-              download: () => ipcRenderer.send("updates:download"),
-              restartToInstall: () =>
-                  ipcRenderer.send("updates:quit-and-install"),
-              setAutoDownload: (enabled) =>
-                  ipcRenderer.send("updates:set-auto", !!enabled),
-              onStatus: (cb) => {
-                  const h = (_e, s) => cb(s);
-                  ipcRenderer.on("updates:status", h);
-                  return () => ipcRenderer.removeListener("updates:status", h);
-              },
-          },
+    // Updates. A Flatpak build takes its shell from `flatpak update`; the
+    // main process then only offers it web bundles (see bundleUpdater.cjs).
+    updates: {
+        check: () => ipcRenderer.send("updates:check"),
+        download: () => ipcRenderer.send("updates:download"),
+        // Applies what was downloaded: a restart into a new installer, or just
+        // a reload for a web bundle (the status says which).
+        restartToInstall: () => ipcRenderer.send("updates:quit-and-install"),
+        setAutoDownload: (enabled) =>
+            ipcRenderer.send("updates:set-auto", !!enabled),
+        // The page loaded, so a web bundle just applied is good.
+        bundleReady: () => ipcRenderer.send("updates:bundle-ready"),
+        onStatus: (cb) => {
+            const h = (_e, s) => cb(s);
+            ipcRenderer.on("updates:status", h);
+            return () => ipcRenderer.removeListener("updates:status", h);
+        },
+    },
     screenShare: {
         // Main pushes the enumerated source list when getDisplayMedia() fires.
         onRequest: (cb) => {
