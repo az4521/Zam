@@ -20,6 +20,10 @@ import {
     manifest as previewRewriterManifest,
     plugin as previewRewriterPlugin,
 } from "./preview-rewriter/index";
+import {
+    manifest as slashPassthroughManifest,
+    plugin as slashPassthroughPlugin,
+} from "./slash-passthrough/index";
 
 export interface BuiltinPlugin {
     manifest: Manifest;
@@ -46,6 +50,11 @@ export const BUILTIN_PLUGINS: BuiltinPlugin[] = [
     {
         manifest: previewRewriterManifest,
         module: previewRewriterPlugin,
+        defaultEnabled: true,
+    },
+    {
+        manifest: slashPassthroughManifest,
+        module: slashPassthroughPlugin,
         defaultEnabled: true,
     },
 ];

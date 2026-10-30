@@ -2993,6 +2993,17 @@ const messages: Record<MessageKey, string> = {
     "slashFun.funSlashCommands": "Lustige Slash-Befehle",
     "slashFun.noveltySlashCommandsMeShrugTableflip":
         "Spaß-Slash-Befehle: /me, /shrug, /tableflip, /unflip, /lenny, /spoiler, /plain.",
+    "slashPassthrough.botCommands": "Bot-Befehle",
+    "slashPassthrough.suggestBotCommandsInTheSlashPopup":
+        "Schlägt die Slash-Befehle eines Bots im Eingabefenster vor und sendet sie als reinen Text.",
+    "slashPassthrough.commands": "Befehle",
+    "slashPassthrough.commandsDescription":
+        "Namen, die das Eingabefenster nach einem Schrägstrich vorschlägt. Ein Befehl, den ZAM selbst kennt, hat Vorrang.",
+    "slashPassthrough.command": "Befehl",
+    "slashPassthrough.description": "Beschreibung",
+    "slashPassthrough.optional": "Optional",
+    "slashPassthrough.sendToTheBot": "{command} an den Bot senden",
+    "slashPassthrough.optionalArguments": "[Argumente]",
 
     // src/lib/plugins/builtins/text-replacer/index.ts
     "textReplacer.textReplacer": "Textersetzung",
