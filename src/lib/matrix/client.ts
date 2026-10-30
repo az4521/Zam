@@ -68,6 +68,7 @@ import {
     type KeywordRuleView,
 } from "$lib/utils/keywordRules";
 import type { PresenceState } from "$lib/utils/presence";
+import { sendPresenceWithSlidingSync } from "$lib/matrix/slidingSyncPresence";
 import {
     installMediaHealer,
     markSwMediaReady,
@@ -9614,6 +9615,7 @@ export async function setOwnPresence(
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.setSyncPresence(SYNC_PRESENCE[presence]);
+    sendPresenceWithSlidingSync(matrixClient)(presence);
     // `undefined` omits status_msg; "" sends it explicitly, which is how a
     // cleared message is told apart from one we have no opinion about.
     await matrixClient.setPresence({

@@ -5,7 +5,6 @@
     import AccountSwitcher from "$lib/components/layout/AccountSwitcher.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
-    import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
     import {
         presenceDot,
         presenceDotClass,
@@ -38,9 +37,9 @@
     });
 
     const ownPresence = $derived.by(() => {
-        void presenceState.presenceTick;
-        const p = auth.userId ? presenceFor(auth.userId) : null;
-        const state = p?.state ?? settingsState.ownPresence;
+        // The chosen state, not the server's: tuwunel reports the highest
+        // state across all our sessions, so an away pick would never show.
+        const state = settingsState.ownPresence;
         return {
             dotClass: presenceDotClass(presenceDot(state)),
             label: presenceLabel(state),

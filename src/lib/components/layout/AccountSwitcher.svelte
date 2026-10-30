@@ -31,11 +31,7 @@
     } from "$lib/matrix/client";
     import { deleteCryptoStore } from "$lib/matrix/crypto";
     import { deleteEventIndex } from "$lib/matrix/eventIndex";
-    import {
-        changeOwnPresence,
-        presenceFor,
-        presenceState,
-    } from "$lib/stores/presence.svelte";
+    import { changeOwnPresence } from "$lib/stores/presence.svelte";
     import {
         getCachedProfile,
         nameColourFor,
@@ -97,13 +93,9 @@
         (void roomsState.roomsTick, getOwnDisplayName() ?? me),
     );
     const avatarSrc = $derived((void roomsState.roomsTick, getOwnAvatarUrl()));
-    const presenceValue = $derived.by((): PresenceState => {
-        void presenceState.presenceTick;
-        return (
-            (me ? presenceFor(me)?.state : undefined) ??
-            settingsState.ownPresence
-        );
-    });
+    // The chosen state, not the server's: tuwunel reports the highest state
+    // across all our sessions, so an away pick would never show.
+    const presenceValue = $derived<PresenceState>(settingsState.ownPresence);
 
     function serverHost(url: string): string {
         try {
