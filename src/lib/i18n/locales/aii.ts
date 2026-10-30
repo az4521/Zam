@@ -2780,6 +2780,17 @@ const messages: Record<MessageKey, string> = {
     "slashFun.funSlashCommands": "ܦܘܩܕܢ̈ܐ ܡܓܚܟܢ̈ܐ ܕ /",
     "slashFun.noveltySlashCommandsMeShrugTableflip":
         "ܦܘܩܕܢ̈ܐ ܕ / ܕܚܕܘܬܐ: /me، /shrug، /tableflip، /unflip، /lenny، /spoiler، /plain.",
+    "slashPassthrough.botCommands": "Bot commands",
+    "slashPassthrough.suggestBotCommandsInTheSlashPopup":
+        "Suggest a bot's slash commands in the composer popup, and send them as plain text.",
+    "slashPassthrough.commands": "Commands",
+    "slashPassthrough.commandsDescription":
+        "Names the composer suggests after a slash. A command ZAM implements itself always wins.",
+    "slashPassthrough.command": "Command",
+    "slashPassthrough.description": "Description",
+    "slashPassthrough.optional": "Optional",
+    "slashPassthrough.sendToTheBot": "Send {command} to the bot",
+    "slashPassthrough.optionalArguments": "[arguments]",
 
     // src/lib/plugins/builtins/text-replacer/index.ts
     "textReplacer.textReplacer": "ܫܚܠܦܢܐ ܕܟܬܒܐ",

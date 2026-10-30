@@ -2890,6 +2890,18 @@ export const en = {
     "slashFun.funSlashCommands": "Fun slash commands",
     "slashFun.noveltySlashCommandsMeShrugTableflip":
         "Novelty slash commands: /me, /shrug, /tableflip, /unflip, /lenny, /spoiler, /plain.",
+    // src/lib/plugins/builtins/slash-passthrough/index.ts
+    "slashPassthrough.botCommands": "Bot commands",
+    "slashPassthrough.suggestBotCommandsInTheSlashPopup":
+        "Suggest a bot's slash commands in the composer popup, and send them as plain text.",
+    "slashPassthrough.commands": "Commands",
+    "slashPassthrough.commandsDescription":
+        "Names the composer suggests after a slash. A command ZAM implements itself always wins.",
+    "slashPassthrough.command": "Command",
+    "slashPassthrough.description": "Description",
+    "slashPassthrough.optional": "Optional",
+    "slashPassthrough.sendToTheBot": "Send {command} to the bot",
+    "slashPassthrough.optionalArguments": "[arguments]",
 
     // src/lib/plugins/builtins/text-replacer/index.ts
     "textReplacer.textReplacer": "Text replacer",

@@ -2966,6 +2966,17 @@ const messages: Record<MessageKey, string> = {
     "slashFun.funSlashCommands": "Commandes slash amusantes",
     "slashFun.noveltySlashCommandsMeShrugTableflip":
         "Commandes slash fantaisie : /me, /shrug, /tableflip, /unflip, /lenny, /spoiler, /plain.",
+    "slashPassthrough.botCommands": "Commandes du bot",
+    "slashPassthrough.suggestBotCommandsInTheSlashPopup":
+        "Propose les commandes slash d'un bot dans le compositeur et les envoie en texte brut.",
+    "slashPassthrough.commands": "Commandes",
+    "slashPassthrough.commandsDescription":
+        "Noms proposés après une barre oblique. Une commande que ZAM implémente elle-même reste prioritaire.",
+    "slashPassthrough.command": "Commande",
+    "slashPassthrough.description": "Description",
+    "slashPassthrough.optional": "Facultatif",
+    "slashPassthrough.sendToTheBot": "Envoyer {command} au bot",
+    "slashPassthrough.optionalArguments": "[arguments]",
 
     // src/lib/plugins/builtins/text-replacer/index.ts
     "textReplacer.textReplacer": "Remplacement de texte",

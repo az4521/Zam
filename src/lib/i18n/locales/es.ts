@@ -3000,6 +3000,17 @@ const messages: Record<MessageKey, string> = {
     "slashFun.funSlashCommands": "Comandos de barra divertidos",
     "slashFun.noveltySlashCommandsMeShrugTableflip":
         "Comandos de barra curiosos: /me, /shrug, /tableflip, /unflip, /lenny, /spoiler, /plain.",
+    "slashPassthrough.botCommands": "Comandos del bot",
+    "slashPassthrough.suggestBotCommandsInTheSlashPopup":
+        "Sugiere los comandos de barra de un bot en el compositor y los envía como texto sin formato.",
+    "slashPassthrough.commands": "Comandos",
+    "slashPassthrough.commandsDescription":
+        "Nombres que el compositor sugiere tras una barra. Un comando que ZAM ya implementa tiene prioridad.",
+    "slashPassthrough.command": "Comando",
+    "slashPassthrough.description": "Descripción",
+    "slashPassthrough.optional": "Opcional",
+    "slashPassthrough.sendToTheBot": "Enviar {command} al bot",
+    "slashPassthrough.optionalArguments": "[argumentos]",
 
     // src/lib/plugins/builtins/text-replacer/index.ts
     "textReplacer.textReplacer": "Sustitución de texto",
