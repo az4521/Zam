@@ -1176,6 +1176,7 @@ export const en = {
     "messageItem.pinMessage": "Pin message",
     "messageItem.addReaction": "Add reaction",
     "messageItem.reply": "Reply",
+    "messageItem.threadReply": "Thread",
     "messageItem.replyInThread": "Reply in thread",
     "messageItem.forwardMessage": "Forward message",
     "messageItem.moreActions": "More actions",

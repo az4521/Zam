@@ -1547,10 +1547,13 @@ export async function startSync(
             pendingEventOrdering: PendingEventOrdering.Detached,
             // threadSupport is an IStartClientOpts option — supportsThreads()
             // reads the opts passed HERE, not createClient's (which silently
-            // ignores the key). With it off, the SDK never builds Thread objects
-            // and every m.thread reply stays in the main timeline, where the
-            // thread filter in getTimelineMessages hides it from view entirely.
-            threadSupport: true,
+            // ignores the key). Deliberately OFF: ZAM has no thread list, so a
+            // diverted reply is unreachable unless you happen to scroll to its
+            // root, and anything a bot posts in a thread (status notes, model
+            // switches) simply never appeared. Thread replies now arrive in the
+            // room's live timeline and are shown there, carrying the thread
+            // marker from their relation.
+            threadSupport: false,
         });
     } catch (err) {
         // A rejected start must not leave four listeners bound to a client the
@@ -2508,17 +2511,10 @@ function isRenderableTimelineEvent(e: MatrixEvent): boolean {
         return false;
     const rel = e.getContent()?.["m.relates_to"];
     if (rel?.rel_type === "m.replace") return false;
-    // Divert thread replies out of the main timeline (Element behaviour).
-    // With threadSupport on the SDK already does this; the clause is the ⚑4
-    // backstop against out-of-order Conduit delivery. Read the ORIGINAL
-    // content so an edited reply is still recognised as a thread reply.
-    if (
-        !belongsToMainTimeline({
-            relatesTo: e.getOriginalContent()?.["m.relates_to"],
-            eventId: e.getId() ?? "",
-        })
-    )
-        return false;
+    // Thread replies are NOT diverted any more (threadSupport is off and ZAM
+    // has no thread list to divert them into): they belong in the room view,
+    // marked by their relation. Read the ORIGINAL content so an edited reply is
+    // still recognised as a reply.
     return true;
 }
 
@@ -4608,15 +4604,10 @@ export function onTimelineEvent(
         const isLiveAppend = data?.liveEvent === true;
         const isReplacement =
             event.getContent()?.["m.relates_to"]?.rel_type === "m.replace";
-        const isMainTimeline = belongsToMainTimeline({
-            relatesTo: event.getOriginalContent()?.["m.relates_to"],
-            eventId: event.getId() ?? "",
-        });
         if (
             room &&
             (settingsState.showAllEvents ||
                 (!isReplacement &&
-                    isMainTimeline &&
                     (event.getType() === "m.room.message" ||
                         event.getType() === "m.sticker" ||
                         isPollStartEventType(event.getType())) &&
