@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.40.2
+
+🐛 **Fixed**
+
+- **Soundboard clips and boosted voices no longer slow down with OBS open:** call audio that goes through the audio mixer (soundboard clips, voices boosted above 100%, and normalized voices) played through a hidden element that the browser stretches to absorb timing drift. With OBS or other heavy audio software running, that made the sound play slow and then speed up to catch up. It now plays directly to your speakers where the browser allows it.
+
 ## v1.40.1
 
 ✨ **New**
