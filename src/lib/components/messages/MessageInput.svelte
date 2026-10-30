@@ -1843,7 +1843,33 @@
         );
     }
 
+    // True while an IME (Japanese, Chinese, Korean input) is composing. The
+    // browser owns the contenteditable's contents during that window, so
+    // rendering from the model is deferred until the composition commits.
+    let composing = false;
+
     function onInput() {
+        // Every keystroke inside an IME composition fires an input event
+        // (inputType "insertCompositionText"). Re-rendering on those would
+        // replace the node holding the preedit text, so the composition is
+        // dropped and conversion never converges. onCompositionEnd picks the
+        // committed text up instead.
+        if (composing) return;
+        syncFromEditor();
+    }
+
+    function onCompositionEnd() {
+        composing = false;
+        // WebKit (Safari, and the Android WebView Zam ships in) fires
+        // compositionend before the DOM holds the committed text, and Chrome
+        // fires it after. The microtask runs after that trailing input event
+        // and before any click that follows, so both orders end up synced.
+        queueMicrotask(() => {
+            if (!composing) syncFromEditor();
+        });
+    }
+
+    function syncFromEditor() {
         if (!textareaEl || renderingComposer) return;
         let caret = getCaretOffset();
         text = getComposerText();
@@ -2266,6 +2292,8 @@
                 aria-label={composerPlaceholder}
                 onkeydown={onKeydown}
                 oninput={onInput}
+                oncompositionstart={() => (composing = true)}
+                oncompositionend={onCompositionEnd}
                 onbeforeinput={onBeforeInput}
                 onpaste={onPaste}
                 onfocus={() => setKeyboardImageTarget(true)}
