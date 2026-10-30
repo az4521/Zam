@@ -1236,14 +1236,11 @@
         // text is a caption, not a command).
         if (!isSending && !disabled && fileQueue.length === 0) {
             const parsed = parseSlashCommand(text, pluginSlashCommands);
-            if (parsed && "unknown" in parsed) {
-                showErrorToast(
-                    t("messageInput.unknownCommand", {
-                        unknown: parsed.unknown,
-                    }),
-                );
-                return;
-            }
+            // A command this client does not implement is sent as plain text.
+            // Bots and other clients define their own (`/model`, `/new`, ...)
+            // and the composer cannot know them; refusing the send makes those
+            // unreachable, which is worse than posting a typo. A bare "/" and
+            // the "//text" escape are still handled below.
             if (parsed && "command" in parsed) {
                 await dispatchSlashCommand(parsed.command, parsed.arg);
                 return;

@@ -1120,7 +1120,6 @@ const messages: Record<MessageKey, string> = {
     "messageInput.unhandledCommand": "Commande non gérée : /{name}",
     "messageInput.commandFailed": "Échec de la commande",
     "messageInput.failedToSend": "Échec de l'envoi",
-    "messageInput.unknownCommand": "Commande inconnue : /{unknown}",
     "messageInput.sedNoMessage": "Vous n’avez aucun message à modifier ici",
     "messageInput.sedNoMatch":
         "« {pattern} » ne figure pas dans votre dernier message",

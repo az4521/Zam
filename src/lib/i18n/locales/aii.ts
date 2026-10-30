@@ -1061,7 +1061,6 @@ const messages: Record<MessageKey, string> = {
     "messageInput.unhandledCommand": "ܦܘܩܕܢܐ ܠܐ ܡܕܒܪܐ: /{name}",
     "messageInput.commandFailed": "ܦܘܩܕܢܐ ܠܐ ܦܠܚܠܗ",
     "messageInput.failedToSend": "ܫܕܪܐ ܠܐ ܦܠܚܠܗ",
-    "messageInput.unknownCommand": "ܦܘܩܕܢܐ ܠܐ ܝܕܝܥܐ: /{unknown}",
     "messageInput.sendingAttachments":
         "{count, plural, one {ܒܫܕܪܐ # ܐܣܝܪܬܐ…} other {ܒܫܕܪܐ # ܐܣܝܪ̈ܬܐ…}}",
 
