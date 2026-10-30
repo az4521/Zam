@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.40.3
+
+✨ **New**
+
+- **Soundboard button in the sidebar and the call banner:** the soundboard is now one click away from the call panel in the sidebar and from the call banner above a room's timeline, as well as from the call view, next to the other call buttons.
+
+🐛 **Fixed**
+
+- **Clicking the soundboard button again closes it:** it used to close and immediately reopen.
+
 ## v1.40.2
 
 🐛 **Fixed**
