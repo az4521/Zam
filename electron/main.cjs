@@ -947,6 +947,10 @@ ipcMain.handle("gpu:set-video-encode", (_e, enabled) => {
     writeGpuPrefs({ videoEncode: enabled ? undefined : false });
 });
 
+ipcMain.handle("gpu:set-h264-profile-fix", (_e, enabled) => {
+    writeGpuPrefs({ h264ProfileFix: enabled ? undefined : false });
+});
+
 ipcMain.handle("gpu:set-skia-graphite", (_e, enabled) => {
     writeGpuPrefs({
         skiaGraphite: enabled ? true : undefined,
@@ -1677,6 +1681,17 @@ const hardwareVideoEncode =
     hardwareAccelerationAtLaunch &&
     readGpuPrefs().videoEncode !== false;
 if (hardwareVideoEncode) features.push("AcceleratedVideoEncoder");
+// Windows: Chromium only offers the GPU encoder H.264 Constrained Baseline
+// (profile-level-id 42e01f, what LiveKit's server answers with) behind this
+// flag; without it that format goes to OpenH264 in software. Linux and
+// Android have it on already. The page also rewrites the answer to plain
+// Baseline (utils/h264Profile) for NVIDIA, which Chromium skips for CBP, and
+// for the web and Android builds. Settings > Debug turns both off.
+const h264Cbp =
+    process.platform === "win32" &&
+    hardwareAccelerationAtLaunch &&
+    readGpuPrefs().h264ProfileFix !== false;
+if (h264Cbp) features.push("PlatformH264CbpEncoding");
 // NVIDIA in Flatpak: zam.sh put our NVENC encoding driver in front of
 // nvidia-vaapi-driver (flatpak/va-nvenc) and set ZAM_NVENC. Chromium only opens
 // NVIDIA render nodes with VaapiOnNvidiaGPUs; without the Vulkan path its

@@ -519,6 +519,9 @@ export const en = {
     "debugSettings.ignoreCodecSupport": "Ignore reported codec support",
     "debugSettings.ignoreCodecSupportHint":
         "Send the picked codec even if others say they can't decode it, and accept every codec this device lists (including ones blocked as broken). For testing, e.g. HEVC on Linux.",
+    "debugSettings.h264ProfileFix": "GPU H.264 profile fix",
+    "debugSettings.h264ProfileFixHint":
+        "Calls use the GPU H.264 encoder even when the server answers with Constrained Baseline, which Chromium encodes in software. Turn off to see the encoder a call gets without it. On Windows desktop the Chromium flag changes after a restart.",
     "debugSettings.voiceProcessing": "Voice processing",
     "debugSettings.pauseGate": "Pause gate",
     "debugSettings.pauseGateHint":

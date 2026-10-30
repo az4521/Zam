@@ -3,10 +3,11 @@
     import { t } from "$lib/i18n";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
 
-    // Desktop only (rendered when window.desktop.gpu exists): Chromium's GPU
-    // report, which video codecs decode and encode on the GPU, and the
-    // switches to turn hardware acceleration (or Linux GPU encoding) off for
-    // drivers that misbehave.
+    // Which video codecs decode and encode on the GPU, probed in the page so
+    // the web and Android builds show them too. On desktop (window.desktop.gpu
+    // exists) it adds Chromium's GPU report and the switches to turn hardware
+    // acceleration (or Linux GPU encoding) off for drivers that misbehave.
+    const desktop = !!window.desktop?.gpu;
     type GpuReport = Awaited<
         ReturnType<NonNullable<NonNullable<Window["desktop"]>["gpu"]>["info"]>
     >;
@@ -43,7 +44,11 @@
     // Chromium reports a codec it can only play in software as supported but
     // not power efficient; power efficient means the GPU decodes it.
     async function probe(contentType: string): Promise<Decode> {
-        if (!MediaSource.isTypeSupported(contentType)) return "unsupported";
+        if (
+            typeof MediaSource === "undefined" ||
+            !MediaSource.isTypeSupported(contentType)
+        )
+            return "unsupported";
         try {
             const result = await navigator.mediaCapabilities.decodingInfo({
                 type: "media-source",
@@ -206,12 +211,11 @@
 
     async function load() {
         const gpu = window.desktop?.gpu;
-        if (!gpu) return;
         loading = true;
         error = "";
         try {
             const [next, codecs, encoders] = await Promise.all([
-                gpu.info(),
+                gpu ? gpu.info() : null,
                 Promise.all(
                     CODECS.map(
                         async ([name, type]) =>
@@ -335,7 +339,7 @@
               : t("gpuDebug.decodeUnsupported");
 
     const reportJson = $derived(
-        report
+        report || decode.length
             ? JSON.stringify(
                   {
                       ...report,
@@ -374,27 +378,31 @@
         >
         <button
             onclick={copy}
-            disabled={!report}
+            disabled={!reportJson}
             class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
             >{copied ? t("debugSettings.copied") : t("common.copy")}</button
         >
     </div>
 
-    <div class="flex items-center gap-3 py-2 border-b border-discord-divider">
-        <div class="flex-1 min-w-0">
-            <p class="text-sm text-discord-textPrimary">
-                {t("gpuDebug.hardwareAcceleration")}
-            </p>
-            <p class="text-xs text-discord-textMuted">
-                {t("gpuDebug.hardwareAccelerationHint")}
-            </p>
+    {#if desktop}
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("gpuDebug.hardwareAcceleration")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("gpuDebug.hardwareAccelerationHint")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={report?.hardwareAcceleration ?? true}
+                onChange={setHardwareAcceleration}
+                label={t("gpuDebug.hardwareAcceleration")}
+            />
         </div>
-        <ToggleSwitch
-            checked={report?.hardwareAcceleration ?? true}
-            onChange={setHardwareAcceleration}
-            label={t("gpuDebug.hardwareAcceleration")}
-        />
-    </div>
+    {/if}
     {#if report?.skiaGraphite}
         {@const sg = report.skiaGraphite}
         <div
@@ -529,7 +537,7 @@
 
     {#if error}
         <p class="mt-2 text-xs text-discord-danger break-all">{error}</p>
-    {:else if !report}
+    {:else if desktop ? !report : loading && !decode.length}
         <p class="mt-2 text-xs text-discord-textMuted">
             {t("common.loading")}
         </p>
@@ -609,33 +617,35 @@
             {/if}
         {/if}
 
-        <p
-            class="mt-3 mb-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
-        >
-            {t("gpuDebug.featureStatus")}
-        </p>
-        {#each Object.entries(report.featureStatus) as [feature, status]}
-            <div
-                class="flex items-start gap-3 text-sm py-1 border-b border-discord-divider"
+        {#if report}
+            <p
+                class="mt-3 mb-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
             >
-                <span
-                    class="text-discord-textMuted flex-shrink-0 w-44 break-all font-mono text-xs"
-                    >{feature}</span
+                {t("gpuDebug.featureStatus")}
+            </p>
+            {#each Object.entries(report.featureStatus) as [feature, status]}
+                <div
+                    class="flex items-start gap-3 text-sm py-1 border-b border-discord-divider"
                 >
-                <span
-                    class="text-discord-textPrimary break-all font-mono text-xs"
-                    >{status}</span
-                >
-            </div>
-        {/each}
+                    <span
+                        class="text-discord-textMuted flex-shrink-0 w-44 break-all font-mono text-xs"
+                        >{feature}</span
+                    >
+                    <span
+                        class="text-discord-textPrimary break-all font-mono text-xs"
+                        >{status}</span
+                    >
+                </div>
+            {/each}
 
-        <details class="mt-3">
-            <summary
-                class="cursor-pointer text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
-                >{t("gpuDebug.details")}</summary
-            >
-            <pre
-                class="mt-1 max-h-80 overflow-auto whitespace-pre-wrap break-all rounded bg-discord-backgroundTertiary p-2 text-xs font-mono text-discord-textPrimary select-text">{reportJson}</pre>
-        </details>
+            <details class="mt-3">
+                <summary
+                    class="cursor-pointer text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                    >{t("gpuDebug.details")}</summary
+                >
+                <pre
+                    class="mt-1 max-h-80 overflow-auto whitespace-pre-wrap break-all rounded bg-discord-backgroundTertiary p-2 text-xs font-mono text-discord-textPrimary select-text">{reportJson}</pre>
+            </details>
+        {/if}
     {/if}
 </section>

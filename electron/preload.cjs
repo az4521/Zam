@@ -152,6 +152,8 @@ contextBridge.exposeInMainWorld("desktop", {
             ipcRenderer.invoke("gpu:set-nvidia-encode", !!enabled),
         setVideoEncode: (enabled) =>
             ipcRenderer.invoke("gpu:set-video-encode", !!enabled),
+        setH264ProfileFix: (enabled) =>
+            ipcRenderer.invoke("gpu:set-h264-profile-fix", !!enabled),
         setSkiaGraphite: (enabled) =>
             ipcRenderer.invoke("gpu:set-skia-graphite", !!enabled),
         setNvidiaVideo: (mode) =>

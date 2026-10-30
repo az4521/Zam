@@ -39,6 +39,7 @@ import {
     screenShareEncodingFor,
     applyScreenShareEncoding,
 } from "$lib/utils/screenShareEncoding";
+import { baselineH264Answer } from "$lib/utils/h264Profile";
 import {
     buildVideoTiles,
     type VideoPublicationInput,
@@ -2413,6 +2414,38 @@ function installDecodePreferences(): void {
     decodePreferencesInstalled = true;
     // On the RTCPeerConnection of every window calls use (webrtcRealm).
     onWebrtcRealm(patchDecodePreferences);
+    onWebrtcRealm(patchBaselineAnswer);
+}
+
+/** The server's answer names H.264 profile 42e01f, which GPU encoders aren't
+ *  offered, so the share is encoded in software (see utils/h264Profile).
+ *  Only where this browser lists 42001f as a send format of its own. */
+function patchBaselineAnswer(pc: typeof RTCPeerConnection): void {
+    const original = pc.prototype.setRemoteDescription;
+    pc.prototype.setRemoteDescription = function (
+        this: RTCPeerConnection,
+        ...args: Parameters<RTCPeerConnection["setRemoteDescription"]>
+    ) {
+        const [description] = args;
+        if (
+            description?.type === "answer" &&
+            description.sdp &&
+            settingsState.h264ProfileFix
+        ) {
+            const sends =
+                webrtcWindow().RTCRtpSender.getCapabilities?.("video");
+            const hasBaseline = sends?.codecs.some((c) =>
+                c.sdpFmtpLine?.includes("profile-level-id=42001f"),
+            );
+            if (hasBaseline) {
+                args[0] = {
+                    type: "answer",
+                    sdp: baselineH264Answer(description.sdp),
+                };
+            }
+        }
+        return original.apply(this, args);
+    } as RTCPeerConnection["setRemoteDescription"];
 }
 
 function patchDecodePreferences(pc: typeof RTCPeerConnection): void {

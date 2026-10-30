@@ -106,6 +106,8 @@ declare global {
                 }>;
                 setHardwareAcceleration: (enabled: boolean) => Promise<void>;
                 setVideoEncode: (enabled: boolean) => Promise<void>;
+                /** Windows: the PlatformH264CbpEncoding flag, on the next launch. */
+                setH264ProfileFix: (enabled: boolean) => Promise<void>;
                 setSkiaGraphite: (enabled: boolean) => Promise<void>;
                 setNvidiaEncode: (enabled: boolean) => Promise<void>;
                 setNvidiaVideo: (

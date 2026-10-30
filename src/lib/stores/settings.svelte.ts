@@ -428,6 +428,9 @@ export const settingsState = $state({
      *  only — remote participants always see you un-mirrored. */
     mirrorCamera: readAccountBool("mirrorCamera", true),
     ignoreCodecSupport: readAccountBool("ignoreCodecSupport", false),
+    /** Get GPU H.264 encoding from servers that answer with Constrained
+     *  Baseline (utils/h264Profile); Settings > Debug turns it off. */
+    h264ProfileFix: readAccountBool("h264ProfileFix", true),
     /** Push to talk on/off. It only takes effect while a key is bound. */
     pushToTalk: readAccountBool("pushToTalk", true),
     /** Include system/tab audio when screen sharing. */
@@ -750,6 +753,7 @@ export function reloadAccountSettings(): void {
         "ignoreCodecSupport",
         false,
     );
+    settingsState.h264ProfileFix = readAccountBool("h264ProfileFix", true);
     settingsState.pushToTalk = readAccountBool("pushToTalk", true);
     settingsState.shareSystemAudio = readAccountBool("shareSystemAudio", true);
     settingsState.screenShareResolution =
@@ -1124,6 +1128,11 @@ export function setNormalizeCallAudio(value: boolean): void {
 export function setIgnoreCodecSupport(value: boolean): void {
     settingsState.ignoreCodecSupport = value;
     writeAccountBool("ignoreCodecSupport", value);
+}
+
+export function setH264ProfileFix(value: boolean): void {
+    settingsState.h264ProfileFix = value;
+    writeAccountBool("h264ProfileFix", value);
 }
 
 export function setMirrorCamera(value: boolean): void {
