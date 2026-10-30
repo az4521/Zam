@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.40.0
+
+✨ **New**
+
+- **Soundboard for calls:** a new button in the call controls opens a soundboard. Click a sound and everyone in the call hears it, along with you. Sounds work like custom emoji but with audio: add your own under Settings > Emotes, or add them to a room or space in its settings, where everyone in it can use them in calls. "Add to mine" copies a room's sound into your own pack. Sounds can be up to 15 seconds and 1 MB.
+- **Soundboard volume for each person:** every participant's menu in a call has a Soundboard Volume slider (0 to 500%), separate from their voice volume. Muting someone or deafening yourself silences their sounds too, and there's a slider for how loud your own sounds are to you.
+
 ## v1.39.1
 
 🐛 **Fixed**
