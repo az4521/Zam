@@ -425,6 +425,15 @@ async function checkBundleThenInstaller(manual) {
                 if (!manual && autoUpdatePref) await downloadFoundBundle();
                 return;
             }
+            if (found.kind === "current") {
+                // electron-updater only knows the shell's version, which a live
+                // bundle apply leaves behind the release; don't let it re-offer.
+                sendUpdateStatus({
+                    phase: "up-to-date",
+                    version: found.version,
+                });
+                return;
+            }
             if (found.kind === "shell") shellVersion = found.version;
         } catch (err) {
             // Not fatal: the installer path can still tell the user.

@@ -231,8 +231,10 @@ function createBundleUpdater(deps) {
             if (!SAFE_VERSION.test(manifest.version))
                 throw new Error("web bundle manifest has a bad version");
             // Never go back, however validly signed (a replayed old release).
+            // The release is already running (a live bundle apply leaves the
+            // shell older than the UI), so the installer has nothing to offer.
             if (compareVersions(manifest.version, current) <= 0)
-                return { kind: "none" };
+                return { kind: "current", version: current };
             if (bad().includes(manifest.version)) return { kind: "none" };
             if (manifest.shellHash !== shellHash)
                 return { kind: "shell", version: manifest.version };

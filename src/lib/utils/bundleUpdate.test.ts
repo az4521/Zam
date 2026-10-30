@@ -278,7 +278,19 @@ describe("bundle updater", () => {
 
     it("ignores a release that is not newer, even if validly signed", async () => {
         const { make } = updaterFor(await release("1.38.0"));
-        expect(await make().check()).toEqual({ kind: "none" });
+        expect(await make().check()).toEqual({
+            kind: "current",
+            version: "1.38.0",
+        });
+    });
+
+    it("reports the running bundle as current once applied", async () => {
+        const { make } = updaterFor(await release("1.39.0"));
+        const u = make();
+        u.activeRoot({ applyStaged: false });
+        await u.download(await u.check(), () => {});
+        u.apply("1.39.0");
+        expect(await u.check()).toEqual({ kind: "current", version: "1.39.0" });
     });
 
     it("does nothing when the release has no bundle", async () => {
