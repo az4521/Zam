@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## Unreleased
+
+🐛 **Fixed**
+
+- **SVG images can no longer phone home when opened in a tab:** an SVG avatar or image could reference an outside image or stylesheet, which would reveal your IP to its sender if you opened it in its own tab. Zam now strips those references and keeps only the SVG's own drawing.
+
 ## v1.39.0
 
 ✨ **New**

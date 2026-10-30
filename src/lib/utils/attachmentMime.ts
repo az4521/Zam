@@ -56,6 +56,11 @@ export function isSvgMimeType(mimetype: string | null | undefined): boolean {
  *  else, so animated SVGs keep moving. */
 const ANIMATION_VALUES = new Set(["from", "to", "by", "values"]);
 
+/** A CSS `url(...)` that points anywhere but the same document (`url(#id)`). */
+const EXTERNAL_URL_SRC = String.raw`url\(\s*['"]?\s*(?!#)[^)]`;
+const EXTERNAL_URL = new RegExp(EXTERNAL_URL_SRC, "i");
+const EXTERNAL_URL_GLOBAL = new RegExp(EXTERNAL_URL_SRC + "[^)]*\\)?", "gi");
+
 let purifier: ReturnType<typeof DOMPurify> | null = null;
 
 /**
@@ -68,9 +73,32 @@ function svgPurifier(): ReturnType<typeof DOMPurify> {
     if (purifier) return purifier;
     purifier = DOMPurify(window);
     purifier.addHook("uponSanitizeAttribute", (node, data) => {
+        // An SVG opened as a document (blob URL in a tab) fetches whatever it
+        // references, which tells the sender who opened it. Keep only
+        // same-document references and embedded raster data.
+        if (
+            /^(?:xlink:)?href$/i.test(data.attrName) &&
+            !/^\s*(?:#|data:image\/(?:png|jpe?g|gif|webp);)/i.test(
+                data.attrValue,
+            )
+        ) {
+            data.keepAttr = false;
+            return;
+        }
+        if (EXTERNAL_URL.test(data.attrValue)) {
+            data.keepAttr = false;
+            return;
+        }
         if (!ANIMATION_VALUES.has(data.attrName)) return;
         const target = (node as Element).getAttribute("attributeName") ?? "";
         if (/href/i.test(target)) data.keepAttr = false;
+    });
+    // <style> text isn't an attribute: strip imports and non-fragment url()s.
+    purifier.addHook("afterSanitizeElements", (node) => {
+        if (node.nodeName.toLowerCase() !== "style") return;
+        node.textContent = (node.textContent ?? "")
+            .replace(/@import[^;]*;?/gi, "")
+            .replace(EXTERNAL_URL_GLOBAL, "none");
     });
     return purifier;
 }

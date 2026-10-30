@@ -148,6 +148,73 @@ describe("safeMediaBlob", () => {
     });
 });
 
+describe("safeMediaBlob with hostile uploads in an image field", () => {
+    const bytes = (s: string) => new TextEncoder().encode(s);
+
+    it("never keeps an executable-looking or document type as a renderable type", async () => {
+        for (const type of [
+            "application/x-msdownload",
+            "application/x-dosexec",
+            "application/vnd.microsoft.portable-executable",
+            "text/html",
+            "application/xhtml+xml",
+            "",
+        ]) {
+            const out = await safeMediaBlob(
+                new Blob([bytes("MZ\x90\x00")], { type }),
+            );
+            expect(out.type).toBe(FALLBACK);
+        }
+    });
+
+    it("leaves video and audio typed as such (an <img> just fails to decode them)", async () => {
+        for (const type of ["video/mp4", "audio/mpeg"]) {
+            const out = await safeMediaBlob(new Blob([bytes("x")], { type }));
+            expect(out.type).toBe(type);
+        }
+    });
+
+    it("does not rescue an SVG labelled as a raster type", async () => {
+        const out = await safeMediaBlob(
+            new Blob([bytes('<svg xmlns="http://www.w3.org/2000/svg"/>')], {
+                type: "image/png",
+            }),
+        );
+        expect(out.type).toBe("image/png");
+    });
+
+    it("drops script-bearing elements from an SVG served with an unrelated header", async () => {
+        const out = await safeMediaBlob(
+            new Blob([
+                bytes(
+                    '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+                ),
+            ]),
+            "image/svg+xml; charset=utf-8",
+        );
+        expect((await out.text()).toLowerCase()).not.toContain("script");
+    });
+
+    it("strips external fetches from an SVG (tracking / IP leak when opened in a tab)", async () => {
+        const out = await safeMediaBlob(
+            new Blob([
+                bytes(
+                    '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">' +
+                        '<image href="https://evil.example/t.png" width="1" height="1"/>' +
+                        "<style>@import url(https://evil.example/x.css); rect{fill:url(https://evil.example/f)}</style>" +
+                        '<use xlink:href="https://evil.example/s.svg#a"/>' +
+                        '<rect width="1" height="1"/>' +
+                        "</svg>",
+                ),
+            ]),
+            "image/svg+xml",
+        );
+        const text = await out.text();
+        expect(text).not.toContain("evil.example");
+        expect(text).toContain("<rect");
+    });
+});
+
 describe("sanitizedSvgBlob animation and shared hooks", () => {
     const enc = (s: string) => new TextEncoder().encode(s);
 
