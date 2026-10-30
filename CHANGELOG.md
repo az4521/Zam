@@ -4,6 +4,19 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.39.0
+
+✨ **New**
+
+- **Web UI updates without a reinstall (desktop and Android):** Zam now downloads signed updates to its interface in the background and applies them when it starts, when you're idle, or when the app goes to the background, never during a call. Updates that change the app itself still come as an installer or APK. Settings > Automatic updates controls downloading and applying.
+- **Video codec info in Debug on web and Android:** Settings > Debug now lists which video codecs decode and encode on the GPU in the browser and the Android app too, not only on desktop.
+- **GPU H.264 profile fix (debug switch):** Settings > Debug has a switch for the fix below, so you can compare with it off.
+
+🐛 **Fixed**
+
+- **H.264 calls and screen shares now use the GPU encoder on Windows:** LiveKit answers with a H.264 profile Chromium encodes in software, which cost CPU and could drop frames. Zam now asks for the profile the GPU encoder takes, and turns on Chromium's Constrained Baseline GPU encoding on Windows.
+- **Away and invisible presence stick:** with sliding sync, every sync poll was resetting your chosen presence to online. Zam now sends the state you picked, and your own presence dot shows it.
+
 ## v1.38.0
 
 ✨ **New**
