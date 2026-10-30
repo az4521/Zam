@@ -8,6 +8,7 @@ commit list is appended below it.
 
 🐛 **Fixed**
 
+- **Other accounts' pictures in the account switcher load reliably:** the pictures of your inactive accounts were requested as the account you were using, so those on a different homeserver came back unauthorised and showed initials instead. Each one is now fetched with its own account's sign-in, from its own homeserver only. The same goes for the account list on the sign-in screen.
 - **SVG images can no longer phone home when opened in a tab:** an SVG avatar or image could reference an outside image or stylesheet, which would reveal your IP to its sender if you opened it in its own tab. Zam now strips those references and keeps only the SVG's own drawing.
 
 ## v1.39.0

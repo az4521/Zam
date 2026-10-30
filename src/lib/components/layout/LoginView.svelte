@@ -48,7 +48,7 @@
     } from "$lib/config";
     import { parseLoginUsername } from "$lib/utils/loginIdentity";
     import { requestWebPushPermission } from "$lib/webPush";
-    import Avatar from "$lib/components/ui/Avatar.svelte";
+    import AccountAvatar from "$lib/components/layout/AccountAvatar.svelte";
     import { Capacitor } from "@capacitor/core";
 
     interface Props {
@@ -1345,12 +1345,7 @@
                                 disabled={isLoading}
                                 class="w-full flex items-center gap-2.5 p-2 rounded bg-discord-backgroundSecondary hover:bg-discord-messageHover text-start transition-colors disabled:opacity-50"
                             >
-                                <Avatar
-                                    src={account.avatarUrl ?? null}
-                                    name={account.displayName ?? account.userId}
-                                    id={account.userId}
-                                    size={28}
-                                />
+                                <AccountAvatar {account} size={28} />
                                 <span class="flex-1 min-w-0">
                                     <span
                                         class="block text-sm text-discord-textPrimary truncate"

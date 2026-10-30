@@ -64,6 +64,36 @@ export async function authedMediaBlobUrl(src: string): Promise<string | null> {
     }
 }
 
+/**
+ * An avatar of a SIGNED-IN account that is not the active one, fetched as that
+ * account: its own token, only against its own homeserver. Everything above
+ * authenticates as the active account, so another account's media (a different
+ * homeserver, or a token that homeserver never issued) 401s there. Null when
+ * the URL isn't that homeserver's authed media or the fetch fails.
+ */
+export async function accountMediaBlobUrl(
+    src: string,
+    account: { accessToken: string; homeserverUrl: string },
+): Promise<string | null> {
+    if (!account.accessToken) return null;
+    try {
+        const url = new URL(src);
+        if (
+            url.origin !== new URL(account.homeserverUrl).origin ||
+            !url.pathname.includes("/_matrix/client/v1/media/")
+        )
+            return null;
+        const res = await fetch(src, {
+            headers: { Authorization: `Bearer ${account.accessToken}` },
+        });
+        if (!res.ok) return null;
+        const blob = await safeMediaBlob(await res.blob());
+        return URL.createObjectURL((await maybeDecodeJxl(blob)) ?? blob);
+    } catch {
+        return null;
+    }
+}
+
 function isLocalUrl(src: string): boolean {
     return src.startsWith("blob:") || src.startsWith("data:");
 }

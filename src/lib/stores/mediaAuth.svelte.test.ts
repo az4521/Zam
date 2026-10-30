@@ -9,6 +9,7 @@ vi.mock("$lib/stores/accounts.svelte", () => ({
 
 import { flushSync } from "svelte";
 import {
+    accountMediaBlobUrl,
     createMediaRetry,
     installMediaHealer,
     markSwMediaReady,
@@ -187,5 +188,45 @@ describe("media auth without a ready service worker", () => {
         expect(reassigned).toBe(true);
         // Healable again if the worker's request fails too.
         expect(broken.dataset.mediaHealed).toBeUndefined();
+    });
+});
+
+describe("accountMediaBlobUrl", () => {
+    const other = {
+        accessToken: "other-tok",
+        homeserverUrl: "https://other.example",
+    };
+    const OTHER_MEDIA =
+        "https://other.example/_matrix/client/v1/media/thumbnail/other.example/a";
+
+    beforeAll(() => {
+        vi.stubGlobal("fetch", fetchMock);
+        URL.createObjectURL = () => `blob:acct-${++blobN}`;
+    });
+    beforeEach(() => fetchMock.mockClear());
+
+    it("fetches another account's avatar with that account's own token", async () => {
+        const url = await accountMediaBlobUrl(OTHER_MEDIA, other);
+        expect(url).toMatch(/^blob:acct-/);
+        expect(fetchMock.mock.calls[0]).toEqual([
+            OTHER_MEDIA,
+            { headers: { Authorization: "Bearer other-tok" } },
+        ]);
+    });
+
+    it("never sends the token to a different origin or a non-media path", async () => {
+        expect(
+            await accountMediaBlobUrl(
+                "https://evil.example/_matrix/client/v1/media/download/x/y",
+                other,
+            ),
+        ).toBeNull();
+        expect(
+            await accountMediaBlobUrl(
+                "https://other.example/_matrix/client/v3/account/whoami",
+                other,
+            ),
+        ).toBeNull();
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 });

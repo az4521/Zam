@@ -10,6 +10,7 @@
         Users,
     } from "lucide-svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
+    import AccountAvatar from "$lib/components/layout/AccountAvatar.svelte";
     import ModalDialog from "$lib/components/ui/ModalDialog.svelte";
     import OwnStatusEditor from "$lib/components/layout/OwnStatusEditor.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
@@ -219,12 +220,7 @@
                 onclick={() => switchTo(account.userId)}
                 class="flex-1 flex items-center gap-2.5 p-2 min-w-0 text-start"
             >
-                <Avatar
-                    src={account.avatarUrl ?? null}
-                    name={account.displayName ?? account.userId}
-                    id={account.userId}
-                    size={32}
-                />
+                <AccountAvatar {account} size={32} />
                 <span class="flex-1 min-w-0">
                     <span
                         class="block text-sm text-discord-textPrimary truncate"
