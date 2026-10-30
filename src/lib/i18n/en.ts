@@ -235,6 +235,7 @@ export const en = {
     "callParticipantMenu.message": "Message",
     "callParticipantMenu.mention": "Mention",
     "callParticipantMenu.userVolume": "User Volume",
+    "callParticipantMenu.soundboardVolume": "Soundboard Volume",
     "callParticipantMenu.shareVolume": "Share Volume",
     "callParticipantMenu.hideVideo": "Hide video",
     "callParticipantMenu.kicking": "Kicking…",
@@ -312,6 +313,43 @@ export const en = {
         "Encryption couldn't start, so this session has stopped syncing to keep the encryption keys others send you. Reload to try again.",
     "cryptoUnavailableBanner.dismissEncryptionWarning":
         "Dismiss encryption warning",
+
+    // src/lib/components/layout/SoundboardPopover.svelte, settings/SoundPackEditor.svelte
+    "soundboard.title": "Soundboard",
+    "soundboard.yourVolume": "Your sounds volume",
+    "soundboard.empty":
+        "No sounds yet. Add some under Settings, Emotes, or in a room's settings.",
+    "soundboard.sendFailed": "Couldn't send that sound to the call.",
+    "soundboard.add": "Add a sound",
+    "soundboard.limits": "Audio files up to {seconds} seconds and {kb} KB.",
+    "soundboard.pack": "Pack",
+    "soundboard.newPack": "New pack",
+    "soundboard.packName": "Pack name",
+    "soundboard.enterAPackName": "Enter a pack name.",
+    "soundboard.name": "Sound name",
+    "soundboard.upload": "Upload sound",
+    "soundboard.uploadFailed": "Couldn't upload the sound.",
+    "soundboard.removeFailed": "Couldn't remove that.",
+    "soundboard.previewFailed": "Couldn't play that sound.",
+    "soundboard.preview": "Preview",
+    "soundboard.remove": "Remove sound",
+    "soundboard.noSounds": "No sounds in this pack",
+    "soundboard.deletePack": "Delete pack",
+    "soundboard.confirmDeletePack":
+        'Delete the pack "{name}" and all its sounds?',
+    "soundboard.inheritedFrom": "From {sourceName}",
+    "soundboard.addToMine": "Add to mine",
+    "soundboard.addedToYours":
+        "{count, plural, one {Added # sound to your pack.} other {Added # sounds to your pack.}}",
+    "soundboard.alreadyYours": "Already in your pack.",
+    // src/lib/matrix/soundboard.ts
+    "soundboard.badName":
+        "Use 1 to 48 letters, numbers, spaces, dots, dashes or underscores.",
+    "soundboard.noPermission": "You can't edit sounds in this room.",
+    "soundboard.notAudio": "That isn't an audio file.",
+    "soundboard.tooBig": "That file is too big.",
+    "soundboard.tooLong": "Sounds can be at most {seconds} seconds long.",
+    "soundboard.unreadable": "Couldn't read that audio file.",
 
     // src/lib/components/settings/CustomPackSettings.svelte
     "customPackSettings.add": "Add {singular}",

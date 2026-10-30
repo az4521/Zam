@@ -13,6 +13,7 @@
     import SecuritySettings from "$lib/components/settings/SecuritySettings.svelte";
     import AccountSettings from "$lib/components/settings/AccountSettings.svelte";
     import CustomPackSettings from "$lib/components/settings/CustomPackSettings.svelte";
+    import SoundPackEditor from "$lib/components/settings/SoundPackEditor.svelte";
     import SharedPackSettings from "$lib/components/settings/SharedPackSettings.svelte";
     import VoiceAudioSettings from "$lib/components/settings/VoiceAudioSettings.svelte";
     import KeybindSettings from "$lib/components/settings/KeybindSettings.svelte";
@@ -408,6 +409,12 @@
     {:else if tab === "emotes"}
         <CustomPackSettings kind="emotes" />
         <SharedPackSettings />
+        <section class="mt-8 space-y-3">
+            <h2 class="text-lg font-semibold text-discord-textPrimary">
+                {t("soundboard.title")}
+            </h2>
+            <SoundPackEditor />
+        </section>
     {:else if tab === "general"}
         <GeneralSettings />
     {:else if tab === "plugins"}

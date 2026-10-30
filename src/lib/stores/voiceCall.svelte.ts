@@ -16,6 +16,7 @@ import {
     onParticipantMuteChanged,
     setParticipantVolume,
     setParticipantShareVolume,
+    setParticipantSoundVolume,
     setParticipantLocalMute,
     setParticipantVideoHidden,
     primeParticipantAudio,
@@ -50,6 +51,7 @@ import {
     DEFAULT_PARTICIPANT_AUDIO,
     withVolume,
     withShareVolume,
+    withSoundVolume,
     withLocalMute,
     withVideoHidden,
     type ParticipantAudio,
@@ -577,6 +579,13 @@ export function setUserShareVolume(userId: string, volume: number): void {
     const next = withShareVolume(participantAudioFor(userId), volume);
     setParticipantAudioSetting(userId, next);
     setParticipantShareVolume(userId, next.shareVolume);
+}
+
+/** The same for their soundboard clips. */
+export function setUserSoundVolume(userId: string, volume: number): void {
+    const next = withSoundVolume(participantAudioFor(userId), volume);
+    setParticipantAudioSetting(userId, next);
+    setParticipantSoundVolume(userId, next.soundVolume);
 }
 
 export function setUserLocalMute(userId: string, muted: boolean): void {

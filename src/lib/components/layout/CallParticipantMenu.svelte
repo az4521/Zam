@@ -43,6 +43,7 @@
     import {
         setUserVolume,
         setUserShareVolume,
+        setUserSoundVolume,
         setUserLocalMute,
         participantAudioFor,
         setUserVideoHidden,
@@ -554,6 +555,36 @@
             <datalist id="user-volume-ticks-{userId}">
                 <option value="100"></option>
             </datalist>
+        </div>
+        <div class="px-3 py-1.5">
+            <div class="flex items-center justify-between gap-2">
+                <label
+                    for="user-sound-volume-{userId}"
+                    class="text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
+                >
+                    {t("callParticipantMenu.soundboardVolume")}
+                </label>
+                <span
+                    class="text-xs text-discord-textMuted tabular-nums flex-shrink-0"
+                >
+                    {Math.round(audio.soundVolume * 100)}%
+                </span>
+            </div>
+            <input
+                id="user-sound-volume-{userId}"
+                type="range"
+                min="0"
+                max={MAX_PARTICIPANT_VOLUME * 100}
+                step="1"
+                list="user-volume-ticks-{userId}"
+                value={Math.round(audio.soundVolume * 100)}
+                oninput={(e) =>
+                    setUserSoundVolume(
+                        userId,
+                        e.currentTarget.valueAsNumber / 100,
+                    )}
+                class="w-full mt-1.5 accent-discord-accent"
+            />
         </div>
         {#if sharesAudio}
             <div class="px-3 py-1.5">

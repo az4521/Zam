@@ -55,6 +55,7 @@ import {
     needsBoost,
     withVolume,
     withShareVolume,
+    withSoundVolume,
     withLocalMute,
     withVideoHidden,
     DEFAULT_PARTICIPANT_AUDIO,
@@ -62,6 +63,17 @@ import {
     type ParticipantAudio,
 } from "$lib/utils/participantAudio";
 import { runWithMediaTitle } from "$lib/utils/mediaTitle";
+import { fetchMediaBytes, mxcToHttp } from "./media";
+import {
+    MAX_SOUND_BYTES,
+    MAX_SOUND_SECONDS,
+    SOUNDBOARD_TOPIC,
+    createSenderLimiter,
+    decodeSoundboardMessage,
+    encodeSoundboardMessage,
+    soundGain,
+    type Sound,
+} from "$lib/utils/soundboard";
 import {
     settingsState,
     setAudioInputDeviceId,
@@ -909,6 +921,139 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
     lkRoom.on(lk.RoomEvent.AudioPlaybackStatusChanged, () =>
         refreshPlaybackBlocked(call),
     );
+    lkRoom.on(
+        lk.RoomEvent.DataReceived,
+        (
+            payload: Uint8Array,
+            participant?: RemoteParticipant,
+            _kind?: unknown,
+            topic?: string,
+        ) => {
+            if (topic !== SOUNDBOARD_TOPIC || !participant) return;
+            if (activeVoice !== call) return;
+            const msg = decodeSoundboardMessage(payload);
+            if (msg)
+                void playSoundboardClip(
+                    call,
+                    userIdFromIdentity(participant.identity),
+                    msg.mxcUrl,
+                );
+        },
+    );
+}
+
+// Soundboard. A sound is sent as a reference (a data message naming the
+// media); every client fetches and plays it locally, so each listener sets
+// how loud each person's sounds are, apart from that person's voice.
+const soundLimiter = createSenderLimiter();
+/** Raw clips by mxc, most recently used last. */
+const soundBytes = new Map<string, ArrayBuffer>();
+const SOUND_CACHE_MAX_BYTES = 8 * MAX_SOUND_BYTES;
+let soundBytesTotal = 0;
+const soundBuffers = new WeakMap<CallAudioGraph, Map<string, AudioBuffer>>();
+const soundFetches = new Map<string, Promise<ArrayBuffer>>();
+
+function rememberSoundBytes(mxcUrl: string, bytes: ArrayBuffer): void {
+    soundBytes.delete(mxcUrl);
+    soundBytes.set(mxcUrl, bytes);
+    soundBytesTotal += bytes.byteLength;
+    for (const [key, old] of soundBytes) {
+        if (soundBytesTotal <= SOUND_CACHE_MAX_BYTES || key === mxcUrl) break;
+        soundBytes.delete(key);
+        soundBytesTotal -= old.byteLength;
+    }
+}
+
+async function loadSoundBytes(mxcUrl: string): Promise<ArrayBuffer> {
+    const cached = soundBytes.get(mxcUrl);
+    if (cached) return cached;
+    let pending = soundFetches.get(mxcUrl);
+    if (!pending) {
+        const url = mxcToHttp(mxcUrl);
+        if (!url) throw new Error("Invalid sound reference");
+        pending = fetchMediaBytes(url, MAX_SOUND_BYTES).then((bytes) => {
+            rememberSoundBytes(mxcUrl, bytes);
+            return bytes;
+        });
+        soundFetches.set(mxcUrl, pending);
+        const clear = () => soundFetches.delete(mxcUrl);
+        pending.then(clear, clear);
+    }
+    return pending;
+}
+
+async function soundBuffer(
+    graph: CallAudioGraph,
+    mxcUrl: string,
+): Promise<AudioBuffer | null> {
+    let buffers = soundBuffers.get(graph);
+    if (!buffers) soundBuffers.set(graph, (buffers = new Map()));
+    const have = buffers.get(mxcUrl);
+    if (have) return have;
+    // decodeAudioData detaches its input; keep the cached original intact.
+    const bytes = (await loadSoundBytes(mxcUrl)).slice(0);
+    const buffer = await graph.decode(bytes);
+    // Cheap size limits can lie about the length once decoded.
+    if (!buffer || buffer.duration > MAX_SOUND_SECONDS + 1) return null;
+    buffers.set(mxcUrl, buffer);
+    return buffer;
+}
+
+/** Play one soundboard clip from `userId` at their soundboard level. */
+async function playSoundboardClip(
+    call: ActiveVoiceCall,
+    userId: string,
+    mxcUrl: string,
+): Promise<void> {
+    const audio = participantAudio.get(userId);
+    const gain = soundGain(
+        voiceOutputVolume,
+        audio?.soundVolume,
+        !!audio?.muted,
+    );
+    if (gain <= 0 || voicePlaybackMuted) return;
+    if (!soundLimiter.allow(userId, Date.now())) return;
+    let started = false;
+    try {
+        const graph = ensureAudioGraph(call);
+        if (!graph || activeVoice !== call) return;
+        const buffer = await soundBuffer(graph, mxcUrl);
+        if (!buffer || activeVoice !== call) return;
+        started =
+            graph.playBuffer(buffer, gain, () => soundLimiter.done(userId)) !==
+            null;
+    } catch (err) {
+        console.warn("[voice] couldn't play soundboard clip", err);
+    } finally {
+        if (!started) soundLimiter.done(userId);
+    }
+}
+
+/** Play a sound for everyone in the call, and for ourselves. False when not
+ *  in a call or the send failed. */
+export async function playSoundboardSound(sound: Sound): Promise<boolean> {
+    const call = activeVoice;
+    const me = matrixClient?.getUserId();
+    if (!call || !me) return false;
+    try {
+        await call.lkRoom.localParticipant.publishData(
+            encodeSoundboardMessage({ mxcUrl: sound.mxcUrl, name: sound.name }),
+            { reliable: true, topic: SOUNDBOARD_TOPIC },
+        );
+    } catch (err) {
+        console.warn("[voice] couldn't send soundboard clip", err);
+        return false;
+    }
+    void playSoundboardClip(call, me, sound.mxcUrl);
+    return true;
+}
+
+export function setParticipantSoundVolume(
+    userId: string,
+    volume: number,
+): void {
+    const current = participantAudio.get(userId) ?? DEFAULT_PARTICIPANT_AUDIO;
+    participantAudio.set(userId, withSoundVolume(current, volume));
 }
 
 // How long a join waits for the noise filter model (see joinVoiceCall).

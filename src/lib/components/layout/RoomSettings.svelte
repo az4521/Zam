@@ -5,6 +5,7 @@
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import InvitePanel from "./InvitePanel.svelte";
     import ImagePackEditor from "./ImagePackEditor.svelte";
+    import SoundPackEditor from "$lib/components/settings/SoundPackEditor.svelte";
     import {
         canInviteToRoom,
         getMyPowerLevel,
@@ -3023,6 +3024,14 @@
                             canEdit={canEditEmojis}
                             {onUpdate}
                         />
+                        <section class="mt-8 space-y-3">
+                            <h2
+                                class="text-lg font-semibold text-discord-textPrimary"
+                            >
+                                {t("soundboard.title")}
+                            </h2>
+                            <SoundPackEditor {room} />
+                        </section>
                     {/if}
                 </div>
             </div>

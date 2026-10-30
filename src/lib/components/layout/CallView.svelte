@@ -17,6 +17,7 @@
         Video,
         VideoOff,
         MonitorUp,
+        AudioLines,
         EllipsisVertical,
         Smartphone,
         Settings,
@@ -27,6 +28,7 @@
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import CallParticipantMenu from "$lib/components/layout/CallParticipantMenu.svelte";
     import ScreenShareQualityPopover from "$lib/components/layout/ScreenShareQualityPopover.svelte";
+    import SoundboardPopover from "$lib/components/layout/SoundboardPopover.svelte";
     import CallEncryptionBadge from "$lib/components/layout/CallEncryptionBadge.svelte";
     import UserProfileCard from "$lib/components/ui/UserProfileCard.svelte";
     import VideoTile from "$lib/components/layout/VideoTile.svelte";
@@ -296,6 +298,16 @@
     // quality is changed live (the gear on your share tile). A quality step
     // before the picker was a second dialog in a row for every share.
     let sharePopover = $state<{ x: number; y: number } | null>(null);
+    let soundboardPopover = $state<{ x: number; y: number } | null>(null);
+    function toggleSoundboard(e: MouseEvent): void {
+        e.stopPropagation();
+        if (soundboardPopover) {
+            soundboardPopover = null;
+            return;
+        }
+        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        soundboardPopover = { x: r.left, y: r.top };
+    }
     function onShareBtnClick(): void {
         void toggleScreenShare();
     }
@@ -970,6 +982,18 @@
                     </button>
                 {/if}
                 <button
+                    onclick={toggleSoundboard}
+                    class="p-3 rounded-full hover:bg-discord-messageHover {soundboardPopover
+                        ? 'text-discord-accent'
+                        : 'text-discord-textPrimary'}"
+                    title={t("soundboard.title")}
+                    aria-label={t("soundboard.title")}
+                    aria-haspopup="dialog"
+                    aria-expanded={!!soundboardPopover}
+                >
+                    <AudioLines size={20} />
+                </button>
+                <button
                     onclick={leaveCall}
                     class="p-3 rounded-full bg-discord-danger hover:bg-discord-dangerHover text-white transition-colors"
                     title={t("callView.disconnect")}
@@ -1003,6 +1027,15 @@
             participantMenu = null;
             clearModalIfOwner(participantMenuToken);
         }}
+    />
+{/if}
+{#if soundboardPopover}
+    <SoundboardPopover
+        {room}
+        x={soundboardPopover.x}
+        y={soundboardPopover.y}
+        touch={interfaceState.isTouchscreen}
+        onClose={() => (soundboardPopover = null)}
     />
 {/if}
 {#if sharePopover}

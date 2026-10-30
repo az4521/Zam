@@ -1,4 +1,5 @@
 import { t } from "$lib/i18n";
+import type { SoundPackContent } from "$lib/utils/soundboard";
 import {
     createClient,
     ClientEvent,
@@ -364,6 +365,7 @@ declare module "matrix-js-sdk" {
         "im.client.space_layout": SpaceLayout;
         "im.client.space_order": { order?: string[] };
         "im.ponies.user_emotes": RoomEmoteContent;
+        "moe.crafty.soundboard": SoundPackContent;
         "im.ponies.emote_rooms": EmoteRoomsContent;
         "m.image_pack.rooms": EmoteRoomsContent;
         "moe.crafty.matrix.active_session": ActiveSessionHeartbeat;
@@ -9949,6 +9951,8 @@ export {
     primeParticipantAudio,
     setParticipantVolume,
     setParticipantShareVolume,
+    setParticipantSoundVolume,
+    playSoundboardSound,
     refreshDecodeSupport,
     participantHasShareAudio,
     setParticipantLocalMute,

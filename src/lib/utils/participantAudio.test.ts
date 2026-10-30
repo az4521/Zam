@@ -56,6 +56,7 @@ describe("effectiveVolume", () => {
             effectiveVolume(1, {
                 volume: 0.5,
                 shareVolume: 1,
+                soundVolume: 1,
                 muted: false,
                 videoHidden: false,
             }),
@@ -64,6 +65,7 @@ describe("effectiveVolume", () => {
             effectiveVolume(0.5, {
                 volume: 0.5,
                 shareVolume: 1,
+                soundVolume: 1,
                 muted: false,
                 videoHidden: false,
             }),
@@ -74,6 +76,7 @@ describe("effectiveVolume", () => {
             effectiveVolume(1, {
                 volume: 1,
                 shareVolume: 1,
+                soundVolume: 1,
                 muted: true,
                 videoHidden: false,
             }),
@@ -87,6 +90,7 @@ describe("effectiveVolume", () => {
             effectiveVolume(1, {
                 volume: 3,
                 shareVolume: 1,
+                soundVolume: 1,
                 muted: false,
                 videoHidden: false,
             }),
@@ -95,6 +99,7 @@ describe("effectiveVolume", () => {
             effectiveVolume(0.5, {
                 volume: 4,
                 shareVolume: 1,
+                soundVolume: 1,
                 muted: false,
                 videoHidden: false,
             }),
@@ -103,6 +108,7 @@ describe("effectiveVolume", () => {
             effectiveVolume(2, {
                 volume: 9,
                 shareVolume: 1,
+                soundVolume: 1,
                 muted: false,
                 videoHidden: false,
             }),
@@ -114,12 +120,19 @@ describe("withVolume / withLocalMute", () => {
     it("sets a clamped volume without touching mute", () => {
         expect(
             withVolume(
-                { volume: 1, shareVolume: 1, muted: true, videoHidden: false },
+                {
+                    volume: 1,
+                    shareVolume: 1,
+                    soundVolume: 1,
+                    muted: true,
+                    videoHidden: false,
+                },
                 7,
             ),
         ).toEqual({
             volume: 5,
             shareVolume: 1,
+            soundVolume: 1,
             muted: true,
             videoHidden: false,
         });
@@ -130,6 +143,7 @@ describe("withVolume / withLocalMute", () => {
                 {
                     volume: 0.3,
                     shareVolume: 1,
+                    soundVolume: 1,
                     muted: false,
                     videoHidden: false,
                 },
@@ -138,6 +152,7 @@ describe("withVolume / withLocalMute", () => {
         ).toEqual({
             volume: 0.3,
             shareVolume: 1,
+            soundVolume: 1,
             muted: true,
             videoHidden: false,
         });
@@ -152,13 +167,20 @@ describe("serializeAudioMap / parseAudioMap", () => {
                 {
                     volume: 0.25,
                     shareVolume: 1,
+                    soundVolume: 1,
                     muted: false,
                     videoHidden: false,
                 },
             ],
             [
                 "@b:s",
-                { volume: 1, shareVolume: 1, muted: true, videoHidden: false },
+                {
+                    volume: 1,
+                    shareVolume: 1,
+                    soundVolume: 1,
+                    muted: true,
+                    videoHidden: false,
+                },
             ],
         ]);
         expect(parseAudioMap(serializeAudioMap(map))).toEqual(map);
@@ -186,6 +208,7 @@ describe("serializeAudioMap / parseAudioMap", () => {
         ).toEqual({
             volume: 5,
             shareVolume: 1,
+            soundVolume: 1,
             muted: false,
             videoHidden: false,
         });
@@ -197,6 +220,7 @@ describe("serializeAudioMap / parseAudioMap", () => {
                 {
                     volume: 3.5,
                     shareVolume: 1,
+                    soundVolume: 1,
                     muted: false,
                     videoHidden: false,
                 },
@@ -216,12 +240,14 @@ describe("videoHidden", () => {
         const p: ParticipantAudio = {
             volume: 0.5,
             shareVolume: 1,
+            soundVolume: 1,
             muted: true,
             videoHidden: false,
         };
         expect(withVideoHidden(p, true)).toEqual({
             volume: 0.5,
             shareVolume: 1,
+            soundVolume: 1,
             muted: true,
             videoHidden: true,
         });
@@ -230,7 +256,13 @@ describe("videoHidden", () => {
         const map = new Map<string, ParticipantAudio>([
             [
                 "@a:x",
-                { volume: 1, shareVolume: 1, muted: false, videoHidden: true },
+                {
+                    volume: 1,
+                    shareVolume: 1,
+                    soundVolume: 1,
+                    muted: false,
+                    videoHidden: true,
+                },
             ],
         ]);
         const json = JSON.parse(serializeAudioMap(map));
@@ -240,7 +272,13 @@ describe("videoHidden", () => {
         const map = new Map<string, ParticipantAudio>([
             [
                 "@a:x",
-                { volume: 1, shareVolume: 1, muted: false, videoHidden: false },
+                {
+                    volume: 1,
+                    shareVolume: 1,
+                    soundVolume: 1,
+                    muted: false,
+                    videoHidden: false,
+                },
             ],
         ]);
         expect(serializeAudioMap(map)).toBe("{}");
@@ -252,6 +290,7 @@ describe("videoHidden", () => {
                 {
                     volume: 0.5,
                     shareVolume: 1,
+                    soundVolume: 1,
                     muted: false,
                     videoHidden: true,
                 },
@@ -261,6 +300,7 @@ describe("videoHidden", () => {
         expect(back.get("@a:x")).toEqual({
             volume: 0.5,
             shareVolume: 1,
+            soundVolume: 1,
             muted: false,
             videoHidden: true,
         });
@@ -272,6 +312,7 @@ describe("videoHidden", () => {
         expect(back.get("@a:x")).toEqual({
             volume: 0.5,
             shareVolume: 1,
+            soundVolume: 1,
             muted: true,
             videoHidden: false,
         });

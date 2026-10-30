@@ -78,6 +78,7 @@ export type ModalId =
     // Screen-share quality popover (ScreenShareQualityPopover), used by both
     // CallView and VoiceCallPanel.
     | "screen-share-quality"
+    | "soundboard"
     // Ctrl+K quick switcher and the Ctrl+/ shortcut list (AppShell).
     | "quick-switcher"
     | "keyboard-shortcuts"

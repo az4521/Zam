@@ -41,6 +41,16 @@ export interface CallAudioGraph {
     remove(el: HTMLAudioElement): void;
     /** Linear user gain (master x per-user level, 0..5) for a routed element. */
     setGain(el: HTMLAudioElement, gain: number): void;
+    /** Decode a clip for playBuffer. Null when it is not decodable audio. */
+    decode(bytes: ArrayBuffer): Promise<AudioBuffer | null>;
+    /** Play a decoded clip once into the mix (soundboard). Returns a stop
+     *  function, or null when the graph is closed. `onEnd` runs when the
+     *  clip finishes or is stopped. */
+    playBuffer(
+        buffer: AudioBuffer,
+        gain: number,
+        onEnd?: () => void,
+    ): (() => void) | null;
     setNormalize(on: boolean): void;
     setSink(deviceId: string | null): void;
     setMuted(muted: boolean): void;
@@ -176,6 +186,41 @@ export function createCallAudioGraph(opts: {
             const r = routed.get(el);
             // A short ramp, not a jump: dragging the slider must not click.
             r?.gain.gain.setTargetAtTime(gain, ctx.currentTime, 0.02);
+        },
+        async decode(bytes) {
+            if (closed) return null;
+            try {
+                return await ctx.decodeAudioData(bytes);
+            } catch {
+                return null;
+            }
+        },
+        playBuffer(buffer, gain, onEnd) {
+            if (closed) return null;
+            try {
+                const src = ctx.createBufferSource();
+                const g = ctx.createGain();
+                g.gain.value = gain;
+                src.buffer = buffer;
+                src.connect(g);
+                g.connect(limiter);
+                src.onended = () => {
+                    src.disconnect();
+                    g.disconnect();
+                    onEnd?.();
+                };
+                void start();
+                src.start();
+                return () => {
+                    try {
+                        src.stop();
+                    } catch {
+                        /* already stopped */
+                    }
+                };
+            } catch {
+                return null;
+            }
         },
         setNormalize(on) {
             normalize = on;

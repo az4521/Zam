@@ -469,6 +469,34 @@ export async function fetchAttachmentBlob(
     return URL.createObjectURL(blob);
 }
 
+/** Fetch a homeserver media URL (with auth) as bytes, refusing anything over
+ *  `maxBytes`. Same same-origin token guard as fetchAttachmentBlob. */
+export async function fetchMediaBytes(
+    httpUrl: string,
+    maxBytes: number,
+    signal?: AbortSignal,
+): Promise<ArrayBuffer> {
+    if (!matrixClient) throw new Error(t("media.notLoggedIn"));
+    if (!isSameOrigin(httpUrl, matrixClient.getHomeserverUrl())) {
+        throw new Error("Refusing to fetch a non-homeserver URL with auth");
+    }
+    const token = matrixClient.getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const resp = await fetch(httpUrl, { headers, signal });
+    if (!resp.ok)
+        throw new Error(
+            t("media.failedToFetchAttachment", { status: resp.status }),
+        );
+    const declared = Number(resp.headers.get("content-length"));
+    if (Number.isFinite(declared) && declared > maxBytes)
+        throw new Error("Media too large");
+    const chunks = await readBodyWithProgress(resp, { signal });
+    const blob = new Blob(chunks as BlobPart[]);
+    if (blob.size > maxBytes) throw new Error("Media too large");
+    return blob.arrayBuffer();
+}
+
 /**
  * Fetch an ENCRYPTED attachment (`content.file`) from the homeserver with auth,
  * decrypt it (AES-CTR, integrity-checked in decryptAttachment) and return an
