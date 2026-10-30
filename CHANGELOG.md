@@ -4,6 +4,14 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.40.4
+
+✨ **New**
+
+- **Soundboard clips play while they download:** a sound you haven't heard before starts playing right away instead of after the whole file arrives. This works for MP3, WebM, Ogg (Opus and Vorbis), FLAC, WAV and MP4/M4A audio.
+- **Sounds are saved on your device:** once a soundboard clip has downloaded, it is kept (up to 64 MB) and every later play comes from your device, with no request to the server.
+- **M4A sounds are prepared for streaming when uploaded:** like videos sent in chat, their index is moved to the front so listeners can start playing them straight away. Sounds uploaded before this still wait for the full download the first time.
+
 ## v1.40.3
 
 ✨ **New**
