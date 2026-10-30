@@ -473,6 +473,33 @@
                     : t("voiceAudioSettings.testMic")}
             </button>
         {/if}
+        <div class="mt-3 flex items-center gap-3">
+            <div class="flex-1">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("voiceAudioSettings.pushToTalk")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("voiceAudioSettings.pushToTalkHint")}
+                </p>
+                {#if pttNeedsKey}
+                    <p class="text-xs text-discord-warning mt-1">
+                        {t("voiceAudioSettings.pushToTalkNoKey")}
+                        <button
+                            type="button"
+                            class="underline text-discord-accent hover:no-underline"
+                            onclick={() => openAppSettingsTab("keybinds")}
+                        >
+                            {t("voiceAudioSettings.pushToTalkSetKey")}
+                        </button>
+                    </p>
+                {/if}
+            </div>
+            <ToggleSwitch
+                checked={settingsState.pushToTalk && pttBound}
+                onChange={togglePushToTalk}
+                label={t("voiceAudioSettings.pushToTalk")}
+            />
+        </div>
     </section>
 
     <section>
@@ -571,35 +598,6 @@
         >
             {t("voiceAudioSettings.voiceProcessing")}
         </p>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
-            <div class="flex-1">
-                <p class="text-sm text-discord-textPrimary">
-                    {t("voiceAudioSettings.pushToTalk")}
-                </p>
-                <p class="text-xs text-discord-textMuted">
-                    {t("voiceAudioSettings.pushToTalkHint")}
-                </p>
-                {#if pttNeedsKey}
-                    <p class="text-xs text-discord-warning mt-1">
-                        {t("voiceAudioSettings.pushToTalkNoKey")}
-                        <button
-                            type="button"
-                            class="underline text-discord-accent hover:no-underline"
-                            onclick={() => openAppSettingsTab("keybinds")}
-                        >
-                            {t("voiceAudioSettings.pushToTalkSetKey")}
-                        </button>
-                    </p>
-                {/if}
-            </div>
-            <ToggleSwitch
-                checked={settingsState.pushToTalk && pttBound}
-                onChange={togglePushToTalk}
-                label={t("voiceAudioSettings.pushToTalk")}
-            />
-        </div>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >
