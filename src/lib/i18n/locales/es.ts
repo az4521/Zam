@@ -1214,6 +1214,7 @@ const messages: Record<MessageKey, string> = {
     "messageItem.pinMessage": "Fijar mensaje",
     "messageItem.addReaction": "Añadir reacción",
     "messageItem.reply": "Responder",
+    "messageItem.threadReply": "Hilo",
     "messageItem.replyInThread": "Responder en un hilo",
     "messageItem.forwardMessage": "Reenviar mensaje",
     "messageItem.moreActions": "Más acciones",

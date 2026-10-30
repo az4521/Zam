@@ -2923,6 +2923,28 @@
                 </button>
             {/if}
 
+            <!-- Thread-reply chip. Replies are inlined into the room timeline
+                 (no thread list to divert them into), which also means there is
+                 no populated thread view to open: the label only says where the
+                 message came from. -->
+            {#if isThreadReply}
+                <span
+                    class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-xs text-discord-textMuted bg-discord-backgroundSecondary border border-discord-divider"
+                    title={t("messageItem.openThread")}
+                >
+                    <svg
+                        class="w-3 h-3 flex-shrink-0"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"
+                        />
+                    </svg>
+                    {t("messageItem.threadReply")}
+                </span>
+            {/if}
+
             <!-- Reactions (reserve right clearance on touch so the wrapped reaction
              row never runs under the out-of-flow read-receipt overlay; not needed
              when own bubbles are right-aligned — the overlay is on the LEFT then) -->

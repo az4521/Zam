@@ -1116,6 +1116,7 @@ const messages: Record<MessageKey, string> = {
     "messageItem.pinMessage": "ܩܒܘܥ ܐܓܪܬܐ",
     "messageItem.addReaction": "ܐܘܣܦ ܬܓܘܒܬܐ",
     "messageItem.reply": "ܦܢܝ",
+    "messageItem.threadReply": "Thread",
     "messageItem.replyInThread": "ܦܢܝ ܓܘ ܚܘܛܐ",
     "messageItem.forwardMessage": "ܫܕܪ ܐܓܪܬܐ ܠܩܕܡ",
     "messageItem.moreActions": "ܣܘܥܪ̈ܢܐ ܝܬܝܪ̈ܐ",
