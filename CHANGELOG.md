@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.40.1
+
+✨ **New**
+
+- **Temporal layers for H.264 and HEVC video:** when your GPU encoder can produce them, camera and screen-share video in H.264 or HEVC is now sent with three temporal layers (L1T3), as VP9 and AV1 already were. Software encoders are left as they were.
+
 ## v1.40.0
 
 ✨ **New**
