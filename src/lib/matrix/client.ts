@@ -1993,6 +1993,15 @@ export function isRoomListFromCache(): boolean {
     return roomListCache !== null;
 }
 
+/**
+ * True for a room that exists only in the saved room list, not in the SDK: the
+ * case when the app boots with no network and sync has not delivered anything
+ * yet. Its timeline is the cached tail, and nothing can be sent from it.
+ */
+export function isRoomCachedOnly(roomId: string): boolean {
+    return !!roomListCache?.rooms.get(roomId) && !matrixClient?.getRoom(roomId);
+}
+
 async function hydrateRoomListCache(client: MatrixClient): Promise<void> {
     resetRoomListCache();
     const userId = client.getUserId();
@@ -2003,6 +2012,27 @@ async function hydrateRoomListCache(client: MatrixClient): Promise<void> {
     roomListCache = materializeSnapshot(client, snapshot);
     for (const [spaceId, list] of Object.entries(snapshot.hierarchies ?? {}))
         if (!hierarchyCache.has(spaceId)) hierarchyCache.set(spaceId, list);
+    // The cached events of an encrypted room are ciphertext. Decrypt them from
+    // the local crypto store so an offline room reads instead of showing
+    // "unable to decrypt" everywhere. Never awaited: no key means the
+    // placeholder is the correct rendering anyway.
+    void decryptCachedEvents(client, roomListCache);
+}
+
+async function decryptCachedEvents(
+    client: MatrixClient,
+    cache: MaterializedCache,
+): Promise<void> {
+    for (const room of cache.rooms.values()) {
+        for (const ev of room.getLiveTimeline().getEvents()) {
+            if (!ev.isEncrypted()) continue;
+            try {
+                await client.decryptEventIfNeeded(ev);
+            } catch {
+                // Keys are gone or the event is for another session: leave it.
+            }
+        }
+    }
 }
 
 function markRoomListComplete(client: MatrixClient): void {
@@ -2026,10 +2056,20 @@ async function saveRoomListSnapshot(
     const userId = client.getUserId();
     const deviceId = client.getDeviceId();
     if (!userId || !deviceId) return;
-    await saveSnapshot(snapshotKey(userId, deviceId), {
+    const key = snapshotKey(userId, deviceId);
+    const next = {
         ...buildSnapshot(client),
         hierarchies: Object.fromEntries(hierarchyCache),
-    });
+    };
+    // A boot that saves before sync has delivered any room would replace a good
+    // snapshot with an empty one, and that is what an offline start then shows.
+    // Leaving every room at once is far rarer than that race, so an empty list
+    // never overwrites a snapshot that has rooms.
+    if (next.rooms.length === 0) {
+        const previous = await loadSnapshot(key);
+        if (previous?.rooms.length) return;
+    }
+    await saveSnapshot(key, next);
 }
 
 /**
@@ -2065,10 +2105,12 @@ export function isRoomLandable(roomId: string): boolean {
     // An optimistic join is landable before /sync confirms it — see above; both
     // the `!room` test and the membership test would otherwise answer false.
     if (pendingJoins.has(roomId)) return true;
-    const room = matrixClient?.getRoom(roomId);
+    const room = lookupRoom(roomId);
     // After the first sync the SDK knows every joined room, so no Room object
     // means left, forgotten, or never joined — the case that makes a stale
-    // cached id fall through the chain.
+    // cached id fall through the chain. The saved room list counts as a Room
+    // object here: offline, the cached copy is the only thing that can tell us
+    // the room existed at all, and it is what the timeline renders from.
     if (!room) return false;
     // No `m.room.member` event for us at all: the SDK has formed no opinion
     // yet, which `getMyMembership()` would flatten to "leave". Unknown ≠ gone.

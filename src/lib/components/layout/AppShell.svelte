@@ -2516,10 +2516,12 @@
     // so sync-triggered array refreshes don't invalidate this derived and remount MessageArea.
     const activeRoom = $derived.by(() => {
         void roomsState.roomsTick; // re-derive when rooms refresh (e.g. after joining)
-        return roomsState.activeRoomId
-            ? // Live only: a cached stand-in has no timeline to open.
-              getLiveRoom(roomsState.activeRoomId)
-            : null;
+        const id = roomsState.activeRoomId;
+        if (!id) return null;
+        // A cached stand-in opens too. When the app boots with no network the
+        // saved room list is the only source, and its cached timeline is what
+        // MessageArea shows (read-only) until sync delivers the live room.
+        return getLiveRoom(id) ?? getRoom(id);
     });
 
     // Subtle room-switch fade. A WAAPI opacity animation on the (stable) room-pane

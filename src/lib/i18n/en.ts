@@ -1052,6 +1052,9 @@ export const en = {
 
     // src/lib/components/layout/MessageArea.svelte
     "messageArea.dropToAttach": "Drop to attach",
+    "messageArea.cachedRoomTitle": "You are offline",
+    "messageArea.cachedRoomHint":
+        "Showing the messages saved on this device. Sending works again once the connection is back.",
     "messageArea.unreadNotifications": "Unread notifications",
     "messageArea.encryptionEnabled": "Encryption enabled",
     "messageArea.joiningVoiceCall": "Joining voice call…",

@@ -1063,6 +1063,9 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/layout/MessageArea.svelte
     "messageArea.dropToAttach": "Zum Anhängen ablegen",
+    "messageArea.cachedRoomTitle": "Du bist offline",
+    "messageArea.cachedRoomHint":
+        "Angezeigt werden die auf diesem Gerät gespeicherten Nachrichten. Senden ist wieder möglich, sobald die Verbindung steht.",
     "messageArea.unreadNotifications": "Ungelesene Benachrichtigungen",
     "messageArea.encryptionEnabled": "Verschlüsselung aktiviert",
     "messageArea.joiningVoiceCall": "Sprachanruf wird beigetreten…",

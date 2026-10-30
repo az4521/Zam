@@ -40,6 +40,7 @@
         getTombstone,
         joinRoom,
         getRoom,
+        isRoomCachedOnly,
         getReadUpToEventId,
         getReceiptsForEvent,
         onReceiptEvent,
@@ -172,6 +173,14 @@
     }
 
     let { room, isMobile = false, onMenuOpen }: Props = $props();
+
+    // A room that exists only in the saved room list: the app booted with no
+    // network, so its timeline is the cached tail and there is nothing to send
+    // to yet. Re-checked as sync delivers rooms.
+    const cachedOnly = $derived.by(() => {
+        void auth.syncState;
+        return isRoomCachedOnly(room.roomId);
+    });
 
     // Let the room's own content (timeline, avatars) claim connections first,
     // then warm its custom emoji in the background.
@@ -2531,25 +2540,40 @@
         {/if}
 
         <!-- Message input. Wrapped so its rendered height can be measured and
-             the floating pills above can be offset to clear it. -->
-        <div bind:clientHeight={composerHeight} class="flex-shrink-0">
-            <MessageInput
-                bind:this={messageInputEl}
-                bind:autocompleteOpen={composerAutocompleteOpen}
-                {roomId}
-                {roomName}
-                {room}
-                {replyToEvent}
-                {scrollEl}
-                onCancelReply={() => {
-                    replyToEvent = null;
-                }}
-                onRequestEditLast={requestEditLastMessage}
-                onSedEdit={(cmd) =>
-                    sedEditLastMessage(room, messages, auth.userId, cmd)}
-                onThreadCreated={openThread}
-            />
-        </div>
+             the floating pills above can be offset to clear it. A cached room
+             has no live timeline to send into, so it shows a notice instead. -->
+        {#if cachedOnly}
+            <div
+                class="flex-shrink-0 mx-4 mb-4 rounded-lg border border-discord-backgroundModifier bg-discord-backgroundSecondary px-4 py-3"
+                dir={uiDir}
+            >
+                <p class="text-sm font-medium text-discord-textPrimary">
+                    {t("messageArea.cachedRoomTitle")}
+                </p>
+                <p class="text-xs text-discord-textMuted mt-1">
+                    {t("messageArea.cachedRoomHint")}
+                </p>
+            </div>
+        {:else}
+            <div bind:clientHeight={composerHeight} class="flex-shrink-0">
+                <MessageInput
+                    bind:this={messageInputEl}
+                    bind:autocompleteOpen={composerAutocompleteOpen}
+                    {roomId}
+                    {roomName}
+                    {room}
+                    {replyToEvent}
+                    {scrollEl}
+                    onCancelReply={() => {
+                        replyToEvent = null;
+                    }}
+                    onRequestEditLast={requestEditLastMessage}
+                    onSedEdit={(cmd) =>
+                        sedEditLastMessage(room, messages, auth.userId, cmd)}
+                    onThreadCreated={openThread}
+                />
+            </div>
+        {/if}
     </div>
 
     <!-- Debug panel (toggleDebug keybind, Ctrl+Alt+Shift+D by default) -->
