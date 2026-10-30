@@ -2356,6 +2356,9 @@ interface LocalVideoCodecs {
     decode: VideoCodec[];
     /** The sendable ones it encodes on the GPU. */
     hardware: VideoCodec[];
+    /** The sendable H.264/HEVC ones whose GPU encoder also does temporal
+     *  layers (L1T3). LiveKit only layers VP9/AV1 by itself. */
+    temporalHardware: VideoCodec[];
 }
 
 const WEBRTC_MIME: Record<VideoCodec, string> = {
@@ -2412,6 +2415,30 @@ async function localVideoCodecs(lk: LivekitModule): Promise<LocalVideoCodecs> {
             }
         }),
     );
+    const temporalHardware = await Promise.all(
+        send.map(async (codec): Promise<VideoCodec | null> => {
+            if (codec !== "h264" && codec !== "h265") return null;
+            try {
+                const info =
+                    await webrtcWindow().navigator.mediaCapabilities.encodingInfo(
+                        {
+                            type: "webrtc",
+                            video: {
+                                contentType: WEBRTC_MIME[codec],
+                                width: 1920,
+                                height: 1080,
+                                bitrate: 4_000_000,
+                                framerate: 30,
+                                scalabilityMode: "L1T3",
+                            },
+                        } as MediaEncodingConfiguration,
+                    );
+                return info.supported && info.powerEfficient ? codec : null;
+            } catch {
+                return null;
+            }
+        }),
+    );
     // The receiver's capability list is what the call server and the other
     // participants go by, and it can name codecs no decoder here backs. Ask
     // MediaCapabilities too, and keep only what it confirms.
@@ -2443,6 +2470,9 @@ async function localVideoCodecs(lk: LivekitModule): Promise<LocalVideoCodecs> {
         send,
         decode: decode.filter((c): c is VideoCodec => c !== null),
         hardware: hardware.filter((c): c is VideoCodec => c !== null),
+        temporalHardware: temporalHardware.filter(
+            (c): c is VideoCodec => c !== null,
+        ),
     };
 }
 
@@ -2560,6 +2590,57 @@ function installDecodePreferences(): void {
     // On the RTCPeerConnection of every window calls use (webrtcRealm).
     onWebrtcRealm(patchDecodePreferences);
     onWebrtcRealm(patchBaselineAnswer);
+    onWebrtcRealm(patchTemporalLayers);
+}
+
+/** Whether the video we publish now is H.264/HEVC that a GPU encoder can
+ *  give temporal layers (a backup codec has to manage them too). */
+function sendsTemporalLayers(call: ActiveVoiceCall): boolean {
+    const { current, backup } = codecPlan(call);
+    const ok = (c: VideoCodec) => call.codecs.temporalHardware.includes(c);
+    return ok(current) && (!backup || ok(backup));
+}
+
+/** LiveKit asks for scalabilityMode only on VP9/AV1. Where the GPU encoder
+ *  does temporal layers for H.264/HEVC, add L1T3 to the encodings of the
+ *  video transceivers it creates, so a viewer short on bandwidth can drop
+ *  frames instead of quality. Without it, or if the browser refuses it, the
+ *  transceiver is made as before. */
+function patchTemporalLayers(pc: typeof RTCPeerConnection): void {
+    const original = pc.prototype.addTransceiver;
+    pc.prototype.addTransceiver = function (
+        this: RTCPeerConnection,
+        ...args: Parameters<RTCPeerConnection["addTransceiver"]>
+    ) {
+        const [source, init] = args;
+        const call = activeVoice;
+        const isVideo =
+            typeof source === "string"
+                ? source === "video"
+                : source.kind === "video";
+        if (call && isVideo && init?.sendEncodings?.length) {
+            let layered = false;
+            try {
+                layered = sendsTemporalLayers(call);
+            } catch {
+                /* plan unavailable: send as before */
+            }
+            if (layered) {
+                try {
+                    return original.call(this, source, {
+                        ...init,
+                        sendEncodings: init.sendEncodings.map((e) => ({
+                            ...e,
+                            scalabilityMode: "L1T3",
+                        })),
+                    } as RTCRtpTransceiverInit);
+                } catch (err) {
+                    console.warn("Temporal layers refused:", err);
+                }
+            }
+        }
+        return original.apply(this, args);
+    };
 }
 
 /** The server's answer names H.264 profile 42e01f, which GPU encoders aren't
