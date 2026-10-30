@@ -2,6 +2,7 @@
     import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
+    import SoundboardButton from "./SoundboardButton.svelte";
     import {
         Phone,
         PhoneOff,
@@ -163,6 +164,12 @@
                         <MonitorUp size={16} />
                     </button>
                 {/if}
+                <SoundboardButton
+                    {room}
+                    size={16}
+                    buttonClass="p-1.5 rounded hover:bg-discord-messageHover"
+                    idleClass="text-discord-textMuted hover:text-discord-textPrimary"
+                />
             </div>
             <!-- The body above opens the call too, but nothing said so: users
              couldn't find the call view. -->

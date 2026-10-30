@@ -33,6 +33,7 @@
     } from "$lib/matrix/client";
     import { navigateToRoom, roomsState } from "$lib/stores/rooms.svelte";
     import ScreenShareQualityPopover from "./ScreenShareQualityPopover.svelte";
+    import SoundboardButton from "./SoundboardButton.svelte";
     import CallEncryptionBadge from "./CallEncryptionBadge.svelte";
     import CallStatsPanel from "./CallStatsPanel.svelte";
 
@@ -93,6 +94,11 @@
     // strand the quality popover.
     $effect(() => {
         if (!voiceCallState.screenSharing) sharePopover = null;
+    });
+
+    const soundboardRoom = $derived.by(() => {
+        void roomsState.roomsTick;
+        return voiceCallState.roomId ? getRoom(voiceCallState.roomId) : null;
     });
 
     let statsOpen = $state(false);
@@ -259,6 +265,13 @@
                 >
                     <MonitorUp size={20} />
                 </button>
+            {/if}
+            {#if soundboardRoom}
+                <SoundboardButton
+                    room={soundboardRoom}
+                    buttonClass="p-1.5 rounded hover:bg-discord-messageHover"
+                    idleClass="text-discord-textMuted hover:text-discord-textPrimary"
+                />
             {/if}
             <button
                 onclick={leaveCall}
