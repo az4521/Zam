@@ -6,8 +6,9 @@
  * (Chromium only feeds remote WebRTC audio to Web Audio while a media element
  * is playing it; LiveKit's own webAudioMix does the same). Its stream runs
  * source -> normalization gain -> user gain -> shared limiter, and the mix
- * plays through ONE output <audio> element, so output-device selection keeps
- * using HTMLMediaElement.setSinkId (AudioContext.setSinkId is Chromium-only).
+ * plays straight out of the context, with output-device selection through
+ * AudioContext.setSinkId. Where that is missing it plays through ONE output
+ * <audio> element instead, selected with HTMLMediaElement.setSinkId.
  */
 import {
     rmsDb,
@@ -60,6 +61,10 @@ export interface CallAudioGraph {
     close(): void;
 }
 
+type AudioContextWithSink = AudioContext & {
+    setSinkId?: (id: string) => Promise<void>;
+};
+
 export function createCallAudioGraph(opts: {
     sinkId: string | null;
     muted: boolean;
@@ -68,29 +73,45 @@ export function createCallAudioGraph(opts: {
 }): CallAudioGraph | null {
     if (typeof AudioContext === "undefined") return null;
     let ctx: AudioContext;
-    let out: HTMLAudioElement;
+    // Null when the mix plays straight out of the context (see below).
+    let out: HTMLAudioElement | null = null;
     let limiter: GainNode;
+    let deafen: GainNode;
     try {
         ctx = new AudioContext();
         // Soft clipper on the mix: a 500% boost of someone already loud would
         // otherwise hard-clip.
         const clipper = createSoftClipper(ctx);
         limiter = clipper.input;
-        const dest = ctx.createMediaStreamDestination();
-        clipper.output.connect(dest);
-        out = document.createElement("audio");
-        out.autoplay = true;
-        out.srcObject = dest.stream;
-        document.body.appendChild(out);
+        deafen = ctx.createGain();
+        deafen.gain.value = opts.muted ? 0 : 1;
+        clipper.output.connect(deafen);
+        // Where the context can pick its output device, play straight to it.
+        // Going through a MediaStream into an <audio> element instead puts a
+        // second clock in the path: Chromium time-stretches that stream to
+        // absorb drift, so call audio and soundboard clips slowed down under
+        // CPU or audio-device contention (OBS running) and sped up again to
+        // catch up.
+        if (typeof (ctx as AudioContextWithSink).setSinkId === "function") {
+            deafen.connect(ctx.destination);
+        } else {
+            const dest = ctx.createMediaStreamDestination();
+            deafen.connect(dest);
+            out = document.createElement("audio");
+            out.autoplay = true;
+            out.srcObject = dest.stream;
+            document.body.appendChild(out);
+        }
     } catch {
         return null;
     }
-    out.muted = opts.muted;
-    const sinkOut = out as HTMLAudioElement & {
-        setSinkId?: (id: string) => Promise<void>;
+    const sinkTarget = out as
+        | (HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> })
+        | null;
+    const setSink = (id: string | null) => {
+        const target = sinkTarget ?? (ctx as AudioContextWithSink);
+        void target.setSinkId?.(id ?? "")?.catch(() => {});
     };
-    const setSink = (id: string | null) =>
-        void sinkOut.setSinkId?.(id ?? "").catch(() => {});
     setSink(opts.sinkId);
 
     const routed = new Map<HTMLAudioElement, RoutedSource>();
@@ -130,7 +151,7 @@ export function createCallAudioGraph(opts: {
         } catch {
             /* stays suspended; surfaced via `suspended` */
         }
-        void out.play().catch(() => {});
+        void out?.play().catch(() => {});
     };
     ctx.onstatechange = () => opts.onSuspendedChange();
     void start();
@@ -233,7 +254,7 @@ export function createCallAudioGraph(opts: {
         },
         setSink,
         setMuted(muted) {
-            out.muted = muted;
+            deafen.gain.value = muted ? 0 : 1;
         },
         get suspended() {
             return !closed && ctx.state === "suspended";
@@ -248,9 +269,11 @@ export function createCallAudioGraph(opts: {
                     if (r.key) rememberLevel(r.key, r.state, true);
             routed.clear();
             ctx.onstatechange = null;
-            out.pause();
-            out.srcObject = null;
-            out.remove();
+            if (out) {
+                out.pause();
+                out.srcObject = null;
+                out.remove();
+            }
             void ctx.close().catch(() => {});
         },
     };
