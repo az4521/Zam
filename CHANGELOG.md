@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.42.2
+
+🐛 **Fixed**
+
+- **Direct files now get a final check before sending, like other attachments:** "Send a file directly" puts the file in the composer's attachment tray with a Direct badge, where you can rename or remove it, and the offer only goes out when you press send. "Send directly" on the over-limit message works the same way. Text you type goes out as a normal message just before the offer.
+
 ## v1.42.1
 
 ✨ **New**
