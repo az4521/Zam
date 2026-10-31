@@ -2715,6 +2715,7 @@ export const en = {
 
     // src/lib/components/messages/ComposerActionsMenu.svelte
     "composerActionsMenu.uploadAFile": "Upload a file",
+    "composerActionsMenu.sendFileDirectly": "Send a file directly",
     "composerActionsMenu.createPoll": "Create poll",
     "composerActionsMenu.recordVoiceMessage": "Record voice message",
     "composerActionsMenu.shareLocation": "Share location",
@@ -3727,6 +3728,41 @@ export const en = {
     // ownStatus
     "ownStatus.profileField": "profile field {key}",
     "ownStatus.theServerStillHas": "The server still has: {leftovers}",
+    "messageInput.sendDirectly": "Send directly",
+    "messageItem.replyPreviewFileOffer": "File offer",
+    "fileOffer.unavailable":
+        "This file offer can't be read by this version of Zam.",
+    "fileOffer.details": "{size}, sent directly",
+    "fileOffer.waiting": "Waiting for someone to accept. Keep Zam open.",
+    "fileOffer.fromElsewhere": "Offered from another of your sessions.",
+    "fileOffer.gone": "No longer available from this session.",
+    "fileOffer.expired": "This offer has expired.",
+    "fileOffer.accept": "Accept",
+    "fileOffer.retry": "Try again",
+    "fileOffer.cancel": "Cancel",
+    "fileOffer.withdraw": "Withdraw",
+    "fileOffer.connecting": "Connecting to the sender...",
+    "fileOffer.progress": "{done} of {total}, {rate}/s",
+    "fileOffer.verifying": "Verifying the file...",
+    "fileOffer.savedDone": "File saved and verified.",
+    "fileOffer.sentDone": "Delivered to {peer}.",
+    "fileOffer.sendingTo": "To {peer}",
+    "fileOffer.cancelled": "Transfer cancelled.",
+    "fileOffer.failedOffline":
+        "The sender isn't available. They need Zam open.",
+    "fileOffer.failedRefused": "The sender's session refused this transfer.",
+    "fileOffer.failedNoSfu":
+        "The sender's server has no call service to carry the file.",
+    "fileOffer.failedConnection": "The connection was lost.",
+    "fileOffer.failedStalled": "The transfer stopped making progress.",
+    "fileOffer.failedCorrupt":
+        "The file was altered on the way, so it was discarded.",
+    "fileOffer.failedWrite": "The file couldn't be written. Is the disk full?",
+    "fileOffer.failedStorageFull": "There isn't enough storage for this file.",
+    "fileOffer.failedHash":
+        "The finished file didn't match, so it was discarded.",
+    "fileOffer.failedUnsupported":
+        "This device can't save direct transfers yet.",
     "ownStatus.statusClearedButPresenceRemains":
         'Status cleared, but the server still shows the presence message "{presenceLeft}". It is probably set by another session of this account (another app or client) - clear it there, or sign that session out.',
 };

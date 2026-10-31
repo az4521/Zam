@@ -135,6 +135,8 @@
     import { pluginComposerButtons } from "$lib/utils/pluginComposer";
     import { resolveUserArg } from "$lib/utils/userSearch";
     import { showErrorToast, showToast } from "$lib/stores/toasts.svelte";
+    import { offerFile } from "$lib/matrix/fileTransfer";
+    import { isFileTooLargeError } from "$lib/utils/uploadLimits";
     import { discardRoomSession } from "$lib/matrix/crypto";
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { scrollBehavior } from "$lib/utils/motionPreference";
@@ -369,6 +371,7 @@
     });
 
     let fileInputEl: HTMLInputElement | undefined = $state();
+    let directFileInputEl: HTMLInputElement | undefined = $state();
     let typingUsers = $state<string[]>([]);
     let typingStopTimer: ReturnType<typeof setTimeout> | null = null;
     let lastTypingSentAt = 0;
@@ -1507,6 +1510,19 @@
             console.error("Failed to send:", err);
             showErrorToast(
                 matrixErrorMessage(err, t("messageInput.failedToSend")),
+                isFileTooLargeError(err) && !isThread
+                    ? {
+                          label: t("messageInput.sendDirectly"),
+                          run: () => {
+                              for (const item of getFileQueue(
+                                  targetComposerKey,
+                              ).filter((q) => q.file.size > err.limit)) {
+                                  removeQueuedFile(targetComposerKey, item.id);
+                                  offerDirectly(item.file);
+                              }
+                          },
+                      }
+                    : undefined,
             );
             // Restore ONLY the files that were not successfully sent — an
             // already-sent file must never come back (would duplicate on the
@@ -1828,6 +1844,22 @@
         setComposerText(next, start + pastedText.length);
     }
 
+    function offerDirectly(file: File) {
+        offerFile(roomId, file).catch((err) => {
+            console.error("Failed to offer file:", err);
+            showErrorToast(
+                matrixErrorMessage(err, t("messageInput.failedToSend")),
+            );
+        });
+    }
+
+    function onDirectFileSelected(e: Event) {
+        const files = (e.target as HTMLInputElement).files;
+        if (!files) return;
+        for (const file of files) offerDirectly(file);
+        if (directFileInputEl) directFileInputEl.value = "";
+    }
+
     function onFileSelected(e: Event) {
         const files = (e.target as HTMLInputElement).files;
         if (!files) return;
@@ -1950,6 +1982,13 @@
         multiple
         class="hidden"
         onchange={onFileSelected}
+    />
+    <input
+        bind:this={directFileInputEl}
+        type="file"
+        multiple
+        class="hidden"
+        onchange={onDirectFileSelected}
     />
 
     <!-- In-flight attachment send indicator (drawer was cleared optimistically) -->
@@ -2214,6 +2253,9 @@
                                 {roomId}
                                 onClose={closeModal}
                                 onUpload={() => fileInputEl?.click()}
+                                onSendDirectly={isThread
+                                    ? undefined
+                                    : () => directFileInputEl?.click()}
                                 onCreatePoll={() =>
                                     openCreatePollDialog(roomId)}
                                 onRecordVoice={voiceSupported && !isThread
@@ -2235,6 +2277,9 @@
                                 {roomId}
                                 onClose={closeModal}
                                 onUpload={() => fileInputEl?.click()}
+                                onSendDirectly={isThread
+                                    ? undefined
+                                    : () => directFileInputEl?.click()}
                                 onCreatePoll={() =>
                                     openCreatePollDialog(roomId)}
                                 onRecordVoice={voiceSupported && !isThread

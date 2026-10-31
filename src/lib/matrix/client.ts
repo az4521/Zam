@@ -238,6 +238,10 @@ import { collectSpaceDescendantRoomIds } from "$lib/utils/spaceDescendants";
 import { mapWithConcurrency } from "$lib/utils/async";
 import { createBoundedIdMap } from "$lib/utils/notifyDecrypted";
 import { shouldPrimePaginationToken } from "$lib/utils/roomStateHealth";
+import {
+    FILE_OFFER_EVENT,
+    isFileOfferEventType,
+} from "$lib/utils/fileTransfer";
 import { hasUnreadMessages } from "$lib/utils/roomUnread";
 import { callMemberSendersMissingMembership } from "$lib/utils/callMemberSenders";
 import {
@@ -2505,6 +2509,7 @@ function isRenderableTimelineEvent(e: MatrixEvent): boolean {
         // event already reports its cleartext type and passes above.
         e.getType() !== "m.room.encrypted" &&
         !isPollStartEventType(e.getType()) &&
+        !isFileOfferEventType(e.getType()) &&
         !isCallEventType(e.getType())
     )
         return false;
@@ -4536,6 +4541,7 @@ const NOTIFICATION_EVENT_TYPES = [
     "m.sticker",
     "org.matrix.msc3381.poll.start",
     "m.poll.start",
+    FILE_OFFER_EVENT,
 ];
 
 function isNotificationEvent(event: MatrixEvent): boolean {
@@ -4621,6 +4627,7 @@ export function onTimelineEvent(
                     isMainTimeline &&
                     (event.getType() === "m.room.message" ||
                         event.getType() === "m.sticker" ||
+                        isFileOfferEventType(event.getType()) ||
                         isPollStartEventType(event.getType())) &&
                     !event.isRedacted()))
         ) {

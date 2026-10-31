@@ -2779,6 +2779,45 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/messages/ComposerActionsMenu.svelte
     "composerActionsMenu.uploadAFile": "Envoyer un fichier",
+    "composerActionsMenu.sendFileDirectly": "Envoyer un fichier directement",
+    "messageInput.sendDirectly": "Envoyer directement",
+    "messageItem.replyPreviewFileOffer": "Offre de fichier",
+    "fileOffer.unavailable":
+        "Cette version de Zam ne peut pas lire cette offre de fichier.",
+    "fileOffer.details": "{size}, envoyé directement",
+    "fileOffer.waiting": "En attente d'une acceptation. Gardez Zam ouvert.",
+    "fileOffer.fromElsewhere": "Proposé depuis une autre de vos sessions.",
+    "fileOffer.gone": "N'est plus disponible depuis cette session.",
+    "fileOffer.expired": "Cette offre a expiré.",
+    "fileOffer.accept": "Accepter",
+    "fileOffer.retry": "Réessayer",
+    "fileOffer.cancel": "Annuler",
+    "fileOffer.withdraw": "Retirer",
+    "fileOffer.connecting": "Connexion à l'expéditeur...",
+    "fileOffer.progress": "{done} sur {total}, {rate}/s",
+    "fileOffer.verifying": "Vérification du fichier...",
+    "fileOffer.savedDone": "Fichier enregistré et vérifié.",
+    "fileOffer.sentDone": "Remis à {peer}.",
+    "fileOffer.sendingTo": "À {peer}",
+    "fileOffer.cancelled": "Transfert annulé.",
+    "fileOffer.failedOffline":
+        "L'expéditeur n'est pas disponible. Zam doit être ouvert de son côté.",
+    "fileOffer.failedRefused":
+        "La session de l'expéditeur a refusé ce transfert.",
+    "fileOffer.failedNoSfu":
+        "Le serveur de l'expéditeur n'a pas de service d'appel pour transporter le fichier.",
+    "fileOffer.failedConnection": "La connexion a été perdue.",
+    "fileOffer.failedStalled": "Le transfert ne progresse plus.",
+    "fileOffer.failedCorrupt":
+        "Le fichier a été modifié en chemin, il a donc été supprimé.",
+    "fileOffer.failedWrite":
+        "Le fichier n'a pas pu être écrit. Le disque est-il plein ?",
+    "fileOffer.failedStorageFull":
+        "Il n'y a pas assez d'espace de stockage pour ce fichier.",
+    "fileOffer.failedHash":
+        "Le fichier terminé ne correspondait pas, il a donc été supprimé.",
+    "fileOffer.failedUnsupported":
+        "Cet appareil ne peut pas encore enregistrer les transferts directs.",
     "composerActionsMenu.createPoll": "Créer un sondage",
     "composerActionsMenu.recordVoiceMessage": "Enregistrer un message vocal",
     "composerActionsMenu.shareLocation": "Partager la position",

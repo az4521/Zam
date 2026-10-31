@@ -52,6 +52,7 @@ import { createDirectMessage, holdSlidingSyncRoom } from "$lib/matrix/client";
 import { VerificationPhaseValue } from "$lib/utils/verification";
 import { getClient } from "$lib/matrix/runtime";
 import { attachKeyBackfill } from "$lib/matrix/keyBackfill";
+import { attachFileTransfer } from "$lib/matrix/fileTransfer";
 import { installRekeyRepair } from "$lib/matrix/rekeyRepair";
 import {
     ROOM_ENCRYPTION_EVENT_TYPE,
@@ -156,6 +157,7 @@ export async function waitForCryptoEngineIdle(
 
 // Teardown for the key backfill attached to the running engine's client.
 let detachKeyBackfill: (() => void) | null = null;
+let detachFileTransfer: (() => void) | null = null;
 
 // How many times initCrypto tries to start the engine, and the pause before
 // each retry. Most failures are passing (the WASM download, an IndexedDB
@@ -357,6 +359,8 @@ export async function initCrypto(
     console.info(`[matrix] rust-crypto init starting for device ${deviceId}`);
     detachKeyBackfill?.();
     detachKeyBackfill = null;
+    detachFileTransfer?.();
+    detachFileTransfer = null;
     // Session expiry drops back to the login view in place (no reload), so a
     // re-login re-enters here in the same JS context — against a fresh crypto
     // store that knows nothing about sender devices. Verdicts memoised for the
@@ -429,6 +433,7 @@ export async function initCrypto(
         attachDecryptionListener(client);
         attachSecurityListeners(client);
         detachKeyBackfill = attachKeyBackfill(client);
+        detachFileTransfer = attachFileTransfer(client);
         if (!(await installRekeyRepair(cryptoApi, { userId, deviceId })))
             console.warn("[matrix] can't watch for re-keyed sessions");
     } catch (err) {

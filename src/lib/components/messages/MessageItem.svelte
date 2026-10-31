@@ -16,6 +16,7 @@
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import PollBody from "$lib/components/messages/PollBody.svelte";
+    import FileOfferCard from "$lib/components/messages/FileOfferCard.svelte";
     import MessageVideo from "$lib/components/messages/MessageVideo.svelte";
     import MediaProgress from "$lib/components/ui/MediaProgress.svelte";
     import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
@@ -98,6 +99,7 @@
     } from "$lib/utils/joinConsent";
     import { requestJoinConsent } from "$lib/stores/joinConsent.svelte";
     import { isPollStartEventType } from "$lib/utils/pollContent";
+    import { isFileOfferEventType } from "$lib/utils/fileTransfer";
     import { isCallEventType, type CallSummary } from "$lib/utils/callSummary";
     import { mayRedactEvent } from "$lib/utils/redaction";
     import { isVerificationRequestMessage } from "$lib/utils/verificationMessage";
@@ -1037,6 +1039,7 @@
     }
 
     const isPoll = $derived(isPollStartEventType(eventType));
+    const isFileOffer = $derived(isFileOfferEventType(eventType));
     const isCallEvent = $derived(
         (void messagesState.timelineTick, isCallEventType(eventType)),
     );
@@ -1186,6 +1189,8 @@
         if (type === "m.sticker") return t("messageItem.replyPreviewSticker");
         if (isPollStartEventType(type))
             return t("messageItem.replyPreviewPoll");
+        if (isFileOfferEventType(type))
+            return t("messageItem.replyPreviewFileOffer");
         if (type === "m.room.message") {
             const b: string = c?.body ?? "";
             // Strip nested reply prefix from the quoted message's own body
@@ -2450,6 +2455,8 @@
                 {/if}
             {:else if isPoll}
                 <PollBody {event} {room} />
+            {:else if isFileOffer}
+                <FileOfferCard {event} />
             {:else if eventType === "m.room.encrypted"}
                 <!-- E2EE UTD (unable-to-decrypt) placeholder. The row chrome
                  (avatar / sender / timestamp) is cleartext; only the body is

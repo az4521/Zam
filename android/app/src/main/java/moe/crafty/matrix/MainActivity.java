@@ -97,6 +97,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(WebBundlePlugin.class);
         registerPlugin(ApkUpdaterPlugin.class);
         registerPlugin(MediaSaverPlugin.class);
+        registerPlugin(FileTransferPlugin.class);
         registerPlugin(CallServicePlugin.class);
         registerPlugin(UnifiedPushPlugin.class);
         registerPlugin(PushDecryptPlugin.class);

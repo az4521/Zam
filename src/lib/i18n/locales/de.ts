@@ -2802,6 +2802,45 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/messages/ComposerActionsMenu.svelte
     "composerActionsMenu.uploadAFile": "Datei hochladen",
+    "composerActionsMenu.sendFileDirectly": "Datei direkt senden",
+    "messageInput.sendDirectly": "Direkt senden",
+    "messageItem.replyPreviewFileOffer": "Dateiangebot",
+    "fileOffer.unavailable":
+        "Dieses Dateiangebot kann von dieser Zam-Version nicht gelesen werden.",
+    "fileOffer.details": "{size}, direkt gesendet",
+    "fileOffer.waiting": "Warten, bis jemand annimmt. Lass Zam geöffnet.",
+    "fileOffer.fromElsewhere": "Von einer anderen deiner Sitzungen angeboten.",
+    "fileOffer.gone": "In dieser Sitzung nicht mehr verfügbar.",
+    "fileOffer.expired": "Dieses Angebot ist abgelaufen.",
+    "fileOffer.accept": "Annehmen",
+    "fileOffer.retry": "Erneut versuchen",
+    "fileOffer.cancel": "Abbrechen",
+    "fileOffer.withdraw": "Zurückziehen",
+    "fileOffer.connecting": "Verbindung zum Absender wird hergestellt...",
+    "fileOffer.progress": "{done} von {total}, {rate}/s",
+    "fileOffer.verifying": "Datei wird überprüft...",
+    "fileOffer.savedDone": "Datei gespeichert und überprüft.",
+    "fileOffer.sentDone": "An {peer} zugestellt.",
+    "fileOffer.sendingTo": "An {peer}",
+    "fileOffer.cancelled": "Übertragung abgebrochen.",
+    "fileOffer.failedOffline":
+        "Der Absender ist nicht erreichbar. Zam muss bei ihm geöffnet sein.",
+    "fileOffer.failedRefused":
+        "Die Sitzung des Absenders hat diese Übertragung abgelehnt.",
+    "fileOffer.failedNoSfu":
+        "Der Server des Absenders hat keinen Anrufdienst, der die Datei übertragen kann.",
+    "fileOffer.failedConnection": "Die Verbindung wurde unterbrochen.",
+    "fileOffer.failedStalled": "Die Übertragung kommt nicht mehr voran.",
+    "fileOffer.failedCorrupt":
+        "Die Datei wurde unterwegs verändert und daher verworfen.",
+    "fileOffer.failedWrite":
+        "Die Datei konnte nicht geschrieben werden. Ist der Speicher voll?",
+    "fileOffer.failedStorageFull":
+        "Für diese Datei ist nicht genug Speicherplatz vorhanden.",
+    "fileOffer.failedHash":
+        "Die fertige Datei stimmte nicht überein und wurde verworfen.",
+    "fileOffer.failedUnsupported":
+        "Dieses Gerät kann direkte Übertragungen noch nicht speichern.",
     "composerActionsMenu.createPoll": "Umfrage erstellen",
     "composerActionsMenu.recordVoiceMessage": "Sprachnachricht aufnehmen",
     "composerActionsMenu.shareLocation": "Standort teilen",

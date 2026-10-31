@@ -103,7 +103,7 @@ public class MediaSaverPlugin extends Plugin {
         return target.getAbsolutePath();
     }
 
-    private static File uniqueFile(File dir, String name) {
+    static File uniqueFile(File dir, String name) {
         File f = new File(dir, name);
         if (!f.exists()) return f;
         int dot = name.lastIndexOf('.');
@@ -116,7 +116,7 @@ public class MediaSaverPlugin extends Plugin {
     }
 
     /** Filename only: no path separators or control characters. */
-    private static String sanitize(String raw) {
+    static String sanitize(String raw) {
         if (raw == null) return "file";
         String s = raw.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_").trim();
         if (s.isEmpty() || s.equals(".") || s.equals("..")) return "file";

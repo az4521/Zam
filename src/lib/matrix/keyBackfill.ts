@@ -34,7 +34,7 @@ export const KEY_RESPONSE_TYPE = "moe.crafty.room_key";
 type ExportedRoomKey = Parameters<CryptoApi["importRoomKeys"]>[0][number];
 
 /** What ClientEvent.ReceivedToDeviceMessage hands us. */
-interface ReceivedToDevice {
+export interface ReceivedToDevice {
     message: {
         type: string;
         content: Record<string, unknown>;
@@ -54,6 +54,22 @@ export const REQUEST_RETRY_MS = 60 * 60_000;
 export const PER_MINUTE_LIMIT = 20;
 
 const MISSING_KEY = "MEGOLM_UNKNOWN_INBOUND_SESSION_ID";
+
+/** Whether our encryption settings allow sending secrets to this device. */
+export function deviceAllowed(
+    crypto: CryptoApi,
+    ownUserId: string,
+    status: Awaited<
+        ReturnType<CryptoApi["getDeviceVerificationStatus"]>
+    > | null,
+): boolean {
+    if (!status) return false;
+    if (crypto.globalBlacklistUnverifiedDevices && !status.isVerified())
+        return false;
+    const excludeInsecure =
+        readScoped("settings:excludeInsecureDevices", ownUserId) === "true";
+    return !excludeInsecure || status.signedByOwner;
+}
 
 /** Whether a decryption failure is one a re-share can fix. */
 export function isMissingRoomKey(event: MatrixEvent): boolean {
@@ -219,19 +235,6 @@ export function attachKeyBackfill(client: MatrixClient): () => void {
         );
     }
 
-    function deviceAllowed(
-        status: Awaited<
-            ReturnType<CryptoApi["getDeviceVerificationStatus"]>
-        > | null,
-    ): boolean {
-        if (!status) return false;
-        if (crypto!.globalBlacklistUnverifiedDevices && !status.isVerified())
-            return false;
-        const excludeInsecure =
-            readScoped("settings:excludeInsecureDevices", ownUserId) === "true";
-        return !excludeInsecure || status.signedByOwner;
-    }
-
     async function answer(payload: ReceivedToDevice): Promise<void> {
         const { message, encryptionInfo } = payload;
         const roomId = message.content.room_id;
@@ -264,7 +267,7 @@ export function attachKeyBackfill(client: MatrixClient): () => void {
             requesterJoined: room?.getMember(requester)?.membership === "join",
             historyVisibility: room?.getHistoryVisibility() ?? null,
             ownKey: keys.length === 1,
-            deviceAllowed: deviceAllowed(status),
+            deviceAllowed: deviceAllowed(crypto!, ownUserId!, status),
         });
         if (refusal) {
             log(`not re-sending ${sessionId} to ${requester}: ${refusal}`);

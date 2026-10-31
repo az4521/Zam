@@ -889,9 +889,80 @@ function broadcastMediaAuthReady() {
 		.catch(() => {});
 }
 
+// Direct file transfers (src/lib/matrix/fileTransferStream.ts). The page feeds
+// a received file down a MessagePort and this turns it into the response to a
+// download request, so the browser saves it as one long ordinary download.
+const FILE_STREAM_PATH = "/__zam_file_stream/";
+const fileStreams = new Map();
+
+function openFileStream(id, name, size, port) {
+	let finish = () => {};
+	const stream = {
+		finished: new Promise((resolve) => {
+			finish = resolve;
+		}),
+		name,
+		size,
+		port,
+	};
+	const end = () => {
+		fileStreams.delete(id);
+		port.close();
+		finish();
+	};
+	let controller = null;
+	stream.body = new ReadableStream({
+		start(c) {
+			controller = c;
+		},
+		pull() {
+			port.postMessage({ type: "pull" });
+		},
+		cancel() {
+			// The user cancelled the download in the browser.
+			port.postMessage({ type: "cancelled" });
+			end();
+		},
+	});
+	port.onmessage = (e) => {
+		const type = e.data?.type;
+		if (type === "chunk") controller.enqueue(e.data.data);
+		else if (type === "ping") port.postMessage({ type: "pong" });
+		else if (type === "done") {
+			controller.close();
+			end();
+		} else if (type === "error") {
+			controller.error(new Error("transfer failed"));
+			end();
+		}
+	};
+	fileStreams.set(id, stream);
+}
+
+function fileStreamResponse(event, parsedUrl) {
+	const id = parsedUrl.pathname.slice(FILE_STREAM_PATH.length);
+	const stream = fileStreams.get(id);
+	if (!stream) return new Response(null, { status: 404 });
+	event.waitUntil(stream.finished);
+	stream.port.postMessage({ type: "started" });
+	return new Response(stream.body, {
+		headers: {
+			"Content-Type": "application/octet-stream",
+			"Content-Length": String(stream.size),
+			"Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(stream.name)}`,
+			"X-Content-Type-Options": "nosniff",
+		},
+	});
+}
+
 self.addEventListener("message", (event) => {
 	// Only accept messages from the app's own origin
 	if (event.origin !== APP_ORIGIN) return;
+	if (event.data?.type === "FILE_STREAM_OPEN" && event.ports[0]) {
+		const { id, name, size } = event.data;
+		openFileStream(id, name, size, event.ports[0]);
+		return;
+	}
 	// Hold the event open for the whole async body: without waitUntil the
 	// worker is terminable as soon as the sync part returns, so a toggle
 	// followed by closing the tab could update memory but lose the
@@ -1083,6 +1154,17 @@ self.addEventListener("fetch", (event) => {
 				}
 				return Response.redirect("/?share_target=1", 303);
 			})(),
+		);
+		return;
+	}
+
+	// Ahead of the offline shell, which would answer this navigation itself.
+	if (
+		event.request.url.startsWith(`${APP_ORIGIN}${FILE_STREAM_PATH}`) &&
+		event.request.method === "GET"
+	) {
+		event.respondWith(
+			fileStreamResponse(event, new URL(event.request.url)),
 		);
 		return;
 	}

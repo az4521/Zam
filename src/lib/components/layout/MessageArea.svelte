@@ -126,6 +126,7 @@
     import { isOffCanvasClosed } from "$lib/utils/drawerInert";
     import { preventDefault } from "svelte/legacy";
     import { isPollStartEventType } from "$lib/utils/pollContent";
+    import { isFileOfferEventType } from "$lib/utils/fileTransfer";
     import ActiveCallBanner from "$lib/components/layout/ActiveCallBanner.svelte";
     import LiveLocationBanner from "$lib/components/layout/LiveLocationBanner.svelte";
     import {
@@ -1058,7 +1059,8 @@
         if (
             type !== "m.room.message" &&
             type !== "m.sticker" &&
-            !isPollStartEventType(type)
+            !isPollStartEventType(type) &&
+            !isFileOfferEventType(type)
         )
             return true;
         return event.getContent()?.["m.relates_to"]?.rel_type === "m.replace";

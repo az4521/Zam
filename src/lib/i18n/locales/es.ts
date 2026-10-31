@@ -2816,6 +2816,45 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/messages/ComposerActionsMenu.svelte
     "composerActionsMenu.uploadAFile": "Subir un archivo",
+    "composerActionsMenu.sendFileDirectly": "Enviar un archivo directamente",
+    "messageInput.sendDirectly": "Enviar directamente",
+    "messageItem.replyPreviewFileOffer": "Oferta de archivo",
+    "fileOffer.unavailable":
+        "Esta versión de Zam no puede leer esta oferta de archivo.",
+    "fileOffer.details": "{size}, enviado directamente",
+    "fileOffer.waiting": "Esperando a que alguien acepte. Mantén Zam abierto.",
+    "fileOffer.fromElsewhere": "Ofrecido desde otra de tus sesiones.",
+    "fileOffer.gone": "Ya no está disponible en esta sesión.",
+    "fileOffer.expired": "Esta oferta ha caducado.",
+    "fileOffer.accept": "Aceptar",
+    "fileOffer.retry": "Reintentar",
+    "fileOffer.cancel": "Cancelar",
+    "fileOffer.withdraw": "Retirar",
+    "fileOffer.connecting": "Conectando con el remitente...",
+    "fileOffer.progress": "{done} de {total}, {rate}/s",
+    "fileOffer.verifying": "Verificando el archivo...",
+    "fileOffer.savedDone": "Archivo guardado y verificado.",
+    "fileOffer.sentDone": "Entregado a {peer}.",
+    "fileOffer.sendingTo": "Para {peer}",
+    "fileOffer.cancelled": "Transferencia cancelada.",
+    "fileOffer.failedOffline":
+        "El remitente no está disponible. Necesita tener Zam abierto.",
+    "fileOffer.failedRefused":
+        "La sesión del remitente ha rechazado esta transferencia.",
+    "fileOffer.failedNoSfu":
+        "El servidor del remitente no tiene un servicio de llamadas que transporte el archivo.",
+    "fileOffer.failedConnection": "Se ha perdido la conexión.",
+    "fileOffer.failedStalled": "La transferencia ha dejado de avanzar.",
+    "fileOffer.failedCorrupt":
+        "El archivo se alteró por el camino, así que se ha descartado.",
+    "fileOffer.failedWrite":
+        "No se pudo escribir el archivo. ¿Está lleno el disco?",
+    "fileOffer.failedStorageFull":
+        "No hay suficiente almacenamiento para este archivo.",
+    "fileOffer.failedHash":
+        "El archivo terminado no coincidía, así que se ha descartado.",
+    "fileOffer.failedUnsupported":
+        "Este dispositivo aún no puede guardar transferencias directas.",
     "composerActionsMenu.createPoll": "Crear encuesta",
     "composerActionsMenu.recordVoiceMessage": "Grabar un mensaje de voz",
     "composerActionsMenu.shareLocation": "Compartir ubicación",

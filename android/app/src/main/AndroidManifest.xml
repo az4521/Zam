@@ -82,6 +82,12 @@
             </intent-filter>
         </service>
 
+        <!-- Keeps a direct file transfer going off screen (FileTransferService). -->
+        <service
+            android:name=".FileTransferService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <!-- UnifiedPush: receives endpoints and Matrix pushes from the user's
              distributor (ntfy, NextPush, ...), the FCM-free push path. The
              connector library binds to it in-process, so it is not exported. -->
@@ -152,6 +158,7 @@
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />

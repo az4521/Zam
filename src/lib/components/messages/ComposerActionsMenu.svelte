@@ -7,6 +7,7 @@
         roomId: string;
         onClose: () => void;
         onUpload: () => void;
+        onSendDirectly?: () => void;
         onCreatePoll: () => void;
         onRecordVoice?: () => void;
         onShareLocation?: () => void;
@@ -16,6 +17,7 @@
         roomId,
         onClose,
         onUpload,
+        onSendDirectly,
         onCreatePoll,
         onRecordVoice,
         onShareLocation,
@@ -33,6 +35,16 @@
                 run: () => onUpload(),
                 icon: "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z",
             },
+            ...(onSendDirectly
+                ? [
+                      {
+                          key: "direct",
+                          label: t("composerActionsMenu.sendFileDirectly"),
+                          run: () => onSendDirectly?.(),
+                          icon: "M2 21l21-9L2 3v7l15 2-15 2v7z",
+                      },
+                  ]
+                : []),
             {
                 key: "poll",
                 label: t("composerActionsMenu.createPoll"),

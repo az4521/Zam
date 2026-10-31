@@ -749,6 +749,24 @@ async function fetchSfuJwt(
     return (await res.json()) as { url: string; jwt: string };
 }
 
+/** Our homeserver's SFU, for a LiveKit room of the given name. */
+export async function ownSfuTarget(
+    alias: string,
+): Promise<LivekitTarget | null> {
+    return pickLivekitTransport([], await configuredRtcFoci(), alias);
+}
+
+/** Join a LiveKit room no call knows about. Nothing goes in the Matrix room,
+ *  so only someone told its name can find it (see fileTransfer.ts). */
+export async function joinHiddenSfuRoom(target: LivekitTarget) {
+    const lk = await livekit.load();
+    const { url, jwt } = await fetchSfuJwt(target);
+    await bypassProxyFor(url);
+    const room = new lk.Room();
+    await room.connect(url, jwt, { autoSubscribe: false });
+    return { room, lk };
+}
+
 /** Remote identities with a muted mic, across every connection. */
 function notifyCallMutes(call: ActiveVoiceCall): void {
     if (activeVoice !== call) return;

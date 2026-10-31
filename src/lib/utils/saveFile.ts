@@ -61,6 +61,19 @@ function blobToBase64(blob: Blob): Promise<string> {
     });
 }
 
+/** Hand a blob: URL to the browser's own download, without reading it. The
+ *  URL has to outlive the download, so it stays until the page goes. */
+export function downloadObjectUrl(objectUrl: string, name: string): void {
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = name;
+    // In the document, not detached: Firefox has historically ignored
+    // `download` on an anchor that was never in the DOM.
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+}
+
 /**
  * Save the file behind `objectUrl` (a blob: URL) as `name`. The caller keeps
  * ownership of the URL, but must not revoke it synchronously: mobile browsers
@@ -99,14 +112,7 @@ export async function saveObjectUrl(
         showToast(t("saveFile.savedToDownloads"), { tone: "accent" });
         return;
     }
-    const a = document.createElement("a");
-    a.href = objectUrl;
-    a.download = name;
-    // In the document, not detached: Firefox has historically ignored
-    // `download` on an anchor that was never in the DOM.
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    downloadObjectUrl(objectUrl, name);
 }
 
 /** Revoke an object URL once a download it started has had time to begin. */
