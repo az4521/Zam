@@ -4,6 +4,20 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.42.8
+
+✨ **New**
+
+- **GIFs show up on more servers:** many homeservers can't preview KLIPY, GIPHY or Tenor links, so those GIFs appeared as plain links. Zam now loads them straight from the site when your server can't.
+
+🔧 **Changed**
+
+- **Link preview media now defaults to All:** YouTube players, X/Twitter cards and these GIFs now load without a click, which means those sites see your IP address and when you read the message. Images on ordinary link previews still come through your homeserver. If you already picked a setting, it stays; to go back, choose Homeserver only in Settings > Privacy & Safety, where the description now spells out what each option does.
+
+🐛 **Fixed**
+
+- **Messages in order on sliding sync:** opening a small room on some servers, including matrix.org, could put older messages below the newest one. Messages that arrive a little late from other servers now also settle into place right away instead of after a reload. A message that turns up much later stays at the bottom, so you still see it.
+
 ## v1.42.7
 
 🐛 **Fixed**
