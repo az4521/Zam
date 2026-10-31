@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.42.9
+
+🐛 **Fixed**
+
+- **Notifications inbox in encrypted rooms:** messages from encrypted rooms all showed "Unable to decrypt" in the notifications inbox, even when you had the keys. They now show their real text, including the latest version of edited messages.
+
 ## v1.42.8
 
 ✨ **New**
