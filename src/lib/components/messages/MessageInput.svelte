@@ -109,6 +109,7 @@
         addQueuedFile,
         removeQueuedFile,
         renameQueuedFile,
+        markQueuedFilesDirect,
         clearFileQueue,
         type QueuedFile,
     } from "$lib/stores/composerFileQueue.svelte";
@@ -1317,7 +1318,10 @@
             sendingFileCount = filesToSend.length;
             uploadPercent = null;
             uploadLoaded = filesToSend.map(() => 0);
-            uploadTotal = filesToSend.map((item) => item.file.size);
+            // A direct file reports no upload progress, so it can't count here.
+            uploadTotal = filesToSend.map((item) =>
+                item.direct ? 0 : item.file.size,
+            );
         }
         // Resolve mentions before clearing the composer below (buildFormattedBody
         // reads pendingMentions, which we reset up front).
@@ -1325,14 +1329,23 @@
 
         // When files are queued alongside text, attach the text to the first
         // file as a caption (MSC2530) rather than sending it as a separate
-        // message.
-        const useCaption = !!trimmed && !!formatted && filesToSend.length > 0;
+        // message. A direct file's offer can't carry formatted text, so there
+        // it does go as a message, just ahead of the offer.
+        const firstIsDirect = filesToSend[0]?.direct ?? false;
+        const useCaption =
+            !!trimmed &&
+            !!formatted &&
+            filesToSend.length > 0 &&
+            !firstIsDirect;
         // A reply rides on the first file whenever no separate text message
         // carries it (caption, or attachments alone). Snapshotted so a reply
         // picked mid-upload isn't retargeted or cancelled by this send.
         const replyTarget = replyToEvent;
         const fileReplyToId =
-            replyTarget && filesToSend.length > 0 && (useCaption || !trimmed)
+            replyTarget &&
+            filesToSend.length > 0 &&
+            !firstIsDirect &&
+            (useCaption || !trimmed)
                 ? (replyTarget.getId() ?? undefined)
                 : undefined;
         const fileRelation = (i: number) =>
@@ -1446,11 +1459,13 @@
                     matrixErrorMessage(err, t("messageInput.failedToSend")),
                 );
             });
-            isSending = false;
-            await tick();
-            if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
-            textareaEl?.focus();
-            return;
+            if (filesToSend.length === 0) {
+                isSending = false;
+                await tick();
+                if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+                textareaEl?.focus();
+                return;
+            }
         }
 
         try {
@@ -1461,6 +1476,10 @@
             await sendQueuedFiles(
                 filesToSend,
                 (item, i, ready) => {
+                    if (item.direct)
+                        return ready().then(() =>
+                            offerFile(targetRoomId, item.file),
+                        );
                     if (useCaption && i === 0 && formatted) {
                         const { html } = formatted;
                         return sendFile(
@@ -1513,14 +1532,11 @@
                 isFileTooLargeError(err) && !isThread
                     ? {
                           label: t("messageInput.sendDirectly"),
-                          run: () => {
-                              for (const item of getFileQueue(
+                          run: () =>
+                              markQueuedFilesDirect(
                                   targetComposerKey,
-                              ).filter((q) => q.file.size > err.limit)) {
-                                  removeQueuedFile(targetComposerKey, item.id);
-                                  offerDirectly(item.file);
-                              }
-                          },
+                                  (q) => q.file.size > err.limit,
+                              ),
                       }
                     : undefined,
             );
@@ -1540,6 +1556,7 @@
                     item.file,
                     item.name,
                     previewUrl,
+                    item.direct,
                 );
             }
         } finally {
@@ -1756,12 +1773,12 @@
         }
     }
 
-    function enqueueFile(file: File, defaultName?: string) {
+    function enqueueFile(file: File, defaultName?: string, direct = false) {
         const name = file.name || defaultName || "file";
         const previewUrl = file.type.startsWith("image/")
             ? URL.createObjectURL(file)
             : null;
-        addQueuedFile(effComposerKey, file, name, previewUrl);
+        addQueuedFile(effComposerKey, file, name, previewUrl, direct);
         // Look up the upload size limit now, while the user is still writing,
         // so its round trip isn't added to the send (slow links: Tor).
         void getMediaUploadSizeLimit();
@@ -1844,19 +1861,10 @@
         setComposerText(next, start + pastedText.length);
     }
 
-    function offerDirectly(file: File) {
-        offerFile(roomId, file).catch((err) => {
-            console.error("Failed to offer file:", err);
-            showErrorToast(
-                matrixErrorMessage(err, t("messageInput.failedToSend")),
-            );
-        });
-    }
-
     function onDirectFileSelected(e: Event) {
         const files = (e.target as HTMLInputElement).files;
         if (!files) return;
-        for (const file of files) offerDirectly(file);
+        for (const file of files) enqueueFile(file, undefined, true);
         if (directFileInputEl) directFileInputEl.value = "";
     }
 
@@ -2051,6 +2059,13 @@
                         class="text-[10px] text-discord-textMuted hover:text-discord-textPrimary text-center leading-tight w-full truncate px-0.5"
                         title={item.name}>{item.name}</button
                     >
+                    {#if item.direct}
+                        <span
+                            class="text-[10px] font-semibold text-discord-accent"
+                            title={t("messageInput.directFileHint")}
+                            >{t("messageInput.directFile")}</span
+                        >
+                    {/if}
                     <!-- Remove button -->
                     <button
                         onclick={() => removeFromQueue(item.id)}

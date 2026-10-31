@@ -2616,6 +2616,8 @@ const messages: Record<MessageKey, string> = {
     // src/lib/components/messages/ComposerActionsMenu.svelte
     "composerActionsMenu.uploadAFile": "ܐܣܩ ܦܐܝܠ",
     "composerActionsMenu.sendFileDirectly": "ܫܕܪ ܦܝܠ ܒܝܕ ܚܕ݂ܐ ܐܘܪܚܐ ܬܪܝܨܬܐ",
+    "messageInput.directFile": "ܬܪܝܨܐ",
+    "messageInput.directFileHint": "ܟܐ ܫܕܪ ܬܪܝܨܐܝܬ ܐܡܬܝ ܕܕܪܫܬ ܫܕܪ.",
     "messageInput.sendDirectly": "ܫܕܪ ܬܪܝܨܐܝܬ",
     "messageItem.replyPreviewFileOffer": "ܩܘܪܒܢܐ ܕܦܝܠ",
     "fileOffer.unavailable": "ܐܗܐ ܦܘܠܚܢܐ ܕ Zam ܠܐ ܡܨܐ ܕܩܪܐ ܐܗܐ ܩܘܪܒܢܐ ܕܦܝܠ.",

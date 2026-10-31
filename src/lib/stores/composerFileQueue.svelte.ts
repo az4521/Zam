@@ -18,6 +18,8 @@ export type QueuedFile = {
     name: string;
     /** Object URL for image previews, null otherwise. */
     previewUrl: string | null;
+    /** Sent as a direct file offer (matrix/fileTransfer) instead of uploaded. */
+    direct: boolean;
 };
 
 const queueState = $state<{ queues: Record<string, QueuedFile[]> }>({
@@ -42,8 +44,15 @@ export function addQueuedFile(
     file: File,
     name: string,
     previewUrl: string | null,
+    direct = false,
 ): QueuedFile {
-    const item: QueuedFile = { id: `q${++nextId}`, file, name, previewUrl };
+    const item: QueuedFile = {
+        id: `q${++nextId}`,
+        file,
+        name,
+        previewUrl,
+        direct,
+    };
     // Replace the record (not just the nested array) so a $derived that reads
     // getFileQueue re-runs even for a room that had no entry before.
     queueState.queues = {
@@ -89,6 +98,19 @@ export function renameQueuedFile(
                   }
                 : q,
         ),
+    };
+}
+
+/** Send these queued files directly, when the user next presses send. */
+export function markQueuedFilesDirect(
+    roomId: string,
+    matches: (item: QueuedFile) => boolean,
+): void {
+    const queue = queueState.queues[roomId];
+    if (!queue) return;
+    queueState.queues = {
+        ...queueState.queues,
+        [roomId]: queue.map((q) => (matches(q) ? { ...q, direct: true } : q)),
     };
 }
 

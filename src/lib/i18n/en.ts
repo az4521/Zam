@@ -3735,6 +3735,9 @@ export const en = {
     // ownStatus
     "ownStatus.profileField": "profile field {key}",
     "ownStatus.theServerStillHas": "The server still has: {leftovers}",
+    "messageInput.directFile": "Direct",
+    "messageInput.directFileHint":
+        "Sent directly when you press send, not uploaded.",
     "messageInput.sendDirectly": "Send directly",
     "messageItem.replyPreviewFileOffer": "File offer",
     "fileOffer.unavailable":

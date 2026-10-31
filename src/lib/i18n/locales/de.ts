@@ -2804,6 +2804,9 @@ const messages: Record<MessageKey, string> = {
     // src/lib/components/messages/ComposerActionsMenu.svelte
     "composerActionsMenu.uploadAFile": "Datei hochladen",
     "composerActionsMenu.sendFileDirectly": "Datei direkt senden",
+    "messageInput.directFile": "Direkt",
+    "messageInput.directFileHint":
+        "Wird beim Senden direkt übertragen, nicht hochgeladen.",
     "messageInput.sendDirectly": "Direkt senden",
     "messageItem.replyPreviewFileOffer": "Dateiangebot",
     "fileOffer.unavailable":

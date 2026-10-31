@@ -3,6 +3,8 @@ import {
     getFileQueue,
     addQueuedFile,
     removeQueuedFile,
+    renameQueuedFile,
+    markQueuedFilesDirect,
     clearFileQueue,
 } from "./composerFileQueue.svelte";
 
@@ -23,6 +25,36 @@ beforeEach(() => {
     clearFileQueue(A);
     clearFileQueue(B);
     revoke.mockClear();
+});
+
+describe("direct files", () => {
+    it("are uploads unless asked otherwise", () => {
+        expect(addQueuedFile(A, makeFile(), "a", null).direct).toBe(false);
+        expect(addQueuedFile(A, makeFile(), "b", null, true).direct).toBe(true);
+    });
+
+    it("stay direct when renamed", () => {
+        const item = addQueuedFile(A, makeFile(), "a", null, true);
+        renameQueuedFile(A, item.id, "b.png");
+        expect(getFileQueue(A)[0]).toMatchObject({
+            name: "b.png",
+            direct: true,
+        });
+    });
+
+    it("can be marked after queueing, only where they match", () => {
+        addQueuedFile(A, makeFile("small.png"), "small", null);
+        addQueuedFile(A, makeFile("big.png"), "big", null);
+        markQueuedFilesDirect(A, (q) => q.name === "big");
+        expect(getFileQueue(A).map((q) => q.direct)).toEqual([false, true]);
+    });
+
+    it("leaves other rooms alone", () => {
+        addQueuedFile(A, makeFile(), "a", null);
+        addQueuedFile(B, makeFile(), "b", null);
+        markQueuedFilesDirect(A, () => true);
+        expect(getFileQueue(B)[0].direct).toBe(false);
+    });
 });
 
 describe("composerFileQueue", () => {
