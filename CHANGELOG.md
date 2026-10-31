@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.42.4
+
+✨ **New**
+
+- **Switch attachments to direct send:** the Edit attachment dialog has a Send directly toggle, so a file already in the composer can be sent directly, or a direct file turned back into a normal upload. It isn't available in threads.
+- **Video previews in the composer:** queued videos show a thumbnail instead of a file icon, and the Edit attachment dialog has a larger preview that plays them.
+
 ## v1.42.3
 
 🐛 **Fixed**
