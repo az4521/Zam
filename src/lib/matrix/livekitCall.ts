@@ -1305,8 +1305,12 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         deepFilterSupported(),
         micTuning(),
     );
+    // `encryption` also covers data messages (LiveKit reads the two as one
+    // setup). `e2ee` stays because LiveKit checks only that one to turn off
+    // simulcast on iOS below 17.2.
+    const e2eeOptions = e2ee?.roomOptions();
     const lkRoom = new lk.Room({
-        ...(e2ee ? { e2ee: e2ee.roomOptions() } : {}),
+        ...(e2eeOptions ? { e2ee: e2eeOptions, encryption: e2eeOptions } : {}),
         audioCaptureDefaults: {
             deviceId: settingsState.audioInputDeviceId ?? undefined,
             noiseSuppression: micPlan.noiseSuppression,
