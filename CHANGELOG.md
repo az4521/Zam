@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.42.3
+
+🐛 **Fixed**
+
+- **YouTube videos that said "This video is unavailable" now play in the desktop app:** music videos from big labels, for example, play the same as they do on Android. You no longer need the Fix YouTube Embeds plugin, and it has been removed from the plugin list.
+
 ## v1.42.2
 
 🐛 **Fixed**
