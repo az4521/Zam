@@ -204,6 +204,7 @@ import {
     threadNameTarget,
 } from "$lib/utils/threadName";
 import type { ThreadInfo } from "$lib/utils/threadList";
+import { settleTimelineOrder } from "$lib/utils/timelineDisplay";
 import {
     tagUpdatesForToggle,
     tagOrderRollback,
@@ -2650,8 +2651,8 @@ export function getTimelineMessages(room: Room): MatrixEvent[] {
     pruneDeliveredEchoes(room);
     const chain = liveChainEvents(room);
     decryptForDisplay(chain);
-    const timeline = collapseCallEvents(
-        chain.filter(isRenderableTimelineEvent),
+    const timeline = settleTimelineOrder(
+        collapseCallEvents(chain.filter(isRenderableTimelineEvent)),
     );
     const timelineIds = new Set(timeline.map((e) => e.getId()));
     // Include pending (local echo) events. Keep NOT_SENT echoes so the user

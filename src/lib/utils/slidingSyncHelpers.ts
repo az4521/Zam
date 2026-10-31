@@ -61,6 +61,38 @@ export function isSlidingTimelineGap(
     return !update.timelineEventIds.some((id) => room.isKnown(id));
 }
 
+/**
+ * Whether an update carries history the SDK would mistake for new messages.
+ *
+ * The SDK only splits scrollback from new events on a `limited` or `initial`
+ * update; anything else is appended to the live timeline as it comes. Raising
+ * a room's timeline_limit (opening a room goes from the list's 1 to the
+ * subscription's 30) makes Synapse resend a page of history with `initial`
+ * false and `limited` set only if the room has MORE history than that page. So
+ * in a small room the older messages landed BELOW the newest one (Synapse also
+ * flags these `unstable_expanded_timeline`, which the SDK doesn't read).
+ *
+ * The tell is an unknown event before a known one: a true update can't be
+ * older than something we already hold. Known means the LIVE timeline, the
+ * same set the SDK's own split checks.
+ */
+export function hasUnflaggedScrollback(
+    update: {
+        limited?: boolean;
+        initial?: boolean;
+        timelineEventIds: string[];
+    },
+    isInLiveTimeline: (eventId: string) => boolean,
+): boolean {
+    if (update.limited || update.initial) return false;
+    let sawUnknown = false;
+    for (const id of update.timelineEventIds) {
+        if (!isInLiveTimeline(id)) sawUnknown = true;
+        else if (sawUnknown) return true;
+    }
+    return false;
+}
+
 /** Long-poll timeout both sync loops use (classic pollTimeout default and
  *  SLIDING_TIMEOUT_MS): a healthy loop answers at least this often. */
 export const SYNC_POLL_MS = 30_000;

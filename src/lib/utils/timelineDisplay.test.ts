@@ -4,8 +4,49 @@ import {
     dateSeparatorLabel,
     unreadDividerBefore,
     isNearBottom,
+    settleTimelineOrder,
     timelineKey,
 } from "./timelineDisplay";
+
+describe("settleTimelineOrder", () => {
+    const MIN = 60_000;
+    const at = (id: string, ts: number) => ({ id, getTs: () => ts });
+    const order = (events: { id: string; getTs(): number }[]) =>
+        settleTimelineOrder(events).map((e) => e.id);
+
+    it("leaves an ordered timeline alone, keeping ties as they came", () => {
+        expect(order([at("a", 1), at("b", 2), at("c", 2)])).toEqual([
+            "a",
+            "b",
+            "c",
+        ]);
+    });
+
+    it("moves a slightly late event back into place", () => {
+        expect(
+            order([at("a", MIN), at("c", 3 * MIN), at("b", 2 * MIN)]),
+        ).toEqual(["a", "b", "c"]);
+    });
+
+    it("moves a late event past several newer ones", () => {
+        expect(
+            order([at("b", 2 * MIN), at("c", 3 * MIN), at("a", MIN)]),
+        ).toEqual(["a", "b", "c"]);
+    });
+
+    it("leaves an event far older than its neighbours where it arrived", () => {
+        expect(order([at("a", 60 * MIN), at("late", MIN)])).toEqual([
+            "a",
+            "late",
+        ]);
+    });
+
+    it("does not mutate its input", () => {
+        const events = [at("b", 2), at("a", 1)];
+        settleTimelineOrder(events);
+        expect(events.map((e) => e.id)).toEqual(["b", "a"]);
+    });
+});
 
 // Minimal structural stand-in for a MatrixEvent in chronological lists.
 function ev(id: string, sender: string, ts: number) {

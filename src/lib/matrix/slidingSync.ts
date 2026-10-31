@@ -20,6 +20,7 @@ import {
     type MSC3575RoomData,
 } from "matrix-js-sdk/lib/sliding-sync";
 import {
+    hasUnflaggedScrollback,
     isSlidingSyncUnsupportedError,
     isSlidingTimelineGap,
     nextWindowEnd,
@@ -396,20 +397,43 @@ export async function buildSlidingSync(
                     adoptUnknownRoom(roomId, roomData);
                     return;
                 }
+                const timelineEventIds = (roomData.timeline ?? [])
+                    .map((e) => e.event_id)
+                    .filter((id): id is string => !!id);
                 const gap = isSlidingTimelineGap(
-                    {
-                        limited: roomData.limited,
-                        timelineEventIds: (roomData.timeline ?? [])
-                            .map((e) => e.event_id)
-                            .filter((id): id is string => !!id),
-                    },
+                    { limited: roomData.limited, timelineEventIds },
                     {
                         liveIsEmpty:
                             room.getLiveTimeline().getEvents().length === 0,
                         isKnown: (id) => !!room.findEventById(id),
                     },
                 );
-                if (!gap) return;
+                if (!gap) {
+                    const liveIds = new Set(
+                        room
+                            .getLiveTimeline()
+                            .getEvents()
+                            .map((e) => e.getId()),
+                    );
+                    // `limited` routes the update through the SDK's scrollback
+                    // split. It also adopts prev_batch as the pagination token,
+                    // so an update without one has to stay as it came.
+                    if (
+                        roomData.prev_batch &&
+                        hasUnflaggedScrollback(
+                            {
+                                limited: roomData.limited,
+                                initial: roomData.initial,
+                                timelineEventIds,
+                            },
+                            (id) => liveIds.has(id),
+                        )
+                    ) {
+                        roomData.limited = true;
+                        logSync(`scrollback in an unflagged update: ${roomId}`);
+                    }
+                    return;
+                }
                 // Before the reset (and before the SDK applies the update's
                 // counts): what the room held, to tell whether the skipped
                 // messages included one worth an alert.

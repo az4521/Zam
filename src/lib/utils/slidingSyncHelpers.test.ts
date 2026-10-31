@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+    hasUnflaggedScrollback,
     isSlidingSyncUnsupportedError,
     isSlidingTimelineGap,
     shouldKickSync,
@@ -8,6 +9,53 @@ import {
     roomsWithDroppedTimeline,
     shouldRecoverSkippedEvents,
 } from "./slidingSyncHelpers";
+
+describe("hasUnflaggedScrollback", () => {
+    const known = (...ids: string[]) => {
+        const set = new Set(ids);
+        return (id: string) => set.has(id);
+    };
+
+    it("spots history resent around an event we hold (timeline_limit raised)", () => {
+        expect(
+            hasUnflaggedScrollback(
+                { timelineEventIds: ["a", "b", "c"] },
+                known("c"),
+            ),
+        ).toBe(true);
+    });
+
+    it("ignores new events after a known one", () => {
+        expect(
+            hasUnflaggedScrollback(
+                { timelineEventIds: ["c", "d"] },
+                known("c"),
+            ),
+        ).toBe(false);
+    });
+
+    it("ignores an update of only new events", () => {
+        expect(
+            hasUnflaggedScrollback({ timelineEventIds: ["d", "e"] }, known()),
+        ).toBe(false);
+    });
+
+    it("leaves updates the SDK already splits itself", () => {
+        const timelineEventIds = ["a", "b", "c"];
+        expect(
+            hasUnflaggedScrollback(
+                { limited: true, timelineEventIds },
+                known("c"),
+            ),
+        ).toBe(false);
+        expect(
+            hasUnflaggedScrollback(
+                { initial: true, timelineEventIds },
+                known("c"),
+            ),
+        ).toBe(false);
+    });
+});
 
 describe("watchdogOverdueMs", () => {
     it("starts at a poll interval plus slack", () => {

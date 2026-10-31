@@ -1273,26 +1273,25 @@
                     catchUpContextView();
                     return;
                 }
-                if (isLiveAppend) {
+                const tail = messagesState.byRoom[currentRoomId]?.events.at(-1);
+                if (isLiveAppend && (!tail || event.getTs() >= tail.getTs())) {
                     // Normal tail append — fast path, the event is the newest.
                     appendMessage(currentRoomId, event);
-                    if (isAtBottom) {
-                        tick().then(() => scrollToBottom(false));
-                    }
-                    queueArrivalAnnouncement(event);
                 } else {
                     // Mid-timeline insertion (thread reply moved to the main
-                    // timeline, out-of-order related event). appendMessage would
-                    // place it at the tail in the wrong spot; re-read the whole
-                    // timeline so it lands in its correct position.
+                    // timeline, out-of-order related event) or a live event
+                    // older than the tail. appendMessage would place it at the
+                    // tail in the wrong spot; re-read the whole timeline so it
+                    // lands in its correct position.
                     setMessages(
                         currentRoomId,
                         getTimelineMessages(currentRoom),
                     );
-                    if (isAtBottom) {
-                        tick().then(() => scrollToBottom(false));
-                    }
                 }
+                if (isAtBottom) {
+                    tick().then(() => scrollToBottom(false));
+                }
+                if (isLiveAppend) queueArrivalAnnouncement(event);
             },
         );
         // An encrypted message reaches the timeline as `m.room.encrypted`, a

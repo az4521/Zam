@@ -9,6 +9,35 @@ export interface TimelineDisplayEvent {
 }
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
+const SETTLE_WINDOW_MS = 5 * 60 * 1000;
+
+/**
+ * Put events that arrived slightly out of timestamp order back in place.
+ * Sync delivers events in the order the homeserver received them, so a message
+ * that federated in a moment late sits below newer ones until a reload, when
+ * /messages returns them in room order.
+ *
+ * Bounded on purpose: an event only moves up past ones within the window. One
+ * delivered much later (a server back from an outage, a backdated bridge
+ * import) stays at the bottom where it can be seen; a full sort would bury it
+ * in scrollback with nothing to show it ever arrived.
+ */
+export function settleTimelineOrder<T extends { getTs(): number }>(
+    events: T[],
+): T[] {
+    const settled: T[] = [];
+    for (const event of events) {
+        const ts = event.getTs();
+        let at = settled.length;
+        while (at > 0) {
+            const ahead = settled[at - 1].getTs() - ts;
+            if (ahead <= 0 || ahead > SETTLE_WINDOW_MS) break;
+            at--;
+        }
+        settled.splice(at, 0, event);
+    }
+    return settled;
+}
 
 /**
  * Whether the message at `index` starts a new visual group (avatar + name +
