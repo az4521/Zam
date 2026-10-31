@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.42.6
+
+✨ **New**
+
+- **Thread names are private in encrypted rooms:** a thread's name is now encrypted like the messages around it, so your homeserver can't read it. Renaming a thread still doesn't notify anyone using Zam. Update to this version to see names set from now on; older versions won't show them, and names set before this update keep working.
+- **Choose who can name threads:** a new Name any thread setting on a room's Permissions tab sets the power level needed, 50 by default. People can always name threads they started.
+
 ## v1.42.5
 
 ✨ **New**
