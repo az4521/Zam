@@ -123,6 +123,11 @@ contextBridge.exposeInMainWorld("desktop", {
         setMinimizeToClose: (enabled) =>
             ipcRenderer.send("tray:set-minimize-to-close", !!enabled),
     },
+    // Settings > General > Desktop: run at startup (autostart.cjs).
+    autostart: {
+        info: () => ipcRenderer.invoke("autostart:info"),
+        set: (enabled) => ipcRenderer.invoke("autostart:set", !!enabled),
+    },
     // Settings > General > Network: Zam's proxy setting and call routing
     // (proxy.cjs). callTargets names the call servers about to be used so
     // they can bypass the proxy; resolves once the rules are in place.

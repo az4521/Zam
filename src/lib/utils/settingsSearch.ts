@@ -230,6 +230,13 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     // general (behavior)
     {
         tab: "general",
+        label: t("settingsSearch.runAtStartup"),
+        keywords: ["autostart", "login", "boot", "launch", "desktop"],
+        anchor: "cust-behavior",
+        available: (p) => p.desktopTray,
+    },
+    {
+        tab: "general",
         label: t("settingsSearch.minimiseToTrayOnClose"),
         keywords: ["system tray", "background", "desktop"],
         anchor: "cust-behavior",

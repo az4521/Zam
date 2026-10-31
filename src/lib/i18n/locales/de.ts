@@ -752,6 +752,11 @@ const messages: Record<MessageKey, string> = {
         "Beim Schließen in den Infobereich minimieren",
     "generalSettings.keepZamRunningInTheSystem":
         "Zam beim Schließen des Fensters im Infobereich weiterlaufen lassen, statt es zu beenden. Über das Symbol im Infobereich lässt es sich wieder öffnen oder beenden.",
+    "generalSettings.runAtStartup": "Beim Systemstart ausführen",
+    "generalSettings.startZamWhenYouLogIn":
+        "Zam starten, wenn du dich an deinem Computer anmeldest.",
+    "generalSettings.runAtStartupFailed":
+        "Dein System hat dies nicht zugelassen.",
     "generalSettings.noGeneralSettingsAreAvailableOn":
         "Auf dieser Plattform sind keine allgemeinen Einstellungen verfügbar.",
 
@@ -3729,6 +3734,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.gifDefaultTab": "Standard-GIF-Tab",
     "settingsSearch.minimiseToTrayOnClose":
         "Beim Schließen in den Infobereich minimieren",
+    "settingsSearch.runAtStartup": "Beim Systemstart ausführen",
     "settingsSearch.proxy": "Proxy",
     "settingsSearch.reduceMotion": "Bewegung reduzieren",
     "settingsSearch.keepRoomListOpen": "Raumliste geöffnet lassen",

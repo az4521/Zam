@@ -326,4 +326,4 @@ function createPortalShortcuts(opts) {
     };
 }
 
-module.exports = { createPortalShortcuts, connectStream };
+module.exports = { createPortalShortcuts, connectStream, readVardict };

@@ -726,6 +726,10 @@ export const en = {
     "generalSettings.minimiseToTrayOnClose": "Minimise to tray on close",
     "generalSettings.keepZamRunningInTheSystem":
         "Keep Zam running in the system tray when you close the window instead of quitting. Use the tray icon to reopen or quit.",
+    "generalSettings.runAtStartup": "Run at startup",
+    "generalSettings.startZamWhenYouLogIn":
+        "Start Zam when you log in to your computer.",
+    "generalSettings.runAtStartupFailed": "Your system didn't allow this.",
     "generalSettings.noGeneralSettingsAreAvailableOn":
         "No general settings are available on this platform.",
 
@@ -3545,6 +3549,7 @@ export const en = {
     "settingsSearch.holdToOpenMessageMenu": "Hold to open message menu",
     "settingsSearch.gifDefaultTab": "GIF default tab",
     "settingsSearch.minimiseToTrayOnClose": "Minimise to tray on close",
+    "settingsSearch.runAtStartup": "Run at startup",
     "settingsSearch.proxy": "Proxy",
     "settingsSearch.reduceMotion": "Reduce motion",
     "settingsSearch.keepRoomListOpen": "Keep room list open",

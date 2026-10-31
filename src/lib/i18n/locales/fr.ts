@@ -745,6 +745,11 @@ const messages: Record<MessageKey, string> = {
         "Réduire dans la zone de notification à la fermeture",
     "generalSettings.keepZamRunningInTheSystem":
         "Garder Zam actif dans la zone de notification quand vous fermez la fenêtre, au lieu de quitter. Utilisez l'icône pour rouvrir ou quitter.",
+    "generalSettings.runAtStartup": "Lancer au démarrage",
+    "generalSettings.startZamWhenYouLogIn":
+        "Démarrer Zam lorsque vous ouvrez votre session.",
+    "generalSettings.runAtStartupFailed":
+        "Votre système n'a pas autorisé cette action.",
     "generalSettings.noGeneralSettingsAreAvailableOn":
         "Aucun paramètre général n'est disponible sur cette plateforme.",
 
@@ -3696,6 +3701,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.gifDefaultTab": "Onglet GIF par défaut",
     "settingsSearch.minimiseToTrayOnClose":
         "Réduire dans la zone de notification à la fermeture",
+    "settingsSearch.runAtStartup": "Lancer au démarrage",
     "settingsSearch.proxy": "Proxy",
     "settingsSearch.reduceMotion": "Réduire les animations",
     "settingsSearch.keepRoomListOpen": "Garder la liste des salons ouverte",

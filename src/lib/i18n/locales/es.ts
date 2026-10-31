@@ -746,6 +746,10 @@ const messages: Record<MessageKey, string> = {
     "generalSettings.minimiseToTrayOnClose": "Minimizar a la bandeja al cerrar",
     "generalSettings.keepZamRunningInTheSystem":
         "Mantiene Zam en ejecución en la bandeja del sistema al cerrar la ventana en lugar de salir. Usa el icono de la bandeja para volver a abrirlo o salir.",
+    "generalSettings.runAtStartup": "Ejecutar al iniciar",
+    "generalSettings.startZamWhenYouLogIn":
+        "Inicia Zam cuando inicias sesión en tu ordenador.",
+    "generalSettings.runAtStartupFailed": "Tu sistema no lo ha permitido.",
     "generalSettings.noGeneralSettingsAreAvailableOn":
         "No hay ajustes generales disponibles en esta plataforma.",
 
@@ -3730,6 +3734,7 @@ const messages: Record<MessageKey, string> = {
         "Mantener pulsado para abrir el menú del mensaje",
     "settingsSearch.gifDefaultTab": "Pestaña de GIF predeterminada",
     "settingsSearch.minimiseToTrayOnClose": "Minimizar a la bandeja al cerrar",
+    "settingsSearch.runAtStartup": "Ejecutar al iniciar",
     "settingsSearch.proxy": "Proxy",
     "settingsSearch.reduceMotion": "Reducir el movimiento",
     "settingsSearch.keepRoomListOpen": "Mantener abierta la lista de salas",

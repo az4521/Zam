@@ -717,6 +717,10 @@ const messages: Record<MessageKey, string> = {
     "generalSettings.minimiseToTrayOnClose": "ܙܥܘܪ ܠܣܠܐ ܒܣܟܪܐ",
     "generalSettings.keepZamRunningInTheSystem":
         "ܦܘܫ Zam ܦܠܚܐ ܓܘ ܣܠܐ ܕܣܝܣܛܡ ܐܡܬܝ ܕܣܟܪܬ ܟܘܬܐ، ܒܕܘܟ ܕܡܦܩܬܐ. ܦܠܚ ܒܨܘܪܬܐ ܕܣܠܐ ܩܐ ܦܬܚܐ ܡܢ ܕܪܝܫ ܝܢ ܡܦܩܬܐ.",
+    "generalSettings.runAtStartup": "Run at startup",
+    "generalSettings.startZamWhenYouLogIn":
+        "Start Zam when you log in to your computer.",
+    "generalSettings.runAtStartupFailed": "Your system didn't allow this.",
     "generalSettings.noGeneralSettingsAreAvailableOn":
         "ܠܝܬ ܛܘܝܒ̈ܐ ܓܢܣܝ̈ܐ ܓܘ ܗܕܐ ܐܣܬܐ.",
 
@@ -3452,6 +3456,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.holdToOpenMessageMenu": "ܐܚܘܕ ܩܐ ܦܬܚܐ ܪܫܝܡܬܐ ܕܐܓܪܬܐ",
     "settingsSearch.gifDefaultTab": "ܠܘܚܐ ܥܕܝܠܐ ܕ GIF",
     "settingsSearch.minimiseToTrayOnClose": "ܙܥܘܪ ܠܣܠܐ ܒܣܟܪܐ",
+    "settingsSearch.runAtStartup": "Run at startup",
     "settingsSearch.proxy": "Proxy",
     "settingsSearch.reduceMotion": "ܒܨܪ ܙܘܥܐ",
     "settingsSearch.keepRoomListOpen": "ܦܘܫ ܪܫܝܡܬܐ ܕܓܘܡ̈ܐ ܦܬܝܚܬܐ",

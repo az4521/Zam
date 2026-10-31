@@ -188,6 +188,14 @@ declare global {
                 setUnread: (unread: boolean) => void;
                 setMinimizeToClose: (enabled: boolean) => void;
             };
+            /** Run at startup (electron/autostart.cjs). `available` is false
+             *  in an unpacked build. `set` rejects if the system refuses. */
+            autostart?: {
+                info: () => Promise<{ available: boolean; enabled: boolean }>;
+                set: (
+                    enabled: boolean,
+                ) => Promise<{ available: boolean; enabled: boolean }>;
+            };
             /** Write bytes into the Downloads folder with no save dialog;
              *  resolves to the path written. */
             saveToDownloads?: (

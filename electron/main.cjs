@@ -38,6 +38,7 @@ const { registerGlobalHotkeys } = require("./globalHotkeys.cjs");
 const { createUpdateSchedule } = require("./updateSchedule.cjs");
 const { createCallPriority } = require("./callPriority.cjs");
 const { createProxyManager } = require("./proxy.cjs");
+const { createAutostart } = require("./autostart.cjs");
 const { createAppAudio } = require("./appAudio.cjs");
 const { resolveShareAudio } = require("./shareAudio.cjs");
 
@@ -820,6 +821,12 @@ ipcMain.handle("proxy:call-targets", (_e, hosts) =>
     proxyManager.addCallTargets(hosts),
 );
 ipcMain.handle("proxy:route", (_e, url) => proxyManager.route(url));
+
+// --- Run at startup (Settings > General > Desktop) -------------------------
+
+const autostart = createAutostart({ app, inFlatpak: IN_FLATPAK });
+ipcMain.handle("autostart:info", () => autostart.info());
+ipcMain.handle("autostart:set", (_e, enabled) => autostart.set(enabled));
 
 // --- Call priority -------------------------------------------------------
 
@@ -1781,6 +1788,7 @@ if (!app.requestSingleInstanceLock()) {
         createTray();
         setupAutoUpdater();
         detectNvidiaVideo();
+        autostart.refresh();
     });
 
     app.on("activate", () => {
