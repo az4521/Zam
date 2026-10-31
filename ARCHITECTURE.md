@@ -527,7 +527,9 @@ curated API doesn't cover, with the plugin owning the stability and safety risk.
 the window's iframes whose URL matches, such as the YouTube player: the renderer hands the rule
 to main (`electron/pluginFrames.cjs`), which sends `referrer` as the frame's Referer
 (`webRequest.onBeforeSendHeaders`, subframe loads of the main window only) and runs `script` on
-each frame's `dom-ready` through `WebFrameMain.executeJavaScript`, as Vencord's native hooks do. Every `register` /
+each frame's `dom-ready` through `WebFrameMain.executeJavaScript`, as Vencord's native hooks do.
+The same listener gives YouTube players the Referer `https://localhost/` when no plugin set one,
+because YouTube refuses label videos embedded on a bare address like `http://127.0.0.1:<port>/`. Every `register` /
 `add` / `on` returns a **`Disposable`**, and the host tracks all of a plugin's disposables so
 disabling it removes exactly its contributions.
 

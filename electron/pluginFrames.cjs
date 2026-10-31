@@ -15,6 +15,23 @@ const MAX_RULES = 256;
 const MAX_PREFIXES = 32;
 const MAX_SCRIPT_BYTES = 1024 * 1024;
 
+// Zam's own rules, under the plugins' (a plugin's referrer wins). YouTube
+// answers "This video is unavailable" (error 152-4) to an embed of a label's
+// video whose Referer is a bare address, like the desktop app's
+// http://127.0.0.1:<port>/. The Android app's origin is https://localhost and
+// plays them, so the desktop app's players say the same. Renaming the origin
+// itself isn't an option: localStorage and IndexedDB, so the login and the
+// encryption keys, are keyed by it.
+const BUILT_IN_RULES = [
+    {
+        urlPrefixes: [
+            "https://www.youtube.com/embed/",
+            "https://www.youtube-nocookie.com/embed/",
+        ],
+        referrer: "https://localhost/",
+    },
+];
+
 /** A rule from the page, or null if it is malformed. */
 function parseRule(raw) {
     if (!raw || typeof raw !== "object") return null;
@@ -64,13 +81,19 @@ function scriptsFor(rules, url) {
     return out;
 }
 
-/** The Referer to send for a frame loading `url`: the first matching rule's
- *  (rules added earlier win), or null to leave the request alone. */
+/** The first rule's referrer matching `url` (rules added earlier win), or
+ *  null. */
 function referrerFor(rules, url) {
     for (const r of rules.values()) {
         if (r.referrer !== undefined && matches(r, url)) return r.referrer;
     }
     return null;
+}
+
+/** The Referer to send for a frame loading `url`, or null to leave the
+ *  request alone. */
+function frameReferrer(rules, url) {
+    return referrerFor(rules, url) ?? referrerFor(BUILT_IN_RULES, url);
 }
 
 function registerPluginFrames(app, ipcMain, getWindow) {
@@ -106,7 +129,7 @@ function registerPluginFrames(app, ipcMain, getWindow) {
                     details.resourceType === "subFrame" &&
                     !!win &&
                     details.webContentsId === win.webContents.id
-                        ? referrerFor(rules, details.url)
+                        ? frameReferrer(rules, details.url)
                         : null;
                 if (referrer === null) return callback({});
                 const requestHeaders = {};
@@ -141,4 +164,10 @@ function registerPluginFrames(app, ipcMain, getWindow) {
     });
 }
 
-module.exports = { registerPluginFrames, parseRule, scriptsFor, referrerFor };
+module.exports = {
+    registerPluginFrames,
+    parseRule,
+    scriptsFor,
+    referrerFor,
+    frameReferrer,
+};

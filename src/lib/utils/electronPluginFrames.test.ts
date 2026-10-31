@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const require = createRequire(import.meta.url);
 
-const { parseRule, scriptsFor, referrerFor } = require(
+const { parseRule, scriptsFor, referrerFor, frameReferrer } = require(
     join(__dirname, "../../../electron/pluginFrames.cjs"),
 );
 
@@ -125,5 +125,31 @@ describe("referrerFor", () => {
             "https://b.example/",
         );
         expect(referrerFor(rules, "https://example.com/")).toBeNull();
+    });
+});
+
+describe("frameReferrer", () => {
+    it("gives YouTube players a hostname Referer, like the Android app's", () => {
+        const none = new Map();
+        for (const url of [
+            "https://www.youtube.com/embed/x",
+            "https://www.youtube-nocookie.com/embed/x",
+        ])
+            expect(frameReferrer(none, url)).toBe("https://localhost/");
+    });
+
+    it("leaves everything else alone", () => {
+        const none = new Map();
+        expect(frameReferrer(none, "https://www.youtube.com/watch")).toBeNull();
+        expect(frameReferrer(none, "https://example.com/embed/x")).toBeNull();
+    });
+
+    it("lets a plugin's referrer win", () => {
+        const rules = new Map([
+            ["a", rule({ id: "a", referrer: "https://a.example/" })],
+        ]);
+        expect(frameReferrer(rules, "https://www.youtube.com/embed/x")).toBe(
+            "https://a.example/",
+        );
     });
 });
