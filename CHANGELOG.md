@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.42.1
+
+✨ **New**
+
+- **Join a call without a microphone:** if your mic is unavailable because permission was refused, none is plugged in or it's in use elsewhere, you now join muted with a message saying why, instead of the join failing. You can listen and share your screen, and unmuting asks for the mic again.
+- **Disabled camera option:** pick "Disabled" in the camera list to stop a running camera and hide the camera buttons and preview. Keybinds and system controls can't turn it back on.
+
+🐛 **Fixed**
+
+- **Mute status:** people with no open mic now show as muted to everyone, including people who have no mic at all.
+
 ## v1.42.0
 
 ✨ **New**
