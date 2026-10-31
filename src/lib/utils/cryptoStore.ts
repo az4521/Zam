@@ -20,3 +20,16 @@ export function getCryptoDbName(userId: string, deviceId: string): string {
 export function getCryptoLockName(userId: string, deviceId: string): string {
     return `${getCryptoDbName(userId, deviceId)}:lock`;
 }
+
+/**
+ * The Web Lock a page holds exclusively for as long as it runs this session,
+ * so only one tab ever does (see claimSessionOwnership). Separate from the
+ * store lock, which a page gives up in the background while it stays the
+ * session's owner.
+ */
+export function getCryptoOwnerLockName(
+    userId: string,
+    deviceId: string,
+): string {
+    return `${getCryptoDbName(userId, deviceId)}:owner`;
+}

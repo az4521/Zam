@@ -2786,6 +2786,8 @@ const messages: Record<MessageKey, string> = {
     "crypto.roomIsNotEncrypted": "ܗܢܐ ܓܘܡܐ ܠܐ ܝܠܗ ܛܘܫܝܐ.",
     "crypto.roomKeyDiscarded":
         "ܐܓܪܬܐ ܕܝܠܘܟ ܐ݇ܚܪܝܬܐ ܟܐ ܡܦܠܚܐ ܩܠܝܕܐ ܚܕܬܐ ܕܓܘܡܐ، ܕܟܐ ܦܐܫ ܡܫܘܬܦܐ ܬܘܒ ܥܡ ܟܠ ܣ̈ܝܣܘܢܐ ܕܓܘܡܐ.",
+    "crypto.encryptionKeysUnchecked":
+        "ܫܪܪܐ ܕܩܠܝܕ̈ܐ ܕܛܘܫܝܐ ܕܗܢܐ ܣܝܣܘܢ ܠܐ ܦܠܚܠܗ. ܒܨܘܪ ܐܚܕܬܘܟ݂ ܘܦܬܚ ܡܢ ܕܪܝܫ.",
     "crypto.encryptionDataLost":
         "ܡܥܠܘܡܘܬܐ ܕܛܘܫܝܐ ܕܗܢܐ ܣܝܣܘܢ ܐܒܝܕܐ ܝܠܗ̇، ܗܘܝܐ ܦܠܛܠܗ ܕܠܐ ܐ݇ܚܪ̈ܢܐ ܛܫܝ ܠܩܠܝܕ̈ܐ ܕܠܐ ܐܝܬ ܠܗ. ܥܘܠ ܬܘܒ.",
     "crypto.accountApprovalCancelled":
@@ -3634,6 +3636,8 @@ const messages: Record<MessageKey, string> = {
     "rootLayout.linkCopied": "ܐܣܘܪܐ ܢܣܝܚܐ ܝܠܗ",
 
     // src/routes/+page.svelte
+    "rootPage.sessionOpenInAnotherTab":
+        "ܗܢܐ ܣܝܣܘܢ ܦܬܝܚܐ ܝܠܗ̇ ܒܕܦܐ ܐ݇ܚܪܢܐ. ܕܐܗܐ ܕܦܐ ܒܕ ܡܫܪܐ ܐܡܢ ܕܐܗܘ ܟܠܝܐ.",
     "rootPage.failedToReconnectPleaseLogIn":
         "ܐܚܕܐ ܡܢ ܕܪܝܫ ܠܐ ܦܠܚܠܗ. ܒܒܥܘܬܐ ܥܘܠ ܡܢ ܕܪܝܫ.",
     "rootPage.signedInButSyncingCouldNot":

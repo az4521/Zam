@@ -2979,6 +2979,8 @@ const messages: Record<MessageKey, string> = {
     "crypto.roomIsNotEncrypted": "Ce salon n'est pas chiffré.",
     "crypto.roomKeyDiscarded":
         "Votre prochain message ici utilisera une nouvelle clé de salon, partagée à nouveau avec toutes les sessions du salon.",
+    "crypto.encryptionKeysUnchecked":
+        "Impossible de vérifier les clés de chiffrement de cette session auprès du serveur. Vérifiez votre connexion et rechargez.",
     "crypto.encryptionDataLost":
         "Les données de chiffrement de cette session ont été perdues (données du navigateur effacées ou réinstallation) ; elle a donc été déconnectée pour qu'on ne chiffre plus pour des clés qu'elle n'a plus. Reconnectez-vous.",
     "crypto.accountApprovalCancelled":
@@ -3895,6 +3897,8 @@ const messages: Record<MessageKey, string> = {
     "rootLayout.linkCopied": "Lien copié",
 
     // src/routes/+page.svelte
+    "rootPage.sessionOpenInAnotherTab":
+        "Cette session est ouverte dans un autre onglet. Cet onglet continuera une fois l'autre fermé.",
     "rootPage.failedToReconnectPleaseLogIn":
         "Échec de la reconnexion. Veuillez vous reconnecter.",
     "rootPage.signedInButSyncingCouldNot":

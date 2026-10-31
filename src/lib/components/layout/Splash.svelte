@@ -3,6 +3,7 @@
     // Shown while a stored session is being silently restored, on the same
     // tertiary background as the login card so the restore reads as one
     // continuous surface — no login-card flash before the shell appears.
+    let { message = null }: { message?: string | null } = $props();
 </script>
 
 <div
@@ -13,6 +14,6 @@
         <div
             class="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin"
         ></div>
-        <span>{t("splash.restoringSession")}</span>
+        <span>{message ?? t("splash.restoringSession")}</span>
     </div>
 </div>

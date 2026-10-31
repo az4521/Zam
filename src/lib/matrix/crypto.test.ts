@@ -1222,6 +1222,116 @@ describe("crypto store lock", () => {
     });
 });
 
+// Two tabs on one session means two OlmMachines handing out different
+// one-time keys under the same ids, and two syncs eating to-device messages.
+describe("session ownership", () => {
+    let realLocks: PropertyDescriptor | undefined;
+
+    beforeEach(() => {
+        vi.resetModules();
+        realLocks = Object.getOwnPropertyDescriptor(navigator, "locks");
+    });
+    afterEach(() => {
+        if (realLocks) Object.defineProperty(navigator, "locks", realLocks);
+        else delete (navigator as { locks?: unknown }).locks;
+    });
+
+    /** Locks as the browser grants them, with `held` already taken elsewhere. */
+    function fakeLocks(held: string[] = []) {
+        const taken = new Set(held);
+        const queued: (() => void)[] = [];
+        const request = vi.fn(
+            (
+                name: string,
+                optsOrCb: unknown,
+                maybeCb?: (lock: object | null) => unknown,
+            ) => {
+                const opts = (maybeCb ? optsOrCb : {}) as {
+                    ifAvailable?: boolean;
+                };
+                const cb = (maybeCb ?? optsOrCb) as typeof maybeCb & {};
+                if (!taken.has(name)) {
+                    taken.add(name);
+                    return Promise.resolve(cb({}));
+                }
+                if (opts.ifAvailable) return Promise.resolve(cb(null));
+                return new Promise((resolve) => {
+                    queued.push(() => resolve(cb({})));
+                });
+            },
+        );
+        Object.defineProperty(navigator, "locks", {
+            value: { request },
+            configurable: true,
+        });
+        return { request, ownerGoes: () => queued.shift()?.() };
+    }
+
+    const OWNER = "matrix-client:%40me%3Ax.org:DEV:crypto:owner";
+
+    it("takes the session when no other tab has it, and keeps it", async () => {
+        const { request } = fakeLocks();
+        const mod = await import("./crypto");
+
+        expect(await mod.claimSessionOwnership("@me:x.org", "DEV")).toBe(true);
+        expect(request.mock.calls[0][1]).toEqual({
+            mode: "exclusive",
+            ifAvailable: true,
+        });
+        // In-place re-login in the same page: not a second tab.
+        expect(await mod.claimSessionOwnership("@me:x.org", "DEV")).toBe(true);
+        expect(request).toHaveBeenCalledTimes(1);
+    });
+
+    it("refuses while another tab has it", async () => {
+        fakeLocks([OWNER]);
+        const mod = await import("./crypto");
+
+        expect(await mod.claimSessionOwnership("@me:x.org", "DEV")).toBe(false);
+    });
+
+    it("leaves other sessions alone", async () => {
+        fakeLocks([OWNER]);
+        const mod = await import("./crypto");
+
+        expect(await mod.claimSessionOwnership("@me:x.org", "OTHER")).toBe(
+            true,
+        );
+    });
+
+    it("waits for the tab that has it to go", async () => {
+        const { ownerGoes } = fakeLocks([OWNER]);
+        const mod = await import("./crypto");
+        let done = false;
+        const wait = mod
+            .waitForSessionOwnership("@me:x.org", "DEV")
+            .then(() => (done = true));
+
+        await Promise.resolve();
+        expect(done).toBe(false);
+        ownerGoes();
+        await wait;
+        expect(done).toBe(true);
+    });
+
+    it("gets out of the way where Web Locks don't work", async () => {
+        Object.defineProperty(navigator, "locks", {
+            value: undefined,
+            configurable: true,
+        });
+        const mod = await import("./crypto");
+        expect(await mod.claimSessionOwnership("@me:x.org", "DEV")).toBe(true);
+
+        Object.defineProperty(navigator, "locks", {
+            value: {
+                request: () => Promise.reject(new Error("SecurityError")),
+            },
+            configurable: true,
+        });
+        expect(await mod.claimSessionOwnership("@me:x.org", "DEV")).toBe(true);
+    });
+});
+
 describe("SECURITY_EVENTS trust wiring", () => {
     beforeEach(() => {
         vi.resetModules();
@@ -2014,22 +2124,33 @@ describe("ownDeviceKeysReplaced", () => {
         vi.clearAllMocks();
         vi.resetModules();
         h.initRustCrypto.mockImplementation(() => Promise.resolve());
+        localStorage.removeItem(RECORD);
         mod = await import("./crypto");
     });
+    afterEach(() => {
+        vi.useRealTimers();
+    });
 
-    async function withServerKeys(server: Record<string, string> | null) {
+    const RECORD = "crypto:ownDeviceKey:DEVICE1:@me:example.org";
+
+    async function withServerKeys(
+        server: Record<string, string> | null | "unreachable",
+    ) {
         const client = {
             ...makeClient(),
             getUserId: () => "@me:example.org",
             getDeviceId: () => "DEVICE1",
-            downloadKeysForUsers: () =>
-                Promise.resolve({
-                    device_keys: {
-                        "@me:example.org": server
-                            ? { DEVICE1: { keys: server } }
-                            : {},
-                    },
-                }),
+            downloadKeysForUsers: vi.fn(() =>
+                server === "unreachable"
+                    ? Promise.reject(new Error("offline"))
+                    : Promise.resolve({
+                          device_keys: {
+                              "@me:example.org": server
+                                  ? { DEVICE1: { keys: server } }
+                                  : {},
+                          },
+                      }),
+            ),
         };
         (client.getCrypto() as Record<string, unknown>).getOwnDeviceKeys = () =>
             Promise.resolve({ curve25519: "freshCurve", ed25519: "freshEd" });
@@ -2058,6 +2179,65 @@ describe("ownDeviceKeysReplaced", () => {
     it("is false when the server has no keys for this device", async () => {
         const client = await withServerKeys(null);
         expect(await mod.ownDeviceKeysReplaced(client as never)).toBe(false);
+    });
+
+    it("records our key once the server has confirmed it", async () => {
+        const client = await withServerKeys({
+            "curve25519:DEVICE1": "freshCurve",
+            "ed25519:DEVICE1": "freshEd",
+        });
+        await mod.ownDeviceKeysReplaced(client as never);
+        expect(localStorage.getItem(RECORD)).toBe("freshEd");
+    });
+
+    it("records nothing for a store the server disowns", async () => {
+        const client = await withServerKeys({ "ed25519:DEVICE1": "lostEd" });
+        await mod.ownDeviceKeysReplaced(client as never);
+        expect(localStorage.getItem(RECORD)).toBeNull();
+    });
+
+    it("spots a replaced store without the network", async () => {
+        localStorage.setItem(RECORD, "lostEd");
+        const client = await withServerKeys("unreachable");
+        expect(await mod.ownDeviceKeysReplaced(client as never)).toBe(true);
+        expect(client.downloadKeysForUsers).not.toHaveBeenCalled();
+    });
+
+    it("boots offline on a store it has already confirmed", async () => {
+        localStorage.setItem(RECORD, "freshEd");
+        const client = await withServerKeys("unreachable");
+        expect(await mod.ownDeviceKeysReplaced(client as never)).toBe(false);
+        expect(client.downloadKeysForUsers).toHaveBeenCalledTimes(1);
+    });
+
+    // Sync would upload keys nobody has vouched for: don't let it start.
+    it("refuses to pass when it can't check at all", async () => {
+        const client = await withServerKeys("unreachable");
+        vi.useFakeTimers();
+        const check = mod.ownDeviceKeysReplaced(client as never);
+        const refused = expect(check).rejects.toBeInstanceOf(
+            mod.CryptoKeysUncheckedError,
+        );
+        await vi.advanceTimersByTimeAsync(10_000);
+        await refused;
+        expect(client.downloadKeysForUsers).toHaveBeenCalledTimes(3);
+    });
+
+    it("rides out a failed lookup", async () => {
+        const client = await withServerKeys({
+            "ed25519:DEVICE1": "lostEd",
+        });
+        client.downloadKeysForUsers.mockRejectedValueOnce(new Error("blip"));
+        vi.useFakeTimers();
+        const check = mod.ownDeviceKeysReplaced(client as never);
+        await vi.advanceTimersByTimeAsync(2_000);
+        expect(await check).toBe(true);
+    });
+
+    it("forgets the record with the device", async () => {
+        localStorage.setItem(RECORD, "freshEd");
+        mod.forgetOwnDeviceKey("@me:example.org", "DEVICE1");
+        expect(localStorage.getItem(RECORD)).toBeNull();
     });
 });
 

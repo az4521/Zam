@@ -289,10 +289,13 @@ import {
     type ServerNotificationResult,
 } from "$lib/matrix/notifications";
 import {
+    claimSessionOwnership,
+    forgetOwnDeviceKey,
     initCrypto,
     isCryptoAvailable,
     ownDeviceKeysReplaced,
     CryptoStoreLostError,
+    SessionInUseError,
     getCryptoCallbacks,
     ensureRoomCryptoConfigured,
     releaseCryptoStoreLocks,
@@ -523,6 +526,10 @@ async function createAuthenticatedClient(opts: {
     oauth?: OAuthSessionInfo;
     accessTokenExpiresAt?: number;
 }): Promise<MatrixClient> {
+    // Before anything else: a tab that doesn't own the session must not touch
+    // the running client, its stores or the network.
+    if (!(await claimSessionOwnership(opts.userId, opts.deviceId)))
+        throw new SessionInUseError();
     matrixClient?.stopClient();
     // The slot below only changes several awaits later, and stopClient() does
     // NOT abort the predecessor's in-flight requests — so retire its ownership
@@ -647,6 +654,7 @@ async function createAuthenticatedClient(opts: {
         } catch (err) {
             console.warn("[matrix] signing out the lost session failed", err);
         }
+        forgetOwnDeviceKey(opts.userId, opts.deviceId);
         throw new CryptoStoreLostError();
     }
 
@@ -1799,6 +1807,7 @@ export async function logout(): Promise<void> {
         }
         resetRoomListCache();
         if (userId && deviceId) {
+            forgetOwnDeviceKey(userId, deviceId);
             rememberPendingWipe({
                 userId,
                 deviceId,

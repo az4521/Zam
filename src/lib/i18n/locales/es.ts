@@ -3014,6 +3014,8 @@ const messages: Record<MessageKey, string> = {
     "crypto.roomIsNotEncrypted": "Esta sala no está cifrada.",
     "crypto.roomKeyDiscarded":
         "Tu próximo mensaje aquí usará una nueva clave de sala, compartida de nuevo con todas las sesiones de la sala.",
+    "crypto.encryptionKeysUnchecked":
+        "No se pudieron comprobar las claves de cifrado de esta sesión con el servidor. Revisa tu conexión y recarga.",
     "crypto.encryptionDataLost":
         "Se perdieron los datos de cifrado de esta sesión (datos del navegador borrados o reinstalación), así que se cerró para que nadie siga cifrando para claves que ya no tiene. Vuelve a iniciar sesión.",
     "crypto.accountApprovalCancelled":
@@ -3924,6 +3926,8 @@ const messages: Record<MessageKey, string> = {
     "rootLayout.linkCopied": "Enlace copiado",
 
     // src/routes/+page.svelte
+    "rootPage.sessionOpenInAnotherTab":
+        "Esta sesión está abierta en otra pestaña. Esta pestaña continuará cuando aquella se cierre.",
     "rootPage.failedToReconnectPleaseLogIn":
         "No se pudo volver a conectar. Inicia sesión de nuevo.",
     "rootPage.signedInButSyncingCouldNot":

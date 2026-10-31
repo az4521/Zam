@@ -3005,6 +3005,8 @@ const messages: Record<MessageKey, string> = {
     "crypto.roomIsNotEncrypted": "Dieser Raum ist nicht verschlüsselt.",
     "crypto.roomKeyDiscarded":
         "Deine nächste Nachricht hier nutzt einen neuen Raumschlüssel, der wieder an alle Sitzungen im Raum geht.",
+    "crypto.encryptionKeysUnchecked":
+        "Die Verschlüsselungsschlüssel dieser Sitzung konnten nicht mit dem Server abgeglichen werden. Prüfe deine Verbindung und lade neu.",
     "crypto.encryptionDataLost":
         "Die Verschlüsselungsdaten dieser Sitzung sind verloren (Browserdaten gelöscht oder neu installiert), daher wurde sie abgemeldet, damit niemand mehr an Schlüssel verschlüsselt, die sie nicht mehr hat. Bitte melde dich erneut an.",
     "crypto.accountApprovalCancelled":
@@ -3924,6 +3926,8 @@ const messages: Record<MessageKey, string> = {
     "rootLayout.linkCopied": "Link kopiert",
 
     // src/routes/+page.svelte
+    "rootPage.sessionOpenInAnotherTab":
+        "Diese Sitzung ist in einem anderen Tab geöffnet. Dieser Tab macht weiter, sobald der andere geschlossen wird.",
     "rootPage.failedToReconnectPleaseLogIn":
         "Erneute Verbindung fehlgeschlagen. Bitte melde dich erneut an.",
     "rootPage.signedInButSyncingCouldNot":

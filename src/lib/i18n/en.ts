@@ -2865,6 +2865,8 @@ export const en = {
     "crypto.roomIsNotEncrypted": "This room isn't encrypted.",
     "crypto.roomKeyDiscarded":
         "Your next message here will use a new room key, shared with every session in the room again.",
+    "crypto.encryptionKeysUnchecked":
+        "Couldn't check this session's encryption keys with the server. Check your connection and reload.",
     "crypto.encryptionDataLost":
         "This session's encryption data was lost (cleared browser data or a reinstall), so it was signed out to keep others from encrypting to keys it no longer has. Sign in again.",
     "crypto.accountApprovalCancelled":
@@ -3733,6 +3735,8 @@ export const en = {
     // src/routes/+page.svelte
     "rootPage.failedToReconnectPleaseLogIn":
         "Failed to reconnect. Please log in again.",
+    "rootPage.sessionOpenInAnotherTab":
+        "This session is open in another tab. This tab will continue once that one closes.",
     "rootPage.signedInButSyncingCouldNot":
         "Signed in, but syncing could not start. Please try again.",
     "rootPage.yourSessionHasExpiredPleaseSign":

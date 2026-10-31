@@ -59,7 +59,11 @@ import {
     shouldEncryptNewDm,
 } from "$lib/utils/roomEncryption";
 import { settingsState } from "$lib/stores/settings.svelte";
-import { getCryptoDbName, getCryptoLockName } from "$lib/utils/cryptoStore";
+import {
+    getCryptoDbName,
+    getCryptoLockName,
+    getCryptoOwnerLockName,
+} from "$lib/utils/cryptoStore";
 import { createAsyncWorkTracker } from "$lib/utils/asyncWorkTracker";
 import {
     cryptoDbNames,
@@ -69,7 +73,11 @@ import {
     wipesToRetry,
     type PendingWipe,
 } from "$lib/utils/pendingCryptoWipe";
-import { readScoped } from "$lib/utils/scopedStorage";
+import {
+    readScoped,
+    removeScoped,
+    writeScoped,
+} from "$lib/utils/scopedStorage";
 import { normalizeRecoveryKey } from "$lib/utils/recoveryKey";
 import { passphraseParams } from "$lib/utils/recoveryPassphrase";
 import {
@@ -251,8 +259,8 @@ const CRYPTO_LOCK_WAIT_MS = 30000;
 /**
  * Take the crypto store's Web Lock in shared mode and keep it for the life of
  * the page. The push-notification decryptor (pushDecryptHeadless.ts) needs it
- * exclusively, so it never opens the store while a page has it open; shared,
- * so several tabs of the same account do not lock each other out.
+ * exclusively, so it never opens the store while a page has it open. Tabs are
+ * kept apart by claimSessionOwnership, not by this lock.
  *
  * Resolves true once granted (or where Web Locks are unusable, in which case
  * the decryptor refuses to run at all). Resolves false if the decryptor still
@@ -299,6 +307,65 @@ async function holdCryptoStoreLock(name: string): Promise<boolean> {
 export function releaseCryptoStoreLocks(): void {
     for (const release of heldCryptoStoreLocks.values()) release();
     heldCryptoStoreLocks.clear();
+}
+
+// Sessions this page runs; see claimSessionOwnership.
+const ownedSessions = new Set<string>();
+
+function sessionOwnerLocks(): LockManager | undefined {
+    return typeof navigator !== "undefined" ? navigator.locks : undefined;
+}
+
+/**
+ * Make this page the only one running a session, for the rest of its life.
+ * A second tab must stay out completely: each OlmMachine keeps its own copy
+ * of the account in memory, so two of them hand out different one-time keys
+ * under the same ids (the server then refuses every key upload from one of
+ * them), and each tab's sync acknowledges to-device messages, room keys
+ * included, that only the other one saw.
+ *
+ * False when another page runs the session. The browser drops the lock when a
+ * page closes or crashes, so it can't go stale. True where Web Locks are
+ * unusable: nothing can be enforced there, and those contexts (old Android
+ * WebViews) only ever have the one page.
+ */
+export function claimSessionOwnership(
+    userId: string,
+    deviceId: string,
+): Promise<boolean> {
+    const name = getCryptoOwnerLockName(userId, deviceId);
+    const locks = sessionOwnerLocks();
+    if (!locks || ownedSessions.has(name)) return Promise.resolve(true);
+    return new Promise<boolean>((resolve) => {
+        locks
+            .request(name, { mode: "exclusive", ifAvailable: true }, (lock) => {
+                resolve(!!lock);
+                if (!lock) return undefined;
+                ownedSessions.add(name);
+                return new Promise<void>(() => {});
+            })
+            .catch(() => resolve(true));
+    });
+}
+
+/**
+ * Resolves once the page running this session has gone. The caller reloads:
+ * that page may have signed out, so nothing read at boot can be trusted.
+ */
+export function waitForSessionOwnership(
+    userId: string,
+    deviceId: string,
+): Promise<void> {
+    const locks = sessionOwnerLocks();
+    if (!locks) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+        locks
+            .request(getCryptoOwnerLockName(userId, deviceId), () => {
+                resolve();
+                return new Promise<void>(() => {});
+            })
+            .catch(() => resolve());
+    });
 }
 
 /** How long a release or restart waits for the crypto engine to go idle. */
@@ -848,6 +915,7 @@ export async function deleteCryptoStore(
     userId: string,
     deviceId: string,
 ): Promise<void> {
+    forgetOwnDeviceKey(userId, deviceId);
     const factory = getIndexedDB();
     if (!factory) return;
     const cryptoDbPrefix = getCryptoDbName(userId, deviceId);
@@ -1671,25 +1739,33 @@ export interface KnownDevice {
  * straight from /keys/query (not through the crypto store, which ignores a
  * change). Empty when the server can't be asked.
  */
-async function serverIdentityKeys(
+async function fetchServerIdentityKeys(
     client: MatrixClient,
     userId: string,
 ): Promise<Map<string, { curve25519?: string; ed25519?: string }>> {
     const keys = new Map<string, { curve25519?: string; ed25519?: string }>();
-    try {
-        const result = await client.downloadKeysForUsers([userId]);
-        for (const [deviceId, device] of Object.entries(
-            result.device_keys?.[userId] ?? {},
-        )) {
-            keys.set(deviceId, {
-                curve25519: device.keys?.[`curve25519:${deviceId}`],
-                ed25519: device.keys?.[`ed25519:${deviceId}`],
-            });
-        }
-    } catch (err) {
-        console.warn(`[matrix] couldn't read ${userId}'s keys`, err);
+    const result = await client.downloadKeysForUsers([userId]);
+    for (const [deviceId, device] of Object.entries(
+        result.device_keys?.[userId] ?? {},
+    )) {
+        keys.set(deviceId, {
+            curve25519: device.keys?.[`curve25519:${deviceId}`],
+            ed25519: device.keys?.[`ed25519:${deviceId}`],
+        });
     }
     return keys;
+}
+
+async function serverIdentityKeys(
+    client: MatrixClient,
+    userId: string,
+): Promise<Map<string, { curve25519?: string; ed25519?: string }>> {
+    try {
+        return await fetchServerIdentityKeys(client, userId);
+    } catch (err) {
+        console.warn(`[matrix] couldn't read ${userId}'s keys`, err);
+        return new Map();
+    }
 }
 
 /** Ask the server for `userId`'s keys now and wait for the store to have them. */
@@ -1718,15 +1794,50 @@ export class CryptoStoreLostError extends Error {
 }
 
 /**
- * Whether the server has different identity keys for THIS device than the
- * crypto engine just opened. That means the store that made this device is
- * gone (cleared site data, storage eviction, a reinstall that kept the
- * login) and a fresh one was created under the same device id. Carrying on
- * would upload new keys for a device everyone already knows, and their
- * crypto keeps the old ones for good: nothing they send this device could be
- * read, and no reset on their side fixes it. Call after initCrypto and
- * before sync, which is what uploads our keys. False when the server has no
- * keys for us yet (a new sign-in) or can't be asked.
+ * Thrown when neither this device nor the server can show that the crypto
+ * store is the one this device has always had. Sync would upload its keys, so
+ * the session doesn't start.
+ */
+export class CryptoKeysUncheckedError extends Error {
+    constructor() {
+        super(t("crypto.encryptionKeysUnchecked"));
+        this.name = "CryptoKeysUncheckedError";
+    }
+}
+
+/** Thrown when another tab is running this session (claimSessionOwnership). */
+export class SessionInUseError extends Error {
+    constructor() {
+        super(t("rootPage.sessionOpenInAnotherTab"));
+        this.name = "SessionInUseError";
+    }
+}
+
+const OWN_KEYS_CHECK_ATTEMPTS = 3;
+const OWN_KEYS_CHECK_RETRY_MS = 1000;
+
+function ownDeviceKeyName(deviceId: string): string {
+    return `crypto:ownDeviceKey:${deviceId}`;
+}
+
+/** Drop the record ownDeviceKeysReplaced keeps, with the device's store. */
+export function forgetOwnDeviceKey(userId: string, deviceId: string): void {
+    removeScoped(ownDeviceKeyName(deviceId), userId);
+}
+
+/**
+ * Whether the crypto engine just opened isn't the one that made this device.
+ * That means its store is gone (cleared site data, storage eviction, a
+ * reinstall that kept the login) and a fresh one was created under the same
+ * device id. Carrying on would upload new keys for a device everyone already
+ * knows, and their crypto keeps the old ones for good: nothing they send this
+ * device could be read, and no reset on their side fixes it. Call after
+ * initCrypto and before sync, which is what uploads our keys.
+ *
+ * The device's public key is recorded once it checks out, so a later boot can
+ * tell without the network, and being offline only matters before that first
+ * check. False when the server has no keys for us yet (a new sign-in). Throws
+ * CryptoKeysUncheckedError if there is no record and the server can't be asked.
  */
 export async function ownDeviceKeysReplaced(
     client: MatrixClient,
@@ -1735,13 +1846,31 @@ export async function ownDeviceKeysReplaced(
     const userId = client.getUserId();
     const deviceId = client.getDeviceId();
     if (!cryptoAvailable || !crypto || !userId || !deviceId) return false;
-    const server = (await serverIdentityKeys(client, userId)).get(deviceId);
-    if (!server?.curve25519 && !server?.ed25519) return false;
     const ours = await crypto.getOwnDeviceKeys();
-    return (
-        (!!server.curve25519 && server.curve25519 !== ours.curve25519) ||
-        (!!server.ed25519 && server.ed25519 !== ours.ed25519)
-    );
+    const recorded = readScoped(ownDeviceKeyName(deviceId), userId);
+    if (recorded && recorded !== ours.ed25519) return true;
+    let onServer: Awaited<ReturnType<typeof fetchServerIdentityKeys>>;
+    for (let attempt = 1; ; attempt++) {
+        try {
+            onServer = await fetchServerIdentityKeys(client, userId);
+            break;
+        } catch (err) {
+            console.warn(`[matrix] couldn't read ${userId}'s keys`, err);
+            if (recorded) return false;
+            if (attempt >= OWN_KEYS_CHECK_ATTEMPTS)
+                throw new CryptoKeysUncheckedError();
+            await new Promise((r) =>
+                setTimeout(r, OWN_KEYS_CHECK_RETRY_MS * attempt),
+            );
+        }
+    }
+    const server = onServer.get(deviceId);
+    const replaced =
+        (!!server?.curve25519 && server.curve25519 !== ours.curve25519) ||
+        (!!server?.ed25519 && server.ed25519 !== ours.ed25519);
+    if (!replaced)
+        writeScoped(ownDeviceKeyName(deviceId), userId, ours.ed25519);
+    return replaced;
 }
 
 /**

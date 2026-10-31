@@ -26,8 +26,11 @@
     // file's source text to keep it that way. The boot retry below IS wanted: it
     // finishes a wipe that an explicit logout started and IndexedDB blocked.
     import {
+        CryptoKeysUncheckedError,
         CryptoStoreLostError,
+        SessionInUseError,
         retryPendingCryptoWipes,
+        waitForSessionOwnership,
     } from "$lib/matrix/crypto";
     import {
         auth,
@@ -81,6 +84,9 @@
             isAddAccountMode: addModeAtInit || oauthReturnAtInit,
         }),
     );
+
+    // Set while another tab runs this session; the splash then says so.
+    let sessionInUse = $state(false);
 
     // OAuth refresh tokens rotate: every refresh has to reach storage, the
     // service worker and the native push mirror, or the next restart (or the
@@ -322,9 +328,24 @@
                     auth.error = err.message;
                     return;
                 }
+                // Another tab has the session: wait on the splash for it to
+                // close, then start over, as it may have signed out meanwhile.
+                if (err instanceof SessionInUseError) {
+                    sessionInUse = true;
+                    await waitForSessionOwnership(
+                        stored.userId,
+                        stored.deviceId,
+                    );
+                    window.location.reload();
+                    return;
+                }
+                const message =
+                    err instanceof CryptoKeysUncheckedError
+                        ? err.message
+                        : RESTORE_FAILED_MESSAGE;
                 // A superseded attempt's owner already published its own state.
-                if (failStartup(attempt, RESTORE_FAILED_MESSAGE)) {
-                    auth.error = RESTORE_FAILED_MESSAGE;
+                if (failStartup(attempt, message)) {
+                    auth.error = message;
                     restoring = false;
                 }
                 return;
@@ -431,7 +452,9 @@
 {#if view === "shell"}
     <AppShell />
 {:else if view === "splash"}
-    <Splash />
+    <Splash
+        message={sessionInUse ? t("rootPage.sessionOpenInAnotherTab") : null}
+    />
 {:else}
     <LoginView
         {isAddAccountMode}
