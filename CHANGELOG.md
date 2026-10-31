@@ -4,6 +4,14 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.42.7
+
+🐛 **Fixed**
+
+- **One tab per session:** opening the same account in a second tab could leave encryption keys out of step with the server and lose keys needed to read new messages. A second tab now waits and tells you the session is open elsewhere, then takes over when the first one closes. Different accounts can still run side by side in separate tabs.
+- **Safer encryption startup:** Zam now checks this device's encryption keys before it starts syncing. If that can't be confirmed, it stops and asks you to check your connection instead of uploading keys that could cause decryption problems. Once a device has passed this check, it starts offline as usual.
+- **Smoother call audio on Linux:** the desktop app and Flatpak now ask the system for realtime priority during calls, so your microphone keeps up when the computer is busy.
+
 ## v1.42.6
 
 ✨ **New**
