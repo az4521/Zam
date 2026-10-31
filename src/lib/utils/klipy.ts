@@ -55,6 +55,7 @@ type Fmt = {
     webp?: Rendition;
     mp4?: Rendition;
     webm?: Rendition;
+    jpg?: Rendition;
 };
 interface KlipyItem {
     id?: string | number;
@@ -149,6 +150,108 @@ export async function fetchKlipy(
     const res = await fetch(url);
     if (!res.ok) throw new Error(`KLIPY ${res.status}`);
     return normalizeKlipyItems(await res.json(), kind);
+}
+
+/** Field names match UrlPreview so a resolved embed renders as a preview. */
+export interface KlipyEmbed {
+    videoUrl?: string;
+    videoThumbnailUrl?: string;
+    videoWidth?: number;
+    videoHeight?: number;
+    imageUrl?: string;
+    imageWidth?: number;
+    imageHeight?: number;
+}
+
+const KLIPY_PAGE_RE = /^\/(gifs|memes)\/([A-Za-z0-9_-]+)\/?$/;
+
+function parseUrl(url: string | null | undefined): URL | null {
+    if (!url) return null;
+    try {
+        return new URL(url);
+    } catch {
+        return null;
+    }
+}
+
+function klipyPage(url: string): { kind: GifKind; slug: string } | null {
+    const u = parseUrl(url);
+    if (!u || u.hostname.replace(/^www\./, "") !== "klipy.com") return null;
+    const m = u.pathname.match(KLIPY_PAGE_RE);
+    return m ? { kind: m[1] as GifKind, slug: m[2] } : null;
+}
+
+/** True for a host KLIPY itself runs: never a lookalike like klipy.com.evil.example. */
+export function isKlipyMediaUrl(url: string | null | undefined): boolean {
+    const u = parseUrl(url);
+    return (
+        u?.protocol === "https:" &&
+        (u.hostname === "klipy.com" || u.hostname.endsWith(".klipy.com"))
+    );
+}
+
+/** Whether a message link is a klipy.com page fetchKlipyEmbed can resolve. */
+export function isKlipyLink(url: string): boolean {
+    return !!klipyPage(url);
+}
+
+/** The API lookup for an item by slug. */
+export function klipyItemUrl(kind: GifKind, slug: string): string {
+    return `${KLIPY_BASE}/${KLIPY_API_KEY}/${kind}/items?slugs=${encodeURIComponent(slug)}`;
+}
+
+// The response is third-party JSON feeding a zero-click <video>/<img>, so a
+// rendition is only used when it really lives on KLIPY's own hosts.
+function klipyRendition(
+    file: Record<string, Fmt | undefined> | undefined,
+    formats: (keyof Fmt)[],
+): Rendition | null {
+    const r = pickRendition(file, FULL_SIZES, formats);
+    return isKlipyMediaUrl(r?.url) ? r : null;
+}
+
+async function loadKlipyEmbed(url: string): Promise<KlipyEmbed | null> {
+    const page = klipyPage(url);
+    if (!page) return null;
+    const res = await fetch(klipyItemUrl(page.kind, page.slug), {
+        referrerPolicy: "no-referrer",
+    });
+    if (!res.ok) throw new Error(`KLIPY ${res.status}`);
+    const json = (await res.json()) as { data?: { data?: unknown } };
+    const items = json?.data?.data;
+    const item = Array.isArray(items)
+        ? (items as KlipyItem[]).find((it) => it.slug === page.slug)
+        : undefined;
+    const video = klipyRendition(item?.file, ["mp4"]);
+    const image = klipyRendition(item?.file, ["webp", "gif"]);
+    const poster = klipyRendition(item?.file, ["jpg", "webp", "gif"]);
+    if (!video?.url && !image?.url) return null;
+    return {
+        videoUrl: video?.url,
+        videoThumbnailUrl: poster?.url,
+        videoWidth: video?.width,
+        videoHeight: video?.height,
+        imageUrl: image?.url,
+        imageWidth: image?.width,
+        imageHeight: image?.height,
+    };
+}
+
+// Rows remount as the timeline scrolls; one lookup per link is enough. Only
+// answers are kept, so a failed request can be retried by the next mount.
+const klipyEmbeds = new Map<string, Promise<KlipyEmbed | null>>();
+
+/** Resolve a klipy.com page from KLIPY's API. Null when it has no such item. */
+export function fetchKlipyEmbed(url: string): Promise<KlipyEmbed | null> {
+    let embed = klipyEmbeds.get(url);
+    if (!embed) {
+        embed = loadKlipyEmbed(url).catch((err) => {
+            klipyEmbeds.delete(url);
+            throw err;
+        });
+        klipyEmbeds.set(url, embed);
+    }
+    return embed;
 }
 
 export function normalizeGifTab(v: string | null): GifTab {

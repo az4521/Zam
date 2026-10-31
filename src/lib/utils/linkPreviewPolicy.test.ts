@@ -32,8 +32,8 @@ describe("normalizeLinkPreviewMedia", () => {
         }
     });
 
-    it("defaults to 'proxied' so third-party hosts never learn the reader's IP by default", () => {
-        expect(DEFAULT_LINK_PREVIEW_MEDIA).toBe("proxied");
+    it("defaults to 'all' so embeds and GIFs show without a click", () => {
+        expect(DEFAULT_LINK_PREVIEW_MEDIA).toBe("all");
     });
 });
 

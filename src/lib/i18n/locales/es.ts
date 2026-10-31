@@ -1634,11 +1634,11 @@ const messages: Record<MessageKey, string> = {
     "privacySafetySettings.linkPreviewMedia":
         "Contenido de las vistas previas de enlaces",
     "privacySafetySettings.previewImagesAndVideosUsuallyCome":
-        'Las imágenes y los vídeos de las vistas previas suelen venir directamente del sitio que los aloja, así que ese sitio conoce tu dirección IP y cuándo lees el mensaje. "Solo el servidor base" carga únicamente las copias que sirve tu propio servidor; "Desactivado" no carga nada. Ambas opciones ocultan también los reproductores de YouTube incrustados y las tarjetas de X/Twitter, que siempre se cargan directamente desde esos sitios. En cualquier caso, cada vista previa afectada conserva un botón para cargar su contenido. El interruptor para activar o desactivar las vistas previas de enlaces está en Mensajes y multimedia.',
+        'Las imágenes y los vídeos de las vistas previas de enlaces normales pasan por tu servidor base. "Todo" también carga reproductores de YouTube, tarjetas de X/Twitter y los GIF que tu servidor no puede previsualizar directamente desde esos sitios, que así conocen tu dirección IP y cuándo lees el mensaje. "Solo el servidor base" los retiene; "Desactivado" retiene además lo que sirve tu servidor. En cualquier caso, cada vista previa afectada conserva un botón para cargar su contenido. El interruptor para activar o desactivar las vistas previas de enlaces está en Mensajes y multimedia.',
     "privacySafetySettings.blockedUsers": "Usuarios bloqueados",
     "privacySafetySettings.all": "Todo",
     "privacySafetySettings.loadPreviewMediaFromWhereverIt":
-        "Cargar el contenido de las vistas previas desde donde esté alojado",
+        "Cargar también los contenidos insertados de YouTube, X/Twitter y GIF directamente desde esos sitios",
     "privacySafetySettings.homeserverOnly": "Solo el servidor base",
     "privacySafetySettings.onlyLoadPreviewMediaYourOwn":
         "Cargar solo el contenido de las vistas previas que sirve tu propio servidor base",

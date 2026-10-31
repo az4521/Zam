@@ -17,10 +17,11 @@ export type LinkPreviewMedia =
     /** Never load preview media automatically. */
     | "none";
 
-/** Default is homeserver-only for privacy: third-party hosts never learn the
- *  reader's IP by default. Existing users get the safer default on next load,
- *  and the per-message reveal button restores media on demand. */
-export const DEFAULT_LINK_PREVIEW_MEDIA: LinkPreviewMedia = "proxied";
+/** Default is "all": getUrlPreview only ever surfaces homeserver-rehosted media,
+ *  so what this turns on is the direct embeds (YouTube, X/Twitter, GIF sites)
+ *  people expect to just work, on hosts the code names rather than the sender.
+ *  A stored choice of "proxied" or "none" is kept. */
+export const DEFAULT_LINK_PREVIEW_MEDIA: LinkPreviewMedia = "all";
 
 export function normalizeLinkPreviewMedia(
     value: string | null | undefined,
@@ -64,7 +65,8 @@ export function allowsMediaAutoLoad(
 
 /**
  * True when we may contact a third-party service DIRECTLY — the YouTube embed
- * iframe and the fxtwitter JSON API. These bypass the homeserver entirely, so
+ * iframe, the fxtwitter JSON API, and GIF sites whose links the homeserver
+ * couldn't preview. These bypass the homeserver entirely, so
  * unlike preview media there is no proxied variant to fall back to: they are
  * either allowed or they are not.
  */

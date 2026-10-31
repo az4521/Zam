@@ -1611,11 +1611,11 @@ const messages: Record<MessageKey, string> = {
         "Benachrichtigungen auf diesem Gerät zeigen, wer dir geschrieben hat, aber nicht was. Absender- und Raumnamen werden weiterhin angezeigt. Gilt nur für dieses Gerät.",
     "privacySafetySettings.linkPreviewMedia": "Medien in Linkvorschauen",
     "privacySafetySettings.previewImagesAndVideosUsuallyCome":
-        "Vorschaubilder und -videos kommen meist direkt von der Website, die sie hostet, die dadurch deine IP-Adresse und den Zeitpunkt des Lesens erfährt. „Nur Heimserver“ lädt nur die Kopien, die dein eigener Server bereitstellt; „Aus“ lädt nichts davon. Beide blenden außerdem eingebettete YouTube-Player und X/Twitter-Karten aus, die immer direkt von diesen Seiten laden. In jedem Fall behält jede betroffene Vorschau eine Schaltfläche zum Laden ihrer Medien. Der Schalter für Linkvorschauen befindet sich unter Nachrichten und Medien.",
+        "Bilder und Videos in normalen Linkvorschauen kommen über deinen Heimserver. „Alle“ lädt zusätzlich YouTube-Player, X/Twitter-Karten und GIFs, die dein Server nicht als Vorschau anzeigen kann, direkt von diesen Seiten, die dadurch deine IP-Adresse und den Zeitpunkt des Lesens erfahren. „Nur Heimserver“ hält diese zurück; „Aus“ hält auch zurück, was dein Server bereitstellt. In jedem Fall behält jede betroffene Vorschau eine Schaltfläche zum Laden ihrer Medien. Der Schalter für Linkvorschauen befindet sich unter Nachrichten und Medien.",
     "privacySafetySettings.blockedUsers": "Blockierte Benutzer",
     "privacySafetySettings.all": "Alle",
     "privacySafetySettings.loadPreviewMediaFromWhereverIt":
-        "Vorschaumedien von ihrem jeweiligen Host laden",
+        "YouTube-, X/Twitter- und GIF-Einbettungen zusätzlich direkt von diesen Seiten laden",
     "privacySafetySettings.homeserverOnly": "Nur Heimserver",
     "privacySafetySettings.onlyLoadPreviewMediaYourOwn":
         "Nur Vorschaumedien laden, die dein eigener Heimserver bereitstellt",

@@ -1575,11 +1575,11 @@ export const en = {
         "Notifications on this device say who messaged you, but not what they said. The sender and room names are still shown. Applies to this device only.",
     "privacySafetySettings.linkPreviewMedia": "Link preview media",
     "privacySafetySettings.previewImagesAndVideosUsuallyCome":
-        'Preview images and videos usually come straight from the site that hosts them, so that site learns your IP address and when you read the message. "Homeserver only" loads just the copies your own server serves; "Off" loads none of it. Both also hide embedded YouTube players and X/Twitter cards, which always load straight from those sites. Either way, each affected preview keeps a button to load its media. The link-preview on/off switch lives in Messages & Media.',
+        'Images and videos on ordinary link previews come through your homeserver. "All" also loads YouTube players, X/Twitter cards, and GIFs your server can\'t preview straight from those sites, so they learn your IP address and when you read the message. "Homeserver only" holds those back; "Off" also holds back what your server serves. Either way, each affected preview keeps a button to load its media. The link-preview on/off switch lives in Messages & Media.',
     "privacySafetySettings.blockedUsers": "Blocked users",
     "privacySafetySettings.all": "All",
     "privacySafetySettings.loadPreviewMediaFromWhereverIt":
-        "Load preview media from wherever it is hosted",
+        "Also load YouTube, X/Twitter and GIF embeds straight from those sites",
     "privacySafetySettings.homeserverOnly": "Homeserver only",
     "privacySafetySettings.onlyLoadPreviewMediaYourOwn":
         "Only load preview media your own homeserver serves",

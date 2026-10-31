@@ -18,6 +18,11 @@
         allowsMediaAutoLoad,
         allowsThirdPartyEmbed,
     } from "$lib/utils/linkPreviewPolicy";
+    import {
+        fetchGifEmbed,
+        isGifHostLink,
+        isGifHostMediaUrl,
+    } from "$lib/utils/gifEmbed";
     import { reservedMediaBox } from "$lib/utils/mediaDimensions";
     import { galleryNav, galleryPositionLabel } from "$lib/utils/mediaGallery";
     import { isInstagramUrl } from "$lib/utils/instagramUrl";
@@ -58,10 +63,15 @@
     });
 
     function canLoad(mediaUrl: string | null | undefined): boolean {
-        return allowsMediaAutoLoad(policy, mediaUrl, hsBaseUrl);
+        return (
+            allowsMediaAutoLoad(policy, mediaUrl, hsBaseUrl) ||
+            (embedsAllowed && isGifHostMediaUrl(mediaUrl))
+        );
     }
 
     let preview = $state<UrlPreview | null>(null);
+    // A GIF-site link the homeserver couldn't preview, held back by the policy.
+    let gifHostHeld = $state(false);
     let imageError = $state(false);
     let lightboxOpen = $state(false);
     // Video previews load the poster first; the <video> is only mounted once
@@ -141,6 +151,7 @@
         const currentUrl = url;
         const allowEmbeds = embedsAllowed;
         preview = null;
+        gifHostHeld = false;
         imageError = false;
         directEmbed = null;
         tweetEmbed = null;
@@ -211,8 +222,29 @@
                 pluginRegistry.previewUrlTransforms.map((e) => e.value),
             ),
         )
-            .then((data) => {
+            .then(async (data) => {
                 if (cancelled) return;
+                // GIF sites turn away most homeservers' previewers, so go to
+                // the site when the homeserver came back without media. A
+                // server that can preview these keeps serving its own copy.
+                if (
+                    isGifHostLink(currentUrl) &&
+                    !data?.imageUrl &&
+                    !data?.videoUrl
+                ) {
+                    if (allowEmbeds) {
+                        const embed = await fetchGifEmbed(currentUrl).catch(
+                            () => null,
+                        );
+                        if (cancelled) return;
+                        if (embed) {
+                            preview = embed;
+                            return;
+                        }
+                    } else {
+                        gifHostHeld = true;
+                    }
+                }
                 if (data && (data.title || data.imageUrl || data.videoUrl)) {
                     preview = data;
                 }
@@ -277,7 +309,9 @@
             ((!!preview.videoUrl && !canLoad(preview.videoUrl)) ||
                 (!!preview.imageUrl && !canLoad(preview.imageUrl))),
     );
-    const showReveal = $derived(!revealed && (blockedEmbed || blockedMedia));
+    const showReveal = $derived(
+        !revealed && (blockedEmbed || blockedMedia || gifHostHeld),
+    );
 </script>
 
 {#if directEmbed?.type === "youtube"}

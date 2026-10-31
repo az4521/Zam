@@ -1,11 +1,124 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
     trendingUrl,
     searchUrl,
     normalizeKlipyItems,
     normalizeGifTab,
+    fetchKlipyEmbed,
+    isKlipyLink,
+    isKlipyMediaUrl,
+    klipyItemUrl,
     type GifPage,
 } from "./klipy";
+
+describe("klipy links", () => {
+    it("recognises page links", () => {
+        expect(isKlipyLink("https://klipy.com/gifs/nukes-true")).toBe(true);
+        expect(isKlipyLink("https://www.klipy.com/memes/a_b/")).toBe(true);
+    });
+
+    it("rejects other pages and lookalike hosts", () => {
+        expect(isKlipyLink("https://klipy.com/about")).toBe(false);
+        expect(isKlipyLink("https://static2.klipy.com/ii/a/b.gif")).toBe(false);
+        expect(isKlipyLink("https://klipy.com.evil.example/gifs/a")).toBe(
+            false,
+        );
+        expect(isKlipyLink("not a url")).toBe(false);
+    });
+
+    it("only treats https KLIPY hosts as KLIPY media", () => {
+        expect(isKlipyMediaUrl("https://static2.klipy.com/a.mp4")).toBe(true);
+        expect(isKlipyMediaUrl("http://static2.klipy.com/a.mp4")).toBe(false);
+        expect(isKlipyMediaUrl("https://evil.example/klipy.com.mp4")).toBe(
+            false,
+        );
+        expect(isKlipyMediaUrl(undefined)).toBe(false);
+    });
+});
+
+describe("fetchKlipyEmbed", () => {
+    const cdn = "https://static2.klipy.com/ii";
+    const respond = (body: unknown, ok = true) =>
+        vi.fn(async () => ({
+            ok,
+            status: ok ? 200 : 429,
+            json: async () => body,
+        }));
+    const items = (slug: string, file: unknown) => ({
+        data: { data: [{ slug, file }] },
+    });
+
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("resolves a page link through the API, playing the mp4", async () => {
+        const fetchMock = respond(
+            items("resolve-me", {
+                hd: {
+                    mp4: { url: `${cdn}/a.mp4`, width: 498, height: 282 },
+                    webp: { url: `${cdn}/a.webp`, width: 498, height: 282 },
+                    jpg: { url: `${cdn}/a.jpg` },
+                },
+            }),
+        );
+        vi.stubGlobal("fetch", fetchMock);
+        await expect(
+            fetchKlipyEmbed("https://klipy.com/gifs/resolve-me"),
+        ).resolves.toMatchObject({
+            videoUrl: `${cdn}/a.mp4`,
+            videoThumbnailUrl: `${cdn}/a.jpg`,
+            videoWidth: 498,
+            imageUrl: `${cdn}/a.webp`,
+        });
+        expect(fetchMock).toHaveBeenCalledWith(
+            klipyItemUrl("gifs", "resolve-me"),
+            expect.objectContaining({ referrerPolicy: "no-referrer" }),
+        );
+    });
+
+    it("asks once per link", async () => {
+        const fetchMock = respond(
+            items("once", { hd: { mp4: { url: `${cdn}/b.mp4` } } }),
+        );
+        vi.stubGlobal("fetch", fetchMock);
+        await fetchKlipyEmbed("https://klipy.com/gifs/once");
+        await fetchKlipyEmbed("https://klipy.com/gifs/once");
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries after a failed request", async () => {
+        const url = "https://klipy.com/gifs/flaky";
+        vi.stubGlobal("fetch", respond({}, false));
+        await expect(fetchKlipyEmbed(url)).rejects.toThrow("KLIPY 429");
+        vi.stubGlobal(
+            "fetch",
+            respond(items("flaky", { hd: { mp4: { url: `${cdn}/c.mp4` } } })),
+        );
+        await expect(fetchKlipyEmbed(url)).resolves.toMatchObject({
+            videoUrl: `${cdn}/c.mp4`,
+        });
+    });
+
+    it("refuses media hosted anywhere but KLIPY", async () => {
+        vi.stubGlobal(
+            "fetch",
+            respond(
+                items("offsite", {
+                    hd: { mp4: { url: "https://evil.example/a.mp4" } },
+                }),
+            ),
+        );
+        await expect(
+            fetchKlipyEmbed("https://klipy.com/gifs/offsite"),
+        ).resolves.toBeNull();
+    });
+
+    it("is null for an item KLIPY doesn't have", async () => {
+        vi.stubGlobal("fetch", respond({ data: { data: [] } }));
+        await expect(
+            fetchKlipyEmbed("https://klipy.com/gifs/gone"),
+        ).resolves.toBeNull();
+    });
+});
 
 describe("klipy url builders", () => {
     it("builds a trending url with kind, page and per_page", () => {

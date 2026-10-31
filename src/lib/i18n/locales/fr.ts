@@ -1592,11 +1592,11 @@ const messages: Record<MessageKey, string> = {
         "Les notifications sur cet appareil indiquent qui vous a écrit, mais pas ce qui a été dit. Les noms de l'expéditeur et du salon restent visibles. S'applique uniquement à cet appareil.",
     "privacySafetySettings.linkPreviewMedia": "Médias des aperçus de liens",
     "privacySafetySettings.previewImagesAndVideosUsuallyCome":
-        "Les images et vidéos des aperçus proviennent généralement directement du site qui les héberge, qui apprend donc votre adresse IP et le moment où vous lisez le message. « Serveur d'accueil uniquement » ne charge que les copies servies par votre propre serveur ; « Désactivé » ne charge rien. Les deux masquent aussi les lecteurs YouTube intégrés et les cartes X/Twitter, qui se chargent toujours directement depuis ces sites. Dans tous les cas, chaque aperçu concerné garde un bouton pour charger ses médias. L'interrupteur des aperçus de liens se trouve dans Messages et médias.",
+        "Les images et vidéos des aperçus de liens ordinaires passent par votre serveur d'accueil. « Tous » charge aussi les lecteurs YouTube, les cartes X/Twitter et les GIF que votre serveur ne peut pas prévisualiser directement depuis ces sites, qui apprennent donc votre adresse IP et le moment où vous lisez le message. « Serveur d'accueil uniquement » les bloque ; « Désactivé » bloque aussi ce que sert votre serveur. Dans tous les cas, chaque aperçu concerné garde un bouton pour charger ses médias. L'interrupteur des aperçus de liens se trouve dans Messages et médias.",
     "privacySafetySettings.blockedUsers": "Utilisateurs bloqués",
     "privacySafetySettings.all": "Tous",
     "privacySafetySettings.loadPreviewMediaFromWhereverIt":
-        "Charger les médias des aperçus depuis leur hébergement d'origine",
+        "Charger aussi les intégrations YouTube, X/Twitter et GIF directement depuis ces sites",
     "privacySafetySettings.homeserverOnly": "Serveur d'accueil uniquement",
     "privacySafetySettings.onlyLoadPreviewMediaYourOwn":
         "Ne charger que les médias servis par votre propre serveur d'accueil",
