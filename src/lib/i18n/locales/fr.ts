@@ -2495,6 +2495,8 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/layout/VideoTile.svelte
     "videoTile.fullscreen": "Plein écran",
+    "videoTile.pictureInPicture": "Image dans l'image",
+    "videoTile.exitPictureInPicture": "Quitter l'image dans l'image",
 
     // src/lib/components/settings/VoiceAudioSettings.svelte
     "voiceAudioSettings.inputDevice": "Périphérique d'entrée",

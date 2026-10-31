@@ -20,6 +20,7 @@
     import InboxPanel from "$lib/components/layout/InboxPanel.svelte";
     import SpaceLandingPanel from "./SpaceLandingPanel.svelte";
     import IncomingCallCard from "$lib/components/layout/IncomingCallCard.svelte";
+    import CallPipOverlay from "$lib/components/layout/CallPipOverlay.svelte";
     import VerificationModal from "$lib/components/layout/VerificationModal.svelte";
     import EncryptionSetupDialog from "$lib/components/layout/EncryptionSetupDialog.svelte";
     import {
@@ -2821,6 +2822,10 @@
 {#if interfaceState.modal === "share-target" && shareInboxState.payload}
     <ShareTargetSheet />
 {/if}
+
+<div class="contents" dir={uiDir}>
+    <CallPipOverlay />
+</div>
 
 {#if incomingCallsState.ringing.length > 0 || verificationState.incoming.length > 0}
     <div class="fixed top-4 right-4 z-50 flex flex-col gap-2">

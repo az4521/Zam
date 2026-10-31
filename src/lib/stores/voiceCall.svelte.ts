@@ -83,6 +83,7 @@ import { auth } from "$lib/stores/auth.svelte";
 import { showErrorToast, showToast } from "$lib/stores/toasts.svelte";
 import { interfaceState, showCallView } from "$lib/stores/interface.svelte";
 import { navigateToRoom, roomsState } from "$lib/stores/rooms.svelte";
+import { callPipState } from "$lib/stores/callPip.svelte";
 import { matrixErrorMessage } from "$lib/utils/knock";
 import { micErrorMessage } from "$lib/utils/micErrorMessage";
 import { isChunkLoadError } from "$lib/utils/chunkLoadError";
@@ -347,6 +348,7 @@ export function initVoiceCall(): () => void {
             voiceCallState.screenSharing = false;
             voiceCallState.cameraOn = false;
             voiceCallState.focusedTileKey = null;
+            callPipState.dismissed = false;
             void clearCallStatus();
             if (prevRoomId) {
                 clearRecentlyLeftTimer();
@@ -416,7 +418,9 @@ export function initVoiceCall(): () => void {
             tiles,
             voiceCallState.focusedTileKey,
         );
-        announceNewShares(newRemoteShares(prevVideoKeys, tiles));
+        const newShares = newRemoteShares(prevVideoKeys, tiles);
+        announceNewShares(newShares);
+        if (newShares.length > 0) callPipState.dismissed = false;
         prevVideoKeys = tiles.map((t) => t.key);
         voiceCallState.voiceTick++;
     });
@@ -641,6 +645,19 @@ export function toggleSpeaker(): void {
     if (next) setNativeAudioRoute(next);
 }
 
+/** Whether the call this device is in fills the main pane right now. Reactive
+ *  when read from a $derived. */
+export function isCallViewShowing(): boolean {
+    const roomId = voiceCallState.roomId;
+    return (
+        !!roomId &&
+        interfaceState.callViewRoomId === roomId &&
+        roomsState.activeRoomId === roomId &&
+        !roomsState.showInbox &&
+        !roomsState.draftDm
+    );
+}
+
 /** Promote a tile to the spotlight; clicking the focused tile again clears it. */
 /**
  * Someone started sharing their screen while this device isn't showing the
@@ -650,11 +667,7 @@ export function toggleSpeaker(): void {
 function announceNewShares(shares: VideoTileDescriptor[]): void {
     const roomId = voiceCallState.roomId;
     if (!roomId || shares.length === 0) return;
-    const showing =
-        interfaceState.callViewRoomId === roomId &&
-        roomsState.activeRoomId === roomId &&
-        !roomsState.showInbox;
-    if (showing) return;
+    if (isCallViewShowing()) return;
     const share = shares[0];
     const room = getRoom(roomId);
     const name = (room && getMemberName(room, share.userId)) || share.userId;

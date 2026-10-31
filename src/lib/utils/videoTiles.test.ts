@@ -3,6 +3,8 @@ import {
     buildVideoTiles,
     nextFocus,
     newRemoteShares,
+    pickPipTile,
+    snapPipToEdge,
     canScreenShare,
     screenShareSupportedHere,
     type VideoPublicationInput,
@@ -201,5 +203,124 @@ describe("screenShareSupportedHere", () => {
         vi.stubGlobal("navigator", undefined);
         expect(typeof navigator).toBe("undefined"); // prove the stub landed
         expect(screenShareSupportedHere()).toBe(false);
+    });
+});
+
+describe("pickPipTile", () => {
+    const local = pub({ identity: "@me:x:D1", isLocal: true });
+    const localShare = pub({
+        identity: "@me:x:D1",
+        isLocal: true,
+        source: "screenshare",
+    });
+    const alice = pub({ identity: "@alice:x:D1" });
+    const bob = pub({ identity: "@bob:x:D1" });
+    const aliceShare = pub({ identity: "@alice:x:D1", source: "screenshare" });
+    const none = {
+        pinned: null,
+        focused: null,
+        current: null,
+        speakingUserIds: new Set<string>(),
+    };
+    const key = (t: { key: string } | null) => t?.key ?? null;
+
+    it("floats nothing when only our own video exists", () => {
+        const tiles = buildVideoTiles([local, localShare]);
+        expect(pickPipTile(tiles, none)).toBeNull();
+    });
+
+    it("prefers a remote screen over a talking camera", () => {
+        const tiles = buildVideoTiles([alice, bob, aliceShare, localShare]);
+        expect(
+            key(
+                pickPipTile(tiles, {
+                    ...none,
+                    speakingUserIds: new Set(["@bob:x"]),
+                }),
+            ),
+        ).toBe("@alice:x:D1:screenshare");
+    });
+
+    it("follows whoever is talking, and holds through the silence", () => {
+        const tiles = buildVideoTiles([alice, bob]);
+        const talking = pickPipTile(tiles, {
+            ...none,
+            speakingUserIds: new Set(["@bob:x"]),
+        });
+        expect(key(talking)).toBe("@bob:x:D1:camera");
+        expect(
+            key(pickPipTile(tiles, { ...none, current: key(talking) })),
+        ).toBe("@bob:x:D1:camera");
+    });
+
+    it("skips a speaker with no camera", () => {
+        const tiles = buildVideoTiles([alice]);
+        expect(
+            key(
+                pickPipTile(tiles, {
+                    ...none,
+                    speakingUserIds: new Set(["@carol:x"]),
+                }),
+            ),
+        ).toBe("@alice:x:D1:camera");
+    });
+
+    it("lets the user's own choice win, even their own video", () => {
+        const tiles = buildVideoTiles([local, aliceShare]);
+        expect(
+            key(pickPipTile(tiles, { ...none, focused: "@me:x:D1:camera" })),
+        ).toBe("@me:x:D1:camera");
+        expect(
+            key(
+                pickPipTile(tiles, {
+                    ...none,
+                    pinned: "@me:x:D1:camera",
+                    focused: "@alice:x:D1:screenshare",
+                }),
+            ),
+        ).toBe("@me:x:D1:camera");
+    });
+
+    it("falls back when the chosen tile has gone", () => {
+        const tiles = buildVideoTiles([alice]);
+        expect(
+            key(pickPipTile(tiles, { ...none, pinned: "@gone:x:D1:camera" })),
+        ).toBe("@alice:x:D1:camera");
+    });
+});
+
+describe("snapPipToEdge", () => {
+    const bounds = { minX: 0, maxX: 400, minY: 100, maxY: 500 };
+
+    it("snaps to the closest side and keeps its place along it", () => {
+        expect(snapPipToEdge(100, 120, bounds)).toEqual({
+            side: "top",
+            at: 0.25,
+        });
+        expect(snapPipToEdge(300, 480, bounds)).toEqual({
+            side: "bottom",
+            at: 0.75,
+        });
+        expect(snapPipToEdge(20, 300, bounds)).toEqual({
+            side: "left",
+            at: 0.5,
+        });
+        expect(snapPipToEdge(390, 200, bounds)).toEqual({
+            side: "right",
+            at: 0.25,
+        });
+    });
+
+    it("stays in range when dropped outside the bounds", () => {
+        expect(snapPipToEdge(-50, 40, bounds)).toEqual({ side: "top", at: 0 });
+        expect(snapPipToEdge(450, 300, bounds)).toEqual({
+            side: "right",
+            at: 0.5,
+        });
+    });
+
+    it("copes with a window too small to move in", () => {
+        const flat = { minX: 0, maxX: 0, minY: 100, maxY: 50 };
+        expect(snapPipToEdge(0, 80, flat).at).toBe(0);
     });
 });

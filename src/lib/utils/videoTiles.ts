@@ -81,6 +81,72 @@ export function newRemoteShares(
     );
 }
 
+/** The one stream worth floating over the app. What the user chose wins (the
+ *  tile sent to the system window, then the spotlight); otherwise someone
+ *  else's screen, then whoever is talking, staying on `current` through the
+ *  silences so the picture doesn't jump. Never our own video unless asked for:
+ *  a sharer would only get a hall of mirrors (see nextFocus). */
+export function pickPipTile(
+    tiles: VideoTileDescriptor[],
+    opts: {
+        pinned: string | null;
+        focused: string | null;
+        current: string | null;
+        speakingUserIds: { has(userId: string): boolean };
+    },
+): VideoTileDescriptor | null {
+    const byKey = (key: string | null) =>
+        tiles.find((t) => t.key === key) ?? null;
+    const chosen = byKey(opts.pinned) ?? byKey(opts.focused);
+    if (chosen) return chosen;
+    const remote = tiles.filter((t) => !t.isLocal);
+    return (
+        remote.find((t) => t.source === "screenshare") ??
+        remote.find((t) => opts.speakingUserIds.has(t.userId)) ??
+        remote.find((t) => t.key === opts.current) ??
+        remote[0] ??
+        null
+    );
+}
+
+/** Where the floating video rests: against one side of the window, `at` of
+ *  the way along it (0 is the top or left end, 1 the bottom or right). A
+ *  fraction rather than pixels so it stays put when the window resizes. */
+export interface PipPlacement {
+    side: "top" | "bottom" | "left" | "right";
+    at: number;
+}
+
+/** Settle a dragged video against whichever side it is closest to, keeping
+ *  where it was along that side. `x` and `y` are its top-left corner, and the
+ *  bounds are the range that corner can rest in. */
+export function snapPipToEdge(
+    x: number,
+    y: number,
+    bounds: { minX: number; maxX: number; minY: number; maxY: number },
+): PipPlacement {
+    const { minX, maxX, minY, maxY } = bounds;
+    const fraction = (value: number, min: number, max: number) =>
+        max > min ? Math.min(Math.max((value - min) / (max - min), 0), 1) : 0;
+    const gaps = {
+        top: y - minY,
+        bottom: maxY - y,
+        left: x - minX,
+        right: maxX - x,
+    };
+    const closest = Math.min(...Object.values(gaps));
+    if (closest === gaps.top || closest === gaps.bottom) {
+        return {
+            side: closest === gaps.top ? "top" : "bottom",
+            at: fraction(x, minX, maxX),
+        };
+    }
+    return {
+        side: closest === gaps.left ? "left" : "right",
+        at: fraction(y, minY, maxY),
+    };
+}
+
 /** Whether this environment can capture a screen (web/desktop yes; Capacitor
  *  Android WebView no). Feature-detected, not platform-sniffed. */
 export function canScreenShare(env: { getDisplayMedia?: unknown }): boolean {

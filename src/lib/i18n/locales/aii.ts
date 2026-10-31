@@ -2339,6 +2339,8 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/layout/VideoTile.svelte
     "videoTile.fullscreen": "ܡܚܙܝܬܐ ܫܠܡܬܐ",
+    "videoTile.pictureInPicture": "ܨܘܪܬܐ ܓܘ ܨܘܪܬܐ",
+    "videoTile.exitPictureInPicture": "ܦܘܩ ܡܢ ܨܘܪܬܐ ܓܘ ܨܘܪܬܐ",
 
     // src/lib/components/settings/VoiceAudioSettings.svelte
     "voiceAudioSettings.inputDevice": "ܡܐܢܐ ܕܡܥܠܢܐ",

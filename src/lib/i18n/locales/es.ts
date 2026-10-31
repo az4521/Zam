@@ -2533,6 +2533,8 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/layout/VideoTile.svelte
     "videoTile.fullscreen": "Pantalla completa",
+    "videoTile.pictureInPicture": "Imagen en imagen",
+    "videoTile.exitPictureInPicture": "Salir de imagen en imagen",
 
     // src/lib/components/settings/VoiceAudioSettings.svelte
     "voiceAudioSettings.inputDevice": "Dispositivo de entrada",

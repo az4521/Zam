@@ -15,6 +15,7 @@
     } from "lucide-svelte";
     import {
         voiceCallState,
+        isCallViewShowing,
         leaveCall,
         toggleCallMute,
         toggleCallDeafen,
@@ -66,12 +67,7 @@
         return parent ? `${name} / ${getRoomDisplayName(parent)}` : name;
     });
 
-    const callViewShowing = $derived(
-        !!voiceCallState.roomId &&
-            interfaceState.callViewRoomId === voiceCallState.roomId &&
-            roomsState.activeRoomId === voiceCallState.roomId &&
-            !roomsState.showInbox,
-    );
+    const callViewShowing = $derived(isCallViewShowing());
 
     // The call can live in a room outside the selected space, so switch space +
     // active room (navigateToRoom) before flipping to the call view — the shell

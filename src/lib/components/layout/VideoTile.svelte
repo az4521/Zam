@@ -1,9 +1,15 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
     import type { Track } from "livekit-client";
-    import { Maximize2 } from "lucide-svelte";
+    import { Maximize2, PictureInPicture2 } from "lucide-svelte";
     import { videoTrack } from "$lib/actions/videoTrack";
     import type { VideoTileDescriptor } from "$lib/utils/videoTiles";
+    import {
+        callPipState,
+        closePipWindow,
+        openPipWindow,
+        pipWindowSupported,
+    } from "$lib/stores/callPip.svelte";
 
     interface Props {
         tile: VideoTileDescriptor;
@@ -32,6 +38,16 @@
             void containerEl.requestFullscreen().catch(() => {});
         }
     }
+
+    const pipSupported = pipWindowSupported();
+    const inPip = $derived(
+        callPipState.windowOpen && callPipState.pinnedKey === tile.key,
+    );
+    function togglePip(e: MouseEvent): void {
+        e.stopPropagation();
+        if (inPip) closePipWindow();
+        else void openPipWindow(tile.key, tile.track as Track);
+    }
 </script>
 
 <div bind:this={containerEl} class="group relative w-full h-full bg-black">
@@ -49,6 +65,22 @@
         >
             <span class="text-xs text-white truncate">{label}</span>
         </div>
+        {#if pipSupported}
+            <button
+                onclick={togglePip}
+                class="absolute bottom-2 end-11 p-1.5 rounded bg-black/60 opacity-70 hover:opacity-100 focus-visible:opacity-100 transition-opacity {inPip
+                    ? 'text-discord-accent'
+                    : 'text-white'}"
+                title={inPip
+                    ? t("videoTile.exitPictureInPicture")
+                    : t("videoTile.pictureInPicture")}
+                aria-label={inPip
+                    ? t("videoTile.exitPictureInPicture")
+                    : t("videoTile.pictureInPicture")}
+            >
+                <PictureInPicture2 size={16} />
+            </button>
+        {/if}
         <button
             onclick={toggleFullscreen}
             class="absolute bottom-2 end-2 p-1.5 rounded bg-black/60 text-white opacity-70 hover:opacity-100 focus-visible:opacity-100 transition-opacity"

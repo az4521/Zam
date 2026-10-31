@@ -2435,6 +2435,8 @@ export const en = {
 
     // src/lib/components/layout/VideoTile.svelte
     "videoTile.fullscreen": "Fullscreen",
+    "videoTile.pictureInPicture": "Picture in picture",
+    "videoTile.exitPictureInPicture": "Exit picture in picture",
 
     // src/lib/components/settings/VoiceAudioSettings.svelte
     "voiceAudioSettings.inputDevice": "Input device",

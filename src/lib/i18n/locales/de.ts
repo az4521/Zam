@@ -2519,6 +2519,8 @@ const messages: Record<MessageKey, string> = {
 
     // src/lib/components/layout/VideoTile.svelte
     "videoTile.fullscreen": "Vollbild",
+    "videoTile.pictureInPicture": "Bild im Bild",
+    "videoTile.exitPictureInPicture": "Bild im Bild beenden",
 
     // src/lib/components/settings/VoiceAudioSettings.svelte
     "voiceAudioSettings.inputDevice": "Eingabegerät",
