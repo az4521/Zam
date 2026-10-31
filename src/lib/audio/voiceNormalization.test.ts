@@ -10,6 +10,9 @@ import {
     NORMALIZE_MAX_GAIN,
     createSpeechGate,
     speechWindow,
+    createNormalizer,
+    normalizerStep,
+    NORMALIZE_MAX_NOISE_DB,
 } from "./voiceNormalization";
 
 describe("rmsDb", () => {
@@ -99,5 +102,25 @@ describe("speechWindow", () => {
         for (let i = 0; i < 100; i++) feed(-50);
         expect(normalizationGain(level)).toBeCloseTo(speaking);
         expect(20 * Math.log10(speaking)).toBeCloseTo(NORMALIZE_TARGET_DB + 35);
+    });
+});
+
+describe("normalizerStep noise cap", () => {
+    it("never boosts a quiet voice so far that its noise floor is audible", () => {
+        const state = createNormalizer();
+        // Room noise at -60, a quiet speaker at -40: unrestricted this asks
+        // for +20 dB (clamped to +18), lifting the hiss to -42.
+        for (let i = 0; i < 20; i++) normalizerStep(state, -60, 0.1, 1);
+        let step = null;
+        for (let i = 0; i < 20; i++) step = normalizerStep(state, -40, 0.1, 1);
+        const outNoise = state.gate.floor! + 20 * Math.log10(step!.gain);
+        expect(outNoise).toBeLessThanOrEqual(NORMALIZE_MAX_NOISE_DB + 0.01);
+    });
+    it("still turns down loud voices", () => {
+        const state = createNormalizer();
+        for (let i = 0; i < 20; i++) normalizerStep(state, -70, 0.1, 1);
+        let step = null;
+        for (let i = 0; i < 20; i++) step = normalizerStep(state, -8, 0.1, 1);
+        expect(step!.gain).toBeLessThan(1);
     });
 });

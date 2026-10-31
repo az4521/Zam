@@ -16,6 +16,10 @@ export const NORMALIZE_MAX_GAIN = 8;
  *  the voice gets louder, so a sudden shout is caught within a few windows,
  *  low when it gets quieter, so one soft word does not swing the gain up. */
 export const NORMALIZE_LEVEL_RISE = 0.6;
+/** The boost is held through pauses, so it must never lift the voice's noise
+ *  floor (hiss, fans, what noise suppression leaves) above this, in dBFS
+ *  RMS. Same ceiling WebRTC's AGC2 uses. */
+export const NORMALIZE_MAX_NOISE_DB = -50;
 export const NORMALIZE_LEVEL_FALL = 0.1;
 
 /** RMS of a window in dBFS; -Infinity for digital silence. */
@@ -88,8 +92,16 @@ export function normalizerStep(
 ): { gain: number; timeConstant: number } | null {
     if (speechWindow(state.gate, windowDb, windowS))
         state.level = nextSpeechLevel(state.level, windowDb);
-    const gain = normalizationGain(state.level);
-    if (gain === null) return null;
+    let gain = normalizationGain(state.level);
+    if (gain === null || state.level === null) return null;
+    // The floor tracker creeps up during long speech, so never read it as
+    // closer than SPEECH_ABOVE_FLOOR_DB to the speech level.
+    const floor = state.gate.floor;
+    if (floor !== null) {
+        const noiseDb = Math.min(floor, state.level - SPEECH_ABOVE_FLOOR_DB);
+        const cap = 10 ** ((NORMALIZE_MAX_NOISE_DB - noiseDb) / 20);
+        gain = Math.min(gain, Math.max(1, cap));
+    }
     return { gain, timeConstant: gainTimeConstant(currentGain, gain) };
 }
 
