@@ -2510,6 +2510,7 @@ export const en = {
         "Push to talk needs a key before it can work.",
     "voiceAudioSettings.pushToTalkSetKey": "Set a push to talk key",
     "voiceAudioSettings.camera": "Camera",
+    "voiceAudioSettings.cameraDisabled": "Disabled",
     "voiceAudioSettings.mirrorMyCamera": "Mirror my camera",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
         "Flip your own preview. Others always see you un-mirrored.",
@@ -2808,6 +2809,8 @@ export const en = {
     "client.microphoneDisconnectedSwitchedToTheDefault":
         "Microphone disconnected - switched to the default device",
     "client.cameraDisconnected": "Camera disconnected",
+    "client.cameraIsDisabledInSettings":
+        "Your camera is disabled in Voice & Video settings",
     "client.unknownRoom": "Unknown room",
     "client.theServerRejectedItYouMay":
         "the server rejected it - you may lack permission to join calls in this room",
@@ -3059,6 +3062,8 @@ export const en = {
     "voiceCall.couldnTLoadTheCallComponent":
         "Couldn't load the call component. Check your connection, then reload the page to try again.",
     "voiceCall.couldNotJoinTheVoiceCall": "Could not join the voice call",
+    "voiceCall.joinedWithoutAMicrophone":
+        "Your microphone isn't available - you can still listen and share your screen",
     "voiceCall.couldNotMuteYourMicrophone": "Could not mute your microphone",
     "voiceCall.couldNotUnmuteYourMicrophoneCheck":
         "Could not unmute your microphone - check your input device",
@@ -3311,8 +3316,10 @@ export const en = {
     "messageDisplay.systemDefault": "System default",
 
     // src/lib/utils/micErrorMessage.ts
+    "micErrorMessage.microphoneAccessIsBlockedAllowIt":
+        "Microphone access is blocked - allow it in your browser or system settings to talk",
     "micErrorMessage.noMicrophoneFoundConnectOneOr":
-        "No microphone found - connect one or pick another input device to join the call",
+        "No microphone found - connect one or pick another input device to talk",
     "micErrorMessage.couldNotOpenYourMicrophoneAnother":
         "Could not open your microphone - another app may be using it",
 

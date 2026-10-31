@@ -1,5 +1,6 @@
 /**
- * Actionable text for a microphone failure at call join (audit IMP-5).
+ * Actionable text for a microphone failure at call join (audit IMP-5). The
+ * call goes ahead without the mic; this says why and how to get it back.
  * getUserMedia rejects with a DOMException whose raw message ("Permission
  * denied", "Requested device not found") tells the user nothing about what to
  * do. Returns null for anything that is not a recognised microphone failure,
@@ -11,7 +12,7 @@ export function micErrorMessage(err: unknown): string | null {
     switch (err.name) {
         case "NotAllowedError":
         case "SecurityError":
-            return "Microphone access is blocked - allow it in your browser or system settings to join the call";
+            return t("micErrorMessage.microphoneAccessIsBlockedAllowIt");
         case "NotFoundError":
         case "OverconstrainedError":
             return t("micErrorMessage.noMicrophoneFoundConnectOneOr");

@@ -9973,6 +9973,7 @@ export {
     switchCallVideoCodec,
     onVoiceCallError,
     onVoiceNotice,
+    onCallMicUnavailable,
     onVoicePlaybackBlockedChanged,
     resumeVoicePlayback,
     getActiveVoiceRoomId,

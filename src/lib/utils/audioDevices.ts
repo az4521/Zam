@@ -16,6 +16,10 @@ const KIND_LABELS: Record<string, string> = {
     videoinput: t("audioDevices.camera"),
 };
 
+/** The camera picker's "Disabled" entry. Never a device id: the setting it
+ *  stands for is `cameraDisabled`. */
+export const CAMERA_DISABLED = "disabled";
+
 // Windows Chromium exposes virtual "default"/"communications" entries; the
 // UI's explicit "Default" option covers those, so hide them from the list.
 const VIRTUAL_IDS = new Set(["default", "communications"]);

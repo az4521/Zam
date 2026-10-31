@@ -16,7 +16,29 @@ import {
     callBannerDecision,
     callControlMode,
     isRecentlyLeftHere,
+    mutedIdentities,
 } from "./voiceCall";
+
+describe("mutedIdentities", () => {
+    it("counts a participant with a closed mic or none as muted", () => {
+        expect(
+            mutedIdentities([
+                { identity: "a", micOn: true },
+                { identity: "b", micOn: false },
+            ]),
+        ).toEqual(["b"]);
+    });
+    it("trusts the connection a device publishes on over those it only listens on", () => {
+        expect(
+            mutedIdentities([
+                { identity: "a", micOn: false },
+                { identity: "a", micOn: true },
+                { identity: "b", micOn: false },
+                { identity: "b", micOn: false },
+            ]),
+        ).toEqual(["b"]);
+    });
+});
 
 describe("screenShareCaptureResolution", () => {
     it("maps a known resolution key and frame rate", () => {

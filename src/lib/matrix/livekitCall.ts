@@ -31,6 +31,7 @@ import {
     pickOwnLivekitTransport,
     remoteLivekitTargets,
     livekitTargetKey,
+    mutedIdentities,
     type LivekitTarget,
     sfuJwtUrl,
     screenShareCaptureResolution,
@@ -580,6 +581,20 @@ function notifyVoiceNotice(message: string): void {
     for (const cb of voiceNoticeSubscribers) cb(message);
 }
 
+const micUnavailableSubscribers = new Set<(err: unknown) => void>();
+
+/** Fires when a join carries on without a microphone (permission refused, none
+ *  plugged in, in use elsewhere). The call stays up, muted, and unmuting asks
+ *  for the mic again. */
+export function onCallMicUnavailable(cb: (err: unknown) => void): () => void {
+    micUnavailableSubscribers.add(cb);
+    return () => micUnavailableSubscribers.delete(cb);
+}
+
+function notifyCallMicUnavailable(err: unknown): void {
+    for (const cb of micUnavailableSubscribers) cb(err);
+}
+
 // --- GPU-process exits ------------------------------------------------------
 
 /** The last recovery from a GPU exit in a call; `doneAt` is null while its
@@ -767,18 +782,17 @@ export async function joinHiddenSfuRoom(target: LivekitTarget) {
     return { room, lk };
 }
 
-/** Remote identities with a muted mic, across every connection. */
+/** Remote identities with no open mic, across every connection. */
 function notifyCallMutes(call: ActiveVoiceCall): void {
     if (activeVoice !== call) return;
-    const muted = new Set<string>();
+    const peers: { identity: string; micOn: boolean }[] = [];
     for (const lkRoom of callLkRooms(call))
-        for (const p of lkRoom.remoteParticipants.values())
-            for (const pub of p.audioTrackPublications.values())
-                if (pub.isMuted) {
-                    muted.add(p.identity);
-                    break;
-                }
-    for (const cb of participantMuteSubscribers) cb([...muted]);
+        for (const p of lkRoom.remoteParticipants.values()) {
+            const mic = p.getTrackPublication(call.lk.Track.Source.Microphone);
+            peers.push({ identity: p.identity, micOn: !!mic && !mic.isMuted });
+        }
+    const muted = mutedIdentities(peers);
+    for (const cb of participantMuteSubscribers) cb(muted);
 }
 
 function notifyCallVideo(call: ActiveVoiceCall): void {
@@ -926,8 +940,12 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
     const mutes = () => notifyCallMutes(call);
     lkRoom.on(lk.RoomEvent.TrackMuted, mutes);
     lkRoom.on(lk.RoomEvent.TrackUnmuted, mutes);
-    // A participant arriving already muted fires neither event.
+    // A participant arriving already muted fires neither event, and one
+    // without a mic has no track to fire them about.
     lkRoom.on(lk.RoomEvent.TrackSubscribed, mutes);
+    lkRoom.on(lk.RoomEvent.TrackPublished, mutes);
+    lkRoom.on(lk.RoomEvent.TrackUnpublished, mutes);
+    lkRoom.on(lk.RoomEvent.ParticipantConnected, mutes);
     lkRoom.on(lk.RoomEvent.ParticipantDisconnected, mutes);
     const video = () => notifyCallVideo(call);
     lkRoom.on(lk.RoomEvent.TrackSubscribed, video);
@@ -1204,6 +1222,7 @@ async function connectRemoteSfu(
             return;
         }
         call.remotes.set(key, lkRoom);
+        notifyCallMutes(call);
         announceCodecs(call, lkRoom);
         notifyCallEncryption(call);
         call.remoteFailuresNotified.delete(key);
@@ -1234,8 +1253,9 @@ async function connectRemoteSfu(
  * Join the MatrixRTC voice call in a room.
  *
  * Resolves without joining when superseded mid-flight by a newer
- * `joinVoiceCall` or an explicit `leaveVoiceCall`; rejects on
- * mic-permission, JWT, or SFU failure. Observe the actual state via
+ * `joinVoiceCall` or an explicit `leaveVoiceCall`; rejects on JWT or SFU
+ * failure. A microphone that can't be had doesn't stop the join: the call
+ * starts muted (`onCallMicUnavailable`). Observe the actual state via
  * `onVoiceConnStateChanged` / `getActiveVoiceRoomId`, not the returned
  * promise.
  */
@@ -1266,9 +1286,18 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     await leaveVoiceCallInternal();
     if (seq !== voiceJoinSeq) return; // superseded while leaving
 
-    // Fail fast on mic permission before announcing membership.
-    const probe = await navigator.mediaDevices.getUserMedia({ audio: true });
-    probe.getTracks().forEach((t) => t.stop());
+    // Settle the mic permission before announcing membership. Refusing it (or
+    // having no mic) still joins: listening and screen sharing don't need one.
+    let micFailure: { err: unknown } | null = null;
+    try {
+        const probe = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+        });
+        probe.getTracks().forEach((t) => t.stop());
+    } catch (err) {
+        console.warn("Joining the call without a microphone:", err);
+        micFailure = { err };
+    }
     if (seq !== voiceJoinSeq) return;
 
     const session = matrixClient.matrixRTC.getRoomSession(room);
@@ -1400,9 +1429,10 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     installDecodePreferences();
     startUploadSampling(call);
     ensureVoiceDeviceWatch();
-    desiredMicMuted = micClosedAtJoin();
+    desiredMicMuted = !!micFailure || micClosedAtJoin();
     desiredCameraOn = false;
     notifyVoiceConnState("connecting");
+    if (micFailure) notifyCallMicUnavailable(micFailure.err);
     session.on("membership_manager_error" as never, onMmError as never);
     matrixClient.on("Room.myMembership" as never, onMyMembership as never);
 
@@ -1486,15 +1516,16 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             silenceNotified = true;
             notifyVoiceNotice(t("client.yourMicrophoneAppearsSilentCheckYour"));
         });
-        lkRoom.on(lk.RoomEvent.MediaDevicesError, (e: Error) => {
+        lkRoom.on(lk.RoomEvent.MediaDevicesError, (e: Error, kind) => {
             if (activeVoice !== call) return;
             // LiveKit emits this BEFORE it rethrows the getUserMedia/
             // getDisplayMedia rejection, so it also fires on every ordinary
             // dismissal of a picker or permission prompt. Without this guard,
             // cancelling the screen-share picker toasts a bogus "Audio device
             // error", and a denied camera permission double-toasts alongside
-            // setCameraEnabled's own (accurate) message.
-            if (isUserCancel(e)) return;
+            // setCameraEnabled's own (accurate) message. A mic that won't
+            // open is reported the same way, by whoever tried to open it.
+            if (isUserCancel(e) || kind === "audioinput") return;
             notifyVoiceNotice(
                 t("client.audioDeviceError", { message: e.message }),
             );
@@ -1505,6 +1536,8 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         sfuUrlOf.set(lkRoom, url);
         await lkRoom.connect(url, jwt);
         connected = true;
+        // Whoever was here first, muted, sent no event we were around for.
+        notifyCallMutes(call);
         // The server's enabled codecs are known now.
         announceCodecs(call, lkRoom);
         notifyCallCodecs(call);
@@ -1513,7 +1546,16 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             await lkRoom.disconnect().catch(() => {});
             return;
         }
-        await setCallMicEnabled(call, !desiredMicMuted);
+        try {
+            await setCallMicEnabled(call, !desiredMicMuted);
+        } catch (err) {
+            // The probe passed but the chosen device wouldn't open.
+            console.warn("Joining the call without a microphone:", err);
+            if (seq === voiceJoinSeq) {
+                desiredMicMuted = true;
+                notifyCallMicUnavailable(err);
+            }
+        }
         if (seq !== voiceJoinSeq) {
             await lkRoom.disconnect().catch(() => {});
             return;
@@ -2007,16 +2049,24 @@ export function setScreenShareQuality(
     return screenShareQualityChain;
 }
 
-/** Start/stop publishing the camera, using the configured input device. */
+/** Start/stop publishing the camera, using the configured input device. The
+ *  one way a call's camera starts, so "Disabled" in settings is enforced here
+ *  whichever button, keybind or system control asked. */
 export async function setCameraEnabled(on: boolean): Promise<boolean> {
     const call = activeVoice;
     if (!call) return false;
+    if (on && settingsState.cameraDisabled) {
+        notifyVoiceNotice(t("client.cameraIsDisabledInSettings"));
+        return false;
+    }
     try {
         await call.lkRoom.localParticipant.setCameraEnabled(
             on,
             { deviceId: settingsState.videoInputDeviceId ?? undefined },
             videoCodecPublishOptions(call),
         );
+        // Disabled while it was starting (its permission prompt, say).
+        if (on && settingsState.cameraDisabled) return setCameraEnabled(false);
         if (activeVoice === call) desiredCameraOn = on;
         return on;
     } catch (err) {

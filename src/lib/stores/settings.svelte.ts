@@ -427,6 +427,7 @@ export const settingsState = $state({
     /** Mirror the local camera self-view (horizontal flip). Local display
      *  only — remote participants always see you un-mirrored. */
     mirrorCamera: readAccountBool("mirrorCamera", true),
+    cameraDisabled: readAccountBool("cameraDisabled", false),
     ignoreCodecSupport: readAccountBool("ignoreCodecSupport", false),
     /** Get GPU H.264 encoding from servers that answer with Constrained
      *  Baseline (utils/h264Profile); Settings > Debug turns it off. */
@@ -749,6 +750,7 @@ export function reloadAccountSettings(): void {
         false,
     );
     settingsState.mirrorCamera = readAccountBool("mirrorCamera", true);
+    settingsState.cameraDisabled = readAccountBool("cameraDisabled", false);
     settingsState.ignoreCodecSupport = readAccountBool(
         "ignoreCodecSupport",
         false,
@@ -1084,6 +1086,11 @@ export function setAudioOutputDeviceId(value: string | null): void {
 export function setVideoInputDeviceId(value: string | null): void {
     settingsState.videoInputDeviceId = value;
     writeAccountString("videoInputDeviceId", value ?? "");
+}
+
+export function setCameraDisabled(value: boolean): void {
+    settingsState.cameraDisabled = value;
+    writeAccountBool("cameraDisabled", value);
 }
 
 export function setCallOutputVolume(value: number): void {

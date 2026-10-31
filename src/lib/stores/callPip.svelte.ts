@@ -142,7 +142,8 @@ export function closePipWindow(): void {
 
 export interface PipCallActions {
     toggleMic: () => void;
-    toggleCamera: () => void;
+    /** Null leaves the camera button out (camera disabled in settings). */
+    toggleCamera: (() => void) | null;
     hangUp: () => void;
 }
 

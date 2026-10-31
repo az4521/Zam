@@ -2572,6 +2572,7 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.pushToTalkSetKey":
         "Définir une touche d'appui pour parler",
     "voiceAudioSettings.camera": "Caméra",
+    "voiceAudioSettings.cameraDisabled": "Désactivée",
     "voiceAudioSettings.mirrorMyCamera": "Afficher ma caméra en miroir",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
         "Retourne votre propre aperçu. Les autres vous voient toujours sans effet miroir.",
@@ -2914,6 +2915,8 @@ const messages: Record<MessageKey, string> = {
     "client.microphoneDisconnectedSwitchedToTheDefault":
         "Micro déconnecté - passage au périphérique par défaut",
     "client.cameraDisconnected": "Caméra déconnectée",
+    "client.cameraIsDisabledInSettings":
+        "Votre caméra est désactivée dans les réglages Voix et vidéo",
     "client.unknownRoom": "Salon inconnu",
     "client.theServerRejectedItYouMay":
         "le serveur a refusé - vous n'avez peut-être pas l'autorisation de rejoindre les appels de ce salon",
@@ -3180,6 +3183,8 @@ const messages: Record<MessageKey, string> = {
         "Impossible de charger le composant d'appel. Vérifiez votre connexion, puis rechargez la page pour réessayer.",
     "voiceCall.couldNotJoinTheVoiceCall":
         "Impossible de rejoindre l'appel vocal",
+    "voiceCall.joinedWithoutAMicrophone":
+        "Votre micro n'est pas disponible - vous pouvez quand même écouter et partager votre écran",
     "voiceCall.couldNotMuteYourMicrophone": "Impossible de couper votre micro",
     "voiceCall.couldNotUnmuteYourMicrophoneCheck":
         "Impossible de réactiver votre micro - vérifiez votre périphérique d'entrée",
@@ -3447,8 +3452,10 @@ const messages: Record<MessageKey, string> = {
     "messageDisplay.systemDefault": "Police du système",
 
     // src/lib/utils/micErrorMessage.ts
+    "micErrorMessage.microphoneAccessIsBlockedAllowIt":
+        "L'accès au micro est bloqué - autorisez-le dans votre navigateur ou les réglages système pour parler",
     "micErrorMessage.noMicrophoneFoundConnectOneOr":
-        "Aucun micro trouvé - branchez-en un ou choisissez un autre périphérique d'entrée pour rejoindre l'appel",
+        "Aucun micro trouvé - branchez-en un ou choisissez un autre périphérique d'entrée pour parler",
     "micErrorMessage.couldNotOpenYourMicrophoneAnother":
         "Impossible d'ouvrir votre micro - une autre application l'utilise peut-être",
 

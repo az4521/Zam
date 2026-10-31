@@ -2413,6 +2413,7 @@ const messages: Record<MessageKey, string> = {
         "Push to talk needs a key before it can work.",
     "voiceAudioSettings.pushToTalkSetKey": "Set a push to talk key",
     "voiceAudioSettings.camera": "ܟܡܪܐ",
+    "voiceAudioSettings.cameraDisabled": "ܡܛܦܝܐ",
     "voiceAudioSettings.mirrorMyCamera": "ܚܘܝ ܟܡܪܐ ܕܝܝ ܐܝܟ ܡܚܙܝܬܐ",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
         "ܗܦܘܟ ܚܙܝܬܐ ܩܕܡܝܬܐ ܕܝܘܟ. ܐܚܪ̈ܢܐ ܟܠ ܙܒܢܐ ܚܙܝ ܠܘܟ ܕܠܐ ܗܦܟܐ.",
@@ -2733,6 +2734,8 @@ const messages: Record<MessageKey, string> = {
     "client.microphoneDisconnectedSwitchedToTheDefault":
         "ܡܝܩܪܘܦܘܢ ܦܣܝܩܐ ܝܠܗ - ܫܚܠܦܠܗ ܠܡܐܢܐ ܥܕܝܠܐ",
     "client.cameraDisconnected": "ܟܡܪܐ ܦܣܝܩܬܐ ܝܠܗ̇",
+    "client.cameraIsDisabledInSettings":
+        "ܟܡܪܐ ܕܝܘܟ ܡܛܦܝܬܐ ܝܠܗ̇ ܒܛܟܣ̈ܐ ܕܩܠܐ ܘܒܝܕܝܘ",
     "client.unknownRoom": "ܓܘܡܐ ܠܐ ܝܕܝܥܐ",
     "client.theServerRejectedItYouMay":
         "ܣܝܪܒܪ ܠܐ ܩܒܠܠܗ - ܡܨܐ ܕܠܝܬ ܠܘܟ ܦܣܐ ܠܥܠܠܐ ܠܩܪ̈ܝܬܐ ܓܘ ܗܢܐ ܓܘܡܐ",
@@ -2972,6 +2975,8 @@ const messages: Record<MessageKey, string> = {
     "voiceCall.couldnTLoadTheCallComponent":
         "ܛܥܢܐ ܕܡܢܬܐ ܕܩܪܝܬܐ ܠܐ ܦܠܚܠܗ. ܒܨܝ ܐܚܝܕܘܬܐ ܕܝܘܟ، ܘܒܬܪ ܛܥܘܢ ܦܐܬܐ ܡܢ ܕܪܝܫ ܩܐ ܢܣܝܢܐ ܐܚܪܢܐ.",
     "voiceCall.couldNotJoinTheVoiceCall": "ܥܠܠܐ ܠܩܪܝܬܐ ܕܩܠܐ ܠܐ ܦܠܚܠܗ",
+    "voiceCall.joinedWithoutAMicrophone":
+        "ܡܝܩܪܘܦܘܢ ܕܝܘܟ ܠܝܬ ܠܗ - ܡܨܝܬ ܕܫܡܥܬ ܘܕܫܘܬܦܬ ܡܚܙܝܬܐ ܕܝܘܟ",
     "voiceCall.couldNotMuteYourMicrophone": "ܫܬܩܐ ܕܡܝܩܪܘܦܘܢ ܕܝܘܟ ܠܐ ܦܠܚܠܗ",
     "voiceCall.couldNotUnmuteYourMicrophoneCheck":
         "ܫܪܝܐ ܕܫܬܩܐ ܕܡܝܩܪܘܦܘܢ ܕܝܘܟ ܠܐ ܦܠܚܠܗ - ܒܨܝ ܡܐܢܐ ܕܡܥܠܢܐ ܕܝܘܟ",
@@ -3219,8 +3224,10 @@ const messages: Record<MessageKey, string> = {
     "messageDisplay.systemDefault": "ܥܕܝܠܐ ܕܣܝܣܛܡ",
 
     // src/lib/utils/micErrorMessage.ts
+    "micErrorMessage.microphoneAccessIsBlockedAllowIt":
+        "ܡܝܩܪܘܦܘܢ ܟܠܝܐ ܝܠܗ - ܦܣ ܠܗ ܒܛܟܣ̈ܐ ܩܐ ܡܚܟܝܬܐ",
     "micErrorMessage.noMicrophoneFoundConnectOneOr":
-        "ܠܐ ܦܝܫܐ ܡܫܟܚܐ ܡܝܩܪܘܦܘܢ - ܐܚܘܕ ܚܕ ܝܢ ܓܒܝ ܡܐܢܐ ܐܚܪܢܐ ܕܡܥܠܢܐ ܩܐ ܥܠܠܐ ܠܩܪܝܬܐ",
+        "ܠܐ ܦܝܫܐ ܡܫܟܚܐ ܡܝܩܪܘܦܘܢ - ܐܚܘܕ ܚܕ ܝܢ ܓܒܝ ܡܐܢܐ ܐܚܪܢܐ ܕܡܥܠܢܐ ܩܐ ܡܚܟܝܬܐ",
     "micErrorMessage.couldNotOpenYourMicrophoneAnother":
         "ܦܬܚܐ ܕܡܝܩܪܘܦܘܢ ܕܝܘܟ ܠܐ ܦܠܚܠܗ - ܡܨܐ ܕܬܘܟܢܝܬܐ ܐܚܪܬܐ ܒܦܠܚܐ ܝܠܗ̇ ܒܗ",
 

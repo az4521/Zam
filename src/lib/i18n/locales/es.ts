@@ -2609,6 +2609,7 @@ const messages: Record<MessageKey, string> = {
     "voiceAudioSettings.pushToTalkSetKey":
         "Definir una tecla de pulsar para hablar",
     "voiceAudioSettings.camera": "Cámara",
+    "voiceAudioSettings.cameraDisabled": "Desactivada",
     "voiceAudioSettings.mirrorMyCamera": "Reflejar mi cámara",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
         "Voltea tu propia vista previa. Los demás siempre te ven sin reflejar.",
@@ -2951,6 +2952,8 @@ const messages: Record<MessageKey, string> = {
     "client.microphoneDisconnectedSwitchedToTheDefault":
         "Micrófono desconectado; se ha cambiado al dispositivo predeterminado",
     "client.cameraDisconnected": "Cámara desconectada",
+    "client.cameraIsDisabledInSettings":
+        "Tu cámara está desactivada en los ajustes de Voz y vídeo",
     "client.unknownRoom": "Sala desconocida",
     "client.theServerRejectedItYouMay":
         "el servidor lo rechazó; puede que no tengas permiso para unirte a llamadas en esta sala",
@@ -3214,6 +3217,8 @@ const messages: Record<MessageKey, string> = {
     "voiceCall.couldnTLoadTheCallComponent":
         "No se pudo cargar el componente de llamada. Comprueba tu conexión y recarga la página para volver a intentarlo.",
     "voiceCall.couldNotJoinTheVoiceCall": "No se pudo unir a la llamada de voz",
+    "voiceCall.joinedWithoutAMicrophone":
+        "Tu micrófono no está disponible; aun así puedes escuchar y compartir tu pantalla",
     "voiceCall.couldNotMuteYourMicrophone": "No se pudo silenciar tu micrófono",
     "voiceCall.couldNotUnmuteYourMicrophoneCheck":
         "No se pudo activar tu micrófono; revisa tu dispositivo de entrada",
@@ -3481,8 +3486,10 @@ const messages: Record<MessageKey, string> = {
     "messageDisplay.systemDefault": "Predeterminada del sistema",
 
     // src/lib/utils/micErrorMessage.ts
+    "micErrorMessage.microphoneAccessIsBlockedAllowIt":
+        "El acceso al micrófono está bloqueado: permítelo en el navegador o en los ajustes del sistema para hablar",
     "micErrorMessage.noMicrophoneFoundConnectOneOr":
-        "No se encontró ningún micrófono: conecta uno o elige otro dispositivo de entrada para unirte a la llamada",
+        "No se encontró ningún micrófono: conecta uno o elige otro dispositivo de entrada para hablar",
     "micErrorMessage.couldNotOpenYourMicrophoneAnother":
         "No se pudo abrir tu micrófono; puede que otra aplicación lo esté usando",
 

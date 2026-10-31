@@ -24,6 +24,7 @@
         toggleCamera,
         toggleScreenShare,
     } from "$lib/stores/voiceCall.svelte";
+    import { settingsState } from "$lib/stores/settings.svelte";
     import {
         dedupeParticipants,
         callBannerDecision,
@@ -132,22 +133,24 @@
                  stayed on the timeline never has to open the call view to
                  start video. Same store toggles, same support gate. -->
             <div class="flex items-center gap-1 flex-shrink-0">
-                <button
-                    onclick={() => void toggleCamera()}
-                    class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.cameraOn
-                        ? 'text-discord-accent'
-                        : 'text-discord-textMuted hover:text-discord-textPrimary'}"
-                    title={voiceCallState.cameraOn
-                        ? t("common.turnOffCamera")
-                        : t("common.turnOnCamera")}
-                    aria-label={voiceCallState.cameraOn
-                        ? t("common.turnOffCamera")
-                        : t("common.turnOnCamera")}
-                >
-                    {#if voiceCallState.cameraOn}<Video
-                            size={16}
-                        />{:else}<VideoOff size={16} />{/if}
-                </button>
+                {#if !settingsState.cameraDisabled}
+                    <button
+                        onclick={() => void toggleCamera()}
+                        class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.cameraOn
+                            ? 'text-discord-accent'
+                            : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                        title={voiceCallState.cameraOn
+                            ? t("common.turnOffCamera")
+                            : t("common.turnOnCamera")}
+                        aria-label={voiceCallState.cameraOn
+                            ? t("common.turnOffCamera")
+                            : t("common.turnOnCamera")}
+                    >
+                        {#if voiceCallState.cameraOn}<Video
+                                size={16}
+                            />{:else}<VideoOff size={16} />{/if}
+                    </button>
+                {/if}
                 {#if screenShareSupported}
                     <button
                         onclick={() => void toggleScreenShare()}

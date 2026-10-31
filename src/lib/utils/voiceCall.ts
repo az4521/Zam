@@ -328,3 +328,17 @@ export function identityToUserId(identity: string): string {
 export function usersFromIdentities(identities: string[]): Set<string> {
     return new Set(identities.map(identityToUserId));
 }
+
+/**
+ * Identities with no open mic on any connection. A device publishes on one SFU
+ * and only listens on the others, so finding no mic for it on one connection
+ * says nothing: it counts as muted only if no connection has one open. That
+ * includes a participant who joined without a mic at all.
+ */
+export function mutedIdentities(
+    peers: { identity: string; micOn: boolean }[],
+): string[] {
+    const heard = new Set(peers.filter((p) => p.micOn).map((p) => p.identity));
+    const everyone = new Set(peers.map((p) => p.identity));
+    return [...everyone].filter((id) => !heard.has(id));
+}

@@ -86,7 +86,9 @@
         if (!callPipState.windowOpen) return;
         return bindPipCallActions({
             toggleMic: toggleCallMute,
-            toggleCamera: () => void toggleCamera(),
+            toggleCamera: settingsState.cameraDisabled
+                ? null
+                : () => void toggleCamera(),
             hangUp: leaveCall,
         });
     });

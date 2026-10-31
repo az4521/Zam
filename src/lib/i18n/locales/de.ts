@@ -2594,6 +2594,7 @@ const messages: Record<MessageKey, string> = {
         "Push-to-Talk braucht eine Taste, damit es funktioniert.",
     "voiceAudioSettings.pushToTalkSetKey": "Push-to-Talk-Taste festlegen",
     "voiceAudioSettings.camera": "Kamera",
+    "voiceAudioSettings.cameraDisabled": "Deaktiviert",
     "voiceAudioSettings.mirrorMyCamera": "Meine Kamera spiegeln",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
         "Spiegelt deine eigene Vorschau. Andere sehen dich immer ungespiegelt.",
@@ -2939,6 +2940,8 @@ const messages: Record<MessageKey, string> = {
     "client.microphoneDisconnectedSwitchedToTheDefault":
         "Mikrofon getrennt - zum Standardgerät gewechselt",
     "client.cameraDisconnected": "Kamera getrennt",
+    "client.cameraIsDisabledInSettings":
+        "Deine Kamera ist in den Einstellungen unter Sprache und Video deaktiviert",
     "client.unknownRoom": "Unbekannter Raum",
     "client.theServerRejectedItYouMay":
         "der Server hat abgelehnt - dir fehlt möglicherweise die Berechtigung, Anrufen in diesem Raum beizutreten",
@@ -3206,6 +3209,8 @@ const messages: Record<MessageKey, string> = {
         "Die Anrufkomponente konnte nicht geladen werden. Prüfe deine Verbindung und lade die Seite dann neu.",
     "voiceCall.couldNotJoinTheVoiceCall":
         "Dem Sprachanruf konnte nicht beigetreten werden",
+    "voiceCall.joinedWithoutAMicrophone":
+        "Dein Mikrofon ist nicht verfügbar - du kannst trotzdem zuhören und deinen Bildschirm teilen",
     "voiceCall.couldNotMuteYourMicrophone":
         "Dein Mikrofon konnte nicht stummgeschaltet werden",
     "voiceCall.couldNotUnmuteYourMicrophoneCheck":
@@ -3480,8 +3485,10 @@ const messages: Record<MessageKey, string> = {
     "messageDisplay.systemDefault": "Systemstandard",
 
     // src/lib/utils/micErrorMessage.ts
+    "micErrorMessage.microphoneAccessIsBlockedAllowIt":
+        "Der Mikrofonzugriff ist blockiert - erlaube ihn im Browser oder in den Systemeinstellungen, um zu sprechen",
     "micErrorMessage.noMicrophoneFoundConnectOneOr":
-        "Kein Mikrofon gefunden - schließe eines an oder wähle ein anderes Eingabegerät, um dem Anruf beizutreten",
+        "Kein Mikrofon gefunden - schließe eines an oder wähle ein anderes Eingabegerät, um zu sprechen",
     "micErrorMessage.couldNotOpenYourMicrophoneAnother":
         "Dein Mikrofon konnte nicht geöffnet werden - möglicherweise verwendet es eine andere App",
 

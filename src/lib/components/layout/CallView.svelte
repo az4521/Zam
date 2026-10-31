@@ -938,22 +938,24 @@
                             />{:else}<Ear size={20} />{/if}
                     </button>
                 {/if}
-                <button
-                    onclick={() => void toggleCamera()}
-                    class="p-3 rounded-full hover:bg-discord-messageHover {voiceCallState.cameraOn
-                        ? 'text-discord-accent'
-                        : 'text-discord-textPrimary'}"
-                    title={voiceCallState.cameraOn
-                        ? t("common.turnOffCamera")
-                        : t("common.turnOnCamera")}
-                    aria-label={voiceCallState.cameraOn
-                        ? t("common.turnOffCamera")
-                        : t("common.turnOnCamera")}
-                >
-                    {#if voiceCallState.cameraOn}<Video
-                            size={20}
-                        />{:else}<VideoOff size={20} />{/if}
-                </button>
+                {#if !settingsState.cameraDisabled}
+                    <button
+                        onclick={() => void toggleCamera()}
+                        class="p-3 rounded-full hover:bg-discord-messageHover {voiceCallState.cameraOn
+                            ? 'text-discord-accent'
+                            : 'text-discord-textPrimary'}"
+                        title={voiceCallState.cameraOn
+                            ? t("common.turnOffCamera")
+                            : t("common.turnOnCamera")}
+                        aria-label={voiceCallState.cameraOn
+                            ? t("common.turnOffCamera")
+                            : t("common.turnOnCamera")}
+                    >
+                        {#if voiceCallState.cameraOn}<Video
+                                size={20}
+                            />{:else}<VideoOff size={20} />{/if}
+                    </button>
+                {/if}
                 {#if screenShareSupported}
                     <button
                         onclick={onShareBtnClick}

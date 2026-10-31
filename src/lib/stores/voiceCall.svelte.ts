@@ -14,6 +14,7 @@ import {
     onVoiceNotice,
     onVoicePlaybackBlockedChanged,
     onParticipantMuteChanged,
+    onCallMicUnavailable,
     setParticipantVolume,
     setParticipantShareVolume,
     setParticipantSoundVolume,
@@ -381,6 +382,12 @@ export function initVoiceCall(): () => void {
         showErrorToast(msg);
     });
     const unsubNotice = onVoiceNotice((msg) => showErrorToast(msg));
+    const unsubNoMic = onCallMicUnavailable((err) => {
+        voiceCallState.micMuted = true;
+        showErrorToast(
+            micErrorMessage(err) ?? t("voiceCall.joinedWithoutAMicrophone"),
+        );
+    });
     // Android system call stack: hang-up / hold / mute from the notification,
     // a headset, the car, or a cellular call taking over.
     const unsubNative = [
@@ -445,6 +452,7 @@ export function initVoiceCall(): () => void {
         unsubMutes();
         unsubError();
         unsubNotice();
+        unsubNoMic();
         for (const unsub of unsubNative) unsub();
         unsubBlocked();
         unsubVideo();
@@ -466,11 +474,10 @@ export async function joinCall(roomId: string): Promise<void> {
         showErrorToast(
             isChunkLoadError(err)
                 ? CHUNK_LOAD_MESSAGE
-                : (micErrorMessage(err) ??
-                      matrixErrorMessage(
-                          err,
-                          t("voiceCall.couldNotJoinTheVoiceCall"),
-                      )),
+                : matrixErrorMessage(
+                      err,
+                      t("voiceCall.couldNotJoinTheVoiceCall"),
+                  ),
         );
     } finally {
         voiceCallState.joinPendingRoomId = null;
@@ -498,7 +505,13 @@ function micGated(): boolean {
 
 function applyMicGate(): void {
     if (!voiceCallState.roomId) return;
-    void setMicMuted(voiceCallState.micMuted || micGated());
+    const closed = voiceCallState.micMuted || micGated();
+    void setMicMuted(closed).then((ok) => {
+        if (ok || closed || voiceCallState.roomId === null) return;
+        // Push to talk found no mic to open: show that, as a failed unmute does.
+        voiceCallState.micMuted = true;
+        showErrorToast(t("voiceCall.couldNotUnmuteYourMicrophoneCheck"));
+    });
 }
 
 export function setPushToTalkHeld(held: boolean): void {
@@ -609,11 +622,15 @@ export async function toggleScreenShare(): Promise<void> {
 }
 
 export async function toggleCamera(): Promise<void> {
-    const turningOn = !voiceCallState.cameraOn;
-    await setCameraEnabled(turningOn);
+    const on = await setCameraEnabled(!voiceCallState.cameraOn);
     // A video call is not held to the ear: move it off the earpiece.
-    if (turningOn && voiceCallState.audioRoute === "earpiece")
+    if (on && voiceCallState.audioRoute === "earpiece")
         setNativeAudioRoute("speaker");
+}
+
+/** Stop the call's camera now: it was just disabled in settings. */
+export function stopCallCamera(): void {
+    void setCameraEnabled(false);
 }
 
 /** Mute both ways while the system holds the call, then restore whatever the

@@ -12,6 +12,7 @@
         setAudioInputDeviceId,
         setAudioOutputDeviceId,
         setVideoInputDeviceId,
+        setCameraDisabled,
         setCallOutputVolume,
         setNoiseSuppressionMode,
         setEchoCancellation,
@@ -32,6 +33,7 @@
         outputPickerMode,
         buildDeviceConstraint,
         isOverconstrainedError,
+        CAMERA_DISABLED,
         type DeviceOption,
     } from "$lib/utils/audioDevices";
     import {
@@ -90,6 +92,7 @@
     import {
         voiceCallState,
         setCallVideoInputDevice,
+        stopCallCamera,
         refreshMicGate,
     } from "$lib/stores/voiceCall.svelte";
     import { bindingFor, keybindsState } from "$lib/stores/keybinds.svelte";
@@ -354,6 +357,14 @@
     }
 
     function pickCamera(id: string): void {
+        const disabled = id === CAMERA_DISABLED;
+        // First: a camera mid-start checks this once it's up.
+        setCameraDisabled(disabled);
+        if (disabled) {
+            stopCamera();
+            stopCallCamera();
+            return;
+        }
         const dev = id === "" ? null : id;
         setVideoInputDeviceId(dev);
         setCallVideoInputDevice(dev);
@@ -743,10 +754,15 @@
         </p>
         <select
             class={selectClass}
-            value={settingsState.videoInputDeviceId ?? ""}
+            value={settingsState.cameraDisabled
+                ? CAMERA_DISABLED
+                : (settingsState.videoInputDeviceId ?? "")}
             onchange={(e) => pickCamera(e.currentTarget.value)}
         >
             <option value="">{t("common.default")}</option>
+            <option value={CAMERA_DISABLED}
+                >{t("voiceAudioSettings.cameraDisabled")}</option
+            >
             {#each cameras as d (d.id)}
                 <option value={d.id}>{d.label}</option>
             {/each}
@@ -825,16 +841,18 @@
                 {/each}
             </div>
         </div>
-        <button
-            onclick={() => void toggleCamera()}
-            class="mt-2 px-3 py-1 rounded text-xs font-medium {cameraOn
-                ? 'bg-discord-accent text-white'
-                : 'bg-discord-backgroundTertiary text-discord-textMuted hover:bg-discord-messageHover'}"
-        >
-            {cameraOn
-                ? t("voiceAudioSettings.stopPreview")
-                : t("voiceAudioSettings.preview")}
-        </button>
+        {#if !settingsState.cameraDisabled}
+            <button
+                onclick={() => void toggleCamera()}
+                class="mt-2 px-3 py-1 rounded text-xs font-medium {cameraOn
+                    ? 'bg-discord-accent text-white'
+                    : 'bg-discord-backgroundTertiary text-discord-textMuted hover:bg-discord-messageHover'}"
+            >
+                {cameraOn
+                    ? t("voiceAudioSettings.stopPreview")
+                    : t("voiceAudioSettings.preview")}
+            </button>
+        {/if}
         {#if cameraError}
             <p class="text-xs text-discord-danger mt-2">{cameraError}</p>
         {/if}

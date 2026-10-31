@@ -22,6 +22,7 @@
         toggleCamera,
         toggleScreenShare,
     } from "$lib/stores/voiceCall.svelte";
+    import { settingsState } from "$lib/stores/settings.svelte";
     import { connStateLabel } from "$lib/utils/voiceCall";
     import { screenShareSupportedHere } from "$lib/utils/videoTiles";
     import { formatCallDuration } from "$lib/utils/callDuration";
@@ -230,22 +231,24 @@
                         size={20}
                     />{:else}<Headphones size={20} />{/if}
             </button>
-            <button
-                onclick={() => void toggleCamera()}
-                class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.cameraOn
-                    ? 'text-discord-accent'
-                    : 'text-discord-textMuted hover:text-discord-textPrimary'}"
-                title={voiceCallState.cameraOn
-                    ? t("common.turnOffCamera")
-                    : t("common.turnOnCamera")}
-                aria-label={voiceCallState.cameraOn
-                    ? t("common.turnOffCamera")
-                    : t("common.turnOnCamera")}
-            >
-                {#if voiceCallState.cameraOn}<Video size={20} />{:else}<VideoOff
-                        size={20}
-                    />{/if}
-            </button>
+            {#if !settingsState.cameraDisabled}
+                <button
+                    onclick={() => void toggleCamera()}
+                    class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.cameraOn
+                        ? 'text-discord-accent'
+                        : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                    title={voiceCallState.cameraOn
+                        ? t("common.turnOffCamera")
+                        : t("common.turnOnCamera")}
+                    aria-label={voiceCallState.cameraOn
+                        ? t("common.turnOffCamera")
+                        : t("common.turnOnCamera")}
+                >
+                    {#if voiceCallState.cameraOn}<Video
+                            size={20}
+                        />{:else}<VideoOff size={20} />{/if}
+                </button>
+            {/if}
             {#if screenShareSupported}
                 <button
                     onclick={() => void toggleScreenShare()}
