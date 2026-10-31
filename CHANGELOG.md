@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.42.0
+
+✨ **New**
+
+- **Send very large files directly:** choose "Send a file directly" from the composer's + menu, or "Send directly" when a file is over your server's upload limit. The file goes straight to the person who accepts it and is never stored on the server. It travels through your server's call service, end-to-end encrypted, and neither side sees the other's IP address. Both people need to be using Zam, and the sender needs to keep Zam open until the transfer finishes.
+- **Works across devices:** the file is saved straight to disk as it arrives, so it doesn't have to fit in memory, on desktop, Android and in the browser. The Android app keeps going in the background with a notification while a transfer runs. In Safari the file needs room in the browser's storage first, and takes up twice its size for a while.
+- **Every file is checked:** a file is only finished once its hash matches, and anything altered on the way is discarded. Withdrawing the offer, or deleting it, stops any transfer in progress.
+
+🔒 **Security**
+
+- **Soundboard sounds in encrypted calls are now encrypted:** the call server could previously read which sound was played.
+
 ## v1.41.0
 
 ✨ **New**
