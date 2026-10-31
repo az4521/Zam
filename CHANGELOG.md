@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.42.5
+
+✨ **New**
+
+- **Run at startup:** the desktop app can now start when you log in to your computer. Turn it on in Settings > General > Desktop. It works on Windows (including the portable version), Linux, the Flatpak and macOS. In the Flatpak, your desktop may ask you to allow it the first time.
+
 ## v1.42.4
 
 ✨ **New**
