@@ -1,22 +1,36 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
-    // Rename a queued attachment before it is sent (Discord-style: tap the
+    // Edit a queued attachment before it is sent (Discord-style: tap the
     // attachment in the composer drawer). The caller owns the modal slot.
     import { focusTrap } from "$lib/actions/focusTrap";
     import { onMount, untrack } from "svelte";
+    import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
 
     interface Props {
         name: string;
         previewUrl: string | null;
+        video: boolean;
+        direct: boolean;
         onSave: (name: string) => void;
+        /** Omitted where a file can't be sent directly, hiding the toggle. */
+        onDirectChange?: (direct: boolean) => void;
         onClose: () => void;
     }
 
-    let { name, previewUrl, onSave, onClose }: Props = $props();
+    let {
+        name,
+        previewUrl,
+        video,
+        direct,
+        onSave,
+        onDirectChange,
+        onClose,
+    }: Props = $props();
 
-    // Seeded once from the name the dialog opened with: the dialog is modal,
+    // Seeded once from the file the dialog opened with: the dialog is modal,
     // so no other attachment can be picked while it is open.
     let value = $state(untrack(() => name));
+    let sendDirectly = $state(untrack(() => direct));
     let inputEl = $state<HTMLInputElement | null>(null);
     // No path separators or control characters in a filename.
     const cleaned = $derived(value.replace(/[\\/\p{Cc}]/gu, "_").trim());
@@ -32,6 +46,7 @@
     function save() {
         if (!cleaned) return;
         if (cleaned !== name) onSave(cleaned);
+        if (sendDirectly !== direct) onDirectChange?.(sendDirectly);
         onClose();
     }
 </script>
@@ -47,7 +62,7 @@
         role="dialog"
         aria-modal="true"
         aria-labelledby="rename-attachment-title"
-        class="relative z-10 bg-discord-backgroundSecondary rounded-lg shadow-xl w-full max-w-md"
+        class="relative z-10 bg-discord-backgroundSecondary rounded-lg shadow-xl w-full max-w-xl max-h-full overflow-y-auto"
         use:focusTrap={{ onEscape: onClose }}
     >
         <form
@@ -57,11 +72,20 @@
                 save();
             }}
         >
-            {#if previewUrl}
+            {#if previewUrl && video}
+                <!-- svelte-ignore a11y_media_has_caption -->
+                <video
+                    src={previewUrl}
+                    controls
+                    playsinline
+                    preload="metadata"
+                    class="max-h-[50vh] w-full rounded bg-black"
+                ></video>
+            {:else if previewUrl}
                 <img
                     src={previewUrl}
                     alt=""
-                    class="max-h-48 w-full object-contain rounded bg-discord-backgroundTertiary"
+                    class="max-h-[50vh] w-full object-contain rounded bg-discord-backgroundTertiary"
                 />
             {/if}
             <h2
@@ -84,6 +108,23 @@
                     class="rounded bg-discord-backgroundTertiary px-3 py-2 text-sm text-discord-textPrimary outline-none focus:ring-2 focus:ring-discord-accent"
                 />
             </label>
+            {#if onDirectChange}
+                <div class="flex items-center justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm text-discord-textPrimary">
+                            {t("messageInput.sendDirectly")}
+                        </p>
+                        <p class="text-xs text-discord-textMuted">
+                            {t("messageInput.directFileHint")}
+                        </p>
+                    </div>
+                    <ToggleSwitch
+                        checked={sendDirectly}
+                        onChange={(v) => (sendDirectly = v)}
+                        label={t("messageInput.sendDirectly")}
+                    />
+                </div>
+            {/if}
             <div class="flex justify-end gap-2">
                 <button
                     type="button"

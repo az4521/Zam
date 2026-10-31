@@ -5,6 +5,9 @@ import {
     removeQueuedFile,
     renameQueuedFile,
     markQueuedFilesDirect,
+    setQueuedFileDirect,
+    dropQueuedFilePreview,
+    previewUrlFor,
     clearFileQueue,
 } from "./composerFileQueue.svelte";
 
@@ -49,11 +52,40 @@ describe("direct files", () => {
         expect(getFileQueue(A).map((q) => q.direct)).toEqual([false, true]);
     });
 
+    it("can be switched either way, one file at a time", () => {
+        const a = addQueuedFile(A, makeFile(), "a", null);
+        const b = addQueuedFile(A, makeFile(), "b", null, true);
+        setQueuedFileDirect(A, a.id, true);
+        setQueuedFileDirect(A, b.id, false);
+        expect(getFileQueue(A).map((q) => q.direct)).toEqual([true, false]);
+    });
+
     it("leaves other rooms alone", () => {
         addQueuedFile(A, makeFile(), "a", null);
         addQueuedFile(B, makeFile(), "b", null);
         markQueuedFilesDirect(A, () => true);
         expect(getFileQueue(B)[0].direct).toBe(false);
+    });
+});
+
+describe("previews", () => {
+    it("exist for images and videos only", () => {
+        URL.createObjectURL = vi.fn(() => "blob:preview");
+        const of = (type: string) =>
+            previewUrlFor(new File(["x"], "f", { type }));
+        expect(of("image/png")).toBe("blob:preview");
+        expect(of("video/mp4")).toBe("blob:preview");
+        expect(of("application/pdf")).toBeNull();
+        expect(of("")).toBeNull();
+    });
+
+    it("can be dropped once, revoking the URL", () => {
+        const item = addQueuedFile(A, makeFile(), "a", "blob:a");
+        dropQueuedFilePreview(A, item.id);
+        dropQueuedFilePreview(A, item.id);
+        expect(getFileQueue(A)[0].previewUrl).toBeNull();
+        expect(revoke).toHaveBeenCalledTimes(1);
+        expect(revoke).toHaveBeenCalledWith("blob:a");
     });
 });
 

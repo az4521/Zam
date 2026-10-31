@@ -16,7 +16,7 @@ export type QueuedFile = {
     id: string;
     file: File;
     name: string;
-    /** Object URL for image previews, null otherwise. */
+    /** Object URL for image and video previews, null otherwise. */
     previewUrl: string | null;
     /** Sent as a direct file offer (matrix/fileTransfer) instead of uploaded. */
     direct: boolean;
@@ -34,6 +34,13 @@ const EMPTY: QueuedFile[] = [];
 Object.freeze(EMPTY);
 
 let nextId = 0;
+
+/** A preview URL for `addQueuedFile`, which then owns revoking it. */
+export function previewUrlFor(file: File): string | null {
+    return /^(image|video)\//.test(file.type)
+        ? URL.createObjectURL(file)
+        : null;
+}
 
 export function getFileQueue(roomId: string): QueuedFile[] {
     return queueState.queues[roomId] ?? EMPTY;
@@ -101,6 +108,20 @@ export function renameQueuedFile(
     };
 }
 
+/** Drop a preview this browser can't show, leaving the plain file icon. */
+export function dropQueuedFilePreview(roomId: string, id: string): void {
+    const queue = queueState.queues[roomId];
+    const item = queue?.find((q) => q.id === id);
+    if (!item?.previewUrl) return;
+    URL.revokeObjectURL(item.previewUrl);
+    queueState.queues = {
+        ...queueState.queues,
+        [roomId]: queue.map((q) =>
+            q.id === id ? { ...q, previewUrl: null } : q,
+        ),
+    };
+}
+
 /** Send these queued files directly, when the user next presses send. */
 export function markQueuedFilesDirect(
     roomId: string,
@@ -111,6 +132,20 @@ export function markQueuedFilesDirect(
     queueState.queues = {
         ...queueState.queues,
         [roomId]: queue.map((q) => (matches(q) ? { ...q, direct: true } : q)),
+    };
+}
+
+/** Switch one queued file between uploading and sending directly. */
+export function setQueuedFileDirect(
+    roomId: string,
+    id: string,
+    direct: boolean,
+): void {
+    const queue = queueState.queues[roomId];
+    if (!queue) return;
+    queueState.queues = {
+        ...queueState.queues,
+        [roomId]: queue.map((q) => (q.id === id ? { ...q, direct } : q)),
     };
 }
 

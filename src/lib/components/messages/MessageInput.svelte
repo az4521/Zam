@@ -110,6 +110,9 @@
         removeQueuedFile,
         renameQueuedFile,
         markQueuedFilesDirect,
+        setQueuedFileDirect,
+        dropQueuedFilePreview,
+        previewUrlFor,
         clearFileQueue,
         type QueuedFile,
     } from "$lib/stores/composerFileQueue.svelte";
@@ -1548,14 +1551,11 @@
             // room), not the one the user may have switched to.
             const toRestore = filesToRestoreAfterSend(filesToSend, sentIds);
             for (const item of toRestore) {
-                const previewUrl = item.file.type.startsWith("image/")
-                    ? URL.createObjectURL(item.file)
-                    : null;
                 addQueuedFile(
                     targetComposerKey,
                     item.file,
                     item.name,
-                    previewUrl,
+                    previewUrlFor(item.file),
                     item.direct,
                 );
             }
@@ -1775,10 +1775,7 @@
 
     function enqueueFile(file: File, defaultName?: string, direct = false) {
         const name = file.name || defaultName || "file";
-        const previewUrl = file.type.startsWith("image/")
-            ? URL.createObjectURL(file)
-            : null;
-        addQueuedFile(effComposerKey, file, name, previewUrl, direct);
+        addQueuedFile(effComposerKey, file, name, previewUrlFor(file), direct);
         // Look up the upload size limit now, while the user is still writing,
         // so its round trip isn't added to the send (slow links: Tor).
         void getMediaUploadSizeLimit();
@@ -2034,7 +2031,31 @@
                         })}
                         class="w-20 h-20 rounded-lg bg-discord-backgroundTertiary flex items-center justify-center overflow-hidden border border-discord-divider hover:border-discord-accent transition-colors"
                     >
-                        {#if item.previewUrl}
+                        {#if item.previewUrl && item.file.type.startsWith("video/")}
+                            <!-- A file with no decodable picture (unsupported
+                                 codec, audio-only webm) falls back to the icon.
+                                 The #t makes iOS Safari paint the first frame. -->
+                            <video
+                                src="{item.previewUrl}#t=0.001"
+                                preload="metadata"
+                                muted
+                                playsinline
+                                disablepictureinpicture
+                                class="w-full h-full object-cover pointer-events-none"
+                                onerror={() =>
+                                    dropQueuedFilePreview(
+                                        effComposerKey,
+                                        item.id,
+                                    )}
+                                onloadedmetadata={(e) => {
+                                    if (!e.currentTarget.videoWidth)
+                                        dropQueuedFilePreview(
+                                            effComposerKey,
+                                            item.id,
+                                        );
+                                }}
+                            ></video>
+                        {:else if item.previewUrl}
                             <img
                                 src={item.previewUrl}
                                 alt={item.name}
@@ -2091,7 +2112,13 @@
         <RenameAttachmentDialog
             name={target.name}
             previewUrl={target.previewUrl}
+            video={target.file.type.startsWith("video/")}
+            direct={target.direct}
             onSave={(name) => renameQueuedFile(effComposerKey, target.id, name)}
+            onDirectChange={isThread
+                ? undefined
+                : (direct) =>
+                      setQueuedFileDirect(effComposerKey, target.id, direct)}
             onClose={closeModal}
         />
     {/if}
