@@ -1877,6 +1877,7 @@ export const en = {
     "roomSettings.enabling": "Enabling…",
     "roomSettings.powerLevelRequiredForEachAction":
         "Power level required for each action (0–100).",
+    "roomSettings.nameAnyThread": "Name any thread",
     "roomSettings.joinCallsVoiceVideo": "Join calls (voice/video)",
     "roomSettings.invite": "Invite",
     "roomSettings.searchMembers": "Search members…",

@@ -1944,6 +1944,7 @@ const messages: Record<MessageKey, string> = {
     "roomSettings.enabling": "Activando…",
     "roomSettings.powerLevelRequiredForEachAction":
         "Nivel de poder necesario para cada acción (0–100).",
+    "roomSettings.nameAnyThread": "Nombrar cualquier hilo",
     "roomSettings.joinCallsVoiceVideo": "Unirse a llamadas (voz/vídeo)",
     "roomSettings.invite": "Invitar",
     "roomSettings.searchMembers": "Buscar miembros…",

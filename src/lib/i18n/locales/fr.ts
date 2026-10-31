@@ -1901,6 +1901,7 @@ const messages: Record<MessageKey, string> = {
     "roomSettings.enabling": "Activation…",
     "roomSettings.powerLevelRequiredForEachAction":
         "Niveau de pouvoir requis pour chaque action (0–100).",
+    "roomSettings.nameAnyThread": "Nommer n'importe quel fil",
     "roomSettings.joinCallsVoiceVideo": "Rejoindre les appels (voix/vidéo)",
     "roomSettings.invite": "Inviter",
     "roomSettings.searchMembers": "Rechercher des membres…",

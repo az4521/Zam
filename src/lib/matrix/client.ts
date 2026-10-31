@@ -36,6 +36,7 @@ import {
 import type {
     AuthDict,
     ValidatedAuthMetadata,
+    IEvent,
     ISearchResults,
     MatrixClient,
     MatrixError,
@@ -192,11 +193,14 @@ import type { ThreadSummary } from "$lib/utils/threadModel";
 import { stripBodyFallback } from "$lib/utils/replyFallback";
 import {
     THREAD_NAME_EVENT_TYPE,
+    THREAD_NAME_POWER_LEVEL_KEY,
     THREAD_NAME_REL_TYPE,
     buildThreadNameContent,
-    latestThreadName,
+    buildThreadNamePushRule,
+    latestThreadNameEvent,
     mayNameThread,
     parseThreadName,
+    threadNameLevel,
     threadNameTarget,
 } from "$lib/utils/threadName";
 import type { ThreadInfo } from "$lib/utils/threadList";
@@ -2501,6 +2505,8 @@ export async function reorderRoomTag(
 function isRenderableTimelineEvent(e: MatrixEvent): boolean {
     if (settingsState.showAllEvents) return true;
     if (e.isRedacted()) return false;
+    // By relation, not type: an undecryptable name is no message to placehold.
+    if (e.isRelation(THREAD_NAME_REL_TYPE)) return false;
     if (
         e.getType() !== "m.room.message" &&
         e.getType() !== "m.sticker" &&
@@ -3015,19 +3021,30 @@ export function isThreadParticipant(room: Room, rootEventId: string): boolean {
 
 // ── Thread names (utils/threadName) ──
 // A name is a naming event related to the thread's root, so it isn't room
-// state the SDK keeps for us: the newest allowed one per root is cached here,
-// filled from /relations on first read and kept current from live sync.
+// state the SDK keeps for us: the current one per root is cached here, filled
+// on first read (from the bundle on the root, else /relations) and kept
+// current from live sync and any newer bundle.
 
 interface CachedThreadName {
     name: string | null;
-    /** The naming event the name came from (null: none found). */
+    /**
+     * The current naming event (null: none found). A rename becomes current
+     * as it arrives, in timeline order; `name` catches up once it decrypts,
+     * so a late key can only ever fill in the event that is still current.
+     */
     eventId: string | null;
-    ts: number;
+    /**
+     * The bundle on the root when this was last resolved against it. Only a
+     * different one is news: a root keeps its old bundle after a live rename.
+     */
+    bundledEventId: string | null;
 }
 
 const threadNames = new Map<string, CachedThreadName>();
 const threadNameLoads = new Set<string>();
 const threadNameListeners = new Set<() => void>();
+// A root keeps the bundle it arrived with, even after that event is redacted.
+const redactedThreadNames = new Set<string>();
 
 const threadNameKey = (roomId: string, rootEventId: string) =>
     `${roomId}\u0000${rootEventId}`;
@@ -3036,18 +3053,24 @@ function notifyThreadNames(): void {
     for (const cb of threadNameListeners) cb();
 }
 
-/** Store a resolved name unless the cache already holds a newer one. */
-function cacheThreadName(key: string, entry: CachedThreadName): void {
-    const current = threadNames.get(key);
-    if (current && current.ts > entry.ts) return;
-    threadNames.set(key, entry);
+function threadRootEvent(
+    room: Room,
+    rootEventId: string,
+): MatrixEvent | undefined {
+    return (
+        room.findEventById(rootEventId) ??
+        room.getThread(rootEventId)?.rootEvent
+    );
 }
 
-function threadRootSender(room: Room, rootEventId: string): string | null {
-    return (
-        room.findEventById(rootEventId)?.getSender() ??
-        room.getThread(rootEventId)?.rootEvent?.getSender() ??
-        null
+/** The power level that may name any thread in this room. */
+export function getThreadNameLevel(room: Room): number {
+    return threadNameLevel(
+        room
+            .getLiveTimeline()
+            .getState(EventTimeline.FORWARDS)
+            ?.getStateEvents("m.room.power_levels", "")
+            ?.getContent(),
     );
 }
 
@@ -3055,8 +3078,9 @@ function threadNamerAllowed(
     room: Room,
     rootEventId: string,
 ): (senderId: string) => boolean {
-    const rootSenderId = threadRootSender(room, rootEventId);
-    const moderatorLevel = getRoomPowerLevels(room).redact;
+    const rootSenderId =
+        threadRootEvent(room, rootEventId)?.getSender() ?? null;
+    const moderatorLevel = getThreadNameLevel(room);
     return (senderId) =>
         mayNameThread({
             senderId,
@@ -3066,6 +3090,78 @@ function threadNamerAllowed(
         });
 }
 
+/**
+ * Read a naming event's name into the cache if it's still the current one. An
+ * event that won't decrypt yet is left alone: the SDK re-emits Decrypted when
+ * the key arrives, which lands back here.
+ */
+function applyThreadNameEvent(event: MatrixEvent): void {
+    const roomId = event.getRoomId();
+    const rootEventId = threadNameTarget(event.getWireContent());
+    if (!roomId || !rootEventId) return;
+    if (event.isDecryptionFailure() || event.getType() === "m.room.encrypted")
+        return;
+    const key = threadNameKey(roomId, rootEventId);
+    const cached = threadNames.get(key);
+    if (!cached || cached.eventId !== event.getId()) return;
+    const name = parseThreadName(event.getContent());
+    if (name === cached.name) return;
+    threadNames.set(key, { ...cached, name });
+    notifyThreadNames();
+}
+
+/** The naming event the server bundled with the root. Trusted as valid. */
+function bundledThreadName(
+    room: Room,
+    rootEventId: string,
+): Partial<IEvent> | null {
+    const bundled = threadRootEvent(
+        room,
+        rootEventId,
+    )?.getServerAggregatedRelation<{ latest_event?: Partial<IEvent> }>(
+        THREAD_NAME_REL_TYPE,
+    )?.latest_event;
+    if (!bundled || threadNameTarget(bundled.content) !== rootEventId)
+        return null;
+    return redactedThreadNames.has(bundled.event_id ?? "") ? null : bundled;
+}
+
+/** Record a rename from sync or our own send, whatever the root's bundle says. */
+function markThreadName(
+    room: Room,
+    rootEventId: string,
+    name: string | null,
+    eventId: string | null,
+): void {
+    const key = threadNameKey(room.roomId, rootEventId);
+    const cached = threadNames.get(key);
+    threadNames.set(key, {
+        name,
+        eventId,
+        bundledEventId: cached
+            ? cached.bundledEventId
+            : (bundledThreadName(room, rootEventId)?.event_id ?? null),
+    });
+}
+
+/** Make `raw` the current naming event, filling in the name once it decrypts. */
+async function adoptThreadNameEvent(
+    client: MatrixClient,
+    room: Room,
+    rootEventId: string,
+    raw: Partial<IEvent>,
+): Promise<void> {
+    const key = threadNameKey(room.roomId, rootEventId);
+    const event = client.getEventMapper()({ ...raw, room_id: room.roomId });
+    threadNames.set(key, {
+        name: threadNames.get(key)?.name ?? null,
+        eventId: event.getId() ?? null,
+        bundledEventId: bundledThreadName(room, rootEventId)?.event_id ?? null,
+    });
+    await client.decryptEventIfNeeded(event);
+    applyThreadNameEvent(event);
+}
+
 function loadThreadName(room: Room, rootEventId: string): void {
     const key = threadNameKey(room.roomId, rootEventId);
     if (!matrixClient || threadNameLoads.has(key)) return;
@@ -3073,31 +3169,34 @@ function loadThreadName(room: Room, rootEventId: string): void {
     threadNameLoads.add(key);
     void (async () => {
         try {
-            // The event type is passed as-is (not the encrypted-if-needed
-            // type): naming events are sent unencrypted, see setThreadName.
-            const res = await client.fetchRelations(
-                room.roomId,
-                rootEventId,
-                THREAD_NAME_REL_TYPE,
-                THREAD_NAME_EVENT_TYPE,
-                { dir: Direction.Backward, limit: 20 },
-            );
-            const best = latestThreadName(
-                rootEventId,
-                res.chunk.map((raw) => ({
-                    eventId: raw.event_id ?? "",
-                    senderId: raw.sender ?? "",
-                    ts: raw.origin_server_ts ?? 0,
-                    content: raw.content,
-                })),
-                threadNamerAllowed(room, rootEventId),
-            );
-            cacheThreadName(key, best ?? { name: null, eventId: null, ts: 0 });
+            // No event type filter: in an encrypted room the server knows
+            // these as m.room.encrypted, and names from before MSC4558
+            // encrypted them are still cleartext there.
+            const raw =
+                bundledThreadName(room, rootEventId) ??
+                latestThreadNameEvent(
+                    rootEventId,
+                    (
+                        await client.fetchRelations(
+                            room.roomId,
+                            rootEventId,
+                            THREAD_NAME_REL_TYPE,
+                            null,
+                            { dir: Direction.Backward, limit: 20 },
+                        )
+                    ).chunk,
+                    threadNamerAllowed(room, rootEventId),
+                );
+            // Live sync got there first, with something newer than this.
+            if (threadNames.has(key)) return;
+            if (raw) await adoptThreadNameEvent(client, room, rootEventId, raw);
+            else markThreadName(room, rootEventId, null, null);
         } catch (err) {
             // Cache the miss so a failing server isn't asked again on every
             // render; a live naming event still fills it in.
             console.warn("Failed to load thread name:", err);
-            cacheThreadName(key, { name: null, eventId: null, ts: 0 });
+            if (!threadNames.has(key))
+                markThreadName(room, rootEventId, null, null);
         } finally {
             threadNameLoads.delete(key);
             notifyThreadNames();
@@ -3107,14 +3206,29 @@ function loadThreadName(room: Room, rootEventId: string): void {
 
 /**
  * A thread's name, or null when it has none. The first read for a thread
- * fetches its naming events and returns null meanwhile; subscribers of
- * `onThreadNameChange` hear when it lands.
+ * fetches its naming event and returns null meanwhile; subscribers of
+ * `onThreadNameChange` hear when it lands. A newer bundle on the root outranks
+ * what sync delivered: sync order can differ from event-graph order.
  */
 export function getThreadName(room: Room, rootEventId: string): string | null {
     const cached = threadNames.get(threadNameKey(room.roomId, rootEventId));
-    if (cached) return cached.name;
-    loadThreadName(room, rootEventId);
-    return null;
+    if (!cached) {
+        loadThreadName(room, rootEventId);
+        return null;
+    }
+    const bundled = bundledThreadName(room, rootEventId);
+    if (
+        matrixClient &&
+        bundled?.event_id &&
+        bundled.event_id !== cached.bundledEventId
+    )
+        void adoptThreadNameEvent(
+            matrixClient,
+            room,
+            rootEventId,
+            bundled,
+        ).catch(() => {});
+    return cached.name;
 }
 
 /** Whether the current user may name this thread (root sender or moderator). */
@@ -3125,15 +3239,8 @@ export function canNameThread(room: Room, rootEventId: string): boolean {
 }
 
 /**
- * Name a thread, or clear its name with an empty string.
- *
- * Sent UNENCRYPTED even in an encrypted room, on purpose: the server's push
- * rules only see `m.room.encrypted` for an encrypted event and notify for it,
- * and push paths that can't evaluate the decrypted type (the web service
- * worker must show something for every push) would turn each rename into a
- * "new message" on every member's devices. A cleartext custom type matches no
- * push rule. Thread names are therefore visible to the server, like room names
- * and topics.
+ * Name a thread, or clear its name with an empty string. Encrypted in an
+ * encrypted room; `ensureThreadNamePushRule` keeps that from notifying anyone.
  */
 export async function setThreadName(
     room: Room,
@@ -3141,23 +3248,49 @@ export async function setThreadName(
     name: string,
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    const client = matrixClient;
     const content = buildThreadNameContent(rootEventId, name);
-    const path =
-        `/rooms/${encodeURIComponent(room.roomId)}` +
-        `/send/${encodeURIComponent(THREAD_NAME_EVENT_TYPE)}` +
-        `/${encodeURIComponent(matrixClient.makeTxnId())}`;
-    const res = await matrixClient.http.authedRequest<{ event_id: string }>(
-        Method.Put,
-        path,
-        undefined,
-        content,
-    );
-    cacheThreadName(threadNameKey(room.roomId, rootEventId), {
-        name: parseThreadName(content),
-        eventId: res.event_id,
-        ts: Date.now(),
-    });
-    notifyThreadNames();
+    const txnId = client.makeTxnId();
+    try {
+        const { event_id } = await client.sendEvent(
+            room.roomId,
+            THREAD_NAME_EVENT_TYPE as never,
+            content as never,
+            txnId,
+        );
+        markThreadName(room, rootEventId, parseThreadName(content), event_id);
+        notifyThreadNames();
+    } catch (err) {
+        // The dialog reports this; the failed echo never renders, so nothing
+        // else would ever clear it from the pending list.
+        const echo = room
+            .getPendingEvents()
+            .find((e) => e.getTxnId() === txnId);
+        if (echo) client.cancelPendingEvent(echo);
+        throw err;
+    }
+}
+
+/**
+ * Register (best-effort) the push rule that keeps an encrypted rename from
+ * notifying (see buildThreadNamePushRule). Left alone once present, so a user
+ * who turned it off stays that way.
+ */
+export async function ensureThreadNamePushRule(): Promise<void> {
+    if (!matrixClient) return;
+    const rule = buildThreadNamePushRule();
+    const overrides = matrixClient.pushRules?.global?.override ?? [];
+    if (overrides.some((r) => r.rule_id === rule.ruleId)) return;
+    try {
+        await matrixClient.addPushRule(
+            "global",
+            rule.kind as never,
+            rule.ruleId,
+            rule.body as never,
+        );
+    } catch {
+        // A transient failure: renames just notify until the next start.
+    }
 }
 
 /**
@@ -3168,13 +3301,13 @@ export async function setThreadName(
 export function onThreadNameChange(callback: () => void): () => void {
     threadNameListeners.add(callback);
     const client = matrixClient;
-    const handler = (
+    const onTimeline = (
         event: MatrixEvent,
         room: Room | undefined,
         toStartOfTimeline: boolean | undefined,
         removed: boolean,
     ) => {
-        // Back-paginated history is older than what /relations gave us.
+        // Back-paginated history is older than what we already resolved.
         if (!room || toStartOfTimeline || removed) return;
         if (event.getType() === "m.room.redaction") {
             const redacts =
@@ -3183,28 +3316,41 @@ export function onThreadNameChange(callback: () => void): () => void {
             for (const [key, entry] of threadNames) {
                 if (entry.eventId === redacts) {
                     // Refetch: the next-newest naming event takes over.
+                    redactedThreadNames.add(redacts);
                     threadNames.delete(key);
                     callback();
                 }
             }
             return;
         }
-        if (event.getType() !== THREAD_NAME_EVENT_TYPE) return;
-        const rootEventId = threadNameTarget(event.getContent());
+        const rootEventId = threadNameTarget(event.getWireContent());
         if (!rootEventId) return;
         if (!threadNamerAllowed(room, rootEventId)(event.getSender() ?? ""))
             return;
-        cacheThreadName(threadNameKey(room.roomId, rootEventId), {
-            name: parseThreadName(event.getContent()),
-            eventId: event.getId() ?? null,
-            ts: event.getTs(),
-        });
-        callback();
+        markThreadName(
+            room,
+            rootEventId,
+            threadNames.get(threadNameKey(room.roomId, rootEventId))?.name ??
+                null,
+            event.getId() ?? null,
+        );
+        void client
+            ?.decryptEventIfNeeded(event)
+            .then(() => applyThreadNameEvent(event))
+            .catch(() => {});
     };
-    client?.on(RoomEvent.Timeline, handler as never);
+    client?.on(RoomEvent.Timeline, onTimeline as never);
+    client?.on(
+        MatrixEventEvent.Decrypted as never,
+        applyThreadNameEvent as never,
+    );
     return () => {
         threadNameListeners.delete(callback);
-        client?.off(RoomEvent.Timeline, handler as never);
+        client?.off(RoomEvent.Timeline, onTimeline as never);
+        client?.off(
+            MatrixEventEvent.Decrypted as never,
+            applyThreadNameEvent as never,
+        );
     };
 }
 
@@ -4548,6 +4694,7 @@ function isNotificationEvent(event: MatrixEvent): boolean {
     if (!NOTIFICATION_EVENT_TYPES.includes(event.getType())) return false;
     if (event.isRedacted()) return false;
     if (event.getRelation()?.rel_type === "m.replace") return false;
+    if (event.isRelation(THREAD_NAME_REL_TYPE)) return false;
     return true;
 }
 
@@ -8488,7 +8635,9 @@ async function currentPowerLevelsContent(
 
 export async function setRoomPowerLevels(
     room: Room,
-    updated: Partial<PowerLevels>,
+    updated: Partial<PowerLevels> & {
+        [THREAD_NAME_POWER_LEVEL_KEY]?: number;
+    },
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const current = await currentPowerLevelsContent(room);
@@ -9122,12 +9271,12 @@ export function onDecryptedTimelineEvent(
         // bypass. With that debug setting on the ciphertext also reaches the
         // plain path, which leaves still-encrypted events to this one.
         // An encrypted event's relation can sit in either half, depending on
-        // the sender. Some clients leave `m.relates_to` in the wire content —
-        // that is what getRelation() reads, and why the SDK's isRelation()
-        // checks it. matrix-js-sdk senders do the opposite: makeEncrypted()
-        // swaps the whole wire content for the ciphertext, so the relation only
-        // reappears in the clear content once decrypted. Consult BOTH, or an
-        // encrypted edit or thread reply gets misfiled as a plain message.
+        // the sender. The usual place is the wire content, where the crypto
+        // library leaves `m.relates_to` in the clear (what getRelation() and
+        // the SDK's isRelation() read), but a sender can also keep it only
+        // inside the ciphertext, where it reappears in the clear content once
+        // decrypted. Consult BOTH, or an encrypted edit or thread reply gets
+        // misfiled as a plain message.
         const relatesTo =
             event.getRelation() ?? event.getOriginalContent()?.["m.relates_to"];
         const isReplacement = relatesTo?.rel_type === "m.replace";

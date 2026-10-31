@@ -1,7 +1,7 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
     // Name or rename a thread (ThreadPanel header). The caller owns the modal
-    // slot; saving writes room state, so the dialog stays open until the
+    // slot; saving sends a naming event, so the dialog stays open until the
     // server accepts it and shows the error if it doesn't.
     import { focusTrap } from "$lib/actions/focusTrap";
     import { onMount, untrack } from "svelte";

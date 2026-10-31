@@ -103,7 +103,7 @@
         threadTick;
         return findEventById(room, rootEventId);
     });
-    // Thread name (room state; AppShell bumps roomsTick when one changes).
+    // Thread name (AppShell bumps roomsTick when one changes).
     const threadName = $derived.by(() => {
         void roomsState.roomsTick;
         return getThreadName(room, rootEventId);

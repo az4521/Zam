@@ -210,6 +210,7 @@
         updateServiceWorkerRingEnabled,
         clearServiceWorkerNotifications,
         ensureCallNotifyPushRule,
+        ensureThreadNamePushRule,
         sendNotificationQuickReply,
         resolveQuickReplyThreadRoot,
         markRoomAsRead,
@@ -1641,6 +1642,8 @@
         // Ring on a closed device: register the m.call.notify push rule once.
         // Idempotent + best-effort — never blocks or breaks the session.
         if (client) ensureCallNotifyPushRule().catch(() => {});
+        // Keep encrypted thread renames from notifying. Best-effort too.
+        if (client) ensureThreadNamePushRule().catch(() => {});
 
         // Mirror the session natively so the push service can enrich
         // notifications and read the active-session blob (off-native this is a
@@ -2325,7 +2328,8 @@
         const unsubThreadSummaries = onThreadSummaryChange(
             () => roomsState.roomsTick++,
         );
-        // Thread names are room state; anything showing one reads roomsTick.
+        // Thread names live in a client.ts cache; anything showing one reads
+        // roomsTick.
         const unsubThreadNames = onThreadNameChange(
             () => roomsState.roomsTick++,
         );

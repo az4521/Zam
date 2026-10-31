@@ -1924,6 +1924,7 @@ const messages: Record<MessageKey, string> = {
     "roomSettings.enabling": "Wird aktiviert…",
     "roomSettings.powerLevelRequiredForEachAction":
         "Erforderliche Berechtigungsstufe für jede Aktion (0–100).",
+    "roomSettings.nameAnyThread": "Beliebige Threads benennen",
     "roomSettings.joinCallsVoiceVideo": "Anrufen beitreten (Sprache/Video)",
     "roomSettings.invite": "Einladen",
     "roomSettings.searchMembers": "Mitglieder suchen…",

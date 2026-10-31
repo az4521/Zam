@@ -312,14 +312,18 @@ latter silently ignores it and threads then look completely dead. The rules live
 `threadUnread.ts`, `threadNotify.ts`, `threadContent.ts`. UI is `ThreadPanel.svelte` plus the
 `threads` sidebar slot (`ThreadsListPanel.svelte`).
 
-Thread names are not in the spec, so they are our own event (`utils/threadName.ts`): type
+Thread names are MSC4558 under its unstable identifier (`utils/threadName.ts`): type
 `moe.crafty.matrix.thread_name`, content `{ name }` with an `m.relates_to` of the same rel_type
-pointing at the root. The newest one wins, but only from the root's sender or a moderator (power
-level at least the room's `redact` level); an empty name clears it. `client.ts` caches the
-resolved name per root, filled from `/relations` on first read and kept current from live sync.
-**Naming events are sent unencrypted**, even in encrypted rooms: an encrypted one would match the
-server's `.m.rule.encrypted` and notify every member's push devices for a rename. Other clients
-ignore them.
+pointing at the root. The most recent one in event-graph order wins, but only from the root's sender
+or a user at the room's `moe.crafty.matrix.thread_name` power level (50 if absent); an empty name
+clears it. Validity reads only the sender and the
+relation, which stays in the clear on the wire. `client.ts` caches the current naming event and name
+per root, filled from the bundle on the root or `/relations` on first read and kept current from
+live sync, with a newer bundle on the root outranking both. **Naming events are encrypted in encrypted rooms**, so `/relations` is fetched without an
+event type filter and `isRenderableTimelineEvent` hides them by relation. An encrypted one would
+match `.m.rule.encrypted` and notify everyone, so `ensureThreadNamePushRule` adds MSC4558's rule
+(matching the relation) to the user's own rules until servers ship it. Names sent before this are
+still cleartext and read the same way. Other clients ignore them.
 
 ### Notifications
 

@@ -1801,6 +1801,7 @@ const messages: Record<MessageKey, string> = {
     "roomSettings.enabling": "ܒܕܠܩܐ…",
     "roomSettings.powerLevelRequiredForEachAction":
         "ܕܪܓܐ ܕܚܝܠܐ ܕܣܢܝܩܐ ܝܠܗ ܩܐ ܟܠ ܣܘܥܪܢܐ (0–100).",
+    "roomSettings.nameAnyThread": "ܫܡܝ ܟܠ ܚܘܛܐ",
     "roomSettings.joinCallsVoiceVideo": "ܥܠܠܐ ܠܩܪ̈ܝܬܐ (ܩܠܐ/ܒܝܕܝܘ)",
     "roomSettings.invite": "ܙܡܢ",
     "roomSettings.searchMembers": "ܒܨܝ ܗܕܡ̈ܐ…",

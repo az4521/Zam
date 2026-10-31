@@ -11,6 +11,7 @@
         getMyPowerLevel,
         getUserPowerLevel,
         getRoomPowerLevels,
+        getThreadNameLevel,
         setRoomPowerLevels,
         setUserPowerLevel,
         holdSlidingSyncRoom,
@@ -84,6 +85,7 @@
         mergeCallJoinLevel,
     } from "$lib/utils/powerLevels";
     import { getRoomUpgradeState } from "$lib/utils/roomUpgrade";
+    import { THREAD_NAME_POWER_LEVEL_KEY } from "$lib/utils/threadName";
     import {
         parseServerAcl,
         hasServerAcl,
@@ -315,6 +317,9 @@
         (void roomsState.roomsTick, getMyPowerLevel(room)),
     );
     const pl = $derived((void roomsState.roomsTick, getRoomPowerLevels(room)));
+    const threadNameLevel = $derived(
+        (void roomsState.roomsTick, getThreadNameLevel(room)),
+    );
     // Sliding sync only gives the viewed room full state; the room list (and
     // so a space, which is never "viewed") lacks power levels and members.
     // Hold the room while its settings are open (members, live updates), and
@@ -902,6 +907,7 @@
     let plEventsDefault = $state(untrack(() => pl.events_default));
     let plStateDefault = $state(untrack(() => pl.state_default));
     let plUsersDefault = $state(untrack(() => pl.users_default));
+    let plThreadName = $state(untrack(() => threadNameLevel));
     // "Power to join voice/video calls" is not a top-level PL field — it lives in
     // the `events` map (the three call-member state-event types). The effective
     // level is the min the user must clear to send ANY of them (absent types fall
@@ -926,6 +932,7 @@
         events_default: pl.events_default,
         state_default: pl.state_default,
         users_default: pl.users_default,
+        threadName: threadNameLevel,
         callJoin: effectiveCallJoinLevel({
             events: pl.events,
             state_default: pl.state_default,
@@ -944,6 +951,7 @@
                 events_default: pl.events_default,
                 state_default: pl.state_default,
                 users_default: pl.users_default,
+                threadName: threadNameLevel,
                 callJoin: effectiveCallJoinLevel({
                     events: pl.events,
                     state_default: pl.state_default,
@@ -957,6 +965,7 @@
                 plEventsDefault === permInitial.events_default &&
                 plStateDefault === permInitial.state_default &&
                 plUsersDefault === permInitial.users_default &&
+                plThreadName === permInitial.threadName &&
                 plCallJoin === permInitial.callJoin;
             if (!untouched) return;
             permInitial = fresh;
@@ -967,6 +976,7 @@
             plEventsDefault = fresh.events_default;
             plStateDefault = fresh.state_default;
             plUsersDefault = fresh.users_default;
+            plThreadName = fresh.threadName;
             plCallJoin = fresh.callJoin;
         });
     });
@@ -979,6 +989,7 @@
         // No-op save guard: if nothing changed, don't write a PL event (which,
         // in a room with none, would create one from the defaults).
         const callJoinChanged = plCallJoin !== permInitial.callJoin;
+        const threadNameChanged = plThreadName !== permInitial.threadName;
         const changed =
             plBan !== permInitial.ban ||
             plKick !== permInitial.kick ||
@@ -987,6 +998,7 @@
             plEventsDefault !== permInitial.events_default ||
             plStateDefault !== permInitial.state_default ||
             plUsersDefault !== permInitial.users_default ||
+            threadNameChanged ||
             callJoinChanged;
         if (!changed) {
             permSuccess = true;
@@ -1012,6 +1024,10 @@
             // wholesale, so we must pass the full merged object, not a partial.
             if (callJoinChanged) {
                 updated.events = mergeCallJoinLevel(pl.events, plCallJoin);
+            }
+            // Likewise: most rooms inherit the default and never carry this key.
+            if (threadNameChanged) {
+                updated[THREAD_NAME_POWER_LEVEL_KEY] = plThreadName;
             }
             await setRoomPowerLevels(room, updated);
             permSuccess = true;
@@ -2328,8 +2344,8 @@
                             {#if !stateLoaded}
                                 {@render stateLoading()}
                             {:else}
-                                {#each [["Send messages", "plEventsDefault"], ["Change room settings", "plStateDefault"], ["Default member level", "plUsersDefault"], ["Invite members", "plInvite"], ["Kick members", "plKick"], ["Ban members", "plBan"], ["Redact messages", "plRedact"]] as [label, key]}
-                                    {@const bindings: Record<string, any> = { plEventsDefault, plStateDefault, plUsersDefault, plInvite, plKick, plBan, plRedact }}
+                                {#each [["Send messages", "plEventsDefault"], ["Change room settings", "plStateDefault"], ["Default member level", "plUsersDefault"], ["Invite members", "plInvite"], ["Kick members", "plKick"], ["Ban members", "plBan"], ["Redact messages", "plRedact"], ...(isSpace ? [] : [[t("roomSettings.nameAnyThread"), "plThreadName"]])] as [label, key]}
+                                    {@const bindings: Record<string, any> = { plEventsDefault, plStateDefault, plUsersDefault, plInvite, plKick, plBan, plRedact, plThreadName }}
                                     {@const setters: Record<string, (v: number) => void> = {
 								plEventsDefault: (v) => plEventsDefault = v,
 								plStateDefault: (v) => plStateDefault = v,
@@ -2338,6 +2354,7 @@
 								plKick: (v) => plKick = v,
 								plBan: (v) => plBan = v,
 								plRedact: (v) => plRedact = v,
+								plThreadName: (v) => plThreadName = v,
 							}}
                                     <div
                                         class="flex items-center justify-between gap-4"

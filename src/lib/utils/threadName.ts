@@ -1,20 +1,30 @@
 // src/lib/utils/threadName.ts
 /**
- * Thread names, proposed as MSC4558. The Matrix spec has no way to name a
- * thread yet, so a name is an event of our own that relates to the thread's
- * root:
+ * Thread names (MSC4558, using its unstable identifiers). A name is a room
+ * event that relates to the thread's root, encrypted in an encrypted room like
+ * any other event:
  *
  *   type THREAD_NAME_EVENT_TYPE
  *   content { name, "m.relates_to": { rel_type: THREAD_NAME_REL_TYPE,
  *                                     event_id: <root event id> } }
  *
- * The newest naming event from an allowed sender wins; an empty name clears
- * it. Anyone can send one, so the client decides whose count: the root's own
- * sender, or a moderator (`mayNameThread`). Other clients ignore the event.
+ * The relation stays in the clear on the wire, so whether a naming event is
+ * valid (`mayNameThread`) never needs decrypting it, and servers can check and
+ * bundle them. Few do yet, and federation can deliver invalid ones anyway, so
+ * clients always check. The most recent valid event wins, in event-graph order
+ * (never `origin_server_ts`); an empty name clears it. Other clients ignore
+ * the event.
  */
+
+import { coercePl } from "./powerLevels";
 
 export const THREAD_NAME_EVENT_TYPE = "moe.crafty.matrix.thread_name";
 export const THREAD_NAME_REL_TYPE = "moe.crafty.matrix.thread_name";
+export const THREAD_NAME_PUSH_RULE_ID = "moe.crafty.rule.thread_name";
+
+/** The `m.room.power_levels` key for the level that may name any thread. */
+export const THREAD_NAME_POWER_LEVEL_KEY = "moe.crafty.matrix.thread_name";
+export const DEFAULT_THREAD_NAME_LEVEL = 50;
 
 /** Longest name kept; longer input is cut (names show in one-line headers). */
 export const MAX_THREAD_NAME_LENGTH = 100;
@@ -54,21 +64,33 @@ export function buildThreadNameContent(
 }
 
 /**
- * The root a naming event's content targets, or null when it isn't a
- * well-formed naming event (wrong relation, or no string `name`).
+ * The root a naming event targets, or null when `wireContent` has no naming
+ * relation. Takes the wire content because that is where the relation lives
+ * on an encrypted event. A missing or malformed `name` doesn't make the event
+ * invalid: it means the thread has no name.
  */
-export function threadNameTarget(content: unknown): string | null {
-    if (!content || typeof content !== "object") return null;
-    const c = content as Record<string, unknown>;
-    if (typeof c.name !== "string") return null;
-    const rel = c["m.relates_to"] as Record<string, unknown> | undefined;
+export function threadNameTarget(wireContent: unknown): string | null {
+    if (!wireContent || typeof wireContent !== "object") return null;
+    const rel = (wireContent as Record<string, unknown>)["m.relates_to"] as
+        Record<string, unknown> | undefined;
     if (!rel || rel.rel_type !== THREAD_NAME_REL_TYPE) return null;
     return typeof rel.event_id === "string" ? rel.event_id : null;
 }
 
 /**
+ * The room's level for naming any thread, from its `m.room.power_levels`
+ * content. Unlike `redact`, this is the same default with or without the event.
+ */
+export function threadNameLevel(powerLevels: unknown): number {
+    const value = (powerLevels as Record<string, unknown> | null | undefined)?.[
+        THREAD_NAME_POWER_LEVEL_KEY
+    ];
+    return coercePl(value, DEFAULT_THREAD_NAME_LEVEL);
+}
+
+/**
  * Whose naming events count: the root's sender (it's their thread), or anyone
- * at the room's moderator level (the level that may redact others' events).
+ * at the room's thread name level.
  */
 export function mayNameThread(params: {
     senderId: string;
@@ -81,39 +103,45 @@ export function mayNameThread(params: {
     return params.senderPowerLevel >= params.moderatorLevel;
 }
 
-export interface ThreadNameCandidate {
-    eventId: string;
-    senderId: string;
-    ts: number;
-    content: unknown;
-}
-
-export interface ResolvedThreadName {
-    name: string | null;
-    eventId: string;
-    ts: number;
+/**
+ * The first valid naming event for `rootEventId` in `events`, or null when
+ * there is none. `events` must be newest first, which is how /relations
+ * returns them (topological order). Nothing here reads the name, so this works
+ * on events that are still encrypted.
+ */
+export function latestThreadNameEvent<
+    T extends { sender?: string; content?: unknown },
+>(
+    rootEventId: string,
+    events: T[],
+    isAllowed: (senderId: string) => boolean,
+): T | null {
+    for (const event of events) {
+        if (threadNameTarget(event.content) !== rootEventId) continue;
+        if (isAllowed(event.sender ?? "")) return event;
+    }
+    return null;
 }
 
 /**
- * The newest well-formed naming event for `rootEventId` from an allowed
- * sender, or null when there is none. Ties on timestamp keep input order
- * (the server returns newest first).
+ * MSC4558's `.m.rule.thread_name`, as a rule of the user's own: servers don't
+ * ship the default yet. An encrypted naming event otherwise matches
+ * `.m.rule.encrypted`, and every rename would notify every member. It matches
+ * the relation, which the server can see without decrypting anything.
  */
-export function latestThreadName(
-    rootEventId: string,
-    candidates: ThreadNameCandidate[],
-    isAllowed: (senderId: string) => boolean,
-): ResolvedThreadName | null {
-    let best: ThreadNameCandidate | null = null;
-    for (const c of candidates) {
-        if (threadNameTarget(c.content) !== rootEventId) continue;
-        if (!isAllowed(c.senderId)) continue;
-        if (!best || c.ts > best.ts) best = c;
-    }
-    if (!best) return null;
+export function buildThreadNamePushRule() {
     return {
-        name: parseThreadName(best.content),
-        eventId: best.eventId,
-        ts: best.ts,
+        ruleId: THREAD_NAME_PUSH_RULE_ID,
+        kind: "override" as const,
+        body: {
+            conditions: [
+                {
+                    kind: "event_property_is",
+                    key: "content.m\\.relates_to.rel_type",
+                    value: THREAD_NAME_REL_TYPE,
+                },
+            ],
+            actions: [],
+        },
     };
 }

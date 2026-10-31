@@ -1,12 +1,16 @@
 import { describe, it, expect } from "vitest";
 import {
     MAX_THREAD_NAME_LENGTH,
+    DEFAULT_THREAD_NAME_LEVEL,
+    THREAD_NAME_POWER_LEVEL_KEY,
     THREAD_NAME_REL_TYPE,
     buildThreadNameContent,
-    latestThreadName,
+    buildThreadNamePushRule,
+    latestThreadNameEvent,
     mayNameThread,
     normalizeThreadName,
     parseThreadName,
+    threadNameLevel,
     threadNameTarget,
 } from "./threadName";
 
@@ -67,23 +71,45 @@ describe("buildThreadNameContent / threadNameTarget", () => {
         expect(parseThreadName(c)).toBeNull();
     });
 
-    it("rejects other relations and contents without a string name", () => {
+    it("rejects other relations", () => {
         expect(
             threadNameTarget({
                 name: "x",
                 "m.relates_to": { rel_type: "m.thread", event_id: "$r" },
             }),
         ).toBeNull();
-        expect(
-            threadNameTarget({
-                "m.relates_to": {
-                    rel_type: THREAD_NAME_REL_TYPE,
-                    event_id: "$r",
-                },
-            }),
-        ).toBeNull();
         expect(threadNameTarget({ name: "x" })).toBeNull();
         expect(threadNameTarget(null)).toBeNull();
+    });
+
+    it("targets the root from the relation alone", () => {
+        // An encrypted event's wire content, which is also a missing name:
+        // the event still counts, and reads as the thread having no name.
+        const wire = {
+            algorithm: "m.megolm.v1.aes-sha2",
+            ciphertext: "...",
+            "m.relates_to": { rel_type: THREAD_NAME_REL_TYPE, event_id: "$r" },
+        };
+        expect(threadNameTarget(wire)).toBe("$r");
+        expect(parseThreadName(wire)).toBeNull();
+    });
+});
+
+describe("threadNameLevel", () => {
+    it("reads the room's key, numeric strings included", () => {
+        const level = (value: unknown) =>
+            threadNameLevel({ [THREAD_NAME_POWER_LEVEL_KEY]: value });
+        expect(level(100)).toBe(100);
+        expect(level(0)).toBe(0);
+        expect(level("75")).toBe(75);
+    });
+
+    it("defaults when the key, or the whole event, is absent", () => {
+        expect(threadNameLevel({ redact: 0 })).toBe(DEFAULT_THREAD_NAME_LEVEL);
+        expect(threadNameLevel(undefined)).toBe(DEFAULT_THREAD_NAME_LEVEL);
+        expect(threadNameLevel({ [THREAD_NAME_POWER_LEVEL_KEY]: "x" })).toBe(
+            DEFAULT_THREAD_NAME_LEVEL,
+        );
     });
 });
 
@@ -92,7 +118,7 @@ describe("mayNameThread", () => {
         senderId: "@a:x",
         rootSenderId: "@b:x",
         senderPowerLevel: 0,
-        moderatorLevel: 50,
+        moderatorLevel: 25,
     };
 
     it("lets the root's sender name their thread", () => {
@@ -100,11 +126,12 @@ describe("mayNameThread", () => {
     });
 
     it("lets moderators name any thread", () => {
-        expect(mayNameThread({ ...base, senderPowerLevel: 50 })).toBe(true);
+        expect(mayNameThread({ ...base, senderPowerLevel: 25 })).toBe(true);
     });
 
-    it("refuses everyone else", () => {
+    it("refuses everyone else, just below the moderator level too", () => {
         expect(mayNameThread(base)).toBe(false);
+        expect(mayNameThread({ ...base, senderPowerLevel: 24 })).toBe(false);
     });
 
     it("refuses non-moderators when the root's sender is unknown", () => {
@@ -112,62 +139,80 @@ describe("mayNameThread", () => {
     });
 });
 
-describe("latestThreadName", () => {
-    const named = (
-        eventId: string,
-        senderId: string,
-        ts: number,
-        name: string,
-    ) => ({
-        eventId,
-        senderId,
-        ts,
-        content: buildThreadNameContent("$root", name),
+describe("latestThreadNameEvent", () => {
+    const named = (sender: string, name: string, root = "$root") => ({
+        sender,
+        content: buildThreadNameContent(root, name),
     });
     const anyone = () => true;
 
-    it("picks the newest allowed naming event", () => {
-        const out = latestThreadName(
-            "$root",
-            [
-                named("$1", "@a:x", 100, "Old"),
-                named("$2", "@a:x", 300, "New"),
-                named("$3", "@a:x", 200, "Middle"),
-            ],
-            anyone,
-        );
-        expect(out).toEqual({ name: "New", eventId: "$2", ts: 300 });
+    it("takes the first event: the input is newest first", () => {
+        const newest = named("@a:x", "New");
+        expect(
+            latestThreadNameEvent(
+                "$root",
+                [newest, named("@a:x", "Old")],
+                anyone,
+            ),
+        ).toBe(newest);
     });
 
     it("skips senders who may not name the thread", () => {
-        const out = latestThreadName(
-            "$root",
-            [
-                named("$1", "@ok:x", 100, "Good"),
-                named("$2", "@bad:x", 200, "Spam"),
-            ],
-            (s) => s === "@ok:x",
-        );
-        expect(out?.name).toBe("Good");
+        const good = named("@ok:x", "Good");
+        expect(
+            latestThreadNameEvent(
+                "$root",
+                [named("@bad:x", "Spam"), good],
+                (s) => s === "@ok:x",
+            ),
+        ).toBe(good);
     });
 
-    it("reports a clear as a null name, not a missing result", () => {
-        const out = latestThreadName(
+    it("stops at a clear: older names don't show through", () => {
+        const clear = named("@a:x", "");
+        const out = latestThreadNameEvent(
             "$root",
-            [named("$1", "@a:x", 100, "Name"), named("$2", "@a:x", 200, "")],
+            [clear, named("@a:x", "Name")],
             anyone,
         );
-        expect(out).toEqual({ name: null, eventId: "$2", ts: 200 });
+        expect(out).toBe(clear);
+        expect(parseThreadName(out?.content)).toBeNull();
+    });
+
+    it("works on an event it can't read yet", () => {
+        const encrypted = {
+            sender: "@a:x",
+            content: {
+                ciphertext: "...",
+                "m.relates_to": {
+                    rel_type: THREAD_NAME_REL_TYPE,
+                    event_id: "$root",
+                },
+            },
+        };
+        expect(latestThreadNameEvent("$root", [encrypted], anyone)).toBe(
+            encrypted,
+        );
     });
 
     it("ignores events naming another root, and returns null for none", () => {
-        const other = {
-            eventId: "$9",
-            senderId: "@a:x",
-            ts: 999,
-            content: buildThreadNameContent("$other", "Elsewhere"),
-        };
-        expect(latestThreadName("$root", [other], anyone)).toBeNull();
-        expect(latestThreadName("$root", [], anyone)).toBeNull();
+        const other = named("@a:x", "Elsewhere", "$other");
+        expect(latestThreadNameEvent("$root", [other], anyone)).toBeNull();
+        expect(latestThreadNameEvent("$root", [], anyone)).toBeNull();
+    });
+});
+
+describe("buildThreadNamePushRule", () => {
+    it("silences the relation, which needs no decrypting", () => {
+        const { kind, body } = buildThreadNamePushRule();
+        expect(kind).toBe("override");
+        expect(body.actions).toEqual([]);
+        expect(body.conditions).toEqual([
+            {
+                kind: "event_property_is",
+                key: "content.m\\.relates_to.rel_type",
+                value: THREAD_NAME_REL_TYPE,
+            },
+        ]);
     });
 });
