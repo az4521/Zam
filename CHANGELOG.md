@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.41.0
+
+✨ **New**
+
+- **Picture-in-picture for calls:** when you leave the call view, a stream keeps playing in a small floating video, so you can read the chat and still watch. Drag it to any edge of the window, click it to go back to the call, or close it with the X. It shows someone's screen share first, then whoever is talking, and you can pick a stream by spotlighting it.
+- **Pop a stream out of the app:** where your browser supports it, a new button on the floating video and on call tiles opens a window that floats over your other apps, and it stays open while you move around Zam. This isn't available in Firefox or the Android app, which still get the floating video.
+
+🐛 **Fixed**
+
+- **Less hiss on quiet voices:** voice normalization no longer boosts a quiet speaker enough to bring up their background noise during pauses.
+
 ## v1.40.4
 
 ✨ **New**
