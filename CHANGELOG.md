@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.42.10
+
+🔒 **Security**
+
+- **Fake soundboard sounds in encrypted calls:** in an encrypted call, a soundboard message that arrived unencrypted is now ignored. Such a message could be injected by the call server with any participant's name on it.
+
 ## v1.42.9
 
 🐛 **Fixed**
