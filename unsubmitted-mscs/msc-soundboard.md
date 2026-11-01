@@ -166,12 +166,13 @@ sender's voice.
 - **Loudness and spam.** A malicious participant can play loud or repeated
   sounds. Rate limits, per-participant mute, and the listener-side volume cap
   limit the effect. A client may also apply a limiter to the mixed output.
-- **Not end-to-end encrypted.** LiveKit data messages are not covered by the
-  call's media encryption, so the SFU operator can see which media was
-  referenced. The media itself is an ordinary, unencrypted upload, so the
-  homeserver can see it anyway. Sounds that are private should not be
-  used. A future version could send the message over an encrypted channel
-  and use encrypted attachments (`file`) for the media.
+- **The media is not end-to-end encrypted.** In an encrypted call, clients
+  should send the data message with the call's end-to-end encryption, so the
+  SFU operator cannot see which media was referenced (LiveKit can encrypt data
+  messages with the same keys as the call's tracks). The media itself is an
+  ordinary, unencrypted upload, so the homeserver can see it regardless.
+  Sounds that are private should not be used. A future version could use
+  encrypted attachments (`file`) for the media.
 - **Attribution.** Trust in the sender rests on the SFU's attribution of the
   data message (see "Identifying the sender"), exactly as it does for the
   call's audio and video tracks. Clients must not read a sender from the
