@@ -2,6 +2,7 @@ build/
 static/
 .superpowers/
 docs/
+unsubmitted-mscs/
 overnight/
 handoffs/
 .playwright-mcp/

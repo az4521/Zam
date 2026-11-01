@@ -166,13 +166,19 @@ sender's voice.
 - **Loudness and spam.** A malicious participant can play loud or repeated
   sounds. Rate limits, per-participant mute, and the listener-side volume cap
   limit the effect. A client may also apply a limiter to the mixed output.
-- **The media is not end-to-end encrypted.** In an encrypted call, clients
-  should send the data message with the call's end-to-end encryption, so the
-  SFU operator cannot see which media was referenced (LiveKit can encrypt data
-  messages with the same keys as the call's tracks). The media itself is an
-  ordinary, unencrypted upload, so the homeserver can see it regardless.
-  Sounds that are private should not be used. A future version could use
-  encrypted attachments (`file`) for the media.
+- **The message is encrypted only if the LiveKit room is.** LiveKit encrypts
+  data messages when the client creates its `Room` with the `encryption`
+  option (the older `e2ee` option alone covers only media tracks). A client
+  in an encrypted MatrixRTC call should set it, so the SFU operator cannot
+  see which media was referenced. In a call that is not encrypted the message
+  is plaintext. In an encrypted call a client must ignore a message that
+  arrives unencrypted, since LiveKit passes such a packet through and it
+  could have been injected with any sender attached.
+
+  The media itself is an ordinary, unencrypted upload, so the homeserver can
+  see it regardless. Sounds that are private should not be used. A future
+  version could use encrypted attachments (`file`) for the media.
+
 - **Attribution.** Trust in the sender rests on the SFU's attribution of the
   data message (see "Identifying the sender"), exactly as it does for the
   call's audio and video tracks. Clients must not read a sender from the
@@ -185,11 +191,11 @@ sender's voice.
 
 Until this proposal is accepted, implementations use:
 
-| Stable                 | Unstable                    |
-| ---------------------- | --------------------------- |
-| `m.soundboard`         | `moe.crafty.soundboard`      |
-| `m.room.soundboard`    | `moe.crafty.room_soundboard` |
-| `m.soundboard.play`    | `moe.crafty.soundboard`      |
+| Stable              | Unstable                     |
+| ------------------- | ---------------------------- |
+| `m.soundboard`      | `moe.crafty.soundboard`      |
+| `m.room.soundboard` | `moe.crafty.room_soundboard` |
+| `m.soundboard.play` | `moe.crafty.soundboard`      |
 
 The unstable names are what Zam 1.40.0 and later write and read. No data
 moves between them automatically when the stable names are adopted.
