@@ -105,7 +105,7 @@ to point push at your own gateway, set `VITE_PUSH_GATEWAY_URL` (and `VITE_VAPID_
 
 ### DEFAULT_HOMESERVER
 
-the default homeserver url for the login page when viewed as a webapp. currently set to https://matrix.crafty.moe
+the default homeserver url for the login page when viewed as a webapp. currently set to https://matrix.org
 
 ### INSTALLED_APP_DEFAULT_HOMESERVER
 

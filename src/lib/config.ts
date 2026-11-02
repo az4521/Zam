@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 
 /** Default homeserver shown in the login form. */
-export const DEFAULT_HOMESERVER = "https://matrix.crafty.moe";
+export const DEFAULT_HOMESERVER = "https://matrix.org";
 
 /** Default homeserver shown when running as an APK, installed PWA, or Electron app. */
 export const INSTALLED_APP_DEFAULT_HOMESERVER = "https://matrix.org";
