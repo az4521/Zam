@@ -26,6 +26,7 @@ const MAX_MOVE = 50;
 export function addOrderHints(
     client: MatrixClient,
     bottomEventId: (room: Room) => string | undefined,
+    enabled: () => boolean = () => true,
 ): MatrixClient {
     const internals = client as unknown as {
         sendMessage: (roomId: string, ...args: unknown[]) => Promise<unknown>;
@@ -36,7 +37,7 @@ export function addOrderHints(
         const at = args.length - 1;
         const content = args[at] as Record<string, unknown> | undefined;
         const room = client.getRoom(roomId);
-        const hint = room ? bottomEventId(room) : undefined;
+        const hint = room && enabled() ? bottomEventId(room) : undefined;
         // An edit's place is already set by the message it replaces.
         if (
             hint &&

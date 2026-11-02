@@ -251,6 +251,9 @@ export const settingsState = $state({
     /** Debug: render every Matrix timeline event (state events, edits, redacted,
      *  etc) in the chat log, not just messages/stickers. */
     showAllEvents: readBool("showAllEvents", false),
+    /** Debug: send and obey the order hint (matrix/orderHint). Default ON; off
+     *  shows messages in the server's order, as Element does. */
+    orderHints: readBool("orderHints", true),
     /** Device-global: whether the packaged desktop/Android build auto-downloads
      *  updates. Default ON; the escape hatch is this toggle. */
     autoUpdateEnabled: readBool("autoUpdateEnabled", true),
@@ -862,6 +865,11 @@ export function setRightAlignOwnBubbles(value: boolean): void {
 export function setShowAllEvents(value: boolean): void {
     settingsState.showAllEvents = value;
     writeBool("showAllEvents", value);
+}
+
+export function setOrderHints(value: boolean): void {
+    settingsState.orderHints = value;
+    writeBool("orderHints", value);
 }
 
 export function setAutoUpdateEnabled(value: boolean): void {

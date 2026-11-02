@@ -564,6 +564,9 @@ const messages: Record<MessageKey, string> = {
     // src/lib/components/settings/DebugSettings.svelte
     "debugSettings.developer": "Desarrollador",
     "debugSettings.showAllEvents": "Mostrar todos los eventos",
+    "debugSettings.orderHints": "Pistas de orden de mensajes",
+    "debugSettings.orderHintsHint":
+        "Zam añade a tus mensajes una pista de lo que había al final de tu chat y coloca los mensajes de otros usuarios de Zam debajo del que nombran. Si está desactivado, los mensajes se muestran en el orden del servidor, como en Element.",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Muestra cada evento de la cronología de Matrix en el historial del chat.",
     "debugSettings.ignoreCodecSupport": "Ignore reported codec support",
@@ -3780,6 +3783,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.checkForUpdates": "Buscar actualizaciones",
     "settingsSearch.clearCache": "Borrar la caché",
     "settingsSearch.showAllEvents": "Mostrar todos los eventos",
+    "settingsSearch.orderHints": "Pistas de orden de mensajes",
     "settingsSearch.pushDiagnostics": "Diagnóstico de notificaciones push",
     "settingsSearch.pushService": "Servicio push (UnifiedPush / Firebase)",
     "settingsSearch.language": "Idioma",

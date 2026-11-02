@@ -39,6 +39,7 @@
         setH264ProfileFix,
         setMicPauseGate,
         setShowAllEvents,
+        setOrderHints,
         setUpdateNagDisabled,
         settingsState,
     } from "$lib/stores/settings.svelte";
@@ -385,6 +386,23 @@
                 checked={settingsState.showAllEvents}
                 onChange={setShowAllEvents}
                 label={t("debugSettings.showAllEvents")}
+            />
+        </div>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("debugSettings.orderHints")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("debugSettings.orderHintsHint")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.orderHints}
+                onChange={setOrderHints}
+                label={t("debugSettings.orderHints")}
             />
         </div>
         <div

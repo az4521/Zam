@@ -17,6 +17,7 @@ import {
     renameCustomPreset,
     setHoldToOpenMessageMenu,
     setSpellCheckEnabled,
+    setOrderHints,
     setMinimizeToTrayOnClose,
     setCallVideoCodec,
     normalizeCallVideoCodec,
@@ -886,5 +887,35 @@ describe("gifsAsWebp", () => {
         fresh.setGifsAsWebp(true);
         expect(fresh.settingsState.gifsAsWebp).toBe(true);
         expect(localStorage.getItem(GK)).toBe("true");
+    });
+});
+
+describe("orderHints (device-local)", () => {
+    const OH_KEY = "settings:orderHints";
+
+    afterEach(() => {
+        setOrderHints(true);
+        localStorage.removeItem(OH_KEY);
+    });
+
+    async function bootWith(stored: string | null) {
+        if (stored === null) localStorage.removeItem(OH_KEY);
+        else localStorage.setItem(OH_KEY, stored);
+        vi.resetModules();
+        return await import("./settings.svelte");
+    }
+
+    it("defaults to on", async () => {
+        expect((await bootWith(null)).settingsState.orderHints).toBe(true);
+    });
+
+    it("reads a stored false at boot", async () => {
+        expect((await bootWith("false")).settingsState.orderHints).toBe(false);
+    });
+
+    it("saves the choice", () => {
+        setOrderHints(false);
+        expect(settingsState.orderHints).toBe(false);
+        expect(localStorage.getItem(OH_KEY)).toBe("false");
     });
 });

@@ -77,6 +77,18 @@ describe("addOrderHints", () => {
         expect(sent[0][2]).toEqual({ body: "hi", [ORDER_HINT_KEY]: "$tail" });
     });
 
+    it("adds nothing while switched off", async () => {
+        const { client, sent } = fake();
+        addOrderHints(
+            client as never,
+            () => "$tail",
+            () => false,
+        );
+        const content = { body: "hi" };
+        await client.sendMessage("!r", content);
+        expect(sent[0][1]).toBe(content);
+    });
+
     it("leaves an edit alone", async () => {
         const { client, sent } = fake();
         addOrderHints(client as never, () => "$tail");

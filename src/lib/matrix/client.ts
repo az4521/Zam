@@ -634,7 +634,7 @@ async function createAuthenticatedClient(opts: {
         }
     }
 
-    addOrderHints(client, bottomEventId);
+    addOrderHints(client, bottomEventId, () => settingsState.orderHints);
     installClient(client);
 
     // Initialise E2EE before the caller starts sync, so crypto is ready when
@@ -2662,9 +2662,12 @@ export function getTimelineMessages(room: Room): MatrixEvent[] {
     pruneDeliveredEchoes(room);
     const chain = liveChainEvents(room);
     decryptForDisplay(chain);
-    const timeline = placeAfterHints(
-        collapseCallEvents(chain.filter(isRenderableTimelineEvent)),
+    const rendered = collapseCallEvents(
+        chain.filter(isRenderableTimelineEvent),
     );
+    const timeline = settingsState.orderHints
+        ? placeAfterHints(rendered)
+        : rendered;
     const timelineIds = new Set(timeline.map((e) => e.getId()));
     // Include pending (local echo) events. Keep NOT_SENT echoes so the user
     // can see a failed send and retry/delete it (see resendMessage /

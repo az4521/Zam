@@ -510,6 +510,11 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     // debug
     {
         tab: "debug",
+        label: t("settingsSearch.orderHints"),
+        keywords: ["message order", "ordering", "element", "timeline"],
+    },
+    {
+        tab: "debug",
         label: t("settingsSearch.showAllEvents"),
         keywords: ["timeline events", "raw events", "developer"],
     },

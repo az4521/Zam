@@ -552,6 +552,9 @@ export const en = {
     // src/lib/components/settings/DebugSettings.svelte
     "debugSettings.developer": "Developer",
     "debugSettings.showAllEvents": "Show all events",
+    "debugSettings.orderHints": "Message order hints",
+    "debugSettings.orderHintsHint":
+        "Zam adds a hint to your messages saying what was at the bottom of your chat log, and puts other Zam users' messages below the one they name. Off, messages show in the server's order, as in Element.",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Display every Matrix timeline event in the chat log.",
     "debugSettings.ignoreCodecSupport": "Ignore reported codec support",
@@ -3593,6 +3596,7 @@ export const en = {
     "settingsSearch.checkForUpdates": "Check for updates",
     "settingsSearch.clearCache": "Clear cache",
     "settingsSearch.showAllEvents": "Show all events",
+    "settingsSearch.orderHints": "Message order hints",
     "settingsSearch.pushDiagnostics": "Push diagnostics",
     "settingsSearch.pushService": "Push service (UnifiedPush / Firebase)",
     "settingsSearch.language": "Language",
