@@ -15,7 +15,12 @@
         onClose: () => void;
         /** When set, a favourite (star) button is shown that toggles this gif
          *  in the favourite gif picker. Pass only for gif-like media. */
-        favourite?: { url: string; previewUrl: string };
+        favourite?: {
+            url: string;
+            previewUrl: string;
+            /** Pointer to the message, for an encrypted gif (see favouriteFile.ts). */
+            source?: { roomId: string; eventId: string };
+        };
         /** Gallery navigation. When supplied, a chevron and the matching arrow
          *  key step to the neighbouring item; omit at the ends of the list. */
         onPrev?: () => void;
@@ -122,6 +127,7 @@
             addFavouriteGif({
                 url: favourite.url,
                 previewUrl: favourite.previewUrl,
+                source: favourite.source,
             });
         }
     }

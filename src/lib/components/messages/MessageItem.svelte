@@ -47,6 +47,7 @@
     import ReactorPopover from "./ReactorPopover.svelte";
     import LinkPreview from "$lib/components/messages/LinkPreview.svelte";
     import { orderReadReceipts } from "$lib/utils/readReceipts";
+    import { eventFavouriteKey } from "$lib/matrix/favouriteFile";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
     import SwfEmbed from "$lib/components/ui/SwfEmbed.svelte";
     import {
@@ -1222,9 +1223,17 @@
     // Whether this uploaded image is a GIF (eligible for favouriting)
     const isGif = $derived(
         msgtype === "m.image" &&
-            ((content?.info as { mimetype?: string } | undefined)?.mimetype ===
-                "image/gif" ||
-                mediaFilename.toLowerCase().endsWith(".gif")),
+            // Clients differ on casing and on whether the name is in
+            // `filename` or only `body`, so check every spelling.
+            ((
+                (content?.info as { mimetype?: string } | undefined)
+                    ?.mimetype ?? ""
+            )
+                .trim()
+                .toLowerCase() === "image/gif" ||
+                [mediaFilename, content?.body as string | undefined].some((n) =>
+                    (n ?? "").trim().toLowerCase().endsWith(".gif"),
+                )),
     );
 
     // Image conversion.
@@ -1614,16 +1623,33 @@
 
     // Reactively track whether the current image URL is favourited. The
     // full-resolution URL is the favourite key (so the picker sends full quality).
+    // An encrypted GIF has no usable URL, so it is keyed by a pointer to this
+    // message instead (see favouriteFile.ts).
+    const encryptedFavouriteSource = $derived({
+        roomId: room.roomId,
+        eventId,
+    });
     const imageIsFavourited = $derived.by(() => {
         favouritesState.gifs; // track
-        const src = imageFullUrl();
+        const src =
+            imageFullUrl() ?? eventFavouriteKey(encryptedFavouriteSource);
         return !!src && isFavouriteGif(src);
     });
 
     function toggleImageFavourite(e: MouseEvent) {
         e.stopPropagation();
         const full = imageFullUrl();
-        if (!full) return;
+        if (!full) {
+            const key = eventFavouriteKey(encryptedFavouriteSource);
+            if (isFavouriteGif(key)) removeFavouriteGif(key);
+            else
+                addFavouriteGif({
+                    url: key,
+                    previewUrl: key,
+                    source: encryptedFavouriteSource,
+                });
+            return;
+        }
         if (isFavouriteGif(full)) {
             removeFavouriteGif(full);
         } else {
@@ -2691,9 +2717,21 @@
                         placeholders={lightboxPlaceholders}
                         preview={file ? imagePreview : null}
                         dims={{ w: imgInfoW, h: imgInfoH }}
-                        favourite={isGif && full
-                            ? { url: full, previewUrl: thumb ?? full }
-                            : undefined}
+                        favourite={!isGif
+                            ? undefined
+                            : file
+                              ? {
+                                    url: eventFavouriteKey(
+                                        encryptedFavouriteSource,
+                                    ),
+                                    previewUrl: eventFavouriteKey(
+                                        encryptedFavouriteSource,
+                                    ),
+                                    source: encryptedFavouriteSource,
+                                }
+                              : full
+                                ? { url: full, previewUrl: thumb ?? full }
+                                : undefined}
                         onClose={() => (imageLightboxOpen = false)}
                     />
                 {/if}

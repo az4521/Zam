@@ -406,7 +406,21 @@
                                     class="w-full h-auto max-h-72 min-w-0 max-w-full object-contain rounded"
                                     controls
                                     preload="metadata"
-                                    onclick={(e) => e.preventDefault()}
+                                    onclick={(e) => {
+                                        // Stop an enclosing link from navigating, but
+                                        // keep click-to-pause: preventDefault alone
+                                        // would also suppress the video's own toggle.
+                                        e.preventDefault();
+                                        const v = e.currentTarget;
+                                        // Clicks on the control bar are handled by the
+                                        // controls themselves; toggling here too would
+                                        // undo them.
+                                        const r = v.getBoundingClientRect();
+                                        if (e.clientY > r.bottom - 48) return;
+                                        if (v.paused)
+                                            void v.play().catch(() => {});
+                                        else v.pause();
+                                    }}
                                 ></video>
                             {:else}
                                 <!-- svelte-ignore a11y_click_events_have_key_events -->

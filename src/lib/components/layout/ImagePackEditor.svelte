@@ -462,17 +462,13 @@
                     {/if}
                 </select>
             </div>
-            <div
-                class={selectedEmotePackKey === "__new"
-                    ? "grid gap-2 min-w-0 sm:grid-cols-2"
-                    : "grid gap-2 min-w-0"}
-            >
+            <div class="grid gap-2 min-w-0 content-start">
                 {#if selectedEmotePackKey === "__new"}
                     <input
                         bind:value={newEmotePackName}
                         disabled={!canAdd || emoteUploading}
                         placeholder={t("imagePackEditor.packName")}
-                        class="min-w-0 bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50"
+                        class="w-full min-w-0 text-ellipsis bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50"
                     />
                 {/if}
                 <div

@@ -2415,6 +2415,7 @@
                         >
                             <GifPicker
                                 onSelect={insertGif}
+                                onSelectFile={(f) => addFiles([f])}
                                 onClose={() => closePicker("gif", true)}
                                 onSwitchToEmoji={() => openPicker("emoji")}
                                 onSwitchToSticker={() => openPicker("sticker")}
@@ -2424,6 +2425,7 @@
                         <div class="absolute bottom-full end-0 mb-2 z-50">
                             <GifPicker
                                 onSelect={insertGif}
+                                onSelectFile={(f) => addFiles([f])}
                                 onClose={() => closePicker("gif", true)}
                                 onSwitchToEmoji={() => openPicker("emoji")}
                                 onSwitchToSticker={() => openPicker("sticker")}

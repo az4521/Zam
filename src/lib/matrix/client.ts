@@ -1613,6 +1613,10 @@ export interface FavouriteGif {
      *  read (account data), same as previewUrl. */
     previewVideoUrl?: string;
     addedAt: number;
+    /** Set for a GIF that was encrypted when starred: `url` is then only a
+     *  key (see favouriteFile.ts) and the GIF is read from this message.
+     *  Untrusted on read; validate with parseEventFavouriteSource. */
+    source?: { roomId: string; eventId: string };
     tags?: string[];
     /** Natural size of the GIF, when known at the time it was starred. Lets
      *  the picker reserve the tile before the preview loads. Untrusted on

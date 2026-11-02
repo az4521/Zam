@@ -1,5 +1,10 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
+    import FavouriteFileImg from "$lib/components/ui/FavouriteFileImg.svelte";
+    import {
+        eventFavouriteFile,
+        parseEventFavouriteSource,
+    } from "$lib/matrix/favouriteFile";
     import {
         favouritesState,
         addFavouriteGif,
@@ -38,13 +43,20 @@
 
     interface Props {
         onSelect: (url: string) => void;
+        /** Picked a favourite that has no URL (an encrypted GIF): attach it. */
+        onSelectFile?: (file: File) => void;
         onClose: () => void;
         onSwitchToEmoji?: () => void;
         onSwitchToSticker?: () => void;
     }
 
-    let { onSelect, onClose, onSwitchToEmoji, onSwitchToSticker }: Props =
-        $props();
+    let {
+        onSelect,
+        onSelectFile,
+        onClose,
+        onSwitchToEmoji,
+        onSwitchToSticker,
+    }: Props = $props();
 
     type Tab = "gifs" | "favourites";
 
@@ -195,6 +207,15 @@
 
     function pickUrl(url: string) {
         onSelect(url);
+        onClose();
+    }
+
+    async function pickFavourite(gif: FavouriteGif) {
+        const source = parseEventFavouriteSource(gif.source);
+        if (!source) return pickUrl(gif.url);
+        const file = await eventFavouriteFile(source).catch(() => null);
+        if (!file) return;
+        onSelectFile?.(file);
         onClose();
     }
 
@@ -526,7 +547,15 @@
                                 class:ring-discord-accent={activeIndex === idx}
                                 class="block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
                             >
-                                {#if gif.previewVideoUrl}
+                                {#if parseEventFavouriteSource(gif.source)}
+                                    <FavouriteFileImg
+                                        source={parseEventFavouriteSource(
+                                            gif.source,
+                                        )!}
+                                        class="w-full h-auto block rounded bg-discord-backgroundTertiary"
+                                        style={favouriteAspectStyle(gif)}
+                                    />
+                                {:else if gif.previewVideoUrl}
                                     <video
                                         src={gif.previewVideoUrl}
                                         class="w-full h-auto block rounded bg-discord-backgroundTertiary pointer-events-none"
