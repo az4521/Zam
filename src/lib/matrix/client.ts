@@ -204,7 +204,7 @@ import {
     threadNameTarget,
 } from "$lib/utils/threadName";
 import type { ThreadInfo } from "$lib/utils/threadList";
-import { settleTimelineOrder } from "$lib/utils/timelineDisplay";
+import { addOrderHints, placeAfterHints } from "./orderHint";
 import {
     tagUpdatesForToggle,
     tagOrderRollback,
@@ -634,6 +634,7 @@ async function createAuthenticatedClient(opts: {
         }
     }
 
+    addOrderHints(client, bottomEventId);
     installClient(client);
 
     // Initialise E2EE before the caller starts sync, so crypto is ready when
@@ -2512,6 +2513,16 @@ export async function reorderRoomTag(
 // context window (getContextWindowEvents) so both show exactly the same events.
 // Debug mode (showAllEvents) surfaces every event — state, edits, redacted,
 // reactions — instead of just renderable messages.
+/** The event at the bottom of the room's chat log, which is what a message
+ *  sent now is meant to come after. */
+function bottomEventId(room: Room): string | undefined {
+    const events = room.getLiveTimeline().getEvents();
+    for (let i = events.length - 1; i >= 0; i--) {
+        if (isRenderableTimelineEvent(events[i])) return events[i].getId();
+    }
+    return undefined;
+}
+
 function isRenderableTimelineEvent(e: MatrixEvent): boolean {
     if (settingsState.showAllEvents) return true;
     if (e.isRedacted()) return false;
@@ -2651,7 +2662,7 @@ export function getTimelineMessages(room: Room): MatrixEvent[] {
     pruneDeliveredEchoes(room);
     const chain = liveChainEvents(room);
     decryptForDisplay(chain);
-    const timeline = settleTimelineOrder(
+    const timeline = placeAfterHints(
         collapseCallEvents(chain.filter(isRenderableTimelineEvent)),
     );
     const timelineIds = new Set(timeline.map((e) => e.getId()));
