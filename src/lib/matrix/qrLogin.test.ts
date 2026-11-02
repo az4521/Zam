@@ -1,87 +1,102 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ValidatedAuthMetadata } from "matrix-js-sdk";
 
-vi.mock("$lib/matrix/client", () => ({
-    finishOAuthTokens: vi.fn(),
-    resolveHomeserver: vi.fn(),
+vi.mock("$lib/matrix/client", () => ({ finishOAuthTokens: vi.fn() }));
+vi.mock("$lib/matrix/crypto", () => ({ startDeviceVerification: vi.fn() }));
+vi.mock("$lib/matrix/qrLoginRendezvous", () => ({
+    linkDeviceByRendezvousScan: vi.fn(),
+    serverAdvertisesQrLogin: vi.fn(),
+    signInWithRendezvous: vi.fn(),
 }));
-vi.mock("$lib/matrix/runtime", () => ({ getClient: () => null }));
 
 import {
-    checkCodeMatches,
+    encodeQrPayload,
     isQrLoginAvailable,
-    isTrustedApprovalUrl,
-    serverAdvertisesQrLogin,
+    isQrLoginPayload,
+    looksLikeQrPayload,
+    parseQrPayload,
 } from "./qrLogin";
 
-const versions = (features: Record<string, boolean>) =>
-    vi.fn(async (_input: RequestInfo | URL) =>
-        Response.json({ unstable_features: features }),
-    );
-
-describe("checkCodeMatches", () => {
-    it("accepts the exact code, ignoring surrounding space", () => {
-        expect(checkCodeMatches("42", " 42 ")).toBe(true);
-    });
-    it("rejects a different or empty code", () => {
-        expect(checkCodeMatches("42", "24")).toBe(false);
-        expect(checkCodeMatches("", "")).toBe(false);
-    });
-});
-
-describe("isTrustedApprovalUrl", () => {
-    const issuer = "https://account.example.org/";
-    it("accepts the provider's own https origin", () => {
-        expect(
-            isTrustedApprovalUrl(
-                "https://account.example.org/device?user_code=ABCD",
-                issuer,
-            ),
-        ).toBe(true);
-    });
-    it("rejects another host, plain http and junk", () => {
-        expect(isTrustedApprovalUrl("https://evil.example/", issuer)).toBe(
-            false,
-        );
-        expect(
-            isTrustedApprovalUrl("http://account.example.org/device", issuer),
-        ).toBe(false);
-        expect(isTrustedApprovalUrl("not a url", issuer)).toBe(false);
-    });
-});
-
-describe("serverAdvertisesQrLogin", () => {
-    it("reads the unstable feature flag", async () => {
-        const yes = versions({ "org.matrix.msc4108": true });
-        expect(await serverAdvertisesQrLogin("https://hs.test/", yes)).toBe(
-            true,
-        );
-        expect(yes.mock.calls[0][0]).toBe(
-            "https://hs.test/_matrix/client/versions",
-        );
-        expect(
-            await serverAdvertisesQrLogin("https://hs.test", versions({})),
-        ).toBe(false);
-    });
-    it("is false when the server is unreachable", async () => {
-        const down = vi.fn(async () => {
-            throw new Error("offline");
-        });
-        expect(await serverAdvertisesQrLogin("https://hs.test", down)).toBe(
-            false,
-        );
-    });
-});
+const issuer = "https://account.example.org/";
+const meta = (over: Record<string, unknown> = {}) =>
+    ({
+        issuer,
+        device_authorization_endpoint: "https://account.example.org/device",
+        grant_types_supported: [
+            "authorization_code",
+            "urn:ietf:params:oauth:grant-type:device_code",
+        ],
+        ...over,
+    }) as unknown as ValidatedAuthMetadata;
 
 describe("isQrLoginAvailable", () => {
-    it("needs OAuth metadata with the device-code grant", async () => {
-        expect(await isQrLoginAvailable("https://hs.test", null)).toBe(false);
-        const noDevice = {
-            device_authorization_endpoint: "https://a/device",
-            grant_types_supported: ["authorization_code"],
-        } as unknown as ValidatedAuthMetadata;
-        expect(await isQrLoginAvailable("https://hs.test", noDevice)).toBe(
-            false,
+    it("needs the device endpoint and the device-code grant", () => {
+        expect(isQrLoginAvailable(meta())).toBe(true);
+        expect(isQrLoginAvailable(null)).toBe(false);
+        expect(
+            isQrLoginAvailable(
+                meta({ device_authorization_endpoint: undefined }),
+            ),
+        ).toBe(false);
+        expect(
+            isQrLoginAvailable(
+                meta({ grant_types_supported: ["authorization_code"] }),
+            ),
+        ).toBe(false);
+    });
+});
+
+describe("QR payload", () => {
+    const url = "https://account.example.org/link?code=ABCD1234";
+
+    it("round-trips the approval link and device id", () => {
+        const text = encodeQrPayload(url, "NEWDEVICE1");
+        expect(parseQrPayload(text, issuer)).toEqual({
+            approvalUrl: url,
+            deviceId: "NEWDEVICE1",
+        });
+    });
+
+    it("refuses a link that is not on the account's provider", () => {
+        const evil = encodeQrPayload("https://evil.example/link", "NEWDEVICE1");
+        expect(parseQrPayload(evil, issuer)).toBeNull();
+        const http = encodeQrPayload(
+            "http://account.example.org/link",
+            "NEWDEVICE1",
         );
+        expect(parseQrPayload(http, issuer)).toBeNull();
+    });
+
+    it("refuses a missing or malformed device id and junk", () => {
+        expect(parseQrPayload(url, issuer)).toBeNull();
+        expect(parseQrPayload(`${url}#zam-device=bad id!`, issuer)).toBeNull();
+        expect(parseQrPayload("not a url", issuer)).toBeNull();
+    });
+
+    it("is recognised by the scanner filter", () => {
+        const bytes = new TextEncoder().encode(
+            encodeQrPayload(url, "ABCDEFGHIJ"),
+        );
+        expect(looksLikeQrPayload(bytes)).toBe(true);
+        expect(looksLikeQrPayload(new TextEncoder().encode(url))).toBe(false);
+        expect(
+            looksLikeQrPayload(new TextEncoder().encode("WIFI:S:home;;")),
+        ).toBe(false);
+    });
+});
+
+describe("isQrLoginPayload", () => {
+    it("takes Matrix QR bytes and device-code links, nothing else", () => {
+        const matrix = Uint8Array.from([
+            ...new TextEncoder().encode("MATRIX"),
+            2,
+            0,
+        ]);
+        expect(isQrLoginPayload(matrix)).toBe(true);
+        const link = new TextEncoder().encode(
+            encodeQrPayload("https://account.example.org/link", "ABCDEFGHIJ"),
+        );
+        expect(isQrLoginPayload(link)).toBe(true);
+        expect(isQrLoginPayload(new TextEncoder().encode("hello"))).toBe(false);
     });
 });

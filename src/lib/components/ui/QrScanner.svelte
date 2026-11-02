@@ -7,9 +7,12 @@
     let {
         onScan,
         onError,
+        accept = isMatrixQrPayload,
     }: {
         onScan: (bytes: Uint8ClampedArray) => void;
         onError?: (message: string) => void;
+        /** Which decoded payloads count as a hit. Defaults to Matrix verification codes. */
+        accept?: (bytes: ArrayLike<number>) => boolean;
     } = $props();
 
     // jsQR is synchronous and routinely overruns a frame budget on a mid-range
@@ -114,7 +117,7 @@
                 const payload = found
                     ? toQrPayloadBytes(found.binaryData)
                     : null;
-                if (payload && isMatrixQrPayload(payload) && !delivered) {
+                if (payload && accept(payload) && !delivered) {
                     delivered = true;
                     // Keep the last frame: the consumer's handshake runs from
                     // here, and a black square under "checking it…" reads as a

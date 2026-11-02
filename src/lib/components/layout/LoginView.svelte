@@ -128,9 +128,7 @@
     // fallback for servers without it (or that refused to register this app).
     let oauthMeta = $state<ValidatedAuthMetadata | null>(null);
     let oauthRefused = $state(false);
-    // QR sign-in: offered only when the server grants by device code and
-    // advertises the rendezvous endpoint (checked once per server).
-    let qrAvailable = $state(false);
+    // QR sign-in: offered when the provider grants by device code.
     let showQr = $state(false);
     let optionsFor = $state("");
     let optionsLoading = $state(false);
@@ -141,23 +139,14 @@
         pickSignInMethod(oauthRefused ? null : oauthMeta),
     );
     const useOAuth = $derived(signInMethod === "oauth");
-    $effect(() => {
-        const base = optionsBaseUrl;
-        const meta = oauthMeta;
-        qrAvailable = false;
-        if (!base || !meta || oauthRefused) return;
-        let stale = false;
-        void isQrLoginAvailable(base, meta).then((ok) => {
-            if (!stale) qrAvailable = ok;
-        });
-        return () => {
-            stale = true;
-        };
-    });
+    const qrAvailable = $derived(
+        !oauthRefused && isQrLoginAvailable(oauthMeta),
+    );
 
     async function finishQrSignIn(result: QrSignInResult) {
         showQr = false;
-        if (!result.secretsImported) showErrorToast(t("qrLogin.notVerified"));
+        if (result.method === "rendezvous" && !result.secretsImported)
+            showErrorToast(t("qrLogin.notVerified"));
         await onAuthenticated(result.session);
     }
     const showPasswordForm = $derived(

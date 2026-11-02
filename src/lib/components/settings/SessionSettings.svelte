@@ -68,15 +68,14 @@
         );
 
     // Link a new device by scanning its QR code. Needs a native OAuth session
-    // on a server that supports it (checked once).
+    // whose provider grants by device code.
     let canLinkDevice = $state(false);
     let linkOpen = $state(false);
     if (oauthSession) {
         const client = getClient();
         void client
             ?.getAuthMetadata()
-            .then((meta) => isQrLoginAvailable(client.getHomeserverUrl(), meta))
-            .then((ok) => (canLinkDevice = ok))
+            .then((meta) => (canLinkDevice = isQrLoginAvailable(meta)))
             .catch(() => {});
     }
 

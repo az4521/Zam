@@ -1,93 +1,61 @@
-// QR sign-in (MSC4108), both halves.
+// QR sign-in through the OAuth device authorization grant (RFC 8628).
 //
-// New device: shows a QR code; a signed-in device scans it, approves the login
-// at the provider, and sends the account's end-to-end secrets over an
-// encrypted channel, so the new session arrives already verified.
+// The new device asks the account's provider for a device code and shows the
+// approval link as a QR code. A device that is already signed in scans it,
+// opens the link and approves the login there; the new device, which has been
+// polling the provider, receives its tokens. Zam then starts the usual
+// verification between the two devices, so the new session ends up verified.
 //
-// Existing device: scans the new device's code and drives the approval.
+// This needs nothing from the homeserver beyond native OAuth with the
+// device-code grant, which Matrix Authentication Service (matrix.org) offers.
 //
-// The protocol itself (secure channel, rendezvous session, device
-// authorization grant) is matrix-js-sdk's `MSC4108SignInWithQR`; this file
-// sequences it for Zam and adds the checks the SDK leaves to the client.
-// It needs a homeserver with native OAuth, the device-code grant and the
-// `org.matrix.msc4108` rendezvous endpoint (Matrix Authentication Service).
+// It is the fallback. A homeserver that advertises MSC4108 gets that
+// protocol instead (qrLoginRendezvous.ts), which also hands over the
+// encryption keys; `signInWithQr` and `linkDevice` pick per server and per
+// scanned code.
 //
-// The SDK module pulls in the crypto WASM, so it is imported on first use.
+// The QR holds the provider's approval URL plus the new device's id in the
+// fragment (`#zam-device=ID`). A phone camera that opens the URL sees a normal
+// approval page and ignores the fragment; Zam reads it to know which device to
+// verify once the approval goes through.
 
 import {
     OAuthGrantType,
-    createClient,
+    generateScope,
+    startDeviceAuthorization,
+    type DeviceAccessTokenResponse,
     type MatrixClient,
     type ValidatedAuthMetadata,
 } from "matrix-js-sdk";
 import { t } from "$lib/i18n";
-import {
-    finishOAuthTokens,
-    resolveHomeserver,
-    type LoginResult,
-} from "$lib/matrix/client";
+import { finishOAuthTokens, type LoginResult } from "$lib/matrix/client";
 import { ensureClientId, redirectTarget } from "$lib/matrix/oauth";
-import { getClient } from "$lib/matrix/runtime";
+import { startDeviceVerification } from "$lib/matrix/crypto";
+import { QrLoginError } from "$lib/matrix/qrLoginError";
+import {
+    linkDeviceByRendezvousScan,
+    serverAdvertisesQrLogin,
+    signInWithRendezvous,
+} from "$lib/matrix/qrLoginRendezvous";
+import { isMatrixQrPayload } from "$lib/utils/qrCode";
 
-const UNSTABLE_FEATURE = "org.matrix.msc4108";
-const VERSIONS_TIMEOUT_MS = 8000;
+export { QrLoginError };
 
-/** A QR sign-in step failed or was refused; `message` is user-facing. */
-export class QrLoginError extends Error {
-    constructor(
-        message: string,
-        readonly kind: "cancelled" | "failed" = "failed",
-    ) {
-        super(message);
-        this.name = "QrLoginError";
-    }
-}
+const DEVICE_FRAGMENT = "zam-device=";
+const DEVICE_ID = /^[A-Za-z0-9]{6,32}$/;
+const APPROVAL_POLL_MS = 2000;
+const APPROVAL_WAIT_MS = 10 * 60 * 1000;
 
-/** Whether `/versions` advertises the rendezvous endpoint. */
-export async function serverAdvertisesQrLogin(
-    baseUrl: string,
-    fetchFn: typeof fetch = (...args) => fetch(...args),
-): Promise<boolean> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), VERSIONS_TIMEOUT_MS);
-    try {
-        const res = await fetchFn(
-            `${baseUrl.replace(/\/$/, "")}/_matrix/client/versions`,
-            { signal: controller.signal },
-        );
-        if (!res.ok) return false;
-        const doc = (await res.json()) as {
-            unstable_features?: Record<string, boolean>;
-        };
-        return doc.unstable_features?.[UNSTABLE_FEATURE] === true;
-    } catch {
-        return false;
-    } finally {
-        clearTimeout(timer);
-    }
-}
-
-/**
- * Whether the typed homeserver can sign a new device in by QR: the provider
- * must grant by device code and the server must advertise the rendezvous.
- */
-export async function isQrLoginAvailable(
-    baseUrl: string,
+/** Whether the provider can sign a new device in by device code. */
+export function isQrLoginAvailable(
     metadata: ValidatedAuthMetadata | null,
-): Promise<boolean> {
-    if (!metadata?.device_authorization_endpoint) return false;
-    if (
-        !metadata.grant_types_supported.includes(
+): boolean {
+    return (
+        !!metadata?.device_authorization_endpoint &&
+        metadata.grant_types_supported.includes(
             OAuthGrantType.DeviceAuthorization,
         )
-    )
-        return false;
-    return serverAdvertisesQrLogin(baseUrl);
-}
-
-/** Two digits, as the secure channel's check code is rendered. */
-export function checkCodeMatches(expected: string, typed: string): boolean {
-    return expected.length > 0 && typed.trim() === expected;
+    );
 }
 
 function randomDeviceId(): string {
@@ -97,255 +65,264 @@ function randomDeviceId(): string {
     return Array.from(bytes, (b) => letters[b % letters.length]).join("");
 }
 
-/**
- * Something that rejects when the SDK reports a failure (the other side
- * cancelled, the channel was tampered with, the session expired), so every
- * await in a flow can be raced against it.
- */
-function failureGate() {
-    let fail: (e: QrLoginError) => void = () => {};
-    const failed = new Promise<never>((_, reject) => {
-        fail = reject;
-    });
-    failed.catch(() => {});
-    return {
-        trip: fail,
-        guard: <T>(p: Promise<T>): Promise<T> => Promise.race([p, failed]),
-    };
+export function encodeQrPayload(approvalUrl: string, deviceId: string): string {
+    return `${approvalUrl.split("#")[0]}#${DEVICE_FRAGMENT}${deviceId}`;
 }
 
-function failureMessage(reason: unknown): QrLoginError {
-    const text = String(reason);
-    if (text.includes("user_cancelled") || text.includes("declined"))
-        return new QrLoginError(t("qrLogin.cancelledOther"), "cancelled");
-    if (text.includes("expired")) return new QrLoginError(t("qrLogin.expired"));
-    if (text.includes("insecure"))
-        return new QrLoginError(t("qrLogin.insecure"));
-    return new QrLoginError(t("qrLogin.failed"));
+export interface QrPayload {
+    /** Where to approve, without Zam's fragment. */
+    approvalUrl: string;
+    deviceId: string;
+}
+
+/**
+ * Read a scanned code. The link is only accepted when it is https on this
+ * account's own provider: the new device wrote it, and a device that is not
+ * yet trusted must not be able to send the user to some other site.
+ */
+export function parseQrPayload(text: string, issuer: string): QrPayload | null {
+    try {
+        const url = new URL(text);
+        const provider = new URL(issuer);
+        if (url.protocol !== "https:" || url.origin !== provider.origin)
+            return null;
+        if (!url.hash.startsWith(`#${DEVICE_FRAGMENT}`)) return null;
+        const deviceId = url.hash.slice(DEVICE_FRAGMENT.length + 1);
+        if (!DEVICE_ID.test(deviceId)) return null;
+        url.hash = "";
+        return { approvalUrl: url.href, deviceId };
+    } catch {
+        return null;
+    }
+}
+
+/** Accepts the scanner payloads that look like one of our codes. */
+export function looksLikeQrPayload(bytes: ArrayLike<number>): boolean {
+    const text = new TextDecoder().decode(Uint8Array.from(bytes));
+    return text.startsWith("https://") && text.includes(`#${DEVICE_FRAGMENT}`);
+}
+
+function abortable(ms: number, signal: AbortSignal): Promise<void> {
+    return new Promise((resolve) => {
+        const timer = setTimeout(done, ms);
+        function done() {
+            clearTimeout(timer);
+            signal.removeEventListener("abort", done);
+            resolve();
+        }
+        signal.addEventListener("abort", done);
+    });
 }
 
 // -------------------------------------------------------------- new device
 
-export interface QrSignInOptions {
+interface DeviceCodeSignInOptions {
     baseUrl: string;
     metadata: ValidatedAuthMetadata;
     slidingSync: boolean;
     signal: AbortSignal;
-    /** The bytes to render as a QR code. */
-    onCode: (bytes: Uint8ClampedArray) => void;
-    /** The other device has scanned; ask the user to type its check code. */
-    onScanned: () => void;
-    /** Resolve true when the user typed `expected`; false aborts the flow. */
-    askCheckCode: (expected: string) => Promise<boolean>;
-    /** The other device is approving the login at the provider. */
-    onWaitingForApproval: () => void;
+    /** Show this QR payload and the code the approval page will ask about. */
+    onCode: (code: { payload: string; userCode: string }) => void;
 }
 
-export interface QrSignInResult {
-    session: LoginResult;
-    /** False when the secrets could not be imported: sign in works, verify by hand. */
-    secretsImported: boolean;
-}
+/** Sign this device in using a code scanned by a signed-in one. */
+async function signInWithDeviceCode(
+    opts: DeviceCodeSignInOptions,
+): Promise<LoginResult> {
+    const { metadata, signal } = opts;
+    const clientId = await ensureClientId(
+        opts.baseUrl,
+        metadata,
+        redirectTarget(),
+        { deviceGrant: true },
+    );
+    const deviceId = randomDeviceId();
+    const grant = await startDeviceAuthorization({
+        clientId,
+        scope: generateScope(deviceId),
+        metadata,
+    });
+    opts.onCode({
+        payload: encodeQrPayload(
+            grant.verification_uri_complete ?? grant.verification_uri,
+            deviceId,
+        ),
+        userCode: grant.user_code,
+    });
 
-/** Sign this device in using a code scanned by an already signed-in one. */
-export async function signInWithQr(
-    opts: QrSignInOptions,
-): Promise<QrSignInResult> {
-    const { signInByGeneratingQR, MSC4108FailureReason } =
-        await import("matrix-js-sdk/lib/rendezvous");
-    const gate = failureGate();
-    const tempClient = createClient({ baseUrl: opts.baseUrl });
-    let flow: Awaited<ReturnType<typeof signInByGeneratingQR>> | undefined;
-    try {
-        flow = await gate.guard(
-            signInByGeneratingQR(
-                tempClient,
-                (reason) => gate.trip(failureMessage(reason)),
-                opts.signal,
-            ),
-        );
-        if (!flow.code) throw new QrLoginError(t("qrLogin.failed"));
-        opts.onCode(new Uint8ClampedArray(flow.code));
-
-        const { serverName } = await gate.guard(flow.negotiateProtocols());
-        opts.onScanned();
-
-        // The scanning device decides which account this is. If it is on a
-        // different server than the one typed, the tokens would be issued by
-        // a provider we did not discover.
-        if (serverName) {
-            const theirs = await resolveHomeserver(serverName, { quiet: true });
-            if (theirs.replace(/\/$/, "") !== opts.baseUrl.replace(/\/$/, ""))
-                throw new QrLoginError(
-                    t("qrLogin.wrongServer", { server: serverName }),
-                );
-        }
-
-        // Typing the code the other device shows proves nobody sits between
-        // the two: a mismatch means the channel is not the one scanned.
-        const expected = flow.checkCode;
-        if (!expected || !(await gate.guard(opts.askCheckCode(expected)))) {
-            await flow.cancel(MSC4108FailureReason.UserCancelled);
-            throw new QrLoginError(t("qrLogin.codeMismatch"), "cancelled");
-        }
-
-        const clientId = await ensureClientId(
-            opts.baseUrl,
-            opts.metadata,
-            redirectTarget(),
-            { deviceGrant: true },
-        );
-        const deviceId = randomDeviceId();
-        await gate.guard(
-            flow.deviceAuthorizationGrant({
-                metadata: opts.metadata,
+    const requestStart = Date.now();
+    let interval = (grant.interval ?? 5) * 1000;
+    const expiresAt = requestStart + grant.expires_in * 1000;
+    while (Date.now() < expiresAt) {
+        await abortable(interval, signal);
+        if (signal.aborted)
+            throw new QrLoginError(t("qrLogin.cancelled"), "cancelled");
+        const res = await fetch(metadata.token_endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+                grant_type: OAuthGrantType.DeviceAuthorization,
+                device_code: grant.device_code,
+                client_id: clientId,
+            }),
+            signal,
+        });
+        const data = (await res.json()) as
+            DeviceAccessTokenResponse | { error?: string };
+        if (res.ok && "access_token" in data) {
+            return finishOAuthTokens({
+                baseUrl: opts.baseUrl,
+                issuer: metadata.issuer,
                 clientId,
                 deviceId,
-            }),
-        );
-        opts.onWaitingForApproval();
-
-        const requestStart = Date.now();
-        const tokens = await gate.guard(
-            flow.completeLoginOnNewDevice({ clientId }),
-        );
-        if (!tokens) throw new QrLoginError(t("qrLogin.failed"));
-        const session = await finishOAuthTokens({
-            baseUrl: opts.baseUrl,
-            issuer: opts.metadata.issuer,
-            clientId,
-            deviceId,
-            tokens,
-            requestStart,
-            slidingSync: opts.slidingSync,
-        });
-
-        let secretsImported = false;
-        try {
-            const { secrets } = await gate.guard(flow.shareSecrets());
-            const crypto = getClient()?.getCrypto();
-            if (secrets && crypto?.importSecretsBundle) {
-                await crypto.importSecretsBundle(secrets);
-                secretsImported = true;
-            }
-        } catch (err) {
-            // Signed in but unverified; the usual verification still works.
-            console.warn("[qr-login] could not import secrets", err);
+                tokens: data,
+                requestStart,
+                slidingSync: opts.slidingSync,
+            });
         }
-        return { session, secretsImported };
-    } catch (err) {
-        if (opts.signal.aborted)
-            throw new QrLoginError(t("qrLogin.cancelled"), "cancelled");
-        throw err instanceof QrLoginError
-            ? err
-            : failureMessage(err instanceof Error ? err.message : err);
-    } finally {
-        await flow?.close().catch(() => {});
-        tempClient.stopClient();
+        const error = "error" in data ? data.error : undefined;
+        if (error === "slow_down") interval += 5000;
+        else if (error === "access_denied")
+            throw new QrLoginError(t("qrLogin.denied"), "cancelled");
+        else if (error !== "authorization_pending")
+            throw new QrLoginError(t("qrLogin.failed"));
     }
+    throw new QrLoginError(t("qrLogin.expired"));
 }
 
 // ----------------------------------------------------------- existing device
 
-export interface QrLinkOptions {
+interface DeviceCodeLinkOptions {
     client: MatrixClient;
-    /** Bytes decoded from the new device's QR code. */
-    bytes: Uint8ClampedArray;
+    /** Decoded text of the scanned code. */
+    text: string;
     signal: AbortSignal;
-    /** Show this code; the new device's user must type it there. */
-    onCheckCode: (code: string) => void;
-    /** Where to approve the login. Always on the account's provider. */
+    /** Open this link to approve the login at the provider. */
     onApprovalUrl: (url: string) => void;
+    /** The new device is signed in and verification has been started. */
+    onVerifying: () => void;
 }
 
-/**
- * The approval link comes from the new device, which is not yet trusted, so
- * it is only offered when it points at this account's own provider over https.
- */
-export function isTrustedApprovalUrl(url: string, issuer: string): boolean {
+/** Help a scanned device sign in, then verify it from this one. */
+async function linkDeviceByDeviceCode(
+    opts: DeviceCodeLinkOptions,
+): Promise<void> {
+    const { client, signal } = opts;
+    const metadata = await client.getAuthMetadata().catch(() => null);
+    if (!isQrLoginAvailable(metadata))
+        throw new QrLoginError(t("qrLogin.notSupportedHere"));
+    const payload = parseQrPayload(opts.text, metadata!.issuer);
+    if (!payload) throw new QrLoginError(t("qrLogin.notALoginCode"));
+    // A device that already exists is not the one that just made this code.
+    if (await deviceExists(client, payload.deviceId))
+        throw new QrLoginError(t("qrLogin.notALoginCode"));
+
+    opts.onApprovalUrl(payload.approvalUrl);
+    const deadline = Date.now() + APPROVAL_WAIT_MS;
+    while (Date.now() < deadline) {
+        await abortable(APPROVAL_POLL_MS, signal);
+        if (signal.aborted)
+            throw new QrLoginError(t("qrLogin.cancelled"), "cancelled");
+        if (await deviceExists(client, payload.deviceId)) {
+            await startDeviceVerification(payload.deviceId);
+            opts.onVerifying();
+            return;
+        }
+    }
+    throw new QrLoginError(t("qrLogin.expired"));
+}
+
+async function deviceExists(
+    client: MatrixClient,
+    deviceId: string,
+): Promise<boolean> {
     try {
-        const target = new URL(url);
-        const provider = new URL(issuer);
-        return (
-            target.protocol === "https:" && target.origin === provider.origin
-        );
+        return !!(await client.getDevice(deviceId));
     } catch {
         return false;
     }
 }
 
-/** Scan a new device's code and help it sign in, sharing this account's secrets. */
-export async function linkDeviceByScan(opts: QrLinkOptions): Promise<void> {
-    const [
-        { MSC4108RendezvousSession, MSC4108SecureChannel, MSC4108SignInWithQR },
-        wasm,
-    ] = await Promise.all([
-        import("matrix-js-sdk/lib/rendezvous"),
-        import("@matrix-org/matrix-sdk-crypto-wasm"),
-    ]);
-    const gate = failureGate();
-    const onFailure = (reason: unknown) => gate.trip(failureMessage(reason));
+// ---------------------------------------------------------------- dispatch
 
-    let data: InstanceType<typeof wasm.QrCodeData>;
-    try {
-        data = wasm.QrCodeData.fromBytes(new Uint8Array(opts.bytes));
-    } catch {
-        throw new QrLoginError(t("qrLogin.notALoginCode"));
+export interface QrSignInOptions extends Omit<
+    DeviceCodeSignInOptions,
+    "onCode"
+> {
+    /** Show this code; device-code sign-in also has a short code to match. */
+    onCode: (code: { payload: Uint8ClampedArray; userCode?: string }) => void;
+    /** MSC4108 only: the other device has scanned the code. */
+    onScanned: () => void;
+    /** MSC4108 only: resolve true when the user typed `expected`. */
+    askCheckCode: (expected: string) => Promise<boolean>;
+    /** MSC4108 only: the other device is approving at the provider. */
+    onWaitingForApproval: () => void;
+}
+
+export interface QrSignInResult {
+    session: LoginResult;
+    /** Which protocol ran. */
+    method: "rendezvous" | "device-code";
+    /** MSC4108 only; false when the keys could not be imported. */
+    secretsImported: boolean;
+}
+
+/**
+ * Sign this device in using a code scanned by a signed-in one: over MSC4108
+ * when the homeserver advertises it, otherwise by device code.
+ */
+export async function signInWithQr(
+    opts: QrSignInOptions,
+): Promise<QrSignInResult> {
+    if (await serverAdvertisesQrLogin(opts.baseUrl)) {
+        const { session, secretsImported } = await signInWithRendezvous({
+            ...opts,
+            onCode: (bytes) => opts.onCode({ payload: bytes }),
+        });
+        return { session, method: "rendezvous", secretsImported };
     }
-    // The existing device scans; a code from another signed-in device is a
-    // different flow.
-    if (data.mode !== wasm.QrCodeIntent.Login || !data.rendezvousUrl)
-        throw new QrLoginError(t("qrLogin.notALoginCode"));
-
-    const metadata = await opts.client.getAuthMetadata().catch(() => null);
-    if (!metadata) throw new QrLoginError(t("qrLogin.notSupportedHere"));
-
-    const session = new MSC4108RendezvousSession({
-        onFailure,
-        url: data.rendezvousUrl,
+    const session = await signInWithDeviceCode({
+        ...opts,
+        onCode: (code) =>
+            opts.onCode({
+                payload: Uint8ClampedArray.from(
+                    new TextEncoder().encode(code.payload),
+                ),
+                userCode: code.userCode,
+            }),
     });
-    const channel = new MSC4108SecureChannel(
-        session,
-        data.publicKey,
-        onFailure,
-    );
-    const flow = new MSC4108SignInWithQR(channel, true, opts.client, onFailure);
-    opts.signal.addEventListener(
-        "abort",
-        () => {
-            flow.onFailure = undefined;
-            channel.onFailure = undefined;
-            session.onFailure = undefined;
-            void flow
-                .declineLoginOnExistingDevice()
-                .catch(() => {})
-                .finally(() => flow.close().catch(() => {}));
-        },
-        { once: true },
-    );
+    return { session, method: "device-code", secretsImported: false };
+}
 
-    try {
-        await gate.guard(flow.negotiateProtocols());
-        if (flow.checkCode) opts.onCheckCode(flow.checkCode);
-        const { verificationUri } = await gate.guard(
-            flow.deviceAuthorizationGrant(),
-        );
-        if (
-            !verificationUri ||
-            !isTrustedApprovalUrl(verificationUri, metadata.issuer)
-        ) {
-            await flow.declineLoginOnExistingDevice().catch(() => {});
-            throw new QrLoginError(t("qrLogin.untrustedApproval"));
-        }
-        opts.onApprovalUrl(verificationUri);
-        await gate.guard(flow.shareSecrets());
-    } catch (err) {
-        if (opts.signal.aborted)
-            throw new QrLoginError(t("qrLogin.cancelled"), "cancelled");
-        throw err instanceof QrLoginError
-            ? err
-            : failureMessage(err instanceof Error ? err.message : err);
-    } finally {
-        await flow.close().catch(() => {});
+/** Whether the scanner should hand this payload to `linkDevice`. */
+export function isQrLoginPayload(bytes: ArrayLike<number>): boolean {
+    return isMatrixQrPayload(bytes) || looksLikeQrPayload(bytes);
+}
+
+export interface QrLinkOptions {
+    client: MatrixClient;
+    bytes: Uint8ClampedArray;
+    signal: AbortSignal;
+    /** MSC4108 only: show this number; it is typed on the new device. */
+    onCheckCode: (code: string) => void;
+    /** Open this link to approve the login at the provider. */
+    onApprovalUrl: (url: string) => void;
+    /** Done: keys sent (MSC4108) or verification started (device code). */
+    onDone: () => void;
+}
+
+/** Help a scanned device sign in, picking the protocol from its code. */
+export async function linkDevice(opts: QrLinkOptions): Promise<void> {
+    if (isMatrixQrPayload(opts.bytes)) {
+        await linkDeviceByRendezvousScan(opts);
+    } else {
+        await linkDeviceByDeviceCode({
+            client: opts.client,
+            text: new TextDecoder().decode(opts.bytes),
+            signal: opts.signal,
+            onApprovalUrl: opts.onApprovalUrl,
+            onVerifying: () => {},
+        });
     }
+    opts.onDone();
 }

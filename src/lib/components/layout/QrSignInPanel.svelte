@@ -7,10 +7,10 @@
     import QrCodeImage from "$lib/components/ui/QrCodeImage.svelte";
     import {
         QrLoginError,
-        checkCodeMatches,
         signInWithQr,
         type QrSignInResult,
     } from "$lib/matrix/qrLogin";
+    import { checkCodeMatches } from "$lib/matrix/qrLoginRendezvous";
 
     let {
         baseUrl,
@@ -30,6 +30,8 @@
         "preparing" | "code" | "number" | "approval" | "finishing"
     >("preparing");
     let code = $state<Uint8ClampedArray | null>(null);
+    // Device-code sign-in only: the approval page asks about this code.
+    let userCode = $state("");
     let error = $state("");
     let typed = $state("");
     let answer: ((ok: boolean) => void) | null = null;
@@ -58,8 +60,9 @@
                     metadata,
                     slidingSync,
                     signal: abort.signal,
-                    onCode: (bytes) => {
-                        code = bytes;
+                    onCode: (c) => {
+                        code = c.payload;
+                        userCode = c.userCode ?? "";
                         step = "code";
                     },
                     onScanned: () => (step = "number"),
@@ -115,6 +118,16 @@
                 <QrCodeImage bytes={code} label={t("qrLogin.codeAlt")} />
             </div>
         </div>
+        {#if userCode}
+            <p class="mt-3 text-center text-xs text-discord-textMuted">
+                {t("qrLogin.matchCode")}
+            </p>
+            <p
+                class="text-center text-2xl font-semibold tracking-widest text-discord-textPrimary"
+            >
+                {userCode}
+            </p>
+        {/if}
     {:else if step === "number"}
         <form onsubmit={submitNumber} class="mt-3 flex flex-col gap-3">
             <p class="text-sm text-discord-textSecondary">

@@ -4,18 +4,22 @@
     import { CheckCircle2, Loader2 } from "lucide-svelte";
     import ModalDialog from "$lib/components/ui/ModalDialog.svelte";
     import { getClient } from "$lib/matrix/runtime";
-    import { QrLoginError, linkDeviceByScan } from "$lib/matrix/qrLogin";
-    import { isMatrixQrPayload } from "$lib/utils/qrCode";
+    import {
+        QrLoginError,
+        isQrLoginPayload,
+        linkDevice,
+    } from "$lib/matrix/qrLogin";
 
     let { onClose }: { onClose: () => void } = $props();
 
     type ScannerComponent =
         (typeof import("$lib/components/ui/QrScanner.svelte"))["default"];
 
-    let step = $state<"scan" | "connecting" | "number" | "done">("scan");
+    let step = $state<"scan" | "approve" | "done">("scan");
     let Scanner = $state.raw<ScannerComponent | null>(null);
-    let checkCode = $state("");
     let approvalUrl = $state("");
+    // MSC4108 only: the number the new device asks for.
+    let checkCode = $state("");
     let error = $state("");
     let attempt = $state(0);
     let abort = new AbortController();
@@ -39,31 +43,25 @@
     async function onScan(bytes: Uint8ClampedArray) {
         const client = getClient();
         if (!client) return;
-        if (!isMatrixQrPayload(bytes)) {
-            error = t("qrLogin.notALoginCode");
-            attempt++;
-            return;
-        }
         error = "";
-        step = "connecting";
         abort = new AbortController();
+        step = "approve";
         try {
-            await linkDeviceByScan({
+            await linkDevice({
                 client,
                 bytes,
                 signal: abort.signal,
-                onCheckCode: (code) => {
-                    checkCode = code;
-                    step = "number";
-                },
+                onCheckCode: (code) => (checkCode = code),
                 onApprovalUrl: (url) => (approvalUrl = url),
+                onDone: () => (step = "done"),
             });
-            step = "done";
         } catch (err) {
             if (abort.signal.aborted) return;
             console.warn("[qr-login] link failed", err);
             error =
                 err instanceof QrLoginError ? err.message : t("qrLogin.failed");
+            approvalUrl = "";
+            checkCode = "";
             step = "scan";
             attempt++;
         }
@@ -99,6 +97,7 @@
                 {#if Scanner}
                     <Scanner
                         {onScan}
+                        accept={isQrLoginPayload}
                         onError={(message) => (error = message)}
                     />
                 {:else if !error}
@@ -109,35 +108,36 @@
                 {/if}
             {/key}
         </div>
-    {:else if step === "connecting"}
-        <div class="mt-5 flex justify-center">
-            <Loader2 size={28} class="animate-spin text-discord-accent" />
-        </div>
-        <p class="mt-2 text-center text-sm text-discord-textSecondary">
-            {t("qrLogin.linkConnecting")}
-        </p>
-    {:else if step === "number"}
+    {:else if step === "approve"}
+        {#if checkCode}
+            <p class="mt-3 text-sm text-discord-textSecondary">
+                {t("qrLogin.linkShowNumber")}
+            </p>
+            <p
+                class="mt-2 text-center text-4xl font-semibold tracking-widest text-discord-textPrimary"
+                aria-live="polite"
+            >
+                {checkCode}
+            </p>
+        {/if}
         <p class="mt-3 text-sm text-discord-textSecondary">
-            {t("qrLogin.linkShowNumber")}
-        </p>
-        <p
-            class="mt-2 text-center text-4xl font-semibold tracking-widest text-discord-textPrimary"
-            aria-live="polite"
-        >
-            {checkCode}
+            {t("qrLogin.linkApprove", { host: approvalHost })}
         </p>
         {#if approvalUrl}
-            <p class="mt-4 text-sm text-discord-textSecondary">
-                {t("qrLogin.linkApprove", { host: approvalHost })}
-            </p>
             <a
                 href={approvalUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                class="mt-2 block w-full py-2 text-center bg-discord-accent hover:bg-discord-accentHover text-white font-semibold rounded text-sm"
+                class="mt-3 block w-full py-2 text-center bg-discord-accent hover:bg-discord-accentHover text-white font-semibold rounded text-sm"
             >
                 {t("qrLogin.linkApproveButton", { host: approvalHost })}
             </a>
+            <div
+                class="mt-4 flex items-center justify-center gap-2 text-xs text-discord-textMuted"
+            >
+                <Loader2 size={16} class="animate-spin text-discord-accent" />
+                {t("qrLogin.linkWaiting")}
+            </div>
         {:else}
             <div class="mt-4 flex justify-center">
                 <Loader2 size={24} class="animate-spin text-discord-accent" />
@@ -147,7 +147,9 @@
         <div class="mt-5 flex flex-col items-center gap-2 text-center">
             <CheckCircle2 size={40} class="text-discord-accent" />
             <p class="text-sm text-discord-textPrimary">
-                {t("qrLogin.linkDone")}
+                {checkCode
+                    ? t("qrLogin.linkDoneVerified")
+                    : t("qrLogin.linkDone")}
             </p>
         </div>
     {/if}
