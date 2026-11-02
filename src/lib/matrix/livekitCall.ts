@@ -970,14 +970,13 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
             participant?: RemoteParticipant,
             _kind?: unknown,
             topic?: string,
-            encryptionType?: number,
         ) => {
             if (topic !== SOUNDBOARD_TOPIC || !participant) return;
             if (activeVoice !== call) return;
-            // In an encrypted call a plaintext packet was not sent by the
-            // participant it names (anyone with the SFU's server API, or the
-            // SFU, can attach any identity), so only decrypted ones count.
-            if (call.e2ee && encryptionType === lk.Encryption_Type.NONE) return;
+            // The `encryptionType` LiveKit passes cannot tell plaintext from
+            // decrypted: its sender leaves the field unset on encrypted
+            // packets, so every genuine one arrives as NONE. Filtering on it
+            // dropped all soundboard messages in encrypted calls.
             const msg = decodeSoundboardMessage(payload);
             if (msg)
                 void playSoundboardClip(

@@ -5894,6 +5894,44 @@ export function getReceiptsForEvent(
         }));
 }
 
+/**
+ * Read receipts per displayed event. A receipt on an event the timeline hides
+ * (state, an edit, a reaction) shows on the displayed event just above it,
+ * not nowhere, so a reader never vanishes because their client receipted a
+ * hidden event. Events outside the live timeline (a jump-to-message window)
+ * keep only their own receipts.
+ */
+export function getReceiptsByDisplayedEvent(
+    room: Room,
+    displayed: MatrixEvent[],
+): Map<string, ReadReceiptInfo[]> {
+    const shown = new Set(displayed.map((e) => e.getId()));
+    const result = new Map<string, ReadReceiptInfo[]>();
+    const add = (id: string, found: ReadReceiptInfo[]) => {
+        if (found.length === 0) return;
+        const have = result.get(id) ?? [];
+        for (const r of found)
+            if (!have.some((h) => h.userId === r.userId)) have.push(r);
+        result.set(id, have);
+    };
+    let current: string | undefined;
+    const walked = new Set<string>();
+    for (const e of room.getLiveTimeline().getEvents()) {
+        const id = e.getId();
+        if (!id) continue;
+        if (shown.has(id)) {
+            current = id;
+            walked.add(id);
+        }
+        if (current) add(current, getReceiptsForEvent(room, e));
+    }
+    for (const e of displayed) {
+        const id = e.getId();
+        if (id && !walked.has(id)) add(id, getReceiptsForEvent(room, e));
+    }
+    return result;
+}
+
 export async function sendTyping(
     roomId: string,
     isTyping: boolean,

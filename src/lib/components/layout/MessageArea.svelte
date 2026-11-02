@@ -41,7 +41,7 @@
         joinRoom,
         getRoom,
         getReadUpToEventId,
-        getReceiptsForEvent,
+        getReceiptsByDisplayedEvent,
         onReceiptEvent,
         getRoomCallMemberships,
         getRoomThreads,
@@ -950,6 +950,12 @@
     let contextMessages = $state<MatrixEvent[] | null>(null);
     let loadingNewer = $state(false);
     const messages = $derived(contextMessages ?? getMessages(roomId));
+    const receiptsByEvent = $derived.by(() => {
+        void receiptTick;
+        return settingsState.showReadReceiptAvatars
+            ? getReceiptsByDisplayedEvent(room, messages)
+            : null;
+    });
     const isContextView = $derived(contextMessages !== null);
     // Mention highlights, re-derived whenever the message list is replaced. A
     // per-row isHighlightEvent(event) call never re-ran: decryption mutates the
@@ -2331,9 +2337,8 @@
                  so selection and copy across messages behave natively) -->
             {#each messages as event, i (timelineKey(event))}
                 {@const sepTs = dateSeparatorLabel(messages, i)}
-                {@const receipts = settingsState.showReadReceiptAvatars
-                    ? (void receiptTick, getReceiptsForEvent(room, event))
-                    : NO_RECEIPTS}
+                {@const receipts =
+                    receiptsByEvent?.get(event.getId() ?? "") ?? NO_RECEIPTS}
                 {#if sepTs !== null}
                     <div class="flex items-center gap-4 px-4 my-4">
                         <div class="flex-1 h-px bg-discord-divider"></div>
