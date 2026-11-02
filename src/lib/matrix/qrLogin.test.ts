@@ -15,7 +15,9 @@ import {
 } from "./qrLogin";
 
 const versions = (features: Record<string, boolean>) =>
-    vi.fn(async () => Response.json({ unstable_features: features }));
+    vi.fn(async (_input: RequestInfo | URL) =>
+        Response.json({ unstable_features: features }),
+    );
 
 describe("checkCodeMatches", () => {
     it("accepts the exact code, ignoring surrounding space", () => {
