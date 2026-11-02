@@ -34,6 +34,9 @@
     } from "$lib/stores/verificationStatus.svelte";
     import { securityState } from "$lib/stores/security.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
+    import LinkDeviceDialog from "$lib/components/settings/LinkDeviceDialog.svelte";
+    import { isQrLoginAvailable } from "$lib/matrix/qrLogin";
+    import { getClient } from "$lib/matrix/runtime";
     import {
         settingsState,
         setEncryptNewDms,
@@ -63,6 +66,19 @@
         void getAccountManagementUrl("org.matrix.sessions_list").then(
             (u) => (sessionsUrl = u),
         );
+
+    // Link a new device by scanning its QR code. Needs a native OAuth session
+    // on a server that supports it (checked once).
+    let canLinkDevice = $state(false);
+    let linkOpen = $state(false);
+    if (oauthSession) {
+        const client = getClient();
+        void client
+            ?.getAuthMetadata()
+            .then((meta) => isQrLoginAvailable(client.getHomeserverUrl(), meta))
+            .then((ok) => (canLinkDevice = ok))
+            .catch(() => {});
+    }
 
     // Read-only E2EE status for this device (Layer 0). Useful for live
     // cross-client verification; carries no actions yet.
@@ -500,6 +516,13 @@
             </div>
         {/if}
     </section>
+    {#if canLinkDevice}
+        <button
+            onclick={() => (linkOpen = true)}
+            class="px-3 py-2 rounded text-sm bg-discord-accent hover:bg-discord-accentHover text-white font-medium"
+            >{t("qrLogin.linkButton")}</button
+        >
+    {/if}
     <div class="flex items-center justify-between gap-3">
         <p class="text-xs text-discord-textMuted">
             {t("sessionSettings.devicesCurrentlySignedInToThis")}
@@ -545,3 +568,12 @@
         {/if}
     </section>
 </div>
+
+{#if linkOpen}
+    <LinkDeviceDialog
+        onClose={() => {
+            linkOpen = false;
+            void load();
+        }}
+    />
+{/if}

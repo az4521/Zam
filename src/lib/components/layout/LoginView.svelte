@@ -39,6 +39,12 @@
         loginLeavesPage,
     } from "$lib/matrix/loginRedirect";
     import type { ValidatedAuthMetadata } from "matrix-js-sdk";
+    import QrSignInPanel from "$lib/components/layout/QrSignInPanel.svelte";
+    import {
+        isQrLoginAvailable,
+        type QrSignInResult,
+    } from "$lib/matrix/qrLogin";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { pickSignInMethod, type LoginOptions } from "$lib/utils/loginFlows";
     import { auth, loadLastHomeserver } from "$lib/stores/auth.svelte";
     import { accountsState } from "$lib/stores/accounts.svelte";
@@ -122,6 +128,10 @@
     // fallback for servers without it (or that refused to register this app).
     let oauthMeta = $state<ValidatedAuthMetadata | null>(null);
     let oauthRefused = $state(false);
+    // QR sign-in: offered only when the server grants by device code and
+    // advertises the rendezvous endpoint (checked once per server).
+    let qrAvailable = $state(false);
+    let showQr = $state(false);
     let optionsFor = $state("");
     let optionsLoading = $state(false);
     let optionsRequest = 0;
@@ -131,6 +141,25 @@
         pickSignInMethod(oauthRefused ? null : oauthMeta),
     );
     const useOAuth = $derived(signInMethod === "oauth");
+    $effect(() => {
+        const base = optionsBaseUrl;
+        const meta = oauthMeta;
+        qrAvailable = false;
+        if (!base || !meta || oauthRefused) return;
+        let stale = false;
+        void isQrLoginAvailable(base, meta).then((ok) => {
+            if (!stale) qrAvailable = ok;
+        });
+        return () => {
+            stale = true;
+        };
+    });
+
+    async function finishQrSignIn(result: QrSignInResult) {
+        showQr = false;
+        if (!result.secretsImported) showErrorToast(t("qrLogin.notVerified"));
+        await onAuthenticated(result.session);
+    }
     const showPasswordForm = $derived(
         !useOAuth &&
             (mode === "register" || !loginOptions || loginOptions.password),
@@ -1172,6 +1201,16 @@
                             {ssoHint}
                         </p>
                     {/if}
+                    {#if qrAvailable && mode === "login"}
+                        <button
+                            type="button"
+                            disabled={isLoading || !optionsCurrent}
+                            onclick={() => (showQr = true)}
+                            class="w-full py-2.5 bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary rounded transition-colors disabled:opacity-60 text-sm"
+                        >
+                            {t("qrLogin.signInButton")}
+                        </button>
+                    {/if}
                 {/if}
 
                 {#if showPasswordForm && !registrationClosed}
@@ -1371,3 +1410,13 @@
         </div>
     </div>
 </div>
+
+{#if showQr && oauthMeta && optionsBaseUrl}
+    <QrSignInPanel
+        baseUrl={optionsBaseUrl}
+        metadata={oauthMeta}
+        slidingSync={useSlidingSync}
+        onSignedIn={finishQrSignIn}
+        onClose={() => (showQr = false)}
+    />
+{/if}

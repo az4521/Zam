@@ -3801,6 +3801,54 @@ export const en = {
         "This device can't save direct transfers yet.",
     "ownStatus.statusClearedButPresenceRemains":
         'Status cleared, but the server still shows the presence message "{presenceLeft}". It is probably set by another session of this account (another app or client) - clear it there, or sign that session out.',
+    "qrLogin.failed": "QR sign-in failed. Please try again.",
+    "qrLogin.cancelled": "QR sign-in was cancelled.",
+    "qrLogin.cancelledOther": "The other device cancelled the sign-in.",
+    "qrLogin.expired": "The QR code expired. Please try again.",
+    "qrLogin.insecure":
+        "The connection to the other device could not be trusted, so sign-in was stopped.",
+    "qrLogin.wrongServer":
+        "The other device is signed in on {server}, which is not the server you chose here.",
+    "qrLogin.codeMismatch":
+        "The number did not match, so sign-in was stopped. Only continue if the number shown on the other device is the one you typed.",
+    "qrLogin.notALoginCode":
+        "That is not a sign-in code from a new device. Open Sign in with QR code on the device you want to sign in.",
+    "qrLogin.notSupportedHere":
+        "This account's server does not support signing in by QR code.",
+    "qrLogin.untrustedApproval":
+        "The new device asked you to approve on an address that does not belong to your account's sign-in provider, so it was refused.",
+    "qrLogin.signInButton": "Sign in with QR code",
+    "qrLogin.signInTitle": "Sign in with QR code",
+    "qrLogin.signInSteps":
+        "On a device that is already signed in to Zam, open Settings, then Sessions, then Link new device, and scan this code.",
+    "qrLogin.codeAlt": "QR code to scan from a signed-in device",
+    "qrLogin.preparing": "Preparing the code...",
+    "qrLogin.enterNumber":
+        "Enter the number shown on your other device. This checks that only the two of you are connected.",
+    "qrLogin.numberLabel": "Number",
+    "qrLogin.confirm": "Continue",
+    "qrLogin.waitingApproval":
+        "Approve the sign-in on your other device to finish.",
+    "qrLogin.signingIn": "Signing in...",
+    "qrLogin.cancel": "Cancel",
+    "qrLogin.notVerified":
+        "You are signed in, but this session could not receive your encryption keys. Verify it from Settings to read older encrypted messages.",
+    "qrLogin.linkButton": "Link new device",
+    "qrLogin.linkTitle": "Link a new device",
+    "qrLogin.linkIntro":
+        "On the new device choose Sign in with QR code, then scan the code it shows. It will sign in as you and receive your encryption keys, so it is verified straight away.",
+    "qrLogin.linkWarning":
+        "Only continue for a device that is in your hands right now.",
+    "qrLogin.linkScan": "Scan the code",
+    "qrLogin.linkConnecting": "Connecting to the new device...",
+    "qrLogin.linkShowNumber": "Type this number on the new device",
+    "qrLogin.linkApprove":
+        "Then approve the sign-in with {host}. Only approve if the new device is yours.",
+    "qrLogin.linkApproveButton": "Approve on {host}",
+    "qrLogin.linkDone": "The new device is signed in and verified.",
+    "qrLogin.linkClose": "Close",
+    "qrLogin.linkUnavailable":
+        "Your account's server does not support linking by QR code.",
 };
 
 export type MessageKey = keyof typeof en;

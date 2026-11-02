@@ -160,8 +160,14 @@ interface RegisteredClient {
     issuer: string;
 }
 
-function clientKey(baseUrl: string, redirectUri: string): string {
-    return `${baseUrl.replace(/\/$/, "")}|${redirectUri}`;
+function clientKey(
+    baseUrl: string,
+    redirectUri: string,
+    deviceGrant = false,
+): string {
+    // The device-code registration is its own client: a provider only lets a
+    // client use the grants it registered with.
+    return `${baseUrl.replace(/\/$/, "")}|${redirectUri}${deviceGrant ? "|device" : ""}`;
 }
 
 function readClients(): Record<string, RegisteredClient> {
@@ -199,13 +205,15 @@ function writeClients(clients: Record<string, RegisteredClient>): void {
  * redirect URI, registering on first use. A cached id is only reused while the
  * homeserver still names the same issuer; a different issuer means the server
  * moved providers and the old registration means nothing there.
+ * `deviceGrant` registers for QR sign-in, which needs the device-code grant.
  */
 export async function ensureClientId(
     baseUrl: string,
     metadata: ValidatedAuthMetadata,
     target: RedirectTarget,
+    opts: { deviceGrant?: boolean } = {},
 ): Promise<string> {
-    const key = clientKey(baseUrl, target.redirectUri);
+    const key = clientKey(baseUrl, target.redirectUri, opts.deviceGrant);
     const clients = readClients();
     const cached = clients[key];
     if (cached && cached.issuer === metadata.issuer) return cached.clientId;
@@ -217,7 +225,13 @@ export async function ensureClientId(
             client_uri: target.clientUri,
             application_type: target.applicationType,
             redirect_uris: [target.redirectUri],
-            grant_types: ["authorization_code", "refresh_token"],
+            grant_types: opts.deviceGrant
+                ? [
+                      "authorization_code",
+                      "refresh_token",
+                      "urn:ietf:params:oauth:grant-type:device_code",
+                  ]
+                : ["authorization_code", "refresh_token"],
             response_types: ["code"],
             token_endpoint_auth_method: "none",
         });

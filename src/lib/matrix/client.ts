@@ -673,7 +673,7 @@ async function createAuthenticatedClient(opts: {
  * `quiet` skips the "auto-discovery failed" toast: the login form looks the
  * server up while the user is still typing, where a failed guess is expected.
  */
-async function resolveHomeserver(
+export async function resolveHomeserver(
     input: string,
     { quiet = false }: { quiet?: boolean } = {},
 ): Promise<string> {
@@ -737,7 +737,7 @@ async function resolveHomeserver(
     return base;
 }
 
-type LoginResult = {
+export type LoginResult = {
     userId: string;
     accessToken: string;
     deviceId: string;
@@ -860,8 +860,39 @@ export async function loginWithOAuthCode(
         code,
         pending.redirectUri,
     );
-    const tempClient = createClient({
+    return finishOAuthTokens({
         baseUrl: pending.baseUrl,
+        issuer: metadata.issuer,
+        clientId: pending.clientId,
+        deviceId: pending.deviceId,
+        tokens,
+        requestStart,
+        slidingSync: pending.slidingSync,
+    });
+}
+
+/**
+ * Start the session for tokens the provider issued, by whichever grant: learn
+ * who they belong to and wire up refresh and revoke. Shared by the redirect
+ * sign-in and QR sign-in (device-code grant).
+ */
+export async function finishOAuthTokens(opts: {
+    baseUrl: string;
+    issuer: string;
+    clientId: string;
+    /** The device id requested in the scope; the server's answer wins. */
+    deviceId: string;
+    tokens: {
+        access_token: string;
+        refresh_token?: string;
+        expires_in?: number;
+    };
+    requestStart: number;
+    slidingSync: boolean;
+}): Promise<LoginResult> {
+    const { tokens } = opts;
+    const tempClient = createClient({
+        baseUrl: opts.baseUrl,
         accessToken: tokens.access_token,
     });
     const who = await tempClient.whoami();
@@ -870,16 +901,14 @@ export async function loginWithOAuthCode(
         {
             user_id: who.user_id,
             access_token: tokens.access_token,
-            // The device id was requested in the scope; trust the server's
-            // answer if it differs.
-            device_id: who.device_id ?? pending.deviceId,
+            device_id: who.device_id ?? opts.deviceId,
         },
-        pending.slidingSync,
+        opts.slidingSync,
         {
             refreshToken: tokens.refresh_token,
-            oauth: { clientId: pending.clientId, issuer: metadata.issuer },
+            oauth: { clientId: opts.clientId, issuer: opts.issuer },
             accessTokenExpiresAt: tokens.expires_in
-                ? requestStart + tokens.expires_in * 1000
+                ? opts.requestStart + tokens.expires_in * 1000
                 : undefined,
         },
     );
