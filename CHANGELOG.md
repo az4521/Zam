@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.42.11
+
+🐛 **Fixed**
+
+- **Message order:** Zam no longer re-sorts messages by timestamp, which could put an answer above its question when the other person's server clock was off. Messages now show in the order the server gives them, as in Element.
+- **Late messages:** your messages now carry a hint of what was at the bottom of your chat log when you sent them, and Zam puts a message that arrived late back below it. Other clients ignore the hint.
+
 ## v1.42.10
 
 🔒 **Security**
