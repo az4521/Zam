@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.43.0
+
+✨ **New**
+
+- **Sign in with QR code:** on servers that support it (such as matrix.org), the login screen has a Sign in with QR code button. Scan the code from Settings > Sessions > Link new device on a Zam you are already signed in to, type the number it shows, and approve. The new session signs in and gets your encryption keys, so it is verified straight away.
+
 ## v1.42.12
 
 ✨ **New**
