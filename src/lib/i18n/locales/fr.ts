@@ -1706,6 +1706,11 @@ const messages: Record<MessageKey, string> = {
     "quickActions.spaceName": "Nom de l'espace",
     "quickActions.roomName": "Nom du salon",
     "quickActions.mySpace": "Mon espace",
+    "quickActions.starterRooms": "Ajouter un salon textuel et un salon vocal",
+    "quickActions.starterRoomsHint":
+        "Toute personne invitée dans l'espace peut les rejoindre.",
+    "quickActions.starterTextName": "général",
+    "quickActions.starterVoiceName": "Vocal",
     "quickActions.optional": "(facultatif)",
     "quickActions.whatSThisSpaceAbout": "De quoi parle cet espace ?",
     "quickActions.whatSThisRoomAbout": "De quoi parle ce salon ?",

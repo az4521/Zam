@@ -6545,11 +6545,24 @@ export async function createRoom(
     spaceId?: string,
     encrypt = false,
     videoRoom = false,
+    restrictToSpace = false,
 ): Promise<RoomCreationResult> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // When encrypting, turn it on at creation via initial_state (cleaner and
     // race-free vs. a follow-up state event). Encryption is irreversible.
-    const initialState = encryptionInitialState(encrypt);
+    const initialState = [
+        ...(encryptionInitialState(encrypt) ?? []),
+        // Anyone who has joined the space can join the room, no invite each.
+        ...(restrictToSpace && spaceId
+            ? [
+                  {
+                      type: "m.room.join_rules",
+                      state_key: "",
+                      content: buildRestrictedJoinRuleContent([spaceId]),
+                  },
+              ]
+            : []),
+    ];
     // A video room is marked by its immutable m.room.create type. The
     // call-friendly power levels below are already applied to every room this
     // client creates, so a video room needs nothing extra there.
@@ -6563,7 +6576,7 @@ export async function createRoom(
             events: { ...CALL_POWER_LEVEL_EVENTS },
         },
         ...(creationContent ? { creation_content: creationContent } : {}),
-        ...(initialState ? { initial_state: initialState as any } : {}),
+        ...(initialState.length ? { initial_state: initialState as any } : {}),
     });
     const roomId = result.room_id;
     // The room now EXISTS. A failed space link must not be reported as a
@@ -6593,6 +6606,7 @@ export async function createRoom(
 export async function createSpace(
     name: string,
     topic: string,
+    starterRooms = false,
 ): Promise<string> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const result = await matrixClient.createRoom({
@@ -6605,8 +6619,34 @@ export async function createSpace(
             events: { "m.space.child": 0 },
         },
     });
+    const spaceId = result.room_id;
+    if (starterRooms) {
+        // The space exists whatever happens here, so a room that fails to
+        // appear is left for the user to add, not reported as a failed create.
+        try {
+            await settleCreatedRoom(spaceId);
+            await createRoom(
+                t("quickActions.starterTextName"),
+                "",
+                spaceId,
+                false,
+                false,
+                true,
+            );
+            await createRoom(
+                t("quickActions.starterVoiceName"),
+                "",
+                spaceId,
+                false,
+                true,
+                true,
+            );
+        } catch (err) {
+            console.warn("[space] couldn't add the starter rooms", err);
+        }
+    }
     scheduleJoinedRoomsReconcile();
-    return result.room_id;
+    return spaceId;
 }
 
 export function canAddRoomToSpace(spaceId: string): boolean {

@@ -64,6 +64,8 @@
     // Video-room toggle for create-room. Orthogonal to encryption, so it is
     // offered whether or not crypto started this session.
     let videoRoom = $state(false);
+    // Create-space: also make a text and a voice room, joinable by the space.
+    let starterRooms = $state(true);
     const cryptoReady = isCryptoAvailable();
 
     // When encryption is requested but an *existing* (plaintext) DM is reused,
@@ -180,6 +182,7 @@
         // New DMs pre-check the account default; new rooms default off.
         encrypt = m === "create-dm" ? settingsState.encryptNewDms : false;
         videoRoom = false;
+        starterRooms = true;
         resetKnock();
     }
 
@@ -208,7 +211,11 @@
                 roomId = created.roomId;
                 followUp = created.followUp;
             } else if (mode === "create-space") {
-                roomId = await createSpace(input1.trim(), input2.trim());
+                roomId = await createSpace(
+                    input1.trim(),
+                    input2.trim(),
+                    starterRooms,
+                );
             } else {
                 const alias = input1.trim();
                 if (!alias.startsWith("#") && !alias.startsWith("!")) {
@@ -422,6 +429,22 @@
                                     >{t(
                                         "quickActions.opensStraightIntoACallMessages",
                                     )}</span
+                                ></span
+                            >
+                        </label>
+                    {/if}
+                    {#if mode === "create-space"}
+                        <label class="flex items-start gap-2.5 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                bind:checked={starterRooms}
+                                class="mt-0.5 accent-discord-accent"
+                            />
+                            <span class="text-sm text-discord-textPrimary"
+                                >{t("quickActions.starterRooms")}
+                                <span
+                                    class="block text-xs text-discord-textMuted"
+                                    >{t("quickActions.starterRoomsHint")}</span
                                 ></span
                             >
                         </label>

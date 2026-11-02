@@ -1616,6 +1616,11 @@ const messages: Record<MessageKey, string> = {
     "quickActions.spaceName": "ܫܡܐ ܕܚܘܕܪܐ",
     "quickActions.roomName": "ܫܡܐ ܕܓܘܡܐ",
     "quickActions.mySpace": "ܚܘܕܪܐ ܕܝܝ",
+    "quickActions.starterRooms": "Add a text room and a voice room",
+    "quickActions.starterRoomsHint":
+        "Anyone you invite to the space can join them.",
+    "quickActions.starterTextName": "general",
+    "quickActions.starterVoiceName": "Voice",
     "quickActions.optional": "(ܠܐ ܡܚܝܒܐ)",
     "quickActions.whatSThisSpaceAbout": "ܥܠ ܡܘܕܝ ܝܠܗ ܗܢܐ ܚܘܕܪܐ؟",
     "quickActions.whatSThisRoomAbout": "ܥܠ ܡܘܕܝ ܝܠܗ ܗܢܐ ܓܘܡܐ؟",

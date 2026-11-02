@@ -1690,6 +1690,11 @@ export const en = {
     "quickActions.roomName": "Room name",
     "quickActions.mySpace": "My Space",
     "quickActions.optional": "(optional)",
+    "quickActions.starterRooms": "Add a text room and a voice room",
+    "quickActions.starterRoomsHint":
+        "Anyone you invite to the space can join them.",
+    "quickActions.starterTextName": "general",
+    "quickActions.starterVoiceName": "Voice",
     "quickActions.whatSThisSpaceAbout": "What's this space about?",
     "quickActions.whatSThisRoomAbout": "What's this room about?",
     "quickActions.opensStraightIntoACallMessages":
