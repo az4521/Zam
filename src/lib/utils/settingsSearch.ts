@@ -220,6 +220,18 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         keywords: ["touch", "long press", "tap"],
         anchor: "cust-messages",
     },
+    {
+        tab: "messages-media",
+        label: t("settingsSearch.checkSpelling"),
+        keywords: [
+            "spellcheck",
+            "spelling",
+            "autocorrect",
+            "suggestions",
+            "keyboard",
+        ],
+        anchor: "cust-messages",
+    },
     // messages-media (gifs)
     {
         tab: "messages-media",

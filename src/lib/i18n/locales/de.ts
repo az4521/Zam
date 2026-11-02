@@ -1297,6 +1297,9 @@ const messages: Record<MessageKey, string> = {
         "Gedrückt halten für Nachrichtenmenü",
     "messagesMediaSettings.onTouchDevicesOpenAMessage":
         "Auf Touch-Geräten die Aktionen einer Nachricht durch Gedrückthalten statt Antippen öffnen. Wenn aus, öffnet ein Tippen das Menü.",
+    "messagesMediaSettings.checkSpelling": "Rechtschreibung prüfen",
+    "messagesMediaSettings.underlineMisspelledWordsAnd":
+        "Markiere falsch geschriebene Wörter und schlage Korrekturen während des Tippens vor. Wenn aus, werden Rechtschreibprüfung und Tastatur-Autokorrektur in den Nachrichteneditoren auf diesem Gerät deaktiviert.",
     "messagesMediaSettings.linkPreviews": "Linkvorschauen",
     "messagesMediaSettings.whenOffNoLinkPreviewIs":
         "Wenn aus, wird keine Linkvorschau geladen und dein Heimserver ruft die verlinkte Seite nie für dich ab. Woher Vorschaumedien geladen werden, legst du unter Privatsphäre und Sicherheit fest.",
@@ -3734,6 +3737,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.midiSoundBank": "MIDI-Soundbank",
     "settingsSearch.holdToOpenMessageMenu":
         "Gedrückt halten für Nachrichtenmenü",
+    "settingsSearch.checkSpelling": "Rechtschreibung prüfen",
     "settingsSearch.gifDefaultTab": "Standard-GIF-Tab",
     "settingsSearch.minimiseToTrayOnClose":
         "Beim Schließen in den Infobereich minimieren",

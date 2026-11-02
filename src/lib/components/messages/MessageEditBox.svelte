@@ -7,6 +7,7 @@
     import { t } from "$lib/i18n";
     import { getCustomEmojis, mxcToHttp } from "$lib/matrix/client";
     import { roomsState } from "$lib/stores/rooms.svelte";
+    import { settingsState } from "$lib/stores/settings.svelte";
     import type { EmojiSubstitution } from "$lib/utils/messageBody";
     import { convertTrailingShortcode } from "$lib/data/emojiShortcodes";
     import {
@@ -276,7 +277,8 @@
         contenteditable="true"
         dir="auto"
         autocapitalize="sentences"
-        spellcheck="true"
+        spellcheck={settingsState.spellCheckEnabled}
+        {...settingsState.spellCheckEnabled ? {} : { autocorrect: "off" }}
         oninput={onInput}
         onbeforeinput={onBeforeInput}
         onkeydown={onKeydown}

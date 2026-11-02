@@ -1270,6 +1270,9 @@ export const en = {
     "messagesMediaSettings.holdToOpenMessageMenu": "Hold to open message menu",
     "messagesMediaSettings.onTouchDevicesOpenAMessage":
         "On touch devices, open a message's actions by holding it instead of tapping. When off, a tap opens the menu.",
+    "messagesMediaSettings.checkSpelling": "Check spelling",
+    "messagesMediaSettings.underlineMisspelledWordsAnd":
+        "Underline misspelled words and offer corrections while you type. Turn off to stop spellcheck and keyboard autocorrect in the message editors on this device.",
     "messagesMediaSettings.linkPreviews": "Link previews",
     "messagesMediaSettings.whenOffNoLinkPreviewIs":
         "When off, no link preview is loaded and your homeserver never fetches the linked page on your behalf. Control where preview media loads from in Privacy & Safety.",
@@ -3550,6 +3553,7 @@ export const en = {
     "settingsSearch.sendGifsAsAnimatedWebp": "Send GIFs as animated WebP",
     "settingsSearch.midiSoundBank": "MIDI sound bank",
     "settingsSearch.holdToOpenMessageMenu": "Hold to open message menu",
+    "settingsSearch.checkSpelling": "Check spelling",
     "settingsSearch.gifDefaultTab": "GIF default tab",
     "settingsSearch.minimiseToTrayOnClose": "Minimise to tray on close",
     "settingsSearch.runAtStartup": "Run at startup",

@@ -1280,6 +1280,9 @@ const messages: Record<MessageKey, string> = {
         "Maintenir pour ouvrir le menu du message",
     "messagesMediaSettings.onTouchDevicesOpenAMessage":
         "Sur les appareils tactiles, ouvrir les actions d'un message en le maintenant au lieu de le toucher. Désactivé, un simple toucher ouvre le menu.",
+    "messagesMediaSettings.checkSpelling": "Vérifier l'orthographe",
+    "messagesMediaSettings.underlineMisspelledWordsAnd":
+        "Souligner les mots mal orthographiés et proposer des corrections pendant la saisie. Désactivé, la correction orthographique et l'autocorrection du clavier sont désactivées dans les éditeurs de messages de cet appareil.",
     "messagesMediaSettings.linkPreviews": "Aperçus des liens",
     "messagesMediaSettings.whenOffNoLinkPreviewIs":
         "Désactivé, aucun aperçu de lien n'est chargé et votre serveur d'accueil ne récupère jamais la page liée pour vous. Choisissez d'où proviennent les médias des aperçus dans Confidentialité et sécurité.",
@@ -3701,6 +3704,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.midiSoundBank": "Banque de sons MIDI",
     "settingsSearch.holdToOpenMessageMenu":
         "Maintenir pour ouvrir le menu du message",
+    "settingsSearch.checkSpelling": "Vérifier l'orthographe",
     "settingsSearch.gifDefaultTab": "Onglet GIF par défaut",
     "settingsSearch.minimiseToTrayOnClose":
         "Réduire dans la zone de notification à la fermeture",

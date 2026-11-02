@@ -17,6 +17,7 @@
         closeDraftDm,
     } from "$lib/stores/rooms.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import { settingsState } from "$lib/stores/settings.svelte";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import {
         applyContentTransforms,
@@ -244,7 +245,10 @@
                 rows="1"
                 dir="auto"
                 autocapitalize="sentences"
-                spellcheck="true"
+                spellcheck={settingsState.spellCheckEnabled}
+                {...settingsState.spellCheckEnabled
+                    ? {}
+                    : { autocorrect: "off" }}
                 disabled={sending}
                 placeholder={t("draftDm.placeholder", { name })}
                 aria-label={t("draftDm.placeholder", { name })}

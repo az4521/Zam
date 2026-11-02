@@ -6,6 +6,7 @@
         setShowMatrixIds,
         setShowReadReceiptAvatars,
         setHoldToOpenMessageMenu,
+        setSpellCheckEnabled,
         setLinkPreviewsEnabled,
         setPauseVideoOnScrollOff,
         setFaststartVideos,
@@ -214,6 +215,23 @@
                 checked={settingsState.holdToOpenMessageMenu}
                 onChange={setHoldToOpenMessageMenu}
                 label={t("messagesMediaSettings.holdToOpenMessageMenu")}
+            />
+        </div>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("messagesMediaSettings.checkSpelling")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("messagesMediaSettings.underlineMisspelledWordsAnd")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.spellCheckEnabled}
+                onChange={setSpellCheckEnabled}
+                label={t("messagesMediaSettings.checkSpelling")}
             />
         </div>
         <div

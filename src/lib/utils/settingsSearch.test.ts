@@ -112,6 +112,14 @@ describe("searchSettings", () => {
         expect(entry?.anchor).toBe("cust-messages");
     });
 
+    it("routes 'Check spelling' to the Messages & Media tab", () => {
+        const entry = SETTINGS_SEARCH_INDEX.find(
+            (e) => e.label === "Check spelling",
+        );
+        expect(entry?.tab).toBe("messages-media");
+        expect(entry?.anchor).toBe("cust-messages");
+    });
+
     it("keeps 'Minimise to tray on close' in the General tab", () => {
         const entry = SETTINGS_SEARCH_INDEX.find(
             (e) => e.label === "Minimise to tray on close",

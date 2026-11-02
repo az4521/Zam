@@ -1208,6 +1208,9 @@ const messages: Record<MessageKey, string> = {
     "messagesMediaSettings.holdToOpenMessageMenu": "ܐܚܘܕ ܩܐ ܦܬܚܐ ܪܫܝܡܬܐ ܕܐܓܪܬܐ",
     "messagesMediaSettings.onTouchDevicesOpenAMessage":
         "ܥܠ ܡܐܢ̈ܐ ܕܡܩܪܒܘܬܐ، ܦܬܘܚ ܣܘܥܪ̈ܢܐ ܕܐܓܪܬܐ ܒܐܚܕܐ ܕܝܗ̇ ܒܕܘܟ ܕܕܥܨܐ. ܐܢ ܛܦܝܐ ܝܠܗ، ܕܥܨܐ ܦܬܚܐ ܠܪܫܝܡܬܐ.",
+    "messagesMediaSettings.checkSpelling": "Check spelling",
+    "messagesMediaSettings.underlineMisspelledWordsAnd":
+        "Underline misspelled words and offer corrections while you type. Turn off to stop spellcheck and keyboard autocorrect in the message editors on this device.",
     "messagesMediaSettings.linkPreviews": "ܚܙܝ̈ܬܐ ܩܕܡܝ̈ܬܐ ܕܐܣܘܪ̈ܐ",
     "messagesMediaSettings.whenOffNoLinkPreviewIs":
         "ܐܢ ܛܦܝܐ ܝܠܗ، ܠܝܬ ܚܙܝܬܐ ܩܕܡܝܬܐ ܕܛܥܢܐ ܘܣܝܪܒܪ ܕܒܝܬܐ ܕܝܘܟ ܠܐ ܡܐܬܐ ܠܦܐܬܐ ܕܐܣܘܪܐ ܒܕܘܟܬܘܟ. ܡܢ ܐܝܟܐ ܛܥܢܐ ܡܝܕܝܐ ܕܚܙܝܬܐ ܩܕܡܝܬܐ ܓܘ ܦܪܝܫܘܬܐ ܘܫܠܡܘܬܐ.",
@@ -3457,6 +3460,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.sendGifsAsAnimatedWebp": "Send GIFs as animated WebP",
     "settingsSearch.midiSoundBank": "ܒܝܬ ܓܢܙܐ ܕܩ̈ܠܐ ܕ MIDI",
     "settingsSearch.holdToOpenMessageMenu": "ܐܚܘܕ ܩܐ ܦܬܚܐ ܪܫܝܡܬܐ ܕܐܓܪܬܐ",
+    "settingsSearch.checkSpelling": "Check spelling",
     "settingsSearch.gifDefaultTab": "ܠܘܚܐ ܥܕܝܠܐ ܕ GIF",
     "settingsSearch.minimiseToTrayOnClose": "ܙܥܘܪ ܠܣܠܐ ܒܣܟܪܐ",
     "settingsSearch.runAtStartup": "Run at startup",

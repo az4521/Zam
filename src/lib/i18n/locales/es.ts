@@ -1312,6 +1312,9 @@ const messages: Record<MessageKey, string> = {
         "Mantener pulsado para abrir el menú del mensaje",
     "messagesMediaSettings.onTouchDevicesOpenAMessage":
         "En dispositivos táctiles, abre las acciones de un mensaje manteniéndolo pulsado en lugar de tocarlo. Si está desactivado, un toque abre el menú.",
+    "messagesMediaSettings.checkSpelling": "Comprobar ortografía",
+    "messagesMediaSettings.underlineMisspelledWordsAnd":
+        "Subraya las palabras mal escritas y ofrece correcciones mientras escribes. Si está desactivado, se desactivan la corrección ortográfica y el autocorrector del teclado en los editores de mensajes de este dispositivo.",
     "messagesMediaSettings.linkPreviews": "Vistas previas de enlaces",
     "messagesMediaSettings.whenOffNoLinkPreviewIs":
         "Si está desactivado, no se carga ninguna vista previa de enlaces y tu servidor base nunca obtiene la página enlazada en tu nombre. Controla desde dónde se carga el contenido de las vistas previas en Privacidad y seguridad.",
@@ -3735,6 +3738,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.midiSoundBank": "Banco de sonidos MIDI",
     "settingsSearch.holdToOpenMessageMenu":
         "Mantener pulsado para abrir el menú del mensaje",
+    "settingsSearch.checkSpelling": "Comprobar ortografía",
     "settingsSearch.gifDefaultTab": "Pestaña de GIF predeterminada",
     "settingsSearch.minimiseToTrayOnClose": "Minimizar a la bandeja al cerrar",
     "settingsSearch.runAtStartup": "Ejecutar al iniciar",

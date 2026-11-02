@@ -81,6 +81,7 @@
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
+    import { settingsState } from "$lib/stores/settings.svelte";
     import {
         interfaceState,
         openModal,
@@ -2345,7 +2346,9 @@
                  especially) suppress the suggestion strip on a bare
                  contenteditable that sets neither, so a rich-composer div
                  needs them spelled out to get the word suggestions a plain
-                 <textarea> would get for free. -->
+                 <textarea> would get for free. spellcheck follows the
+                 "Check spelling" setting; autocorrect is the Safari name for
+                 the same keyboard behaviour. -->
             <div
                 bind:this={textareaEl}
                 role="textbox"
@@ -2366,7 +2369,10 @@
                 dir="auto"
                 contenteditable={!disabled}
                 autocapitalize="sentences"
-                spellcheck="true"
+                spellcheck={settingsState.spellCheckEnabled}
+                {...settingsState.spellCheckEnabled
+                    ? {}
+                    : { autocorrect: "off" }}
                 tabindex={disabled ? -1 : 0}
                 class="composer-editor flex-1 min-w-0 bg-transparent text-discord-textPrimary outline-none focus-visible:outline-none text-[16px] leading-relaxed py-[3px] max-h-48 overflow-y-auto disabled:cursor-not-allowed"
             ></div>

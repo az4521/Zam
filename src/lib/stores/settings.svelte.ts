@@ -168,6 +168,16 @@ function readPresence(key: string, fallback: PresenceState): PresenceState {
     return isPresenceState(v) ? v : fallback;
 }
 
+/** Root-level spellcheck switch. Editable elements inherit it unless they set
+ *  the attribute themselves (the message editors do, so they follow the
+ *  setting explicitly). Enabled is the browser default, so removing the
+ *  attribute is enough and avoids a dead `spellcheck="true"` on <html>. */
+function applySpellCheck(enabled: boolean): void {
+    if (typeof document === "undefined") return;
+    if (enabled) document.documentElement.removeAttribute("spellcheck");
+    else document.documentElement.setAttribute("spellcheck", "false");
+}
+
 function readThemePresets(): Record<string, CustomPreset> {
     try {
         const parsed = JSON.parse(readString("themePresets") ?? "{}");
@@ -320,6 +330,11 @@ export const settingsState = $state({
      *  a touch-interaction preference is a per-device call, like reduceMotion.
      *  Item 6 (swipe-to-reply) coexists with this on touch devices. */
     holdToOpenMessageMenu: readBool("holdToOpenMessageMenu", false),
+    /** Device-global: check spelling (and autocorrect) in the message editors.
+     *  Default ON. Deliberately device-local (readBool/writeBool, no
+     *  customization sync): keyboards differ per device, so this is a
+     *  per-machine call like reduceMotion. */
+    spellCheckEnabled: readBool("spellCheckEnabled", true),
     /** Device-global: master switch for link previews. When OFF, no preview is
      *  requested at all — not even the homeserver's own URL-preview call — so the
      *  homeserver never server-side-fetches the linked URL on your behalf
@@ -503,6 +518,10 @@ writeString("themeVars", themeColorsToCssText(bootColors));
 // element so CSS suppression is live before first paint, not only after a
 // toggle. The OS media query works independently of this attribute.
 applyReduceMotion(settingsState.reduceMotion);
+
+// Boot apply: turn spellcheck off globally for text fields that don't set
+// their own attribute. The message editors set theirs explicitly.
+applySpellCheck(settingsState.spellCheckEnabled);
 
 // Boot apply: reflect the stored message text size + font onto the root so
 // the timeline is sized/styled before first paint, mirroring applyReduceMotion.
@@ -999,6 +1018,12 @@ export async function removeCustomFont(): Promise<void> {
 export function setHoldToOpenMessageMenu(value: boolean): void {
     settingsState.holdToOpenMessageMenu = value;
     writeBool("holdToOpenMessageMenu", value);
+}
+
+export function setSpellCheckEnabled(value: boolean): void {
+    settingsState.spellCheckEnabled = value;
+    writeBool("spellCheckEnabled", value);
+    applySpellCheck(value);
 }
 
 export function setLinkPreviewsEnabled(value: boolean): void {

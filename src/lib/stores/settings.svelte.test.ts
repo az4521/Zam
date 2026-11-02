@@ -16,6 +16,7 @@ import {
     setTheme,
     renameCustomPreset,
     setHoldToOpenMessageMenu,
+    setSpellCheckEnabled,
     setMinimizeToTrayOnClose,
     setCallVideoCodec,
     normalizeCallVideoCodec,
@@ -730,6 +731,63 @@ describe("holdToOpenMessageMenu (device-local)", () => {
     it("is NOT part of the synced customization snapshot", () => {
         const snap = customizationSnapshot() as Record<string, unknown>;
         expect("holdToOpenMessageMenu" in snap).toBe(false);
+    });
+});
+
+describe("spellCheckEnabled (device-local)", () => {
+    const SP_KEY = "settings:spellCheckEnabled";
+
+    afterEach(() => {
+        setSpellCheckEnabled(true);
+        localStorage.removeItem(SP_KEY);
+        document.documentElement.removeAttribute("spellcheck");
+    });
+
+    async function bootSpellCheckWith(stored: string | null) {
+        if (stored === null) localStorage.removeItem(SP_KEY);
+        else localStorage.setItem(SP_KEY, stored);
+        vi.resetModules();
+        return await import("./settings.svelte");
+    }
+
+    it("defaults to true so spelling suggestions stay on", async () => {
+        const fresh = await bootSpellCheckWith(null);
+        expect(fresh.settingsState.spellCheckEnabled).toBe(true);
+    });
+
+    it("reads a stored false at boot, so the toggle survives a reload", async () => {
+        const fresh = await bootSpellCheckWith("false");
+        expect(fresh.settingsState.spellCheckEnabled).toBe(false);
+    });
+
+    it("writes the value to localStorage under the device-global key", () => {
+        setSpellCheckEnabled(false);
+        expect(localStorage.getItem(SP_KEY)).toBe("false");
+        setSpellCheckEnabled(true);
+        expect(localStorage.getItem(SP_KEY)).toBe("true");
+    });
+
+    it("reflects the setting onto the root element", () => {
+        setSpellCheckEnabled(false);
+        expect(document.documentElement.getAttribute("spellcheck")).toBe(
+            "false",
+        );
+        setSpellCheckEnabled(true);
+        expect(document.documentElement.hasAttribute("spellcheck")).toBe(false);
+    });
+
+    it("is not account-scoped: the key carries no user id suffix", () => {
+        auth.userId = SCOPED_USER;
+        setSpellCheckEnabled(false);
+        const keys = Object.keys(localStorage).filter((k) =>
+            k.includes("spellCheckEnabled"),
+        );
+        expect(keys).toEqual([SP_KEY]);
+    });
+
+    it("is NOT part of the synced customization snapshot", () => {
+        const snap = customizationSnapshot() as Record<string, unknown>;
+        expect("spellCheckEnabled" in snap).toBe(false);
     });
 });
 
