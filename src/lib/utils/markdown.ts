@@ -121,8 +121,19 @@ export function parseMarkdown(input: string): {
         }
 
         // Blockquote
-        if (!blockEscaped && (line.startsWith("> ") || line === ">")) {
-            const content = line.startsWith("> ") ? line.slice(2) : "";
+        const isQuoteLine = (l: string | undefined) =>
+            l !== undefined && (l.startsWith("> ") || l === ">");
+        const quoteContent = line.startsWith("> ") ? line.slice(2) : "";
+        // A bare ">" is only a blank line inside a quote; on its own it is
+        // literal text, not an empty (invisible) blockquote.
+        if (
+            !blockEscaped &&
+            isQuoteLine(line) &&
+            (quoteContent.trim() !== "" ||
+                isQuoteLine(lines[i - 1]) ||
+                isQuoteLine(lines[i + 1]))
+        ) {
+            const content = quoteContent;
             const { html } = processInline(content);
             parts.push(`<blockquote>${html}</blockquote>`);
             hasFormatting = true;

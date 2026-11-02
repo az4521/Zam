@@ -196,9 +196,17 @@ describe("parseMarkdown — block formatting", () => {
         );
     });
 
-    it("handles empty blockquote '>'", () => {
+    it("keeps a lone '>' as literal text instead of an empty blockquote", () => {
         const result = parseMarkdown(">");
-        expect(result.formattedBody).toBe("<blockquote></blockquote>");
+        expect(result.formattedBody).toBe("&gt;");
+        expect(result.hasFormatting).toBe(false);
+    });
+
+    it("keeps a bare '>' as a blank line inside a quote", () => {
+        const result = parseMarkdown("> a\n>\n> b");
+        expect(result.formattedBody).toBe(
+            "<blockquote>a</blockquote><br>\n<blockquote></blockquote><br>\n<blockquote>b</blockquote>",
+        );
     });
 
     it("renders unordered lists (- prefix)", () => {
