@@ -1539,6 +1539,14 @@ const messages: Record<MessageKey, string> = {
     "pluginsSettings.install": "Installer",
     "pluginsSettings.repos": "Dépôts",
     "pluginsSettings.official": "Officiel",
+    "pluginsSettings.localFolder": "Dossier local",
+    "pluginsSettings.loadFromFolder": "Charger un plugin depuis un dossier",
+    "pluginsSettings.loadFromFolderHint":
+        "Pour développer un plugin : choisissez le dossier contenant son manifest.json et son bundle. Zam en garde une copie et l’exécute comme n’importe quel plugin ; utilisez Recharger après chaque build. Il exécute du code en pleine confiance, ne chargez donc que des dossiers que vous avez écrits ou auxquels vous faites confiance.",
+    "pluginsSettings.chooseFolder": "Choisir un dossier",
+    "pluginsSettings.reload": "Recharger",
+    "pluginsSettings.reloading": "Rechargement…",
+    "pluginsSettings.reloadFromFolder": "Recharger depuis le dossier",
     "pluginsSettings.removeRepo": "Retirer le dépôt",
     "pluginsSettings.addARepo": "Ajouter un dépôt",
     "pluginsSettings.thirdPartyReposRunFullTrust":

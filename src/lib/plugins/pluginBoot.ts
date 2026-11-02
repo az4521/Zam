@@ -49,7 +49,14 @@ import { parseManifest } from "./manifest";
 import { satisfiesMinAppVersion } from "./semver";
 import { checkInstallId, decideRepoLoad } from "./pluginPin";
 import { deleteCachedBundle } from "./bundleCache";
-import { deletePluginFiles } from "./pluginAssets";
+import { deletePluginFiles, putLocalPluginFiles } from "./pluginAssets";
+import { filesFromDirectory, readLocalPlugin } from "./localPlugin";
+import {
+    deleteLocalHandle,
+    ensureReadable,
+    getLocalHandle,
+    saveLocalHandle,
+} from "./localHandles";
 import { removePluginNative } from "./pluginNative";
 import { APP_VERSION } from "$lib/update";
 import { hostBridge } from "./hostBridge";
@@ -212,6 +219,21 @@ function builtinLoadable(
     module: PluginModule,
 ): LoadablePlugin {
     return { manifest, source: "builtin", load: () => Promise.resolve(module) };
+}
+
+function localLoadable(manifest: Manifest): LoadablePlugin {
+    return {
+        manifest,
+        source: "local",
+        async load() {
+            const cached = await getCachedBundle(manifest.id);
+            if (!cached?.code)
+                throw new Error(
+                    "The plugin's files are gone from this device. Reload its folder.",
+                );
+            return blobImport(cached.code);
+        },
+    };
 }
 
 function repoLoadable(manifest: Manifest, repoRef: string): LoadablePlugin {
@@ -447,11 +469,23 @@ export function initPlugins(): () => void {
     // 2) Register persisted repo installs (item 4 populates these; forward-safe).
     const builtinIds = BUILTIN_PLUGINS.map((p) => p.manifest.id);
     for (const [id, entry] of Object.entries(state.plugins)) {
+        if (builtinIds.includes(id)) continue;
+        if (entry.source === "local" && entry.manifest) {
+            setInstalledPlugin({
+                manifest: entry.manifest,
+                source: "local",
+                enabled: entry.enabled,
+                error: null,
+            });
+            const l = localLoadable(entry.manifest);
+            loadables.set(id, l);
+            if (entry.enabled) toBoot.push(l);
+            continue;
+        }
         if (entry.source !== "repo" || !entry.manifest || !entry.repoRef)
             continue;
-        // Skip plugins whose id collides with a built-in id (shouldn't happen,
-        // but defense in depth against persisted corruption).
-        if (builtinIds.includes(id)) continue;
+        // (Plugins whose id collides with a built-in id are skipped above:
+        // shouldn't happen, but defense in depth against persisted corruption.)
         setInstalledPlugin({
             manifest: entry.manifest,
             source: "repo",
@@ -528,7 +562,7 @@ export async function installRepoPlugin(
         const builtinIds = BUILTIN_PLUGINS.map((p) => p.manifest.id);
         const installed: Record<
             string,
-            { source: "builtin" | "repo"; repoRef?: typeof ref }
+            { source: "builtin" | "repo" | "local"; repoRef?: typeof ref }
         > = {};
         for (const [id, record] of Object.entries(installedPlugins)) {
             let recordRef: ReturnType<typeof normalizeRepoRef> | undefined;
@@ -650,13 +684,105 @@ export async function installRepoPlugin(
     }
 }
 
-/** Uninstall a repo plugin: disable it, drop its loadable + cached bundle,
- *  remove its installed record, and delete its persisted entry. */
+/** Load (or reload) a plugin from a folder on this device, for plugin
+ *  development. `files` are the folder's files by relative path. The copy is
+ *  kept on the device, so the plugin boots without the folder; reloading
+ *  replaces it and, if the plugin was running, restarts it with the new code.
+ *  A first load records the plugin disabled, like a repo install. Pass
+ *  `expectedId` on a reload so a folder that now holds a different plugin is
+ *  refused. Never throws. */
+export async function loadLocalPlugin(
+    files: Map<string, Blob>,
+    opts: { handle?: FileSystemDirectoryHandle; expectedId?: string } = {},
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+    try {
+        const { manifest, code, assets } = await readLocalPlugin(files);
+        const id = manifest.id;
+        if (opts.expectedId && id !== opts.expectedId)
+            return {
+                ok: false,
+                error: `That folder holds "${id}", not "${opts.expectedId}"`,
+            };
+        if (BUILTIN_PLUGINS.some((p) => p.manifest.id === id))
+            return {
+                ok: false,
+                error: t("pluginPin.cannotInstallPluginWithIdIt", {
+                    manifestId: id,
+                }),
+            };
+        const existing = installedPlugins[id];
+        if (existing && existing.source !== "local")
+            return {
+                ok: false,
+                error: t("pluginPin.pluginIsAlreadyInstalledFromA", {
+                    manifestId: id,
+                }),
+            };
+        if (
+            manifest.minAppVersion &&
+            !satisfiesMinAppVersion(APP_VERSION, manifest.minAppVersion)
+        )
+            return {
+                ok: false,
+                error: `requires app ${manifest.minAppVersion}+`,
+            };
+
+        await putLocalPluginFiles(id, assets);
+        await putCachedBundle({
+            pluginId: id,
+            version: manifest.version,
+            code,
+            cachedAt: Date.now(),
+        });
+
+        const wasLoaded = loader.isLoaded(id);
+        const wasEnabled = wasLoaded || (existing?.enabled ?? false);
+        setInstalledPlugin({
+            manifest,
+            source: "local",
+            enabled: wasEnabled,
+            error: null,
+        });
+        const s = readState();
+        s.plugins[id] = { enabled: wasEnabled, source: "local", manifest };
+        writeState(s);
+        loadables.set(id, localLoadable(manifest));
+        if (opts.handle) await saveLocalHandle(id, opts.handle);
+
+        if (wasLoaded) await disablePlugin(id);
+        if (wasEnabled) await enablePlugin(id);
+        return { ok: true, id };
+    } catch (e) {
+        return { ok: false, error: (e as Error).message };
+    }
+}
+
+/** Re-read a local plugin from the folder it was loaded from. `needsPick` means
+ *  the browser can't (or may no longer) read that folder without the user
+ *  choosing it again. */
+export async function reloadLocalPlugin(
+    pluginId: string,
+): Promise<{ ok: boolean; error?: string; needsPick?: boolean }> {
+    const handle = await getLocalHandle(pluginId);
+    if (!handle || !(await ensureReadable(handle)))
+        return { ok: false, needsPick: true };
+    let files: Map<string, Blob>;
+    try {
+        files = await filesFromDirectory(handle);
+    } catch {
+        return { ok: false, needsPick: true }; // moved or deleted
+    }
+    return loadLocalPlugin(files, { handle, expectedId: pluginId });
+}
+
+/** Uninstall a repo or local plugin: disable it, drop its loadable + cached
+ *  bundle, remove its installed record, and delete its persisted entry. */
 export async function uninstallRepoPlugin(pluginId: string): Promise<void> {
     if (loader.isLoaded(pluginId)) await loader.disable(pluginId);
     loadables.delete(pluginId);
     await deleteCachedBundle(pluginId);
     await deletePluginFiles(pluginId);
+    await deleteLocalHandle(pluginId);
     removePluginNative(pluginId);
     removeInstalledPlugin(pluginId);
     setPluginNeedsUpdate(pluginId, false);
@@ -679,6 +805,8 @@ function localSnapshot(): LocalSyncSnapshot {
     const state = readState();
     const plugins: LocalSyncSnapshot["plugins"] = {};
     for (const [id, record] of Object.entries(installedPlugins)) {
+        // A folder on this device can't be installed from elsewhere.
+        if (record.source === "local") continue;
         const persisted = state.plugins[id];
         const schema = record.manifest.settings;
         const settings = schema ? readPluginSettings(id, schema) : undefined;

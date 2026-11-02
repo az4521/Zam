@@ -11,7 +11,7 @@ import { repoKey, type RepoRef } from "./repo";
 export interface InstalledForUpdate {
     id: string;
     version: string;
-    source: "builtin" | "repo";
+    source: "builtin" | "repo" | "local";
     repoRef?: RepoRef;
 }
 

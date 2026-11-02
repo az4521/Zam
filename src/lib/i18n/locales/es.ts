@@ -1571,6 +1571,14 @@ const messages: Record<MessageKey, string> = {
     "pluginsSettings.install": "Instalar",
     "pluginsSettings.repos": "Repositorios",
     "pluginsSettings.official": "Oficial",
+    "pluginsSettings.localFolder": "Carpeta local",
+    "pluginsSettings.loadFromFolder": "Cargar un plugin desde una carpeta",
+    "pluginsSettings.loadFromFolderHint":
+        "Para desarrollar un plugin: elige la carpeta con su manifest.json y el bundle. Zam guarda una copia y lo ejecuta como cualquier plugin; usa Recargar tras recompilar. Ejecuta código con confianza total, así que carga solo carpetas que hayas escrito o en las que confíes.",
+    "pluginsSettings.chooseFolder": "Elegir carpeta",
+    "pluginsSettings.reload": "Recargar",
+    "pluginsSettings.reloading": "Recargando…",
+    "pluginsSettings.reloadFromFolder": "Recargar desde la carpeta",
     "pluginsSettings.removeRepo": "Quitar repositorio",
     "pluginsSettings.addARepo": "Añadir un repositorio",
     "pluginsSettings.thirdPartyReposRunFullTrust":

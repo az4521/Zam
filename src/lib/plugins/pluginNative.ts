@@ -12,7 +12,7 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import type { Manifest } from "./manifest";
 import { normalizeRepoRef } from "./repo";
-import type { PluginFileSource } from "./pluginAssets";
+import { isLocalSource, type PluginFileSource } from "./pluginAssets";
 
 const PORT_TIMEOUT_MS = 15_000;
 
@@ -75,7 +75,9 @@ function bridge(): Bridge | undefined {
     return undefined;
 }
 
-/** Whether `manifest` ships native code this desktop build can run. */
+/** Whether `manifest` ships native code this desktop build can run. Plugins
+ *  loaded from a local folder never do: the native side downloads and checks
+ *  the files from the pinned commit. */
 export function nativeAvailable(
     manifest: Manifest,
     source: PluginFileSource | null,
@@ -84,6 +86,7 @@ export function nativeAvailable(
     return (
         !!b &&
         !!source &&
+        !isLocalSource(source) &&
         !!manifest.capabilities?.includes("native") &&
         !!manifest.native?.platforms[b.platform]
     );
@@ -119,7 +122,12 @@ export async function connectNative(
     source: PluginFileSource | null,
 ): Promise<MessagePort> {
     const b = bridge();
-    if (!b || !source || !nativeAvailable(manifest, source))
+    if (
+        !b ||
+        !source ||
+        isLocalSource(source) ||
+        !nativeAvailable(manifest, source)
+    )
         throw new Error("this plugin has no native code for this device");
     const ref = normalizeRepoRef(source.repoRef);
     const id = randomId();

@@ -16,6 +16,8 @@
         removeRepo,
         installRepoPlugin,
         uninstallRepoPlugin,
+        loadLocalPlugin,
+        reloadLocalPlugin,
         disableAllPlugins,
         pushPluginSync,
         getPullSummary,
@@ -42,6 +44,11 @@
         PullSummary,
         PluginSyncPayload,
     } from "$lib/plugins/pluginSync";
+    import {
+        filesFromDirectory,
+        filesFromList,
+    } from "$lib/plugins/localPlugin";
+    import { canPickDirectory, pickDirectory } from "$lib/plugins/localHandles";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import {
         Settings,
@@ -244,6 +251,78 @@
                     : t("pluginsSettings.couldnTRemovePlugin2");
         } finally {
             busy[id] = false;
+        }
+    }
+
+    // Local-folder plugins (development)
+    let localError = $state("");
+    let localBusy = $state<string | null>(null); // plugin id, or "" while picking
+    let folderInput: HTMLInputElement | undefined = $state();
+    // The plugin a folder pick is for (a reload), or undefined for a new load.
+    let pickFor: string | undefined;
+
+    async function loadFolder(
+        files: Map<string, Blob>,
+        handle?: FileSystemDirectoryHandle,
+    ) {
+        const res = await loadLocalPlugin(files, {
+            handle,
+            expectedId: pickFor,
+        });
+        if (!res.ok)
+            localError = res.error ?? t("pluginsSettings.installFailed");
+    }
+
+    /** Ask for the plugin's folder. Where the browser can keep a handle to it,
+     *  later reloads need no picking. */
+    async function chooseFolder(forId?: string) {
+        localError = "";
+        pickFor = forId;
+        if (!canPickDirectory()) {
+            folderInput?.click();
+            return;
+        }
+        localBusy = forId ?? "";
+        try {
+            const handle = await pickDirectory();
+            await loadFolder(await filesFromDirectory(handle), handle);
+        } catch (e) {
+            if ((e as Error).name !== "AbortError")
+                localError = (e as Error).message;
+        } finally {
+            localBusy = null;
+        }
+    }
+
+    async function onFolderInput(
+        e: Event & { currentTarget: HTMLInputElement },
+    ) {
+        const input = e.currentTarget;
+        const list = input.files;
+        if (list?.length) {
+            localBusy = pickFor ?? "";
+            try {
+                await loadFolder(filesFromList(list));
+            } finally {
+                localBusy = null;
+            }
+        }
+        input.value = ""; // picking the same folder again must still fire
+    }
+
+    async function reloadLocal(id: string) {
+        localError = "";
+        localBusy = id;
+        try {
+            const res = await reloadLocalPlugin(id);
+            if (res.needsPick) {
+                localBusy = null;
+                await chooseFolder(id);
+            } else if (!res.ok) {
+                localError = res.error ?? t("pluginsSettings.installFailed");
+            }
+        } finally {
+            localBusy = null;
         }
     }
 
@@ -525,6 +604,8 @@
                                         · {repoLabel(
                                             p.repoRef,
                                         )}{#if p.sha}@{p.sha.slice(0, 7)}{/if}
+                                    {:else if p.source === "local"}
+                                        · {t("pluginsSettings.localFolder")}
                                     {/if}
                                 </p>
                                 {#if p.error}
@@ -614,6 +695,21 @@
                                         ? t("pluginsSettings.working")
                                         : undefined}
                                 />
+                                {#if p.source === "local"}
+                                    <button
+                                        type="button"
+                                        onclick={() => reloadLocal(p.id)}
+                                        disabled={localBusy !== null}
+                                        title={t(
+                                            "pluginsSettings.reloadFromFolder",
+                                        )}
+                                        class="px-2 py-1 rounded text-xs font-semibold text-discord-accent hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                    >
+                                        {localBusy === p.id
+                                            ? t("pluginsSettings.reloading")
+                                            : t("pluginsSettings.reload")}
+                                    </button>
+                                {/if}
                                 {#if p.source === "repo"}
                                     <select
                                         value={overrideValue(p.id)}
@@ -643,6 +739,8 @@
                                             )}</option
                                         >
                                     </select>
+                                {/if}
+                                {#if p.source !== "builtin"}
                                     {#if removePending === p.id}
                                         <button
                                             type="button"
@@ -768,6 +866,43 @@
                         {/if}
                     </div>
                 {/each}
+            </div>
+        </section>
+
+        <!-- Local folder (plugin development) -->
+        <section>
+            <p
+                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+            >
+                {t("pluginsSettings.localFolder")}
+            </p>
+            <div class="p-3 rounded bg-discord-backgroundTertiary space-y-3">
+                <p class="text-xs text-discord-textPrimary font-medium">
+                    {t("pluginsSettings.loadFromFolder")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("pluginsSettings.loadFromFolderHint")}
+                </p>
+                <input
+                    bind:this={folderInput}
+                    type="file"
+                    webkitdirectory
+                    multiple
+                    class="hidden"
+                    onchange={onFolderInput}
+                />
+                <button
+                    type="button"
+                    onclick={() => chooseFolder()}
+                    disabled={localBusy !== null}
+                    class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50"
+                    >{t("pluginsSettings.chooseFolder")}</button
+                >
+                {#if localError}
+                    <p class="text-xs text-discord-danger" role="alert">
+                        {localError}
+                    </p>
+                {/if}
             </div>
         </section>
 

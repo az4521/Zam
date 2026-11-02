@@ -12,14 +12,32 @@ export const PLUGIN_FILES_CACHE = "zam-plugin-files-v1";
 const OWNER_HEADER = "x-zam-plugin";
 
 /** Where a repo plugin's files come from. */
-export interface PluginFileSource {
+export interface RepoFileSource {
     repoRef: string;
     sha: string;
     /** The plugin's directory in its repo. */
     path: string;
 }
 
-export function pluginFileUrl(src: PluginFileSource, rel: string): string {
+/** A plugin loaded from a folder on this device (development). Its files were
+ *  copied into the file cache when the folder was loaded; nothing is fetched
+ *  or checksummed. */
+export interface LocalFileSource {
+    local: true;
+}
+
+export type PluginFileSource = RepoFileSource | LocalFileSource;
+
+export function isLocalSource(src: PluginFileSource): src is LocalFileSource {
+    return "local" in src;
+}
+
+/** Cache key for a local plugin's file (never a real URL). */
+export function localFileUrl(pluginId: string, rel: string): string {
+    return `https://local-plugin.invalid/${encodeURIComponent(pluginId)}/${rel}`;
+}
+
+export function pluginFileUrl(src: RepoFileSource, rel: string): string {
     return pinnedFileUrl(normalizeRepoRef(src.repoRef), src.sha, src.path, rel);
 }
 
@@ -61,6 +79,7 @@ export function fetchPluginFile(
     src: PluginFileSource,
     file: ManifestFile,
 ): Promise<ArrayBuffer> {
+    if (isLocalSource(src)) return readLocalPluginFile(pluginId, file.path);
     const url = pluginFileUrl(src, file.path);
     let p = inflight.get(url);
     if (!p) {
@@ -99,14 +118,52 @@ export function fetchPluginFile(
 }
 
 export async function isPluginFileCached(
+    pluginId: string,
     src: PluginFileSource,
     file: ManifestFile,
 ): Promise<boolean> {
     const cache = await openCache();
     if (!cache) return false;
-    return !!(await cache
-        .match(pluginFileUrl(src, file.path))
-        .catch(() => null));
+    const url = isLocalSource(src)
+        ? localFileUrl(pluginId, file.path)
+        : pluginFileUrl(src, file.path);
+    return !!(await cache.match(url).catch(() => null));
+}
+
+async function readLocalPluginFile(
+    pluginId: string,
+    rel: string,
+): Promise<ArrayBuffer> {
+    const cache = await openCache();
+    const hit = await cache?.match(localFileUrl(pluginId, rel));
+    if (!hit)
+        throw new Error(`${rel}: not in the loaded plugin folder (reload it)`);
+    return hit.arrayBuffer();
+}
+
+/** Replace a local plugin's stored files with `files` (path → bytes). */
+export async function putLocalPluginFiles(
+    pluginId: string,
+    files: Map<string, ArrayBuffer>,
+): Promise<void> {
+    await deletePluginFiles(pluginId);
+    const cache = await openCache();
+    if (!cache) {
+        if (files.size)
+            throw new Error("file storage is blocked, can't keep asset files");
+        return;
+    }
+    for (const [rel, bytes] of files) {
+        await cache.put(
+            localFileUrl(pluginId, rel),
+            new Response(bytes.slice(0), {
+                headers: {
+                    "Content-Type": "application/octet-stream",
+                    [OWNER_HEADER]: pluginId,
+                },
+            }),
+        );
+    }
 }
 
 /** Drop every cached file of a plugin (uninstall). */
@@ -134,7 +191,7 @@ export function createAssetAccess(
         const f = files?.find((x) => x.path === path);
         if (!f)
             throw new Error(`"${path}" isn't in the plugin's manifest assets`);
-        if (!source) throw new Error("only repo plugins have asset files");
+        if (!source) throw new Error("built-in plugins have no asset files");
         return f;
     };
     return {
@@ -146,7 +203,7 @@ export function createAssetAccess(
         },
         cached: async (path: string) => {
             try {
-                return await isPluginFileCached(source!, find(path));
+                return await isPluginFileCached(pluginId, source!, find(path));
             } catch {
                 return false;
             }

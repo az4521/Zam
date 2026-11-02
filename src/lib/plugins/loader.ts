@@ -19,9 +19,10 @@ export interface LoaderHostOps {
 
 export interface LoadablePlugin {
     manifest: Manifest;
-    source: "builtin" | "repo";
+    source: "builtin" | "repo" | "local";
     /** Resolve the plugin's module. Built-in: the bundled module. Repo:
-     *  fetch(+cache) → blob-import. Injected so tests supply a fake. */
+     *  fetch(+cache) → blob-import. Local: the stored copy of the picked
+     *  folder → blob-import. Injected so tests supply a fake. */
     load(): Promise<PluginModule>;
 }
 

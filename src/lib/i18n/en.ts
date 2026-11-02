@@ -1517,6 +1517,14 @@ export const en = {
     "pluginsSettings.install": "Install",
     "pluginsSettings.repos": "Repos",
     "pluginsSettings.official": "Official",
+    "pluginsSettings.localFolder": "Local folder",
+    "pluginsSettings.loadFromFolder": "Load a plugin from a folder",
+    "pluginsSettings.loadFromFolderHint":
+        "For developing a plugin: pick the folder with its manifest.json and bundle. Zam keeps a copy and runs it like any plugin; use Reload after you rebuild. It runs full-trust code, so only load folders you wrote or trust.",
+    "pluginsSettings.chooseFolder": "Choose folder",
+    "pluginsSettings.reload": "Reload",
+    "pluginsSettings.reloading": "Reloading…",
+    "pluginsSettings.reloadFromFolder": "Reload from folder",
     "pluginsSettings.removeRepo": "Remove repo",
     "pluginsSettings.addARepo": "Add a repo",
     "pluginsSettings.thirdPartyReposRunFullTrust":

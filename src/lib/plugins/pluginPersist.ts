@@ -3,7 +3,7 @@ import { isCommitSha, isSafeRelPath } from "./repo";
 
 export interface PersistedPluginEntry {
     enabled: boolean;
-    source: "builtin" | "repo";
+    source: "builtin" | "repo" | "local";
     repoRef?: string;
     manifest?: Manifest;
     autoUpdate?: boolean;
@@ -45,7 +45,8 @@ export function parsePersistedState(raw: string | null): PersistedPluginState {
         const enabled = rawEntry.enabled;
         const source = rawEntry.source;
         if (typeof enabled !== "boolean") continue;
-        if (source !== "builtin" && source !== "repo") continue;
+        if (source !== "builtin" && source !== "repo" && source !== "local")
+            continue;
         const entry: PersistedPluginEntry = { enabled, source };
         if (typeof rawEntry.repoRef === "string")
             entry.repoRef = rawEntry.repoRef;

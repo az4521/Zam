@@ -92,13 +92,19 @@ export function canAddRepo(
 }
 
 /** Stable display order for the Installed list: built-ins first, then repo
- *  plugins, each group alphabetized by name (case-insensitive), id as tiebreak.
- *  Returns a new array (does not mutate the input). */
+ *  plugins, then local-folder ones, each group alphabetized by name
+ *  (case-insensitive), id as tiebreak. Returns a new array (does not mutate
+ *  the input). */
 export function sortInstalledPlugins<
-    T extends { source: "builtin" | "repo"; name: string; id: string },
+    T extends {
+        source: "builtin" | "repo" | "local";
+        name: string;
+        id: string;
+    },
 >(items: readonly T[]): T[] {
+    const rank = { builtin: 0, repo: 1, local: 2 } as const;
     return [...items].sort((a, b) => {
-        if (a.source !== b.source) return a.source === "builtin" ? -1 : 1;
+        if (a.source !== b.source) return rank[a.source] - rank[b.source];
         const byName = a.name.localeCompare(b.name, undefined, {
             sensitivity: "base",
         });

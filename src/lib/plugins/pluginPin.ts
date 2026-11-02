@@ -14,7 +14,7 @@ export interface CheckInstallIdParams {
     builtinIds: string[];
     installed: Record<
         string,
-        { source: "builtin" | "repo"; repoRef?: RepoRef }
+        { source: "builtin" | "repo" | "local"; repoRef?: RepoRef }
     >;
 }
 
@@ -44,6 +44,10 @@ export function checkInstallId(params: CheckInstallIdParams): string | null {
     if (existing) {
         if (existing.source === "builtin") {
             return t("pluginPin.cannotInstallPluginWithIdIt", { manifestId });
+        }
+        // A plugin loaded from a local folder has no repo to match
+        if (existing.source === "local") {
+            return t("pluginPin.pluginIsAlreadyInstalledFromA", { manifestId });
         }
         // Check if it's from a different repo
         if (

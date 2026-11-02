@@ -23,7 +23,8 @@ import { buildHostApi, type PluginHost } from "$lib/plugins/hostApi";
 import { setMicFilterSource } from "$lib/audio/micFilters";
 import type { Manifest } from "$lib/plugins/manifest";
 
-export type PluginSource = "builtin" | "repo";
+/** `local`: loaded from a folder on this device (plugin development). */
+export type PluginSource = "builtin" | "repo" | "local";
 
 export interface InstalledPluginRecord {
     manifest: Manifest;
@@ -70,9 +71,11 @@ export function createPluginHost(
         registry: pluginRegistry,
         appVersion: APP_VERSION,
         source:
-            rec?.source === "repo" && rec.repoRef && rec.sha && rec.path
-                ? { repoRef: rec.repoRef, sha: rec.sha, path: rec.path }
-                : null,
+            rec?.source === "local"
+                ? { local: true }
+                : rec?.source === "repo" && rec.repoRef && rec.sha && rec.path
+                  ? { repoRef: rec.repoRef, sha: rec.sha, path: rec.path }
+                  : null,
     });
     hosts.set(pluginId, host);
     return host;

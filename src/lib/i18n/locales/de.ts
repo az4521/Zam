@@ -1557,6 +1557,14 @@ const messages: Record<MessageKey, string> = {
     "pluginsSettings.install": "Installieren",
     "pluginsSettings.repos": "Repos",
     "pluginsSettings.official": "Offiziell",
+    "pluginsSettings.localFolder": "Lokaler Ordner",
+    "pluginsSettings.loadFromFolder": "Plugin aus einem Ordner laden",
+    "pluginsSettings.loadFromFolderHint":
+        "Zum Entwickeln eines Plugins: Wähle den Ordner mit manifest.json und Bundle. Zam behält eine Kopie und führt es wie jedes Plugin aus; nutze nach dem Neubauen „Neu laden“. Es führt Code mit vollem Vertrauen aus, lade also nur Ordner, die du selbst geschrieben hast oder denen du vertraust.",
+    "pluginsSettings.chooseFolder": "Ordner wählen",
+    "pluginsSettings.reload": "Neu laden",
+    "pluginsSettings.reloading": "Wird neu geladen…",
+    "pluginsSettings.reloadFromFolder": "Aus Ordner neu laden",
     "pluginsSettings.removeRepo": "Repo entfernen",
     "pluginsSettings.addARepo": "Repo hinzufügen",
     "pluginsSettings.thirdPartyReposRunFullTrust":
