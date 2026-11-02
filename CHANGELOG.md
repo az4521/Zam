@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.43.2
+
+🐛 **Fixed**
+
+- **Soundboard:** sounds played in an encrypted call are heard by everyone again. Since 1.43.0-era changes, other people's clients were dropping them, so only the sender heard the clip.
+- **Read receipts:** a reader whose read receipt lands on an event the timeline hides (a state change, an edit, a reaction) now shows under the message just above it instead of disappearing.
+
 ## v1.43.1
 
 ✨ **New**
