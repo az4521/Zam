@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.42.12
+
+✨ **New**
+
+- **Message order hints toggle:** Settings > Debug has a new Message order hints switch. Turning it off stops Zam sending and obeying the order hints from 1.42.11, so messages show in the server's order exactly as in Element.
+
 ## v1.42.11
 
 🐛 **Fixed**
