@@ -4,6 +4,24 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.45.0
+
+✨ **New**
+
+- **Japanese:** Zam can now be shown in Japanese (日本語). Pick it in Settings > Appearance > Display language. Thanks to tsubotan1985 for the translation.
+- **Rooms when you start offline:** if Zam starts with no connection, your rooms open and show their most recent messages saved on this device, instead of an empty pane. Encrypted rooms are decrypted from the keys on this device. Sending comes back on its own once the room has loaded.
+- **Bot commands:** a slash command Zam doesn't know, such as a bot's `/model` or `/status`, can now be sent. The first Enter warns you it's unknown, in case of a typo; press Enter again (or tap send again on mobile) to send it as a message.
+
+🐛 **Fixed**
+
+- **Japanese, Chinese and Korean input:** typing with an IME in the message box or when editing a message no longer drops the text being converted.
+- **Android keyboards:** tapping send while the keyboard is still underlining the word you're typing now sends that word too. Mention, emoji and command suggestions also keep up as you type instead of waiting for the end of each word.
+- **Connection indicator:** the Offline / Reconnecting pill now appears at the top of the chat, under the room header, instead of on top of your name in the bottom corner (or the + button on mobile).
+
+🔧 **Changed**
+
+- **Language list:** languages in the picker are in alphabetical order.
+
 ## v1.44.0
 
 ✨ **New**
