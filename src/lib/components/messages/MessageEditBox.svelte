@@ -163,7 +163,28 @@
         );
     }
 
+    // True while an IME is composing: the browser owns the contenteditable then,
+    // so rendering from the model waits for compositionend.
+    let composing = false;
+
     function onInput() {
+        // input events fired inside an IME composition must not trigger a
+        // re-render; that replaces the node holding the preedit and the
+        // conversion is lost. onCompositionEnd resyncs once it commits.
+        if (composing) return;
+        syncFromEditor();
+    }
+
+    function onCompositionEnd() {
+        composing = false;
+        // WebKit fires compositionend before the committed text is in the DOM,
+        // Chrome after. The microtask covers both orders.
+        queueMicrotask(() => {
+            if (!composing) syncFromEditor();
+        });
+    }
+
+    function syncFromEditor() {
         if (!editorEl) return;
         let pos = caret();
         text = editorText(editorEl);
@@ -280,6 +301,8 @@
         spellcheck={settingsState.spellCheckEnabled}
         {...settingsState.spellCheckEnabled ? {} : { autocorrect: "off" }}
         oninput={onInput}
+        oncompositionstart={() => (composing = true)}
+        oncompositionend={onCompositionEnd}
         onbeforeinput={onBeforeInput}
         onkeydown={onKeydown}
         onpaste={onPaste}
