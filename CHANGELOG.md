@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.43.3
+
+✨ **New**
+
+- **Easier new spaces:** creating a space now also makes a general text room and a Voice room in it, and anyone you invite to the space can join both without a separate invite for each. Untick Add a text room and a voice room in the Create a space dialog to start with an empty space.
+
 ## v1.43.2
 
 🐛 **Fixed**
