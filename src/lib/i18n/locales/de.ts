@@ -4114,6 +4114,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Pick the codecs that show nothing (or a black picture) on this device. Others in the call then send you H.264 instead. Zam also fills this in when a stream arrives and never decodes.",
     "client.codecCouldNotBeDecoded":
         "This device can't decode {codec} video. Asking for H.264 instead.",
+    // src/lib/components/messages/MessageEmbed.svelte
+    "messageEmbed.deleted": "Nachricht gelöscht",
+    "messageEmbed.inRoom": "in {room}",
+    "messageEmbed.jumpToMessage": "Zur verlinkten Nachricht springen:",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: de };

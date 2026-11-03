@@ -3895,6 +3895,10 @@ export const en = {
     "qrLogin.chooseIntro":
         "More than one new session signed in at the same moment. Pick the one you are setting up.",
     "qrLogin.linkClose": "Close",
+    // src/lib/components/messages/MessageEmbed.svelte
+    "messageEmbed.deleted": "Message deleted",
+    "messageEmbed.inRoom": "in {room}",
+    "messageEmbed.jumpToMessage": "Jump to the linked message:",
 };
 
 export type MessageKey = keyof typeof en;

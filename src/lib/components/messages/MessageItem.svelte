@@ -46,6 +46,7 @@
     import Reactions from "$lib/components/messages/Reactions.svelte";
     import ReactorPopover from "./ReactorPopover.svelte";
     import LinkPreview from "$lib/components/messages/LinkPreview.svelte";
+    import MessageEmbed from "$lib/components/messages/MessageEmbed.svelte";
     import { orderReadReceipts } from "$lib/utils/readReceipts";
     import { eventFavouriteKey } from "$lib/matrix/favouriteFile";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
@@ -92,8 +93,10 @@
         mergeViaServers,
         linkifyPlainText,
         highlightRoomMention,
+        extractEventPermalinks,
         type MatrixLinkTarget,
     } from "$lib/utils/matrixLinks";
+    import { eventPreviewText } from "$lib/utils/eventPreviewText";
     import {
         describeJoinTarget,
         needsJoinConsent,
@@ -1183,35 +1186,9 @@
         // without it the row stays on the "unavailable" fallback until a reload.
         void messagesState.timelineTick;
         if (!replyTarget) return null;
-        const c = replyTarget.getContent();
-        const type = replyTarget.getType();
         // Parents with no text of their own get a type placeholder instead of
         // falling through to "Original message unavailable".
-        if (type === "m.sticker") return t("messageItem.replyPreviewSticker");
-        if (isPollStartEventType(type))
-            return t("messageItem.replyPreviewPoll");
-        if (isFileOfferEventType(type))
-            return t("messageItem.replyPreviewFileOffer");
-        if (type === "m.room.message") {
-            const b: string = c?.body ?? "";
-            // Strip nested reply prefix from the quoted message's own body
-            const parts = b.split("\n\n");
-            if (parts.length >= 2 && parts[0].startsWith(">"))
-                return parts.slice(1).join("\n\n");
-            if (b) return b;
-            switch (c?.msgtype) {
-                case "m.image":
-                    return t("messageItem.replyPreviewImage");
-                case "m.video":
-                    return t("messageItem.replyPreviewVideo");
-                case "m.audio":
-                    return t("messageItem.replyPreviewAudio");
-                case "m.file":
-                    return t("messageItem.replyPreviewFile");
-            }
-            return b;
-        }
-        return null;
+        return eventPreviewText(replyTarget);
     });
 
     // Sticker URL
@@ -1730,11 +1707,26 @@
         return getThreadName(room, eventId);
     });
 
+    // Links to other messages render as an embed of that message instead of
+    // a homeserver URL preview (which would only show matrix.to's own page).
+    const eventLinks = $derived.by(() => {
+        if (
+            msgtype !== "m.text" &&
+            msgtype !== "m.notice" &&
+            msgtype !== "m.emote"
+        )
+            return [];
+        return extractEventPermalinks(body(), formattedBody());
+    });
+
     // Extract http/https URLs from the plain body for link previews
     const linkedUrls = $derived.by(() => {
         if (msgtype !== "m.text") return [];
         const matches = body().match(/https?:\/\/[^\s<>"')\]]+/g) ?? [];
-        return [...new Set(matches)];
+        return [...new Set(matches)].filter((url) => {
+            const target = parseMatrixLink(url);
+            return !(target && target.kind !== "user" && target.eventId);
+        });
     });
 
     // True if the body text consists entirely of emoji + whitespace (no other characters)
@@ -1906,6 +1898,20 @@
         }
     }
 
+    function openMatrixTarget(
+        target: Exclude<MatrixLinkTarget, { kind: "user" }>,
+    ): void {
+        navigateToMatrixTarget(target).catch((err) => {
+            console.error("Failed to open Matrix link:", err);
+            showErrorToast(
+                matrixErrorMessage(
+                    err,
+                    t("messageItem.couldNotOpenTheMatrixLink"),
+                ),
+            );
+        });
+    }
+
     // Svelte action: open Matrix links (matrix.to permalinks, matrix: URIs,
     // mention anchors) in-app — user links open the profile card; room and
     // alias links join if needed, then switch rooms — instead of letting the
@@ -1932,15 +1938,7 @@
                 openProfileCard(target.userId, anchor as HTMLElement);
                 return;
             }
-            navigateToMatrixTarget(target).catch((err) => {
-                console.error("Failed to open Matrix link:", err);
-                showErrorToast(
-                    matrixErrorMessage(
-                        err,
-                        t("messageItem.couldNotOpenTheMatrixLink"),
-                    ),
-                );
-            });
+            openMatrixTarget(target);
         }
         // Full-id tooltip on user links (the anchor text may be a nickname).
         // `data-matrix-link-ready` keeps the sweep and the delegated path from
@@ -2890,6 +2888,13 @@
                         {/if}
                     </div>
                 </div>
+                {#each eventLinks as link (link.href)}
+                    <MessageEmbed
+                        {link}
+                        currentRoomId={room.roomId}
+                        onOpen={() => openMatrixTarget(link)}
+                    />
+                {/each}
                 {#if settingsState.linkPreviewsEnabled}
                     {#each linkedUrls as url (url)}
                         <LinkPreview {url} />

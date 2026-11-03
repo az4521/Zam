@@ -8,6 +8,7 @@ import {
     matrixToUrl,
     matrixLinkTitle,
     asciiServerName,
+    extractEventPermalinks,
 } from "./matrixLinks";
 
 describe("parseMatrixLink — matrix.to URLs", () => {
@@ -616,5 +617,65 @@ describe("highlightRoomMention", () => {
             '<a title="@room">x</a>',
         ])
             expect(highlightRoomMention(h)).toBe(h);
+    });
+});
+
+describe("extractEventPermalinks", () => {
+    it("finds a matrix.to event link in the plain body", () => {
+        const links = extractEventPermalinks(
+            "look https://matrix.to/#/!abc:example.org/$ev1?via=example.org here",
+        );
+        expect(links).toEqual([
+            {
+                kind: "room",
+                roomId: "!abc:example.org",
+                eventId: "$ev1",
+                via: ["example.org"],
+                href: "https://matrix.to/#/!abc:example.org/$ev1?via=example.org",
+            },
+        ]);
+    });
+
+    it("ignores room, alias and user links without an event", () => {
+        expect(
+            extractEventPermalinks(
+                "https://matrix.to/#/!abc:example.org https://matrix.to/#/#dev:example.org https://matrix.to/#/@a:example.org https://example.org/x",
+            ),
+        ).toEqual([]);
+    });
+
+    it("reads hrefs from the formatted body and decodes entities", () => {
+        const [link] = extractEventPermalinks(
+            "here",
+            '<a href="https://matrix.to/#/%23dev%3Aexample.org/%24ev?via=a.org&amp;via=b.org">here</a>',
+        );
+        expect(link).toMatchObject({
+            kind: "alias",
+            alias: "#dev:example.org",
+            eventId: "$ev",
+            via: ["a.org", "b.org"],
+        });
+    });
+
+    it("accepts matrix: URIs", () => {
+        const [link] = extractEventPermalinks(
+            "matrix:roomid/abc:example.org/e/ev1?via=example.org",
+        );
+        expect(link).toMatchObject({
+            kind: "room",
+            roomId: "!abc:example.org",
+            eventId: "$ev1",
+        });
+    });
+
+    it("de-duplicates the same event across body and HTML, and caps the count", () => {
+        const url = "https://matrix.to/#/!abc:example.org/$ev1";
+        expect(
+            extractEventPermalinks(url, `<a href="${url}">${url}</a>`),
+        ).toHaveLength(1);
+        const many = [1, 2, 3, 4, 5]
+            .map((i) => `https://matrix.to/#/!abc:example.org/$ev${i}`)
+            .join(" ");
+        expect(extractEventPermalinks(many)).toHaveLength(3);
     });
 });

@@ -236,6 +236,59 @@ export function linkifyPlainText(escapedHtml: string): string {
     );
 }
 
+export type EventPermalink = Extract<
+    MatrixLinkTarget,
+    { kind: "room" | "alias" }
+> & { eventId: string; href: string };
+
+// `matrix:` URIs in plain text. The body's http(s) URLs come from URL_RE.
+const MATRIX_URI_RE = /matrix:[^\s<>)"']+/gi;
+const HREF_RE = /\shref\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
+
+function decodeHtmlEntities(s: string): string {
+    return s
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&");
+}
+
+/**
+ * Links to individual messages in a message body, in order of appearance and
+ * de-duplicated by room + event. Reads the plain body's URLs and, when given,
+ * the anchors of the formatted body — a link written as `[here](…)` keeps its
+ * URL only in the HTML. Pass the formatted body with any reply fallback
+ * already stripped: the legacy `<mx-reply>` block links to the parent event,
+ * which the reply quote already shows.
+ */
+export function extractEventPermalinks(
+    body: string,
+    formattedHtml?: string,
+    max = 3,
+): EventPermalink[] {
+    const hrefs = [
+        ...(body.match(URL_RE) ?? []),
+        ...(body.match(MATRIX_URI_RE) ?? []),
+    ];
+    if (formattedHtml) {
+        for (const m of formattedHtml.matchAll(HREF_RE))
+            hrefs.push(decodeHtmlEntities(m[1] ?? m[2] ?? ""));
+    }
+    const seen = new Set<string>();
+    const out: EventPermalink[] = [];
+    for (const href of hrefs) {
+        const target = parseMatrixLink(href);
+        if (!target || target.kind === "user" || !target.eventId) continue;
+        const key = `${target.kind === "room" ? target.roomId : target.alias}|${target.eventId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ ...target, eventId: target.eventId, href });
+        if (out.length >= max) break;
+    }
+    return out;
+}
+
 /**
  * Wrap a standalone "@room" in rendered message HTML in a styled span, like a
  * user mention. Only touches text between tags (never attributes), and skips

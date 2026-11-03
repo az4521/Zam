@@ -3577,6 +3577,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "qrLogin.chooseIntro":
         "同時に複数の新しいセッションがサインインしました。設定中のセッションを選んでください。",
     "qrLogin.linkClose": "閉じる",
+    // src/lib/components/messages/MessageEmbed.svelte
+    "messageEmbed.deleted": "削除されたメッセージ",
+    "messageEmbed.inRoom": "{room} 内",
+    "messageEmbed.jumpToMessage": "リンク先のメッセージへ移動:",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ja };
