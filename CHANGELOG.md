@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.43.4
+
+✨ **New**
+
+- **QR sign-in button:** the button to sign in a new device by scanning its QR code is now at the top of Settings > Account, labelled Scan QR code to sign in a new device.
+- **Clearer room reordering:** the reorder toggle in the room list now uses an up/down arrows icon, and the actions menu uses the burger icon.
+
+🐛 **Fixed**
+
+- **QR sign-in:** a new device that signed in successfully is no longer reported as a failed sign-in when verification could not be started; you are told to verify it from Settings > Sessions instead.
+- **Permissions:** the reorder toggle is hidden in spaces where you cannot reorder rooms, and the emote and soundboard settings no longer show an add form you cannot use. The Add image form now matches the soundboard layout.
+
 ## v1.43.3
 
 ✨ **New**
