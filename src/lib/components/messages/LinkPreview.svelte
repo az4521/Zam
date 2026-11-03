@@ -26,6 +26,7 @@
     import { reservedMediaBox } from "$lib/utils/mediaDimensions";
     import { galleryNav, galleryPositionLabel } from "$lib/utils/mediaGallery";
     import { isInstagramUrl } from "$lib/utils/instagramUrl";
+    import { linkPreviewFavourite } from "$lib/utils/linkPreviewFavourite";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import { resolveEmbed, mountEmbed } from "$lib/plugins/embeds";
     import { applyPreviewUrlTransforms } from "$lib/plugins/outgoingTransforms";
@@ -109,8 +110,10 @@
         if (isFavouriteGif(url)) {
             removeFavouriteGif(url);
         } else {
-            const previewUrl = preview?.imageUrl ?? preview?.videoThumbnailUrl;
-            if (previewUrl) addFavouriteGif({ url, previewUrl });
+            const entry = linkPreviewFavourite(url, preview, {
+                gifSite: isGifSite,
+            });
+            if (entry) addFavouriteGif(entry);
         }
     }
 

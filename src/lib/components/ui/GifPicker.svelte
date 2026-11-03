@@ -558,6 +558,10 @@
                                 {:else if gif.previewVideoUrl}
                                     <video
                                         src={gif.previewVideoUrl}
+                                        poster={gif.previewUrl !==
+                                        gif.previewVideoUrl
+                                            ? gif.previewUrl
+                                            : undefined}
                                         class="w-full h-auto block rounded bg-discord-backgroundTertiary pointer-events-none"
                                         style={favouriteAspectStyle(gif)}
                                         autoplay
