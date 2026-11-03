@@ -2048,9 +2048,10 @@ export function isRoomListFromCache(): boolean {
 }
 
 /**
- * True for a room that exists only in the saved room list, not in the SDK: the
- * case when the app boots with no network and sync has not delivered anything
- * yet. Its timeline is the cached tail, and nothing can be sent from it.
+ * True for a room that exists only in the saved room list, not in the SDK:
+ * sync has not delivered it yet, either because the app booted offline or
+ * briefly at the start of any boot. Its timeline is the cached tail, and
+ * nothing can be sent from it.
  */
 export function isRoomCachedOnly(roomId: string): boolean {
     return !!roomListCache?.rooms.get(roomId) && !matrixClient?.getRoom(roomId);
@@ -2110,20 +2111,15 @@ async function saveRoomListSnapshot(
     const userId = client.getUserId();
     const deviceId = client.getDeviceId();
     if (!userId || !deviceId) return;
-    const key = snapshotKey(userId, deviceId);
-    const next = {
+    // No empty-snapshot guard needed: this only runs once the room list is
+    // complete, and the SDK awaits every room's data before sliding sync
+    // reports Complete, so an empty list here means no joined rooms. Keeping
+    // the old snapshot instead would bring left rooms back on the next
+    // offline start.
+    await saveSnapshot(snapshotKey(userId, deviceId), {
         ...buildSnapshot(client),
         hierarchies: Object.fromEntries(hierarchyCache),
-    };
-    // A boot that saves before sync has delivered any room would replace a good
-    // snapshot with an empty one, and that is what an offline start then shows.
-    // Leaving every room at once is far rarer than that race, so an empty list
-    // never overwrites a snapshot that has rooms.
-    if (next.rooms.length === 0) {
-        const previous = await loadSnapshot(key);
-        if (previous?.rooms.length) return;
-    }
-    await saveSnapshot(key, next);
+    });
 }
 
 /**

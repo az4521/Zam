@@ -175,9 +175,9 @@
 
     let { room, isMobile = false, onMenuOpen }: Props = $props();
 
-    // A room that exists only in the saved room list: the app booted with no
-    // network, so its timeline is the cached tail and there is nothing to send
-    // to yet. Re-checked as sync delivers rooms.
+    // A room that exists only in the saved room list: sync hasn't delivered it
+    // yet (offline, or early in any boot), so its timeline is the cached tail
+    // and there is nothing to send to yet. Re-checked as sync delivers rooms.
     const cachedOnly = $derived.by(() => {
         void auth.syncState;
         return isRoomCachedOnly(room.roomId);
@@ -2547,16 +2547,16 @@
 
         <!-- Message input. Wrapped so its rendered height can be measured and
              the floating pills above can be offset to clear it. A cached room
-             has no live timeline to send into, so it shows a notice instead. -->
+             has no live timeline to send into, so it shows a note instead.
+             That happens offline and also for a moment on every online boot,
+             so the note doesn't claim either: ReconnectPill reports the
+             connection. -->
         {#if cachedOnly}
             <div
                 class="flex-shrink-0 mx-4 mb-4 rounded-lg border border-discord-backgroundModifier bg-discord-backgroundSecondary px-4 py-3"
                 dir={uiDir}
             >
-                <p class="text-sm font-medium text-discord-textPrimary">
-                    {t("messageArea.cachedRoomTitle")}
-                </p>
-                <p class="text-xs text-discord-textMuted mt-1">
+                <p class="text-xs text-discord-textMuted">
                     {t("messageArea.cachedRoomHint")}
                 </p>
             </div>

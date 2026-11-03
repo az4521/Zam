@@ -1133,9 +1133,8 @@ const messages: Partial<Record<MessageKey, string>> = {
 
     // src/lib/components/layout/MessageArea.svelte
     "messageArea.dropToAttach": "Suelta para adjuntar",
-    "messageArea.cachedRoomTitle": "Sin conexión",
     "messageArea.cachedRoomHint":
-        "Se muestran los mensajes guardados en este dispositivo. Podrás enviar de nuevo cuando vuelva la conexión.",
+        "Se muestran los mensajes guardados en este dispositivo. Podrás enviar cuando la sala termine de cargarse.",
     "messageArea.unreadNotifications": "Notificaciones sin leer",
     "messageArea.encryptionEnabled": "Cifrado activado",
     "messageArea.joiningVoiceCall": "Uniéndose a la llamada de voz…",

@@ -1028,6 +1028,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageActionsSheet.thisMessage": "このメッセージを{label}しますか？",
     "messageActionsSheet.messageActions": "メッセージ操作",
     "messageArea.dropToAttach": "ドロップして添付",
+    "messageArea.cachedRoomHint":
+        "このデバイスに保存されたメッセージを表示しています。ルームの読み込みが終わると送信できます。",
     "messageArea.unreadNotifications": "未読の通知",
     "messageArea.encryptionEnabled": "暗号化が有効",
     "messageArea.joiningVoiceCall": "音声通話に参加しています…",

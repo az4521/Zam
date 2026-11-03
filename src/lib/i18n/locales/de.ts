@@ -1108,9 +1108,8 @@ const messages: Partial<Record<MessageKey, string>> = {
 
     // src/lib/components/layout/MessageArea.svelte
     "messageArea.dropToAttach": "Zum Anhängen ablegen",
-    "messageArea.cachedRoomTitle": "Du bist offline",
     "messageArea.cachedRoomHint":
-        "Angezeigt werden die auf diesem Gerät gespeicherten Nachrichten. Senden ist wieder möglich, sobald die Verbindung steht.",
+        "Angezeigt werden die auf diesem Gerät gespeicherten Nachrichten. Senden kannst du, sobald der Raum geladen ist.",
     "messageArea.unreadNotifications": "Ungelesene Benachrichtigungen",
     "messageArea.encryptionEnabled": "Verschlüsselung aktiviert",
     "messageArea.joiningVoiceCall": "Sprachanruf wird beigetreten…",

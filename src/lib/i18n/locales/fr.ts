@@ -1096,9 +1096,8 @@ const messages: Partial<Record<MessageKey, string>> = {
 
     // src/lib/components/layout/MessageArea.svelte
     "messageArea.dropToAttach": "Déposer pour joindre",
-    "messageArea.cachedRoomTitle": "Vous êtes hors ligne",
     "messageArea.cachedRoomHint":
-        "Les messages enregistrés sur cet appareil sont affichés. L'envoi revient dès que la connexion est rétablie.",
+        "Les messages enregistrés sur cet appareil sont affichés. Vous pourrez envoyer une fois le salon chargé.",
     "messageArea.unreadNotifications": "Notifications non lues",
     "messageArea.encryptionEnabled": "Chiffrement activé",
     "messageArea.joiningVoiceCall": "Connexion à l'appel vocal…",
