@@ -700,6 +700,16 @@
             : false),
     );
 
+    // Hide the reorder toggle where nothing could be reordered: a space whose
+    // channels we can't write and which shows no personal favourite/low-priority
+    // rows (those tags are ours to order regardless of space power levels).
+    const canReorderAnything = $derived(
+        !roomsState.activeSpaceId ||
+            canReorderChannels ||
+            roomGroups.favourites.length > 0 ||
+            roomGroups.lowPriority.length > 0,
+    );
+
     // Refresh the view after a successful order write (drag or raw commit).
     function applyReorderReactivity(section: Section) {
         roomsState.roomsTick++;
@@ -874,30 +884,41 @@
             ></div>
         {/if}
         <!-- Reorder-mode toggle -->
-        <button
-            onclick={toggleReorderMode}
-            class="p-1 rounded transition-colors flex-shrink-0 hover:bg-discord-messageHover {reorderMode
-                ? 'text-discord-accent'
-                : 'text-discord-textMuted hover:text-discord-textPrimary'}"
-            title={reorderMode
-                ? t("roomList.doneReordering")
-                : t("roomList.reorderRooms")}
-        >
-            {#if reorderMode}
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path
-                        d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
-                    />
-                </svg>
-            {:else}
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path
-                        d="M3 15h18v-2H3v2zm0 4h18v-2H3v2zm0-8h18V9H3v2zm0-6v2h18V5H3z"
-                    />
-                </svg>
-            {/if}
-        </button>
-        <!-- Actions "+" — hidden when the menu would be empty (a space where you
+        {#if canReorderAnything}
+            <button
+                onclick={toggleReorderMode}
+                class="p-1 rounded transition-colors flex-shrink-0 hover:bg-discord-messageHover {reorderMode
+                    ? 'text-discord-accent'
+                    : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                title={reorderMode
+                    ? t("roomList.doneReordering")
+                    : t("roomList.reorderRooms")}
+            >
+                {#if reorderMode}
+                    <svg
+                        class="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+                        />
+                    </svg>
+                {:else}
+                    <!-- Up/down arrows: "move things around" -->
+                    <svg
+                        class="w-4 h-4"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            d="M16 17.01V10h-2v7.01h-3L15 21l4-3.99h-3zM9 3 5 6.99h3V14h2V6.99h3L9 3z"
+                        />
+                    </svg>
+                {/if}
+            </button>
+        {/if}
+        <!-- Actions menu (burger) — hidden when the menu would be empty (a space where you
              lack power to add a room or open settings), which otherwise rendered
              an empty dropdown sliver. -->
         {#if hasHeaderActions}
@@ -916,7 +937,9 @@
                         fill="currentColor"
                         viewBox="0 0 24 24"
                     >
-                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                        <path
+                            d="M3 15h18v-2H3v2zm0 4h18v-2H3v2zm0-8h18V9H3v2zm0-6v2h18V5H3z"
+                        />
                     </svg>
                 </button>
                 {#if interfaceState.modal === "room-header-menu"}

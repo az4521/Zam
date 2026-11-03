@@ -438,99 +438,103 @@
 </script>
 
 <div class="space-y-4">
-    <div class="space-y-2">
-        <label
-            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
-            for="room-emote-shortcode"
-        >
-            {t("imagePackEditor.addImage")}
-        </label>
-        <div class="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-            <div class="min-w-0">
-                <select
-                    bind:value={selectedEmotePackKey}
-                    disabled={!canAdd || emoteUploading}
-                    class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50"
-                >
-                    {#each editableEmotePacks() as pack (pack.id)}
-                        <option value={packKey(pack)}>{pack.name}</option>
-                    {/each}
-                    {#if canEdit}
-                        <option value="__new"
-                            >{t("imagePackEditor.newPack")}</option
-                        >
+    {#if canAdd}
+        <div class="space-y-2">
+            <label
+                class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                for="room-emote-shortcode"
+            >
+                {t("imagePackEditor.addImage")}
+            </label>
+            <div class="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <div class="grid gap-2 min-w-0">
+                    <select
+                        bind:value={selectedEmotePackKey}
+                        disabled={!canAdd || emoteUploading}
+                        class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50"
+                    >
+                        {#each editableEmotePacks() as pack (pack.id)}
+                            <option value={packKey(pack)}>{pack.name}</option>
+                        {/each}
+                        {#if canEdit}
+                            <option value="__new"
+                                >{t("imagePackEditor.newPack")}</option
+                            >
+                        {/if}
+                    </select>
+                    {#if selectedEmotePackKey === "__new"}
+                        <input
+                            bind:value={newEmotePackName}
+                            disabled={!canAdd || emoteUploading}
+                            placeholder={t("imagePackEditor.packName")}
+                            class="w-full min-w-0 text-ellipsis bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50"
+                        />
                     {/if}
-                </select>
-            </div>
-            <div class="grid gap-2 min-w-0 content-start">
-                {#if selectedEmotePackKey === "__new"}
-                    <input
-                        bind:value={newEmotePackName}
-                        disabled={!canAdd || emoteUploading}
-                        placeholder={t("imagePackEditor.packName")}
-                        class="w-full min-w-0 text-ellipsis bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50"
-                    />
-                {/if}
-                <div
-                    class="flex items-center bg-discord-backgroundTertiary rounded border border-transparent focus-within:border-discord-accent/50"
-                >
-                    <span class="ps-3 text-sm text-discord-textMuted">:</span>
-                    <input
-                        id="room-emote-shortcode"
-                        bind:value={emoteShortcode}
-                        disabled={!canAdd || emoteUploading}
-                        placeholder={t("imagePackEditor.shortcode")}
-                        class="min-w-0 flex-1 bg-transparent text-discord-textPrimary placeholder-discord-textMuted text-sm py-2 outline-none disabled:opacity-50"
-                    />
-                    <span class="pe-3 text-sm text-discord-textMuted">:</span>
+                    <div
+                        class="flex items-center bg-discord-backgroundTertiary rounded border border-transparent focus-within:border-discord-accent/50"
+                    >
+                        <span class="ps-3 text-sm text-discord-textMuted"
+                            >:</span
+                        >
+                        <input
+                            id="room-emote-shortcode"
+                            bind:value={emoteShortcode}
+                            disabled={!canAdd || emoteUploading}
+                            placeholder={t("imagePackEditor.shortcode")}
+                            class="min-w-0 flex-1 bg-transparent text-discord-textPrimary placeholder-discord-textMuted text-sm py-2 outline-none disabled:opacity-50"
+                        />
+                        <span class="pe-3 text-sm text-discord-textMuted"
+                            >:</span
+                        >
+                    </div>
                 </div>
+                {#if canAdd}
+                    <label
+                        class="shrink-0 self-start cursor-pointer px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors text-center {emoteUploading
+                            ? 'opacity-50 pointer-events-none'
+                            : ''}"
+                    >
+                        {emoteUploading
+                            ? t("common.uploading")
+                            : t("common.uploadImage")}
+                        <input
+                            type="file"
+                            accept="image/*"
+                            class="hidden"
+                            onchange={handleEmoteUpload}
+                            disabled={emoteUploading}
+                        />
+                    </label>
+                {/if}
             </div>
-            {#if canAdd}
+            <div
+                class="flex items-center gap-3 px-3 py-2 rounded bg-discord-backgroundTertiary"
+            >
                 <label
-                    class="shrink-0 cursor-pointer px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors text-center {emoteUploading
-                        ? 'opacity-50 pointer-events-none'
-                        : ''}"
+                    class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
                 >
-                    {emoteUploading
-                        ? t("common.uploading")
-                        : t("common.uploadImage")}
                     <input
-                        type="file"
-                        accept="image/*"
-                        class="hidden"
-                        onchange={handleEmoteUpload}
-                        disabled={emoteUploading}
+                        type="checkbox"
+                        bind:checked={newEmoteAsEmoji}
+                        disabled={!canAdd || emoteUploading}
+                        class="accent-discord-accent"
                     />
+                    {t("imagePackEditor.useAsEmoji")}
                 </label>
-            {/if}
+                <label
+                    class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
+                >
+                    <input
+                        type="checkbox"
+                        bind:checked={newEmoteAsSticker}
+                        disabled={!canAdd || emoteUploading}
+                        class="accent-discord-accent"
+                    />
+                    {t("imagePackEditor.useAsSticker")}
+                </label>
+            </div>
         </div>
-        <div
-            class="flex items-center gap-3 px-3 py-2 rounded bg-discord-backgroundTertiary"
-        >
-            <label
-                class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
-            >
-                <input
-                    type="checkbox"
-                    bind:checked={newEmoteAsEmoji}
-                    disabled={!canAdd || emoteUploading}
-                    class="accent-discord-accent"
-                />
-                {t("imagePackEditor.useAsEmoji")}
-            </label>
-            <label
-                class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
-            >
-                <input
-                    type="checkbox"
-                    bind:checked={newEmoteAsSticker}
-                    disabled={!canAdd || emoteUploading}
-                    class="accent-discord-accent"
-                />
-                {t("imagePackEditor.useAsSticker")}
-            </label>
-        </div>
-    </div>
+    {/if}
 
     {#if emoteError}<p class="text-sm text-discord-danger">
             {emoteError}
@@ -705,48 +709,64 @@
                                 </p>
                             </div>
                             <div class="flex items-center gap-3">
-                                <label
-                                    class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={item.canEmoji}
-                                        onchange={(e) =>
-                                            setRoomEmoteFlag(
-                                                pack,
-                                                item,
-                                                "emoticon",
-                                                (e.target as HTMLInputElement)
-                                                    .checked,
-                                            )}
-                                        disabled={!canEditPack(pack) ||
-                                            emoteActionPending ===
-                                                `${packKey(pack)}:${item.shortcode}:emoticon`}
-                                        class="accent-discord-accent"
-                                    />
-                                    {t("common.emoji")}
-                                </label>
-                                <label
-                                    class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={item.canSticker}
-                                        onchange={(e) =>
-                                            setRoomEmoteFlag(
-                                                pack,
-                                                item,
-                                                "sticker",
-                                                (e.target as HTMLInputElement)
-                                                    .checked,
-                                            )}
-                                        disabled={!canEditPack(pack) ||
-                                            emoteActionPending ===
-                                                `${packKey(pack)}:${item.shortcode}:sticker`}
-                                        class="accent-discord-accent"
-                                    />
-                                    {t("imagePackEditor.sticker")}
-                                </label>
+                                {#if canEditPack(pack)}
+                                    <label
+                                        class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={item.canEmoji}
+                                            onchange={(e) =>
+                                                setRoomEmoteFlag(
+                                                    pack,
+                                                    item,
+                                                    "emoticon",
+                                                    (
+                                                        e.target as HTMLInputElement
+                                                    ).checked,
+                                                )}
+                                            disabled={!canEditPack(pack) ||
+                                                emoteActionPending ===
+                                                    `${packKey(pack)}:${item.shortcode}:emoticon`}
+                                            class="accent-discord-accent"
+                                        />
+                                        {t("common.emoji")}
+                                    </label>
+                                {:else if item.canEmoji}
+                                    <span
+                                        class="px-1.5 py-0.5 rounded bg-discord-backgroundTertiary text-xs text-discord-textMuted"
+                                        >{t("common.emoji")}</span
+                                    >
+                                {/if}
+                                {#if canEditPack(pack)}
+                                    <label
+                                        class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={item.canSticker}
+                                            onchange={(e) =>
+                                                setRoomEmoteFlag(
+                                                    pack,
+                                                    item,
+                                                    "sticker",
+                                                    (
+                                                        e.target as HTMLInputElement
+                                                    ).checked,
+                                                )}
+                                            disabled={!canEditPack(pack) ||
+                                                emoteActionPending ===
+                                                    `${packKey(pack)}:${item.shortcode}:sticker`}
+                                            class="accent-discord-accent"
+                                        />
+                                        {t("imagePackEditor.sticker")}
+                                    </label>
+                                {:else if item.canSticker}
+                                    <span
+                                        class="px-1.5 py-0.5 rounded bg-discord-backgroundTertiary text-xs text-discord-textMuted"
+                                        >{t("imagePackEditor.sticker")}</span
+                                    >
+                                {/if}
                             </div>
                             <button
                                 onclick={() => addToMine(pack, item)}

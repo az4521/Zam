@@ -45,6 +45,7 @@
 
     const canCreate = $derived(room ? canEditRoomSounds(room) : true);
     const editablePacks = $derived(packs.filter((pack) => pack.editable));
+    const canAdd = $derived(!room || canCreate || editablePacks.length > 0);
 
     function load() {
         packs = room
@@ -194,70 +195,74 @@
 </script>
 
 <div class="space-y-4">
-    <section class="space-y-2">
-        <h3
-            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
-        >
-            {t("soundboard.add")}
-        </h3>
-        <p class="text-xs text-discord-textMuted">
-            {t("soundboard.limits", {
-                seconds: MAX_SOUND_SECONDS,
-                kb: Math.round(MAX_SOUND_BYTES / 1024),
-            })}
-        </p>
-        <div class="grid gap-2 sm:grid-cols-[1fr_auto]">
-            <div class="grid gap-2 min-w-0">
-                {#if room}
-                    <select
-                        bind:value={selectedKey}
-                        disabled={uploading}
-                        aria-label={t("soundboard.pack")}
-                        class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
-                    >
-                        {#each editablePacks as pack (pack.id)}
-                            <option value={pack.stateKey}>{pack.name}</option>
-                        {/each}
-                        {#if canCreate}
-                            <option value="__new"
-                                >{t("soundboard.newPack")}</option
-                            >
-                        {/if}
-                    </select>
-                    {#if selectedKey === "__new"}
-                        <input
-                            bind:value={newPackName}
-                            disabled={uploading}
-                            placeholder={t("soundboard.packName")}
-                            class="min-w-0 bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
-                        />
-                    {/if}
-                {/if}
-                <input
-                    bind:value={name}
-                    disabled={uploading}
-                    placeholder={t("soundboard.name")}
-                    aria-label={t("soundboard.name")}
-                    class="min-w-0 bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
-                />
-            </div>
-            <label
-                class="cursor-pointer px-3 py-2 rounded bg-discord-accent text-white text-sm font-semibold text-center self-start {uploading ||
-                (room && editablePacks.length === 0 && !canCreate)
-                    ? 'opacity-50 pointer-events-none'
-                    : ''}"
+    {#if canAdd}
+        <section class="space-y-2">
+            <h3
+                class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
             >
-                {uploading ? t("common.uploading") : t("soundboard.upload")}
-                <input
-                    type="file"
-                    accept="audio/*"
-                    class="hidden"
-                    onchange={upload}
-                    disabled={uploading}
-                />
-            </label>
-        </div>
-    </section>
+                {t("soundboard.add")}
+            </h3>
+            <p class="text-xs text-discord-textMuted">
+                {t("soundboard.limits", {
+                    seconds: MAX_SOUND_SECONDS,
+                    kb: Math.round(MAX_SOUND_BYTES / 1024),
+                })}
+            </p>
+            <div class="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <div class="grid gap-2 min-w-0">
+                    {#if room}
+                        <select
+                            bind:value={selectedKey}
+                            disabled={uploading}
+                            aria-label={t("soundboard.pack")}
+                            class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                        >
+                            {#each editablePacks as pack (pack.id)}
+                                <option value={pack.stateKey}
+                                    >{pack.name}</option
+                                >
+                            {/each}
+                            {#if canCreate}
+                                <option value="__new"
+                                    >{t("soundboard.newPack")}</option
+                                >
+                            {/if}
+                        </select>
+                        {#if selectedKey === "__new"}
+                            <input
+                                bind:value={newPackName}
+                                disabled={uploading}
+                                placeholder={t("soundboard.packName")}
+                                class="min-w-0 bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                            />
+                        {/if}
+                    {/if}
+                    <input
+                        bind:value={name}
+                        disabled={uploading}
+                        placeholder={t("soundboard.name")}
+                        aria-label={t("soundboard.name")}
+                        class="min-w-0 bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                    />
+                </div>
+                <label
+                    class="cursor-pointer px-3 py-2 rounded bg-discord-accent text-white text-sm font-semibold text-center self-start {uploading ||
+                    (room && editablePacks.length === 0 && !canCreate)
+                        ? 'opacity-50 pointer-events-none'
+                        : ''}"
+                >
+                    {uploading ? t("common.uploading") : t("soundboard.upload")}
+                    <input
+                        type="file"
+                        accept="audio/*"
+                        class="hidden"
+                        onchange={upload}
+                        disabled={uploading}
+                    />
+                </label>
+            </div>
+        </section>
+    {/if}
 
     {#if error}<p class="text-sm text-discord-danger">{error}</p>{/if}
     {#if notice}<p class="text-sm text-discord-textMuted">{notice}</p>{/if}
