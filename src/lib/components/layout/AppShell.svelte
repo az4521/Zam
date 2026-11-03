@@ -2602,7 +2602,7 @@
         style="position: fixed; inset: 0;"
         ontouchstart={drawerDragStart}
     >
-        <!-- Sync-state indicator: an unobtrusive, non-blocking corner pill (see
+        <!-- Sync-state indicator: an unobtrusive, non-blocking floating pill (see
              ReconnectPill) instead of a full-width bar that overlaid the header
              and read as "the app is frozen". Offline never locks the app. -->
         <ReconnectPill syncState={auth.syncState} />
