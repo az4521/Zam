@@ -33,6 +33,12 @@ export const LOCALES = [
         dir: "ltr",
     },
     {
+        code: "ja",
+        nativeName: "日本語",
+        englishName: "Japanese",
+        dir: "ltr",
+    },
+    {
         code: "aii",
         nativeName: "ܣܘܪܝܬ",
         englishName: "Assyrian Neo-Aramaic",
