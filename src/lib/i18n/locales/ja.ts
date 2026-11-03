@@ -1094,8 +1094,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageInput.unhandledCommand": "未対応のコマンド: /{name}",
     "messageInput.commandFailed": "コマンドに失敗しました",
     "messageInput.failedToSend": "送信に失敗しました",
-    "messageInput.unknownCommand": "不明なコマンド: /{unknown}",
-    "messageInput.sendUnknownCommandAnyway": "そのまま送信",
+    "messageInput.unknownCommandEnterAgain":
+        "不明なコマンド: /{unknown}。もう一度 Enter を押すとメッセージとして送信します。",
+    "messageInput.unknownCommandTapAgain":
+        "不明なコマンド: /{unknown}。もう一度送信をタップするとメッセージとして送信します。",
     "messageInput.sedNoMessage": "ここで編集できるメッセージがありません",
     "messageInput.sedNoMatch":
         "「{pattern}」は直前のメッセージに含まれていません",

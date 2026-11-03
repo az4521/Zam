@@ -1167,8 +1167,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageInput.unhandledCommand": "Commande non gérée : /{name}",
     "messageInput.commandFailed": "Échec de la commande",
     "messageInput.failedToSend": "Échec de l'envoi",
-    "messageInput.unknownCommand": "Commande inconnue : /{unknown}",
-    "messageInput.sendUnknownCommandAnyway": "Envoyer quand même",
+    "messageInput.unknownCommandEnterAgain":
+        "Commande inconnue : /{unknown}. Appuyez de nouveau sur Entrée pour l’envoyer comme message.",
+    "messageInput.unknownCommandTapAgain":
+        "Commande inconnue : /{unknown}. Touchez de nouveau Envoyer pour l’envoyer comme message.",
     "messageInput.sedNoMessage": "Vous n’avez aucun message à modifier ici",
     "messageInput.sedNoMatch":
         "« {pattern} » ne figure pas dans votre dernier message",

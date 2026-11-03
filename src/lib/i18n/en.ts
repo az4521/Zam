@@ -1164,8 +1164,10 @@ export const en = {
     "messageInput.unhandledCommand": "Unhandled command: /{name}",
     "messageInput.commandFailed": "Command failed",
     "messageInput.failedToSend": "Failed to send",
-    "messageInput.unknownCommand": "Unknown command: /{unknown}",
-    "messageInput.sendUnknownCommandAnyway": "Send anyway",
+    "messageInput.unknownCommandEnterAgain":
+        "Unknown command: /{unknown}. Press Enter again to send it as a message.",
+    "messageInput.unknownCommandTapAgain":
+        "Unknown command: /{unknown}. Tap send again to send it as a message.",
     "messageInput.sedNoMessage": "You have no message here to edit",
     "messageInput.sedNoMatch": '"{pattern}" is not in your last message',
     "messageInput.sedEmpty": "That would leave your last message empty",

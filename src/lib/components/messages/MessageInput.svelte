@@ -139,7 +139,12 @@
     import type { SedEditResult } from "$lib/matrix/editMessage";
     import { pluginComposerButtons } from "$lib/utils/pluginComposer";
     import { resolveUserArg } from "$lib/utils/userSearch";
-    import { showErrorToast, showToast } from "$lib/stores/toasts.svelte";
+    import {
+        dismissToast,
+        showErrorToast,
+        showToast,
+        toastsState,
+    } from "$lib/stores/toasts.svelte";
     import { offerFile } from "$lib/matrix/fileTransfer";
     import { isFileTooLargeError } from "$lib/utils/uploadLimits";
     import { discardRoomSession } from "$lib/matrix/crypto";
@@ -1229,9 +1234,12 @@
         renderComposer(0);
     }
 
-    /** `unknownAsText`: send a `/word` this client doesn't implement as an
-     *  ordinary message (the unknown-command toast's "Send anyway"). */
-    async function send(unknownAsText = false) {
+    // The unknown `/word` the last send refused, while its toast is up: sending
+    // the same text again (Enter, or the send button) posts it as a message.
+    let heldUnknown: { text: string; key: string; toastId: number } | null =
+        null;
+
+    async function send() {
         // `s/old/new/` edits the last message instead of sending one. Not with
         // files queued: then the text is a caption.
         if (!isSending && !disabled && fileQueue.length === 0 && onSedEdit) {
@@ -1248,27 +1256,33 @@
             const parsed = parseSlashCommand(text, pluginSlashCommands);
             // A command this client does not implement may be a typo of one it
             // does, or a bot's own (`/model`, `/new`, ...), which the composer
-            // cannot know. Hold it, and let the toast send it as text: a typo
-            // never posts by accident, and a bot command is one tap away. The
-            // text stays in the composer either way.
-            if (parsed && "unknown" in parsed && !unknownAsText) {
-                const held = text;
-                const heldKey = effComposerKey;
-                showErrorToast(
-                    t("messageInput.unknownCommand", {
-                        unknown: parsed.unknown,
-                    }),
-                    {
-                        label: t("messageInput.sendUnknownCommandAnyway"),
-                        // Only what the toast named: not after the text was
-                        // edited or the composer moved to another room/thread.
-                        run: () => {
-                            if (text === held && effComposerKey === heldKey)
-                                void send(true);
-                        },
-                    },
-                );
-                return;
+            // cannot know. The first send only warns, so a typo never posts by
+            // accident; sending the same text again posts it. Editing the text
+            // or switching room/thread starts over.
+            const held = heldUnknown;
+            heldUnknown = null;
+            if (parsed && "unknown" in parsed) {
+                if (
+                    held?.text === text &&
+                    held.key === effComposerKey &&
+                    toastsState.toasts.some(
+                        (toast) => toast.id === held.toastId,
+                    )
+                ) {
+                    dismissToast(held.toastId);
+                } else {
+                    const toastId = showToast(
+                        t(
+                            interfaceState.isMobile
+                                ? "messageInput.unknownCommandTapAgain"
+                                : "messageInput.unknownCommandEnterAgain",
+                            { unknown: parsed.unknown },
+                        ),
+                        { tone: "danger" },
+                    );
+                    heldUnknown = { text, key: effComposerKey, toastId };
+                    return;
+                }
             }
             if (parsed && "command" in parsed) {
                 await dispatchSlashCommand(parsed.command, parsed.arg);
@@ -2624,7 +2638,7 @@
             {/each}
 
             <button
-                onclick={() => send()}
+                onclick={send}
                 onpointerdown={(e) => e.preventDefault()}
                 disabled={(!text.trim() && fileQueue.length === 0) ||
                     isSending ||
