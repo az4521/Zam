@@ -1,12 +1,11 @@
-// Japanese (ja). Same keys and placeholders as ../en.ts; typed as a full
-// `Record` so a new English string that is not yet translated here fails
-// type-checking instead of silently showing English.
+// Japanese (ja). Same keys and placeholders as ../en.ts; a string missing
+// here falls back to English (`npm run i18n:missing` lists them).
 
 import { ja } from "date-fns/locale/ja";
 import type { MessageKey } from "../en";
 import type { LocaleCatalogue } from "../index";
 
-const messages: Record<MessageKey, string> = {
+const messages: Partial<Record<MessageKey, string>> = {
     "common.turnOffCamera": "カメラをオフにする",
     "common.turnOnCamera": "カメラをオンにする",
     "common.stopSharing": "共有を停止",
@@ -221,6 +220,7 @@ const messages: Record<MessageKey, string> = {
     "callParticipantMenu.message": "メッセージ",
     "callParticipantMenu.mention": "メンション",
     "callParticipantMenu.userVolume": "ユーザーの音量",
+    "callParticipantMenu.soundboardVolume": "サウンドボードの音量",
     "callParticipantMenu.shareVolume": "共有音量",
     "callParticipantMenu.hideVideo": "ビデオを非表示",
     "callParticipantMenu.kicking": "キック中…",
@@ -291,6 +291,40 @@ const messages: Record<MessageKey, string> = {
     "cryptoUnavailableBanner.syncPaused":
         "暗号化を開始できなかったため、他のユーザーから届く暗号化キーを保持する目的で、このセッションの同期を停止しました。再読み込みして再試行してください。",
     "cryptoUnavailableBanner.dismissEncryptionWarning": "暗号化の警告を閉じる",
+    "soundboard.title": "サウンドボード",
+    "soundboard.yourVolume": "自分のサウンドの音量",
+    "soundboard.empty":
+        "サウンドはまだありません。設定の「絵文字」か、ルームの設定で追加できます。",
+    "soundboard.sendFailed": "サウンドを通話に送信できませんでした。",
+    "soundboard.add": "サウンドを追加",
+    "soundboard.limits": "{seconds} 秒以内、{kb} KB 以下の音声ファイル。",
+    "soundboard.pack": "パック",
+    "soundboard.newPack": "新しいパック",
+    "soundboard.packName": "パック名",
+    "soundboard.enterAPackName": "パック名を入力してください。",
+    "soundboard.name": "サウンド名",
+    "soundboard.upload": "サウンドをアップロード",
+    "soundboard.uploadFailed": "サウンドをアップロードできませんでした。",
+    "soundboard.removeFailed": "削除できませんでした。",
+    "soundboard.previewFailed": "サウンドを再生できませんでした。",
+    "soundboard.preview": "試聴",
+    "soundboard.remove": "サウンドを削除",
+    "soundboard.noSounds": "このパックにサウンドはありません",
+    "soundboard.deletePack": "パックを削除",
+    "soundboard.confirmDeletePack":
+        "パック「{name}」とそのすべてのサウンドを削除しますか？",
+    "soundboard.inheritedFrom": "{sourceName} から",
+    "soundboard.addToMine": "自分のパックに追加",
+    "soundboard.addedToYours":
+        "{count, plural, other {#件のサウンドを自分のパックに追加しました。}}",
+    "soundboard.alreadyYours": "すでに自分のパックにあります。",
+    "soundboard.badName":
+        "1～48 文字の英数字、スペース、ドット、ハイフン、アンダースコアを使ってください。",
+    "soundboard.noPermission": "このルームのサウンドは編集できません。",
+    "soundboard.notAudio": "音声ファイルではありません。",
+    "soundboard.tooBig": "ファイルが大きすぎます。",
+    "soundboard.tooLong": "サウンドの長さは最大 {seconds} 秒です。",
+    "soundboard.unreadable": "音声ファイルを読み込めませんでした。",
     "customPackSettings.add": "{singular} を追加",
     "customPackSettings.shortcode": "ショートコード",
     "customPackSettings.sticker": "ステッカー",
@@ -486,6 +520,9 @@ const messages: Record<MessageKey, string> = {
     "quickSwitcher.hint": "↑↓ で移動、Enter で開く、Esc で閉じる",
     "debugSettings.developer": "開発者",
     "debugSettings.showAllEvents": "すべてのイベントを表示",
+    "debugSettings.orderHints": "メッセージ順序のヒント",
+    "debugSettings.orderHintsHint":
+        "送信するメッセージに、チャットログの一番下に何があったかを示すヒントを付けます。また、他の Zam ユーザーのメッセージは、ヒントが示すメッセージの下に表示します。オフにすると、Element と同じようにサーバーの順序で表示します。",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "チャットログにすべての Matrix タイムラインイベントを表示します。",
     "debugSettings.ignoreCodecSupport": "報告されたコーデック対応を無視",
@@ -648,6 +685,10 @@ const messages: Record<MessageKey, string> = {
     "generalSettings.minimiseToTrayOnClose": "閉じるときにトレイへ最小化",
     "generalSettings.keepZamRunningInTheSystem":
         "ウィンドウを閉じても終了せず、システムトレイで Zam を実行し続けます。トレイアイコンから再度開くか、終了できます。",
+    "generalSettings.runAtStartup": "起動時に実行",
+    "generalSettings.startZamWhenYouLogIn":
+        "コンピューターにログインしたときに Zam を起動します。",
+    "generalSettings.runAtStartupFailed": "システムで許可されませんでした。",
     "generalSettings.noGeneralSettingsAreAvailableOn":
         "このプラットフォームで利用できる一般設定はありません。",
     "gifPicker.searchFavourites": "お気に入りを検索…",
@@ -1154,6 +1195,9 @@ const messages: Record<MessageKey, string> = {
         "長押しでメッセージメニューを開く",
     "messagesMediaSettings.onTouchDevicesOpenAMessage":
         "タッチ端末では、タップの代わりに長押しでメッセージの操作を開きます。オフにするとタップでメニューが開きます。",
+    "messagesMediaSettings.checkSpelling": "スペルチェック",
+    "messagesMediaSettings.underlineMisspelledWordsAnd":
+        "入力中にスペルミスに下線を引き、修正候補を表示します。オフにすると、このデバイスのメッセージ入力欄でスペルチェックとキーボードの自動修正が無効になります。",
     "messagesMediaSettings.linkPreviews": "リンクプレビュー",
     "messagesMediaSettings.whenOffNoLinkPreviewIs":
         "オフのときはリンクプレビューを読み込まず、ホームサーバーが代わりにリンク先を取得することもありません。プレビューのメディアをどこから読み込むかはプライバシーと安全で設定できます。",
@@ -1383,6 +1427,14 @@ const messages: Record<MessageKey, string> = {
     "pluginsSettings.install": "インストール",
     "pluginsSettings.repos": "リポジトリ",
     "pluginsSettings.official": "公式",
+    "pluginsSettings.localFolder": "ローカルフォルダー",
+    "pluginsSettings.loadFromFolder": "フォルダーからプラグインを読み込む",
+    "pluginsSettings.loadFromFolderHint":
+        "プラグイン開発用: manifest.json とバンドルが入ったフォルダーを選びます。Zam はそのコピーを保存し、通常のプラグインと同じように実行します。ビルドし直したら「再読み込み」を使ってください。完全な権限で動くコードなので、自分で書いたか信頼できるフォルダーだけを読み込んでください。",
+    "pluginsSettings.chooseFolder": "フォルダーを選択",
+    "pluginsSettings.reload": "再読み込み",
+    "pluginsSettings.reloading": "再読み込み中…",
+    "pluginsSettings.reloadFromFolder": "フォルダーから再読み込み",
     "pluginsSettings.removeRepo": "リポジトリを削除",
     "pluginsSettings.addARepo": "リポジトリを追加",
     "pluginsSettings.thirdPartyReposRunFullTrust":
@@ -1534,6 +1586,11 @@ const messages: Record<MessageKey, string> = {
     "quickActions.roomName": "ルーム名",
     "quickActions.mySpace": "マイスペース",
     "quickActions.optional": "（任意）",
+    "quickActions.starterRooms": "テキストルームとボイスルームを追加",
+    "quickActions.starterRoomsHint":
+        "スペースに招待した人は誰でも参加できます。",
+    "quickActions.starterTextName": "general",
+    "quickActions.starterVoiceName": "ボイス",
     "quickActions.whatSThisSpaceAbout": "このスペースは何について？",
     "quickActions.whatSThisRoomAbout": "このルームは何について？",
     "quickActions.opensStraightIntoACallMessages":
@@ -1724,6 +1781,7 @@ const messages: Record<MessageKey, string> = {
     "roomSettings.enabling": "有効化中…",
     "roomSettings.powerLevelRequiredForEachAction":
         "各操作に必要な権限レベル（0-100）。",
+    "roomSettings.nameAnyThread": "任意のスレッドに名前を付ける",
     "roomSettings.joinCallsVoiceVideo": "通話に参加（音声/ビデオ）",
     "roomSettings.invite": "招待",
     "roomSettings.searchMembers": "メンバーを検索…",
@@ -2253,6 +2311,8 @@ const messages: Record<MessageKey, string> = {
         "不一致を報告できませんでした",
     "verificationModal.session": "セッション",
     "videoTile.fullscreen": "全画面",
+    "videoTile.pictureInPicture": "ピクチャーインピクチャー",
+    "videoTile.exitPictureInPicture": "ピクチャーインピクチャーを終了",
     "voiceAudioSettings.inputDevice": "入力デバイス",
     "voiceAudioSettings.savedMicrophoneNotFoundUsingThe":
         "保存されたマイクが見つかりません - 再び利用できるまで既定のマイクを使用します。",
@@ -2324,6 +2384,7 @@ const messages: Record<MessageKey, string> = {
         "押して話すにはキーの設定が必要です。",
     "voiceAudioSettings.pushToTalkSetKey": "押して話すキーを設定",
     "voiceAudioSettings.camera": "カメラ",
+    "voiceAudioSettings.cameraDisabled": "無効",
     "voiceAudioSettings.mirrorMyCamera": "カメラをミラー表示",
     "voiceAudioSettings.flipYourOwnPreviewOthersAlways":
         "自分のプレビューだけを反転します。他の人には反転せずに表示されます。",
@@ -2514,6 +2575,7 @@ const messages: Record<MessageKey, string> = {
     "callEventCard.ongoingCall": "通話中",
     "callEventCard.callEnded": "通話終了",
     "composerActionsMenu.uploadAFile": "ファイルをアップロード",
+    "composerActionsMenu.sendFileDirectly": "ファイルを直接送信",
     "composerActionsMenu.createPoll": "投票を作成",
     "composerActionsMenu.recordVoiceMessage": "ボイスメッセージを録音",
     "composerActionsMenu.shareLocation": "位置情報を共有",
@@ -2599,6 +2661,8 @@ const messages: Record<MessageKey, string> = {
     "client.microphoneDisconnectedSwitchedToTheDefault":
         "マイクが切断されました - デフォルトのデバイスに切り替えました",
     "client.cameraDisconnected": "カメラが切断されました",
+    "client.cameraIsDisabledInSettings":
+        "カメラは「音声と映像」の設定で無効になっています",
     "client.unknownRoom": "不明なルーム",
     "client.theServerRejectedItYouMay":
         "サーバーが拒否しました - このルームで通話に参加する権限がない可能性があります",
@@ -2647,6 +2711,8 @@ const messages: Record<MessageKey, string> = {
     "crypto.roomIsNotEncrypted": "このルームは暗号化されていません。",
     "crypto.roomKeyDiscarded":
         "次にここへ送るメッセージは新しいルームキーを使い、再びルーム内のすべてのセッションと共有されます。",
+    "crypto.encryptionKeysUnchecked":
+        "このセッションの暗号鍵をサーバーと照合できませんでした。接続を確認して再読み込みしてください。",
     "crypto.encryptionDataLost":
         "このセッションの暗号化データが失われた(ブラウザデータの消去または再インストール)ため、もう持っていない鍵への暗号化を防ぐためにサインアウトしました。もう一度サインインしてください。",
     "crypto.accountApprovalCancelled":
@@ -2820,6 +2886,8 @@ const messages: Record<MessageKey, string> = {
     "voiceCall.couldnTLoadTheCallComponent":
         "通話コンポーネントを読み込めませんでした。接続を確認してから、ページを再読み込みしてお試しください。",
     "voiceCall.couldNotJoinTheVoiceCall": "音声通話に参加できませんでした",
+    "voiceCall.joinedWithoutAMicrophone":
+        "マイクを使用できません - 聞くことと画面共有はできます",
     "voiceCall.couldNotMuteYourMicrophone": "マイクをミュートできませんでした",
     "voiceCall.couldNotUnmuteYourMicrophoneCheck":
         "マイクのミュートを解除できませんでした - 入力デバイスを確認してください",
@@ -3026,6 +3094,8 @@ const messages: Record<MessageKey, string> = {
     "messageActionsMenu.copyLink": "リンクをコピー",
     "messageActionsMenu.report": "通報",
     "messageDisplay.systemDefault": "システム設定に従う",
+    "micErrorMessage.microphoneAccessIsBlockedAllowIt":
+        "マイクへのアクセスがブロックされています - 話すにはブラウザーまたはシステムの設定で許可してください",
     "micErrorMessage.noMicrophoneFoundConnectOneOr":
         "マイクが見つかりません - 通話に参加するにはマイクを接続するか、別の入力デバイスを選択してください",
     "micErrorMessage.couldNotOpenYourMicrophoneAnother":
@@ -3202,8 +3272,10 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.sendGifsAsAnimatedWebp": "GIFをアニメーションWebPで送信",
     "settingsSearch.midiSoundBank": "MIDIサウンドバンク",
     "settingsSearch.holdToOpenMessageMenu": "長押しでメッセージメニューを開く",
+    "settingsSearch.checkSpelling": "スペルチェック",
     "settingsSearch.gifDefaultTab": "GIFの既定タブ",
     "settingsSearch.minimiseToTrayOnClose": "閉じるときにトレイへ最小化",
+    "settingsSearch.runAtStartup": "起動時に実行",
     "settingsSearch.proxy": "プロキシ",
     "settingsSearch.reduceMotion": "モーションを減らす",
     "settingsSearch.keepRoomListOpen": "ルームリストを開いたままにする",
@@ -3239,6 +3311,7 @@ const messages: Record<MessageKey, string> = {
     "settingsSearch.checkForUpdates": "アップデートを確認",
     "settingsSearch.clearCache": "キャッシュを消去",
     "settingsSearch.showAllEvents": "すべてのイベントを表示",
+    "settingsSearch.orderHints": "メッセージ順序のヒント",
     "settingsSearch.pushDiagnostics": "プッシュの診断",
     "settingsSearch.pushService": "プッシュサービス(UnifiedPush / Firebase)",
     "settingsSearch.language": "言語",
@@ -3359,14 +3432,146 @@ const messages: Record<MessageKey, string> = {
     "rootLayout.linkCopied": "リンクをコピーしました",
     "rootPage.failedToReconnectPleaseLogIn":
         "再接続に失敗しました。もう一度ログインしてください。",
+    "rootPage.sessionOpenInAnotherTab":
+        "このセッションは別のタブで開かれています。そのタブを閉じると、このタブで続行します。",
     "rootPage.signedInButSyncingCouldNot":
         "サインインしましたが、同期を開始できませんでした。もう一度お試しください。",
     "rootPage.yourSessionHasExpiredPleaseSign":
         "セッションの有効期限が切れました。もう一度サインインしてください。",
     "ownStatus.profileField": "プロフィール項目 {key}",
     "ownStatus.theServerStillHas": "サーバーにはまだ残っています: {leftovers}",
+    "messageInput.directFile": "直接",
+    "messageInput.directFileHint":
+        "送信を押すと直接送られます。アップロードはされません。",
+    "messageInput.sendDirectly": "直接送信",
+    "messageItem.replyPreviewFileOffer": "ファイルの送信",
+    "fileOffer.unavailable":
+        "このバージョンの Zam ではこのファイル送信を読み取れません。",
+    "fileOffer.details": "{size}、直接送信",
+    "fileOffer.waiting":
+        "誰かが受け取るのを待っています。Zam を開いたままにしてください。",
+    "fileOffer.fromElsewhere": "自分の別のセッションから送信されました。",
+    "fileOffer.gone": "このセッションからはもう利用できません。",
+    "fileOffer.expired": "この送信は期限切れです。",
+    "fileOffer.accept": "受け取る",
+    "fileOffer.retry": "再試行",
+    "fileOffer.cancel": "キャンセル",
+    "fileOffer.withdraw": "取り消す",
+    "fileOffer.connecting": "送信者に接続中…",
+    "fileOffer.progress": "{done} / {total}、{rate}/秒",
+    "fileOffer.verifying": "ファイルを検証中…",
+    "fileOffer.savedDone": "ファイルを保存し、検証しました。",
+    "fileOffer.sentDone": "{peer} に届きました。",
+    "fileOffer.sendingTo": "宛先: {peer}",
+    "fileOffer.cancelled": "転送はキャンセルされました。",
+    "fileOffer.failedOffline":
+        "送信者に接続できません。送信者が Zam を開いている必要があります。",
+    "fileOffer.failedRefused": "送信者のセッションがこの転送を拒否しました。",
+    "fileOffer.failedNoSfu":
+        "送信者のサーバーには、ファイルを中継する通話サービスがありません。",
+    "fileOffer.failedConnection": "接続が切れました。",
+    "fileOffer.failedStalled": "転送が進まなくなりました。",
+    "fileOffer.failedCorrupt":
+        "転送中にファイルが改変されたため、破棄しました。",
+    "fileOffer.failedWrite":
+        "ファイルを書き込めませんでした。ディスクがいっぱいではありませんか？",
+    "fileOffer.failedStorageFull":
+        "このファイルを保存する空き容量がありません。",
+    "fileOffer.failedHash":
+        "完成したファイルが一致しなかったため、破棄しました。",
+    "fileOffer.failedUnsupported":
+        "このデバイスはまだ直接転送の保存に対応していません。",
     "ownStatus.statusClearedButPresenceRemains":
         "ステータスは消去されましたが、サーバーにはまだプレゼンスメッセージ「{presenceLeft}」が表示されています。おそらくこのアカウントの別のセッション(別のアプリやクライアント)が設定しています - そこで消去するか、そのセッションをサインアウトしてください。",
+    "qrLogin.failed":
+        "QR コードでのサインインに失敗しました。もう一度お試しください。",
+    "qrLogin.cancelled": "QR コードでのサインインはキャンセルされました。",
+    "qrLogin.cancelledOther":
+        "もう一方のデバイスがサインインをキャンセルしました。",
+    "qrLogin.insecure":
+        "もう一方のデバイスとの接続を信頼できなかったため、サインインを中止しました。",
+    "qrLogin.wrongServer":
+        "もう一方のデバイスは {server} にサインインしていますが、ここで選んだサーバーとは異なります。",
+    "qrLogin.codeMismatch":
+        "番号が一致しなかったため、サインインを中止しました。もう一方のデバイスに表示された番号が入力した番号と同じ場合にのみ続行してください。",
+    "qrLogin.untrustedApproval":
+        "新しいデバイスが、このアカウントのサインインプロバイダーに属さないアドレスでの承認を求めたため、拒否しました。",
+    "qrLogin.enterNumber":
+        "もう一方のデバイスに表示された番号を入力してください。2 台のデバイスだけが接続されていることを確認します。",
+    "qrLogin.numberLabel": "番号",
+    "qrLogin.confirm": "続行",
+    "qrLogin.waitingApproval":
+        "完了するには、もう一方のデバイスでサインインを承認してください。",
+    "qrLogin.notVerified":
+        "サインインしましたが、このセッションは暗号鍵を受け取れませんでした。過去の暗号化メッセージを読むには、設定から検証してください。",
+    "qrLogin.linkConnecting": "新しいデバイスに接続中…",
+    "qrLogin.linkShowNumber": "この番号を新しいデバイスに入力してください",
+    "qrLogin.linkDoneVerified":
+        "新しいデバイスはサインインし、検証されました。",
+    "qrLogin.denied": "もう一方のデバイスでサインインが拒否されました。",
+    "qrLogin.expired":
+        "QR コードの有効期限が切れました。もう一度お試しください。",
+    "qrLogin.notALoginCode":
+        "このアカウントの新しいデバイスのサインインコードではありません。サインインしたいデバイスで「QR コードでサインイン」を開いてください。",
+    "qrLogin.notSupportedHere":
+        "このアカウントのサインインプロバイダーは QR コードでのサインインに対応していません。",
+    "qrLogin.signInButton": "QR コードでサインイン",
+    "qrLogin.signInTitle": "QR コードでサインイン",
+    "qrLogin.signInSteps":
+        "Zam にサインイン済みのデバイスで、設定 → アカウント →「QR コードをスキャンして新しいデバイスをサインイン」を開き、このコードをスキャンしてください。",
+    "qrLogin.codeAlt": "サインイン済みのデバイスでスキャンする QR コード",
+    "qrLogin.preparing": "コードを準備中…",
+    "qrLogin.matchCode":
+        "承認ページにこのコードが表示されます。一致する場合にのみ承認してください。",
+    "qrLogin.signingIn": "サインイン中…",
+    "qrLogin.cancel": "キャンセル",
+    "qrLogin.linkButton": "QR コードをスキャンして新しいデバイスをサインイン",
+    "qrLogin.linkTitle": "新しいデバイスをリンク",
+    "qrLogin.linkIntro":
+        "新しいデバイスで「QR コードでサインイン」を選び、表示されたコードをスキャンしてください。アカウントのサインインページでサインインを承認すると、2 台のデバイスが相互に検証されます。",
+    "qrLogin.linkWarning":
+        "今あなたの手元にあるデバイスの場合にのみ続行してください。",
+    "qrLogin.linkApprove":
+        "{host} でサインインを承認してください。表示されるコードが新しいデバイスのコードと一致することを確認し、自分のデバイスの場合にのみ承認してください。",
+    "qrLogin.linkApproveButton": "{host} で承認",
+    "qrLogin.linkWaiting": "新しいデバイスのサインインを待っています…",
+    "qrLogin.linkDone":
+        "新しいデバイスはサインインしました。両方のデバイスで開いたウィンドウで検証を完了してください。",
+    "qrLogin.linkDoneUnverified":
+        "新しいデバイスはサインインしました。検証を自動で開始できなかったため、設定 → セッションから検証してください。",
+    "qrLogin.notADeviceCode":
+        "有効なコードではありません。新しいデバイスに表示されたコードを入力してください。",
+    "qrLogin.loginSectionTitle": "ログイン",
+    "qrLogin.loginSectionIntro":
+        "ユーザー名とパスワードを入力せずに、このデバイスから別のデバイスをサインインさせます。",
+    "qrLogin.codeButton": "新しいデバイスのコードを入力",
+    "qrLogin.codeTitle": "コードでサインイン",
+    "qrLogin.codeIntro":
+        "新しいデバイスで「QR コードでサインイン」を選びます。QR コードの下に短いコードが表示されるので、ここに入力してください。",
+    "qrLogin.codeLabel": "新しいデバイスに表示されたコード",
+    "qrLogin.codeContinue": "続行",
+    "qrLogin.orEnterCode":
+        "カメラがない場合: サインイン済みのデバイスで設定 → アカウント → ログインを開き、「新しいデバイスのコードを入力」を選んで、下のコードを入力してください。",
+    "qrLogin.notAShownCode":
+        "サインイン済みのデバイスのコードではありません。サインイン済みのデバイスで設定 → アカウント → ログインを開き、「新しいデバイスでスキャンする QR コードを表示」を選んでください。",
+    "qrLogin.showButton": "新しいデバイスでスキャンする QR コードを表示",
+    "qrLogin.showTitle": "新しいデバイス用のコードを表示",
+    "qrLogin.showIntro":
+        "新しいデバイスで「QR コードでサインイン」→「サインイン済みのデバイスのコードをスキャン」を選び、このコードをスキャンしてください。",
+    "qrLogin.showCodeAlt": "新しいデバイスでスキャンする QR コード",
+    "qrLogin.showEnterNumber":
+        "新しいデバイスに表示された番号を入力してください",
+    "qrLogin.showRetry": "新しいコードを表示",
+    "qrLogin.scanInstead": "代わりにサインイン済みのデバイスのコードをスキャン",
+    "qrLogin.scanTitle": "サインイン済みのデバイスのコードをスキャン",
+    "qrLogin.scanIntro":
+        "サインイン済みのデバイスで設定 → アカウント → ログインを開き、「新しいデバイスでスキャンする QR コードを表示」を選んで、ここでスキャンしてください。",
+    "qrLogin.scanShowNumber":
+        "この番号をサインイン済みのデバイスに入力し、そこでサインインを承認してください。",
+    "qrLogin.showInstead": "代わりに自分のコードを表示",
+    "qrLogin.chooseIntro":
+        "同時に複数の新しいセッションがサインインしました。設定中のセッションを選んでください。",
+    "qrLogin.linkClose": "閉じる",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ja };
