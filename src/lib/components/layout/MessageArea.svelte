@@ -2586,6 +2586,7 @@
                     {room}
                     {replyToEvent}
                     {scrollEl}
+                    keepScrollOnSend={isContextView}
                     onCancelReply={() => {
                         replyToEvent = null;
                     }}

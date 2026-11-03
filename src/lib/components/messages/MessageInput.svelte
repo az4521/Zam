@@ -175,6 +175,10 @@
          *  root and this fires with its event id so the caller can open it. */
         onThreadCreated?: (rootEventId: string) => void;
         scrollEl?: HTMLElement;
+        /** Leave the timeline where it is after a send. Set while viewing a
+         *  jumped-to context window: snapping to its bottom paged it forward
+         *  all the way to live. */
+        keepScrollOnSend?: boolean;
         threadRootId?: string | null;
         composerKey?: string;
         /** Bound out to the parent: true while a mention/emoji/slash suggestion
@@ -194,10 +198,16 @@
         onSedEdit,
         onThreadCreated,
         scrollEl,
+        keepScrollOnSend = false,
         threadRootId = null,
         composerKey,
         autocompleteOpen = $bindable(false),
     }: Props = $props();
+
+    function snapTimelineToBottom() {
+        if (scrollEl && !keepScrollOnSend)
+            scrollEl.scrollTop = scrollEl.scrollHeight;
+    }
 
     const effComposerKey = $derived(composerKey ?? roomId);
     const isThread = $derived(threadRootId != null);
@@ -1162,7 +1172,7 @@
             // banner doesn't leak onto the user's next message.
             if (replyTarget) onCancelReply?.();
             await tick();
-            if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+            snapTimelineToBottom();
         } catch (err) {
             console.error("Slash command failed:", err);
             showErrorToast(
@@ -1498,7 +1508,7 @@
             if (filesToSend.length === 0) {
                 isSending = false;
                 await tick();
-                if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+                snapTimelineToBottom();
                 textareaEl?.focus();
                 return;
             }
@@ -1560,7 +1570,7 @@
             );
             // Snap scroll to bottom after input shrinks — prevents content from drifting up
             await tick();
-            if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
+            snapTimelineToBottom();
         } catch (err) {
             console.error("Failed to send:", err);
             showErrorToast(
