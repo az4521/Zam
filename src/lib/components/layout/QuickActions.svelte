@@ -10,6 +10,7 @@
         canAddRoomToSpace,
         getRoom,
         retryRoomFollowUp,
+        markRoomPendingArrival,
     } from "$lib/matrix/client";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
@@ -21,7 +22,11 @@
         PLAINTEXT_DM_REUSE_WARNING,
     } from "$lib/utils/roomEncryption";
     import { settingsState } from "$lib/stores/settings.svelte";
-    import { setActiveRoom, openDraftDm } from "$lib/stores/rooms.svelte";
+    import {
+        setActiveRoom,
+        setActiveSpace,
+        openDraftDm,
+    } from "$lib/stores/rooms.svelte";
     import {
         interfaceState,
         openModal,
@@ -139,7 +144,14 @@
                 loading = false;
                 return;
             }
-            setActiveRoom(roomId);
+            if (mode === "create-space") {
+                // Switch into the new space; claim it first so the landing
+                // chain doesn't treat a not-yet-synced space as gone.
+                markRoomPendingArrival(roomId);
+                setActiveSpace(roomId);
+            } else {
+                setActiveRoom(roomId);
+            }
             close();
         } catch (e: any) {
             error =
