@@ -50,6 +50,7 @@
         loadRoomMembersIfNeeded,
         getCallSummaries,
         getContextCallSummaries,
+        getOwnUserId,
         type ReadReceiptInfo,
     } from "$lib/matrix/client";
     import { logSync } from "$lib/matrix/syncLog";
@@ -1285,7 +1286,11 @@
                 bumpUnreadTick();
                 if (eventRoom.roomId !== currentRoomId) return;
                 if (isContextView) {
-                    catchUpContextView();
+                    // Not for the user's own send: paging towards it dragged
+                    // them from the history they were reading all the way
+                    // back to live. It shows once they scroll down.
+                    if (event.getSender() !== getOwnUserId())
+                        catchUpContextView();
                     return;
                 }
                 const tail = messagesState.byRoom[currentRoomId]?.events.at(-1);
@@ -1777,8 +1782,19 @@
             }
             // Only onScroll drives this, and a window whose content still fits
             // (or sits at the bottom) produces no further scroll events, so
-            // keep going until it overflows or reaches the live edge.
+            // keep going until it overflows or reaches the live edge. Re-measure
+            // rather than trust isAtBottom: rows added below don't move
+            // scrollTop, so no scroll event clears it, and a stale true chained
+            // pages all the way to live and rejoined there.
             await tick();
+            if (scrollEl) {
+                const { scrollTop, clientHeight, scrollHeight } = scrollEl;
+                isAtBottom = isNearBottom(
+                    scrollTop,
+                    clientHeight,
+                    scrollHeight,
+                );
+            }
             if (grew && contextWindow === win && isAtBottom)
                 void maybeLoadNewer();
         } else if (isAtBottom && intervalId === undefined) {
