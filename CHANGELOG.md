@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.46.3
+
+🐛 **Fixed**
+
+- **Calls when graphics crash:** running out of video memory (a game using it, say) no longer drops the call every time Zam's graphics restart, and Zam no longer ends up stuck without the GPU until a restart. The call keeps going. If you're sharing your camera or screen, it reconnects once after graphics have stayed up for a while, to get hardware encoding back.
+- **Favouriting embedded videos:** videos embedded from a link (Instagram and the like) can now be favourited, like images.
+
 ## v1.46.2
 
 🐛 **Fixed**
