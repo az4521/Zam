@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.46.0
+
+✨ **New**
+
+- **Message link previews:** a link to a specific message (matrix.to or matrix: link) now shows a card with the sender, room, time and text of that message. Click it to jump to the message. Links to rooms you can't read stay plain links.
+
+🐛 **Fixed**
+
+- **iOS after an update:** reopening Zam from the background after a new version came out no longer shows "500 Internal Error". It now reloads into the new version by itself.
+- **Replying from an older message:** sending while viewing a message you jumped to no longer scrolls you all the way to the bottom.
+
 ## v1.45.0
 
 ✨ **New**
