@@ -1175,6 +1175,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageInput.unhandledCommand": "Nicht behandelter Befehl: /{name}",
     "messageInput.commandFailed": "Befehl fehlgeschlagen",
     "messageInput.failedToSend": "Senden fehlgeschlagen",
+    "messageInput.unknownCommand": "Unbekannter Befehl: /{unknown}",
+    "messageInput.sendUnknownCommandAnyway": "Trotzdem senden",
     "messageInput.sedNoMessage": "Du hast hier keine Nachricht zum Bearbeiten",
     "messageInput.sedNoMatch":
         "„{pattern}“ kommt in deiner letzten Nachricht nicht vor",

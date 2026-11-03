@@ -1093,6 +1093,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageInput.commandFailed": "コマンドに失敗しました",
     "messageInput.failedToSend": "送信に失敗しました",
     "messageInput.unknownCommand": "不明なコマンド: /{unknown}",
+    "messageInput.sendUnknownCommandAnyway": "そのまま送信",
     "messageInput.sedNoMessage": "ここで編集できるメッセージがありません",
     "messageInput.sedNoMatch":
         "「{pattern}」は直前のメッセージに含まれていません",

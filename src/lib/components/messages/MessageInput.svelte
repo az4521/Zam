@@ -1229,7 +1229,9 @@
         renderComposer(0);
     }
 
-    async function send() {
+    /** `unknownAsText`: send a `/word` this client doesn't implement as an
+     *  ordinary message (the unknown-command toast's "Send anyway"). */
+    async function send(unknownAsText = false) {
         // `s/old/new/` edits the last message instead of sending one. Not with
         // files queued: then the text is a caption.
         if (!isSending && !disabled && fileQueue.length === 0 && onSedEdit) {
@@ -1244,11 +1246,30 @@
         // text is a caption, not a command).
         if (!isSending && !disabled && fileQueue.length === 0) {
             const parsed = parseSlashCommand(text, pluginSlashCommands);
-            // A command this client does not implement is sent as plain text.
-            // Bots and other clients define their own (`/model`, `/new`, ...)
-            // and the composer cannot know them; refusing the send makes those
-            // unreachable, which is worse than posting a typo. A bare "/" and
-            // the "//text" escape are still handled below.
+            // A command this client does not implement may be a typo of one it
+            // does, or a bot's own (`/model`, `/new`, ...), which the composer
+            // cannot know. Hold it, and let the toast send it as text: a typo
+            // never posts by accident, and a bot command is one tap away. The
+            // text stays in the composer either way.
+            if (parsed && "unknown" in parsed && !unknownAsText) {
+                const held = text;
+                const heldKey = effComposerKey;
+                showErrorToast(
+                    t("messageInput.unknownCommand", {
+                        unknown: parsed.unknown,
+                    }),
+                    {
+                        label: t("messageInput.sendUnknownCommandAnyway"),
+                        // Only what the toast named: not after the text was
+                        // edited or the composer moved to another room/thread.
+                        run: () => {
+                            if (text === held && effComposerKey === heldKey)
+                                void send(true);
+                        },
+                    },
+                );
+                return;
+            }
             if (parsed && "command" in parsed) {
                 await dispatchSlashCommand(parsed.command, parsed.arg);
                 return;
@@ -2603,7 +2624,7 @@
             {/each}
 
             <button
-                onclick={send}
+                onclick={() => send()}
                 onpointerdown={(e) => e.preventDefault()}
                 disabled={(!text.trim() && fileQueue.length === 0) ||
                     isSending ||
