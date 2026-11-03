@@ -170,9 +170,9 @@
     function onInput() {
         // input events fired inside an IME composition must not trigger a
         // re-render; that replaces the node holding the preedit and the
-        // conversion is lost. onCompositionEnd resyncs once it commits.
-        if (composing) return;
-        syncFromEditor();
+        // conversion is lost. The model still follows the DOM, so saving
+        // mid-composition (Gboard composes every word) keeps the last word.
+        syncFromEditor(!composing);
     }
 
     function onCompositionEnd() {
@@ -184,20 +184,24 @@
         });
     }
 
-    function syncFromEditor() {
+    /** Read the editor into the model; `redraw` false leaves the DOM alone. */
+    function syncFromEditor(redraw = true) {
         if (!editorEl) return;
         let pos = caret();
         text = editorText(editorEl);
-        // Typing the closing colon of a unicode shortcode converts it, like
-        // the composer (":tm:" → ™️). Custom emotes keep their token.
-        const converted = convertTrailingShortcode(text.slice(0, pos), (code) =>
-            emoteMxc.has(code),
-        );
-        if (converted !== null) {
-            text = converted + text.slice(pos);
-            pos = converted.length;
+        if (redraw) {
+            // Typing the closing colon of a unicode shortcode converts it, like
+            // the composer (":tm:" → ™️). Custom emotes keep their token.
+            const converted = convertTrailingShortcode(
+                text.slice(0, pos),
+                (code) => emoteMxc.has(code),
+            );
+            if (converted !== null) {
+                text = converted + text.slice(pos);
+                pos = converted.length;
+            }
+            render(pos);
         }
-        render(pos);
         detectEmojiQuery();
     }
 

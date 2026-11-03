@@ -1881,19 +1881,20 @@
         );
     }
 
-    // True while an IME (Japanese, Chinese, Korean input) is composing. The
-    // browser owns the contenteditable's contents during that window, so
-    // rendering from the model is deferred until the composition commits.
+    // True while an IME is composing: Japanese, Chinese and Korean input, and
+    // also every word typed on Android's Gboard. The browser owns the
+    // contenteditable's DOM during that window, so rewriting it from the model
+    // is deferred until the composition commits.
     let composing = false;
 
     function onInput() {
-        // Every keystroke inside an IME composition fires an input event
-        // (inputType "insertCompositionText"). Re-rendering on those would
-        // replace the node holding the preedit text, so the composition is
-        // dropped and conversion never converges. onCompositionEnd picks the
-        // committed text up instead.
-        if (composing) return;
-        syncFromEditor();
+        // Every keystroke inside a composition fires an input event (inputType
+        // "insertCompositionText"). Re-rendering on those would replace the
+        // node holding the preedit text, so the composition is dropped and
+        // conversion never converges. The model still follows the DOM: the
+        // send button keeps focus with preventDefault, so on Android a tap
+        // sends mid-composition and must not lose the word being typed.
+        syncFromEditor(!composing);
     }
 
     function onCompositionEnd() {
@@ -1907,21 +1908,25 @@
         });
     }
 
-    function syncFromEditor() {
+    /** Read the editor into the model. `redraw` false (mid-composition) leaves
+     *  the DOM alone: no re-decoration and no shortcode conversion. */
+    function syncFromEditor(redraw = true) {
         if (!textareaEl || renderingComposer) return;
         let caret = getCaretOffset();
         text = getComposerText();
-        // Typing the closing colon of a unicode shortcode converts it, like
-        // Discord (":tm:" → ™️).
-        const converted = convertTrailingShortcode(
-            text.slice(0, caret),
-            isCustomShortcode,
-        );
-        if (converted !== null) {
-            text = converted + text.slice(caret);
-            caret = converted.length;
+        if (redraw) {
+            // Typing the closing colon of a unicode shortcode converts it, like
+            // Discord (":tm:" → ™️).
+            const converted = convertTrailingShortcode(
+                text.slice(0, caret),
+                isCustomShortcode,
+            );
+            if (converted !== null) {
+                text = converted + text.slice(caret);
+                caret = converted.length;
+            }
+            renderComposer(caret);
         }
-        renderComposer(caret);
         detectMentionQuery();
         detectEmojiQuery();
         detectSlashQuery();
