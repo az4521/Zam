@@ -3,10 +3,13 @@
 //   - web:      this origin (full page load)
 //   - Electron: the system browser hits the app's local server at
 //               `/sso-callback`, which forwards it over IPC (electron/main.cjs)
-//   - Android:  the `moe.crafty.matrix:` deep link (AndroidManifest.xml)
+//   - Android:  an in-app browser (Custom Tab) over the app, which the
+//               `moe.crafty.matrix:` deep link (AndroidManifest.xml) closes
+//               by bringing the singleTask activity back to the front
 
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
+import { Browser } from "@capacitor/browser";
 
 /** Custom URL scheme the Android app owns (AndroidManifest.xml). */
 export const NATIVE_SCHEME = "moe.crafty.matrix";
@@ -15,14 +18,27 @@ export function isElectronWithSso(): boolean {
     return typeof window !== "undefined" && !!window.desktop?.sso;
 }
 
-/** Leave for the provider's page: system browser on desktop, navigation elsewhere. */
+/**
+ * Open a sign-in or approval page in the in-app browser on Android, so the
+ * user never leaves the app for another one. False elsewhere.
+ */
+export function openInAppBrowser(url: string): boolean {
+    if (!Capacitor.isNativePlatform()) return false;
+    void Browser.open({ url }).catch((err) => {
+        console.warn("[login] in-app browser failed", err);
+        window.open(url, "_blank", "noopener");
+    });
+    return true;
+}
+
+/** Leave for the provider's page: in-app browser on Android, system browser on desktop, navigation elsewhere. */
 export function openLoginUrl(url: string): void {
+    if (openInAppBrowser(url)) return;
     if (isElectronWithSso()) {
         // The window-open handler hands this to the system browser.
         window.open(url, "_blank", "noopener");
     } else {
-        // Web: a plain navigation. Capacitor sends off-app navigations to the
-        // system browser.
+        // Web: a plain navigation.
         window.location.assign(url);
     }
 }

@@ -131,6 +131,7 @@
             <a
                 href={approvalUrl}
                 target="_blank"
+                data-in-app
                 rel="noopener noreferrer"
                 class="mt-3 block w-full py-2 text-center bg-discord-accent hover:bg-discord-accentHover text-white font-semibold rounded text-sm"
             >

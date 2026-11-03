@@ -3,6 +3,7 @@
     import "../app.css";
     import { onMount } from "svelte";
     import { Capacitor } from "@capacitor/core";
+    import { openInAppBrowser } from "$lib/matrix/loginRedirect";
 
     let { children } = $props();
 
@@ -81,6 +82,11 @@
             if (url.protocol !== "http:" && url.protocol !== "https:") return;
             if (url.origin === location.origin) return; // in-app navigation
             e.preventDefault();
+            // Sign-in approval pages stay inside the app on Android.
+            const inApp = (e.target as Element | null)?.closest?.(
+                "a[data-in-app]",
+            );
+            if (inApp && openInAppBrowser(url.href)) return;
             window.open(url.href, "_blank", "noopener,noreferrer");
         }
         document.addEventListener("click", onClick);

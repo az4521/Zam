@@ -560,6 +560,7 @@
                 <a
                     href={approval.url}
                     target="_blank"
+                    data-in-app
                     rel="noopener noreferrer"
                     class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm"
                     >{t("securitySettings.openAccountPage")}</a
