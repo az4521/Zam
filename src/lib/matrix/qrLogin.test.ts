@@ -100,3 +100,19 @@ describe("isQrLoginPayload", () => {
         expect(isQrLoginPayload(new TextEncoder().encode("hello"))).toBe(false);
     });
 });
+
+describe("device codes typed on an existing device", () => {
+    it("tidies a typed code", async () => {
+        const { normalizeUserCode } = await import("./qrLogin");
+        expect(normalizeUserCode(" abcd-efgh ")).toBe("ABCDEFGH");
+        expect(normalizeUserCode("ab")).toBeNull();
+        expect(normalizeUserCode("https://evil.example")).toBeNull();
+    });
+
+    it("approves on the account's own provider", async () => {
+        const { buildCodeApprovalUrl } = await import("./qrLogin");
+        expect(buildCodeApprovalUrl(issuer, "ABCDEFGH")).toBe(
+            "https://account.example.org/link?code=ABCDEFGH",
+        );
+    });
+});

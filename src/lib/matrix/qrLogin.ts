@@ -34,9 +34,15 @@ import { startDeviceVerification } from "$lib/matrix/crypto";
 import { QrLoginError } from "$lib/matrix/qrLoginError";
 import {
     linkDeviceByRendezvousScan,
+    linkDeviceByShowingRendezvous,
     serverAdvertisesQrLogin,
+    signInByScanningRendezvous,
     signInWithRendezvous,
+    type RendezvousScanSignInOptions,
+    type RendezvousShowLinkOptions,
 } from "$lib/matrix/qrLoginRendezvous";
+
+export { serverAdvertisesQrLogin };
 import { isMatrixQrPayload } from "$lib/utils/qrCode";
 
 export { QrLoginError };
@@ -45,6 +51,10 @@ const DEVICE_FRAGMENT = "zam-device=";
 const DEVICE_ID = /^[A-Za-z0-9]{6,32}$/;
 const APPROVAL_POLL_MS = 2000;
 const APPROVAL_WAIT_MS = 10 * 60 * 1000;
+// A device exists as soon as it logs in, but only publishes its encryption
+// keys once the app has loaded and started crypto, which can take a while.
+const VERIFY_WAIT_MS = 90 * 1000;
+const VERIFY_POLL_MS = 3000;
 
 /** Whether the provider can sign a new device in by device code. */
 export function isQrLoginAvailable(
@@ -100,6 +110,24 @@ export function parseQrPayload(text: string, issuer: string): QrPayload | null {
 export function looksLikeQrPayload(bytes: ArrayLike<number>): boolean {
     const text = new TextDecoder().decode(Uint8Array.from(bytes));
     return text.startsWith("https://") && text.includes(`#${DEVICE_FRAGMENT}`);
+}
+
+const USER_CODE = /^[A-Z0-9]{4,20}$/;
+
+/** Tidy a code typed from another device's screen; null when it can't be one. */
+export function normalizeUserCode(text: string): string | null {
+    const code = text.replace(/[\s-]+/g, "").toUpperCase();
+    return USER_CODE.test(code) ? code : null;
+}
+
+/**
+ * Where a signed-in user approves a typed code: the provider's device-link
+ * page (`/link` on Matrix Authentication Service), with the code filled in.
+ */
+export function buildCodeApprovalUrl(issuer: string, userCode: string): string {
+    const url = new URL("link", issuer);
+    url.searchParams.set("code", userCode);
+    return url.href;
 }
 
 function abortable(ms: number, signal: AbortSignal): Promise<void> {
@@ -224,20 +252,37 @@ async function linkDeviceByDeviceCode(
         if (signal.aborted)
             throw new QrLoginError(t("qrLogin.cancelled"), "cancelled");
         if (await deviceExists(client, payload.deviceId)) {
-            // The device is already signed in: failing to start verification
-            // must not be reported as a failed sign-in.
-            let verifying = true;
-            try {
-                await startDeviceVerification(payload.deviceId);
-            } catch (err) {
-                verifying = false;
-                console.warn("[qr-login] could not start verification", err);
-            }
+            const verifying = await verifyNewDevice(payload.deviceId, signal);
             opts.onVerifying(verifying);
             return;
         }
     }
     throw new QrLoginError(t("qrLogin.expired"));
+}
+
+/**
+ * Start verifying a device that has just signed in. Its keys may not be
+ * published yet, so keep trying for a while. A device that is already signed
+ * in must not be reported as a failed sign-in, so this resolves false rather
+ * than throwing when verification cannot start.
+ */
+async function verifyNewDevice(
+    deviceId: string,
+    signal: AbortSignal,
+): Promise<boolean> {
+    const deadline = Date.now() + VERIFY_WAIT_MS;
+    for (;;) {
+        try {
+            await startDeviceVerification(deviceId);
+            return true;
+        } catch (err) {
+            console.warn("[qr-login] could not start verification", err);
+        }
+        if (Date.now() >= deadline) return false;
+        await abortable(VERIFY_POLL_MS, signal);
+        if (signal.aborted)
+            throw new QrLoginError(t("qrLogin.cancelled"), "cancelled");
+    }
 }
 
 async function deviceExists(
@@ -249,6 +294,81 @@ async function deviceExists(
     } catch {
         return false;
     }
+}
+
+export interface NewDeviceInfo {
+    deviceId: string;
+    displayName?: string;
+    lastSeenIp?: string;
+    lastSeenTs?: number;
+}
+
+export interface CodeLinkOptions {
+    client: MatrixClient;
+    /** The code as typed from the new device's screen. */
+    code: string;
+    signal: AbortSignal;
+    /** Open this link to approve the login at the provider. */
+    onApprovalUrl: (url: string) => void;
+    /**
+     * Several devices signed in meanwhile and a code does not say which is the
+     * new one: pick it (null to stop). Called only when it is ambiguous.
+     */
+    chooseDevice: (devices: NewDeviceInfo[]) => Promise<string | null>;
+}
+
+/**
+ * Sign in a new device from the code it shows. The code carries no device
+ * id, so the device is whichever new one appears on the account once the
+ * approval goes through; the user picks when more than one does.
+ */
+export async function linkDeviceByUserCode(
+    opts: CodeLinkOptions,
+): Promise<boolean> {
+    const { client, signal } = opts;
+    const metadata = await client.getAuthMetadata().catch(() => null);
+    if (!isQrLoginAvailable(metadata))
+        throw new QrLoginError(t("qrLogin.notSupportedHere"));
+    const code = normalizeUserCode(opts.code);
+    if (!code) throw new QrLoginError(t("qrLogin.notADeviceCode"));
+
+    // Fail here, not later: with no baseline every device would look new.
+    const known = new Set((await listDevices(client)).map((d) => d.deviceId));
+    const fresh = async () =>
+        (await listDevices(client).catch(() => [])).filter(
+            (d) => !known.has(d.deviceId),
+        );
+    opts.onApprovalUrl(buildCodeApprovalUrl(metadata!.issuer, code));
+    const deadline = Date.now() + APPROVAL_WAIT_MS;
+    while (Date.now() < deadline) {
+        await abortable(APPROVAL_POLL_MS, signal);
+        if (signal.aborted)
+            throw new QrLoginError(t("qrLogin.cancelled"), "cancelled");
+        let found = await fresh();
+        if (found.length === 0) continue;
+        // Let a second device that signed in at the same moment show up.
+        await abortable(APPROVAL_POLL_MS, signal);
+        found = await fresh();
+        if (found.length === 0) continue;
+        const deviceId =
+            found.length === 1
+                ? found[0].deviceId
+                : await opts.chooseDevice(found);
+        if (!deviceId)
+            throw new QrLoginError(t("qrLogin.cancelled"), "cancelled");
+        return verifyNewDevice(deviceId, signal);
+    }
+    throw new QrLoginError(t("qrLogin.expired"));
+}
+
+async function listDevices(client: MatrixClient): Promise<NewDeviceInfo[]> {
+    const { devices } = await client.getDevices();
+    return devices.map((d) => ({
+        deviceId: d.device_id,
+        displayName: d.display_name,
+        lastSeenIp: d.last_seen_ip,
+        lastSeenTs: d.last_seen_ts,
+    }));
 }
 
 // ---------------------------------------------------------------- dispatch
@@ -337,4 +457,23 @@ export async function linkDevice(opts: QrLinkOptions): Promise<void> {
         });
     }
     opts.onDone(verifying);
+}
+
+export type QrScanSignInOptions = RendezvousScanSignInOptions;
+
+/** Sign this device in by scanning a code a signed-in device shows. */
+export async function signInByScanningQr(
+    opts: QrScanSignInOptions,
+): Promise<QrSignInResult> {
+    const { session, secretsImported } = await signInByScanningRendezvous(opts);
+    return { session, method: "rendezvous", secretsImported };
+}
+
+export type QrShowLinkOptions = RendezvousShowLinkOptions;
+
+/** Show a code for a new device to scan; it signs in and gets the keys. */
+export async function linkDeviceByShowingQr(
+    opts: QrShowLinkOptions,
+): Promise<void> {
+    await linkDeviceByShowingRendezvous(opts);
 }

@@ -19,7 +19,10 @@
         uploadContent,
         type ThreePid,
     } from "$lib/matrix/client";
-    import { isQrLoginAvailable } from "$lib/matrix/qrLogin";
+    import {
+        isQrLoginAvailable,
+        serverAdvertisesQrLogin,
+    } from "$lib/matrix/qrLogin";
     import { getClient } from "$lib/matrix/runtime";
     import { auth, isOAuthSession } from "$lib/stores/auth.svelte";
     import { changeOwnPresence } from "$lib/stores/presence.svelte";
@@ -71,11 +74,18 @@
     // Sign in a new device by scanning its QR code. Needs a native OAuth
     // session whose provider grants by device code.
     let canLinkDevice = $state(false);
-    let linkOpen = $state(false);
+    let linkMode = $state<"scan" | "code" | "show" | null>(null);
+    // Showing a code for the new device to scan needs the full QR protocol.
+    let canShowQr = $state(false);
     if (oauthSession) {
-        void getClient()
+        const client = getClient();
+        void client
             ?.getAuthMetadata()
-            .then((meta) => (canLinkDevice = isQrLoginAvailable(meta)))
+            .then(async (meta) => {
+                canLinkDevice = isQrLoginAvailable(meta);
+                if (canLinkDevice)
+                    canShowQr = await serverAdvertisesQrLogin(client.baseUrl);
+            })
             .catch(() => {});
     }
 
@@ -260,12 +270,34 @@
 
 <div class="space-y-6">
     {#if canLinkDevice}
-        <section>
-            <button
-                onclick={() => (linkOpen = true)}
-                class="px-3 py-2 rounded text-sm bg-discord-accent hover:bg-discord-accentHover text-white font-medium"
-                >{t("qrLogin.linkButton")}</button
+        <section class="space-y-3">
+            <h3
+                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
             >
+                {t("qrLogin.loginSectionTitle")}
+            </h3>
+            <p class="text-sm text-discord-textMuted">
+                {t("qrLogin.loginSectionIntro")}
+            </p>
+            <div class="flex flex-wrap gap-2">
+                <button
+                    onclick={() => (linkMode = "scan")}
+                    class="px-3 py-2 rounded text-sm bg-discord-accent hover:bg-discord-accentHover text-white font-medium"
+                    >{t("qrLogin.linkButton")}</button
+                >
+                <button
+                    onclick={() => (linkMode = "code")}
+                    class="px-3 py-2 rounded text-sm bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary font-medium"
+                    >{t("qrLogin.codeButton")}</button
+                >
+                {#if canShowQr}
+                    <button
+                        onclick={() => (linkMode = "show")}
+                        class="px-3 py-2 rounded text-sm bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary font-medium"
+                        >{t("qrLogin.showButton")}</button
+                    >
+                {/if}
+            </div>
         </section>
     {/if}
     <section>
@@ -595,6 +627,6 @@
     {/if}
 </div>
 
-{#if linkOpen}
-    <LinkDeviceDialog onClose={() => (linkOpen = false)} />
+{#if linkMode}
+    <LinkDeviceDialog mode={linkMode} onClose={() => (linkMode = null)} />
 {/if}

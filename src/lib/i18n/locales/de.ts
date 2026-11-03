@@ -2299,6 +2299,37 @@ const messages: Record<MessageKey, string> = {
         "The new device is signed in. Finish verifying it in the window that just opened on both devices.",
     "qrLogin.linkDoneUnverified":
         "The new device is signed in. Verification could not be started automatically; verify it from Settings, then Sessions.",
+    "qrLogin.notADeviceCode":
+        "That is not a valid code. Type the code shown on the new device.",
+    "qrLogin.loginSectionTitle": "Login",
+    "qrLogin.loginSectionIntro":
+        "Sign in another device from this one, without typing your username and password.",
+    "qrLogin.codeButton": "Enter a code from the new device",
+    "qrLogin.codeTitle": "Sign in with a code",
+    "qrLogin.codeIntro":
+        "On the new device choose Sign in with QR code. It shows a short code under the QR code; type that code here.",
+    "qrLogin.codeLabel": "Code shown on the new device",
+    "qrLogin.codeContinue": "Continue",
+    "qrLogin.orEnterCode":
+        "No camera? On a signed-in device open Settings, then Account, then Login, choose Enter a code from the new device, and type the code below.",
+    "qrLogin.notAShownCode":
+        "That is not a code from a signed-in device. On the signed-in device open Settings, then Account, then Login, and choose Show a QR code for the new device to scan.",
+    "qrLogin.showButton": "Show a QR code for the new device to scan",
+    "qrLogin.showTitle": "Show a code for the new device",
+    "qrLogin.showIntro":
+        "On the new device choose Sign in with QR code, then Scan a code from a signed-in device, and scan this code.",
+    "qrLogin.showCodeAlt": "QR code to scan from the new device",
+    "qrLogin.showEnterNumber": "Type the number the new device shows",
+    "qrLogin.showRetry": "Show a new code",
+    "qrLogin.scanInstead": "Scan a code from a signed-in device instead",
+    "qrLogin.scanTitle": "Scan a code from a signed-in device",
+    "qrLogin.scanIntro":
+        "On a signed-in device open Settings, then Account, then Login, choose Show a QR code for the new device to scan, and scan it here.",
+    "qrLogin.scanShowNumber":
+        "Type this number on the signed-in device, then approve the sign-in there.",
+    "qrLogin.showInstead": "Show my own code instead",
+    "qrLogin.chooseIntro":
+        "More than one new session signed in at the same moment. Pick the one you are setting up.",
     "qrLogin.linkClose": "Close",
     "sessionSettings.loadingSessions": "Sitzungen werden geladen…",
     "sessionSettings.otherSessions": "Andere Sitzungen {value}",

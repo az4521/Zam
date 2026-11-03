@@ -7,9 +7,12 @@
     import QrCodeImage from "$lib/components/ui/QrCodeImage.svelte";
     import {
         QrLoginError,
+        serverAdvertisesQrLogin,
+        signInByScanningQr,
         signInWithQr,
         type QrSignInResult,
     } from "$lib/matrix/qrLogin";
+    import { isMatrixQrPayload } from "$lib/utils/qrCode";
     import { checkCodeMatches } from "$lib/matrix/qrLoginRendezvous";
 
     let {
@@ -26,9 +29,25 @@
         onClose: () => void;
     } = $props();
 
+    type ScannerComponent =
+        (typeof import("$lib/components/ui/QrScanner.svelte"))["default"];
+
     let step = $state<
-        "preparing" | "code" | "number" | "approval" | "finishing"
+        | "preparing"
+        | "code"
+        | "scan"
+        | "scanNumber"
+        | "number"
+        | "approval"
+        | "finishing"
     >("preparing");
+    // The server supports scanning a code a signed-in device shows.
+    let canScan = $state(false);
+    let Scanner = $state.raw<ScannerComponent | null>(null);
+    let scanError = $state("");
+    let scanAttempt = $state(0);
+    // Scanning direction: this device shows the number, the other types it.
+    let shownNumber = $state("");
     let code = $state<Uint8ClampedArray | null>(null);
     // Device-code sign-in only: the approval page asks about this code.
     let userCode = $state("");
@@ -36,7 +55,7 @@
     let typed = $state("");
     let answer: ((ok: boolean) => void) | null = null;
     let expectedCode = "";
-    const abort = new AbortController();
+    let abort = new AbortController();
 
     function submitNumber(event: SubmitEvent) {
         event.preventDefault();
@@ -52,38 +71,88 @@
         onClose();
     }
 
+    async function runShowFlow() {
+        abort = new AbortController();
+        const signal = abort.signal;
+        step = "preparing";
+        code = null;
+        try {
+            const result = await signInWithQr({
+                baseUrl,
+                metadata,
+                slidingSync,
+                signal,
+                onCode: (c) => {
+                    code = c.payload;
+                    userCode = c.userCode ?? "";
+                    step = "code";
+                },
+                onScanned: () => (step = "number"),
+                askCheckCode: (expected) =>
+                    new Promise<boolean>((resolve) => {
+                        expectedCode = expected;
+                        answer = resolve;
+                    }),
+                onWaitingForApproval: () => (step = "approval"),
+            });
+            step = "finishing";
+            await onSignedIn(result);
+        } catch (err) {
+            if (signal.aborted) return;
+            console.warn("[qr-login] sign-in failed", err);
+            error =
+                err instanceof QrLoginError ? err.message : t("qrLogin.failed");
+        }
+    }
+
+    function switchToScan() {
+        abort.abort();
+        scanError = "";
+        shownNumber = "";
+        step = "scan";
+        if (!Scanner)
+            void import("$lib/components/ui/QrScanner.svelte").then(
+                (m) => (Scanner = m.default),
+                () => (scanError = t("qrScanner.couldNotOpenTheCameraA")),
+            );
+    }
+
+    function switchToShow() {
+        scanError = "";
+        void runShowFlow();
+    }
+
+    async function onScan(bytes: Uint8ClampedArray) {
+        abort = new AbortController();
+        const signal = abort.signal;
+        scanError = "";
+        step = "scanNumber";
+        shownNumber = "";
+        try {
+            const result = await signInByScanningQr({
+                baseUrl,
+                metadata,
+                slidingSync,
+                signal,
+                bytes,
+                onCheckCode: (n) => (shownNumber = n),
+                onWaitingForApproval: () => (step = "approval"),
+            });
+            step = "finishing";
+            await onSignedIn(result);
+        } catch (err) {
+            if (signal.aborted) return;
+            console.warn("[qr-login] scan sign-in failed", err);
+            scanError =
+                err instanceof QrLoginError ? err.message : t("qrLogin.failed");
+            step = "scan";
+            scanAttempt++;
+        }
+    }
+
     onMount(() => {
-        void (async () => {
-            try {
-                const result = await signInWithQr({
-                    baseUrl,
-                    metadata,
-                    slidingSync,
-                    signal: abort.signal,
-                    onCode: (c) => {
-                        code = c.payload;
-                        userCode = c.userCode ?? "";
-                        step = "code";
-                    },
-                    onScanned: () => (step = "number"),
-                    askCheckCode: (expected) =>
-                        new Promise<boolean>((resolve) => {
-                            expectedCode = expected;
-                            answer = resolve;
-                        }),
-                    onWaitingForApproval: () => (step = "approval"),
-                });
-                step = "finishing";
-                await onSignedIn(result);
-            } catch (err) {
-                if (abort.signal.aborted) return;
-                console.warn("[qr-login] sign-in failed", err);
-                error =
-                    err instanceof QrLoginError
-                        ? err.message
-                        : t("qrLogin.failed");
-            }
-        })();
+        void serverAdvertisesQrLogin(baseUrl).then((ok) => (canScan = ok));
+        void runShowFlow();
         return () => abort.abort();
     });
 </script>
@@ -120,6 +189,9 @@
         </div>
         {#if userCode}
             <p class="mt-3 text-center text-xs text-discord-textMuted">
+                {t("qrLogin.orEnterCode")}
+            </p>
+            <p class="mt-2 text-center text-xs text-discord-textMuted">
                 {t("qrLogin.matchCode")}
             </p>
             <p
@@ -127,6 +199,63 @@
             >
                 {userCode}
             </p>
+        {/if}
+        {#if canScan}
+            <button
+                type="button"
+                onclick={switchToScan}
+                class="mt-3 w-full py-2 text-sm text-discord-accent hover:underline"
+            >
+                {t("qrLogin.scanInstead")}
+            </button>
+        {/if}
+    {:else if step === "scan"}
+        <p class="mt-3 text-sm text-discord-textSecondary">
+            {t("qrLogin.scanIntro")}
+        </p>
+        <div class="mt-4 flex flex-col items-center gap-2">
+            {#key scanAttempt}
+                {#if Scanner}
+                    <Scanner
+                        {onScan}
+                        accept={isMatrixQrPayload}
+                        onError={(message) => (scanError = message)}
+                    />
+                {:else if !scanError}
+                    <Loader2
+                        size={28}
+                        class="animate-spin text-discord-accent"
+                    />
+                {/if}
+            {/key}
+        </div>
+        {#if scanError}
+            <p class="mt-3 text-sm text-discord-danger" role="alert">
+                {scanError}
+            </p>
+        {/if}
+        <button
+            type="button"
+            onclick={switchToShow}
+            class="mt-3 w-full py-2 text-sm text-discord-accent hover:underline"
+        >
+            {t("qrLogin.showInstead")}
+        </button>
+    {:else if step === "scanNumber"}
+        {#if shownNumber}
+            <p class="mt-3 text-sm text-discord-textSecondary">
+                {t("qrLogin.scanShowNumber")}
+            </p>
+            <p
+                class="mt-2 text-center text-4xl font-semibold tracking-widest text-discord-textPrimary"
+                aria-live="polite"
+            >
+                {shownNumber}
+            </p>
+        {:else}
+            <div class="mt-5 flex justify-center">
+                <Loader2 size={28} class="animate-spin text-discord-accent" />
+            </div>
         {/if}
     {:else if step === "number"}
         <form onsubmit={submitNumber} class="mt-3 flex flex-col gap-3">

@@ -144,10 +144,23 @@
     );
 
     async function finishQrSignIn(result: QrSignInResult) {
+        // Same as the other sign-ins: show progress while the session starts,
+        // and report a failed start here (the QR panel's own handler swallows
+        // errors once it is closed, which left a login form that looked hung).
+        isLoading = true;
+        statusMsg = t("loginView.loggingIn");
         showQr = false;
         if (result.method === "rendezvous" && !result.secretsImported)
             showErrorToast(t("qrLogin.notVerified"));
-        await onAuthenticated(result.session);
+        try {
+            await onAuthenticated(result.session);
+        } catch (err) {
+            console.warn("[qr-login] could not start the session", err);
+            error =
+                err instanceof Error ? err.message : t("loginView.oauthFailed");
+            isLoading = false;
+            statusMsg = "";
+        }
     }
     const showPasswordForm = $derived(
         !useOAuth &&
