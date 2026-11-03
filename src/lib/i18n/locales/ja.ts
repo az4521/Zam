@@ -2905,10 +2905,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "グラフィックが繰り返しクラッシュしたため、Zam を再起動するまでGPUを無効にし、映像はソフトウェアでエンコードします。",
     "voiceCall.gpuRecovered":
         "グラフィックが再起動したため、GPUでの映像エンコードを維持するために通話を再接続しました。",
-    "voiceCall.gpuRecoveryFailed":
-        "復旧直後にグラフィックが再びクラッシュしたため、映像はソフトウェアでエンコードしています。GPUを再び使うには再読み込みしてください。",
     "voiceCall.restartZam": "Zam を再起動",
-    "voiceCall.reload": "再読み込み",
     "voiceCall.youWereBannedFromThisRoom":
         "このルームからBANされました - 通話を終了しました",
     "voiceCall.youLeftThisRoomCallEnded":

@@ -26,27 +26,6 @@ afterEach(() => {
     delete (globalThis as { RTCPeerConnection?: unknown }).RTCPeerConnection;
 });
 
-describe("gpuExitAction", async () => {
-    const { gpuExitAction, GPU_RECOVERY_WINDOW_MS } = await load();
-
-    it("recovers the first time", () => {
-        expect(gpuExitAction(null, 1000)).toBe("recover");
-    });
-
-    it("gives up when the GPU exits again while reconnecting", () => {
-        expect(gpuExitAction({ doneAt: null }, 1000)).toBe("give-up");
-    });
-
-    it("gives up within the window after a recovery, recovers after it", () => {
-        expect(
-            gpuExitAction({ doneAt: 1000 }, 1000 + GPU_RECOVERY_WINDOW_MS - 1),
-        ).toBe("give-up");
-        expect(
-            gpuExitAction({ doneAt: 1000 }, 1000 + GPU_RECOVERY_WINDOW_MS),
-        ).toBe("recover");
-    });
-});
-
 describe("ensureFreshWebrtcRealm", () => {
     it("does nothing until the GPU process has exited", async () => {
         (globalThis as { RTCPeerConnection?: unknown }).RTCPeerConnection =

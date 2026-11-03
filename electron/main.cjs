@@ -832,8 +832,10 @@ ipcMain.handle("autostart:set", (_e, enabled) => autostart.set(enabled));
 
 // Raised while a call is connected (callPriority.cjs); the page says when.
 const callPriority = createCallPriority(app);
+let callActive = false;
 ipcMain.on("call:set-active", (e, active) => {
-    callPriority.set(!!active, e.sender);
+    callActive = !!active;
+    callPriority.set(callActive, e.sender);
 });
 app.on("will-quit", () => callPriority.restore());
 
@@ -856,7 +858,20 @@ function readGpuPrefs() {
 
 const hardwareAccelerationAtLaunch =
     readGpuPrefs().hardwareAcceleration !== false;
-if (!hardwareAccelerationAtLaunch) app.disableHardwareAcceleration();
+// Set by the crash-loop guard below: this one run goes without the GPU.
+const gpuCrashLoopAtLaunch =
+    hardwareAccelerationAtLaunch && !!readGpuPrefs().gpuCrashLoopAt;
+if (!hardwareAccelerationAtLaunch || gpuCrashLoopAtLaunch) {
+    app.disableHardwareAcceleration();
+} else {
+    // Chromium gives up on the GPU after its third crash in a run, falling
+    // back to software for the rest of it, and a few crashes later quits the
+    // app ("GPU process isn't usable. Goodbye."). Running out of video memory
+    // (a game holding it) crashes it over and over, and software video is
+    // worse there than waiting, so let it keep restarting. Verified on
+    // Electron 44: 20 GPU kills in a row and compositing stayed on the GPU.
+    app.commandLine.appendSwitch("disable-gpu-process-crash-limit");
+}
 
 ipcMain.handle("idle:get", () => ({
     seconds: powerMonitor.getSystemIdleTime(),
@@ -1051,7 +1066,27 @@ app.on("child-process-gone", (_e, details) => {
     mainWindow.webContents.send("gpu:process-gone", details.reason);
 });
 
-ipcMain.on("app:relaunch", () => {
+// With Chromium's crash limit off, a GPU that can't start at all (a broken
+// driver) would restart forever with nothing drawn. That many exits this
+// close together is a loop, not memory pressure: start over without the GPU
+// for one run. Not during a call, which keeps its audio through GPU exits.
+const GPU_CRASH_LOOP_EXITS = 10;
+const GPU_CRASH_LOOP_MS = 60_000;
+const gpuExitTimes = [];
+if (gpuCrashLoopAtLaunch) writeGpuPrefs({ gpuCrashLoopAt: undefined });
+app.on("child-process-gone", (_e, details) => {
+    if (details.type !== "GPU" || !hardwareAccelerationAtLaunch) return;
+    if (details.reason === "clean-exit") return;
+    const now = Date.now();
+    gpuExitTimes.push(now);
+    while (gpuExitTimes[0] < now - GPU_CRASH_LOOP_MS) gpuExitTimes.shift();
+    if (gpuExitTimes.length < GPU_CRASH_LOOP_EXITS || callActive) return;
+    console.error("GPU process keeps exiting; restarting without the GPU");
+    writeGpuPrefs({ gpuCrashLoopAt: now });
+    relaunchApp();
+});
+
+function relaunchApp() {
     // In Flatpak, start over through the launcher so zypak and the libva
     // setup in zam.sh apply again; process.execPath is the bare Electron.
     app.relaunch(
@@ -1061,7 +1096,9 @@ ipcMain.on("app:relaunch", () => {
     );
     isQuitting = true;
     app.quit();
-});
+}
+
+ipcMain.on("app:relaunch", relaunchApp);
 
 // --- Screen sharing --------------------------------------------------------
 //

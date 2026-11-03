@@ -66,18 +66,3 @@ export function ensureFreshWebrtcRealm(): boolean {
     if (previous) setTimeout(() => previous.remove(), 60_000);
     return true;
 }
-
-/** How long after a recovery another GPU exit counts as the recovery
- *  failing, so the call stops reconnecting and offers a reload instead. */
-export const GPU_RECOVERY_WINDOW_MS = 5000;
-
-/** What to do about a GPU exit during a call, given the last recovery in
- *  it (null if none; `doneAt` null while its reconnect is still running). */
-export function gpuExitAction(
-    last: { doneAt: number | null } | null,
-    now: number,
-): "recover" | "give-up" {
-    if (!last) return "recover";
-    if (last.doneAt === null) return "give-up";
-    return now - last.doneAt < GPU_RECOVERY_WINDOW_MS ? "give-up" : "recover";
-}

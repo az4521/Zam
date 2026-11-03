@@ -3342,10 +3342,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Die Grafik ist wiederholt abgestürzt, daher ist die GPU bis zum Neustart von Zam aus und Video wird per Software kodiert.",
     "voiceCall.gpuRecovered":
         "Die Grafik wurde neu gestartet, daher hat sich der Anruf neu verbunden, damit Video weiter auf der GPU kodiert wird.",
-    "voiceCall.gpuRecoveryFailed":
-        "Die Grafik ist direkt nach der Wiederherstellung erneut abgestürzt, daher wird Video jetzt per Software kodiert. Neu laden, um die GPU wieder zu nutzen.",
     "voiceCall.restartZam": "Zam neu starten",
-    "voiceCall.reload": "Neu laden",
     "voiceCall.youWereBannedFromThisRoom":
         "Du wurdest aus diesem Raum gebannt - Anruf beendet",
     "voiceCall.youLeftThisRoomCallEnded":

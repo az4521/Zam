@@ -15,9 +15,9 @@ import { matrixClient } from "./runtime";
 import { getDirectRoomIds, getRoomCallMemberships } from "./client";
 import {
     ensureFreshWebrtcRealm,
-    gpuExitAction,
     markWebrtcRealmStale,
     onWebrtcRealm,
+    webrtcRealmStale,
     webrtcWindow,
 } from "./webrtcRealm";
 import {
@@ -597,13 +597,24 @@ function notifyCallMicUnavailable(err: unknown): void {
 
 // --- GPU-process exits ------------------------------------------------------
 
-/** The last recovery from a GPU exit in a call; `doneAt` is null while its
- *  reconnect runs. */
-let gpuRecovery: { call: ActiveVoiceCall; doneAt: number | null } | null = null;
+/** A call waiting to reconnect for hardware video encoding after GPU exits:
+ *  the timer runs until the GPU has stayed up for GPU_SETTLE_MS. */
+let gpuReconnect: {
+    call: ActiveVoiceCall;
+    timer: ReturnType<typeof setTimeout> | null;
+} | null = null;
+/** When the GPU process last exited. */
+let lastGpuExitAt = 0;
 /** The sticky GPU notice on screen, replaced by the next one. */
 let gpuNoticeId: number | null = null;
 /** Chromium gave up on the GPU, which lasts for the rest of the run. */
 let gpuGivenUp = false;
+
+/** How long the GPU must stay up before a call reconnects to get hardware
+ *  encoding back. Out of video memory (a game holding it), the GPU process
+ *  exits again and again; reconnecting after each one cut the call's audio
+ *  every time, while waiting keeps the call going with video in software. */
+const GPU_SETTLE_MS = 15_000;
 
 function showGpuNotice(message: string, action: ToastAction): void {
     if (gpuNoticeId !== null) dismissToast(gpuNoticeId);
@@ -611,9 +622,9 @@ function showGpuNotice(message: string, action: ToastAction): void {
 }
 
 /** How the GPU stands after its process exited: off by the user's choice,
- *  given up on by Chromium for the rest of this run (it falls back to
- *  software after repeated GPU crashes, and only a restart undoes that), or
- *  still in use. */
+ *  given up on by Chromium for the rest of this run (only a restart undoes
+ *  that; the desktop app turns its crash limit off, so this is a fallback),
+ *  or still in use. */
 async function gpuStateAfterExit(): Promise<"off" | "given-up" | "on"> {
     try {
         const info = await window.desktop?.gpu?.info();
@@ -626,54 +637,73 @@ async function gpuStateAfterExit(): Promise<"off" | "given-up" | "on"> {
     }
 }
 
+/** Whether we send video in `call` (camera or screen share): what a GPU exit
+ *  moves to software encoding. Received video decodes in software until
+ *  the next call, which is cheap enough not to cut the call for. */
+function callSendsVideo(call: ActiveVoiceCall): boolean {
+    return currentVideoInputs(call).some((v) => v.isLocal);
+}
+
 /** Chromium's GPU process exited. Every video encoder and decoder of this
- *  window's peer connections is in software from now on (webrtcRealm.ts), so
- *  a call reconnects with peer connections from a fresh window. When that
- *  doesn't hold (another exit straight away), stop and offer a reload; when
- *  Chromium has given up on the GPU, only a restart helps. */
+ *  window's peer connections is in software from now on (webrtcRealm.ts);
+ *  audio is unaffected, so the call carries on as it is. Once the GPU has
+ *  stayed up for a while, a call that sends video reconnects with peer
+ *  connections from a fresh window to encode on the GPU again. */
 async function onGpuProcessGone(): Promise<void> {
     markWebrtcRealmStale();
+    lastGpuExitAt = Date.now();
     const call = activeVoice;
     if (!call) return;
-    const last = gpuRecovery?.call === call ? gpuRecovery : null;
-    const action = gpuExitAction(last, Date.now());
     const gpu = await gpuStateAfterExit();
     if (activeVoice !== call || gpu === "off" || gpuGivenUp) return;
     if (gpu === "given-up") {
         gpuGivenUp = true;
-        gpuRecovery = null;
+        cancelGpuReconnect();
         showGpuNotice(t("voiceCall.gpuGivenUp"), {
             label: t("voiceCall.restartZam"),
             run: () => window.desktop?.gpu?.relaunch(),
         });
         return;
     }
-    if (action === "give-up") {
-        // Another exit soon after this one gives up again, not reconnects.
-        gpuRecovery = { call, doneAt: Date.now() };
-        showGpuNotice(t("voiceCall.gpuRecoveryFailed"), {
-            label: t("voiceCall.reload"),
-            run: () => location.reload(),
+    scheduleGpuReconnect(call);
+}
+
+function cancelGpuReconnect(): void {
+    if (gpuReconnect?.timer) clearTimeout(gpuReconnect.timer);
+    gpuReconnect = null;
+}
+
+/** Reconnect `call` for hardware encoding once the GPU has settled, if it
+ *  still needs it then. Also run when the call's video changes, so a camera
+ *  turned on after a GPU exit gets there too. */
+function scheduleGpuReconnect(call: ActiveVoiceCall): void {
+    if (gpuGivenUp || !webrtcRealmStale()) return;
+    if (gpuReconnect?.call === call && gpuReconnect.timer) return;
+    cancelGpuReconnect();
+    const pending: NonNullable<typeof gpuReconnect> = { call, timer: null };
+    gpuReconnect = pending;
+    const check = () => {
+        pending.timer = null;
+        if (gpuReconnect !== pending || activeVoice !== call) return;
+        const wait = lastGpuExitAt + GPU_SETTLE_MS - Date.now();
+        if (wait > 0) {
+            pending.timer = setTimeout(check, wait);
+            return;
+        }
+        // Nothing to win yet; the next video change looks again.
+        if (!webrtcRealmStale() || !callSendsVideo(call)) return;
+        gpuReconnect = null;
+        if (!ensureFreshWebrtcRealm()) return;
+        call.lkRoom.once(call.lk.RoomEvent.Reconnected, () => {
+            if (activeVoice !== call) return;
+            showToast(t("voiceCall.gpuRecovered"), { tone: "accent" });
         });
-        return;
-    }
-    if (!ensureFreshWebrtcRealm()) return;
-    const recovery: { call: ActiveVoiceCall; doneAt: number | null } = {
-        call,
-        doneAt: null,
+        for (const lkRoom of callLkRooms(call))
+            void lkRoom.simulateScenario("full-reconnect").catch((err) => {
+                console.error("Call reconnect after a GPU exit failed:", err);
+            });
     };
-    gpuRecovery = recovery;
-    call.lkRoom.once(call.lk.RoomEvent.Reconnected, () => {
-        if (activeVoice !== call || gpuRecovery !== recovery) return;
-        recovery.doneAt = Date.now();
-        if (gpuNoticeId !== null) dismissToast(gpuNoticeId);
-        gpuNoticeId = null;
-        showToast(t("voiceCall.gpuRecovered"), { tone: "accent" });
-    });
-    for (const lkRoom of callLkRooms(call))
-        void lkRoom.simulateScenario("full-reconnect").catch((err) => {
-            console.error("Call reconnect after a GPU exit failed:", err);
-        });
+    pending.timer = setTimeout(check, 0);
 }
 
 if (typeof window !== "undefined")
@@ -799,6 +829,7 @@ function notifyCallVideo(call: ActiveVoiceCall): void {
     if (activeVoice !== call) return;
     const tiles = buildVideoTiles(currentVideoInputs(call));
     for (const cb of videoTracksSubscribers) cb(tiles);
+    if (webrtcRealmStale()) scheduleGpuReconnect(call);
 }
 
 function notifyCallSpeakers(call: ActiveVoiceCall): void {
@@ -1610,6 +1641,7 @@ async function leaveVoiceCallInternal(): Promise<void> {
     if (!call) return;
     const run = (async () => {
         activeVoice = null;
+        cancelGpuReconnect();
         // The room disconnect below unpublishes it; this stops the capture.
         stopShareAudio();
         cancelShareAudioWait();
