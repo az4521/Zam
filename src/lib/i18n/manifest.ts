@@ -1,5 +1,5 @@
 // Every language the app can be shown in. Adding one takes two steps:
-//   1. add an entry here;
+//   1. add an entry here, keeping the list in order of `englishName`;
 //   2. add `./locales/<code>.ts` (see ./README.md). English lives in ../en.ts
 //      and is the source catalogue every other language is translated from.
 // Metadata only: catalogues are code-split and loaded on demand, so this list
@@ -27,18 +27,6 @@ export interface LocaleInfo {
 
 export const LOCALES = [
     {
-        code: "en",
-        nativeName: "English",
-        englishName: "English",
-        dir: "ltr",
-    },
-    {
-        code: "ja",
-        nativeName: "日本語",
-        englishName: "Japanese",
-        dir: "ltr",
-    },
-    {
         code: "aii",
         nativeName: "ܣܘܪܝܬ",
         englishName: "Assyrian Neo-Aramaic",
@@ -50,6 +38,12 @@ export const LOCALES = [
         aliases: ["syr"],
     },
     {
+        code: "en",
+        nativeName: "English",
+        englishName: "English",
+        dir: "ltr",
+    },
+    {
         code: "fr",
         nativeName: "Français",
         englishName: "French",
@@ -59,6 +53,12 @@ export const LOCALES = [
         code: "de",
         nativeName: "Deutsch",
         englishName: "German",
+        dir: "ltr",
+    },
+    {
+        code: "ja",
+        nativeName: "日本語",
+        englishName: "Japanese",
         dir: "ltr",
     },
     {

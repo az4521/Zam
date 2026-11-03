@@ -1,13 +1,12 @@
 // Assyrian Neo-Aramaic (Suret, ISO 639-3 `aii`), written in the Syriac
 // script (unvocalised, Eastern conventions). Same keys and placeholders
-// as ../en.ts; typed as a full `Record` so a new English string that is
-// not yet translated here fails type-checking instead of silently
-// showing English.
+// as ../en.ts; a string missing here falls back to English
+// (`npm run i18n:missing` lists them).
 
 import type { MessageKey } from "../en";
 import type { LocaleCatalogue } from "../index";
 
-const messages: Record<MessageKey, string> = {
+const messages: Partial<Record<MessageKey, string>> = {
     // Shared
     "common.turnOffCamera": "ܛܦܝ ܟܡܪܐ",
     "common.turnOnCamera": "ܕܠܩ ܟܡܪܐ",

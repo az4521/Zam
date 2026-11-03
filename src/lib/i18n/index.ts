@@ -123,9 +123,12 @@ export function getLocale(): Locale {
 }
 
 export function localeInfo(code: string = current): LocaleInfo {
+    const all = LOCALES as readonly LocaleInfo[];
+    // LOCALES is alphabetical, so English is looked up rather than taken
+    // from the front.
     return (
-        (LOCALES as readonly LocaleInfo[]).find((l) => l.code === code) ??
-        LOCALES[0]
+        all.find((l) => l.code === code) ??
+        all.find((l) => l.code === DEFAULT_LOCALE)!
     );
 }
 

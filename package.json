@@ -10,6 +10,7 @@
         "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
         "check:active-session": "node scripts/check-active-session-sync.mjs",
         "check:emdash": "node scripts/check-no-emdash.mjs",
+        "i18n:missing": "node scripts/i18n-missing.mjs",
         "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
         "lint": "prettier --check .",
         "format": "prettier --write .",

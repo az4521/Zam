@@ -6,7 +6,8 @@ source catalogue. Components and modules never hardcode text; they call
 
 ## Adding a language
 
-1. Add an entry to `LOCALES` in [`manifest.ts`](./manifest.ts): its code
+1. Add an entry to `LOCALES` in [`manifest.ts`](./manifest.ts), keeping the
+   list in alphabetical order of English name: its code
    (BCP 47 / ISO 639), its own name, its English name and its direction
    (`"ltr"` or `"rtl"`). If the browser's `Intl` has no data for the
    language, set `intl` / `plural` to a close locale that does.
@@ -23,10 +24,10 @@ source catalogue. Components and modules never hardcode text; they call
     export default { messages } satisfies LocaleCatalogue;
     ```
 
-    Type `messages` as `Record<MessageKey, string>` instead once the
-    translation is complete: from then on, a new English string that has not
-    been translated fails `npm run check`. Until then, missing strings fall
-    back to English.
+    Keep `messages` `Partial`, even once the translation is complete, so a
+    new English string never breaks the build: until it is translated it
+    falls back to English. `npm run i18n:missing` lists the strings each
+    language is missing (`npm run i18n:missing -- ja` for one).
 
 3. Run `npm test`. `i18n.test.ts` checks every catalogue in `locales/` has a
    manifest entry (and vice versa), uses only real keys, and keeps each

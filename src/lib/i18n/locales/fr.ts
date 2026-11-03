@@ -1,12 +1,11 @@
-// French (fr). Same keys and placeholders as ../en.ts; typed as a full `Record`
-// so a new English string that is not yet translated here fails
-// type-checking instead of silently showing English.
+// French (fr). Same keys and placeholders as ../en.ts; a string missing
+// here falls back to English (`npm run i18n:missing` lists them).
 
 import { fr } from "date-fns/locale/fr";
 import type { MessageKey } from "../en";
 import type { LocaleCatalogue } from "../index";
 
-const messages: Record<MessageKey, string> = {
+const messages: Partial<Record<MessageKey, string>> = {
     // Shared
     "common.turnOffCamera": "Désactiver la caméra",
     "common.turnOnCamera": "Activer la caméra",

@@ -50,6 +50,13 @@ describe("locale manifest", () => {
         const codes = LOCALES.map((l) => l.code);
         expect(new Set(codes).size).toBe(codes.length);
     });
+
+    it("is in alphabetical order of English name", () => {
+        const names = LOCALES.map((l) => l.englishName);
+        expect(names).toEqual(
+            [...names].sort((a, b) => a.localeCompare(b, "en")),
+        );
+    });
 });
 
 describe.each([...byCode])("%s catalogue", (_code, catalogue) => {
