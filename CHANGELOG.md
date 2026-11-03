@@ -4,6 +4,20 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.44.0
+
+✨ **New**
+
+- **Login section in Settings > Account:** sign in another device from one you are already signed in on, without typing a username and password. Scan the new device's QR code, type the short code it shows, or (on servers that support it) show a QR code for the new device to scan.
+- **Sign in with a typed code:** no camera needed. The new device shows a code under its QR code; type it in Settings > Account > Login > Enter a code from the new device. If several new sessions signed in at once you pick the right one.
+- **Scan from the new device:** on servers that support the full QR protocol, the new device can scan a code shown by a signed-in one.
+- **Android:** sign-in and account approval pages open in an in-app browser instead of the external one, and you return to Zam when sign-in completes.
+
+🐛 **Fixed**
+
+- **QR sign-in:** verifying the new device is retried for up to 90 seconds while it finishes starting up, instead of failing straight away, and a verification that still cannot start no longer shows as a failed sign-in.
+- **QR sign-in:** the new device shows Logging in while the session starts, and a failure to start is reported instead of leaving a login form that looks stuck.
+
 ## v1.43.5
 
 🐛 **Fixed**
