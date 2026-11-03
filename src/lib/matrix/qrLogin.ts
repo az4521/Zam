@@ -199,8 +199,8 @@ interface DeviceCodeLinkOptions {
     signal: AbortSignal;
     /** Open this link to approve the login at the provider. */
     onApprovalUrl: (url: string) => void;
-    /** The new device is signed in and verification has been started. */
-    onVerifying: () => void;
+    /** The new device is signed in; `verifying` is whether verification started. */
+    onVerifying: (verifying: boolean) => void;
 }
 
 /** Help a scanned device sign in, then verify it from this one. */
@@ -224,8 +224,16 @@ async function linkDeviceByDeviceCode(
         if (signal.aborted)
             throw new QrLoginError(t("qrLogin.cancelled"), "cancelled");
         if (await deviceExists(client, payload.deviceId)) {
-            await startDeviceVerification(payload.deviceId);
-            opts.onVerifying();
+            // The device is already signed in: failing to start verification
+            // must not be reported as a failed sign-in.
+            let verifying = true;
+            try {
+                await startDeviceVerification(payload.deviceId);
+            } catch (err) {
+                verifying = false;
+                console.warn("[qr-login] could not start verification", err);
+            }
+            opts.onVerifying(verifying);
             return;
         }
     }
@@ -307,12 +315,16 @@ export interface QrLinkOptions {
     onCheckCode: (code: string) => void;
     /** Open this link to approve the login at the provider. */
     onApprovalUrl: (url: string) => void;
-    /** Done: keys sent (MSC4108) or verification started (device code). */
-    onDone: () => void;
+    /**
+     * Done: keys sent (MSC4108) or the device signed in (device code);
+     * `verifying` is false when verification could not be started.
+     */
+    onDone: (verifying: boolean) => void;
 }
 
 /** Help a scanned device sign in, picking the protocol from its code. */
 export async function linkDevice(opts: QrLinkOptions): Promise<void> {
+    let verifying = true;
     if (isMatrixQrPayload(opts.bytes)) {
         await linkDeviceByRendezvousScan(opts);
     } else {
@@ -321,8 +333,8 @@ export async function linkDevice(opts: QrLinkOptions): Promise<void> {
             text: new TextDecoder().decode(opts.bytes),
             signal: opts.signal,
             onApprovalUrl: opts.onApprovalUrl,
-            onVerifying: () => {},
+            onVerifying: (started) => (verifying = started),
         });
     }
-    opts.onDone();
+    opts.onDone(verifying);
 }

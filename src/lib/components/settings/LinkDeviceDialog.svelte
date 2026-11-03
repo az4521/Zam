@@ -16,6 +16,7 @@
         (typeof import("$lib/components/ui/QrScanner.svelte"))["default"];
 
     let step = $state<"scan" | "approve" | "done">("scan");
+    let verifying = $state(true);
     let Scanner = $state.raw<ScannerComponent | null>(null);
     let approvalUrl = $state("");
     // MSC4108 only: the number the new device asks for.
@@ -53,7 +54,10 @@
                 signal: abort.signal,
                 onCheckCode: (code) => (checkCode = code),
                 onApprovalUrl: (url) => (approvalUrl = url),
-                onDone: () => (step = "done"),
+                onDone: (started) => {
+                    verifying = started;
+                    step = "done";
+                },
             });
         } catch (err) {
             if (abort.signal.aborted) return;
@@ -149,7 +153,9 @@
             <p class="text-sm text-discord-textPrimary">
                 {checkCode
                     ? t("qrLogin.linkDoneVerified")
-                    : t("qrLogin.linkDone")}
+                    : verifying
+                      ? t("qrLogin.linkDone")
+                      : t("qrLogin.linkDoneUnverified")}
             </p>
         </div>
     {/if}

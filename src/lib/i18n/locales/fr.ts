@@ -2253,14 +2253,14 @@ const messages: Record<MessageKey, string> = {
     "qrLogin.signInButton": "Sign in with QR code",
     "qrLogin.signInTitle": "Sign in with QR code",
     "qrLogin.signInSteps":
-        "On a device that is already signed in to Zam, open Settings, then Sessions, then Link new device, and scan this code.",
+        "On a device that is already signed in to Zam, open Settings, then Account, then Scan QR code to sign in a new device, and scan this code.",
     "qrLogin.codeAlt": "QR code to scan from a signed-in device",
     "qrLogin.preparing": "Preparing the code...",
     "qrLogin.matchCode":
         "The approval page will show this code. Only approve if it matches.",
     "qrLogin.signingIn": "Signing in...",
     "qrLogin.cancel": "Cancel",
-    "qrLogin.linkButton": "Link new device",
+    "qrLogin.linkButton": "Scan QR code to sign in a new device",
     "qrLogin.linkTitle": "Link a new device",
     "qrLogin.linkIntro":
         "On the new device choose Sign in with QR code, then scan the code it shows. You approve the sign-in on your account's sign-in page, and the two devices are then verified against each other.",
@@ -2272,6 +2272,8 @@ const messages: Record<MessageKey, string> = {
     "qrLogin.linkWaiting": "Waiting for the new device to sign in...",
     "qrLogin.linkDone":
         "The new device is signed in. Finish verifying it in the window that just opened on both devices.",
+    "qrLogin.linkDoneUnverified":
+        "The new device is signed in. Verification could not be started automatically; verify it from Settings, then Sessions.",
     "qrLogin.linkClose": "Close",
     "sessionSettings.loadingSessions": "Chargement des sessions…",
     "sessionSettings.otherSessions": "Autres sessions {value}",

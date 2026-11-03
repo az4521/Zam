@@ -3,6 +3,7 @@
     import OptionSelector from "$lib/components/ui/OptionSelector.svelte";
     import ProfileFieldsEditor from "$lib/components/settings/ProfileFieldsEditor.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
+    import LinkDeviceDialog from "$lib/components/settings/LinkDeviceDialog.svelte";
     import {
         changeAccountPassword,
         deactivateOwnAccount,
@@ -18,6 +19,8 @@
         uploadContent,
         type ThreePid,
     } from "$lib/matrix/client";
+    import { isQrLoginAvailable } from "$lib/matrix/qrLogin";
+    import { getClient } from "$lib/matrix/runtime";
     import { auth, isOAuthSession } from "$lib/stores/auth.svelte";
     import { changeOwnPresence } from "$lib/stores/presence.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
@@ -64,6 +67,17 @@
     let passwordBusy = $state(false);
     let passwordError = $state("");
     let passwordChanged = $state(false);
+
+    // Sign in a new device by scanning its QR code. Needs a native OAuth
+    // session whose provider grants by device code.
+    let canLinkDevice = $state(false);
+    let linkOpen = $state(false);
+    if (oauthSession) {
+        void getClient()
+            ?.getAuthMetadata()
+            .then((meta) => (canLinkDevice = isQrLoginAvailable(meta)))
+            .catch(() => {});
+    }
 
     let deactivateOpen = $state(false);
     let deactivateTyped = $state("");
@@ -245,6 +259,15 @@
 </script>
 
 <div class="space-y-6">
+    {#if canLinkDevice}
+        <section>
+            <button
+                onclick={() => (linkOpen = true)}
+                class="px-3 py-2 rounded text-sm bg-discord-accent hover:bg-discord-accentHover text-white font-medium"
+                >{t("qrLogin.linkButton")}</button
+            >
+        </section>
+    {/if}
     <section>
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
@@ -571,3 +594,7 @@
         </section>
     {/if}
 </div>
+
+{#if linkOpen}
+    <LinkDeviceDialog onClose={() => (linkOpen = false)} />
+{/if}
