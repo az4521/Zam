@@ -101,4 +101,46 @@ describe("roomListCache", () => {
             [BOB]: ["!dm"],
         });
     });
+
+    it("keeps each room's timeline tail and replays it read-only", () => {
+        const { client, add } = makeClient();
+        const room = add("!chan", [
+            stateEvent("!chan", "m.room.create", "", {}),
+            stateEvent("!chan", "m.room.member", ME, { membership: "join" }),
+        ]);
+        const message = (n: number) =>
+            new MatrixEvent({
+                type: EventType.RoomMessage,
+                room_id: "!chan",
+                sender: BOB,
+                event_id: `$m${n}`,
+                origin_server_ts: 1000 + n,
+                content: { msgtype: "m.text", body: `message ${n}` },
+            });
+        for (let n = 0; n < 45; n++)
+            room.getLiveTimeline().addEvent(message(n), {
+                toStartOfTimeline: false,
+                addToState: true,
+            });
+        // A state event in the timeline is not conversation and stays out.
+        room.getLiveTimeline().addEvent(
+            stateEvent("!chan", "m.room.topic", "", { topic: "later" }),
+            { toStartOfTimeline: false, addToState: true },
+        );
+
+        const snap = JSON.parse(JSON.stringify(buildSnapshot(client)));
+        expect(snap.rooms[0].timeline).toHaveLength(40);
+        expect(snap.rooms[0].timeline.at(-1).event_id).toBe("$m44");
+
+        const fresh = makeClient().client;
+        const { rooms } = materializeSnapshot(fresh, snap);
+        const bodies = rooms
+            .get("!chan")!
+            .getLiveTimeline()
+            .getEvents()
+            .map((e) => e.getContent().body);
+        expect(bodies).toHaveLength(40);
+        expect(bodies.at(0)).toBe("message 5");
+        expect(bodies.at(-1)).toBe("message 44");
+    });
 });

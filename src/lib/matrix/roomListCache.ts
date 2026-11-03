@@ -12,6 +12,7 @@ import {
     EventType,
     MatrixEvent,
     NotificationCountType,
+    PendingEventOrdering,
     Room,
     type IEvent,
     type MatrixClient,
@@ -48,6 +49,12 @@ export const CACHED_ACCOUNT_DATA_TYPES = [
 // whole member list.
 const MAX_CACHED_MEMBERS = 8;
 
+// Recent timeline events kept per room so a boot with no network can show the
+// conversation instead of an empty pane. Wire events only: encrypted rooms
+// cache the ciphertext the SDK's own store already holds, and decryption
+// happens at materialise time from the local crypto store.
+const MAX_CACHED_EVENTS = 40;
+
 interface CachedHero {
     userId: string;
     displayName?: string;
@@ -58,6 +65,8 @@ interface CachedRoom {
     roomId: string;
     state: Partial<IEvent>[];
     accountData: Partial<IEvent>[];
+    /** Newest-last slice of the live timeline (see MAX_CACHED_EVENTS). */
+    timeline?: Partial<IEvent>[];
     heroes?: CachedHero[];
     joined?: number;
     invited?: number;
@@ -127,10 +136,20 @@ export function buildSnapshot(
         }
         const heroes = (room as unknown as { heroes?: CachedHero[] | null })
             .heroes;
+        // Newest 40 non-state events. A detached timeline replay is only worth
+        // having if it looks like the conversation did, so this is the live
+        // timeline's tail rather than a sample.
+        const timeline = room
+            .getLiveTimeline()
+            .getEvents()
+            .filter((e) => !e.isState())
+            .slice(-MAX_CACHED_EVENTS)
+            .map(rawOf);
         rooms.push({
             roomId: room.roomId,
             state,
             accountData: [...room.accountData.values()].map(rawOf),
+            timeline: timeline.length ? timeline : undefined,
             heroes: heroes?.length ? heroes.map((h) => ({ ...h })) : undefined,
             joined: room.getJoinedMemberCount(),
             invited: room.getInvitedMemberCount(),
@@ -155,9 +174,25 @@ export function materializeSnapshot(
         try {
             const room = new Room(cached.roomId, client, userId, {
                 lazyLoadMembers: true,
+                // The live client runs detached ordering; a Room that defaults
+                // to chronological throws from getPendingEvents(), which the
+                // timeline helpers call before they read a single event.
+                pendingEventOrdering: PendingEventOrdering.Detached,
             });
             room.getLiveTimeline().initialiseState(cached.state.map(toEvent));
             room.updateMyMembership("join");
+            // Replay the cached conversation onto the live timeline so a room
+            // opened with no network is not an empty pane. Latest events last,
+            // and state resolution is skipped: the state above is the snapshot.
+            if (cached.timeline?.length) {
+                const timeline = room.getLiveTimeline();
+                for (const raw of cached.timeline) {
+                    timeline.addEvent(toEvent(raw), {
+                        toStartOfTimeline: false,
+                        addToState: false,
+                    });
+                }
+            }
             if (cached.heroes || cached.joined !== undefined) {
                 room.setMSC4186SummaryData(
                     cached.heroes?.map((h) => ({
