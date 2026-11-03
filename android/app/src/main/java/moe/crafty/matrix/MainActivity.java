@@ -31,7 +31,8 @@ public class MainActivity extends BridgeActivity {
     private static final long MAX_SHARE_FILE_BYTES = 25L * 1024L * 1024L;
 
     // Whether the UI is in front. MatrixMessagingService reads it to leave an
-    // incoming call to the in-app ringer instead of ringing a second time.
+    // incoming call to the in-app ringer instead of ringing a second time,
+    // and to skip message notifications the open app already shows.
     private static volatile boolean inForeground = false;
 
     static boolean isInForeground() {

@@ -159,6 +159,12 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             session = resolveSession(sessionPrefs, active, accountId);
             sessionIsActive = session != null && session == active;
         } catch (Throwable ignored) {}
+        // The app is open on this account: the user sees the message in the
+        // app itself, so a notification would only duplicate it. Checked
+        // here to skip the enrichment requests, and again before posting in
+        // case the app came forward meanwhile. Another account's push still
+        // notifies — the open app only syncs the active one.
+        if (sessionIsActive && MainActivity.isInForeground()) return;
         final String postedBy = session != null ? session.userId : null;
 
         // Defaults (used if enrichment fails).
@@ -339,6 +345,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 IncomingCallNotification.show(ctx, callerName, roomId, postedBy, largeIcon);
             }
         } else {
+            if (sessionIsActive && MainActivity.isInForeground()) return;
             showNotification(ctx, title, text, roomId, eventId, largeIcon, postedBy);
         }
     }
