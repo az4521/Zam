@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.46.2
+
+🐛 **Fixed**
+
+- **Sending while viewing older messages:** after jumping to an old message, sending a message or attachment no longer loads everything up to the present and scrolls you down. The view stays where you were reading.
+
 ## v1.46.1
 
 🐛 **Fixed**
