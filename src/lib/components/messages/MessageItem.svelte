@@ -27,6 +27,7 @@
         PROGRESSIVE_IMAGE_MIN_BYTES,
     } from "$lib/matrix/progressiveImage";
     import { createFrameRelay, frameSink } from "$lib/utils/frameRelay";
+    import { createTileImage } from "$lib/utils/tileImage";
     import type { DownloadProgress } from "$lib/utils/downloadProgress";
     import LocationBody from "$lib/components/messages/LocationBody.svelte";
     import VerificationRequestMessage from "$lib/components/messages/VerificationRequestMessage.svelte";
@@ -1288,6 +1289,7 @@
         imageProgress = null;
         imagePreviewing = false;
         let blobUrl: string | null = null;
+        let tileUrl: string | null = null;
         let cancelled = false;
         const abort = new AbortController();
         const info = content?.info as
@@ -1337,14 +1339,33 @@
             }
             return plainDownload();
         };
+        // The tile gets a copy sized to its box (see tileImage.ts) so it
+        // doesn't hold a full-resolution decode for the message's lifetime;
+        // the original is kept for the lightbox only.
+        const tileCopy = async (url: string): Promise<string | null> => {
+            try {
+                const small = await createTileImage(
+                    await (await fetch(url)).blob(),
+                );
+                return small ? URL.createObjectURL(small) : null;
+            } catch {
+                return null;
+            }
+        };
         load()
-            .then((url) => {
+            .then(async (url) => {
                 if (cancelled) {
                     URL.revokeObjectURL(url);
                     return;
                 }
                 blobUrl = url;
-                encryptedImageThumbUrl = url;
+                const tile = await tileCopy(url);
+                if (cancelled) {
+                    if (tile) URL.revokeObjectURL(tile);
+                    return;
+                }
+                tileUrl = tile;
+                encryptedImageThumbUrl = tile ?? url;
                 encryptedImageFullUrl = url;
                 imageDecrypting = false;
                 imagePreviewing = false;
@@ -1359,6 +1380,7 @@
             cancelled = true;
             abort.abort();
             if (blobUrl) URL.revokeObjectURL(blobUrl);
+            if (tileUrl) URL.revokeObjectURL(tileUrl);
             encryptedImageThumbUrl = null;
             encryptedImageFullUrl = null;
         };

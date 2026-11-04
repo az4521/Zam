@@ -1,6 +1,10 @@
 <script lang="ts">
     import { getAvatarColor, getAvatarInitials } from "$lib/utils/colors";
-    import { createMediaRetry } from "$lib/stores/mediaAuth.svelte";
+    import {
+        createMediaRetry,
+        isAuthedMediaUrl,
+        shrunkMediaUrl,
+    } from "$lib/stores/mediaAuth.svelte";
 
     interface Props {
         src?: string | null;
@@ -41,7 +45,41 @@
     // to initials only if the avatar is genuinely gone. `.src` is the URL to use
     // (original, then blob); `.pending` is true while fetching, so the clean
     // initials show during the wait instead of a broken-image glyph.
-    const imgRetry = createMediaRetry(() => resolvedSrc);
+    // Avatars are full-size downloads so animated ones keep animating, and a
+    // 4K one costs ~32 MB of (video) memory at every size it is drawn. Static
+    // ones are swapped for a copy just big enough for this box at this
+    // screen's density, in power-of-two steps so sizes share copies.
+    const boxPx = $derived(
+        Math.max(
+            32,
+            2 **
+                Math.ceil(Math.log2(size * (globalThis.devicePixelRatio || 1))),
+        ),
+    );
+    let shrunkSrc = $state<string | null>(null);
+    let shrinking = $state(false);
+    $effect(() => {
+        const s = resolvedSrc;
+        const px = boxPx;
+        // A local, not a read of `shrinking`: reading it here would make the
+        // effect depend on what it writes, and re-run forever.
+        const shrink = !!s && isAuthedMediaUrl(s);
+        shrunkSrc = null;
+        shrinking = shrink;
+        if (!shrink || !s) return;
+        let live = true;
+        void shrunkMediaUrl(s, px, px, "cover").then((url) => {
+            if (!live) return;
+            shrunkSrc = url;
+            shrinking = false;
+        });
+        return () => {
+            live = false;
+        };
+    });
+    const imgRetry = createMediaRetry(() =>
+        shrinking ? null : (shrunkSrc ?? resolvedSrc),
+    );
     const showImage = $derived(
         !!imgRetry.src && !imgRetry.failed && !imgRetry.pending,
     );
@@ -49,7 +87,8 @@
 
 <div
     class="flex-shrink-0 flex items-center justify-center overflow-hidden {roundedClass()} {extraClass}"
-    style="width: {size}px; height: {size}px; background-color: {showImage
+    style="width: {size}px; height: {size}px; background-color: {showImage ||
+    shrinking
         ? 'transparent'
         : bgColor};"
 >
@@ -61,7 +100,7 @@
             data-own-retry
             onerror={imgRetry.onError}
         />
-    {:else}
+    {:else if !shrinking}
         <span
             class="text-white font-semibold select-none"
             style="font-size: {size * 0.4}px;"

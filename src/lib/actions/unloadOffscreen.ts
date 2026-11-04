@@ -1,11 +1,11 @@
 /** How far past the scroller's edges a video stays loaded, so a short scroll
  *  back doesn't refetch and a quick flick past doesn't unload. */
-const KEEP_MARGIN = "150% 0px";
+export const KEEP_MARGIN = "150% 0px";
 
 /** The nearest ancestor that scrolls vertically, or null for the viewport.
  *  The observer needs it as its root: with the implicit viewport root the
  *  margin can't reach past the timeline's own clipping edge. */
-function scrollParent(node: Element): Element | null {
+export function scrollParent(node: Element): Element | null {
     for (let el = node.parentElement; el; el = el.parentElement) {
         const { overflowY } = getComputedStyle(el);
         if (overflowY === "auto" || overflowY === "scroll") return el;

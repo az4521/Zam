@@ -3,6 +3,7 @@ import { getActiveAccount } from "$lib/stores/accounts.svelte";
 import { jxlFallbackUrl, maybeDecodeJxl } from "$lib/utils/jxl";
 import { logSync } from "$lib/matrix/syncLog";
 import { safeMediaBlob } from "$lib/utils/attachmentMime";
+import { downscaleImage } from "$lib/utils/tileImage";
 
 /**
  * Authenticated Matrix media (`/_matrix/client/v1/media/...`) needs an
@@ -92,6 +93,143 @@ export async function accountMediaBlobUrl(
     } catch {
         return null;
     }
+}
+
+// Small copies of homeserver images, keyed by box and URL. Shared by every
+// place that draws the same avatar at the same size, and kept for the session:
+// each is a few KB, and revoking one could blank an <img> still showing it.
+const shrunk = new Map<string, Promise<string | null>>();
+// Each shrink decodes a full image: a large room's member list would
+// otherwise start hundreds at once.
+const SHRINK_CONCURRENCY = 4;
+let shrinksRunning = 0;
+const shrinkQueue: (() => void)[] = [];
+async function shrinkSlot<T>(run: () => Promise<T>): Promise<T> {
+    if (shrinksRunning >= SHRINK_CONCURRENCY) {
+        await new Promise<void>((r) => shrinkQueue.push(r));
+    }
+    shrinksRunning++;
+    try {
+        return await run();
+    } finally {
+        shrinksRunning--;
+        shrinkQueue.shift()?.();
+    }
+}
+
+/**
+ * A blob URL of a copy of the homeserver image `src` no bigger than a
+ * `maxW`×`maxH` box needs (`fit` as in tileImage's fitSize), or null when the
+ * original should be shown: it isn't our authed media, is already small, may
+ * be animated, or couldn't be fetched or decoded.
+ */
+export function shrunkMediaUrl(
+    src: string,
+    maxW: number,
+    maxH: number,
+    fit: "contain" | "cover" = "contain",
+): Promise<string | null> {
+    const key = `${maxW}x${maxH}:${fit} ${src}`;
+    let entry = shrunk.get(key);
+    if (!entry) {
+        entry = shrinkSlot(async () => {
+            const c = mediaCreds();
+            if (!c || !isAuthedMediaUrl(src)) return null;
+            const res = await fetch(src, {
+                headers: { Authorization: `Bearer ${c.token}` },
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const small = await downscaleImage(
+                await res.blob(),
+                maxW,
+                maxH,
+                fit,
+            );
+            return small ? URL.createObjectURL(small) : null;
+        }).catch(() => {
+            // A failed fetch (offline, 401 before login settles) is retried
+            // next time; only "keep the original" is remembered.
+            shrunk.delete(key);
+            return null;
+        });
+        shrunk.set(key, entry);
+    }
+    return entry;
+}
+
+// Still frames of videos that came with no poster, keyed by URL.
+const frames = new Map<string, Promise<string | null>>();
+
+/**
+ * A blob URL of the first frame of the video at `src`, fitted in a
+ * `maxW`×`maxH` box, or null if it can't be had (no CORS, undecodable,
+ * nothing within 15 s). A `<video>` left mounted to show that frame keeps a
+ * decoder and its frame buffers in video memory until it is removed, even
+ * paused and scrolled far away; this one is emptied as soon as the frame is
+ * drawn.
+ */
+export function videoFrameUrl(
+    src: string,
+    maxW: number,
+    maxH: number,
+): Promise<string | null> {
+    const key = `${maxW}x${maxH} ${src}`;
+    let entry = frames.get(key);
+    if (!entry) {
+        entry = shrinkSlot(
+            () =>
+                new Promise<string | null>((resolve) => {
+                    const video = document.createElement("video");
+                    let timer = 0;
+                    const finish = (url: string | null) => {
+                        clearTimeout(timer);
+                        video.onloadeddata = video.onerror = null;
+                        video.removeAttribute("src");
+                        video.load();
+                        resolve(url);
+                    };
+                    timer = window.setTimeout(() => finish(null), 15_000);
+                    video.onerror = () => finish(null);
+                    video.onloadeddata = () => {
+                        try {
+                            const w = video.videoWidth;
+                            const h = video.videoHeight;
+                            if (!w || !h) return finish(null);
+                            const scale = Math.min(1, maxW / w, maxH / h);
+                            const canvas = document.createElement("canvas");
+                            canvas.width = Math.max(1, Math.round(w * scale));
+                            canvas.height = Math.max(1, Math.round(h * scale));
+                            canvas
+                                .getContext("2d")!
+                                .drawImage(
+                                    video,
+                                    0,
+                                    0,
+                                    canvas.width,
+                                    canvas.height,
+                                );
+                            // Throws if the frame is cross-origin without CORS.
+                            canvas.toBlob(
+                                (blob) =>
+                                    finish(
+                                        blob ? URL.createObjectURL(blob) : null,
+                                    ),
+                                "image/webp",
+                                0.85,
+                            );
+                        } catch {
+                            finish(null);
+                        }
+                    };
+                    video.crossOrigin = "anonymous";
+                    video.muted = true;
+                    video.preload = "auto";
+                    video.src = src;
+                }),
+        );
+        frames.set(key, entry);
+    }
+    return entry;
 }
 
 function isLocalUrl(src: string): boolean {

@@ -16,6 +16,7 @@
     } from "$lib/utils/roomMedia";
     import { safeAspectRatio, safeDimension } from "$lib/utils/mediaDimensions";
     import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
+    import { parkOffscreen } from "$lib/actions/parkOffscreen";
     import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
     import {
         videoNeedsAuthedStream,
@@ -129,7 +130,18 @@
         videoDecrypting = true;
     }
 
+    // A played clip that is paused (or over) and scrolled well away is
+    // unmounted, which frees its decoder's video memory; playing it again
+    // picks up at `resumeAt`. See actions/parkOffscreen.
+    let parked = $state(false);
+    let resumeAt = 0;
+    function parkVideo(at: number) {
+        resumeAt = at;
+        parked = true;
+    }
+
     function playVideo() {
+        parked = false;
         videoFailed = false;
         if (videoNeedsAuthedStream()) videoUseStream = true;
         videoAttempt += 1;
@@ -324,8 +336,12 @@
     // box) instead of the browser's unbounded intrinsic-size jump. Ignored when
     // the sender's dims are present — those stay authoritative.
     function onVideoMetadata(e: Event) {
-        if (videoHasDims) return;
         const el = e.currentTarget as HTMLVideoElement;
+        if (resumeAt > 0) {
+            el.currentTime = resumeAt;
+            resumeAt = 0;
+        }
+        if (videoHasDims) return;
         if (el.videoWidth > 0 && el.videoHeight > 0) {
             measuredVideoAspect = safeAspectRatio(
                 el.videoWidth,
@@ -380,6 +396,7 @@
             use:pauseOffscreen={{
                 enabled: settingsState.pauseVideoOnScrollOff,
             }}
+            use:parkOffscreen={parkVideo}
         ></video>
         <button
             type="button"
@@ -449,6 +466,37 @@
             <p class="text-xs text-discord-textMuted">
                 {t("messageItem.canTBePlayedHere")}
             </p>
+        </div>
+    </div>
+{:else if parked}
+    <!-- Drawn at the player's own size so the rows around it don't move. -->
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+    <div
+        class="relative max-w-lg w-full mt-1 rounded-lg overflow-hidden cursor-pointer group bg-black"
+        style={`aspect-ratio: ${effectiveVideoAspect}; max-height: 24rem;`}
+        onclick={playVideo}
+        title={filename || undefined}
+    >
+        {#if videoThumbnailUrl && !videoThumbFailed}
+            <img
+                src={videoThumbnailUrl}
+                alt=""
+                class="w-full h-full object-contain"
+                onerror={() => (videoThumbFailed = true)}
+            />
+        {/if}
+        <div
+            class="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors"
+        >
+            <div
+                class="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center"
+            >
+                <svg
+                    class="w-7 h-7 text-white ms-1"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg
+                >
+            </div>
         </div>
     </div>
 {:else if videoAttempt > 0 && !videoFailed}

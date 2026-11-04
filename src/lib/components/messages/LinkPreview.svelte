@@ -13,8 +13,14 @@
         removeFavouriteGif,
     } from "$lib/stores/favourites.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
+    import {
+        isAuthedMediaUrl,
+        shrunkMediaUrl,
+        videoFrameUrl,
+    } from "$lib/stores/mediaAuth.svelte";
     import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
     import { unloadOffscreen } from "$lib/actions/unloadOffscreen";
+    import { parkOffscreen } from "$lib/actions/parkOffscreen";
     import {
         allowsMediaAutoLoad,
         allowsThirdPartyEmbed,
@@ -161,6 +167,7 @@
         tweetEmbed = null;
         lightboxTweetIndex = null;
         videoPlaying = false;
+        videoParked = false;
         videoThumbError = false;
 
         // A response that lands after the URL or the policy moved on must not
@@ -278,6 +285,62 @@
     const embedImageBox = $derived(
         reservedMediaBox(preview?.imageWidth, preview?.imageHeight, 512, 384),
     );
+    // The homeserver's preview image is the site's full-size og:image, drawn
+    // at most 512×384 here. A static one is swapped for a copy that size (2×
+    // for high-DPI) once fetched; an animated one, or one that can't be
+    // shrunk, shows as is.
+    let previewImageSrc = $state<string | null>(null);
+    $effect(() => {
+        const src = preview?.imageUrl ?? null;
+        previewImageSrc = null;
+        if (!src) return;
+        if (!isAuthedMediaUrl(src)) {
+            previewImageSrc = src;
+            return;
+        }
+        let live = true;
+        void shrunkMediaUrl(src, 1024, 768).then((url) => {
+            if (live) previewImageSrc = url ?? src;
+        });
+        return () => {
+            live = false;
+        };
+    });
+
+    // A video preview with no poster used to mount its <video> unplayed to
+    // show the first frame, which holds a decoder and buffered frames in
+    // video memory for as long as the row exists. Its first frame is grabbed
+    // once instead and shown on the play button; the <video> only mounts on
+    // play (or if no frame could be had).
+    // A played preview video that is paused and scrolled well away goes back
+    // to its play button, freeing its decoder (actions/parkOffscreen), and
+    // resumes from where it was.
+    let videoParked = $state(false);
+    let videoResumeAt = 0;
+
+    let videoFrame = $state<string | null>(null);
+    let videoFrameDone = $state(false);
+    $effect(() => {
+        const src = preview?.videoUrl;
+        const needsFrame =
+            !!src &&
+            !isGifSite &&
+            !canLoad(preview?.videoThumbnailUrl) &&
+            canLoad(src);
+        videoFrame = null;
+        videoFrameDone = !needsFrame;
+        if (!needsFrame || !src) return;
+        let live = true;
+        void videoFrameUrl(src, 1024, 768).then((url) => {
+            if (!live) return;
+            videoFrame = url;
+            videoFrameDone = true;
+        });
+        return () => {
+            live = false;
+        };
+    });
+
     const cardImageBox = $derived(
         reservedMediaBox(preview?.imageWidth, preview?.imageHeight, 480, 288),
     );
@@ -542,7 +605,7 @@
             >
                 {#if embedImageBox}
                     <img
-                        src={preview.imageUrl}
+                        src={previewImageSrc}
                         alt=""
                         width={embedImageBox.width}
                         height={embedImageBox.height}
@@ -553,7 +616,7 @@
                     />
                 {:else}
                     <img
-                        src={preview.imageUrl}
+                        src={previewImageSrc}
                         alt=""
                         class="max-w-[min(100%,32rem)] max-h-96 rounded-lg object-contain cursor-pointer block"
                         loading="lazy"
@@ -652,7 +715,7 @@
                                  space beside a narrow (portrait reel) poster. -->
                             <div class="relative w-fit self-start">
                                 <img
-                                    src={preview.imageUrl}
+                                    src={previewImageSrc}
                                     alt={preview.title ?? ""}
                                     width={cardImageBox?.width}
                                     height={cardImageBox?.height}
@@ -680,7 +743,7 @@
                             <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
                             <!-- svelte-ignore a11y_click_events_have_key_events -->
                             <img
-                                src={preview.imageUrl}
+                                src={previewImageSrc}
                                 alt={preview.title ?? ""}
                                 width={cardImageBox?.width}
                                 height={cardImageBox?.height}
@@ -742,7 +805,7 @@
     {#if preview?.videoUrl && canLoad(preview.videoUrl)}
         {@const posterUrl = canLoad(preview.videoThumbnailUrl)
             ? preview.videoThumbnailUrl
-            : undefined}
+            : (videoFrame ?? undefined)}
         <div class="relative inline-block group/media mt-1">
             {#if isGifSite}
                 <!-- GIF-sharing sites: play the video like a GIF — muted, looped,
@@ -767,7 +830,7 @@
                     disablepictureinpicture
                     preload="metadata"
                 ></video>
-            {:else if videoPlaying || !posterUrl || videoThumbError}
+            {:else if videoPlaying || (!posterUrl && videoFrameDone && !videoParked) || videoThumbError}
                 <!-- No usable thumbnail (or the user clicked play): show the video
                      itself rather than a placeholder card. -->
                 <!-- svelte-ignore a11y_media_has_caption -->
@@ -782,6 +845,18 @@
                     use:pauseOffscreen={{
                         enabled: settingsState.pauseVideoOnScrollOff,
                     }}
+                    use:parkOffscreen={(at) => {
+                        if (!videoPlaying) return;
+                        videoResumeAt = at;
+                        videoParked = true;
+                        videoPlaying = false;
+                    }}
+                    onloadedmetadata={(e) => {
+                        if (videoResumeAt > 0) {
+                            e.currentTarget.currentTime = videoResumeAt;
+                            videoResumeAt = 0;
+                        }
+                    }}
                 ></video>
             {:else}
                 <button
@@ -792,7 +867,7 @@
                     onclick={() => (videoPlaying = true)}
                 >
                     <img
-                        src={posterUrl}
+                        src={posterUrl ?? null}
                         alt=""
                         class="w-full h-full object-cover"
                         loading="lazy"
