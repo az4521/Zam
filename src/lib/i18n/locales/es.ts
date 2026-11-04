@@ -2671,6 +2671,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Se ejecuta en tu dispositivo y viene incluido en la app, así que no hay nada que descargar. Pequeño y estable: mantiene tu voz a un volumen uniforme. Es el predeterminado.",
     "voiceAudioSettings.nsFastEnhancerUnsupported":
         "Este navegador no puede ejecutar FastEnhancer, así que se usa RNNoise.",
+    "voiceAudioSettings.nsFastEnhancerTiny": "FastEnhancer Tiny",
+    "voiceAudioSettings.nsFastEnhancerTinyHint":
+        "Un FastEnhancer más pequeño que usa alrededor de un tercio de la CPU. Limpia un poco menos, pero sigue siendo más estable que RNNoise.",
+    "voiceAudioSettings.noiseSuppressionGpu": "Aceleración por GPU",
+    "voiceAudioSettings.noiseSuppressionGpuHint":
+        "Ejecuta la supresión de ruido en tu tarjeta gráfica para liberar CPU. Añade unos 11 ms de retraso. Vuelve a la CPU si tu GPU no da abasto.",
     "voiceAudioSettings.nsRnnoise": "RNNoise",
     "voiceAudioSettings.nsRnnoiseHint":
         "Se ejecuta en tu dispositivo y viene incluido en la app, así que no hay nada que descargar. Pequeño y estable: mantiene tu voz a un volumen uniforme. Es el predeterminado.",
@@ -3872,6 +3878,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.normalizeVoices": "Igualar el volumen de las voces",
     "settingsSearch.mirrorMyCamera": "Reflejar mi cámara",
     "settingsSearch.videoCodec": "Códec de vídeo",
+    "settingsSearch.noiseSuppressionGpu": "Aceleración por GPU",
     "settingsSearch.adaptiveStream": "Adaptive video quality",
     "settingsSearch.callVolume": "Volumen de las llamadas",
     "settingsSearch.playCallSounds": "Reproducir sonidos de llamada",

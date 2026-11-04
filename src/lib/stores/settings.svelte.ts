@@ -426,6 +426,9 @@ export const settingsState = $state({
         readAccountBool("noiseSuppression", true),
     ),
     echoCancellation: readAccountBool("echoCancellation", true),
+    /** Run FastEnhancer's network on the GPU ($lib/audio/fastenhancerGpu);
+     *  off by default (it adds a hop of delay). */
+    noiseSuppressionGpu: readAccountBool("noiseSuppressionGpu", false),
     /** Which AGC levels the user's own mic; see $lib/utils/micGainMode.
      *  Falls back to the legacy autoGainControl boolean. */
     micGainMode: normalizeMicGainMode(
@@ -767,6 +770,10 @@ export function reloadAccountSettings(): void {
         readAccountBool("autoGainControl", true),
     );
     settingsState.micPauseGate = readAccountBool("micPauseGate", false);
+    settingsState.noiseSuppressionGpu = readAccountBool(
+        "noiseSuppressionGpu",
+        false,
+    );
     settingsState.dfAttenuationDb = normalizeAttenuationDb(
         readAccountString("dfAttenuationDb"),
     );
@@ -1151,6 +1158,11 @@ export function setEchoCancellation(value: boolean): void {
 export function setMicPauseGate(value: boolean): void {
     settingsState.micPauseGate = value;
     writeAccountBool("micPauseGate", value);
+}
+
+export function setNoiseSuppressionGpu(value: boolean): void {
+    settingsState.noiseSuppressionGpu = value;
+    writeAccountBool("noiseSuppressionGpu", value);
 }
 
 export function setDfAttenuationDb(value: number): void {

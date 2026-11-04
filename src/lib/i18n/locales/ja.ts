@@ -2340,6 +2340,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "デバイス上で動作しアプリに同梱されているため、ダウンロードは不要です。軽量で安定しており、声の大きさを一定に保ちます。既定の設定です。",
     "voiceAudioSettings.nsFastEnhancerUnsupported":
         "このブラウザではFastEnhancerを実行できないため、代わりにRNNoiseを使用します。",
+    "voiceAudioSettings.nsFastEnhancerTiny": "FastEnhancer Tiny",
+    "voiceAudioSettings.nsFastEnhancerTinyHint":
+        "CPU使用量が約3分の1の小型版FastEnhancerです。除去性能はやや劣りますが、RNNoiseより安定しています。",
+    "voiceAudioSettings.noiseSuppressionGpu": "GPUアクセラレーション",
+    "voiceAudioSettings.noiseSuppressionGpuHint":
+        "ノイズ抑制をグラフィックカードで実行し、CPUの負荷を減らします。遅延が約11ミリ秒増えます。GPUの処理が追いつかない場合はCPUに戻ります。",
     "voiceAudioSettings.nsRnnoise": "RNNoise",
     "voiceAudioSettings.nsRnnoiseHint":
         "デバイス上で動作しアプリに同梱されているため、ダウンロードは不要です。軽量で安定しており、声の大きさを一定に保ちます。",
@@ -3305,6 +3311,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.normalizeVoices": "音量を均一化",
     "settingsSearch.mirrorMyCamera": "カメラをミラー表示",
     "settingsSearch.videoCodec": "映像コーデック",
+    "settingsSearch.noiseSuppressionGpu": "GPUアクセラレーション",
     "settingsSearch.adaptiveStream": "Adaptive video quality",
     "settingsSearch.callVolume": "通話音量",
     "settingsSearch.playCallSounds": "通話音を再生",

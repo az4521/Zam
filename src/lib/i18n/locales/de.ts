@@ -2658,6 +2658,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Läuft auf deinem Gerät und ist in der App enthalten, es gibt also nichts herunterzuladen. Klein und stabil: Es hält deine Stimme auf gleichmäßiger Lautstärke. Die Standardeinstellung.",
     "voiceAudioSettings.nsFastEnhancerUnsupported":
         "Dieser Browser kann FastEnhancer nicht ausführen, daher wird stattdessen RNNoise verwendet.",
+    "voiceAudioSettings.nsFastEnhancerTiny": "FastEnhancer Tiny",
+    "voiceAudioSettings.nsFastEnhancerTinyHint":
+        "Ein kleinerer FastEnhancer, der etwa ein Drittel der CPU braucht. Filtert etwas weniger, bleibt aber gleichmäßiger als RNNoise.",
+    "voiceAudioSettings.noiseSuppressionGpu": "GPU-Beschleunigung",
+    "voiceAudioSettings.noiseSuppressionGpuHint":
+        "Führt die Rauschunterdrückung auf deiner Grafikkarte aus und entlastet so die CPU. Fügt etwa 11 ms Verzögerung hinzu. Wechselt zurück zur CPU, wenn deine GPU nicht mithält.",
     "voiceAudioSettings.nsRnnoise": "RNNoise",
     "voiceAudioSettings.nsRnnoiseHint":
         "Läuft auf deinem Gerät und ist in der App enthalten, es gibt also nichts herunterzuladen. Klein und stabil: Es hält deine Stimme auf gleichmäßiger Lautstärke. Die Standardeinstellung.",
@@ -3871,6 +3877,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.normalizeVoices": "Stimmlautstärke angleichen",
     "settingsSearch.mirrorMyCamera": "Meine Kamera spiegeln",
     "settingsSearch.videoCodec": "Videocodec",
+    "settingsSearch.noiseSuppressionGpu": "GPU-Beschleunigung",
     "settingsSearch.adaptiveStream": "Adaptive video quality",
     "settingsSearch.callVolume": "Anruflautstärke",
     "settingsSearch.playCallSounds": "Anruftöne abspielen",

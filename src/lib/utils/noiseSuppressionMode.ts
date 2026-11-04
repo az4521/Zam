@@ -3,6 +3,8 @@
  *  - "fastenhancer": FastEnhancer ($lib/audio/fastenhancer), a small neural
  *    model that ships with the app and holds a voice at one level. The
  *    default.
+ *  - "fastenhancer-tiny": FastEnhancer's Tiny model, about a third of the
+ *    CPU; between it and RNNoise.
  *  - "rnnoise": RNNoise ($lib/audio/rnnoise), older and smaller, the same in
  *    that respect; runs where WebAssembly SIMD is missing.
  *  - "deepfilter": DeepFilterNet3 ($lib/audio/deepFilter), a neural model.
@@ -17,6 +19,7 @@ import { rnnoiseSupported } from "$lib/audio/rnnoise";
 
 export type NoiseSuppressionMode =
     | "fastenhancer"
+    | "fastenhancer-tiny"
     | "rnnoise"
     | "deepfilter"
     | PluginFilterKey
@@ -31,6 +34,7 @@ export function normalizeNoiseSuppressionMode(
 ): NoiseSuppressionMode {
     if (
         stored === "fastenhancer" ||
+        stored === "fastenhancer-tiny" ||
         stored === "rnnoise" ||
         stored === "deepfilter" ||
         stored === "browser" ||
@@ -45,10 +49,17 @@ export function normalizeNoiseSuppressionMode(
 export function isNeuralNoiseSuppression(mode: NoiseSuppressionMode): boolean {
     return (
         mode === "fastenhancer" ||
+        mode === "fastenhancer-tiny" ||
         mode === "rnnoise" ||
         mode === "deepfilter" ||
         isPluginFilterKey(mode)
     );
+}
+
+/** Whether the mode can run on either the CPU or the GPU (the GPU
+ *  acceleration setting applies to it). */
+export function noiseSuppressionHasGpu(mode: NoiseSuppressionMode): boolean {
+    return mode === "fastenhancer" || mode === "fastenhancer-tiny";
 }
 
 /** The mode actually used: a neural model where the browser can't run one
@@ -62,7 +73,8 @@ export function effectiveNoiseSuppression(
     if (!isNeuralNoiseSuppression(mode)) return mode;
     if (mode === "rnnoise") return rnnoiseSupported() ? mode : "browser";
     if (neuralSupported) return mode;
-    return rnnoiseSupported() && mode === "fastenhancer"
+    return rnnoiseSupported() &&
+        (mode === "fastenhancer" || mode === "fastenhancer-tiny")
         ? "rnnoise"
         : "browser";
 }

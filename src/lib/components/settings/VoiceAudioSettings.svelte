@@ -27,6 +27,7 @@
         setCallVideoCodec,
         setBlockedDecodeCodecs,
         setAdaptiveStream,
+        setNoiseSuppressionGpu,
     } from "$lib/stores/settings.svelte";
     import {
         toDeviceOptions,
@@ -50,11 +51,13 @@
     import {
         normalizeNoiseSuppressionMode,
         effectiveNoiseSuppression,
+        noiseSuppressionHasGpu,
     } from "$lib/utils/noiseSuppressionMode";
     import { planMicProcessing } from "$lib/utils/micProcessing";
     import { deepFilterSupported } from "$lib/audio/deepFilter";
     import { rnnoiseSupported } from "$lib/audio/rnnoise";
     import { fastEnhancerSupported } from "$lib/audio/fastenhancer";
+    import { fastEnhancerGpuSupported } from "$lib/audio/fastenhancerGpu";
     import {
         findMicFilter,
         isPluginFilterKey,
@@ -181,6 +184,7 @@
 
     const dfSupported = deepFilterSupported();
     const rnnSupported = rnnoiseSupported();
+    const gpuSupported = fastEnhancerGpuSupported();
     const feSupported = fastEnhancerSupported();
     // Noise filters plugins have registered (zam.audio.registerMicFilter).
     const pluginFilters = $derived(
@@ -201,6 +205,7 @@
             {
                 pauseGate: settingsState.micPauseGate,
                 attenuationDb: settingsState.dfAttenuationDb,
+                feGpu: settingsState.noiseSuppressionGpu,
             },
         ),
     );
@@ -630,12 +635,18 @@
                                 ? t("voiceAudioSettings.nsPluginCantRun")
                                 : (nsFilter.description ??
                                   t("voiceAudioSettings.nsPluginHint"))
-                        : settingsState.noiseSuppressionMode === "fastenhancer"
-                          ? feSupported
-                              ? t("voiceAudioSettings.nsFastEnhancerHint")
-                              : t(
+                        : settingsState.noiseSuppressionMode ===
+                                "fastenhancer" ||
+                            settingsState.noiseSuppressionMode ===
+                                "fastenhancer-tiny"
+                          ? !feSupported
+                              ? t(
                                     "voiceAudioSettings.nsFastEnhancerUnsupported",
                                 )
+                              : settingsState.noiseSuppressionMode ===
+                                  "fastenhancer"
+                                ? t("voiceAudioSettings.nsFastEnhancerHint")
+                                : t("voiceAudioSettings.nsFastEnhancerTinyHint")
                           : settingsState.noiseSuppressionMode === "rnnoise"
                             ? rnnSupported
                                 ? t("voiceAudioSettings.nsRnnoiseHint")
@@ -669,6 +680,9 @@
                 <option value="fastenhancer"
                     >{t("voiceAudioSettings.nsFastEnhancer")}</option
                 >
+                <option value="fastenhancer-tiny"
+                    >{t("voiceAudioSettings.nsFastEnhancerTiny")}</option
+                >
                 <option value="rnnoise"
                     >{t("voiceAudioSettings.nsRnnoise")}</option
                 >
@@ -689,6 +703,28 @@
                 <option value="off">{t("voiceAudioSettings.nsOff")}</option>
             </select>
         </div>
+        {#if gpuSupported && noiseSuppressionHasGpu(settingsState.noiseSuppressionMode)}
+            <div
+                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+            >
+                <div class="flex-1">
+                    <p class="text-sm text-discord-textPrimary">
+                        {t("voiceAudioSettings.noiseSuppressionGpu")}
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        {t("voiceAudioSettings.noiseSuppressionGpuHint")}
+                    </p>
+                </div>
+                <ToggleSwitch
+                    checked={settingsState.noiseSuppressionGpu}
+                    onChange={(v) => {
+                        setNoiseSuppressionGpu(v);
+                        void applyConstraints();
+                    }}
+                    label={t("voiceAudioSettings.noiseSuppressionGpu")}
+                />
+            </div>
+        {/if}
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >

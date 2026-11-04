@@ -407,9 +407,15 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
             "deepfilternet",
             "rnnoise",
             "fastenhancer",
+            "tiny",
             "denoise",
             "background noise",
         ],
+    },
+    {
+        tab: "voice",
+        label: t("settingsSearch.noiseSuppressionGpu"),
+        keywords: ["gpu", "webgpu", "cpu", "fastenhancer", "performance"],
     },
     {
         tab: "voice",

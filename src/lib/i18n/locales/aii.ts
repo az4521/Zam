@@ -2471,6 +2471,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Runs on your device and ships with the app, so there is nothing to download. Small and steady: it keeps your voice at an even level. The default.",
     "voiceAudioSettings.nsFastEnhancerUnsupported":
         "This browser can't run FastEnhancer, so RNNoise is used instead.",
+    "voiceAudioSettings.nsFastEnhancerTiny": "FastEnhancer Tiny",
+    "voiceAudioSettings.nsFastEnhancerTinyHint":
+        "A smaller FastEnhancer that uses about a third of the CPU. Cleans up a little less; still steadier than RNNoise.",
+    "voiceAudioSettings.noiseSuppressionGpu": "GPU acceleration",
+    "voiceAudioSettings.noiseSuppressionGpuHint":
+        "Runs noise suppression on your graphics card to free up CPU. Adds about 11 ms of delay. Switches back to the CPU if your GPU can't keep up.",
     "voiceAudioSettings.nsRnnoise": "RNNoise",
     "voiceAudioSettings.nsRnnoiseHint":
         "Runs on your device and ships with the app, so there is nothing to download. Small and steady: it keeps your voice at an even level.",
@@ -3586,6 +3592,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.normalizeVoices": "ܫܘܝ ܪܡܘܬܐ ܕܩܠ̈ܐ",
     "settingsSearch.mirrorMyCamera": "ܚܘܝ ܟܡܪܐ ܕܝܝ ܐܝܟ ܡܚܙܝܬܐ",
     "settingsSearch.videoCodec": "Video codec",
+    "settingsSearch.noiseSuppressionGpu": "GPU acceleration",
     "settingsSearch.adaptiveStream": "Adaptive video quality",
     "settingsSearch.callVolume": "ܪܡܘܬܐ ܕܩܠܐ ܕܩܪܝܬܐ",
     "settingsSearch.playCallSounds": "ܦܠܚ ܩܠ̈ܐ ܕܩܪ̈ܝܬܐ",

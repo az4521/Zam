@@ -2161,6 +2161,7 @@ function micTuning(): MicTuning {
     return {
         pauseGate: settingsState.micPauseGate,
         attenuationDb: settingsState.dfAttenuationDb,
+        feGpu: settingsState.noiseSuppressionGpu,
     };
 }
 

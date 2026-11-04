@@ -52,7 +52,15 @@ import { createAgc2Node } from "./agc2";
 import { createSoftClipper } from "./softClip";
 import { createDeepFilterNode } from "./deepFilter";
 import { createRnnoiseNode } from "./rnnoise";
-import { createFastEnhancerNode, fastEnhancerSupported } from "./fastenhancer";
+import {
+    createFastEnhancerNode,
+    fastEnhancerSupported,
+    type FastEnhancerModel,
+} from "./fastenhancer";
+import {
+    createFastEnhancerGpuNode,
+    type FastEnhancerGpuNode,
+} from "./fastenhancerGpu";
 import {
     findMicFilter,
     micFilterUsable,
@@ -74,7 +82,11 @@ const DRIVE_TICK_MS = 50;
  *  or a plugin's filter (falling back to FastEnhancer wherever it can't
  *  run). */
 export type DenoiseEngine =
-    "fastenhancer" | "rnnoise" | "deepfilter" | PluginFilterKey;
+    | "fastenhancer"
+    | "fastenhancer-tiny"
+    | "rnnoise"
+    | "deepfilter"
+    | PluginFilterKey;
 
 /** What evens out the user's voice: WebRTC's AGC2, or the same speaker
  *  normalization incoming voices get (null: nothing). */
@@ -87,6 +99,9 @@ export interface MicChainOptions {
     pauseGate: boolean;
     /** DeepFilterNet3's cap on how much it may take off, in dB. */
     attenuationDb: number;
+    /** Run FastEnhancer on the GPU ($lib/audio/fastenhancerGpu), falling
+     *  back to its CPU worklet where that can't run or keep up. */
+    feGpu?: boolean;
 }
 
 const NORMALIZE_TICK_MS = 100;
@@ -279,25 +294,36 @@ export function createMicChain(
 
     // A model that is one worklet between the input and the gain (RNNoise,
     // FastEnhancer). Anything else in the path (DeepFilterNet3's drive and
-    // gate, a plugin's filter) is replaced.
+    // gate, a plugin's filter, the other of the two) is replaced.
     const spliceSimple = (
-        kind: "rnnoise" | "fastenhancer",
+        kind: "rnnoise" | "fastenhancer" | "fastenhancer-tiny",
         node: AudioWorkletNode,
     ): DenoiseEngine | null => {
         if (destroyed) {
             node.disconnect();
             return null;
         }
-        const old = kind === "rnnoise" ? rnnNode : feNode;
+        const old = [rnnNode, feNode];
         if (kind === "rnnoise") rnnNode = node;
         else feNode = node;
         input.disconnect();
         input.connect(node);
         node.connect(gain);
-        old?.disconnect();
+        for (const o of old) if (o !== node) o?.disconnect();
+        if (kind === "rnnoise") feNode = null;
+        else rnnNode = null;
+        stopGpu();
         dropPlugin();
         engine = kind;
         return engine;
+    };
+
+    // FastEnhancer's GPU node, while it is in the path.
+    let gpu: FastEnhancerGpuNode | null = null;
+    const stopGpu = () => {
+        if (!gpu || gpu.node === feNode) return;
+        gpu.close();
+        gpu = null;
     };
 
     const spliceRnnoise = (): Promise<DenoiseEngine | null> =>
@@ -309,18 +335,61 @@ export function createMicChain(
             },
         );
 
-    // FastEnhancer, else RNNoise where it can't run (no WASM SIMD, say).
-    const spliceFastEnhancer = (): Promise<DenoiseEngine | null> =>
+    // FastEnhancer on its CPU worklet, else RNNoise where it can't run (no
+    // WASM SIMD, say).
+    const spliceFastEnhancerCpu = (
+        model: FastEnhancerModel,
+    ): Promise<DenoiseEngine | null> =>
         (fastEnhancerSupported()
-            ? createFastEnhancerNode(ctx)
+            ? createFastEnhancerNode(ctx, model)
             : Promise.reject(new Error("no WebAssembly SIMD here"))
         ).then(
-            (node) => spliceSimple("fastenhancer", node),
+            (node) =>
+                spliceSimple(
+                    model === "tiny" ? "fastenhancer-tiny" : "fastenhancer",
+                    node,
+                ),
             (err) => {
                 console.warn("FastEnhancer unavailable, using RNNoise:", err);
-                return destroyed ? null : spliceFastEnhancer();
+                return destroyed ? null : spliceRnnoise();
             },
         );
+
+    // FastEnhancer, on the GPU when asked for and it runs there.
+    const spliceFastEnhancer = (
+        model: FastEnhancerModel = "base",
+    ): Promise<DenoiseEngine | null> => {
+        if (!opts.feGpu) return spliceFastEnhancerCpu(model);
+        return createFastEnhancerGpuNode(ctx, model).then(
+            (g) => {
+                if (destroyed) {
+                    g.close();
+                    return null;
+                }
+                // Can't keep up, or the GPU went away: the CPU worklet
+                // takes over; the GPU node carries on until it is in.
+                g.onFailure = (reason) => {
+                    console.warn(
+                        `FastEnhancer on the GPU failed (${reason}): CPU`,
+                    );
+                    if (!destroyed && gpu === g)
+                        void spliceFastEnhancerCpu(model);
+                };
+                const prev = gpu;
+                gpu = g;
+                const e = spliceSimple(
+                    model === "tiny" ? "fastenhancer-tiny" : "fastenhancer",
+                    g.node,
+                );
+                prev?.close();
+                return e;
+            },
+            (err) => {
+                console.info("FastEnhancer can't run on the GPU here:", err);
+                return destroyed ? null : spliceFastEnhancerCpu(model);
+            },
+        );
+    };
 
     const splicePlugin = (
         key: PluginFilterKey,
@@ -378,14 +447,16 @@ export function createMicChain(
 
     const denoiseReady: Promise<DenoiseEngine | null> =
         opts.denoise === "fastenhancer"
-            ? spliceFastEnhancer()
-            : opts.denoise === "rnnoise"
-              ? spliceRnnoise()
-              : opts.denoise === "deepfilter"
-                ? spliceDeepFilter()
-                : opts.denoise
-                  ? splicePlugin(opts.denoise)
-                  : Promise.resolve(null);
+            ? spliceFastEnhancer("base")
+            : opts.denoise === "fastenhancer-tiny"
+              ? spliceFastEnhancer("tiny")
+              : opts.denoise === "rnnoise"
+                ? spliceRnnoise()
+                : opts.denoise === "deepfilter"
+                  ? spliceDeepFilter()
+                  : opts.denoise
+                    ? splicePlugin(opts.denoise)
+                    : Promise.resolve(null);
 
     return {
         input,
@@ -405,6 +476,7 @@ export function createMicChain(
             dfNode?.disconnect();
             rnnNode?.disconnect();
             feNode?.disconnect();
+            gpu?.close();
             undrive.disconnect();
             gateRef.disconnect();
             gateNode?.disconnect();

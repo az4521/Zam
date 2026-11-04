@@ -23,6 +23,9 @@ describe("normalizeNoiseSuppressionMode", () => {
             "deepfilter",
         );
         expect(normalizeNoiseSuppressionMode("rnnoise", false)).toBe("rnnoise");
+        expect(normalizeNoiseSuppressionMode("fastenhancer-tiny", false)).toBe(
+            "fastenhancer-tiny",
+        );
     });
 });
 

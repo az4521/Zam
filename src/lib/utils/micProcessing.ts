@@ -35,6 +35,8 @@ export function normalizeAttenuationDb(stored: string | null): number {
 export interface MicTuning {
     pauseGate: boolean;
     attenuationDb: number;
+    /** Run FastEnhancer on the GPU (MicChainOptions.feGpu). */
+    feGpu?: boolean;
 }
 
 export const DEFAULT_MIC_TUNING: MicTuning = {
@@ -59,6 +61,7 @@ export function planMicProcessing(
     const ns = effectiveNoiseSuppression(noise, neuralSupported);
     const denoise: DenoiseEngine | null =
         ns === "fastenhancer" ||
+        ns === "fastenhancer-tiny" ||
         ns === "rnnoise" ||
         ns === "deepfilter" ||
         isPluginFilterKey(ns)

@@ -12,14 +12,17 @@ import type { DenoiseEngine } from "./micChain";
 /** How long a join waits for the filter's plugin to finish loading. */
 const PLUGIN_LOAD_WAIT_MS = 3000;
 
+const feModel = (engine: DenoiseEngine) =>
+    engine === "fastenhancer-tiny" ? "tiny" : "base";
+
 /** Resolves true once the engine the chain will use is ready, false after
  *  `timeoutMs` or when nothing can be. */
 export async function prepareDenoiser(
     engine: DenoiseEngine,
     timeoutMs: number,
 ): Promise<boolean> {
-    if (engine === "fastenhancer")
-        return (await prepareFastEnhancer()) || prepareRnnoise();
+    if (engine === "fastenhancer" || engine === "fastenhancer-tiny")
+        return (await prepareFastEnhancer(feModel(engine))) || prepareRnnoise();
     if (engine === "rnnoise") return prepareRnnoise();
     if (engine !== "deepfilter") {
         const filter = await waitForMicFilter(engine, PLUGIN_LOAD_WAIT_MS);
@@ -39,8 +42,12 @@ export async function prepareDenoiser(
 
 /** Background download of whatever the chosen mode will need. */
 export async function prefetchDenoiser(engine: DenoiseEngine): Promise<void> {
-    if (engine === "fastenhancer" || engine === "rnnoise") {
-        await (engine === "rnnoise" ? prepareRnnoise() : prepareFastEnhancer());
+    if (engine === "fastenhancer" || engine === "fastenhancer-tiny") {
+        await prepareFastEnhancer(feModel(engine));
+        return;
+    }
+    if (engine === "rnnoise") {
+        await prepareRnnoise();
         return;
     }
     const { prefetchDeepFilter } = await import("./deepFilter");

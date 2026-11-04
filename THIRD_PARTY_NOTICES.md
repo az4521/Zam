@@ -5,11 +5,14 @@ is GPL-3.0-only (see LICENSE).
 
 ## FastEnhancer (default noise suppression)
 
-`src/lib/audio/fastenhancer_b.bin` holds the weights of FastEnhancer-Base
-(48 kHz), repacked by `scripts/fastenhancer/pack.py` from the project's
-released ONNX file
-(github.com/aask1357/fastenhancer, release `onnx-48khz-v1`, SHA-256
-`8df7941f5c9c81fdb79ccfeeb427ef7277d68821c1077eb940cc9893c0bbcac7`).
+`src/lib/audio/fastenhancer_b.bin` and `fastenhancer_t.bin` hold the weights
+of FastEnhancer-Base and FastEnhancer-Tiny (48 kHz), repacked by
+`scripts/fastenhancer/pack.py` from the project's released ONNX files
+(github.com/aask1357/fastenhancer, release `onnx-48khz-v1`; SHA-256
+`8df7941f5c9c81fdb79ccfeeb427ef7277d68821c1077eb940cc9893c0bbcac7` for
+`fastenhancer_b_spec.onnx`,
+`ebc673b4346ecbb89d2dce13718dbac46db81c57b056e3cb0c79eb767405956a` for
+`fastenhancer_t_spec.onnx`).
 `scripts/fastenhancer/src/lib.rs` is Zam's own port of the network to
 WebAssembly. The project's repository is MIT-licensed, and Zam treats the
 released weights as covered by that license:
