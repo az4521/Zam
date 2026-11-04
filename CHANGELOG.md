@@ -4,6 +4,21 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.48.0
+
+✨ **New**
+
+- **GPU acceleration for noise suppression:** FastEnhancer can now run on your graphics card, which takes most of its work off the CPU (about 7% of a CPU core instead of 16% in testing). It's on by default and adds about 11 ms of delay. Turn it off with the new **GPU acceleration** switch under the noise suppression setting in Settings > Voice & Video. If your GPU can't keep up, or can't run it, Zam switches back to the CPU by itself.
+- **FastEnhancer Tiny:** a lighter noise suppression option between FastEnhancer and RNNoise. It uses about a third of FastEnhancer's CPU and still keeps your voice at a steady level. It runs on the CPU by default, where it's already as cheap as the GPU.
+
+⚡ **Improved**
+
+- **No CPU spent while muted or silent:** noise suppression now pauses after a quarter of a second of silence, including whenever you're muted, and starts again the moment you make a sound.
+
+🐛 **Fixed**
+
+- **No noise suppression on older browsers:** where FastEnhancer can't run, Zam now falls back to RNNoise as intended.
+
 ## v1.47.1
 
 ✨ **New**
