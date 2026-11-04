@@ -352,6 +352,63 @@
             : "",
     );
 
+    // Chromium's memory by process and allocator, for working out what a
+    // large GPU or RAM figure in Task Manager is made of.
+    type MemoryReport = Awaited<
+        ReturnType<
+            NonNullable<
+                NonNullable<
+                    NonNullable<Window["desktop"]>["gpu"]
+                >["memoryReport"]
+            >
+        >
+    >;
+    const canMeasureMemory = !!window.desktop?.gpu?.memoryReport;
+    let memory = $state<MemoryReport | null>(null);
+    let measuringMemory = $state(false);
+    let memoryCopied = $state(false);
+
+    async function measureMemory() {
+        const run = window.desktop?.gpu?.memoryReport;
+        if (!run) return;
+        measuringMemory = true;
+        try {
+            memory = await run();
+        } catch (e) {
+            memory = { error: (e as Error)?.message ?? String(e) };
+        } finally {
+            measuringMemory = false;
+        }
+    }
+
+    const mb = (bytes: number) => `${(bytes / 1048576).toFixed(1)} MB`;
+
+    const memoryText = $derived(
+        !memory || "error" in memory
+            ? ""
+            : memory.processes
+                  .map((p) =>
+                      [
+                          `${p.name} (pid ${p.pid})${p.workingSetKb != null ? `, working set ${mb(p.workingSetKb * 1024)}` : ""}`,
+                          ...p.allocators.map(
+                              ([name, bytes]) =>
+                                  `  ${mb(bytes).padStart(10)}  ${name}`,
+                          ),
+                      ].join("\n"),
+                  )
+                  .join("\n\n"),
+    );
+
+    async function copyMemory() {
+        try {
+            await navigator.clipboard.writeText(memoryText);
+            memoryCopied = true;
+            setTimeout(() => (memoryCopied = false), 2000);
+        } catch {
+            /* clipboard denied: the report is still on screen to select */
+        }
+    }
+
     async function copy() {
         try {
             await navigator.clipboard.writeText(reportJson);
@@ -532,6 +589,46 @@
                 class="px-3 py-1.5 rounded text-sm font-medium bg-discord-accent hover:bg-discord-accentHover text-white"
                 >{t("gpuDebug.restart")}</button
             >
+        </div>
+    {/if}
+
+    {#if canMeasureMemory}
+        <div class="py-2 border-b border-discord-divider">
+            <div class="flex items-center gap-3">
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-discord-textPrimary">
+                        {t("gpuDebug.memoryReport")}
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        {t("gpuDebug.memoryReportHint")}
+                    </p>
+                </div>
+                {#if memoryText}
+                    <button
+                        onclick={copyMemory}
+                        class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary"
+                        >{memoryCopied
+                            ? t("debugSettings.copied")
+                            : t("common.copy")}</button
+                    >
+                {/if}
+                <button
+                    onclick={measureMemory}
+                    disabled={measuringMemory}
+                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
+                    >{measuringMemory
+                        ? t("gpuDebug.memoryMeasuring")
+                        : t("gpuDebug.memoryMeasure")}</button
+                >
+            </div>
+            {#if memory && "error" in memory}
+                <p class="mt-2 text-xs text-discord-danger break-all">
+                    {memory.error}
+                </p>
+            {:else if memoryText}
+                <pre
+                    class="mt-2 max-h-80 overflow-auto whitespace-pre rounded bg-discord-backgroundTertiary p-2 text-xs font-mono text-discord-textPrimary select-text">{memoryText}</pre>
+            {/if}
         </div>
     {/if}
 

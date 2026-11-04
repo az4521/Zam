@@ -436,6 +436,11 @@ export const en = {
     "gpuDebug.videoEncoding": "Video encoding",
     "gpuDebug.videoEncodingHint":
         "Calls send the codec chosen in Voice & Video (H.264 by default). The call stats panel shows which encoder a call is using.",
+    "gpuDebug.memoryReport": "Memory report",
+    "gpuDebug.memoryReportHint":
+        "Breaks down the memory Zam's processes use, including video memory in the GPU process, by what holds it. Measure with the screen showing the problem, then copy the report into a bug report.",
+    "gpuDebug.memoryMeasure": "Measure",
+    "gpuDebug.memoryMeasuring": "Measuring…",
     "gpuDebug.encodeTest": "Run H.264 encode test",
     "gpuDebug.encodeTestHint":
         "Encodes 60 frames per size the way a call does. Hardware should be much faster per frame than software.",

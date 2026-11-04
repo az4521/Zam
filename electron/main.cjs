@@ -23,6 +23,7 @@ const {
     screen,
     powerMonitor,
     net,
+    contentTracing,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const http = require("http");
@@ -38,6 +39,7 @@ const { registerGlobalHotkeys } = require("./globalHotkeys.cjs");
 const { createUpdateSchedule } = require("./updateSchedule.cjs");
 const { createCallPriority } = require("./callPriority.cjs");
 const { createProxyManager } = require("./proxy.cjs");
+const { recordMemoryReport } = require("./memoryReport.cjs");
 const { createAutostart } = require("./autostart.cjs");
 const { createAppAudio } = require("./appAudio.cjs");
 const { resolveShareAudio } = require("./shareAudio.cjs");
@@ -964,6 +966,34 @@ function writeGpuPrefs(patch) {
     }
     fs.writeFileSync(gpuPrefsPath(), JSON.stringify(prefs));
 }
+
+// Settings > Debug: Chromium's memory by process and allocator, plus each
+// process's resident memory as Task Manager counts it.
+let memoryReportRunning = null;
+ipcMain.handle("gpu:memory-report", () => {
+    memoryReportRunning ??= (async () => {
+        try {
+            const processes = await recordMemoryReport(
+                contentTracing,
+                app.getPath("temp"),
+            );
+            const metrics = app.getAppMetrics();
+            return {
+                processes: processes.map((p) => ({
+                    ...p,
+                    workingSetKb:
+                        metrics.find((m) => m.pid === p.pid)?.memory
+                            ?.workingSetSize ?? null,
+                })),
+            };
+        } catch (e) {
+            return { error: String(e?.message ?? e) };
+        } finally {
+            memoryReportRunning = null;
+        }
+    })();
+    return memoryReportRunning;
+});
 
 ipcMain.handle("gpu:set-hardware-acceleration", (_e, enabled) => {
     writeGpuPrefs({ hardwareAcceleration: !!enabled });

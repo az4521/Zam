@@ -104,6 +104,19 @@ declare global {
                     switches: Record<string, string>;
                     env: Record<string, string>;
                 }>;
+                /** Chromium's memory by process and allocator (memory-infra),
+                 *  sizes in bytes, largest first. */
+                memoryReport?: () => Promise<
+                    | {
+                          processes: {
+                              pid: number;
+                              name: string;
+                              allocators: [string, number][];
+                              workingSetKb: number | null;
+                          }[];
+                      }
+                    | { error: string }
+                >;
                 setHardwareAcceleration: (enabled: boolean) => Promise<void>;
                 setVideoEncode: (enabled: boolean) => Promise<void>;
                 /** Windows: the PlatformH264CbpEncoding flag, on the next launch. */

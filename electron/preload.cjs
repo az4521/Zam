@@ -151,6 +151,7 @@ contextBridge.exposeInMainWorld("desktop", {
     // switch (applied on the next launch, hence relaunch).
     gpu: {
         info: () => ipcRenderer.invoke("gpu:info"),
+        memoryReport: () => ipcRenderer.invoke("gpu:memory-report"),
         setHardwareAcceleration: (enabled) =>
             ipcRenderer.invoke("gpu:set-hardware-acceleration", !!enabled),
         setNvidiaEncode: (enabled) =>
