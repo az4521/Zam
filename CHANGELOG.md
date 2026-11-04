@@ -4,6 +4,20 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.47.0
+
+✨ **New**
+
+- **Memory report:** Settings > Debug has a Memory report button. It shows what is using Zam's memory, including video memory, by process and by what holds it. Copy it into a bug report if Zam is using more memory than it should.
+
+⚡ **Improved**
+
+- **Much less video memory:** in a busy room, Zam now uses well under half the video memory it did (about 190 MB instead of 460 MB in testing).
+    - Profile pictures and room icons are now shrunk to the size they're shown at. A large profile picture used to take up to 30 MB every place it appeared. Animated ones still animate.
+    - Link preview images and images in encrypted rooms are shrunk the same way. Opening one still shows it at full size.
+    - Link previews of videos no longer keep the video loaded just to show its first frame.
+    - A video you've played and paused is unloaded once you scroll well past it. Press play again and it picks up where it stopped.
+
 ## v1.46.4
 
 🐛 **Fixed**
