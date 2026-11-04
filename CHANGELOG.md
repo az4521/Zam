@@ -4,6 +4,22 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.49.0
+
+✨ **New**
+
+- **Sound packs in every call:** a room's sound pack can now be offered in your calls everywhere, not only in that room. Turn it on with **Use in every call** on the pack in the room's settings, under Emotes > Soundboard.
+
+⚡ **Improved**
+
+- **Soundboard follows the updated proposal:** sound packs now use the same name rules as emoji (letters, numbers, dashes and underscores). If you type a name with spaces, it's saved with underscores, and what you typed is kept as the sound's description. Your existing sounds and packs keep working as they are, names included, and older versions of Zam still hear the sounds you play.
+
+🐛 **Fixed**
+
+- **Adding sounds to room packs:** uploading a sound to a room or space pack could fail on many servers. It now works.
+- **Space sound packs:** packs from a room's spaces now show up in its calls without opening the space first.
+- **Sound packs shown as emoji:** image packs meant for something else, such as another app's sound packs, no longer show up as broken emoji or stickers. Changing a pack's emoji or sticker settings in Zam no longer removes what other apps use it for.
+
 ## v1.48.1
 
 🐛 **Fixed**
