@@ -1403,6 +1403,9 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         // Each video publish sets its own backup codec
         // (videoCodecPublishOptions).
         publishDefaults: { backupCodec: false },
+        // Stop encoding simulcast layers (and codecs) no subscriber is
+        // watching. Only this room publishes; remote SFUs are receive-only.
+        dynacast: true,
     });
     voiceOutputDeviceId = settingsState.audioOutputDeviceId;
     voiceOutputVolume = settingsState.callOutputVolume;
