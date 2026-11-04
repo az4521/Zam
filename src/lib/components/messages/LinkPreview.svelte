@@ -14,6 +14,7 @@
     } from "$lib/stores/favourites.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
+    import { unloadOffscreen } from "$lib/actions/unloadOffscreen";
     import {
         allowsMediaAutoLoad,
         allowsThirdPartyEmbed,
@@ -749,10 +750,14 @@
                      `pointer-events-none` + no controls already make it unpausable
                      by the user, so we do NOT re-play on pause: the only thing that
                      pauses this element is the browser shedding load, and answering
-                     that with play() is an unterminating main-thread ping-pong. -->
+                     that with play() is an unterminating main-thread ping-pong.
+                     Its src is owned by unloadOffscreen, which drops it once the
+                     row is well out of view: the timeline keeps every row
+                     mounted, so a looping embed otherwise holds its media and
+                     decoder for the life of the room. -->
                 <!-- svelte-ignore a11y_media_has_caption -->
                 <video
-                    src={preview.videoUrl}
+                    use:unloadOffscreen={preview.videoUrl}
                     poster={posterUrl}
                     class="max-w-[min(100%,32rem)] max-h-96 rounded-lg block pointer-events-none"
                     autoplay
