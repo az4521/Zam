@@ -13,6 +13,7 @@
  */
 
 import { t, type MessageKey } from "$lib/i18n";
+import { clearDecryptedImageCache } from "$lib/utils/decryptedImageCache";
 import {
     ClientEvent,
     EventTimeline,
@@ -433,6 +434,7 @@ export async function initCrypto(
     // store that knows nothing about sender devices. Verdicts memoised for the
     // old session would be served for the same event ids and under-warn.
     clearEventShieldCache();
+    clearDecryptedImageCache();
     backupSessionsRemaining = null;
     // The 4S key cache backs the cryptoCallbacks of whichever client is live;
     // a previous account's recovery key must not outlive its session.

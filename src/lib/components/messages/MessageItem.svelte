@@ -28,6 +28,11 @@
     } from "$lib/matrix/progressiveImage";
     import { createFrameRelay, frameSink } from "$lib/utils/frameRelay";
     import { createTileImage } from "$lib/utils/tileImage";
+    import {
+        cacheDecryptedImage,
+        cachedDecryptedImage,
+        DECRYPTED_IMAGE_ORIGINAL_MAX,
+    } from "$lib/utils/decryptedImageCache";
     import type { DownloadProgress } from "$lib/utils/downloadProgress";
     import LocationBody from "$lib/components/messages/LocationBody.svelte";
     import VerificationRequestMessage from "$lib/components/messages/VerificationRequestMessage.svelte";
@@ -699,6 +704,7 @@
                 return;
             }
         }
+        requestFullImage?.();
         imageLightboxOpen = true;
     }
 
@@ -1269,6 +1275,9 @@
     // progressiveImage.ts); it is replaced by the real <img> once verified.
     const imagePreview = createFrameRelay();
     let imagePreviewing = $state(false);
+    // Set while the tile shows a kept copy (decryptedImageCache.ts) and the
+    // original hasn't been decrypted again: opening the viewer starts that.
+    let requestFullImage: (() => void) | null = null;
 
     // Image/sticker media 401s when the media service worker isn't authenticating
     // it (notably a hard reload, which leaves the page uncontrolled). createMediaRetry
@@ -1284,7 +1293,6 @@
         if (msgtype !== "m.image") return;
         const file = content?.file as EncryptedFile | undefined;
         if (!file) return;
-        imageDecrypting = true;
         imageDecryptFailed = false;
         imageProgress = null;
         imagePreviewing = false;
@@ -1292,6 +1300,28 @@
         let tileUrl: string | null = null;
         let cancelled = false;
         const abort = new AbortController();
+        const cleanup = () => {
+            cancelled = true;
+            abort.abort();
+            requestFullImage = null;
+            if (blobUrl) URL.revokeObjectURL(blobUrl);
+            if (tileUrl) URL.revokeObjectURL(tileUrl);
+            encryptedImageThumbUrl = null;
+            encryptedImageFullUrl = null;
+        };
+        // Seen before (another room and back): show the kept copy now.
+        const cached = cachedDecryptedImage(file.url);
+        if (cached) {
+            tileUrl = URL.createObjectURL(cached.blob);
+            encryptedImageThumbUrl = tileUrl;
+            imageDecrypting = false;
+            if (cached.isOriginal) {
+                encryptedImageFullUrl = tileUrl;
+                return cleanup;
+            }
+        } else {
+            imageDecrypting = true;
+        }
         const info = content?.info as
             { mimetype?: string; size?: number } | undefined;
         const mime = info?.mimetype?.split(";")[0].trim().toLowerCase();
@@ -1342,48 +1372,61 @@
         // The tile gets a copy sized to its box (see tileImage.ts) so it
         // doesn't hold a full-resolution decode for the message's lifetime;
         // the original is kept for the lightbox only.
-        const tileCopy = async (url: string): Promise<string | null> => {
+        // It is also what decryptedImageCache keeps, or the original if it is
+        // small and has no copy.
+        const tileCopy = async (url: string): Promise<Blob | null> => {
             try {
-                const small = await createTileImage(
-                    await (await fetch(url)).blob(),
-                );
-                return small ? URL.createObjectURL(small) : null;
+                const original = await (await fetch(url)).blob();
+                const small = await createTileImage(original);
+                if (small) {
+                    cacheDecryptedImage(file.url, {
+                        blob: small,
+                        isOriginal: false,
+                    });
+                } else if (original.size <= DECRYPTED_IMAGE_ORIGINAL_MAX) {
+                    cacheDecryptedImage(file.url, {
+                        blob: original,
+                        isOriginal: true,
+                    });
+                }
+                return small;
             } catch {
                 return null;
             }
         };
-        load()
+        const start = cached
+            ? new Promise<void>((resolve) => (requestFullImage = resolve))
+            : Promise.resolve();
+        start
+            .then(load)
             .then(async (url) => {
                 if (cancelled) {
                     URL.revokeObjectURL(url);
                     return;
                 }
                 blobUrl = url;
-                const tile = await tileCopy(url);
-                if (cancelled) {
-                    if (tile) URL.revokeObjectURL(tile);
+                imagePreviewing = false;
+                // The kept copy stays as the tile; only the viewer needed this.
+                if (cached) {
+                    encryptedImageFullUrl = url;
                     return;
                 }
-                tileUrl = tile;
-                encryptedImageThumbUrl = tile ?? url;
+                const tile = await tileCopy(url);
+                if (cancelled) return;
+                tileUrl = tile ? URL.createObjectURL(tile) : null;
+                encryptedImageThumbUrl = tileUrl ?? url;
                 encryptedImageFullUrl = url;
                 imageDecrypting = false;
-                imagePreviewing = false;
             })
             .catch(() => {
                 if (cancelled) return;
-                imageDecrypting = false;
                 imagePreviewing = false;
+                // A kept copy is still worth showing over an error.
+                if (cached) return;
+                imageDecrypting = false;
                 imageDecryptFailed = true;
             });
-        return () => {
-            cancelled = true;
-            abort.abort();
-            if (blobUrl) URL.revokeObjectURL(blobUrl);
-            if (tileUrl) URL.revokeObjectURL(tileUrl);
-            encryptedImageThumbUrl = null;
-            encryptedImageFullUrl = null;
-        };
+        return cleanup;
     });
 
     // The sender's own small thumbnail (info.thumbnail_url / thumbnail_file),
@@ -1441,10 +1484,18 @@
         imageTileLoaded ? undefined : placeholderStyle([senderThumbUrl]),
     );
     // Lightbox stand-ins, best first. Unencrypted: the server's thumbnail (most
-    // likely cached from the tile) over the sender's. Encrypted: the sender's
-    // only. A GIF's tile already loads the original, so it adds nothing.
+    // likely cached from the tile) over the sender's. Encrypted: the tile's
+    // copy when it isn't the original (a kept copy whose original is being
+    // decrypted again), then the sender's. A GIF's tile already loads the
+    // original, so it adds nothing.
     const lightboxPlaceholders = $derived.by(() => {
-        if (content?.file) return [senderThumbUrl];
+        if (content?.file)
+            return [
+                encryptedImageThumbUrl !== encryptedImageFullUrl
+                    ? encryptedImageThumbUrl
+                    : null,
+                senderThumbUrl,
+            ];
         const server = imageThumbUrl();
         return [server !== imageFullUrl() ? server : null, senderThumbUrl];
     });
@@ -2729,7 +2780,7 @@
                 <!-- Outside the branches above so an encrypted image's viewer,
                  opened on its thumbnail mid-decrypt, stays open when the
                  full image lands. -->
-                {#if imageLightboxOpen && (full || senderThumbUrl)}
+                {#if imageLightboxOpen && (full || thumb || senderThumbUrl)}
                     <Lightbox
                         src={full ?? ""}
                         alt={mediaFilename}
