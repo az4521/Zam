@@ -100,7 +100,11 @@ export function setCaretOffset(root: HTMLElement, offset: number): void {
     selection?.addRange(range);
 }
 
-/** Plain text from a paste: text/plain, else text/html projected to text. */
+/**
+ * Plain text from a paste: text/plain, else text/html projected to text.
+ * Line endings become "\n": Windows clipboards carry "\r\n", and a stray "\r"
+ * left in the model renders as a second line break beside each <br>.
+ */
 export function pastedPlainText(data: DataTransfer | null): string {
     let pasted = data?.getData("text/plain") ?? "";
     if (!pasted) {
@@ -111,5 +115,5 @@ export function pastedPlainText(data: DataTransfer | null): string {
                 new DOMParser().parseFromString(html, "text/html").body
                     .textContent ?? "";
     }
-    return pasted;
+    return pasted.replace(/\r\n?/g, "\n");
 }
