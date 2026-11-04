@@ -4,6 +4,21 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.50.0
+
+✨ **New**
+
+- **Repaint (desktop):** if parts of the window show up as black or white boxes, or in the wrong place, choose **Repaint** from the tray menu or in Settings > GPU to draw the window again from scratch. This can happen after running out of video memory, for example with a game open on NVIDIA under Linux. Calls keep going.
+
+⚡ **Improved**
+
+- **Encrypted images when switching rooms:** images you've already seen in an encrypted room show straight away when you come back to it, instead of downloading and decrypting each one again. The full-size image is fetched again only when you open it.
+- **Less work while hidden (desktop):** Zam does less in the background while its window is hidden in the tray, and calls still ring promptly.
+
+🐛 **Fixed**
+
+- **Mic sound in calls:** your mic no longer goes through your system's voice isolation on top of Zam's own noise suppression, so calls now sound the same as the mic test in settings.
+
 ## v1.49.0
 
 ✨ **New**
