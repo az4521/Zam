@@ -2555,6 +2555,9 @@ export const en = {
     "voiceAudioSettings.videoCodecHint":
         "What your camera and screen share are sent as. Automatic picks the best codec your GPU encodes that everyone in the call can play. Anyone who can't play it gets an H.264 copy, and you can switch it from the call too. Applies the next time you turn them on.",
     "voiceAudioSettings.videoCodecAuto": "Automatic",
+    "voiceAudioSettings.adaptiveStream": "Adaptive video quality",
+    "voiceAudioSettings.adaptiveStreamHint":
+        "Receive each video at the size it's shown, and pause video that isn't on screen or while Zam is minimised. Saves bandwidth and decoding. Applies the next time you join a call.",
     "voiceAudioSettings.stopPreview": "Stop preview",
     "voiceAudioSettings.preview": "Preview",
     "voiceAudioSettings.callSounds": "Call sounds",
@@ -3605,6 +3608,7 @@ export const en = {
     "settingsSearch.normalizeVoices": "Even out voice volumes",
     "settingsSearch.mirrorMyCamera": "Mirror my camera",
     "settingsSearch.videoCodec": "Video codec",
+    "settingsSearch.adaptiveStream": "Adaptive video quality",
     "settingsSearch.callVolume": "Call volume",
     "settingsSearch.playCallSounds": "Play call sounds",
     "settingsSearch.ringForIncomingDmCalls": "Ring for incoming DM calls",

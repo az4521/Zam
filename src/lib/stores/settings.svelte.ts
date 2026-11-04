@@ -475,6 +475,9 @@ export const settingsState = $state({
     callVideoCodec: normalizeCallVideoCodec(
         readAccountString("callVideoCodec"),
     ),
+    /** Ask the SFU for video sized to the tile showing it, and pause video
+     *  that isn't on screen (LiveKit adaptiveStream). Read at join. */
+    adaptiveStream: readAccountBool("adaptiveStream", false),
     callSoundsEnabled: readAccountBool("callSoundsEnabled", true),
     callSoundsVolume: readAccountNumber("callSoundsVolume", 0.5),
     /** Ring for incoming DM calls. Deliberately independent of
@@ -789,6 +792,7 @@ export function reloadAccountSettings(): void {
     settingsState.callVideoCodec = normalizeCallVideoCodec(
         readAccountString("callVideoCodec"),
     );
+    settingsState.adaptiveStream = readAccountBool("adaptiveStream", false);
     settingsState.callSoundsEnabled = readAccountBool(
         "callSoundsEnabled",
         true,
@@ -1263,6 +1267,11 @@ export function setBlockedDecodeCodecs(codecs: readonly VideoCodec[]): void {
 export function setCallVideoCodec(value: string): void {
     settingsState.callVideoCodec = normalizeCallVideoCodec(value);
     writeAccountString("callVideoCodec", settingsState.callVideoCodec);
+}
+
+export function setAdaptiveStream(value: boolean): void {
+    settingsState.adaptiveStream = value;
+    writeAccountBool("adaptiveStream", value);
 }
 
 export function setCallSoundsEnabled(value: boolean): void {

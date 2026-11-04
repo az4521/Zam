@@ -1230,9 +1230,10 @@ async function connectRemoteSfu(
     target: LivekitTarget,
 ): Promise<void> {
     call.remotesConnecting.add(key);
-    const lkRoom = new call.lk.Room(
-        call.e2ee ? { e2ee: call.e2ee.roomOptions() } : undefined,
-    );
+    const lkRoom = new call.lk.Room({
+        ...(call.e2ee ? { e2ee: call.e2ee.roomOptions() } : {}),
+        adaptiveStream: settingsState.adaptiveStream,
+    });
     try {
         const { url, jwt } = await fetchSfuJwt(target);
         if (activeVoice !== call) return;
@@ -1406,6 +1407,9 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         // Stop encoding simulcast layers (and codecs) no subscriber is
         // watching. Only this room publishes; remote SFUs are receive-only.
         dynacast: true,
+        // Receive side: subscribe at the size each tile is drawn at, and
+        // pause video that is off screen. Needs track.attach() (videoTrack).
+        adaptiveStream: settingsState.adaptiveStream,
     });
     voiceOutputDeviceId = settingsState.audioOutputDeviceId;
     voiceOutputVolume = settingsState.callOutputVolume;

@@ -2693,6 +2693,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.videoCodec": "Codec vidéo",
     "voiceAudioSettings.videoCodecHint":
         "Le format dans lequel votre caméra et votre partage d'écran sont envoyés. Les personnes de l'appel qui ne peuvent pas le lire reçoivent une copie en H.264, et vous pouvez aussi le changer depuis l'appel. S'applique la prochaine fois que vous les activez.",
+    "voiceAudioSettings.adaptiveStream": "Adaptive video quality",
+    "voiceAudioSettings.adaptiveStreamHint":
+        "Receive each video at the size it's shown, and pause video that isn't on screen or while Zam is minimised. Saves bandwidth and decoding. Applies the next time you join a call.",
     "voiceAudioSettings.stopPreview": "Arrêter l'aperçu",
     "voiceAudioSettings.preview": "Aperçu",
     "voiceAudioSettings.callSounds": "Sons des appels",
@@ -3835,6 +3838,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.normalizeVoices": "Égaliser le volume des voix",
     "settingsSearch.mirrorMyCamera": "Afficher ma caméra en miroir",
     "settingsSearch.videoCodec": "Codec vidéo",
+    "settingsSearch.adaptiveStream": "Adaptive video quality",
     "settingsSearch.callVolume": "Volume des appels",
     "settingsSearch.playCallSounds": "Jouer les sons des appels",
     "settingsSearch.ringForIncomingDmCalls":

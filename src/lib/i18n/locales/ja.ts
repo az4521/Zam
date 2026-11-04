@@ -2400,6 +2400,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.videoCodecHint":
         "カメラと画面共有をどの形式で送信するかです。自動では、GPUがエンコードでき、通話の全員が再生できる最適なコーデックを選びます。再生できない人にはH.264のコピーが送られ、通話中にも切り替えられます。次にオンにしたときから適用されます。",
     "voiceAudioSettings.videoCodecAuto": "自動",
+    "voiceAudioSettings.adaptiveStream": "Adaptive video quality",
+    "voiceAudioSettings.adaptiveStreamHint":
+        "Receive each video at the size it's shown, and pause video that isn't on screen or while Zam is minimised. Saves bandwidth and decoding. Applies the next time you join a call.",
     "voiceAudioSettings.stopPreview": "プレビューを停止",
     "voiceAudioSettings.preview": "プレビュー",
     "voiceAudioSettings.callSounds": "通話サウンド",
@@ -3302,6 +3305,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.normalizeVoices": "音量を均一化",
     "settingsSearch.mirrorMyCamera": "カメラをミラー表示",
     "settingsSearch.videoCodec": "映像コーデック",
+    "settingsSearch.adaptiveStream": "Adaptive video quality",
     "settingsSearch.callVolume": "通話音量",
     "settingsSearch.playCallSounds": "通話音を再生",
     "settingsSearch.ringForIncomingDmCalls": "DMの着信通話で呼び出し音を鳴らす",

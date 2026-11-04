@@ -450,6 +450,11 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     },
     {
         tab: "voice",
+        label: t("settingsSearch.adaptiveStream"),
+        keywords: ["bandwidth", "video quality", "simulcast", "data"],
+    },
+    {
+        tab: "voice",
         label: t("settingsSearch.callVolume"),
         keywords: ["volume", "loudness"],
     },

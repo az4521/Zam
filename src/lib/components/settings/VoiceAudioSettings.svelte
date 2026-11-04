@@ -26,6 +26,7 @@
         setPushToTalk,
         setCallVideoCodec,
         setBlockedDecodeCodecs,
+        setAdaptiveStream,
     } from "$lib/stores/settings.svelte";
     import {
         toDeviceOptions,
@@ -840,6 +841,21 @@
                     </button>
                 {/each}
             </div>
+        </div>
+        <div class="flex items-center justify-between gap-3 py-2">
+            <div>
+                <div class="text-sm font-medium text-discord-textPrimary">
+                    {t("voiceAudioSettings.adaptiveStream")}
+                </div>
+                <div class="text-xs text-discord-textMuted">
+                    {t("voiceAudioSettings.adaptiveStreamHint")}
+                </div>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.adaptiveStream}
+                onChange={(v) => setAdaptiveStream(v)}
+                label={t("voiceAudioSettings.adaptiveStream")}
+            />
         </div>
         {#if !settingsState.cameraDisabled}
             <button

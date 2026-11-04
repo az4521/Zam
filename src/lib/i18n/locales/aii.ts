@@ -2527,6 +2527,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.videoCodec": "Video codec",
     "voiceAudioSettings.videoCodecHint":
         "What your camera and screen share are sent as. Anyone in the call who can't play it gets an H.264 copy, and you can switch it from the call too. Applies the next time you turn them on.",
+    "voiceAudioSettings.adaptiveStream": "Adaptive video quality",
+    "voiceAudioSettings.adaptiveStreamHint":
+        "Receive each video at the size it's shown, and pause video that isn't on screen or while Zam is minimised. Saves bandwidth and decoding. Applies the next time you join a call.",
     "voiceAudioSettings.stopPreview": "ܦܣܘܩ ܚܙܝܬܐ ܩܕܡܝܬܐ",
     "voiceAudioSettings.preview": "ܚܙܝܬܐ ܩܕܡܝܬܐ",
     "voiceAudioSettings.callSounds": "ܩܠ̈ܐ ܕܩܪ̈ܝܬܐ",
@@ -3583,6 +3586,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.normalizeVoices": "ܫܘܝ ܪܡܘܬܐ ܕܩܠ̈ܐ",
     "settingsSearch.mirrorMyCamera": "ܚܘܝ ܟܡܪܐ ܕܝܝ ܐܝܟ ܡܚܙܝܬܐ",
     "settingsSearch.videoCodec": "Video codec",
+    "settingsSearch.adaptiveStream": "Adaptive video quality",
     "settingsSearch.callVolume": "ܪܡܘܬܐ ܕܩܠܐ ܕܩܪܝܬܐ",
     "settingsSearch.playCallSounds": "ܦܠܚ ܩܠ̈ܐ ܕܩܪ̈ܝܬܐ",
     "settingsSearch.ringForIncomingDmCalls":
