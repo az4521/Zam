@@ -999,6 +999,45 @@ ipcMain.handle("gpu:memory-report", () => {
     return memoryReportRunning;
 });
 
+// Restart Chromium's GPU process so everything is drawn again from scratch.
+// NVIDIA on Linux doesn't spill video memory into system RAM, so with a game
+// holding it, allocations fail and tiles come out black, white or copied from
+// elsewhere on screen, often without the GPU process crashing. A fresh one
+// has none of that once memory is free again. Calls carry on through it
+// (onGpuProcessGone in src/lib/matrix/livekitCall.ts).
+let gpuRepaintAt = 0;
+const isRepaintExit = () => Date.now() - gpuRepaintAt < 5000;
+function isGpuProcess(pid) {
+    // A pid from another pid namespace (Flatpak's sandbox) could name an
+    // unrelated process out here.
+    if (process.platform !== "linux") return true;
+    try {
+        return fs
+            .readFileSync(`/proc/${pid}/cmdline`, "utf8")
+            .includes("--type=gpu-process");
+    } catch {
+        return false;
+    }
+}
+function repaintGpu() {
+    gpuRepaintAt = Date.now();
+    const pid = app.getAppMetrics().find((m) => m.type === "GPU")?.pid;
+    if (pid && isGpuProcess(pid)) {
+        try {
+            process.kill(pid);
+            return;
+        } catch {
+            /* fall through */
+        }
+    }
+    // Chromium's own way to end the GPU process, from a throwaway window
+    // (loading it never finishes).
+    const w = new BrowserWindow({ show: false });
+    w.loadURL("chrome://gpucrash").catch(() => {});
+    setTimeout(() => w.destroy(), 3000);
+}
+ipcMain.handle("gpu:repaint", () => repaintGpu());
+
 ipcMain.handle("gpu:set-hardware-acceleration", (_e, enabled) => {
     writeGpuPrefs({ hardwareAcceleration: !!enabled });
 });
@@ -1086,6 +1125,7 @@ let gpuCrashes = 0;
 app.on("child-process-gone", (_e, details) => {
     if (!nvidiaVulkanVideo || details.type !== "GPU") return;
     if (details.reason === "clean-exit" || details.reason === "killed") return;
+    if (isRepaintExit()) return;
     if (!videoPlaying && Date.now() - videoStoppedAt > 5000) return;
     if (++gpuCrashes < 2 || readGpuPrefs().nvidiaVideo === "vulkan") return;
     writeGpuPrefs({ nvidiaVulkanFailed: Date.now() });
@@ -1110,7 +1150,7 @@ const gpuExitTimes = [];
 if (gpuCrashLoopAtLaunch) writeGpuPrefs({ gpuCrashLoopAt: undefined });
 app.on("child-process-gone", (_e, details) => {
     if (details.type !== "GPU" || !hardwareAccelerationAtLaunch) return;
-    if (details.reason === "clean-exit") return;
+    if (details.reason === "clean-exit" || isRepaintExit()) return;
     const now = Date.now();
     gpuExitTimes.push(now);
     while (gpuExitTimes[0] < now - GPU_CRASH_LOOP_MS) gpuExitTimes.shift();
@@ -1683,6 +1723,8 @@ function createTray() {
     tray.setContextMenu(
         Menu.buildFromTemplate([
             { label: "Show", click: showWindow },
+            // Reachable when the window itself is drawn too badly to use.
+            { label: "Repaint", click: repaintGpu },
             { type: "separator" },
             {
                 label: "Quit",
@@ -1825,6 +1867,7 @@ if (skiaGraphiteAtLaunch) {
         if (details.reason === "clean-exit" || details.reason === "killed") {
             return;
         }
+        if (isRepaintExit()) return;
         writeGpuPrefs({
             skiaGraphite: undefined,
             skiaGraphitePending: undefined,

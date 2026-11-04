@@ -592,6 +592,26 @@
         </div>
     {/if}
 
+    {#if window.desktop?.gpu?.repaint}
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("gpuDebug.repaint")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("gpuDebug.repaintHint")}
+                </p>
+            </div>
+            <button
+                onclick={() => void window.desktop?.gpu?.repaint?.()}
+                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary"
+                >{t("gpuDebug.repaint")}</button
+            >
+        </div>
+    {/if}
+
     {#if canMeasureMemory}
         <div class="py-2 border-b border-discord-divider">
             <div class="flex items-center gap-3">

@@ -127,6 +127,8 @@ declare global {
                     mode: "auto" | "vulkan" | "off",
                 ) => Promise<void>;
                 relaunch: () => void;
+                /** Restart the GPU process so the window is drawn again. */
+                repaint?: () => Promise<void>;
                 /** Whether a <video> on the page is playing. */
                 setVideoPlaying?: (playing: boolean) => void;
                 /** Chromium's GPU process exited; `reason` is Electron's. */

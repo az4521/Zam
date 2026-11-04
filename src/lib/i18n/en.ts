@@ -444,6 +444,9 @@ export const en = {
     "gpuDebug.memoryReport": "Memory report",
     "gpuDebug.memoryReportHint":
         "Breaks down the memory Zam's processes use, including video memory in the GPU process, by what holds it. Measure with the screen showing the problem, then copy the report into a bug report.",
+    "gpuDebug.repaint": "Repaint",
+    "gpuDebug.repaintHint":
+        "Restarts the GPU process so the window is drawn again from scratch. Use it if parts of the window show as black or white boxes or in the wrong place, which can happen after running out of video memory. Calls keep going. Also in the tray menu.",
     "gpuDebug.memoryMeasure": "Measure",
     "gpuDebug.memoryMeasuring": "Measuring…",
     "gpuDebug.encodeTest": "Run H.264 encode test",

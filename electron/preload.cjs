@@ -165,6 +165,8 @@ contextBridge.exposeInMainWorld("desktop", {
         setNvidiaVideo: (mode) =>
             ipcRenderer.invoke("gpu:set-nvidia-video", String(mode)),
         relaunch: () => ipcRenderer.send("app:relaunch"),
+        // Restart the GPU process so the window is drawn again from scratch.
+        repaint: () => ipcRenderer.invoke("gpu:repaint"),
         // Whether a <video> is playing (src/lib/utils/videoPlaybackWatch.ts).
         setVideoPlaying: (playing) =>
             ipcRenderer.send("gpu:video-playing", !!playing),
