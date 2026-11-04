@@ -838,6 +838,10 @@ let callActive = false;
 ipcMain.on("call:set-active", (e, active) => {
     callActive = !!active;
     callPriority.set(callActive, e.sender);
+    // Hidden to the tray, a call with nobody talking isn't "audible" to
+    // Chromium, so its timers would drop to once a second, and with them the
+    // mic chain's level and drive ticks (audio/micChain.ts).
+    e.sender.setBackgroundThrottling(!callActive);
 });
 app.on("will-quit", () => callPriority.restore());
 
@@ -1464,14 +1468,10 @@ async function createWindow() {
             // flip or a preload that grows Node usage.
             sandbox: true,
             preload: path.join(__dirname, "preload.cjs"),
-            // The window hides to the tray on close and keeps running as a
-            // background client. Chromium throttles a hidden window's timers by
-            // default, which clamps the matrix-js-sdk sync loop's next-poll
-            // scheduling — so an incoming call that lands during a throttled gap
-            // rings late (or waits for the window to be restored). Disable
-            // throttling so sync, ringing, and notifications stay prompt while
-            // minimised to the tray.
-            backgroundThrottling: false,
+            // backgroundThrottling stays on (the default): hidden to the tray
+            // the page stops drawing frames and its timers fire at most once a
+            // second. Chromium's later once-a-minute stage, which would make
+            // calls ring late, is switched off below (IntensiveWakeUpThrottling).
         },
     });
     proxyManager.applyIpPolicy();
@@ -1835,6 +1835,18 @@ if (skiaGraphiteAtLaunch) {
 app.commandLine.appendSwitch(
     "enable-features",
     features.filter(Boolean).join(","),
+);
+// A window hidden for 5 minutes gets its chained timers cut to one wake-up a
+// minute, which delays sync (and so incoming call rings) while Zam sits in the
+// tray. Without it, hidden timers still run once a second.
+app.commandLine.appendSwitch(
+    "disable-features",
+    [
+        app.commandLine.getSwitchValue("disable-features"),
+        "IntensiveWakeUpThrottling",
+    ]
+        .filter(Boolean)
+        .join(","),
 );
 
 if (!app.requestSingleInstanceLock()) {

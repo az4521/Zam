@@ -52,6 +52,7 @@ import {
     watchdogOverdueMs,
 } from "$lib/utils/slidingSyncHelpers";
 import { logSync } from "$lib/matrix/syncLog";
+import { isDesktopTray } from "$lib/desktopTray";
 import { applyTimelineMemberEvent } from "$lib/matrix/slidingMemberState";
 import {
     isSlidingSyncEnabled,
@@ -1544,8 +1545,11 @@ export async function startSync(
     window.addEventListener("online", onOnlineKick);
     const syncWatchdog = setInterval(() => {
         // A hidden tab's timers are throttled and its sockets may be frozen;
-        // the visible handler covers it on return.
-        if (document.visibilityState === "visible") kickIf("watchdog");
+        // the visible handler covers it on return. The desktop app hidden to
+        // the tray keeps running (no intensive throttling, electron/main.cjs)
+        // and must still notice a stuck poll, or calls ring late.
+        if (document.visibilityState === "visible" || isDesktopTray())
+            kickIf("watchdog");
     }, 10_000);
 
     // Paint the last known room list while sync catches up.
