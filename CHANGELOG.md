@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.47.1
+
+✨ **New**
+
+- **Adaptive video quality:** a new option under Settings > Voice & Video, off by default. When it's on, each video in a call is received at the size it's shown, and video that's off screen (or while Zam is minimised) is paused. This saves download bandwidth and decoding work. It applies the next time you join a call.
+
+🐛 **Fixed**
+
+- **Doubled line breaks when pasting:** text pasted from Windows apps no longer shows every line break twice, in the message box or when editing.
+- **GIF favourites order:** favourites in the GIF picker now stay in the order you saved them, left to right, instead of jumping between columns as they load.
+
 ## v1.47.0
 
 ✨ **New**
