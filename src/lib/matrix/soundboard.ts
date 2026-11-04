@@ -1,8 +1,10 @@
 /**
- * Soundboard storage: sound packs shaped like the emoji packs but holding
- * audio. A user's own pack lives in account data, a room's (or space's) packs
- * in state events keyed by pack name; a call offers the user's pack plus the
- * packs of its room and the spaces above it. Playback is in livekitCall.
+ * Soundboard storage (MSC4577): sound packs shaped like the emoji packs but
+ * holding audio. A room's (or space's) packs are state events keyed by pack
+ * name, and soundboard_rooms lists room packs the user wants in every call.
+ * A user's own pack lives in account data, a Zam extra like the user emote
+ * pack. A call offers the user's pack, the packs enabled everywhere, then
+ * those of its room and the spaces above it. Playback is in livekitCall.
  */
 import { t } from "$lib/i18n";
 import { EventTimeline, type Room } from "matrix-js-sdk";
@@ -10,7 +12,14 @@ import { matrixClient } from "./runtime";
 import { getParentSpaceIds } from "./client";
 import { faststartMp4 } from "$lib/utils/mp4Faststart";
 import {
+    hasEmoteRoom,
+    parseEmoteRooms,
+    withEmoteRoom,
+    type EmoteRoomsContent,
+} from "$lib/utils/emotePacks";
+import {
     ROOM_SOUNDBOARD_TYPE,
+    SOUNDBOARD_ROOMS_TYPE,
     USER_SOUNDBOARD_TYPE,
     MAX_SOUND_SECONDS,
     isValidSoundName,
@@ -55,6 +64,7 @@ export async function addUserSound(
     name: string,
     mxcUrl: string,
     info?: SoundInfo,
+    body?: string,
 ): Promise<string> {
     const client = requireClient();
     const normalized = validatedName(name);
@@ -62,7 +72,7 @@ export async function addUserSound(
         USER_SOUNDBOARD_TYPE,
         withSound(
             userContent(),
-            { name: normalized, mxcUrl, info },
+            { name: normalized, mxcUrl, info, body },
             USER_SOUND_PACK_NAME,
         ),
     );
@@ -91,8 +101,42 @@ function roomPackFrom(
         sourceName: room.name || room.roomId,
         inherited,
         editable: !inherited && canEditRoomSounds(room),
+        global: isSoundPackGlobal(room.roomId, stateKey),
         sounds: soundsFromContent(content),
     };
+}
+
+function soundboardRoomsContent(): EmoteRoomsContent | undefined {
+    return matrixClient?.getAccountData(SOUNDBOARD_ROOMS_TYPE)?.getContent();
+}
+
+/** Whether the user enabled this room pack for every call. */
+export function isSoundPackGlobal(roomId: string, stateKey: string): boolean {
+    return hasEmoteRoom(soundboardRoomsContent(), roomId, stateKey);
+}
+
+/** Enable or disable a room's pack for every call (soundboard_rooms). */
+export async function setSoundPackGlobal(
+    roomId: string,
+    stateKey: string,
+    enabled: boolean,
+): Promise<void> {
+    await requireClient().setAccountData(
+        SOUNDBOARD_ROOMS_TYPE,
+        withEmoteRoom(soundboardRoomsContent(), roomId, stateKey, enabled),
+    );
+}
+
+/** Packs enabled for every call that we can still read (joined rooms). */
+function getGlobalSoundPacks(): SoundPack[] {
+    if (!matrixClient) return [];
+    return parseEmoteRooms(soundboardRoomsContent()).flatMap((ref) => {
+        const room = matrixClient!.getRoom(ref.roomId);
+        if (!room || room.getMyMembership() !== "join") return [];
+        return getRoomSoundPacks(room).filter(
+            (pack) => pack.stateKey === ref.stateKey,
+        );
+    });
 }
 
 /** Whether we may send the pack event in this room. Unknown state counts as
@@ -125,8 +169,10 @@ export function getRoomSoundPacks(room: Room, inherited = false): SoundPack[] {
     );
 }
 
-/** Packs usable in a call in `room`: the user's own, the room's, then those
- *  of the spaces above it. Empty packs are left out. */
+/** Packs usable in a call in `room`: the user's own, those enabled for every
+ *  call, the room's, then those of the spaces above it (MSC4577's order, after
+ *  the user's own). A pack is listed once, where it first appears. Empty
+ *  packs are left out. */
 export function getAvailableSoundPacks(room: Room | null): SoundPack[] {
     const packs: SoundPack[] = [];
     const own = getUserSounds();
@@ -137,6 +183,7 @@ export function getAvailableSoundPacks(room: Room | null): SoundPack[] {
             editable: true,
             sounds: own,
         });
+    packs.push(...getGlobalSoundPacks());
     if (room && matrixClient) {
         packs.push(...getRoomSoundPacks(room));
         for (const spaceId of getParentSpaceIds(room.roomId)) {
@@ -144,7 +191,12 @@ export function getAvailableSoundPacks(room: Room | null): SoundPack[] {
             if (space) packs.push(...getRoomSoundPacks(space, true));
         }
     }
-    return packs.filter((pack) => pack.sounds.length > 0);
+    const seen = new Set<string>();
+    return packs.filter((pack) => {
+        if (pack.sounds.length === 0 || seen.has(pack.id)) return false;
+        seen.add(pack.id);
+        return true;
+    });
 }
 
 /** Every pack to manage for a room in its settings: its own and inherited. */
@@ -198,10 +250,11 @@ export async function addRoomSound(
     mxcUrl: string,
     packName: string,
     info?: SoundInfo,
+    body?: string,
 ): Promise<string> {
     const normalized = validatedName(name);
     await updateRoomSoundPack(room, stateKey, (current) =>
-        withSound(current, { name: normalized, mxcUrl, info }, packName),
+        withSound(current, { name: normalized, mxcUrl, info, body }, packName),
     );
     return normalized;
 }
@@ -292,7 +345,8 @@ export async function uploadSoundFile(
         info: {
             mimetype: upload.type,
             size: upload.size,
-            duration: Math.round(duration * 100) / 100,
+            // AudioInfo: milliseconds.
+            duration: Math.round(duration * 1000),
         },
     };
 }

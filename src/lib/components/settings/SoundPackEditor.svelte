@@ -14,6 +14,7 @@
         importSoundsToUserPack,
         removeRoomSound,
         removeUserSound,
+        setSoundPackGlobal,
         uploadSoundFile,
     } from "$lib/matrix/soundboard";
     import { fetchMediaBytes, mxcToHttp } from "$lib/matrix/media";
@@ -23,6 +24,7 @@
         MAX_SOUND_SECONDS,
         isValidSoundName,
         normalizeSoundName,
+        soundNameFromText,
         type Sound,
         type SoundPack,
     } from "$lib/utils/soundboard";
@@ -81,13 +83,17 @@
         if (!file) return;
         error = "";
         notice = "";
-        const wanted = normalizeSoundName(
+        // The typed (or file) name becomes a shortcode; when that had to
+        // change it, the original is kept as the sound's description.
+        const typed = normalizeSoundName(
             name || file.name.replace(/\.[^.]+$/, ""),
         );
+        const wanted = soundNameFromText(typed);
         if (!isValidSoundName(wanted)) {
             error = t("soundboard.badName");
             return;
         }
+        const body = typed !== wanted ? typed : undefined;
         const stateKey =
             selectedKey === "__new" ? newPackName.trim() : selectedKey;
         if (room && !stateKey) {
@@ -108,10 +114,11 @@
                     mxcUrl,
                     packName,
                     info,
+                    body,
                 );
                 selectedKey = stateKey;
             } else {
-                await addUserSound(wanted, mxcUrl, info);
+                await addUserSound(wanted, mxcUrl, info, body);
             }
             name = "";
             newPackName = "";
@@ -156,6 +163,27 @@
         } finally {
             pending = null;
         }
+    }
+
+    async function toggleGlobal(pack: SoundPack) {
+        if (!pack.roomId || pack.stateKey === undefined) return;
+        pending = `${pack.id}:global`;
+        error = "";
+        notice = "";
+        try {
+            await setSoundPackGlobal(pack.roomId, pack.stateKey, !pack.global);
+            roomsState.roomsTick++;
+            load();
+        } catch (err) {
+            error = (err as Error)?.message ?? t("soundboard.globalFailed");
+        } finally {
+            pending = null;
+        }
+    }
+
+    /** A stored duration (milliseconds) as seconds, e.g. "2.4s". */
+    function formatDuration(ms: number): string {
+        return `${Math.round(ms / 100) / 10}s`;
     }
 
     async function addToMine(sounds: Sound[]) {
@@ -291,6 +319,19 @@
                     </div>
                     {#if room}
                         <button
+                            onclick={() => toggleGlobal(pack)}
+                            disabled={pending === `${pack.id}:global`}
+                            aria-pressed={!!pack.global}
+                            title={t("soundboard.useEverywhereHint")}
+                            class="px-2 py-1 rounded text-xs hover:bg-discord-messageHover disabled:opacity-50 {pack.global
+                                ? 'text-discord-accent font-semibold'
+                                : 'text-discord-textPrimary'}"
+                        >
+                            {pack.global
+                                ? t("soundboard.usedEverywhere")
+                                : t("soundboard.useEverywhere")}
+                        </button>
+                        <button
                             onclick={() => addToMine(pack.sounds)}
                             class="px-2 py-1 rounded text-xs text-discord-textPrimary hover:bg-discord-messageHover"
                         >
@@ -323,12 +364,13 @@
                             <div class="flex-1 min-w-0">
                                 <p
                                     class="text-sm font-medium text-discord-textPrimary truncate"
+                                    title={sound.body}
                                 >
                                     {sound.name}
                                 </p>
                                 {#if sound.info?.duration !== undefined}
                                     <p class="text-xs text-discord-textMuted">
-                                        {sound.info.duration}s
+                                        {formatDuration(sound.info.duration)}
                                     </p>
                                 {/if}
                             </div>

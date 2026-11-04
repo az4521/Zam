@@ -315,11 +315,16 @@ const messages: Partial<Record<MessageKey, string>> = {
         "パック「{name}」とそのすべてのサウンドを削除しますか？",
     "soundboard.inheritedFrom": "{sourceName} から",
     "soundboard.addToMine": "自分のパックに追加",
+    "soundboard.useEverywhere": "すべての通話で使う",
+    "soundboard.usedEverywhere": "すべての通話で使用中",
+    "soundboard.useEverywhereHint":
+        "このルームだけでなく、すべてのルームの通話でこのパックを使えるようにします。",
+    "soundboard.globalFailed": "このパックを使う場所を変更できませんでした。",
     "soundboard.addedToYours":
         "{count, plural, other {#件のサウンドを自分のパックに追加しました。}}",
     "soundboard.alreadyYours": "すでに自分のパックにあります。",
     "soundboard.badName":
-        "1～48 文字の英数字、スペース、ドット、ハイフン、アンダースコアを使ってください。",
+        "1～100 文字の英数字 (A-Z, 0-9)、ハイフン、アンダースコアを使ってください。スペースはアンダースコアになります。",
     "soundboard.noPermission": "このルームのサウンドは編集できません。",
     "soundboard.notAudio": "音声ファイルではありません。",
     "soundboard.tooBig": "ファイルが大きすぎます。",

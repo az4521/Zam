@@ -6,8 +6,11 @@ import {
     mergePackContent,
     packWriteTypes,
     parseEmoteRooms,
+    resolveImageUsage,
     uniqueShortcode,
+    usageWithout,
     withEmoteRoom,
+    withKnownUsage,
 } from "./emotePacks";
 
 describe("parseEmoteRooms", () => {
@@ -100,6 +103,85 @@ describe("applyPackMeta", () => {
             { attribution: "  ", avatarMxc: null, usage: null },
         );
         expect(out.pack).toEqual({ display_name: "Old" });
+    });
+    it("keeps usages it doesn't know", () => {
+        const pack = { pack: { usage: ["soundboard", "emoticon"] } };
+        expect(applyPackMeta(pack, { usage: ["sticker"] }).pack?.usage).toEqual(
+            ["soundboard", "sticker"],
+        );
+        // "Both" has to be spelled out, or the unknown usage would be lost.
+        expect(applyPackMeta(pack, { usage: null }).pack?.usage).toEqual([
+            "soundboard",
+            "emoticon",
+            "sticker",
+        ]);
+    });
+});
+
+describe("resolveImageUsage", () => {
+    it("takes the image's usage, else the pack's, else both", () => {
+        expect(resolveImageUsage(["sticker"], ["emoticon"])).toEqual([
+            "sticker",
+        ]);
+        expect(resolveImageUsage([], ["emoticon"])).toEqual(["emoticon"]);
+        expect(resolveImageUsage(undefined, undefined)).toEqual([
+            "emoticon",
+            "sticker",
+        ]);
+        expect(resolveImageUsage([], [])).toEqual(["emoticon", "sticker"]);
+    });
+    it("means neither for a list of only unknown usages", () => {
+        // An MSC4577 sound pack: never offered as emotes or stickers.
+        expect(resolveImageUsage(undefined, ["soundboard"])).toEqual([]);
+        expect(resolveImageUsage(["soundboard"], ["emoticon"])).toEqual([]);
+        expect(
+            resolveImageUsage(["soundboard", "emoticon"], undefined),
+        ).toEqual(["emoticon"]);
+    });
+    it("tolerates junk", () => {
+        expect(resolveImageUsage("emoticon", 5)).toEqual([
+            "emoticon",
+            "sticker",
+        ]);
+        expect(resolveImageUsage([1, null], undefined)).toEqual([]);
+    });
+});
+
+describe("withKnownUsage", () => {
+    it("replaces the known kinds and keeps the rest", () => {
+        expect(withKnownUsage(["soundboard", "sticker"], ["emoticon"])).toEqual(
+            ["soundboard", "emoticon"],
+        );
+        expect(withKnownUsage(undefined, ["sticker", "sticker"])).toEqual([
+            "sticker",
+        ]);
+        expect(withKnownUsage([3, "x"], [])).toEqual(["x"]);
+    });
+});
+
+describe("usageWithout", () => {
+    it("leaves what the image is still used for", () => {
+        expect(usageWithout(undefined, undefined, "emoticon")).toEqual([
+            "sticker",
+        ]);
+        expect(usageWithout(["emoticon", "sticker"], [], "sticker")).toEqual([
+            "emoticon",
+        ]);
+        expect(usageWithout(undefined, ["sticker"], "emoticon")).toEqual([
+            "sticker",
+        ]);
+    });
+    it("is null once nothing is left", () => {
+        expect(usageWithout(["emoticon"], undefined, "emoticon")).toBeNull();
+        expect(usageWithout(undefined, ["emoticon"], "emoticon")).toBeNull();
+    });
+    it("keeps an image another client still uses", () => {
+        expect(
+            usageWithout(["soundboard", "emoticon"], undefined, "emoticon"),
+        ).toEqual(["soundboard"]);
+        expect(
+            usageWithout(undefined, ["soundboard", "emoticon"], "emoticon"),
+        ).toEqual(["soundboard"]);
     });
 });
 

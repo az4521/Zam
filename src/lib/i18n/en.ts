@@ -339,12 +339,17 @@ export const en = {
         'Delete the pack "{name}" and all its sounds?',
     "soundboard.inheritedFrom": "From {sourceName}",
     "soundboard.addToMine": "Add to mine",
+    "soundboard.useEverywhere": "Use in every call",
+    "soundboard.usedEverywhere": "In every call",
+    "soundboard.useEverywhereHint":
+        "Offer this pack in your calls in every room, not only this one.",
+    "soundboard.globalFailed": "Couldn't change where this pack is offered.",
     "soundboard.addedToYours":
         "{count, plural, one {Added # sound to your pack.} other {Added # sounds to your pack.}}",
     "soundboard.alreadyYours": "Already in your pack.",
     // src/lib/matrix/soundboard.ts
     "soundboard.badName":
-        "Use 1 to 48 letters, numbers, spaces, dots, dashes or underscores.",
+        "Use 1 to 100 letters, numbers, dashes or underscores (A-Z, 0-9). Spaces become underscores.",
     "soundboard.noPermission": "You can't edit sounds in this room.",
     "soundboard.notAudio": "That isn't an audio file.",
     "soundboard.tooBig": "That file is too big.",

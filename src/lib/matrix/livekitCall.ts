@@ -1171,7 +1171,10 @@ export async function playSoundboardSound(sound: Sound): Promise<boolean> {
     if (!call || !me) return false;
     try {
         await call.lkRoom.localParticipant.publishData(
-            encodeSoundboardMessage({ mxcUrl: sound.mxcUrl, name: sound.name }),
+            encodeSoundboardMessage({
+                mxcUrl: sound.mxcUrl,
+                shortcode: sound.name,
+            }),
             { reliable: true, topic: SOUNDBOARD_TOPIC },
         );
     } catch (err) {

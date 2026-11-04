@@ -109,9 +109,12 @@ import {
     mergePackContent,
     packWriteTypes,
     parseEmoteRooms,
+    resolveImageUsage,
     ROOM_PACK_TYPE,
     uniqueShortcode,
+    usageWithout,
     withEmoteRoom,
+    withKnownUsage,
     type EmoteRoomRef,
     type EmoteRoomsContent,
     type PackMetaUpdate,
@@ -378,6 +381,7 @@ declare module "matrix-js-sdk" {
         "im.client.space_order": { order?: string[] };
         "im.ponies.user_emotes": RoomEmoteContent;
         "moe.crafty.soundboard": SoundPackContent;
+        "moe.crafty.soundboard_rooms": EmoteRoomsContent;
         "im.ponies.emote_rooms": EmoteRoomsContent;
         "m.image_pack.rooms": EmoteRoomsContent;
         "moe.crafty.matrix.active_session": ActiveSessionHeartbeat;
@@ -7369,28 +7373,14 @@ export interface CustomStickerPack {
     stickers: CustomSticker[];
 }
 
-// Effective usage: image-level overrides pack-level; absent at both levels means both kinds.
+// Effective usage (resolveImageUsage): image-level overrides pack-level;
+// absent at both levels means both kinds, and only unknown usages means none.
 function matchesUsage(
     imageUsage: string[] | undefined,
     packUsage: string[] | undefined,
     kind: ImageUsage,
 ): boolean {
-    const effective =
-        imageUsage && imageUsage.length > 0 ? imageUsage : packUsage;
-    if (!effective || effective.length === 0) return true;
-    return effective.includes(kind);
-}
-
-function effectiveUsage(
-    imageUsage: string[] | undefined,
-    packUsage: string[] | undefined,
-): ImageUsage[] {
-    const raw =
-        imageUsage && imageUsage.length > 0 ? imageUsage : (packUsage ?? []);
-    const usage = raw.filter(
-        (u): u is ImageUsage => u === "emoticon" || u === "sticker",
-    );
-    return usage.length > 0 ? usage : ["emoticon", "sticker"];
+    return resolveImageUsage(imageUsage, packUsage).includes(kind);
 }
 
 /** Optional MSC2545 image `info` / `body` written alongside a new image. */
@@ -7428,7 +7418,7 @@ function roomEmoteContentToPackImages(
         .flatMap(([shortcode, data]) => {
             const http = mxcToHttp(data.url!);
             if (!http) return [];
-            const usage = effectiveUsage(data.usage, packUsage);
+            const usage = resolveImageUsage(data.usage, packUsage);
             return [
                 {
                     shortcode,
@@ -7455,11 +7445,12 @@ function packAvatarUrl(
     return getRoomStateAvatar(room) ?? undefined;
 }
 
+/** The pack-level usage default, or undefined for none set (both kinds). An
+ *  empty list means a pack only for usages we don't know. */
 function packUsageList(content: RoomEmoteContent): ImageUsage[] | undefined {
-    const usage = (content.pack?.usage ?? []).filter(
-        (u): u is ImageUsage => u === "emoticon" || u === "sticker",
-    );
-    return usage.length > 0 ? usage : undefined;
+    const usage = content.pack?.usage;
+    if (!Array.isArray(usage) || usage.length === 0) return undefined;
+    return resolveImageUsage(undefined, usage);
 }
 
 /** A pack's two state events (MSC2545 stable and im.ponies), each undefined
@@ -7862,7 +7853,7 @@ async function setRoomPackImageUsage(
         if (!existing?.url) throw new Error(t("client.imageNotFound"));
         images[normalized] = {
             ...existing,
-            usage: nextUsage,
+            usage: withKnownUsage(existing.usage, nextUsage),
         };
         return { ...current, images };
     });
@@ -7933,7 +7924,7 @@ export async function addRoomEmote(
         images[normalized] = {
             ...existing,
             url: mxcUrl,
-            usage: nextUsage,
+            usage: withKnownUsage(existing.usage, nextUsage),
             ...(meta?.info ? { info: meta.info } : {}),
             ...(meta?.body ? { body: meta.body } : {}),
         };
@@ -7996,27 +7987,13 @@ async function removeRoomPackImage(
         const existing = images[normalized];
 
         if (existing) {
-            const usage = existing.usage?.length ? existing.usage : undefined;
-            const packUsage = current.pack?.usage?.length
-                ? current.pack.usage
-                : undefined;
-            const otherKind = kind === "emoticon" ? "sticker" : "emoticon";
-            if (usage?.includes(otherKind)) {
-                images[normalized] = {
-                    ...existing,
-                    usage: usage.filter((u) => u !== kind),
-                };
-            } else if (
-                !usage &&
-                (!packUsage || packUsage.includes(otherKind))
-            ) {
-                images[normalized] = {
-                    ...existing,
-                    usage: [otherKind],
-                };
-            } else {
-                delete images[normalized];
-            }
+            const rest = usageWithout(
+                existing.usage,
+                current.pack?.usage,
+                kind,
+            );
+            if (rest) images[normalized] = { ...existing, usage: rest };
+            else delete images[normalized];
         }
 
         return { ...current, images };
@@ -8166,7 +8143,7 @@ export async function addUserEmote(
     images[normalized] = {
         ...existing,
         url: mxcUrl,
-        usage: nextUsage,
+        usage: withKnownUsage(existing.usage, nextUsage),
         ...(meta?.info ? { info: meta.info } : {}),
         ...(meta?.body ? { body: meta.body } : {}),
     };
@@ -8196,7 +8173,7 @@ export async function setUserEmoteUsage(
     if (!existing?.url) throw new Error(t("client.imageNotFound"));
     images[normalized] = {
         ...existing,
-        usage: nextUsage,
+        usage: withKnownUsage(existing.usage, nextUsage),
     };
     await matrixClient.setAccountData("im.ponies.user_emotes", {
         ...current,
@@ -8215,24 +8192,9 @@ async function removeUserPackImage(
     const existing = images[normalized];
 
     if (existing) {
-        const usage = existing.usage?.length ? existing.usage : undefined;
-        const packUsage = current.pack?.usage?.length
-            ? current.pack.usage
-            : undefined;
-        const otherKind = kind === "emoticon" ? "sticker" : "emoticon";
-        if (usage?.includes(otherKind)) {
-            images[normalized] = {
-                ...existing,
-                usage: usage.filter((u) => u !== kind),
-            };
-        } else if (!usage && (!packUsage || packUsage.includes(otherKind))) {
-            images[normalized] = {
-                ...existing,
-                usage: [otherKind],
-            };
-        } else {
-            delete images[normalized];
-        }
+        const rest = usageWithout(existing.usage, current.pack?.usage, kind);
+        if (rest) images[normalized] = { ...existing, usage: rest };
+        else delete images[normalized];
     }
 
     await matrixClient.setAccountData("im.ponies.user_emotes", {

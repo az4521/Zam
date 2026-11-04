@@ -136,7 +136,7 @@
                         <button
                             type="button"
                             onclick={() => play(sound)}
-                            title={sound.name}
+                            title={sound.body ?? sound.name}
                             class="max-w-full truncate px-3 py-1.5 rounded bg-discord-backgroundSecondary hover:bg-discord-accent hover:text-white text-sm text-discord-textPrimary transition-colors"
                         >
                             {sound.name}

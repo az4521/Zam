@@ -67,6 +67,9 @@ const SLIDING_LIST_STATE: string[][] = [
     ["im.ponies.room_emotes", "*"],
     // The stable MSC2545 name, which Sable writes new packs under.
     ["m.room.image_pack", "*"],
+    // Sound packs, likewise: a call offers its spaces' packs and those the
+    // user enabled for every call (soundboard_rooms), wherever they live.
+    ["moe.crafty.room_soundboard", "*"],
     ["m.room.member", MSC3575_STATE_KEY_ME],
     // Calls: who is in each room's call (room-list rosters, DM ringing) and
     // the member events of whoever just sent something (the caller's join or

@@ -47,6 +47,58 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+export type KnownUsage = "emoticon" | "sticker";
+
+function isKnownUsage(value: unknown): value is KnownUsage {
+    return value === "emoticon" || value === "sticker";
+}
+
+function usageList(value: unknown): unknown[] | undefined {
+    return Array.isArray(value) && value.length > 0 ? value : undefined;
+}
+
+/** What an image may be used as: its own `usage`, else the pack's. Absent or
+ *  empty at both levels means both kinds (MSC2545). A list naming only
+ *  usages we don't know, such as an MSC4577 sound pack's, means neither:
+ *  most clients read it as both and offer the files as broken images. */
+export function resolveImageUsage(
+    imageUsage: unknown,
+    packUsage: unknown,
+): KnownUsage[] {
+    const list = usageList(imageUsage) ?? usageList(packUsage);
+    if (!list) return ["emoticon", "sticker"];
+    return [...new Set(list.filter(isKnownUsage))];
+}
+
+/** A usage list with its known kinds set to `known` and every other value in
+ *  `existing` kept, so editing emoji/sticker never drops another client's
+ *  usage. */
+export function withKnownUsage(
+    existing: unknown,
+    known: readonly KnownUsage[],
+): string[] {
+    const others = (Array.isArray(existing) ? existing : []).filter(
+        (u): u is string => typeof u === "string" && !isKnownUsage(u),
+    );
+    return [...new Set([...others, ...known.filter(isKnownUsage)])];
+}
+
+/** An image's usage once `kind` is taken away from it: its own list, else the
+ *  pack's, else both kinds, minus `kind`. Null when nothing is left, so the
+ *  image can go; an image another client also uses (an unknown usage) stays. */
+export function usageWithout(
+    imageUsage: unknown,
+    packUsage: unknown,
+    kind: KnownUsage,
+): string[] | null {
+    const base = usageList(imageUsage) ??
+        usageList(packUsage) ?? ["emoticon", "sticker"];
+    const rest = base.filter(
+        (u): u is string => typeof u === "string" && u !== kind,
+    );
+    return rest.length > 0 ? [...new Set(rest)] : null;
+}
+
 /** Whether pack content describes a pack; MSC2545 deletes one with `{}`. */
 export function hasPackContent(content: unknown): boolean {
     return (
@@ -174,9 +226,16 @@ export function applyPackMeta<T extends PackContentLike>(
         else delete pack.attribution;
     }
     if (update.usage !== undefined) {
-        if (update.usage && update.usage.length > 0) {
-            pack.usage = [...new Set(update.usage)];
-        } else delete pack.usage;
+        // Usages we don't know (another client's) stay; "both" is then
+        // spelled out, since dropping the list would lose them.
+        const known =
+            update.usage && update.usage.length > 0 ? update.usage : undefined;
+        const next = withKnownUsage(
+            pack.usage,
+            known ?? ["emoticon", "sticker"],
+        );
+        if (known || next.some((u) => !isKnownUsage(u))) pack.usage = next;
+        else delete pack.usage;
     }
     return { ...content, pack };
 }
