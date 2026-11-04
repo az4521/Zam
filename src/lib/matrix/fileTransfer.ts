@@ -1,16 +1,20 @@
 // Direct file transfer: what goes through Matrix, and the LiveKit room.
 //
 //   1. The sender posts a `file_offer` room event. Other clients ignore the type.
-//   2. A receiver who accepts sends the sender's device a request over Olm.
-//   3. The sender joins a new LiveKit room and replies, over Olm, with its name
-//      and a new key. Nothing about this room reaches the Matrix room, so it
-//      is a call only LiveKit knows about, with one sender and one receiver.
-//   4. Sealed blocks cross it (fileTransferEngine.ts), the receiver saying what
-//      it has on disk as it goes.
+//   2. A receiver who accepts joins a new LiveKit room on its own SFU, and
+//      sends the sender's device a request over Olm naming it.
+//   3. The sender joins a new room on its own SFU, then the receiver's, and
+//      replies, over Olm, with its room's name and a new key. Nothing about
+//      these rooms reaches the Matrix room, so they are calls only LiveKit
+//      knows about, with one sender and one receiver.
+//   4. Sealed blocks cross the sender's room (fileTransferEngine.ts), and the
+//      receiver says in its own room what it has on disk as it goes.
 //   5. The sender gives the file's hash over Olm, and the receiver checks it
 //      before the file takes its final name.
 //
-// Neither side sees the other's address: both only connect to the sender's SFU.
+// Like a call's media, each end publishes only on its own homeserver's SFU and
+// listens on the other's: an SFU need not let another server's users publish
+// (MSC4576). Neither side sees the other's address, only the SFUs.
 
 import {
     ClientEvent,
@@ -102,7 +106,16 @@ interface Session {
     onAck: ((ack: AckPacket) => void) | null;
 }
 
-interface ClosableLink extends TransferLink {
+interface SfuRoomTarget {
+    serviceUrl: string;
+    alias: string;
+}
+
+interface TransferRooms extends TransferLink {
+    /** The room we publish in, on our own SFU. */
+    joinOwn(target: SfuRoomTarget): Promise<void>;
+    /** The peer's room, to hear what it publishes there. */
+    joinPeer(target: SfuRoomTarget): Promise<void>;
     close(): void;
 }
 
@@ -202,18 +215,22 @@ function failureOf(err: unknown): TransferFailure {
     return "connection";
 }
 
-async function openLink(
-    target: { serviceUrl: string; alias: string },
-    peerIdentity: string,
-    session: Session,
-): Promise<ClosableLink> {
+function openLink(peerIdentity: string, session: Session): TransferRooms {
+    type LkRoom = Awaited<ReturnType<typeof joinHiddenSfuRoom>>["room"];
     let handler: (packet: Uint8Array) => void = () => {};
     let closed = false;
-    let current: Awaited<ReturnType<typeof joinHiddenSfuRoom>>["room"] | null =
-        null;
+    let ownJoined = false;
+    const current: Record<"own" | "peer", LkRoom | null> = {
+        own: null,
+        peer: null,
+    };
 
-    async function join(): Promise<void> {
+    async function join(
+        target: SfuRoomTarget,
+        slot: "own" | "peer",
+    ): Promise<void> {
         const { room, lk } = await joinHiddenSfuRoom(target);
+        // Heard in either room: an older receiver publishes in the sender's.
         room.on(
             lk.RoomEvent.DataReceived,
             (payload, participant, _kind, topic) => {
@@ -225,25 +242,28 @@ async function openLink(
             },
         );
         room.on(lk.RoomEvent.Disconnected, () => {
-            if (current !== room) return;
-            current = null;
-            if (!closed) void rejoin();
+            if (current[slot] !== room) return;
+            current[slot] = null;
+            if (!closed) void rejoin(target, slot);
         });
         if (closed) {
             void room.disconnect();
             return;
         }
-        current = room;
+        current[slot] = room;
     }
 
     // LiveKit gets through short drops itself. This is for a longer one, past
     // what it can resume. Both ends then carry on from what's on disk.
-    async function rejoin(): Promise<void> {
+    async function rejoin(
+        target: SfuRoomTarget,
+        slot: "own" | "peer",
+    ): Promise<void> {
         for (let attempt = 0; attempt < REJOIN_ATTEMPTS && !closed; attempt++) {
             await new Promise((r) => setTimeout(r, REJOIN_DELAY_MS));
             if (closed) return;
             try {
-                await join();
+                await join(target, slot);
                 return;
             } catch (err) {
                 console.warn("[file-transfer] rejoin failed", err);
@@ -252,11 +272,17 @@ async function openLink(
         session.abort.abort(new TransferFailed("connection"));
     }
 
-    await join();
     return {
+        joinOwn: async (target) => {
+            await join(target, "own");
+            ownJoined = true;
+        },
+        joinPeer: (target) => join(target, "peer"),
         send: async (packet) => {
-            if (!current) throw new Error("link down");
-            await current.localParticipant.publishData(packet, {
+            // With no SFU of our own, try the peer's: it may let us publish.
+            const room = ownJoined ? current.own : current.peer;
+            if (!room) throw new Error("link down");
+            await room.localParticipant.publishData(packet, {
                 reliable: true,
                 topic: FILE_DATA_TOPIC,
                 destinationIdentities: [peerIdentity],
@@ -265,11 +291,25 @@ async function openLink(
         onPacket: (h) => (handler = h),
         close: () => {
             closed = true;
-            const room = current;
-            current = null;
-            void room?.disconnect();
+            for (const slot of ["own", "peer"] as const) {
+                const room = current[slot];
+                current[slot] = null;
+                void room?.disconnect();
+            }
         },
     };
+}
+
+/** The room a to-device message names, if it names one we'd connect to. */
+function namedRoom(content: Record<string, unknown>): SfuRoomTarget | null {
+    const { service_url: serviceUrl, alias } = content;
+    if (
+        typeof serviceUrl !== "string" ||
+        typeof alias !== "string" ||
+        !serviceUrl.startsWith("https://")
+    )
+        return null;
+    return { serviceUrl, alias };
 }
 
 /** Keeps the page, and on Android the whole app, going. */
@@ -314,21 +354,26 @@ async function serveRequest(
     transferId: string,
     offered: Outgoing,
     session: Session,
+    receiverRoom: SfuRoomTarget | null,
 ): Promise<void> {
     const { peer } = session;
     const release = holdWhileTransferring();
-    let link: ClosableLink | null = null;
+    let link: TransferRooms | null = null;
     let sender: BlockSender | null = null;
     try {
         const alias = transferRoomAlias(offered.roomId, randomToken());
         const target = await ownSfuTarget(alias);
         if (!target) throw new TransferFailed("no-sfu");
         const { key, raw } = await generateTransferKey();
-        link = await openLink(
-            target,
-            transferIdentity(peer.userId, peer.deviceId),
-            session,
-        );
+        link = openLink(transferIdentity(peer.userId, peer.deviceId), session);
+        await link.joinOwn(target);
+        // Without it, acknowledgements still come over to-device messages.
+        if (receiverRoom)
+            await link
+                .joinPeer(receiverRoom)
+                .catch((err) =>
+                    console.warn("[file-transfer] receiver's room", err),
+                );
         const progress = trackProgress(session.viewId);
         sender = new BlockSender(offered.file, key, transferId, link, progress);
         const running = sender;
@@ -422,6 +467,7 @@ async function handleRequest(
         transferId,
         offered!,
         startSession(viewId, transferId, peer),
+        namedRoom(payload.message.content),
     );
 }
 
@@ -578,12 +624,26 @@ async function receiveFile(
     const { peer } = session;
     const transferId = offer.transferId;
     const release = holdWhileTransferring();
-    let link: ClosableLink | null = null;
+    let link: TransferRooms | null = null;
     let receiver: BlockReceiver | null = null;
     try {
+        link = openLink(transferIdentity(peer.userId, peer.deviceId), session);
+        // Joined before the sender hears of it: our SFU may only let us make
+        // it. With no room of our own, we try publishing in the sender's.
+        const alias = transferRoomAlias(roomId, randomToken());
+        let ownRoom = await ownSfuTarget(alias).catch(() => null);
+        if (ownRoom)
+            await link.joinOwn(ownRoom).catch((err) => {
+                console.warn("[file-transfer] couldn't open our room", err);
+                ownRoom = null;
+            });
         await sendToDevice(FILE_REQUEST_TYPE, peer, {
             transfer_id: transferId,
             room_id: roomId,
+            ...(ownRoom && {
+                service_url: ownRoom.serviceUrl,
+                alias: ownRoom.alias,
+            }),
         });
         const refused = expectMessage(
             session,
@@ -600,19 +660,11 @@ async function receiveFile(
             ]),
         );
         refused.catch(() => {});
-        if (
-            typeof answer.key !== "string" ||
-            typeof answer.alias !== "string" ||
-            typeof answer.service_url !== "string" ||
-            !answer.service_url.startsWith("https://")
-        )
+        const senderRoom = namedRoom(answer);
+        if (typeof answer.key !== "string" || !senderRoom)
             throw new TransferFailed("connection");
         const key = await importTransferKey(base64UrlToBytes(answer.key));
-        link = await openLink(
-            { serviceUrl: answer.service_url, alias: answer.alias },
-            transferIdentity(peer.userId, peer.deviceId),
-            session,
-        );
+        await link.joinPeer(senderRoom);
         updateTransfer(session.viewId, { phase: "transferring" });
         receiver = new BlockReceiver(
             offer.size,

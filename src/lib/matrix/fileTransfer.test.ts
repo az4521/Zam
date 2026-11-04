@@ -18,10 +18,16 @@ interface FakeDevice {
 
 const devices = new Map<string, FakeDevice>();
 const rooms = new Map<string, Map<string, FakeRoom>>();
-const joined: string[] = [];
+/** Who made each room: the only one the SFU lets publish in it (MSC4576). */
+const owners = new Map<string, string>();
+const joined: { identity: string; alias: string }[] = [];
+/** Publishes the SFU dropped: someone else's room. */
+let foreignPublishes = 0;
 const sent: { type: string; to: string }[] = [];
 let dropTo: ((type: string) => boolean) | null = null;
 let memberships: Record<string, string> = {};
+/** Identities whose homeserver has no SFU. */
+const sfuless = new Set<string>();
 const SENDER = "@alice:x:A";
 const RECEIVER = "@bob:x:B";
 
@@ -42,6 +48,10 @@ class FakeRoom {
             data: Uint8Array,
             options: { topic: string; destinationIdentities: string[] },
         ) => {
+            if (owners.get(this.alias) !== this.identity) {
+                foreignPublishes++;
+                return;
+            }
             const members = rooms.get(this.alias)!;
             for (const id of options.destinationIdentities) {
                 queueMicrotask(() =>
@@ -63,29 +73,33 @@ class FakeRoom {
     }
 }
 
-vi.mock("./livekitCall", () => ({
-    ownSfuTarget: async (alias: string) => ({
-        serviceUrl: "https://sfu.example",
-        alias,
-    }),
-    joinHiddenSfuRoom: async (target: { alias: string }) => {
-        if (!rooms.has(target.alias)) rooms.set(target.alias, new Map());
-        // The sender makes the room, then tells the receiver its name.
-        const identity = rooms.get(target.alias)!.size ? RECEIVER : SENDER;
-        const room = new FakeRoom(target.alias, identity);
-        rooms.get(target.alias)!.set(identity, room);
-        joined.push(target.alias);
-        return {
-            room,
-            lk: {
-                RoomEvent: {
-                    DataReceived: "dataReceived",
-                    Disconnected: "disconnected",
+/** One session's SFU connections, as `identity`. */
+function fakeLivekit(identity: string) {
+    return {
+        ownSfuTarget: async (alias: string) =>
+            sfuless.has(identity)
+                ? null
+                : { serviceUrl: "https://sfu.example", alias },
+        joinHiddenSfuRoom: async (target: { alias: string }) => {
+            if (!rooms.has(target.alias)) {
+                rooms.set(target.alias, new Map());
+                owners.set(target.alias, identity);
+            }
+            const room = new FakeRoom(target.alias, identity);
+            rooms.get(target.alias)!.set(identity, room);
+            joined.push({ identity, alias: target.alias });
+            return {
+                room,
+                lk: {
+                    RoomEvent: {
+                        DataReceived: "dataReceived",
+                        Disconnected: "disconnected",
+                    },
                 },
-            },
-        };
-    },
-}));
+            };
+        },
+    };
+}
 
 const sink = vi.hoisted(() => ({
     written: new Map<number, Uint8Array>(),
@@ -194,6 +208,8 @@ function fakeClient(userId: string, deviceId: string) {
 
 async function session(userId: string, deviceId: string) {
     vi.resetModules();
+    const identity = `${userId}:${deviceId}`;
+    vi.doMock("./livekitCall", () => fakeLivekit(identity));
     const transfer = await import("./fileTransfer");
     const store = await import("$lib/stores/fileTransfers.svelte");
     const client = fakeClient(userId, deviceId);
@@ -216,10 +232,15 @@ async function until(check: () => boolean) {
     );
 }
 
-/** Both ends are in this test's room and blocks are landing. A send from the
+/** The rooms `identity` joined. */
+function joinedBy(identity: string) {
+    return joined.filter((j) => j.identity === identity).map((j) => j.alias);
+}
+
+/** Both ends are in both of this test's rooms and blocks are landing. A send from the
  *  test before can still be finishing, so the sink alone doesn't show it. */
 async function untilTransferring() {
-    await until(() => joined.length === 2);
+    await until(() => joined.length === 4);
     sink.written.clear();
     await until(() => sink.written.size > 0);
 }
@@ -233,7 +254,10 @@ function fileOf(size: number): File {
 beforeEach(() => {
     devices.clear();
     rooms.clear();
+    owners.clear();
+    sfuless.clear();
     joined.length = 0;
+    foreignPublishes = 0;
     sent.length = 0;
     dropTo = null;
     memberships = {};
@@ -280,8 +304,32 @@ describe("a direct transfer", () => {
             direction: "receive",
             bytes: size,
         });
-        expect(new Set(joined).size).toBe(1);
-        expect(joined[0]).toMatch(/^!r:x\|zam-transfer-/);
+        // Each end publishes in its own room only, and listens in the other's.
+        const [own, peer] = joinedBy(RECEIVER);
+        expect(own).toMatch(/^!r:x\|zam-transfer-/);
+        expect(owners.get(own)).toBe(RECEIVER);
+        expect(owners.get(peer)).toBe(SENDER);
+        expect(joinedBy(SENDER)).toEqual([peer, own]);
+        expect(foreignPublishes).toBe(0);
+    });
+
+    it("acknowledges over to-device messages when the receiver has no SFU", async () => {
+        const alice = await session("@alice:x", "A");
+        sfuless.add(RECEIVER);
+        const bob = await session("@bob:x", "B");
+        await alice.transfer.offerFile("!r:x", fileOf(1000));
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        const accepting = bob.transfer.acceptOffer(
+            "!r:x",
+            "@alice:x",
+            offerIn(alice),
+        );
+        await vi.advanceTimersByTimeAsync(10_000);
+        await accepting;
+        vi.useRealTimers();
+        expect(joinedBy(RECEIVER)).toEqual(joinedBy(SENDER));
+        expect(sent.some((m) => m.type.endsWith(".ack"))).toBe(true);
+        expect(sink.finished).toBe(1);
     });
 
     it("discards the file when the final hash doesn't match", async () => {
@@ -315,7 +363,7 @@ describe("a direct transfer", () => {
         memberships["@bob:x"] = "leave";
         await bob.transfer.acceptOffer("!r:x", "@alice:x", offerIn(alice));
         expect(sent.some((m) => m.type === FILE_REFUSE_TYPE)).toBe(true);
-        expect(joined).toEqual([]);
+        expect(joinedBy(SENDER)).toEqual([]);
         expect(sink.aborted).toBe(1);
         expect(bob.store.fileTransfersState.views[0].failure).toBe("refused");
     });
@@ -341,7 +389,7 @@ describe("a direct transfer", () => {
             senderDevice: "A",
             expiresTs: Date.now() + 1000,
         });
-        expect(joined).toEqual([]);
+        expect(joinedBy(SENDER)).toEqual([]);
         expect(bob.store.fileTransfersState.views[0].failure).toBe("refused");
     });
 
@@ -357,7 +405,7 @@ describe("a direct transfer", () => {
         await accepting;
         vi.useRealTimers();
         expect(bob.store.fileTransfersState.views[0].failure).toBe("offline");
-        expect(joined).toEqual([]);
+        expect(joinedBy(SENDER)).toEqual([]);
     });
 
     it("stops both ends when the sender withdraws", async () => {
@@ -411,7 +459,7 @@ describe("a direct transfer", () => {
         await alice.transfer.offerFile("!r:x", fileOf(10));
         alice.client.redact("$offer");
         await bob.transfer.acceptOffer("!r:x", "@alice:x", offerIn(alice));
-        expect(joined).toEqual([]);
+        expect(joinedBy(SENDER)).toEqual([]);
         expect(bob.store.fileTransfersState.views[0].failure).toBe("refused");
     });
 
