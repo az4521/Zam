@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.46.4
+
+🐛 **Fixed**
+
+- **Memory use from GIFs:** GIFs embedded from Tenor, Giphy and Klipy now unload once you scroll well past them, and load again when you scroll back. Before, every GIF you had scrolled past stayed loaded until you left the room.
+
+⚡ **Improved**
+
+- **Video in calls:** your camera and screen share no longer upload video quality levels that nobody in the call is watching, which saves upload bandwidth and processing.
+
 ## v1.46.3
 
 🐛 **Fixed**
