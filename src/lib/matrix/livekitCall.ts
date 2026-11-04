@@ -1410,6 +1410,11 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             noiseSuppression: micPlan.noiseSuppression,
             echoCancellation: settingsState.echoCancellation,
             autoGainControl: micPlan.autoGainControl,
+            // LiveKit's own defaults turn this on, which would stack the
+            // platform's voice isolation on top of our denoiser (and make the
+            // call sound different from the settings mic test, which never
+            // asks for it).
+            voiceIsolation: false,
             // No `processor` here: see setCallMicEnabled.
         },
         // Each video publish sets its own backup codec
@@ -2198,6 +2203,8 @@ export async function setVoiceCaptureConstraints(opts: {
         noiseSuppression: plan.noiseSuppression,
         echoCancellation: opts.echoCancellation,
         autoGainControl: plan.autoGainControl,
+        // restartTrack doesn't merge audioCaptureDefaults; see joinVoiceCall.
+        voiceIsolation: false,
     };
     // Keep the defaults in step so a mic track created later (first unmute
     // after joining muted) gets the same constraints; setCallMicEnabled
