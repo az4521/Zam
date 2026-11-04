@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.48.1
+
+🐛 **Fixed**
+
+- **Direct file transfers between servers:** transfers no longer depend on the sender's server letting people from other servers send data through its voice server. Each side now only sends through its own server's voice server, the same way calls work, so transfers keep working on servers that follow the new Matrix rules for this.
+
 ## v1.48.0
 
 ✨ **New**
