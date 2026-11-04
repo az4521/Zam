@@ -6,6 +6,7 @@
 import { prepareDeepFilter } from "./deepFilter";
 import { prepareRnnoise } from "./rnnoise";
 import { prepareFastEnhancer } from "./fastenhancer";
+import { prepareFastEnhancerGpu } from "./fastenhancerGpu";
 import { micFilterUsable, waitForMicFilter } from "./micFilters";
 import type { DenoiseEngine } from "./micChain";
 
@@ -20,9 +21,14 @@ const feModel = (engine: DenoiseEngine) =>
 export async function prepareDenoiser(
     engine: DenoiseEngine,
     timeoutMs: number,
+    gpu = false,
 ): Promise<boolean> {
-    if (engine === "fastenhancer" || engine === "fastenhancer-tiny")
+    if (engine === "fastenhancer" || engine === "fastenhancer-tiny") {
+        // The GPU first where asked for; the chain falls back to the CPU
+        // worklet without it, so get that ready instead.
+        if (gpu && (await prepareFastEnhancerGpu(feModel(engine)))) return true;
         return (await prepareFastEnhancer(feModel(engine))) || prepareRnnoise();
+    }
     if (engine === "rnnoise") return prepareRnnoise();
     if (engine !== "deepfilter") {
         const filter = await waitForMicFilter(engine, PLUGIN_LOAD_WAIT_MS);

@@ -62,6 +62,42 @@ export function noiseSuppressionHasGpu(mode: NoiseSuppressionMode): boolean {
     return mode === "fastenhancer" || mode === "fastenhancer-tiny";
 }
 
+/** GPU acceleration for a mode the user hasn't set it for. On where the GPU
+ *  is cheaper: FastEnhancer (about 7% of a core against 16% on a 5800X), not
+ *  Tiny, which costs about the same on the CPU as the GPU's fixed overhead. */
+export function noiseSuppressionGpuDefault(
+    mode: NoiseSuppressionMode,
+): boolean {
+    return mode === "fastenhancer";
+}
+
+/** The user's GPU acceleration choices, per mode. */
+export type NoiseSuppressionGpuChoices = Record<string, boolean>;
+
+/** Stored choices (a JSON object of booleans); none for anything else. */
+export function normalizeNoiseSuppressionGpu(
+    stored: string | null,
+): NoiseSuppressionGpuChoices {
+    try {
+        const v: unknown = stored === null ? null : JSON.parse(stored);
+        if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+        return Object.fromEntries(
+            Object.entries(v).filter(([, b]) => typeof b === "boolean"),
+        ) as NoiseSuppressionGpuChoices;
+    } catch {
+        return {};
+    }
+}
+
+/** Whether `mode` runs on the GPU: the user's choice, else its default. */
+export function noiseSuppressionUsesGpu(
+    mode: NoiseSuppressionMode,
+    choices: NoiseSuppressionGpuChoices,
+): boolean {
+    if (!noiseSuppressionHasGpu(mode)) return false;
+    return choices[mode] ?? noiseSuppressionGpuDefault(mode);
+}
+
 /** The mode actually used: a neural model where the browser can't run one
  *  (no AudioWorklet or WASM SIMD) falls back to RNNoise, which needs no SIMD,
  *  and where even that can't run to the browser's suppressor, rather than to

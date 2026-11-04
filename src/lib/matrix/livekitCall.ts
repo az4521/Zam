@@ -129,7 +129,10 @@ import {
 import { deepFilterSupported } from "$lib/audio/deepFilter";
 import { prepareDenoiser } from "$lib/audio/prepareDenoiser";
 import type { MicGainMode } from "$lib/utils/micGainMode";
-import type { NoiseSuppressionMode } from "$lib/utils/noiseSuppressionMode";
+import {
+    noiseSuppressionUsesGpu,
+    type NoiseSuppressionMode,
+} from "$lib/utils/noiseSuppressionMode";
 import {
     planMicProcessing,
     type MicProcessingPlan,
@@ -1310,14 +1313,19 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     // Same for the noise filter: compiled now, awaited before the mic exists
     // so the call never starts unfiltered. Bounded, so a first download on a
     // slow link delays the join rather than blocking it.
-    const joinDenoise = planMicProcessing(
+    const joinChain = planMicProcessing(
         settingsState.noiseSuppressionMode,
         settingsState.micGainMode,
         deepFilterSupported(),
         micTuning(),
-    ).chain?.denoise;
+    ).chain;
+    const joinDenoise = joinChain?.denoise;
     const denoiseLoad = joinDenoise
-        ? prepareDenoiser(joinDenoise, DENOISE_JOIN_WAIT_MS)
+        ? prepareDenoiser(
+              joinDenoise,
+              DENOISE_JOIN_WAIT_MS,
+              joinChain?.feGpu ?? false,
+          )
         : Promise.resolve(false);
     await leaveVoiceCallInternal();
     if (seq !== voiceJoinSeq) return; // superseded while leaving
@@ -2161,7 +2169,10 @@ function micTuning(): MicTuning {
     return {
         pauseGate: settingsState.micPauseGate,
         attenuationDb: settingsState.dfAttenuationDb,
-        feGpu: settingsState.noiseSuppressionGpu,
+        feGpu: noiseSuppressionUsesGpu(
+            settingsState.noiseSuppressionMode,
+            settingsState.noiseSuppressionGpu,
+        ),
     };
 }
 

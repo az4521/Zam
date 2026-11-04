@@ -52,6 +52,7 @@
         normalizeNoiseSuppressionMode,
         effectiveNoiseSuppression,
         noiseSuppressionHasGpu,
+        noiseSuppressionUsesGpu,
     } from "$lib/utils/noiseSuppressionMode";
     import { planMicProcessing } from "$lib/utils/micProcessing";
     import { deepFilterSupported } from "$lib/audio/deepFilter";
@@ -205,7 +206,10 @@
             {
                 pauseGate: settingsState.micPauseGate,
                 attenuationDb: settingsState.dfAttenuationDb,
-                feGpu: settingsState.noiseSuppressionGpu,
+                feGpu: noiseSuppressionUsesGpu(
+                    settingsState.noiseSuppressionMode,
+                    settingsState.noiseSuppressionGpu,
+                ),
             },
         ),
     );
@@ -716,9 +720,15 @@
                     </p>
                 </div>
                 <ToggleSwitch
-                    checked={settingsState.noiseSuppressionGpu}
+                    checked={noiseSuppressionUsesGpu(
+                        settingsState.noiseSuppressionMode,
+                        settingsState.noiseSuppressionGpu,
+                    )}
                     onChange={(v) => {
-                        setNoiseSuppressionGpu(v);
+                        setNoiseSuppressionGpu(
+                            settingsState.noiseSuppressionMode,
+                            v,
+                        );
                         void applyConstraints();
                     }}
                     label={t("voiceAudioSettings.noiseSuppressionGpu")}

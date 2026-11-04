@@ -44,6 +44,7 @@ import { normalizeGraceMs } from "$lib/utils/activeSession";
 import { normalizeMicGainMode, type MicGainMode } from "$lib/utils/micGainMode";
 import { normalizeAttenuationDb } from "$lib/utils/micProcessing";
 import {
+    normalizeNoiseSuppressionGpu,
     normalizeNoiseSuppressionMode,
     type NoiseSuppressionMode,
 } from "$lib/utils/noiseSuppressionMode";
@@ -426,9 +427,12 @@ export const settingsState = $state({
         readAccountBool("noiseSuppression", true),
     ),
     echoCancellation: readAccountBool("echoCancellation", true),
-    /** Run FastEnhancer's network on the GPU ($lib/audio/fastenhancerGpu);
-     *  off by default (it adds a hop of delay). */
-    noiseSuppressionGpu: readAccountBool("noiseSuppressionGpu", false),
+    /** GPU acceleration, per noise suppression mode the user has set it for
+     *  (others use noiseSuppressionGpuDefault); read it through
+     *  noiseSuppressionUsesGpu. */
+    noiseSuppressionGpu: normalizeNoiseSuppressionGpu(
+        readAccountString("noiseSuppressionGpuByMode"),
+    ),
     /** Which AGC levels the user's own mic; see $lib/utils/micGainMode.
      *  Falls back to the legacy autoGainControl boolean. */
     micGainMode: normalizeMicGainMode(
@@ -770,9 +774,8 @@ export function reloadAccountSettings(): void {
         readAccountBool("autoGainControl", true),
     );
     settingsState.micPauseGate = readAccountBool("micPauseGate", false);
-    settingsState.noiseSuppressionGpu = readAccountBool(
-        "noiseSuppressionGpu",
-        false,
+    settingsState.noiseSuppressionGpu = normalizeNoiseSuppressionGpu(
+        readAccountString("noiseSuppressionGpuByMode"),
     );
     settingsState.dfAttenuationDb = normalizeAttenuationDb(
         readAccountString("dfAttenuationDb"),
@@ -1160,9 +1163,18 @@ export function setMicPauseGate(value: boolean): void {
     writeAccountBool("micPauseGate", value);
 }
 
-export function setNoiseSuppressionGpu(value: boolean): void {
-    settingsState.noiseSuppressionGpu = value;
-    writeAccountBool("noiseSuppressionGpu", value);
+export function setNoiseSuppressionGpu(
+    mode: NoiseSuppressionMode,
+    value: boolean,
+): void {
+    settingsState.noiseSuppressionGpu = {
+        ...settingsState.noiseSuppressionGpu,
+        [mode]: value,
+    };
+    writeAccountString(
+        "noiseSuppressionGpuByMode",
+        JSON.stringify(settingsState.noiseSuppressionGpu),
+    );
 }
 
 export function setDfAttenuationDb(value: number): void {

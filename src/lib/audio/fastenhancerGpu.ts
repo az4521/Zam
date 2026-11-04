@@ -96,6 +96,18 @@ function startEngine(model: FastEnhancerModel): Promise<void> {
     return p;
 }
 
+/** Starts `model` on the GPU ahead of a call (shaders, weights, the
+ *  self-test); false where it can't run. */
+export function prepareFastEnhancerGpu(
+    model: FastEnhancerModel,
+): Promise<boolean> {
+    if (!fastEnhancerGpuSupported()) return Promise.resolve(false);
+    return startEngine(model).then(
+        () => true,
+        () => false,
+    );
+}
+
 export async function createFastEnhancerGpuNode(
     ctx: AudioContext,
     model: FastEnhancerModel,

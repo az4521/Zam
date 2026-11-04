@@ -3,7 +3,38 @@ import { planMicProcessing, normalizeAttenuationDb } from "./micProcessing";
 import {
     normalizeNoiseSuppressionMode,
     effectiveNoiseSuppression,
+    normalizeNoiseSuppressionGpu,
+    noiseSuppressionUsesGpu,
 } from "./noiseSuppressionMode";
+
+describe("noiseSuppressionUsesGpu", () => {
+    it("defaults to the GPU for FastEnhancer, not for Tiny", () => {
+        expect(noiseSuppressionUsesGpu("fastenhancer", {})).toBe(true);
+        expect(noiseSuppressionUsesGpu("fastenhancer-tiny", {})).toBe(false);
+    });
+    it("follows the user's choice per mode", () => {
+        const choices = { fastenhancer: false, "fastenhancer-tiny": true };
+        expect(noiseSuppressionUsesGpu("fastenhancer", choices)).toBe(false);
+        expect(noiseSuppressionUsesGpu("fastenhancer-tiny", choices)).toBe(
+            true,
+        );
+    });
+    it("is never on for modes without a GPU backend", () => {
+        expect(noiseSuppressionUsesGpu("rnnoise", { rnnoise: true })).toBe(
+            false,
+        );
+        expect(noiseSuppressionUsesGpu("deepfilter", {})).toBe(false);
+    });
+    it("reads stored choices, ignoring anything else", () => {
+        expect(
+            normalizeNoiseSuppressionGpu('{"fastenhancer":false,"x":1}'),
+        ).toEqual({ fastenhancer: false });
+        expect(normalizeNoiseSuppressionGpu("true")).toEqual({});
+        expect(normalizeNoiseSuppressionGpu("[true]")).toEqual({});
+        expect(normalizeNoiseSuppressionGpu("{")).toEqual({});
+        expect(normalizeNoiseSuppressionGpu(null)).toEqual({});
+    });
+});
 
 describe("normalizeNoiseSuppressionMode", () => {
     it("keeps a stored mode", () => {
