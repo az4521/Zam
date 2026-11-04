@@ -40,6 +40,7 @@
         type NavKey,
     } from "$lib/utils/listboxNavigation";
     import { anchoredActiveIndex } from "$lib/utils/listboxAnchor";
+    import { distributeColumns, masonryColumnCount } from "$lib/utils/masonry";
 
     interface Props {
         onSelect: (url: string) => void;
@@ -108,13 +109,28 @@
         );
     });
 
+    // Masonry columns (see utils/masonry). Favourites round-robin so the top
+    // row is always the newest few and nothing but the list itself decides
+    // where a tile sits; KLIPY results carry dimensions, so they balance by
+    // height, and appending a page never moves the tiles already shown.
+    let masonryWidth = $state(0);
+    const columnCount = $derived(masonryColumnCount(masonryWidth, 165, 4));
+    const favouriteColumns = $derived(
+        distributeColumns(visibleFavourites, columnCount),
+    );
+    const resultColumns = $derived(
+        distributeColumns(gifSearchState.items, columnCount, (r) =>
+            r.width > 0 && r.height > 0 ? r.height / r.width : 1,
+        ),
+    );
+
     // --- Keyboard navigation over the results ------------------------------
     //
-    // Modelled as a ONE-DIMENSIONAL listbox, not a grid. The results are a CSS
-    // masonry (`columns-[165px]`), so how many tiles sit in a row -- and which
-    // tile is "above" which -- exists only inside the layout engine and cannot
-    // be read back off the DOM. A listbox is allowed to be one-dimensional, so
-    // all four arrows step by one in DOM order and Home/End jump to the ends.
+    // Modelled as a ONE-DIMENSIONAL listbox, not a grid. The results are a
+    // masonry, so which tile is "above" which depends on rendered heights, not
+    // on anything the list knows. A listbox is allowed to be one-dimensional,
+    // so all four arrows step by one in list order (left to right across the
+    // rows) and Home/End jump to the ends.
     // Claiming role="grid" would promise assistive tech a row/column geometry
     // that nothing here can deliver, and AT users would have to navigate around
     // the lie.
@@ -473,8 +489,8 @@
 
          The structurally correct shape for that is a one-column role="grid":
          each tile a `row`, the GIF and its overlay controls `gridcell`s. It is
-         deferred because it means adding wrapper elements inside a CSS
-         `columns-[165px]` masonry -- a layout change that has to be seen in a
+         deferred because it means adding wrapper elements inside the
+         masonry columns -- a layout change that has to be seen in a
          real browser, not reasoned about.
 
          What this link added to that estimate: every element that would need
@@ -515,83 +531,97 @@
                 </p>
             {:else}
                 <div
-                    class="columns-[165px] gap-x-1 mt-1"
+                    class="flex items-start gap-x-1 mt-1"
                     role="group"
                     aria-label={t("gifPicker.favourites")}
+                    bind:clientWidth={masonryWidth}
                 >
-                    {#each visibleFavourites as gif, idx (gif.url)}
-                        <div class="relative group/gif mb-1 break-inside-avoid">
-                            <!-- The <img> is alt="", so without a label this
+                    {#each favouriteColumns as column, c (c)}
+                        <div class="flex-1 min-w-0">
+                            {#each column as placed (placed.item.url)}
+                                {@const gif = placed.item}
+                                {@const idx = placed.idx}
+                                <div class="relative group/gif mb-1">
+                                    <!-- The <img> is alt="", so without a label this
                                  button announces as bare "button". The user's
                                  own tags are the only human-readable thing a
                                  favourite carries; the URL in `title` would be
                                  a terrible name to hear read out. -->
-                            <button
-                                onclick={() => pickUrl(gif.url)}
-                                title={(gif.tags ?? []).length
-                                    ? `${gif.url}\n${(gif.tags ?? []).join(", ")}`
-                                    : gif.url}
-                                id={optionId(listId, idx)}
-                                role="option"
-                                aria-selected={activeIndex === idx}
-                                aria-label={(gif.tags ?? []).length
-                                    ? t("gifPicker.gifTagged", {
-                                          join: (gif.tags ?? []).join(", "),
-                                      })
-                                    : t("gifPicker.favouriteGif", {
-                                          value: idx + 1,
-                                      })}
-                                tabindex="-1"
-                                class:ring-2={activeIndex === idx}
-                                class:ring-inset={activeIndex === idx}
-                                class:ring-discord-accent={activeIndex === idx}
-                                class="block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
-                            >
-                                {#if parseEventFavouriteSource(gif.source)}
-                                    <FavouriteFileImg
-                                        source={parseEventFavouriteSource(
-                                            gif.source,
-                                        )!}
-                                        class="w-full h-auto block rounded bg-discord-backgroundTertiary"
-                                        style={favouriteAspectStyle(gif)}
-                                    />
-                                {:else if gif.previewVideoUrl}
-                                    <video
-                                        src={gif.previewVideoUrl}
-                                        poster={gif.previewUrl !==
-                                        gif.previewVideoUrl
-                                            ? gif.previewUrl
-                                            : undefined}
-                                        class="w-full h-auto block rounded bg-discord-backgroundTertiary pointer-events-none"
-                                        style={favouriteAspectStyle(gif)}
-                                        autoplay
-                                        muted
-                                        loop
-                                        playsinline
-                                        disablepictureinpicture
-                                        aria-hidden="true"
-                                    ></video>
-                                {:else}
-                                    <img
-                                        src={gif.previewUrl}
-                                        alt=""
-                                        class="w-full h-auto block rounded bg-discord-backgroundTertiary"
-                                        loading="lazy"
-                                        decoding="async"
-                                        style={favouriteAspectStyle(gif)}
-                                        onload={(e) => {
-                                            const img =
-                                                e.currentTarget as HTMLImageElement;
-                                            learnGifAspect(
-                                                gif.previewUrl,
-                                                img.naturalWidth,
-                                                img.naturalHeight,
-                                            );
-                                        }}
-                                    />
-                                {/if}
-                            </button>
-                            <!-- Touchscreens have no hover, so the controls stay
+                                    <button
+                                        onclick={() => pickUrl(gif.url)}
+                                        title={(gif.tags ?? []).length
+                                            ? `${gif.url}\n${(gif.tags ?? []).join(", ")}`
+                                            : gif.url}
+                                        id={optionId(listId, idx)}
+                                        role="option"
+                                        aria-selected={activeIndex === idx}
+                                        aria-label={(gif.tags ?? []).length
+                                            ? t("gifPicker.gifTagged", {
+                                                  join: (gif.tags ?? []).join(
+                                                      ", ",
+                                                  ),
+                                              })
+                                            : t("gifPicker.favouriteGif", {
+                                                  value: idx + 1,
+                                              })}
+                                        tabindex="-1"
+                                        class:ring-2={activeIndex === idx}
+                                        class:ring-inset={activeIndex === idx}
+                                        class:ring-discord-accent={activeIndex ===
+                                            idx}
+                                        class="block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
+                                    >
+                                        {#if parseEventFavouriteSource(gif.source)}
+                                            <FavouriteFileImg
+                                                source={parseEventFavouriteSource(
+                                                    gif.source,
+                                                )!}
+                                                class="w-full h-auto block rounded bg-discord-backgroundTertiary"
+                                                style={favouriteAspectStyle(
+                                                    gif,
+                                                )}
+                                            />
+                                        {:else if gif.previewVideoUrl}
+                                            <video
+                                                src={gif.previewVideoUrl}
+                                                poster={gif.previewUrl !==
+                                                gif.previewVideoUrl
+                                                    ? gif.previewUrl
+                                                    : undefined}
+                                                class="w-full h-auto block rounded bg-discord-backgroundTertiary pointer-events-none"
+                                                style={favouriteAspectStyle(
+                                                    gif,
+                                                )}
+                                                autoplay
+                                                muted
+                                                loop
+                                                playsinline
+                                                disablepictureinpicture
+                                                aria-hidden="true"
+                                            ></video>
+                                        {:else}
+                                            <img
+                                                src={gif.previewUrl}
+                                                alt=""
+                                                class="w-full h-auto block rounded bg-discord-backgroundTertiary"
+                                                loading="lazy"
+                                                decoding="async"
+                                                style={favouriteAspectStyle(
+                                                    gif,
+                                                )}
+                                                onload={(e) => {
+                                                    const img =
+                                                        e.currentTarget as HTMLImageElement;
+                                                    learnGifAspect(
+                                                        gif.previewUrl,
+                                                        img.naturalWidth,
+                                                        img.naturalHeight,
+                                                    );
+                                                }}
+                                            />
+                                        {/if}
+                                    </button>
+                                    <!-- Touchscreens have no hover, so the controls stay
                                  visible there instead of revealing on hover.
                                  focus-within matters too: these stay focusable
                                  while transparent, so without it a keyboard
@@ -602,79 +632,85 @@
                                  tile has to reveal its controls explicitly or a
                                  keyboard user gets a selection ring and nothing
                                  to act on. -->
-                            <div
-                                class="absolute top-1 end-1 flex gap-1 transition-opacity {interfaceState.isTouchscreen ||
-                                activeIndex === idx
-                                    ? 'opacity-100'
-                                    : 'opacity-0 group-hover/gif:opacity-100 group-focus-within/gif:opacity-100'}"
-                            >
-                                <button
-                                    onclick={(e) => {
-                                        e.stopPropagation();
-                                        startEditing(gif);
-                                    }}
-                                    title={t("gifPicker.editTags")}
-                                    class="text-white {favBtnClass}"
-                                >
-                                    <svg
-                                        class="w-3.5 h-3.5"
-                                        fill="currentColor"
-                                        viewBox="0 0 24 24"
+                                    <div
+                                        class="absolute top-1 end-1 flex gap-1 transition-opacity {interfaceState.isTouchscreen ||
+                                        activeIndex === idx
+                                            ? 'opacity-100'
+                                            : 'opacity-0 group-hover/gif:opacity-100 group-focus-within/gif:opacity-100'}"
                                     >
-                                        <path
-                                            d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-                                        />
-                                    </svg>
-                                </button>
-                                <button
-                                    onclick={(e) => {
-                                        e.stopPropagation();
-                                        removeFavouriteGif(gif.url);
-                                    }}
-                                    title={t("common.removeFromFavourites")}
-                                    class="text-discord-warning {favBtnClass}"
-                                >
-                                    <svg
-                                        class="w-3.5 h-3.5"
-                                        fill="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-                                        />
-                                    </svg>
-                                </button>
-                            </div>
-                            {#if (gif.tags ?? []).length && editingUrl !== gif.url}
-                                <div
-                                    class="absolute bottom-0 inset-x-0 px-1 py-0.5 rounded-b bg-black/60 text-[10px] text-white truncate pointer-events-none"
-                                >
-                                    {(gif.tags ?? []).join(", ")}
+                                        <button
+                                            onclick={(e) => {
+                                                e.stopPropagation();
+                                                startEditing(gif);
+                                            }}
+                                            title={t("gifPicker.editTags")}
+                                            class="text-white {favBtnClass}"
+                                        >
+                                            <svg
+                                                class="w-3.5 h-3.5"
+                                                fill="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                                                />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            onclick={(e) => {
+                                                e.stopPropagation();
+                                                removeFavouriteGif(gif.url);
+                                            }}
+                                            title={t(
+                                                "common.removeFromFavourites",
+                                            )}
+                                            class="text-discord-warning {favBtnClass}"
+                                        >
+                                            <svg
+                                                class="w-3.5 h-3.5"
+                                                fill="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                                />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    {#if (gif.tags ?? []).length && editingUrl !== gif.url}
+                                        <div
+                                            class="absolute bottom-0 inset-x-0 px-1 py-0.5 rounded-b bg-black/60 text-[10px] text-white truncate pointer-events-none"
+                                        >
+                                            {(gif.tags ?? []).join(", ")}
+                                        </div>
+                                    {/if}
+                                    {#if editingUrl === gif.url}
+                                        <div
+                                            class="absolute inset-0 rounded bg-black/80 flex flex-col justify-center gap-1 p-1.5"
+                                        >
+                                            <!-- svelte-ignore a11y_autofocus -->
+                                            <input
+                                                bind:this={tagInputEl}
+                                                bind:value={tagDraft}
+                                                onkeydown={onTagKeydown}
+                                                onblur={saveTags}
+                                                autofocus
+                                                placeholder={t(
+                                                    "gifPicker.catFunny",
+                                                )}
+                                                class="search-input w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-xs rounded px-1.5 py-1 outline-none border border-transparent"
+                                            />
+                                            <p
+                                                class="text-[10px] text-discord-textMuted"
+                                            >
+                                                {t(
+                                                    "gifPicker.commaSeparatedEnterToSave",
+                                                )}
+                                            </p>
+                                        </div>
+                                    {/if}
                                 </div>
-                            {/if}
-                            {#if editingUrl === gif.url}
-                                <div
-                                    class="absolute inset-0 rounded bg-black/80 flex flex-col justify-center gap-1 p-1.5"
-                                >
-                                    <!-- svelte-ignore a11y_autofocus -->
-                                    <input
-                                        bind:this={tagInputEl}
-                                        bind:value={tagDraft}
-                                        onkeydown={onTagKeydown}
-                                        onblur={saveTags}
-                                        autofocus
-                                        placeholder={t("gifPicker.catFunny")}
-                                        class="search-input w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-xs rounded px-1.5 py-1 outline-none border border-transparent"
-                                    />
-                                    <p
-                                        class="text-[10px] text-discord-textMuted"
-                                    >
-                                        {t(
-                                            "gifPicker.commaSeparatedEnterToSave",
-                                        )}
-                                    </p>
-                                </div>
-                            {/if}
+                            {/each}
                         </div>
                     {/each}
                 </div>
@@ -694,94 +730,104 @@
                 </p>
             {:else}
                 <div
-                    class="columns-[165px] gap-x-1 mt-1"
+                    class="flex items-start gap-x-1 mt-1"
                     role="group"
                     aria-label={search.trim()
                         ? t("common.searchResults")
                         : t("gifPicker.trending")}
+                    bind:clientWidth={masonryWidth}
                 >
-                    {#each gifSearchState.items as r, idx (r.id)}
-                        <div class="relative group/gif mb-1 break-inside-avoid">
-                            <!-- The <img> is alt="", so without a label this
+                    {#each resultColumns as column, c (c)}
+                        <div class="flex-1 min-w-0">
+                            {#each column as placed (placed.item.id)}
+                                {@const r = placed.item}
+                                {@const idx = placed.idx}
+                                <div class="relative group/gif mb-1">
+                                    <!-- The <img> is alt="", so without a label this
                                  button announces as bare "button". A normalized
                                  KLIPY result carries no title, slug or tags to
                                  name it with (see utils/klipy.ts), so the
                                  position is the only honest name available --
                                  which still beats nameless. -->
-                            <button
-                                onclick={() => pickUrl(gifSendUrl(r))}
-                                id={optionId(listId, idx)}
-                                role="option"
-                                aria-selected={activeIndex === idx}
-                                aria-label={t("gifPicker.gifResult", {
-                                    value: idx + 1,
-                                })}
-                                tabindex="-1"
-                                class:ring-2={activeIndex === idx}
-                                class:ring-inset={activeIndex === idx}
-                                class:ring-discord-accent={activeIndex === idx}
-                                class="block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
-                            >
-                                {#if r.previewVideoUrl}
-                                    <!-- Video, not the animated webp: webp only
+                                    <button
+                                        onclick={() => pickUrl(gifSendUrl(r))}
+                                        id={optionId(listId, idx)}
+                                        role="option"
+                                        aria-selected={activeIndex === idx}
+                                        aria-label={t("gifPicker.gifResult", {
+                                            value: idx + 1,
+                                        })}
+                                        tabindex="-1"
+                                        class:ring-2={activeIndex === idx}
+                                        class:ring-inset={activeIndex === idx}
+                                        class:ring-discord-accent={activeIndex ===
+                                            idx}
+                                        class="block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
+                                    >
+                                        {#if r.previewVideoUrl}
+                                            <!-- Video, not the animated webp: webp only
                                          starts animating once fully downloaded,
                                          mp4 plays while it streams. -->
-                                    <video
-                                        src={r.previewVideoUrl}
-                                        class="w-full h-auto block rounded bg-discord-backgroundTertiary pointer-events-none"
-                                        style={gifAspectRatioStyle(
-                                            r.width,
-                                            r.height,
+                                            <video
+                                                src={r.previewVideoUrl}
+                                                class="w-full h-auto block rounded bg-discord-backgroundTertiary pointer-events-none"
+                                                style={gifAspectRatioStyle(
+                                                    r.width,
+                                                    r.height,
+                                                )}
+                                                autoplay
+                                                muted
+                                                loop
+                                                playsinline
+                                                disablepictureinpicture
+                                                aria-hidden="true"
+                                            ></video>
+                                        {:else}
+                                            <img
+                                                src={r.previewUrl}
+                                                alt=""
+                                                class="w-full h-auto block rounded bg-discord-backgroundTertiary"
+                                                loading="lazy"
+                                                decoding="async"
+                                                style={gifAspectRatioStyle(
+                                                    r.width,
+                                                    r.height,
+                                                )}
+                                            />
+                                        {/if}
+                                    </button>
+                                    <button
+                                        onclick={(e) => {
+                                            e.stopPropagation();
+                                            toggleStar(r);
+                                        }}
+                                        title={isFavouriteGif(gifSendUrl(r))
+                                            ? t("common.removeFromFavourites")
+                                            : t("common.addToFavourites")}
+                                        aria-label={t("gifPicker.favourite")}
+                                        aria-pressed={isFavouriteGif(
+                                            gifSendUrl(r),
                                         )}
-                                        autoplay
-                                        muted
-                                        loop
-                                        playsinline
-                                        disablepictureinpicture
-                                        aria-hidden="true"
-                                    ></video>
-                                {:else}
-                                    <img
-                                        src={r.previewUrl}
-                                        alt=""
-                                        class="w-full h-auto block rounded bg-discord-backgroundTertiary"
-                                        loading="lazy"
-                                        decoding="async"
-                                        style={gifAspectRatioStyle(
-                                            r.width,
-                                            r.height,
-                                        )}
-                                    />
-                                {/if}
-                            </button>
-                            <button
-                                onclick={(e) => {
-                                    e.stopPropagation();
-                                    toggleStar(r);
-                                }}
-                                title={isFavouriteGif(gifSendUrl(r))
-                                    ? t("common.removeFromFavourites")
-                                    : t("common.addToFavourites")}
-                                aria-label={t("gifPicker.favourite")}
-                                aria-pressed={isFavouriteGif(gifSendUrl(r))}
-                                class="absolute top-1 end-1 transition-opacity {favBtnClass} {isFavouriteGif(
-                                    gifSendUrl(r),
-                                )
-                                    ? 'text-discord-warning opacity-100'
-                                    : activeIndex === idx
-                                      ? 'text-white opacity-100'
-                                      : 'text-white opacity-0 group-hover/gif:opacity-100 group-focus-within/gif:opacity-100'}"
-                            >
-                                <svg
-                                    class="w-3.5 h-3.5"
-                                    fill="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-                                    />
-                                </svg>
-                            </button>
+                                        class="absolute top-1 end-1 transition-opacity {favBtnClass} {isFavouriteGif(
+                                            gifSendUrl(r),
+                                        )
+                                            ? 'text-discord-warning opacity-100'
+                                            : activeIndex === idx
+                                              ? 'text-white opacity-100'
+                                              : 'text-white opacity-0 group-hover/gif:opacity-100 group-focus-within/gif:opacity-100'}"
+                                    >
+                                        <svg
+                                            class="w-3.5 h-3.5"
+                                            fill="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                            />
+                                        </svg>
+                                    </button>
+                                </div>
+                            {/each}
                         </div>
                     {/each}
                 </div>
