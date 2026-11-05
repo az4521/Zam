@@ -156,6 +156,17 @@ public class WebBundleTest {
         }
     }
 
+    @Test
+    public void readsPastTheDesktopTwemojiPack() throws Exception {
+        File out = new File(tmp.getRoot(), "p");
+        WebBundleFormat.unpack(rawArchive(
+                "[{\"p\":\"twemoji/svg.pack\",\"s\":4},{\"p\":\"index.html\",\"s\":2}]",
+                "PACKhi".getBytes(StandardCharsets.UTF_8)), out);
+        assertFalse(new File(out, "twemoji/svg.pack").exists());
+        assertEquals("hi", new String(Files.readAllBytes(new File(out, "index.html").toPath()),
+                StandardCharsets.UTF_8));
+    }
+
     // --- store --------------------------------------------------------------
 
     private static final String PREFIX = WebBundleStore.ASSET_URL_PREFIX;

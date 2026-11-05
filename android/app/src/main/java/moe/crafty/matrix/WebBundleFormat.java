@@ -57,6 +57,22 @@ final class WebBundleFormat {
         return true;
     }
 
+    // The desktop app's Twemoji pack (electron/twemojiPack.cjs); this app
+    // serves the loose SVGs, so the pack is read past, not written.
+    private static final String DESKTOP_ONLY = "twemoji/svg.pack";
+
+    /** Move `size` bytes from in to out, or past them when out is null. */
+    private static void copy(InputStream in, OutputStream out, long size, byte[] buf)
+            throws IOException {
+        long left = size;
+        while (left > 0) {
+            int n = in.read(buf, 0, (int) Math.min(buf.length, left));
+            if (n < 0) throw new EOFException("web bundle is truncated");
+            if (out != null) out.write(buf, 0, n);
+            left -= n;
+        }
+    }
+
     /**
      * Unpack an archive into destDir (which the caller deletes on failure).
      * Throws on anything malformed.
@@ -99,18 +115,16 @@ final class WebBundleFormat {
                 if (!target.getPath().startsWith(root.getPath() + File.separator)) {
                     throw new IOException("web bundle entry escapes its folder");
                 }
+                if (DESKTOP_ONLY.equals(p)) {
+                    copy(in, null, size, buf);
+                    continue;
+                }
                 File parent = target.getParentFile();
                 if (parent != null && !parent.mkdirs() && !parent.isDirectory()) {
                     throw new IOException("cannot create " + parent);
                 }
                 try (OutputStream out = new FileOutputStream(target)) {
-                    long left = size;
-                    while (left > 0) {
-                        int n = in.read(buf, 0, (int) Math.min(buf.length, left));
-                        if (n < 0) throw new EOFException("web bundle is truncated");
-                        out.write(buf, 0, n);
-                        left -= n;
-                    }
+                    copy(in, out, size, buf);
                 }
             }
             if (!seen.contains("index.html")) throw new IOException("web bundle has no index.html");
