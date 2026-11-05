@@ -16,7 +16,7 @@ Messaging
 - threads, with a per-room thread list (all or just yours), replies inside threads, threaded read receipts, and thread names (our own event, proposed as [MSC4558](https://github.com/matrix-org/matrix-spec-proposals/pull/4558))
 - reactions, custom emoji + sticker packs (MSC2545 `im.ponies`, room-level and personal), GIF picker (KLIPY, no API key needed)
 - polls (create, vote, close), voice messages with a real waveform, location + live location sharing on a Leaflet map
-- pinned messages, per-room message search (has limits — see "things left to do"), media/files browser, link previews, read receipts (public or private) and typing indicators
+- pinned messages, per-room message search (encrypted rooms too, from an index kept on your device; one room at a time — see "things left to do"), media/files browser, link previews, read receipts (public or private) and typing indicators
 - per-room drafts that survive a room switch (in memory only — a reload drops them, though the reload Android does after a while in the background keeps them)
 - JPEG XL images (converted on the fly where the browser can't show them), and MIDI attachments that play with a sound bank of your choice
 - an offline outbox — messages you send while disconnected queue up and go out when you reconnect, instead of just failing
@@ -45,7 +45,8 @@ App
 - multi-account (switching reloads the app and one account is open at a time, but every signed-in account still gets notifications)
 - push notifications with a full push-rules UI, including keyword highlight rules and per-room overrides. encrypted messages are decrypted for the notification, even with the app closed. on Android, push goes through Firebase or UnifiedPush (e.g. ntfy) for phones without Google services
 - sliding sync (optional, in Debug settings) alongside classic sync
-- translations: English, French, German and Assyrian Neo-Aramaic
+- sign in with a password, legacy SSO, or native OAuth 2.0 / OIDC (Matrix Authentication Service), or by scanning a QR code from a device that's already signed in (MSC4108 where the homeserver supports it, the OAuth device-code grant otherwise); a fresh sign-in walks you through encryption setup
+- translations: English, French, German, Spanish, Japanese and Assyrian Neo-Aramaic
 - theming — light, dark, and true-black AMOLED, plus fully custom colours you save as your own presets and share by a copy-paste code; timestamp formats and double-tap actions too, all synced across devices via account data
 - auto-update on Electron and Android; the web build checks on request and offers a reload
 - installable PWA, Electron desktop build (also as a Flatpak), Android APK
@@ -61,17 +62,17 @@ Rooms
 
 User
 
-- Sign-in methods: password, legacy SSO and native OAuth 2.0 / OIDC (Matrix Authentication Service) all work. Not done: QR-code login from another device, the OAuth device-code grant, and signing other sessions out from inside the app on an OAuth account (it links to the provider's account page instead)
+- Signing other sessions out from inside the app on an OAuth account (it links to the provider's account page instead)
 - Identity server support — invite-by-email is built and wired, but nothing ever configures an identity server, so it always falls back to telling you your homeserver hasn't got one
 
 Media
 
-- Searching encrypted rooms (search is server-side, so there are no results there), and searching across all rooms rather than one
+- Searching across all rooms rather than one
 
 UI / Polish
 
 - Empty-state illustrations (a couple of the empty states are designed; most are a line of muted text)
-- First-run / onboarding flow
+- A first-run tour (a fresh sign-in gets the guided encryption setup and nothing more)
 - Roving-tabindex arrow navigation in the menus that declare `role="menu"`
 
 for devs, same install process as every other js app
