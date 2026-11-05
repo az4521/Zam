@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.52.4
+
+🐛 **Fixed**
+
+- **Hover times clear of messages:** the time shown when hovering a message sent in a run no longer runs right up against the message.
+- **AM/PM in German:** 12-hour times say AM/PM instead of "vorm."/"nachm.".
+
 ## v1.52.3
 
 ✨ **New**
