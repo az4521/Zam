@@ -40,12 +40,6 @@
 </script>
 
 <Portal>
-    <button
-        type="button"
-        aria-label={t("common.closeMenu")}
-        class="fixed inset-0 z-40 bg-black/40"
-        onclick={onClose}
-    ></button>
     <BottomSheet {onClose}>
         <div class="px-4 pb-4 pt-1 max-h-[70vh] overflow-y-auto">
             <div class="flex items-center gap-3 mb-3">

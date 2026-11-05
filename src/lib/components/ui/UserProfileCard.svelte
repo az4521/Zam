@@ -5,8 +5,6 @@
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
-    import { fade } from "svelte/transition";
-    import { motionOK } from "$lib/utils/motionPreference";
     import { auth } from "$lib/stores/auth.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import {
@@ -829,13 +827,6 @@
 {#if open}
     {#if asSheet}
         <Portal>
-            <button
-                type="button"
-                aria-label={t("common.close")}
-                class="fixed inset-0 z-40 bg-black/50"
-                in:fade|global={{ duration: motionOK() ? 150 : 0 }}
-                onclick={closeProfileCard}
-            ></button>
             <BottomSheet onClose={closeProfileCard}>
                 {@render cardBody()}
             </BottomSheet>

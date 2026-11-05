@@ -1,55 +1,77 @@
 <script lang="ts">
     import type { Snippet } from "svelte";
-    import { fly } from "svelte/transition";
+    import { fade, fly } from "svelte/transition";
+    import { cubicIn, cubicOut } from "svelte/easing";
+    import { t } from "$lib/i18n";
     import { focusTrap } from "$lib/actions/focusTrap";
     import { sheetDrag } from "$lib/actions/sheetDrag";
     import { motionOK } from "$lib/utils/motionPreference";
 
     interface Props {
-        /** Dismiss the sheet (Escape inside the trap calls this). */
+        /** Dismiss the sheet (backdrop tap, Escape, or a swipe down). */
         onClose: () => void;
         children: Snippet;
     }
     let { onClose, children }: Props = $props();
 
+    let backdropEl: HTMLElement | undefined = $state();
     let sheetEl: HTMLElement | undefined = $state();
 
-    // Callers own the backdrop and render it as the sheet's previous sibling
-    // (`fixed inset-0 bg-black/40`); fade it with the drag without touching
-    // every caller. Skipped if the sibling is not a full-screen layer.
+    // A swipe has already carried the sheet off-screen and faded the
+    // backdrop, so the outros would only hold the DOM for nothing.
+    let swiped = false;
+    const duration = (ms: number) => (swiped || !motionOK() ? 0 : ms);
+
     function fadeBackdrop(progress: number) {
-        const el = sheetEl?.previousElementSibling;
-        if (!(el instanceof HTMLElement) || !el.classList.contains("inset-0"))
-            return;
-        el.style.opacity = progress ? String(1 - progress) : "";
+        if (backdropEl)
+            backdropEl.style.opacity = progress ? String(1 - progress) : "";
+    }
+
+    function dismissBySwipe() {
+        swiped = true;
+        onClose();
     }
 </script>
 
 <!--
-  The canonical mobile bottom sheet: full-bleed panel pinned to the bottom
-  edge, rounded top corners, a grab handle, and a focus trap whose Escape
-  dismisses it. Callers own the Portal and the backdrop, because every host
-  already renders both alongside a desktop-positioned variant.
+  The canonical mobile bottom sheet: a dimmed backdrop (tap to dismiss) and a
+  full-bleed panel pinned to the bottom edge, with rounded top corners, a grab
+  handle, and a focus trap whose Escape dismisses it. Callers own the Portal.
 
-  `pb-safe` is intended to keep the last row clear of the home indicator, but
-  it is a no-op today because no such utility exists: `tailwind.config.js` has
-  no `padding` extend and no plugins, and no CSS layer defines the class. The
-  safe-area work (that utility plus `viewport-fit=cover` on the viewport meta)
-  is owned elsewhere; the class name is left here so it starts working the
-  moment that lands.
+  The transitions are |global because every host opens the sheet from inside
+  nested blocks ({#if open}{#if touch}…), where a local transition never plays;
+  the outros keep the sheet and backdrop around until they finish, whichever
+  way the host closes it.
 
-  Swiping down on the sheet (handle, header, or body at scrollTop 0) drags it
-  and dismisses past ~30% of its height or on a fast flick; see sheetDrag.
+  Swiping down anywhere (the backdrop, or the sheet's handle, header, or body at
+  scrollTop 0) drags the sheet and dismisses past ~30% of its height or on a
+  fast flick; see sheetDrag.
 -->
+<button
+    bind:this={backdropEl}
+    use:sheetDrag={{
+        onDismiss: dismissBySwipe,
+        onProgress: fadeBackdrop,
+        animate: motionOK,
+        sheet: () => sheetEl,
+    }}
+    type="button"
+    aria-label={t("common.close")}
+    class="fixed inset-0 z-50 bg-black/40"
+    in:fade|global={{ duration: duration(200) }}
+    out:fade|global={{ duration: duration(200) }}
+    onclick={onClose}
+></button>
 <div
     bind:this={sheetEl}
     use:focusTrap={{ onEscape: onClose }}
     use:sheetDrag={{
-        onDismiss: onClose,
+        onDismiss: dismissBySwipe,
         onProgress: fadeBackdrop,
         animate: motionOK,
     }}
-    in:fly={{ y: 32, duration: motionOK() ? 220 : 0 }}
+    in:fly|global={{ y: "100%", duration: duration(260), easing: cubicOut }}
+    out:fly|global={{ y: "100%", duration: duration(200), easing: cubicIn }}
     class="fixed bottom-0 start-0 end-0 z-50 bg-discord-backgroundTertiary border-t border-discord-divider rounded-t-2xl shadow-2xl pb-safe pt-2 max-h-[70vh] overflow-y-auto overscroll-contain"
 >
     <div

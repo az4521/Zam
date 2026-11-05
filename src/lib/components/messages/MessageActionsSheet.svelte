@@ -71,12 +71,6 @@
 </script>
 
 <Portal>
-    <button
-        type="button"
-        aria-label={t("common.closeMenu")}
-        class="fixed inset-0 z-40 bg-black/40"
-        onclick={onClose}
-    ></button>
     <BottomSheet {onClose}>
         {#if pending}
             <div class="px-4 py-3">

@@ -50,6 +50,12 @@ export interface SheetDragParams {
     onProgress?: (progress: number) => void;
     /** Whether transitions may animate (reduced motion => false). */
     animate?: () => boolean;
+    /**
+     * The sheet to move, when the gesture is read off another element (the
+     * backdrop, so a swipe anywhere on screen drags the sheet). Defaults to
+     * the node the action is on.
+     */
+    sheet?: () => HTMLElement | undefined;
 }
 
 const SETTLE_MS = 200;
@@ -67,28 +73,31 @@ export function sheetDrag(node: HTMLElement, params: SheetDragParams) {
     let suppressClick = false;
     let settleTimer: ReturnType<typeof setTimeout> | undefined;
 
+    const sheet = () => p.sheet?.() ?? node;
+
     function height() {
-        return node.offsetHeight || 1;
+        return sheet().offsetHeight || 1;
     }
 
     function setOffset(px: number) {
-        node.style.transform = px ? `translateY(${px}px)` : "";
+        sheet().style.transform = px ? `translateY(${px}px)` : "";
         p.onProgress?.(Math.max(0, Math.min(1, px / height())));
     }
 
     function settle(toPx: number, done?: () => void) {
         const dur = p.animate?.() === false ? 0 : SETTLE_MS;
         clearTimeout(settleTimer);
+        const el = sheet();
         if (dur === 0) {
-            node.style.transition = "";
+            el.style.transition = "";
             setOffset(toPx);
             done?.();
             return;
         }
-        node.style.transition = `transform ${dur}ms ${EASE}`;
+        el.style.transition = `transform ${dur}ms ${EASE}`;
         setOffset(toPx);
         settleTimer = setTimeout(() => {
-            node.style.transition = "";
+            el.style.transition = "";
             done?.();
         }, dur);
     }
@@ -99,7 +108,7 @@ export function sheetDrag(node: HTMLElement, params: SheetDragParams) {
         if (e.touches.length !== 1) return;
         // A new touch during a settle/spring-back takes over from wherever it is.
         clearTimeout(settleTimer);
-        node.style.transition = "";
+        sheet().style.transition = "";
         if (scrolledBelowTop(e.target as Element | null, node)) return;
         const t = e.touches[0];
         startX = t.clientX;

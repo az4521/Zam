@@ -1627,14 +1627,6 @@
 
     {#if contextMenu}
         {@const cm = contextMenu}
-        {#if cm.touch}
-            <button
-                type="button"
-                aria-label={t("common.closeMenu")}
-                class="fixed inset-0 z-50 bg-black/40"
-                onclick={closeModal}
-            ></button>
-        {/if}
         {#snippet menuContent()}
             {#if cm.kind === "space"}
                 <button

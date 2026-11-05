@@ -68,12 +68,6 @@
 
 <Portal>
     {#if touch}
-        <button
-            type="button"
-            aria-label={t("common.close")}
-            class="fixed inset-0 z-50 bg-black/40"
-            onclick={onClose}
-        ></button>
         <BottomSheet {onClose}>
             <div class="p-4 space-y-4">
                 <ScreenShareQualityChips

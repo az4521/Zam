@@ -687,15 +687,6 @@
 
 <Portal>
     {#if touch}
-        <button
-            type="button"
-            aria-label={t("common.closeMenu")}
-            class="fixed inset-0 z-50 bg-black/40"
-            onclick={onClose}
-        ></button>
-    {/if}
-
-    {#if touch}
         <BottomSheet {onClose}>
             {@render menuItems()}
         </BottomSheet>
