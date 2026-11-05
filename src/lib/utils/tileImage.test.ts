@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAnimatedImage, tileSize } from "./tileImage";
+import { animatedMime, isAnimatedImage, tileSize } from "./tileImage";
 
 const bytes = (...parts: (string | number[])[]) =>
     new Uint8Array(
@@ -70,5 +70,20 @@ describe("isAnimatedImage", () => {
     });
     it("errs towards animated for unknown formats", () => {
         expect(isAnimatedImage(bytes([0xff, 0x0a]))).toBe(true);
+    });
+});
+
+describe("animatedMime", () => {
+    it("names the formats an animation can come in", () => {
+        expect(animatedMime(bytes("GIF89a"))).toBe("image/gif");
+        expect(animatedMime(bytes(PNG_SIG))).toBe("image/png");
+        expect(animatedMime(bytes("RIFF", [0, 0, 0, 0], "WEBPVP8X"))).toBe(
+            "image/webp",
+        );
+        expect(animatedMime(bytes(be32(20), "ftypavis"))).toBe("image/avif");
+    });
+    it("gives null for anything else", () => {
+        expect(animatedMime(bytes([0xff, 0xd8, 0xff]))).toBeNull();
+        expect(animatedMime(bytes([0xff, 0x0a]))).toBeNull();
     });
 });

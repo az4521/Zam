@@ -11,10 +11,11 @@
  *
  * Avatars are the same problem at a larger scale: they are loaded at full
  * size so animated ones keep animating (server thumbnails drop frames), and a
- * 4K avatar costs ~32 MB decoded at every place it is drawn at 40 px. Static
- * ones get a small copy (mediaAuth's shrunkMediaUrl); animated ones keep the
- * original.
+ * 4K avatar costs ~32 MB decoded at every place it is drawn at 40 px. They get
+ * a small copy (mediaAuth's shrunkMediaUrl); animated ones are re-encoded
+ * frame by frame as a smaller animated WebP (utils/gifToWebp).
  */
+import { shrinkAnimatedImage } from "./gifToWebp";
 
 /** Tile bounds (CSS max-w-lg / max-h-96) at 2× for high-DPI screens. */
 export const TILE_MAX_W = 1024;
@@ -102,6 +103,15 @@ export function isAnimatedImage(b: Uint8Array): boolean {
     return true;
 }
 
+/** MIME type of an animation-capable image from its header, or null. */
+export function animatedMime(b: Uint8Array): string | null {
+    if (ascii(b, 0, "GIF8")) return "image/gif";
+    if (b[0] === 0x89 && ascii(b, 1, "PNG")) return "image/png";
+    if (ascii(b, 0, "RIFF") && ascii(b, 8, "WEBP")) return "image/webp";
+    if (ascii(b, 4, "ftyp")) return "image/avif";
+    return null;
+}
+
 function canvasToBlob(
     canvas: HTMLCanvasElement,
     type: string,
@@ -120,8 +130,9 @@ export function createTileImage(blob: Blob): Promise<Blob | null> {
 
 /**
  * A copy of `blob` no bigger than `maxW`×`maxH` needs (see fitSize), or null
- * when the original should be shown as is: it is already that small, may be
- * animated, is SVG, or the browser can't decode it. Never throws.
+ * when the original should be shown as is: it is already that small, is an
+ * animation that can't be re-encoded here, is SVG, or the browser can't decode
+ * it. Animations come back as animated WebP. Never throws.
  */
 export async function downscaleImage(
     blob: Blob,
@@ -136,7 +147,14 @@ export async function downscaleImage(
         const head = new Uint8Array(
             await blob.slice(0, SNIFF_BYTES).arrayBuffer(),
         );
-        if (isAnimatedImage(head)) return null;
+        if (isAnimatedImage(head)) {
+            const type = animatedMime(head);
+            if (!type) return null;
+            const small = await shrinkAnimatedImage(blob, type, (w, h) =>
+                fitSize(w, h, maxW, maxH, fit),
+            );
+            if (small !== "still") return small;
+        }
         bitmap = await createImageBitmap(blob, {
             imageOrientation: "from-image",
         });

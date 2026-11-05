@@ -1,5 +1,6 @@
 /**
- * Re-encode an animated GIF as an animated WebP before sending.
+ * Re-encode an animated GIF as an animated WebP before sending, and shrink
+ * received animations to the size they are drawn at.
  *
  * Browsers have no animated-WebP encoder, so this does it in two steps: the
  * WebCodecs `ImageDecoder` yields each GIF frame already composited onto the
@@ -11,6 +12,11 @@
  * Frames are encoded losslessly: a GIF is at most 256 colours per frame, which
  * lossy WebP turns into visible banding. The result is only used when it is
  * actually smaller than the GIF; anything unexpected gives back the original.
+ *
+ * An animation is decoded to full-size frames for as long as it is mounted, so
+ * a 1080p GIF in a 400 px tile costs ~8 MB per cached frame. shrinkAnimatedImage
+ * runs the same pipeline with each frame drawn smaller; any format ImageDecoder
+ * reads (GIF, animated WebP, APNG, AVIF) goes in, an animated WebP comes out.
  */
 
 /** Past this many frames or pixels of work the GIF is sent as it is. */
@@ -96,16 +102,79 @@ function buildAnimatedWebp(
 async function encodeFrame(
     frame: VideoFrame,
     canvas: OffscreenCanvas,
+    quality: number,
 ): Promise<Uint8Array | null> {
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(frame, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
     // quality 1 selects lossless WebP in Chromium and Firefox.
-    const blob = await canvas.convertToBlob({ type: "image/webp", quality: 1 });
+    const blob = await canvas.convertToBlob({ type: "image/webp", quality });
     // An engine with no WebP encoder silently hands back a PNG.
     if (blob.type !== "image/webp") return null;
     return imageChunks(new Uint8Array(await blob.arrayBuffer()));
+}
+
+type Fit = (w: number, h: number) => { w: number; h: number } | null;
+
+/** Result of transcodeAnimated when the source turned out not to animate. */
+const STILL = Symbol("still");
+
+/**
+ * `source` as an animated WebP, each frame drawn at `fit(w, h)` (the source
+ * size when it returns null). null when it can't be done here (unsupported
+ * decoder, too heavy, an encode failed), STILL when it has fewer than two
+ * frames.
+ */
+async function transcodeAnimated(
+    source: Blob,
+    type: string,
+    fit: Fit,
+    quality: number,
+): Promise<Uint8Array | null | typeof STILL> {
+    if (
+        typeof ImageDecoder === "undefined" ||
+        typeof OffscreenCanvas === "undefined" ||
+        !(await ImageDecoder.isTypeSupported(type))
+    ) {
+        return null;
+    }
+    const decoder = new ImageDecoder({ type, data: source.stream() });
+    try {
+        await decoder.tracks.ready;
+        await decoder.completed;
+        const count = decoder.tracks.selectedTrack?.frameCount ?? 0;
+        if (count < 2) return STILL;
+        if (count > MAX_FRAMES) return null;
+
+        const first = await decoder.decode({ frameIndex: 0 });
+        const srcW = first.image.displayWidth;
+        const srcH = first.image.displayHeight;
+        first.image.close();
+        if (!srcW || !srcH || srcW > 16383 || srcH > 16383) return null;
+        if (srcW * srcH * count > MAX_PIXELS * 4) return null;
+        const { w, h } = fit(srcW, srcH) ?? { w: srcW, h: srcH };
+
+        const canvas = new OffscreenCanvas(w, h);
+        const frames: { data: Uint8Array; ms: number }[] = [];
+        for (let i = 0; i < count; i++) {
+            const { image } = await decoder.decode({ frameIndex: i });
+            try {
+                const data = await encodeFrame(image, canvas, quality);
+                if (!data) return null;
+                // Same rule browsers apply to GIFs: <= 10 ms shows for 100.
+                const ms = (image.duration ?? 0) / 1000;
+                frames.push({ data, ms: Math.round(ms > 10 ? ms : 100) });
+            } finally {
+                image.close();
+            }
+        }
+        return buildAnimatedWebp(w, h, frames);
+    } finally {
+        decoder.close();
+    }
 }
 
 /**
@@ -115,60 +184,46 @@ async function encodeFrame(
 export async function gifToAnimatedWebp(file: File): Promise<File> {
     try {
         if (file.type !== "image/gif") return file;
-        if (
-            typeof ImageDecoder === "undefined" ||
-            typeof OffscreenCanvas === "undefined" ||
-            !(await ImageDecoder.isTypeSupported("image/gif"))
-        ) {
-            return file;
-        }
-        const decoder = new ImageDecoder({
-            type: "image/gif",
-            data: file.stream(),
-        });
-        try {
-            await decoder.tracks.ready;
-            await decoder.completed;
-            const track = decoder.tracks.selectedTrack;
-            const count = track?.frameCount ?? 0;
-            if (count < 2 || count > MAX_FRAMES) return file;
-
-            const first = await decoder.decode({ frameIndex: 0 });
-            const w = first.image.displayWidth;
-            const h = first.image.displayHeight;
-            first.image.close();
-            if (!w || !h || w > 16383 || h > 16383) return file;
-            if (w * h * count > MAX_PIXELS * 4) return file;
-
-            const canvas = new OffscreenCanvas(w, h);
-            const frames: { data: Uint8Array; ms: number }[] = [];
-            for (let i = 0; i < count; i++) {
-                const { image } = await decoder.decode({ frameIndex: i });
-                try {
-                    const data = await encodeFrame(image, canvas);
-                    if (!data) return file;
-                    // Same rule browsers apply to GIFs: <= 10 ms shows for 100.
-                    const ms = (image.duration ?? 0) / 1000;
-                    frames.push({
-                        data,
-                        ms: Math.round(ms > 10 ? ms : 100),
-                    });
-                } finally {
-                    image.close();
-                }
-            }
-            const out = buildAnimatedWebp(w, h, frames);
-            if (out.length >= file.size) return file;
-            return new File(
-                [out as BlobPart],
-                file.name.replace(/\.gif$/i, "") + ".webp",
-                { type: "image/webp", lastModified: file.lastModified },
-            );
-        } finally {
-            decoder.close();
-        }
+        const out = await transcodeAnimated(file, "image/gif", () => null, 1);
+        if (!out || out === STILL || out.length >= file.size) return file;
+        return new File(
+            [out as BlobPart],
+            file.name.replace(/\.gif$/i, "") + ".webp",
+            { type: "image/webp", lastModified: file.lastModified },
+        );
     } catch (err) {
         console.warn("GIF to WebP conversion failed", err);
         return file;
+    }
+}
+
+const ANIMATED_TYPES = ["image/gif", "image/webp", "image/png", "image/avif"];
+
+/**
+ * A copy of the animation `blob` (of MIME `type`) with every frame drawn at `fit(w, h)`, as an
+ * animated WebP. null means show the original (nothing to shrink, no decoder,
+ * too heavy, failed); "still" means it has a single frame, for the caller's
+ * still-image path. Never throws.
+ */
+export async function shrinkAnimatedImage(
+    blob: Blob,
+    type: string,
+    fit: Fit,
+): Promise<Blob | null | "still"> {
+    try {
+        // A GIF is lossless (see the header); other sources are photographic
+        // more often than not, where lossless WebP is several times larger.
+        if (!ANIMATED_TYPES.includes(type)) return null;
+        const out = await transcodeAnimated(
+            blob,
+            type,
+            fit,
+            type === "image/gif" ? 1 : 0.9,
+        );
+        if (out === STILL) return "still";
+        return out ? new Blob([out as BlobPart], { type: "image/webp" }) : null;
+    } catch (err) {
+        console.warn("Animated image shrink failed", err);
+        return null;
     }
 }
