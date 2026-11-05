@@ -16,6 +16,7 @@ import {
     themeColorsToCssText,
     type Theme,
 } from "$lib/utils/theme";
+import { customCssBlockedByUrl, setStyleSheet } from "$lib/utils/customCss";
 import {
     normalizeTimeClock,
     normalizeDateStyle,
@@ -328,6 +329,10 @@ export const settingsState = $state({
      *  Deliberately device-local (readBool/writeBool, no customization sync):
      *  motion/battery is a per-device call, like the OS setting it augments. */
     reduceMotion: readBool("reduceMotion", false),
+    /** The user's own CSS (Settings > Appearance), applied on top of the
+     *  theme. Empty by default; the switch lets it be paused without losing it. */
+    customCss: readString("customCss") ?? "",
+    customCssEnabled: readBool("customCssEnabled", true),
     /** Device-local app-wide text scale, stored as px (12-24, default 16 = 100%). Drives the root font-size so all text + spacing scale. NOT synced. */
     messageFontSize: resolveMessageFontSize(readString("messageFontSize")),
     /** Device-local message font family key ("system" | "inter" | "atkinson").
@@ -541,6 +546,9 @@ writeString("themeVars", themeColorsToCssText(bootColors));
 // element so CSS suppression is live before first paint, not only after a
 // toggle. The OS media query works independently of this attribute.
 applyReduceMotion(settingsState.reduceMotion);
+
+// Boot apply: the user's own stylesheet, unless the URL asks for none.
+applyCustomCss();
 
 // Boot apply: turn spellcheck off globally for text fields that don't set
 // their own attribute. The message editors set theirs explicitly.
@@ -909,6 +917,27 @@ export function setUpdateNagDisabled(value: boolean): void {
 export function setMinimizeToTrayOnClose(value: boolean): void {
     settingsState.minimizeToTrayOnClose = value;
     writeBool("minimizeToTrayOnClose", value);
+}
+
+export function applyCustomCss(): void {
+    setStyleSheet(
+        "user",
+        settingsState.customCssEnabled && !customCssBlockedByUrl()
+            ? settingsState.customCss
+            : "",
+    );
+}
+
+export function setCustomCss(value: string): void {
+    settingsState.customCss = value;
+    writeString("customCss", value);
+    applyCustomCss();
+}
+
+export function setCustomCssEnabled(value: boolean): void {
+    settingsState.customCssEnabled = value;
+    writeBool("customCssEnabled", value);
+    applyCustomCss();
 }
 
 export function setRichPresenceEnabled(value: boolean): void {

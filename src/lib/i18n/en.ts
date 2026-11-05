@@ -177,6 +177,12 @@ export const en = {
     "appearanceSettings.reduceMotion": "Reduce motion",
     "appearanceSettings.minimizeAnimationsAndTransitionsYourDevice":
         'Minimize animations and transitions. Your device\'s system "reduce motion" setting is always respected as well.',
+    "appearanceSettings.customCss": "Custom CSS",
+    "appearanceSettings.customCssEnable": "Use custom CSS",
+    "appearanceSettings.customCssHint":
+        "Your own styles, applied live on top of the theme. Theme colours are variables set on the page, so override them with !important.",
+    "appearanceSettings.customCssRecovery":
+        "If a rule makes Zam unusable, open it with ?nocustomcss added to the address (or turn the switch off) to get back in.",
     "appearanceSettings.custom": "Custom",
     "appearanceSettings.12Hour": "12-hour",
     "appearanceSettings.24Hour": "24-hour",

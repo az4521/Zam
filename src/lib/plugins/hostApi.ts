@@ -21,6 +21,7 @@ import { hostBridge } from "./hostBridge";
 import { createAssetAccess, type PluginFileSource } from "./pluginAssets";
 import { connectNative, nativeAvailable } from "./pluginNative";
 import { framesAvailable, injectFrameScript } from "./pluginFrames";
+import { removeStyleSheet, setStyleSheet } from "../utils/customCss";
 import { sendReaction, getOwnUserId, getClient } from "../matrix/client";
 import {
     sendEventContent,
@@ -64,6 +65,7 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
     // contributions. Wrap so self-dispose and disposeAll share one idempotent
     // removal.
     const disposables = new Set<Disposable>();
+    let styleCount = 0;
     const track = (inner: Disposable): Disposable => {
         let done = false;
         const wrapped: Disposable = {
@@ -266,6 +268,11 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                     : warnNoopDisposable("ui.openPopover"),
             registerPanel: (p) =>
                 track(addEntry(registry, "panels", pluginId, p)),
+            addStyles: (css) => {
+                const id = `plugin:${pluginId}:${++styleCount}`;
+                setStyleSheet(id, String(css));
+                return track({ dispose: () => removeStyleSheet(id) });
+            },
             notify: (o) => {
                 if (hostBridge.notify) {
                     hostBridge.notify(o);

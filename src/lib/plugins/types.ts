@@ -317,6 +317,12 @@ export interface ZamPluginApi {
         }): Disposable;
         registerPanel(panel: PanelRegistration): Disposable;
         notify(opts: { title?: string; body: string }): void;
+        /** Add CSS to the app (a theme, a tweak), after Zam's own styles and
+         *  before the user's custom CSS. Removed when the returned handle is
+         *  disposed or the plugin unloads. Call it again for a new stylesheet;
+         *  each call is its own. The theme's colours are variables set on <html>
+         *  (`--discord-bg`, ...), so override them with `!important`. */
+        addStyles(css: string): Disposable;
     };
 
     events: {

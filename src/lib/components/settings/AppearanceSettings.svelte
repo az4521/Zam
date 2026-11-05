@@ -12,6 +12,8 @@
         setAlwaysAbsolute,
         setReduceMotion,
         setKeepSidebarOpen,
+        setCustomCss,
+        setCustomCssEnabled,
         settingsState,
     } from "$lib/stores/settings.svelte";
     import {
@@ -43,6 +45,9 @@
         if (previewDatePattern(customDraft) !== null)
             setCustomDatePattern(customDraft);
     }
+
+    const CSS_PLACEHOLDER =
+        ":root {\n    --discord-accent: #e91e63 !important;\n}";
 
     const currentLocale = getLocale();
 
@@ -149,6 +154,45 @@
         </div>
     </section>
     <ThemeColorEditor />
+
+    <section data-setting-anchor="appearance-custom-css">
+        <p
+            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+        >
+            {t("appearanceSettings.customCss")}
+        </p>
+        <div
+            class="flex items-center justify-between gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("appearanceSettings.customCssEnable")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("appearanceSettings.customCssHint")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.customCssEnabled}
+                onChange={setCustomCssEnabled}
+                label={t("appearanceSettings.customCssEnable")}
+            />
+        </div>
+        <textarea
+            class="mt-3 w-full min-h-40 rounded border border-discord-divider bg-discord-backgroundTertiary p-2 font-mono text-xs text-discord-textPrimary focus:outline-none focus:ring-2 focus:ring-discord-accent"
+            spellcheck="false"
+            autocapitalize="off"
+            autocomplete="off"
+            dir="ltr"
+            placeholder={CSS_PLACEHOLDER}
+            aria-label={t("appearanceSettings.customCss")}
+            value={settingsState.customCss}
+            oninput={(e) => setCustomCss(e.currentTarget.value)}
+        ></textarea>
+        <p class="mt-1 text-xs text-discord-textMuted">
+            {t("appearanceSettings.customCssRecovery")}
+        </p>
+    </section>
 
     <section data-setting-anchor="cust-timestamps">
         <p

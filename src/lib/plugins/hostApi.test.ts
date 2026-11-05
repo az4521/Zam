@@ -342,6 +342,29 @@ describe("buildHostApi — storage + settings", () => {
     });
 });
 
+describe("buildHostApi — zam.ui.addStyles", () => {
+    const sheets = () =>
+        Array.from(document.head.querySelectorAll("style[data-zam-css]")).map(
+            (el) => el.textContent,
+        );
+
+    it("adds a stylesheet; dispose and disposeAll remove it", () => {
+        const host = buildHostApi({
+            pluginId: "theme",
+            manifest: manifest("theme"),
+            registry: createRegistryData(),
+            appVersion: "1.0.0",
+        });
+        const one = host.zam.ui.addStyles("a{color:red}");
+        host.zam.ui.addStyles("b{color:blue}");
+        expect(sheets()).toEqual(["a{color:red}", "b{color:blue}"]);
+        one.dispose();
+        expect(sheets()).toEqual(["b{color:blue}"]);
+        host.disposeAll();
+        expect(sheets()).toEqual([]);
+    });
+});
+
 describe("buildHostApi — zam.frames", () => {
     const withCaps = (id: string, capabilities: string[]): Manifest => ({
         ...manifest(id),
