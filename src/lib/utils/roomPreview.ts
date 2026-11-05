@@ -30,7 +30,9 @@ export function latestMessagePreview(
         if (!belongsToMainTimeline({ relatesTo, eventId: ev.getId() ?? "" }))
             continue;
         let text: string | null;
-        if (isUndecryptedEvent(ev.getType()))
+        // A failed decryption reads as m.room.message with the SDK's raw
+        // "** Unable to decrypt **" body.
+        if (isUndecryptedEvent(ev.getType()) || ev.isDecryptionFailure())
             text = ENCRYPTED_MESSAGE_PLACEHOLDER;
         else {
             text = eventPreviewText(ev);

@@ -8,6 +8,7 @@ function ev(opts: {
     sender?: string;
     state?: boolean;
     redacted?: boolean;
+    failed?: boolean;
     id?: string;
 }): MatrixEvent {
     const content = opts.content ?? {};
@@ -19,6 +20,7 @@ function ev(opts: {
         getId: () => opts.id ?? "$e",
         isState: () => !!opts.state,
         isRedacted: () => !!opts.redacted,
+        isDecryptionFailure: () => !!opts.failed,
     } as unknown as MatrixEvent;
 }
 
@@ -79,6 +81,14 @@ describe("latestMessagePreview", () => {
         expect(
             latestMessagePreview([ev({ type: "m.room.encrypted" })], null),
         ).toMatch(/encrypt/i);
+        const failed = ev({
+            content: {
+                msgtype: "m.bad.encrypted",
+                body: "** Unable to decrypt **",
+            },
+            failed: true,
+        });
+        expect(latestMessagePreview([failed], null)).toMatch(/🔒/);
     });
 
     it("returns null when nothing is showable", () => {

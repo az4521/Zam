@@ -125,6 +125,10 @@
     import { placeholderStyle } from "$lib/utils/imagePlaceholder";
     import { createMediaRetry } from "$lib/stores/mediaAuth.svelte";
     import { utdPlaceholderText } from "$lib/utils/encryptionState";
+    import {
+        canRequestRoomKeys,
+        requestRoomKeys,
+    } from "$lib/matrix/keyBackfill";
     import { matrixErrorMessage } from "$lib/utils/knock";
     import { getEventShield, isRoomEncrypted } from "$lib/matrix/crypto";
     import {
@@ -850,6 +854,14 @@
 
     const msgtype = $derived(content?.msgtype ?? "");
 
+    // Still encrypted, or failed to decrypt: a failure swaps in an
+    // m.room.message stand-in (msgtype m.bad.encrypted) whose body is the
+    // SDK's raw "** Unable to decrypt **" text, so the type alone misses it.
+    const isUtd = $derived(
+        eventType === "m.room.encrypted" ||
+            (void messagesState.timelineTick, event.isDecryptionFailure()),
+    );
+
     // Gate for Edit action: your own m.text messages, plus the caption of your
     // own captioned media (MSC2530), can be edited inline.
     const canEditMessage = $derived(
@@ -871,6 +883,23 @@
         (void messagesState.timelineTick,
         utdPlaceholderText(event.decryptionFailureReason)),
     );
+    const utdRequestable = $derived(
+        (void messagesState.timelineTick,
+        canRequestRoomKeys(event.decryptionFailureReason)),
+    );
+    // "Request keys" on a UTD row: idle, sending, or sent (stays sent, so a
+    // second click can't pile up requests; the row unlocks if an answer comes).
+    let keyRequest = $state<"idle" | "sending" | "sent">("idle");
+
+    async function onRequestKeys(): Promise<void> {
+        if (keyRequest !== "idle") return;
+        keyRequest = "sending";
+        try {
+            await requestRoomKeys(event);
+        } finally {
+            keyRequest = "sent";
+        }
+    }
 
     // Whether this room has encryption switched on. Tick-bound because the Room
     // mutates in place when the m.room.encryption state event lands.
@@ -2568,7 +2597,7 @@
                 <PollBody {event} {room} />
             {:else if isFileOffer}
                 <FileOfferCard {event} />
-            {:else if eventType === "m.room.encrypted"}
+            {:else if isUtd}
                 <!-- E2EE UTD (unable-to-decrypt) placeholder. The row chrome
                  (avatar / sender / timestamp) is cleartext; only the body is
                  unavailable. When keys arrive mid-session the decryption tick
@@ -2579,6 +2608,18 @@
                 >
                     <Lock size={14} class="flex-shrink-0" />
                     <span>{utdText}</span>
+                    {#if utdRequestable}
+                        <button
+                            type="button"
+                            class="not-italic text-xs font-medium text-discord-accent hover:underline disabled:opacity-60 disabled:no-underline"
+                            title={t("messageItem.requestKeysHelp")}
+                            disabled={keyRequest !== "idle"}
+                            onclick={onRequestKeys}
+                            >{keyRequest === "idle"
+                                ? t("messageItem.requestKeys")
+                                : t("messageItem.keysRequested")}</button
+                        >
+                    {/if}
                 </div>
             {:else if eventType === "m.sticker"}
                 {#if mediaImgRetry.src && !mediaImgRetry.failed}

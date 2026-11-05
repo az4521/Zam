@@ -1117,6 +1117,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.originalMessageDeleted": "元のメッセージは削除されました",
     "messageItem.originalMessageUnavailable": "元のメッセージは利用できません",
     "messageItem.replyPreviewSticker": "ステッカー",
+    "messageItem.requestKeys": "鍵をリクエスト",
+    "messageItem.keysRequested": "鍵をリクエストしました",
+    "messageItem.requestKeysHelp":
+        "再試行し、鍵のバックアップを確認し、送信者のセッションにこのメッセージの鍵を求めます",
     "messageItem.replyPreviewPoll": "投票",
     "messageItem.replyPreviewImage": "画像",
     "messageItem.replyPreviewVideo": "動画",

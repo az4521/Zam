@@ -1224,6 +1224,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.originalMessageDeleted": "Mensaje original eliminado",
     "messageItem.originalMessageUnavailable": "Mensaje original no disponible",
     "messageItem.replyPreviewSticker": "Sticker",
+    "messageItem.requestKeys": "Solicitar claves",
+    "messageItem.keysRequested": "Claves solicitadas",
+    "messageItem.requestKeysHelp":
+        "Reintentar, revisar tu copia de seguridad de claves y pedir la clave de este mensaje a las sesiones del remitente",
     "messageItem.replyPreviewPoll": "Encuesta",
     "messageItem.replyPreviewImage": "Imagen",
     "messageItem.replyPreviewVideo": "Vídeo",

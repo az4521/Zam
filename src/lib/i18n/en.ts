@@ -1195,6 +1195,10 @@ export const en = {
     "messageItem.originalMessageDeleted": "Original message deleted",
     "messageItem.originalMessageUnavailable": "Original message unavailable",
     "messageItem.replyPreviewSticker": "Sticker",
+    "messageItem.requestKeys": "Request keys",
+    "messageItem.keysRequested": "Keys requested",
+    "messageItem.requestKeysHelp":
+        "Try again, check your key backup and ask the sender's sessions for this message's key",
     "messageItem.replyPreviewPoll": "Poll",
     "messageItem.replyPreviewImage": "Image",
     "messageItem.replyPreviewVideo": "Video",

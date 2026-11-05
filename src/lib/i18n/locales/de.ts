@@ -1205,6 +1205,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.originalMessageUnavailable":
         "Ursprüngliche Nachricht nicht verfügbar",
     "messageItem.replyPreviewSticker": "Sticker",
+    "messageItem.requestKeys": "Schlüssel anfordern",
+    "messageItem.keysRequested": "Schlüssel angefordert",
+    "messageItem.requestKeysHelp":
+        "Erneut versuchen, die Schlüsselsicherung prüfen und die Sitzungen des Absenders um den Schlüssel dieser Nachricht bitten",
     "messageItem.replyPreviewPoll": "Umfrage",
     "messageItem.replyPreviewImage": "Bild",
     "messageItem.replyPreviewVideo": "Video",

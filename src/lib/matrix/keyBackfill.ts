@@ -20,9 +20,17 @@
 //   - the requester imports it, but only if it asked for that session and the
 //     key came from the very device that created it (see responseRefusal),
 //     which is what an original m.room_key share proves too.
+//
+// A session that is still being verified is where this matters most: senders
+// that only share with verified sessions withhold the key, and the SDK's
+// one-shot backup lookup runs before our other sessions have backed the key
+// up. So once this session turns verified, or gets the backup key, failed
+// messages are retried and each missing session is asked about once more.
+// requestRoomKeys is the manual version, for a "request keys" button.
 
 import { ClientEvent, MatrixEventEvent } from "matrix-js-sdk";
 import type { MatrixClient, MatrixEvent } from "matrix-js-sdk";
+import { CryptoEvent } from "matrix-js-sdk/lib/crypto-api";
 import type { CryptoApi } from "matrix-js-sdk/lib/crypto-api";
 import { isUserBlocked } from "$lib/stores/ignoredUsers.svelte";
 import { readScoped } from "$lib/utils/scopedStorage";
@@ -53,7 +61,29 @@ export const REQUEST_RETRY_MS = 60 * 60_000;
 /** Requests (or answers) per minute, so a long scroll can't flood anyone. */
 export const PER_MINUTE_LIMIT = 20;
 
-const MISSING_KEY = "MEGOLM_UNKNOWN_INBOUND_SESSION_ID";
+/**
+ * When failed messages are retried after this session turns verified or gets
+ * the backup key: soon, and again once our other sessions have had time to
+ * back up keys they only just received.
+ */
+export const RETRY_AFTER_TRUST_MS = [5_000, 2 * 60_000];
+
+// Failures a re-share (or a backup download) can fix. A key withheld for an
+// unverified device is one: the sender may share it once we are verified. A
+// plain withhold (we're blocked) or a sender-trust refusal is not.
+const MISSING_KEY_CODES = new Set([
+    "MEGOLM_UNKNOWN_INBOUND_SESSION_ID",
+    "OLM_UNKNOWN_MESSAGE_INDEX",
+    "MEGOLM_KEY_WITHHELD_FOR_UNVERIFIED_DEVICE",
+]);
+// Also worth a manual try: messages from before this session existed, which
+// only the backup or the sender can supply.
+const MANUAL_CODES = new Set([
+    ...MISSING_KEY_CODES,
+    "HISTORICAL_MESSAGE_NO_KEY_BACKUP",
+    "HISTORICAL_MESSAGE_BACKUP_UNCONFIGURED",
+    "HISTORICAL_MESSAGE_WORKING_BACKUP",
+]);
 
 /** Whether our encryption settings allow sending secrets to this device. */
 export function deviceAllowed(
@@ -75,8 +105,25 @@ export function deviceAllowed(
 export function isMissingRoomKey(event: MatrixEvent): boolean {
     return (
         event.isDecryptionFailure() &&
-        event.decryptionFailureReason === MISSING_KEY
+        MISSING_KEY_CODES.has(event.decryptionFailureReason ?? "")
     );
+}
+
+/** Whether to offer a manual "request keys" for a failed message. */
+export function canRequestRoomKeys(reason: string | null | undefined): boolean {
+    return MANUAL_CODES.has(reason ?? "");
+}
+
+let manualRequest: ((event: MatrixEvent) => Promise<void>) | null = null;
+
+/**
+ * Try a failed message again now: retry decryption (which re-checks the key
+ * backup) and, if the key is still missing, ask the sender's sessions for it
+ * even if we asked recently. Resolves once the request is sent; the message
+ * unlocks on its own if an answer comes.
+ */
+export function requestRoomKeys(event: MatrixEvent): Promise<void> {
+    return manualRequest?.(event) ?? Promise.resolve();
 }
 
 /**
@@ -185,6 +232,10 @@ export function attachKeyBackfill(client: MatrixClient): () => void {
     const timers = new Set<ReturnType<typeof setTimeout>>();
     const canRequest = createRateLimit(PER_MINUTE_LIMIT);
     const canAnswer = createRateLimit(PER_MINUTE_LIMIT);
+    // When this session last turned verified. A request made before then may
+    // have been refused for it, so it doesn't hold back a new one.
+    let verifiedAt = 0;
+    let ownVerified: boolean | null = null;
 
     async function sendEncrypted(
         type: string,
@@ -200,14 +251,19 @@ export function attachKeyBackfill(client: MatrixClient): () => void {
         if (batch.batch.length > 0) await client.queueToDevice(batch);
     }
 
-    async function request(event: MatrixEvent): Promise<void> {
+    async function request(event: MatrixEvent, force = false): Promise<void> {
         const content = event.getWireContent();
         const sessionId = content.session_id;
         const roomId = event.getRoomId();
         const sender = event.getSender();
         if (typeof sessionId !== "string" || !roomId || !sender) return;
         const previous = asked.get(sessionId);
-        if (previous && Date.now() - previous.at < REQUEST_RETRY_MS) {
+        if (
+            !force &&
+            previous &&
+            previous.at > verifiedAt &&
+            Date.now() - previous.at < REQUEST_RETRY_MS
+        ) {
             if (!previous.events.includes(event)) previous.events.push(event);
             return;
         }
@@ -221,12 +277,9 @@ export function attachKeyBackfill(client: MatrixClient): () => void {
             : [...(known?.keys() ?? [])].filter(
                   (id) => !(sender === ownUserId && id === ownDeviceId),
               );
-        asked.set(sessionId, {
-            roomId,
-            sender,
-            at: Date.now(),
-            events: [event],
-        });
+        const events = previous?.events ?? [];
+        if (!events.includes(event)) events.push(event);
+        asked.set(sessionId, { roomId, sender, at: Date.now(), events });
         log(`asking ${sender} (${deviceIds.length} sessions) for ${sessionId}`);
         await sendEncrypted(
             KEY_REQUEST_TYPE,
@@ -327,6 +380,78 @@ export function attachKeyBackfill(client: MatrixClient): () => void {
         );
     };
 
+    function retryFailed(): void {
+        for (const room of client.getRooms()) {
+            const timelines = [
+                room.getLiveTimeline(),
+                ...room.getThreads().map((t) => t.liveTimeline),
+            ];
+            for (const timeline of timelines) {
+                for (const event of timeline.getEvents()) {
+                    if (!isMissingRoomKey(event)) continue;
+                    // A failed retry fires Decrypted again, which asks.
+                    event
+                        .attemptDecryption(crypto as never, { isRetry: true })
+                        .catch(() => {});
+                }
+            }
+        }
+    }
+
+    function scheduleRetries(): void {
+        for (const delay of RETRY_AFTER_TRUST_MS) {
+            const timer = setTimeout(() => {
+                timers.delete(timer);
+                retryFailed();
+            }, delay);
+            timers.add(timer);
+        }
+    }
+
+    async function checkOwnTrust(): Promise<void> {
+        const status = await crypto!.getDeviceVerificationStatus(
+            ownUserId!,
+            ownDeviceId!,
+        );
+        const verified = !!status?.crossSigningVerified;
+        const was = ownVerified;
+        ownVerified = verified;
+        // The first check only learns the starting state.
+        if (was === false && verified) {
+            log("this session is verified now, retrying missing keys");
+            verifiedAt = Date.now();
+            scheduleRetries();
+        }
+    }
+
+    const onTrustChange = (): void => {
+        checkOwnTrust().catch((err) =>
+            console.warn("[key-backfill] trust check failed", err),
+        );
+    };
+
+    const onDevicesUpdated = (users: string[]): void => {
+        if (users.includes(ownUserId)) onTrustChange();
+    };
+
+    const onUserTrust = (userId: string): void => {
+        if (userId === ownUserId) onTrustChange();
+    };
+
+    const onBackupKey = (): void => {
+        log("got the backup key, retrying missing keys");
+        scheduleRetries();
+    };
+
+    manualRequest = async (event) => {
+        if (event.isDecryptionFailure())
+            await event
+                .attemptDecryption(crypto as never, { isRetry: true })
+                .catch(() => {});
+        if (!event.isDecryptionFailure()) return;
+        await request(event, true);
+    };
+
     const onDecrypted = (event: MatrixEvent): void => {
         if (!isMissingRoomKey(event)) return;
         const timer = setTimeout(() => {
@@ -344,12 +469,35 @@ export function attachKeyBackfill(client: MatrixClient): () => void {
         onToDevice as never,
     );
     client.on(MatrixEventEvent.Decrypted as never, onDecrypted as never);
+    client.on(CryptoEvent.DevicesUpdated as never, onDevicesUpdated as never);
+    client.on(
+        CryptoEvent.UserTrustStatusChanged as never,
+        onUserTrust as never,
+    );
+    client.on(
+        CryptoEvent.KeyBackupDecryptionKeyCached as never,
+        onBackupKey as never,
+    );
+    onTrustChange();
     return () => {
         client.off(
             ClientEvent.ReceivedToDeviceMessage as never,
             onToDevice as never,
         );
         client.off(MatrixEventEvent.Decrypted as never, onDecrypted as never);
+        client.off(
+            CryptoEvent.DevicesUpdated as never,
+            onDevicesUpdated as never,
+        );
+        client.off(
+            CryptoEvent.UserTrustStatusChanged as never,
+            onUserTrust as never,
+        );
+        client.off(
+            CryptoEvent.KeyBackupDecryptionKeyCached as never,
+            onBackupKey as never,
+        );
+        manualRequest = null;
         for (const timer of timers) clearTimeout(timer);
         timers.clear();
     };

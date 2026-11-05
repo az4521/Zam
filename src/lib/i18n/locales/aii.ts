@@ -1120,6 +1120,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.originalMessageDeleted": "ܐܓܪܬܐ ܫܪܫܝܬܐ ܫܝܦܬܐ ܝܠܗ̇",
     "messageItem.originalMessageUnavailable": "ܐܓܪܬܐ ܫܪܫܝܬܐ ܠܐ ܝܠܗ̇ ܡܫܟܚܬܐ",
     "messageItem.replyPreviewSticker": "ܢܩܦܬܐ",
+    "messageItem.requestKeys": "ܒܥܝ ܩܠܝ̈ܕܐ",
+    "messageItem.keysRequested": "ܩܠܝ̈ܕܐ ܐܬܒܥܝ",
+    "messageItem.requestKeysHelp":
+        "ܢܣܝ ܙܒܢܐ ܐܚܪܢܐ ܘܒܥܝ ܩܠܝܕܐ ܕܗܕܐ ܐܓܪܬܐ ܡܢ ܫܕܪܢܐ",
     "messageItem.replyPreviewPoll": "ܫܘܐܠܬܐ",
     "messageItem.replyPreviewImage": "ܨܘܪܬܐ",
     "messageItem.replyPreviewVideo": "ܒܝܕܝܘ",

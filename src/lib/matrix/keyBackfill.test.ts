@@ -21,6 +21,9 @@ import {
     KEY_REQUEST_TYPE,
     KEY_RESPONSE_TYPE,
     REQUEST_DELAY_MS,
+    RETRY_AFTER_TRUST_MS,
+    requestRoomKeys,
+    canRequestRoomKeys,
 } from "./keyBackfill";
 
 const ok = {
@@ -462,5 +465,144 @@ describe("attachKeyBackfill: asking", () => {
         await flush();
         detach();
         expect(c.importRoomKeys).not.toHaveBeenCalled();
+    });
+});
+
+describe("attachKeyBackfill: retrying", () => {
+    afterEach(() => vi.useRealTimers());
+
+    /** A message whose key never turns up, so every retry fails again. */
+    function stuck(
+        client: EventEmitter,
+        reason = "MEGOLM_UNKNOWN_INBOUND_SESSION_ID",
+    ) {
+        const event = {
+            isDecryptionFailure: () => true,
+            decryptionFailureReason: reason,
+            getWireContent: () => ({ session_id: "S1" }),
+            getRoomId: () => "!r",
+            getSender: () => "@alice:x",
+            attemptDecryption: vi.fn(() => {
+                client.emit("Event.decrypted", event);
+                return Promise.resolve();
+            }),
+        };
+        return event;
+    }
+
+    function setup() {
+        const c = makeClient({
+            userId: "@bob:x",
+            deviceId: "BOB",
+            curve25519: "bobCurve",
+        });
+        let verified = false;
+        (c.crypto as Record<string, unknown>).getDeviceVerificationStatus = (
+            userId: string,
+        ) =>
+            Promise.resolve({
+                isVerified: () => false,
+                signedByOwner: true,
+                crossSigningVerified: userId === "@bob:x" && verified,
+            });
+        const timelineEvents: unknown[] = [];
+        Object.assign(c.client, {
+            getRooms: () => [
+                {
+                    getLiveTimeline: () => ({
+                        getEvents: () => timelineEvents,
+                    }),
+                    getThreads: () => [],
+                },
+            ],
+        });
+        return {
+            ...c,
+            timelineEvents,
+            verify: () => {
+                verified = true;
+                c.client.emit("crypto.devicesUpdated", ["@bob:x"], false);
+            },
+        };
+    }
+
+    it("asks for a key withheld from an unverified session", async () => {
+        vi.useFakeTimers();
+        const c = setup();
+        const detach = attachKeyBackfill(c.client as never);
+        c.client.emit(
+            "Event.decrypted",
+            stuck(c.client, "MEGOLM_KEY_WITHHELD_FOR_UNVERIFIED_DEVICE"),
+        );
+        await vi.advanceTimersByTimeAsync(REQUEST_DELAY_MS);
+        detach();
+        expect(c.crypto.encryptToDeviceMessages).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaves a deliberately withheld key alone", async () => {
+        vi.useFakeTimers();
+        const c = setup();
+        const detach = attachKeyBackfill(c.client as never);
+        c.client.emit(
+            "Event.decrypted",
+            stuck(c.client, "MEGOLM_KEY_WITHHELD"),
+        );
+        await vi.advanceTimersByTimeAsync(REQUEST_DELAY_MS);
+        detach();
+        expect(c.crypto.encryptToDeviceMessages).not.toHaveBeenCalled();
+    });
+
+    it("retries and asks again once this session is verified", async () => {
+        vi.useFakeTimers();
+        const c = setup();
+        const detach = attachKeyBackfill(c.client as never);
+        await vi.advanceTimersByTimeAsync(0);
+        const event = stuck(c.client);
+        c.timelineEvents.push(event);
+        c.client.emit("Event.decrypted", event);
+        await vi.advanceTimersByTimeAsync(REQUEST_DELAY_MS);
+        expect(c.crypto.encryptToDeviceMessages).toHaveBeenCalledTimes(1);
+
+        c.verify();
+        await vi.advanceTimersByTimeAsync(
+            RETRY_AFTER_TRUST_MS[0] + REQUEST_DELAY_MS,
+        );
+        expect(event.attemptDecryption).toHaveBeenCalled();
+        expect(c.crypto.encryptToDeviceMessages).toHaveBeenCalledTimes(2);
+
+        // The later pass retries decryption but doesn't ask a third time.
+        await vi.advanceTimersByTimeAsync(
+            RETRY_AFTER_TRUST_MS[1] + REQUEST_DELAY_MS,
+        );
+        detach();
+        expect(event.attemptDecryption).toHaveBeenCalledTimes(2);
+        expect(c.crypto.encryptToDeviceMessages).toHaveBeenCalledTimes(2);
+    });
+
+    it("asks again on a manual request, however recent the last one", async () => {
+        vi.useFakeTimers();
+        const c = setup();
+        const detach = attachKeyBackfill(c.client as never);
+        const event = stuck(c.client);
+        c.client.emit("Event.decrypted", event);
+        await vi.advanceTimersByTimeAsync(REQUEST_DELAY_MS);
+        await requestRoomKeys(event as never);
+        detach();
+        expect(event.attemptDecryption).toHaveBeenCalledTimes(1);
+        expect(c.crypto.encryptToDeviceMessages).toHaveBeenCalledTimes(2);
+    });
+
+    it("offers manual requests only where a key could still come", () => {
+        expect(canRequestRoomKeys("MEGOLM_UNKNOWN_INBOUND_SESSION_ID")).toBe(
+            true,
+        );
+        expect(canRequestRoomKeys("HISTORICAL_MESSAGE_WORKING_BACKUP")).toBe(
+            true,
+        );
+        expect(canRequestRoomKeys("MEGOLM_KEY_WITHHELD")).toBe(false);
+        expect(canRequestRoomKeys("SENDER_IDENTITY_PREVIOUSLY_VERIFIED")).toBe(
+            false,
+        );
+        expect(canRequestRoomKeys(null)).toBe(false);
     });
 });
