@@ -4,6 +4,28 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.52.0
+
+✨ **New**
+
+- **Latest message under each DM:** direct messages in the room list show the newest message, so you can see what was said without opening them.
+- **Request keys:** locked messages have a button to ask your other sessions for the key again.
+
+⚡ **Improved**
+
+- **Lighter long sessions:** scrolling far back in a room no longer keeps every message on screen in memory, rooms you have left for a while let go of older history (it loads again when you scroll up), and cached images are released once nothing shows them.
+- **Fewer background wake-ups:** timers that checked for work every few seconds now sleep until there is some.
+- **Smaller desktop app:** the desktop app no longer ships a second copy of its libraries (over 200 MB less), and emoji take far less disk space.
+- **Flash player updated:** Flash content now plays with Ruffle 0.7.1.
+
+🐛 **Fixed**
+
+- **Messages locked during verification:** messages sent while a session was being verified now unlock once it is verified, and failed messages show the usual locked placeholder instead of raw text.
+- **One ping for a burst:** catching up on many messages at once plays one notification sound instead of one very loud one.
+- **Safer Flash:** Flash content plays in a locked-down frame that cannot reach your account or the network.
+- **DM names:** a DM created before the other person joined no longer stays "Empty room" until a reload.
+- **Smaller Android app:** the Android app no longer carries the desktop emoji pack.
+
 ## v1.51.1
 
 ✨ **New**
