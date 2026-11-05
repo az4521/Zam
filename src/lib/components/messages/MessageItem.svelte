@@ -3270,55 +3270,6 @@
                     </svg>
                 </button>
             {/if}
-            {#if !interfaceState.isTouchscreen && isOwnMessage}
-                {#if confirmingDelete}
-                    <span class="text-xs text-discord-textMuted px-1"
-                        >{t("messageItem.delete")}</span
-                    >
-                    <!--
-                    Deliberately NOT `data-message-action`: these two run their
-                    own ArrowLeft/ArrowRight handler (onDeleteKeydown), and the
-                    roving toolbar stops propagation on the keys it owns, which
-                    would kill it. Staying out of the roving set leaves them as
-                    ordinary tab stops for the life of the confirmation — which
-                    is what keeps them reachable if focus wanders off.
-                -->
-                    <button
-                        bind:this={deleteYesEl}
-                        onclick={() => resolveDelete(true)}
-                        onkeydown={onDeleteKeydown}
-                        class="px-2 py-1 rounded text-xs font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-danger"
-                        aria-label={t("messageItem.yesDeleteMessage")}
-                        >{t("messageItem.yes")}</button
-                    >
-                    <button
-                        bind:this={deleteNoEl}
-                        onclick={() => resolveDelete(false)}
-                        onkeydown={onDeleteKeydown}
-                        class="px-2 py-1 rounded text-xs font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-accent"
-                        aria-label={t("messageItem.noKeepMessage")}
-                        >{t("messageItem.no")}</button
-                    >
-                {:else}
-                    <button
-                        data-message-action
-                        onclick={() => (confirmingDelete = true)}
-                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
-                        title={t("messageItem.deleteMessage")}
-                        aria-label={t("messageItem.deleteMessage")}
-                    >
-                        <svg
-                            class="w-4 h-4"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
-                            />
-                        </svg>
-                    </button>
-                {/if}
-            {/if}
             {#if !interfaceState.isTouchscreen && canPin}
                 <button
                     data-message-action
@@ -3543,6 +3494,61 @@
                     {keyboardOffset}
                     bind:open={showRedactDialog}
                 />
+            {/if}
+            <!-- Delete is last for your own messages and for a moderator's
+                 redact on others', so it sits in the same place on both. -->
+            {#if !interfaceState.isTouchscreen && isOwnMessage}
+                {#if confirmingDelete}
+                    <span class="text-xs text-discord-textMuted px-1"
+                        >{t("messageItem.delete")}</span
+                    >
+                    <!--
+                    Deliberately NOT `data-message-action`: these two run their
+                    own ArrowLeft/ArrowRight handler (onDeleteKeydown), and the
+                    roving toolbar stops propagation on the keys it owns, which
+                    would kill it. Staying out of the roving set leaves them as
+                    ordinary tab stops for the life of the confirmation — which
+                    is what keeps them reachable if focus wanders off.
+                -->
+                    <button
+                        bind:this={deleteYesEl}
+                        onclick={() => resolveDelete(true)}
+                        onkeydown={onDeleteKeydown}
+                        class="px-2 py-1 rounded text-xs font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-danger"
+                        aria-label={t("messageItem.yesDeleteMessage")}
+                        >{t("messageItem.yes")}</button
+                    >
+                    <button
+                        bind:this={deleteNoEl}
+                        onclick={() => resolveDelete(false)}
+                        onkeydown={onDeleteKeydown}
+                        class="px-2 py-1 rounded text-xs font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-accent"
+                        aria-label={t("messageItem.noKeepMessage")}
+                        >{t("messageItem.no")}</button
+                    >
+                {:else}
+                    <button
+                        data-message-action
+                        onclick={(e) => {
+                            // Shift-click skips the confirmation, as in Discord.
+                            if (e.shiftKey) resolveDelete(true);
+                            else confirmingDelete = true;
+                        }}
+                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
+                        title={t("messageItem.deleteMessage")}
+                        aria-label={t("messageItem.deleteMessage")}
+                    >
+                        <svg
+                            class="w-4 h-4"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
+                            />
+                        </svg>
+                    </button>
+                {/if}
             {/if}
         </div>
     {/if}
