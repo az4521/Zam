@@ -104,6 +104,9 @@
     }
 
     let preview = $state<UrlPreview | null>(null);
+    // A request for this link is in flight: a placeholder the shape the
+    // preview most likely takes holds its space meanwhile.
+    let pending = $state(true);
     // A GIF-site link the homeserver couldn't preview, held back by the policy.
     let gifHostHeld = $state(false);
     let imageError = $state(false);
@@ -187,6 +190,7 @@
         const currentUrl = url;
         const allowEmbeds = embedsAllowed;
         preview = null;
+        pending = true;
         gifHostHeld = false;
         imageError = false;
         directEmbed = null;
@@ -204,6 +208,7 @@
         const ytUrl = allowEmbeds ? getYoutubeEmbedUrl(currentUrl) : null;
         if (ytUrl) {
             directEmbed = { type: "youtube", embedUrl: ytUrl };
+            pending = false;
             return;
         }
 
@@ -215,6 +220,7 @@
             const known = resolvedPreviews.get(twitterApiUrl);
             if (known) {
                 tweetEmbed = known.tweet as TweetEmbed | null;
+                pending = false;
                 return;
             }
             fetch(twitterApiUrl, {
@@ -254,6 +260,9 @@
                 .catch((err) => {
                     if (cancelled) return;
                     console.error("Twitter preview fetch failed:", err);
+                })
+                .finally(() => {
+                    if (!cancelled) pending = false;
                 });
             return () => {
                 cancelled = true;
@@ -273,6 +282,7 @@
         if (known) {
             preview = known.preview;
             gifHostHeld = known.gifHostHeld;
+            pending = false;
             return;
         }
         getUrlPreview(previewUrl)
@@ -320,6 +330,9 @@
             .catch((err) => {
                 if (cancelled) return;
                 console.error("URL preview fetch failed:", err);
+            })
+            .finally(() => {
+                if (!cancelled) pending = false;
             });
 
         return () => {
@@ -412,14 +425,30 @@
         };
     });
 
+    // In a card, an image the site gives no size for is drawn in a fixed
+    // box the shape of the usual og:image (1200×630), so every such card is
+    // the same size before and after it loads, and matches the placeholder.
     const cardImageBox = $derived(
-        reservedMediaBox(
-            preview?.imageWidth ?? learnedImage?.width,
-            preview?.imageHeight ?? learnedImage?.height,
-            480,
-            288,
-        ),
+        reservedMediaBox(preview?.imageWidth, preview?.imageHeight, 480, 288),
     );
+    const cardImageClass = $derived(
+        cardImageBox
+            ? "max-w-full h-auto max-h-72"
+            : "w-full max-w-[480px] aspect-[1200/630] bg-black/10",
+    );
+
+    // What the preview most likely is, for the placeholder: media on its own
+    // for a link to a media file or a GIF site, otherwise a card.
+    const likelyMedia = $derived.by(() => {
+        if (isGifSite) return true;
+        try {
+            return /\.(png|jpe?g|gif|webp|avif|mp4|webm|mov)$/i.test(
+                new URL(url).pathname,
+            );
+        } catch {
+            return false;
+        }
+    });
 
     // GIF-sharing sites (Tenor/Giphy/Klipy) have page metadata but should embed
     // inline. Their previews expose the animation as a *video* URL, which we play
@@ -624,6 +653,47 @@
             use:mountEmbed={{ embed: matchedEmbed.value, url }}
         ></div>
     {/key}
+{:else if pending && !preview}
+    {#if likelyMedia}
+        <div
+            class="mt-1 w-full max-w-[min(100%,32rem)] aspect-video rounded-lg bg-discord-backgroundSecondary"
+            aria-hidden="true"
+        ></div>
+    {:else}
+        <!-- The card below with one line of title, two of description and
+             the fixed image box. -->
+        <div class="mt-2" aria-hidden="true">
+            <div
+                class="flex max-w-lg rounded overflow-hidden border border-discord-divider bg-discord-backgroundSecondary"
+            >
+                <div class="w-1 flex-shrink-0 bg-discord-divider"></div>
+                <div class="flex flex-1 min-w-0 flex-col p-3 gap-3">
+                    <div class="flex-1 min-w-0 animate-pulse">
+                        <p class="text-xs mb-0.5">
+                            <span
+                                class="inline-block w-24 h-2.5 rounded bg-discord-divider"
+                            ></span>
+                        </p>
+                        <p class="text-sm leading-snug">
+                            <span
+                                class="inline-block w-3/5 h-3 rounded bg-discord-divider"
+                            ></span>
+                        </p>
+                        <p class="text-xs mt-1 leading-relaxed">
+                            <span
+                                class="inline-block w-full h-2.5 rounded bg-discord-divider"
+                            ></span><br /><span
+                                class="inline-block w-4/5 h-2.5 rounded bg-discord-divider"
+                            ></span>
+                        </p>
+                    </div>
+                    <div
+                        class="w-full max-w-[480px] aspect-[1200/630] rounded mt-1 bg-black/10"
+                    ></div>
+                </div>
+            </div>
+        </div>
+    {/if}
 {:else if preview}
     {#if isGifSite && preview.videoUrl && canLoad(preview.videoUrl)}
         <!-- GIF-sharing sites: bare inline gif-style video -->
@@ -791,7 +861,11 @@
                                  to the flex column's full width; otherwise the
                                  absolute play overlay would centre over empty card
                                  space beside a narrow (portrait reel) poster. -->
-                            <div class="relative w-fit self-start">
+                            <div
+                                class="relative {cardImageBox
+                                    ? 'w-fit self-start'
+                                    : 'w-full max-w-[480px]'}"
+                            >
                                 <img
                                     src={previewImageSrc}
                                     alt={preview.title ?? ""}
@@ -799,7 +873,7 @@
                                     height={cardImageBox?.height}
                                     onerror={() => (imageError = true)}
                                     onload={learnImageSize(preview.imageUrl)}
-                                    class="max-w-full h-auto max-h-72 rounded mt-1 object-contain cursor-pointer"
+                                    class="{cardImageClass} rounded mt-1 object-contain cursor-pointer"
                                     loading="lazy"
                                     referrerpolicy="no-referrer"
                                 />
@@ -828,7 +902,7 @@
                                 height={cardImageBox?.height}
                                 onerror={() => (imageError = true)}
                                 onload={learnImageSize(preview.imageUrl)}
-                                class="max-w-full h-auto max-h-72 rounded mt-1 object-contain cursor-pointer"
+                                class="{cardImageClass} rounded mt-1 object-contain cursor-pointer"
                                 loading="lazy"
                                 referrerpolicy="no-referrer"
                                 onclick={(e) => {
