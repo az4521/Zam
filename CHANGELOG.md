@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.52.2
+
+🐛 **Fixed**
+
+- **Skia Graphite toggle on Linux (desktop):** the Settings > Debug > GPU switch did nothing on Linux; it now turns Graphite on there. The line under it now says whether Graphite is really in use, not just whether it was asked for.
+
 ## v1.52.1
 
 ⚡ **Improved**
