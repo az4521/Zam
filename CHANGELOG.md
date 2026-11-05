@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.52.1
+
+⚡ **Improved**
+
+- **Less memory in the background:** once the desktop app has been minimised or hidden to the tray for a couple of minutes, with no call and no video playing, it lets go of the graphics memory that playing videos left behind (often over 100 MB). It comes back by itself the next time it's needed.
+
 ## v1.52.0
 
 ✨ **New**
