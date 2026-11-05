@@ -1318,41 +1318,48 @@
         {#snippet unjoinedRow(room: SpaceChildInfo)}
             {@const isJoining = joiningIds.has(room.roomId)}
             <div
-                class="flex items-center gap-2 px-2 py-1.5 rounded group hover:bg-discord-messageHover transition-colors"
+            <!-- Same row geometry as channelRow (flex, py-1.5, 0.5rem inset,
+                 w-5 icon slot, single-line name) so joined and unjoined rows
+                 share height, hover and spacing. The member count lives in
+                 the tooltip rather than a second line. -->
+                class="group flex items-center transition-colors hover:bg-discord-messageHover"
             >
-                <!-- Channel icon -->
-                <span
-                    class="w-5 h-5 flex-shrink-0 text-discord-textSecondary opacity-50 flex items-center justify-center"
+                <div
+                    class="flex-1 flex items-center gap-2 py-1.5 min-w-0"
+                    style="padding-inline-start: 0.5rem;"
+                    title={room.numMembers > 0
+                        ? t("roomList.members", {
+                              numMembers: room.numMembers,
+                          })
+                        : undefined}
                 >
-                    <Hash size={14} />
-                </span>
-
-                <!-- Name + member count -->
-                <div class="flex-1 min-w-0">
-                    <p
-                        class="text-sm text-discord-textSecondary group-hover:text-discord-textPrimary truncate transition-colors"
+                    <div
+                        class="w-5 flex-shrink-0 flex items-center justify-center"
                     >
-                        {@html renderPlainTextWithTwemoji(room.name ?? "")}
-                    </p>
-                    {#if room.numMembers > 0}
-                        <p class="text-xs text-discord-textMuted opacity-70">
-                            {t("roomList.members", {
-                                numMembers: room.numMembers,
-                            })}
-                        </p>
-                    {/if}
+                        <span
+                            class="w-5 h-5 opacity-70 flex items-center justify-center"
+                        >
+                            <Hash size={14} />
+                        </span>
+                    </div>
+                    <span
+                        class="flex-1 text-sm text-discord-textSecondary group-hover:text-discord-textPrimary truncate transition-colors"
+                        >{@html renderPlainTextWithTwemoji(
+                            room.name ?? "",
+                        )}</span
+                    >
                 </div>
 
                 {#if room.isKnocked}
                     <!-- Pending knock: state chip + cancel on hover -->
                     <span
-                        class="flex-shrink-0 text-xs font-semibold text-discord-textMuted group-hover:hidden"
+                        class="flex-shrink-0 me-2 text-xs font-semibold text-discord-textMuted group-hover:hidden"
                         >{t("roomList.requested")}</span
                     >
                     <button
                         onclick={() => handleCancelKnock(room.roomId)}
                         disabled={isJoining}
-                        class="flex-shrink-0 px-2 py-0.5 text-xs font-semibold rounded border border-discord-divider text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-60 disabled:cursor-not-allowed hidden group-hover:block"
+                        class="flex-shrink-0 me-1 px-2 py-0.5 text-xs font-semibold rounded border border-discord-divider text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-60 disabled:cursor-not-allowed hidden group-hover:block"
                     >
                         {t("roomList.cancelRequest")}
                     </button>
@@ -1361,7 +1368,7 @@
                     <button
                         onclick={() => handleJoin(room)}
                         disabled={isJoining}
-                        class="flex-shrink-0 px-2 py-0.5 text-xs font-semibold rounded bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100"
+                        class="flex-shrink-0 me-1 px-2 py-0.5 text-xs font-semibold rounded bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100"
                     >
                         {#if isJoining}
                             <span class="flex items-center gap-1">
@@ -1505,7 +1512,8 @@
                     class="w-full flex items-center gap-1 px-2 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide hover:text-discord-textSecondary transition-colors"
                 >
                     <svg
-                        class="w-3 h-3 flex-shrink-0 transition-transform {browseCollapsed
+                    <span class="truncate">{t("roomList.browseRooms")}</span>
+                        class="w-3 h-3 flex-shrink-0 ms-auto transition-transform {browseCollapsed
                             ? '-rotate-90'
                             : ''}"
                         fill="currentColor"
@@ -1514,7 +1522,6 @@
                     >
                         <path d="M7 10l5 5 5-5z" />
                     </svg>
-                    {t("roomList.browseRooms")}
                 </button>
                 {#if !browseCollapsed}
                     {#each unjoinedRooms as room (room.roomId)}

@@ -26,7 +26,7 @@ const SWIPE_TOUCH_ACTION = "pan-y pinch-zoom";
 export interface SwipePanParams {
     enabled: boolean;
     onEngage?: () => void;
-    onMove?: (translateX: number, stage: SwipeStage) => void;
+    onMove?: (translateX: number, stage: SwipeStage, dx: number) => void;
     onRelease?: (stage: SwipeStage) => void;
     onCancel?: () => void;
 }
@@ -110,7 +110,7 @@ export function swipePan(node: HTMLElement, params: SwipePanParams) {
         }
         // No preventDefault: the listener is passive, and SWIPE_TOUCH_ACTION
         // already keeps a horizontal drag from scrolling anything.
-        p.onMove?.(clampSwipeTranslate(dx), swipeStage(dx));
+        p.onMove?.(clampSwipeTranslate(dx), swipeStage(dx), dx);
     }
 
     function onTouchEnd(e: TouchEvent) {

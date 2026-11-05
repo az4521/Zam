@@ -1800,7 +1800,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomList.orderValue": "Valeur d'ordre",
     "roomList.roomSettings": "Paramètres du salon",
     "roomList.favourites": "Favoris",
-    "roomList.channels": "Canaux",
+    "roomList.channels": "Salons",
     "roomList.rooms": "Salons",
     "roomList.lowPriority": "Priorité basse",
     "roomList.browseRooms": "Parcourir les salons",

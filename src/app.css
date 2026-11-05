@@ -709,3 +709,9 @@ body {
     color: rgb(var(--discord-accent-rgb));
     text-decoration: none;
 }
+
+/* AMOLED: every surface is #000, so the server rail needs a hairline to
+   separate it from the channel list beside it. */
+:root[data-theme="amoled"] .space-rail {
+    border-inline-end: 1px solid rgba(255, 255, 255, 0.15);
+}

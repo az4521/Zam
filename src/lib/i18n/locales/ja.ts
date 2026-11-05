@@ -1668,7 +1668,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomList.orderValue": "並び順の値",
     "roomList.roomSettings": "ルーム設定",
     "roomList.favourites": "お気に入り",
-    "roomList.channels": "チャンネル",
+    "roomList.channels": "ルーム",
     "roomList.rooms": "ルーム",
     "roomList.lowPriority": "低優先",
     "roomList.browseRooms": "ルームを参照",

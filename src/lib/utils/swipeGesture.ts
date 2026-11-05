@@ -62,16 +62,36 @@ export function resolveSwipeAction(
     return "reply";
 }
 
-/** Signed translateX (≤ 0) to apply to the row. Tracks the finger 1:1 up to the
- *  far threshold, then half-speed resistance, hard-clamped at -maxPx. */
+/** Signed translateX (<= 0) to apply to the row. Tracks the finger 1:1 up to the
+ *  reply threshold, then diminishing returns (0.6x to the far threshold, 0.3x
+ *  beyond), hard-clamped at -maxPx. */
 export function clampSwipeTranslate(
     dx: number,
     maxPx: number = SWIPE_MAX_PX,
 ): number {
     if (dx >= 0) return 0;
     const mag = -dx;
+    const mid = (SWIPE_FAR_PX - SWIPE_SHORT_PX) * 0.6;
     let out: number;
-    if (mag <= SWIPE_FAR_PX) out = mag;
-    else out = SWIPE_FAR_PX + (mag - SWIPE_FAR_PX) / 2;
+    if (mag <= SWIPE_SHORT_PX) out = mag;
+    else if (mag <= SWIPE_FAR_PX)
+        out = SWIPE_SHORT_PX + (mag - SWIPE_SHORT_PX) * 0.6;
+    else out = SWIPE_SHORT_PX + mid + (mag - SWIPE_FAR_PX) * 0.3;
     return -Math.min(out, maxPx);
+}
+
+export function easeOutCubic(t: number): number {
+    const c = t < 0 ? 0 : t > 1 ? 1 : t;
+    return 1 - Math.pow(1 - c, 3);
+}
+
+/** Opacity/scale of the reveal icon for a leftward drag of `dx`: eased from 0 at
+ *  the start to 1 at the reply threshold, so it grows with the finger instead of
+ *  popping in. Rightward/zero drag gives fully hidden. */
+export function swipeRevealStyle(
+    dx: number,
+    shortPx: number = SWIPE_SHORT_PX,
+): { opacity: number; scale: number } {
+    const p = easeOutCubic(dx < 0 ? -dx / shortPx : 0);
+    return { opacity: p, scale: 0.4 + 0.6 * p };
 }

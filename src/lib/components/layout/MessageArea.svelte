@@ -36,6 +36,7 @@
         contextWindowCanPaginate,
         getRoomDisplayName,
         getRoomTopic,
+        getRoomAvatar,
         sendReadReceipt,
         getTombstone,
         joinRoom,
@@ -142,6 +143,7 @@
         X,
     } from "lucide-svelte";
     import RoomHeaderOverflowMenu from "$lib/components/layout/RoomHeaderOverflowMenu.svelte";
+    import RoomTopicSheet from "$lib/components/layout/RoomTopicSheet.svelte";
     import {
         pluginHeaderButtons,
         pluginHeaderMenuRows,
@@ -498,6 +500,15 @@
     // and can never dismiss a modal some other component now owns.
     function releaseOverflowSlot() {
         if (interfaceState.modal === "room-header-overflow") closeModal();
+        if (interfaceState.modal === "room-topic") closeModal();
+    }
+
+    // Mobile only: the header truncates the topic, so tapping it opens the
+    // full text in a sheet. Same shared modal slot (and same stranding
+    // guard, via releaseOverflowSlot) as the overflow menu.
+    const topicOpen = $derived(interfaceState.modal === "room-topic");
+    function openTopicSheet() {
+        openModal("room-topic", () => {});
     }
 
     // Tracks `isMobile` and nothing else — the interfaceState read AND write
@@ -2099,12 +2110,23 @@
             {/if}
             {#if topic}
                 <div class="w-px h-5 bg-discord-divider"></div>
-                <p
-                    class="text-sm text-discord-textMuted truncate flex-auto min-w-0"
-                    title={topic}
-                >
-                    {topic}
-                </p>
+                {#if isMobile}
+                    <button
+                        type="button"
+                        onclick={openTopicSheet}
+                        aria-label={t("roomTopicSheet.open")}
+                        class="text-sm text-discord-textMuted truncate flex-auto min-w-0 text-start"
+                    >
+                        {topic}
+                    </button>
+                {:else}
+                    <p
+                        class="text-sm text-discord-textMuted truncate flex-auto min-w-0"
+                        title={topic}
+                    >
+                        {topic}
+                    </p>
+                {/if}
             {/if}
             {#if !topic}<div class="flex-1"></div>{/if}
             <!-- Start voice call button -->
@@ -2822,6 +2844,16 @@
         pluginRows={pluginOverflowRows}
         onChoose={chooseOverflowItem}
         onChoosePlugin={choosePluginOverflow}
+        onClose={closeModal}
+    />
+{/if}
+
+{#if isMobile && topicOpen && topic}
+    <RoomTopicSheet
+        roomId={room.roomId}
+        {roomName}
+        avatarSrc={getRoomAvatar(room)}
+        {topic}
         onClose={closeModal}
     />
 {/if}

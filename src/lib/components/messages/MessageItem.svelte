@@ -190,6 +190,7 @@
     import { swipePan } from "$lib/actions/swipePan";
     import {
         resolveSwipeAction,
+        swipeRevealStyle,
         type SwipeStage,
     } from "$lib/utils/swipeGesture";
     import {
@@ -214,7 +215,7 @@
     } from "$lib/utils/messageBodyGallery";
     import { galleryPositionLabel } from "$lib/utils/mediaGallery";
     import { siblingUploadIndices } from "$lib/utils/uploadSiblings";
-    import { scrollBehavior } from "$lib/utils/motionPreference";
+    import { scrollBehavior, motionOK } from "$lib/utils/motionPreference";
     import {
         audioPlaybackMode,
         audioStatusLabel,
@@ -353,16 +354,17 @@
     // drives the reveal button's icon; swipeAnimating enables the snap-back
     // transition; swipedThisTouch suppresses the tap/double-tap that would else
     // fire on the same touch release (set during the engaged move, before touchend).
-    const SWIPE_SNAP_MS = 180;
-    const SWIPE_SNAP_RESET_MS = 200; // Runs slightly after transition ends.
+    const SWIPE_SNAP_MS = 320;
+    const SWIPE_SNAP_RESET_MS = 340; // Runs slightly after transition ends.
     let swipeTranslate = $state(0);
+    let swipeDx = $state(0); // Raw finger dx; drives the icon fade/scale.
     let swipeStageNow = $state<SwipeStage>("none");
     let swipeAnimating = $state(false);
     let swipedThisTouch = false;
 
     const swipeStyle = $derived(
         swipeTranslate !== 0 || swipeAnimating
-            ? `transform: translateX(${swipeTranslate}px);${swipeAnimating ? ` transition: transform ${SWIPE_SNAP_MS}ms cubic-bezier(0.2,0,0,1);` : ""}`
+            ? `transform: translateX(${swipeTranslate}px);${swipeAnimating && motionOK() ? ` transition: transform ${SWIPE_SNAP_MS}ms cubic-bezier(0.34,1.56,0.64,1);` : ""}`
             : "",
     );
 
@@ -456,8 +458,18 @@
         swipedThisTouch = true;
         swipeAnimating = false;
     }
-    function onSwipeMove(translateX: number, stage: SwipeStage) {
+    function onSwipeMove(translateX: number, stage: SwipeStage, dx: number) {
         swipeTranslate = translateX;
+        swipeDx = dx;
+        // Haptic tick when a new threshold is first crossed (not on the way back).
+        if (
+            stage !== swipeStageNow &&
+            (stage === "far" ? canEditMessage : stage === "short") &&
+            typeof navigator !== "undefined" &&
+            navigator.vibrate
+        ) {
+            navigator.vibrate(10);
+        }
         swipeStageNow = stage;
     }
     function onSwipeRelease(stage: SwipeStage) {
@@ -476,12 +488,14 @@
         // Snap back.
         swipeAnimating = true;
         swipeTranslate = 0;
+        swipeDx = 0;
         swipeStageNow = "none";
         setTimeout(() => (swipeAnimating = false), SWIPE_SNAP_RESET_MS);
     }
     function onSwipeCancel() {
         swipeAnimating = true;
         swipeTranslate = 0;
+        swipeDx = 0;
         swipeStageNow = "none";
         setTimeout(() => (swipeAnimating = false), SWIPE_SNAP_RESET_MS);
     }
@@ -3157,19 +3171,30 @@
             {/if}
         </div>
     </div>
-    {#if swipeRevealIcon !== "none" && !isFailed}
+    {#if swipeDx < 0 && !isFailed}
+        {@const reveal = swipeRevealStyle(swipeDx)}
         <div
-            class="absolute end-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-9 h-9 rounded-full pointer-events-none transition-colors {swipeRevealIcon ===
-            'edit'
-                ? 'bg-discord-backgroundTertiary text-discord-textPrimary'
-                : 'bg-discord-accent text-white'}"
+            class="absolute end-3 top-1/2 pointer-events-none"
+            style="opacity: {reveal.opacity}; transform: translateY(-50%) scale({reveal.scale});"
             aria-hidden="true"
         >
-            {#if swipeRevealIcon === "edit"}
-                <Pencil class="w-4 h-4" />
-            {:else}
-                <Reply class="w-4 h-4" />
-            {/if}
+            <div
+                class="flex items-center justify-center w-9 h-9 rounded-full transition-colors {swipeRevealIcon ===
+                'edit'
+                    ? 'bg-discord-backgroundTertiary text-discord-textPrimary'
+                    : swipeRevealIcon === 'reply'
+                      ? 'bg-discord-accent text-white'
+                      : 'bg-discord-backgroundTertiary text-discord-textSecondary'} {swipeRevealIcon !==
+                    'none' && motionOK()
+                    ? 'swipe-armed-pop'
+                    : ''}"
+            >
+                {#if swipeRevealIcon === "edit"}
+                    <Pencil class="w-4 h-4" />
+                {:else}
+                    <Reply class="w-4 h-4" />
+                {/if}
+            </div>
         </div>
     {/if}
 
@@ -3565,6 +3590,21 @@
 {/if}
 
 <style>
+    /* Swipe-to-reply: brief overshoot when the reply threshold is crossed. */
+    .swipe-armed-pop {
+        animation: swipe-armed-pop 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes swipe-armed-pop {
+        0% {
+            transform: scale(0.85);
+        }
+        55% {
+            transform: scale(1.15);
+        }
+        100% {
+            transform: scale(1);
+        }
+    }
     /* Spoiler tags */
     :global([data-mx-spoiler]) {
         background-color: var(--discord-spoiler-bg);

@@ -1768,6 +1768,10 @@ export const en = {
     "roomDirectory.requested": "Requested",
     "roomDirectory.somethingWentWrong": "Something went wrong",
 
+    // src/lib/components/layout/RoomTopicSheet.svelte
+    "roomTopicSheet.description": "Description",
+    "roomTopicSheet.open": "Show full room description",
+
     // src/lib/components/layout/RoomHeaderOverflowMenu.svelte
     "roomHeaderOverflowMenu.moreRoomOptions": "More room options",
     "roomHeaderOverflowMenu.unread": "unread",
@@ -1791,7 +1795,7 @@ export const en = {
     "roomList.orderValue": "Order value",
     "roomList.roomSettings": "Room settings",
     "roomList.favourites": "Favourites",
-    "roomList.channels": "Channels",
+    "roomList.channels": "Rooms",
     "roomList.rooms": "Rooms",
     "roomList.lowPriority": "Low Priority",
     "roomList.browseRooms": "Browse Rooms",
@@ -2771,6 +2775,9 @@ export const en = {
     "composerActionsMenu.createPoll": "Create poll",
     "composerActionsMenu.recordVoiceMessage": "Record voice message",
     "composerActionsMenu.shareLocation": "Share location",
+    "composerActionsMenu.camera": "Camera",
+    "composerActionsMenu.photosAndVideos": "Photos & videos",
+    "composerActionsMenu.files": "Files",
     "composerActionsMenu.createThread": "Create thread",
 
     // src/lib/components/messages/Reactions.svelte

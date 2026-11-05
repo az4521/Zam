@@ -1702,7 +1702,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomList.orderValue": "ܡܢܝܢܐ ܕܣܘܕܪܐ",
     "roomList.roomSettings": "ܛܘܝܒ̈ܐ ܕܓܘܡܐ",
     "roomList.favourites": "ܚܒܝ̈ܒܐ",
-    "roomList.channels": "ܩܢ̈ܝܐ",
+    "roomList.channels": "ܓܘܡ̈ܐ",
     "roomList.rooms": "ܓܘܡ̈ܐ",
     "roomList.lowPriority": "ܩܕܡܝܘܬܐ ܢܚܝܬܬܐ",
     "roomList.browseRooms": "ܒܨܝ ܓܘܡ̈ܐ",

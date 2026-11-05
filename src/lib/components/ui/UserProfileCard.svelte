@@ -3,6 +3,10 @@
     import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
+    import Portal from "$lib/components/ui/Portal.svelte";
+    import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
+    import { fade } from "svelte/transition";
+    import { motionOK } from "$lib/utils/motionPreference";
     import { auth } from "$lib/stores/auth.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import {
@@ -311,6 +315,15 @@
         );
     });
     const asSheet = $derived(interfaceState.isTouchscreen);
+    // In the sheet the banner tucks up under the grab handle (BottomSheet's
+    // pt-2 + handle + mb-2 = 1.25rem) and the avatar rings match the sheet's
+    // surface instead of the desktop card's.
+    const bannerPull = $derived(asSheet ? "-mt-5" : "");
+    const ringColor = $derived(
+        asSheet
+            ? "border-discord-backgroundTertiary"
+            : "border-discord-backgroundSecondary",
+    );
 
     async function copyUserId() {
         try {
@@ -459,380 +472,384 @@
 
 <svelte:window bind:innerWidth bind:innerHeight />
 
-{#if open}
-    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-    <div
-        class="fixed inset-0 z-40 {asSheet ? 'bg-black/50' : ''}"
-        onclick={closeProfileCard}
-    ></div>
-    <div
-        bind:clientWidth={cardW}
-        bind:clientHeight={cardH}
-        class="z-50 bg-discord-backgroundSecondary border border-discord-divider shadow-xl overflow-hidden {asSheet
-            ? 'fixed inset-x-0 bottom-0 rounded-t-xl pb-[env(safe-area-inset-bottom)]'
-            : 'fixed w-72 rounded-lg'}"
-        style={asSheet
-            ? ""
-            : `left: ${position.left}px; top: ${position.top}px;`}
-    >
-        <!-- Banner -->
-        {#if bannerSrc}
-            <img
-                src={bannerSrc}
-                alt=""
-                class="h-16 w-full object-cover bg-discord-accent"
-            />
-        {:else}
-            <div class="h-16 bg-discord-accent"></div>
-        {/if}
+{#snippet cardBody()}
+    <!-- Banner -->
+    {#if bannerSrc}
+        <img
+            src={bannerSrc}
+            alt=""
+            class="h-16 w-full object-cover bg-discord-accent {bannerPull}"
+        />
+    {:else}
+        <div class="h-16 bg-discord-accent {bannerPull}"></div>
+    {/if}
 
-        <div class="px-4 pb-4">
-            <!-- Avatar overlapping the banner -->
-            <div class="relative -mt-8 mb-2 w-fit">
-                <div
-                    class="rounded-full border-4 border-discord-backgroundSecondary"
-                >
-                    <Avatar
-                        src={avatarSrc}
-                        name={displayName}
-                        id={userId}
-                        size={64}
-                    />
-                </div>
-                <div
-                    title={presenceLabel(dotState)}
-                    class="absolute bottom-1 end-1 w-4 h-4 {presenceDotClass(
-                        presenceDot(dotState),
-                    )} rounded-full border-2 border-discord-backgroundSecondary"
-                ></div>
+    <div class="px-4 pb-4">
+        <!-- Avatar overlapping the banner -->
+        <div class="relative -mt-8 mb-2 w-fit">
+            <div class="rounded-full border-4 {ringColor}">
+                <Avatar
+                    src={avatarSrc}
+                    name={displayName}
+                    id={userId}
+                    size={64}
+                />
             </div>
+            <div
+                title={presenceLabel(dotState)}
+                class="absolute bottom-1 end-1 w-4 h-4 {presenceDotClass(
+                    presenceDot(dotState),
+                )} rounded-full border-2 {ringColor}"
+            ></div>
+        </div>
 
-            <div class="flex items-center gap-1.5 min-w-0">
-                <p
-                    class="font-bold text-discord-textPrimary truncate"
-                    style:color={nameColour}
+        <div class="flex items-center gap-1.5 min-w-0">
+            <p
+                class="font-bold text-discord-textPrimary truncate"
+                style:color={nameColour}
+            >
+                {displayName}
+            </p>
+            {#if trustBadge}
+                <span
+                    class="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {trustBadge.tone ===
+                    'verified'
+                        ? 'bg-discord-online/20 text-discord-online'
+                        : trustBadge.tone === 'warning'
+                          ? 'bg-discord-warning/20 text-discord-warning'
+                          : 'bg-discord-messageHover text-discord-textMuted'}"
+                    >{trustBadge.label}</span
                 >
-                    {displayName}
-                </p>
-                {#if trustBadge}
-                    <span
-                        class="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {trustBadge.tone ===
-                        'verified'
-                            ? 'bg-discord-online/20 text-discord-online'
-                            : trustBadge.tone === 'warning'
-                              ? 'bg-discord-warning/20 text-discord-warning'
-                              : 'bg-discord-messageHover text-discord-textMuted'}"
-                        >{trustBadge.label}</span
+            {/if}
+        </div>
+        <div class="flex items-center gap-1 min-w-0">
+            <p class="text-xs text-discord-textMuted truncate">{userId}</p>
+            <button
+                onclick={copyUserId}
+                class="flex-shrink-0 p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                title={t("userProfileCard.copyUserId")}
+            >
+                {#if copied}
+                    <span class="text-xs text-discord-online"
+                        >{t("userProfileCard.copied")}</span
+                    >
+                {:else}
+                    <svg
+                        class="w-3.5 h-3.5"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                        ><path
+                            d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
+                        /></svg
                     >
                 {/if}
-            </div>
-            <div class="flex items-center gap-1 min-w-0">
-                <p class="text-xs text-discord-textMuted truncate">{userId}</p>
-                <button
-                    onclick={copyUserId}
-                    class="flex-shrink-0 p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                    title={t("userProfileCard.copyUserId")}
-                >
-                    {#if copied}
-                        <span class="text-xs text-discord-online"
-                            >{t("userProfileCard.copied")}</span
+            </button>
+        </div>
+        {#if pronouns}
+            <p class="text-xs text-discord-textSecondary truncate">
+                {@html renderPlainTextWithTwemoji(pronouns)}
+            </p>
+        {/if}
+        {#if status}
+            <p class="mt-1 text-xs text-discord-textSecondary truncate">
+                {@html renderPlainTextWithTwemoji(formatStatusMessage(status))}
+            </p>
+        {/if}
+        {#if !status && callText}
+            <p class="mt-1 text-xs text-discord-textSecondary truncate">
+                {callText}
+            </p>
+        {/if}
+        {#if presence?.statusMsg && !isSameStatus(presence.statusMsg, status)}
+            <p class="mt-1 text-xs text-discord-textSecondary truncate">
+                {@html renderPlainTextWithTwemoji(presence.statusMsg)}
+            </p>
+        {/if}
+        {#if bio}
+            <p
+                class="mt-2 text-xs text-discord-textSecondary whitespace-pre-wrap break-words max-h-24 overflow-y-auto"
+            >
+                {@html renderPlainTextWithTwemoji(bio)}
+            </p>
+        {/if}
+        {#if localTime}
+            <p class="mt-2 text-xs text-discord-textMuted">
+                {t("userProfileCard.localTime", { localTime, timezone })}
+            </p>
+        {/if}
+        {#if connections.length > 0}
+            <ul class="mt-2 space-y-0.5">
+                {#each connections as link (link.uri)}
+                    <li class="text-xs truncate">
+                        <a
+                            href={link.uri}
+                            target="_blank"
+                            rel="noopener noreferrer nofollow"
+                            style="color: var(--discord-link, var(--discord-accent-text))"
+                            class="hover:underline"
+                            >{link.description || link.uri}</a
                         >
-                    {:else}
-                        <svg
-                            class="w-3.5 h-3.5"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"
-                            ><path
-                                d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
-                            /></svg
-                        >
-                    {/if}
-                </button>
-            </div>
-            {#if pronouns}
-                <p class="text-xs text-discord-textSecondary truncate">
-                    {@html renderPlainTextWithTwemoji(pronouns)}
-                </p>
-            {/if}
-            {#if status}
-                <p class="mt-1 text-xs text-discord-textSecondary truncate">
-                    {@html renderPlainTextWithTwemoji(
-                        formatStatusMessage(status),
-                    )}
-                </p>
-            {/if}
-            {#if !status && callText}
-                <p class="mt-1 text-xs text-discord-textSecondary truncate">
-                    {callText}
-                </p>
-            {/if}
-            {#if presence?.statusMsg && !isSameStatus(presence.statusMsg, status)}
-                <p class="mt-1 text-xs text-discord-textSecondary truncate">
-                    {@html renderPlainTextWithTwemoji(presence.statusMsg)}
-                </p>
-            {/if}
-            {#if bio}
+                    </li>
+                {/each}
+            </ul>
+        {/if}
+        {#if member}
+            <p class="mt-1 text-xs text-discord-textMuted">
+                {t("userProfileCard.powerLevel", {
+                    level:
+                        (void roomsState.roomsTick,
+                        getUserPowerLevel(room, member.userId)),
+                })}
+            </p>
+        {/if}
+        {#if !member && !isSelf}
+            <p class="mt-1 text-xs text-discord-textMuted">
+                {t("userProfileCard.notAMemberOfThisRoom")}
+            </p>
+        {/if}
+
+        {#if !isSelf && mutual.total > 0}
+            <div class="mt-3 pt-3 border-t border-discord-divider">
                 <p
-                    class="mt-2 text-xs text-discord-textSecondary whitespace-pre-wrap break-words max-h-24 overflow-y-auto"
+                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
                 >
-                    {@html renderPlainTextWithTwemoji(bio)}
-                </p>
-            {/if}
-            {#if localTime}
-                <p class="mt-2 text-xs text-discord-textMuted">
-                    {t("userProfileCard.localTime", { localTime, timezone })}
-                </p>
-            {/if}
-            {#if connections.length > 0}
-                <ul class="mt-2 space-y-0.5">
-                    {#each connections as link (link.uri)}
-                        <li class="text-xs truncate">
-                            <a
-                                href={link.uri}
-                                target="_blank"
-                                rel="noopener noreferrer nofollow"
-                                style="color: var(--discord-link, var(--discord-accent-text))"
-                                class="hover:underline"
-                                >{link.description || link.uri}</a
-                            >
-                        </li>
-                    {/each}
-                </ul>
-            {/if}
-            {#if member}
-                <p class="mt-1 text-xs text-discord-textMuted">
-                    {t("userProfileCard.powerLevel", {
-                        level:
-                            (void roomsState.roomsTick,
-                            getUserPowerLevel(room, member.userId)),
+                    {t("userProfileCard.mutualRooms", {
+                        total: mutual.total,
                     })}
                 </p>
-            {/if}
-            {#if !member && !isSelf}
-                <p class="mt-1 text-xs text-discord-textMuted">
-                    {t("userProfileCard.notAMemberOfThisRoom")}
-                </p>
-            {/if}
-
-            {#if !isSelf && mutual.total > 0}
-                <div class="mt-3 pt-3 border-t border-discord-divider">
-                    <p
-                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
-                    >
-                        {t("userProfileCard.mutualRooms", {
-                            total: mutual.total,
+                {#each mutual.shown as name (name)}
+                    <p class="text-xs text-discord-textSecondary truncate">
+                        #{name}
+                    </p>
+                {/each}
+                {#if mutual.moreCount > 0}
+                    <p class="text-xs text-discord-textMuted">
+                        {t("userProfileCard.more", {
+                            moreCount: mutual.moreCount,
                         })}
                     </p>
-                    {#each mutual.shown as name (name)}
-                        <p class="text-xs text-discord-textSecondary truncate">
-                            #{name}
-                        </p>
-                    {/each}
-                    {#if mutual.moreCount > 0}
-                        <p class="text-xs text-discord-textMuted">
-                            {t("userProfileCard.more", {
-                                moreCount: mutual.moreCount,
-                            })}
-                        </p>
-                    {/if}
-                </div>
-            {/if}
+                {/if}
+            </div>
+        {/if}
 
-            {#if !isSelf && isCryptoAvailable()}
-                <div class="mt-3 pt-3 border-t border-discord-divider">
-                    <div class="flex items-center gap-1">
+        {#if !isSelf && isCryptoAvailable()}
+            <div class="mt-3 pt-3 border-t border-discord-divider">
+                <div class="flex items-center gap-1">
+                    <button
+                        onclick={toggleSessions}
+                        aria-expanded={sessionsOpen}
+                        class="flex-1 flex items-center gap-1 min-w-0 text-start text-xs font-semibold text-discord-textMuted uppercase tracking-wide hover:text-discord-textPrimary transition-colors"
+                    >
+                        <svg
+                            class="w-3 h-3 flex-shrink-0 transition-transform {sessionsOpen
+                                ? 'rotate-90'
+                                : 'rtl:rotate-180'}"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            aria-hidden="true"
+                        >
+                            <path
+                                fill-rule="evenodd"
+                                d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.17 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z"
+                                clip-rule="evenodd"
+                            />
+                        </svg>
+                        <span class="truncate"
+                            >{devices
+                                ? t("userProfileCard.sessionsCount", {
+                                      total: devices.length,
+                                  })
+                                : t("userProfileCard.sessions")}</span
+                        >
+                    </button>
+                    {#if sessionsOpen}
                         <button
-                            onclick={toggleSessions}
-                            aria-expanded={sessionsOpen}
-                            class="flex-1 flex items-center gap-1 min-w-0 text-start text-xs font-semibold text-discord-textMuted uppercase tracking-wide hover:text-discord-textPrimary transition-colors"
+                            onclick={() => loadDevices(true)}
+                            disabled={devicesLoading}
+                            title={t("userProfileCard.refreshSessions")}
+                            aria-label={t("userProfileCard.refreshSessions")}
+                            class="flex-shrink-0 p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
                         >
                             <svg
-                                class="w-3 h-3 flex-shrink-0 transition-transform {sessionsOpen
-                                    ? 'rotate-90'
-                                    : 'rtl:rotate-180'}"
+                                class="w-3.5 h-3.5 {devicesLoading
+                                    ? 'animate-spin'
+                                    : ''}"
                                 viewBox="0 0 20 20"
                                 fill="currentColor"
                                 aria-hidden="true"
                             >
                                 <path
                                     fill-rule="evenodd"
-                                    d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.17 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z"
+                                    d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Zm1.23-3.723a.75.75 0 0 0 .219-.53V2.929a.75.75 0 0 0-1.5 0V5.36l-.31-.31A7 7 0 0 0 3.239 8.188a.75.75 0 1 0 1.448.389A5.5 5.5 0 0 1 13.89 6.11l.311.31h-2.432a.75.75 0 0 0 0 1.5h4.243a.75.75 0 0 0 .53-.219Z"
                                     clip-rule="evenodd"
                                 />
                             </svg>
-                            <span class="truncate"
-                                >{devices
-                                    ? t("userProfileCard.sessionsCount", {
-                                          total: devices.length,
-                                      })
-                                    : t("userProfileCard.sessions")}</span
-                            >
                         </button>
-                        {#if sessionsOpen}
-                            <button
-                                onclick={() => loadDevices(true)}
-                                disabled={devicesLoading}
-                                title={t("userProfileCard.refreshSessions")}
-                                aria-label={t(
-                                    "userProfileCard.refreshSessions",
-                                )}
-                                class="flex-shrink-0 p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
-                            >
-                                <svg
-                                    class="w-3.5 h-3.5 {devicesLoading
-                                        ? 'animate-spin'
-                                        : ''}"
-                                    viewBox="0 0 20 20"
-                                    fill="currentColor"
-                                    aria-hidden="true"
-                                >
-                                    <path
-                                        fill-rule="evenodd"
-                                        d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Zm1.23-3.723a.75.75 0 0 0 .219-.53V2.929a.75.75 0 0 0-1.5 0V5.36l-.31-.31A7 7 0 0 0 3.239 8.188a.75.75 0 1 0 1.448.389A5.5 5.5 0 0 1 13.89 6.11l.311.31h-2.432a.75.75 0 0 0 0 1.5h4.243a.75.75 0 0 0 .53-.219Z"
-                                        clip-rule="evenodd"
-                                    />
-                                </svg>
-                            </button>
-                        {/if}
-                    </div>
-                    {#if sessionsOpen}
-                        {#if devices === null && devicesLoading}
-                            <p class="mt-1 text-xs text-discord-textMuted">
-                                {t("common.loading")}
+                    {/if}
+                </div>
+                {#if sessionsOpen}
+                    {#if devices === null && devicesLoading}
+                        <p class="mt-1 text-xs text-discord-textMuted">
+                            {t("common.loading")}
+                        </p>
+                    {:else if devicesError && devices === null}
+                        <p class="mt-1 text-xs text-discord-danger">
+                            {t("userProfileCard.couldNotLoadSessions")}
+                        </p>
+                    {:else if devices && devices.length === 0}
+                        <p class="mt-1 text-xs text-discord-warning">
+                            {t("userProfileCard.noKnownSessions")}
+                        </p>
+                    {:else if devices}
+                        <ul class="mt-1 space-y-1 max-h-40 overflow-y-auto">
+                            {#each devices as device (device.deviceId)}
+                                {@const badge = device.keysChanged
+                                    ? {
+                                          label: t(
+                                              "userProfileCard.keysChanged",
+                                          ),
+                                          tone: "warning" as const,
+                                      }
+                                    : deviceTrustBadge(device, {
+                                          flagUnsigned: true,
+                                      })}
+                                <li class="flex items-center gap-2 min-w-0">
+                                    <div class="flex-1 min-w-0">
+                                        <p
+                                            class="text-xs text-discord-textSecondary truncate"
+                                        >
+                                            {device.displayName ||
+                                                device.deviceId}
+                                        </p>
+                                        {#if device.displayName}
+                                            <p
+                                                class="text-[10px] font-mono text-discord-textMuted truncate"
+                                            >
+                                                {device.deviceId}
+                                            </p>
+                                        {/if}
+                                    </div>
+                                    <span
+                                        class="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {toneClass(
+                                            badge.tone,
+                                        )}">{badge.label}</span
+                                    >
+                                </li>
+                            {/each}
+                        </ul>
+                        {#if devices.some((d) => d.keysChanged)}
+                            <p class="mt-1 text-xs text-discord-warning">
+                                {t("userProfileCard.keysChangedHint")}
                             </p>
-                        {:else if devicesError && devices === null}
+                        {/if}
+                        {#if devicesError}
                             <p class="mt-1 text-xs text-discord-danger">
                                 {t("userProfileCard.couldNotLoadSessions")}
                             </p>
-                        {:else if devices && devices.length === 0}
-                            <p class="mt-1 text-xs text-discord-warning">
-                                {t("userProfileCard.noKnownSessions")}
-                            </p>
-                        {:else if devices}
-                            <ul class="mt-1 space-y-1 max-h-40 overflow-y-auto">
-                                {#each devices as device (device.deviceId)}
-                                    {@const badge = device.keysChanged
-                                        ? {
-                                              label: t(
-                                                  "userProfileCard.keysChanged",
-                                              ),
-                                              tone: "warning" as const,
-                                          }
-                                        : deviceTrustBadge(device, {
-                                              flagUnsigned: true,
-                                          })}
-                                    <li class="flex items-center gap-2 min-w-0">
-                                        <div class="flex-1 min-w-0">
-                                            <p
-                                                class="text-xs text-discord-textSecondary truncate"
-                                            >
-                                                {device.displayName ||
-                                                    device.deviceId}
-                                            </p>
-                                            {#if device.displayName}
-                                                <p
-                                                    class="text-[10px] font-mono text-discord-textMuted truncate"
-                                                >
-                                                    {device.deviceId}
-                                                </p>
-                                            {/if}
-                                        </div>
-                                        <span
-                                            class="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {toneClass(
-                                                badge.tone,
-                                            )}">{badge.label}</span
-                                        >
-                                    </li>
-                                {/each}
-                            </ul>
-                            {#if devices.some((d) => d.keysChanged)}
-                                <p class="mt-1 text-xs text-discord-warning">
-                                    {t("userProfileCard.keysChangedHint")}
-                                </p>
-                            {/if}
-                            {#if devicesError}
-                                <p class="mt-1 text-xs text-discord-danger">
-                                    {t("userProfileCard.couldNotLoadSessions")}
-                                </p>
-                            {/if}
                         {/if}
                     {/if}
-                </div>
-            {/if}
+                {/if}
+            </div>
+        {/if}
 
-            {#if !isSelf}
-                <div
-                    class="mt-3 pt-3 border-t border-discord-divider space-y-1.5"
+        {#if !isSelf}
+            <div class="mt-3 pt-3 border-t border-discord-divider space-y-1.5">
+                <button
+                    onclick={openDM}
+                    disabled={pending !== null}
+                    class="w-full px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50"
                 >
+                    {pending === "message"
+                        ? t("userProfileCard.opening")
+                        : t("userProfileCard.message")}
+                </button>
+                {#if trustBadge && trustBadge.tone !== "verified"}
                     <button
-                        onclick={openDM}
+                        onclick={startVerifyUser}
                         disabled={pending !== null}
-                        class="w-full px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                        class="w-full px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm font-semibold transition-colors disabled:opacity-50"
                     >
-                        {pending === "message"
-                            ? t("userProfileCard.opening")
-                            : t("userProfileCard.message")}
+                        {pending === "verify"
+                            ? t("common.starting")
+                            : t("userProfileCard.verifyUser")}
                     </button>
-                    {#if trustBadge && trustBadge.tone !== "verified"}
-                        <button
-                            onclick={startVerifyUser}
-                            disabled={pending !== null}
-                            class="w-full px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm font-semibold transition-colors disabled:opacity-50"
-                        >
-                            {pending === "verify"
-                                ? t("common.starting")
-                                : t("userProfileCard.verifyUser")}
-                        </button>
-                    {/if}
-                    <button
-                        onclick={toggleBlock}
-                        disabled={pending !== null}
-                        class="w-full px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-sm font-semibold transition-colors disabled:opacity-50 {blocked
-                            ? 'text-discord-textPrimary'
-                            : 'text-discord-danger'}"
-                    >
-                        {pending === "block"
-                            ? t("common.saving")
-                            : blocked
-                              ? t("common.unblock")
-                              : t("common.block")}
-                    </button>
-                    {#if canKickTarget || canBanTarget}
-                        <div class="flex gap-1.5">
-                            {#if canKickTarget}
-                                <button
-                                    onclick={() => doModeration("kick")}
-                                    disabled={pending !== null}
-                                    class="flex-1 px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-warning/20 text-discord-warning text-sm font-semibold transition-colors disabled:opacity-50"
-                                >
-                                    {pending === "kick"
-                                        ? t("userProfileCard.kicking")
-                                        : confirming === "kick"
-                                          ? t("userProfileCard.confirmKick")
-                                          : t("userProfileCard.kick")}
-                                </button>
-                            {/if}
-                            {#if canBanTarget}
-                                <button
-                                    onclick={() => doModeration("ban")}
-                                    disabled={pending !== null}
-                                    class="flex-1 px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-danger/20 text-discord-danger text-sm font-semibold transition-colors disabled:opacity-50"
-                                >
-                                    {pending === "ban"
-                                        ? t("userProfileCard.banning")
-                                        : confirming === "ban"
-                                          ? t("userProfileCard.confirmBan")
-                                          : t("userProfileCard.ban")}
-                                </button>
-                            {/if}
-                        </div>
-                    {/if}
-                </div>
-            {/if}
+                {/if}
+                <button
+                    onclick={toggleBlock}
+                    disabled={pending !== null}
+                    class="w-full px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-sm font-semibold transition-colors disabled:opacity-50 {blocked
+                        ? 'text-discord-textPrimary'
+                        : 'text-discord-danger'}"
+                >
+                    {pending === "block"
+                        ? t("common.saving")
+                        : blocked
+                          ? t("common.unblock")
+                          : t("common.block")}
+                </button>
+                {#if canKickTarget || canBanTarget}
+                    <div class="flex gap-1.5">
+                        {#if canKickTarget}
+                            <button
+                                onclick={() => doModeration("kick")}
+                                disabled={pending !== null}
+                                class="flex-1 px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-warning/20 text-discord-warning text-sm font-semibold transition-colors disabled:opacity-50"
+                            >
+                                {pending === "kick"
+                                    ? t("userProfileCard.kicking")
+                                    : confirming === "kick"
+                                      ? t("userProfileCard.confirmKick")
+                                      : t("userProfileCard.kick")}
+                            </button>
+                        {/if}
+                        {#if canBanTarget}
+                            <button
+                                onclick={() => doModeration("ban")}
+                                disabled={pending !== null}
+                                class="flex-1 px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-danger/20 text-discord-danger text-sm font-semibold transition-colors disabled:opacity-50"
+                            >
+                                {pending === "ban"
+                                    ? t("userProfileCard.banning")
+                                    : confirming === "ban"
+                                      ? t("userProfileCard.confirmBan")
+                                      : t("userProfileCard.ban")}
+                            </button>
+                        {/if}
+                    </div>
+                {/if}
+            </div>
+        {/if}
 
-            {#if errorMsg}
-                <p class="mt-2 text-xs text-discord-danger">{errorMsg}</p>
-            {/if}
-        </div>
+        {#if errorMsg}
+            <p class="mt-2 text-xs text-discord-danger">{errorMsg}</p>
+        {/if}
     </div>
+{/snippet}
+
+{#if open}
+    {#if asSheet}
+        <Portal>
+            <button
+                type="button"
+                aria-label={t("common.close")}
+                class="fixed inset-0 z-40 bg-black/50"
+                in:fade|global={{ duration: motionOK() ? 150 : 0 }}
+                onclick={closeProfileCard}
+            ></button>
+            <BottomSheet onClose={closeProfileCard}>
+                {@render cardBody()}
+            </BottomSheet>
+        </Portal>
+    {:else}
+        <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+        <div class="fixed inset-0 z-40" onclick={closeProfileCard}></div>
+        <div
+            bind:clientWidth={cardW}
+            bind:clientHeight={cardH}
+            class="z-50 bg-discord-backgroundSecondary border border-discord-divider shadow-xl overflow-hidden fixed w-72 rounded-lg"
+            style="left: {position.left}px; top: {position.top}px;"
+        >
+            {@render cardBody()}
+        </div>
+    {/if}
 {/if}

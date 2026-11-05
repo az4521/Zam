@@ -27,6 +27,8 @@ export type ModalId =
     // "room-header-menu" above, which RoomList's space header already owns —
     // sharing one id would let the two strand each other's slot.
     | "room-header-overflow"
+    // The mobile room-header topic sheet (MessageArea): full room description.
+    | "room-topic"
     | "space-menu"
     // The space-rail "+" flyout (SpaceSidebar): a compact Create-space / Join
     // chooser. Distinct from "space-menu" (a space's right-click context menu).

@@ -8,6 +8,8 @@ import {
     swipeStage,
     resolveSwipeAction,
     clampSwipeTranslate,
+    easeOutCubic,
+    swipeRevealStyle,
     shouldClaimLeftward,
     SWIPE_CLAIM_PX,
 } from "./swipeGesture";
@@ -62,17 +64,53 @@ describe("clampSwipeTranslate", () => {
     it("is 0 for a rightward drag", () => {
         expect(clampSwipeTranslate(40)).toBe(0);
     });
-    it("tracks the finger 1:1 before the far threshold", () => {
+    it("tracks the finger 1:1 before the reply threshold", () => {
         expect(clampSwipeTranslate(-50)).toBe(-50);
     });
     it("never exceeds -SWIPE_MAX_PX", () => {
         expect(clampSwipeTranslate(-100000)).toBe(-SWIPE_MAX_PX);
     });
-    it("applies resistance past the far threshold", () => {
-        // 20px past far → +10px (half speed) beyond -FAR
-        expect(clampSwipeTranslate(-(SWIPE_FAR_PX + 20))).toBe(
-            -(SWIPE_FAR_PX + 10),
+    it("applies resistance past the reply threshold", () => {
+        expect(clampSwipeTranslate(-(SWIPE_SHORT_PX + 10))).toBeCloseTo(
+            -(SWIPE_SHORT_PX + 6),
         );
+    });
+    it("resists harder past the far threshold and stays monotonic", () => {
+        const atFar = clampSwipeTranslate(-SWIPE_FAR_PX);
+        expect(clampSwipeTranslate(-(SWIPE_FAR_PX + 20))).toBeCloseTo(
+            atFar - 6,
+        );
+        expect(atFar).toBeLessThan(clampSwipeTranslate(-SWIPE_SHORT_PX));
+    });
+});
+
+describe("easeOutCubic", () => {
+    it("maps 0 to 0 and 1 to 1, clamping outside", () => {
+        expect(easeOutCubic(0)).toBe(0);
+        expect(easeOutCubic(1)).toBe(1);
+        expect(easeOutCubic(-3)).toBe(0);
+        expect(easeOutCubic(5)).toBe(1);
+    });
+    it("is ahead of linear mid-way", () => {
+        expect(easeOutCubic(0.5)).toBeGreaterThan(0.5);
+    });
+});
+
+describe("swipeRevealStyle", () => {
+    it("is hidden for no/rightward drag", () => {
+        expect(swipeRevealStyle(0).opacity).toBe(0);
+        expect(swipeRevealStyle(30).opacity).toBe(0);
+    });
+    it("grows with distance and is full at the reply threshold", () => {
+        const a = swipeRevealStyle(-10);
+        const b = swipeRevealStyle(-30);
+        expect(b.opacity).toBeGreaterThan(a.opacity);
+        expect(b.scale).toBeGreaterThan(a.scale);
+        expect(swipeRevealStyle(-SWIPE_SHORT_PX)).toEqual({
+            opacity: 1,
+            scale: 1,
+        });
+        expect(swipeRevealStyle(-500).scale).toBe(1);
     });
 });
 

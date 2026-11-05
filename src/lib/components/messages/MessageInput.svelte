@@ -391,6 +391,18 @@
     });
 
     let fileInputEl: HTMLInputElement | undefined = $state();
+    // Touch web only (not the desktop app): Zam offers Camera / Photos / Files
+    // itself instead of the OS chooser a bare file input would raise.
+    let cameraInputEl: HTMLInputElement | undefined = $state();
+    let photoInputEl: HTMLInputElement | undefined = $state();
+    const mobileMediaPicker = $derived(
+        interfaceState.isTouchscreen &&
+            typeof window !== "undefined" &&
+            !window.desktop,
+    );
+    const cameraSupported =
+        typeof HTMLInputElement !== "undefined" &&
+        "capture" in HTMLInputElement.prototype;
     let directFileInputEl: HTMLInputElement | undefined = $state();
     let typingUsers = $state<string[]>([]);
     let typingStopTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1909,10 +1921,11 @@
     }
 
     function onFileSelected(e: Event) {
-        const files = (e.target as HTMLInputElement).files;
+        const input = e.target as HTMLInputElement;
+        const files = input.files;
         if (!files) return;
         for (const file of files) enqueueFile(file);
-        if (fileInputEl) fileInputEl.value = "";
+        input.value = "";
     }
 
     // Custom emotes keep their `:shortcode:` token (sent as an <img>), so a
@@ -2062,6 +2075,26 @@
         class="hidden"
         onchange={onFileSelected}
     />
+    {#if mobileMediaPicker}
+        <input
+            bind:this={photoInputEl}
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            class="hidden"
+            onchange={onFileSelected}
+        />
+        {#if cameraSupported}
+            <input
+                bind:this={cameraInputEl}
+                type="file"
+                accept="image/*,video/*"
+                capture="environment"
+                class="hidden"
+                onchange={onFileSelected}
+            />
+        {/if}
+    {/if}
     <input
         bind:this={directFileInputEl}
         type="file"
@@ -2369,6 +2402,13 @@
                                 {roomId}
                                 onClose={closeModal}
                                 onUpload={() => fileInputEl?.click()}
+                                onPickPhotos={mobileMediaPicker
+                                    ? () => photoInputEl?.click()
+                                    : undefined}
+                                onTakePhoto={mobileMediaPicker &&
+                                cameraSupported
+                                    ? () => cameraInputEl?.click()
+                                    : undefined}
                                 onSendDirectly={isThread
                                     ? undefined
                                     : () => directFileInputEl?.click()}
@@ -2393,6 +2433,13 @@
                                 {roomId}
                                 onClose={closeModal}
                                 onUpload={() => fileInputEl?.click()}
+                                onPickPhotos={mobileMediaPicker
+                                    ? () => photoInputEl?.click()
+                                    : undefined}
+                                onTakePhoto={mobileMediaPicker &&
+                                cameraSupported
+                                    ? () => cameraInputEl?.click()
+                                    : undefined}
                                 onSendDirectly={isThread
                                     ? undefined
                                     : () => directFileInputEl?.click()}

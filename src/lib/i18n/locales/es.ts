@@ -1843,7 +1843,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomList.orderValue": "Valor de orden",
     "roomList.roomSettings": "Ajustes de la sala",
     "roomList.favourites": "Favoritos",
-    "roomList.channels": "Canales",
+    "roomList.channels": "Salas",
     "roomList.rooms": "Salas",
     "roomList.lowPriority": "Prioridad baja",
     "roomList.browseRooms": "Explorar salas",
