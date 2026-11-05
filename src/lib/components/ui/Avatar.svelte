@@ -4,6 +4,7 @@
         createMediaRetry,
         isAuthedMediaUrl,
         shrunkMediaUrl,
+        holdMediaUrl,
     } from "$lib/stores/mediaAuth.svelte";
 
     interface Props {
@@ -68,13 +69,16 @@
         shrinking = shrink;
         if (!shrink || !s) return;
         let live = true;
+        let release = () => {};
         void shrunkMediaUrl(s, px, px, "cover").then((url) => {
             if (!live) return;
+            release = holdMediaUrl(url);
             shrunkSrc = url;
             shrinking = false;
         });
         return () => {
             live = false;
+            release();
         };
     });
     const imgRetry = createMediaRetry(() =>

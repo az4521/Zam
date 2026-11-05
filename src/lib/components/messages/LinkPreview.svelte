@@ -17,6 +17,7 @@
         isAuthedMediaUrl,
         shrunkMediaUrl,
         videoFrameUrl,
+        holdMediaUrl,
     } from "$lib/stores/mediaAuth.svelte";
     import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
     import { unloadOffscreen } from "$lib/actions/unloadOffscreen";
@@ -299,11 +300,15 @@
             return;
         }
         let live = true;
+        let release = () => {};
         void shrunkMediaUrl(src, 1024, 768).then((url) => {
-            if (live) previewImageSrc = url ?? src;
+            if (!live) return;
+            release = holdMediaUrl(url);
+            previewImageSrc = url ?? src;
         });
         return () => {
             live = false;
+            release();
         };
     });
 
@@ -331,13 +336,16 @@
         videoFrameDone = !needsFrame;
         if (!needsFrame || !src) return;
         let live = true;
+        let release = () => {};
         void videoFrameUrl(src, 1024, 768).then((url) => {
             if (!live) return;
+            release = holdMediaUrl(url);
             videoFrame = url;
             videoFrameDone = true;
         });
         return () => {
             live = false;
+            release();
         };
     });
 

@@ -4,6 +4,7 @@ import { jxlFallbackUrl, maybeDecodeJxl } from "$lib/utils/jxl";
 import { logSync } from "$lib/matrix/syncLog";
 import { safeMediaBlob } from "$lib/utils/attachmentMime";
 import { downscaleImage } from "$lib/utils/tileImage";
+import { BlobUrlCache } from "$lib/utils/blobUrlCache";
 
 /**
  * Authenticated Matrix media (`/_matrix/client/v1/media/...`) needs an
@@ -96,9 +97,10 @@ export async function accountMediaBlobUrl(
 }
 
 // Small copies of homeserver images, keyed by box and URL. Shared by every
-// place that draws the same avatar at the same size, and kept for the session:
-// each is a few KB, and revoking one could blank an <img> still showing it.
-const shrunk = new Map<string, Promise<string | null>>();
+// place that draws the same avatar at the same size. Most are a few KB, but a
+// link preview's is up to 1024x768, so only the most recent are kept; one a
+// component still shows is held (holdMediaUrl) and outlives the limit.
+const shrunk = new BlobUrlCache(300);
 // Each shrink decodes a full image: a large room's member list would
 // otherwise start hundreds at once.
 const SHRINK_CONCURRENCY = 4;
@@ -130,35 +132,47 @@ export function shrunkMediaUrl(
     fit: "contain" | "cover" = "contain",
 ): Promise<string | null> {
     const key = `${maxW}x${maxH}:${fit} ${src}`;
-    let entry = shrunk.get(key);
-    if (!entry) {
-        entry = shrinkSlot(async () => {
-            const c = mediaCreds();
-            if (!c || !isAuthedMediaUrl(src)) return null;
-            const res = await fetch(src, {
-                headers: { Authorization: `Bearer ${c.token}` },
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const small = await downscaleImage(
-                await res.blob(),
-                maxW,
-                maxH,
-                fit,
-            );
-            return small ? URL.createObjectURL(small) : null;
-        }).catch(() => {
-            // A failed fetch (offline, 401 before login settles) is retried
-            // next time; only "keep the original" is remembered.
-            shrunk.delete(key);
-            return null;
-        });
-        shrunk.set(key, entry);
-    }
-    return entry;
+    return (
+        shrunk
+            .get(key, () =>
+                shrinkSlot(async () => {
+                    const c = mediaCreds();
+                    if (!c || !isAuthedMediaUrl(src)) return null;
+                    const res = await fetch(src, {
+                        headers: { Authorization: `Bearer ${c.token}` },
+                    });
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const small = await downscaleImage(
+                        await res.blob(),
+                        maxW,
+                        maxH,
+                        fit,
+                    );
+                    return small ? URL.createObjectURL(small) : null;
+                }),
+            )
+            // A failed fetch (offline, 401 before login settles) is retried next
+            // time; only "keep the original" is remembered.
+            .catch(() => null)
+    );
 }
 
 // Still frames of videos that came with no poster, keyed by URL.
-const frames = new Map<string, Promise<string | null>>();
+const frames = new BlobUrlCache(50);
+
+/**
+ * Keep a URL from shrunkMediaUrl or videoFrameUrl alive while it is shown.
+ * Call the returned release when it no longer is (the component unmounts or
+ * moves on to another URL); until then the cache won't revoke it.
+ */
+export function holdMediaUrl(url: string | null | undefined): () => void {
+    const a = shrunk.hold(url);
+    const b = frames.hold(url);
+    return () => {
+        a();
+        b();
+    };
+}
 
 /**
  * A blob URL of the first frame of the video at `src`, fitted in a
@@ -174,9 +188,8 @@ export function videoFrameUrl(
     maxH: number,
 ): Promise<string | null> {
     const key = `${maxW}x${maxH} ${src}`;
-    let entry = frames.get(key);
-    if (!entry) {
-        entry = shrinkSlot(
+    return frames.get(key, () =>
+        shrinkSlot(
             () =>
                 new Promise<string | null>((resolve) => {
                     const video = document.createElement("video");
@@ -226,10 +239,8 @@ export function videoFrameUrl(
                     video.preload = "auto";
                     video.src = src;
                 }),
-        );
-        frames.set(key, entry);
-    }
-    return entry;
+        ),
+    );
 }
 
 function isLocalUrl(src: string): boolean {
@@ -398,30 +409,26 @@ export function createMediaRetry(
 // the two don't race. Idempotent so it can be called from every app mount.
 //
 // Healed blobs are shared per URL (the same emote across many reactions is one
-// fetch) in a small LRU. Evicted URLs aren't revoked: an element may still
-// show them, and a leaked image blob is cheaper than a broken one.
-const HEAL_CACHE_MAX = 500;
-const healCache = new Map<string, Promise<string | null>>();
+// fetch) in a small LRU. One is only revoked once no <img> on the page shows
+// it; a row that comes back later starts from the authed URL and heals again.
+const healCache = new BlobUrlCache(200, (url) => {
+    for (const img of Array.from(document.images)) {
+        if (img.src === url) return true;
+    }
+    return false;
+});
 
 function healedBlobUrl(src: string): Promise<string | null> {
-    const hit = healCache.get(src);
-    if (hit) {
-        healCache.delete(src); // refresh LRU position
-        healCache.set(src, hit);
-        return hit;
-    }
-    const p = (
-        isLocalUrl(src) ? jxlFallbackUrl(src) : authedMediaBlobUrl(src)
-    ).then((url) => {
-        if (!url) healCache.delete(src); // allow a later retry
-        return url;
-    });
-    healCache.set(src, p);
-    if (healCache.size > HEAL_CACHE_MAX) {
-        const oldest = healCache.keys().next().value;
-        if (oldest !== undefined) healCache.delete(oldest);
-    }
-    return p;
+    return healCache
+        .get(src, async () => {
+            const url = await (isLocalUrl(src)
+                ? jxlFallbackUrl(src)
+                : authedMediaBlobUrl(src));
+            // Not remembered, so a later error can try again.
+            if (!url) throw new Error("not healable");
+            return url;
+        })
+        .catch(() => null);
 }
 
 let healerInstalled = false;
