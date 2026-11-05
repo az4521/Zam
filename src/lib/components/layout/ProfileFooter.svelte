@@ -13,7 +13,9 @@
     import { settingsState } from "$lib/stores/settings.svelte";
     import { openModal, closeModal } from "$lib/stores/interface.svelte";
     import { openProfileCard } from "$lib/stores/profileCard.svelte";
-    import { getOwnAvatarUrl } from "$lib/matrix/client";
+    import { getOwnAvatarUrl, mxcToHttp } from "$lib/matrix/client";
+    import { richPresenceState } from "$lib/stores/richPresence.svelte";
+    import type { RpcEntry } from "$lib/utils/richPresence";
     import {
         verificationStatusState,
         refreshVerificationStatus,
@@ -46,6 +48,14 @@
             label: presenceLabel(state),
         };
     });
+
+    // What Zam is showing on the profile right now (a detected game, an app's
+    // rich presence), so it is plain that it is being sent.
+    const sharing = $derived(richPresenceState.active);
+    const entryName = (e: RpcEntry) =>
+        e.kind === "activity" ? e.name : e.track;
+    const entryDetail = (e: RpcEntry) =>
+        e.kind === "activity" ? (e.details ?? e.state) : e.artist;
 
     let accountSwitcherOpen = $state(false);
     function openAccountSwitcher() {
@@ -132,6 +142,40 @@
         </button>
     </div>
 {/if}
+
+{#each sharing as entry (entry.id)}
+    {@const art =
+        entry.kind === "activity" ? entry.largeIconUrl : entry.coverUrl}
+    {@const detail = entryDetail(entry)}
+    <div
+        class="w-full px-2 py-1.5 flex items-center gap-2 bg-discord-backgroundSecondary border-t border-discord-divider flex-shrink-0"
+        title={t("richPresence.sharingTitle")}
+    >
+        {#if art}
+            <img
+                class="h-8 w-8 flex-shrink-0 rounded object-cover"
+                src={mxcToHttp(art, 64, 64, "crop")}
+                alt=""
+            />
+        {:else}
+            <div
+                class="h-8 w-8 flex-shrink-0 rounded bg-discord-backgroundTertiary"
+            ></div>
+        {/if}
+        <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-discord-textPrimary truncate">
+                {entryName(entry)}
+            </p>
+            <p class="text-xs text-discord-textMuted truncate">
+                {detail || t("richPresence.sharingTitle")}
+            </p>
+        </div>
+        <span
+            class="h-2 w-2 flex-shrink-0 rounded-full bg-discord-online"
+            aria-hidden="true"
+        ></span>
+    </div>
+{/each}
 
 <div
     class="w-full h-14 px-2 flex items-center gap-2 bg-discord-backgroundTertiary flex-shrink-0"

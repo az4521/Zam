@@ -69,6 +69,8 @@ class RichPresenceState {
     status = $state<DesktopRichPresenceStatus | null>(null);
     /** Entries currently held for allowed apps (what we would publish). */
     heldCount = $state(0);
+    /** What is being sent to the profile right now, for the sidebar card. */
+    active = $state<RpcEntry[]>([]);
     /** The last publish failure, in words; null when the last write worked. */
     error = $state<string | null>(null);
 }
@@ -516,6 +518,7 @@ async function publish(): Promise<void> {
         now,
     );
     armTimers(entries);
+    richPresenceState.active = entries;
 
     // Nothing to say and nothing said before: leave the profile alone.
     if (entries.length === 0 && !published) return;
@@ -589,4 +592,5 @@ export function resetRichPresenceForTests(): void {
     if (renewTimer) clearInterval(renewTimer);
     publishTimer = expiryTimer = renewTimer = null;
     unsubscribe = null;
+    richPresenceState.active = [];
 }

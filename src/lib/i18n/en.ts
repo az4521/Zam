@@ -808,6 +808,7 @@ export const en = {
 
     // src/lib/components/ui/RichPresenceCard.svelte
     "richPresenceCard.playing": "Playing {name}",
+    "richPresence.sharingTitle": "Showing on your profile",
     "richPresenceCard.listening": "Listening to {name}",
     "richPresenceCard.elapsed": "{time} elapsed",
     "richPresenceCard.remaining": "{time} left",
