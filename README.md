@@ -8,6 +8,10 @@ feel free to try it out :) a copy is hosted at https://matrix.crafty.moe/ which 
 
 you can find other packaged versions on the [releases page](https://github.com/az4521/Zam/releases/latest), and there's a Flatpak repo at https://az4521.github.io/Zam/
 
+## screenshot
+
+<img width="1360" height="936" alt="image" src="https://github.com/user-attachments/assets/acefe352-1179-4c38-8730-b49cd2023e0b" />
+
 ## what's in it
 
 Messaging
