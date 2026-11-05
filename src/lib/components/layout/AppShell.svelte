@@ -149,6 +149,7 @@
     import { APP_VERSION } from "$lib/update";
     import { webBundleReady, webBundleSetAuto } from "$lib/androidWebBundle";
     import { isDesktopTray, setMinimizeToTray } from "$lib/desktopTray";
+    import { startRichPresence } from "$lib/stores/richPresence.svelte";
     import { installDesktopSaveImage } from "$lib/desktopContextMenu";
     import { watchVideoPlayback } from "$lib/utils/videoPlaybackWatch";
     import { initUpdateWatch } from "$lib/stores/updateBanner.svelte";
@@ -1634,6 +1635,10 @@
         if (isDesktopTray())
             setMinimizeToTray(settingsState.minimizeToTrayOnClose);
 
+        // Rich presence from local apps (MSC4544, arRPC): off unless the user
+        // turned it on in Settings > General. No-op off Electron.
+        const stopRichPresence = startRichPresence();
+
         // App-wide update watch: mirror the desktop launch-check status into the
         // in-app banner, and run the Android launch check + download here
         // (Android has no background process). No-op on web.
@@ -2463,6 +2468,7 @@
             unsubThreadNames();
             unsubThreadSummaries();
             unsubUpdateWatch();
+            stopRichPresence();
             mq.removeEventListener("change", onMqChange);
             pq.removeEventListener("change", onPqHqChange);
             hq.removeEventListener("change", onPqHqChange);

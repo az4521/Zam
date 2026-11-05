@@ -42,6 +42,8 @@ const { createCallPriority } = require("./callPriority.cjs");
 const { createProxyManager } = require("./proxy.cjs");
 const { recordMemoryReport } = require("./memoryReport.cjs");
 const { createAutostart } = require("./autostart.cjs");
+const { createRichPresence } = require("./richPresence.cjs");
+const { createPresenceImages } = require("./presenceImages.cjs");
 const { createAppAudio } = require("./appAudio.cjs");
 const { resolveShareAudio } = require("./shareAudio.cjs");
 
@@ -854,6 +856,37 @@ ipcMain.handle("proxy:route", (_e, url) => proxyManager.route(url));
 const autostart = createAutostart({ app, inFlatpak: IN_FLATPAK });
 ipcMain.handle("autostart:info", () => autostart.info());
 ipcMain.handle("autostart:set", (_e, enabled) => autostart.set(enabled));
+
+// --- Rich presence (Settings > General) -----------------------------------
+
+// Local listeners for MSC4544, Discord Rich Presence and game detection. Idle
+// until the page asks; the page decides what any of it means.
+const richPresence = createRichPresence({
+    userDataDir: app.getPath("userData"),
+    inFlatpak: IN_FLATPAK,
+    send: (event) => {
+        if (mainWindow && !mainWindow.isDestroyed())
+            mainWindow.webContents.send("rich-presence:event", event);
+    },
+    log: (...args) => console.log("[rich-presence]", ...args),
+});
+ipcMain.handle("rich-presence:configure", (_e, want) =>
+    richPresence.configure({
+        local: want?.local === true,
+        arrpc: want?.arrpc === true,
+        scan: want?.scan === true,
+        userId: typeof want?.userId === "string" ? want.userId : "",
+    }),
+);
+// Pictures for presence, over net.fetch so the proxy setting applies.
+const presenceImages = createPresenceImages({
+    fetch: (url, init) => net.fetch(url, init),
+});
+ipcMain.handle("rich-presence:image", (_e, appId, ref) =>
+    presenceImages.fetchImage(appId, ref),
+);
+ipcMain.handle("rich-presence:status", () => richPresence.getStatus());
+app.on("will-quit", () => richPresence.stop());
 
 // --- Call priority -------------------------------------------------------
 

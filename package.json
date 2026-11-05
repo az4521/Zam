@@ -136,7 +136,8 @@
         "@capacitor/push-notifications": "^8.0.3",
         "@homebridge/dbus-native": "^0.7.9",
         "electron-updater": "^6.3.9",
-        "uiohook-napi": "^1.5.5"
+        "uiohook-napi": "^1.5.5",
+        "ws": "8.22.1"
     },
     "optionalDependencies": {
         "@vencord/venmic": "^7.2.3"

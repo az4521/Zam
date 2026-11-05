@@ -1,0 +1,456 @@
+// Rich presence sources (MSC4544), run in the main process because they listen
+// on the local machine. Three feed the renderer, which owns the policy (which
+// apps may be shown, what is published to the profile):
+//
+//   MSC4544 transport   apps talk to us directly (add_presence /
+//                       remove_presence) over a WebSocket on
+//                       ws://127.0.0.1:<port>/presence and, off Windows, over
+//                       a Unix socket at /tmp/.zam_<id>/presence.sock.
+//   Discord RPC         apps that only know Discord Rich Presence report to
+//                       the local servers in discordRpc.cjs.
+//   Game scanner        gameScanner.cjs finds known games by their executable.
+//
+// Everything is off until the renderer asks (Settings > General). Nothing is
+// interpreted here beyond framing: the renderer validates every payload.
+//
+// Events sent to the renderer:
+//   { source, app: { id, name }, presenceId, presence }
+// `presence` is the raw payload to add or replace, or null to remove it.
+// For "msc4544" it is a PresenceDataObject; for "arrpc" (Discord RPC and the
+// scanner) a Discord activity.
+
+const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
+const { createDiscordRpc } = require("./discordRpc.cjs");
+const { createGameScanner } = require("./gameScanner.cjs");
+const { loadGames } = require("./discordGames.cjs");
+
+const PORT_RANGE = [44190, 45190];
+const WS_PATH = "/presence";
+const MAX_PAYLOAD = 16 * 1024;
+// A misbehaving app should not be able to flood the renderer.
+const MAX_MESSAGES_PER_SECOND = 20;
+
+/**
+ * Where the MSC4544 Unix socket lives. The MSC says /tmp/.zam_<id>/, but a
+ * Flatpak's /tmp is private; its runtime dir app/<id> is shared with the host,
+ * so the socket goes there (no permission needed).
+ */
+function socketLocation({ inFlatpak, env, id }) {
+    if (inFlatpak && env.XDG_RUNTIME_DIR) {
+        const dir = path.join(
+            env.XDG_RUNTIME_DIR,
+            "app",
+            env.FLATPAK_ID || "moe.crafty.matrix",
+        );
+        return { dir, sock: path.join(dir, "presence.sock"), owned: false };
+    }
+    const dir = path.join("/tmp", `.zam_${id}`);
+    return { dir, sock: path.join(dir, "presence.sock"), owned: true };
+}
+
+function createRichPresence({
+    send,
+    userDataDir,
+    inFlatpak = false,
+    log = () => {},
+}) {
+    let generation = 0;
+    let tcp = null;
+    let unix = null; // { server, wss, dir, key }
+    let discord = null;
+    let scanner = null;
+    const status = {
+        msc4544: { listening: false, port: null, socket: null, error: null },
+        arrpc: { running: false, ipcPath: null, wsPort: null, error: null },
+        scan: { running: false, error: null },
+    };
+
+    // ── MSC4544 transports ─────────────────────────────────────────────────
+
+    /** Speaks MSC4544 on one connection from a local app. */
+    function onMscConnection(socket) {
+        // Presences this connection added, so they go when it does.
+        const owned = new Map(); // presenceId -> app
+        let windowStart = Date.now();
+        let count = 0;
+
+        socket.on("error", () => {});
+        socket.on("message", (raw) => {
+            const now = Date.now();
+            if (now - windowStart >= 1000) {
+                windowStart = now;
+                count = 0;
+            }
+            if (++count > MAX_MESSAGES_PER_SECOND) return;
+
+            let msg;
+            try {
+                msg = JSON.parse(raw.toString("utf8"));
+            } catch {
+                return;
+            }
+            const app = msg?.app_id;
+            if (typeof app?.id !== "string" || typeof app?.name !== "string")
+                return;
+            const id = msg.data?.id;
+            if (typeof id !== "string") return;
+            const who = { id: app.id, name: app.name };
+
+            if (msg.type === "add_presence") {
+                owned.set(id, who);
+                send({
+                    source: "msc4544",
+                    app: who,
+                    presenceId: id,
+                    presence: msg.data,
+                });
+            } else if (msg.type === "remove_presence") {
+                owned.delete(id);
+                send({
+                    source: "msc4544",
+                    app: who,
+                    presenceId: id,
+                    presence: null,
+                });
+            }
+        });
+        socket.on("close", () => {
+            for (const [presenceId, app] of owned) {
+                send({ source: "msc4544", app, presenceId, presence: null });
+            }
+            owned.clear();
+        });
+    }
+
+    function startTcp(gen) {
+        const { WebSocketServer } = require("ws");
+        const http = require("http");
+
+        return new Promise((resolve) => {
+            const tryPort = (port) => {
+                if (gen !== generation) return resolve(null);
+                if (port > PORT_RANGE[1]) {
+                    status.msc4544.error = "no free port";
+                    return resolve(null);
+                }
+                const server = http.createServer((_req, res) => {
+                    res.statusCode = 426;
+                    res.end();
+                });
+                const wss = new WebSocketServer({
+                    server,
+                    path: WS_PATH,
+                    maxPayload: MAX_PAYLOAD,
+                    // A web page can open sockets to localhost too, and a
+                    // native app never sends an Origin header. Refuse any
+                    // request that has one.
+                    verifyClient: (info) => !info.origin,
+                });
+                wss.on("error", () => {});
+                server.once("error", (e) => {
+                    if (e.code === "EADDRINUSE") return tryPort(port + 1);
+                    status.msc4544.error = String(e.message || e);
+                    resolve(null);
+                });
+                server.listen(port, "127.0.0.1", () => {
+                    if (gen !== generation) {
+                        wss.close();
+                        server.close();
+                        return resolve(null);
+                    }
+                    wss.on("connection", onMscConnection);
+                    status.msc4544.listening = true;
+                    status.msc4544.port = port;
+                    status.msc4544.error = null;
+                    log("rich presence listening on", port);
+                    resolve({ server, wss });
+                });
+            };
+            tryPort(PORT_RANGE[0]);
+        });
+    }
+
+    function stopTcp() {
+        const t = tcp;
+        tcp = null;
+        status.msc4544.listening = false;
+        status.msc4544.port = null;
+        if (!t) return;
+        for (const client of t.wss.clients) client.terminate();
+        t.wss.close();
+        t.server.close();
+    }
+
+    /**
+     * The id in the socket's path. It must not lead back to the Matrix user, so
+     * it is a keyed hash with a secret that stays on this computer.
+     */
+    function opaqueId(userId) {
+        const file = path.join(userDataDir, "rich-presence-salt");
+        let salt;
+        try {
+            salt = fs.readFileSync(file);
+        } catch {
+            salt = crypto.randomBytes(32);
+            fs.mkdirSync(userDataDir, { recursive: true });
+            fs.writeFileSync(file, salt, { mode: 0o600 });
+        }
+        return crypto
+            .createHmac("sha256", salt)
+            .update(userId)
+            .digest("hex")
+            .slice(0, 16);
+    }
+
+    async function startUnix(gen, userId) {
+        if (process.platform === "win32" || !userId) return null;
+        const { WebSocketServer } = require("ws");
+        const http = require("http");
+
+        const { dir, sock, owned } = socketLocation({
+            inFlatpak,
+            env: process.env,
+            id: opaqueId(userId),
+        });
+        if (!owned) {
+            // The Flatpak runtime dir is made and guarded by Flatpak itself.
+            fs.mkdirSync(dir, { recursive: true });
+        } else {
+            try {
+                // Only we may enter the folder: another user (or a program
+                // run as one) must not be able to feed our profile. If
+                // something else made the folder first, leave it alone.
+                fs.mkdirSync(dir, { mode: 0o700 });
+            } catch (e) {
+                if (e.code !== "EEXIST") throw e;
+                const st = fs.lstatSync(dir);
+                if (
+                    !st.isDirectory() ||
+                    st.isSymbolicLink() ||
+                    (process.getuid && st.uid !== process.getuid())
+                )
+                    throw new Error(`${dir} is not ours`);
+                fs.chmodSync(dir, 0o700);
+            }
+        }
+        try {
+            fs.unlinkSync(sock); // left over from a crash
+        } catch {}
+
+        const server = http.createServer((_req, res) => {
+            res.statusCode = 426;
+            res.end();
+        });
+        const wss = new WebSocketServer({
+            server,
+            maxPayload: MAX_PAYLOAD,
+            verifyClient: (info) => !info.origin,
+        });
+        wss.on("error", () => {});
+        await new Promise((resolve, reject) => {
+            server.once("error", reject);
+            server.listen(sock, resolve);
+        });
+        try {
+            fs.chmodSync(sock, 0o600);
+        } catch {}
+        if (gen !== generation) {
+            wss.close();
+            server.close();
+            return null;
+        }
+        wss.on("connection", onMscConnection);
+        status.msc4544.socket = sock;
+        log("rich presence socket at", sock);
+        return { server, wss, dir, owned, key: userId };
+    }
+
+    function stopUnix() {
+        const u = unix;
+        unix = null;
+        status.msc4544.socket = null;
+        if (!u) return;
+        for (const client of u.wss.clients) client.terminate();
+        u.wss.close();
+        u.server.close();
+        try {
+            fs.rmSync(path.join(u.dir, "presence.sock"), { force: true });
+            if (u.owned) fs.rmdirSync(u.dir);
+        } catch {}
+    }
+
+    // ── Discord RPC and the game scanner ───────────────────────────────────
+
+    // Games reported over RPC, so the scanner doesn't announce them twice.
+    const rpcClients = new Map(); // client id -> Set of socket ids
+
+    /** Forward a Discord-style activity under a stable app identity. */
+    async function forwardActivity({ socketId, clientId, activity }, viaScan) {
+        const { byId } = await loadGames();
+        const known = byId.get(clientId);
+        const app = {
+            id: clientId,
+            name:
+                (typeof activity?.name === "string" && activity.name) ||
+                known?.name ||
+                "Discord app",
+        };
+
+        if (!viaScan) {
+            let ids = rpcClients.get(clientId);
+            if (activity) {
+                if (!ids) rpcClients.set(clientId, (ids = new Set()));
+                if (ids.size === 0) {
+                    // The app reports for itself now: drop the scanner's copy.
+                    send({
+                        source: "arrpc",
+                        app,
+                        presenceId: `scan-${clientId}`,
+                        presence: null,
+                    });
+                }
+                ids.add(socketId);
+            } else if (ids) {
+                ids.delete(socketId);
+                if (ids.size === 0) rpcClients.delete(clientId);
+            }
+        } else if (rpcClients.get(clientId)?.size) {
+            return;
+        }
+
+        let presence = activity;
+        if (presence && !presence.assets?.large_image && known?.icon) {
+            presence = {
+                ...presence,
+                assets: {
+                    ...presence.assets,
+                    large_image: `icon:${known.icon}`,
+                },
+            };
+        }
+        send({
+            source: "arrpc",
+            app,
+            presenceId: socketId,
+            presence: presence ?? null,
+        });
+    }
+
+    async function startDiscord(gen) {
+        const rpc = createDiscordRpc({
+            onActivity: (a) => void forwardActivity(a, false),
+            inFlatpak,
+            log,
+        });
+        await rpc.start();
+        if (gen !== generation) {
+            rpc.stop();
+            return null;
+        }
+        return rpc;
+    }
+
+    function stopDiscord() {
+        const d = discord;
+        discord = null;
+        d?.stop();
+        rpcClients.clear();
+    }
+
+    function startScanner() {
+        const s = createGameScanner({
+            onActivity: (a) => void forwardActivity(a, true),
+            log,
+        });
+        s.start();
+        return s;
+    }
+
+    function stopScanner() {
+        const s = scanner;
+        scanner = null;
+        s?.stop();
+    }
+
+    // ── Control ────────────────────────────────────────────────────────────
+
+    /**
+     * Start or stop each source to match `want` ({ local, arrpc, scan, userId });
+     * resolves to the status.
+     */
+    async function configure(want) {
+        const gen = ++generation;
+        const local = !!want?.local;
+        const userId = typeof want?.userId === "string" ? want.userId : "";
+
+        if (!local) {
+            stopTcp();
+            stopUnix();
+        }
+        if (!local || !want.arrpc) stopDiscord();
+        // A Flatpak sandbox cannot see the host's processes.
+        if (!local || !want.scan || inFlatpak) stopScanner();
+        if (unix && unix.key !== userId) stopUnix();
+
+        if (local && !tcp) {
+            try {
+                tcp = await startTcp(gen);
+            } catch (e) {
+                status.msc4544.error = String(e?.message || e);
+            }
+        }
+        if (local && !unix && userId) {
+            try {
+                unix = await startUnix(gen, userId);
+            } catch (e) {
+                status.msc4544.error = String(e?.message || e);
+            }
+        }
+        if (local && want.arrpc && !discord) {
+            try {
+                discord = await startDiscord(gen);
+                status.arrpc.error = null;
+            } catch (e) {
+                status.arrpc.error = String(e?.message || e);
+            }
+        }
+        if (local && want.scan && !scanner && !inFlatpak)
+            scanner = startScanner();
+        return getStatus();
+    }
+
+    function getStatus() {
+        const d = discord?.status();
+        return JSON.parse(
+            JSON.stringify({
+                msc4544: status.msc4544,
+                arrpc: {
+                    running: !!discord,
+                    ipcPath: d?.ipcPath ?? null,
+                    wsPort: d?.wsPort ?? null,
+                    error: status.arrpc.error ?? d?.error ?? null,
+                },
+                scan: {
+                    ...(scanner
+                        ? scanner.status()
+                        : { running: false, error: null }),
+                    unsupported: inFlatpak,
+                },
+            }),
+        );
+    }
+
+    function stop() {
+        generation++;
+        stopTcp();
+        stopUnix();
+        stopDiscord();
+        stopScanner();
+    }
+
+    return { configure, getStatus, stop };
+}
+
+module.exports = { createRichPresence, socketLocation };

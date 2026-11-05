@@ -255,6 +255,22 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     },
     {
         tab: "general",
+        label: t("settingsSearch.richPresence"),
+        keywords: [
+            "activity",
+            "game",
+            "playing",
+            "music",
+            "discord",
+            "arrpc",
+            "status",
+            "msc4544",
+        ],
+        anchor: "cust-rich-presence",
+        available: (p) => p.desktopTray,
+    },
+    {
+        tab: "general",
         label: t("settingsSearch.proxy"),
         keywords: ["proxy", "socks", "tor", "pac", "bypass", "network"],
         anchor: "cust-network",

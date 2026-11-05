@@ -758,6 +758,50 @@ export const en = {
     "generalSettings.noGeneralSettingsAreAvailableOn":
         "No general settings are available on this platform.",
 
+    // src/lib/components/settings/RichPresenceSettings.svelte
+    "richPresence.heading": "Rich presence",
+    "richPresence.share": "Share what you're doing",
+    "richPresence.shareHint":
+        "Let apps on this computer show on your profile what you're playing or listening to. Every app is blocked until you allow it below.",
+    "richPresence.arrpc": "Apps that use Discord Rich Presence",
+    "richPresence.arrpcHint":
+        "Also accept apps that report to Discord. If Discord is running, apps usually report to it first, so this works best with Discord closed.",
+    "richPresence.scan": "Detect games",
+    "richPresence.scanHint":
+        "Look for running games on this computer, so ones that report nothing show up too. This reads the list of running programs every few seconds.",
+    "richPresence.scanUnsupported":
+        "Not available in the Flatpak, whose sandbox cannot see other programs. Apps and games that report their own activity still work.",
+    "richPresence.scanFailed": "Couldn't look for games: {error}",
+    "richPresence.socket": "Also listening on {path}.",
+    "richPresence.arrpcNeedsShare": "Turn on sharing first.",
+    "richPresence.listening": "Listening for apps on port {port}.",
+    "richPresence.listenFailed": "Couldn't start listening: {error}",
+    "richPresence.arrpcFailed": "Couldn't start arRPC: {error}",
+    "richPresence.publishFailed": "Couldn't update your profile.",
+    "richPresence.apps": "Apps",
+    "richPresence.noApps":
+        "No app has reported anything yet. Apps that do will appear here, blocked until you allow them.",
+    "richPresence.allowApp": "Allow {name}",
+    "richPresence.forgetApp": "Forget {name}",
+    "richPresence.forget": "Forget",
+    "richPresence.viaDiscord": "Game or Discord Rich Presence",
+    "richPresence.viaMatrix": "Matrix app",
+    "richPresence.blocked": "Blocked",
+    "richPresence.allowed": "Allowed",
+
+    // src/lib/components/ui/RichPresenceCard.svelte
+    "richPresenceCard.playing": "Playing {name}",
+    "richPresenceCard.listening": "Listening to {name}",
+    "richPresenceCard.elapsed": "{time} elapsed",
+    "richPresenceCard.remaining": "{time} left",
+    "richPresenceCard.openLinkTitle": "Open this link?",
+    "richPresenceCard.openLinkBody":
+        "{name} is asking to open this address in your browser:",
+    "richPresenceCard.openidWarning":
+        "This link also carries an OpenID token for your Matrix account. The site can use it to learn your Matrix ID and homeserver, and it will see your IP address.",
+    "richPresenceCard.open": "Open",
+    "richPresenceCard.openFailed": "Couldn't get an OpenID token.",
+
     // src/lib/components/ui/GifPicker.svelte
     "gifPicker.searchFavourites": "Search favourites…",
     "gifPicker.searchKlipy": "Search KLIPY…",
@@ -3621,6 +3665,7 @@ export const en = {
     "settingsSearch.checkSpelling": "Check spelling",
     "settingsSearch.gifDefaultTab": "GIF default tab",
     "settingsSearch.minimiseToTrayOnClose": "Minimise to tray on close",
+    "settingsSearch.richPresence": "Rich presence",
     "settingsSearch.runAtStartup": "Run at startup",
     "settingsSearch.proxy": "Proxy",
     "settingsSearch.reduceMotion": "Reduce motion",

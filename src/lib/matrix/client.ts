@@ -4438,6 +4438,13 @@ export async function fetchExtendedProfile(
     return matrixClient.getExtendedProfile(userId);
 }
 
+/** An OpenID token for the logged-in user, for rich presence buttons that
+ *  ask to prove who is clicking (MSC4544 `request_openid`). */
+export async function fetchOpenIdToken(): Promise<unknown> {
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    return matrixClient.getOpenIdToken();
+}
+
 /** Set (value) or delete (null) one extended profile field. */
 export async function setOwnProfileField(
     key: string,

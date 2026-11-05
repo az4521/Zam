@@ -123,6 +123,28 @@ contextBridge.exposeInMainWorld("desktop", {
         setMinimizeToClose: (enabled) =>
             ipcRenderer.send("tray:set-minimize-to-close", !!enabled),
     },
+    // Rich presence sources (richPresence.cjs): MSC4544 apps and arRPC.
+    richPresence: {
+        configure: (want) =>
+            ipcRenderer.invoke("rich-presence:configure", {
+                local: !!want?.local,
+                arrpc: !!want?.arrpc,
+                scan: !!want?.scan,
+                userId: String(want?.userId ?? ""),
+            }),
+        image: (appId, ref) =>
+            ipcRenderer.invoke(
+                "rich-presence:image",
+                String(appId),
+                String(ref),
+            ),
+        status: () => ipcRenderer.invoke("rich-presence:status"),
+        onEvent: (cb) => {
+            const h = (_e, ev) => cb(ev);
+            ipcRenderer.on("rich-presence:event", h);
+            return () => ipcRenderer.removeListener("rich-presence:event", h);
+        },
+    },
     // Settings > General > Desktop: run at startup (autostart.cjs).
     autostart: {
         info: () => ipcRenderer.invoke("autostart:info"),

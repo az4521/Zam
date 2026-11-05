@@ -4,6 +4,8 @@
     import type { Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
+    import RichPresenceCard from "$lib/components/ui/RichPresenceCard.svelte";
+    import { nextRpcExpiry, parseRpcField } from "$lib/utils/richPresence";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
@@ -127,8 +129,9 @@
 
     // Extended profile (MSC4133 and friends). Hidden for banned users, as
     // MSC4440 recommends, so a ban also silences their self-description.
+    // A minute is as stale as rich presence may be when a card opens.
     $effect(() => {
-        if (userId) requestProfile(userId);
+        if (userId) requestProfile(userId, 60_000);
     });
     const extended = $derived(
         member?.membership === "ban" ? undefined : getCachedProfile(userId),
@@ -140,6 +143,25 @@
     );
     const pronouns = $derived(pronounsToText(parsePronouns(field("pronouns"))));
     const status = $derived(parseStatus(field("status")));
+    // Rich presence (MSC4544): what they are doing now. Entries lapse at their
+    // expiry, when the profile is fetched again to find any successor.
+    let rpcNow = $state(Date.now());
+    const rpcEntries = $derived(
+        member?.membership === "ban" ? [] : parseRpcField(field("rpc"), rpcNow),
+    );
+    $effect(() => {
+        const next = nextRpcExpiry(rpcEntries);
+        if (next === null || !userId) return;
+        const target = userId;
+        const timer = setTimeout(
+            () => {
+                rpcNow = Date.now();
+                requestProfile(target, 0);
+            },
+            Math.max(1000, next - Date.now() + 500),
+        );
+        return () => clearTimeout(timer);
+    });
     const callText = $derived.by(() => {
         const joined = parseCallJoinedTs(field("call"));
         return joined === null ? null : describeCall(joined, Date.now());
@@ -562,6 +584,9 @@
             <p class="mt-1 text-xs text-discord-textSecondary truncate">
                 {@html renderPlainTextWithTwemoji(presence.statusMsg)}
             </p>
+        {/if}
+        {#if rpcEntries.length > 0}
+            <RichPresenceCard entries={rpcEntries} />
         {/if}
         {#if bio}
             <p

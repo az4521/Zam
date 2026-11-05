@@ -25,6 +25,7 @@ const MAX_CONCURRENT = 4;
 interface Entry {
     profile: ExtendedProfile;
     expires: number;
+    fetched: number;
 }
 
 class ProfileFieldsState {
@@ -68,12 +69,20 @@ export function nameColourFor(userId: string): string | undefined {
     return pickNameColour(preference, background) ?? undefined;
 }
 
-/** Ask for a profile to be (re)loaded if it is missing or stale. */
-export function requestProfile(userId: string): void {
+/**
+ * Ask for a profile to be (re)loaded if it is missing or stale. With
+ * `maxAgeMs`, also if it was fetched longer ago than that: for fields that
+ * go stale in minutes, like rich presence.
+ */
+export function requestProfile(userId: string, maxAgeMs?: number): void {
     if (!userId) return;
     const key = cacheKey(userId);
     const hit = cache.get(key);
-    if (hit && hit.expires > Date.now()) return;
+    const fresh =
+        hit &&
+        hit.expires > Date.now() &&
+        (maxAgeMs === undefined || Date.now() - hit.fetched < maxAgeMs);
+    if (fresh) return;
     if (inFlight.has(key) || queued.includes(userId)) return;
     queued.push(userId);
     pump();
@@ -87,6 +96,7 @@ export function setCachedProfile(
     cache.set(cacheKey(userId), {
         profile: profile ?? {},
         expires: Date.now() + TTL_MS,
+        fetched: Date.now(),
     });
     profileFieldsState.tick++;
 }
@@ -101,6 +111,7 @@ function pump(): void {
                 cache.set(key, {
                     profile: profile ?? {},
                     expires: Date.now() + TTL_MS,
+                    fetched: Date.now(),
                 });
             })
             .catch(() => {
@@ -108,6 +119,7 @@ function pump(): void {
                 cache.set(key, {
                     profile: {},
                     expires: Date.now() + FAILURE_TTL_MS,
+                    fetched: Date.now(),
                 });
             })
             .finally(() => {

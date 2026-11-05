@@ -268,6 +268,16 @@ export const settingsState = $state({
      *  web/mobile (no bridge). Device-local like reduceMotion/autoUpdateEnabled:
      *  readBool/writeBool, never customization sync. */
     minimizeToTrayOnClose: readBool("minimizeToTrayOnClose", true),
+    /** Device-global (desktop/Electron only): listen for local apps that report
+     *  what they are doing (MSC4544) and publish it to our profile. Default
+     *  OFF, as the MSC requires; nothing is listened for until it is on. */
+    richPresenceEnabled: readBool("richPresenceEnabled", false),
+    /** Device-global (desktop only): also accept Discord Rich Presence from
+     *  apps, through arRPC. Needs richPresenceEnabled. Default OFF. */
+    richPresenceArrpc: readBool("richPresenceArrpc", false),
+    /** Device-global (desktop only): also notice games by their executable.
+     *  Needs richPresenceEnabled. Default OFF. */
+    richPresenceScan: readBool("richPresenceScan", false),
     /** Device-global: render the read-receipt avatars under messages. Default
      *  ON (existing behaviour). Display only — it does not change whether we
      *  SEND receipts; that is `privateReadReceipts`. */
@@ -899,6 +909,41 @@ export function setUpdateNagDisabled(value: boolean): void {
 export function setMinimizeToTrayOnClose(value: boolean): void {
     settingsState.minimizeToTrayOnClose = value;
     writeBool("minimizeToTrayOnClose", value);
+}
+
+export function setRichPresenceEnabled(value: boolean): void {
+    settingsState.richPresenceEnabled = value;
+    writeBool("richPresenceEnabled", value);
+}
+
+export function setRichPresenceArrpc(value: boolean): void {
+    settingsState.richPresenceArrpc = value;
+    writeBool("richPresenceArrpc", value);
+}
+
+export function setRichPresenceScan(value: boolean): void {
+    settingsState.richPresenceScan = value;
+    writeBool("richPresenceScan", value);
+}
+
+/** Device-local: pictures already uploaded for rich presence, by source
+ *  (JSON {key: mxc}), so each is uploaded once. */
+export function readRichPresenceImages(): string | null {
+    return readString("richPresenceImages");
+}
+
+export function writeRichPresenceImages(json: string): void {
+    writeString("richPresenceImages", json);
+}
+
+/** Device-local: apps seen sending rich presence and whether each may be
+ *  shown (JSON; see stores/richPresence.svelte). */
+export function readRichPresenceApps(): string | null {
+    return readString("richPresenceApps");
+}
+
+export function writeRichPresenceApps(json: string): void {
+    writeString("richPresenceApps", json);
 }
 
 /** Device-local: the app version whose "What's New" the user has already seen.

@@ -35,6 +35,7 @@ export const PROFILE_FIELDS = {
     timezone: { stable: "m.tz", unstable: "us.cloke.msc4175.tz" },
     banner: { stable: "m.banner_url", unstable: "chat.commet.profile_banner" },
     connections: { stable: "m.connections", unstable: "fyi.cisnt.connections" },
+    rpc: { stable: "m.rpc", unstable: "xyz.extera.msc4544.rpc" },
 } as const satisfies Record<string, FieldKeys>;
 
 export type ExtendedProfile = Record<string, unknown>;

@@ -42,6 +42,38 @@ declare global {
         error: string | null;
     }
 
+    interface DesktopRichPresenceStatus {
+        msc4544: {
+            listening: boolean;
+            port: number | null;
+            /** Path of the Unix socket (not on Windows). */
+            socket: string | null;
+            error: string | null;
+        };
+        /** Discord Rich Presence servers (electron/discordRpc.cjs). */
+        arrpc: {
+            running: boolean;
+            ipcPath: string | null;
+            wsPort: number | null;
+            error: string | null;
+        };
+        /** Game detection (electron/gameScanner.cjs). */
+        scan: {
+            running: boolean;
+            error: string | null;
+            /** True in a Flatpak, which cannot see the host's processes. */
+            unsupported: boolean;
+        };
+    }
+
+    /** One add/replace (`presence` set) or removal (null) from a local app. */
+    interface DesktopRichPresenceEvent {
+        source: "msc4544" | "arrpc";
+        app: { id: string; name: string };
+        presenceId: string;
+        presence: unknown;
+    }
+
     /** App version, injected from package.json at build time (see vite.config.ts). */
     const __APP_VERSION__: string;
 
@@ -221,6 +253,27 @@ declare global {
             tray?: {
                 setUnread: (unread: boolean) => void;
                 setMinimizeToClose: (enabled: boolean) => void;
+            };
+            /** Rich presence sources (electron/richPresence.cjs). Idle until
+             *  `configure` turns them on. */
+            richPresence?: {
+                configure: (want: {
+                    local: boolean;
+                    arrpc: boolean;
+                    scan: boolean;
+                    /** Names the Unix socket (as an opaque hash). */
+                    userId: string;
+                }) => Promise<DesktopRichPresenceStatus>;
+                /** A picture a presence refers to (an icon, a cover), fetched
+                 *  from Discord's or Spotify's hosts only; null if none. */
+                image: (
+                    appId: string,
+                    ref: string,
+                ) => Promise<{ type: string; data: Uint8Array } | null>;
+                status: () => Promise<DesktopRichPresenceStatus>;
+                onEvent: (
+                    cb: (event: DesktopRichPresenceEvent) => void,
+                ) => () => void;
             };
             /** Run at startup (electron/autostart.cjs). `available` is false
              *  in an unpacked build. `set` rejects if the system refuses. */

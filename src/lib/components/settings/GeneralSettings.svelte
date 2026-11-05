@@ -3,6 +3,7 @@
     import { onMount } from "svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import ProxySettings from "./ProxySettings.svelte";
+    import RichPresenceSettings from "./RichPresenceSettings.svelte";
     import {
         setMinimizeToTrayOnClose,
         settingsState,
@@ -91,6 +92,7 @@
                 />
             </div>
         </section>
+        <RichPresenceSettings />
         <ProxySettings />
     {:else}
         <p class="text-sm text-discord-textMuted">
