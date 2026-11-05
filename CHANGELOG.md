@@ -4,6 +4,34 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.53.2
+
+✨ **New**
+
+- **Custom CSS:** Settings > Appearance has a Custom CSS box whose rules apply live, after your theme. If a rule ever locks you out of the app, open it with `?nocustomcss` to load it without your custom CSS.
+- **Themes as plugins:** plugins can add their own stylesheet with `zam.ui.addStyles`, which is removed when the plugin unloads, so a theme can now ship as a plugin. An example theme plugin is available.
+
+🐛 **Fixed**
+
+- **Grey window after minimizing (desktop):** a window restored after being hidden or minimized for a while could come back as a blank grey page. The memory trim that caused it now only runs plain garbage collection.
+
+## v1.53.1
+
+✨ **New**
+
+- **See what you're sharing:** a card above your account row shows each game or app whose rich presence is being published to your profile, like Discord's.
+
+## v1.53.0
+
+✨ **New**
+
+- **Your own profile card:** it is the same card others see, with an Edit profile button and your sessions list. Clicking your avatar in the footer opens it.
+- **Registered games:** Settings > Rich presence now has a single list of detected games and apps, with an allow toggle, when each was last played, and games you add by hand by picking a running program. Games that match Discord's list are allowed by default, and allowing a blocked app publishes it right away.
+
+🔧 **Changed**
+
+- **Smaller download:** Discord's list of detectable games is no longer bundled. It is downloaded the first time game detection or Discord RPC is used, stored compressed in your user data folder, and refreshed weekly.
+
 ## v1.52.6
 
 ✨ **New**
