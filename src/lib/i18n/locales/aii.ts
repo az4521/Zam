@@ -1714,6 +1714,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomList.notNow": "ܠܐ ܗܫܐ",
     "roomList.requestToJoin": "ܒܥܝ ܥܠܠܐ",
     "roomList.directMessages": "ܐܓܪ̈ܬܐ ܫܪܝܪ̈ܬܐ",
+    "roomList.previewYou": "ܐܢܬ: {text}",
     "roomList.noRoomsYet": "ܠܝܬ ܓܘܡ̈ܐ ܗܠ ܗܫܐ",
     "roomList.emptyCategory": "ܠܝܬ ܓܘܡ̈ܐ",
     "roomList.copyRoomLink": "ܢܣܘܚ ܐܣܘܪܐ ܕܓܘܡܐ",

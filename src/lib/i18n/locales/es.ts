@@ -1855,6 +1855,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomList.notNow": "Ahora no",
     "roomList.requestToJoin": "Solicitar acceso",
     "roomList.directMessages": "Mensajes directos",
+    "roomList.previewYou": "Tú: {text}",
     "roomList.noRoomsYet": "Todavía no hay salas",
     "roomList.emptyCategory": "No hay salas",
     "roomList.copyRoomLink": "Copiar el enlace de la sala",

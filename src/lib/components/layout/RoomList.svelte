@@ -77,6 +77,7 @@
     import { shouldOfferKnock, matrixErrorMessage } from "$lib/utils/knock";
     import { collectSpaceAndDescendantRoomIds } from "$lib/utils/spaceNotifications";
     import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
+    import { latestMessagePreview } from "$lib/utils/roomPreview";
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
     import { hasLoudInRoom } from "$lib/stores/notifications.svelte";
     import {
@@ -120,6 +121,22 @@
                     ? `${presenceLabel(state)} - ${p.statusMsg}`
                     : presenceLabel(state),
             });
+        }
+        return map;
+    });
+
+    // Newest-message line under each DM name. unreadTick follows new and
+    // freshly decrypted messages; the live Room's timeline mutates in place.
+    const dmPreview = $derived.by(() => {
+        void roomsState.unreadTick;
+        void roomsState.roomsTick;
+        const map = new Map<string, string>();
+        for (const room of roomsState.directRooms) {
+            const text = latestMessagePreview(
+                room.getLiveTimeline().getEvents(),
+                auth.userId,
+            );
+            if (text) map.set(room.roomId, text);
         }
         return map;
     });
@@ -1543,7 +1560,11 @@
                 {#each sortedDirectRooms as room (room.roomId)}
                     {@const { isActive, unread, highlight, loud } =
                         roomButton(room)}
-                    {@const avatarSrc = getRoomAvatar(room)}
+                    {@const avatarSrc =
+                        (void roomsState.roomsTick, getRoomAvatar(room))}
+                    {@const dmName =
+                        (void roomsState.roomsTick, getRoomDisplayName(room))}
+                    {@const preview = dmPreview.get(room.roomId)}
                     {@const dmKind =
                         (void roomsState.roomsTick,
                         roomTagKind(getRoomTags(room.roomId)))}
@@ -1631,7 +1652,7 @@
                                 <div class="relative flex-shrink-0">
                                     <Avatar
                                         src={avatarSrc}
-                                        name={getRoomDisplayName(room)}
+                                        name={dmName}
                                         size={32}
                                     />
                                     {#if unread && !isActive}
@@ -1652,11 +1673,24 @@
                                         ></span>
                                     {/if}
                                 </div>
-                                <span class="flex-1 text-sm truncate"
-                                    >{@html renderPlainTextWithTwemoji(
-                                        getRoomDisplayName(room),
-                                    )}</span
-                                >
+                                <span class="flex-1 min-w-0 flex flex-col">
+                                    <span class="text-sm truncate"
+                                        >{@html renderPlainTextWithTwemoji(
+                                            dmName,
+                                        )}</span
+                                    >
+                                    {#if preview}
+                                        <span
+                                            class="text-xs truncate font-normal {unread &&
+                                            !isActive
+                                                ? 'text-discord-textSecondary'
+                                                : 'text-discord-textMuted'}"
+                                            >{@html renderPlainTextWithTwemoji(
+                                                preview,
+                                            )}</span
+                                        >
+                                    {/if}
+                                </span>
                                 {#if highlight && !isActive}
                                     <span
                                         class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"

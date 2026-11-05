@@ -1807,6 +1807,7 @@ export const en = {
     "roomList.notNow": "Not now",
     "roomList.requestToJoin": "Request to join",
     "roomList.directMessages": "Direct Messages",
+    "roomList.previewYou": "You: {text}",
     "roomList.noRoomsYet": "No rooms yet",
     "roomList.emptyCategory": "No rooms",
     "roomList.copyRoomLink": "Copy Room Link",
