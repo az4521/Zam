@@ -213,12 +213,16 @@
             let roomId: string;
             let followUp: RoomFollowUp = { status: "none" };
             if (mode === "create-room") {
+                // In a space, anyone in the space can join (restricted join
+                // rule), like the starter rooms createSpace makes; outside one
+                // createRoom ignores this and the room stays invite-only.
                 const created = await createRoom(
                     input1.trim(),
                     input2.trim(),
                     spaceId,
                     cryptoReady && encrypt,
                     videoRoom,
+                    !!spaceId,
                 );
                 roomId = created.roomId;
                 followUp = created.followUp;
