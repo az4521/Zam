@@ -1,3 +1,24 @@
+<script lang="ts" module>
+    // What each link resolved to this session. The timeline unmounts rows
+    // away from the viewport (utils/timelineWindow); a row mounted again
+    // shows its preview at once from here instead of growing from nothing
+    // when a fresh request comes back, which shoved the timeline on scroll.
+    type Resolved = {
+        preview: import("$lib/matrix/client").UrlPreview | null;
+        tweet: unknown;
+        gifHostHeld: boolean;
+    };
+    const RESOLVED_MAX = 2000;
+    const resolvedPreviews = new Map<string, Resolved>();
+    function rememberPreview(key: string, r: Resolved) {
+        resolvedPreviews.delete(key);
+        if (resolvedPreviews.size >= RESOLVED_MAX) {
+            resolvedPreviews.delete(resolvedPreviews.keys().next().value!);
+        }
+        resolvedPreviews.set(key, r);
+    }
+</script>
+
 <script lang="ts">
     import { t } from "$lib/i18n";
     import {
@@ -32,6 +53,10 @@
         isGifHostMediaUrl,
     } from "$lib/utils/gifEmbed";
     import { reservedMediaBox } from "$lib/utils/mediaDimensions";
+    import {
+        learnImageSize,
+        learnedMediaSize,
+    } from "$lib/utils/learnedMediaSize";
     import { galleryNav, galleryPositionLabel } from "$lib/utils/mediaGallery";
     import { isInstagramUrl } from "$lib/utils/instagramUrl";
     import { linkPreviewFavourite } from "$lib/utils/linkPreviewFavourite";
@@ -187,6 +212,11 @@
         // the media itself.
         const twitterApiUrl = allowEmbeds ? getTwitterApiUrl(currentUrl) : null;
         if (twitterApiUrl) {
+            const known = resolvedPreviews.get(twitterApiUrl);
+            if (known) {
+                tweetEmbed = known.tweet as TweetEmbed | null;
+                return;
+            }
             fetch(twitterApiUrl, {
                 headers: { Accept: "application/json" },
                 referrerPolicy: "no-referrer",
@@ -196,7 +226,7 @@
                     if (cancelled) return;
                     const tweet = data?.tweet;
                     if (!tweet) return;
-                    tweetEmbed = {
+                    const embed: TweetEmbed = {
                         authorName: tweet.author?.name ?? "",
                         authorHandle: tweet.author?.screen_name ?? "",
                         text: tweet.text ?? "",
@@ -214,6 +244,12 @@
                             height: v.height as number | undefined,
                         })),
                     };
+                    tweetEmbed = embed;
+                    rememberPreview(twitterApiUrl, {
+                        preview: null,
+                        tweet: embed,
+                        gifHostHeld: false,
+                    });
                 })
                 .catch((err) => {
                     if (cancelled) return;
@@ -228,12 +264,18 @@
         // so this runs under every policy. Only its MEDIA is gated, below.
         // Plugins may point the request elsewhere (a mirror the homeserver can
         // reach); the link shown and opened stays the original.
-        getUrlPreview(
-            applyPreviewUrlTransforms(
-                currentUrl,
-                pluginRegistry.previewUrlTransforms.map((e) => e.value),
-            ),
-        )
+        const previewUrl = applyPreviewUrlTransforms(
+            currentUrl,
+            pluginRegistry.previewUrlTransforms.map((e) => e.value),
+        );
+        const cacheKey = `${allowEmbeds ? 1 : 0} ${currentUrl} ${previewUrl}`;
+        const known = resolvedPreviews.get(cacheKey);
+        if (known) {
+            preview = known.preview;
+            gifHostHeld = known.gifHostHeld;
+            return;
+        }
+        getUrlPreview(previewUrl)
             .then(async (data) => {
                 if (cancelled) return;
                 // GIF sites turn away most homeservers' previewers, so go to
@@ -251,6 +293,11 @@
                         if (cancelled) return;
                         if (embed) {
                             preview = embed;
+                            rememberPreview(cacheKey, {
+                                preview: embed,
+                                tweet: null,
+                                gifHostHeld: false,
+                            });
                             return;
                         }
                     } else {
@@ -259,6 +306,15 @@
                 }
                 if (data && (data.title || data.imageUrl || data.videoUrl)) {
                     preview = data;
+                }
+                // getUrlPreview answers null for a failed request too, which
+                // is worth asking again.
+                if (preview || gifHostHeld) {
+                    rememberPreview(cacheKey, {
+                        preview,
+                        tweet: null,
+                        gifHostHeld,
+                    });
                 }
             })
             .catch((err) => {
@@ -283,8 +339,15 @@
     // on scroll. Null when dimensions are absent → markup keeps its CSS bounds.
     // Direct embed matches uploaded-image bounds (512×384); the card thumbnail
     // uses the narrower card column (max-w-full / max-h-72 ≈ 480×288).
+    // Without og dims, the size the image loaded at earlier this session.
+    const learnedImage = $derived(learnedMediaSize(preview?.imageUrl));
     const embedImageBox = $derived(
-        reservedMediaBox(preview?.imageWidth, preview?.imageHeight, 512, 384),
+        reservedMediaBox(
+            preview?.imageWidth ?? learnedImage?.width,
+            preview?.imageHeight ?? learnedImage?.height,
+            512,
+            384,
+        ),
     );
     // The homeserver's preview image is the site's full-size og:image, drawn
     // at most 512×384 here. A static one is swapped for a copy that size (2×
@@ -350,7 +413,12 @@
     });
 
     const cardImageBox = $derived(
-        reservedMediaBox(preview?.imageWidth, preview?.imageHeight, 480, 288),
+        reservedMediaBox(
+            preview?.imageWidth ?? learnedImage?.width,
+            preview?.imageHeight ?? learnedImage?.height,
+            480,
+            288,
+        ),
     );
 
     // GIF-sharing sites (Tenor/Giphy/Klipy) have page metadata but should embed
@@ -621,6 +689,7 @@
                         loading="lazy"
                         referrerpolicy="no-referrer"
                         onerror={() => (imageError = true)}
+                        onload={learnImageSize(preview.imageUrl)}
                     />
                 {:else}
                     <img
@@ -630,6 +699,7 @@
                         loading="lazy"
                         referrerpolicy="no-referrer"
                         onerror={() => (imageError = true)}
+                        onload={learnImageSize(preview.imageUrl)}
                     />
                 {/if}
             </a>
@@ -728,6 +798,7 @@
                                     width={cardImageBox?.width}
                                     height={cardImageBox?.height}
                                     onerror={() => (imageError = true)}
+                                    onload={learnImageSize(preview.imageUrl)}
                                     class="max-w-full h-auto max-h-72 rounded mt-1 object-contain cursor-pointer"
                                     loading="lazy"
                                     referrerpolicy="no-referrer"
@@ -756,6 +827,7 @@
                                 width={cardImageBox?.width}
                                 height={cardImageBox?.height}
                                 onerror={() => (imageError = true)}
+                                onload={learnImageSize(preview.imageUrl)}
                                 class="max-w-full h-auto max-h-72 rounded mt-1 object-contain cursor-pointer"
                                 loading="lazy"
                                 referrerpolicy="no-referrer"

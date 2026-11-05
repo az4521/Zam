@@ -121,6 +121,10 @@
         trackerUrlToWavUrl,
     } from "$lib/utils/tracker";
     import { reservedMediaBox } from "$lib/utils/mediaDimensions";
+    import {
+        learnImageSize,
+        learnedMediaSize,
+    } from "$lib/utils/learnedMediaSize";
     import { videoPoster } from "$lib/utils/roomMedia";
     import { placeholderStyle } from "$lib/utils/imagePlaceholder";
     import { createMediaRetry } from "$lib/stores/mediaAuth.svelte";
@@ -1298,11 +1302,22 @@
     // the original's aspect ratio. Bounds mirror the CSS caps: images
     // max-w-lg/max-h-96 (512×384), stickers max-w-48/max-h-48 (192×192). Null
     // when no dims are present → the markup falls back to the old CSS-only bounds.
+    // With none, the size it loaded at earlier this session, so a row the
+    // timeline mounts again (row windowing) doesn't start at 0×0 and grow.
+    const mediaSizeKey = $derived(
+        ((content?.url ?? (content?.file as any)?.url) as string | undefined) ??
+            null,
+    );
+    const learnedSize = $derived(learnedMediaSize(mediaSizeKey));
     const imgInfoW = $derived(
-        (content?.info as any)?.w ?? (content?.info as any)?.thumbnail_info?.w,
+        (content?.info as any)?.w ??
+            (content?.info as any)?.thumbnail_info?.w ??
+            learnedSize?.width,
     );
     const imgInfoH = $derived(
-        (content?.info as any)?.h ?? (content?.info as any)?.thumbnail_info?.h,
+        (content?.info as any)?.h ??
+            (content?.info as any)?.thumbnail_info?.h ??
+            learnedSize?.height,
     );
     const imageBox = $derived(reservedMediaBox(imgInfoW, imgInfoH, 512, 384));
     const stickerBox = $derived(reservedMediaBox(imgInfoW, imgInfoH, 192, 192));
@@ -2642,6 +2657,7 @@
                             loading="lazy"
                             data-own-retry
                             onerror={mediaImgRetry.onError}
+                            onload={learnImageSize(mediaSizeKey)}
                         />
                     {/if}
                 {/if}
@@ -2753,7 +2769,10 @@
                                     data-own-retry
                                     onerror={mediaImgRetry.onError}
                                     style={imageTilePlaceholder}
-                                    onload={() => (imageTileLoaded = true)}
+                                    onload={(e) => {
+                                        imageTileLoaded = true;
+                                        learnImageSize(mediaSizeKey)(e);
+                                    }}
                                 />
                             {/if}
                         </a>

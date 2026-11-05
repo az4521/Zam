@@ -15,6 +15,10 @@
         formatMediaDuration,
     } from "$lib/utils/roomMedia";
     import { safeAspectRatio, safeDimension } from "$lib/utils/mediaDimensions";
+    import {
+        learnMediaSize,
+        learnedMediaSize,
+    } from "$lib/utils/learnedMediaSize";
     import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
     import { parkOffscreen } from "$lib/actions/parkOffscreen";
     import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
@@ -322,7 +326,18 @@
     // the sender omitted dims. `safeAspectRatio` keeps this to `<int> / <int>`,
     // and its inputs are the element's videoWidth/videoHeight — trusted browser
     // integers, never event content — so it is safe to put in `style`.
-    let measuredVideoAspect = $state<string | null>(null);
+    // Starts from what this video measured earlier this session, so a row the
+    // timeline mounts again keeps its shape.
+    const videoSizeKey = $derived(
+        ((content?.url ?? (content?.file as any)?.url) as string | undefined) ??
+            null,
+    );
+    let measuredVideoAspect = $state<string | null>(
+        untrack(() => {
+            const s = learnedMediaSize(videoSizeKey);
+            return s ? safeAspectRatio(s.width, s.height) : null;
+        }),
+    );
     // The aspect ratio the played/poster box is actually drawn at: the sender's
     // when they gave one, else the self-measured value once we have it, else the
     // 16/9 fallback.
@@ -343,6 +358,7 @@
         }
         if (videoHasDims) return;
         if (el.videoWidth > 0 && el.videoHeight > 0) {
+            learnMediaSize(videoSizeKey, el.videoWidth, el.videoHeight);
             measuredVideoAspect = safeAspectRatio(
                 el.videoWidth,
                 el.videoHeight,
