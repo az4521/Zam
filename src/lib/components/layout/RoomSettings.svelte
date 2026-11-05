@@ -2641,11 +2641,15 @@
                                         {#each filteredMembers as member (member.userId)}
                                             {@const isSelf =
                                                 member.userId === auth.userId}
+                                            <!-- roomsTick: the SDK member object is
+                                                 reused across syncs, so nothing else
+                                                 re-runs this after a level change. -->
                                             {@const memberPl =
+                                                (void roomsState.roomsTick,
                                                 getUserPowerLevel(
                                                     room,
                                                     member.userId,
-                                                )}
+                                                ))}
                                             {@const canActOnMember =
                                                 !isSelf &&
                                                 myPowerLevel > memberPl}
