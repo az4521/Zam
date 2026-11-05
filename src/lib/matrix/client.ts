@@ -6158,13 +6158,13 @@ export async function fetchSpaceHierarchy(
         }
     }
 
-    // Knocked rooms are tracked by the SDK too — keep them out of the
-    // "joined" set so they stay visible in Browse Channels (with a
-    // pending-request state) instead of silently disappearing.
+    // The SDK keeps tracking rooms we've left, knocked on or been invited to,
+    // so only an actual "join" counts — otherwise a left room is never offered
+    // for rejoining, and a knocked one vanishes from Browse Channels.
     const trackedRooms = matrixClient.getRooms();
     const joinedIds = new Set(
         trackedRooms
-            .filter((r) => r.getMyMembership() !== "knock")
+            .filter((r) => r.getMyMembership() === "join")
             .map((r) => r.roomId),
     );
     const knockedIds = new Set(
@@ -6193,6 +6193,16 @@ export async function fetchSpaceHierarchy(
     });
     hierarchyCache.set(spaceId, result);
     return result;
+}
+
+/**
+ * Whether we're joined to a /hierarchy child right now. `isJoined` is baked in
+ * at fetch time (and survives in the room-list snapshot), so it goes stale
+ * after a join or leave; live membership wins whenever the SDK tracks the room.
+ */
+export function isJoinedNow(child: SpaceChildInfo): boolean {
+    const membership = matrixClient?.getRoom(child.roomId)?.getMyMembership();
+    return membership ? membership === "join" : child.isJoined;
 }
 
 // Last fetched /hierarchy per space. Shown the moment a space or sub-space is
@@ -9084,7 +9094,13 @@ export function getSpaceChildren(room: Room): SpaceChildEntry[] {
     if (!matrixClient) return [];
     const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
     const childEvents = state?.getStateEvents("m.space.child") ?? [];
-    const joined = new Set(matrixClient.getRooms().map((r) => r.roomId));
+    // Left rooms stay tracked by the SDK — only a live join counts.
+    const joined = new Set(
+        matrixClient
+            .getRooms()
+            .filter((r) => r.getMyMembership() === "join")
+            .map((r) => r.roomId),
+    );
     return (childEvents as MatrixEvent[])
         .filter((ev) => (ev.getContent()?.via as string[])?.length)
         .map((ev) => {

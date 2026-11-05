@@ -18,6 +18,7 @@
         getMyPowerLevel,
         getRoomPowerLevels,
         getRoom,
+        isJoinedNow,
         canInviteToRoom,
         getRoomShareLink,
         markRoomAsRead,
@@ -348,18 +349,14 @@
         );
     });
 
-    // `isJoined` is baked in when /hierarchy is fetched, so a fetch that raced
-    // a join can hand back a stale `false` after the room is already in the
-    // list. Check live membership too (as spaceChildren does); roomsTick
-    // re-derives when the room lands.
+    // `isJoined` is baked in when /hierarchy is fetched, so it goes stale after
+    // a join or leave — isJoinedNow prefers live membership; roomsTick
+    // re-derives when it changes.
     const unjoinedRooms = $derived.by(() => {
         if (roomsState.activeSpaceId === null) return [];
         void roomsState.roomsTick;
         return roomsState.spaceHierarchy.filter(
-            (r) =>
-                !r.isJoined &&
-                !r.isSpace &&
-                getRoom(r.roomId)?.getMyMembership() !== "join",
+            (r) => !r.isSpace && !isJoinedNow(r),
         );
     });
 
@@ -390,10 +387,7 @@
             }
         }
         const unjoined = (hierarchy ?? []).filter(
-            (h) =>
-                !h.isSpace &&
-                !h.isJoined &&
-                getRoom(h.roomId)?.getMyMembership() !== "join",
+            (h) => !h.isSpace && !isJoinedNow(h),
         );
         return { rooms, spaces, unjoined };
     }
