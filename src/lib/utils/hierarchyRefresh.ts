@@ -10,8 +10,14 @@
  * failing space cannot re-attempt on every sync.
  */
 
-/** Floor for remote-only drift. Master's effective cadence was 2 000 ms. */
-export const HIERARCHY_TTL_MS = 5 * 60_000;
+/**
+ * Floor for remote-only drift. Master's effective cadence was 2 000 ms. This is
+ * also the only thing that notices a child room we are not in changing its
+ * join rule (say invite-only → space members): that event lands in the child,
+ * not the space, so no signature moves and the room stays out of Browse Rooms
+ * until the TTL lapses. Five minutes made that look broken; one is cheap.
+ */
+export const HIERARCHY_TTL_MS = 60_000;
 
 /**
  * Floor between two attempts at a key that just failed. Without it a
