@@ -127,6 +127,28 @@ describe("inactive account notifier", () => {
         stop();
     });
 
+    it("follows a switch of the active account, without spinning", async () => {
+        let active = alice.userId;
+        const stop = startInactiveAccountNotifier({
+            accounts: () => [alice, bob],
+            activeUserId: () => active,
+            post: () => {},
+            intervalMs: 30_000,
+        });
+        await vi.advanceTimersByTimeAsync(1);
+        // Bob was polled and is now due again; switching to him must not
+        // keep firing on his stale due time.
+        active = bob.userId;
+        await vi.advanceTimersByTimeAsync(35_000);
+        const tokens = requests
+            .filter((r) => r.url.includes("/notifications"))
+            .map((r) => r.token);
+        expect(tokens).toEqual(["tokB", "tokA"]);
+        expect(vi.getTimerCount()).toBe(1);
+        stop();
+        expect(vi.getTimerCount()).toBe(0);
+    });
+
     it("does nothing once stopped", async () => {
         const stop = start([]);
         await vi.advanceTimersByTimeAsync(1);

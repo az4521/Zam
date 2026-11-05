@@ -43,7 +43,6 @@ export interface InactiveAccountNotifierOptions {
 }
 
 const POLL_INTERVAL_MS = 30_000;
-const TICK_MS = 5_000;
 const MAX_BACKOFF_MS = 5 * 60_000;
 const REQUEST_TIMEOUT_MS = 15_000;
 const ROOM_NAME_TTL_MS = 10 * 60_000;
@@ -67,6 +66,21 @@ export function startInactiveAccountNotifier(
     const states = new Map<string, AccountState>();
     const roomNames = new Map<string, { name: string | null; at: number }>();
     let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    // Sleep until the next account is due instead of ticking to ask. With
+    // none due (no other account, or all refused) still wake every interval:
+    // that is how an added account or a switch of the active one is noticed.
+    const schedule = () => {
+        clearTimeout(timer);
+        if (stopped) return;
+        const active = opts.activeUserId();
+        let at = Date.now() + interval;
+        for (const [userId, state] of states)
+            if (userId !== active && !state.rejected && !state.busy)
+                at = Math.min(at, state.nextAt);
+        timer = setTimeout(tick, Math.max(0, at - Date.now()));
+    };
 
     const tick = () => {
         if (stopped) return;
@@ -91,11 +105,15 @@ export function startInactiveAccountNotifier(
             }
             if (state.rejected || state.busy || state.nextAt > now) continue;
             state.busy = true;
-            void poll(account, state).finally(() => (state.busy = false));
+            void poll(account, state).finally(() => {
+                state.busy = false;
+                schedule();
+            });
         }
         // Signed out here: forget it.
         for (const userId of states.keys())
             if (!present.has(userId)) states.delete(userId);
+        schedule();
     };
 
     async function poll(account: StoredAccount, state: AccountState) {
@@ -216,10 +234,9 @@ export function startInactiveAccountNotifier(
     }
 
     tick();
-    const timer = setInterval(tick, TICK_MS);
     return () => {
         stopped = true;
-        clearInterval(timer);
+        clearTimeout(timer);
     };
 }
 

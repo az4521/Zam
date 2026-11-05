@@ -3,6 +3,7 @@ import {
     getUserPresence,
     isUsingSlidingSync,
     onPresenceEvent,
+    onSlidingSyncActiveChange,
     setOwnPresence,
 } from "$lib/matrix/client";
 import {
@@ -136,14 +137,24 @@ export function initPresence(): () => void {
 
     // Sliding sync never marks us as syncing, so the server times an online or
     // away presence out to offline about 30s after the last PUT (Synapse's
-    // sync_online_timeout). Keep re-asserting it while sliding sync is on.
-    const heartbeat = setInterval(() => {
-        if (!isUsingSlidingSync() || advertised === "offline") return;
-        setOwnPresence(
-            advertised,
-            settingsState.ownStatusMessage || undefined,
-        ).catch(() => {});
-    }, SLIDING_PRESENCE_HEARTBEAT_MS);
+    // sync_online_timeout). Keep re-asserting it while sliding sync is on,
+    // and only then: classic /sync needs no timer at all.
+    let heartbeat: ReturnType<typeof setInterval> | undefined;
+    const armHeartbeat = () => {
+        if (isUsingSlidingSync() === (heartbeat !== undefined)) return;
+        clearInterval(heartbeat);
+        heartbeat = isUsingSlidingSync()
+            ? setInterval(() => {
+                  if (advertised === "offline") return;
+                  setOwnPresence(
+                      advertised,
+                      settingsState.ownStatusMessage || undefined,
+                  ).catch(() => {});
+              }, SLIDING_PRESENCE_HEARTBEAT_MS)
+            : undefined;
+    };
+    armHeartbeat();
+    const unsubSliding = onSlidingSyncActiveChange(armHeartbeat);
 
     const idleCheck = setInterval(() => {
         updateAdvertisedPresence().catch(() => {});
@@ -166,6 +177,7 @@ export function initPresence(): () => void {
         presenceState.presenceTick++;
     });
     return () => {
+        unsubSliding();
         clearInterval(heartbeat);
         clearInterval(idleCheck);
         for (const type of inputEvents)

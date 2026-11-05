@@ -1948,21 +1948,50 @@ const pendingLeaves = new Set<string>();
 const pendingJoins = new Set<string>();
 
 /**
- * Clear a pending join once the SDK reflects it locally, with a backstop so a
- * join the server never streams back can't wedge the id in the set forever.
- * Mirrors the pendingLeaves bookkeeping at the end of `leaveRoom`.
+ * Drop `roomId` from `pending` once `isSynced` holds for it locally, with a
+ * backstop so a change the server never streams back can't wedge the id in the
+ * set forever. Re-checked on the SDK's own room and membership events (both
+ * sync paths re-emit MyMembership on the client) rather than polled.
  */
+function clearPendingWhenSynced(
+    pending: Set<string>,
+    roomId: string,
+    isSynced: (room: Room | null) => boolean,
+): void {
+    const client = matrixClient;
+    if (!client) {
+        setTimeout(() => pending.delete(roomId), 30000);
+        return;
+    }
+    const check = () => {
+        if (isSynced(client.getRoom(roomId))) finish();
+    };
+    const onRoom = (room: Room) => {
+        if (room.roomId === roomId) check();
+    };
+    const onDeleteRoom = (id: string) => {
+        if (id === roomId) check();
+    };
+    const backstop = setTimeout(() => finish(), 30000);
+    function finish() {
+        clearTimeout(backstop);
+        client!.off(ClientEvent.Room, onRoom);
+        client!.off(RoomEvent.MyMembership, onRoom);
+        client!.off(ClientEvent.DeleteRoom, onDeleteRoom);
+        pending.delete(roomId);
+    }
+    client.on(ClientEvent.Room, onRoom);
+    client.on(RoomEvent.MyMembership, onRoom);
+    client.on(ClientEvent.DeleteRoom, onDeleteRoom);
+    check();
+}
+
 function clearPendingJoinWhenSynced(roomId: string): void {
-    const check = setInterval(() => {
-        if (matrixClient?.getRoom(roomId)?.getMyMembership() === "join") {
-            pendingJoins.delete(roomId);
-            clearInterval(check);
-        }
-    }, 500);
-    setTimeout(() => {
-        pendingJoins.delete(roomId);
-        clearInterval(check);
-    }, 30000);
+    clearPendingWhenSynced(
+        pendingJoins,
+        roomId,
+        (room) => room?.getMyMembership() === "join",
+    );
 }
 
 /**
@@ -6344,17 +6373,11 @@ export async function leaveRoom(roomId: string): Promise<void> {
             room.updateMyMembership("leave");
     }
     // Remove from pendingLeaves once the SDK reflects the leave locally
-    const check = setInterval(() => {
-        const room = matrixClient?.getRoom(roomId);
-        if (!room || room.getMyMembership() !== "join") {
-            pendingLeaves.delete(roomId);
-            clearInterval(check);
-        }
-    }, 500);
-    setTimeout(() => {
-        pendingLeaves.delete(roomId);
-        clearInterval(check);
-    }, 30000);
+    clearPendingWhenSynced(
+        pendingLeaves,
+        roomId,
+        (room) => !room || room.getMyMembership() !== "join",
+    );
 }
 
 export interface RoomTombstone {
@@ -10306,6 +10329,7 @@ export {
     getSlidingSyncProgress,
     holdSlidingSyncRoom,
     isUsingSlidingSync,
+    onSlidingSyncActiveChange,
     setSlidingSyncActiveRoom,
 } from "./slidingSync";
 

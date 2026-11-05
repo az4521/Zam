@@ -99,6 +99,19 @@ const SLIDING_ROOM_STATE: string[][] = [
 ];
 
 let activeSlidingSync: SlidingSync | null = null;
+const activeListeners = new Set<() => void>();
+
+function setActiveSlidingSync(sliding: SlidingSync | null): void {
+    if (sliding === activeSlidingSync) return;
+    activeSlidingSync = sliding;
+    for (const listener of activeListeners) listener();
+}
+
+/** Called whenever `isUsingSlidingSync()` may have changed. Returns the unsubscribe. */
+export function onSlidingSyncActiveChange(listener: () => void): () => void {
+    activeListeners.add(listener);
+    return () => activeListeners.delete(listener);
+}
 
 /** The live connection, for the sync watchdog's resend; null on classic /sync. */
 export function getActiveSlidingSync(): SlidingSync | null {
@@ -255,7 +268,7 @@ export async function buildSlidingSync(
         keepToDeviceOnServer?: boolean;
     },
 ): Promise<SlidingSync | undefined> {
-    activeSlidingSync = null;
+    setActiveSlidingSync(null);
     slidingSyncFallbackReason = null;
     slidingPrimedTimelines = new WeakSet();
     const userId = client.getUserId();
@@ -543,6 +556,6 @@ export async function buildSlidingSync(
 
     const subscriptions = slidingRoomSubscriptions();
     if (subscriptions.size > 0) sliding.modifyRoomSubscriptions(subscriptions);
-    activeSlidingSync = sliding;
+    setActiveSlidingSync(sliding);
     return sliding;
 }

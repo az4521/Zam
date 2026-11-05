@@ -226,7 +226,6 @@
     import {
         ACTIVE_SESSION_KEY,
         IDLE_LIMIT_MS,
-        MIN_HEARTBEAT_INTERVAL_MS,
         heartbeatIntervalFor,
         isDeviceInUse,
         normalizeGraceMs,
@@ -1684,19 +1683,23 @@
                 normalizeGraceMs(activeSessionHeartbeat.graceMs),
             );
 
-        // Publish the heartbeat now (if focused), on every focus gain, and on
-        // a cheap fixed tick. The TICK is deliberately shorter than any write
-        // interval — maybeWriteHeartbeat() no-ops until the grace-derived
-        // interval has actually elapsed, so the effective write rate follows
-        // the user's current setting without re-creating the timer.
+        // Publish the heartbeat now (if focused), on every focus gain, on the
+        // first input after an idle spell, and on a timer that sleeps until
+        // the grace-derived interval since the last write is up. Re-read each
+        // round, so the write rate follows the user's current setting.
         // Opening the app is itself an interaction — without this seed the
         // first heartbeat could never be written (isDeviceInUse treats a null
         // stamp as "idle").
         lastInputTs = Date.now();
         // Passive listeners: they only stamp a number, so they must never
         // block scrolling or typing.
+        // Coming back from idle should not wait out the timer.
         const onUserInput = () => {
-            lastInputTs = Date.now();
+            const now = Date.now();
+            const wasIdle =
+                lastInputTs === null || now - lastInputTs >= IDLE_LIMIT_MS;
+            lastInputTs = now;
+            if (wasIdle) maybeWriteHeartbeat();
         };
         const inputEvents = [
             "pointerdown",
@@ -1707,13 +1710,26 @@
         for (const type of inputEvents)
             window.addEventListener(type, onUserInput, { passive: true });
 
-        maybeWriteHeartbeat();
         const onWindowFocus = () => maybeWriteHeartbeat();
         window.addEventListener("focus", onWindowFocus);
-        const heartbeatTimer = window.setInterval(
-            maybeWriteHeartbeat,
-            MIN_HEARTBEAT_INTERVAL_MS,
-        );
+        let heartbeatTimer: number | undefined;
+        const heartbeatTick = () => {
+            maybeWriteHeartbeat();
+            const interval = heartbeatIntervalFor(
+                normalizeGraceMs(settingsState.activeSessionGraceMs),
+            );
+            // Measured from the last write, wherever it came from: a write on
+            // focus must not push the next one a whole extra interval out.
+            const due =
+                lastHeartbeatWriteTs === null
+                    ? interval
+                    : lastHeartbeatWriteTs + interval - Date.now();
+            heartbeatTimer = window.setTimeout(
+                heartbeatTick,
+                due > 0 ? Math.min(due, interval) : interval,
+            );
+        };
+        heartbeatTick();
 
         // Push the device-global notification-privacy flag to the two
         // background notification producers. They run without a page (SW
@@ -2453,7 +2469,7 @@
             window.removeEventListener("focus", onWindowFocus);
             for (const type of inputEvents)
                 window.removeEventListener(type, onUserInput);
-            window.clearInterval(heartbeatTimer);
+            window.clearTimeout(heartbeatTimer);
             nativeBackHandle?.remove();
             if (onPopState) window.removeEventListener("popstate", onPopState);
             delete (window as any).__matrixOpenRoom;
