@@ -1271,8 +1271,7 @@ function recycleGpuIfIdle() {
 
 // The page's JS heap keeps whatever garbage and caches it built up while in
 // use, since nothing prompts a collection once it stops drawing. Out of sight
-// for a minute, with no call, ask V8 for a full collection and to drop its
-// caches (measured on a signed-in session: 183 -> 170 MB private).
+// for a minute, with no call, ask V8 for a full collection.
 const RENDERER_TRIM_HIDDEN_MS = 60_000;
 let rendererTrimTimer = null;
 let rendererTrimmed = false;
@@ -1291,8 +1290,11 @@ async function trimRendererIfIdle() {
     const dbg = mainWindow.webContents.debugger;
     try {
         dbg.attach("1.3");
+        // Only a collection. Memory.forciblyPurgeJavaScriptMemory frees more,
+        // but it does so by destroying the page's JS contexts: the window
+        // comes back as a blank grey page with no script running (verified in
+        // a bare BrowserWindow: executeJavaScript times out afterwards).
         await dbg.sendCommand("HeapProfiler.collectGarbage");
-        await dbg.sendCommand("Memory.forciblyPurgeJavaScriptMemory");
     } catch (err) {
         console.error("renderer trim failed:", err);
     } finally {
