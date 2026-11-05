@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.52.6
+
+🐛 **Fixed**
+
+- **Less memory in the tray (desktop):** once the window has been hidden or minimized for a minute (and no call is running), Zam frees memory the app no longer needs, about 10 MB on top of what Chromium already releases.
+
 ## v1.52.5
 
 🐛 **Fixed**
