@@ -988,6 +988,11 @@
             : null;
     });
     const isContextView = $derived(contextMessages !== null);
+    // Native anchoring pins the view to the bottom anchor row only on the live
+    // timeline. A context view's bottom is history: pinned there, each page
+    // maybeLoadNewer added below kept the user at the bottom, so the next page
+    // loaded too, and one new message dragged them all the way back to live.
+    const stickToBottom = $derived(isAtBottom && !isContextView);
 
     // ── Row windowing (utils/timelineWindow) ──
     // Only rows near the viewport are mounted; spacers sized from each row's
@@ -2061,7 +2066,7 @@
         } else if (isAtBottom && intervalId === undefined) {
             // Not while a jump's scroll-into-view loop is still pinning the
             // target: rejoining scrolls to the bottom and would yank it away.
-            rejoinLive();
+            void rejoinLive(true);
         }
     }
 
@@ -2071,18 +2076,71 @@
     // notification-tap case where newer messages never loaded. Page the window
     // forward / hand back to live exactly as scrolling to the bottom would.
     function catchUpContextView() {
-        if (!isContextView || !isAtBottom) return;
+        if (!isContextView) return;
+        // Measured, not the state: a jump scrolls without always updating it.
+        isAtBottom = measureAtBottom();
+        if (!isAtBottom) return;
         void maybeLoadNewer();
     }
 
-    // Leave context view and return to the live timeline, scrolled to the
-    // present. The window's newest event is the live timeline's newest, so from
-    // the bottom this swap is visually seamless.
-    function rejoinLive() {
+    // Leave context view and return to the live timeline. The banner's button
+    // goes to the present. The automatic handoff (keepPosition) keeps the
+    // message on screen where it is: the window counts as caught up once its
+    // newest event is anywhere in the live timeline, not only its tail, so
+    // scrolling to the bottom there threw a reader in history down to the
+    // present whenever a new message arrived.
+    async function rejoinLive(keepPosition = false) {
+        const live = getTimelineMessages(room);
+        let anchor: { eventId: string; top: number } | null = null;
+        if (keepPosition) {
+            // A message on screen that the live timeline also holds; the
+            // window's older rows may not be in it.
+            const liveIds = new Set(live.map((e) => e.getId()));
+            anchor =
+                visibleRowAnchors().find((a) => liveIds.has(a.eventId)) ?? null;
+            // Swapping now would lose the reader's place: stay in the window.
+            if (!anchor) return;
+            // Not at the bottom of the live timeline until measured: a stale
+            // true pins the swap to the bottom (stick, bottom anchor, rows).
+            isAtBottom = false;
+        }
         contextWindow = null;
         contextMessages = null;
-        setMessages(roomId, getTimelineMessages(room));
-        tick().then(() => scrollToBottom(true));
+        setMessages(roomId, live);
+        await tick();
+        const el = anchor ? await revealRow(anchor.eventId) : null;
+        if (!el || !scrollEl) {
+            scrollToBottom(true);
+            return;
+        }
+        scrollEl.scrollTop += el.getBoundingClientRect().top - anchor!.top;
+        isAtBottom = measureAtBottom();
+    }
+
+    // Every message row at least partly on screen, top to bottom, with its
+    // on-screen offset.
+    function visibleRowAnchors(): { eventId: string; top: number }[] {
+        if (!scrollEl) return [];
+        const view = scrollEl.getBoundingClientRect();
+        const out: { eventId: string; top: number }[] = [];
+        for (const el of scrollEl.querySelectorAll<HTMLElement>(
+            "[data-event-id]",
+        )) {
+            const rect = el.getBoundingClientRect();
+            if (
+                rect.bottom > view.top &&
+                rect.top < view.bottom &&
+                el.dataset.eventId
+            )
+                out.push({ eventId: el.dataset.eventId, top: rect.top });
+        }
+        return out;
+    }
+
+    function measureAtBottom(): boolean {
+        if (!scrollEl) return isAtBottom;
+        const { scrollTop, clientHeight, scrollHeight } = scrollEl;
+        return isNearBottom(scrollTop, clientHeight, scrollHeight);
     }
 
     // Whether older history can still load: the live timeline's pagination
@@ -2585,7 +2643,7 @@
             role="log"
             aria-label={t("messageArea.messageTimeline")}
             aria-live="off"
-            class="overflow-y-auto overflow-x-hidden flex flex-1 flex-col{isAtBottom
+            class="overflow-y-auto overflow-x-hidden flex flex-1 flex-col{stickToBottom
                 ? ' *:[overflow-anchor:none]'
                 : ''}"
         >
@@ -2782,7 +2840,7 @@
                  anchoring pins the view to it so growing content sticks. -->
             <div
                 bind:this={bottomAnchorEl}
-                class="{!unreadMarkerEventId && isAtBottom
+                class="{!unreadMarkerEventId && stickToBottom
                     ? '![overflow-anchor:auto] '
                     : ''}h-px flex-shrink-0"
             ></div>
@@ -2861,7 +2919,7 @@
                     >
                     {t("messageArea.viewingMessageContext")}
                     <button
-                        onclick={rejoinLive}
+                        onclick={() => rejoinLive()}
                         class="ms-1 underline hover:no-underline"
                         >{t("messageArea.returnToLive")}</button
                     >
