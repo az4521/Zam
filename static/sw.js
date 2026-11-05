@@ -1423,8 +1423,8 @@ async function decryptInWorker(roomId, event, session) {
 				deviceId: session.deviceId,
 				roomId,
 				event,
-				wasmUrl: new URL("/push-decrypt/crypto.wasm", self.location.href)
-					.href,
+				// The app's own hashed copy; build-push-decrypt.mjs stamps the path.
+				wasmUrl: new URL(headless.wasmPath, self.location.href).href,
 			}),
 			new Promise((resolve) =>
 				setTimeout(() => resolve(null), HEADLESS_DECRYPT_TIMEOUT_MS),

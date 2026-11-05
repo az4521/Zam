@@ -48,6 +48,8 @@ final class HeadlessDecryptor {
     private static final String TAG = "PushDecrypt";
     private static final String ORIGIN = "https://localhost";
     private static final String PAGE = ORIGIN + "/push-decrypt/index.html";
+    // The app's hashed crypto WASM, which decrypt.js loads instead of its own copy.
+    private static final String CRYPTO_WASM = "/_app/immutable/assets/matrix_sdk_crypto_wasm_bg.";
     // Capacitor copies the built web app here (webDir → assets/public).
     private static final String ASSET_ROOT = "public";
 
@@ -202,7 +204,8 @@ final class HeadlessDecryptor {
             return null; // homeserver requests go to the network
         }
         String path = url.getPath();
-        if (path == null || !path.startsWith("/push-decrypt/") || path.contains("..")) {
+        if (path == null || !(path.startsWith("/push-decrypt/") || path.startsWith(CRYPTO_WASM))
+                || path.contains("..")) {
             return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found",
                 null, null);
         }
