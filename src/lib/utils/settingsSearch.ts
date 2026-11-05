@@ -254,7 +254,7 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         anchor: "cust-behavior",
     },
     {
-        tab: "general",
+        tab: "rich-presence",
         label: t("settingsSearch.richPresence"),
         keywords: [
             "activity",
@@ -267,7 +267,7 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
             "msc4544",
         ],
         anchor: "cust-rich-presence",
-        available: (p) => p.desktopTray,
+        available: (p) => p.richPresence,
     },
     {
         tab: "general",

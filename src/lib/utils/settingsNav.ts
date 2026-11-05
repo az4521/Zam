@@ -12,6 +12,7 @@ export type SettingsTab =
     | "account"
     | "security"
     | "privacy"
+    | "rich-presence"
     | "appearance"
     | "messages-media"
     | "notifications"
@@ -43,11 +44,13 @@ export const SETTINGS_GROUPS: readonly {
             { id: "account", label: t("settingsNav.account") },
             { id: "security", label: t("settingsNav.securitySessions") },
             { id: "privacy", label: t("settingsNav.privacySafety") },
+            { id: "rich-presence", label: t("richPresence.heading") },
         ],
     },
     {
         title: t("settingsNav.app"),
         tabs: [
+            { id: "general", label: t("settingsNav.general") },
             { id: "appearance", label: t("settingsNav.appearance") },
             { id: "messages-media", label: t("settingsNav.messagesMedia") },
             { id: "notifications", label: t("common.notifications") },
@@ -59,7 +62,6 @@ export const SETTINGS_GROUPS: readonly {
     {
         title: t("settingsNav.advanced"),
         tabs: [
-            { id: "general", label: t("settingsNav.general") },
             { id: "plugins", label: t("settingsNav.plugins") },
             { id: "server", label: t("settingsNav.server") },
             { id: "about", label: t("settingsNav.about") },
@@ -118,25 +120,29 @@ export interface SettingsPlatform {
     desktopTray: boolean;
     /** The Capacitor Android app. */
     nativeApp: boolean;
+    /** The desktop app's rich presence bridge exists (`richPresenceAvailable()`). */
+    richPresence: boolean;
 }
 
 /**
  * Whether a tab has content on this platform. General only holds the
  * desktop tray toggle, so web and Android hide it (and its search entries)
- * instead of showing an empty panel.
+ * instead of showing an empty panel; Rich presence needs the desktop bridge.
  */
 export function isSettingsTabAvailable(
     tab: SettingsTab,
     platform: SettingsPlatform,
 ): boolean {
-    return tab !== "general" || platform.desktopTray;
+    if (tab === "general") return platform.desktopTray;
+    if (tab === "rich-presence") return platform.richPresence;
+    return true;
 }
 
 /** SETTINGS_GROUPS minus tabs this platform can't show; empty groups dropped. */
 export function visibleSettingsGroups(
     platform: SettingsPlatform,
 ): typeof SETTINGS_GROUPS {
-    if (platform.desktopTray) return SETTINGS_GROUPS;
+    if (platform.desktopTray && platform.richPresence) return SETTINGS_GROUPS;
     return SETTINGS_GROUPS.map((g) => ({
         title: g.title,
         tabs: g.tabs.filter((t) => isSettingsTabAvailable(t.id, platform)),

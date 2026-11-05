@@ -19,8 +19,33 @@ const MAX_BYTES = 4 * 1024 * 1024;
 const TIMEOUT_MS = 10_000;
 const ASSET_LIST_TTL_MS = 10 * 60 * 1000;
 
-function createPresenceImages({ fetch: doFetch = globalThis.fetch } = {}) {
+// `exeIcon(gameId)` gives { type, data } for a game the user added by hand
+// (the icon of its executable), or null.
+function createPresenceImages({
+    fetch: doFetch = globalThis.fetch,
+    exeIcon = async () => null,
+} = {}) {
     const assetLists = new Map(); // app id -> { at, byName: Map }
+    const appIcons = new Map(); // app id -> { at, hash }
+
+    /** The icon hash Discord has on file for the application itself. */
+    async function appIconHash(appId) {
+        const cached = appIcons.get(appId);
+        if (cached && Date.now() - cached.at < ASSET_LIST_TTL_MS)
+            return cached.hash;
+        const res = await doFetch(
+            `https://discord.com/api/v10/applications/${appId}/rpc`,
+            { signal: AbortSignal.timeout(TIMEOUT_MS) },
+        );
+        if (!res.ok) return null;
+        const icon = (await res.json())?.icon;
+        const hash =
+            typeof icon === "string" && /^[0-9a-f]{8,64}$/i.test(icon)
+                ? icon
+                : null;
+        appIcons.set(appId, { at: Date.now(), hash });
+        return hash;
+    }
 
     async function assetId(appId, name) {
         let list = assetLists.get(appId);
@@ -45,6 +70,14 @@ function createPresenceImages({ fetch: doFetch = globalThis.fetch } = {}) {
     async function resolve(appId, ref) {
         if (typeof ref !== "string" || !ref || ref.length > 1024) return null;
         if (!/^\d{1,25}$/.test(appId)) return null;
+
+        // The application's own icon, for an activity that names no picture.
+        if (ref === "app-icon") {
+            const hash = await appIconHash(appId);
+            return hash
+                ? `https://cdn.discordapp.com/app-icons/${appId}/${hash}.png?size=256`
+                : null;
+        }
 
         const icon = /^icon:([0-9a-f]{8,64})$/i.exec(ref);
         if (icon)
@@ -78,6 +111,7 @@ function createPresenceImages({ fetch: doFetch = globalThis.fetch } = {}) {
     /** { type, data } for the image, or null if it is unavailable or unsuitable. */
     async function fetchImage(appId, ref) {
         try {
+            if (ref === "exe-icon") return await exeIcon(String(appId));
             const url = await resolve(String(appId), ref);
             if (!url) return null;
             const res = await doFetch(url, {

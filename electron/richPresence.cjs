@@ -341,13 +341,18 @@ function createRichPresence({
         }
 
         let presence = activity;
-        if (presence && !presence.assets?.large_image && known?.icon) {
+        if (presence && !presence.assets?.large_image) {
+            // Discord's list has the icon for most games; otherwise ask for
+            // the application's own icon (a game added by hand has none, so
+            // it gets the icon of its executable).
+            const large_image = known?.icon
+                ? `icon:${known.icon}`
+                : customGames.some((g) => g.id === clientId)
+                  ? "exe-icon"
+                  : "app-icon";
             presence = {
                 ...presence,
-                assets: {
-                    ...presence.assets,
-                    large_image: `icon:${known.icon}`,
-                },
+                assets: { ...presence.assets, large_image },
             };
         }
         send({
@@ -499,6 +504,9 @@ function createRichPresence({
         getStatus,
         stop,
         programs: () => listPrograms(inFlatpak),
+        /** The executable of a game the user added by hand, or null. */
+        customGameExe: (id) =>
+            customGames.find((g) => g.id === id)?.exe ?? null,
     };
 }
 

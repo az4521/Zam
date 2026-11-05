@@ -11,18 +11,19 @@ import {
 } from "./settingsNav";
 
 describe("SETTINGS_TABS", () => {
-    it("lists the fourteen settings categories in display order", () => {
+    it("lists the fifteen settings categories in display order", () => {
         expect(SETTINGS_TABS.map((t) => t.id)).toEqual([
             "account",
             "security",
             "privacy",
+            "rich-presence",
+            "general",
             "appearance",
             "messages-media",
             "notifications",
             "voice",
             "keybinds",
             "emotes",
-            "general",
             "plugins",
             "server",
             "about",
@@ -115,40 +116,33 @@ describe("settingsNavView", () => {
 });
 
 describe("platform-gated tabs", () => {
-    it("hides General when there is no desktop tray", () => {
-        expect(
-            isSettingsTabAvailable("general", {
-                desktopTray: false,
-                nativeApp: false,
-            }),
-        ).toBe(false);
-        const ids = visibleSettingsGroups({
-            desktopTray: false,
-            nativeApp: false,
-        }).flatMap((g) => g.tabs.map((t) => t.id));
+    const web = { desktopTray: false, nativeApp: false, richPresence: false };
+    const desktop = { desktopTray: true, nativeApp: false, richPresence: true };
+
+    it("hides General and Rich presence off the desktop app", () => {
+        expect(isSettingsTabAvailable("general", web)).toBe(false);
+        expect(isSettingsTabAvailable("rich-presence", web)).toBe(false);
+        const ids = visibleSettingsGroups(web).flatMap((g) =>
+            g.tabs.map((t) => t.id),
+        );
         expect(ids).not.toContain("general");
+        expect(ids).not.toContain("rich-presence");
         expect(ids).toContain("plugins");
     });
-    it("shows General in packaged desktop", () => {
-        expect(
-            isSettingsTabAvailable("general", {
-                desktopTray: true,
-                nativeApp: false,
-            }),
-        ).toBe(true);
-        expect(
-            visibleSettingsGroups({ desktopTray: true, nativeApp: false }),
-        ).toEqual(SETTINGS_GROUPS);
+    it("shows General and Rich presence in packaged desktop", () => {
+        expect(isSettingsTabAvailable("general", desktop)).toBe(true);
+        expect(isSettingsTabAvailable("rich-presence", desktop)).toBe(true);
+        expect(visibleSettingsGroups(desktop)).toEqual(SETTINGS_GROUPS);
+    });
+    it("puts General first under App and Rich presence last under Account", () => {
+        const [account, app] = SETTINGS_GROUPS;
+        expect(account.tabs.at(-1)?.id).toBe("rich-presence");
+        expect(app.tabs[0].id).toBe("general");
     });
     it("keeps every other tab regardless of platform", () => {
         for (const t of SETTINGS_TABS) {
-            if (t.id === "general") continue;
-            expect(
-                isSettingsTabAvailable(t.id, {
-                    desktopTray: false,
-                    nativeApp: false,
-                }),
-            ).toBe(true);
+            if (t.id === "general" || t.id === "rich-presence") continue;
+            expect(isSettingsTabAvailable(t.id, web)).toBe(true);
         }
     });
 });

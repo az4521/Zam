@@ -42,6 +42,8 @@
         type SettingsSearchEntry,
     } from "$lib/utils/settingsSearch";
     import { isDesktopTray } from "$lib/desktopTray";
+    import { richPresenceAvailable } from "$lib/stores/richPresence.svelte";
+    import RichPresenceSettings from "$lib/components/settings/RichPresenceSettings.svelte";
     import { Capacitor } from "@capacitor/core";
     import { scrollBehavior } from "$lib/utils/motionPreference";
     import { ChevronRight, ArrowLeft } from "lucide-svelte";
@@ -80,6 +82,7 @@
     const platform = {
         desktopTray: isDesktopTray(),
         nativeApp: Capacitor.isNativePlatform(),
+        richPresence: richPresenceAvailable(),
     };
     const settingsGroups = visibleSettingsGroups(platform);
     const searchIndex = SETTINGS_SEARCH_INDEX.filter(
@@ -396,6 +399,8 @@
         </div>
     {:else if tab === "privacy"}
         <PrivacySafetySettings />
+    {:else if tab === "rich-presence"}
+        <RichPresenceSettings />
     {:else if tab === "appearance"}
         <AppearanceSettings />
     {:else if tab === "messages-media"}
