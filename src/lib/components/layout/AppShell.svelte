@@ -112,6 +112,7 @@
     import { initLiveLocation } from "$lib/stores/liveLocation.svelte";
     import { initOutbox } from "$lib/stores/outbox.svelte";
     import { initBackgroundRelease } from "$lib/backgroundRelease";
+    import { initHistoryTrim, noteOpenRoom } from "$lib/historyTrim";
     import { initPlugins } from "$lib/plugins/pluginBoot";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import {
@@ -1251,6 +1252,11 @@
         recordRoomVisit(roomsState.activeRoomId);
     });
 
+    // Rooms left a while ago have their older history let go (historyTrim).
+    $effect(() => {
+        noteOpenRoom(roomsState.activeRoomId);
+    });
+
     // Push to talk / push to mute: key and mouse-button holds. Capture
     // phase so a composer or dialog handling the key doesn't hide it.
     $effect(() => {
@@ -2322,6 +2328,7 @@
         // Android: free the crypto store for push decryption while the app
         // sits in the background (reloads on return).
         const unsubBackgroundRelease = initBackgroundRelease();
+        const unsubHistoryTrim = initHistoryTrim();
         const unsubVerification = initVerification();
         const unsubPlugins = initPlugins();
         // Reply-count chips: a new thread settles its count after the sync.
@@ -2433,6 +2440,7 @@
             unsubOutbox();
             unsubEventIndex();
             unsubBackgroundRelease();
+            unsubHistoryTrim();
             unsubVerification();
             unsubPlugins();
             unsubAccountData();

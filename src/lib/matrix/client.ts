@@ -209,6 +209,8 @@ import {
 } from "$lib/utils/threadName";
 import type { ThreadInfo } from "$lib/utils/threadList";
 import { addOrderHints, placeAfterHints } from "./orderHint";
+import { historyTrimCut } from "$lib/utils/historyTrim";
+import { rebuildLiveTimeline } from "./timelineRebuild";
 import {
     tagUpdatesForToggle,
     tagOrderRollback,
@@ -2762,6 +2764,46 @@ export function getTimelineMessages(room: Room): MatrixEvent[] {
                 !timelineIds.has(e.getId()),
         );
     return dedupeById([...timeline, ...pending], (e) => e.getId());
+}
+
+/**
+ * Let go of a room's older history (utils/historyTrim), keeping the newest
+ * HISTORY_KEEP_VISIBLE rendered events and everything after the oldest of
+ * them. Only for a room nobody is looking at (`canTrim`): its timeline is
+ * rebuilt, which an open MessageArea would read as a gappy sync. Resolves
+ * whether it trimmed.
+ */
+export async function trimRoomHistory(
+    roomId: string,
+    canTrim: () => boolean,
+): Promise<boolean> {
+    if (!matrixClient) return false;
+    const owner = captureOwnership(matrixClient, clientGeneration);
+    const room = owner.client.getRoom(roomId);
+    if (!room) return false;
+    const chain = liveChainEvents(room);
+    const shown = new Set(
+        collapseCallEvents(chain.filter(isRenderableTimelineEvent)).map((e) =>
+            e.getId(),
+        ),
+    );
+    const cut = historyTrimCut(chain.map((e) => shown.has(e.getId())));
+    if (cut === null) return false;
+    const cutId = chain[cut].getId()!;
+    // A token that continues history right before the oldest kept event.
+    const res = await owner.client.http.authedRequest<{ start?: string }>(
+        Method.Get,
+        `/rooms/${encodeURIComponent(roomId)}/context/${encodeURIComponent(cutId)}`,
+        { limit: "0" },
+    );
+    if (!res.start || !ownedClient(owner) || !canTrim()) return false;
+    // Sync may have added events (or reset the timeline) while /context ran.
+    const now = liveChainEvents(room);
+    const at = now.findIndex((e) => e.getId() === cutId);
+    if (at <= 0) return false;
+    rebuildLiveTimeline(room, now.slice(at), res.start);
+    contextTimelineSets.delete(roomId);
+    return true;
 }
 
 /** Whether `eventId` is in the room's live timeline (or is one of our pending
