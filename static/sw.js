@@ -67,6 +67,8 @@ function swClassifyRequest(input) {
 	// itself. Claimed as a navigation, an unreachable network would answer it
 	// with the cached app shell, and the whole app would boot in its place.
 	if (parsed.pathname.startsWith("/push-decrypt/")) return "bypass";
+	// Likewise FlashEmbed's sandbox frame, which must never become the app.
+	if (parsed.pathname.startsWith("/flash-sandbox/")) return "bypass";
 	if (input.mode === "navigate" || input.destination === "document")
 		return "navigate";
 	// `startsWith`, never `includes`: the prefix must open the path, or a

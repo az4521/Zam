@@ -109,6 +109,15 @@ export const CLASSIFY_CASES: Array<{
         expected: "bypass",
     },
     {
+        name: "the Flash sandbox frame is never answered with the shell",
+        input: req({
+            url: `${ORIGIN}/flash-sandbox/index.html`,
+            mode: "navigate",
+            destination: "iframe",
+        }),
+        expected: "bypass",
+    },
+    {
         name: "same-origin homeserver API is never cached",
         input: req({
             url: `${ORIGIN}/_matrix/client/v3/sync`,
