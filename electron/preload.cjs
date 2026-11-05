@@ -152,6 +152,17 @@ contextBridge.exposeInMainWorld("desktop", {
     gpu: {
         info: () => ipcRenderer.invoke("gpu:info"),
         memoryReport: () => ipcRenderer.invoke("gpu:memory-report"),
+        // Memory reports on an interval, kept in main until the next start.
+        memoryRecord: {
+            start: (intervalMs) =>
+                ipcRenderer.invoke(
+                    "gpu:memory-record-start",
+                    Number(intervalMs),
+                ),
+            stop: () => ipcRenderer.invoke("gpu:memory-record-stop"),
+            get: (from) =>
+                ipcRenderer.invoke("gpu:memory-record-get", Number(from) || 0),
+        },
         setHardwareAcceleration: (enabled) =>
             ipcRenderer.invoke("gpu:set-hardware-acceleration", !!enabled),
         setNvidiaEncode: (enabled) =>

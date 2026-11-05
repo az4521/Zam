@@ -2,6 +2,12 @@
     import { onMount } from "svelte";
     import { t } from "$lib/i18n";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
+    import {
+        memorySeriesCsv,
+        memorySeriesText,
+        type MemorySample,
+    } from "$lib/utils/memorySeries";
+    import { downloadObjectUrl } from "$lib/utils/saveFile";
 
     // Which video codecs decode and encode on the GPU, probed in the page so
     // the web and Android builds show them too. On desktop (window.desktop.gpu
@@ -383,6 +389,79 @@
 
     const mb = (bytes: number) => `${(bytes / 1048576).toFixed(1)} MB`;
 
+    // The same report on an interval. Main keeps the samples, so this only
+    // fetches what's new while the panel is open.
+    const memoryRecord = window.desktop?.gpu?.memoryRecord;
+    let recording = $state(false);
+    let recordInterval = $state(10000);
+    let samples = $state.raw<MemorySample[]>([]);
+    let recordStartedAt = $state<number | null>(null);
+    let seriesCopied = $state(false);
+    let now = $state(Date.now());
+    let sampleIndex = 0;
+
+    function takeRecording(r: MemoryRecording, append: boolean) {
+        recording = r.running;
+        recordStartedAt = r.startedAt ?? null;
+        if (r.intervalMs) recordInterval = r.intervalMs;
+        samples = append ? [...samples, ...r.samples] : r.samples;
+        sampleIndex = (r.from ?? 0) + r.samples.length;
+    }
+
+    async function pollRecording() {
+        if (!memoryRecord) return;
+        takeRecording(await memoryRecord.get(sampleIndex), sampleIndex > 0);
+    }
+
+    $effect(() => {
+        if (!memoryRecord) return;
+        void pollRecording();
+        const id = setInterval(() => {
+            now = Date.now();
+            if (recording) void pollRecording();
+        }, 2000);
+        return () => clearInterval(id);
+    });
+
+    async function toggleRecording() {
+        if (!memoryRecord) return;
+        if (recording) {
+            recording = (await memoryRecord.stop()).running;
+            await pollRecording();
+        } else {
+            takeRecording(await memoryRecord.start(recordInterval), false);
+        }
+    }
+
+    const seriesText = $derived(memorySeriesText(samples));
+
+    async function copySeries() {
+        try {
+            await navigator.clipboard.writeText(seriesText);
+            seriesCopied = true;
+            setTimeout(() => (seriesCopied = false), 2000);
+        } catch {
+            /* clipboard denied: the summary is still on screen to select */
+        }
+    }
+
+    function saveSeriesCsv() {
+        const url = URL.createObjectURL(
+            new Blob([memorySeriesCsv(samples)], { type: "text/csv" }),
+        );
+        const stamp = new Date(samples[0]?.at ?? Date.now())
+            .toISOString()
+            .slice(0, 19)
+            .replace(/:/g, "-");
+        downloadObjectUrl(url, `zam-memory-${stamp}.csv`);
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+
+    const elapsed = (ms: number) => {
+        const s = Math.max(0, Math.round(ms / 1000));
+        return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    };
+
     const memoryText = $derived(
         !memory || "error" in memory
             ? ""
@@ -648,6 +727,74 @@
             {:else if memoryText}
                 <pre
                     class="mt-2 max-h-80 overflow-auto whitespace-pre rounded bg-discord-backgroundTertiary p-2 text-xs font-mono text-discord-textPrimary select-text">{memoryText}</pre>
+            {/if}
+            {#if memoryRecord}
+                <div class="mt-3 flex items-center gap-3">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm text-discord-textPrimary">
+                            {t("gpuDebug.memoryRecord")}
+                        </p>
+                        <p class="text-xs text-discord-textMuted">
+                            {t("gpuDebug.memoryRecordHint")}
+                        </p>
+                    </div>
+                    <select
+                        bind:value={recordInterval}
+                        disabled={recording}
+                        aria-label={t("gpuDebug.memoryRecordInterval")}
+                        class="rounded bg-discord-backgroundSecondary px-1.5 py-1 text-xs text-discord-textPrimary disabled:opacity-50"
+                    >
+                        {#each [5, 10, 30, 60] as s}
+                            <option value={s * 1000}
+                                >{t("gpuDebug.memoryRecordEvery", {
+                                    seconds: s,
+                                })}</option
+                            >
+                        {/each}
+                    </select>
+                    <button
+                        onclick={toggleRecording}
+                        class="px-2.5 py-1 rounded text-xs font-semibold {recording
+                            ? 'bg-discord-danger text-white'
+                            : 'bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary'}"
+                        >{recording
+                            ? t("gpuDebug.memoryRecordStop")
+                            : t("gpuDebug.memoryRecordStart")}</button
+                    >
+                </div>
+                {#if samples.length || recording}
+                    <div class="mt-2 flex items-center gap-2">
+                        <span class="flex-1 text-xs text-discord-textMuted"
+                            >{t("gpuDebug.memoryRecordStatus", {
+                                count: samples.length,
+                                elapsed: elapsed(
+                                    (recording
+                                        ? now
+                                        : (samples.at(-1)?.at ?? now)) -
+                                        (recordStartedAt ?? now),
+                                ),
+                            })}</span
+                        >
+                        {#if seriesText}
+                            <button
+                                onclick={copySeries}
+                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary"
+                                >{seriesCopied
+                                    ? t("debugSettings.copied")
+                                    : t("common.copy")}</button
+                            >
+                            <button
+                                onclick={saveSeriesCsv}
+                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary"
+                                >{t("gpuDebug.memoryRecordCsv")}</button
+                            >
+                        {/if}
+                    </div>
+                    {#if seriesText}
+                        <pre
+                            class="mt-2 max-h-80 overflow-auto whitespace-pre rounded bg-discord-backgroundTertiary p-2 text-xs font-mono text-discord-textPrimary select-text">{seriesText}</pre>
+                    {/if}
+                {/if}
             {/if}
         </div>
     {/if}

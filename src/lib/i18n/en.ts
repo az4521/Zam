@@ -449,6 +449,15 @@ export const en = {
         "Restarts the GPU process so the window is drawn again from scratch. Use it if parts of the window show as black or white boxes or in the wrong place, which can happen after running out of video memory. Calls keep going. Also in the tray menu.",
     "gpuDebug.memoryMeasure": "Measure",
     "gpuDebug.memoryMeasuring": "Measuring…",
+    "gpuDebug.memoryRecord": "Record memory over time",
+    "gpuDebug.memoryRecordHint":
+        "Takes the memory report on an interval and keeps going with Settings closed, so you can use Zam normally and come back. Shows the first, lowest, highest and latest size of each, and saves every sample as a CSV for graphing.",
+    "gpuDebug.memoryRecordInterval": "Interval",
+    "gpuDebug.memoryRecordEvery": "Every {seconds} s",
+    "gpuDebug.memoryRecordStart": "Record",
+    "gpuDebug.memoryRecordStop": "Stop",
+    "gpuDebug.memoryRecordStatus": "{count} samples over {elapsed}",
+    "gpuDebug.memoryRecordCsv": "Save CSV",
     "gpuDebug.encodeTest": "Run H.264 encode test",
     "gpuDebug.encodeTestHint":
         "Encodes 60 frames per size the way a call does. Hardware should be much faster per frame than software.",

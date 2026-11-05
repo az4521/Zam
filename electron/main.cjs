@@ -997,9 +997,10 @@ function writeGpuPrefs(patch) {
 }
 
 // Settings > Debug: Chromium's memory by process and allocator, plus each
-// process's resident memory as Task Manager counts it.
+// process's resident memory as Task Manager counts it. One trace at a time:
+// the recorder below and a one-off measure share it.
 let memoryReportRunning = null;
-ipcMain.handle("gpu:memory-report", () => {
+function takeMemoryReport() {
     memoryReportRunning ??= (async () => {
         try {
             const processes = await recordMemoryReport(
@@ -1022,7 +1023,61 @@ ipcMain.handle("gpu:memory-report", () => {
         }
     })();
     return memoryReportRunning;
+}
+ipcMain.handle("gpu:memory-report", () => takeMemoryReport());
+
+// Memory over time: a report every `intervalMs` until stopped, kept here so
+// it carries on with Settings closed. Two hours at the shortest interval.
+const MEMORY_SAMPLES_MAX = 1440;
+let memoryRecording = null;
+function memoryRecordingState(from = 0) {
+    const r = memoryRecording;
+    if (!r) return { running: false, samples: [] };
+    return {
+        running: r.timer !== null,
+        intervalMs: r.intervalMs,
+        startedAt: r.startedAt,
+        dropped: r.dropped,
+        // Index of samples[0] in the whole recording, so the renderer can
+        // ask for only what it hasn't seen.
+        from: Math.max(from, r.dropped),
+        samples: r.samples.slice(Math.max(0, from - r.dropped)),
+    };
+}
+async function memoryRecordingTick(r) {
+    const report = await takeMemoryReport();
+    if (memoryRecording !== r) return;
+    r.samples.push({ at: Date.now(), ...report });
+    if (r.samples.length > MEMORY_SAMPLES_MAX) {
+        r.samples.shift();
+        r.dropped++;
+    }
+}
+ipcMain.handle("gpu:memory-record-start", (_e, intervalMs) => {
+    if (memoryRecording?.timer) clearInterval(memoryRecording.timer);
+    const ms = Math.min(Math.max(Number(intervalMs) || 10000, 5000), 300000);
+    const r = {
+        intervalMs: ms,
+        startedAt: Date.now(),
+        dropped: 0,
+        samples: [],
+        timer: null,
+    };
+    r.timer = setInterval(() => void memoryRecordingTick(r), ms);
+    memoryRecording = r;
+    void memoryRecordingTick(r);
+    return memoryRecordingState();
 });
+ipcMain.handle("gpu:memory-record-stop", () => {
+    if (memoryRecording?.timer) {
+        clearInterval(memoryRecording.timer);
+        memoryRecording.timer = null;
+    }
+    return memoryRecordingState(Infinity);
+});
+ipcMain.handle("gpu:memory-record-get", (_e, from) =>
+    memoryRecordingState(Math.max(0, Number(from) || 0)),
+);
 
 // Restart Chromium's GPU process so everything is drawn again from scratch.
 // NVIDIA on Linux doesn't spill video memory into system RAM, so with a game

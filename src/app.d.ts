@@ -9,6 +9,17 @@ declare global {
     }
 
     /** Settings > General > Network (electron/proxy.cjs). */
+    interface MemoryRecording {
+        running: boolean;
+        intervalMs?: number;
+        startedAt?: number;
+        /** Oldest samples dropped once the recording hit its cap. */
+        dropped?: number;
+        /** Index of samples[0] in the whole recording. */
+        from?: number;
+        samples: import("$lib/utils/memorySeries").MemorySample[];
+    }
+
     interface DesktopProxyPrefs {
         mode: "system" | "direct" | "manual" | "pac";
         /** Manual mode: Chromium proxy rules, e.g. "socks5://127.0.0.1:9050". */
@@ -117,6 +128,14 @@ declare global {
                       }
                     | { error: string }
                 >;
+                /** memoryReport on an interval, kept by the main process so
+                 *  it carries on with Settings closed. `get(from)` returns the
+                 *  samples from index `from` of the recording on. */
+                memoryRecord?: {
+                    start: (intervalMs: number) => Promise<MemoryRecording>;
+                    stop: () => Promise<MemoryRecording>;
+                    get: (from: number) => Promise<MemoryRecording>;
+                };
                 setHardwareAcceleration: (enabled: boolean) => Promise<void>;
                 setVideoEncode: (enabled: boolean) => Promise<void>;
                 /** Windows: the PlatformH264CbpEncoding flag, on the next launch. */
