@@ -45,6 +45,7 @@
         getMemberName,
         getMemberAvatar,
         isVideoRoom,
+        isLastJoinedMember,
         type RoomNotificationSetting,
         type SpaceChildInfo,
     } from "$lib/matrix/client";
@@ -1317,11 +1318,11 @@
         <!-- A space child we haven't joined: join / knock in place -->
         {#snippet unjoinedRow(room: SpaceChildInfo)}
             {@const isJoining = joiningIds.has(room.roomId)}
-            <div
             <!-- Same row geometry as channelRow (flex, py-1.5, 0.5rem inset,
                  w-5 icon slot, single-line name) so joined and unjoined rows
                  share height, hover and spacing. The member count lives in
                  the tooltip rather than a second line. -->
+            <div
                 class="group flex items-center transition-colors hover:bg-discord-messageHover"
             >
                 <div
@@ -1511,8 +1512,8 @@
                     aria-expanded={!browseCollapsed}
                     class="w-full flex items-center gap-1 px-2 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide hover:text-discord-textSecondary transition-colors"
                 >
-                    <svg
                     <span class="truncate">{t("roomList.browseRooms")}</span>
+                    <svg
                         class="w-3 h-3 flex-shrink-0 ms-auto transition-transform {browseCollapsed
                             ? '-rotate-90'
                             : ''}"
@@ -1816,7 +1817,9 @@
                 <button
                     onclick={() => handleLeave(cm.roomId)}
                     class="w-full text-start px-3 py-1.5 text-sm bg-discord-danger text-white font-medium transition-colors"
-                    >{t("roomList.clickAgainToLeave")}</button
+                    >{isLastJoinedMember(cm.roomId)
+                        ? t("roomList.clickAgainToLeaveLastMember")
+                        : t("roomList.clickAgainToLeave")}</button
                 >
             {:else}
                 <button

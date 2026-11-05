@@ -6270,6 +6270,17 @@ export async function setSpaceOrder(order: string[]): Promise<void> {
     await setSpaceLayout({ ...layout, order });
 }
 
+/**
+ * Whether we are the room's only joined member. Leaving then strands it: a
+ * join must be signed by a server still in the room, so with nobody left no
+ * one (invitees and space members included) can ever join it again.
+ */
+export function isLastJoinedMember(roomId: string): boolean {
+    const room = matrixClient?.getRoom(roomId);
+    if (!room || room.getMyMembership() !== "join") return false;
+    return room.getJoinedMemberCount() <= 1;
+}
+
 export async function leaveRoom(roomId: string): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // Leaving the room mid-call must also hang up — otherwise the SFU

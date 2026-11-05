@@ -1813,6 +1813,8 @@ export const en = {
     "roomList.markAsRead": "Mark as Read",
     "roomList.addToSpace": "Add to Space",
     "roomList.clickAgainToLeave": "Click again to leave",
+    "roomList.clickAgainToLeaveLastMember":
+        "You're the only member, so no one can join after you leave. Click again to leave",
     "roomList.leaveRoom": "Leave Room",
     "roomList.couldNotSendTheJoinRequest": "Could not send the join request",
     "roomList.orderMustBeBetween0And":
@@ -2278,6 +2280,8 @@ export const en = {
     "spaceSidebar.removeFromFolder": "Remove from folder",
     "spaceSidebar.newFolder": "New Folder",
     "spaceSidebar.clickAgainToLeave": "Click again to leave",
+    "spaceSidebar.clickAgainToLeaveLastMember":
+        "You're the only member, so no one can join this space after you leave. Click again to leave",
     "spaceSidebar.leaveSpace": "Leave Space",
     "spaceSidebar.setColor": "Set Color",
     "spaceSidebar.dissolveFolder": "Dissolve Folder",
@@ -2771,13 +2775,13 @@ export const en = {
 
     // src/lib/components/messages/ComposerActionsMenu.svelte
     "composerActionsMenu.uploadAFile": "Upload a file",
+    "composerActionsMenu.camera": "Camera",
+    "composerActionsMenu.photosAndVideos": "Photos & videos",
+    "composerActionsMenu.files": "Files",
     "composerActionsMenu.sendFileDirectly": "Send a file directly",
     "composerActionsMenu.createPoll": "Create poll",
     "composerActionsMenu.recordVoiceMessage": "Record voice message",
     "composerActionsMenu.shareLocation": "Share location",
-    "composerActionsMenu.camera": "Camera",
-    "composerActionsMenu.photosAndVideos": "Photos & videos",
-    "composerActionsMenu.files": "Files",
     "composerActionsMenu.createThread": "Create thread",
 
     // src/lib/components/messages/Reactions.svelte

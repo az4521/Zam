@@ -29,6 +29,7 @@
         retryRoomFollowUp,
         getRoomNotificationSetting,
         setRoomNotificationSetting,
+        isLastJoinedMember,
         type RoomNotificationSetting,
         type SpaceLayout,
     } from "$lib/matrix/client";
@@ -1719,7 +1720,9 @@
                     <button
                         onclick={() => handleLeaveSpace(cm.spaceId)}
                         class="w-full flex items-center gap-2 px-3 py-1.5 text-sm bg-discord-danger text-white font-medium text-start"
-                        >{t("spaceSidebar.clickAgainToLeave")}</button
+                        >{isLastJoinedMember(cm.spaceId)
+                            ? t("spaceSidebar.clickAgainToLeaveLastMember")
+                            : t("spaceSidebar.clickAgainToLeave")}</button
                     >
                 {:else}
                     <button
