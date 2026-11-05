@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { format, type Locale } from "date-fns";
+import { de, es, ja } from "date-fns/locale";
+import { withPlainDayPeriods } from "$lib/i18n/dateLocale";
 import {
     safeFormat,
     timePart,
@@ -225,5 +228,24 @@ describe("formatFullTimestamp", () => {
                 opts({ dateStyle: "iso", timeClock: "24h" }),
             ),
         ).toBe("2026-04-02 09:05");
+    });
+});
+
+describe("withPlainDayPeriods", () => {
+    const at = (h: number) => new Date(2026, 0, 1, h, 56);
+    const fmt = (locale: Locale, h: number) =>
+        format(at(h), "h:mm a", { locale: withPlainDayPeriods(locale) });
+
+    it("turns German's dotted day periods into AM/PM", () => {
+        expect(fmt(de, 9)).toBe("9:56 AM");
+        expect(fmt(de, 22)).toBe("10:56 PM");
+    });
+
+    it("keeps day periods written in another script", () => {
+        expect(fmt(ja, 22)).toBe("10:56 午後");
+    });
+
+    it("leaves locales that already say AM/PM alone", () => {
+        expect(fmt(es, 22)).toBe("10:56 PM");
     });
 });

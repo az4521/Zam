@@ -31,7 +31,34 @@ export function buildDateLocale(code: string, names: DateNames): Locale {
     };
 }
 
+/**
+ * The same locale with AM/PM in place of dotted Latin-script day periods
+ * (German "vorm."/"nachm.", Spanish-style "a. m."/"p. m."), which read badly
+ * next to a time. Day periods in another script (午前, Suret's) are kept.
+ */
+export function withPlainDayPeriods(locale: Locale): Locale {
+    const dayPeriod = locale.localize.dayPeriod;
+    return {
+        ...locale,
+        localize: {
+            ...locale.localize,
+            dayPeriod: (p, options) => {
+                const name = dayPeriod(p, options);
+                return name.includes(".") &&
+                    /^[\p{Script=Latin}.\s]+$/u.test(name)
+                    ? PM_PERIODS.has(p)
+                        ? "PM"
+                        : "AM"
+                    : name;
+            },
+        },
+    };
+}
+
 let cached: { code: string; locale: Locale | undefined } | null = null;
+
+const withCatalogue = (l: Locale | undefined) =>
+    l ? withPlainDayPeriods(l) : undefined;
 
 /** The `locale` option to pass to date-fns `format` for the active language. */
 export function dateFnsLocale(): Locale | undefined {
@@ -41,7 +68,7 @@ export function dateFnsLocale(): Locale | undefined {
         cached = {
             code,
             locale:
-                catalogueDateLocale() ??
+                withCatalogue(catalogueDateLocale()) ??
                 (names ? buildDateLocale(code, names) : undefined),
         };
     }
