@@ -117,6 +117,16 @@
         nextBackfillLimit,
         updateVisibleRatio,
     } from "$lib/utils/backfillSizing";
+    import {
+        DEFAULT_ROW_HEIGHT,
+        INITIAL_WINDOW_ROWS,
+        WINDOW_MARGIN_MIN_PX,
+        WINDOW_MARGIN_SCREENS,
+        nextWindow,
+        rowOffsets,
+        windowAround,
+        type RowWindow,
+    } from "$lib/utils/timelineWindow";
     import { createBackfillGate } from "$lib/utils/backfillGate";
     import { hostBridge } from "$lib/plugins/hostBridge";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
@@ -324,6 +334,7 @@
             clearTimeout(scrollStopTimeout);
             scrollStopTimeout = undefined;
         }
+        scheduleWindowUpdate();
     }
     let dragCounter = 0; // track enter/leave pairs to avoid flicker on child elements
 
@@ -580,9 +591,8 @@
     }
 
     async function scrollToMessage(eventId: string) {
-        const query = () =>
-            document.querySelector(`[data-event-id="${eventId}"]`);
-        let el = query();
+        const query = () => revealRow(eventId);
+        let el: Element | null = await query();
         if (!el) {
             const rid = room.roomId;
             await waitForInitialSync(10_000);
@@ -605,7 +615,7 @@
             if (isInLiveTimeline(room, eventId)) {
                 await tick();
                 if (room.roomId !== rid) return;
-                el = query();
+                el = await query();
             }
         }
         if (!el) {
@@ -627,7 +637,7 @@
             } finally {
                 jumpingToEventId = null;
             }
-            el = document.querySelector(`[data-event-id="${eventId}"]`);
+            el = await revealRow(eventId);
             if (!el) return;
         }
         const target = el as HTMLElement;
@@ -978,6 +988,247 @@
             : null;
     });
     const isContextView = $derived(contextMessages !== null);
+
+    // ── Row windowing (utils/timelineWindow) ──
+    // Only rows near the viewport are mounted; spacers sized from each row's
+    // last measured height stand in for the rest, so a room scrolled far back
+    // doesn't keep every message component it ever showed. The window is held
+    // as the keys of its first and last rows, so it stays on the same messages
+    // when history is prepended or new ones arrive. Without ResizeObserver
+    // nothing can be measured, so everything is mounted as before.
+    const canWindow = typeof ResizeObserver !== "undefined";
+    let windowKeys = $state<{ first: string; last: string } | null>(null);
+    let topSpacerEl: HTMLDivElement | undefined = $state();
+    const rowHeights = new Map<string, number>();
+    const ROW_HEIGHTS_MAX = 20_000;
+    let measuredTotal = 0;
+
+    function estimatedRowHeight(): number {
+        return rowHeights.size
+            ? measuredTotal / rowHeights.size
+            : DEFAULT_ROW_HEIGHT;
+    }
+
+    // timelineKey is only undefined for an event with neither id, which the
+    // list never holds; "" keeps the types honest.
+    const rowKey = (event: MatrixEvent) => timelineKey(event) ?? "";
+
+    function rowHeight(event: MatrixEvent): number {
+        return rowHeights.get(rowKey(event)) ?? estimatedRowHeight();
+    }
+
+    function recordRowHeight(key: string, height: number) {
+        // A hidden timeline (call view, closed drawer) measures 0.
+        if (height <= 0) return;
+        if (rowHeights.size >= ROW_HEIGHTS_MAX && !rowHeights.has(key)) {
+            rowHeights.clear();
+            measuredTotal = 0;
+        }
+        measuredTotal += height - (rowHeights.get(key) ?? 0);
+        rowHeights.set(key, height);
+    }
+
+    const rowWindow = $derived.by((): RowWindow => {
+        const n = messages.length;
+        if (!canWindow) return { start: 0, end: n };
+        let w: RowWindow | null = null;
+        if (windowKeys) {
+            const { first, last } = windowKeys;
+            const s = messages.findIndex((e) => rowKey(e) === first);
+            const e = messages.findIndex((e) => rowKey(e) === last);
+            if (s >= 0 && e >= s) w = { start: s, end: e + 1 };
+        }
+        w ??= { start: Math.max(0, n - INITIAL_WINDOW_ROWS), end: n };
+        if (isAtBottom && !isContextView) w.end = n;
+        // An edit request is a one-tick pulse its MessageItem has to see:
+        // mount that row now, not on the next scroll.
+        if (editRequestedEventId) {
+            const i = messages.findIndex(
+                (e) => e.getId() === editRequestedEventId,
+            );
+            if (i >= 0) {
+                w.start = Math.min(w.start, i);
+                w.end = Math.max(w.end, i + 1);
+            }
+        }
+        return w;
+    });
+
+    const spacerHeights = $derived.by(() => {
+        let top = 0;
+        let bottom = 0;
+        for (let i = 0; i < rowWindow.start; i++) top += rowHeight(messages[i]);
+        for (let i = rowWindow.end; i < messages.length; i++)
+            bottom += rowHeight(messages[i]);
+        return { top, bottom };
+    });
+
+    const rowKeyOf = new WeakMap<Element, string>();
+    let rowObserver: ResizeObserver | null = null;
+
+    function measureRow(node: HTMLElement, key: string) {
+        if (!canWindow) return;
+        rowObserver ??= new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const k = rowKeyOf.get(entry.target);
+                const h =
+                    entry.borderBoxSize?.[0]?.blockSize ??
+                    entry.contentRect.height;
+                if (k) recordRowHeight(k, h);
+            }
+        });
+        rowKeyOf.set(node, key);
+        rowObserver.observe(node);
+        return {
+            update(next: string) {
+                rowKeyOf.set(node, next);
+            },
+            destroy() {
+                rowObserver?.unobserve(node);
+            },
+        };
+    }
+
+    // Rows that must stay mounted wherever the user scrolls: something being
+    // typed into or a clicked embed (focus), a text selection, playing media,
+    // the touch-selected message and a jump's target.
+    function pinnedRows(): RowWindow | null {
+        let lo = Infinity;
+        let hi = -1;
+        const pin = (i: number) => {
+            if (i < 0) return;
+            lo = Math.min(lo, i);
+            hi = Math.max(hi, i);
+        };
+        const pinId = (id: string | null) => {
+            if (id) pin(messages.findIndex((e) => e.getId() === id));
+        };
+        pinId(interfaceState.selectedMessageId);
+        pinId(jumpingToEventId);
+        if (!scrollEl) return null;
+        const active = document.activeElement;
+        const typing =
+            active?.matches(
+                "input, textarea, select, iframe, [contenteditable]",
+            ) ?? false;
+        const sel = document.getSelection();
+        const selecting = !!sel && !sel.isCollapsed;
+        for (const row of scrollEl.querySelectorAll<HTMLElement>(
+            "[data-row-index]",
+        )) {
+            if (
+                (typing && row.contains(active)) ||
+                (selecting &&
+                    (row.contains(sel!.anchorNode) ||
+                        row.contains(sel!.focusNode))) ||
+                Array.from(
+                    row.querySelectorAll<HTMLMediaElement>("audio, video"),
+                ).some((m) => !m.paused)
+            )
+                pin(Number(row.dataset.rowIndex));
+        }
+        return hi < 0 ? null : { start: lo, end: hi + 1 };
+    }
+
+    function setRowWindow(w: RowWindow) {
+        if (w.end <= w.start) {
+            windowKeys = null;
+            return;
+        }
+        windowKeys = {
+            first: rowKey(messages[w.start]),
+            last: rowKey(messages[w.end - 1]),
+        };
+    }
+
+    // Re-fit the window to the viewport. Cheap when nothing changes; run on
+    // scroll, resize and whenever the message list changes.
+    function updateWindow() {
+        if (!canWindow || !scrollEl || !topSpacerEl) return;
+        // A jump's scroll-into-view loop owns the view until it settles.
+        if (intervalId !== undefined) return;
+        const n = messages.length;
+        if (n === 0) {
+            windowKeys = null;
+            return;
+        }
+        const height = scrollEl.clientHeight;
+        if (height === 0) return; // hidden: nothing to fit
+        const viewTop =
+            scrollEl.getBoundingClientRect().top -
+            topSpacerEl.getBoundingClientRect().top;
+        const current = rowWindow;
+        const next = nextWindow({
+            offsets: rowOffsets(messages.map(rowHeight)),
+            viewTop,
+            viewBottom: viewTop + height,
+            margin: Math.max(
+                WINDOW_MARGIN_MIN_PX,
+                height * WINDOW_MARGIN_SCREENS,
+            ),
+            current,
+            pinned: pinnedRows(),
+            stickToEnd: isAtBottom && !isContextView,
+        });
+        if (next.start !== current.start || next.end !== current.end)
+            setRowWindow(next);
+    }
+
+    let windowFrame = 0;
+    function scheduleWindowUpdate() {
+        if (!canWindow || windowFrame) return;
+        windowFrame = requestAnimationFrame(() => {
+            windowFrame = 0;
+            updateWindow();
+        });
+    }
+
+    /** The row element for `eventId`, mounting it first if it is loaded but
+     *  outside the window. Null when the list doesn't hold it. */
+    async function revealRow(eventId: string): Promise<HTMLElement | null> {
+        const query = () =>
+            scrollEl?.querySelector<HTMLElement>(
+                `[data-event-id="${CSS.escape(eventId)}"]`,
+            ) ?? null;
+        const found = query();
+        if (found || !canWindow) return found;
+        const i = messages.findIndex((e) => e.getId() === eventId);
+        if (i < 0) return null;
+        // Leaving the bottom: a window stuck to the end would stretch from
+        // the target all the way down.
+        isAtBottom = false;
+        setRowWindow(windowAround(i, messages.length));
+        await tick();
+        return query();
+    }
+
+    $effect(() => {
+        void messages;
+        void interfaceState.selectedMessageId;
+        untrack(() => void tick().then(scheduleWindowUpdate));
+    });
+
+    // Resized, or shown again: a frame isn't drawn while hidden, so a window
+    // fitted then may be stale.
+    $effect(() => {
+        const root = scrollEl;
+        if (!root || !canWindow) return;
+        const ro = new ResizeObserver(scheduleWindowUpdate);
+        ro.observe(root);
+        document.addEventListener("visibilitychange", scheduleWindowUpdate);
+        return () => {
+            ro.disconnect();
+            document.removeEventListener(
+                "visibilitychange",
+                scheduleWindowUpdate,
+            );
+            cancelAnimationFrame(windowFrame);
+            windowFrame = 0;
+        };
+    });
+
+    $effect(() => () => rowObserver?.disconnect());
+
     // Mention highlights, re-derived whenever the message list is replaced. A
     // per-row isHighlightEvent(event) call never re-ran: decryption mutates the
     // SAME MatrixEvent, so the row saw no change and a mention that arrived as
@@ -1014,6 +1265,7 @@
         // finally in loadOlderMessages only clears the lock for its own room.
         loadingOlder = false;
         visibleRatio = INITIAL_VISIBLE_RATIO;
+        windowKeys = null;
     });
 
     // Load messages when room changes — always reload from SDK state (fast, in-memory)
@@ -1038,12 +1290,11 @@
             }
         });
         unreadMarkerEventId = readUpTo;
-        tick().then(() => {
+        tick().then(async () => {
             if (readUpTo) {
                 // Scroll so the first unread message is visible near the top
-                const markerEl = document.querySelector(
-                    `[data-event-id="${readUpTo}"]`,
-                );
+                const markerEl = await revealRow(readUpTo);
+                if (room.roomId !== id) return;
                 if (markerEl && scrollEl) {
                     markerEl.scrollIntoView({ block: "end" });
                 } else {
@@ -1226,9 +1477,7 @@
             setMessages(currentRoomId, getTimelineMessages(currentRoom));
             await tick();
             if (!anchor || !scrollEl) return;
-            const el = scrollEl.querySelector(
-                `[data-event-id="${anchor.eventId}"]`,
-            );
+            const el = await revealRow(anchor.eventId);
             if (el) {
                 scrollEl.scrollTop +=
                     el.getBoundingClientRect().top - anchor.top;
@@ -1599,6 +1848,7 @@
         isAtBottom = isNearBottom(scrollTop, clientHeight, scrollHeight);
         // Track the reading position so a late content change can be undone.
         captureScrollAnchor();
+        scheduleWindowUpdate();
 
         // Touch: a meaningful scroll away from where a message was selected dismisses
         // its floating actions bar. Guarded so a bottom-sheet action in progress and
@@ -1847,9 +2097,13 @@
     // into without waiting.
     function rowsAboveViewport(): number {
         if (!scrollEl) return 0;
-        return countRowsAbove(
-            scrollEl.querySelectorAll("[data-event-id]"),
-            scrollEl.getBoundingClientRect().top,
+        // Rows before the window are all above it.
+        return (
+            rowWindow.start +
+            countRowsAbove(
+                scrollEl.querySelectorAll("[data-event-id]"),
+                scrollEl.getBoundingClientRect().top,
+            )
         );
     }
 
@@ -2382,78 +2636,110 @@
 
             <!-- Message list (chronological: DOM order matches visual order,
                  so selection and copy across messages behave natively) -->
-            {#each messages as event, i (timelineKey(event))}
+            <!-- Stands in for the rows before the window (see rowWindow). -->
+            <div
+                bind:this={topSpacerEl}
+                class="flex-shrink-0"
+                style:height="{spacerHeights.top}px"
+            ></div>
+            {#each messages.slice(rowWindow.start, rowWindow.end) as event, j (timelineKey(event))}
+                {@const i = rowWindow.start + j}
                 {@const sepTs = dateSeparatorLabel(messages, i)}
                 {@const receipts =
                     receiptsByEvent?.get(event.getId() ?? "") ?? NO_RECEIPTS}
-                {#if sepTs !== null}
-                    <div class="flex items-center gap-4 px-4 my-4">
-                        <div class="flex-1 h-px bg-discord-divider"></div>
-                        <span
-                            class="text-xs font-semibold text-discord-textMuted"
-                            >{daySeparator(sepTs)}</span
+                {@const unreadHere = unreadDividerBefore(
+                    messages,
+                    i,
+                    unreadMarkerEventId,
+                )}
+                <!-- One box per row, measured for the spacers. It carries the
+                     unread divider's anchoring: a child can't opt back in
+                     under a parent that opted out. -->
+                <div
+                    data-row-index={i}
+                    use:measureRow={rowKey(event)}
+                    class="flex-shrink-0{unreadHere
+                        ? ' ![overflow-anchor:auto]'
+                        : ''}"
+                >
+                    {#if sepTs !== null}
+                        <div class="flex items-center gap-4 px-4 my-4">
+                            <div class="flex-1 h-px bg-discord-divider"></div>
+                            <span
+                                class="text-xs font-semibold text-discord-textMuted"
+                                >{daySeparator(sepTs)}</span
+                            >
+                            <div class="flex-1 h-px bg-discord-divider"></div>
+                        </div>
+                    {/if}
+                    {#if unreadHere}
+                        <div
+                            class="flex items-center gap-3 px-4 my-2 ![overflow-anchor:auto]"
                         >
-                        <div class="flex-1 h-px bg-discord-divider"></div>
-                    </div>
-                {/if}
-                {#if unreadDividerBefore(messages, i, unreadMarkerEventId)}
-                    <div
-                        class="flex items-center gap-3 px-4 my-2 ![overflow-anchor:auto]"
-                    >
-                        <div class="flex-1 h-px bg-discord-danger/60"></div>
-                        <span
-                            class="text-xs font-semibold text-discord-danger uppercase tracking-wide"
-                            >{t("messageArea.newMessages")}</span
+                            <div class="flex-1 h-px bg-discord-danger/60"></div>
+                            <span
+                                class="text-xs font-semibold text-discord-danger uppercase tracking-wide"
+                                >{t("messageArea.newMessages")}</span
+                            >
+                            <div class="flex-1 h-px bg-discord-danger/60"></div>
+                        </div>
+                    {/if}
+                    {#if isRawDebugEvent(event)}
+                        <DebugEventItem {event} />
+                    {:else if shouldHideMessage(event.getSender(), ignoredUsersState.userIds, auth.userId) && !revealedBlockedIds[event.getId() ?? ""]}
+                        <div
+                            class="px-4 py-1.5 flex items-center gap-2 text-xs text-discord-textMuted"
                         >
-                        <div class="flex-1 h-px bg-discord-danger/60"></div>
-                    </div>
-                {/if}
-                {#if isRawDebugEvent(event)}
-                    <DebugEventItem {event} />
-                {:else if shouldHideMessage(event.getSender(), ignoredUsersState.userIds, auth.userId) && !revealedBlockedIds[event.getId() ?? ""]}
-                    <div
-                        class="px-4 py-1.5 flex items-center gap-2 text-xs text-discord-textMuted"
-                    >
-                        <svg
-                            class="w-3.5 h-3.5 flex-shrink-0"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"
-                            ><path
-                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.902 7.902 0 0 1 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.69L18.31 7.1A7.902 7.902 0 0 1 20 12c0 4.42-3.58 8-8 8z"
-                            /></svg
-                        >
-                        <span class="italic"
-                            >{t("messageArea.messageFromABlockedUser")}</span
-                        >
-                        <button
-                            onclick={() =>
-                                (revealedBlockedIds[event.getId() ?? ""] =
-                                    true)}
-                            class="text-discord-accent hover:underline font-medium"
-                            >{t("messageArea.showBlockedMessage")}</button
-                        >
-                    </div>
-                {:else}
-                    <MessageItem
-                        {event}
-                        {room}
-                        showHeader={shouldShowHeader(messages, i)}
-                        timelineEvents={messages}
-                        timelineIndex={i}
-                        onReply={(e) => {
-                            replyToEvent = e;
-                        }}
-                        jumpToReply={scrollToMessage}
-                        onOpenThread={openThread}
-                        editRequested={editRequestedEventId === event.getId()}
-                        onEditDone={() => messageInputEl?.focus()}
-                        {receipts}
-                        mentionHighlight={highlightedIds.has(event.getId())}
-                        callSummary={callSummaries.get(event.getId() ?? "") ??
-                            null}
-                    />
-                {/if}
+                            <svg
+                                class="w-3.5 h-3.5 flex-shrink-0"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                                ><path
+                                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.902 7.902 0 0 1 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.69L18.31 7.1A7.902 7.902 0 0 1 20 12c0 4.42-3.58 8-8 8z"
+                                /></svg
+                            >
+                            <span class="italic"
+                                >{t(
+                                    "messageArea.messageFromABlockedUser",
+                                )}</span
+                            >
+                            <button
+                                onclick={() =>
+                                    (revealedBlockedIds[event.getId() ?? ""] =
+                                        true)}
+                                class="text-discord-accent hover:underline font-medium"
+                                >{t("messageArea.showBlockedMessage")}</button
+                            >
+                        </div>
+                    {:else}
+                        <MessageItem
+                            {event}
+                            {room}
+                            showHeader={shouldShowHeader(messages, i)}
+                            timelineEvents={messages}
+                            timelineIndex={i}
+                            onReply={(e) => {
+                                replyToEvent = e;
+                            }}
+                            jumpToReply={scrollToMessage}
+                            onOpenThread={openThread}
+                            editRequested={editRequestedEventId ===
+                                event.getId()}
+                            onEditDone={() => messageInputEl?.focus()}
+                            {receipts}
+                            mentionHighlight={highlightedIds.has(event.getId())}
+                            callSummary={callSummaries.get(
+                                event.getId() ?? "",
+                            ) ?? null}
+                        />
+                    {/if}
+                </div>
             {/each}
+            <!-- Stands in for the rows after the window. -->
+            <div
+                class="flex-shrink-0"
+                style:height="{spacerHeights.bottom}px"
+            ></div>
 
             <!-- Room upgrade tombstone banner -->
             {#if tombstone}
