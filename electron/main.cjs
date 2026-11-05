@@ -1140,6 +1140,54 @@ ipcMain.on("gpu:video-playing", (_e, playing) => {
     videoPlaying = !!playing;
 });
 
+// The GPU process never gives back what it has used: the video stack the
+// first hardware-decoded video sets up (about 100 MB on Windows), decoders'
+// memory after they close, whatever its allocators reserved. A fresh one holds
+// about 50 MB. So once the window has been out of sight for a while, with no
+// call and no video playing, start a fresh one (repaintGpu); what it needs
+// comes back the next time it's used. Windows reports the process's committed
+// memory (52 MB fresh against 250-440 MB after use, measured), so there a GPU
+// process that is still small is left alone.
+const GPU_RECYCLE_HIDDEN_MS = 2 * 60_000;
+const GPU_RECYCLE_MIN_KB = 128 * 1024;
+let gpuRecycleTimer = null;
+// Once per spell out of sight: nothing new is drawn until the window is back.
+let gpuRecycled = false;
+
+function windowOutOfSight() {
+    return (
+        !!mainWindow &&
+        !mainWindow.isDestroyed() &&
+        (!mainWindow.isVisible() || mainWindow.isMinimized())
+    );
+}
+
+function recycleGpuIfIdle() {
+    gpuRecycleTimer = null;
+    if (gpuRecycled || !windowOutOfSight()) return;
+    if (callActive || videoPlaying) {
+        gpuRecycleTimer = setTimeout(recycleGpuIfIdle, GPU_RECYCLE_HIDDEN_MS);
+        return;
+    }
+    const gpu = app.getAppMetrics().find((m) => m.type === "GPU");
+    if (!gpu) return;
+    const privateKb = gpu.memory?.privateBytes;
+    if (privateKb !== undefined && privateKb < GPU_RECYCLE_MIN_KB) return;
+    gpuRecycled = true;
+    repaintGpu();
+}
+
+function armGpuRecycle() {
+    if (!hardwareAccelerationAtLaunch || gpuRecycled || gpuRecycleTimer) return;
+    gpuRecycleTimer = setTimeout(recycleGpuIfIdle, GPU_RECYCLE_HIDDEN_MS);
+}
+
+function disarmGpuRecycle() {
+    clearTimeout(gpuRecycleTimer);
+    gpuRecycleTimer = null;
+    gpuRecycled = false;
+}
+
 // If the Vulkan path makes the GPU process crash, Chromium falls back to
 // software rendering for this run; record it so the next launch goes back to
 // the GL path, unless the user chose Vulkan in Settings. The Vulkan path fails
@@ -1586,6 +1634,11 @@ async function createWindow() {
         globalHotkeys.recheck();
     });
     mainWindow.on("show", () => mainWindow.flashFrame(false));
+
+    mainWindow.on("hide", armGpuRecycle);
+    mainWindow.on("minimize", armGpuRecycle);
+    mainWindow.on("show", disarmGpuRecycle);
+    mainWindow.on("restore", disarmGpuRecycle);
 
     mainWindow.loadURL(url);
 
