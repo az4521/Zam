@@ -78,6 +78,9 @@
     } from "$lib/utils/emojiAutocomplete";
     import StickerPicker from "$lib/components/ui/StickerPicker.svelte";
     import GifPicker from "$lib/components/ui/GifPicker.svelte";
+    import PickerDock, {
+        markPickerSwitch,
+    } from "$lib/components/messages/PickerDock.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
@@ -767,6 +770,8 @@
     function openPicker(which: "emoji" | "sticker" | "gif") {
         if (!anyPickerOpen()) {
             textareaFocusedBeforePicker = document.activeElement === textareaEl;
+        } else {
+            markPickerSwitch();
         }
         openComposerPicker(which, effComposerKey);
     }
@@ -2524,17 +2529,8 @@
                     <ImagePlay size={20} />
                 </button>
                 {#if showGifPicker}
-                    <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-                    <div
-                        class="fixed inset-0 z-40"
-                        onclick={closeModal}
-                        onkeydown={closeModal}
-                    ></div>
                     {#if interfaceState.isTouchscreen}
-                        <div
-                            class="fixed start-0 end-0 z-50"
-                            style="bottom: {keyboardOffset}px;"
-                        >
+                        <PickerDock onClose={closeModal} {keyboardOffset}>
                             <GifPicker
                                 onSelect={insertGif}
                                 onSelectFile={(f) => addFiles([f])}
@@ -2542,8 +2538,14 @@
                                 onSwitchToEmoji={() => openPicker("emoji")}
                                 onSwitchToSticker={() => openPicker("sticker")}
                             />
-                        </div>
+                        </PickerDock>
                     {:else}
+                        <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+                        <div
+                            class="fixed inset-0 z-40"
+                            onclick={closeModal}
+                            onkeydown={closeModal}
+                        ></div>
                         <div class="absolute bottom-full end-0 mb-2 z-50">
                             <GifPicker
                                 onSelect={insertGif}
@@ -2576,17 +2578,8 @@
                     <Sticker size={20} />
                 </button>
                 {#if showStickerPicker}
-                    <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-                    <div
-                        class="fixed inset-0 z-40"
-                        onclick={closeModal}
-                        onkeydown={closeModal}
-                    ></div>
                     {#if interfaceState.isTouchscreen}
-                        <div
-                            class="fixed start-0 end-0 z-50"
-                            style="bottom: {keyboardOffset}px;"
-                        >
+                        <PickerDock onClose={closeModal} {keyboardOffset}>
                             <StickerPicker
                                 {roomId}
                                 onSelect={sendStickerMessage}
@@ -2594,8 +2587,14 @@
                                 onSwitchToEmoji={() => openPicker("emoji")}
                                 onSwitchToGif={() => openPicker("gif")}
                             />
-                        </div>
+                        </PickerDock>
                     {:else}
+                        <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+                        <div
+                            class="fixed inset-0 z-40"
+                            onclick={closeModal}
+                            onkeydown={closeModal}
+                        ></div>
                         <div class="absolute bottom-full end-0 mb-2 z-50">
                             <StickerPicker
                                 {roomId}
@@ -2620,15 +2619,8 @@
                     <Smile size={20} />
                 </button>
                 {#if showEmojiPicker}
-                    <!-- Backdrop to close picker on outside click -->
-                    <!-- svelte-ignore a11y_no_static_element_interactions -->
-                    <!-- svelte-ignore a11y_click_events_have_key_events -->
-                    <div class="fixed inset-0 z-40" onclick={closeModal}></div>
                     {#if interfaceState.isTouchscreen}
-                        <div
-                            class="fixed start-0 end-0 z-50"
-                            style="bottom: {keyboardOffset}px;"
-                        >
+                        <PickerDock onClose={closeModal} {keyboardOffset}>
                             <EmojiPicker
                                 {room}
                                 onSelect={insertEmoji}
@@ -2637,8 +2629,15 @@
                                 onSwitchToSticker={() => openPicker("sticker")}
                                 onSwitchToGif={() => openPicker("gif")}
                             />
-                        </div>
+                        </PickerDock>
                     {:else}
+                        <!-- Backdrop to close picker on outside click -->
+                        <!-- svelte-ignore a11y_no_static_element_interactions -->
+                        <!-- svelte-ignore a11y_click_events_have_key_events -->
+                        <div
+                            class="fixed inset-0 z-40"
+                            onclick={closeModal}
+                        ></div>
                         <div class="absolute bottom-full end-0 mb-2 z-50">
                             <EmojiPicker
                                 {room}
