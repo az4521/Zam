@@ -86,12 +86,12 @@
         "@sveltejs/adapter-auto": "^5.0.0",
         "@sveltejs/adapter-static": "^3.0.10",
         "@sveltejs/kit": "^2.21.0",
-        "@sveltejs/vite-plugin-svelte": "^5.0.0",
+        "@sveltejs/vite-plugin-svelte": "^6.2.4",
         "@twemoji/api": "^17.0.2",
         "@types/leaflet": "^1.9.21",
         "@types/qrcode": "^1.5.6",
         "@vitejs/plugin-basic-ssl": "^2.3.0",
-        "@vitejs/plugin-legacy": "^6.1.1",
+        "@vitejs/plugin-legacy": "^7.2.1",
         "@webgpu/types": "0.1.74",
         "autoprefixer": "^10.4.21",
         "chiptune3": "^0.8.9",
@@ -123,8 +123,8 @@
         "typescript": "^5.8.2",
         "unicode-emoji-json": "^0.8.0",
         "uuid": "^11.1.0",
-        "vite": "^6.3.5",
-        "vitest": "^4.1.10"
+        "vite": "^7.3.7",
+        "vitest": "^4.1.12"
     },
     "type": "module",
     "dependencies": {
