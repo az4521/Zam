@@ -43,6 +43,7 @@
     import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
     import { unloadOffscreen } from "$lib/actions/unloadOffscreen";
     import { parkOffscreen } from "$lib/actions/parkOffscreen";
+    import { parkYoutubeOffscreen } from "$lib/actions/parkYoutubeOffscreen";
     import {
         allowsMediaAutoLoad,
         allowsThirdPartyEmbed,
@@ -122,11 +123,41 @@
 
     let directEmbed = $state<DirectEmbed | null>(null);
 
+    // A YouTube embed shows its thumbnail until played: each player is a
+    // whole YouTube page in its own frame (tens of MB before it plays, plus a
+    // decoder after), and the timeline never unmounts rows. Once played and
+    // then paused and scrolled well away it goes back to the thumbnail
+    // (actions/parkYoutubeOffscreen) and resumes from where it was.
+    let youtubePlaying = $state(false);
+    let youtubeResumeAt = 0;
+    function youtubePlayerUrl(embedUrl: string): string {
+        const u = new URL(embedUrl);
+        u.searchParams.set("autoplay", "1");
+        u.searchParams.set("enablejsapi", "1");
+        if (/^https?:$/.test(location.protocol))
+            u.searchParams.set("origin", location.origin);
+        if (youtubeResumeAt > 0)
+            u.searchParams.set("start", String(Math.floor(youtubeResumeAt)));
+        return u.toString();
+    }
+    function youtubeThumbnail(embedUrl: string): string {
+        const id = new URL(embedUrl).pathname.split("/").pop() ?? "";
+        return `https://i.ytimg.com/vi/${encodeURIComponent(id)}/hqdefault.jpg`;
+    }
+
     interface TweetMedia {
         url: string;
         width?: number;
         height?: number;
+        thumbnail?: string;
     }
+
+    // Tweet videos, by URL, that the user has played. The rest show their
+    // thumbnail: a mounted <video>, even unplayed, holds a decoder. A played
+    // one that is paused and scrolled well away is unmounted again and
+    // resumes from `tweetResumeAt` (actions/parkOffscreen).
+    let tweetPlaying = $state<Set<string>>(new Set());
+    const tweetResumeAt = new Map<string, number>();
     interface TweetEmbed {
         authorName: string;
         authorHandle: string;
@@ -199,6 +230,10 @@
         videoPlaying = false;
         videoParked = false;
         videoThumbError = false;
+        youtubePlaying = false;
+        youtubeResumeAt = 0;
+        tweetPlaying = new Set();
+        tweetResumeAt.clear();
 
         // A response that lands after the URL or the policy moved on must not
         // write itself back into state — otherwise flipping the setting to a
@@ -248,6 +283,7 @@
                             url: v.url as string,
                             width: v.width as number | undefined,
                             height: v.height as number | undefined,
+                            thumbnail: v.thumbnail_url as string | undefined,
                         })),
                     };
                     tweetEmbed = embed;
@@ -486,15 +522,50 @@
     );
 </script>
 
-{#if directEmbed?.type === "youtube"}
+{#if directEmbed?.type === "youtube" && youtubePlaying}
     <iframe
-        src={directEmbed.embedUrl}
-        class="mt-1 w-full max-w-lg aspect-video rounded-lg"
+        src={youtubePlayerUrl(directEmbed.embedUrl)}
+        class="mt-1 w-full max-w-lg aspect-video rounded-lg block"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowfullscreen
-        loading="lazy"
         title={t("linkPreview.youtubeVideo")}
+        use:parkYoutubeOffscreen={{
+            pause: settingsState.pauseVideoOnScrollOff,
+            onPark: (at) => {
+                youtubeResumeAt = at;
+                youtubePlaying = false;
+            },
+        }}
     ></iframe>
+{:else if directEmbed?.type === "youtube"}
+    <button
+        type="button"
+        aria-label={t("linkPreview.playVideo")}
+        title={t("linkPreview.youtubeVideo")}
+        class="group/media mt-1 relative w-full max-w-lg aspect-video rounded-lg overflow-hidden cursor-pointer bg-black block p-0 border-0"
+        onclick={() => (youtubePlaying = true)}
+    >
+        <img
+            src={youtubeThumbnail(directEmbed.embedUrl)}
+            alt=""
+            class="w-full h-full object-cover"
+            loading="lazy"
+            referrerpolicy="no-referrer"
+        />
+        <div
+            class="absolute inset-0 flex items-center justify-center bg-black/30 group-hover/media:bg-black/40 transition-colors"
+        >
+            <div
+                class="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center"
+            >
+                <svg
+                    class="w-7 h-7 text-white ms-1"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg
+                >
+            </div>
+        </div>
+    </button>
 {:else if directEmbed?.type === "video"}
     <!-- svelte-ignore a11y_media_has_caption -->
     <video
@@ -569,7 +640,45 @@
                                 512,
                                 512,
                             )}
-                            {#if item.type === "video"}
+                            {#if item.type === "video" && !tweetPlaying.has(item.url)}
+                                <button
+                                    type="button"
+                                    aria-label={t("linkPreview.playVideo")}
+                                    class="group/media relative w-full max-h-72 min-w-0 rounded overflow-hidden cursor-pointer bg-black block p-0 border-0"
+                                    style={`aspect-ratio: ${box ? `${box.width}/${box.height}` : "16/9"}`}
+                                    onclick={(e) => {
+                                        // Don't follow the enclosing link.
+                                        e.preventDefault();
+                                        tweetPlaying = new Set(
+                                            tweetPlaying,
+                                        ).add(item.url);
+                                    }}
+                                >
+                                    {#if item.thumbnail}
+                                        <img
+                                            src={item.thumbnail}
+                                            alt=""
+                                            class="w-full h-full object-contain"
+                                            loading="lazy"
+                                            referrerpolicy="no-referrer"
+                                        />
+                                    {/if}
+                                    <div
+                                        class="absolute inset-0 flex items-center justify-center bg-black/30 group-hover/media:bg-black/40 transition-colors"
+                                    >
+                                        <div
+                                            class="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center"
+                                        >
+                                            <svg
+                                                class="w-7 h-7 text-white ms-1"
+                                                fill="currentColor"
+                                                viewBox="0 0 24 24"
+                                                ><path d="M8 5v14l11-7z" /></svg
+                                            >
+                                        </div>
+                                    </div>
+                                </button>
+                            {:else if item.type === "video"}
                                 <!-- svelte-ignore a11y_media_has_caption -->
                                 <video
                                     src={item.url}
@@ -577,7 +686,25 @@
                                     height={box?.height}
                                     class="w-full h-auto max-h-72 min-w-0 max-w-full object-contain rounded"
                                     controls
-                                    preload="metadata"
+                                    autoplay
+                                    preload="auto"
+                                    use:pauseOffscreen={{
+                                        enabled:
+                                            settingsState.pauseVideoOnScrollOff,
+                                    }}
+                                    use:parkOffscreen={(at) => {
+                                        tweetResumeAt.set(item.url, at);
+                                        const next = new Set(tweetPlaying);
+                                        next.delete(item.url);
+                                        tweetPlaying = next;
+                                    }}
+                                    onloadedmetadata={(e) => {
+                                        const at = tweetResumeAt.get(item.url);
+                                        if (at) {
+                                            e.currentTarget.currentTime = at;
+                                            tweetResumeAt.delete(item.url);
+                                        }
+                                    }}
                                     onclick={(e) => {
                                         // Stop an enclosing link from navigating, but
                                         // keep click-to-pause: preventDefault alone
