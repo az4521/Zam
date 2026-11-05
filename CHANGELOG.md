@@ -6,6 +6,11 @@ commit list is appended below it.
 
 ## v1.52.6
 
+✨ **New**
+
+- **Rich presence (desktop):** show what you're doing, like the game you're playing or the music you're listening to, on your profile, and see it on other people's profile cards. It uses [MSC4544](https://github.com/matrix-org/matrix-spec-proposals/pull/4544), so Matrix apps can publish to it directly, and Zam also understands Discord Rich Presence, so apps and games that only talk to Discord work too. Zam can also detect running games on its own. Everything is off until you turn it on in Settings > General > Rich presence, and each app is blocked until you allow it. Game icons and cover art are fetched only from Discord and Spotify, shrunk, and uploaded once.
+- **Game detection in Flatpak:** a Flatpak can't see your other programs, so "Detect games" there needs a permission that you grant yourself. Turning it on shows the command to run.
+
 🐛 **Fixed**
 
 - **Less memory in the tray (desktop):** once the window has been hidden or minimized for a minute (and no call is running), Zam frees memory the app no longer needs, about 10 MB on top of what Chromium already releases.
