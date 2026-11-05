@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.52.5
+
+🐛 **Fixed**
+
+- **Less memory from YouTube and tweet videos:** YouTube links and videos in tweets show a thumbnail until you press play, instead of loading a player for every one you scroll past. A played one that is paused and scrolled well away lets go of its memory and picks up where it left off when played again. "Pause videos when scrolled off screen" now pauses YouTube videos too.
+
 ## v1.52.4
 
 🐛 **Fixed**
