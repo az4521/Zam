@@ -9,7 +9,7 @@
  * client through the runtime slot, like `media.ts`.
  */
 import { t } from "$lib/i18n";
-import type { MatrixClient, Room } from "matrix-js-sdk";
+import { EventType, type MatrixClient, type Room } from "matrix-js-sdk";
 import type * as LivekitClient from "livekit-client";
 import { matrixClient } from "./runtime";
 import { getDirectRoomIds, getRoomCallMemberships } from "./client";
@@ -31,6 +31,7 @@ import {
     pickOwnLivekitTransport,
     remoteLivekitTargets,
     livekitTargetKey,
+    memberPublishTransport,
     mutedIdentities,
     type LivekitTarget,
     sfuJwtUrl,
@@ -1199,18 +1200,46 @@ const DENOISE_JOIN_WAIT_MS = 10_000;
 // Retry an SFU we lost or couldn't reach, while the call still needs it.
 const REMOTE_SFU_RETRY_MS = 10_000;
 
+type RtcSession = ReturnType<MatrixClient["matrixRTC"]["getRoomSession"]>;
+
+/** Where each of the session's members publishes, in membership order
+ *  (oldest first); see memberPublishTransport. */
+function memberPublishTransports(
+    session: RtcSession,
+    room: Room | null,
+): unknown[] {
+    // A legacy m.call.member's focus_active, which CallMembership no longer
+    // exposes, read off the state event it was parsed from. An m.rtc.member
+    // is a sticky event, not state, so it finds none (and has no such field).
+    const focusSelections = new Map<string, string>();
+    for (const ev of room?.currentState.getStateEvents(
+        EventType.GroupCallMemberPrefix,
+    ) ?? []) {
+        const selection = ev.getContent().focus_active?.focus_selection;
+        const id = ev.getId();
+        if (id) focusSelections.set(id, String(selection));
+    }
+    const members = session.memberships.map((m) => ({
+        transports: m.transports,
+        focusSelection: focusSelections.get(m.eventId) ?? null,
+    }));
+    return members.map((_, i) => memberPublishTransport(members, i));
+}
+
 /** Bring `call`'s listen-only connections in line with where the other
  *  members publish: connect to new SFUs, drop ones nobody uses any more. */
 async function syncRemoteSfus(call: ActiveVoiceCall): Promise<void> {
     if (activeVoice !== call || !matrixClient) return;
     const me = matrixClient.getUserId();
     const myDevice = matrixClient.getDeviceId();
-    const oldest = call.session.getOldestMembership();
-    const transports = oldest
-        ? call.session.memberships
-              .filter((m) => !(m.userId === me && m.deviceId === myDevice))
-              .map((m) => m.getTransport(oldest))
-        : [];
+    const published = memberPublishTransports(
+        call.session,
+        matrixClient.getRoom(call.roomId),
+    );
+    const transports = call.session.memberships
+        .map((m, i) => ({ m, transport: published[i] }))
+        .filter(({ m }) => !(m.userId === me && m.deviceId === myDevice))
+        .map(({ transport }) => transport);
     const wanted = remoteLivekitTargets(
         transports,
         call.publishKey,
@@ -1348,12 +1377,9 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     if (seq !== voiceJoinSeq) return;
 
     const session = matrixClient.matrixRTC.getRoomSession(room);
-    const oldest = session.getOldestMembership();
-    const memberTransports = oldest
-        ? session.memberships
-              .map((m) => m.getTransport(oldest))
-              .filter((t): t is NonNullable<typeof t> => !!t)
-        : [];
+    const memberTransports = memberPublishTransports(session, room).filter(
+        (t) => !!t,
+    );
     const foci = await configuredRtcFoci();
     if (seq !== voiceJoinSeq) return;
     // Multi-SFU: publish on our own homeserver's SFU (the only one whose
@@ -1368,7 +1394,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     const deviceId = matrixClient.getDeviceId()!;
     // Snapshot the call's non-self peers BEFORE our own membership publishes,
     // so we can tell "starting a call" (ring the peer) from "answering one"
-    // (stay silent). See the ring-send after joinRTCSession below.
+    // (stay silent). See the ring-send after session.join below.
     const callPeersBeforeJoin = getRoomCallMemberships(room)
         .map((m) => m.userId)
         .filter((id) => id !== userId);
@@ -1510,12 +1536,13 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             livekit_service_url: target.serviceUrl,
             livekit_alias: target.alias,
         };
-        // multi_sfu advertises the SFU we publish on (the SDK lists it first
-        // in foci_preferred); oldest_membership joins the shared SFU instead.
-        session.joinRTCSession(
+        // Advertises the SFU we publish on, as multi_sfu: our own, or the
+        // oldest member's shared one when our homeserver has none. (The SDK
+        // no longer publishes oldest_membership; a client that reads multi_sfu
+        // takes foci_preferred[0], the same SFU.)
+        session.join(
             { userId, deviceId, memberId: `${userId}:${deviceId}` },
-            ownTarget ? [] : [transport],
-            ownTarget ? transport : undefined,
+            [transport],
             {
                 membershipEventExpiryMs: 4 * 60 * 60 * 1000,
                 // Make our media key, send it to everyone's devices, and
@@ -1706,7 +1733,7 @@ async function leaveVoiceCallInternal(): Promise<void> {
         // Both settle quietly: a rejected disconnect means already gone.
         await Promise.allSettled([
             ...callLkRooms(call).map((r) => r.disconnect()),
-            call.session.leaveRoomSession(10_000),
+            call.session.leave(10_000),
         ]);
     })();
     voiceLeaveInFlight = run;

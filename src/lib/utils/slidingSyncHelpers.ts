@@ -64,13 +64,15 @@ export function isSlidingTimelineGap(
 /**
  * Whether an update carries history the SDK would mistake for new messages.
  *
- * The SDK only splits scrollback from new events on a `limited` or `initial`
- * update; anything else is appended to the live timeline as it comes. Raising
+ * The SDK only splits scrollback from new events on a `limited`, `initial` or
+ * `expanded_timeline` update; anything else is appended to the live timeline
+ * as it comes. Raising
  * a room's timeline_limit (opening a room goes from the list's 1 to the
  * subscription's 30) makes Synapse resend a page of history with `initial`
  * false and `limited` set only if the room has MORE history than that page. So
- * in a small room the older messages landed BELOW the newest one (Synapse also
- * flags these `unstable_expanded_timeline`, which the SDK doesn't read).
+ * in a small room the older messages landed BELOW the newest one. Synapse also
+ * flags these `unstable_expanded_timeline`, which the SDK reads since 45, but
+ * a server that leaves the flag off still needs this.
  *
  * The tell is an unknown event before a known one: a true update can't be
  * older than something we already hold. Known means the LIVE timeline, the

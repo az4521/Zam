@@ -1,5 +1,5 @@
-/** MSC4075 ring event as matrix-js-sdk 43 sends it (`EventType.RTCNotification`).
- *  We ring through the SDK (`joinRTCSession`'s `notificationType`), so this is
+/** MSC4075 ring event as matrix-js-sdk 45 sends it (`EventType.RTCNotification`).
+ *  We ring through the SDK (`session.join`'s `notificationType`), so this is
  *  what our own calls send and what current Element clients send. */
 export const RTC_NOTIFICATION_EVENT_TYPE =
     "org.matrix.msc4075.rtc.notification";

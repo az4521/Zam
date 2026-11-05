@@ -51,12 +51,19 @@ export function isCallEventType(type: string): boolean {
     return isCallMemberEventType(type) || isCallNotifyEventType(type);
 }
 
-/** A membership state event with no content (ignoring the sticky-key marker)
- *  is a LEAVE. */
+/** A LEAVE, by the SDK's rule (isLeftMembershipContent): an m.rtc.member
+ *  saying `member.membership: "leave"`, or a membership emptied of everything
+ *  but its slot id and sticky key (how a leave was written before that). */
 export function isMembershipLeave(content: Record<string, unknown>): boolean {
-    return (
-        Object.keys(content).filter((k) => k !== "msc4354_sticky_key")
-            .length === 0
+    const member = content.member;
+    if (
+        member &&
+        typeof member === "object" &&
+        (member as Record<string, unknown>).membership === "leave"
+    )
+        return true;
+    return Object.keys(content).every(
+        (k) => k === "slot_id" || k === "msc4354_sticky_key",
     );
 }
 

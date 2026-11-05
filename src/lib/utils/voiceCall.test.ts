@@ -17,6 +17,7 @@ import {
     callControlMode,
     isRecentlyLeftHere,
     mutedIdentities,
+    memberPublishTransport,
 } from "./voiceCall";
 
 describe("mutedIdentities", () => {
@@ -496,5 +497,43 @@ describe("multi-SFU transport selection", () => {
             { serviceUrl: "https://matrix.org.example", alias: "!r:x" },
             { serviceUrl: "https://third.example", alias: "!r:x" },
         ]);
+    });
+});
+
+describe("memberPublishTransport", () => {
+    const a = { type: "livekit", livekit_service_url: "https://a.example" };
+    const b = { type: "livekit", livekit_service_url: "https://b.example" };
+
+    it("reads a multi_sfu or m.rtc.member member's first transport", () => {
+        const members = [
+            { transports: [a], focusSelection: "multi_sfu" },
+            { transports: [b, a], focusSelection: "multi_sfu" },
+            { transports: [b], focusSelection: null },
+        ];
+        expect(memberPublishTransport(members, 1)).toBe(b);
+        expect(memberPublishTransport(members, 2)).toBe(b);
+    });
+
+    it("puts an oldest_membership member on the oldest member's SFU", () => {
+        const members = [
+            { transports: [a], focusSelection: "multi_sfu" },
+            { transports: [b], focusSelection: "oldest_membership" },
+        ];
+        expect(memberPublishTransport(members, 1)).toBe(a);
+    });
+
+    it("lets the oldest oldest_membership member keep its own preference", () => {
+        const members = [
+            { transports: [a], focusSelection: "oldest_membership" },
+            { transports: [b], focusSelection: "oldest_membership" },
+        ];
+        expect(memberPublishTransport(members, 0)).toBe(a);
+        expect(memberPublishTransport(members, 1)).toBe(a);
+    });
+
+    it("has no transport for an unknown focus selection or member", () => {
+        const members = [{ transports: [a], focusSelection: "elsewhere" }];
+        expect(memberPublishTransport(members, 0)).toBeUndefined();
+        expect(memberPublishTransport(members, 1)).toBeUndefined();
     });
 });

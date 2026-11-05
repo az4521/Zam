@@ -400,6 +400,17 @@ export async function buildSlidingSync(
                     adoptUnknownRoom(roomId, roomData);
                     return;
                 }
+                // The SDK splits an `expanded_timeline` update like a
+                // `limited` one, and hands the older events it finds the
+                // update's prev_batch as the timeline's back token. Without
+                // one, that token became null, and a live timeline already
+                // probed (claimSlidingProbe) can't scroll back again. An
+                // update with a prev_batch is still split: hasUnflaggedScrollback
+                // below flags it.
+                if (!roomData.prev_batch) {
+                    delete roomData.expanded_timeline;
+                    delete roomData.unstable_expanded_timeline;
+                }
                 const timelineEventIds = (roomData.timeline ?? [])
                     .map((e) => e.event_id)
                     .filter((id): id is string => !!id);

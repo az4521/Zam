@@ -36,6 +36,33 @@ export default defineConfig(({ mode }) => ({
                 return { code: code.replace(from, '"(?:^|\\\\W)"'), map: null };
             },
         },
+        // matrix-js-sdk 44 lets only 3 threads fetch their first page at once,
+        // across all rooms. A room's threads are all created together (the
+        // thread list, a busy room's first sync), so the thread you open could
+        // wait behind dozens of others before its panel filled. Lift the cap.
+        {
+            name: "zam:sdk-thread-fetch-cap",
+            transform(code, id) {
+                if (
+                    !/matrix-js-sdk[\\/]lib[\\/]models[\\/]thread\.js$/.test(id)
+                ) {
+                    return null;
+                }
+                const from = "const MAX_CONCURRENT_INITIAL_FETCHES = 3;";
+                if (!code.includes(from)) {
+                    this.error(
+                        "zam:sdk-thread-fetch-cap: thread.js changed; recheck its initial fetch cap",
+                    );
+                }
+                return {
+                    code: code.replace(
+                        from,
+                        "const MAX_CONCURRENT_INITIAL_FETCHES = Infinity;",
+                    ),
+                    map: null,
+                };
+            },
+        },
         {
             ...legacy({
                 targets: ["ios >= 15.8", "> 0.5%", "not dead"],

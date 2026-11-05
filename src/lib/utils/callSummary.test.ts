@@ -77,6 +77,38 @@ describe("isMembershipLeave", () => {
             false,
         );
     });
+    it("an emptied m.rtc.member keeping its slot id is a leave", () => {
+        expect(
+            isMembershipLeave({
+                slot_id: "m.call#ROOM",
+                msc4354_sticky_key: "x",
+            }),
+        ).toBe(true);
+    });
+    it("an m.rtc.member marked membership leave is a leave", () => {
+        expect(
+            isMembershipLeave({
+                slot_id: "m.call#ROOM",
+                member: { id: "x", membership: "leave" },
+                msc4354_sticky_key: "x",
+            }),
+        ).toBe(true);
+    });
+    it("a joined m.rtc.member is not a leave", () => {
+        expect(
+            isMembershipLeave({
+                slot_id: "m.call#ROOM",
+                member: {
+                    user_id: "@a:s",
+                    device_id: "D",
+                    id: "x",
+                    membership: "join",
+                },
+                application: { type: "m.call" },
+                msc4354_sticky_key: "x",
+            }),
+        ).toBe(false);
+    });
 });
 
 describe("memberDeviceId", () => {

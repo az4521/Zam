@@ -238,11 +238,46 @@ export function pickOwnLivekitTransport(
     return null;
 }
 
+/** What decides where one call member publishes. */
+export interface MemberTransportInfo {
+    /** `transports.published` (m.rtc.member) or `foci_preferred` (m.call.member). */
+    transports: unknown[];
+    /** A legacy m.call.member's `focus_active.focus_selection`; null for an
+     *  m.rtc.member, which has no such field. */
+    focusSelection: string | null;
+}
+
+/**
+ * Where `members[index]` publishes, with `members[0]` the oldest membership.
+ * matrix-js-sdk 44 dropped `oldest_membership` and reads every legacy member
+ * as `foci_preferred[0]`, but a member that still selects `oldest_membership`
+ * (older Zam versions, older Element Call) sits on the oldest member's SFU,
+ * not its own preference. This keeps the SDK 43 `getTransport(oldest)` rule.
+ */
+export function memberPublishTransport(
+    members: MemberTransportInfo[],
+    index: number,
+): unknown {
+    const member = members[index];
+    if (!member) return undefined;
+    switch (member.focusSelection) {
+        case null:
+        case "multi_sfu":
+            return member.transports[0];
+        case "oldest_membership":
+            if (index === 0) return member.transports[0];
+            return memberPublishTransport(members, 0);
+        default:
+            // A focus selection we don't understand.
+            return undefined;
+    }
+}
+
 /**
  * Multi-SFU: the SFUs we must also connect to (listen-only) to hear everyone.
- * `memberTransports` is each OTHER member's publishing transport (the SDK's
- * `CallMembership.getTransport(oldest)`); entries that are not LiveKit, or
- * that land on the SFU we publish to, are dropped. Deduplicated by key.
+ * `memberTransports` is each OTHER member's publishing transport
+ * (memberPublishTransport); entries that are not LiveKit, or that land on the
+ * SFU we publish to, are dropped. Deduplicated by key.
  */
 export function remoteLivekitTargets(
     memberTransports: unknown[],
