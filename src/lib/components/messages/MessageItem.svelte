@@ -3221,10 +3221,13 @@
                 {/if}
             {/if}
 
-            <!-- Inline timestamp (non-grouped messages, shows on hover) -->
+            <!-- Inline timestamp (non-grouped messages, shows on hover).
+                 Ends 8px before the content column (px-4 + w-10 + gap-3 =
+                 68px), since "10:56 PM" is wider than the avatar column; a
+                 longer time spills toward the row edge, not the content. -->
             {#if bubble.showInlineHoverTime}
                 <span
-                    class="absolute start-4 top-1/2 -translate-y-1/2 text-xs text-discord-textMuted opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none select-none"
+                    class="absolute start-0 w-[60px] flex justify-end whitespace-nowrap top-1/2 -translate-y-1/2 text-xs text-discord-textMuted opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none select-none"
                 >
                     {timeOnly(timestamp)}
                 </span>
