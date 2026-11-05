@@ -4,6 +4,22 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.51.1
+
+✨ **New**
+
+- **Swipe the emoji picker away:** on phones, the emoji, sticker and GIF picker slides up and down, and you can swipe it down to close it.
+- **Quick delete:** hold Shift while clicking delete on a message to delete it straight away, without the confirmation. Your own delete button now sits at the end of the message's buttons, in the same place as a moderator's.
+
+⚡ **Improved**
+
+- **Lighter animated images:** large animated GIFs and images are shrunk to the size they're shown at, so they use far less memory.
+
+🐛 **Fixed**
+
+- **Sheet animations:** profile cards now slide up like the other sheets, and sheets slide away instead of vanishing when you tap outside them.
+- **Swipe from anywhere:** you can swipe a sheet down from anywhere on the screen, not just on the sheet itself.
+
 ## v1.51.0
 
 ✨ **New**
