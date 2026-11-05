@@ -1265,12 +1265,54 @@ function recycleGpuIfIdle() {
     repaintGpu();
 }
 
+// The page's JS heap keeps whatever garbage and caches it built up while in
+// use, since nothing prompts a collection once it stops drawing. Out of sight
+// for a minute, with no call, ask V8 for a full collection and to drop its
+// caches (measured on a signed-in session: 183 -> 170 MB private).
+const RENDERER_TRIM_HIDDEN_MS = 60_000;
+let rendererTrimTimer = null;
+let rendererTrimmed = false;
+
+async function trimRendererIfIdle() {
+    rendererTrimTimer = null;
+    if (rendererTrimmed || !windowOutOfSight()) return;
+    if (callActive) {
+        rendererTrimTimer = setTimeout(
+            trimRendererIfIdle,
+            RENDERER_TRIM_HIDDEN_MS,
+        );
+        return;
+    }
+    rendererTrimmed = true;
+    const dbg = mainWindow.webContents.debugger;
+    try {
+        dbg.attach("1.3");
+        await dbg.sendCommand("HeapProfiler.collectGarbage");
+        await dbg.sendCommand("Memory.forciblyPurgeJavaScriptMemory");
+    } catch (err) {
+        console.error("renderer trim failed:", err);
+    } finally {
+        try {
+            dbg.detach();
+        } catch {}
+    }
+}
+
 function armGpuRecycle() {
+    if (!rendererTrimmed && !rendererTrimTimer) {
+        rendererTrimTimer = setTimeout(
+            trimRendererIfIdle,
+            RENDERER_TRIM_HIDDEN_MS,
+        );
+    }
     if (!hardwareAccelerationAtLaunch || gpuRecycled || gpuRecycleTimer) return;
     gpuRecycleTimer = setTimeout(recycleGpuIfIdle, GPU_RECYCLE_HIDDEN_MS);
 }
 
 function disarmGpuRecycle() {
+    clearTimeout(rendererTrimTimer);
+    rendererTrimTimer = null;
+    rendererTrimmed = false;
     clearTimeout(gpuRecycleTimer);
     gpuRecycleTimer = null;
     gpuRecycled = false;
