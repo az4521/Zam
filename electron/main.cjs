@@ -1933,7 +1933,11 @@ const skiaGraphiteAtLaunch =
     !skiaGraphiteForcedOff &&
     readGpuPrefs().skiaGraphite === true;
 if (skiaGraphiteAtLaunch) {
+    // Chromium ignores the feature on desktop Linux ("not-yet-supported
+    // platform", IsSkiaGraphiteSupportedByDevice in gpu_finch_features.cc);
+    // only the switch turns it on there. On Windows either works (D3D11).
     features.push("SkiaGraphite");
+    app.commandLine.appendSwitch("enable-skia-graphite");
     writeGpuPrefs({ skiaGraphitePending: Date.now() });
     // A run that stays up this long drew fine; a closed window counts too.
     const confirmGraphite = () =>

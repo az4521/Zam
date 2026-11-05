@@ -473,7 +473,7 @@
                     {t("gpuDebug.skiaGraphiteHint")}
                 </p>
                 <p class="text-xs text-discord-textMuted">
-                    {sg.activeAtLaunch
+                    {report.featureStatus?.skia_graphite?.startsWith("enabled")
                         ? t("gpuDebug.nvidiaVideoActive")
                         : t("gpuDebug.nvidiaVideoInactive")}
                 </p>
