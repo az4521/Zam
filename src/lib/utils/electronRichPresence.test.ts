@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { createRequire } from "module";
@@ -16,7 +16,7 @@ const { createRichPresence, socketLocation } = electron("richPresence.cjs");
 const { ipcBase } = electron("discordRpc.cjs");
 const { createPresenceImages } = electron("presenceImages.cjs");
 const { candidates, parseHostPs } = electron("gameScanner.cjs");
-const { loadGames } = electron("discordGames.cjs");
+const { createKnownGames } = electron("knownGames.cjs");
 
 interface Event {
     source: string;
@@ -39,6 +39,8 @@ function setup() {
     const rp = createRichPresence({
         send: (e: Event) => events.push(e),
         userDataDir: dir,
+        // Discord's game list, from a stand-in answer.
+        fetch: okFetch(),
     });
     stops.push(() => rp.stop());
     return { rp, events };
@@ -243,9 +245,119 @@ describe("Discord RPC", () => {
     });
 });
 
+// A stand-in for Discord's answer: Overwatch, a launcher-only entry, one with
+// no executable, and filler up to the size a real answer has.
+function detectable() {
+    const filler = Array.from({ length: 1200 }, (_, i) => ({
+        id: String(1000000 + i),
+        name: `Filler ${i}`,
+        icon_hash: null,
+        executables: [{ os: "win32", name: `filler${i}.exe` }],
+    }));
+    return [
+        {
+            id: "356875221078245376",
+            name: "Overwatch",
+            icon_hash: "0123456789abcdef0123456789abcdef",
+            executables: [
+                { os: "win32", name: "overwatch.exe" },
+                { os: "win32", name: "launcher.exe", is_launcher: true },
+            ],
+        },
+        { id: "5", name: "No Executable", executables: [] },
+        ...filler,
+    ];
+}
+
+const okFetch = (body: unknown = detectable()) =>
+    vi.fn(async (_url: string, _init?: unknown) => ({
+        ok: true,
+        status: 200,
+        json: async () => body,
+    }));
+
+function listFile() {
+    const dir = mkdtempSync(join(tmpdir(), "zam-kg-"));
+    dirs.push(dir);
+    return join(dir, "known-games.bin");
+}
+
 describe("game list and matching", () => {
+    it("downloads the list on first use and keeps it on disk", async () => {
+        const file = listFile();
+        const fetch = okFetch();
+        const known = createKnownGames({ file, fetch });
+        // First look: nothing yet, and a download starts.
+        expect((await known.load("win32")).byId.size).toBe(0);
+        await known.refresh();
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(known.status()).toMatchObject({
+            count: 1201,
+            downloading: false,
+            error: null,
+        });
+        const games = await known.load("win32");
+        expect(games.byId.get("356875221078245376")).toEqual({
+            name: "Overwatch",
+            icon: "0123456789abcdef0123456789abcdef",
+        });
+        expect(games.byExe.has("launcher.exe")).toBe(false);
+        expect(games.byId.has("5")).toBe(false);
+
+        // A new session finds it on disk and does not download again.
+        const again = createKnownGames({ file, fetch });
+        expect((await again.load("win32")).byId.size).toBe(1201);
+        await again.refresh();
+        expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("downloads again once the saved list is a week old", async () => {
+        const file = listFile();
+        const fetch = okFetch();
+        let clock = Date.now();
+        const known = createKnownGames({ file, fetch, now: () => clock });
+        await known.load();
+        await known.refresh();
+        clock += 8 * 24 * 3600 * 1000;
+        await known.refresh();
+        expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps a good list when the answer is bad, and backs off", async () => {
+        const file = listFile();
+        let clock = Date.now();
+        const good = createKnownGames({
+            file,
+            fetch: okFetch(),
+            now: () => clock,
+        });
+        await good.refresh({ force: true });
+
+        const bad = okFetch([{ id: "1", name: "x", executables: [] }]);
+        const known = createKnownGames({ file, fetch: bad, now: () => clock });
+        await known.refresh({ force: true });
+        expect(known.status().error).toMatch(/too short/);
+        expect((await known.load("win32")).byId.size).toBe(1201);
+
+        // Not retried straight away, but is after the back-off.
+        clock += 8 * 24 * 3600 * 1000;
+        await known.refresh();
+        expect(bad).toHaveBeenCalledTimes(2);
+        await known.refresh();
+        expect(bad).toHaveBeenCalledTimes(2);
+    });
+
+    it("never touches the network without a fetch function", async () => {
+        const known = createKnownGames({ file: listFile() });
+        expect((await known.load()).byId.size).toBe(0);
+        await known.refresh({ force: true });
+        expect(known.status().downloading).toBe(false);
+    });
+
     it("loads names, icons and this platform's executables", async () => {
-        const games = await loadGames("win32");
+        const known = createKnownGames({ file: listFile(), fetch: okFetch() });
+        await known.refresh({ force: true });
+        const games = await known.load("win32");
         expect(games.byId.get("356875221078245376").name).toBe("Overwatch");
         expect(games.byExe.get("overwatch.exe")[0].id).toBe(
             "356875221078245376",

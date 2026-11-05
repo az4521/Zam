@@ -23,8 +23,12 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { createDiscordRpc } = require("./discordRpc.cjs");
-const { createGameScanner, hostAccessAllowed } = require("./gameScanner.cjs");
-const { loadGames } = require("./discordGames.cjs");
+const {
+    createGameScanner,
+    hostAccessAllowed,
+    listPrograms,
+} = require("./gameScanner.cjs");
+const { createKnownGames } = require("./knownGames.cjs");
 
 const PORT_RANGE = [44190, 45190];
 const WS_PATH = "/presence";
@@ -58,14 +62,25 @@ function createRichPresence({
     // granted org.freedesktop.Flatpak); asked once, as it cannot change
     // without a restart.
     hostAccess = hostAccessAllowed,
+    // Downloads Discord's game list (net.fetch). Without it the list is only
+    // read from disk.
+    fetch,
     log = () => {},
 }) {
+    const knownGames = createKnownGames({
+        file: path.join(userDataDir, "known-games.bin"),
+        fetch,
+        log,
+    });
+    const loadGames = () => knownGames.load();
     let generation = 0;
     let hostAccessCheck = null;
     let tcp = null;
     let unix = null; // { server, wss, dir, key }
     let discord = null;
     let scanner = null;
+    // Games the user added by hand; the scanner reads this on every pass.
+    let customGames = [];
     const status = {
         msc4544: { listening: false, port: null, socket: null, error: null },
         arrpc: { running: false, ipcPath: null, wsPort: null, error: null },
@@ -367,7 +382,9 @@ function createRichPresence({
     function startScanner() {
         const s = createGameScanner({
             onActivity: (a) => void forwardActivity(a, true),
+            loadGames,
             viaHost: inFlatpak,
+            getCustomGames: () => customGames,
             log,
         });
         s.start();
@@ -388,8 +405,21 @@ function createRichPresence({
      */
     async function configure(want) {
         const gen = ++generation;
+        customGames = (Array.isArray(want?.games) ? want.games : [])
+            .filter(
+                (g) =>
+                    typeof g?.id === "string" &&
+                    typeof g.name === "string" &&
+                    typeof g.exe === "string" &&
+                    g.exe,
+            )
+            .slice(0, 100)
+            .map((g) => ({ id: g.id, name: g.name, exe: g.exe }));
         const local = !!want?.local;
         const userId = typeof want?.userId === "string" ? want.userId : "";
+
+        // Discord's game list is only fetched once something needs it.
+        if (local && (want.arrpc || want.scan)) void knownGames.load();
 
         if (!local) {
             stopTcp();
@@ -451,6 +481,7 @@ function createRichPresence({
                         : { running: false, error: null }),
                     needsPermission: status.scan.needsPermission,
                 },
+                games: knownGames.status(),
             }),
         );
     }
@@ -463,7 +494,12 @@ function createRichPresence({
         stopScanner();
     }
 
-    return { configure, getStatus, stop };
+    return {
+        configure,
+        getStatus,
+        stop,
+        programs: () => listPrograms(inFlatpak),
+    };
 }
 
 module.exports = { createRichPresence, socketLocation };

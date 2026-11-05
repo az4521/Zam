@@ -4,9 +4,11 @@ import { auth } from "$lib/stores/auth.svelte";
 import { requestProfile } from "$lib/stores/profileFields.svelte";
 import {
     readRichPresenceApps,
+    readRichPresenceGames,
     readRichPresenceImages,
     settingsState,
     writeRichPresenceApps,
+    writeRichPresenceGames,
     writeRichPresenceImages,
 } from "$lib/stores/settings.svelte";
 import { PROFILE_FIELDS } from "$lib/utils/extendedProfile";
@@ -53,8 +55,17 @@ interface Held {
     raw: string;
 }
 
+/** A game the user registered by hand, for programs Discord's list lacks. */
+export interface CustomGame {
+    id: string;
+    name: string;
+    /** Full path of the executable. */
+    exe: string;
+}
+
 class RichPresenceState {
     apps = $state<Record<string, KnownApp>>(loadApps());
+    games = $state<CustomGame[]>(loadGames());
     status = $state<DesktopRichPresenceStatus | null>(null);
     /** Entries currently held for allowed apps (what we would publish). */
     heldCount = $state(0);
@@ -88,7 +99,71 @@ function saveApps(): void {
     writeRichPresenceApps(JSON.stringify(richPresenceState.apps));
 }
 
+function loadGames(): CustomGame[] {
+    try {
+        const parsed = JSON.parse(readRichPresenceGames() ?? "[]");
+        return (Array.isArray(parsed) ? parsed : []).filter(
+            (g): g is CustomGame =>
+                typeof g?.id === "string" &&
+                typeof g.name === "string" &&
+                typeof g.exe === "string",
+        );
+    } catch {
+        return [];
+    }
+}
+
+/** A stable id from the path, so adding the same program twice is one game. */
+function gameIdFor(exe: string): string {
+    let h = 5381;
+    for (const ch of exe.toLowerCase().replaceAll("\\", "/"))
+        h = ((h * 33) ^ ch.charCodeAt(0)) >>> 0;
+    return `custom-${h.toString(16)}`;
+}
+
+/** Programs running now, to pick a game from (empty off the desktop app). */
+export async function listRunningPrograms(): Promise<
+    { path: string; name: string }[]
+> {
+    try {
+        return (await bridge()?.programs()) ?? [];
+    } catch {
+        return [];
+    }
+}
+
+/** Register a program as a game. It is allowed at once: adding it is the
+ *  user's say-so, unlike a game the scanner finds by itself. */
+export function addCustomGame(name: string, exe: string): void {
+    const trimmed = name.trim().slice(0, 64);
+    if (!trimmed || !exe) return;
+    const id = gameIdFor(exe);
+    const games = richPresenceState.games.filter((g) => g.id !== id);
+    games.push({ id, name: trimmed, exe });
+    richPresenceState.games = games;
+    writeRichPresenceGames(JSON.stringify(games));
+    richPresenceState.apps[`arrpc:${id}`] = {
+        name: trimmed,
+        source: "arrpc",
+        allowed: true,
+        lastSeen: 0,
+    };
+    saveApps();
+    void syncRichPresence();
+}
+
+export function removeCustomGame(id: string): void {
+    const games = richPresenceState.games.filter((g) => g.id !== id);
+    richPresenceState.games = games;
+    writeRichPresenceGames(JSON.stringify(games));
+    forgetApp(`arrpc:${id}`);
+    void syncRichPresence();
+}
+
 const held = new Map<string, Held>();
+/** The latest event of each blocked app, by held key: not published, only
+ *  remembered, so allowing the app does not wait for its next report. */
+const blocked = new Map<string, DesktopRichPresenceEvent>();
 let unsubscribe: (() => void) | null = null;
 let publishTimer: ReturnType<typeof setTimeout> | null = null;
 let expiryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -125,10 +200,12 @@ export async function syncRichPresence(): Promise<void> {
             arrpc,
             scan,
             userId: auth.userId ?? "",
+            games: $state.snapshot(richPresenceState.games),
         });
     } catch {
         richPresenceState.status = null;
     }
+    watchListDownload();
     if (!local) {
         unsubscribe?.();
         unsubscribe = null;
@@ -143,6 +220,25 @@ export async function syncRichPresence(): Promise<void> {
     }
 }
 
+let listWatch: ReturnType<typeof setTimeout> | null = null;
+
+/** The game list downloads in the background; look again until it is done so
+ *  the settings page shows the result. */
+function watchListDownload(tries = 0): void {
+    if (listWatch) clearTimeout(listWatch);
+    listWatch = null;
+    if (!richPresenceState.status?.games?.downloading || tries >= 20) return;
+    listWatch = setTimeout(async () => {
+        listWatch = null;
+        try {
+            richPresenceState.status = (await bridge()?.status()) ?? null;
+        } catch {
+            return;
+        }
+        watchListDownload(tries + 1);
+    }, 1500);
+}
+
 /** Stop everything and take our presence off the profile (best effort). */
 export function stopRichPresence(): void {
     unsubscribe?.();
@@ -152,12 +248,14 @@ export function stopRichPresence(): void {
         arrpc: false,
         scan: false,
         userId: "",
+        games: [],
     });
     clearHeld();
 }
 
 function clearHeld(): void {
     held.clear();
+    blocked.clear();
     schedulePublish();
 }
 
@@ -169,6 +267,14 @@ export function setAppAllowed(appKey: string, allowed: boolean): void {
     if (!allowed) {
         for (const [k, h] of held) if (h.appKey === appKey) held.delete(k);
         schedulePublish();
+        return;
+    }
+    // Replay what the app was doing while it was blocked, rather than waiting
+    // for it to say so again (the game scanner only repeats every 15 seconds).
+    for (const [k, ev] of blocked) {
+        if (`${ev.source}:${ev.app.id}` !== appKey) continue;
+        blocked.delete(k);
+        handleEvent(ev);
     }
 }
 
@@ -176,6 +282,8 @@ export function forgetApp(appKey: string): void {
     delete richPresenceState.apps[appKey];
     saveApps();
     for (const [k, h] of held) if (h.appKey === appKey) held.delete(k);
+    for (const [k, ev] of blocked)
+        if (`${ev.source}:${ev.app.id}` === appKey) blocked.delete(k);
     schedulePublish();
 }
 
@@ -193,18 +301,22 @@ function handleEvent(ev: DesktopRichPresenceEvent): void {
 
     // A removal says nothing new about the app.
     if (ev.presence === null || ev.presence === undefined) {
+        blocked.delete(heldKey);
         if (held.delete(heldKey)) schedulePublish();
         return;
     }
 
-    // Remember the app the first time we see it, blocked until allowed.
+    // Remember the app the first time we see it, blocked until allowed, except
+    // a game the scanner matched against Discord's list: the user switched
+    // detection on, and the list is what makes the match trustworthy. (An app
+    // that reports for itself says whatever it likes, so it still waits.)
     const now = Date.now();
     const known = richPresenceState.apps[appKey];
     if (!known) {
         richPresenceState.apps[appKey] = {
             name,
             source: ev.source,
-            allowed: false,
+            allowed: ev.source === "arrpc" && ev.presenceId.startsWith("scan-"),
             lastSeen: now,
         };
         saveApps();
@@ -214,7 +326,11 @@ function handleEvent(ev: DesktopRichPresenceEvent): void {
         saveApps();
     }
 
-    if (!richPresenceState.apps[appKey].allowed) return;
+    if (!richPresenceState.apps[appKey].allowed) {
+        // Kept so allowing the app publishes at once (see setAppAllowed).
+        blocked.set(heldKey, ev);
+        return;
+    }
 
     // The game scanner repeats itself every few seconds; only a change counts.
     let raw = "";
@@ -465,6 +581,7 @@ function renew(): void {
 /** Test hook: forget all module state. */
 export function resetRichPresenceForTests(): void {
     held.clear();
+    blocked.clear();
     published = false;
     chain = Promise.resolve();
     for (const timer of [publishTimer, expiryTimer])

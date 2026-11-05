@@ -12,6 +12,7 @@
     } from "$lib/utils/presence";
     import { settingsState } from "$lib/stores/settings.svelte";
     import { openModal, closeModal } from "$lib/stores/interface.svelte";
+    import { openProfileCard } from "$lib/stores/profileCard.svelte";
     import { getOwnAvatarUrl } from "$lib/matrix/client";
     import {
         verificationStatusState,
@@ -135,12 +136,20 @@
 <div
     class="w-full h-14 px-2 flex items-center gap-2 bg-discord-backgroundTertiary flex-shrink-0"
 >
-    <button
-        onclick={openAccountSwitcher}
-        class="flex-1 flex items-center gap-2 min-w-0 rounded p-1 -m-1 hover:bg-discord-messageHover transition-colors text-start"
-        title={t("profileFooter.switchAccounts")}
-    >
-        <div class="relative">
+    <div class="flex-1 flex items-center gap-2 min-w-0">
+        <!-- The profile card needs a room for power levels, and is mounted
+             with the room view, so there is nothing to open without one. -->
+        <button
+            onclick={(e) => {
+                if (auth.userId && roomsState.activeRoomId)
+                    openProfileCard(auth.userId, e.currentTarget);
+                else openAccountSwitcher();
+            }}
+            class="relative flex-shrink-0 rounded-full"
+            title={roomsState.activeRoomId
+                ? t("messageItem.viewProfile")
+                : t("profileFooter.switchAccounts")}
+        >
             <Avatar
                 src={ownAvatarSrc}
                 name={auth.userId || "?"}
@@ -151,8 +160,12 @@
                 title={ownPresence.label}
                 class="absolute bottom-0 end-0 w-3 h-3 {ownPresence.dotClass} rounded-full border-2 border-discord-backgroundTertiary"
             ></div>
-        </div>
-        <div class="flex-1 min-w-0">
+        </button>
+        <button
+            onclick={openAccountSwitcher}
+            class="flex-1 min-w-0 rounded p-1 -m-1 hover:bg-discord-messageHover transition-colors text-start"
+            title={t("profileFooter.switchAccounts")}
+        >
             <p class="text-sm font-semibold text-discord-textPrimary truncate">
                 {auth.userId?.split(":")[0].replace("@", "") ??
                     t("profileFooter.unknown")}
@@ -160,8 +173,8 @@
             <p class="text-xs text-discord-textSecondary truncate">
                 {auth.userId ?? ""}
             </p>
-        </div>
-    </button>
+        </button>
+    </div>
     <button
         onclick={onSettings}
         class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"

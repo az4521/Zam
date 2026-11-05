@@ -131,7 +131,15 @@ contextBridge.exposeInMainWorld("desktop", {
                 arrpc: !!want?.arrpc,
                 scan: !!want?.scan,
                 userId: String(want?.userId ?? ""),
+                games: Array.isArray(want?.games)
+                    ? want.games.map((g) => ({
+                          id: String(g?.id ?? ""),
+                          name: String(g?.name ?? ""),
+                          exe: String(g?.exe ?? ""),
+                      }))
+                    : [],
             }),
+        programs: () => ipcRenderer.invoke("rich-presence:programs"),
         image: (appId, ref) =>
             ipcRenderer.invoke(
                 "rich-presence:image",

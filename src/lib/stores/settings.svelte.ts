@@ -942,6 +942,15 @@ export function readRichPresenceApps(): string | null {
     return readString("richPresenceApps");
 }
 
+/** Games the user added by hand (JSON; see stores/richPresence.svelte). */
+export function readRichPresenceGames(): string | null {
+    return readString("richPresenceGames");
+}
+
+export function writeRichPresenceGames(json: string): void {
+    writeString("richPresenceGames", json);
+}
+
 export function writeRichPresenceApps(json: string): void {
     writeString("richPresenceApps", json);
 }

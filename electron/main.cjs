@@ -876,7 +876,11 @@ ipcMain.handle("rich-presence:configure", (_e, want) =>
         arrpc: want?.arrpc === true,
         scan: want?.scan === true,
         userId: typeof want?.userId === "string" ? want.userId : "",
+        games: want?.games,
     }),
+);
+ipcMain.handle("rich-presence:programs", () =>
+    richPresence.programs().catch(() => []),
 );
 // Pictures for presence, over net.fetch so the proxy setting applies.
 const presenceImages = createPresenceImages({

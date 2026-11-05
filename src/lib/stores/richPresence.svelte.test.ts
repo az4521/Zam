@@ -280,6 +280,51 @@ describe("rich presence store", () => {
         expect(setOwnProfileField.mock.calls.length).toBe(writes);
     });
 
+    it("allows a game the scanner found by default", async () => {
+        const { settings, rp } = await load();
+        settings.setRichPresenceEnabled(true);
+        await rp.syncRichPresence();
+        handler!(game());
+        expect(rp.richPresenceState.apps["arrpc:123"].allowed).toBe(true);
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(setOwnProfileField).toHaveBeenCalled();
+    });
+
+    it("blocks an app that reports for itself until it is allowed", async () => {
+        const { settings, rp } = await load();
+        settings.setRichPresenceEnabled(true);
+        await rp.syncRichPresence();
+        handler!({ ...game(), presenceId: "rpc-socket-1" });
+        expect(rp.richPresenceState.apps["arrpc:123"].allowed).toBe(false);
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(setOwnProfileField).not.toHaveBeenCalled();
+    });
+
+    it("publishes at once when a blocked app is allowed", async () => {
+        const { settings, rp } = await load();
+        settings.setRichPresenceEnabled(true);
+        await rp.syncRichPresence();
+        handler!(ev());
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(setOwnProfileField).not.toHaveBeenCalled();
+
+        // No second event from the app: allowing alone is enough.
+        rp.setAppAllowed("msc4544:app1", true);
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(setOwnProfileField).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not replay what a removed app was doing", async () => {
+        const { settings, rp } = await load();
+        settings.setRichPresenceEnabled(true);
+        await rp.syncRichPresence();
+        handler!(ev());
+        handler!(ev({ presence: null }));
+        rp.setAppAllowed("msc4544:app1", true);
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(setOwnProfileField).not.toHaveBeenCalled();
+    });
+
     it("ignores a removal for an app it has never seen", async () => {
         const { settings, rp } = await load();
         settings.setRichPresenceEnabled(true);

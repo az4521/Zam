@@ -1,5 +1,5 @@
 // Notices games that are running by their executable, using Discord's list of
-// detectable games (discordGames.cjs), so games that never report anything
+// detectable games (knownGames.cjs, downloaded on first use), so games that never report anything
 // still show up. The matching follows arRPC's
 // (https://github.com/OpenAsar/arrpc, MIT).
 //
@@ -9,7 +9,6 @@
 
 const fs = require("fs");
 const { execFile } = require("child_process");
-const { loadGames } = require("./discordGames.cjs");
 
 const SCAN_EVERY_MS = 15_000;
 
@@ -166,6 +165,25 @@ async function listLinux() {
     return rows.filter(Boolean);
 }
 
+const normalizePath = (p) => String(p).toLowerCase().replaceAll("\\", "/");
+
+/**
+ * Programs running now, one row per distinct executable, for picking a game
+ * Discord's list does not know. Windows' own folder is left out.
+ */
+async function listPrograms(viaHost = false) {
+    const byPath = new Map();
+    for (const proc of await listProcesses(viaHost)) {
+        const full = proc.paths[proc.paths.length - 1];
+        if (!full) continue;
+        const key = normalizePath(full);
+        if (key.startsWith("c:/windows/") || byPath.has(key)) continue;
+        const base = full.split(/[\\/]/).pop() ?? full;
+        byPath.set(key, { path: full, name: base.replace(/\.exe$/i, "") });
+    }
+    return [...byPath.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /** Every trailing piece of a path, with and without "64" markers. */
 function candidates(fullPath) {
     const parts = fullPath.toLowerCase().replaceAll("\\", "/").split("/");
@@ -184,7 +202,15 @@ function candidates(fullPath) {
  * starts (with a start time) and again on every scan while it runs, and with
  * `activity: null` once it is gone.
  */
-function createGameScanner({ onActivity, viaHost = false, log = () => {} }) {
+function createGameScanner({
+    onActivity,
+    // () => Promise<{ byId, byExe }>, from knownGames.cjs.
+    loadGames,
+    viaHost = false,
+    log = () => {},
+    // Games the user added by hand: [{ id, name, exe }], exe a full path.
+    getCustomGames = () => [],
+}) {
     let timer = null;
     let scanning = false;
     let running = false;
@@ -198,7 +224,18 @@ function createGameScanner({ onActivity, viaHost = false, log = () => {} }) {
             const { byId, byExe } = await loadGames();
             const procs = await listProcesses(viaHost);
             const seen = new Set();
+            const custom = new Map(
+                getCustomGames().map((g) => [
+                    g.id,
+                    { ...g, exe: normalizePath(g.exe) },
+                ]),
+            );
             for (const proc of procs) {
+                for (const full of proc.paths) {
+                    const norm = normalizePath(full);
+                    for (const g of custom.values())
+                        if (g.exe === norm) seen.add(g.id);
+                }
                 for (const full of proc.paths) {
                     const tails = candidates(full);
                     const baseName = full
@@ -221,7 +258,7 @@ function createGameScanner({ onActivity, viaHost = false, log = () => {} }) {
                 }
             }
             for (const id of seen) {
-                const game = byId.get(id);
+                const game = byId.get(id) ?? custom.get(id);
                 if (!game) continue;
                 if (!found.has(id)) {
                     found.set(id, Date.now());
@@ -244,7 +281,10 @@ function createGameScanner({ onActivity, viaHost = false, log = () => {} }) {
             for (const id of [...found.keys()]) {
                 if (seen.has(id)) continue;
                 found.delete(id);
-                log("game stopped:", byId.get(id)?.name ?? id);
+                log(
+                    "game stopped:",
+                    (byId.get(id) ?? custom.get(id))?.name ?? id,
+                );
                 onActivity({
                     socketId: `scan-${id}`,
                     clientId: id,
@@ -289,6 +329,7 @@ function createGameScanner({ onActivity, viaHost = false, log = () => {} }) {
 
 module.exports = {
     createGameScanner,
+    listPrograms,
     candidates,
     parseHostPs,
     hostAccessAllowed,

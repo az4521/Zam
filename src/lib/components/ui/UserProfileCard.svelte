@@ -8,7 +8,10 @@
     import { nextRpcExpiry, parseRpcField } from "$lib/utils/richPresence";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
     import { auth } from "$lib/stores/auth.svelte";
-    import { interfaceState } from "$lib/stores/interface.svelte";
+    import {
+        interfaceState,
+        openAppSettingsTab,
+    } from "$lib/stores/interface.svelte";
     import {
         profileCardState,
         closeProfileCard,
@@ -235,7 +238,7 @@
     let devicesError = $state(false);
 
     async function loadDevices(refresh = false) {
-        if (isSelf || !userId || !isCryptoAvailable()) return;
+        if (!userId || !isCryptoAvailable()) return;
         const target = userId;
         devicesLoading = true;
         devicesError = false;
@@ -344,6 +347,11 @@
             ? "border-discord-backgroundTertiary"
             : "border-discord-backgroundSecondary",
     );
+
+    function editOwnProfile() {
+        // openAppSettingsTab claims the modal slot, closing this card.
+        openAppSettingsTab("account");
+    }
 
     async function copyUserId() {
         try {
@@ -655,7 +663,7 @@
             </div>
         {/if}
 
-        {#if !isSelf && isCryptoAvailable()}
+        {#if isCryptoAvailable()}
             <div class="mt-3 pt-3 border-t border-discord-divider">
                 <div class="flex items-center gap-1">
                     <button
@@ -840,6 +848,18 @@
                         {/if}
                     </div>
                 {/if}
+            </div>
+        {/if}
+
+        {#if isSelf}
+            <!-- Same card others see, plus what only the owner can do. -->
+            <div class="mt-3 pt-3 border-t border-discord-divider space-y-1.5">
+                <button
+                    onclick={editOwnProfile}
+                    class="w-full px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors"
+                >
+                    {t("userProfileCard.editProfile")}
+                </button>
             </div>
         {/if}
 

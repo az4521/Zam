@@ -81,8 +81,9 @@ github.com/jitsi/rnnoise-wasm).
 
 `electron/discordRpc.cjs` and `electron/gameScanner.cjs` follow the wire
 formats and game-matching rules of arRPC (github.com/OpenAsar/arrpc), which
-is MIT-licensed. `electron/discordGames.json` is Discord's public list of
-detectable games, cut down by `scripts/update-detectable.mjs`.
+is MIT-licensed. Discord's public list of detectable games is not
+distributed with the app: it is downloaded from Discord's API the first time
+game detection is used, and kept in the user data folder.
 
     MIT License
 

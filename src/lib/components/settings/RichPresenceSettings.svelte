@@ -8,7 +8,10 @@
         settingsState,
     } from "$lib/stores/settings.svelte";
     import {
+        addCustomGame,
         forgetApp,
+        listRunningPrograms,
+        removeCustomGame,
         richPresenceAvailable,
         richPresenceState,
         setAppAllowed,
@@ -40,6 +43,67 @@
         setRichPresenceArrpc(next);
         void syncRichPresence();
     }
+
+    // Added games: pick a running program, name it, and it is a game.
+    let picking = $state(false);
+    let programs = $state<{ path: string; name: string }[]>([]);
+    let loadingPrograms = $state(false);
+    let query = $state("");
+    let chosen = $state<{ path: string; name: string } | null>(null);
+    let gameName = $state("");
+
+    const shownPrograms = $derived.by(() => {
+        const q = query.trim().toLowerCase();
+        return programs
+            .filter(
+                (p) =>
+                    !q ||
+                    p.name.toLowerCase().includes(q) ||
+                    p.path.toLowerCase().includes(q),
+            )
+            .slice(0, 100);
+    });
+
+    async function loadPrograms(): Promise<void> {
+        loadingPrograms = true;
+        programs = await listRunningPrograms();
+        loadingPrograms = false;
+    }
+
+    function startPicking(): void {
+        picking = true;
+        chosen = null;
+        query = "";
+        void loadPrograms();
+    }
+
+    function choose(p: { path: string; name: string }): void {
+        chosen = p;
+        gameName = p.name;
+    }
+
+    function confirmAdd(): void {
+        if (!chosen || !gameName.trim()) return;
+        addCustomGame(gameName, chosen.path);
+        picking = false;
+        chosen = null;
+    }
+
+    const lastPlayed = (ts: number): string => {
+        if (!ts) return t("richPresence.neverPlayed");
+        const days = Math.round((ts - Date.now()) / 86_400_000);
+        const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+        let when: string;
+        if (Math.abs(days) >= 30)
+            when = rtf.format(Math.round(days / 30), "month");
+        else if (Math.abs(days) >= 1) when = rtf.format(days, "day");
+        else
+            when = rtf.format(
+                Math.round((ts - Date.now()) / 3_600_000),
+                "hour",
+            );
+        return t("richPresence.lastPlayed", { when });
+    };
 </script>
 
 {#if richPresenceAvailable()}
@@ -154,6 +218,29 @@
                         })}
                     </p>
                 {/if}
+                {#if settingsState.richPresenceEnabled && (settingsState.richPresenceScan || settingsState.richPresenceArrpc) && status?.games}
+                    {#if status.games.downloading}
+                        <p class="text-xs text-discord-textMuted">
+                            {t("richPresence.gameListDownloading")}
+                        </p>
+                    {:else if status.games.updated !== null}
+                        <p class="text-xs text-discord-textMuted">
+                            {t("richPresence.gameList", {
+                                count: String(status.games.count),
+                                when: new Date(
+                                    status.games.updated,
+                                ).toLocaleDateString(),
+                            })}
+                        </p>
+                    {/if}
+                    {#if status.games.error}
+                        <p class="text-xs text-discord-danger">
+                            {t("richPresence.gameListFailed", {
+                                error: status.games.error,
+                            })}
+                        </p>
+                    {/if}
+                {/if}
             </div>
             <ToggleSwitch
                 checked={settingsState.richPresenceScan}
@@ -163,7 +250,10 @@
         </div>
 
         <p class="text-sm text-discord-textPrimary mt-4 mb-1">
-            {t("richPresence.apps")}
+            {t("richPresence.addedGames")}
+        </p>
+        <p class="text-xs text-discord-textMuted mb-2">
+            {t("richPresence.addedGamesHint")}
         </p>
         {#if apps.length === 0}
             <p class="text-xs text-discord-textMuted">
@@ -172,6 +262,9 @@
         {:else}
             <ul>
                 {#each apps as [key, app] (key)}
+                    {@const added = richPresenceState.games.find(
+                        (g) => `arrpc:${g.id}` === key,
+                    )}
                     <li
                         class="flex items-center gap-3 py-2 border-b border-discord-divider"
                     >
@@ -181,15 +274,21 @@
                             >
                                 {app.name}
                             </p>
-                            <p class="text-xs text-discord-textMuted">
-                                {app.source === "arrpc"
-                                    ? t("richPresence.viaDiscord")
-                                    : t("richPresence.viaMatrix")}
-                                ·
-                                {app.allowed
-                                    ? t("richPresence.allowed")
-                                    : t("richPresence.blocked")}
-                            </p>
+                            {#if added}
+                                <p
+                                    class="text-xs text-discord-textMuted truncate"
+                                    title={added.exe}
+                                >
+                                    {added.exe}
+                                </p>
+                            {:else}
+                                <p class="text-xs text-discord-textMuted">
+                                    {app.source === "arrpc"
+                                        ? t("richPresence.viaDiscord")
+                                        : t("richPresence.viaMatrix")}
+                                    · {lastPlayed(app.lastSeen)}
+                                </p>
+                            {/if}
                         </div>
                         <button
                             type="button"
@@ -197,9 +296,14 @@
                             aria-label={t("richPresence.forgetApp", {
                                 name: app.name,
                             })}
-                            onclick={() => forgetApp(key)}
+                            onclick={() =>
+                                added
+                                    ? removeCustomGame(added.id)
+                                    : forgetApp(key)}
                         >
-                            {t("richPresence.forget")}
+                            {added
+                                ? t("common.remove")
+                                : t("richPresence.forget")}
                         </button>
                         <ToggleSwitch
                             checked={app.allowed}
@@ -211,6 +315,104 @@
                     </li>
                 {/each}
             </ul>
+        {/if}
+        {#if picking}
+            <div
+                class="mt-2 rounded bg-discord-backgroundTertiary p-3 space-y-2"
+            >
+                {#if chosen}
+                    <p class="text-xs text-discord-textMuted break-all">
+                        {chosen.path}
+                    </p>
+                    <label class="block text-xs text-discord-textMuted">
+                        {t("richPresence.gameName")}
+                        <input
+                            type="text"
+                            maxlength="64"
+                            bind:value={gameName}
+                            class="mt-1 w-full rounded bg-discord-background px-2 py-1.5 text-sm text-discord-textPrimary"
+                        />
+                    </label>
+                    <div class="flex gap-2">
+                        <button
+                            type="button"
+                            class="px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold disabled:opacity-50"
+                            disabled={!gameName.trim()}
+                            onclick={confirmAdd}
+                        >
+                            {t("common.add")}
+                        </button>
+                        <button
+                            type="button"
+                            class="px-3 py-1.5 rounded text-sm text-discord-textMuted hover:text-discord-textPrimary"
+                            onclick={() => (chosen = null)}
+                        >
+                            {t("common.cancel")}
+                        </button>
+                    </div>
+                {:else}
+                    <div class="flex items-center gap-2">
+                        <input
+                            type="search"
+                            bind:value={query}
+                            placeholder={t("richPresence.searchPrograms")}
+                            aria-label={t("richPresence.searchPrograms")}
+                            class="flex-1 min-w-0 rounded bg-discord-background px-2 py-1.5 text-sm text-discord-textPrimary"
+                        />
+                        <button
+                            type="button"
+                            class="text-xs text-discord-textMuted hover:text-discord-textPrimary"
+                            disabled={loadingPrograms}
+                            onclick={loadPrograms}
+                        >
+                            {t("richPresence.refreshPrograms")}
+                        </button>
+                        <button
+                            type="button"
+                            class="text-xs text-discord-textMuted hover:text-discord-textPrimary"
+                            onclick={() => (picking = false)}
+                        >
+                            {t("common.cancel")}
+                        </button>
+                    </div>
+                    {#if shownPrograms.length === 0}
+                        <p class="text-xs text-discord-textMuted">
+                            {loadingPrograms
+                                ? t("common.loading")
+                                : t("richPresence.noPrograms")}
+                        </p>
+                    {:else}
+                        <ul class="max-h-56 overflow-y-auto">
+                            {#each shownPrograms as p (p.path)}
+                                <li>
+                                    <button
+                                        type="button"
+                                        class="w-full text-start rounded px-2 py-1 hover:bg-discord-messageHover"
+                                        onclick={() => choose(p)}
+                                    >
+                                        <span
+                                            class="block text-sm text-discord-textPrimary truncate"
+                                            >{p.name}</span
+                                        >
+                                        <span
+                                            class="block text-xs text-discord-textMuted truncate"
+                                            >{p.path}</span
+                                        >
+                                    </button>
+                                </li>
+                            {/each}
+                        </ul>
+                    {/if}
+                {/if}
+            </div>
+        {:else}
+            <button
+                type="button"
+                class="mt-2 px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-sm font-semibold text-discord-textPrimary"
+                onclick={startPicking}
+            >
+                {t("richPresence.addGame")}
+            </button>
         {/if}
     </section>
 {/if}

@@ -65,6 +65,14 @@ declare global {
              *  org.freedesktop.Flatpak, so it cannot list host processes. */
             needsPermission: boolean;
         };
+        /** Discord's list of detectable games, downloaded on first use. */
+        games: {
+            count: number;
+            /** When the saved list was fetched (ms), or null if there is none. */
+            updated: number | null;
+            downloading: boolean;
+            error: string | null;
+        };
     }
 
     /** One add/replace (`presence` set) or removal (null) from a local app. */
@@ -264,7 +272,11 @@ declare global {
                     scan: boolean;
                     /** Names the Unix socket (as an opaque hash). */
                     userId: string;
+                    /** Games the user added by hand (exe is a full path). */
+                    games: { id: string; name: string; exe: string }[];
                 }) => Promise<DesktopRichPresenceStatus>;
+                /** Programs running now, to pick a game from. */
+                programs: () => Promise<{ path: string; name: string }[]>;
                 /** A picture a presence refers to (an icon, a cover), fetched
                  *  from Discord's or Spotify's hosts only; null if none. */
                 image: (
