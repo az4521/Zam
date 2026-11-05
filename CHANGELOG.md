@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.52.3
+
+✨ **New**
+
+- **Memory over time (desktop):** Settings > Debug > GPU can record the memory report every few seconds while you use the app, then show how each part grew or shrank, copy that as text, or save every sample as a CSV.
+
+🐛 **Fixed**
+
+- **Steadier scrolling past links and media:** link previews hold their space while they load, cards whose site gives no image size are all one size, and messages scrolled away and back keep their size instead of growing again as their previews and images reload.
+
 ## v1.52.2
 
 🐛 **Fixed**
