@@ -4,6 +4,28 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.51.0
+
+✨ **New**
+
+- **Swipe sheets away:** on phones, menus and other sheets that slide up from the bottom can be dragged down to close them, like in other apps.
+- **Profile cards on phones:** tapping someone's name or avatar slides their profile up from the bottom, and you can swipe it away.
+- **Full room description on phones:** tap the description under the room name to read all of it.
+- **Camera, photos or files:** on mobile web, the + menu now has separate Camera, Photos & videos and Files options, so you no longer have to pick from your phone's menu every time.
+- **Rooms in a space are open to the space:** a room you create inside a space can be joined by anyone in that space, without inviting each person.
+- **Leaving as the last member:** if you're the only person in a room or space, Zam warns you before you leave that no one will be able to join it afterwards.
+
+⚡ **Improved**
+
+- **Swipe to reply:** the reply icon fades in and grows as you swipe, and the message springs back when you let go.
+- **Sidebar:** joined and unjoined rooms now look the same size, "Browse rooms" lines up with the other headings, the sidebar says "Rooms" everywhere, and AMOLED mode has a thin line between the server list and the room list.
+
+🐛 **Fixed**
+
+- **Rooms you left in a space:** rooms you've left now show up under "Browse rooms" so you can join them again.
+- **New rooms in Browse rooms:** a room in a space that becomes open to the space shows up within a minute, instead of up to five.
+- **Changing someone's power level:** the member list now shows the new level as soon as it's saved.
+
 ## v1.50.0
 
 ✨ **New**
