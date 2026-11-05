@@ -342,8 +342,18 @@ export const PING_PATTERN: ToneSegment[] = [
     { type: "sine", from: 1319, to: 1319, at: 0.09, duration: 0.2, peak: 0.55 },
 ];
 
+/** A burst of notifying events (catch-up sync, someone pasting ten lines)
+ *  calls playPing() once per event in the same tick. Each call schedules its
+ *  oscillators at the same audio time, so N pings sum into one N-times-louder
+ *  blast. One ping per window is all a burst needs. */
+const PING_COOLDOWN_MS = 1500;
+let lastPingAt = -Infinity;
+
 export function playPing(): void {
+    const now = performance.now();
+    if (now - lastPingAt < PING_COOLDOWN_MS) return;
     if (!ensureContext() || !ctx) return;
+    lastPingAt = now;
     const dest = ctx.createGain();
     dest.gain.value = 0.7;
     dest.connect(ctx.destination);

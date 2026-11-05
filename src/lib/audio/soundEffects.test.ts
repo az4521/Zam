@@ -289,3 +289,26 @@ describe("ring routing invariant", () => {
         expect(ctx.oscillators.length).toBe(before);
     });
 });
+
+describe("notification ping", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.resetModules();
+        vi.useRealTimers();
+    });
+
+    it("plays one ping for a burst instead of stacking them", async () => {
+        vi.useFakeTimers();
+        const { instances, mod } = await freshSoundEngine();
+        const perPing = mod.PING_PATTERN.length;
+
+        // A catch-up sync delivering 30 notifying messages at once.
+        for (let i = 0; i < 30; i++) mod.playPing();
+        expect(instances[0].oscillators).toHaveLength(perPing);
+
+        // A message arriving after the burst has died down still pings.
+        vi.advanceTimersByTime(2000);
+        mod.playPing();
+        expect(instances[0].oscillators).toHaveLength(perPing * 2);
+    });
+});
