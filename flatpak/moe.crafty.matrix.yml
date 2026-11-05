@@ -29,7 +29,8 @@ finish-args:
     - --filesystem=xdg-download
     # Rich presence: apps that report what they are doing to Discord find
     # discord-ipc-N here (electron/discordRpc.cjs). Creating the folder
-    # shares it with the host. Game detection can't work in a sandbox.
+    # shares it with the host. Game detection needs the user to opt in with
+    # flatpak override (see Settings > General); it is not granted here.
     - --filesystem=xdg-run/app/com.discordapp.Discord:create
     - --talk-name=org.freedesktop.Notifications
     # Tray icon (StatusNotifierItem).

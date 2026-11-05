@@ -61,8 +61,9 @@ declare global {
         scan: {
             running: boolean;
             error: string | null;
-            /** True in a Flatpak, which cannot see the host's processes. */
-            unsupported: boolean;
+            /** In a Flatpak: scanning is on but the user has not granted
+             *  org.freedesktop.Flatpak, so it cannot list host processes. */
+            needsPermission: boolean;
         };
     }
 

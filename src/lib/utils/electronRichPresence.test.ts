@@ -15,7 +15,7 @@ const electron = (name: string) =>
 const { createRichPresence, socketLocation } = electron("richPresence.cjs");
 const { ipcBase } = electron("discordRpc.cjs");
 const { createPresenceImages } = electron("presenceImages.cjs");
-const { candidates } = electron("gameScanner.cjs");
+const { candidates, parseHostPs } = electron("gameScanner.cjs");
 const { loadGames } = electron("discordGames.cjs");
 
 interface Event {
@@ -380,16 +380,62 @@ describe("Flatpak paths", () => {
         });
     });
 
-    it("never starts the game scanner in a Flatpak", async () => {
+    function flatpakRp(hostAccess: () => Promise<boolean>) {
         const dir = mkdtempSync(join(tmpdir(), "zam-rp-"));
         dirs.push(dir);
         const rp = createRichPresence({
             send: () => {},
             userDataDir: dir,
             inFlatpak: true,
+            hostAccess,
         });
         stops.push(() => rp.stop());
+        return rp;
+    }
+
+    it("does not scan without permission to run commands on the host", async () => {
+        const rp = flatpakRp(async () => false);
         const st = await rp.configure({ local: true, scan: true });
-        expect(st.scan).toMatchObject({ running: false, unsupported: true });
+        expect(st.scan).toMatchObject({
+            running: false,
+            needsPermission: true,
+        });
+        // Turning scanning off clears the notice.
+        const off = await rp.configure({ local: true, scan: false });
+        expect(off.scan.needsPermission).toBe(false);
+    });
+
+    it("scans through the host once permission is granted, asking only once", async () => {
+        let asked = 0;
+        const rp = flatpakRp(async () => {
+            asked++;
+            return true;
+        });
+        const st = await rp.configure({ local: true, scan: true });
+        expect(st.scan).toMatchObject({
+            running: true,
+            needsPermission: false,
+        });
+        await rp.configure({ local: true, scan: false });
+        await rp.configure({ local: true, scan: true });
+        expect(asked).toBe(1);
+    });
+
+    it("reads the host's process list from ps", () => {
+        const bs = String.fromCharCode(92);
+        const game = ["Z:", "games", "Some Game", "game.exe"].join(bs);
+        const rows = parseHostPs(
+            [
+                "    1 /sbin/init splash",
+                ` 4242 wine64 ${game} -windowed`,
+                "garbage",
+            ].join(String.fromCharCode(10)),
+        );
+        expect(rows.map((r: { pid: number }) => r.pid)).toEqual([1, 4242]);
+        expect(rows[1].paths[0]).toBe("wine64");
+        // A game's name with a space in it still matches by its last pieces.
+        const tails = [...candidates(rows[1].paths[1])];
+        expect(tails).toContain("some game/game.exe");
+        expect(tails).toContain("game.exe");
     });
 });

@@ -23,7 +23,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { createDiscordRpc } = require("./discordRpc.cjs");
-const { createGameScanner } = require("./gameScanner.cjs");
+const { createGameScanner, hostAccessAllowed } = require("./gameScanner.cjs");
 const { loadGames } = require("./discordGames.cjs");
 
 const PORT_RANGE = [44190, 45190];
@@ -54,9 +54,14 @@ function createRichPresence({
     send,
     userDataDir,
     inFlatpak = false,
+    // Whether a Flatpak may run commands on the host (needs the user to have
+    // granted org.freedesktop.Flatpak); asked once, as it cannot change
+    // without a restart.
+    hostAccess = hostAccessAllowed,
     log = () => {},
 }) {
     let generation = 0;
+    let hostAccessCheck = null;
     let tcp = null;
     let unix = null; // { server, wss, dir, key }
     let discord = null;
@@ -64,7 +69,7 @@ function createRichPresence({
     const status = {
         msc4544: { listening: false, port: null, socket: null, error: null },
         arrpc: { running: false, ipcPath: null, wsPort: null, error: null },
-        scan: { running: false, error: null },
+        scan: { running: false, error: null, needsPermission: false },
     };
 
     // ── MSC4544 transports ─────────────────────────────────────────────────
@@ -362,6 +367,7 @@ function createRichPresence({
     function startScanner() {
         const s = createGameScanner({
             onActivity: (a) => void forwardActivity(a, true),
+            viaHost: inFlatpak,
             log,
         });
         s.start();
@@ -390,8 +396,7 @@ function createRichPresence({
             stopUnix();
         }
         if (!local || !want.arrpc) stopDiscord();
-        // A Flatpak sandbox cannot see the host's processes.
-        if (!local || !want.scan || inFlatpak) stopScanner();
+        if (!local || !want.scan) stopScanner();
         if (unix && unix.key !== userId) stopUnix();
 
         if (local && !tcp) {
@@ -416,8 +421,16 @@ function createRichPresence({
                 status.arrpc.error = String(e?.message || e);
             }
         }
-        if (local && want.scan && !scanner && !inFlatpak)
-            scanner = startScanner();
+        if (local && want.scan && !scanner) {
+            // A Flatpak sandbox cannot see the host's processes; it can ask
+            // the host to list them, if the user allowed that.
+            if (inFlatpak) hostAccessCheck ??= hostAccess();
+            const allowed = !inFlatpak || (await hostAccessCheck);
+            status.scan.needsPermission = !allowed;
+            if (allowed && gen === generation) scanner = startScanner();
+        } else if (!want.scan) {
+            status.scan.needsPermission = false;
+        }
         return getStatus();
     }
 
@@ -436,7 +449,7 @@ function createRichPresence({
                     ...(scanner
                         ? scanner.status()
                         : { running: false, error: null }),
-                    unsupported: inFlatpak,
+                    needsPermission: status.scan.needsPermission,
                 },
             }),
         );

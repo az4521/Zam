@@ -769,8 +769,10 @@ export const en = {
     "richPresence.scan": "Detect games",
     "richPresence.scanHint":
         "Look for running games on this computer, so ones that report nothing show up too. This reads the list of running programs every few seconds.",
-    "richPresence.scanUnsupported":
-        "Not available in the Flatpak, whose sandbox cannot see other programs. Apps and games that report their own activity still work.",
+    "richPresence.scanNeedsPermission":
+        "The Flatpak sandbox cannot see other programs. To let Zam look for games, run this command, then restart Zam:",
+    "richPresence.scanGrantCommand":
+        "flatpak override --user --talk-name=org.freedesktop.Flatpak moe.crafty.matrix",
     "richPresence.scanFailed": "Couldn't look for games: {error}",
     "richPresence.socket": "Also listening on {path}.",
     "richPresence.arrpcNeedsShare": "Turn on sharing first.",

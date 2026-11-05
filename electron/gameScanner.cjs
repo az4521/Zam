@@ -27,10 +27,61 @@ function run(file, args, opts = {}) {
 let useWmic = null;
 
 /** [{ pid, paths: [candidate executable paths], args }] */
-async function listProcesses() {
+async function listProcesses(viaHost = false) {
+    if (viaHost) return listHost();
     if (process.platform === "win32") return listWindows();
     if (process.platform === "darwin") return listDarwin();
     return listLinux();
+}
+
+/**
+ * Processes on the host, from inside a Flatpak, by running ps there with
+ * flatpak-spawn. Works only if the user has granted org.freedesktop.Flatpak.
+ */
+async function listHost() {
+    return parseHostPs(
+        await run("flatpak-spawn", [
+            "--host",
+            "ps",
+            "-eo",
+            "pid=,args=",
+            "-ww",
+        ]),
+    );
+}
+
+/** Rows of `ps -eo pid=,args=` as scanner processes. */
+function parseHostPs(out) {
+    const rows = [];
+    for (const line of out.split("\n")) {
+        const m = /^\s*(\d+)\s+(.+)$/.exec(line);
+        if (!m) continue;
+        const args = m[2];
+        // ps joins the arguments with spaces, so a path with a space in it is
+        // ambiguous. The first word is the program; and for a Windows game run
+        // by Wine or Proton, the text up to each ".exe" is a candidate too
+        // (only the last path pieces are matched, so a loader before it is fine).
+        const paths = [args.split(" ")[0]];
+        const lower = args.toLowerCase();
+        for (
+            let i = lower.indexOf(".exe");
+            i >= 0;
+            i = lower.indexOf(".exe", i + 4)
+        )
+            paths.push(args.slice(0, i + 4));
+        rows.push({ pid: +m[1], paths, args });
+    }
+    return rows;
+}
+
+/** Whether this sandbox may run commands on the host. */
+async function hostAccessAllowed() {
+    try {
+        await run("flatpak-spawn", ["--host", "true"], { timeout: 5000 });
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 async function listWindows() {
@@ -133,7 +184,7 @@ function candidates(fullPath) {
  * starts (with a start time) and again on every scan while it runs, and with
  * `activity: null` once it is gone.
  */
-function createGameScanner({ onActivity, log = () => {} }) {
+function createGameScanner({ onActivity, viaHost = false, log = () => {} }) {
     let timer = null;
     let scanning = false;
     let running = false;
@@ -145,7 +196,7 @@ function createGameScanner({ onActivity, log = () => {} }) {
         scanning = true;
         try {
             const { byId, byExe } = await loadGames();
-            const procs = await listProcesses();
+            const procs = await listProcesses(viaHost);
             const seen = new Set();
             for (const proc of procs) {
                 for (const full of proc.paths) {
@@ -236,4 +287,9 @@ function createGameScanner({ onActivity, log = () => {} }) {
     };
 }
 
-module.exports = { createGameScanner, candidates };
+module.exports = {
+    createGameScanner,
+    candidates,
+    parseHostPs,
+    hostAccessAllowed,
+};

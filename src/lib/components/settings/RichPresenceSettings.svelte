@@ -133,10 +133,15 @@
                 <p class="text-xs text-discord-textMuted">
                     {t("richPresence.scanHint")}
                 </p>
-                {#if status?.scan.unsupported}
+                {#if settingsState.richPresenceEnabled && settingsState.richPresenceScan && status?.scan.needsPermission}
                     <p class="text-xs text-discord-textMuted">
-                        {t("richPresence.scanUnsupported")}
+                        {t("richPresence.scanNeedsPermission")}
                     </p>
+                    <code
+                        class="mt-1 block select-all break-all rounded bg-discord-backgroundTertiary p-2 text-xs text-discord-textPrimary"
+                    >
+                        {t("richPresence.scanGrantCommand")}
+                    </code>
                 {:else if !settingsState.richPresenceEnabled}
                     <p class="text-xs text-discord-textMuted">
                         {t("richPresence.arrpcNeedsShare")}
