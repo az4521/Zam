@@ -31,6 +31,7 @@ const fs = require("fs");
 const path = require("path");
 const { resolveStaticPath, isSafeExternalUrl } = require("./serverGuards.cjs");
 const { createBundleUpdater } = require("./bundleUpdater.cjs");
+const { PACK_PATH, openTwemojiPack } = require("./twemojiPack.cjs");
 const { BUNDLE_PUBLIC_KEY } = require("./bundleKey.cjs");
 const { parseWindowState, fitToDisplays } = require("./windowState.cjs");
 const { registerPluginNative } = require("./pluginNative.cjs");
@@ -115,6 +116,21 @@ function handleSsoCallback(reqUrl) {
     showWindow();
 }
 
+// The Twemoji pack of the site being served, opened on first use and again
+// when a web bundle changes webRoot (twemojiPack.cjs).
+let twemojiPack = { root: null, pack: null };
+function packedTwemoji(urlPath) {
+    const m = /^\/twemoji\/svg\/([0-9a-f-]+)\.svg$/.exec(urlPath);
+    if (!m) return null;
+    if (twemojiPack.root !== webRoot) {
+        twemojiPack = {
+            root: webRoot,
+            pack: openTwemojiPack(path.join(webRoot, ...PACK_PATH.split("/"))),
+        };
+    }
+    return twemojiPack.pack?.get(m[1]) ?? null;
+}
+
 // Minimal static server for ../build with SPA fallback to index.html.
 function startServer() {
     return new Promise((resolve, reject) => {
@@ -150,6 +166,15 @@ function startServer() {
             if (stat && stat.isDirectory()) {
                 filePath = path.join(filePath, "index.html");
                 stat = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
+            }
+            if (!stat) {
+                // The desktop app ships Twemoji packed, not as loose files.
+                const svg = packedTwemoji((req.url || "").split("?")[0]);
+                if (svg) {
+                    res.writeHead(200, { "Content-Type": MIME[".svg"] });
+                    res.end(svg);
+                    return;
+                }
             }
             if (!stat) {
                 // SPA fallback — the static adapter writes the fallback to index.html.

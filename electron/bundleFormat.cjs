@@ -66,9 +66,10 @@ function isSafeEntryPath(p) {
 
 /**
  * Unpack an archive buffer into `destDir` (which must not exist yet). Throws
- * on anything malformed; the caller deletes `destDir` on failure.
+ * on anything malformed; the caller deletes `destDir` on failure. Entries for
+ * which `skip(path, allPaths)` is true are checked but not written.
  */
-async function unpackBundle(archive, destDir) {
+async function unpackBundle(archive, destDir, { skip } = {}) {
     const buf = await gunzip(archive, { maxOutputLength: MAX_UNPACKED_BYTES });
     if (buf.length < MAGIC.length + 4 || !buf.subarray(0, 4).equals(MAGIC))
         throw new Error("not a web bundle");
@@ -81,6 +82,7 @@ async function unpackBundle(archive, destDir) {
     const root = path.resolve(destDir);
     fs.mkdirSync(root, { recursive: true });
     const seen = new Set();
+    const allPaths = new Set(index.map((e) => e?.p));
     for (const entry of index) {
         if (
             !entry ||
@@ -96,8 +98,10 @@ async function unpackBundle(archive, destDir) {
         const target = path.resolve(root, ...entry.p.split("/"));
         if (!target.startsWith(root + path.sep))
             throw new Error("web bundle entry escapes its folder");
-        fs.mkdirSync(path.dirname(target), { recursive: true });
-        fs.writeFileSync(target, buf.subarray(offset, end));
+        if (!skip?.(entry.p, allPaths)) {
+            fs.mkdirSync(path.dirname(target), { recursive: true });
+            fs.writeFileSync(target, buf.subarray(offset, end));
+        }
         offset = end;
     }
     if (!seen.has("index.html"))

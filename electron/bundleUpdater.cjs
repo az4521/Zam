@@ -20,6 +20,7 @@
 const fs = require("fs");
 const path = require("path");
 const { unpackBundle, verifyManifest } = require("./bundleFormat.cjs");
+const { PACK_PATH, isPackedPath } = require("./twemojiPack.cjs");
 
 const MANIFEST_ASSET = "zam-bundle.json";
 const MAX_BUNDLE_BYTES = 300 * 1024 * 1024;
@@ -280,7 +281,11 @@ function createBundleUpdater(deps) {
                     got.sha512 !== manifest.sha512
                 )
                     throw new Error("web bundle does not match its manifest");
-                await unpackBundle(fs.readFileSync(archive), unpacked);
+                // The loose Twemoji files are for Android and the web; this
+                // app serves them from the pack.
+                await unpackBundle(fs.readFileSync(archive), unpacked, {
+                    skip: (p, all) => all.has(PACK_PATH) && isPackedPath(p),
+                });
                 writeJsonAtomic(path.join(unpacked, "meta.json"), {
                     version,
                     shellHash,
