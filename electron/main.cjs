@@ -44,7 +44,7 @@ const { recordMemoryReport } = require("./memoryReport.cjs");
 const { createAutostart } = require("./autostart.cjs");
 const { createRichPresence } = require("./richPresence.cjs");
 const { createPresenceImages } = require("./presenceImages.cjs");
-const { linuxExeIcon } = require("./exeIcon.cjs");
+const { linuxExeIconAsync } = require("./exeIcon.cjs");
 const { createAppAudio } = require("./appAudio.cjs");
 const { resolveShareAudio } = require("./shareAudio.cjs");
 
@@ -935,7 +935,7 @@ const presenceImages = createPresenceImages({
         if (!exe) return null;
         // On Linux getFileIcon only returns the theme's generic executable
         // icon, which is worse than no picture.
-        if (process.platform === "linux") return linuxExeIcon(exe);
+        if (process.platform === "linux") return await linuxExeIconAsync(exe);
         const icon = await app.getFileIcon(exe, { size: "large" });
         return icon.isEmpty()
             ? null

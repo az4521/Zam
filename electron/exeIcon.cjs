@@ -20,8 +20,11 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const zlib = require("zlib");
+const { execFile } = require("child_process");
 
 const MAX_ICON_BYTES = 4 * 1024 * 1024;
+const HOST_TIMEOUT_MS = 8000;
+const HOST_MAX_BUFFER = 6 * 1024 * 1024;
 const MAX_SVG_BYTES = 512 * 1024;
 const MAX_RSRC_BYTES = 64 * 1024 * 1024;
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -520,8 +523,171 @@ function linuxExeIcon(exe, { env = process.env, home = os.homedir() } = {}) {
     return null;
 }
 
+// ── Steam icons on the host, from inside Flatpak ──────────────────────────
+
+// Runs on the host through flatpak-spawn: $1 is the executable path. Prints
+// the MIME type on one line and the icon as base64 on the next, or nothing.
+const HOST_STEAM_SCRIPT = `
+exe=$(printf '%s' "$1" | tr '\\134' '/')
+lib=
+dir=
+case $exe in
+*/steamapps/common/*/*)
+    lib=\${exe%/steamapps/common/*}
+    rest=\${exe##*/steamapps/common/}
+    dir=\${rest%%/*}
+    ;;
+esac
+want=$(printf '%s' "$dir" | tr 'A-Z' 'a-z')
+id=
+if [ -n "$dir" ]; then
+    for f in "$lib"/steamapps/appmanifest_*.acf; do
+        [ -f "$f" ] || continue
+        got=$(tr -d '\\015' < "$f" | awk -F'"' 'tolower($2) == "installdir" { print tolower($4); exit }')
+        if [ -n "$got" ] && [ "$got" = "$want" ]; then
+            id=\${f##*appmanifest_}
+            id=\${id%.acf}
+            break
+        fi
+    done
+fi
+# Steam's running-app id only fits Windows executables (Proton); a native
+# program that is not in a Steam library must not borrow the game's icon.
+case $exe in
+*.[eE][xX][eE]) ;;
+*) [ -n "$id" ] || exit 0 ;;
+esac
+if [ -z "$id" ]; then
+    for r in "$HOME/.steam/registry.vdf" "$HOME/.var/app/com.valvesoftware.Steam/.steam/registry.vdf"; do
+        [ -f "$r" ] || continue
+        got=$(tr -d '\\015' < "$r" | awk -F'"' 'tolower($2) == "runningappid" { print $4; exit }')
+        case $got in
+        '' | 0 | *[!0-9]*) ;;
+        *) id=$got; break ;;
+        esac
+    done
+fi
+case $id in
+'' | *[!0-9]*) exit 0 ;;
+esac
+emit() {
+    printf '%s\\n' "$1"
+    base64 -w0 < "$2"
+    printf '\\n'
+}
+set -- "$lib" "$HOME/.local/share/Steam" "$HOME/.steam/steam" "$HOME/.steam/root" "$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam" "$HOME/snap/steam/common/.local/share/Steam"
+for root in "$@"; do
+    [ -n "$root" ] || continue
+    d=$root/appcache/librarycache/$id
+    if [ -f "$d/\${id}_icon.jpg" ]; then
+        emit image/jpeg "$d/\${id}_icon.jpg"
+        exit 0
+    fi
+    for f in "$d"/*.jpg "$d"/*/*.jpg; do
+        [ -f "$f" ] || continue
+        b=\${f##*/}
+        b=\${b%.jpg}
+        [ \${#b} -eq 40 ] || continue
+        case $b in
+        *[!0-9a-fA-F]*) continue ;;
+        esac
+        emit image/jpeg "$f"
+        exit 0
+    done
+done
+best=
+bestsize=-1
+for ic in "$HOME/.local/share/icons" "$HOME/.var/app/com.valvesoftware.Steam/.local/share/icons"; do
+    for f in "$ic"/hicolor/*/apps/steam_icon_$id.png; do
+        [ -f "$f" ] || continue
+        s=\${f%/apps/*}
+        s=\${s##*/}
+        s=\${s%%x*}
+        case $s in
+        '' | *[!0-9]*) s=0 ;;
+        esac
+        if [ "$s" -gt "$bestsize" ]; then
+            best=$f
+            bestsize=$s
+        fi
+    done
+done
+if [ -n "$best" ]; then
+    emit image/png "$best"
+fi
+exit 0
+`;
+
+/** { type, data } from the host script's output, or null. */
+function parseHostIcon(out) {
+    try {
+        if (typeof out !== "string") return null;
+        const [type = "", b64 = ""] = out.split("\n").map((l) => l.trim());
+        if (type !== "image/jpeg" && type !== "image/png") return null;
+        if (!/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) return null;
+        const buf = Buffer.from(b64, "base64");
+        if (buf.length === 0 || buf.length > MAX_ICON_BYTES) return null;
+        return { type, data: new Uint8Array(buf) };
+    } catch {
+        return null;
+    }
+}
+
+function execHost(file, args) {
+    return new Promise((resolve, reject) => {
+        execFile(
+            file,
+            args,
+            {
+                windowsHide: true,
+                timeout: HOST_TIMEOUT_MS,
+                maxBuffer: HOST_MAX_BUFFER,
+            },
+            (err, stdout) => (err ? reject(err) : resolve(String(stdout))),
+        );
+    });
+}
+
+/**
+ * The Steam icon for an executable, read on the host by running one shell
+ * script through flatpak-spawn (the sandbox cannot see the host's Steam
+ * files). `run(file, args)` resolves to the script's stdout. Never throws.
+ */
+async function hostSteamIcon(exe, run = execHost) {
+    try {
+        if (typeof exe !== "string" || !exe) return null;
+        const out = await run("flatpak-spawn", [
+            "--host",
+            "sh",
+            "-c",
+            HOST_STEAM_SCRIPT,
+            "sh",
+            exe,
+        ]);
+        return parseHostIcon(out);
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * linuxExeIcon, then, inside Flatpak only, the host's Steam icon. Never throws.
+ */
+async function linuxExeIconAsync(
+    exe,
+    { env = process.env, home = os.homedir(), run } = {},
+) {
+    const local = linuxExeIcon(exe, { env, home });
+    if (local || !env.FLATPAK_ID) return local;
+    return hostSteamIcon(exe, run);
+}
+
 module.exports = {
     linuxExeIcon,
+    linuxExeIconAsync,
+    hostSteamIcon,
+    parseHostIcon,
+    HOST_STEAM_SCRIPT,
     parseDesktopEntry,
     execRuns,
     peIcon,

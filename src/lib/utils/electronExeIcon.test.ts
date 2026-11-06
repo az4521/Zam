@@ -7,9 +7,20 @@ import { tmpdir } from "os";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
-const { linuxExeIcon, parseDesktopEntry, execRuns, peIcon, dibToPng } = require(
-    join(__dirname, "../../../electron/exeIcon.cjs"),
-);
+const {
+    linuxExeIcon,
+    linuxExeIconAsync,
+    hostSteamIcon,
+    parseHostIcon,
+    HOST_STEAM_SCRIPT,
+    parseDesktopEntry,
+    execRuns,
+    peIcon,
+    dibToPng,
+} = require(join(__dirname, "../../../electron/exeIcon.cjs"));
+
+type HostRun = (file: string, args: string[]) => Promise<string>;
+const b64 = (s: string) => Buffer.from(s).toString("base64");
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -272,5 +283,142 @@ describe("Steam and SVG icons", () => {
             home,
         });
         expect(icon?.type).toBe("image/svg+xml");
+    });
+});
+
+describe("host Steam icon (Flatpak)", () => {
+    const exe = "/home/u/.local/share/Steam/steamapps/common/Sat/Game.exe";
+
+    it("runs one flatpak-spawn --host sh command with the exe as $1", async () => {
+        const calls: { file: string; args: string[] }[] = [];
+        const run: HostRun = async (file, args) => {
+            calls.push({ file, args });
+            return `image/png\n${b64("PNG")}\n`;
+        };
+        await hostSteamIcon(exe, run);
+        expect(calls).toHaveLength(1);
+        expect(calls[0].file).toBe("flatpak-spawn");
+        expect(calls[0].args.slice(0, 4)).toEqual([
+            "--host",
+            "sh",
+            "-c",
+            HOST_STEAM_SCRIPT,
+        ]);
+        expect(calls[0].args.slice(4)).toEqual(["sh", exe]);
+    });
+
+    it("parses JPEG and PNG output into { type, data }", async () => {
+        const jpeg = await hostSteamIcon(
+            exe,
+            async () => `image/jpeg\n${b64("JPEGBYTES")}\n`,
+        );
+        expect(jpeg?.type).toBe("image/jpeg");
+        expect(Buffer.from(jpeg!.data).toString()).toBe("JPEGBYTES");
+
+        const png = await hostSteamIcon(
+            exe,
+            async () => `image/png\n${b64("PNGBYTES")}`,
+        );
+        expect(png?.type).toBe("image/png");
+        expect(Buffer.from(png!.data).toString()).toBe("PNGBYTES");
+    });
+
+    it("returns null for empty output, unknown types and bad base64", () => {
+        expect(parseHostIcon("")).toBeNull();
+        expect(parseHostIcon("\n")).toBeNull();
+        expect(parseHostIcon(`image/gif\n${b64("x")}\n`)).toBeNull();
+        expect(parseHostIcon("image/png\nnot base64!\n")).toBeNull();
+        expect(parseHostIcon("image/png\n")).toBeNull();
+        expect(parseHostIcon(undefined as unknown as string)).toBeNull();
+    });
+
+    it("rejects an icon over the size limit", () => {
+        const big = Buffer.alloc(4 * 1024 * 1024 + 1, 1).toString("base64");
+        expect(parseHostIcon(`image/png\n${big}\n`)).toBeNull();
+    });
+
+    it("never throws when the host command fails", async () => {
+        expect(
+            await hostSteamIcon(exe, async () => {
+                throw new Error("no flatpak-spawn");
+            }),
+        ).toBeNull();
+        expect(
+            await hostSteamIcon(exe, () => {
+                throw new Error("sync failure");
+            }),
+        ).toBeNull();
+        expect(
+            await hostSteamIcon("", async () => "image/png\nAA==\n"),
+        ).toBeNull();
+    });
+});
+
+describe("linuxExeIconAsync", () => {
+    const exe = "/games/foo/bar";
+    let home: string;
+    const noLocal = () => ({
+        env: { XDG_DATA_HOME: home, XDG_DATA_DIRS: join(home, "none") },
+        home,
+    });
+
+    it("uses the host Steam icon inside Flatpak when nothing local matches", async () => {
+        home = tmp();
+        let asked = 0;
+        const icon = await linuxExeIconAsync(exe, {
+            ...noLocal(),
+            env: { ...noLocal().env, FLATPAK_ID: "moe.crafty.matrix" },
+            run: async () => {
+                asked++;
+                return `image/jpeg\n${b64("HOSTJPEG")}\n`;
+            },
+        });
+        expect(asked).toBe(1);
+        expect(icon?.type).toBe("image/jpeg");
+        expect(Buffer.from(icon!.data).toString()).toBe("HOSTJPEG");
+    });
+
+    it("does not run the host command outside Flatpak", async () => {
+        home = tmp();
+        let asked = 0;
+        const icon = await linuxExeIconAsync(exe, {
+            ...noLocal(),
+            run: async () => {
+                asked++;
+                return `image/jpeg\n${b64("HOSTJPEG")}\n`;
+            },
+        });
+        expect(asked).toBe(0);
+        expect(icon).toBeNull();
+    });
+
+    it("prefers a local icon and skips the host command", async () => {
+        home = tmp();
+        const share = join(home, "share");
+        mkdirSync(join(share, "applications"), { recursive: true });
+        writeFileSync(
+            join(share, "applications/g.desktop"),
+            `[Desktop Entry]\nExec=/games/foo/bar\nIcon=${join(home, "i.png")}\n`,
+        );
+        // A PNG header with a 64px width, enough for pngSize to accept it.
+        const png = Buffer.alloc(24);
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png);
+        png.writeUInt32BE(64, 16);
+        writeFileSync(join(home, "i.png"), png);
+        let asked = 0;
+        const icon = await linuxExeIconAsync(exe, {
+            env: {
+                XDG_DATA_HOME: share,
+                XDG_DATA_DIRS: join(home, "none"),
+                FLATPAK_ID: "moe.crafty.matrix",
+            },
+            home,
+            run: async () => {
+                asked++;
+                return "";
+            },
+        });
+        expect(asked).toBe(0);
+        expect(icon).not.toBeNull();
     });
 });
