@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.7
+
+✨ **New**
+
+- **Share what you're listening to (desktop):** a new "Report media playback" toggle in Rich Presence settings shows the track you're playing (title, artist, album and a progress bar) on your profile as "Listening to". It reads the system media controls on Windows and Linux (any player that reports to them, such as Spotify, browsers, VLC), and Spotify and Music on macOS. It's off by default and needs sharing to be on. Each player appears in the app list below with its own switch, so you can show Spotify but hide your browser, for example. Covers aren't shown yet. On macOS the first run asks for permission under Privacy & Security > Automation.
+
+🐛 **Fixed**
+
+- **Restart Discord automatically now works:** the setting added in 1.54.6 wasn't actually reaching the part of Zam that restarts Discord, so turning it on did nothing.
+
 ## v1.54.6
 
 ✨ **New**
