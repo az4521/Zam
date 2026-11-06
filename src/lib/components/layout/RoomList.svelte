@@ -133,7 +133,12 @@
         const map = new Map<string, string>();
         for (const room of roomsState.directRooms) {
             const text = latestMessagePreview(
-                room.getLiveTimeline().getEvents(),
+                // Messages still being sent live outside the timeline until the
+                // server accepts them; they are the newest.
+                [
+                    ...room.getLiveTimeline().getEvents(),
+                    ...room.getPendingEvents(),
+                ],
                 auth.userId,
             );
             if (text) map.set(room.roomId, text);

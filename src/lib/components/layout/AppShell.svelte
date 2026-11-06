@@ -188,6 +188,7 @@
         logout,
         onRoomUpdate,
         onAccountData,
+        onLocalEchoUpdated,
         onThreadNameChange,
         onThreadSummaryChange,
         clearReadThreadCounts,
@@ -2361,6 +2362,9 @@
         const unsubThreadNames = onThreadNameChange(
             () => roomsState.roomsTick++,
         );
+        // A message you just sent is a local echo until the server accepts it;
+        // the DM preview shows it from the moment it is sent.
+        const unsubLocalEcho = onLocalEchoUpdated(() => bumpUnreadTick());
         const unsubAccountData = onAccountData((type) => {
             // Pack changes made on another device (or by us) reach pickers.
             if (
@@ -2465,6 +2469,7 @@
             unsubVerification();
             unsubPlugins();
             unsubAccountData();
+            unsubLocalEcho();
             unsubThreadNames();
             unsubThreadSummaries();
             unsubUpdateWatch();
