@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.6
+
+✨ **New**
+
+- **Restart Discord automatically (desktop):** a new toggle in Rich Presence settings, under the Discord apps option. When Zam starts and Discord is already running ahead of it (so apps report to Discord and Zam never sees them), Zam closes and reopens Discord once so apps report to Zam. This ends any call or stream you're in, so it's off by default. Not shown in a Flatpak until host access is granted.
+
 ## v1.54.5
 
 🐛 **Fixed**
