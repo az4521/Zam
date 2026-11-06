@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.10
+
+🐛 **Fixed**
+
+- **Voice message recording on Android:** if the microphone could not start recording, the mic indicator stayed on with nothing recorded and no message. Zam now shows an error and releases the mic, keeps recording even when the level meter cannot start, and no longer gets stuck before the preview when the waveform cannot be generated.
+
 ## v1.54.9
 
 🐛 **Fixed**
