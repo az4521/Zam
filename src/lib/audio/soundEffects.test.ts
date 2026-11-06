@@ -135,6 +135,7 @@ interface FakeNode {
 }
 interface FakeGain extends FakeNode {
     gain: FakeParam;
+    context: unknown;
 }
 
 class FakeAudioContext {
@@ -146,12 +147,18 @@ class FakeAudioContext {
     constructor(sink: FakeAudioContext[]) {
         sink.push(this);
     }
+    closed = false;
     resume() {
+        return Promise.resolve();
+    }
+    close() {
+        this.closed = true;
         return Promise.resolve();
     }
     createGain(): FakeGain {
         const g: FakeGain = {
             gain: makeParam(),
+            context: this,
             outputs: [],
             connect(t) {
                 this.outputs.push(t);
@@ -304,11 +311,22 @@ describe("notification ping", () => {
 
         // A catch-up sync delivering 30 notifying messages at once.
         for (let i = 0; i < 30; i++) mod.playPing();
+        expect(instances).toHaveLength(1);
         expect(instances[0].oscillators).toHaveLength(perPing);
 
         // A message arriving after the burst has died down still pings.
         vi.advanceTimersByTime(2000);
         mod.playPing();
-        expect(instances[0].oscillators).toHaveLength(perPing * 2);
+        expect(instances).toHaveLength(2);
+        expect(instances[1].oscillators).toHaveLength(perPing);
+    });
+
+    it("closes its audio context once the ping is over", async () => {
+        vi.useFakeTimers();
+        const { instances, mod } = await freshSoundEngine();
+        mod.playPing();
+        expect(instances[0].closed).toBe(false);
+        vi.advanceTimersByTime(1000);
+        expect(instances[0].closed).toBe(true);
     });
 });

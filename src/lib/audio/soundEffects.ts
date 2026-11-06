@@ -300,7 +300,7 @@ function scheduleSegments(
     t0: number,
     out?: OscillatorNode[],
 ): void {
-    if (!ctx) return;
+    const ctx = dest.context;
     for (const seg of segments) {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -350,22 +350,33 @@ const PING_COOLDOWN_MS = 1500;
 let lastPingAt = -Infinity;
 
 export function playPing(): void {
+    if (typeof AudioContext === "undefined") return;
     const now = performance.now();
     if (now - lastPingAt < PING_COOLDOWN_MS) return;
-    if (!ensureContext() || !ctx) return;
     lastPingAt = now;
-    const dest = ctx.createGain();
+    // Its own context, closed once the sound is over. The shared call-sound
+    // context stays open (running, silent) for the life of the app, and an
+    // output stream held open like that makes Windows turn other apps' volume
+    // down (its communications ducking) — a ping would dip the user's video
+    // until restart. A stream that lives for half a second leaves nothing to
+    // duck.
+    const pingCtx = new AudioContext();
+    const c = pingCtx as AudioContext & {
+        setSinkId?: (id: string) => Promise<void>;
+    };
+    void c.setSinkId?.(sinkId ?? "").catch(() => {});
+    if (pingCtx.state === "suspended") void pingCtx.resume().catch(() => {});
+    const dest = pingCtx.createGain();
     dest.gain.value = 0.7;
-    dest.connect(ctx.destination);
-    scheduleSegments(dest, PING_PATTERN, ctx.currentTime + 0.02);
-    // Release the transient gain node once the sound has finished.
-    setTimeout(() => {
-        try {
-            dest.disconnect();
-        } catch {
-            // already gone
-        }
-    }, 600);
+    dest.connect(pingCtx.destination);
+    const end = Math.max(...PING_PATTERN.map((s) => s.at + s.duration));
+    scheduleSegments(dest, PING_PATTERN, pingCtx.currentTime + 0.02);
+    setTimeout(
+        () => {
+            void pingCtx.close().catch(() => {});
+        },
+        (end + 0.3) * 1000,
+    );
 }
 
 /** Mirror the persisted call-sound settings into the engine. */
