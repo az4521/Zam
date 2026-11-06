@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.3
+
+✨ **New**
+
+- **Rich presence apps are on by default (desktop):** apps and games that report to Zam are now allowed on your profile when first seen, so you no longer have to switch each one on. Turn off the ones you don't want in Settings > Account > Rich presence.
+- **See how a game was found:** each app in the list says whether it came from Discord Rich Presence, the running-game scan, or both.
+
+🐛 **Fixed**
+
+- **Discord Rich Presence wins over game detection (desktop):** when a game reports its own activity, the entry guessed from the running process is dropped instead of being shown next to it, even if the two use different Discord app ids.
+- **Stray green dot:** removed the decorative dot at the end of the rich presence row above the account button, which did nothing.
+
 ## v1.54.2
 
 ✨ **New**
