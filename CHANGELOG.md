@@ -4,6 +4,19 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.11
+
+✨ **New**
+
+- **Mute and unmute sounds for others in a call:** you now hear the mute or unmute sound when someone else in the call mutes or unmutes their microphone.
+- **Soundboard rate limit setting:** a new "Soundboard interval" slider in Debug settings sets the shortest gap between one person's soundboard sounds. The default is now 1.5 seconds, up from 0.4.
+
+🐛 **Fixed**
+
+- **Voice messages on mobile:** tapping Record Voice Message closed the recorder immediately, before it asked for the microphone, so nothing was ever recorded. The recorder now stays open. It also starts more reliably on devices that reject the preferred audio format, and if it still fails the error now names the cause.
+- **Soundboard sounds that arrive late are dropped:** a sound that has not started within 3 seconds of arriving, for example while it downloads on a slow connection, no longer plays over a conversation that has moved on.
+- **Call audio:** microphone audio is now sent with the voice preset and redundancy instead of the music preset, which holds up better on lossy connections. Normalizing incoming voices boosts quiet speakers by at most +12 dB (down from +18 dB), raises them more slowly, and ignores quiet noise more strictly, so it no longer jumps too loud too quickly.
+
 ## v1.54.10
 
 🐛 **Fixed**
