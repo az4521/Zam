@@ -305,9 +305,14 @@ function createRichPresence({
 
     // Games reported over RPC, so the scanner doesn't announce them twice.
     const rpcClients = new Map(); // client id -> Set of socket ids
+    // Where the scanner last saw each game's executable (for its icon).
+    const exePaths = new Map();
 
     /** Forward a Discord-style activity under a stable app identity. */
-    async function forwardActivity({ socketId, clientId, activity }, viaScan) {
+    async function forwardActivity(
+        { socketId, clientId, activity, exe },
+        viaScan,
+    ) {
         const { byId } = await loadGames();
         const known = byId.get(clientId);
         const app = {
@@ -341,18 +346,22 @@ function createRichPresence({
         }
 
         let presence = activity;
-        if (presence && !presence.assets?.large_image) {
-            // Discord's list has the icon for most games; otherwise ask for
-            // the application's own icon (a game added by hand has none, so
-            // it gets the icon of its executable).
-            const large_image = known?.icon
-                ? `icon:${known.icon}`
-                : customGames.some((g) => g.id === clientId)
-                  ? "exe-icon"
-                  : "app-icon";
+        if (exe) exePaths.set(clientId, exe);
+        if (
+            presence &&
+            !presence.assets?.large_image &&
+            (known?.icon || exePaths.has(clientId))
+        ) {
+            // Discord's list has the icon for most games; otherwise use the
+            // icon of the game's executable, when we know where it is.
             presence = {
                 ...presence,
-                assets: { ...presence.assets, large_image },
+                assets: {
+                    ...presence.assets,
+                    large_image: known?.icon
+                        ? `icon:${known.icon}`
+                        : "exe-icon",
+                },
             };
         }
         send({
@@ -504,9 +513,11 @@ function createRichPresence({
         getStatus,
         stop,
         programs: () => listPrograms(inFlatpak),
-        /** The executable of a game the user added by hand, or null. */
-        customGameExe: (id) =>
-            customGames.find((g) => g.id === id)?.exe ?? null,
+        /** Where a game's executable was last seen, or null. */
+        gameExe: (id) =>
+            exePaths.get(id) ??
+            customGames.find((g) => g.id === id)?.exe ??
+            null,
     };
 }
 

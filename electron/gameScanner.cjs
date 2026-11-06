@@ -223,7 +223,7 @@ function createGameScanner({
         try {
             const { byId, byExe } = await loadGames();
             const procs = await listProcesses(viaHost);
-            const seen = new Set();
+            const seen = new Map(); // game id -> path of its running executable
             const custom = new Map(
                 getCustomGames().map((g) => [
                     g.id,
@@ -234,7 +234,7 @@ function createGameScanner({
                 for (const full of proc.paths) {
                     const norm = normalizePath(full);
                     for (const g of custom.values())
-                        if (g.exe === norm) seen.add(g.id);
+                        if (g.exe === norm) seen.set(g.id, full);
                 }
                 for (const full of proc.paths) {
                     const tails = candidates(full);
@@ -252,12 +252,12 @@ function createGameScanner({
                                 !proc.args.includes(exe.args)
                             )
                                 continue;
-                            seen.add(exe.id);
+                            if (!seen.has(exe.id)) seen.set(exe.id, full);
                         }
                     }
                 }
             }
-            for (const id of seen) {
+            for (const [id, exePath] of seen) {
                 const game = byId.get(id) ?? custom.get(id);
                 if (!game) continue;
                 if (!found.has(id)) {
@@ -267,6 +267,7 @@ function createGameScanner({
                 onActivity({
                     socketId: `scan-${id}`,
                     clientId: id,
+                    exe: exePath,
                     activity: {
                         application_id: id,
                         name: game.name,

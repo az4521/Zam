@@ -885,9 +885,9 @@ ipcMain.handle("rich-presence:programs", () =>
 // Pictures for presence, over net.fetch so the proxy setting applies.
 const presenceImages = createPresenceImages({
     fetch: (url, init) => net.fetch(url, init),
-    // A game added by hand has no Discord icon: use its executable's own.
+    // A game with no Discord icon gets its executable's own.
     exeIcon: async (gameId) => {
-        const exe = richPresence.customGameExe(gameId);
+        const exe = richPresence.gameExe(gameId);
         if (!exe) return null;
         const icon = await app.getFileIcon(exe, { size: "large" });
         return icon.isEmpty()

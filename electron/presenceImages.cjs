@@ -26,26 +26,6 @@ function createPresenceImages({
     exeIcon = async () => null,
 } = {}) {
     const assetLists = new Map(); // app id -> { at, byName: Map }
-    const appIcons = new Map(); // app id -> { at, hash }
-
-    /** The icon hash Discord has on file for the application itself. */
-    async function appIconHash(appId) {
-        const cached = appIcons.get(appId);
-        if (cached && Date.now() - cached.at < ASSET_LIST_TTL_MS)
-            return cached.hash;
-        const res = await doFetch(
-            `https://discord.com/api/v10/applications/${appId}/rpc`,
-            { signal: AbortSignal.timeout(TIMEOUT_MS) },
-        );
-        if (!res.ok) return null;
-        const icon = (await res.json())?.icon;
-        const hash =
-            typeof icon === "string" && /^[0-9a-f]{8,64}$/i.test(icon)
-                ? icon
-                : null;
-        appIcons.set(appId, { at: Date.now(), hash });
-        return hash;
-    }
 
     async function assetId(appId, name) {
         let list = assetLists.get(appId);
@@ -70,14 +50,6 @@ function createPresenceImages({
     async function resolve(appId, ref) {
         if (typeof ref !== "string" || !ref || ref.length > 1024) return null;
         if (!/^\d{1,25}$/.test(appId)) return null;
-
-        // The application's own icon, for an activity that names no picture.
-        if (ref === "app-icon") {
-            const hash = await appIconHash(appId);
-            return hash
-                ? `https://cdn.discordapp.com/app-icons/${appId}/${hash}.png?size=256`
-                : null;
-        }
 
         const icon = /^icon:([0-9a-f]{8,64})$/i.exec(ref);
         if (icon)
