@@ -463,12 +463,30 @@ function iconsFromCache(
     };
 }
 
+/** createImageBitmap cannot read SVG, so draw it through an <img> instead. */
+async function rasterizeSvg(blob: Blob): Promise<ImageBitmap> {
+    const url = URL.createObjectURL(blob);
+    try {
+        const img = new Image();
+        img.src = url;
+        await img.decode();
+        // Vector icons often declare no size: draw them at the target one.
+        const canvas = new OffscreenCanvas(IMAGE_SIDE, IMAGE_SIDE);
+        canvas.getContext("2d")!.drawImage(img, 0, 0, IMAGE_SIDE, IMAGE_SIDE);
+        return await createImageBitmap(canvas);
+    } finally {
+        URL.revokeObjectURL(url);
+    }
+}
+
 /** Shrink to icon size, or keep the original bytes if the browser cannot. */
 async function prepareImage(type: string, data: Uint8Array): Promise<File> {
     try {
-        const bitmap = await createImageBitmap(
-            new Blob([data as BlobPart], { type }),
-        );
+        const source = new Blob([data as BlobPart], { type });
+        const bitmap =
+            type === "image/svg+xml"
+                ? await rasterizeSvg(source)
+                : await createImageBitmap(source);
         const scale = Math.min(
             1,
             IMAGE_SIDE / Math.max(bitmap.width, bitmap.height),
