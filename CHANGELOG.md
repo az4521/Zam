@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.0
+
+✨ **New**
+
+- **Timestamps in messages:** write `<t:UNIX>` (a Unix time in seconds) and everyone sees it as a date and time in their own time zone. Add a style such as `<t:UNIX:R>` for relative ("2 hours ago"), `:t` / `:T` for time, `:d` / `:D` for date, or `:f` / `:F` for date and time.
+- **Space home page:** clicking the space you are already in opens its home page with the space's name, topic and your rooms, so you can get back to it after picking a room.
+- **Warning before logging out your last device:** if it is your only signed-in session, Log Out now explains that its encryption keys will be lost and says whether your history is backed up, before it signs you out.
+- **Rich presence tab:** Settings > Account has a Rich presence tab (desktop only), and General moves to the top of the App group. Games with no icon in Discord's list now show the icon of their running program.
+- **Website and downloads (web):** the login page and About link to the Zam website, the app downloads and GitHub. They are hidden in the desktop and Android apps.
+
 ## v1.53.2
 
 ✨ **New**
