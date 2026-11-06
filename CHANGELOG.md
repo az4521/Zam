@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.5
+
+🐛 **Fixed**
+
+- **Flatpak: game detection and Restart Discord work out of the box:** the Flatpak now asks for permission to run commands on the host, which it needs to list running games and to close and reopen Discord. You no longer have to run a `flatpak override` command first; update the Flatpak to get it.
+
 ## v1.54.4
 
 ✨ **New**
