@@ -157,10 +157,6 @@
                 src={mxcToHttp(art, 64, 64, "crop")}
                 alt=""
             />
-        {:else}
-            <div
-                class="h-8 w-8 flex-shrink-0 rounded bg-discord-backgroundTertiary"
-            ></div>
         {/if}
         <div class="flex-1 min-w-0">
             <p class="text-sm font-semibold text-discord-textPrimary truncate">

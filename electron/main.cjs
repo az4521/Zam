@@ -888,6 +888,44 @@ ipcMain.handle("rich-presence:configure", (_e, want) =>
 ipcMain.handle("rich-presence:programs", () =>
     richPresence.programs().catch(() => []),
 );
+// A media player's own icon, for a "Listening to" entry with no cover: its
+// executable on Windows, its app bundle on macOS. Best effort; Linux has no
+// lookup worth showing. A found icon is kept, a miss is tried again later.
+const MEDIA_ICON_MISS_MS = 60 * 1000;
+const mediaIcons = new Map(); // player id -> { at, icon }
+const MAC_MEDIA_APPS = new Map([
+    ["spotify", "/Applications/Spotify.app"],
+    ["music", "/System/Applications/Music.app"],
+]);
+async function mediaPlayerIcon(playerId) {
+    if (process.platform !== "win32" && process.platform !== "darwin")
+        return null;
+    const held = mediaIcons.get(playerId);
+    if (held && (held.icon || Date.now() - held.at < MEDIA_ICON_MISS_MS))
+        return held.icon;
+    let icon = null;
+    try {
+        let exe = null;
+        if (process.platform === "win32") {
+            // SMTC names a player by its executable, e.g. "Spotify.exe".
+            const want = playerId.replace(/\.exe$/i, "").toLowerCase();
+            const running = await richPresence.programs();
+            exe = running.find((p) => p.name.toLowerCase() === want)?.path;
+        } else {
+            const bundle = MAC_MEDIA_APPS.get(playerId);
+            exe = bundle && fs.existsSync(bundle) ? bundle : null;
+        }
+        if (exe) {
+            const img = await app.getFileIcon(exe, { size: "large" });
+            if (!img.isEmpty())
+                icon = { type: "image/png", data: new Uint8Array(img.toPNG()) };
+        }
+    } catch {
+        icon = null;
+    }
+    mediaIcons.set(playerId, { at: Date.now(), icon });
+    return icon;
+}
 // Pictures for presence, over net.fetch so the proxy setting applies.
 const presenceImages = createPresenceImages({
     fetch: (url, init) => net.fetch(url, init),
@@ -903,6 +941,8 @@ const presenceImages = createPresenceImages({
             ? null
             : { type: "image/png", data: new Uint8Array(icon.toPNG()) };
     },
+    mediaCover: (ref) => richPresence.mediaCover(ref),
+    mediaIcon: mediaPlayerIcon,
 });
 ipcMain.handle("rich-presence:image", (_e, appId, ref) =>
     presenceImages.fetchImage(appId, ref),

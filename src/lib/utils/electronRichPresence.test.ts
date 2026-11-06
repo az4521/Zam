@@ -12,7 +12,8 @@ const require = createRequire(import.meta.url);
 const electron = (name: string) =>
     require(join(__dirname, "../../../electron", name));
 
-const { createRichPresence, socketLocation } = electron("richPresence.cjs");
+const { createCoverStore, createRichPresence, socketLocation } =
+    electron("richPresence.cjs");
 const { ipcBase } = electron("discordRpc.cjs");
 const { createPresenceImages } = electron("presenceImages.cjs");
 const { candidates, parseHostPs } = electron("gameScanner.cjs");
@@ -448,6 +449,61 @@ describe("presence pictures", () => {
             }),
         });
         expect(await img.fetchImage("1", "icon:abcdef1234")).toBeNull();
+    });
+
+    it("serves media covers and player icons, only under the player's own app id", async () => {
+        const store = createCoverStore();
+        const cover = { type: "image/png", data: new Uint8Array([1, 2, 3]) };
+        const ref = store.put("spotify.exe", cover) as string;
+        const icon = { type: "image/png", data: new Uint8Array([9]) };
+        const img = createPresenceImages({
+            fetch: stub(new Uint8Array(1)),
+            mediaCover: (r: string) => store.get(r),
+            mediaIcon: async (p: string) => (p === "spotify.exe" ? icon : null),
+        });
+        expect(await img.fetchImage("media-spotify.exe", ref)).toEqual(cover);
+        expect(
+            await img.fetchImage("media-spotify.exe", "media-icon:spotify.exe"),
+        ).toEqual(icon);
+        expect(await img.fetchImage("media-vlc", "media-icon:vlc")).toBeNull();
+        // Not the player's own app id.
+        expect(await img.fetchImage("1", ref)).toBeNull();
+        expect(
+            await img.fetchImage("media-vlc", "media-icon:spotify.exe"),
+        ).toBeNull();
+        // A cover whose hash is no longer the player's.
+        expect(
+            await img.fetchImage(
+                "media-spotify.exe",
+                "media:spotify.exe:000000000000",
+            ),
+        ).toBeNull();
+        expect(calls).toEqual([]);
+    });
+});
+
+describe("media covers", () => {
+    it("refers to a cover by a hash that changes with the picture", () => {
+        const store = createCoverStore();
+        const first = { type: "image/png", data: new Uint8Array([1, 2, 3]) };
+        const ref = store.put("spotify.exe", first) as string;
+        expect(ref).toMatch(/^media:spotify\.exe:[0-9a-f]{12}$/);
+        expect(store.get(ref)).toEqual(first);
+
+        // A new album is a new reference; the old one no longer resolves.
+        const second = { type: "image/jpeg", data: new Uint8Array([4, 5, 6]) };
+        const next = store.put("spotify.exe", second) as string;
+        expect(next).not.toBe(ref);
+        expect(store.get(ref)).toBeNull();
+        expect(store.get(next)).toEqual(second);
+
+        // Another player's reference with the same hash does not resolve.
+        expect(store.get(`media:vlc:${next.slice(-12)}`)).toBeNull();
+        expect(store.get("media:spotify.exe")).toBeNull();
+
+        // Stopped (no cover) forgets it.
+        expect(store.put("spotify.exe", undefined)).toBeNull();
+        expect(store.get(next)).toBeNull();
     });
 });
 

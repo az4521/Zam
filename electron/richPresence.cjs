@@ -60,6 +60,44 @@ function socketLocation({ inFlatpak, env, id }) {
     return { dir, sock: path.join(dir, "presence.sock"), owned: true };
 }
 
+/**
+ * The cover of each media player's track, for the renderer to ask for by a
+ * reference. put() keeps a player's cover and returns its reference
+ * "media:<player>:<hash>" (the hash changes with the picture, so a new album is
+ * a new reference), or null when there is none; get() gives the cover behind a
+ * reference while it is still the player's current one.
+ */
+function createCoverStore() {
+    const covers = new Map(); // player id -> { hash, type, data }
+    return {
+        put(playerId, cover) {
+            if (!cover) {
+                covers.delete(playerId);
+                return null;
+            }
+            const hash = crypto
+                .createHash("sha1")
+                .update(cover.data)
+                .digest("hex")
+                .slice(0, 12);
+            covers.set(playerId, { hash, type: cover.type, data: cover.data });
+            return `media:${playerId}:${hash}`;
+        },
+        get(ref) {
+            const m = /^media:(.+):([0-9a-f]{12})$/.exec(String(ref));
+            const held = m && covers.get(m[1]);
+            if (!held || held.hash !== m[2]) return null;
+            return { type: held.type, data: held.data };
+        },
+        clear(playerId) {
+            covers.delete(playerId);
+        },
+        clearAll() {
+            covers.clear();
+        },
+    };
+}
+
 function createRichPresence({
     send,
     userDataDir,
@@ -92,6 +130,7 @@ function createRichPresence({
     let media = null;
     // Media players currently shown (player id -> name), so stop() clears them.
     const mediaPlayers = new Map();
+    const covers = createCoverStore();
     // A process named Discord, for apps that look for one; see fakeDiscord.cjs.
     const fake = createFakeDiscord({ userDataDir, inFlatpak, log });
     // Games the user added by hand; the scanner reads this on every pass.
@@ -465,11 +504,16 @@ function createRichPresence({
 
     // ── Media players ──────────────────────────────────────────────────────
 
-    /** A player's track as a "Listening to" activity, or its removal. */
+    /**
+     * A player's track as a "Listening to" activity, or its removal. Its picture
+     * is the track's cover, or else the player's own icon (see mediaCover and
+     * presenceImages.cjs).
+     */
     function forwardMedia({ playerId, playerName, track }) {
         const presenceId = `media-${playerId}`;
         if (track) mediaPlayers.set(playerId, playerName);
         else mediaPlayers.delete(playerId);
+        const coverRef = covers.put(playerId, track?.cover);
         send({
             source: "arrpc",
             app: { id: presenceId, name: playerName },
@@ -481,9 +525,10 @@ function createRichPresence({
                       type: 2,
                       details: track.title,
                       state: track.artist || undefined,
-                      assets: track.album
-                          ? { large_text: track.album }
-                          : undefined,
+                      assets: {
+                          large_image: coverRef ?? `media-icon:${playerId}`,
+                          large_text: track.album || undefined,
+                      },
                       timestamps: track.durationMs
                           ? {
                                 start: track.startedAt,
@@ -499,6 +544,7 @@ function createRichPresence({
         const m = media;
         media = null;
         m?.stop();
+        covers.clearAll();
         // Whatever the listener did not clear itself.
         for (const [playerId, playerName] of mediaPlayers) {
             mediaPlayers.delete(playerId);
@@ -590,6 +636,7 @@ function createRichPresence({
                 onTrack: forwardMedia,
                 inFlatpak,
                 log,
+                fetch,
             });
             media.start();
         }
@@ -676,6 +723,8 @@ function createRichPresence({
         restartDiscord: restartDiscordApp,
         stop,
         programs: () => listPrograms(inFlatpak),
+        /** The cover behind a "media:" reference, or null (see createCoverStore). */
+        mediaCover: (ref) => covers.get(ref),
         /** Where a game's executable was last seen, or null. */
         gameExe: (id) =>
             exePaths.get(id) ??
@@ -684,4 +733,4 @@ function createRichPresence({
     };
 }
 
-module.exports = { createRichPresence, socketLocation };
+module.exports = { createCoverStore, createRichPresence, socketLocation };

@@ -21,9 +21,16 @@ const ASSET_LIST_TTL_MS = 10 * 60 * 1000;
 
 // `exeIcon(gameId)` gives { type, data } for a game the user added by hand
 // (the icon of its executable), or null.
+//
+// Media players ("Listening to", app id media-<player>) are not Discord apps,
+// so their pictures are not fetched at all: `mediaCover(ref)` gives the cover
+// behind a "media:<player>:<hash>" reference and `mediaIcon(player)` the
+// player's own icon for "media-icon:<player>". Both give { type, data } or null.
 function createPresenceImages({
     fetch: doFetch = globalThis.fetch,
     exeIcon = async () => null,
+    mediaCover = () => null,
+    mediaIcon = async () => null,
 } = {}) {
     const assetLists = new Map(); // app id -> { at, byName: Map }
 
@@ -84,6 +91,17 @@ function createPresenceImages({
     async function fetchImage(appId, ref) {
         try {
             if (ref === "exe-icon") return await exeIcon(String(appId));
+            // Before resolve(): these app ids are not numeric.
+            if (typeof ref === "string" && ref.startsWith("media:")) {
+                const m = /^media:(.+):[0-9a-f]{12}$/.exec(ref);
+                if (!m || String(appId) !== `media-${m[1]}`) return null;
+                return (await mediaCover(ref)) ?? null;
+            }
+            if (typeof ref === "string" && ref.startsWith("media-icon:")) {
+                const player = ref.slice("media-icon:".length);
+                if (!player || String(appId) !== `media-${player}`) return null;
+                return (await mediaIcon(player)) ?? null;
+            }
             const url = await resolve(String(appId), ref);
             if (!url) return null;
             const res = await doFetch(url, {

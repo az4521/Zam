@@ -6,17 +6,30 @@
 //
 // Only players that are PLAYING are reported. A paused, stopped or closed player
 // is reported as null. onTrack({ playerId, playerName, track }) gets
-//   track: { title, artist, album, durationMs, positionMs, startedAt }
-// or null, where startedAt = Date.now() - positionMs.
+//   track: { title, artist, album, durationMs, positionMs, startedAt, cover }
+// or null, where startedAt = Date.now() - positionMs and cover is { type, data }
+// (the album art, PNG/JPEG/WebP) or undefined.
 //
 // Windows reads go through one long-lived PowerShell helper, since the WinRT
 // API is only reachable from .NET. Its output is one JSON line per session and
 // an end marker after each poll.
 
 const { spawn, execFile } = require("child_process");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { fileURLToPath } = require("url");
 const { connectStream, readVardict } = require("./portalShortcuts.cjs");
 
 const POLL_MS = 2000;
+// Cover art: a file or download at most this big, and a Windows thumbnail
+// (sent base64 in its line) at most SMTC_COVER_MAX bytes.
+const ART_MAX_BYTES = 4 * 1024 * 1024;
+const ART_TIMEOUT_MS = 10_000;
+const SMTC_COVER_MAX = 1536 * 1024;
+const SMTC_COVER_B64_MAX = Math.ceil(SMTC_COVER_MAX / 3) * 4;
+// The only host a player's https art is fetched from (Spotify's covers).
+const ART_HOST = "i.scdn.co";
 // A position further than this from where the last report puts it is a seek.
 const SEEK_MS = 3000;
 const CALL_TIMEOUT_MS = 5000;
@@ -28,7 +41,9 @@ const ROOT_IFACE = "org.mpris.MediaPlayer2";
 const PLAYER_IFACE = "org.mpris.MediaPlayer2.Player";
 
 // Reads every session's media, timeline and playback state, prints one JSON
-// line per session, then {"end":true}, and repeats every two seconds.
+// line per session, then {"end":true}, and repeats every two seconds. When a
+// session's title, artist or album changed since its last line, the line also
+// carries its thumbnail as base64 `cover` and `coverType` (PNG or JPEG only).
 const SMTC_SCRIPT = `
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
@@ -39,8 +54,24 @@ function AwaitWinRt($op, $type) {
     $task.Wait(-1) | Out-Null
     $task.Result
 }
+function ReadCover($ref) {
+    if ($null -eq $ref) { return $null }
+    $stream = AwaitWinRt ($ref.OpenReadAsync()) ([Windows.Storage.Streams.IRandomAccessStreamWithContentType])
+    # Called by reflection: PowerShell will not convert the COM object to IRandomAccessStream.
+    $asStream = [System.IO.WindowsRuntimeStreamExtensions].GetMethod('AsStream', [type[]]@([Windows.Storage.Streams.IRandomAccessStream]))
+    $net = $asStream.Invoke($null, @($stream))
+    $mem = New-Object System.IO.MemoryStream
+    $net.CopyTo($mem)
+    if ($mem.Length -gt ${SMTC_COVER_MAX}) { return $null }
+    $bytes = $mem.ToArray()
+    if ($bytes.Length -ge 8 -and $bytes[0] -eq 137 -and $bytes[1] -eq 80 -and $bytes[2] -eq 78 -and $bytes[3] -eq 71) { $type = 'image/png' }
+    elseif ($bytes.Length -ge 3 -and $bytes[0] -eq 255 -and $bytes[1] -eq 216 -and $bytes[2] -eq 255) { $type = 'image/jpeg' }
+    else { return $null }
+    return @{ type = $type; b64 = [Convert]::ToBase64String($bytes) }
+}
 $mgr = AwaitWinRt ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
 $out = [Console]::Out
+$coverKeys = @{}
 while ($true) {
     foreach ($s in $mgr.GetSessions()) {
         try {
@@ -49,6 +80,13 @@ while ($true) {
             $status = [string]$s.GetPlaybackInfo().PlaybackStatus
             $pos = $timeline.Position.TotalMilliseconds
             if ($status -eq 'Playing') { $pos += ([DateTimeOffset]::UtcNow - $timeline.LastUpdatedTime).TotalMilliseconds }
+            $id = [string]$s.SourceAppUserModelId
+            $cover = $null
+            $trackKey = [string]$media.Title + [char]10 + [string]$media.Artist + [char]10 + [string]$media.AlbumTitle
+            if ($coverKeys[$id] -ne $trackKey) {
+                $coverKeys[$id] = $trackKey
+                try { $cover = ReadCover $media.Thumbnail } catch {}
+            }
             $line = [pscustomobject]@{
                 SourceAppUserModelId = $s.SourceAppUserModelId
                 title = $media.Title
@@ -57,8 +95,12 @@ while ($true) {
                 playbackStatus = $status
                 positionMs = [math]::Round($pos)
                 endTimeMs = [math]::Round($timeline.EndTime.TotalMilliseconds)
-            } | ConvertTo-Json -Compress
-            $out.WriteLine($line)
+            }
+            if ($null -ne $cover) {
+                $line | Add-Member -NotePropertyName cover -NotePropertyValue $cover.b64
+                $line | Add-Member -NotePropertyName coverType -NotePropertyValue $cover.type
+            }
+            $out.WriteLine(($line | ConvertTo-Json -Compress))
         } catch {}
     }
     $out.WriteLine('{"end":true}')
@@ -93,10 +135,43 @@ function friendlyName(appId) {
     return name.trim() || raw;
 }
 
+/** The image type of some bytes by their magic numbers, or null. */
+function sniffImage(b) {
+    if (
+        b.length >= 8 &&
+        b[0] === 0x89 &&
+        b[1] === 0x50 &&
+        b[2] === 0x4e &&
+        b[3] === 0x47 &&
+        b[4] === 0x0d &&
+        b[5] === 0x0a &&
+        b[6] === 0x1a &&
+        b[7] === 0x0a
+    )
+        return "image/png";
+    if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff)
+        return "image/jpeg";
+    if (
+        b.length >= 12 &&
+        b.toString("latin1", 0, 4) === "RIFF" &&
+        b.toString("latin1", 8, 12) === "WEBP"
+    )
+        return "image/webp";
+    return null;
+}
+
+/** { type, data } for bytes that are an image of one of `types`, else undefined. */
+function coverOf(bytes, types = ["image/png", "image/jpeg", "image/webp"]) {
+    const type = sniffImage(bytes);
+    if (!type || !types.includes(type)) return undefined;
+    return { type, data: new Uint8Array(bytes) };
+}
+
 /**
  * One line from the PowerShell helper: a session as { end: false, playerId,
- * playerName, playing, title, artist, album, durationMs, positionMs }, the end
- * of a poll as { end: true }, or null for anything else.
+ * playerName, playing, title, artist, album, durationMs, positionMs, cover }, the
+ * end of a poll as { end: true }, or null for anything else. `cover` is { type,
+ * data } when the line carried a PNG or JPEG thumbnail that is not too big.
  */
 function parseSmtcLine(line) {
     let msg;
@@ -109,6 +184,15 @@ function parseSmtcLine(line) {
     if (msg?.end === true) return { end: true };
     const appId = msg?.SourceAppUserModelId;
     if (typeof appId !== "string" || !appId) return null;
+    let cover;
+    if (
+        typeof msg.cover === "string" &&
+        msg.cover.length <= SMTC_COVER_B64_MAX
+    ) {
+        const bytes = Buffer.from(msg.cover, "base64");
+        if (bytes.length <= SMTC_COVER_MAX)
+            cover = coverOf(bytes, ["image/png", "image/jpeg"]);
+    }
     return {
         end: false,
         playerId: appId.toLowerCase(),
@@ -119,6 +203,112 @@ function parseSmtcLine(line) {
         album: text(msg.albumTitle),
         durationMs: ms(msg.endTimeMs),
         positionMs: ms(msg.positionMs),
+        cover,
+    };
+}
+
+/** Folders a player may keep cover art in, for file:// art URLs. */
+function artFolders(env = process.env) {
+    const home = os.homedir();
+    return [
+        os.tmpdir(),
+        "/tmp",
+        "/var/tmp",
+        env.XDG_RUNTIME_DIR,
+        env.XDG_CACHE_HOME || path.join(home, ".cache"),
+        path.join(home, ".local", "share"),
+        path.join(home, ".var", "app"),
+        path.join(home, "snap"),
+    ].filter(Boolean);
+}
+
+async function inArtFolder(file) {
+    for (const dir of artFolders()) {
+        let real;
+        try {
+            real = await fs.promises.realpath(dir);
+        } catch {
+            continue;
+        }
+        const rel = path.relative(real, file);
+        if (rel && !rel.startsWith("..") && !path.isAbsolute(rel)) return true;
+    }
+    return false;
+}
+
+/**
+ * The picture at an art URL as { type, data }, or undefined. A file:// URL is
+ * read from disk, but only from a cache or temp folder (see artFolders). An https URL is fetched only from i.scdn.co, and
+ * open.spotify.com/image/<id> is mapped to i.scdn.co/image/<id>; any other
+ * host, scheme or port is refused, so an app cannot point this at the user's
+ * network. Bytes that are not a PNG, JPEG or WebP are refused too.
+ */
+async function readArt(raw, doFetch) {
+    let url;
+    try {
+        url = new URL(String(raw));
+    } catch {
+        return undefined;
+    }
+    if (url.protocol === "file:") {
+        const file = await fs.promises.realpath(fileURLToPath(url));
+        // Players keep covers in a cache or temp folder. Anywhere else (a photo
+        // in Pictures, say) is not theirs to put on the profile.
+        if (!(await inArtFolder(file))) return undefined;
+        const st = await fs.promises.stat(file);
+        if (!st.isFile() || st.size > ART_MAX_BYTES) return undefined;
+        return coverOf(await fs.promises.readFile(file));
+    }
+    if (url.protocol !== "https:" || typeof doFetch !== "function")
+        return undefined;
+    if (url.hostname === "open.spotify.com") {
+        const m = /^\/image\/([A-Za-z0-9]{8,64})$/.exec(url.pathname);
+        if (!m) return undefined;
+        url = new URL(`https://${ART_HOST}/image/${m[1]}`);
+    }
+    if (url.hostname !== ART_HOST || url.port || url.username || url.password)
+        return undefined;
+    const res = await doFetch(url.href, {
+        signal: AbortSignal.timeout(ART_TIMEOUT_MS),
+    });
+    if (!res.ok) return undefined;
+    // Redirects are followed, so check where it ended up.
+    if (res.url && new URL(res.url).hostname !== ART_HOST) return undefined;
+    if (Number(res.headers.get("content-length")) > ART_MAX_BYTES)
+        return undefined;
+    const bytes = Buffer.from(await res.arrayBuffer());
+    if (bytes.length > ART_MAX_BYTES) return undefined;
+    return coverOf(bytes);
+}
+
+/**
+ * Pictures per player, read only when the player's art URL changes: a player
+ * keeps its picture until the URL changes, and a failed read is not retried
+ * until then. keep() forgets the players not in the given set.
+ */
+function createArtCache(doFetch) {
+    const byPlayer = new Map(); // key -> { url, cover }
+    return {
+        async cover(key, url) {
+            if (!url) {
+                byPlayer.delete(key);
+                return undefined;
+            }
+            const held = byPlayer.get(key);
+            if (held && held.url === url) return held.cover;
+            let cover;
+            try {
+                cover = await readArt(url, doFetch);
+            } catch {
+                cover = undefined;
+            }
+            byPlayer.set(key, { url, cover });
+            return cover;
+        },
+        keep(keys) {
+            for (const key of byPlayer.keys())
+                if (!keys.has(key)) byPlayer.delete(key);
+        },
     };
 }
 
@@ -154,6 +344,7 @@ function parseMprisProps(busName, props, identity = "") {
         // MPRIS counts in microseconds.
         durationMs: ms(Number(md["mpris:length"]) / 1000),
         positionMs: ms(Number(props.Position) / 1000),
+        artUrl: text(md["mpris:artUrl"]) || undefined,
     };
 }
 
@@ -164,6 +355,9 @@ function parseMprisProps(busName, props, identity = "") {
  */
 function createTrackDiffer(onTrack) {
     const shown = new Map(); // playerId -> { name, key, positionMs, at }
+    // playerId -> { key, cover }: the cover of the track it was read for, kept
+    // across polls, seeks and pauses of that same track.
+    const covers = new Map();
     return {
         update(sessions, now = Date.now()) {
             const seen = new Set();
@@ -186,6 +380,12 @@ function createTrackDiffer(onTrack) {
                 const key = [s.title, s.artist, s.album, s.durationMs].join(
                     "\n",
                 );
+                // A new track has no cover unless this poll brought one.
+                const held = covers.get(s.playerId);
+                const cover =
+                    s.cover ??
+                    (held && held.key === key ? held.cover : undefined);
+                covers.set(s.playerId, { key, cover });
                 if (
                     prev &&
                     prev.key === key &&
@@ -210,6 +410,7 @@ function createTrackDiffer(onTrack) {
                         durationMs: s.durationMs,
                         positionMs: s.positionMs,
                         startedAt: now - s.positionMs,
+                        cover,
                     },
                 });
             }
@@ -218,6 +419,8 @@ function createTrackDiffer(onTrack) {
                 shown.delete(playerId);
                 onTrack({ playerId, playerName: prev.name, track: null });
             }
+            for (const playerId of covers.keys())
+                if (!seen.has(playerId)) covers.delete(playerId);
         },
     };
 }
@@ -371,6 +574,12 @@ function run() {
                 session.album = String(t.album());
                 session.durationMs = Math.round(t.duration() * p.durationScale);
                 session.positionMs = Math.round(app.playerPosition() * 1000);
+                // Spotify's cover is an i.scdn.co address; Music has none.
+                if (p.playerId === "spotify") {
+                    try {
+                        session.artUrl = String(t.artworkUrl());
+                    } catch {}
+                }
             }
             out.push(session);
         } catch (e) {
@@ -381,12 +590,13 @@ function run() {
 }
 `;
 
-function startMpris({ diff, status, log }) {
+function startMpris({ diff, status, log, doFetch }) {
     let bus = null;
     let polling = false;
     let stopping = false;
     // Bus name -> its Identity (the name people know it by).
     const identities = new Map();
+    const art = createArtCache(doFetch);
 
     async function connect() {
         const dbus = require("@homebridge/dbus-native");
@@ -451,13 +661,18 @@ function startMpris({ diff, status, log }) {
                 if (!players.includes(name)) identities.delete(name);
             // One player failing must not stop the others being reported.
             const sessions = await Promise.all(
-                players.map((name) =>
-                    readPlayer(name).catch((e) => {
+                players.map(async (name) => {
+                    try {
+                        const s = await readPlayer(name);
+                        s.cover = await art.cover(name, s.artUrl);
+                        return s;
+                    } catch (e) {
                         log("media player", name, "unreadable:", e.message);
                         return null;
-                    }),
-                ),
+                    }
+                }),
             );
+            art.keep(new Set(players));
             if (stopping) return;
             diff.update(sessions.filter(Boolean));
             status.error = null;
@@ -512,6 +727,10 @@ function parseMacosOutput(stdout) {
             album: text(m.album),
             durationMs: ms(m.durationMs),
             positionMs: ms(m.positionMs),
+            artUrl:
+                playerId === "spotify"
+                    ? text(m.artUrl) || undefined
+                    : undefined,
         });
     }
     return sessions;
@@ -539,12 +758,13 @@ function parseMacosList(stdout) {
     return list.filter((m) => m && typeof m === "object");
 }
 
-function startMacos({ diff, status, log }) {
+function startMacos({ diff, status, log, doFetch }) {
     let polling = false;
     let stopping = false;
     let child = null;
     // Each distinct failure is logged once, not on every poll.
     const logged = new Set();
+    const art = createArtCache(doFetch);
 
     /** Sets status.error from one poll's failures; none clears it. */
     const report = (errors) => {
@@ -567,6 +787,35 @@ function startMacos({ diff, status, log }) {
         status.error = parts.length ? parts.join("; ") : null;
     };
 
+    async function handle(err, stdout, stderr) {
+        polling = false;
+        child = null;
+        if (stopping) return;
+        if (err) {
+            // The script catches its own failures, so this is osascript
+            // itself failing: the whole poll is lost.
+            const errText = String(stderr || "").trim();
+            const denied = MACOS_DENIED.test(errText);
+            const message = err.killed
+                ? "timed out"
+                : errText.split("\n")[0] || err.message;
+            report([
+                {
+                    app: denied ? "Spotify or Music" : "osascript",
+                    denied,
+                    message,
+                },
+            ]);
+            return;
+        }
+        const sessions = parseMacosOutput(stdout);
+        for (const s of sessions)
+            s.cover = await art.cover(s.playerId, s.artUrl);
+        if (stopping) return;
+        diff.update(sessions);
+        report(parseMacosErrors(stdout));
+    }
+
     function poll() {
         if (polling || stopping) return;
         polling = true;
@@ -574,30 +823,7 @@ function startMacos({ diff, status, log }) {
             "osascript",
             ["-l", "JavaScript", "-e", MACOS_SCRIPT],
             { timeout: CALL_TIMEOUT_MS, windowsHide: true },
-            (err, stdout, stderr) => {
-                polling = false;
-                child = null;
-                if (stopping) return;
-                if (err) {
-                    // The script catches its own failures, so this is osascript
-                    // itself failing: the whole poll is lost.
-                    const errText = String(stderr || "").trim();
-                    const denied = MACOS_DENIED.test(errText);
-                    const message = err.killed
-                        ? "timed out"
-                        : errText.split("\n")[0] || err.message;
-                    report([
-                        {
-                            app: denied ? "Spotify or Music" : "osascript",
-                            denied,
-                            message,
-                        },
-                    ]);
-                    return;
-                }
-                diff.update(parseMacosOutput(stdout));
-                report(parseMacosErrors(stdout));
-            },
+            (err, stdout, stderr) => void handle(err, stdout, stderr),
         );
     }
 
@@ -618,9 +844,16 @@ function startMacos({ diff, status, log }) {
 
 /**
  * The media listener. `inFlatpak` changes nothing: the session bus and the
- * SMTC helper are both reachable from inside a Flatpak.
+ * SMTC helper are both reachable from inside a Flatpak. `fetch` (net.fetch in
+ * the app) is what cover art from i.scdn.co is downloaded with; without it only
+ * file:// art is read.
  */
-function createMediaSession({ onTrack, inFlatpak = false, log = () => {} }) {
+function createMediaSession({
+    onTrack,
+    inFlatpak = false,
+    log = () => {},
+    fetch: doFetch,
+}) {
     const diff = createTrackDiffer(onTrack);
     const status = { running: false, error: null };
     let impl = null;
@@ -633,9 +866,9 @@ function createMediaSession({ onTrack, inFlatpak = false, log = () => {} }) {
             if (process.platform === "win32")
                 impl = startSmtc({ diff, status, log });
             else if (process.platform === "linux")
-                impl = startMpris({ diff, status, log });
+                impl = startMpris({ diff, status, log, doFetch });
             else if (process.platform === "darwin")
-                impl = startMacos({ diff, status, log });
+                impl = startMacos({ diff, status, log, doFetch });
             else return;
             status.running = true;
         },
@@ -658,5 +891,6 @@ module.exports = {
     parseMacosOutput,
     parseMprisProps,
     parseSmtcLine,
+    readArt,
     SMTC_SCRIPT,
 };

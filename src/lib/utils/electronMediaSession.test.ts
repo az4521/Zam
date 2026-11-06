@@ -1,7 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { fileURLToPath } from "url";
+import { describe, it, expect, afterEach } from "vitest";
+import { fileURLToPath, pathToFileURL } from "url";
 import { dirname, join } from "path";
 import { createRequire } from "module";
+import { mkdtempSync, rmSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -16,7 +18,12 @@ const {
     parseMacosOutput,
     parseMprisProps,
     parseSmtcLine,
+    readArt,
 } = electron("mediaSession.cjs");
+
+// The first bytes of a PNG and of a JPEG, enough for the type check.
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2]);
+const JPG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2]);
 
 describe("Windows media lines", () => {
     it("reads a session line and the end of a poll", () => {
@@ -287,5 +294,194 @@ describe("macOS media players", () => {
             { app: "Music", denied: false, message: "boom" },
         ]);
         expect(parseMacosErrors("")).toEqual([]);
+    });
+});
+
+describe("cover art", () => {
+    it("reads a PNG or JPEG cover from a session line and drops anything else", () => {
+        const line = (extra: Record<string, unknown>) =>
+            JSON.stringify({
+                SourceAppUserModelId: "Spotify.exe",
+                title: "Song",
+                playbackStatus: "Playing",
+                ...extra,
+            });
+        expect(
+            parseSmtcLine(
+                line({ cover: PNG.toString("base64"), coverType: "image/png" }),
+            ).cover,
+        ).toEqual({ type: "image/png", data: new Uint8Array(PNG) });
+        expect(
+            parseSmtcLine(line({ cover: JPG.toString("base64") })).cover,
+        ).toEqual({ type: "image/jpeg", data: new Uint8Array(JPG) });
+        expect(
+            parseSmtcLine(
+                line({ cover: Buffer.from("hello").toString("base64") }),
+            ).cover,
+        ).toBeUndefined();
+        expect(parseSmtcLine(line({ cover: 42 })).cover).toBeUndefined();
+        expect(parseSmtcLine(line({})).cover).toBeUndefined();
+        // Over 1.5 MB is dropped.
+        const big = Buffer.concat([PNG, Buffer.alloc(1600 * 1024)]);
+        expect(
+            parseSmtcLine(line({ cover: big.toString("base64") })).cover,
+        ).toBeUndefined();
+    });
+
+    it("carries a track's cover through seeks and pauses, and clears it with a new track", () => {
+        const got: Array<{ track: { cover?: unknown } | null }> = [];
+        const d = createTrackDiffer((e: unknown) =>
+            got.push(e as (typeof got)[number]),
+        );
+        const sess = (over: Record<string, unknown> = {}) => ({
+            end: false,
+            playerId: "spotify",
+            playerName: "Spotify",
+            playing: true,
+            title: "Song",
+            artist: "Band",
+            album: "Album",
+            durationMs: 200000,
+            positionMs: 10000,
+            ...over,
+        });
+        const cover = { type: "image/png", data: new Uint8Array(PNG) };
+        const t0 = 1_000_000;
+
+        d.update([sess({ cover })], t0);
+        expect(got[0].track?.cover).toEqual(cover);
+
+        // On time, with no cover in this poll: nothing sent.
+        d.update([sess({ positionMs: 12000 })], t0 + 2000);
+        expect(got).toHaveLength(1);
+
+        // A seek is sent again, still with the cover.
+        d.update([sess({ positionMs: 60000 })], t0 + 4000);
+        expect(got[1].track?.cover).toEqual(cover);
+
+        // Paused, then resumed on the same track: the cover comes back.
+        d.update([sess({ playing: false })], t0 + 6000);
+        d.update([sess({ positionMs: 60000 })], t0 + 8000);
+        expect(got[3].track?.cover).toEqual(cover);
+
+        // A new track with no cover of its own has none.
+        d.update([sess({ title: "Next", positionMs: 0 })], t0 + 10000);
+        expect(got[4].track?.cover).toBeUndefined();
+    });
+});
+
+describe("cover art from URLs", () => {
+    const calls: string[] = [];
+    afterEach(() => (calls.length = 0));
+    const fetchStub =
+        (bytes: Buffer = PNG) =>
+        async (url: string) => {
+            calls.push(url);
+            return {
+                ok: true,
+                url,
+                headers: new Map([["content-length", String(bytes.length)]]),
+                arrayBuffer: async () => new Uint8Array(bytes).buffer,
+            };
+        };
+
+    it("fetches only from i.scdn.co, and maps open.spotify.com images to it", async () => {
+        const f = fetchStub();
+        expect(
+            await readArt("https://i.scdn.co/image/ab67616d0000b273", f),
+        ).toEqual({ type: "image/png", data: new Uint8Array(PNG) });
+        expect(calls).toEqual(["https://i.scdn.co/image/ab67616d0000b273"]);
+        calls.length = 0;
+
+        expect(
+            await readArt("https://open.spotify.com/image/ab67616d0000b273", f),
+        ).toEqual({ type: "image/png", data: new Uint8Array(PNG) });
+        expect(calls).toEqual(["https://i.scdn.co/image/ab67616d0000b273"]);
+        calls.length = 0;
+
+        for (const bad of [
+            "http://192.168.1.5/x",
+            "https://192.168.1.5/x.png",
+            "https://evil.example/x.png",
+            "https://i.scdn.co.evil.example/x.png",
+            "https://i.scdn.co:8443/image/x",
+            "https://open.spotify.com/track/abc",
+            "javascript:alert(1)",
+            "not a url",
+        ])
+            expect(await readArt(bad, f)).toBeUndefined();
+        expect(calls).toEqual([]);
+    });
+
+    it("refuses a redirect off i.scdn.co, and bytes that are not an image", async () => {
+        const redirected = async (url: string) => ({
+            ok: true,
+            url: "https://evil.example/x.png",
+            headers: new Map(),
+            arrayBuffer: async () => new Uint8Array(PNG).buffer,
+        });
+        expect(
+            await readArt(
+                "https://i.scdn.co/image/ab67616d0000b273",
+                redirected,
+            ),
+        ).toBeUndefined();
+        expect(
+            await readArt(
+                "https://i.scdn.co/image/ab67616d0000b273",
+                fetchStub(Buffer.from("<html>")),
+            ),
+        ).toBeUndefined();
+        // Without a fetch function, https art is not read at all.
+        expect(
+            await readArt(
+                "https://i.scdn.co/image/ab67616d0000b273",
+                undefined,
+            ),
+        ).toBeUndefined();
+    });
+
+    it("reads a file:// art file, and refuses one that is not an image", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "zam-art-"));
+        try {
+            const png = join(dir, "cover.png");
+            const text = join(dir, "notes.png");
+            writeFileSync(png, PNG);
+            writeFileSync(text, "hello");
+            expect(await readArt(pathToFileURL(png).href)).toEqual({
+                type: "image/png",
+                data: new Uint8Array(PNG),
+            });
+            expect(await readArt(pathToFileURL(text).href)).toBeUndefined();
+            expect(calls).toEqual([]);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("refuses a file:// image outside the cache and temp folders", async () => {
+        // The working directory is the project, not a place players keep covers.
+        const outside = join(process.cwd(), "zam-art-outside.png");
+        writeFileSync(outside, PNG);
+        try {
+            expect(await readArt(pathToFileURL(outside).href)).toBeUndefined();
+        } finally {
+            rmSync(outside, { force: true });
+        }
+    });
+
+    it("takes the MPRIS art URL from Metadata", () => {
+        const player = parseMprisProps(
+            "org.mpris.MediaPlayer2.spotify",
+            {
+                PlaybackStatus: "Playing",
+                Metadata: {
+                    "xesam:title": "Track",
+                    "mpris:artUrl": "https://i.scdn.co/image/ab67616d0000b273",
+                },
+            },
+            "Spotify",
+        );
+        expect(player.artUrl).toBe("https://i.scdn.co/image/ab67616d0000b273");
     });
 });
