@@ -88,9 +88,47 @@ async function runningInstalls({
     return found;
 }
 
+// A killed program leaves its notification-area icon behind until the mouse
+// passes over it, and the ghost can keep the next Discord's own icon from
+// showing. Sweeping the mouse over every icon makes Explorer drop dead ones.
+const PURGE_TRAY = `
+Add-Type -Namespace Z -Name T -MemberDefinition '
+[DllImport("user32.dll")] public static extern IntPtr FindWindow(string c, string w);
+[DllImport("user32.dll")] public static extern IntPtr FindWindowEx(IntPtr p, IntPtr a, string c, string w);
+[DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out RECT r);
+[DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
+public struct RECT { public int L, T, R, B; }'
+function Sweep($bar) {
+    if ($bar -eq [IntPtr]::Zero) { return }
+    $r = New-Object Z.T+RECT
+    [void][Z.T]::GetClientRect($bar, [ref]$r)
+    for ($x = 0; $x -lt $r.R; $x += 4) {
+        [void][Z.T]::SendMessage($bar, 0x200, [IntPtr]::Zero, [IntPtr](($r.B / 2) * 65536 + $x))
+    }
+}
+$tray = [Z.T]::FindWindow('Shell_TrayWnd', $null)
+$notify = [Z.T]::FindWindowEx($tray, [IntPtr]::Zero, 'TrayNotifyWnd', $null)
+$pager = [Z.T]::FindWindowEx($notify, [IntPtr]::Zero, 'SysPager', $null)
+Sweep ([Z.T]::FindWindowEx($pager, [IntPtr]::Zero, 'ToolbarWindow32', $null))
+$over = [Z.T]::FindWindow('NotifyIconOverflowWindow', $null)
+Sweep ([Z.T]::FindWindowEx($over, [IntPtr]::Zero, 'ToolbarWindow32', $null))
+`;
+
+const purgeTrayGhosts = () =>
+    run("powershell", [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        PURGE_TRAY,
+    ]);
+
 const windowsAdapter = {
     find: () => runningInstalls(),
-    stop: ({ name }) => run("taskkill", ["/F", "/T", "/IM", `${name}.exe`]),
+    stop: async ({ name }) => {
+        await run("taskkill", ["/F", "/T", "/IM", `${name}.exe`]);
+        await sleep(500);
+        await purgeTrayGhosts();
+    },
     alive: async ({ name }) =>
         (await run("tasklist", ["/FI", `IMAGENAME eq ${name}.exe`, "/NH"]))
             .toLowerCase()
