@@ -218,7 +218,7 @@ function createDiscordRpc({ onActivity, inFlatpak = false, log = () => {} }) {
 
     /**
      * A connection to the real Discord on another slot, handshaken as
-     * `clientId`, or null if there is none. Its replies are not used.
+     * `clientId` and ready for frames, or null if there is none.
      */
     function connectDiscord(clientId) {
         const targets = discordIpcBases({ inFlatpak }).flatMap((base) =>
@@ -227,7 +227,10 @@ function createDiscordRpc({ onActivity, inFlatpak = false, log = () => {} }) {
         return new Promise((resolve) => {
             const next = () => {
                 const target = targets.shift();
-                if (!target) return resolve(null);
+                if (!target) {
+                    log("no real discord to pass activity to");
+                    return resolve(null);
+                }
                 if (target === ipcPath) return next();
                 const sock = net.createConnection(target);
                 sock.setTimeout(2000, () =>
@@ -238,11 +241,25 @@ function createDiscordRpc({ onActivity, inFlatpak = false, log = () => {} }) {
                     sock.setTimeout(0);
                     sock.removeListener("error", next);
                     sock.on("error", () => {});
-                    sock.on("data", () => {});
+                    // Discord drops a frame that arrives before it has answered
+                    // the handshake (with READY), so hold the app's frames
+                    // until it has.
+                    let ready = false;
+                    const settle = () => {
+                        if (ready) return;
+                        ready = true;
+                        clearTimeout(timer);
+                        resolve(sock);
+                    };
+                    const timer = setTimeout(settle, 3000);
+                    sock.on("data", () => {
+                        settle();
+                    });
+                    sock.on("close", settle);
+                    log("passing", clientId, "on to", target);
                     sock.write(
                         encode(Op.HANDSHAKE, { v: 1, client_id: clientId }),
                     );
-                    resolve(sock);
                 });
             };
             next();
@@ -372,10 +389,19 @@ function createDiscordRpc({ onActivity, inFlatpak = false, log = () => {} }) {
             () => socket.close(),
             clientId,
         );
-        socket.on("close", () => session.end());
+        // Browser apps arrive here; pass them on to the real Discord too.
+        const discord = connectDiscord(clientId);
+        socket.on("close", () => {
+            session.end();
+            void discord.then((d) => d?.destroy());
+        });
         socket.on("message", (raw) => {
             try {
-                session.handle(JSON.parse(raw.toString("utf8")));
+                const data = JSON.parse(raw.toString("utf8"));
+                session.handle(data);
+                void discord.then(
+                    (d) => d && !d.destroyed && d.write(encode(Op.FRAME, data)),
+                );
             } catch {}
         });
     }

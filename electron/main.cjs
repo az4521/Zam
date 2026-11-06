@@ -864,6 +864,8 @@ ipcMain.handle("autostart:set", (_e, enabled) => autostart.set(enabled));
 const richPresence = createRichPresence({
     userDataDir: app.getPath("userData"),
     inFlatpak: IN_FLATPAK,
+    // Discord's game list and app names, over net.fetch so the proxy applies.
+    fetch: (url, init) => net.fetch(url, init),
     send: (event) => {
         if (mainWindow && !mainWindow.isDestroyed())
             mainWindow.webContents.send("rich-presence:event", event);

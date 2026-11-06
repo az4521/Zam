@@ -339,6 +339,11 @@ function createRichPresence({
                 }
             })();
             appNames.set(clientId, found);
+            // A failed lookup (offline, rate limited) is worth another try.
+            void found.then((name) => {
+                if (name === null && appNames.get(clientId) === found)
+                    appNames.delete(clientId);
+            });
         }
         return found;
     }

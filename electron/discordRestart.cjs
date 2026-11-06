@@ -34,8 +34,32 @@ function run(cmd, args) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Zam's environment without what marks it as Zam. Discord inherits it, and
+ * Chromium's CHROME_DESKTOP / GIO_LAUNCHED_DESKTOP_FILE would make it present
+ * itself (tray icon included) as Zam's desktop entry.
+ */
+function cleanEnv(env = process.env) {
+    const out = {};
+    for (const [k, v] of Object.entries(env)) {
+        if (
+            /^(ELECTRON_|CHROME_|GIO_LAUNCHED_DESKTOP_FILE|NODE_OPTIONS$)/.test(
+                k,
+            )
+        )
+            continue;
+        out[k] = v;
+    }
+    if (out.ORIGINAL_XDG_CURRENT_DESKTOP !== undefined) {
+        out.XDG_CURRENT_DESKTOP = out.ORIGINAL_XDG_CURRENT_DESKTOP;
+        delete out.ORIGINAL_XDG_CURRENT_DESKTOP;
+    }
+    return out;
+}
+
 function launch(cmd, args) {
     const child = spawn(cmd, args, {
+        env: cleanEnv(),
         detached: true,
         stdio: "ignore",
         windowsHide: true,
@@ -218,5 +242,6 @@ module.exports = {
     restartDiscord,
     runningInstalls,
     parseUnixProcesses,
+    cleanEnv,
     flatpakAdapter,
 };
