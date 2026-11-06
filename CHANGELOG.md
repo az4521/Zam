@@ -4,6 +4,15 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.1
+
+✨ **New**
+
+- **Discord keeps working next to Zam (desktop):** apps that report Discord Rich Presence now also reach a running Discord, so turning on Zam's Discord support no longer takes presence away from Discord itself. This works when Zam starts before Discord.
+- **Restart Discord:** if Discord started first and apps report to it instead of Zam, Settings > Account > Rich presence offers a Restart Discord button (after a confirmation) that lets Zam take its place and then reopens Discord. Works on Windows, macOS and Linux, and from the Flatpak once `org.freedesktop.Flatpak` is allowed.
+- **Pretend Discord is running:** some apps refuse to send Rich Presence unless a process named Discord exists. A new option starts an idle one, only while Discord itself isn't running.
+- **Richer activity cards:** the party size ("3 of 4") now shows after the state, streaming, watching and competing activities say so, and apps that don't name their activity show the name registered with Discord instead of "Discord app".
+
 ## v1.54.0
 
 ✨ **New**
