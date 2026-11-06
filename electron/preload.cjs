@@ -130,6 +130,7 @@ contextBridge.exposeInMainWorld("desktop", {
                 local: !!want?.local,
                 arrpc: !!want?.arrpc,
                 scan: !!want?.scan,
+                fake: !!want?.fake,
                 userId: String(want?.userId ?? ""),
                 games: Array.isArray(want?.games)
                     ? want.games.map((g) => ({
@@ -147,6 +148,8 @@ contextBridge.exposeInMainWorld("desktop", {
                 String(ref),
             ),
         status: () => ipcRenderer.invoke("rich-presence:status"),
+        restartDiscord: () =>
+            ipcRenderer.invoke("rich-presence:restart-discord"),
         onEvent: (cb) => {
             const h = (_e, ev) => cb(ev);
             ipcRenderer.on("rich-presence:event", h);

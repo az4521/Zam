@@ -4098,6 +4098,20 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageEmbed.deleted": "Mensaje eliminado",
     "messageEmbed.inRoom": "en {room}",
     "messageEmbed.jumpToMessage": "Ir al mensaje enlazado:",
+
+    // Rich presence: Discord restart and stand-in process
+    "richPresence.fake": "Simular que Discord está en ejecución",
+    "richPresence.fakeHint":
+        "Algunas aplicaciones no envían Rich Presence a menos que se esté ejecutando un proceso llamado Discord. Esto inicia uno inactivo, solo mientras Discord no se esté ejecutando.",
+    "richPresence.fakeFailed": "No se pudo iniciar: {error}",
+    "richPresence.discordFirst":
+        "Discord se inició antes que Zam, así que las aplicaciones informan a Discord y Zam no las ve.",
+    "richPresence.restartDiscord": "Reiniciar Discord",
+    "richPresence.restartDiscordTitle": "¿Reiniciar Discord?",
+    "richPresence.restartDiscordBody":
+        "Discord se cerrará y volverá a abrirse, lo que termina cualquier llamada o transmisión en curso. Zam ocupa el primer lugar para que las aplicaciones le informen a él, y Zam reenvía a Discord lo que informan.",
+    "richPresence.restartDiscordFailed":
+        "No se pudo reiniciar Discord: {error}",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: es };

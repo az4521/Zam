@@ -202,6 +202,46 @@ describe("discordActivityToEntry", () => {
         expect(e.progress).toEqual({ since: NOW, until: NOW + 1000 });
     });
 
+    it("puts the party size after the state, as Discord does", () => {
+        const e = discordActivityToEntry(
+            { state: "Lobby", party: { id: "p", size: [3, 4] } },
+            "arrpc-3",
+            "App",
+            NOW,
+        ) as Extract<RpcEntry, { kind: "activity" }>;
+        expect(e.state).toBe("Lobby (3 of 4)");
+        const bare = discordActivityToEntry(
+            { party: { size: [1, 2] } },
+            "arrpc-4",
+            "App",
+            NOW,
+        ) as Extract<RpcEntry, { kind: "activity" }>;
+        expect(bare.state).toBe("(1 of 2)");
+        const bad = discordActivityToEntry(
+            { state: "Lobby", party: { size: [5, 4] } },
+            "arrpc-5",
+            "App",
+            NOW,
+        ) as Extract<RpcEntry, { kind: "activity" }>;
+        expect(bad.state).toBe("Lobby");
+    });
+
+    it("names watching, competing and streaming in the state", () => {
+        const state = (extra: Record<string, unknown>) =>
+            (
+                discordActivityToEntry(extra, "x", "App", NOW) as Extract<
+                    RpcEntry,
+                    { kind: "activity" }
+                >
+            ).state;
+        expect(state({ type: 3, state: "Ep 2" })).toBe("Watching · Ep 2");
+        expect(state({ type: 5 })).toBe("Competing");
+        expect(state({ type: 1, state: "Live", party: { size: [1, 2] } })).toBe(
+            "Streaming · Live (1 of 2)",
+        );
+        expect(state({ type: 0, state: "Lobby" })).toBe("Lobby");
+    });
+
     it("returns null for nothing", () => {
         expect(discordActivityToEntry(null, "x", "", NOW)).toBeNull();
     });

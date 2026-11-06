@@ -276,6 +276,10 @@ export const settingsState = $state({
     /** Device-global (desktop only): also accept Discord Rich Presence from
      *  apps, through arRPC. Needs richPresenceEnabled. Default OFF. */
     richPresenceArrpc: readBool("richPresenceArrpc", false),
+    /** Device-global (desktop only): run a stand-in process named Discord,
+     *  for apps that refuse to send Rich Presence without one. Needs
+     *  richPresenceArrpc. Default OFF. */
+    richPresenceFakeDiscord: readBool("richPresenceFakeDiscord", false),
     /** Device-global (desktop only): also notice games by their executable.
      *  Needs richPresenceEnabled. Default OFF. */
     richPresenceScan: readBool("richPresenceScan", false),
@@ -948,6 +952,11 @@ export function setRichPresenceEnabled(value: boolean): void {
 export function setRichPresenceArrpc(value: boolean): void {
     settingsState.richPresenceArrpc = value;
     writeBool("richPresenceArrpc", value);
+}
+
+export function setRichPresenceFakeDiscord(value: boolean): void {
+    settingsState.richPresenceFakeDiscord = value;
+    writeBool("richPresenceFakeDiscord", value);
 }
 
 export function setRichPresenceScan(value: boolean): void {

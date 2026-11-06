@@ -3609,6 +3609,20 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageEmbed.deleted": "削除されたメッセージ",
     "messageEmbed.inRoom": "{room} 内",
     "messageEmbed.jumpToMessage": "リンク先のメッセージへ移動:",
+
+    // Rich presence: Discord restart and stand-in process
+    "richPresence.fake": "Discord が起動しているように見せる",
+    "richPresence.fakeHint":
+        "Discord という名前のプロセスが動いていないと Rich Presence を送らないアプリがあります。これは何もしないプロセスを起動します。Discord 本体が起動していないときだけ動きます。",
+    "richPresence.fakeFailed": "起動できませんでした: {error}",
+    "richPresence.discordFirst":
+        "Discord が Zam より先に起動したため、アプリは Discord に報告し、Zam には届きません。",
+    "richPresence.restartDiscord": "Discord を再起動",
+    "richPresence.restartDiscordTitle": "Discord を再起動しますか?",
+    "richPresence.restartDiscordBody":
+        "Discord が閉じてからもう一度開くため、通話や配信の最中だった場合は終了します。Zam が先頭の枠を取ってアプリの報告を受け取り、その内容を Discord に転送します。",
+    "richPresence.restartDiscordFailed":
+        "Discord を再起動できませんでした: {error}",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ja };

@@ -29,6 +29,8 @@ const {
     listPrograms,
 } = require("./gameScanner.cjs");
 const { createKnownGames } = require("./knownGames.cjs");
+const { restartDiscord } = require("./discordRestart.cjs");
+const { createFakeDiscord } = require("./fakeDiscord.cjs");
 
 const PORT_RANGE = [44190, 45190];
 const WS_PATH = "/presence";
@@ -79,6 +81,8 @@ function createRichPresence({
     let unix = null; // { server, wss, dir, key }
     let discord = null;
     let scanner = null;
+    // A process named Discord, for apps that look for one; see fakeDiscord.cjs.
+    const fake = createFakeDiscord({ userDataDir, inFlatpak, log });
     // Games the user added by hand; the scanner reads this on every pass.
     let customGames = [];
     const status = {
@@ -308,6 +312,36 @@ function createRichPresence({
     // Where the scanner last saw each game's executable (for its icon).
     const exePaths = new Map();
 
+    // Application names from Discord, by client id (null: none found). Asked
+    // once per app; a pending lookup is shared so updates keep their order.
+    const appNames = new Map();
+
+    /** The name the app registered with Discord, which is what Discord shows. */
+    function applicationName(clientId) {
+        if (!fetch || !/^\d{1,25}$/.test(clientId))
+            return Promise.resolve(null);
+        let found = appNames.get(clientId);
+        if (!found) {
+            found = (async () => {
+                try {
+                    const res = await fetch(
+                        `https://discord.com/api/v10/applications/${clientId}/rpc`,
+                        { signal: AbortSignal.timeout(5000) },
+                    );
+                    if (!res.ok) return null;
+                    const name = (await res.json())?.name;
+                    return typeof name === "string" && name.trim()
+                        ? name.trim()
+                        : null;
+                } catch {
+                    return null;
+                }
+            })();
+            appNames.set(clientId, found);
+        }
+        return found;
+    }
+
     /** Forward a Discord-style activity under a stable app identity. */
     async function forwardActivity(
         { socketId, clientId, activity, exe },
@@ -315,11 +349,13 @@ function createRichPresence({
     ) {
         const { byId } = await loadGames();
         const known = byId.get(clientId);
+        const given = typeof activity?.name === "string" && activity.name;
         const app = {
             id: clientId,
             name:
-                (typeof activity?.name === "string" && activity.name) ||
+                given ||
                 known?.name ||
+                (await applicationName(clientId)) ||
                 "Discord app",
         };
 
@@ -465,6 +501,8 @@ function createRichPresence({
                 status.arrpc.error = String(e?.message || e);
             }
         }
+        if (local && want.arrpc && want.fake) await fake.start();
+        else await fake.stop();
         if (local && want.scan && !scanner) {
             // A Flatpak sandbox cannot see the host's processes; it can ask
             // the host to list them, if the user allowed that.
@@ -487,6 +525,11 @@ function createRichPresence({
                     running: !!discord,
                     ipcPath: d?.ipcPath ?? null,
                     wsPort: d?.wsPort ?? null,
+                    // 0 is the slot apps try first; a higher one means
+                    // something else (usually Discord) answers before us.
+                    slot: d?.ipcSlot ?? null,
+                    // A Flatpak cannot see or start the host's Discord.
+                    canRestartDiscord: !inFlatpak,
                     error: status.arrpc.error ?? d?.error ?? null,
                 },
                 scan: {
@@ -496,8 +539,27 @@ function createRichPresence({
                     needsPermission: status.scan.needsPermission,
                 },
                 games: knownGames.status(),
+                fake: fake.status(),
             }),
         );
+    }
+
+    /**
+     * Close Discord, take the first discord-ipc slot and start Discord again
+     * (so apps report to us and we pass them on). The caller has asked the
+     * user first.
+     */
+    async function restartDiscordApp() {
+        if (!discord) return { ok: false, error: "Discord support is off" };
+        // The stand-in would be taken for Discord and closed with it.
+        await fake.stop();
+        return restartDiscord({
+            log,
+            rebind: async () => {
+                stopDiscord();
+                discord = await startDiscord(generation);
+            },
+        });
     }
 
     function stop() {
@@ -506,11 +568,13 @@ function createRichPresence({
         stopUnix();
         stopDiscord();
         stopScanner();
+        void fake.stop();
     }
 
     return {
         configure,
         getStatus,
+        restartDiscord: restartDiscordApp,
         stop,
         programs: () => listPrograms(inFlatpak),
         /** Where a game's executable was last seen, or null. */

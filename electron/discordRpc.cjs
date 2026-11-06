@@ -4,6 +4,12 @@
 // we listen on the first of each that nothing else (such as Discord itself)
 // has. Only SET_ACTIVITY is acted on.
 //
+// Apps use the first slot that answers, so when Zam holds a lower slot than a
+// running Discord the apps report to Zam and never to Discord. Each app's
+// handshake and frames are therefore also passed on to the real Discord, so
+// it keeps working. (Started the other way round, Discord holds the lowest
+// slot and the apps never reach Zam; nothing here can change that.)
+//
 // The wire formats follow arRPC (https://github.com/OpenAsar/arrpc, MIT).
 
 const net = require("net");
@@ -41,6 +47,26 @@ function ipcBase({
     return inFlatpak && env.XDG_RUNTIME_DIR
         ? path.join(dir, FLATPAK_DISCORD_DIR, "discord-ipc")
         : path.join(dir, "discord-ipc");
+}
+
+/**
+ * Where a real Discord may keep its discord-ipc-N: where apps look first, and
+ * on Linux the folders a Flatpak or Snap Discord shares with the host.
+ */
+function discordIpcBases({
+    platform = process.platform,
+    env = process.env,
+    inFlatpak = false,
+} = {}) {
+    const bases = [ipcBase({ platform, env, inFlatpak })];
+    if (platform === "linux" && !inFlatpak && env.XDG_RUNTIME_DIR) {
+        const dir = env.XDG_RUNTIME_DIR;
+        bases.push(
+            path.join(dir, FLATPAK_DISCORD_DIR, "discord-ipc"),
+            path.join(dir, "snap.discord", "discord-ipc"),
+        );
+    }
+    return bases;
 }
 
 function encode(op, data) {
@@ -119,7 +145,7 @@ function createDiscordRpc({ onActivity, inFlatpak = false, log = () => {} }) {
     let wsHttp = null;
     let wsPort = null;
     let stopped = true;
-    const status = { ipcPath: null, wsPort: null, error: null };
+    const status = { ipcPath: null, ipcSlot: null, wsPort: null, error: null };
 
     /**
      * One connected app. `send(msg)` writes a message to it, `close(code)` ends
@@ -190,9 +216,43 @@ function createDiscordRpc({ onActivity, inFlatpak = false, log = () => {} }) {
 
     // ── Named pipe / Unix socket ───────────────────────────────────────────
 
+    /**
+     * A connection to the real Discord on another slot, handshaken as
+     * `clientId`, or null if there is none. Its replies are not used.
+     */
+    function connectDiscord(clientId) {
+        const targets = discordIpcBases({ inFlatpak }).flatMap((base) =>
+            Array.from({ length: 10 }, (_, n) => `${base}-${n}`),
+        );
+        return new Promise((resolve) => {
+            const next = () => {
+                const target = targets.shift();
+                if (!target) return resolve(null);
+                if (target === ipcPath) return next();
+                const sock = net.createConnection(target);
+                sock.setTimeout(2000, () =>
+                    sock.destroy(new Error("timed out")),
+                );
+                sock.once("error", next);
+                sock.once("connect", () => {
+                    sock.setTimeout(0);
+                    sock.removeListener("error", next);
+                    sock.on("error", () => {});
+                    sock.on("data", () => {});
+                    sock.write(
+                        encode(Op.HANDSHAKE, { v: 1, client_id: clientId }),
+                    );
+                    resolve(sock);
+                });
+            };
+            next();
+        });
+    }
+
     function onIpcConnection(socket) {
         let buf = Buffer.alloc(0);
         let session = null;
+        let discord = null; // promise of the real Discord's socket
         const send = (msg) => {
             if (!socket.destroyed) socket.write(encode(Op.FRAME, msg));
         };
@@ -201,7 +261,10 @@ function createDiscordRpc({ onActivity, inFlatpak = false, log = () => {} }) {
             socket.destroy();
         };
         socket.on("error", () => {});
-        socket.on("close", () => session?.end());
+        socket.on("close", () => {
+            session?.end();
+            void discord?.then((d) => d?.destroy());
+        });
         socket.on("data", (chunk) => {
             buf = Buffer.concat([buf, chunk]);
             while (buf.length >= 8) {
@@ -232,9 +295,16 @@ function createDiscordRpc({ onActivity, inFlatpak = false, log = () => {} }) {
                     const clientId = String(data?.client_id ?? "");
                     if (!clientId) return close(ErrorCodes.INVALID_CLIENTID);
                     session = openSession(send, close, clientId);
+                    discord = connectDiscord(clientId);
                 } else if (op === Op.FRAME) {
                     if (!session) return close(1003, "handshake first");
                     session.handle(data);
+                    void discord?.then(
+                        (d) =>
+                            d &&
+                            !d.destroyed &&
+                            d.write(encode(Op.FRAME, data)),
+                    );
                 }
             }
         });
@@ -270,6 +340,7 @@ function createDiscordRpc({ onActivity, inFlatpak = false, log = () => {} }) {
             ipcServer = server;
             ipcPath = target;
             status.ipcPath = target;
+            status.ipcSlot = n;
             log("discord ipc listening at", target);
             return;
         }
@@ -365,10 +436,11 @@ function createDiscordRpc({ onActivity, inFlatpak = false, log = () => {} }) {
             ipcPath = null;
             wsPort = null;
             status.ipcPath = null;
+            status.ipcSlot = null;
             status.wsPort = null;
         },
         status: () => ({ ...status, ipcPath, wsPort }),
     };
 }
 
-module.exports = { createDiscordRpc, ipcBase };
+module.exports = { createDiscordRpc, ipcBase, discordIpcBases };

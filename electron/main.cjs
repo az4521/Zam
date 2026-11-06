@@ -875,6 +875,7 @@ ipcMain.handle("rich-presence:configure", (_e, want) =>
         local: want?.local === true,
         arrpc: want?.arrpc === true,
         scan: want?.scan === true,
+        fake: want?.fake === true,
         userId: typeof want?.userId === "string" ? want.userId : "",
         games: want?.games,
     }),
@@ -899,6 +900,9 @@ ipcMain.handle("rich-presence:image", (_e, appId, ref) =>
     presenceImages.fetchImage(appId, ref),
 );
 ipcMain.handle("rich-presence:status", () => richPresence.getStatus());
+ipcMain.handle("rich-presence:restart-discord", () =>
+    richPresence.restartDiscord(),
+);
 app.on("will-quit", () => richPresence.stop());
 
 // --- Call priority -------------------------------------------------------

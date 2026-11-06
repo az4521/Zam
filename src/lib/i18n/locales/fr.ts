@@ -4119,6 +4119,20 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageEmbed.deleted": "Message supprimé",
     "messageEmbed.inRoom": "dans {room}",
     "messageEmbed.jumpToMessage": "Aller au message lié :",
+
+    // Rich presence: Discord restart and stand-in process
+    "richPresence.fake": "Simuler l’exécution de Discord",
+    "richPresence.fakeHint":
+        "Certaines applications n’envoient la Rich Presence que si un processus nommé Discord est en cours d’exécution. Cela lance un processus inactif, uniquement tant que Discord lui-même ne tourne pas.",
+    "richPresence.fakeFailed": "Impossible de le démarrer : {error}",
+    "richPresence.discordFirst":
+        "Discord a démarré avant Zam, donc les applications s’adressent à Discord et Zam ne les voit pas.",
+    "richPresence.restartDiscord": "Redémarrer Discord",
+    "richPresence.restartDiscordTitle": "Redémarrer Discord ?",
+    "richPresence.restartDiscordBody":
+        "Discord va se fermer puis se rouvrir, ce qui met fin à tout appel ou partage d’écran en cours. Zam prend la première place pour que les applications lui parlent, puis transmet à Discord ce qu’elles signalent.",
+    "richPresence.restartDiscordFailed":
+        "Impossible de redémarrer Discord : {error}",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: fr };

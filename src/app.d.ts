@@ -55,6 +55,11 @@ declare global {
             running: boolean;
             ipcPath: string | null;
             wsPort: number | null;
+            /** Which discord-ipc-N we hold; above 0 means something else
+             *  answers apps first. */
+            slot: number | null;
+            /** Whether this platform can restart Discord for the user. */
+            canRestartDiscord: boolean;
             error: string | null;
         };
         /** Game detection (electron/gameScanner.cjs). */
@@ -65,6 +70,8 @@ declare global {
              *  org.freedesktop.Flatpak, so it cannot list host processes. */
             needsPermission: boolean;
         };
+        /** The stand-in Discord process (electron/fakeDiscord.cjs). */
+        fake: { supported: boolean; running: boolean; error: string | null };
         /** Discord's list of detectable games, downloaded on first use. */
         games: {
             count: number;
@@ -270,6 +277,9 @@ declare global {
                     local: boolean;
                     arrpc: boolean;
                     scan: boolean;
+                    /** Run a stand-in process named Discord, for apps that
+                     *  look for one. */
+                    fake: boolean;
                     /** Names the Unix socket (as an opaque hash). */
                     userId: string;
                     /** Games the user added by hand (exe is a full path). */
@@ -284,6 +294,9 @@ declare global {
                     ref: string,
                 ) => Promise<{ type: string; data: Uint8Array } | null>;
                 status: () => Promise<DesktopRichPresenceStatus>;
+                /** Close Discord, let Zam take the first slot, start Discord
+                 *  again. Only after the user confirmed. */
+                restartDiscord: () => Promise<{ ok: boolean; error?: string }>;
                 onEvent: (
                     cb: (event: DesktopRichPresenceEvent) => void,
                 ) => () => void;

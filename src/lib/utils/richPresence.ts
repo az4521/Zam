@@ -235,6 +235,7 @@ interface DiscordActivity {
     application_id?: unknown;
     timestamps?: { start?: unknown; end?: unknown };
     assets?: { large_text?: unknown; small_text?: unknown };
+    party?: { size?: unknown };
     buttons?: unknown;
     metadata?: { button_urls?: unknown };
 }
@@ -281,15 +282,38 @@ export function discordActivityToEntry(
 
     const name = str(a.name) ?? appName;
     if (!name) return null;
+    // MSC4544 has no party field; show it the way Discord does, after the state.
+    const party = partyText(a.party?.size);
+    // Nor an activity type: say it in the state instead of "Playing".
+    const verb = ACTIVITY_VERBS[a.type as number];
     return {
         kind: "activity",
         ...base,
         name,
         details,
-        state,
+        state:
+            [verb, state && (verb ? `· ${state}` : state), party]
+                .filter(Boolean)
+                .join(" ") || undefined,
         since: start,
         until: end,
     };
+}
+
+/** Discord activity types other than playing (0) and listening (2, music). */
+const ACTIVITY_VERBS: Record<number, string> = {
+    1: "Streaming",
+    3: "Watching",
+    5: "Competing",
+};
+
+/** Discord's party `size` ([current, max]) as "(3 of 4)", or undefined. */
+function partyText(size: unknown): string | undefined {
+    if (!Array.isArray(size) || size.length < 2) return undefined;
+    const [cur, max] = size;
+    const ok = (n: unknown): n is number =>
+        typeof n === "number" && Number.isInteger(n) && n > 0 && n < 1e6;
+    return ok(cur) && ok(max) && cur <= max ? `(${cur} of ${max})` : undefined;
 }
 
 function discordButtons(a: DiscordActivity): RpcButton[] {

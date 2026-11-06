@@ -794,6 +794,17 @@ export const en = {
     "richPresence.listening": "Listening for apps on port {port}.",
     "richPresence.listenFailed": "Couldn't start listening: {error}",
     "richPresence.arrpcFailed": "Couldn't start arRPC: {error}",
+    "richPresence.fake": "Pretend Discord is running",
+    "richPresence.fakeHint":
+        "Some apps refuse to send Rich Presence unless a process named Discord is running. This starts an idle one, only while Discord itself isn't running.",
+    "richPresence.fakeFailed": "Couldn't start it: {error}",
+    "richPresence.discordFirst":
+        "Discord started before Zam, so apps report to Discord and Zam doesn't see them.",
+    "richPresence.restartDiscord": "Restart Discord",
+    "richPresence.restartDiscordTitle": "Restart Discord?",
+    "richPresence.restartDiscordBody":
+        "Discord will close and open again, which ends any call or stream you're in. Zam takes the first place so apps report to it, and Zam passes what they report on to Discord.",
+    "richPresence.restartDiscordFailed": "Couldn't restart Discord: {error}",
     "richPresence.publishFailed": "Couldn't update your profile.",
     "richPresence.gameList": "Game list: {count} games, updated {when}",
     "richPresence.gameListDownloading":

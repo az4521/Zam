@@ -201,6 +201,7 @@ export async function syncRichPresence(): Promise<void> {
             local,
             arrpc,
             scan,
+            fake: settingsState.richPresenceFakeDiscord,
             userId: auth.userId ?? "",
             games: $state.snapshot(richPresenceState.games),
         });
@@ -249,6 +250,7 @@ export function stopRichPresence(): void {
         local: false,
         arrpc: false,
         scan: false,
+        fake: false,
         userId: "",
         games: [],
     });

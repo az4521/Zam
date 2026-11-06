@@ -1,9 +1,11 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
+    import ModalDialog from "$lib/components/ui/ModalDialog.svelte";
     import {
         setRichPresenceArrpc,
         setRichPresenceEnabled,
+        setRichPresenceFakeDiscord,
         setRichPresenceScan,
         settingsState,
     } from "$lib/stores/settings.svelte";
@@ -42,6 +44,37 @@
     function onToggleArrpc(next: boolean): void {
         setRichPresenceArrpc(next);
         void syncRichPresence();
+    }
+
+    function onToggleFake(next: boolean): void {
+        setRichPresenceFakeDiscord(next);
+        void syncRichPresence();
+    }
+
+    // Discord holds the first slot when it started before Zam.
+    const discordFirst = $derived(
+        settingsState.richPresenceEnabled &&
+            settingsState.richPresenceArrpc &&
+            status?.arrpc.running === true &&
+            (status.arrpc.slot ?? 0) > 0 &&
+            status.arrpc.canRestartDiscord,
+    );
+    let confirmingRestart = $state(false);
+    let restarting = $state(false);
+    let restartError = $state<string | null>(null);
+
+    async function restartDiscord(): Promise<void> {
+        confirmingRestart = false;
+        restarting = true;
+        restartError = null;
+        try {
+            const res = await window.desktop?.richPresence?.restartDiscord();
+            if (res && !res.ok) restartError = res.error ?? "";
+        } catch (e) {
+            restartError = String((e as Error)?.message ?? e);
+        }
+        await syncRichPresence();
+        restarting = false;
     }
 
     // Added games: pick a running program, name it, and it is a game.
@@ -172,6 +205,26 @@
                         {t("richPresence.arrpcNeedsShare")}
                     </p>
                 {/if}
+                {#if discordFirst}
+                    <p class="text-xs text-discord-textMuted">
+                        {t("richPresence.discordFirst")}
+                    </p>
+                    <button
+                        type="button"
+                        class="mt-1 rounded bg-discord-backgroundSecondary px-2 py-1 text-xs text-discord-textPrimary hover:bg-discord-backgroundSecondaryAlt disabled:opacity-50"
+                        disabled={restarting}
+                        onclick={() => (confirmingRestart = true)}
+                    >
+                        {t("richPresence.restartDiscord")}
+                    </button>
+                {/if}
+                {#if restartError !== null}
+                    <p class="text-xs text-discord-danger">
+                        {t("richPresence.restartDiscordFailed", {
+                            error: restartError,
+                        })}
+                    </p>
+                {/if}
                 {#if settingsState.richPresenceEnabled && settingsState.richPresenceArrpc && status?.arrpc.error}
                     <p class="text-xs text-discord-danger">
                         {t("richPresence.arrpcFailed", {
@@ -186,6 +239,33 @@
                 label={t("richPresence.arrpc")}
             />
         </div>
+
+        {#if settingsState.richPresenceEnabled && settingsState.richPresenceArrpc && status?.fake?.supported}
+            <div
+                class="flex items-center gap-3 py-2 ps-4 border-b border-discord-divider"
+            >
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-discord-textPrimary">
+                        {t("richPresence.fake")}
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        {t("richPresence.fakeHint")}
+                    </p>
+                    {#if settingsState.richPresenceFakeDiscord && status.fake.error}
+                        <p class="text-xs text-discord-danger">
+                            {t("richPresence.fakeFailed", {
+                                error: status.fake.error,
+                            })}
+                        </p>
+                    {/if}
+                </div>
+                <ToggleSwitch
+                    checked={settingsState.richPresenceFakeDiscord}
+                    onChange={onToggleFake}
+                    label={t("richPresence.fake")}
+                />
+            </div>
+        {/if}
 
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
@@ -415,4 +495,38 @@
             </button>
         {/if}
     </section>
+{/if}
+
+{#if confirmingRestart}
+    <ModalDialog
+        onClose={() => (confirmingRestart = false)}
+        labelledBy="restart-discord-title"
+        panelClass="relative w-full max-w-sm rounded-lg bg-discord-backgroundSecondary p-4 shadow-xl"
+    >
+        <h2
+            id="restart-discord-title"
+            class="mb-2 text-base font-semibold text-discord-textPrimary"
+        >
+            {t("richPresence.restartDiscordTitle")}
+        </h2>
+        <p class="mb-3 text-sm text-discord-textSecondary">
+            {t("richPresence.restartDiscordBody")}
+        </p>
+        <div class="flex justify-end gap-2">
+            <button
+                type="button"
+                class="px-3 py-1 text-sm text-discord-textMuted hover:text-discord-textPrimary"
+                onclick={() => (confirmingRestart = false)}
+            >
+                {t("common.cancel")}
+            </button>
+            <button
+                type="button"
+                class="rounded bg-discord-accent px-3 py-1 text-sm text-white"
+                onclick={restartDiscord}
+            >
+                {t("richPresence.restartDiscord")}
+            </button>
+        </div>
+    </ModalDialog>
 {/if}
