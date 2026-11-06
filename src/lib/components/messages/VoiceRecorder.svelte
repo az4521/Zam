@@ -47,6 +47,8 @@
     let chunks: Blob[] = [];
     let recordedBlob: Blob | null = null;
     let mimeType = "";
+    // The container type the recorder reports itself, used when no mimeType was picked.
+    let recordedType = "";
     let ctx: AudioContext | null = null;
     let raf = 0;
     let startTs = 0;
@@ -54,6 +56,25 @@
     let autoStop: ReturnType<typeof setTimeout> | null = null;
     // The recording mic is one capture channel; `cleanup()` closes it for good.
     const capture = newCaptureLifecycle();
+
+    // Tries the picked mimeType first, then no options. `fellBack` is true when
+    // the no-options constructor was the one that succeeded.
+    function createRecorder(
+        s: MediaStream,
+        type: string,
+    ): { recorder: MediaRecorder; fellBack: boolean } {
+        if (type) {
+            try {
+                return {
+                    recorder: new MediaRecorder(s, { mimeType: type }),
+                    fellBack: false,
+                };
+            } catch {
+                /* fall through to default options */
+            }
+        }
+        return { recorder: new MediaRecorder(s), fellBack: true };
+    }
 
     async function start() {
         const ticket = beginCapture(capture);
@@ -81,20 +102,39 @@
         if (!adopted) return;
         stream = adopted;
         try {
-            recorder = new MediaRecorder(
-                stream,
-                mimeType ? { mimeType } : undefined,
-            );
+            const built = createRecorder(stream, mimeType);
+            recorder = built.recorder;
+            if (built.fellBack) mimeType = "";
+            recordedType = recorder.mimeType;
             chunks = [];
             recorder.ondataavailable = (e) => {
                 if (e.data.size > 0) chunks.push(e.data);
             };
             recorder.onstop = onStopped;
-            recorder.onerror = () => {
-                showErrorToast(t("voiceRecorder.recordingFailed"));
+            recorder.onerror = (e) => {
+                console.error("[voice] recorder failed", e);
+                const name =
+                    (e as ErrorEvent & { error?: DOMException }).error?.name ??
+                    "unknown";
+                showErrorToast(
+                    `${t("voiceRecorder.recordingFailed")} (${name})`,
+                );
                 cleanup();
                 onClose();
             };
+            // Timeslice so Android WebView delivers chunks while recording,
+            // not only once at stop. Retry without it if the timeslice throws.
+            try {
+                recorder.start(1000);
+            } catch {
+                recorder.start();
+            }
+            startTs = performance.now();
+            elapsedTimer = setInterval(() => {
+                elapsedMs = performance.now() - startTs;
+            }, 200);
+            autoStop = setTimeout(() => stop(), MAX_MS);
+            phase = "recording";
             // Live meter (own analyser on the recording stream). Best-effort:
             // a failure here (e.g. the AudioContext cap) must not stop recording.
             try {
@@ -121,22 +161,15 @@
                 ctx = null;
                 level = 0;
             }
-            // Timeslice so Android WebView delivers chunks while recording,
-            // not only once at stop.
-            recorder.start(1000);
-            startTs = performance.now();
-            elapsedTimer = setInterval(() => {
-                elapsedMs = performance.now() - startTs;
-            }, 200);
-            autoStop = setTimeout(() => stop(), MAX_MS);
-            phase = "recording";
-        } catch {
+        } catch (err) {
+            console.error("[voice] recorder failed", err);
             // A start failure after the teardown already ran has no UI left.
             if (!isCaptureCurrent(capture, ticket)) {
                 cleanup();
                 return;
             }
-            showErrorToast(t("voiceRecorder.recordingFailed"));
+            const name = err instanceof Error ? err.name : "unknown";
+            showErrorToast(`${t("voiceRecorder.recordingFailed")} (${name})`);
             cleanup();
             onClose();
         }
@@ -171,7 +204,7 @@
         previewDurationMs = performance.now() - startTs;
         teardownCapture();
         recordedBlob = new Blob(chunks, {
-            type: mimeType || chunks[0]?.type || "audio/webm",
+            type: mimeType || recordedType || chunks[0]?.type || "audio/webm",
         });
         previewUrl = URL.createObjectURL(recordedBlob);
         // Decode for the waveform (best-effort; empty waveform is acceptable).
