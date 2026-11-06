@@ -807,6 +807,9 @@ export const en = {
     "richPresence.restartDiscordBody":
         "Discord will close and open again, which ends any call or stream you're in. Zam takes the first place so apps report to it, and Zam passes what they report on to Discord.",
     "richPresence.restartDiscordFailed": "Couldn't restart Discord: {error}",
+    "richPresence.autoRestart": "Restart Discord automatically",
+    "richPresence.autoRestartHint":
+        "When Zam starts and Discord is already running ahead of it, close and reopen Discord so apps report to Zam. This ends any call or stream you're in. Happens once each time Zam starts.",
     "richPresence.publishFailed": "Couldn't update your profile.",
     "richPresence.gameList": "Game list: {count} games, updated {when}",
     "richPresence.gameListDownloading":

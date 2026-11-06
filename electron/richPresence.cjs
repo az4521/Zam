@@ -81,6 +81,9 @@ function createRichPresence({
     let tcp = null;
     let unix = null; // { server, wss, dir, key }
     let discord = null;
+    // The automatic Discord restart happens once per run of Zam, so a Discord
+    // that keeps coming back first can't make us restart it in a loop.
+    let autoRestartTried = false;
     let scanner = null;
     // A process named Discord, for apps that look for one; see fakeDiscord.cjs.
     const fake = createFakeDiscord({ userDataDir, inFlatpak, log });
@@ -524,6 +527,21 @@ function createRichPresence({
             if (allowed && gen === generation) scanner = startScanner();
         } else if (!want.scan) {
             status.scan.needsPermission = false;
+        }
+        if (
+            local &&
+            want.arrpc &&
+            want.autoRestartDiscord &&
+            !autoRestartTried &&
+            discord &&
+            hostAllowed &&
+            gen === generation &&
+            (discord.status()?.ipcSlot ?? 0) > 0
+        ) {
+            // Something else (Discord) holds the first slot.
+            autoRestartTried = true;
+            const res = await restartDiscordApp();
+            if (!res.ok) log("automatic Discord restart failed", res.error);
         }
         return getStatus();
     }

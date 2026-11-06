@@ -4149,6 +4149,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Discord va se fermer puis se rouvrir, ce qui met fin à tout appel ou partage d’écran en cours. Zam prend la première place pour que les applications lui parlent, puis transmet à Discord ce qu’elles signalent.",
     "richPresence.restartDiscordFailed":
         "Impossible de redémarrer Discord : {error}",
+    "richPresence.autoRestart": "Redémarrer Discord automatiquement",
+    "richPresence.autoRestartHint":
+        "Quand Zam démarre et que Discord tourne déjà avant lui, Discord est fermé puis rouvert pour que les applications signalent à Zam. Cela met fin à tout appel ou stream en cours. Une seule fois à chaque démarrage de Zam.",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: fr };

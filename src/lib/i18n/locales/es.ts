@@ -4128,6 +4128,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Discord se cerrará y volverá a abrirse, lo que termina cualquier llamada o transmisión en curso. Zam ocupa el primer lugar para que las aplicaciones le informen a él, y Zam reenvía a Discord lo que informan.",
     "richPresence.restartDiscordFailed":
         "No se pudo reiniciar Discord: {error}",
+    "richPresence.autoRestart": "Reiniciar Discord automáticamente",
+    "richPresence.autoRestartHint":
+        "Cuando Zam se inicia y Discord ya se está ejecutando antes, cierra y vuelve a abrir Discord para que las aplicaciones informen a Zam. Esto termina cualquier llamada o transmisión en curso. Ocurre una vez cada vez que se inicia Zam.",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: es };

@@ -4177,6 +4177,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Discord wird geschlossen und wieder geöffnet, wodurch ein laufender Anruf oder Stream beendet wird. Zam übernimmt den ersten Platz, damit Apps an Zam melden, und leitet deren Meldungen an Discord weiter.",
     "richPresence.restartDiscordFailed":
         "Discord konnte nicht neu gestartet werden: {error}",
+    "richPresence.autoRestart": "Discord automatisch neu starten",
+    "richPresence.autoRestartHint":
+        "Wenn Zam startet und Discord schon vorher läuft, wird Discord geschlossen und neu geöffnet, damit Apps an Zam melden. Dabei endet ein laufender Anruf oder Stream. Passiert einmal bei jedem Start von Zam.",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: de };

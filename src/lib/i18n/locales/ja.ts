@@ -3639,6 +3639,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Discord が閉じてからもう一度開くため、通話や配信の最中だった場合は終了します。Zam が先頭の枠を取ってアプリの報告を受け取り、その内容を Discord に転送します。",
     "richPresence.restartDiscordFailed":
         "Discord を再起動できませんでした: {error}",
+    "richPresence.autoRestart": "Discord を自動で再起動",
+    "richPresence.autoRestartHint":
+        "Zam の起動時に Discord がすでに先に起動している場合、Discord を閉じて開き直し、アプリが Zam に報告するようにします。通話や配信中の場合は終了します。Zam の起動ごとに 1 回だけ行います。",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ja };

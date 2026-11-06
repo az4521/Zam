@@ -288,6 +288,9 @@ declare global {
                     /** Run a stand-in process named Discord, for apps that
                      *  look for one. */
                     fake: boolean;
+                    /** Once per run, restart Discord if it holds the first
+                     *  discord-ipc slot. */
+                    autoRestartDiscord: boolean;
                     /** Names the Unix socket (as an opaque hash). */
                     userId: string;
                     /** Games the user added by hand (exe is a full path). */

@@ -4,6 +4,7 @@
     import ModalDialog from "$lib/components/ui/ModalDialog.svelte";
     import {
         setRichPresenceArrpc,
+        setRichPresenceAutoRestartDiscord,
         setRichPresenceEnabled,
         setRichPresenceFakeDiscord,
         setRichPresenceScan,
@@ -43,6 +44,11 @@
 
     function onToggleArrpc(next: boolean): void {
         setRichPresenceArrpc(next);
+        void syncRichPresence();
+    }
+
+    function onToggleAutoRestart(next: boolean): void {
+        setRichPresenceAutoRestartDiscord(next);
         void syncRichPresence();
     }
 
@@ -249,6 +255,26 @@
                 label={t("richPresence.arrpc")}
             />
         </div>
+
+        {#if settingsState.richPresenceEnabled && settingsState.richPresenceArrpc && status?.arrpc.canRestartDiscord}
+            <div
+                class="flex items-center gap-3 py-2 ps-4 border-b border-discord-divider"
+            >
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-discord-textPrimary">
+                        {t("richPresence.autoRestart")}
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        {t("richPresence.autoRestartHint")}
+                    </p>
+                </div>
+                <ToggleSwitch
+                    checked={settingsState.richPresenceAutoRestartDiscord}
+                    onChange={onToggleAutoRestart}
+                    label={t("richPresence.autoRestart")}
+                />
+            </div>
+        {/if}
 
         {#if settingsState.richPresenceEnabled && settingsState.richPresenceArrpc && status?.fake?.supported}
             <div
