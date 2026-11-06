@@ -4,6 +4,19 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.2
+
+✨ **New**
+
+- **Plugins can annotate messages and read attachments:** plugins can show their own text under a message (`zam.messages.annotate` / `refresh`, for example a transcript under a voice message), read a message's decrypted attachment with `zam.matrix.getMedia`, and see the message's `msgtype` in a message action's `when` and `onSelect`.
+
+🐛 **Fixed**
+
+- **Discord Rich Presence reaches Discord (desktop):** an app's activity is now passed on to the real Discord only after Discord has answered the handshake, so it no longer gets dropped. Apps that connect over WebSocket, such as browser-based ones, are passed on too.
+- **App names in activity cards (desktop):** apps that don't name their activity show the name registered with Discord again, instead of "Discord app", and a lookup that failed is retried.
+- **Restart Discord keeps its tray icon (Windows):** Discord's tray icon no longer goes missing after the restart; Zam clears the stale icon the old Discord leaves behind before it reopens it.
+- **Notification ping no longer ducks other apps (Windows):** the ping plays on its own audio context and closes it afterwards, so it no longer leaves an audio stream open that dipped the volume of other apps, such as a video, after a ping.
+
 ## v1.54.1
 
 ✨ **New**
