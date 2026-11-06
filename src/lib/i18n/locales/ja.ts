@@ -3627,6 +3627,11 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Flatpak のサンドボックスは他のプログラムを操作できません。Zam にこれを許可するには、次のコマンドを実行してから Zam を再起動してください:",
     "richPresence.viaScan": "プロセススキャン",
     "richPresence.viaRpc": "Discord リッチプレゼンス",
+    "richPresence.viaMedia": "メディアプレーヤー",
+    "richPresence.media": "メディア再生を共有",
+    "richPresence.mediaHint":
+        "このコンピューターのメディアプレーヤーで再生中の曲や動画を、システムの再生情報から表示します。オンにすると各プレーヤーは既定で許可されます。不要なものは下でオフにできます。",
+    "richPresence.mediaFailed": "メディア再生を読み取れませんでした: {error}",
     "richPresence.fake": "Discord が起動しているように見せる",
     "richPresence.fakeHint":
         "Discord という名前のプロセスが動いていないと Rich Presence を送らないアプリがあります。これは何もしないプロセスを起動します。Discord 本体が起動していないときだけ動きます。",

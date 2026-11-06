@@ -4137,6 +4137,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Le bac à sable Flatpak ne peut pas contrôler d’autres programmes. Pour que Zam puisse le faire, exécutez cette commande, puis redémarrez Zam :",
     "richPresence.viaScan": "Analyse des processus",
     "richPresence.viaRpc": "Discord Rich Presence",
+    "richPresence.viaMedia": "Lecteur multimédia",
+    "richPresence.media": "Signaler la lecture multimédia",
+    "richPresence.mediaHint":
+        "Affiche le titre ou la vidéo qu’un lecteur multimédia de cet ordinateur joue, d’après les informations de lecture du système. Chaque lecteur est autorisé par défaut une fois ceci activé ; désactivez ci-dessous ceux que vous ne voulez pas.",
+    "richPresence.mediaFailed":
+        "Impossible de lire la lecture multimédia : {error}",
     "richPresence.fake": "Simuler l’exécution de Discord",
     "richPresence.fakeHint":
         "Certaines applications n’envoient la Rich Presence que si un processus nommé Discord est en cours d’exécution. Cela lance un processus inactif, uniquement tant que Discord lui-même ne tourne pas.",

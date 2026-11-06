@@ -72,6 +72,12 @@ declare global {
              *  org.freedesktop.Flatpak, so it cannot list host processes. */
             needsPermission: boolean;
         };
+        /** Media players, from the system's now-playing info (electron/mediaSession.cjs).
+         *  Optional so an older main process without it still works. */
+        media?: {
+            running: boolean;
+            error: string | null;
+        };
         /** The stand-in Discord process (electron/fakeDiscord.cjs). */
         fake: {
             supported: boolean;
@@ -285,6 +291,9 @@ declare global {
                     local: boolean;
                     arrpc: boolean;
                     scan: boolean;
+                    /** Report what media players are playing (the system's
+                     *  now-playing info), as Discord "listening" entries. */
+                    media: boolean;
                     /** Run a stand-in process named Discord, for apps that
                      *  look for one. */
                     fake: boolean;

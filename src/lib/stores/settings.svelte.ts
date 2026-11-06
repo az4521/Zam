@@ -290,6 +290,10 @@ export const settingsState = $state({
     /** Device-global (desktop only): also notice games by their executable.
      *  Needs richPresenceEnabled. Default OFF. */
     richPresenceScan: readBool("richPresenceScan", false),
+    /** Device-global (desktop only): also report what media players on this
+     *  computer are playing, from the system's now-playing info (SMTC/MPRIS).
+     *  Needs richPresenceEnabled. Default OFF. */
+    richPresenceMedia: readBool("richPresenceMedia", false),
     /** Device-global: render the read-receipt avatars under messages. Default
      *  ON (existing behaviour). Display only — it does not change whether we
      *  SEND receipts; that is `privateReadReceipts`. */
@@ -974,6 +978,11 @@ export function setRichPresenceAutoRestartDiscord(value: boolean): void {
 export function setRichPresenceScan(value: boolean): void {
     settingsState.richPresenceScan = value;
     writeBool("richPresenceScan", value);
+}
+
+export function setRichPresenceMedia(value: boolean): void {
+    settingsState.richPresenceMedia = value;
+    writeBool("richPresenceMedia", value);
 }
 
 /** Device-local: pictures already uploaded for rich presence, by source

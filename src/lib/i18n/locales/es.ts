@@ -4116,6 +4116,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "El sandbox de Flatpak no puede controlar otros programas. Para que Zam pueda hacerlo, ejecuta este comando y luego reinicia Zam:",
     "richPresence.viaScan": "Análisis de procesos",
     "richPresence.viaRpc": "Discord Rich Presence",
+    "richPresence.viaMedia": "Reproductor multimedia",
+    "richPresence.media": "Informar de la reproducción multimedia",
+    "richPresence.mediaHint":
+        "Muestra la canción o el vídeo que reproduce un reproductor multimedia de este equipo, a partir de la información de reproducción del sistema. Cada reproductor está permitido por defecto una vez activado; desactiva abajo los que no quieras.",
+    "richPresence.mediaFailed":
+        "No se pudo leer la reproducción multimedia: {error}",
     "richPresence.fake": "Simular que Discord está en ejecución",
     "richPresence.fakeHint":
         "Algunas aplicaciones no envían Rich Presence a menos que se esté ejecutando un proceso llamado Discord. Esto inicia uno inactivo, solo mientras Discord no se esté ejecutando.",

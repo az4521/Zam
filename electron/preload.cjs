@@ -131,6 +131,8 @@ contextBridge.exposeInMainWorld("desktop", {
                 arrpc: !!want?.arrpc,
                 scan: !!want?.scan,
                 fake: !!want?.fake,
+                media: !!want?.media,
+                autoRestartDiscord: !!want?.autoRestartDiscord,
                 userId: String(want?.userId ?? ""),
                 games: Array.isArray(want?.games)
                     ? want.games.map((g) => ({

@@ -265,6 +265,8 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
             "arrpc",
             "status",
             "msc4544",
+            "media",
+            "now playing",
         ],
         anchor: "cust-rich-presence",
         available: (p) => p.richPresence,

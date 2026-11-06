@@ -358,4 +358,116 @@ describe("rich presence store", () => {
         handler!(ev({ presence: null }));
         expect(Object.keys(rp.richPresenceState.apps)).toEqual([]);
     });
+
+    const media = (over: Partial<DesktopRichPresenceEvent> = {}) =>
+        ev({
+            source: "arrpc",
+            app: { id: "media-spotify", name: "Spotify" },
+            presenceId: "media-spotify",
+            presence: {
+                type: 2,
+                name: "Spotify",
+                details: "Song",
+                state: "by Artist",
+            },
+            ...over,
+        });
+
+    it("reports a media player as music once it is switched on", async () => {
+        const { settings, rp } = await load();
+        settings.setRichPresenceEnabled(true);
+        settings.setRichPresenceMedia(true);
+        await rp.syncRichPresence();
+        handler!(media());
+        await vi.advanceTimersByTimeAsync(2000);
+
+        expect(rp.richPresenceState.apps["arrpc:media-spotify"]).toMatchObject({
+            name: "Spotify",
+            allowed: true,
+            viaMedia: true,
+            viaRpc: false,
+            viaScan: false,
+        });
+        const last = setOwnProfileField.mock.calls.at(-1) as [
+            string,
+            Array<Record<string, unknown>>,
+        ];
+        expect(last[1][0]).toMatchObject({
+            type: "xyz.extera.msc4544.rpc.music",
+            track: "Song",
+            artist: "Artist",
+            player_name: "Spotify",
+        });
+    });
+
+    it("disabling a media player removes it and re-enabling replays it", async () => {
+        const { settings, rp } = await load();
+        settings.setRichPresenceEnabled(true);
+        settings.setRichPresenceMedia(true);
+        await rp.syncRichPresence();
+        handler!(media());
+        await vi.advanceTimersByTimeAsync(2000);
+
+        rp.setAppAllowed("arrpc:media-spotify", false);
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(setOwnProfileField).toHaveBeenLastCalledWith(
+            "xyz.extera.msc4544.rpc",
+            null,
+        );
+
+        // Still playing while blocked: remembered, not published.
+        setOwnProfileField.mockClear();
+        handler!(
+            media({
+                presence: { type: 2, name: "Spotify", details: "Next song" },
+            }),
+        );
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(setOwnProfileField).not.toHaveBeenCalled();
+
+        rp.setAppAllowed("arrpc:media-spotify", true);
+        await vi.advanceTimersByTimeAsync(2000);
+        const last = setOwnProfileField.mock.calls.at(-1) as [
+            string,
+            Array<Record<string, unknown>>,
+        ];
+        expect(last[1][0]).toMatchObject({ track: "Next song" });
+
+        // The player stops: its null report takes the entry off the profile.
+        handler!(media({ presence: null }));
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(setOwnProfileField).toHaveBeenLastCalledWith(
+            "xyz.extera.msc4544.rpc",
+            null,
+        );
+    });
+
+    it("turning media off drops media entries and tells the main process", async () => {
+        const { settings, rp } = await load();
+        settings.setRichPresenceEnabled(true);
+        settings.setRichPresenceMedia(true);
+        await rp.syncRichPresence();
+        expect(configure).toHaveBeenLastCalledWith(
+            expect.objectContaining({ media: true }),
+        );
+        handler!(media());
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(rp.richPresenceState.heldCount).toBe(1);
+
+        settings.setRichPresenceMedia(false);
+        await rp.syncRichPresence();
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(configure).toHaveBeenLastCalledWith(
+            expect.objectContaining({ local: true, media: false }),
+        );
+        expect(rp.richPresenceState.heldCount).toBe(0);
+        expect(setOwnProfileField).toHaveBeenLastCalledWith(
+            "xyz.extera.msc4544.rpc",
+            null,
+        );
+
+        // Reports that still arrive while it is off are not held.
+        handler!(media());
+        expect(rp.richPresenceState.heldCount).toBe(0);
+    });
 });

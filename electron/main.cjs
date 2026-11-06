@@ -879,6 +879,8 @@ ipcMain.handle("rich-presence:configure", (_e, want) =>
         arrpc: want?.arrpc === true,
         scan: want?.scan === true,
         fake: want?.fake === true,
+        media: want?.media === true,
+        autoRestartDiscord: want?.autoRestartDiscord === true,
         userId: typeof want?.userId === "string" ? want.userId : "",
         games: want?.games,
     }),

@@ -7,6 +7,7 @@
         setRichPresenceAutoRestartDiscord,
         setRichPresenceEnabled,
         setRichPresenceFakeDiscord,
+        setRichPresenceMedia,
         setRichPresenceScan,
         settingsState,
     } from "$lib/stores/settings.svelte";
@@ -39,6 +40,11 @@
 
     function onToggleScan(next: boolean): void {
         setRichPresenceScan(next);
+        void syncRichPresence();
+    }
+
+    function onToggleMedia(next: boolean): void {
+        setRichPresenceMedia(next);
         void syncRichPresence();
     }
 
@@ -375,6 +381,36 @@
             />
         </div>
 
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("richPresence.media")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("richPresence.mediaHint")}
+                </p>
+                {#if !settingsState.richPresenceEnabled}
+                    <p class="text-xs text-discord-textMuted">
+                        {t("richPresence.arrpcNeedsShare")}
+                    </p>
+                {/if}
+                {#if settingsState.richPresenceEnabled && settingsState.richPresenceMedia && status?.media?.error}
+                    <p class="text-xs text-discord-danger">
+                        {t("richPresence.mediaFailed", {
+                            error: status.media.error,
+                        })}
+                    </p>
+                {/if}
+            </div>
+            <ToggleSwitch
+                checked={settingsState.richPresenceMedia}
+                onChange={onToggleMedia}
+                label={t("richPresence.media")}
+            />
+        </div>
+
         <p class="text-sm text-discord-textPrimary mt-4 mb-1">
             {t("richPresence.addedGames")}
         </p>
@@ -411,16 +447,18 @@
                                 <p class="text-xs text-discord-textMuted">
                                     {app.source !== "arrpc"
                                         ? t("richPresence.viaMatrix")
-                                        : app.viaScan || app.viaRpc
-                                          ? [
-                                                app.viaRpc &&
-                                                    t("richPresence.viaRpc"),
-                                                app.viaScan &&
-                                                    t("richPresence.viaScan"),
-                                            ]
-                                                .filter(Boolean)
-                                                .join(" + ")
-                                          : t("richPresence.viaDiscord")}
+                                        : app.viaMedia
+                                          ? t("richPresence.viaMedia")
+                                          : app.viaScan || app.viaRpc
+                                            ? [
+                                                  app.viaRpc &&
+                                                      t("richPresence.viaRpc"),
+                                                  app.viaScan &&
+                                                      t("richPresence.viaScan"),
+                                              ]
+                                                  .filter(Boolean)
+                                                  .join(" + ")
+                                            : t("richPresence.viaDiscord")}
                                     · {lastPlayed(app.lastSeen)}
                                 </p>
                             {/if}

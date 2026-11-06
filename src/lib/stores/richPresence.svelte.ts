@@ -47,12 +47,16 @@ export interface KnownApp {
     viaScan?: boolean;
     /** Reported by the app itself over Discord rich presence. */
     viaRpc?: boolean;
+    /** A media player, from the system's now-playing info. */
+    viaMedia?: boolean;
 }
 
 interface Held {
     appKey: string;
     /** From the process scanner rather than the app itself. */
     scan: boolean;
+    /** From a media player's now-playing info. */
+    media: boolean;
     /** Lower-cased app name, to match a scan against an app's own report. */
     appName: string;
     entry: RpcEntry;
@@ -99,6 +103,7 @@ function loadApps(): Record<string, KnownApp> {
                 lastSeen: typeof a.lastSeen === "number" ? a.lastSeen : 0,
                 viaScan: a.viaScan === true,
                 viaRpc: a.viaRpc === true,
+                viaMedia: a.viaMedia === true,
             };
         }
         return out;
@@ -205,12 +210,14 @@ export async function syncRichPresence(): Promise<void> {
     const local = settingsState.richPresenceEnabled;
     const arrpc = local && settingsState.richPresenceArrpc;
     const scan = local && settingsState.richPresenceScan;
+    const media = local && settingsState.richPresenceMedia;
     if (local && !unsubscribe) unsubscribe = b.onEvent(handleEvent);
     try {
         richPresenceState.status = await b.configure({
             local,
             arrpc,
             scan,
+            media,
             fake: settingsState.richPresenceFakeDiscord,
             autoRestartDiscord: settingsState.richPresenceAutoRestartDiscord,
             userId: auth.userId ?? "",
@@ -232,6 +239,24 @@ export async function syncRichPresence(): Promise<void> {
         }
         schedulePublish();
     }
+    if (!media) dropMedia();
+}
+
+/** Media players went off: what they were playing goes too, held or blocked. */
+function dropMedia(): void {
+    let dropped = false;
+    for (const [k, h] of held)
+        if (h.media) {
+            held.delete(k);
+            dropped = true;
+        }
+    for (const [k, ev] of blocked) if (isMediaEvent(ev)) blocked.delete(k);
+    if (dropped) schedulePublish();
+}
+
+/** Media players report under their own ids (see electron/mediaSession.cjs). */
+function isMediaEvent(ev: DesktopRichPresenceEvent): boolean {
+    return ev.source === "arrpc" && ev.presenceId.startsWith("media-");
 }
 
 let listWatch: ReturnType<typeof setTimeout> | null = null;
@@ -261,6 +286,7 @@ export function stopRichPresence(): void {
         local: false,
         arrpc: false,
         scan: false,
+        media: false,
         fake: false,
         autoRestartDiscord: false,
         userId: "",
@@ -323,7 +349,11 @@ function handleEvent(ev: DesktopRichPresenceEvent): void {
     }
 
     const isScan = ev.source === "arrpc" && ev.presenceId.startsWith("scan-");
-    const isRpc = ev.source === "arrpc" && !isScan;
+    const isMedia = isMediaEvent(ev);
+    const isRpc = ev.source === "arrpc" && !isScan && !isMedia;
+    // Media players are only reported once the user has switched them on, so
+    // a late report after that is dropped.
+    if (isMedia && !settingsState.richPresenceMedia) return;
 
     // Remember the app the first time we see it, allowed by default, and how
     // it was found.
@@ -337,18 +367,21 @@ function handleEvent(ev: DesktopRichPresenceEvent): void {
             lastSeen: now,
             viaScan: isScan,
             viaRpc: isRpc,
+            viaMedia: isMedia,
         };
         saveApps();
     } else if (
         now - known.lastSeen > 60_000 ||
         known.name !== name ||
         (isScan && !known.viaScan) ||
-        (isRpc && !known.viaRpc)
+        (isRpc && !known.viaRpc) ||
+        (isMedia && !known.viaMedia)
     ) {
         known.name = name;
         known.lastSeen = now;
         if (isScan) known.viaScan = true;
         if (isRpc) known.viaRpc = true;
+        if (isMedia) known.viaMedia = true;
         saveApps();
     }
 
@@ -407,6 +440,7 @@ function handleEvent(ev: DesktopRichPresenceEvent): void {
     held.set(heldKey, {
         appKey,
         scan: isScan,
+        media: isMedia,
         appName: nameKey,
         entry: refs.large || refs.small ? withIcons(entry, ready, refs) : entry,
         renewable,

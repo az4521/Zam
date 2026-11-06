@@ -9,6 +9,8 @@
 //   Discord RPC         apps that only know Discord Rich Presence report to
 //                       the local servers in discordRpc.cjs.
 //   Game scanner        gameScanner.cjs finds known games by their executable.
+//   Media               mediaSession.cjs reports what media players are playing
+//                       (SMTC on Windows, MPRIS on Linux) as "Listening to".
 //
 // Everything is off until the renderer asks (Settings > General). Nothing is
 // interpreted here beyond framing: the renderer validates every payload.
@@ -29,6 +31,7 @@ const {
     listPrograms,
 } = require("./gameScanner.cjs");
 const { createKnownGames } = require("./knownGames.cjs");
+const { createMediaSession } = require("./mediaSession.cjs");
 const { restartDiscord } = require("./discordRestart.cjs");
 const { createFakeDiscord } = require("./fakeDiscord.cjs");
 
@@ -85,6 +88,9 @@ function createRichPresence({
     // that keeps coming back first can't make us restart it in a loop.
     let autoRestartTried = false;
     let scanner = null;
+    let media = null;
+    // Media players currently shown (player id -> name), so stop() clears them.
+    const mediaPlayers = new Map();
     // A process named Discord, for apps that look for one; see fakeDiscord.cjs.
     const fake = createFakeDiscord({ userDataDir, inFlatpak, log });
     // Games the user added by hand; the scanner reads this on every pass.
@@ -456,10 +462,59 @@ function createRichPresence({
         s?.stop();
     }
 
+    // ── Media players ──────────────────────────────────────────────────────
+
+    /** A player's track as a "Listening to" activity, or its removal. */
+    function forwardMedia({ playerId, playerName, track }) {
+        const presenceId = `media-${playerId}`;
+        if (track) mediaPlayers.set(playerId, playerName);
+        else mediaPlayers.delete(playerId);
+        send({
+            source: "arrpc",
+            app: { id: presenceId, name: playerName },
+            presenceId,
+            presence: track
+                ? {
+                      application_id: presenceId,
+                      name: playerName,
+                      type: 2,
+                      details: track.title,
+                      state: track.artist || undefined,
+                      assets: track.album
+                          ? { large_text: track.album }
+                          : undefined,
+                      timestamps: track.durationMs
+                          ? {
+                                start: track.startedAt,
+                                end: track.startedAt + track.durationMs,
+                            }
+                          : { start: track.startedAt },
+                  }
+                : null,
+        });
+    }
+
+    function stopMedia() {
+        const m = media;
+        media = null;
+        m?.stop();
+        // Whatever the listener did not clear itself.
+        for (const [playerId, playerName] of mediaPlayers) {
+            mediaPlayers.delete(playerId);
+            send({
+                source: "arrpc",
+                app: { id: `media-${playerId}`, name: playerName },
+                presenceId: `media-${playerId}`,
+                presence: null,
+            });
+        }
+    }
+
     // ── Control ────────────────────────────────────────────────────────────
 
     /**
-     * Start or stop each source to match `want` ({ local, arrpc, scan, userId });
+     * Start or stop each source to match `want` ({ local, arrpc, scan, media,
+     * autoRestartDiscord, userId });
      * resolves to the status.
      */
     async function configure(want) {
@@ -486,6 +541,7 @@ function createRichPresence({
         }
         if (!local || !want.arrpc) stopDiscord();
         if (!local || !want.scan) stopScanner();
+        if (!local || !want.media) stopMedia();
         if (unix && unix.key !== userId) stopUnix();
 
         if (local && !tcp) {
@@ -528,6 +584,14 @@ function createRichPresence({
         } else if (!want.scan) {
             status.scan.needsPermission = false;
         }
+        if (local && want.media && !media) {
+            media = createMediaSession({
+                onTrack: forwardMedia,
+                inFlatpak,
+                log,
+            });
+            media.start();
+        }
         if (
             local &&
             want.arrpc &&
@@ -569,6 +633,7 @@ function createRichPresence({
                         : { running: false, error: null }),
                     needsPermission: status.scan.needsPermission,
                 },
+                media: media ? media.status() : { running: false, error: null },
                 games: knownGames.status(),
                 fake: fake.status(),
             }),
@@ -600,6 +665,7 @@ function createRichPresence({
         stopUnix();
         stopDiscord();
         stopScanner();
+        stopMedia();
         void fake.stop();
     }
 

@@ -789,6 +789,10 @@ export const en = {
     "richPresence.scanGrantCommand":
         "flatpak override --user --talk-name=org.freedesktop.Flatpak moe.crafty.matrix",
     "richPresence.scanFailed": "Couldn't look for games: {error}",
+    "richPresence.media": "Report media playback",
+    "richPresence.mediaHint":
+        "Show the song or video that a media player on this computer is playing, from the system's now-playing info. Each player is allowed by default once this is on; switch off the ones you don't want below.",
+    "richPresence.mediaFailed": "Couldn't read media playback: {error}",
     "richPresence.socket": "Also listening on {path}.",
     "richPresence.arrpcNeedsShare": "Turn on sharing first.",
     "richPresence.listening": "Listening for apps on port {port}.",
@@ -817,7 +821,7 @@ export const en = {
     "richPresence.gameListFailed": "Could not download the game list: {error}",
     "richPresence.addedGames": "Registered games",
     "richPresence.addedGamesHint":
-        'Games and apps found running, and programs you add yourself. Each is allowed on your profile by default; switch off the ones you do not want. Games are found only while "Detect running games" is on.',
+        'Games, apps and media players found running, and programs you add yourself. Each is allowed on your profile by default; switch off the ones you do not want. Games are found only while "Detect games" is on, and media players only while "Report media playback" is on.',
     "richPresence.addGame": "Add a game",
     "richPresence.pickProgram": "Pick a running program",
     "richPresence.searchPrograms": "Search running programs",
@@ -836,6 +840,7 @@ export const en = {
     "richPresence.viaMatrix": "Matrix app",
     "richPresence.viaScan": "Process scan",
     "richPresence.viaRpc": "Discord Rich Presence",
+    "richPresence.viaMedia": "Media player",
     "richPresence.blocked": "Blocked",
     "richPresence.allowed": "Allowed",
 
