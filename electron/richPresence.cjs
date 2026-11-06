@@ -10,7 +10,8 @@
 //                       the local servers in discordRpc.cjs.
 //   Game scanner        gameScanner.cjs finds known games by their executable.
 //   Media               mediaSession.cjs reports what media players are playing
-//                       (SMTC on Windows, MPRIS on Linux) as "Listening to".
+//                       (SMTC on Windows, MPRIS on Linux, Spotify and Music on
+//                       macOS) as "Listening to".
 //
 // Everything is off until the renderer asks (Settings > General). Nothing is
 // interpreted here beyond framing: the renderer validates every payload.

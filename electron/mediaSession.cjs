@@ -1,7 +1,8 @@
 // Now playing: what a media player is playing, shown as "Listening to" in rich
 // presence (richPresence.cjs). Windows reads the system's media transport
-// controls (SMTC); Linux reads MPRIS on the session bus. macOS is not supported
-// yet.
+// controls (SMTC); Linux reads MPRIS on the session bus. macOS has no system
+// API for other apps' now-playing info, so it asks Spotify and Music (the two
+// apps with a scripting dictionary) through osascript.
 //
 // Only players that are PLAYING are reported. A paused, stopped or closed player
 // is reported as null. onTrack({ playerId, playerName, track }) gets
@@ -12,7 +13,7 @@
 // API is only reachable from .NET. Its output is one JSON line per session and
 // an end marker after each poll.
 
-const { spawn } = require("child_process");
+const { spawn, execFile } = require("child_process");
 const { connectStream, readVardict } = require("./portalShortcuts.cjs");
 
 const POLL_MS = 2000;
@@ -305,6 +306,81 @@ function call(bus, msg, onBus = false) {
 
 const PROPS_IFACE = "org.freedesktop.DBus.Properties";
 
+const MACOS_POLL_MS = 3000;
+const MACOS_DENIED = /-1743|Not authorized to send Apple events/;
+
+// One JXA run: prints a JSON array with a session per playing or paused player
+// and an { error: true, app, denied, message } element per failure. Spotify and
+// Music are only asked when NSWorkspace says they are running, because
+// talking to an app that is not running launches it (NSWorkspace needs no
+// Automation permission, unlike System Events). Spotify reports its
+// duration in milliseconds, Music in seconds; positions are seconds in both.
+const MACOS_SCRIPT = `
+function run() {
+    const out = [];
+    const fail = (app, e) => {
+        const message = String((e && e.message) || e);
+        const denied = (e && e.errorNumber === -1743) || /-1743|Not authorized to send Apple events/.test(message);
+        out.push({ error: true, app, denied: !!denied, message });
+    };
+    const running = [];
+    try {
+        ObjC.import("AppKit");
+        const apps = $.NSWorkspace.sharedWorkspace.runningApplications;
+        for (let i = 0; i < apps.count; i++) {
+            const id = ObjC.unwrap(apps.objectAtIndex(i).bundleIdentifier);
+            if (id) running.push(id);
+        }
+    } catch (e) {
+        fail("NSWorkspace", e);
+    }
+    const players = [
+        {
+            playerId: "spotify",
+            playerName: "Spotify",
+            bundleId: "com.spotify.client",
+            durationScale: 1,
+        },
+        {
+            playerId: "music",
+            playerName: "Music",
+            bundleId: "com.apple.Music",
+            durationScale: 1000,
+        },
+    ];
+    for (const p of players) {
+        if (running.indexOf(p.bundleId) < 0) continue;
+        try {
+            const app = Application(p.bundleId);
+            const state = String(app.playerState()).toLowerCase();
+            const playing = state.indexOf("playing") >= 0;
+            const session = {
+                playerId: p.playerId,
+                playerName: p.playerName,
+                playing,
+                title: "",
+                artist: "",
+                album: "",
+                durationMs: 0,
+                positionMs: 0,
+            };
+            if (playing || state.indexOf("paused") >= 0) {
+                const t = app.currentTrack;
+                session.title = String(t.name());
+                session.artist = String(t.artist());
+                session.album = String(t.album());
+                session.durationMs = Math.round(t.duration() * p.durationScale);
+                session.positionMs = Math.round(app.playerPosition() * 1000);
+            }
+            out.push(session);
+        } catch (e) {
+            fail(p.playerName, e);
+        }
+    }
+    return JSON.stringify(out);
+}
+`;
+
 function startMpris({ diff, status, log }) {
     let bus = null;
     let polling = false;
@@ -416,6 +492,131 @@ function startMpris({ diff, status, log }) {
 }
 
 /**
+ * The sessions in one osascript run's stdout (the array MACOS_SCRIPT prints),
+ * as parseSmtcLine would give them minus `end`. Garbage, a non-array, or an
+ * element without a playerId gives nothing.
+ */
+function parseMacosOutput(stdout) {
+    const list = parseMacosList(stdout);
+    const sessions = [];
+    for (const m of list) {
+        if (m.error === true) continue;
+        const playerId = text(m.playerId).toLowerCase();
+        if (!playerId) continue;
+        sessions.push({
+            playerId,
+            playerName: text(m.playerName) || playerId,
+            playing: m.playing === true,
+            title: text(m.title),
+            artist: text(m.artist),
+            album: text(m.album),
+            durationMs: ms(m.durationMs),
+            positionMs: ms(m.positionMs),
+        });
+    }
+    return sessions;
+}
+
+/** The failures in one osascript run's stdout: [{ app, denied, message }]. */
+function parseMacosErrors(stdout) {
+    return parseMacosList(stdout)
+        .filter((m) => m.error === true)
+        .map((m) => ({
+            app: text(m.app) || "macOS",
+            denied: m.denied === true,
+            message: text(m.message),
+        }));
+}
+
+function parseMacosList(stdout) {
+    let list;
+    try {
+        list = JSON.parse(String(stdout ?? "").trim());
+    } catch {
+        return [];
+    }
+    if (!Array.isArray(list)) return [];
+    return list.filter((m) => m && typeof m === "object");
+}
+
+function startMacos({ diff, status, log }) {
+    let polling = false;
+    let stopping = false;
+    let child = null;
+    // Each distinct failure is logged once, not on every poll.
+    const logged = new Set();
+
+    /** Sets status.error from one poll's failures; none clears it. */
+    const report = (errors) => {
+        const denied = errors.filter((e) => e.denied).map((e) => e.app);
+        const parts = [];
+        if (denied.length)
+            parts.push(
+                `macOS blocked access to ${denied.join(" and ")}: allow Zam under System Settings > Privacy & Security > Automation`,
+            );
+        for (const e of errors) {
+            if (e.denied) continue;
+            parts.push(`${e.app}: ${e.message}`);
+        }
+        for (const e of errors) {
+            const key = e.denied ? `denied ${e.app}` : `${e.app} ${e.message}`;
+            if (logged.has(key)) continue;
+            logged.add(key);
+            log("media", e.app, e.denied ? "not authorized" : e.message);
+        }
+        status.error = parts.length ? parts.join("; ") : null;
+    };
+
+    function poll() {
+        if (polling || stopping) return;
+        polling = true;
+        child = execFile(
+            "osascript",
+            ["-l", "JavaScript", "-e", MACOS_SCRIPT],
+            { timeout: CALL_TIMEOUT_MS, windowsHide: true },
+            (err, stdout, stderr) => {
+                polling = false;
+                child = null;
+                if (stopping) return;
+                if (err) {
+                    // The script catches its own failures, so this is osascript
+                    // itself failing: the whole poll is lost.
+                    const errText = String(stderr || "").trim();
+                    const denied = MACOS_DENIED.test(errText);
+                    const message = err.killed
+                        ? "timed out"
+                        : errText.split("\n")[0] || err.message;
+                    report([
+                        {
+                            app: denied ? "Spotify or Music" : "osascript",
+                            denied,
+                            message,
+                        },
+                    ]);
+                    return;
+                }
+                diff.update(parseMacosOutput(stdout));
+                report(parseMacosErrors(stdout));
+            },
+        );
+    }
+
+    poll();
+    const timer = setInterval(poll, MACOS_POLL_MS);
+    return {
+        stop() {
+            stopping = true;
+            clearInterval(timer);
+            try {
+                child?.kill();
+            } catch {}
+            child = null;
+            diff.update([]);
+        },
+    };
+}
+
+/**
  * The media listener. `inFlatpak` changes nothing: the session bus and the
  * SMTC helper are both reachable from inside a Flatpak.
  */
@@ -433,6 +634,8 @@ function createMediaSession({ onTrack, inFlatpak = false, log = () => {} }) {
                 impl = startSmtc({ diff, status, log });
             else if (process.platform === "linux")
                 impl = startMpris({ diff, status, log });
+            else if (process.platform === "darwin")
+                impl = startMacos({ diff, status, log });
             else return;
             status.running = true;
         },
@@ -451,6 +654,8 @@ module.exports = {
     createTrackDiffer,
     friendlyName,
     mprisId,
+    parseMacosErrors,
+    parseMacosOutput,
     parseMprisProps,
     parseSmtcLine,
     SMTC_SCRIPT,

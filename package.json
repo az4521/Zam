@@ -76,7 +76,10 @@
             "target": [
                 "dmg"
             ],
-            "icon": "static/favicon.png"
+            "icon": "static/favicon.png",
+            "extendInfo": {
+                "NSAppleEventsUsageDescription": "Zam reads the track playing in Spotify and Music to show it on your profile when you turn on Report media playback."
+            }
         }
     },
     "devDependencies": {

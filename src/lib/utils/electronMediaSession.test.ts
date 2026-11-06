@@ -12,6 +12,8 @@ const {
     createTrackDiffer,
     friendlyName,
     mprisId,
+    parseMacosErrors,
+    parseMacosOutput,
     parseMprisProps,
     parseSmtcLine,
 } = electron("mediaSession.cjs");
@@ -178,5 +180,112 @@ describe("track diffing", () => {
             0,
         );
         expect(got.map((e) => e.playerId)).toEqual(["spotify", "vlc"]);
+    });
+});
+
+describe("macOS media players", () => {
+    it("reads the sessions the script prints", () => {
+        const out = JSON.stringify([
+            {
+                playerId: "spotify",
+                playerName: "Spotify",
+                playing: true,
+                title: " Song ",
+                artist: "Band",
+                album: "Album",
+                durationMs: 200000,
+                positionMs: 12000,
+            },
+            {
+                playerId: "music",
+                playerName: "Music",
+                playing: true,
+                title: "Other",
+                artist: "Someone",
+                album: "Record",
+                durationMs: 180000,
+                positionMs: 5000.6,
+            },
+        ]);
+        expect(parseMacosOutput(out + "\n")).toEqual([
+            {
+                playerId: "spotify",
+                playerName: "Spotify",
+                playing: true,
+                title: "Song",
+                artist: "Band",
+                album: "Album",
+                durationMs: 200000,
+                positionMs: 12000,
+            },
+            {
+                playerId: "music",
+                playerName: "Music",
+                playing: true,
+                title: "Other",
+                artist: "Someone",
+                album: "Record",
+                durationMs: 180000,
+                positionMs: 5001,
+            },
+        ]);
+    });
+
+    it("gives nothing for empty or garbage output", () => {
+        expect(parseMacosOutput("")).toEqual([]);
+        expect(parseMacosOutput("  \n")).toEqual([]);
+        expect(parseMacosOutput("not json")).toEqual([]);
+        expect(parseMacosOutput('{"playerId":"spotify"}')).toEqual([]);
+        expect(parseMacosOutput('[1, null, "x", {"title":"no id"}]')).toEqual(
+            [],
+        );
+        expect(parseMacosOutput(undefined as unknown as string)).toEqual([]);
+    });
+
+    it("keeps a paused session, and fills in missing fields", () => {
+        const out = JSON.stringify([
+            {
+                playerId: "music",
+                playerName: "Music",
+                playing: false,
+                title: "Paused",
+            },
+        ]);
+        expect(parseMacosOutput(out)).toEqual([
+            {
+                playerId: "music",
+                playerName: "Music",
+                playing: false,
+                title: "Paused",
+                artist: "",
+                album: "",
+                durationMs: 0,
+                positionMs: 0,
+            },
+        ]);
+    });
+
+    it("reads failures apart from sessions", () => {
+        const out = JSON.stringify([
+            {
+                error: true,
+                app: "Spotify",
+                denied: true,
+                message:
+                    "Not authorized to send Apple events to Spotify. (-1743)",
+            },
+            { error: true, app: "Music", denied: false, message: "boom" },
+        ]);
+        expect(parseMacosOutput(out)).toEqual([]);
+        expect(parseMacosErrors(out)).toEqual([
+            {
+                app: "Spotify",
+                denied: true,
+                message:
+                    "Not authorized to send Apple events to Spotify. (-1743)",
+            },
+            { app: "Music", denied: false, message: "boom" },
+        ]);
+        expect(parseMacosErrors("")).toEqual([]);
     });
 });
