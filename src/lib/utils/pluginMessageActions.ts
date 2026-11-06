@@ -10,7 +10,12 @@
  * a per-message badge. Neither touches inbound body rendering.
  */
 import type { RegistryEntry } from "$lib/plugins/registry";
-import type { MessageActionItem, MessageDecorator } from "$lib/plugins/types";
+import type {
+    MessageActionItem,
+    MessageAnnotation,
+    MessageAnnotator,
+    MessageDecorator,
+} from "$lib/plugins/types";
 import { pluginContribKey } from "./pluginComposer";
 
 export interface PluginMessageActionView {
@@ -33,7 +38,7 @@ export interface PluginMessageActionView {
  */
 export function pluginMessageActions(
     entries: RegistryEntry<MessageActionItem>[],
-    ctx: { roomId: string; eventId: string },
+    ctx: { roomId: string; eventId: string; msgtype: string },
 ): PluginMessageActionView[] {
     const views: PluginMessageActionView[] = [];
     for (const { pluginId, entryId, value } of entries) {
@@ -101,4 +106,29 @@ export function collectDecorations(
         });
     }
     return out;
+}
+
+/**
+ * The first non-empty annotation any plugin gives this message. A throwing
+ * annotator is skipped, like a throwing decorator.
+ */
+export function collectAnnotation(
+    entries: RegistryEntry<MessageAnnotator>[],
+    ctx: { roomId: string; eventId: string; msgtype: string },
+): MessageAnnotation | null {
+    for (const { pluginId, value } of entries) {
+        let res: MessageAnnotation | null | undefined;
+        try {
+            res = value(ctx);
+        } catch (e) {
+            console.error(`[zam] plugin ${pluginId} annotate() threw`, e);
+            continue;
+        }
+        if (!res) continue;
+        const text = typeof res.text === "string" ? res.text : undefined;
+        const busy = res.busy === true;
+        if (!text && !busy) continue;
+        return { text, busy };
+    }
+    return null;
 }

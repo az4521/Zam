@@ -32,6 +32,7 @@ import {
     uploadPluginMedia,
     sendPluginMedia,
     redactOwnEvent,
+    getPluginMedia,
 } from "../matrix/pluginHost";
 
 export interface BuildHostApiOptions {
@@ -242,6 +243,11 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                 track(addEntry(registry, "messageActions", pluginId, a)),
             decorate: (fn) =>
                 track(addEntry(registry, "decorators", pluginId, fn)),
+            annotate: (fn) =>
+                track(addEntry(registry, "annotators", pluginId, fn)),
+            refresh: () => {
+                registry.tick++;
+            },
             registerEmbed: (e) =>
                 track(addEntry(registry, "embeds", pluginId, e)),
         },
@@ -315,6 +321,7 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
             getMembers: (roomId) => getPluginRoomMembers(roomId),
             react: (roomId, eventId, key) => sendReaction(roomId, eventId, key),
             getCurrentUserId: () => getOwnUserId(),
+            getMedia: (roomId, eventId) => getPluginMedia(roomId, eventId),
             getRecentMessages: (roomId, limit) =>
                 getPluginRecentMessages(roomId, limit),
             uploadMedia: async (file, opts) => ({

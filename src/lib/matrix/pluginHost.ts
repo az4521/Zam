@@ -23,7 +23,12 @@ import {
     mxcUrlsInContent,
 } from "$lib/utils/mediaOwnership";
 import { captureClient, matrixClient, ownedClientOrThrow } from "./runtime";
-import { getMediaUploadSizeLimit, uploadAttachment } from "./media";
+import {
+    fetchAttachmentBlob,
+    fetchDecryptedAttachmentBlob,
+    getMediaUploadSizeLimit,
+    uploadAttachment,
+} from "./media";
 import {
     deleteMessage,
     getJoinRule,
@@ -252,4 +257,34 @@ export async function sendPluginSticker(
           )
         : content;
     await matrixClient.sendEvent(roomId, "m.sticker" as any, finalContent);
+}
+
+/** The attachment of a media event as a Blob (decrypted when the room is
+ *  encrypted), for host API `zam.matrix.getMedia`. */
+export async function getPluginMedia(
+    roomId: string,
+    eventId: string,
+): Promise<{ blob: Blob; mimetype: string }> {
+    const ev = getRoom(roomId)?.findEventById(eventId);
+    if (!ev) throw new Error("getMedia: event not found");
+    const content = ev.getContent() ?? {};
+    const info = content.info as { mimetype?: string } | undefined;
+    const file = content.file as
+        | (Parameters<typeof fetchDecryptedAttachmentBlob>[0] | undefined)
+        | undefined;
+    let objectUrl: string;
+    if (file?.url) {
+        objectUrl = await fetchDecryptedAttachmentBlob(file, info?.mimetype);
+    } else {
+        const http =
+            typeof content.url === "string" ? mxcToHttp(content.url) : null;
+        if (!http) throw new Error("getMedia: event has no attachment");
+        objectUrl = await fetchAttachmentBlob(http);
+    }
+    try {
+        const blob = await (await fetch(objectUrl)).blob();
+        return { blob, mimetype: blob.type || info?.mimetype || "" };
+    } finally {
+        URL.revokeObjectURL(objectUrl);
+    }
 }

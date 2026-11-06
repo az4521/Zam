@@ -70,8 +70,14 @@ export interface MessageActionItem {
     id: string;
     label: string;
     icon?: string;
-    when?(ctx: { roomId: string; eventId: string }): boolean;
-    onSelect(ctx: { roomId: string; eventId: string }): void | Promise<void>;
+    /** `msgtype` is the event's `msgtype` (`m.audio`, `m.text`, ...), so an
+     *  action can limit itself to one kind of message. */
+    when?(ctx: { roomId: string; eventId: string; msgtype: string }): boolean;
+    onSelect(ctx: {
+        roomId: string;
+        eventId: string;
+        msgtype: string;
+    }): void | Promise<void>;
 }
 
 export type MessageDecorator = (ctx: {
@@ -79,6 +85,19 @@ export type MessageDecorator = (ctx: {
     eventId: string;
     senderId: string;
 }) => { badge?: string; tooltip?: string } | null;
+
+/** Text shown under a voice message (a transcript, say). `busy` shows a
+ *  spinner in place of, or beside, the text. */
+export interface MessageAnnotation {
+    text?: string;
+    busy?: boolean;
+}
+
+export type MessageAnnotator = (ctx: {
+    roomId: string;
+    eventId: string;
+    msgtype: string;
+}) => MessageAnnotation | null;
 
 export interface MessageEmbed {
     match(url: string): boolean;
@@ -301,6 +320,13 @@ export interface ZamPluginApi {
         onSwipe(handler: SwipeHandler): Disposable;
         addAction(action: MessageActionItem): Disposable;
         decorate(fn: MessageDecorator): Disposable;
+        /** Text under a voice message (`m.audio`) with the sender's waveform,
+         *  e.g. a transcript. The function runs again for every message each
+         *  time `refresh()` is called, so keep it cheap and pure. */
+        annotate(fn: MessageAnnotator): Disposable;
+        /** Re-run the `annotate` functions after the plugin's own data
+         *  changed. */
+        refresh(): void;
         registerEmbed(embed: MessageEmbed): Disposable;
     };
 
@@ -372,6 +398,13 @@ export interface ZamPluginApi {
         /** The logged-in user's Matrix ID, or null if not logged in. Lets a
          *  decorator/handler tell "is this mine?" from a bare senderId. */
         getCurrentUserId(): string | null;
+        /** The attachment of an `m.audio`, `m.video`, `m.image` or `m.file`
+         *  message, downloaded and decrypted if the room is encrypted. Rejects
+         *  when the event is not found or has no attachment. */
+        getMedia(
+            roomId: string,
+            eventId: string,
+        ): Promise<{ blob: Blob; mimetype: string }>;
         /** Last `limit` renderable messages in the room (default 20, max 100),
          *  chronological, as plain summaries — never live MatrixEvents. */
         getRecentMessages(

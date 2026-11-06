@@ -14,6 +14,7 @@ import type {
     ComposerAction,
     MessageActionItem,
     MessageDecorator,
+    MessageAnnotator,
     MessageEmbed,
     HeaderButton,
     ShortcutRegistration,
@@ -39,6 +40,7 @@ export interface PluginRegistryData {
     composerActions: RegistryEntry<ComposerAction>[];
     messageActions: RegistryEntry<MessageActionItem>[];
     decorators: RegistryEntry<MessageDecorator>[];
+    annotators: RegistryEntry<MessageAnnotator>[];
     embeds: RegistryEntry<MessageEmbed>[];
     headerButtons: RegistryEntry<HeaderButton>[];
     shortcuts: RegistryEntry<ShortcutRegistration>[];
@@ -65,6 +67,7 @@ export const EXTENSION_KINDS: ExtensionKind[] = [
     "composerActions",
     "messageActions",
     "decorators",
+    "annotators",
     "embeds",
     "headerButtons",
     "shortcuts",
@@ -85,6 +88,7 @@ export function createRegistryData(): PluginRegistryData {
         composerActions: [],
         messageActions: [],
         decorators: [],
+        annotators: [],
         embeds: [],
         headerButtons: [],
         shortcuts: [],

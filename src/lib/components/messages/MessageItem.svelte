@@ -156,6 +156,7 @@
     import {
         pluginMessageActions,
         collectDecorations,
+        collectAnnotation,
     } from "$lib/utils/pluginMessageActions";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
 
@@ -1029,6 +1030,17 @@
         return pluginMessageActions(pluginRegistry.messageActions, {
             roomId: room.roomId,
             eventId,
+            msgtype,
+        });
+    });
+
+    // Text a plugin shows under a voice message (a transcript).
+    const pluginAnnotation = $derived.by(() => {
+        void pluginRegistry.tick;
+        return collectAnnotation(pluginRegistry.annotators, {
+            roomId: room.roomId,
+            eventId,
+            msgtype,
         });
     });
 
@@ -2898,6 +2910,14 @@
                         waveform={voiceMsg.waveform}
                         durationMs={voiceMsg.durationMs}
                     />
+                    {#if pluginAnnotation}
+                        <p
+                            class="mt-1 max-w-sm text-sm whitespace-pre-wrap text-gray-300 select-text"
+                            class:animate-pulse={pluginAnnotation.busy}
+                        >
+                            {pluginAnnotation.text ?? "…"}
+                        </p>
+                    {/if}
                 {:else}
                     {@render audioCard()}
                 {/if}

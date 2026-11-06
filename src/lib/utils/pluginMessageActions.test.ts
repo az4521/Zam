@@ -2,11 +2,16 @@ import { describe, it, expect, vi } from "vitest";
 import {
     pluginMessageActions,
     collectDecorations,
+    collectAnnotation,
     type PluginMessageActionView,
     type MessageDecoration,
 } from "./pluginMessageActions";
 import type { RegistryEntry } from "$lib/plugins/registry";
-import type { MessageActionItem, MessageDecorator } from "$lib/plugins/types";
+import type {
+    MessageActionItem,
+    MessageAnnotator,
+    MessageDecorator,
+} from "$lib/plugins/types";
 
 const actionEntry = (
     pluginId: string,
@@ -20,7 +25,7 @@ const decoratorEntry = (
     value: MessageDecorator,
 ): RegistryEntry<MessageDecorator> => ({ pluginId, entryId, value });
 
-const ACTX = { roomId: "!r:s", eventId: "$e" };
+const ACTX = { roomId: "!r:s", eventId: "$e", msgtype: "m.audio" };
 const DCTX = { roomId: "!r:s", eventId: "$e", senderId: "@u:s" };
 
 describe("pluginMessageActions", () => {
@@ -226,5 +231,48 @@ describe("collectDecorations", () => {
             DCTX,
         );
         expect(out.map((d) => d.badge)).toEqual(["1", "2"]);
+    });
+});
+
+describe("collectAnnotation", () => {
+    const annotatorEntry = (
+        pluginId: string,
+        entryId: number,
+        value: MessageAnnotator,
+    ): RegistryEntry<MessageAnnotator> => ({ pluginId, entryId, value });
+
+    it("returns the first non-empty annotation", () => {
+        const out = collectAnnotation(
+            [
+                annotatorEntry("a", 1, () => null),
+                annotatorEntry("b", 2, () => ({ text: "hello" })),
+                annotatorEntry("c", 3, () => ({ text: "later" })),
+            ],
+            ACTX,
+        );
+        expect(out).toEqual({ text: "hello", busy: false });
+    });
+
+    it("keeps a busy annotation with no text", () => {
+        const out = collectAnnotation(
+            [annotatorEntry("a", 1, () => ({ busy: true }))],
+            ACTX,
+        );
+        expect(out).toEqual({ text: undefined, busy: true });
+    });
+
+    it("skips empty results and annotators that throw", () => {
+        const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+        const out = collectAnnotation(
+            [
+                annotatorEntry("a", 1, () => {
+                    throw new Error("boom");
+                }),
+                annotatorEntry("b", 2, () => ({ text: "" })),
+            ],
+            ACTX,
+        );
+        expect(out).toBeNull();
+        spy.mockRestore();
     });
 });
