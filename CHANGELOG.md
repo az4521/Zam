@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.12
+
+🐛 **Fixed**
+
+- **Game icons for Steam games on Linux (Flatpak):** a Steam game such as Satisfactory, run through Proton, showed the default application icon in your rich presence. Zam can't see Steam's files from inside Flatpak, so it now reads the game's own Steam icon from the host, finding the game from its install folder or from the app id Steam records as running.
+
 ## v1.54.11
 
 ✨ **New**
