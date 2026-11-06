@@ -170,10 +170,6 @@
                 {detail || t("richPresence.sharingTitle")}
             </p>
         </div>
-        <span
-            class="h-2 w-2 flex-shrink-0 rounded-full bg-discord-online"
-            aria-hidden="true"
-        ></span>
     </div>
 {/each}
 
