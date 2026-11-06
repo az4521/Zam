@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.8
+
+✨ **New**
+
+- **Cover art for what you're listening to (desktop):** the track you share with "Report media playback" now shows its album cover on your profile where the player provides one (Windows media controls, Spotify and Linux players). When there's no cover it shows the player's own icon instead, and when there's no icon at all the empty grey square is gone and the text takes the full width.
+
 ## v1.54.7
 
 ✨ **New**
