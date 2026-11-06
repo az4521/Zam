@@ -141,5 +141,10 @@
     },
     "optionalDependencies": {
         "@vencord/venmic": "^7.2.3"
+    },
+    "overrides": {
+        "cmake-js": {
+            "tar": "^7.5.22"
+        }
     }
 }
