@@ -22,6 +22,7 @@
     import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
     import { parkOffscreen } from "$lib/actions/parkOffscreen";
     import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
+    import { rememberVolume } from "$lib/actions/rememberVolume";
     import {
         videoNeedsAuthedStream,
         STREAM_ENCRYPTED_MIN_BYTES,
@@ -399,6 +400,7 @@
                         ? fallBackToVerifiedDownload()
                         : onPlainStreamBroke(),
             }}
+            use:rememberVolume
             controls
             controlsList="nodownload"
             autoplay

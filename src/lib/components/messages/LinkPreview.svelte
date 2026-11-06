@@ -41,6 +41,7 @@
         holdMediaUrl,
     } from "$lib/stores/mediaAuth.svelte";
     import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
+    import { rememberVolume } from "$lib/actions/rememberVolume";
     import { unloadOffscreen } from "$lib/actions/unloadOffscreen";
     import { parkOffscreen } from "$lib/actions/parkOffscreen";
     import { parkYoutubeOffscreen } from "$lib/actions/parkYoutubeOffscreen";
@@ -555,6 +556,7 @@
     <video
         src={directEmbed.videoUrl}
         class="max-w-[min(100%,32rem)] max-h-96 rounded-lg mt-1 block"
+        use:rememberVolume
         controls
         preload="metadata"
     ></video>
@@ -669,6 +671,7 @@
                                     width={box?.width}
                                     height={box?.height}
                                     class="w-full h-auto max-h-72 min-w-0 max-w-full object-contain rounded"
+                                    use:rememberVolume
                                     controls
                                     autoplay
                                     preload="auto"
@@ -1104,6 +1107,7 @@
                     poster={posterUrl}
                     class="max-w-lg w-full max-h-96 rounded-lg block"
                     style={`aspect-ratio: ${preview.videoWidth && preview.videoHeight ? `${preview.videoWidth}/${preview.videoHeight}` : "16/9"}; max-height: 24rem;`}
+                    use:rememberVolume
                     controls
                     autoplay={videoPlaying}
                     preload={videoPlaying ? "auto" : "metadata"}

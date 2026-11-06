@@ -64,6 +64,7 @@
         fetchDecryptedAttachmentBlob,
     } from "$lib/matrix/client";
     import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
+    import { rememberVolume } from "$lib/actions/rememberVolume";
     import { safeMediaBlob } from "$lib/utils/attachmentMime";
     import { STREAM_ENCRYPTED_MIN_BYTES } from "$lib/matrix/videoStream";
     import type { EncryptedFileInfo } from "$lib/utils/decryptAttachment";
@@ -739,6 +740,7 @@
                                     onError: onVideoBroke,
                                 }}
                                 poster={poster ?? undefined}
+                                use:rememberVolume
                                 controls
                                 autoplay
                                 preload="metadata"

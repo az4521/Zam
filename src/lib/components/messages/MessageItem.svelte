@@ -20,6 +20,7 @@
     import MessageVideo from "$lib/components/messages/MessageVideo.svelte";
     import MediaProgress from "$lib/components/ui/MediaProgress.svelte";
     import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
+    import { rememberVolume } from "$lib/actions/rememberVolume";
     import { STREAM_ENCRYPTED_MIN_BYTES } from "$lib/matrix/videoStream";
     import {
         canPreviewImage,
@@ -2525,6 +2526,7 @@
                             <audio
                                 controls
                                 autoplay
+                                use:rememberVolume
                                 use:authedVideoSrc={{
                                     url: audioStreamUrl,
                                     mimetype: (
@@ -2555,6 +2557,7 @@
                             <audio
                                 controls
                                 autoplay
+                                use:rememberVolume
                                 src={audioBlobUrl}
                                 class="w-full h-8"
                             ></audio>
