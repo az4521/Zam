@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.9
+
+🐛 **Fixed**
+
+- **Volume is remembered between videos and audio:** the volume (and mute) you set on a video or audio player is now saved on your device and used by the next one, in messages, the fullscreen viewer and link-preview videos, instead of every player starting at full volume. GIF-style videos and voice messages are unchanged.
+- **DM previews show your message right away:** the line under a DM's name in the room list now updates the moment you send a message, instead of waiting for the server to accept it, so it no longer lags behind the chat.
+
 ## v1.54.8
 
 ✨ **New**
