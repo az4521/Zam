@@ -79,6 +79,12 @@ export const roomsState = $state({
     activeSpaceId: loadLastSpace() as string | null,
     activeRoomId: getLastRoom(loadLastSpace()) as string | null,
     showInbox: false,
+    /**
+     * The user asked for the active space's home page. Like the inbox it is a
+     * deliberate no-room surface, so the landing chain must not replace it with
+     * the space's first room. Cleared by any real navigation.
+     */
+    showSpaceHome: false,
     roomsInSpace: [] as Room[],
     spaceHierarchy: [] as SpaceChildInfo[],
     /**
@@ -195,8 +201,25 @@ export function resolvePendingSurface(): void {
 function landOnRoom(roomId: string): void {
     roomsState.activeRoomId = roomId;
     roomsState.showInbox = false;
+    roomsState.showSpaceHome = false;
     applyDefaultSurface(roomId);
     saveLastRoom(roomsState.activeSpaceId, roomId);
+}
+
+/**
+ * Show the active space's home page instead of a room. Without this a space's
+ * landing panel is only reachable when it has no room to open, so once a room
+ * is selected there is no way back to it.
+ */
+export function showSpaceHome(): void {
+    if (roomsState.activeSpaceId === null) return;
+    roomsState.draftDm = null;
+    roomsState.showInbox = false;
+    roomsState.showSpaceHome = true;
+    roomsState.activeRoomId = null;
+    applyDefaultSurface(null);
+    if (interfaceState.isMobile && !settingsState.keepSidebarOpen)
+        interfaceState.leftOpen = false;
 }
 
 /** Room ids of the current context, in the order the sidebar renders them. */
@@ -234,7 +257,7 @@ export function resolveLandingSurface(): void {
         // runs the chain, and the user keeps whatever the cache gave them —
         // never worse than the behaviour before this feature.
         roomsReady: auth.syncState === "SYNCING",
-        showInbox: roomsState.showInbox,
+        showInbox: roomsState.showInbox || roomsState.showSpaceHome,
         activeSpaceId: spaceId,
         activeRoomId: roomsState.activeRoomId,
         activeRoomIsLandable: roomsState.activeRoomId
@@ -271,6 +294,7 @@ export function setActiveSpace(
 ): void {
     if (spaceId === roomsState.activeSpaceId) return;
     roomsState.draftDm = null;
+    roomsState.showSpaceHome = false;
     roomsState.activeSpaceId = spaceId;
     roomsState.activeRoomId = getLastRoom(spaceId);
     // Restoring a space's last room is a navigation too: if that room is a
@@ -310,6 +334,7 @@ export function setActiveRoom(roomId: string): void {
     roomsState.draftDm = null;
     roomsState.activeRoomId = roomId;
     roomsState.showInbox = false;
+    roomsState.showSpaceHome = false;
     // Ordinary rooms show their timeline; video rooms show their call. The
     // three call-view entry points re-set this immediately after their own
     // setActiveRoom/navigateToRoom call, which still works either way.
@@ -354,6 +379,7 @@ export function navigateToRoom(roomId: string, eventId?: string): void {
 export function openDraftDm(userId: string, encrypt: boolean): void {
     roomsState.draftDm = { userId, encrypt };
     roomsState.showInbox = false;
+    roomsState.showSpaceHome = false;
     // A DM is a Home destination, so leave whatever space was being browsed.
     if (roomsState.activeSpaceId !== null) {
         roomsState.activeSpaceId = null;

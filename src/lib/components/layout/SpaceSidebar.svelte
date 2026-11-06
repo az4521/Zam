@@ -37,6 +37,7 @@
         roomsState,
         setActiveSpace,
         setActiveRoom,
+        showSpaceHome,
     } from "$lib/stores/rooms.svelte";
     import { openInviteDialog } from "$lib/stores/inviteDialog.svelte";
     import {
@@ -1002,7 +1003,11 @@
                 dropTarget?.id === item.id && dropTarget.position === "into"}
             {@const spaceNotifs = getSpaceNotifs(item.space.roomId)}
             <button
-                onclick={() => setActiveSpace(item.space.roomId)}
+                onclick={() =>
+                    roomsState.activeSpaceId === item.space.roomId &&
+                    roomsState.spaceDrillParentId === null
+                        ? showSpaceHome()
+                        : setActiveSpace(item.space.roomId)}
                 data-nav-space={item.space.roomId}
                 oncontextmenu={(e) =>
                     openSpaceContextMenu(e, item.space.roomId)}

@@ -120,6 +120,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "accountSettings.thisServerDoesNotAllowManaging":
         "Este servidor no permite gestionarlos desde esta aplicación.",
     "accountSettings.logOut": "Cerrar sesión",
+    "accountSettings.lastDeviceTitle":
+        "Este es tu único dispositivo con sesión iniciada",
+    "accountSettings.lastDeviceBackedUp":
+        "Tu historial cifrado tiene copia de seguridad, pero necesitarás tu clave de recuperación para leerlo al volver a iniciar sesión.",
+    "accountSettings.lastDeviceNoBackup":
+        "Al cerrar sesión se perderán para siempre las claves de cifrado guardadas en este dispositivo. Sin una copia de seguridad de claves u otro dispositivo verificado, tu historial de mensajes cifrados no se podrá recuperar.",
+    "accountSettings.logOutAnyway": "Cerrar sesión de todos modos",
     "accountSettings.dangerZone": "Zona de peligro",
     "accountSettings.deactivateAccount": "Desactivar la cuenta…",
     "accountSettings.deactivationIsPermanentAndCannotBe":
@@ -2400,6 +2407,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "shareTargetSheet.shareToARoom": "Compartir en una sala",
 
     // src/lib/components/layout/SpaceLandingPanel.svelte
+    "spaceLandingPanel.yourRooms": "Tus salas",
     "spaceLandingPanel.loadingRooms": "Cargando salas…",
     "spaceLandingPanel.browseRooms": "Explorar salas",
     "spaceLandingPanel.youHavenTJoinedARoom":

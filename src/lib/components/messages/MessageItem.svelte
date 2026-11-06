@@ -175,6 +175,7 @@
     } from "$lib/utils/timeFormat";
     import { renderHtml } from "$lib/utils/twemoji";
     import { sanitizeMatrixHtml } from "$lib/utils/sanitizeHtml";
+    import { renderMessageTimestamps } from "$lib/utils/timestampMarkup";
     import { highlightCodeBlocks } from "$lib/utils/codeHighlight";
     import { highlighterFor } from "$lib/utils/codeHighlighter.svelte";
     import {
@@ -1965,10 +1966,9 @@
         // newlines still count as mention boundaries. linkifyPlainText covers
         // http(s) URLs as well as bare mentions — a pasted matrix.to link needs
         // to become an anchor for the matrixLinks action to open it in-app.
-        return highlightRoomMention(linkifyPlainText(escaped)).replace(
-            /\n/g,
-            "<br>",
-        );
+        return renderMessageTimestamps(
+            highlightRoomMention(linkifyPlainText(escaped)),
+        ).replace(/\n/g, "<br>");
     }
 
     function sanitize(html: string): string {
@@ -1978,9 +1978,11 @@
         // differently across an account switch. A NUL (U+0000) is a safe
         // separator (never present in a URL or in Matrix HTML).
         const base = getHomeserverBaseUrl() ?? "";
-        return highlightRoomMention(
-            sanitizeCache.get(`${base}\u0000${html}`, () =>
-                sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp }),
+        return renderMessageTimestamps(
+            highlightRoomMention(
+                sanitizeCache.get(`${base}\u0000${html}`, () =>
+                    sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp }),
+                ),
             ),
         );
     }

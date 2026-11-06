@@ -120,6 +120,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "accountSettings.thisServerDoesNotAllowManaging":
         "Ce serveur ne permet pas de les gérer depuis cette application.",
     "accountSettings.logOut": "Se déconnecter",
+    "accountSettings.lastDeviceTitle": "C’est votre seul appareil connecté",
+    "accountSettings.lastDeviceBackedUp":
+        "Votre historique chiffré est sauvegardé, mais vous aurez besoin de votre clé de récupération pour le lire après vous être reconnecté.",
+    "accountSettings.lastDeviceNoBackup":
+        "La déconnexion fera perdre définitivement les clés de chiffrement stockées sur cet appareil. Sans sauvegarde des clés ni autre appareil vérifié, votre historique de messages chiffrés ne pourra pas être récupéré.",
+    "accountSettings.logOutAnyway": "Se déconnecter quand même",
     "accountSettings.dangerZone": "Zone de danger",
     "accountSettings.deactivateAccount": "Désactiver le compte…",
     "accountSettings.deactivationIsPermanentAndCannotBe":
@@ -2361,6 +2367,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "shareTargetSheet.shareToARoom": "Partager dans un salon",
 
     // src/lib/components/layout/SpaceLandingPanel.svelte
+    "spaceLandingPanel.yourRooms": "Vos salons",
     "spaceLandingPanel.loadingRooms": "Chargement des salons…",
     "spaceLandingPanel.browseRooms": "Parcourir les salons",
     "spaceLandingPanel.youHavenTJoinedARoom":

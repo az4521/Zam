@@ -117,6 +117,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "accountSettings.thisServerDoesNotAllowManaging":
         "ܗܢܐ ܣܝܪܒܪ ܠܐ ܝܗܒ ܦܣܐ ܠܡܕܒܪܢܘܬܐ ܕܐܢܝ̈ ܡܢ ܗܕܐ ܬܘܟܢܝܬܐ.",
     "accountSettings.logOut": "ܦܘܩ",
+    "accountSettings.lastDeviceTitle": "ܗܢܐ ܗܘ ܐܠܬܐ ܝܚܝܕܝܬܐ ܕܥܠܬ ܒܗ",
+    "accountSettings.lastDeviceBackedUp":
+        "ܬܝܪܝܟܐ ܕܗܘܦܟܐ ܡܛܫܐ ܕܝܠܟ ܐܣܬܡܟ ܐܠܐ ܒܥܝܬ ܠܡܦܬܚܐ ܕܦܘܪܩܢܐ ܕܬܩܪܐ ܠܗ ܒܬܪ ܕܬܥܘܠ ܡܢ ܚܕܬܐ.",
+    "accountSettings.lastDeviceNoBackup":
+        "ܟܕ ܦܠܛܬ ܡܢ ܗܕܐ ܐܠܬܐ ܡܦܬܚܬ̈ܐ ܕܛܫܝܐ ܕܡܚܣܢܐ ܒܗ ܢܐܒܕܘܢ ܠܥܠܡ. ܒܠܥܕ ܣܡܟܐ ܕܡܦܬܚܬ̈ܐ ܐܘ ܐܠܬܐ ܐܚܪܬܐ ܡܫܪܪܬܐ، ܬܝܪܝܟܐ ܕܗܘܦܟܐ ܡܛܫܐ ܠܐ ܡܬܦܪܩ.",
+    "accountSettings.logOutAnyway": "ܦܘܩ ܒܟܠ ܐܘܠܝܢ",
     "accountSettings.dangerZone": "ܦܢܝܬܐ ܕܣܘܟܢܐ",
     "accountSettings.deactivateAccount": "ܒܛܠ ܚܘܫܒܢܐ…",
     "accountSettings.deactivationIsPermanentAndCannotBe":
@@ -2221,6 +2227,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "shareTargetSheet.shareToARoom": "ܫܘܬܦ ܠܓܘܡܐ",
 
     // src/lib/components/layout/SpaceLandingPanel.svelte
+    "spaceLandingPanel.yourRooms": "ܓܘܡ̈ܐ ܕܝܠܟ",
     "spaceLandingPanel.loadingRooms": "ܒܛܥܢܐ ܓܘܡ̈ܐ…",
     "spaceLandingPanel.browseRooms": "ܒܨܝ ܓܘܡ̈ܐ",
     "spaceLandingPanel.youHavenTJoinedARoom":

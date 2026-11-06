@@ -11,6 +11,7 @@
         getOwnAvatarMxc,
         getOwnDisplayName,
         getAccountManagementUrl,
+        getOwnDevices,
         getOwnThreePids,
         getServerCapabilities,
         mxcToHttp,
@@ -23,6 +24,7 @@
         isQrLoginAvailable,
         serverAdvertisesQrLogin,
     } from "$lib/matrix/qrLogin";
+    import { getBackupStatus } from "$lib/matrix/crypto";
     import { getClient } from "$lib/matrix/runtime";
     import { auth, isOAuthSession } from "$lib/stores/auth.svelte";
     import { changeOwnPresence } from "$lib/stores/presence.svelte";
@@ -87,6 +89,31 @@
                     canShowQr = await serverAdvertisesQrLogin(client.baseUrl);
             })
             .catch(() => {});
+    }
+
+    // Signing out the only session loses this device's encryption keys; ask
+    // first. A failed device lookup falls through to a plain logout.
+    let lastDeviceWarning = $state(false);
+    let lastDeviceBackedUp = $state(false);
+    let checkingDevices = $state(false);
+
+    async function requestLogout(): Promise<void> {
+        checkingDevices = true;
+        try {
+            const devices = await getOwnDevices();
+            if (devices.length > 1) {
+                onLogout();
+                return;
+            }
+            const backup = await getBackupStatus();
+            lastDeviceBackedUp =
+                backup.read === "ok" && backup.exists && backup.trusted;
+            lastDeviceWarning = true;
+        } catch {
+            onLogout();
+        } finally {
+            checkingDevices = false;
+        }
     }
 
     let deactivateOpen = $state(false);
@@ -538,11 +565,40 @@
         {/if}
     </section>
 
-    <button
-        onclick={onLogout}
-        class="px-4 py-2 bg-discord-danger text-white rounded font-medium text-sm"
-        >{t("accountSettings.logOut")}</button
-    >
+    {#if lastDeviceWarning}
+        <div
+            class="p-3 rounded border border-discord-danger bg-discord-backgroundSecondary space-y-3"
+            role="alert"
+        >
+            <p class="text-sm font-semibold text-discord-textPrimary">
+                {t("accountSettings.lastDeviceTitle")}
+            </p>
+            <p class="text-xs text-discord-textMuted">
+                {lastDeviceBackedUp
+                    ? t("accountSettings.lastDeviceBackedUp")
+                    : t("accountSettings.lastDeviceNoBackup")}
+            </p>
+            <div class="flex gap-2">
+                <button
+                    onclick={onLogout}
+                    class="px-4 py-2 bg-discord-danger text-white rounded font-medium text-sm"
+                    >{t("accountSettings.logOutAnyway")}</button
+                >
+                <button
+                    onclick={() => (lastDeviceWarning = false)}
+                    class="px-4 py-2 rounded font-medium text-sm text-discord-textPrimary bg-discord-backgroundTertiary"
+                    >{t("common.cancel")}</button
+                >
+            </div>
+        </div>
+    {:else}
+        <button
+            onclick={requestLogout}
+            disabled={checkingDevices}
+            class="px-4 py-2 bg-discord-danger text-white rounded font-medium text-sm disabled:opacity-50"
+            >{t("accountSettings.logOut")}</button
+        >
+    {/if}
 
     {#if !oauthSession || deactivateUrl || accountUrl}
         <section class="pt-4 border-t border-discord-divider space-y-3">

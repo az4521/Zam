@@ -3,6 +3,8 @@
     import { Hash, Menu } from "lucide-svelte";
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
     import {
+        getRoomsInSpace,
+        getRoomTopic,
         isJoinedNow,
         joinRoom,
         type SpaceChildInfo,
@@ -25,6 +27,23 @@
             roomsState.spaceDrillName ||
             t("spaceLandingPanel.thisSpace"),
     );
+
+    const spaceRoom = $derived(
+        roomsState.spaces.find((s) => s.roomId === roomsState.activeSpaceId) ??
+            null,
+    );
+    const spaceTopic = $derived.by(() => {
+        void roomsState.roomsTick;
+        return spaceRoom ? getRoomTopic(spaceRoom) : null;
+    });
+    const joinedRooms = $derived.by(() => {
+        void roomsState.roomsTick;
+        return roomsState.activeSpaceId
+            ? getRoomsInSpace(roomsState.activeSpaceId).filter(
+                  (r) => !r.isSpaceRoom(),
+              )
+            : [];
+    });
 
     // Live membership, not the fetch-time `isJoined` (see isJoinedNow).
     const joinable = $derived.by(() => {
@@ -86,6 +105,46 @@
     {/if}
 
     <div class="flex-1 overflow-y-auto p-8">
+        {#if roomsState.showSpaceHome}
+            <div class="max-w-2xl mx-auto mb-8">
+                <h1 class="text-3xl font-bold text-discord-textPrimary">
+                    {spaceName}
+                </h1>
+                {#if spaceTopic}
+                    <p
+                        class="mt-2 text-discord-textMuted whitespace-pre-wrap break-words"
+                    >
+                        {spaceTopic}
+                    </p>
+                {/if}
+                {#if joinedRooms.length > 0}
+                    <h2
+                        class="mt-6 mb-2 text-sm font-semibold uppercase tracking-wide text-discord-textMuted"
+                    >
+                        {t("spaceLandingPanel.yourRooms")}
+                    </h2>
+                    <ul class="flex flex-col gap-2">
+                        {#each joinedRooms as room (room.roomId)}
+                            <li>
+                                <button
+                                    onclick={() => setActiveRoom(room.roomId)}
+                                    class="w-full flex items-center gap-3 p-3 rounded-lg bg-discord-backgroundSecondary hover:bg-discord-messageHover text-left transition-colors"
+                                >
+                                    <Hash
+                                        size={20}
+                                        class="text-discord-textMuted shrink-0"
+                                    />
+                                    <span
+                                        class="font-semibold text-discord-textPrimary truncate"
+                                        >{room.name || room.roomId}</span
+                                    >
+                                </button>
+                            </li>
+                        {/each}
+                    </ul>
+                {/if}
+            </div>
+        {/if}
         {#if stillLoading}
             <div
                 class="h-full flex items-center justify-center gap-3 text-discord-textMuted"
@@ -145,6 +204,8 @@
                     {/each}
                 </ul>
             </div>
+        {:else if joinedRooms.length > 0}
+            <!-- The home page above already lists everything. -->
         {:else if childSpaces.length > 0}
             <div
                 class="h-full flex flex-col items-center justify-center text-center"

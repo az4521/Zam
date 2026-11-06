@@ -114,6 +114,12 @@ export const en = {
     "accountSettings.thisServerDoesNotAllowManaging":
         "This server does not allow managing them from this app.",
     "accountSettings.logOut": "Log Out",
+    "accountSettings.lastDeviceTitle": "This is your only signed-in device",
+    "accountSettings.lastDeviceBackedUp":
+        "Your encrypted history is backed up, but you will need your recovery key to read it after signing in again.",
+    "accountSettings.lastDeviceNoBackup":
+        "Logging out will permanently lose the encryption keys stored on this device. Without a key backup or another verified device, your encrypted message history cannot be recovered.",
+    "accountSettings.logOutAnyway": "Log out anyway",
     "accountSettings.dangerZone": "Danger zone",
     "accountSettings.deactivateAccount": "Deactivate account…",
     "accountSettings.deactivationIsPermanentAndCannotBe":
@@ -2325,6 +2331,7 @@ export const en = {
     "shareTargetSheet.shareToARoom": "Share to a room",
 
     // src/lib/components/layout/SpaceLandingPanel.svelte
+    "spaceLandingPanel.yourRooms": "Your rooms",
     "spaceLandingPanel.loadingRooms": "Loading rooms…",
     "spaceLandingPanel.browseRooms": "Browse rooms",
     "spaceLandingPanel.youHavenTJoinedARoom":

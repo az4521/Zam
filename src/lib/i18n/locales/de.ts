@@ -121,6 +121,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "accountSettings.thisServerDoesNotAllowManaging":
         "Dieser Server erlaubt es nicht, sie in dieser App zu verwalten.",
     "accountSettings.logOut": "Abmelden",
+    "accountSettings.lastDeviceTitle":
+        "Dies ist dein einziges angemeldetes Gerät",
+    "accountSettings.lastDeviceBackedUp":
+        "Dein verschlüsselter Verlauf ist gesichert, aber nach der erneuten Anmeldung brauchst du deinen Wiederherstellungsschlüssel, um ihn zu lesen.",
+    "accountSettings.lastDeviceNoBackup":
+        "Beim Abmelden gehen die auf diesem Gerät gespeicherten Verschlüsselungsschlüssel dauerhaft verloren. Ohne Schlüssel-Backup oder ein anderes verifiziertes Gerät lässt sich dein verschlüsselter Nachrichtenverlauf nicht wiederherstellen.",
+    "accountSettings.logOutAnyway": "Trotzdem abmelden",
     "accountSettings.dangerZone": "Gefahrenzone",
     "accountSettings.deactivateAccount": "Konto deaktivieren…",
     "accountSettings.deactivationIsPermanentAndCannotBe":
@@ -2388,6 +2395,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "shareTargetSheet.shareToARoom": "In einem Raum teilen",
 
     // src/lib/components/layout/SpaceLandingPanel.svelte
+    "spaceLandingPanel.yourRooms": "Deine Räume",
     "spaceLandingPanel.loadingRooms": "Räume werden geladen…",
     "spaceLandingPanel.browseRooms": "Räume durchsuchen",
     "spaceLandingPanel.youHavenTJoinedARoom":

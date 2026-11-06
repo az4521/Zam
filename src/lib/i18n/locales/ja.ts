@@ -113,6 +113,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "accountSettings.thisServerDoesNotAllowManaging":
         "このサーバーでは、このアプリから管理できません。",
     "accountSettings.logOut": "ログアウト",
+    "accountSettings.lastDeviceTitle": "これは唯一のサインイン済みデバイスです",
+    "accountSettings.lastDeviceBackedUp":
+        "暗号化された履歴はバックアップされていますが、再度サインインした後に読むには回復キーが必要です。",
+    "accountSettings.lastDeviceNoBackup":
+        "ログアウトすると、このデバイスに保存されている暗号化キーが完全に失われます。キーのバックアップや他の確認済みデバイスがない場合、暗号化されたメッセージ履歴は復元できません。",
+    "accountSettings.logOutAnyway": "それでもログアウト",
+    "spaceLandingPanel.yourRooms": "参加中のルーム",
     "accountSettings.dangerZone": "危険な操作",
     "accountSettings.deactivateAccount": "アカウントを無効化…",
     "accountSettings.deactivationIsPermanentAndCannotBe":
