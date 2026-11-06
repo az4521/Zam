@@ -61,12 +61,26 @@ describe("fakeDiscord", () => {
         },
     );
 
-    it("does nothing in a Flatpak", async () => {
-        const a = rig({ inFlatpak: true });
-        await a.fake.start();
-        expect(a.fake.status().supported).toBe(false);
-        expect(a.spawned).toHaveLength(0);
-        expect(existsSync(join(a.dir, "fake-discord"))).toBe(false);
-        a.done();
-    });
+    // Sets up the Linux symlink to sleep, which Windows cannot do.
+    it.skipIf(process.platform === "win32")(
+        "in a Flatpak waits for host access, then runs it on the host",
+        async () => {
+            const a = rig({ platform: "linux", inFlatpak: true });
+            await a.fake.start();
+            expect(a.spawned).toHaveLength(0);
+            expect(a.fake.status().needsPermission).toBe(true);
+
+            a.fake.setHostAccess(true);
+            expect(a.fake.status().needsPermission).toBe(false);
+            await a.fake.start();
+            expect(a.spawned).toHaveLength(1);
+            expect(a.spawned[0].slice(0, 3)).toEqual([
+                "flatpak-spawn",
+                "--host",
+                "--watch-bus",
+            ]);
+            expect(a.spawned[0][3]).toMatch(/fake-discord.discord$/);
+            a.done();
+        },
+    );
 });

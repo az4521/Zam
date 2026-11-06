@@ -58,8 +58,10 @@ declare global {
             /** Which discord-ipc-N we hold; above 0 means something else
              *  answers apps first. */
             slot: number | null;
-            /** Whether this platform can restart Discord for the user. */
+            /** Whether Zam can restart Discord for the user. */
             canRestartDiscord: boolean;
+            /** In a Flatpak: restarting needs org.freedesktop.Flatpak. */
+            needsPermission: boolean;
             error: string | null;
         };
         /** Game detection (electron/gameScanner.cjs). */
@@ -71,7 +73,13 @@ declare global {
             needsPermission: boolean;
         };
         /** The stand-in Discord process (electron/fakeDiscord.cjs). */
-        fake: { supported: boolean; running: boolean; error: string | null };
+        fake: {
+            supported: boolean;
+            running: boolean;
+            /** In a Flatpak: it needs org.freedesktop.Flatpak. */
+            needsPermission: boolean;
+            error: string | null;
+        };
         /** Discord's list of detectable games, downloaded on first use. */
         games: {
             count: number;

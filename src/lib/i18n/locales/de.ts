@@ -4149,6 +4149,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageEmbed.jumpToMessage": "Zur verlinkten Nachricht springen:",
 
     // Rich presence: Discord restart and stand-in process
+    "richPresence.hostNeedsPermission":
+        "Die Flatpak-Sandbox kann andere Programme nicht steuern. Damit Zam das tun kann, führe diesen Befehl aus und starte Zam danach neu:",
     "richPresence.fake": "Discord als laufend vortäuschen",
     "richPresence.fakeHint":
         "Manche Apps senden Rich Presence nur, wenn ein Prozess namens Discord läuft. Dies startet einen untätigen Prozess, aber nur solange Discord selbst nicht läuft.",

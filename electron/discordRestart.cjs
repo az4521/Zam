@@ -140,6 +140,37 @@ function unixAdapter(platform) {
     };
 }
 
+// ── Flatpak Discord, from inside a Flatpak Zam ─────────────────────────────
+
+const FLATPAK_DISCORD = "com.discordapp.Discord";
+
+/** Runs on the host; works only if the user granted org.freedesktop.Flatpak. */
+const onHost = (cmd, args) => run("flatpak-spawn", ["--host", cmd, ...args]);
+
+/**
+ * The Flatpak Discord, which shares its discord-ipc folder with a Flatpak Zam
+ * (see ipcBase in discordRpc.cjs). The sandbox cannot see or end host
+ * programs, so each step goes through flatpak-spawn.
+ */
+const flatpakAdapter = {
+    find: async () =>
+        (await onHost("flatpak", ["ps", "--columns=application"]))
+            .split(/\r?\n/)
+            .some((l) => l.trim() === FLATPAK_DISCORD)
+            ? [{ name: FLATPAK_DISCORD }]
+            : [],
+    stop: () => onHost("flatpak", ["kill", FLATPAK_DISCORD]),
+    alive: async () => (await flatpakAdapter.find()).length > 0,
+    // setsid so it outlives flatpak-spawn, and so Zam quitting does not close it.
+    start: () =>
+        launch("flatpak-spawn", [
+            "--host",
+            "sh",
+            "-c",
+            `setsid -f flatpak run ${FLATPAK_DISCORD} >/dev/null 2>&1`,
+        ]),
+};
+
 function adapterFor(platform) {
     if (platform === "win32") return windowsAdapter;
     if (platform === "darwin" || platform === "linux")
@@ -154,7 +185,8 @@ function adapterFor(platform) {
 async function restartDiscord({
     rebind,
     platform = process.platform,
-    adapter = adapterFor(platform),
+    inFlatpak = false,
+    adapter = inFlatpak ? flatpakAdapter : adapterFor(platform),
     log = () => {},
 } = {}) {
     if (!adapter) return { ok: false, error: "not supported on this system" };
@@ -182,4 +214,9 @@ async function restartDiscord({
     return { ok: true };
 }
 
-module.exports = { restartDiscord, runningInstalls, parseUnixProcesses };
+module.exports = {
+    restartDiscord,
+    runningInstalls,
+    parseUnixProcesses,
+    flatpakAdapter,
+};

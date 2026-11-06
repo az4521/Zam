@@ -794,6 +794,8 @@ export const en = {
     "richPresence.listening": "Listening for apps on port {port}.",
     "richPresence.listenFailed": "Couldn't start listening: {error}",
     "richPresence.arrpcFailed": "Couldn't start arRPC: {error}",
+    "richPresence.hostNeedsPermission":
+        "The Flatpak sandbox cannot control other programs. To let Zam do this, run this command, then restart Zam:",
     "richPresence.fake": "Pretend Discord is running",
     "richPresence.fakeHint":
         "Some apps refuse to send Rich Presence unless a process named Discord is running. This starts an idle one, only while Discord itself isn't running.",

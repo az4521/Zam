@@ -56,8 +56,7 @@
         settingsState.richPresenceEnabled &&
             settingsState.richPresenceArrpc &&
             status?.arrpc.running === true &&
-            (status.arrpc.slot ?? 0) > 0 &&
-            status.arrpc.canRestartDiscord,
+            (status.arrpc.slot ?? 0) > 0,
     );
     let confirmingRestart = $state(false);
     let restarting = $state(false);
@@ -209,14 +208,25 @@
                     <p class="text-xs text-discord-textMuted">
                         {t("richPresence.discordFirst")}
                     </p>
-                    <button
-                        type="button"
-                        class="mt-1 rounded bg-discord-backgroundSecondary px-2 py-1 text-xs text-discord-textPrimary hover:bg-discord-backgroundSecondaryAlt disabled:opacity-50"
-                        disabled={restarting}
-                        onclick={() => (confirmingRestart = true)}
-                    >
-                        {t("richPresence.restartDiscord")}
-                    </button>
+                    {#if status?.arrpc.canRestartDiscord}
+                        <button
+                            type="button"
+                            class="mt-1 rounded bg-discord-backgroundSecondary px-2 py-1 text-xs text-discord-textPrimary hover:bg-discord-backgroundSecondaryAlt disabled:opacity-50"
+                            disabled={restarting}
+                            onclick={() => (confirmingRestart = true)}
+                        >
+                            {t("richPresence.restartDiscord")}
+                        </button>
+                    {:else if status?.arrpc.needsPermission}
+                        <p class="text-xs text-discord-textMuted">
+                            {t("richPresence.hostNeedsPermission")}
+                        </p>
+                        <code
+                            class="mt-1 block select-all break-all rounded bg-discord-backgroundTertiary p-2 text-xs text-discord-textPrimary"
+                        >
+                            {t("richPresence.scanGrantCommand")}
+                        </code>
+                    {/if}
                 {/if}
                 {#if restartError !== null}
                     <p class="text-xs text-discord-danger">
@@ -251,6 +261,16 @@
                     <p class="text-xs text-discord-textMuted">
                         {t("richPresence.fakeHint")}
                     </p>
+                    {#if status.fake.needsPermission}
+                        <p class="text-xs text-discord-textMuted">
+                            {t("richPresence.hostNeedsPermission")}
+                        </p>
+                        <code
+                            class="mt-1 block select-all break-all rounded bg-discord-backgroundTertiary p-2 text-xs text-discord-textPrimary"
+                        >
+                            {t("richPresence.scanGrantCommand")}
+                        </code>
+                    {/if}
                     {#if settingsState.richPresenceFakeDiscord && status.fake.error}
                         <p class="text-xs text-discord-danger">
                             {t("richPresence.fakeFailed", {

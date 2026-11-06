@@ -77,6 +77,7 @@ function createRichPresence({
     const loadGames = () => knownGames.load();
     let generation = 0;
     let hostAccessCheck = null;
+    let hostAllowed = !inFlatpak;
     let tcp = null;
     let unix = null; // { server, wss, dir, key }
     let discord = null;
@@ -501,6 +502,12 @@ function createRichPresence({
                 status.arrpc.error = String(e?.message || e);
             }
         }
+        if (inFlatpak && local && want.arrpc) {
+            // Controlling Discord or starting a process outside the sandbox.
+            hostAccessCheck ??= hostAccess();
+            hostAllowed = await hostAccessCheck;
+            fake.setHostAccess(hostAllowed);
+        }
         if (local && want.arrpc && want.fake) await fake.start();
         else await fake.stop();
         if (local && want.scan && !scanner) {
@@ -528,8 +535,9 @@ function createRichPresence({
                     // 0 is the slot apps try first; a higher one means
                     // something else (usually Discord) answers before us.
                     slot: d?.ipcSlot ?? null,
-                    // A Flatpak cannot see or start the host's Discord.
-                    canRestartDiscord: !inFlatpak,
+                    // A Flatpak reaches the host's Discord only if allowed.
+                    canRestartDiscord: hostAllowed,
+                    needsPermission: inFlatpak && !hostAllowed,
                     error: status.arrpc.error ?? d?.error ?? null,
                 },
                 scan: {
@@ -555,6 +563,7 @@ function createRichPresence({
         await fake.stop();
         return restartDiscord({
             log,
+            inFlatpak,
             rebind: async () => {
                 stopDiscord();
                 discord = await startDiscord(generation);

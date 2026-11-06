@@ -8,6 +8,10 @@
 //   Linux    a symlink named discord to sleep
 //   macOS    a symlink named Discord to sleep
 //
+// In a Flatpak the sandbox's processes are invisible to other apps, so the
+// stand-in is started on the host with flatpak-spawn (--watch-bus ends it when
+// Zam goes), which needs the user to have granted org.freedesktop.Flatpak.
+//
 // The pid is remembered in userData so a Zam that crashed does not leave a
 // second one behind: the next start adopts it, or clears it if it is gone.
 
@@ -33,7 +37,7 @@ function fakeName(platform) {
 }
 
 /** Whether a real Discord (any variant, any of its processes) is running. */
-async function realDiscordRunning(platform, ownPid = null) {
+async function realDiscordRunning(platform, ownPid = null, runner = run) {
     if (platform === "win32") {
         const out = (
             await run("tasklist", ["/FO", "CSV", "/NH"])
@@ -44,7 +48,7 @@ async function realDiscordRunning(platform, ownPid = null) {
         }
         return false;
     }
-    const out = await run("ps", ["-axww", "-o", "pid=,args="]);
+    const out = await runner("ps", ["-axww", "-o", "pid=,args="]);
     for (const line of out.split("\n")) {
         const m = /^\s*(\d+)\s+(.*)$/.exec(line);
         if (!m || Number(m[1]) === ownPid) continue;
@@ -72,7 +76,14 @@ function createFakeDiscord({
         child.on("error", () => {});
         return child;
     },
-    realRunning = realDiscordRunning,
+    realRunning = (plat) =>
+        realDiscordRunning(
+            plat,
+            null,
+            inFlatpak
+                ? (cmd, args) => run("flatpak-spawn", ["--host", cmd, ...args])
+                : run,
+        ),
     // Whether `pid` is a stand-in we started: killing a reused pid is worse
     // than leaving a stand-in running.
     isOurs = async (pid, name) => {
@@ -99,8 +110,11 @@ function createFakeDiscord({
     const dir = path.join(userDataDir, "fake-discord");
     const pidFile = path.join(dir, "pid");
     const name = fakeName(platform);
-    const supported =
-        !inFlatpak && ["win32", "linux", "darwin"].includes(platform);
+    const supported = ["win32", "linux", "darwin"].includes(platform);
+    // A Flatpak can only start it on the host, if allowed.
+    let hostAllowed = !inFlatpak;
+    // A host process is not ours to adopt by pid; --watch-bus clears it.
+    const persistent = !inFlatpak;
     let child = null;
     let pid = null;
     let error = null;
@@ -158,9 +172,9 @@ function createFakeDiscord({
     }
 
     async function doStart() {
-        if (!supported || pid !== null) return;
+        if (!supported || !hostAllowed || pid !== null) return;
         // One left by a Zam that ended without stopping it: keep using it.
-        const old = readPid();
+        const old = persistent ? readPid() : null;
         if (old !== null) {
             if (alive(old) && (await isOurs(old, name))) {
                 pid = old;
@@ -171,12 +185,19 @@ function createFakeDiscord({
         if (await realRunning(platform)) return;
         try {
             const { exe, args } = prepare();
-            const c = spawnProcess(exe, args);
+            const c = inFlatpak
+                ? spawnProcess("flatpak-spawn", [
+                      "--host",
+                      "--watch-bus",
+                      exe,
+                      ...args,
+                  ])
+                : spawnProcess(exe, args);
             if (!c || !c.pid) throw new Error("could not start");
             child = c;
             pid = c.pid;
             error = null;
-            fs.writeFileSync(pidFile, String(pid));
+            if (persistent) fs.writeFileSync(pidFile, String(pid));
             c.once("exit", () => {
                 if (child === c) {
                     child = null;
@@ -191,9 +212,17 @@ function createFakeDiscord({
     }
 
     async function doStop() {
-        const p = pid ?? readPid();
+        const c = child;
+        const p = pid ?? (persistent ? readPid() : null);
         child = null;
         pid = null;
+        if (!persistent) {
+            // Ending flatpak-spawn ends the host process it runs.
+            try {
+                c?.kill("SIGTERM");
+            } catch {}
+            return;
+        }
         if (p === null) return;
         try {
             if (await isOurs(p, name)) process.kill(p);
@@ -208,7 +237,16 @@ function createFakeDiscord({
         supported,
         start: () => queue(doStart),
         stop: () => queue(doStop),
-        status: () => ({ supported, running: pid !== null, error }),
+        /** Whether Flatpak host access was granted (always true outside one). */
+        setHostAccess: (allowed) => {
+            hostAllowed = !inFlatpak || allowed === true;
+        },
+        status: () => ({
+            supported,
+            running: pid !== null,
+            needsPermission: inFlatpak && !hostAllowed,
+            error,
+        }),
     };
 }
 

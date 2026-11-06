@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 const {
     restartDiscord,
     runningInstalls,
+    flatpakAdapter,
     parseUnixProcesses,
 } = require("../../../electron/discordRestart.cjs");
 
@@ -98,5 +99,34 @@ describe("parseUnixProcesses", () => {
             { name: "Discord", pid: 1, app: "Discord" },
             { name: "Discord PTB", pid: 3, app: "Discord PTB" },
         ]);
+    });
+});
+
+describe("Flatpak Discord", () => {
+    it("is restarted through the host, not by name on this side", async () => {
+        const { calls, opts } = (() => {
+            const calls: string[] = [];
+            return {
+                calls,
+                opts: {
+                    inFlatpak: true,
+                    adapter: {
+                        find: async () => [{ name: "com.discordapp.Discord" }],
+                        stop: async () => void calls.push("kill"),
+                        alive: async () => false,
+                        start: () => void calls.push("run"),
+                    },
+                    rebind: async () => void calls.push("rebind"),
+                },
+            };
+        })();
+        expect(await restartDiscord(opts)).toEqual({ ok: true });
+        expect(calls).toEqual(["kill", "rebind", "run"]);
+        // With no adapter given it goes through flatpak-spawn, which does not
+        // exist here, so nothing is found (and nothing is killed).
+        expect(await flatpakAdapter.find()).toEqual([]);
+        expect(
+            (await restartDiscord({ inFlatpak: true, rebind: opts.rebind })).ok,
+        ).toBe(false);
     });
 });
