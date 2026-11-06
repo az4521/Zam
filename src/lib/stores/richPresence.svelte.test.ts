@@ -93,23 +93,18 @@ describe("rich presence store", () => {
         );
     });
 
-    it("blocks a new app until it is allowed, then publishes", async () => {
+    it("allows a new app by default and publishes it", async () => {
         const { settings, rp } = await load();
         settings.setRichPresenceEnabled(true);
         await rp.syncRichPresence();
 
         handler!(ev());
         await vi.advanceTimersByTimeAsync(2000);
-        expect(setOwnProfileField).not.toHaveBeenCalled();
         const key = "msc4544:app1";
         expect(rp.richPresenceState.apps[key]).toMatchObject({
             name: "Tester",
-            allowed: false,
+            allowed: true,
         });
-
-        rp.setAppAllowed(key, true);
-        handler!(ev());
-        await vi.advanceTimersByTimeAsync(2000);
         expect(setOwnProfileField).toHaveBeenCalledTimes(1);
         const [field, value] = setOwnProfileField.mock.calls[0] as [
             string,
@@ -290,20 +285,51 @@ describe("rich presence store", () => {
         expect(setOwnProfileField).toHaveBeenCalled();
     });
 
-    it("blocks an app that reports for itself until it is allowed", async () => {
+    it("prefers an app's own report over the scanner, even under another id", async () => {
         const { settings, rp } = await load();
         settings.setRichPresenceEnabled(true);
         await rp.syncRichPresence();
-        handler!({ ...game(), presenceId: "rpc-socket-1" });
-        expect(rp.richPresenceState.apps["arrpc:123"].allowed).toBe(false);
+        handler!(game());
         await vi.advanceTimersByTimeAsync(2000);
-        expect(setOwnProfileField).not.toHaveBeenCalled();
+        expect(rp.richPresenceState.heldCount).toBe(1);
+
+        const own = game();
+        handler!({
+            ...own,
+            app: { ...own.app, id: "999" },
+            presenceId: "rpc-socket-1",
+        });
+        expect(rp.richPresenceState.heldCount).toBe(1);
+
+        // The scanner repeating itself does not bring its copy back.
+        handler!({ ...game(), presence: { ...game().presence, state: "x" } });
+        expect(rp.richPresenceState.heldCount).toBe(1);
+    });
+
+    it("records how a game was found", async () => {
+        const { settings, rp } = await load();
+        settings.setRichPresenceEnabled(true);
+        await rp.syncRichPresence();
+        handler!(game());
+        expect(rp.richPresenceState.apps["arrpc:123"]).toMatchObject({
+            viaScan: true,
+            viaRpc: false,
+        });
+        handler!({ ...game(), presenceId: "rpc-socket-1" });
+        expect(rp.richPresenceState.apps["arrpc:123"]).toMatchObject({
+            viaScan: true,
+            viaRpc: true,
+        });
     });
 
     it("publishes at once when a blocked app is allowed", async () => {
         const { settings, rp } = await load();
         settings.setRichPresenceEnabled(true);
         await rp.syncRichPresence();
+        handler!(ev());
+        rp.setAppAllowed("msc4544:app1", false);
+        await vi.advanceTimersByTimeAsync(2000);
+        setOwnProfileField.mockClear();
         handler!(ev());
         await vi.advanceTimersByTimeAsync(2000);
         expect(setOwnProfileField).not.toHaveBeenCalled();

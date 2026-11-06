@@ -3613,6 +3613,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     // Rich presence: Discord restart and stand-in process
     "richPresence.hostNeedsPermission":
         "Flatpak のサンドボックスは他のプログラムを操作できません。Zam にこれを許可するには、次のコマンドを実行してから Zam を再起動してください:",
+    "richPresence.viaScan": "プロセススキャン",
+    "richPresence.viaRpc": "Discord リッチプレゼンス",
     "richPresence.fake": "Discord が起動しているように見せる",
     "richPresence.fakeHint":
         "Discord という名前のプロセスが動いていないと Rich Presence を送らないアプリがあります。これは何もしないプロセスを起動します。Discord 本体が起動していないときだけ動きます。",

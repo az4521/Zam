@@ -27,8 +27,8 @@ import {
 // `m.rpc` field. The Electron main process (electron/richPresence.cjs) listens
 // for apps and forwards what they say; this decides what is allowed to leave.
 //
-// Every app is blocked until the user allows it in Settings > General: the MSC
-// asks for per-app control that defaults to deny.
+// Every app is allowed when first seen and can be switched off per app in
+// Settings > General (the MSC asks for per-app control).
 
 /** How long a Discord-sourced entry lives. They carry no expiry of their own,
  *  so we renew them while the app keeps its activity set. */
@@ -43,10 +43,18 @@ export interface KnownApp {
     source: "msc4544" | "arrpc";
     allowed: boolean;
     lastSeen: number;
+    /** Found by the process scanner. */
+    viaScan?: boolean;
+    /** Reported by the app itself over Discord rich presence. */
+    viaRpc?: boolean;
 }
 
 interface Held {
     appKey: string;
+    /** From the process scanner rather than the app itself. */
+    scan: boolean;
+    /** Lower-cased app name, to match a scan against an app's own report. */
+    appName: string;
     entry: RpcEntry;
     /** Discord entries are renewed rather than expiring. */
     renewable: boolean;
@@ -89,6 +97,8 @@ function loadApps(): Record<string, KnownApp> {
                 source: a.source === "arrpc" ? "arrpc" : "msc4544",
                 allowed: a.allowed === true,
                 lastSeen: typeof a.lastSeen === "number" ? a.lastSeen : 0,
+                viaScan: a.viaScan === true,
+                viaRpc: a.viaRpc === true,
             };
         }
         return out;
@@ -310,24 +320,50 @@ function handleEvent(ev: DesktopRichPresenceEvent): void {
         return;
     }
 
-    // Remember the app the first time we see it, blocked until allowed, except
-    // a game the scanner matched against Discord's list: the user switched
-    // detection on, and the list is what makes the match trustworthy. (An app
-    // that reports for itself says whatever it likes, so it still waits.)
+    const isScan = ev.source === "arrpc" && ev.presenceId.startsWith("scan-");
+    const isRpc = ev.source === "arrpc" && !isScan;
+
+    // Remember the app the first time we see it, allowed by default, and how
+    // it was found.
     const now = Date.now();
     const known = richPresenceState.apps[appKey];
     if (!known) {
         richPresenceState.apps[appKey] = {
             name,
             source: ev.source,
-            allowed: ev.source === "arrpc" && ev.presenceId.startsWith("scan-"),
+            allowed: true,
             lastSeen: now,
+            viaScan: isScan,
+            viaRpc: isRpc,
         };
         saveApps();
-    } else if (now - known.lastSeen > 60_000 || known.name !== name) {
+    } else if (
+        now - known.lastSeen > 60_000 ||
+        known.name !== name ||
+        (isScan && !known.viaScan) ||
+        (isRpc && !known.viaRpc)
+    ) {
         known.name = name;
         known.lastSeen = now;
+        if (isScan) known.viaScan = true;
+        if (isRpc) known.viaRpc = true;
         saveApps();
+    }
+
+    // An app that reports for itself wins over the process scanner's guess,
+    // whether the two share a client id or only a name.
+    const nameKey = name.toLowerCase();
+    if (isScan) {
+        for (const h of held.values())
+            if (!h.scan && h.appName === nameKey) return;
+    } else if (isRpc) {
+        let dropped = false;
+        for (const [k, h] of held)
+            if (h.scan && h.appName === nameKey) {
+                held.delete(k);
+                dropped = true;
+            }
+        if (dropped) schedulePublish();
     }
 
     if (!richPresenceState.apps[appKey].allowed) {
@@ -368,6 +404,8 @@ function handleEvent(ev: DesktopRichPresenceEvent): void {
     const ready = iconsFromCache(id, refs);
     held.set(heldKey, {
         appKey,
+        scan: isScan,
+        appName: nameKey,
         entry: refs.large || refs.small ? withIcons(entry, ready, refs) : entry,
         renewable,
         updated: now,

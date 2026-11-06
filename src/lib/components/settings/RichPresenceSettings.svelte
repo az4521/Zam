@@ -22,7 +22,7 @@
 
     // Desktop only: apps on this computer report what they are doing and it is
     // published to the profile (MSC4544). Off until switched on here, and each
-    // app stays blocked until allowed.
+    // app is allowed until switched off.
 
     const apps = $derived(
         Object.entries(richPresenceState.apps).sort(
@@ -383,9 +383,18 @@
                                 </p>
                             {:else}
                                 <p class="text-xs text-discord-textMuted">
-                                    {app.source === "arrpc"
-                                        ? t("richPresence.viaDiscord")
-                                        : t("richPresence.viaMatrix")}
+                                    {app.source !== "arrpc"
+                                        ? t("richPresence.viaMatrix")
+                                        : app.viaScan || app.viaRpc
+                                          ? [
+                                                app.viaRpc &&
+                                                    t("richPresence.viaRpc"),
+                                                app.viaScan &&
+                                                    t("richPresence.viaScan"),
+                                            ]
+                                                .filter(Boolean)
+                                                .join(" + ")
+                                          : t("richPresence.viaDiscord")}
                                     · {lastPlayed(app.lastSeen)}
                                 </p>
                             {/if}

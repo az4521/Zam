@@ -777,7 +777,7 @@ export const en = {
     "richPresence.heading": "Rich presence",
     "richPresence.share": "Share what you're doing",
     "richPresence.shareHint":
-        "Let apps on this computer show on your profile what you're playing or listening to. Every app is blocked until you allow it below.",
+        "Let apps on this computer show on your profile what you're playing or listening to. Every app is allowed by default; switch off the ones you don't want below.",
     "richPresence.arrpc": "Apps that use Discord Rich Presence",
     "richPresence.arrpcHint":
         "Also accept apps that report to Discord. If Discord is running, apps usually report to it first, so this works best with Discord closed.",
@@ -814,7 +814,7 @@ export const en = {
     "richPresence.gameListFailed": "Could not download the game list: {error}",
     "richPresence.addedGames": "Registered games",
     "richPresence.addedGamesHint":
-        'Games and apps found running, and programs you add yourself. Each is blocked from your profile until you allow it; ones you add are allowed at once. Games are found only while "Detect running games" is on.',
+        'Games and apps found running, and programs you add yourself. Each is allowed on your profile by default; switch off the ones you do not want. Games are found only while "Detect running games" is on.',
     "richPresence.addGame": "Add a game",
     "richPresence.pickProgram": "Pick a running program",
     "richPresence.searchPrograms": "Search running programs",
@@ -825,12 +825,14 @@ export const en = {
     "richPresence.neverPlayed": "Not played yet",
     "richPresence.apps": "Apps",
     "richPresence.noApps":
-        "No app has reported anything yet. Apps that do will appear here, blocked until you allow them.",
+        "No app has reported anything yet. Apps that do will appear here, allowed unless you switch them off.",
     "richPresence.allowApp": "Allow {name}",
     "richPresence.forgetApp": "Forget {name}",
     "richPresence.forget": "Forget",
     "richPresence.viaDiscord": "Game or Discord Rich Presence",
     "richPresence.viaMatrix": "Matrix app",
+    "richPresence.viaScan": "Process scan",
+    "richPresence.viaRpc": "Discord Rich Presence",
     "richPresence.blocked": "Blocked",
     "richPresence.allowed": "Allowed",
 
