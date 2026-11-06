@@ -909,7 +909,12 @@
         // A channel switch should close the mobile keyboard. The same
         // contenteditable stays mounted across rooms, so otherwise it can
         // retain focus while the incoming room's draft is restored.
-        if (untrack(() => interfaceState.isMobile)) textareaEl?.blur();
+        // Untracked as a whole: reading textareaEl here made this effect
+        // re-run when the recorder replaced the composer (textareaEl goes
+        // null), which closed the recorder the moment it opened on mobile.
+        untrack(() => {
+            if (interfaceState.isMobile) textareaEl?.blur();
+        });
         // Close any open voice recorder when the room changes — this component
         // stays mounted across room switches, so an open recorder would otherwise
         // persist and send its audio to the newly-selected room.
