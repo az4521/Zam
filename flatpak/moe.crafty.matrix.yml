@@ -29,9 +29,17 @@ finish-args:
     - --filesystem=xdg-download
     # Rich presence: apps that report what they are doing to Discord find
     # discord-ipc-N here (electron/discordRpc.cjs). Creating the folder
-    # shares it with the host. Game detection needs the user to opt in with
-    # flatpak override (see Settings > General); it is not granted here.
+    # shares it with the host.
     - --filesystem=xdg-run/app/com.discordapp.Discord:create
+    # Host process list and Discord restart. The sandbox has its own PID
+    # namespace, so it cannot see or end host programs; there is no narrower
+    # permission for that. Zam runs `ps`, `flatpak ps` and `flatpak kill` on
+    # the host through flatpak-spawn (electron/gameScanner.cjs,
+    # electron/discordRestart.cjs, electron/fakeDiscord.cjs). Same permission
+    # Mission Center uses to list host processes. Only used for rich presence
+    # (Settings > Account): the game scan, the stand-in Discord process, and
+    # Restart Discord after the user confirms.
+    - --talk-name=org.freedesktop.Flatpak
     - --talk-name=org.freedesktop.Notifications
     # Tray icon (StatusNotifierItem).
     - --talk-name=org.kde.StatusNotifierWatcher
