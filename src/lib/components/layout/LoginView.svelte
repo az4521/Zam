@@ -56,6 +56,8 @@
     import { requestWebPushPermission } from "$lib/webPush";
     import AccountAvatar from "$lib/components/layout/AccountAvatar.svelte";
     import { Capacitor } from "@capacitor/core";
+    import { CAN_INSTALL_UPDATE } from "$lib/update";
+    import { DOWNLOAD_URL, GITHUB_URL, WEBSITE_URL } from "$lib/links";
 
     interface Props {
         isAddAccountMode: boolean;
@@ -1409,6 +1411,34 @@
             >
                 {t("loginView.yourCredentialsAreSentDirectlyTo")}
             </p>
+
+            {#if !CAN_INSTALL_UPDATE}
+                <p
+                    class="flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs mt-3"
+                >
+                    <a
+                        href={WEBSITE_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-discord-accent hover:underline"
+                        >{t("links.website")}</a
+                    >
+                    <a
+                        href={DOWNLOAD_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-discord-accent hover:underline"
+                        >{t("links.downloadApps")}</a
+                    >
+                    <a
+                        href={GITHUB_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-discord-accent hover:underline"
+                        >{t("links.github")}</a
+                    >
+                </p>
+            {/if}
         </div>
     </div>
 </div>

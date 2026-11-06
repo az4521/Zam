@@ -86,6 +86,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "aboutSettings.failedToCheckForUpdates":
         "No se pudieron buscar actualizaciones.",
     "aboutSettings.sourceCodeOnGitHub": "Código fuente en GitHub",
+    "links.website": "Sitio web",
+    "links.github": "GitHub",
+    "links.downloadApps": "Descargar las aplicaciones",
 
     // src/lib/components/settings/AccountSettings.svelte
     "accountSettings.profile": "Perfil",

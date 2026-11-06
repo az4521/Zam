@@ -81,6 +81,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "aboutSettings.failedToCheckForUpdates":
         "アップデートの確認に失敗しました。",
     "aboutSettings.sourceCodeOnGitHub": "GitHub のソースコード",
+    "links.website": "ウェブサイト",
+    "links.github": "GitHub",
+    "links.downloadApps": "アプリをダウンロード",
     "accountSettings.profile": "プロフィール",
     "accountSettings.yourAvatar": "あなたのアバター",
     "accountSettings.changeAvatar": "アバターを変更",

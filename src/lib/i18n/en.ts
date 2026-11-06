@@ -81,6 +81,9 @@ export const en = {
     "aboutSettings.installFailed": "Install failed",
     "aboutSettings.failedToCheckForUpdates": "Failed to check for updates.",
     "aboutSettings.sourceCodeOnGitHub": "Source code on GitHub",
+    "links.website": "Website",
+    "links.github": "GitHub",
+    "links.downloadApps": "Download the apps",
 
     // src/lib/components/settings/AccountSettings.svelte
     "accountSettings.profile": "Profile",

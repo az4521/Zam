@@ -9,6 +9,7 @@
         reloadToLatest,
         type UpdateInfo,
     } from "$lib/update";
+    import { DOWNLOAD_URL, GITHUB_URL, WEBSITE_URL } from "$lib/links";
     import { clearCacheAndReload } from "$lib/matrix/client";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import WhatsNew from "./WhatsNew.svelte";
@@ -356,13 +357,31 @@
                 <p class="text-xs text-discord-textMuted">
                     {t("aboutSettings.currentVersionV", { APP_VERSION })}
                 </p>
-                <a
-                    href="https://github.com/az4521/Zam"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="text-xs text-discord-accent hover:underline"
-                    >{t("aboutSettings.sourceCodeOnGitHub")}</a
-                >
+                <div class="flex flex-wrap gap-x-3 gap-y-1">
+                    <a
+                        href={GITHUB_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-xs text-discord-accent hover:underline"
+                        >{t("aboutSettings.sourceCodeOnGitHub")}</a
+                    >
+                    {#if !CAN_INSTALL_UPDATE}
+                        <a
+                            href={WEBSITE_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="text-xs text-discord-accent hover:underline"
+                            >{t("links.website")}</a
+                        >
+                        <a
+                            href={DOWNLOAD_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="text-xs text-discord-accent hover:underline"
+                            >{t("links.downloadApps")}</a
+                        >
+                    {/if}
+                </div>
             </div>
             {#if isDesktopUpdater()}
                 {@render actionButton(view, runDesktopAction)}

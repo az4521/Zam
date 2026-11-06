@@ -84,6 +84,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "aboutSettings.installFailed": "ܢܨܒܬܐ ܠܐ ܦܠܚܠܗ̇",
     "aboutSettings.failedToCheckForUpdates": "ܒܘܨܝܐ ܕܚܘܕ̈ܬܐ ܠܐ ܦܠܚܠܗ.",
     "aboutSettings.sourceCodeOnGitHub": "ܟܘܕ ܡܒܘܥܐ ܓܘ GitHub",
+    "links.website": "ܐܬܪܐ ܕܐܢܛܪܢܛ",
+    "links.github": "GitHub",
+    "links.downloadApps": "ܐܚܬ ܐܦ̈ܠܝܩܝܫܢܐ",
 
     // src/lib/components/settings/AccountSettings.svelte
     "accountSettings.profile": "ܦܪܨܘܦܐ",
