@@ -1100,6 +1100,7 @@ const messages: Partial<Record<MessageKey, string>> = {
 
     // src/lib/components/layout/MemberList.svelte
     "memberList.members": "Membres : {length}",
+    "memberList.creators": "Créateurs : {length}",
     "memberList.admins": "Administrateurs : {length}",
     "memberList.admin": "Administrateur",
     "memberList.moderators": "Modérateurs : {length}",
@@ -1131,6 +1132,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.messageTimeline": "Fil des messages",
     "messageArea.welcomeTo": "Bienvenue dans #",
     "messageArea.thisIsTheBeginningOfThe": "Ceci est le début du salon #",
+    "messageArea.loadingHistory": "Chargement des messages précédents",
     "messageArea.room": ".",
     "messageArea.newMessages": "Nouveaux messages",
     "messageArea.messageFromABlockedUser": "Message d'un utilisateur bloqué",
@@ -1734,6 +1736,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "quickActions.starterTextName": "général",
     "quickActions.starterVoiceName": "Vocal",
     "quickActions.optional": "(facultatif)",
+    "quickActions.additionalCreators": "Créateurs supplémentaires (salon v12)",
+    "quickActions.additionalCreatorsHint":
+        "Autres utilisateurs qui deviendront créateurs du nouveau salon avec vous. En version 12, le pouvoir de créateur ne peut pas être retiré.",
     "quickActions.whatSThisSpaceAbout": "De quoi parle cet espace ?",
     "quickActions.whatSThisRoomAbout": "De quoi parle ce salon ?",
     "quickActions.opensStraightIntoACallMessages":
@@ -1885,6 +1890,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Cela crée un nouveau salon en v{recommendedVersion} et marque celui-ci comme remplacé. Les membres seront redirigés vers le nouveau salon.",
     "roomSettings.upgrading": "Mise à niveau…",
     "roomSettings.upgradeRoom2": "Mettre à niveau le salon",
+    "roomSettings.additionalCreators": "Créateurs supplémentaires (salon v12)",
+    "roomSettings.additionalCreatorsHint":
+        "Autres utilisateurs qui deviendront créateurs du salon mis à niveau avec vous. En version 12, le pouvoir de créateur ne peut pas être retiré.",
     "roomSettings.whoCanJoin": "Qui peut rejoindre ?",
     "roomSettings.spaceMembersAnyoneInCanJoin":
         "Membres de l'espace - toute personne dans {parentSpaceNames} peut rejoindre",
@@ -2009,6 +2017,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.admin": "Administrateur",
     "roomSettings.moderator": "Modérateur",
     "roomSettings.member": "Membre",
+    "roomSettings.creatorLabel": "Créateur",
     "roomSettings.failedToUpdateSuggestion":
         "Impossible de mettre à jour la suggestion",
     "roomSettings.listThisRoomInTheServerDirectory":
@@ -2542,6 +2551,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "userProfileCard.localTime": "{localTime} heure locale ({timezone})",
     "userProfileCard.notAMemberOfThisRoom": "N'est pas membre de ce salon",
     "userProfileCard.powerLevel": "Niveau de pouvoir : {level}",
+    "userProfileCard.powerLevelCreator": "Niveau de pouvoir : Créateur",
     "userProfileCard.mutualRooms": "Salons en commun : {total}",
     "userProfileCard.more": "+{moreCount} autres",
     "userProfileCard.sessions": "Sessions",
@@ -3003,6 +3013,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "client.thisHomeserverDoesnTSupportSliding":
         "Ce serveur d'accueil ne prend pas en charge la synchronisation glissante ; la synchronisation classique est utilisée.",
     "client.notLoggedIn": "Non connecté",
+    "client.creatorsNeedRoomV12":
+        "Les créateurs supplémentaires nécessitent la version 12 de salon ou une version ultérieure, que ce serveur ne propose pas.",
     "client.oauthProviderChanged":
         "Le fournisseur de connexion du serveur a changé. Veuillez réessayer.",
     "client.thisEventTypeCannotBeForwarded":

@@ -1201,6 +1201,7 @@ export const en = {
 
     // src/lib/components/layout/MemberList.svelte
     "memberList.members": "Members: {length}",
+    "memberList.creators": "Creators: {length}",
     "memberList.admins": "Admins: {length}",
     "memberList.admin": "Admin",
     "memberList.moderators": "Moderators: {length}",
@@ -1232,6 +1233,7 @@ export const en = {
     "messageArea.messageTimeline": "Message timeline",
     "messageArea.welcomeTo": "Welcome to #",
     "messageArea.thisIsTheBeginningOfThe": "This is the beginning of the #",
+    "messageArea.loadingHistory": "Loading older messages",
     "messageArea.room": "room.",
     "messageArea.newMessages": "New Messages",
     "messageArea.messageFromABlockedUser": "Message from a blocked user",
@@ -1813,6 +1815,9 @@ export const en = {
     "quickActions.roomName": "Room name",
     "quickActions.mySpace": "My Space",
     "quickActions.optional": "(optional)",
+    "quickActions.additionalCreators": "Additional creators (room v12)",
+    "quickActions.additionalCreatorsHint":
+        "Other users who become creators of the new room alongside you. In room v12, creator power can't be taken away.",
     "quickActions.starterRooms": "Add a text room and a voice room",
     "quickActions.starterRoomsHint":
         "Anyone you invite to the space can join them.",
@@ -1971,6 +1976,9 @@ export const en = {
         "This creates a new room on v{recommendedVersion} and marks this one as replaced. Members will be pointed to the new room.",
     "roomSettings.upgrading": "Upgrading…",
     "roomSettings.upgradeRoom2": "Upgrade room",
+    "roomSettings.additionalCreators": "Additional creators (room v12)",
+    "roomSettings.additionalCreatorsHint":
+        "Other users who become creators of the upgraded room alongside you. In room v12, creator power can't be taken away.",
     "roomSettings.whoCanJoin": "Who can join?",
     "roomSettings.spaceMembersAnyoneInCanJoin":
         "Space members - anyone in {parentSpaceNames} can join",
@@ -2085,6 +2093,7 @@ export const en = {
     "roomSettings.admin": "Admin",
     "roomSettings.moderator": "Moderator",
     "roomSettings.member": "Member",
+    "roomSettings.creatorLabel": "Creator",
     "roomSettings.failedToUpdateSuggestion": "Failed to update suggestion",
     "roomSettings.listThisRoomInTheServerDirectory":
         "List this room in the server directory",
@@ -2514,6 +2523,7 @@ export const en = {
     "userProfileCard.localTime": "{localTime} local time ({timezone})",
     "userProfileCard.notAMemberOfThisRoom": "Not a member of this room",
     "userProfileCard.powerLevel": "Power level: {level}",
+    "userProfileCard.powerLevelCreator": "Power level: Creator",
     "userProfileCard.mutualRooms": "Mutual rooms: {total}",
     "userProfileCard.more": "+{moreCount} more",
     "userProfileCard.sessions": "Sessions",
@@ -2924,6 +2934,8 @@ export const en = {
     "client.thisHomeserverDoesnTSupportSliding":
         "This homeserver doesn't support sliding sync, so classic sync is being used instead.",
     "client.notLoggedIn": "Not logged in",
+    "client.creatorsNeedRoomV12":
+        "Additional creators need room version 12 or newer, and this server doesn't offer it.",
     "client.oauthProviderChanged":
         "The server's sign-in provider changed. Please try again.",
     "client.thisEventTypeCannotBeForwarded":

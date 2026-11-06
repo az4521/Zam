@@ -1,4 +1,12 @@
-import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
+import {
+    describe,
+    it,
+    expect,
+    vi,
+    beforeAll,
+    beforeEach,
+    afterEach,
+} from "vitest";
 
 vi.mock("$lib/stores/accounts.svelte", () => ({
     getActiveAccount: () => ({
@@ -12,6 +20,7 @@ import {
     accountMediaBlobUrl,
     createMediaRetry,
     installMediaHealer,
+    isTransientMediaStatus,
     markSwMediaReady,
     swMediaAuth,
     type MediaRetry,
@@ -188,6 +197,201 @@ describe("media auth without a ready service worker", () => {
         expect(reassigned).toBe(true);
         // Healable again if the worker's request fails too.
         expect(broken.dataset.mediaHealed).toBeUndefined();
+    });
+});
+
+// Transient failures (5xx, 429, network) are retried on a backoff; permanent
+// ones (401/403/404) are not. Runs with the worker ready, so an <img> error
+// (onError) is what starts the authed fetch.
+describe("transient media failures", () => {
+    const okResponse = async () => ({
+        ok: true,
+        blob: async () => new Blob(["x"], { type: "image/png" }),
+    });
+    const failWith = (status: number) => async () => ({
+        ok: false,
+        status,
+        blob: async () => new Blob(),
+    });
+    const networkError = async (): Promise<never> => {
+        throw new TypeError("Failed to fetch");
+    };
+    const settle = () => vi.advanceTimersByTimeAsync(0);
+
+    function mount(getSrc: () => string): {
+        retry: MediaRetry;
+        stop: () => void;
+    } {
+        let retry!: MediaRetry;
+        const stop = $effect.root(() => {
+            retry = createMediaRetry(getSrc);
+        });
+        flushSync();
+        return { retry, stop };
+    }
+
+    beforeAll(() => {
+        vi.stubGlobal("fetch", fetchMock);
+        URL.createObjectURL = () => `blob:retry-${++blobN}`;
+        URL.revokeObjectURL = () => {};
+    });
+    beforeEach(() => {
+        vi.useFakeTimers();
+        fetchMock.mockClear();
+        fetchMock.mockImplementation(okResponse);
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+        fetchMock.mockImplementation(okResponse);
+    });
+
+    it("classifies server errors, rate limits and timeouts as transient", () => {
+        for (const s of [408, 429, 500, 502, 503]) {
+            expect(isTransientMediaStatus(s)).toBe(true);
+        }
+        for (const s of [400, 401, 403, 404]) {
+            expect(isTransientMediaStatus(s)).toBe(false);
+        }
+    });
+
+    it("retries a 503 on a timer, staying pending, then shows the blob", async () => {
+        fetchMock.mockImplementationOnce(failWith(503));
+        const { retry, stop } = mount(() => MEDIA + "a");
+        void retry.onError();
+        await settle();
+        flushSync();
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(retry.pending).toBe(true);
+        expect(retry.failed).toBe(false);
+
+        await vi.advanceTimersByTimeAsync(1_499);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(1);
+        await settle();
+        flushSync();
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(retry.src).toMatch(/^blob:retry-/);
+        expect(retry.pending).toBe(false);
+        expect(retry.failed).toBe(false);
+        stop();
+    });
+
+    it("gives up after three retries at 1.5s, 4s and 10s", async () => {
+        fetchMock.mockImplementation(failWith(502));
+        const { retry, stop } = mount(() => MEDIA + "b");
+        void retry.onError();
+        await settle();
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        for (const [ms, calls] of [
+            [1_499, 1],
+            [1, 2],
+            [3_999, 2],
+            [1, 3],
+            [9_999, 3],
+            [1, 4],
+        ] as const) {
+            await vi.advanceTimersByTimeAsync(ms);
+            await settle();
+            expect(fetchMock).toHaveBeenCalledTimes(calls);
+        }
+        flushSync();
+        expect(retry.failed).toBe(true);
+        expect(retry.pending).toBe(false);
+
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(fetchMock).toHaveBeenCalledTimes(4);
+        stop();
+    });
+
+    it("retries a network error", async () => {
+        fetchMock.mockImplementationOnce(networkError);
+        const { retry, stop } = mount(() => MEDIA + "net");
+        void retry.onError();
+        await settle();
+        flushSync();
+        expect(retry.pending).toBe(true);
+        await vi.advanceTimersByTimeAsync(1_500);
+        flushSync();
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(retry.src).toMatch(/^blob:retry-/);
+        stop();
+    });
+
+    it.each([401, 403, 404])("does not retry a %i", async (status) => {
+        fetchMock.mockImplementation(failWith(status));
+        const { retry, stop } = mount(() => MEDIA + `perm${status}`);
+        void retry.onError();
+        await settle();
+        flushSync();
+        expect(retry.failed).toBe(true);
+        expect(retry.pending).toBe(false);
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        stop();
+    });
+
+    it("retries straight away when the window comes back online", async () => {
+        fetchMock.mockImplementation(failWith(503));
+        const { retry, stop } = mount(() => MEDIA + "online");
+        void retry.onError();
+        await settle();
+        // Exhaust the schedule so the media has given up.
+        await vi.advanceTimersByTimeAsync(15_500);
+        await settle();
+        flushSync();
+        expect(fetchMock).toHaveBeenCalledTimes(4);
+        expect(retry.failed).toBe(true);
+
+        fetchMock.mockImplementation(okResponse);
+        window.dispatchEvent(new Event("online"));
+        await settle();
+        flushSync();
+        expect(fetchMock).toHaveBeenCalledTimes(5);
+        expect(retry.failed).toBe(false);
+        expect(retry.src).toMatch(/^blob:retry-/);
+        stop();
+    });
+
+    it("an online event during a wait retries now, not at the timer", async () => {
+        fetchMock.mockImplementationOnce(failWith(503));
+        const { retry, stop } = mount(() => MEDIA + "early");
+        void retry.onError();
+        await settle();
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        window.dispatchEvent(new Event("online"));
+        await settle();
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        flushSync();
+        expect(retry.src).toMatch(/^blob:retry-/);
+        stop();
+    });
+
+    it("a src change cancels the pending retry", async () => {
+        fetchMock.mockImplementationOnce(failWith(503));
+        const box = $state({ src: MEDIA + "old" });
+        const { retry, stop } = mount(() => box.src);
+        void retry.onError();
+        await settle();
+        box.src = MEDIA + "new";
+        flushSync();
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(retry.failed).toBe(false);
+        expect(retry.pending).toBe(false);
+        expect(retry.src).toBe(MEDIA + "new");
+        stop();
+    });
+
+    it("destroying the component cancels the pending retry", async () => {
+        fetchMock.mockImplementationOnce(failWith(503));
+        const { retry, stop } = mount(() => MEDIA + "gone");
+        void retry.onError();
+        await settle();
+        stop();
+        window.dispatchEvent(new Event("online"));
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 });
 

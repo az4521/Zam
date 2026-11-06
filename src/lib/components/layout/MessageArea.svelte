@@ -111,6 +111,11 @@
     import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
     import { canSendReceipt } from "$lib/utils/receiptGate";
     import {
+        historyEdge,
+        hasRoomCreate,
+        timelineReachesRoomCreate,
+    } from "$lib/utils/historyEdge";
+    import {
         BACKFILL_BUFFER_ROWS,
         INITIAL_VISIBLE_RATIO,
         countRowsAbove,
@@ -988,6 +993,22 @@
             : null;
     });
     const isContextView = $derived(contextMessages !== null);
+    // Top of the timeline (issue #49): the start banner only once the room's
+    // m.room.create is really loaded; a loading line while older history may
+    // still come. Re-derived on every timeline write and every page end, since
+    // a page of hidden events skips setMessages.
+    const historyEdgeState = $derived.by(() => {
+        void messagesState.timelineTick;
+        void loadingOlder;
+        void contextMessages;
+        return historyEdge({
+            reachedStart: isContextView
+                ? !!contextWindow && hasRoomCreate(contextWindow.getEvents())
+                : timelineReachesRoomCreate(room.getLiveTimeline()),
+            hasOlder: hasOlderToLoad(),
+            loadingOlder,
+        });
+    });
     // Native anchoring pins the view to the bottom anchor row only on the live
     // timeline. A context view's bottom is history: pinned there, each page
     // maybeLoadNewer added below kept the user at the bottom, so the next page
@@ -2659,17 +2680,20 @@
                 class="h-px w-full flex-shrink-0"
             ></div>
 
-            <!-- Load more indicator -->
-            {#if loadingOlder}
+            <!-- Older history may still load: shown until the room's start is
+                 reached, so an unloaded top is never mistaken for it -->
+            {#if historyEdgeState === "loading"}
                 <div class="flex justify-center py-4">
                     <div
                         class="w-6 h-6 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
+                        role="status"
+                        aria-label={t("messageArea.loadingHistory")}
                     ></div>
                 </div>
             {/if}
 
-            <!-- Welcome message at the top -->
-            {#if messages.length === 0}
+            <!-- Chat start, shown only once the room's m.room.create is loaded -->
+            {#if historyEdgeState === "start"}
                 <div class="px-4 pb-4">
                     <div
                         class="w-16 h-16 rounded-full bg-discord-accent flex items-center justify-center mb-4"

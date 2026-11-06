@@ -9,7 +9,10 @@
     import {
         canInviteToRoom,
         getMyPowerLevel,
+        getMyPowerRank,
         getUserPowerLevel,
+        getUserPowerRank,
+        hasImmutableCreatorPower,
         getRoomPowerLevels,
         getThreadNameLevel,
         setRoomPowerLevels,
@@ -55,6 +58,7 @@
         enableRoomEncryption,
         mxcToHttp,
         upgradeRoomToVersion,
+        getOwnUserId,
         getRoomVersionCapability,
         type SpaceChildEntry,
         memberDisplayName,
@@ -83,8 +87,10 @@
     import {
         effectiveCallJoinLevel,
         mergeCallJoinLevel,
+        roomVersionHasImmutableCreators,
     } from "$lib/utils/powerLevels";
     import { getRoomUpgradeState } from "$lib/utils/roomUpgrade";
+    import UserPicker from "$lib/components/ui/UserPicker.svelte";
     import { THREAD_NAME_POWER_LEVEL_KEY } from "$lib/utils/threadName";
     import {
         parseServerAcl,
@@ -316,6 +322,11 @@
     const myPowerLevel = $derived(
         (void roomsState.roomsTick, getMyPowerLevel(room)),
     );
+    // Rank decides who may act on whom (creators outrank admins); the level is
+    // still the ceiling for hand-typed levels.
+    const myPowerRank = $derived(
+        (void roomsState.roomsTick, getMyPowerRank(room)),
+    );
     const pl = $derived((void roomsState.roomsTick, getRoomPowerLevels(room)));
     const threadNameLevel = $derived(
         (void roomsState.roomsTick, getThreadNameLevel(room)),
@@ -538,14 +549,19 @@
     let upgradeShowConfirm = $state(false);
     let upgrading = $state(false);
     let upgradeError = $state("");
+    // Room v12 additional creators, offered only when the target version has
+    // immutable creators (see the confirm step below).
+    let upgradeCreators = $state<string[]>([]);
 
     async function doUpgradeRoom() {
         upgrading = true;
         upgradeError = "";
         try {
+            const target = upgradeState.recommendedVersion;
             const newRoomId = await upgradeRoomToVersion(
                 room.roomId,
-                upgradeState.recommendedVersion,
+                target,
+                roomVersionHasImmutableCreators(target) ? upgradeCreators : [],
             );
             upgradeShowConfirm = false;
             onClose();
@@ -570,6 +586,7 @@
             upgradeShowConfirm = false;
             upgrading = false;
             upgradeError = "";
+            upgradeCreators = [];
         });
     });
 
@@ -1074,12 +1091,14 @@
                     m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
                     m.userId.toLowerCase().includes(memberSearch.toLowerCase()),
             )
-            .sort(
-                (a, b) =>
-                    getUserPowerLevel(room, b.userId) -
-                        getUserPowerLevel(room, a.userId) ||
-                    a.name.localeCompare(b.name),
-            ),
+            .sort((a, b) => {
+                // Rank, highest first. Subtraction would be NaN for two
+                // Infinity creators, so compare explicitly.
+                const ra = getUserPowerRank(room, a.userId);
+                const rb = getUserPowerRank(room, b.userId);
+                if (ra !== rb) return ra > rb ? -1 : 1;
+                return a.name.localeCompare(b.name);
+            }),
     );
 
     async function doKick(userId: string) {
@@ -1602,6 +1621,46 @@
                                                         },
                                                     )}
                                                 </p>
+                                                {#if roomVersionHasImmutableCreators(upgradeState.recommendedVersion)}
+                                                    <details
+                                                        class="rounded border border-discord-divider px-3 py-2"
+                                                    >
+                                                        <summary
+                                                            class="cursor-pointer select-none text-sm text-discord-textPrimary"
+                                                            >{t(
+                                                                "roomSettings.additionalCreators",
+                                                            )}
+                                                            <span
+                                                                class="text-xs text-discord-textMuted"
+                                                                >{t(
+                                                                    "quickActions.optional",
+                                                                )}</span
+                                                            ></summary
+                                                        >
+                                                        <div
+                                                            class="mt-2 flex flex-col gap-2"
+                                                        >
+                                                            <p
+                                                                class="text-xs text-discord-textMuted"
+                                                            >
+                                                                {t(
+                                                                    "roomSettings.additionalCreatorsHint",
+                                                                )}
+                                                            </p>
+                                                            <UserPicker
+                                                                mode="multi"
+                                                                bind:selected={
+                                                                    upgradeCreators
+                                                                }
+                                                                excludeUserIds={[
+                                                                    getOwnUserId() ??
+                                                                        "",
+                                                                ]}
+                                                                disabled={upgrading}
+                                                            />
+                                                        </div>
+                                                    </details>
+                                                {/if}
                                                 {#if upgradeError}<p
                                                         class="text-sm text-discord-danger"
                                                     >
@@ -1624,6 +1683,8 @@
                                                         onclick={() => {
                                                             upgradeShowConfirm = false;
                                                             upgradeError = "";
+                                                            upgradeCreators =
+                                                                [];
                                                         }}
                                                         disabled={upgrading}
                                                         class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
@@ -2650,9 +2711,21 @@
                                                     room,
                                                     member.userId,
                                                 ))}
+                                            {@const memberRank =
+                                                (void roomsState.roomsTick,
+                                                getUserPowerRank(
+                                                    room,
+                                                    member.userId,
+                                                ))}
+                                            {@const isCreatorMember =
+                                                (void roomsState.roomsTick,
+                                                hasImmutableCreatorPower(
+                                                    room,
+                                                    member.userId,
+                                                ))}
                                             {@const canActOnMember =
                                                 !isSelf &&
-                                                myPowerLevel > memberPl}
+                                                myPowerRank > memberRank}
                                             {@const plResult =
                                                 parseMutePowerLevelInput(
                                                     plDrafts[member.userId] ??
@@ -2695,7 +2768,11 @@
                                                     </div>
                                                     <span
                                                         class="text-xs text-discord-textMuted flex-shrink-0"
-                                                        >{plLabel(memberPl)} ({memberPl})</span
+                                                        >{isCreatorMember
+                                                            ? t(
+                                                                  "roomSettings.creatorLabel",
+                                                              )
+                                                            : `${plLabel(memberPl)} (${memberPl})`}</span
                                                     >
                                                     {#if !isSelf}
                                                         <button
@@ -2742,7 +2819,7 @@
                                                         <div
                                                             class="flex flex-wrap gap-2"
                                                         >
-                                                            {#if myPowerLevel >= 100 || myPowerLevel > memberPl}
+                                                            {#if !isCreatorMember && (myPowerLevel >= 100 || myPowerRank > memberRank)}
                                                                 <select
                                                                     onchange={(
                                                                         e,

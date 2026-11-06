@@ -30,8 +30,10 @@
     import {
         getMemberAvatar,
         getMutualRoomsWith,
-        getMyPowerLevel,
+        getMyPowerRank,
         getUserPowerLevel,
+        getUserPowerRank,
+        hasImmutableCreatorPower,
         getRoomPowerLevels,
         createDirectMessage,
         hasExistingDirectMessage,
@@ -187,17 +189,18 @@
         };
     });
 
-    const myPowerLevel = $derived(
-        (void roomsState.roomsTick, getMyPowerLevel(room)),
+    const myPowerRank = $derived(
+        (void roomsState.roomsTick, getMyPowerRank(room)),
     );
     const pl = $derived((void roomsState.roomsTick, getRoomPowerLevels(room)));
+    // Ranks, not levels: a creator acts on any admin, nobody acts on a creator.
     const canActOnTarget = $derived(
         !isSelf &&
             !!member &&
-            myPowerLevel > getUserPowerLevel(room, member.userId),
+            myPowerRank > getUserPowerRank(room, member.userId),
     );
-    const canKickTarget = $derived(canActOnTarget && myPowerLevel >= pl.kick);
-    const canBanTarget = $derived(canActOnTarget && myPowerLevel >= pl.ban);
+    const canKickTarget = $derived(canActOnTarget && myPowerRank >= pl.kick);
+    const canBanTarget = $derived(canActOnTarget && myPowerRank >= pl.ban);
     const blocked = $derived(isUserBlocked(userId));
 
     let pending = $state<
@@ -626,11 +629,12 @@
         {/if}
         {#if member}
             <p class="mt-1 text-xs text-discord-textMuted">
-                {t("userProfileCard.powerLevel", {
-                    level:
-                        (void roomsState.roomsTick,
-                        getUserPowerLevel(room, member.userId)),
-                })}
+                {(void roomsState.roomsTick,
+                hasImmutableCreatorPower(room, member.userId))
+                    ? t("userProfileCard.powerLevelCreator")
+                    : t("userProfileCard.powerLevel", {
+                          level: getUserPowerLevel(room, member.userId),
+                      })}
             </p>
         {/if}
         {#if !member && !isSelf}

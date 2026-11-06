@@ -1138,6 +1138,7 @@ const messages: Partial<Record<MessageKey, string>> = {
 
     // src/lib/components/layout/MemberList.svelte
     "memberList.members": "Miembros: {length}",
+    "memberList.creators": "Creadores: {length}",
     "memberList.admins": "Administradores: {length}",
     "memberList.admin": "Administrador",
     "memberList.moderators": "Moderadores: {length}",
@@ -1169,6 +1170,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.messageTimeline": "Cronología de mensajes",
     "messageArea.welcomeTo": "Te damos la bienvenida a #",
     "messageArea.thisIsTheBeginningOfThe": "Este es el comienzo de la sala #",
+    "messageArea.loadingHistory": "Cargando mensajes anteriores",
     "messageArea.room": ".",
     "messageArea.newMessages": "Mensajes nuevos",
     "messageArea.messageFromABlockedUser": "Mensaje de un usuario bloqueado",
@@ -1779,6 +1781,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "quickActions.starterTextName": "general",
     "quickActions.starterVoiceName": "Voz",
     "quickActions.optional": "(opcional)",
+    "quickActions.additionalCreators": "Creadores adicionales (sala v12)",
+    "quickActions.additionalCreatorsHint":
+        "Otros usuarios que serán creadores de la nueva sala junto a ti. En la versión 12 de sala, el poder de creador no se puede quitar.",
     "quickActions.whatSThisSpaceAbout": "¿De qué trata este espacio?",
     "quickActions.whatSThisRoomAbout": "¿De qué trata esta sala?",
     "quickActions.opensStraightIntoACallMessages":
@@ -1928,6 +1933,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Esto crea una sala nueva en la v{recommendedVersion} y marca esta como sustituida. Se dirigirá a los miembros a la nueva sala.",
     "roomSettings.upgrading": "Actualizando…",
     "roomSettings.upgradeRoom2": "Actualizar la sala",
+    "roomSettings.additionalCreators": "Creadores adicionales (sala v12)",
+    "roomSettings.additionalCreatorsHint":
+        "Otros usuarios que serán creadores de la sala actualizada junto a ti. En la versión 12 de sala, el poder de creador no se puede quitar.",
     "roomSettings.whoCanJoin": "¿Quién puede unirse?",
     "roomSettings.spaceMembersAnyoneInCanJoin":
         "Miembros del espacio: cualquiera en {parentSpaceNames} puede unirse",
@@ -2050,6 +2058,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.admin": "Administrador",
     "roomSettings.moderator": "Moderador",
     "roomSettings.member": "Miembro",
+    "roomSettings.creatorLabel": "Creador",
     "roomSettings.failedToUpdateSuggestion":
         "No se pudo actualizar la sugerencia",
     "roomSettings.listThisRoomInTheServerDirectory":
@@ -2581,6 +2590,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "userProfileCard.localTime": "{localTime} hora local ({timezone})",
     "userProfileCard.notAMemberOfThisRoom": "No es miembro de esta sala",
     "userProfileCard.powerLevel": "Nivel de poder: {level}",
+    "userProfileCard.powerLevelCreator": "Nivel de poder: Creador",
     "userProfileCard.mutualRooms": "Salas en común: {total}",
     "userProfileCard.more": "+{moreCount} más",
     "userProfileCard.sessions": "Sesiones",
@@ -3040,6 +3050,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "client.thisHomeserverDoesnTSupportSliding":
         "Este servidor base no admite la sincronización deslizante, así que se usa la sincronización clásica.",
     "client.notLoggedIn": "No has iniciado sesión",
+    "client.creatorsNeedRoomV12":
+        "Los creadores adicionales requieren la versión de sala 12 o posterior, y este servidor no la ofrece.",
     "client.oauthProviderChanged":
         "El proveedor de inicio de sesión del servidor ha cambiado. Inténtalo de nuevo.",
     "client.thisEventTypeCannotBeForwarded":

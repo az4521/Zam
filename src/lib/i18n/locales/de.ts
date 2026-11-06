@@ -1113,6 +1113,7 @@ const messages: Partial<Record<MessageKey, string>> = {
 
     // src/lib/components/layout/MemberList.svelte
     "memberList.members": "Mitglieder: {length}",
+    "memberList.creators": "Ersteller: {length}",
     "memberList.admins": "Administratoren: {length}",
     "memberList.admin": "Administrator",
     "memberList.moderators": "Moderatoren: {length}",
@@ -1144,6 +1145,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.messageTimeline": "Nachrichtenverlauf",
     "messageArea.welcomeTo": "Willkommen in #",
     "messageArea.thisIsTheBeginningOfThe": "Dies ist der Anfang des Raums #",
+    "messageArea.loadingHistory": "Ältere Nachrichten werden geladen",
     "messageArea.room": ".",
     "messageArea.newMessages": "Neue Nachrichten",
     "messageArea.messageFromABlockedUser":
@@ -1756,6 +1758,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "quickActions.starterTextName": "allgemein",
     "quickActions.starterVoiceName": "Sprache",
     "quickActions.optional": "(optional)",
+    "quickActions.additionalCreators": "Zusätzliche Ersteller (Raumversion 12)",
+    "quickActions.additionalCreatorsHint":
+        "Weitere Nutzer, die zusammen mit dir Ersteller des neuen Raums werden. In Raumversion 12 kann die Erstellerrolle nicht entzogen werden.",
     "quickActions.whatSThisSpaceAbout": "Worum geht es in diesem Space?",
     "quickActions.whatSThisRoomAbout": "Worum geht es in diesem Raum?",
     "quickActions.opensStraightIntoACallMessages":
@@ -1909,6 +1914,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Dadurch wird ein neuer Raum mit v{recommendedVersion} erstellt und dieser als ersetzt markiert. Mitglieder werden zum neuen Raum verwiesen.",
     "roomSettings.upgrading": "Wird aktualisiert…",
     "roomSettings.upgradeRoom2": "Raum aktualisieren",
+    "roomSettings.additionalCreators": "Zusätzliche Ersteller (Raumversion 12)",
+    "roomSettings.additionalCreatorsHint":
+        "Weitere Nutzer, die zusammen mit dir Ersteller des aktualisierten Raums werden. In Raumversion 12 kann die Erstellerrolle nicht entzogen werden.",
     "roomSettings.whoCanJoin": "Wer darf beitreten?",
     "roomSettings.spaceMembersAnyoneInCanJoin":
         "Space-Mitglieder - alle in {parentSpaceNames} dürfen beitreten",
@@ -2034,6 +2042,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.admin": "Administrator",
     "roomSettings.moderator": "Moderator",
     "roomSettings.member": "Mitglied",
+    "roomSettings.creatorLabel": "Ersteller",
     "roomSettings.failedToUpdateSuggestion":
         "Empfehlung konnte nicht aktualisiert werden",
     "roomSettings.listThisRoomInTheServerDirectory":
@@ -2567,6 +2576,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "userProfileCard.localTime": "{localTime} Ortszeit ({timezone})",
     "userProfileCard.notAMemberOfThisRoom": "Kein Mitglied dieses Raums",
     "userProfileCard.powerLevel": "Berechtigungsstufe: {level}",
+    "userProfileCard.powerLevelCreator": "Berechtigungsstufe: Ersteller",
     "userProfileCard.mutualRooms": "Gemeinsame Räume: {total}",
     "userProfileCard.more": "+{moreCount} weitere",
     "userProfileCard.sessions": "Sitzungen",
@@ -3029,6 +3039,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "client.thisHomeserverDoesnTSupportSliding":
         "Dieser Heimserver unterstützt kein Sliding Sync, daher wird stattdessen die klassische Synchronisierung verwendet.",
     "client.notLoggedIn": "Nicht angemeldet",
+    "client.creatorsNeedRoomV12":
+        "Zusätzliche Ersteller erfordern Raumversion 12 oder neuer, und dieser Server bietet sie nicht an.",
     "client.oauthProviderChanged":
         "Der Anmeldeanbieter des Servers hat sich geändert. Bitte versuche es erneut.",
     "client.thisEventTypeCannotBeForwarded":

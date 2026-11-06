@@ -44,3 +44,19 @@ describe("menuGates", () => {
         });
     });
 });
+
+describe("menuGates with power ranks", () => {
+    it("lets an immutable creator (rank Infinity) act on an admin", () => {
+        expect(
+            menuGates({ ...base, myLevel: Infinity, targetLevel: 100 }),
+        ).toEqual({ canKick: true, canBan: true });
+    });
+    it("blocks acting on an immutable creator, even for another creator", () => {
+        expect(
+            menuGates({ ...base, myLevel: 100, targetLevel: Infinity }),
+        ).toEqual({ canKick: false, canBan: false });
+        expect(
+            menuGates({ ...base, myLevel: Infinity, targetLevel: Infinity }),
+        ).toEqual({ canKick: false, canBan: false });
+    });
+});

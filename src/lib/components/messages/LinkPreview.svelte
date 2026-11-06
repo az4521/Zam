@@ -36,7 +36,7 @@
     import { settingsState } from "$lib/stores/settings.svelte";
     import {
         isAuthedMediaUrl,
-        shrunkMediaUrl,
+        thumbnailUrl,
         videoFrameUrl,
         holdMediaUrl,
     } from "$lib/stores/mediaAuth.svelte";
@@ -399,29 +399,13 @@
         ),
     );
     // The homeserver's preview image is the site's full-size og:image, drawn
-    // at most 512×384 here. A static one is swapped for a copy that size (2×
-    // for high-DPI) once fetched; an animated one, or one that can't be
-    // shrunk, shows as is.
-    let previewImageSrc = $state<string | null>(null);
-    $effect(() => {
+    // at most 512×384 here, so the server is asked for a thumbnail that size
+    // (2× for high-DPI), animated where it can.
+    const previewImageSrc = $derived.by(() => {
         const src = preview?.imageUrl ?? null;
-        previewImageSrc = null;
-        if (!src) return;
-        if (!isAuthedMediaUrl(src)) {
-            previewImageSrc = src;
-            return;
-        }
-        let live = true;
-        let release = () => {};
-        void shrunkMediaUrl(src, 1024, 768).then((url) => {
-            if (!live) return;
-            release = holdMediaUrl(url);
-            previewImageSrc = url ?? src;
-        });
-        return () => {
-            live = false;
-            release();
-        };
+        return src && isAuthedMediaUrl(src)
+            ? thumbnailUrl(src, 1024, 768, "scale")
+            : src;
     });
 
     // A video preview with no poster used to mount its <video> unplayed to

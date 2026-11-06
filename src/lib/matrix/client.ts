@@ -70,6 +70,7 @@ import {
     type KeywordBehavior,
     type KeywordRuleView,
 } from "$lib/utils/keywordRules";
+import { pickViaServers } from "$lib/utils/roomVia";
 import type { PresenceState } from "$lib/utils/presence";
 import { sendPresenceWithSlidingSync } from "$lib/matrix/slidingSyncPresence";
 import {
@@ -329,11 +330,16 @@ import {
     CALL_MEMBER_EVENT_TYPES,
     coercePl,
     effectivePowerLevel,
+    effectivePowerRank,
     normalizePowerLevels,
     roomVersionHasImmutableCreators,
     validatePowerLevelsContent,
 } from "$lib/utils/powerLevels";
 import { buildRestrictedJoinRuleContent } from "$lib/utils/joinRules";
+import {
+    normalizeAdditionalCreators,
+    pickCreatorRoomVersion,
+} from "$lib/utils/roomCreators";
 import type { CanonicalAliasContent } from "$lib/utils/roomAliases";
 import { addToMDirect } from "$lib/utils/mDirect";
 import { planShareSend } from "$lib/utils/shareSend";
@@ -4486,17 +4492,27 @@ export async function getServerCapabilities(): Promise<
 /**
  * Upgrade a room to `version`. Creates a replacement room, tombstones this one,
  * and auto-joins the caller to the successor. Returns the new room id.
- * Thin wrapper over matrix-js-sdk `upgradeRoom` (2-arg form; additionalCreators
- * intentionally omitted in v1).
+ * Thin wrapper over matrix-js-sdk `upgradeRoom`. `additionalCreators` (room
+ * v12+ only) are normalized (self, duplicates and malformed ids dropped); an
+ * empty list omits the field entirely.
  */
 export async function upgradeRoomToVersion(
     roomId: string,
     version: string,
+    additionalCreators: string[] = [],
 ): Promise<string> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    const creators = normalizeAdditionalCreators(
+        additionalCreators,
+        matrixClient.getUserId(),
+    );
+    if (creators.length && !roomVersionHasImmutableCreators(version)) {
+        throw new Error(t("client.creatorsNeedRoomV12"));
+    }
     const { replacement_room } = await matrixClient.upgradeRoom(
         roomId,
         version,
+        creators.length ? creators : undefined,
     );
     return replacement_room;
 }
@@ -5968,22 +5984,25 @@ export async function markSpaceAsRead(spaceId: string): Promise<void> {
     await mapWithConcurrency(roomIds, 6, (id) => markRoomAsRead(id));
 }
 
-/** A shareable matrix.to link: canonical alias if set, else room id + our homeserver as via. */
+/** `via` servers for a room link: our server first, then where the room's joined members are. */
+function roomViaServers(room: Room | null | undefined): string[] {
+    const members = room?.getJoinedMembers().map((m) => m.userId) ?? [];
+    return pickViaServers(matrixClient?.getDomain() ?? "", members);
+}
+
+/** A shareable matrix.to link: canonical alias if set, else room id + via servers. */
 export function getRoomShareLink(roomId: string): string {
     const room = matrixClient?.getRoom(roomId);
     const alias = room?.getCanonicalAlias();
     if (alias) return matrixToUrl(alias);
-    const domain = matrixClient?.getDomain();
-    return matrixToUrl(roomId, domain ? [domain] : []);
+    return matrixToUrl(roomId, roomViaServers(room));
 }
 
 /** A shareable matrix.to permalink to a specific event in a room. */
 export function getMessageShareLink(roomId: string, eventId: string): string {
     const room = matrixClient?.getRoom(roomId);
     const alias = room?.getCanonicalAlias();
-    const domain = matrixClient?.getDomain();
-    const via = domain ? [domain] : [];
-    return matrixToUrl(alias ?? roomId, via, eventId);
+    return matrixToUrl(alias ?? roomId, roomViaServers(room), eventId);
 }
 
 /** Returns the event ID the current user has read up to in this room, or null. */
@@ -6685,8 +6704,21 @@ export async function createRoom(
     encrypt = false,
     videoRoom = false,
     restrictToSpace = false,
+    additionalCreators: string[] = [],
 ): Promise<RoomCreationResult> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    // Room v12 creators are immutable and live in creation_content, so they
+    // need a v12+ room version. Resolve it before the POST so a server that
+    // cannot do it fails without leaving a half-configured room behind.
+    const creators = normalizeAdditionalCreators(
+        additionalCreators,
+        matrixClient.getUserId(),
+    );
+    let roomVersion: string | undefined;
+    if (creators.length) {
+        roomVersion = pickCreatorRoomVersion(await getRoomVersionCapability());
+        if (!roomVersion) throw new Error(t("client.creatorsNeedRoomV12"));
+    }
     // When encrypting, turn it on at creation via initial_state (cleaner and
     // race-free vs. a follow-up state event). Encryption is irreversible.
     const initialState = [
@@ -6705,7 +6737,12 @@ export async function createRoom(
     // A video room is marked by its immutable m.room.create type. The
     // call-friendly power levels below are already applied to every room this
     // client creates, so a video room needs nothing extra there.
-    const creationContent = videoRoomCreationContent(videoRoom);
+    const creationContent = {
+        ...(videoRoomCreationContent(videoRoom) ?? {}),
+        ...(creators.length ? { additional_creators: creators } : {}),
+    };
+    // The power-level override only sets event levels. Creators are never
+    // written to its `users` map (MSC4289 forbids that for creators).
     const result = await matrixClient.createRoom({
         name: name || undefined,
         topic: topic || undefined,
@@ -6714,7 +6751,10 @@ export async function createRoom(
         power_level_content_override: {
             events: { ...CALL_POWER_LEVEL_EVENTS },
         },
-        ...(creationContent ? { creation_content: creationContent } : {}),
+        ...(Object.keys(creationContent).length
+            ? { creation_content: creationContent }
+            : {}),
+        ...(roomVersion ? { room_version: roomVersion } : {}),
         ...(initialState.length ? { initial_state: initialState as any } : {}),
     });
     const roomId = result.room_id;
@@ -6806,10 +6846,12 @@ export async function addRoomToSpace(
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const userId = matrixClient.getUserId() ?? "";
     const serverName = userId.includes(":") ? userId.split(":")[1] : "";
+    const childRoom = matrixClient.getRoom(roomId);
+    const members = childRoom?.getJoinedMembers().map((m) => m.userId) ?? [];
     await (matrixClient as any).sendStateEvent(
         spaceId,
         "m.space.child",
-        { via: serverName ? [serverName] : [] },
+        { via: pickViaServers(serverName, members) },
         roomId,
     );
 }
@@ -8663,11 +8705,33 @@ export function getCustomEmojis(
 export function isRoomCreator(room: Room, userId: string): boolean {
     const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
     const create = state?.getStateEvents("m.room.create", "");
-    if (!create) return false;
-    if (create.getSender() === userId) return true;
+    if (!create) return roomCreatorCache.get(room.roomId)?.has(userId) ?? false;
+    const creators = new Set<string>();
+    const sender = create.getSender();
+    if (sender) creators.add(sender);
     const additional =
         (create.getContent()?.additional_creators as string[]) ?? [];
-    return additional.includes(userId);
+    for (const id of additional) creators.add(id);
+    roomCreatorCache.set(room.roomId, creators);
+    return creators.has(userId);
+}
+
+/**
+ * Creators seen in each room's `m.room.create`, so a just-joined room whose
+ * create event is not in the live timeline yet still reports its creator.
+ */
+const roomCreatorCache = new Map<string, Set<string>>();
+
+/**
+ * Whether `userId` holds MSC4289 creator power in `room`: a creator of a v12+
+ * room, whose power is infinite rather than the 100 `getUserPowerLevel` caps it
+ * at. For display only.
+ */
+export function hasImmutableCreatorPower(room: Room, userId: string): boolean {
+    return (
+        isRoomCreator(room, userId) &&
+        roomVersionHasImmutableCreators(room.getVersion())
+    );
 }
 
 /**
@@ -8684,10 +8748,29 @@ export function getUserPowerLevel(room: Room, userId: string): number {
     });
 }
 
+/**
+ * A user's rank for "may I act on them" checks. Same as `getUserPowerLevel`
+ * except an immutable (MSC4289) creator ranks `Infinity`: a creator outranks
+ * every admin, and no one outranks a creator. Use this for comparisons only;
+ * levels shown to or written for users still come from `getUserPowerLevel`.
+ */
+export function getUserPowerRank(room: Room, userId: string): number {
+    return effectivePowerRank(
+        getUserPowerLevel(room, userId),
+        hasImmutableCreatorPower(room, userId),
+    );
+}
+
 export function getMyPowerLevel(room: Room): number {
     const me = matrixClient?.getUserId();
     if (!me) return 0;
     return getUserPowerLevel(room, me);
+}
+
+export function getMyPowerRank(room: Room): number {
+    const me = matrixClient?.getUserId();
+    if (!me) return 0;
+    return getUserPowerRank(room, me);
 }
 
 export interface PowerLevels {

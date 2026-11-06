@@ -11,6 +11,7 @@
         getRoom,
         retryRoomFollowUp,
         markRoomPendingArrival,
+        getOwnUserId,
     } from "$lib/matrix/client";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
@@ -71,6 +72,8 @@
     let videoRoom = $state(false);
     // Create-space: also make a text and a voice room, joinable by the space.
     let starterRooms = $state(true);
+    // Room v12 additional creators (create-room only; never a DM).
+    let creators = $state<string[]>([]);
     const cryptoReady = isCryptoAvailable();
 
     // When encryption is requested but an *existing* (plaintext) DM is reused,
@@ -194,6 +197,7 @@
         // New DMs pre-check the account default; new rooms default off.
         encrypt = m === "create-dm" ? settingsState.encryptNewDms : false;
         videoRoom = false;
+        creators = [];
         starterRooms = true;
         resetKnock();
     }
@@ -223,6 +227,7 @@
                     cryptoReady && encrypt,
                     videoRoom,
                     !!spaceId,
+                    creators,
                 );
                 roomId = created.roomId;
                 followUp = created.followUp;
@@ -448,6 +453,30 @@
                                 ></span
                             >
                         </label>
+                    {/if}
+                    {#if mode === "create-room"}
+                        <details
+                            class="rounded border border-discord-divider px-3 py-2"
+                        >
+                            <summary
+                                class="cursor-pointer select-none text-sm text-discord-textPrimary"
+                                >{t("quickActions.additionalCreators")}
+                                <span class="text-xs text-discord-textMuted"
+                                    >{t("quickActions.optional")}</span
+                                ></summary
+                            >
+                            <div class="mt-2 flex flex-col gap-2">
+                                <p class="text-xs text-discord-textMuted">
+                                    {t("quickActions.additionalCreatorsHint")}
+                                </p>
+                                <UserPicker
+                                    mode="multi"
+                                    bind:selected={creators}
+                                    excludeUserIds={[getOwnUserId() ?? ""]}
+                                    disabled={loading}
+                                />
+                            </div>
+                        </details>
                     {/if}
                     {#if mode === "create-space"}
                         <label class="flex items-start gap-2.5 cursor-pointer">

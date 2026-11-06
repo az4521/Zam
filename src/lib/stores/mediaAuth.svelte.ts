@@ -44,26 +44,83 @@ export function isAuthedMediaUrl(src: string): boolean {
     }
 }
 
+const DOWNLOAD_PATH = "/_matrix/client/v1/media/download/";
+
 /**
- * Fetch authed media with the token → object URL, or null if unavailable.
+ * The server-thumbnail form of an authed media download URL, asking for an
+ * animated thumbnail where the server supports it (MSC2705). Anything that
+ * isn't a download URL is returned as is.
+ */
+export function thumbnailUrl(
+    src: string,
+    width: number,
+    height: number,
+    method: "crop" | "scale" = "crop",
+): string {
+    const at = src.indexOf(DOWNLOAD_PATH);
+    if (at < 0) return src;
+    const id = src.slice(at + DOWNLOAD_PATH.length).split(/[?#]/)[0];
+    return `${src.slice(0, at)}/_matrix/client/v1/media/thumbnail/${id}?width=${width}&height=${height}&method=${method}&animated=true`;
+}
+
+/**
+ * Whether a failed media fetch with this HTTP status is worth trying again:
+ * server errors, rate limiting and timeouts. A 401/403/404 is permanent.
+ */
+export function isTransientMediaStatus(status: number): boolean {
+    return status === 408 || status === 429 || status >= 500;
+}
+
+/**
+ * Result of an authed media fetch: the object URL, or why it failed.
+ * `transient` failures (network error, 5xx, 429, 408) may succeed later.
+ */
+export type MediaBlobResult =
+    { url: string } | { url: null; transient: boolean };
+
+/**
+ * Fetch authed media with the token → object URL, or why it isn't available.
  * JXL bytes are transcoded to PNG where the engine can't decode them, since
  * that is also why such an `<img>` errors in the first place.
  */
-export async function authedMediaBlobUrl(src: string): Promise<string | null> {
+export async function authedMediaBlobResult(
+    src: string,
+): Promise<MediaBlobResult> {
     const c = mediaCreds();
-    if (!c || !isAuthedMediaUrl(src)) return null;
+    if (!c || !isAuthedMediaUrl(src)) return { url: null, transient: false };
+    let res: Response;
     try {
-        const res = await fetch(src, {
+        res = await fetch(src, {
             headers: { Authorization: `Bearer ${c.token}` },
         });
-        if (!res.ok) return null;
+    } catch {
+        return { url: null, transient: true };
+    }
+    if (!res.ok) {
+        return { url: null, transient: isTransientMediaStatus(res.status) };
+    }
+    let raw: Blob;
+    try {
+        raw = await res.blob();
+    } catch {
+        // The connection dropped while the body was arriving.
+        return { url: null, transient: true };
+    }
+    try {
         // Retyped like any attachment: these URLs sit in an <img>, where
         // "Open image in new tab" would run an unsanitized SVG in our origin.
-        const blob = await safeMediaBlob(await res.blob());
-        return URL.createObjectURL((await maybeDecodeJxl(blob)) ?? blob);
+        const blob = await safeMediaBlob(raw);
+        return {
+            url: URL.createObjectURL((await maybeDecodeJxl(blob)) ?? blob),
+        };
     } catch {
-        return null;
+        return { url: null, transient: false };
     }
+}
+
+/** Fetch authed media with the token → object URL, or null if unavailable. */
+export async function authedMediaBlobUrl(src: string): Promise<string | null> {
+    return (await authedMediaBlobResult(src)).url;
 }
 
 /**
@@ -104,6 +161,7 @@ const shrunk = new BlobUrlCache(300);
 // Each shrink decodes a full image: a large room's member list would
 // otherwise start hundreds at once.
 const SHRINK_CONCURRENCY = 4;
+const SHRINK_TIMEOUT_MS = 20_000;
 let shrinksRunning = 0;
 const shrinkQueue: (() => void)[] = [];
 async function shrinkSlot<T>(run: () => Promise<T>): Promise<T> {
@@ -138,17 +196,43 @@ export function shrunkMediaUrl(
                 shrinkSlot(async () => {
                     const c = mediaCreds();
                     if (!c || !isAuthedMediaUrl(src)) return null;
-                    const res = await fetch(src, {
-                        headers: { Authorization: `Bearer ${c.token}` },
+                    // A stalled fetch or decode would hold one of the few
+                    // slots for good, and every avatar queued behind it would
+                    // stay blank. Give up (and so retry next time) instead.
+                    const abort = new AbortController();
+                    let timer = 0;
+                    const timeout = new Promise<never>((_, reject) => {
+                        timer = window.setTimeout(() => {
+                            abort.abort();
+                            reject(new Error("shrink timed out"));
+                        }, SHRINK_TIMEOUT_MS);
                     });
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    const small = await downscaleImage(
-                        await res.blob(),
-                        maxW,
-                        maxH,
-                        fit,
-                    );
-                    return small ? URL.createObjectURL(small) : null;
+                    try {
+                        return await Promise.race([
+                            (async () => {
+                                const res = await fetch(src, {
+                                    headers: {
+                                        Authorization: `Bearer ${c.token}`,
+                                    },
+                                    signal: abort.signal,
+                                });
+                                if (!res.ok)
+                                    throw new Error(`HTTP ${res.status}`);
+                                const small = await downscaleImage(
+                                    await res.blob(),
+                                    maxW,
+                                    maxH,
+                                    fit,
+                                );
+                                return small
+                                    ? URL.createObjectURL(small)
+                                    : null;
+                            })(),
+                            timeout,
+                        ]);
+                    } finally {
+                        clearTimeout(timer);
+                    }
                 }),
             )
             // A failed fetch (offline, 401 before login settles) is retried next
@@ -288,12 +372,21 @@ function logHeal(): void {
     );
 }
 
+/** Waits before each automatic retry of a transient authed-fetch failure. */
+export const MEDIA_RETRY_DELAYS_MS = [1_500, 4_000, 10_000];
+
 export interface MediaRetry {
     /** The src to bind to the `<img>` — the original URL, or a healed blob URL. */
     readonly src: string | null | undefined;
-    /** True once the media is genuinely unavailable (auth fetch also failed). */
+    /**
+     * True once the media is genuinely unavailable: a permanent failure, or a
+     * transient one that stayed failed through every retry.
+     */
     readonly failed: boolean;
-    /** True while fetching the blob — show a placeholder, not a broken glyph. */
+    /**
+     * True while fetching the blob, or waiting to retry it — show a placeholder,
+     * not a broken glyph.
+     */
     readonly pending: boolean;
     /** Wire to the `<img>`'s `onerror`. */
     onError: () => void;
@@ -304,8 +397,10 @@ export interface MediaRetry {
  * once during component init with a getter for the desired src; bind the
  * returned `src` to the `<img>` and `onError` to its `onerror`. On a load
  * failure it fetches the media with auth and swaps to a blob URL — SW-independent,
- * so it works on an uncontrolled (hard-reloaded) page. If that also fails the
- * media is genuinely gone → `failed`, so the caller shows a placeholder.
+ * so it works on an uncontrolled (hard-reloaded) page. A transient failure
+ * (network, 5xx, 429, 408) is retried on a backoff, and at once when the window
+ * comes back online; a permanent one (401/403/404) is not retried. If the media
+ * is still unavailable → `failed`, so the caller shows a placeholder.
  */
 export function createMediaRetry(
     getSrc: () => string | null | undefined,
@@ -315,11 +410,59 @@ export function createMediaRetry(
     let pending = $state(false);
     let blobUrl: string | null = null;
     let tried = false;
+    // Bumped when the src changes or the component goes away, so a fetch or
+    // timer started for an older state does nothing when it lands.
+    let gen = 0;
+    // Transient retries spent on the current src.
+    let attempts = 0;
+    let timer = 0;
+    // The authed src that is waiting on a retry, or gave up for a transient
+    // reason. `online` retries it straight away.
+    let waitingSrc: string | null = null;
+
+    function cancelRetry(): void {
+        if (timer) clearTimeout(timer);
+        timer = 0;
+    }
+
+    function startAuthed(s: string, g: number): void {
+        pending = true;
+        waitingSrc = null;
+        void authedMediaBlobResult(s).then((r) => {
+            if (g !== gen) {
+                if (r.url !== null) URL.revokeObjectURL(r.url);
+                return;
+            }
+            if (r.url !== null) {
+                blobUrl = r.url;
+                effective = r.url;
+                pending = false;
+                return;
+            }
+            if (r.transient) {
+                waitingSrc = s;
+                if (attempts < MEDIA_RETRY_DELAYS_MS.length) {
+                    // Stays pending: the placeholder shows until the retry.
+                    timer = window.setTimeout(() => {
+                        timer = 0;
+                        startAuthed(s, g);
+                    }, MEDIA_RETRY_DELAYS_MS[attempts++]);
+                    return;
+                }
+            }
+            pending = false;
+            failed = true;
+        });
+    }
 
     // Follow src changes (avatar swap, room switch); revoke any old blob.
     $effect(() => {
         const s = getSrc();
         untrack(() => {
+            gen++;
+            cancelRetry();
+            waitingSrc = null;
+            attempts = 0;
             if (blobUrl) {
                 URL.revokeObjectURL(blobUrl);
                 blobUrl = null;
@@ -333,20 +476,7 @@ export function createMediaRetry(
             if (s && !swMediaAuth.ready && isAuthedMediaUrl(s)) {
                 effective = undefined;
                 tried = true;
-                pending = true;
-                void authedMediaBlobUrl(s).then((url) => {
-                    if (getSrc() !== s) {
-                        if (url) URL.revokeObjectURL(url);
-                        return;
-                    }
-                    pending = false;
-                    if (url) {
-                        blobUrl = url;
-                        effective = url;
-                    } else {
-                        failed = true;
-                    }
-                });
+                startAuthed(s, gen);
             }
         });
     });
@@ -357,11 +487,29 @@ export function createMediaRetry(
             if (!failed) return;
             failed = false;
             tried = false;
+            attempts = 0;
+            waitingSrc = null;
             effective = getSrc();
         });
     });
-    // Revoke on destroy.
+    // A transient failure is retried at once when the network is back.
+    $effect(() => {
+        const onOnline = () => {
+            const s = waitingSrc;
+            if (!s) return;
+            cancelRetry();
+            attempts = 0;
+            failed = false;
+            startAuthed(s, gen);
+        };
+        window.addEventListener("online", onOnline);
+        return () => window.removeEventListener("online", onOnline);
+    });
+    // Stop and revoke on destroy.
     $effect(() => () => {
+        gen++;
+        cancelRetry();
+        waitingSrc = null;
         if (blobUrl) URL.revokeObjectURL(blobUrl);
     });
 
@@ -385,10 +533,17 @@ export function createMediaRetry(
                 return;
             }
             tried = true;
+            if (!local) {
+                startAuthed(s, gen);
+                return;
+            }
+            const g = gen;
             pending = true;
-            const url = local
-                ? await jxlFallbackUrl(s)
-                : await authedMediaBlobUrl(s);
+            const url = await jxlFallbackUrl(s);
+            if (g !== gen) {
+                if (url) URL.revokeObjectURL(url);
+                return;
+            }
             pending = false;
             if (url) {
                 blobUrl = url;

@@ -13,16 +13,32 @@
 import { t } from "$lib/i18n";
 export const CREATOR_POWER_LEVEL = 100;
 
-/**
- * Room versions in which the creator (and `additional_creators`) hold
- * *immutable* implicit power. Only these grant the creator bonus — in older
- * versions a creator can be legitimately demoted, so their raw level is
- * authoritative. Extend if a server reports an unstable MSC4289 version string.
- */
-const IMMUTABLE_CREATOR_ROOM_VERSIONS = new Set(["12"]);
+/** Prefix of the unstable MSC4289 room-version strings (e.g. `org.matrix.hydra.11`). */
+const HYDRA_VERSION_PREFIX = "org.matrix.hydra.";
 
+/**
+ * Whether a room version grants *immutable* creator power (MSC4289). Every
+ * numeric version from 12 up does, as do the unstable `org.matrix.hydra.*`
+ * strings. Older, empty or unknown versions do not: there a creator can be
+ * legitimately demoted, so their raw level is authoritative.
+ */
 export function roomVersionHasImmutableCreators(version: string): boolean {
-    return IMMUTABLE_CREATOR_ROOM_VERSIONS.has(version);
+    if (version.startsWith(HYDRA_VERSION_PREFIX)) return true;
+    if (!/^\d+$/.test(version)) return false;
+    return Number(version) >= 12;
+}
+
+/**
+ * The rank used to decide who may act on whom. An immutable creator outranks
+ * every written level (Infinity), so a creator can act on admins while nobody
+ * can act on another creator (`a > b` is false for two Infinities). Everyone
+ * else keeps their effective level.
+ */
+export function effectivePowerRank(
+    effectiveLevel: number,
+    isImmutableCreator: boolean,
+): number {
+    return isImmutableCreator ? Infinity : effectiveLevel;
 }
 
 export interface EffectivePowerLevelInput {
@@ -40,10 +56,10 @@ export interface EffectivePowerLevelInput {
  * keeps a genuinely-higher raw level and makes the lift a no-op if the SDK ever
  * starts reporting creator power itself.
  *
- * A non-finite raw level is treated as 0. matrix-js-sdk 41 reports a v12
- * creator's `RoomMember.powerLevel` as `NaN` (no users entry to compute from);
- * `NaN` slips past a `?? 0` guard and poisons `Math.max` (→ `NaN`), which then
- * fails every `>= required` gate. Normalizing here is the single choke point.
+ * A non-finite raw level is treated as 0. matrix-js-sdk reports a v12
+ * creator's `RoomMember.powerLevel` as `NaN` (41) or `Infinity` (45); `NaN`
+ * slips past a `?? 0` guard and poisons `Math.max` (→ `NaN`), which then fails
+ * every `>= required` gate. Normalizing here is the single choke point.
  */
 export function effectivePowerLevel(input: EffectivePowerLevelInput): number {
     const raw = Number.isFinite(input.rawPowerLevel) ? input.rawPowerLevel : 0;

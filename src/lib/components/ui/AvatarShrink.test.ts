@@ -3,15 +3,10 @@ import { mount, unmount, flushSync } from "svelte";
 
 vi.mock("$lib/stores/mediaAuth.svelte", async (orig) => {
     const real = await orig<typeof import("$lib/stores/mediaAuth.svelte")>();
-    return {
-        ...real,
-        isAuthedMediaUrl: () => true,
-        shrunkMediaUrl: vi.fn(async () => "blob:small"),
-    };
+    return { ...real, isAuthedMediaUrl: () => true };
 });
 
 import Avatar from "./Avatar.svelte";
-import { shrunkMediaUrl } from "$lib/stores/mediaAuth.svelte";
 
 let instance: Record<string, unknown> | null = null;
 afterEach(() => {
@@ -19,8 +14,8 @@ afterEach(() => {
     instance = null;
 });
 
-describe("Avatar shrinking", () => {
-    it("shows the small copy and asks for it once", async () => {
+describe("Avatar thumbnails", () => {
+    it("asks the server for an animated thumbnail sized to the box", async () => {
         const host = document.createElement("div");
         document.body.appendChild(host);
         instance = mount(Avatar, {
@@ -31,13 +26,9 @@ describe("Avatar shrinking", () => {
             },
         });
         flushSync();
-        for (let i = 0; i < 5; i++) {
-            await Promise.resolve();
-            flushSync();
-        }
-        expect(host.querySelector("img")?.getAttribute("src")).toBe(
-            "blob:small",
-        );
-        expect(shrunkMediaUrl).toHaveBeenCalledTimes(1);
+        const src = host.querySelector("img")?.getAttribute("src") ?? "";
+        expect(src).toContain("/_matrix/client/v1/media/thumbnail/a/b?");
+        expect(src).toContain("method=crop");
+        expect(src).toContain("animated=true");
     });
 });

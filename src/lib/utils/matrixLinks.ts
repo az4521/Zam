@@ -20,7 +20,7 @@ export type MatrixLinkTarget =
 // Loose shapes for identifiers arriving through explicit links: a sigil, a
 // non-empty colon-free localpart, a server name with optional port. Room ids
 // only need the sigil — v12 room ids have no server part.
-const USER_ID_RE = /^@[^\s:]+:[^\s:]+(?::\d+)?$/;
+export const USER_ID_RE = /^@[^\s:]+:[^\s:]+(?::\d+)?$/;
 const ALIAS_RE = /^#[^\s:]+:[^\s:]+(?::\d+)?$/;
 const ROOM_ID_RE = /^!\S+$/;
 const EVENT_ID_RE = /^\$\S+$/;

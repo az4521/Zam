@@ -430,7 +430,7 @@ export function mxcToHttp(
     const baseUrl = matrixClient.getHomeserverUrl();
     if (width > 0) {
         height = height ?? width;
-        return `${baseUrl}/_matrix/client/v1/media/thumbnail/${serverName}/${mediaId}?width=${width}&height=${height}&method=${method}`;
+        return `${baseUrl}/_matrix/client/v1/media/thumbnail/${serverName}/${mediaId}?width=${width}&height=${height}&method=${method}&animated=true`;
     }
     return `${baseUrl}/_matrix/client/v1/media/download/${serverName}/${mediaId}`;
 }

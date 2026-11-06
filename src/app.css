@@ -655,8 +655,14 @@ body {
     white-space: pre-wrap;
 }
 
+/* The placeholder is one line that ellipsizes: a long room name must never
+   wrap and grow the composer. */
 .composer-editor:empty::before {
     content: attr(placeholder);
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     color: var(--discord-text-muted);
     pointer-events: none;
 }

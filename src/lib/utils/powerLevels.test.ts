@@ -5,6 +5,7 @@ import {
     coercePl,
     effectiveCallJoinLevel,
     effectivePowerLevel,
+    effectivePowerRank,
     mergeCallJoinLevel,
     normalizePowerLevels,
     parsePowerLevelInput,
@@ -22,10 +23,49 @@ describe("roomVersionHasImmutableCreators", () => {
     it("is true for room version 12", () => {
         expect(roomVersionHasImmutableCreators("12")).toBe(true);
     });
-    it("is false for older versions and empty input", () => {
+    it("is true for every numeric version above 12", () => {
+        expect(roomVersionHasImmutableCreators("13")).toBe(true);
+        expect(roomVersionHasImmutableCreators("14")).toBe(true);
+        expect(roomVersionHasImmutableCreators("100")).toBe(true);
+    });
+    it("is true for unstable MSC4289 hydra version strings", () => {
+        expect(roomVersionHasImmutableCreators("org.matrix.hydra.11")).toBe(
+            true,
+        );
+        expect(roomVersionHasImmutableCreators("org.matrix.hydra.12")).toBe(
+            true,
+        );
+    });
+    it("is false for older numeric versions", () => {
         expect(roomVersionHasImmutableCreators("11")).toBe(false);
         expect(roomVersionHasImmutableCreators("10")).toBe(false);
+        expect(roomVersionHasImmutableCreators("1")).toBe(false);
+    });
+    it("is false for empty, non-numeric and unknown strings", () => {
         expect(roomVersionHasImmutableCreators("")).toBe(false);
+        expect(roomVersionHasImmutableCreators("v12")).toBe(false);
+        expect(roomVersionHasImmutableCreators("12.1")).toBe(false);
+        expect(roomVersionHasImmutableCreators("-12")).toBe(false);
+        expect(roomVersionHasImmutableCreators("org.example.12")).toBe(false);
+    });
+});
+
+describe("effectivePowerRank", () => {
+    it("ranks an immutable creator above every written level", () => {
+        expect(effectivePowerRank(100, true)).toBe(Infinity);
+        expect(effectivePowerRank(0, true)).toBe(Infinity);
+    });
+    it("keeps the effective level for everyone else", () => {
+        expect(effectivePowerRank(100, false)).toBe(100);
+        expect(effectivePowerRank(50, false)).toBe(50);
+        expect(effectivePowerRank(-1, false)).toBe(-1);
+    });
+    it("lets a creator act on an admin but not on another creator", () => {
+        const creator = effectivePowerRank(100, true);
+        const admin = effectivePowerRank(100, false);
+        expect(creator > admin).toBe(true);
+        expect(creator > effectivePowerRank(100, true)).toBe(false);
+        expect(admin > creator).toBe(false);
     });
 });
 

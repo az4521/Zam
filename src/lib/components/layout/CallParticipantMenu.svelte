@@ -12,8 +12,8 @@
     import { showChatView } from "$lib/stores/interface.svelte";
     import { hostBridge } from "$lib/plugins/hostBridge";
     import {
-        getMyPowerLevel,
-        getUserPowerLevel,
+        getMyPowerRank,
+        getUserPowerRank,
         getRoomPowerLevels,
         getMemberName,
         kickUser,
@@ -97,8 +97,8 @@
         const pl = getRoomPowerLevels(room);
         return menuGates({
             isSelf,
-            myLevel: getMyPowerLevel(room),
-            targetLevel: getUserPowerLevel(room, userId),
+            myLevel: getMyPowerRank(room),
+            targetLevel: getUserPowerRank(room, userId),
             kickLevel: pl.kick,
             banLevel: pl.ban,
         });

@@ -1037,6 +1037,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "registration.openStepPage": "ページを開く",
     "registration.stepDone": "完了しました",
     "memberList.members": "メンバー: {length}",
+    "memberList.creators": "作成者: {length}",
     "memberList.admins": "管理者: {length}",
     "memberList.admin": "管理者",
     "memberList.moderators": "モデレーター: {length}",
@@ -1064,6 +1065,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.messageTimeline": "メッセージタイムライン",
     "messageArea.welcomeTo": "ようこそ #",
     "messageArea.thisIsTheBeginningOfThe": "ここが #",
+    "messageArea.loadingHistory": "過去のメッセージを読み込み中",
     "messageArea.room": "ルームの始まりです。",
     "messageArea.newMessages": "新着メッセージ",
     "messageArea.messageFromABlockedUser":
@@ -1610,6 +1612,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "quickActions.roomName": "ルーム名",
     "quickActions.mySpace": "マイスペース",
     "quickActions.optional": "（任意）",
+    "quickActions.additionalCreators": "追加の作成者（ルームバージョン12）",
+    "quickActions.additionalCreatorsHint":
+        "新しいルームの作成者としてあなたと一緒になる他のユーザーです。ルームバージョン12では作成者の権限を取り消せません。",
     "quickActions.starterRooms": "テキストルームとボイスルームを追加",
     "quickActions.starterRoomsHint":
         "スペースに招待した人は誰でも参加できます。",
@@ -1751,6 +1756,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "v{recommendedVersion} で新しいルームを作成し、このルームを置き換え済みにします。メンバーは新しいルームへ案内されます。",
     "roomSettings.upgrading": "アップグレード中…",
     "roomSettings.upgradeRoom2": "ルームをアップグレード",
+    "roomSettings.additionalCreators": "追加の作成者（ルームバージョン12）",
+    "roomSettings.additionalCreatorsHint":
+        "アップグレード後のルームの作成者としてあなたと一緒になる他のユーザーです。ルームバージョン12では作成者の権限を取り消せません。",
     "roomSettings.whoCanJoin": "参加できるのは誰ですか？",
     "roomSettings.spaceMembersAnyoneInCanJoin":
         "スペースメンバー - {parentSpaceNames} のメンバーなら誰でも参加できます",
@@ -1867,6 +1875,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.admin": "管理者",
     "roomSettings.moderator": "モデレーター",
     "roomSettings.member": "メンバー",
+    "roomSettings.creatorLabel": "作成者",
     "roomSettings.failedToUpdateSuggestion": "推奨を更新できませんでした",
     "roomSettings.listThisRoomInTheServerDirectory":
         "このルームをサーバーディレクトリに掲載する",
@@ -2260,6 +2269,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "userProfileCard.notAMemberOfThisRoom":
         "このルームのメンバーではありません",
     "userProfileCard.powerLevel": "権限レベル: {level}",
+    "userProfileCard.powerLevelCreator": "権限レベル: 作成者",
     "userProfileCard.mutualRooms": "共通のルーム: {total}",
     "userProfileCard.more": "他 {moreCount} 件",
     "userProfileCard.sessions": "セッション",
@@ -2640,6 +2650,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "client.thisHomeserverDoesnTSupportSliding":
         "このホームサーバーはsliding syncに対応していないため、代わりに従来のsyncを使用します。",
     "client.notLoggedIn": "ログインしていません",
+    "client.creatorsNeedRoomV12":
+        "追加の作成者にはルームバージョン12以降が必要ですが、このサーバーは提供していません。",
     "client.oauthProviderChanged":
         "サーバーのサインイン方式が変更されました。もう一度お試しください。",
     "client.thisEventTypeCannotBeForwarded":
