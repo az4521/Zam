@@ -31,6 +31,7 @@
 
     const MAX_MS = 5 * 60 * 1000; // safety cap
     const WAVE_BARS = 48;
+    const DECODE_TIMEOUT_MS = 3000;
 
     type Phase = "recording" | "preview" | "sending";
     let phase = $state<Phase>("recording");
@@ -74,45 +75,66 @@
         const adopted = adoptCapture(capture, ticket, granted, stopTracks);
         if (!adopted) return;
         stream = adopted;
-        recorder = new MediaRecorder(
-            stream,
-            mimeType ? { mimeType } : undefined,
-        );
-        chunks = [];
-        recorder.ondataavailable = (e) => {
-            if (e.data.size > 0) chunks.push(e.data);
-        };
-        recorder.onstop = onStopped;
-        recorder.onerror = () => {
+        try {
+            recorder = new MediaRecorder(
+                stream,
+                mimeType ? { mimeType } : undefined,
+            );
+            chunks = [];
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+            recorder.onstop = onStopped;
+            recorder.onerror = () => {
+                showErrorToast(t("voiceRecorder.recordingFailed"));
+                cleanup();
+                onClose();
+            };
+            // Live meter (own analyser on the recording stream). Best-effort:
+            // a failure here (e.g. the AudioContext cap) must not stop recording.
+            try {
+                const meterCtx = new AudioContext();
+                ctx = meterCtx;
+                const source = meterCtx.createMediaStreamSource(stream);
+                const analyser = meterCtx.createAnalyser();
+                analyser.fftSize = 1024;
+                source.connect(analyser);
+                const buf = new Uint8Array(analyser.fftSize);
+                const tick = () => {
+                    analyser.getByteTimeDomainData(buf);
+                    let sum = 0;
+                    for (const v of buf) {
+                        const c = (v - 128) / 128;
+                        sum += c * c;
+                    }
+                    level = Math.min(1, Math.sqrt(sum / buf.length) * 4);
+                    raf = requestAnimationFrame(tick);
+                };
+                raf = requestAnimationFrame(tick);
+            } catch {
+                void ctx?.close().catch(() => {});
+                ctx = null;
+                level = 0;
+            }
+            // Timeslice so Android WebView delivers chunks while recording,
+            // not only once at stop.
+            recorder.start(1000);
+            startTs = performance.now();
+            elapsedTimer = setInterval(() => {
+                elapsedMs = performance.now() - startTs;
+            }, 200);
+            autoStop = setTimeout(() => stop(), MAX_MS);
+            phase = "recording";
+        } catch {
+            // A start failure after the teardown already ran has no UI left.
+            if (!isCaptureCurrent(capture, ticket)) {
+                cleanup();
+                return;
+            }
             showErrorToast(t("voiceRecorder.recordingFailed"));
             cleanup();
             onClose();
-        };
-        // Live meter (own analyser on the recording stream).
-        ctx = new AudioContext();
-        const source = ctx.createMediaStreamSource(stream);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 1024;
-        source.connect(analyser);
-        const buf = new Uint8Array(analyser.fftSize);
-        const tick = () => {
-            analyser.getByteTimeDomainData(buf);
-            let sum = 0;
-            for (const v of buf) {
-                const c = (v - 128) / 128;
-                sum += c * c;
-            }
-            level = Math.min(1, Math.sqrt(sum / buf.length) * 4);
-            raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-        recorder.start();
-        startTs = performance.now();
-        elapsedTimer = setInterval(() => {
-            elapsedMs = performance.now() - startTs;
-        }, 200);
-        autoStop = setTimeout(() => stop(), MAX_MS);
-        phase = "recording";
+        }
     }
 
     function stop() {
@@ -149,15 +171,24 @@
         previewUrl = URL.createObjectURL(recordedBlob);
         // Decode for the waveform (best-effort; empty waveform is acceptable).
         let decodeCtx: AudioContext | null = null;
+        let decodeTimer: ReturnType<typeof setTimeout> | null = null;
         try {
             decodeCtx = new AudioContext();
-            const audioBuf = await decodeCtx.decodeAudioData(
-                await recordedBlob.arrayBuffer(),
-            );
+            // A hanging decode must not block the preview; fall back to no waveform.
+            const audioBuf = await Promise.race([
+                decodeCtx.decodeAudioData(await recordedBlob.arrayBuffer()),
+                new Promise<never>((_, reject) => {
+                    decodeTimer = setTimeout(
+                        () => reject(new Error("decode timed out")),
+                        DECODE_TIMEOUT_MS,
+                    );
+                }),
+            ]);
             waveform = computeWaveform(audioBuf.getChannelData(0), WAVE_BARS);
         } catch {
             waveform = [];
         } finally {
+            if (decodeTimer) clearTimeout(decodeTimer);
             // A failed decode used to leak its context, and browsers cap how
             // many a document may hold — one exhausted cap breaks the mic
             // meter and every call sound.
