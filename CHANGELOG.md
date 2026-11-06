@@ -4,6 +4,21 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.4
+
+✨ **New**
+
+- **Additional room creators (room v12):** when you create a room or upgrade one to v12 or later, you can pick extra creators in a collapsed "Additional creators" section. Creators have unlimited power in a v12 room.
+- **Creators stand out:** v12 room creators now show as "Creator" instead of "100" on profile cards and in room settings, get their own group above the admins in the member list, and can act on admins (nobody can act on a creator).
+
+🐛 **Fixed**
+
+- **Profile pictures load again on slow or mobile connections:** avatars and link-preview images are now fetched from the server already sized for where they are drawn (animated ones stay animated where the server supports it), instead of downloading the full-size original and shrinking it on your device. Images that fail to load are retried automatically a few times, and again when your connection comes back.
+- **No false "beginning of the chat":** a room whose history hasn't loaded yet shows a "Loading older messages" line instead of the start-of-chat banner, which now appears only once the room's start has really been reached.
+- **Long room names no longer grow the message box:** the "Message #room" hint stays on one line and is cut off with an ellipsis.
+- **Room v12 links and detection:** links to v12 rooms (whose ids have no server name) now list several servers that can help others join, creators are recognised before a room's full state has loaded, and room versions after 12 are treated as having creators too.
+- **Real game icons on Linux (desktop):** a game that Discord has no icon for no longer shows the stock executable icon. Zam now looks for the icon in the game's launcher (PNG or SVG), in Steam's library cache, and inside the game's Windows `.exe` (PNG or old bitmap icons), and shows no picture rather than a generic one when none is found.
+
 ## v1.54.3
 
 ✨ **New**
