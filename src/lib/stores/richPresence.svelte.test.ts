@@ -302,7 +302,7 @@ describe("rich presence store", () => {
         expect(rp.richPresenceState.heldCount).toBe(1);
 
         // The scanner repeating itself does not bring its copy back.
-        handler!({ ...game(), presence: { ...game().presence, state: "x" } });
+        handler!(game({ state: "x" }));
         expect(rp.richPresenceState.heldCount).toBe(1);
     });
 
