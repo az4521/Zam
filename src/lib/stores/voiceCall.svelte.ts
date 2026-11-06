@@ -267,6 +267,8 @@ export function initVoiceCall(): () => void {
             recentlyLeftTimer = null;
         }
     };
+    const PEER_SETTLE_MS = 2500;
+    let lastRosterChangeAt = 0;
     const playGated = (name: CallSoundName) => {
         const now = Date.now();
         if (!soundGate(lastPlayed.get(name) ?? null, now)) return;
@@ -287,8 +289,9 @@ export function initVoiceCall(): () => void {
         if (voiceCallState.connState !== "connected" || !voiceCallState.roomId)
             return;
         const ids = rosterIds(voiceCallState.roomId);
-        for (const sound of diffPeerSounds(peerIds, ids, auth.userId ?? ""))
-            playGated(sound);
+        const sounds = diffPeerSounds(peerIds, ids, auth.userId ?? "");
+        if (sounds.length) lastRosterChangeAt = Date.now();
+        for (const sound of sounds) playGated(sound);
         peerIds = ids;
     });
     const unsubConn = onVoiceConnStateChanged((state, roomId) => {
@@ -375,7 +378,18 @@ export function initVoiceCall(): () => void {
         voiceCallState.speakingMemberIds = ids;
     });
     const unsubMutes = onParticipantMuteChanged((ids) => {
+        const prev = new Set(voiceCallState.mutedIdentities);
         voiceCallState.mutedIdentities = ids;
+        // A peer who just joined starts out looking muted and then unmutes
+        // as their mic publishes; that is the join sound's job, not ours.
+        if (
+            voiceCallState.connState !== "connected" ||
+            Date.now() - lastRosterChangeAt < PEER_SETTLE_MS
+        )
+            return;
+        const next = new Set(ids);
+        if ([...next].some((id) => !prev.has(id))) playGated("mute");
+        else if ([...prev].some((id) => !next.has(id))) playGated("unmute");
     });
     const unsubError = onVoiceCallError((msg) => {
         selfSound = flagCallError(selfSound);

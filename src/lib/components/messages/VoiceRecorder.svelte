@@ -7,6 +7,7 @@
         computeWaveform,
         pickAudioMimeType,
     } from "$lib/utils/voiceMessage";
+    import { micErrorMessage } from "$lib/utils/micErrorMessage";
     import { formatCallDuration } from "$lib/utils/callDuration";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { holdPageAlive } from "$lib/stores/pageKeepAlive";
@@ -62,10 +63,14 @@
             granted = await navigator.mediaDevices.getUserMedia({
                 audio: true,
             });
-        } catch {
+        } catch (err) {
             // A denial that arrives after teardown has no UI left to tell.
             if (!isCaptureCurrent(capture, ticket)) return;
-            showErrorToast(t("voiceRecorder.microphoneAccessWasDenied"));
+            console.error("[voice] couldn't open the microphone", err);
+            showErrorToast(
+                micErrorMessage(err) ??
+                    t("voiceRecorder.microphoneAccessWasDenied"),
+            );
             onClose();
             return;
         }

@@ -8,10 +8,10 @@
 export const NORMALIZE_TARGET_DB = -20;
 /** Windows quieter than this are pauses or room noise: they neither move the
  *  level estimate nor the gain, so silence is never pumped up. */
-export const NORMALIZE_GATE_DB = -55;
-/** Gain range normalization may apply: -12 dB to +18 dB. */
+export const NORMALIZE_GATE_DB = -50;
+/** Gain range normalization may apply: -12 dB to +12 dB. */
 export const NORMALIZE_MIN_GAIN = 0.25;
-export const NORMALIZE_MAX_GAIN = 8;
+export const NORMALIZE_MAX_GAIN = 4;
 /** Per-window weight of a new measurement in the smoothed level: high when
  *  the voice gets louder, so a sudden shout is caught within a few windows,
  *  low when it gets quieter, so one soft word does not swing the gain up. */
@@ -57,7 +57,7 @@ export function normalizationGain(levelDb: number | null): number | null {
  *  someone down is quick so a sudden shout does not blast, turning them up
  *  is slow so a brief quiet word does not drag the room noise up with it. */
 export function gainTimeConstant(current: number, target: number): number {
-    return target < current ? 0.15 : 1.5;
+    return target < current ? 0.15 : 4;
 }
 
 /** One voice's normalization state: its smoothed speech level and the gate

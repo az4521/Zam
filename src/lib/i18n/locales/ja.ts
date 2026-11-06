@@ -553,6 +553,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.noiseAttenuationLimit": "ノイズ除去の上限: {value} dB",
     "debugSettings.noiseAttenuationLimitHint":
         "ノイズフィルタ（DeepFilterNet3 または DPDFNet）が信号の各部分から取り除ける最大量です（既定 {value}）。100 は無制限です。",
+    "debugSettings.soundboardInterval": "サウンドボードの間隔: {value} ms",
+    "debugSettings.soundboardIntervalHint":
+        "同じ人のサウンドボード音の最短間隔。これより速く届いた音は無視されます（既定 1500）。",
     "debugSettings.syncStatus": "同期状態",
     "debugSettings.clientLogs": "クライアントログ",
     "debugSettings.clientLogsHint":

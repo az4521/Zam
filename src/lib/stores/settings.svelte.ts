@@ -6,6 +6,7 @@
 // stays the synchronous boot cache, the server is the source of truth once a
 // sync lands. See stores/customizationSync.svelte for the transport.
 import { t } from "$lib/i18n";
+import { MIN_SOUND_INTERVAL_MS } from "$lib/utils/soundboard";
 
 import { isPresenceState, type PresenceState } from "$lib/utils/presence";
 import {
@@ -163,6 +164,17 @@ function readAccountNumber(key: string, fallback: number): number {
     if (v === null) return fallback;
     const n = Number(v);
     return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : fallback;
+}
+
+function clampSoundInterval(n: number): number {
+    return Number.isFinite(n)
+        ? Math.min(10000, Math.max(0, Math.round(n)))
+        : MIN_SOUND_INTERVAL_MS;
+}
+
+function readSoundInterval(): number {
+    const v = readAccountString("soundIntervalMs");
+    return v === null ? MIN_SOUND_INTERVAL_MS : clampSoundInterval(Number(v));
 }
 
 function readPresence(key: string, fallback: PresenceState): PresenceState {
@@ -477,6 +489,8 @@ export const settingsState = $state({
     dfAttenuationDb: normalizeAttenuationDb(
         readAccountString("dfAttenuationDb"),
     ),
+    /** Debug: shortest gap, in ms, between one sender's soundboard sounds. */
+    soundIntervalMs: readSoundInterval(),
     /** Even out how loud each remote speaker plays (receive side). */
     normalizeCallAudio: readAccountBool("normalizeCallAudio", false),
     /** Mirror the local camera self-view (horizontal flip). Local display
@@ -807,6 +821,7 @@ export function reloadAccountSettings(): void {
         readAccountBool("autoGainControl", true),
     );
     settingsState.micPauseGate = readAccountBool("micPauseGate", false);
+    settingsState.soundIntervalMs = readSoundInterval();
     settingsState.noiseSuppressionGpu = normalizeNoiseSuppressionGpu(
         readAccountString("noiseSuppressionGpuByMode"),
     );
@@ -1288,6 +1303,12 @@ export function setNoiseSuppressionGpu(
         "noiseSuppressionGpuByMode",
         JSON.stringify(settingsState.noiseSuppressionGpu),
     );
+}
+
+export function setSoundIntervalMs(value: number): void {
+    const ms = clampSoundInterval(value);
+    settingsState.soundIntervalMs = ms;
+    writeAccountNumber("soundIntervalMs", ms);
 }
 
 export function setDfAttenuationDb(value: number): void {

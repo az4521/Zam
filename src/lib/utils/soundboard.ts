@@ -20,7 +20,10 @@ export const MAX_SOUND_BYTES = 1024 * 1024;
 /** Longest clip accepted, in seconds. */
 export const MAX_SOUND_SECONDS = 15;
 /** Receivers drop a sender's sounds arriving faster than this. */
-export const MIN_SOUND_INTERVAL_MS = 400;
+export const MIN_SOUND_INTERVAL_MS = 1500;
+/** A sound that has not started this long after it arrived is dropped, so a
+ *  slow download does not play it over a conversation that moved on. */
+export const SOUND_START_TTL_MS = 3000;
 /** Sounds from one sender that may be playing at once. */
 export const MAX_SOUNDS_PER_SENDER = 3;
 /** Soundboard slider ceiling: 500%, like the voice slider. */
@@ -295,13 +298,15 @@ export interface SenderLimiter {
     done(sender: string): void;
 }
 
-export function createSenderLimiter(): SenderLimiter {
+export function createSenderLimiter(
+    minIntervalMs: () => number = () => MIN_SOUND_INTERVAL_MS,
+): SenderLimiter {
     const last = new Map<string, number>();
     const playing = new Map<string, number>();
     return {
         allow(sender, now) {
             const prev = last.get(sender);
-            if (prev !== undefined && now - prev < MIN_SOUND_INTERVAL_MS)
+            if (prev !== undefined && now - prev < minIntervalMs())
                 return false;
             if ((playing.get(sender) ?? 0) >= MAX_SOUNDS_PER_SENDER)
                 return false;

@@ -605,6 +605,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.noiseAttenuationLimit": "Noise removal limit: {value} dB",
     "debugSettings.noiseAttenuationLimitHint":
         "The most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
+    "debugSettings.soundboardInterval": "Soundboard-Abstand: {value} ms",
+    "debugSettings.soundboardIntervalHint":
+        "Kürzester Abstand zwischen Soundboard-Sounds einer Person. Schnellere Sounds werden ignoriert (Standard 1500).",
     "debugSettings.syncStatus": "Sync-Status",
     "debugSettings.clientLogs": "Client-Protokolle",
     "debugSettings.clientLogsHint":

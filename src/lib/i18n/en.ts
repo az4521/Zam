@@ -607,6 +607,9 @@ export const en = {
     "debugSettings.noiseAttenuationLimit": "Noise removal limit: {value} dB",
     "debugSettings.noiseAttenuationLimitHint":
         "The most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
+    "debugSettings.soundboardInterval": "Soundboard interval: {value} ms",
+    "debugSettings.soundboardIntervalHint":
+        "Shortest gap between one person's soundboard sounds. Others' sounds that come faster are ignored (default 1500).",
     "debugSettings.syncStatus": "Sync Status",
     "debugSettings.clientLogs": "Client logs",
     "debugSettings.clientLogsHint":

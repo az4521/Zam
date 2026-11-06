@@ -77,6 +77,7 @@ import {
     MAX_SOUND_SECONDS,
     SOUNDBOARD_TOPIC,
     createSenderLimiter,
+    SOUND_START_TTL_MS,
     decodeSoundboardMessage,
     encodeSoundboardMessage,
     soundGain,
@@ -1028,7 +1029,7 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
 // person's sounds are, apart from that person's voice. A sound not seen
 // before is streamed while it downloads (soundStream.ts) and stored on the
 // device (soundCache.ts); every later play decodes the stored copy.
-const soundLimiter = createSenderLimiter();
+const soundLimiter = createSenderLimiter(() => settingsState.soundIntervalMs);
 /** Raw clips by mxc, most recently used last: the first stop before disk. */
 const soundBytes = new Map<string, ArrayBuffer>();
 const SOUND_MEMORY_MAX_BYTES = 8 * MAX_SOUND_BYTES;
@@ -1137,7 +1138,8 @@ async function playSoundboardClip(
         !!audio?.muted,
     );
     if (gain <= 0 || voicePlaybackMuted) return;
-    if (!soundLimiter.allow(userId, Date.now())) return;
+    const arrivedAt = Date.now();
+    if (!soundLimiter.allow(userId, arrivedAt)) return;
     let started = false;
     try {
         const graph = ensureAudioGraph(call);
@@ -1149,6 +1151,7 @@ async function playSoundboardClip(
             if (bytes) buffer = await soundBuffer(graph, mxcUrl, bytes);
         }
         if (activeVoice !== call) return;
+        if (buffer && Date.now() - arrivedAt > SOUND_START_TTL_MS) return;
         if (buffer) {
             started =
                 graph.playBuffer(buffer, gain, () =>
@@ -1445,7 +1448,14 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         },
         // Each video publish sets its own backup codec
         // (videoCodecPublishOptions).
-        publishDefaults: { backupCodec: false },
+        // Speech, not the SDK's music preset: a lower bitrate that holds up
+        // on lossy links. RED carries the redundancy that recovers losses.
+        publishDefaults: {
+            backupCodec: false,
+            audioPreset: lk.AudioPresets.speech,
+            dtx: true,
+            red: true,
+        },
         // Stop encoding simulcast layers (and codecs) no subscriber is
         // watching. Only this room publishes; remote SFUs are receive-only.
         dynacast: true,

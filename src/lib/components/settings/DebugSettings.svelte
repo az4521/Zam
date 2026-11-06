@@ -38,6 +38,7 @@
         setIgnoreCodecSupport,
         setH264ProfileFix,
         setMicPauseGate,
+        setSoundIntervalMs,
         setShowAllEvents,
         setOrderHints,
         setUpdateNagDisabled,
@@ -502,6 +503,34 @@
                 oninput={(e) =>
                     setDfAttenuationDb(Number(e.currentTarget.value))}
                 onchange={applyMicTuning}
+            />
+        </div>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <label
+                    for="sound-interval"
+                    class="text-sm text-discord-textPrimary"
+                >
+                    {t("debugSettings.soundboardInterval", {
+                        value: settingsState.soundIntervalMs,
+                    })}
+                </label>
+                <p class="text-xs text-discord-textMuted">
+                    {t("debugSettings.soundboardIntervalHint")}
+                </p>
+            </div>
+            <input
+                id="sound-interval"
+                type="range"
+                min="0"
+                max="5000"
+                step="100"
+                class="w-40 flex-shrink-0"
+                value={settingsState.soundIntervalMs}
+                oninput={(e) =>
+                    setSoundIntervalMs(Number(e.currentTarget.value))}
             />
         </div>
     </section>

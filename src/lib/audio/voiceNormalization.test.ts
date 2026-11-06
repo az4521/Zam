@@ -89,19 +89,19 @@ describe("speechWindow", () => {
         expect(speechWindow(gate, -60, 0.1)).toBe(false);
     });
     it("keeps a quiet speaker's gain through a long noisy pause", () => {
-        // 1 s of speech at -35, then 10 s of their room noise at -50 (above
-        // the -55 level gate): only speech may move the level.
+        // 1 s of speech at -32, then 10 s of their room noise at -50 (above
+        // the -50 level gate): only speech may move the level.
         const gate = createSpeechGate();
         let level: number | null = null;
         const feed = (db: number) => {
             if (speechWindow(gate, db, 0.1)) level = nextSpeechLevel(level, db);
         };
         for (let i = 0; i < 30; i++) feed(-52); // room before they speak
-        for (let i = 0; i < 10; i++) feed(-35);
+        for (let i = 0; i < 10; i++) feed(-32);
         const speaking = normalizationGain(level)!;
         for (let i = 0; i < 100; i++) feed(-50);
         expect(normalizationGain(level)).toBeCloseTo(speaking);
-        expect(20 * Math.log10(speaking)).toBeCloseTo(NORMALIZE_TARGET_DB + 35);
+        expect(20 * Math.log10(speaking)).toBeCloseTo(NORMALIZE_TARGET_DB + 32);
     });
 });
 
