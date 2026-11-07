@@ -396,6 +396,10 @@ export async function buildSlidingSync(
         );
     });
 
+    // Last (server, local) total logged per room for a dropped count, so the
+    // log only records a change rather than every response.
+    const droppedCountLog = new Map<string, string>();
+
     // Reset a room's live timeline when an update skips events, like classic
     // /sync does (see isSlidingTimelineGap for what the SDK gets wrong). This
     // listener is registered before startClient() builds the SDK's own
@@ -412,6 +416,30 @@ export async function buildSlidingSync(
                 if (!room) {
                     adoptUnknownRoom(roomId, roomData);
                     return;
+                }
+                // The SDK overwrites a room's unread total with the server's
+                // count unconditionally. An encrypted room tracks its own total
+                // (the server can't see decrypted mentions), so the server's
+                // non-zero count would make a read room look unread again. The
+                // classic path skips it for encrypted rooms (sync.ts), so drop it
+                // here too. The gap check below still needs the server value.
+                const serverTotal = roomData.notification_count;
+                if (
+                    serverTotal !== undefined &&
+                    serverTotal !== 0 &&
+                    room.hasEncryptionStateEvent()
+                ) {
+                    const localTotal = room.getUnreadNotificationCount(
+                        NotificationCountType.Total,
+                    );
+                    delete roomData.notification_count;
+                    const key = `${serverTotal}/${localTotal}`;
+                    if (droppedCountLog.get(roomId) !== key) {
+                        droppedCountLog.set(roomId, key);
+                        logSync(
+                            `ignored server count ${serverTotal} in encrypted ${roomId} (local total ${localTotal})`,
+                        );
+                    }
                 }
                 // The SDK splits an `expanded_timeline` update like a
                 // `limited` one, and hands the older events it finds the
@@ -474,7 +502,7 @@ export async function buildSlidingSync(
                         NotificationCountType.Total,
                     ),
                     highlight: roomData.highlight_count,
-                    total: roomData.notification_count,
+                    total: serverTotal,
                     delivered: roomData.timeline?.length ?? 0,
                 });
                 logSync(`timeline reset (gap) in ${roomId}`);
