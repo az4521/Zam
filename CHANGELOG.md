@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.13
+
+🐛 **Fixed**
+
+- **Rooms and DMs coming back as unread:** encrypted rooms (including DMs) could show as unread again after you read them, because the server's unread count overwrote Zam's own count whenever the room appeared in a sync update. Zam now keeps its own count for encrypted rooms.
+- **Failed read receipts are retried:** if sending a read receipt failed, Zam still treated the room as read until the next reload, when it came back unread. It now retries the next time you read the room, and clears the room's notification dot once the receipt goes through.
+
 ## v1.54.12
 
 🐛 **Fixed**
