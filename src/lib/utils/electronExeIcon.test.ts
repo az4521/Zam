@@ -492,9 +492,9 @@ describe("Windows Steam icon", () => {
             "ProgramFiles(x86)": "D:\\PF",
             ProgramFiles: "D:\\PF",
         });
-        expect(roots[0]).toBe("D:\\PF\\Steam");
-        expect(roots).toContain("C:\\Program Files (x86)\\Steam");
-        expect(roots).toContain("C:\\Program Files\\Steam");
+        expect(roots[0]).toBe(join("D:\\PF", "Steam"));
+        expect(roots).toContain(join("C:\\Program Files (x86)", "Steam"));
+        expect(roots).toContain(join("C:\\Program Files", "Steam"));
         expect(new Set(roots).size).toBe(roots.length);
     });
 
