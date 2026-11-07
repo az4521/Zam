@@ -227,9 +227,7 @@ function windowsSteamRoots(env) {
         "C:\\Program Files",
     ];
     return [
-        ...new Set(
-            bases.filter(Boolean).map((b) => path.win32.join(b, "Steam")),
-        ),
+        ...new Set(bases.filter(Boolean).map((b) => path.join(b, "Steam"))),
     ];
 }
 
