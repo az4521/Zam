@@ -17,6 +17,9 @@ const {
     execRuns,
     peIcon,
     dibToPng,
+    steamGamePath,
+    windowsSteamRoots,
+    windowsSteamIcon,
 } = require(join(__dirname, "../../../electron/exeIcon.cjs"));
 
 type HostRun = (file: string, args: string[]) => Promise<string>;
@@ -420,5 +423,93 @@ describe("linuxExeIconAsync", () => {
         });
         expect(asked).toBe(0);
         expect(icon).not.toBeNull();
+    });
+});
+
+describe("Windows Steam icon", () => {
+    /**
+     * A Steam install at <pf>\Steam with its cache, and a game installed in a
+     * library on another drive (<other>\steamapps). Built with the platform's
+     * own separators, so on Windows the paths are real backslash paths.
+     */
+    function steamTree(home: string) {
+        const pf = join(home, "Program Files (x86)");
+        const other = join(home, "Games");
+        mkdirSync(join(other, "steamapps/common/Cool Game/bin"), {
+            recursive: true,
+        });
+        writeFileSync(
+            join(other, "steamapps/appmanifest_4242.acf"),
+            '"AppState"\n{\n\t"installdir"\t\t"Cool Game"\n}\n',
+        );
+        const cache = join(pf, "Steam/appcache/librarycache/4242");
+        mkdirSync(cache, { recursive: true });
+        writeFileSync(join(cache, `${"b".repeat(40)}.jpg`), "winjpeg");
+        const exe = join(other, "steamapps/common/Cool Game/bin/Game.exe");
+        writeFileSync(exe, "exe");
+        return {
+            pf,
+            exe,
+            env: { "ProgramFiles(x86)": pf, ProgramFiles: home },
+        };
+    }
+
+    it("finds the game's icon in the default Steam install's cache", () => {
+        const home = tmp();
+        const { exe, env } = steamTree(home);
+        const icon = windowsSteamIcon(exe, env);
+        expect(icon?.type).toBe("image/jpeg");
+        expect(Buffer.from(icon!.data).toString()).toBe("winjpeg");
+    });
+
+    it("returns null for an executable that is not in a Steam library", () => {
+        const home = tmp();
+        const { env } = steamTree(home);
+        const loose = join(home, "Loose", "Game.exe");
+        mkdirSync(join(home, "Loose"));
+        writeFileSync(loose, "exe");
+        expect(windowsSteamIcon(loose, env)).toBeNull();
+        expect(windowsSteamIcon("", env)).toBeNull();
+    });
+
+    it("returns null when the game has no appmanifest or no cached icon", () => {
+        const home = tmp();
+        const { exe, env } = steamTree(home);
+        const noManifest = join(home, "Games/steamapps/common/Other/Game.exe");
+        mkdirSync(join(home, "Games/steamapps/common/Other"), {
+            recursive: true,
+        });
+        writeFileSync(noManifest, "exe");
+        expect(windowsSteamIcon(noManifest, env)).toBeNull();
+        rmSync(join(home, "Program Files (x86)/Steam/appcache"), {
+            recursive: true,
+        });
+        expect(windowsSteamIcon(exe, env)).toBeNull();
+    });
+
+    it("lists the default Steam folders, from the environment first", () => {
+        const roots = windowsSteamRoots({
+            "ProgramFiles(x86)": "D:\\PF",
+            ProgramFiles: "D:\\PF",
+        });
+        expect(roots[0]).toBe("D:\\PF\\Steam");
+        expect(roots).toContain("C:\\Program Files (x86)\\Steam");
+        expect(roots).toContain("C:\\Program Files\\Steam");
+        expect(new Set(roots).size).toBe(roots.length);
+    });
+
+    it("splits Windows and POSIX game paths alike", () => {
+        expect(
+            steamGamePath(
+                "D:\\SteamLibrary\\steamapps\\common\\Satisfactory\\FactoryGame.exe",
+            ),
+        ).toEqual({
+            steamapps: "D:/SteamLibrary/steamapps",
+            dir: "Satisfactory",
+        });
+        expect(
+            steamGamePath("/home/u/steamapps/common/Sat/bin/Game.exe"),
+        ).toEqual({ steamapps: "/home/u/steamapps", dir: "Sat" });
+        expect(steamGamePath("D:\\Games\\Satisfactory.exe")).toBeNull();
     });
 });

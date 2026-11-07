@@ -12,6 +12,9 @@
 //   3. an icon stored in the resources of a Windows .exe (Wine and Proton
 //      games), either PNG-compressed or an old-style bitmap, converted to PNG.
 //
+// On Windows only the Steam part applies (windowsSteamIcon), tried before
+// app.getFileIcon.
+//
 // Returns { type, data } like presenceImages expects (type may be
 // image/svg+xml, which the page rasterizes), or null when nothing real is
 // found, so the card shows no picture rather than a wrong one.
@@ -215,15 +218,42 @@ function steamAppId(steamapps, dir) {
     return null;
 }
 
-/** The icon Steam cached for the game this executable belongs to. */
-function steamIcon(exe, home) {
+/** Steam's default install folders on Windows, from the environment. */
+function windowsSteamRoots(env) {
+    const bases = [
+        env["ProgramFiles(x86)"],
+        env.ProgramFiles,
+        "C:\\Program Files (x86)",
+        "C:\\Program Files",
+    ];
+    return [
+        ...new Set(
+            bases.filter(Boolean).map((b) => path.win32.join(b, "Steam")),
+        ),
+    ];
+}
+
+/**
+ * The steamapps folder and game folder name of an executable under
+ * <library>\steamapps\common\<Game>\, with either kind of slash, or null.
+ */
+function steamGamePath(exe) {
     const norm = exe.replaceAll("\\", "/");
     const m = /^(.*\/steamapps)\/common\/([^/]+)\//i.exec(norm);
-    if (!m) return null;
-    const appId = steamAppId(m[1], m[2]);
+    return m ? { steamapps: m[1], dir: m[2] } : null;
+}
+
+/**
+ * The icon Steam cached for the game this executable belongs to. `installRoots`
+ * are Steam install folders whose appcache/librarycache is searched.
+ */
+function steamIcon(exe, installRoots) {
+    const game = steamGamePath(exe);
+    if (!game) return null;
+    const appId = steamAppId(game.steamapps, game.dir);
     if (!appId) return null;
     // Libraries on other drives share the Steam install's cache.
-    for (const root of [path.dirname(m[1]), ...steamRoots(home)]) {
+    for (const root of [path.dirname(game.steamapps), ...installRoots]) {
         const dir = path.join(root, "appcache/librarycache", appId);
         const old = path.join(dir, `${appId}_icon.jpg`);
         try {
@@ -258,6 +288,20 @@ function findHashedIcon(dir, depth = 0) {
             if (hit) return hit;
         }
     return null;
+}
+
+/**
+ * { type, data } for the Steam icon of a Windows executable, read from the
+ * default Steam install, or null. Never throws.
+ */
+function windowsSteamIcon(exe, env = process.env) {
+    try {
+        if (typeof exe !== "string" || !exe) return null;
+        const icon = steamIcon(exe, windowsSteamRoots(env));
+        return icon ? readIcon(icon) : null;
+    } catch {
+        return null;
+    }
 }
 
 // ── Bitmap icons ──────────────────────────────────────────────────────────
@@ -513,7 +557,7 @@ function linuxExeIcon(exe, { env = process.env, home = os.homedir() } = {}) {
     const launcher = desktopIcon(exe, env, home);
     const fromLauncher = launcher && readIcon(launcher);
     if (fromLauncher) return fromLauncher;
-    const steam = steamIcon(exe, home);
+    const steam = steamIcon(exe, steamRoots(home));
     const fromSteam = steam && readIcon(steam);
     if (fromSteam) return fromSteam;
     if (/\.exe$/i.test(exe)) {
@@ -693,4 +737,8 @@ module.exports = {
     peIcon,
     dibToPng,
     steamIcon,
+    steamGamePath,
+    steamRoots,
+    windowsSteamRoots,
+    windowsSteamIcon,
 };

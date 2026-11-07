@@ -64,21 +64,32 @@ function createKnownGames({ file, fetch, now = Date.now, log = () => {} }) {
 
     function index(games, platform) {
         const byId = new Map();
-        const byExe = new Map(); // name -> [{ id, exact, args }]
+        const byExe = new Map(); // name -> [{ id, exact, args, wine }]
+        // Windows executables on Linux: Steam games run through Wine or Proton
+        // are listed as win32 and run as .exe files.
+        const wineExe = new Map();
         for (const game of games ?? []) {
             byId.set(game.id, { name: game.name, icon: game.icon });
             for (const exe of game.exe) {
-                if (exe.os !== platform) continue;
+                const wine =
+                    platform === "linux" &&
+                    exe.os === "win32" &&
+                    /\.exe$/i.test(exe.name);
+                if (exe.os !== platform && !wine) continue;
                 // A leading ">" means "the file name must be exactly this".
                 const exact = exe.name.startsWith(">");
                 const key = (
                     exact ? exe.name.slice(1) : exe.name
                 ).toLowerCase();
-                let list = byExe.get(key);
-                if (!list) byExe.set(key, (list = []));
-                list.push({ id: game.id, exact, args: exe.args });
+                const into = wine ? wineExe : byExe;
+                let list = into.get(key);
+                if (!list) into.set(key, (list = []));
+                list.push({ id: game.id, exact, args: exe.args, wine });
             }
         }
+        // A native executable with the same name wins over a Windows one.
+        for (const [key, list] of wineExe)
+            if (!byExe.has(key)) byExe.set(key, list);
         return { platform, byId, byExe };
     }
 
