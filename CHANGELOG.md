@@ -4,6 +4,15 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.14
+
+🐛 **Fixed**
+
+- **Games run through Proton or Wine are detected:** on Linux (including the Flatpak), Steam games that run as Windows programs were never recognised by game scanning, so no activity showed. Zam now matches them and ignores Wine's own system programs.
+- **Games in folders with spaces are detected in the Flatpak:** native games under paths like `steamapps/common/Hollow Knight` are matched.
+- **Scanning recovers after a failed host check:** a slow first permission check no longer turns scanning off until Zam restarts.
+- **Steam icons for scanned games on Windows:** the game's own Steam icon is used, and a Discord icon that fails to load falls back to the program's icon.
+
 ## v1.54.13
 
 🐛 **Fixed**
