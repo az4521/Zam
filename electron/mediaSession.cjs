@@ -1,8 +1,9 @@
 // Now playing: what a media player is playing, shown as "Listening to" in rich
 // presence (richPresence.cjs). Windows reads the system's media transport
-// controls (SMTC); Linux reads MPRIS on the session bus. macOS has no system
-// API for other apps' now-playing info, so it asks Spotify and Music (the two
-// apps with a scripting dictionary) through osascript.
+// controls (SMTC); Linux reads MPRIS on the session bus. macOS reads the
+// system's now-playing info through ungive/mediaremote-adapter, which loads
+// the private MediaRemote framework via the system's entitled perl binary, so
+// it works with any player, not just the two with a scripting dictionary.
 //
 // Only players that are PLAYING are reported. A paused, stopped or closed player
 // is reported as null. onTrack({ playerId, playerName, track }) gets
@@ -14,7 +15,7 @@
 // API is only reachable from .NET. Its output is one JSON line per session and
 // an end marker after each poll.
 
-const { spawn, execFile } = require("child_process");
+const { spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -509,86 +510,106 @@ function call(bus, msg, onBus = false) {
 
 const PROPS_IFACE = "org.freedesktop.DBus.Properties";
 
-const MACOS_POLL_MS = 3000;
-const MACOS_DENIED = /-1743|Not authorized to send Apple events/;
+// macOS: ungive/mediaremote-adapter streams the system's now-playing info,
+// which is the only way to see players without a scripting dictionary. It
+// loads the private MediaRemote framework through /usr/bin/perl, a platform
+// binary that mediaremoted still lets read now playing data. The script and
+// framework are built by scripts/build-mediaremote-adapter.mjs.
+const MACOS_PLAYERS = new Map([
+    ["com.spotify.client", { id: "spotify", name: "Spotify" }],
+    ["com.apple.Music", { id: "music", name: "Music" }],
+    ["com.apple.Safari", { id: "safari", name: "Safari" }],
+    ["com.apple.WebKit.GPU", { id: "webkit", name: "WebKit" }],
+    ["com.google.Chrome", { id: "chrome", name: "Google Chrome" }],
+    ["com.microsoft.edgemac", { id: "edge", name: "Microsoft Edge" }],
+    ["org.mozilla.firefox", { id: "firefox", name: "Firefox" }],
+    ["com.videolan.vlc", { id: "vlc", name: "VLC" }],
+]);
+const MACOS_COVER_B64_MAX = Math.ceil(ART_MAX_BYTES / 3) * 4;
 
-// One JXA run: prints a JSON array with a session per playing or paused player
-// and an { error: true, app, denied, message } element per failure. Spotify and
-// Music are only asked when NSWorkspace says they are running, because
-// talking to an app that is not running launches it (NSWorkspace needs no
-// Automation permission, unlike System Events). Spotify reports its
-// duration in milliseconds, Music in seconds; positions are seconds in both.
-const MACOS_SCRIPT = `
-function run() {
-    const out = [];
-    const fail = (app, e) => {
-        const message = String((e && e.message) || e);
-        const denied = (e && e.errorNumber === -1743) || /-1743|Not authorized to send Apple events/.test(message);
-        out.push({ error: true, app, denied: !!denied, message });
-    };
-    const running = [];
-    try {
-        ObjC.import("AppKit");
-        const apps = $.NSWorkspace.sharedWorkspace.runningApplications;
-        for (let i = 0; i < apps.count; i++) {
-            const id = ObjC.unwrap(apps.objectAtIndex(i).bundleIdentifier);
-            if (id) running.push(id);
-        }
-    } catch (e) {
-        fail("NSWorkspace", e);
-    }
-    const players = [
-        {
-            playerId: "spotify",
-            playerName: "Spotify",
-            bundleId: "com.spotify.client",
-            durationScale: 1,
-        },
-        {
-            playerId: "music",
-            playerName: "Music",
-            bundleId: "com.apple.Music",
-            durationScale: 1000,
-        },
-    ];
-    for (const p of players) {
-        if (running.indexOf(p.bundleId) < 0) continue;
-        try {
-            const app = Application(p.bundleId);
-            const state = String(app.playerState()).toLowerCase();
-            const playing = state.indexOf("playing") >= 0;
-            const session = {
-                playerId: p.playerId,
-                playerName: p.playerName,
-                playing,
-                title: "",
-                artist: "",
-                album: "",
-                durationMs: 0,
-                positionMs: 0,
-            };
-            if (playing || state.indexOf("paused") >= 0) {
-                const t = app.currentTrack;
-                session.title = String(t.name());
-                session.artist = String(t.artist());
-                session.album = String(t.album());
-                session.durationMs = Math.round(t.duration() * p.durationScale);
-                session.positionMs = Math.round(app.playerPosition() * 1000);
-                // Spotify's cover is an i.scdn.co address; Music has none.
-                if (p.playerId === "spotify") {
-                    try {
-                        session.artUrl = String(t.artworkUrl());
-                    } catch {}
-                }
-            }
-            out.push(session);
-        } catch (e) {
-            fail(p.playerName, e);
-        }
-    }
-    return JSON.stringify(out);
+/** The player behind a bundle id, as { id, name }. */
+function macosPlayer(bundleId) {
+    const known = MACOS_PLAYERS.get(bundleId);
+    if (known) return known;
+    const name = bundleId.split(".").filter(Boolean).pop() || bundleId;
+    return { id: bundleId.toLowerCase(), name };
 }
-`;
+
+/**
+ * The state after one line of the adapter's `stream` output, or null for a
+ * line that is not a payload. A diff line carries only what changed (a null
+ * removes a key); a full line replaces the state.
+ */
+function mergeMacosPayload(state, line) {
+    let msg;
+    try {
+        msg = JSON.parse(String(line).replace(/^\uFEFF/, ""));
+    } catch {
+        return null;
+    }
+    if (
+        msg?.type !== "data" ||
+        !msg.payload ||
+        typeof msg.payload !== "object" ||
+        Array.isArray(msg.payload)
+    )
+        return null;
+    const next = msg.diff === true ? { ...state } : {};
+    for (const [key, value] of Object.entries(msg.payload)) {
+        if (value === null) delete next[key];
+        else next[key] = value;
+    }
+    return next;
+}
+
+/** The image in an artworkData payload, or undefined. */
+function macosCover(state) {
+    const b64 = state.artworkData;
+    if (typeof b64 !== "string" || b64.length > MACOS_COVER_B64_MAX)
+        return undefined;
+    const bytes = Buffer.from(b64, "base64");
+    if (bytes.length > ART_MAX_BYTES) return undefined;
+    return coverOf(bytes);
+}
+
+/**
+ * The playing session in a merged `stream` state, or null when no app is
+ * playing. The adapter reports microseconds (--micros) and elapsedTime is the
+ * position at timestamp, so playbackRate advances it to now.
+ */
+function macosSession(state, now = Date.now()) {
+    // WebKit browsers report a helper bundle id; the parent is the app.
+    const bundleId =
+        text(state.parentApplicationBundleIdentifier) ||
+        text(state.bundleIdentifier);
+    if (!bundleId) return null;
+    const player = macosPlayer(bundleId);
+    const playing = state.playing === true;
+    const durationMs = ms(Number(state.durationMicros) / 1000);
+    const elapsedMs = Number(state.elapsedTimeMicros) / 1000;
+    const timestampMs = Number(state.timestampEpochMicros) / 1000;
+    const rate = Number.isFinite(Number(state.playbackRate))
+        ? Number(state.playbackRate)
+        : playing
+          ? 1
+          : 0;
+    let positionMs = Number.isFinite(elapsedMs) ? elapsedMs : 0;
+    if (Number.isFinite(timestampMs) && timestampMs > 0 && rate > 0)
+        positionMs += Math.max(0, now - timestampMs) * rate;
+    positionMs = Math.max(0, positionMs);
+    if (durationMs > 0) positionMs = Math.min(positionMs, durationMs);
+    return {
+        playerId: player.id,
+        playerName: player.name,
+        playing,
+        title: text(state.title),
+        artist: text(state.artist),
+        album: text(state.album),
+        durationMs,
+        positionMs: ms(positionMs),
+        cover: macosCover(state),
+    };
+}
 
 function startMpris({ diff, status, log, doFetch }) {
     let bus = null;
@@ -706,133 +727,81 @@ function startMpris({ diff, status, log, doFetch }) {
     };
 }
 
-/**
- * The sessions in one osascript run's stdout (the array MACOS_SCRIPT prints),
- * as parseSmtcLine would give them minus `end`. Garbage, a non-array, or an
- * element without a playerId gives nothing.
- */
-function parseMacosOutput(stdout) {
-    const list = parseMacosList(stdout);
-    const sessions = [];
-    for (const m of list) {
-        if (m.error === true) continue;
-        const playerId = text(m.playerId).toLowerCase();
-        if (!playerId) continue;
-        sessions.push({
-            playerId,
-            playerName: text(m.playerName) || playerId,
-            playing: m.playing === true,
-            title: text(m.title),
-            artist: text(m.artist),
-            album: text(m.album),
-            durationMs: ms(m.durationMs),
-            positionMs: ms(m.positionMs),
-            artUrl:
-                playerId === "spotify"
-                    ? text(m.artUrl) || undefined
-                    : undefined,
-        });
-    }
-    return sessions;
-}
-
-/** The failures in one osascript run's stdout: [{ app, denied, message }]. */
-function parseMacosErrors(stdout) {
-    return parseMacosList(stdout)
-        .filter((m) => m.error === true)
-        .map((m) => ({
-            app: text(m.app) || "macOS",
-            denied: m.denied === true,
-            message: text(m.message),
-        }));
-}
-
-function parseMacosList(stdout) {
-    let list;
-    try {
-        list = JSON.parse(String(stdout ?? "").trim());
-    } catch {
-        return [];
-    }
-    if (!Array.isArray(list)) return [];
-    return list.filter((m) => m && typeof m === "object");
-}
-
-function startMacos({ diff, status, log, doFetch }) {
-    let polling = false;
+function startMacos({ diff, status, log, mediaDir }) {
+    const dir =
+        mediaDir || path.join(process.cwd(), "native", "mediaremote-adapter");
+    const script = path.join(dir, "mediaremote-adapter.pl");
+    const framework = path.join(dir, "MediaRemoteAdapter.framework");
     let stopping = false;
     let child = null;
-    // Each distinct failure is logged once, not on every poll.
-    const logged = new Set();
-    const art = createArtCache(doFetch);
+    let restarts = 0;
+    let state = {};
 
-    /** Sets status.error from one poll's failures; none clears it. */
-    const report = (errors) => {
-        const denied = errors.filter((e) => e.denied).map((e) => e.app);
-        const parts = [];
-        if (denied.length)
-            parts.push(
-                `macOS blocked access to ${denied.join(" and ")}: allow Zam under System Settings > Privacy & Security > Automation`,
-            );
-        for (const e of errors) {
-            if (e.denied) continue;
-            parts.push(`${e.app}: ${e.message}`);
-        }
-        for (const e of errors) {
-            const key = e.denied ? `denied ${e.app}` : `${e.app} ${e.message}`;
-            if (logged.has(key)) continue;
-            logged.add(key);
-            log("media", e.app, e.denied ? "not authorized" : e.message);
-        }
-        status.error = parts.length ? parts.join("; ") : null;
+    if (!fs.existsSync(script) || !fs.existsSync(framework)) {
+        log(
+            "media",
+            "MediaRemote adapter not built; run npm run build:mediaremote",
+        );
+        status.error =
+            "macOS media detection is unavailable: the MediaRemote adapter is missing";
+        return {
+            stop() {
+                diff.update([]);
+            },
+        };
+    }
+
+    const spawnStream = () => {
+        let stderr = "";
+        const proc = spawn(
+            "/usr/bin/perl",
+            [script, framework, "stream", "--micros"],
+            { stdio: ["ignore", "pipe", "pipe"] },
+        );
+        child = proc;
+        let buf = "";
+        proc.stdout.setEncoding("utf8");
+        proc.stdout.on("data", (chunk) => {
+            buf += chunk;
+            for (let nl = buf.indexOf("\n"); nl >= 0; nl = buf.indexOf("\n")) {
+                const next = mergeMacosPayload(state, buf.slice(0, nl));
+                buf = buf.slice(nl + 1);
+                if (!next) continue;
+                state = next;
+                if (stopping) return;
+                const session = macosSession(state);
+                diff.update(session ? [session] : []);
+                status.error = null;
+            }
+        });
+        proc.stderr.on("data", (d) => {
+            stderr = (stderr + d).slice(-500);
+        });
+
+        let dead = false;
+        const died = (reason) => {
+            if (dead || stopping) return;
+            dead = true;
+            state = {};
+            if (restarts++ < RESTART_LIMIT) {
+                log("media helper stopped, restarting:", reason);
+                spawnStream();
+                return;
+            }
+            status.running = false;
+            status.error = `macOS media detection stopped: ${reason}`;
+            diff.update([]);
+        };
+        proc.on("error", (e) => died(e.message));
+        proc.on("exit", (code, signal) =>
+            died(`exit ${code ?? signal ?? "unknown"} ${stderr.trim()}`.trim()),
+        );
     };
 
-    async function handle(err, stdout, stderr) {
-        polling = false;
-        child = null;
-        if (stopping) return;
-        if (err) {
-            // The script catches its own failures, so this is osascript
-            // itself failing: the whole poll is lost.
-            const errText = String(stderr || "").trim();
-            const denied = MACOS_DENIED.test(errText);
-            const message = err.killed
-                ? "timed out"
-                : errText.split("\n")[0] || err.message;
-            report([
-                {
-                    app: denied ? "Spotify or Music" : "osascript",
-                    denied,
-                    message,
-                },
-            ]);
-            return;
-        }
-        const sessions = parseMacosOutput(stdout);
-        for (const s of sessions)
-            s.cover = await art.cover(s.playerId, s.artUrl);
-        if (stopping) return;
-        diff.update(sessions);
-        report(parseMacosErrors(stdout));
-    }
-
-    function poll() {
-        if (polling || stopping) return;
-        polling = true;
-        child = execFile(
-            "osascript",
-            ["-l", "JavaScript", "-e", MACOS_SCRIPT],
-            { timeout: CALL_TIMEOUT_MS, windowsHide: true },
-            (err, stdout, stderr) => void handle(err, stdout, stderr),
-        );
-    }
-
-    poll();
-    const timer = setInterval(poll, MACOS_POLL_MS);
+    spawnStream();
     return {
         stop() {
             stopping = true;
-            clearInterval(timer);
             try {
                 child?.kill();
             } catch {}
@@ -847,13 +816,15 @@ function startMacos({ diff, status, log, doFetch }) {
  * and the SMTC helper are both reachable from inside a Flatpak, but the
  * manifest must grant org.mpris.MediaPlayer2.* for players to be visible. `fetch` (net.fetch in
  * the app) is what cover art from i.scdn.co is downloaded with; without it only
- * file:// art is read.
+ * file:// art is read. `mediaDir` is where the macOS MediaRemote adapter was
+ * built (see scripts/build-mediaremote-adapter.mjs).
  */
 function createMediaSession({
     onTrack,
     inFlatpak = false,
     log = () => {},
     fetch: doFetch,
+    mediaDir,
 }) {
     const diff = createTrackDiffer(onTrack);
     const status = { running: false, error: null };
@@ -869,7 +840,7 @@ function createMediaSession({
             else if (process.platform === "linux")
                 impl = startMpris({ diff, status, log, doFetch });
             else if (process.platform === "darwin")
-                impl = startMacos({ diff, status, log, doFetch });
+                impl = startMacos({ diff, status, log, mediaDir });
             else return;
             status.running = true;
         },
@@ -887,9 +858,9 @@ module.exports = {
     createMediaSession,
     createTrackDiffer,
     friendlyName,
+    macosSession,
+    mergeMacosPayload,
     mprisId,
-    parseMacosErrors,
-    parseMacosOutput,
     parseMprisProps,
     parseSmtcLine,
     readArt,

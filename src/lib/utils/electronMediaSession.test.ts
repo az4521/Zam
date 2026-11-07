@@ -13,9 +13,9 @@ const electron = (name: string) =>
 const {
     createTrackDiffer,
     friendlyName,
+    macosSession,
+    mergeMacosPayload,
     mprisId,
-    parseMacosErrors,
-    parseMacosOutput,
     parseMprisProps,
     parseSmtcLine,
     readArt,
@@ -191,109 +191,181 @@ describe("track diffing", () => {
 });
 
 describe("macOS media players", () => {
-    it("reads the sessions the script prints", () => {
-        const out = JSON.stringify([
-            {
-                playerId: "spotify",
-                playerName: "Spotify",
-                playing: true,
-                title: " Song ",
-                artist: "Band",
-                album: "Album",
-                durationMs: 200000,
-                positionMs: 12000,
-            },
-            {
-                playerId: "music",
-                playerName: "Music",
-                playing: true,
-                title: "Other",
-                artist: "Someone",
-                album: "Record",
-                durationMs: 180000,
-                positionMs: 5000.6,
-            },
-        ]);
-        expect(parseMacosOutput(out + "\n")).toEqual([
-            {
-                playerId: "spotify",
-                playerName: "Spotify",
-                playing: true,
+    const full = (payload: Record<string, unknown>) =>
+        JSON.stringify({ type: "data", diff: false, payload });
+
+    it("merges full and diff payloads", () => {
+        let state = mergeMacosPayload(
+            {},
+            full({
+                bundleIdentifier: "com.spotify.client",
                 title: "Song",
-                artist: "Band",
-                album: "Album",
-                durationMs: 200000,
-                positionMs: 12000,
-            },
-            {
-                playerId: "music",
-                playerName: "Music",
                 playing: true,
-                title: "Other",
-                artist: "Someone",
-                album: "Record",
-                durationMs: 180000,
-                positionMs: 5001,
-            },
-        ]);
-    });
-
-    it("gives nothing for empty or garbage output", () => {
-        expect(parseMacosOutput("")).toEqual([]);
-        expect(parseMacosOutput("  \n")).toEqual([]);
-        expect(parseMacosOutput("not json")).toEqual([]);
-        expect(parseMacosOutput('{"playerId":"spotify"}')).toEqual([]);
-        expect(parseMacosOutput('[1, null, "x", {"title":"no id"}]')).toEqual(
-            [],
+            }),
         );
-        expect(parseMacosOutput(undefined as unknown as string)).toEqual([]);
+        expect(state).toMatchObject({
+            bundleIdentifier: "com.spotify.client",
+            title: "Song",
+            playing: true,
+        });
+        state = mergeMacosPayload(
+            state,
+            JSON.stringify({
+                type: "data",
+                diff: true,
+                payload: { artist: "Band" },
+            }),
+        );
+        expect(state).toMatchObject({ title: "Song", artist: "Band" });
+        // A null in a diff removes the key.
+        state = mergeMacosPayload(
+            state,
+            JSON.stringify({
+                type: "data",
+                diff: true,
+                payload: { artist: null },
+            }),
+        );
+        expect(state).not.toHaveProperty("artist");
+        // A full payload replaces everything, including a player change.
+        state = mergeMacosPayload(
+            state,
+            full({ bundleIdentifier: "com.apple.Music", title: "Other" }),
+        );
+        expect(state).toEqual({
+            bundleIdentifier: "com.apple.Music",
+            title: "Other",
+        });
     });
 
-    it("keeps a paused session, and fills in missing fields", () => {
-        const out = JSON.stringify([
-            {
-                playerId: "music",
-                playerName: "Music",
-                playing: false,
-                title: "Paused",
-            },
-        ]);
-        expect(parseMacosOutput(out)).toEqual([
-            {
-                playerId: "music",
-                playerName: "Music",
-                playing: false,
-                title: "Paused",
-                artist: "",
-                album: "",
-                durationMs: 0,
-                positionMs: 0,
-            },
-        ]);
+    it("ignores lines that are not payloads", () => {
+        expect(mergeMacosPayload({}, "")).toBeNull();
+        expect(mergeMacosPayload({}, "not json")).toBeNull();
+        expect(
+            mergeMacosPayload(
+                {},
+                JSON.stringify({ type: "other", payload: {} }),
+            ),
+        ).toBeNull();
+        expect(
+            mergeMacosPayload({}, JSON.stringify({ type: "data" })),
+        ).toBeNull();
+        expect(
+            mergeMacosPayload({}, JSON.stringify({ type: "data", payload: 1 })),
+        ).toBeNull();
     });
 
-    it("reads failures apart from sessions", () => {
-        const out = JSON.stringify([
-            {
-                error: true,
-                app: "Spotify",
-                denied: true,
-                message:
-                    "Not authorized to send Apple events to Spotify. (-1743)",
-            },
-            { error: true, app: "Music", denied: false, message: "boom" },
-        ]);
-        expect(parseMacosOutput(out)).toEqual([]);
-        expect(parseMacosErrors(out)).toEqual([
-            {
-                app: "Spotify",
-                denied: true,
-                message:
-                    "Not authorized to send Apple events to Spotify. (-1743)",
-            },
-            { app: "Music", denied: false, message: "boom" },
-        ]);
-        expect(parseMacosErrors("")).toEqual([]);
+    it("reads a playing session with a position advanced to now", () => {
+        const now = 1_000_000;
+        expect(
+            macosSession(
+                {
+                    bundleIdentifier: "com.spotify.client",
+                    title: " Song ",
+                    artist: "Band",
+                    album: "Album",
+                    playing: true,
+                    durationMicros: 200_000_000,
+                    elapsedTimeMicros: 12_000_000,
+                    timestampEpochMicros: (now - 2000) * 1000,
+                    playbackRate: 1,
+                    artworkData: PNG.toString("base64"),
+                },
+                now,
+            ),
+        ).toEqual({
+            playerId: "spotify",
+            playerName: "Spotify",
+            playing: true,
+            title: "Song",
+            artist: "Band",
+            album: "Album",
+            durationMs: 200000,
+            positionMs: 14000,
+            cover: { type: "image/png", data: new Uint8Array(PNG) },
+        });
+    });
+
+    it("uses the parent app of a WebKit helper", () => {
+        expect(
+            macosSession(
+                {
+                    bundleIdentifier: "com.apple.WebKit.GPU",
+                    parentApplicationBundleIdentifier: "com.apple.Safari",
+                    title: "Video",
+                    playing: true,
+                },
+                0,
+            ),
+        ).toMatchObject({ playerId: "safari", playerName: "Safari" });
+    });
+
+    it("names an unknown player from its bundle id", () => {
+        expect(
+            macosSession(
+                {
+                    bundleIdentifier: "org.videolan.vlc",
+                    title: "X",
+                    playing: true,
+                },
+                0,
+            ),
+        ).toMatchObject({
+            playerId: "org.videolan.vlc",
+            playerName: "vlc",
+        });
+    });
+
+    it("gives nothing without an app, and keeps a paused session", () => {
+        expect(macosSession({}, 0)).toBeNull();
+        expect(macosSession({ playing: false }, 0)).toBeNull();
+        expect(
+            macosSession(
+                {
+                    bundleIdentifier: "com.apple.Music",
+                    title: "Paused",
+                    playing: false,
+                },
+                0,
+            ),
+        ).toMatchObject({
+            playerId: "music",
+            playing: false,
+            title: "Paused",
+        });
+    });
+
+    it("does not let the position run past the duration", () => {
+        const now = 60_000;
+        expect(
+            macosSession(
+                {
+                    bundleIdentifier: "com.spotify.client",
+                    title: "X",
+                    playing: true,
+                    durationMicros: 10_000_000,
+                    elapsedTimeMicros: 9_000_000,
+                    timestampEpochMicros: (now - 5000) * 1000,
+                    playbackRate: 1,
+                },
+                now,
+            ).positionMs,
+        ).toBe(10000);
+    });
+
+    it("drops artwork that is not a usable image", () => {
+        const state = (artworkData: unknown) => ({
+            bundleIdentifier: "com.spotify.client",
+            title: "X",
+            playing: true,
+            artworkData,
+        });
+        expect(macosSession(state("not base64"), 0).cover).toBeUndefined();
+        expect(
+            macosSession(state(Buffer.from("hello").toString("base64")), 0)
+                .cover,
+        ).toBeUndefined();
+        expect(macosSession(state(42), 0).cover).toBeUndefined();
     });
 });
 

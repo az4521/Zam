@@ -867,6 +867,11 @@ const richPresence = createRichPresence({
     inFlatpak: IN_FLATPAK,
     // Discord's game list and app names, over net.fetch so the proxy applies.
     fetch: (url, init) => net.fetch(url, init),
+    // The macOS now-playing adapter (see mediaSession.cjs and
+    // scripts/build-mediaremote-adapter.mjs).
+    mediaDir: app.isPackaged
+        ? path.join(process.resourcesPath, "mediaremote")
+        : path.join(app.getAppPath(), "native", "mediaremote-adapter"),
     send: (event) => {
         if (mainWindow && !mainWindow.isDestroyed())
             mainWindow.webContents.send("rich-presence:event", event);

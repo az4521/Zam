@@ -218,6 +218,11 @@ jobs:
             # on the other runners.
             - name: Build app audio helper
               run: npm run build:app-audio
+            # macOS: the MediaRemote now-playing adapter
+            # (native/mediaremote-adapter), packed by build.mac.extraResources.
+            # A no-op on the other runners.
+            - name: Build MediaRemote adapter
+              run: npm run build:mediaremote
             # The shell's fingerprint, packed into the app so it only accepts
             # web bundles built for it (scripts/shell-hash-lib.mjs).
             - name: Fingerprint the desktop shell
