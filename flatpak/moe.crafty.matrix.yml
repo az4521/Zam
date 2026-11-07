@@ -41,6 +41,10 @@ finish-args:
     # Restart Discord after the user confirms.
     - --talk-name=org.freedesktop.Flatpak
     - --talk-name=org.freedesktop.Notifications
+    # Media presence ("Listening to"): a Flatpak only sees the session-bus names
+    # it may talk to, so without this ListNames shows no media players
+    # (electron/mediaSession.cjs).
+    - --talk-name=org.mpris.MediaPlayer2.*
     # Tray icon (StatusNotifierItem).
     - --talk-name=org.kde.StatusNotifierWatcher
     - --env=ELECTRON_TRASH=gio

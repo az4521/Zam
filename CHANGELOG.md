@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.15
+
+🐛 **Fixed**
+
+- **"Listening to" in the Flatpak:** the Flatpak could not see media players on the system, so what you were playing never showed in your presence. It now has permission to read media players over MPRIS.
+
 ## v1.54.14
 
 🐛 **Fixed**
