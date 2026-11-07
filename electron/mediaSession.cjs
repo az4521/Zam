@@ -843,8 +843,9 @@ function startMacos({ diff, status, log, doFetch }) {
 }
 
 /**
- * The media listener. `inFlatpak` changes nothing: the session bus and the
- * SMTC helper are both reachable from inside a Flatpak. `fetch` (net.fetch in
+ * The media listener. `inFlatpak` changes nothing in the code: the session bus
+ * and the SMTC helper are both reachable from inside a Flatpak, but the
+ * manifest must grant org.mpris.MediaPlayer2.* for players to be visible. `fetch` (net.fetch in
  * the app) is what cover art from i.scdn.co is downloaded with; without it only
  * file:// art is read.
  */
