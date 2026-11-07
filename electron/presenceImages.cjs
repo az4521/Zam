@@ -20,7 +20,8 @@ const TIMEOUT_MS = 10_000;
 const ASSET_LIST_TTL_MS = 10 * 60 * 1000;
 
 // `exeIcon(gameId)` gives { type, data } for a game the user added by hand
-// (the icon of its executable), or null.
+// (the icon of its executable), or null. It is also the fallback when an
+// "icon:" reference cannot be fetched.
 //
 // Media players ("Listening to", app id media-<player>) are not Discord apps,
 // so their pictures are not fetched at all: `mediaCover(ref)` gives the cover
@@ -104,6 +105,20 @@ function createPresenceImages({
             }
             const url = await resolve(String(appId), ref);
             if (!url) return null;
+            const image = await download(url);
+            // An app's own icon that is missing or refused: the game's
+            // executable icon, when the game is known.
+            if (!image && /^icon:/.test(ref))
+                return (await exeIcon(String(appId))) ?? null;
+            return image;
+        } catch {
+            return null;
+        }
+    }
+
+    /** { type, data } for an image URL on an allowed host, or null. */
+    async function download(url) {
+        try {
             const res = await doFetch(url, {
                 signal: AbortSignal.timeout(TIMEOUT_MS),
             });

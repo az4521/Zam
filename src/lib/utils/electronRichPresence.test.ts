@@ -16,7 +16,8 @@ const { createCoverStore, createRichPresence, socketLocation } =
     electron("richPresence.cjs");
 const { ipcBase } = electron("discordRpc.cjs");
 const { createPresenceImages } = electron("presenceImages.cjs");
-const { candidates, parseHostPs } = electron("gameScanner.cjs");
+const { candidates, matchExecutables, parseHostPs } =
+    electron("gameScanner.cjs");
 const { createKnownGames } = electron("knownGames.cjs");
 
 interface Event {
@@ -373,6 +374,164 @@ describe("game list and matching", () => {
     });
 });
 
+describe("Wine and Proton games on Linux", () => {
+    const bs = String.fromCharCode(92);
+    const psLines = (rows: Array<[number, string]>) =>
+        rows.map(([pid, args]) => `  ${pid} ${args}`).join("\n");
+    // The game as the host's Windows-style path shows it, doubled separators
+    // included (ps -ww output).
+    const sakuyaWin = [
+        `S:${bs}${bs}steamapps${bs}${bs}common${bs}${bs}Sakuya Izayoi Gives You Advice And Dabs`,
+        `${bs}${bs}lib${bs}${bs}windows-i686${bs}${bs}SakuyaIzayoiGivesYouAdviceAndDabs.exe`,
+    ].join("");
+    const sakuyaProton =
+        "python3 /home/rani/steamapps/common/Proton - Experimental/proton waitforexitandrun " +
+        "/home/rani/steamapps/common/Sakuya Izayoi Gives You Advice And Dabs/SakuyaIzayoiGivesYouAdviceAndDabs.exe";
+    const steamHelper = `c:${bs}windows${bs}system32${bs}steam.exe`;
+    const system32Lines = [
+        steamHelper,
+        `C:${bs}windows${bs}system32${bs}services.exe`,
+        `C:${bs}windows${bs}system32${bs}winedevice.exe`,
+        `${steamHelper} /home/rani/steamapps/common/Sakuya Izayoi Gives You Advice And Dabs/SakuyaIzayoiGivesYouAdviceAndDabs.exe`,
+    ];
+
+    const entry = (id: string, name: string, os: string, exe: string) => ({
+        id,
+        name,
+        executables: [{ os, name: exe }],
+    });
+    const games = [
+        entry(
+            "1",
+            "Sakuya Izayoi",
+            "win32",
+            "windows-i686/sakuyaizayoigivesyouadviceanddabs.exe",
+        ),
+        entry("2", "Hollow Knight", "linux", "hollow_knight.x86_64"),
+        entry("3", "Clash Native", "linux", "clash.exe"),
+        entry("4", "Clash Windows", "win32", "clash.exe"),
+        entry(
+            "5",
+            "Satisfactory",
+            "win32",
+            "win64/factorygame-win64-shipping.exe",
+        ),
+        entry("6", "Steam Client", "win32", "steam.exe"),
+        ...Array.from({ length: 1000 }, (_, i) =>
+            entry(
+                String(2000000 + i),
+                `Filler ${i}`,
+                "win32",
+                `filler${i}.exe`,
+            ),
+        ),
+    ];
+
+    async function linuxIndex() {
+        const known = createKnownGames({
+            file: listFile(),
+            fetch: okFetch(games),
+        });
+        await known.refresh({ force: true });
+        return known.load("linux");
+    }
+
+    function matchOf(
+        out: string,
+        byExe: Parameters<typeof matchExecutables>[1],
+    ) {
+        const seen = new Map<string, string>();
+        matchExecutables(parseHostPs(out), byExe, seen);
+        return [...seen.keys()].sort();
+    }
+
+    it("indexes Windows executables on Linux, native ones first", async () => {
+        const { byExe } = await linuxIndex();
+        expect(
+            byExe
+                .get("windows-i686/sakuyaizayoigivesyouadviceanddabs.exe")
+                ?.map((e: { id: string }) => e.id),
+        ).toEqual(["1"]);
+        expect(
+            byExe.get("clash.exe")?.map((e: { id: string }) => e.id),
+        ).toEqual(["3"]);
+        expect(byExe.get("hollow_knight.x86_64")?.[0].wine).toBe(false);
+        expect(
+            byExe.get("windows-i686/sakuyaizayoigivesyouadviceanddabs.exe")?.[0]
+                .wine,
+        ).toBe(true);
+    });
+
+    it("leaves Windows executables out of the macOS index", async () => {
+        const known = createKnownGames({
+            file: listFile(),
+            fetch: okFetch(games),
+        });
+        await known.refresh({ force: true });
+        const { byExe } = await known.load("darwin");
+        expect(
+            byExe.has("windows-i686/sakuyaizayoigivesyouadviceanddabs.exe"),
+        ).toBe(false);
+        expect(byExe.has("hollow_knight.x86_64")).toBe(false);
+    });
+
+    it("finds a Steam game's Windows executable on the host", async () => {
+        const { byExe } = await linuxIndex();
+        expect(matchOf(psLines([[14383, sakuyaWin]]), byExe)).toEqual(["1"]);
+    });
+
+    it("finds a Proton game run by a python3 loader when its file name is listed", async () => {
+        const { byExe } = await linuxIndex();
+        byExe.set("sakuyaizayoigivesyouadviceanddabs.exe", [
+            { id: "1", exact: false, wine: true },
+        ]);
+        expect(matchOf(psLines([[14285, sakuyaProton]]), byExe)).toEqual(["1"]);
+    });
+
+    it("does not match the Proton line to a list entry under lib/windows-i686", async () => {
+        const { byExe } = await linuxIndex();
+        expect(matchOf(psLines([[14285, sakuyaProton]]), byExe)).toEqual([]);
+    });
+
+    it("matches a native game whose path has spaces in it", () => {
+        const byExe = new Map([
+            ["hollow_knight.x86_64", [{ id: "2", exact: false, wine: false }]],
+        ]);
+        const out = psLines([
+            [
+                4242,
+                "/home/rani/Games/steamapps/common/Hollow Knight/hollow_knight.x86_64 -windowed",
+            ],
+        ]);
+        expect(matchOf(out, byExe)).toEqual(["2"]);
+    });
+
+    it("does not match Wine's own system programs", async () => {
+        const { byExe } = await linuxIndex();
+        expect(
+            matchOf(psLines(system32Lines.map((l, i) => [100 + i, l])), byExe),
+        ).toEqual([]);
+    });
+
+    it("still matches a steam.exe that is not Wine's own", async () => {
+        const { byExe } = await linuxIndex();
+        const out = psLines([
+            [
+                500,
+                `S:${bs}${bs}steamapps${bs}${bs}common${bs}${bs}Steam Client${bs}${bs}steam.exe`,
+            ],
+        ]);
+        expect(matchOf(out, byExe)).toEqual(["6"]);
+    });
+
+    it("builds candidates through doubled separators", () => {
+        const got = candidates(sakuyaWin);
+        expect(
+            got.has("windows-i686/sakuyaizayoigivesyouadviceanddabs.exe"),
+        ).toBe(true);
+    });
+});
+
 describe("presence pictures", () => {
     const calls: string[] = [];
     function stub(
@@ -449,6 +608,26 @@ describe("presence pictures", () => {
             }),
         });
         expect(await img.fetchImage("1", "icon:abcdef1234")).toBeNull();
+    });
+
+    it("falls back to the game's executable icon when an app icon cannot be fetched", async () => {
+        const exe = { type: "image/png", data: new Uint8Array([7]) };
+        const asked: string[] = [];
+        const img = createPresenceImages({
+            fetch: async () => ({ ok: false }),
+            exeIcon: async (id: string) => {
+                asked.push(id);
+                return id === "1" ? exe : null;
+            },
+        });
+        expect(await img.fetchImage("1", "icon:abcdef1234")).toEqual(exe);
+        // A game with no known executable gets no picture.
+        expect(await img.fetchImage("2", "icon:abcdef1234")).toBeNull();
+        // Other references do not fall back.
+        expect(
+            await img.fetchImage("1", "spotify:ab67616d0000b273"),
+        ).toBeNull();
+        expect(asked).toEqual(["1", "2"]);
     });
 
     it("serves media covers and player icons, only under the player's own app id", async () => {

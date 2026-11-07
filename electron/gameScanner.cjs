@@ -49,6 +49,9 @@ async function listHost() {
     );
 }
 
+// Longest program path, in words, tried when a path may contain spaces.
+const MAX_PATH_WORDS = 12;
+
 /** Rows of `ps -eo pid=,args=` as scanner processes. */
 function parseHostPs(out) {
     const rows = [];
@@ -56,11 +59,13 @@ function parseHostPs(out) {
         const m = /^\s*(\d+)\s+(.+)$/.exec(line);
         if (!m) continue;
         const args = m[2];
-        // ps joins the arguments with spaces, so a path with a space in it is
-        // ambiguous. The first word is the program; and for a Windows game run
-        // by Wine or Proton, the text up to each ".exe" is a candidate too
-        // (only the last path pieces are matched, so a loader before it is fine).
-        const paths = [args.split(" ")[0]];
+        // The first word is the program. ps joins the arguments with spaces,
+        // so a path with a space in it is ambiguous: for a Windows game run by
+        // Wine or Proton, the text up to each ".exe" is a candidate (only the
+        // last path pieces are matched, so a loader before it is fine), and
+        // so is every run of the first words (for a native game's path).
+        const words = args.split(" ");
+        const paths = [words[0]];
         const lower = args.toLowerCase();
         for (
             let i = lower.indexOf(".exe");
@@ -68,7 +73,9 @@ function parseHostPs(out) {
             i = lower.indexOf(".exe", i + 4)
         )
             paths.push(args.slice(0, i + 4));
-        rows.push({ pid: +m[1], paths, args });
+        for (let n = 2; n <= Math.min(words.length, MAX_PATH_WORDS); n++)
+            paths.push(words.slice(0, n).join(" "));
+        rows.push({ pid: +m[1], paths: [...new Set(paths)], args });
     }
     return rows;
 }
@@ -174,7 +181,9 @@ const normalizePath = (p) => String(p).toLowerCase().replaceAll("\\", "/");
 async function listPrograms(viaHost = false) {
     const byPath = new Map();
     for (const proc of await listProcesses(viaHost)) {
-        const full = proc.paths[proc.paths.length - 1];
+        // The longest .exe path, else the program (the first path).
+        const exes = proc.paths.filter((p) => /\.exe$/i.test(p));
+        const full = exes.length ? exes[exes.length - 1] : proc.paths[0];
         if (!full) continue;
         const key = normalizePath(full);
         if (key.startsWith("c:/windows/") || byPath.has(key)) continue;
@@ -184,17 +193,52 @@ async function listPrograms(viaHost = false) {
     return [...byPath.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Every trailing piece of a path, with and without "64" markers. */
+/**
+ * Every trailing piece of a path, with and without "64" markers. Empty pieces
+ * (from doubled separators, as in ps's Windows paths) are skipped.
+ */
 function candidates(fullPath) {
-    const parts = fullPath.toLowerCase().replaceAll("\\", "/").split("/");
+    const parts = fullPath
+        .toLowerCase()
+        .replaceAll("\\", "/")
+        .split("/")
+        .filter(Boolean);
     const out = new Set();
-    for (let i = 1; i < parts.length; i++) {
+    for (let i = 1; i <= parts.length; i++) {
         const tail = parts.slice(-i).join("/");
         out.add(tail);
         for (const marker of ["_64", ".x64", "x64", "64"])
             out.add(tail.replace(marker, ""));
     }
     return out;
+}
+
+/**
+ * Adds to `seen` (game id -> path of its running executable) every game in
+ * `byExe` (from knownGames.cjs) that one of the processes runs.
+ */
+function matchExecutables(procs, byExe, seen) {
+    for (const proc of procs) {
+        for (const full of proc.paths) {
+            const tails = candidates(full);
+            const lowerPath = full.toLowerCase().replaceAll("\\", "/");
+            const baseName = lowerPath.split("/").pop();
+            // Wine's own programs (c:\windows\system32\*.exe) are not games.
+            const wineSystem = /(^|\/)(?:[a-z]:|drive_c)\/windows\//.test(
+                lowerPath,
+            );
+            for (const tail of tails) {
+                for (const exe of byExe.get(tail) ?? []) {
+                    if (exe.exact && tail !== baseName) continue;
+                    if (exe.wine && wineSystem) continue;
+                    if (exe.args && proc.args && !proc.args.includes(exe.args))
+                        continue;
+                    if (!seen.has(exe.id)) seen.set(exe.id, full);
+                }
+            }
+        }
+    }
+    return seen;
 }
 
 /**
@@ -236,27 +280,8 @@ function createGameScanner({
                     for (const g of custom.values())
                         if (g.exe === norm) seen.set(g.id, full);
                 }
-                for (const full of proc.paths) {
-                    const tails = candidates(full);
-                    const baseName = full
-                        .toLowerCase()
-                        .replaceAll("\\", "/")
-                        .split("/")
-                        .pop();
-                    for (const tail of tails) {
-                        for (const exe of byExe.get(tail) ?? []) {
-                            if (exe.exact && tail !== baseName) continue;
-                            if (
-                                exe.args &&
-                                proc.args &&
-                                !proc.args.includes(exe.args)
-                            )
-                                continue;
-                            if (!seen.has(exe.id)) seen.set(exe.id, full);
-                        }
-                    }
-                }
             }
+            matchExecutables(procs, byExe, seen);
             for (const [id, exePath] of seen) {
                 const game = byId.get(id) ?? custom.get(id);
                 if (!game) continue;
@@ -332,6 +357,7 @@ module.exports = {
     createGameScanner,
     listPrograms,
     candidates,
+    matchExecutables,
     parseHostPs,
     hostAccessAllowed,
 };
