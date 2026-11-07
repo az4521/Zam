@@ -3535,6 +3535,47 @@ export function onThreadNameChange(callback: () => void): () => void {
 }
 
 /**
+ * Read receipts the server confirmed, keyed by roomId (or roomId|threadId for a
+ * thread), value = event id. Only these (and the server's own real receipt)
+ * short-circuit the idempotence guards below: the SDK's synthetic local-echo
+ * receipt is added before the HTTP call and stays if the call rejects.
+ */
+const confirmedReceipts = new Map<string, string>();
+/** Receipts still in flight, same keys. Dedupes concurrent sends and the re-entrant
+ *  receipt-listener calls the SDK makes synchronously, without waiting for the server. */
+const inFlightReceipts = new Map<string, string>();
+const readReceiptConfirmedListeners = new Set<(roomId: string) => void>();
+
+/** Subscribe to room read receipts the server confirmed (or that were already
+ *  confirmed when asked again). Used to clear the room's loud notifications. */
+export function onReadReceiptConfirmed(
+    callback: (roomId: string) => void,
+): () => void {
+    readReceiptConfirmedListeners.add(callback);
+    return () => {
+        readReceiptConfirmedListeners.delete(callback);
+    };
+}
+
+function notifyReadReceiptConfirmed(roomId: string): void {
+    for (const listener of readReceiptConfirmedListeners) listener(roomId);
+}
+
+/** True when `eventId` is already the confirmed or in-flight receipt for `key`,
+ *  or the server's own (non-synthetic) receipt already points at it. */
+function receiptAlreadySent(
+    key: string,
+    eventId: string,
+    serverReadUpTo: string | null,
+): boolean {
+    return (
+        serverReadUpTo === eventId ||
+        confirmedReceipts.get(key) === eventId ||
+        inFlightReceipts.get(key) === eventId
+    );
+}
+
+/**
  * Send a THREADED read receipt for a thread, clearing only that thread's unread
  * (⚑6). The SDK reads the thread id from the event and scopes the receipt to it
  * (unthreaded defaults false; threadSupport is on). Deliberately does NOT call
@@ -3556,15 +3597,31 @@ export async function markThreadRead(
     // clearing) before the HTTP call. Re-sending for an already-read latest
     // event turns any reactive caller into an infinite receipt loop
     // (effect_update_depth_exceeded, froze the whole ThreadPanel) and spams
-    // the server. The synthesized receipt counts here, so this trips right
-    // after the first send.
+    // the server. The in-flight marker is set before the SDK call, so this
+    // trips on the re-entrant call; a rejected send is not recorded as read.
     const ownUserId = matrixClient.getUserId();
-    if (ownUserId && thread.getEventReadUpTo(ownUserId) === latest.getId())
+    const key = `${room.roomId}|${threadId}`;
+    const eventId = latest.getId();
+    if (
+        ownUserId &&
+        eventId &&
+        receiptAlreadySent(
+            key,
+            eventId,
+            thread.getEventReadUpTo(ownUserId, true),
+        )
+    )
         return clearReadThreadCounts(room);
     const receiptType = receiptTypeForSetting(
         settingsState.privateReadReceipts,
     ) as ReceiptType;
-    await matrixClient.sendReadReceipt(latest, receiptType);
+    if (eventId) inFlightReceipts.set(key, eventId);
+    try {
+        await matrixClient.sendReadReceipt(latest, receiptType);
+        if (eventId) confirmedReceipts.set(key, eventId);
+    } finally {
+        if (inFlightReceipts.get(key) === eventId) inFlightReceipts.delete(key);
+    }
     return false;
 }
 
@@ -5936,18 +5993,37 @@ export async function sendReadReceipt(event: MatrixEvent): Promise<void> {
     // (bumpUnreadTick, notification clearing) before the HTTP call ever
     // leaves. Those listeners fan out over every rendered row, so a redundant
     // send is not free — and scrollToBottom calls this unconditionally from
-    // several per-event paths, so "redundant" is the common case. The
-    // synthesized receipt counts here (ignoreSynthesized = false), so this
-    // trips immediately after the first send rather than after the round trip.
+    // several per-event paths, so "redundant" is the common case. Only a
+    // server-confirmed or in-flight receipt short-circuits: a synthetic receipt
+    // whose request failed must not block the retry.
     const room = matrixClient.getRoom(roomId);
     const myUserId = matrixClient.getUserId();
-    if (room && myUserId && room.getEventReadUpTo(myUserId, false) === eventId)
+    if (
+        room &&
+        myUserId &&
+        receiptAlreadySent(
+            roomId,
+            eventId,
+            room.getEventReadUpTo(myUserId, true),
+        )
+    ) {
+        if (inFlightReceipts.get(roomId) !== eventId)
+            notifyReadReceiptConfirmed(roomId);
         return;
+    }
 
     const receiptType = receiptTypeForSetting(
         settingsState.privateReadReceipts,
     ) as ReceiptType;
-    await matrixClient.sendReadReceipt(event, receiptType);
+    inFlightReceipts.set(roomId, eventId);
+    try {
+        await matrixClient.sendReadReceipt(event, receiptType);
+        confirmedReceipts.set(roomId, eventId);
+    } finally {
+        if (inFlightReceipts.get(roomId) === eventId)
+            inFlightReceipts.delete(roomId);
+    }
+    notifyReadReceiptConfirmed(roomId);
     await matrixClient.setRoomReadMarkers(roomId, eventId);
 }
 

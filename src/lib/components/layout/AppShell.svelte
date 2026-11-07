@@ -217,6 +217,7 @@
         sendNotificationQuickReply,
         resolveQuickReplyThreadRoot,
         markRoomAsRead,
+        onReadReceiptConfirmed,
         startEventIndex,
         type ActiveSessionHeartbeat,
     } from "$lib/matrix/client";
@@ -2209,6 +2210,14 @@
                 }),
             );
         });
+        // Fires once the server confirms a read receipt (or it already is
+        // confirmed), so the room's loud dot clears without waiting for a
+        // receipt event.
+        const unsubReadConfirmed = onReadReceiptConfirmed((roomId) => {
+            const userId = getOwnUserId();
+            const room = getRoom(roomId);
+            if (userId && room) clearReadNotifications(room, userId);
+        });
         reloadLastLocationFromStorage();
         reloadNotificationsFromStorage();
         // PWA cold-start deep-link. When a notification is tapped with no
@@ -2455,6 +2464,7 @@
             unsubThreadNotify();
             unsubMissedNotify();
             unsubReceipts();
+            unsubReadConfirmed();
             unsubFavourites();
             unsubCustomization();
             unsubIgnored();
