@@ -854,7 +854,7 @@
             const native = showNativeNotification({
                 title,
                 body: text,
-                tag: `room:${room.roomId}`,
+                tag: room.roomId,
                 silent: !loud,
             });
             if (
@@ -871,7 +871,10 @@
                     badge: "/favicon_foreground.png",
                     // Per ROOM, not per event: a room shows one collapsing
                     // notification instead of a growing stack, and "close what
-                    // they've now read" becomes one lookup. `renotify` keeps the
+                    // they've now read" becomes one lookup. The tag is the bare
+                    // room id, the same one static/sw.js gives its pushed
+                    // notifications, so the page and the worker collapse into
+                    // one notification per room rather than stacking two. `renotify` keeps the
                     // OS alerting on each replacement, which is what a per-event
                     // tag used to give for free. It is a persistent-notification
                     // option, so TypeScript's NotificationOptions omits it —
@@ -879,7 +882,7 @@
                     // cast spells out the one extra key instead of asserting to
                     // the bare type, so what we are adding stays visible here
                     // rather than looking like an unexplained cast.
-                    tag: `room:${room.roomId}`,
+                    tag: room.roomId,
                     renotify: true,
                     // Silent-tier notifications must not make the OS chime.
                     silent: !loud,
@@ -950,7 +953,7 @@
             const native = showNativeNotification({
                 title: notice.title,
                 body: text,
-                tag: `room:${notice.roomId}`,
+                tag: notice.roomId,
                 silent: !notice.loud,
             });
             if (
@@ -965,7 +968,7 @@
                     body: text,
                     icon: "/favicon.png",
                     badge: "/favicon_foreground.png",
-                    tag: `room:${notice.roomId}`,
+                    tag: notice.roomId,
                     renotify: true,
                     silent: !notice.loud,
                 } as NotificationOptions & {

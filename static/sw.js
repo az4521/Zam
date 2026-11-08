@@ -1462,6 +1462,13 @@ async function buildNotification(data, session) {
 			`/_matrix/client/v3/rooms/${rid}/event/${encodeURIComponent(eventId)}`,
 			session,
 		);
+		// The sender sits in the clear on the event envelope, so this check
+		// needs no keys. A message the account sent itself (another device, or
+		// this one) is not something to alert on: the push handler stays silent
+		// for it. Checked before decryption so none of that work runs.
+		if (event && session && event.sender === session.userId) {
+			return { own: true };
+		}
 		// This worker holds no E2EE keys, so an encrypted message is still
 		// m.room.encrypted here. Ask an open page to decrypt it (see
 		// src/lib/pushDecrypt.ts); with none open, keep the generic text.
@@ -1689,6 +1696,51 @@ function scheduleRingAutoDismiss(roomId, eventId) {
 	});
 }
 
+// ── Duplicate and silent pushes ───────────────────────────────────────────
+// Event ids this worker has already posted a notification for, keyed by room
+// and event. A device can end up with two live pushers (an old subscription
+// left behind), and the homeserver then sends the same event twice; each copy
+// used to post its own alert. The record is in memory and expires after a few
+// minutes: a worker restart forgets it, which at worst shows one extra copy.
+const SHOWN_EVENT_TTL_MS = 5 * 60 * 1000;
+const SHOWN_EVENT_MAX = 200;
+// Map iteration is insertion order, and entries are only added at "now", so
+// the oldest entries sit at the front.
+const shownEvents = new Map();
+
+// Records `key` and returns true when it was already recorded (a duplicate).
+// Synchronous on purpose: two copies of one push can arrive together, and the
+// first must claim the key before the second one looks.
+function claimShownEvent(key, now = Date.now()) {
+	for (const [k, seenAt] of shownEvents) {
+		if (now - seenAt <= SHOWN_EVENT_TTL_MS) break;
+		shownEvents.delete(k);
+	}
+	if (shownEvents.has(key)) return true;
+	shownEvents.set(key, now);
+	while (shownEvents.size > SHOWN_EVENT_MAX) {
+		shownEvents.delete(shownEvents.keys().next().value);
+	}
+	return false;
+}
+
+let silentPushCount = 0;
+
+// A push that must not alert still has to show a notification: iOS Safari
+// (and Chrome's userVisibleOnly) revokes the subscription when a push shows
+// nothing. So post a silent one and close it at once. It gets its own tag so
+// closing it cannot touch a real notification for the same room.
+async function showAndCloseSilently() {
+	const tag = `silent:${++silentPushCount}`;
+	await self.registration.showNotification("New message", {
+		tag,
+		silent: true,
+		badge: "/favicon_foreground.png",
+	});
+	const list = await self.registration.getNotifications({ tag });
+	for (const n of list) n.close();
+}
+
 self.addEventListener("push", (event) => {
 	let data = {};
 	try {
@@ -1754,11 +1806,22 @@ self.addEventListener("push", (event) => {
 		return;
 	}
 
+	// Claimed here, before any await, so a second copy of this push that
+	// arrives meanwhile sees the claim (see claimShownEvent).
+	const duplicatePush =
+		typeof data.room_id === "string" &&
+		typeof data.event_id === "string" &&
+		claimShownEvent(`${data.room_id}\n${data.event_id}`);
+
 	// userVisibleOnly subscriptions REQUIRE a notification per push or the
 	// browser penalises/blocks the subscription — so always show something,
 	// even if enrichment fails.
 	event.waitUntil(
 		(async () => {
+			if (duplicatePush) {
+				await showAndCloseSilently();
+				return;
+			}
 			// The account this push is for, resolved once: enrichment, the
 			// quiet check, decryption and the account stamp all use it. Bounded
 			// like shouldStayQuiet's wait, so a hung restore still notifies.
@@ -1782,6 +1845,10 @@ self.addEventListener("push", (event) => {
 				icon: "/favicon.png",
 				roomId: data.room_id,
 			}));
+			if (n.own) {
+				await showAndCloseSilently();
+				return;
+			}
 			await self.registration.showNotification(n.title, {
 				body: n.body,
 				icon: n.icon,

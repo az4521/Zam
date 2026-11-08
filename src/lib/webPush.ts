@@ -149,6 +149,7 @@ async function registerWebPusher(
     const endpoint = sub.endpoint;
     const p256dh = json.keys?.p256dh ?? bufToBase64Url(sub.getKey("p256dh"));
     const auth = json.keys?.auth ?? bufToBase64Url(sub.getKey("auth"));
+    const deviceId = matrixClient.getDeviceId() ?? "";
 
     try {
         await (matrixClient as any).setPusher({
@@ -166,6 +167,11 @@ async function registerWebPusher(
                 // the p256dh key from the Matrix pusher pushkey.
                 endpoint,
                 auth,
+                // This browser's Matrix device id. Other devices on the same
+                // account register under the same app_id, so a later
+                // registration uses this to find only ITS superseded pushers
+                // (see removeStaleWebPushers).
+                zam_device_id: deviceId,
                 // Names the account in every push: each account signed in in
                 // this browser shares the subscription, and static/sw.js picks
                 // the matching session by this (see push.ts for Android).
@@ -177,6 +183,9 @@ async function registerWebPusher(
             append: true,
         });
         console.log("[webpush] Pusher registered");
+        // A rotated subscription leaves the previous p256dh registered, and
+        // Sygnal then pushes this device twice for every message.
+        await removeStaleWebPushers(matrixClient, deviceId, p256dh);
         // Re-read the pushers and warn if the homeserver routed us to a gateway
         // other than the one we asked for (SEC-L4). Best-effort: never let a
         // verification read undo a successful registration.
@@ -199,6 +208,48 @@ async function registerWebPusher(
         }
     } catch (err) {
         console.error("[webpush] Failed to register pusher:", err);
+    }
+}
+
+/**
+ * Delete this device's web pushers that a previous subscription left behind.
+ * Matched on app_id AND the device id stored in the pusher's data, because
+ * every other device signed in to the account registers under the same app_id
+ * and must keep its own pusher. Pushers registered before the device id was
+ * stored carry none and are left alone. Best-effort.
+ */
+async function removeStaleWebPushers(
+    matrixClient: import("matrix-js-sdk").MatrixClient,
+    deviceId: string,
+    keep: string,
+): Promise<void> {
+    if (!deviceId) return;
+    try {
+        const res = await (matrixClient as any).getPushers();
+        for (const p of (res?.pushers ?? []) as any[]) {
+            if (
+                p.app_id === APP_ID &&
+                p.data?.zam_device_id === deviceId &&
+                typeof p.pushkey === "string" &&
+                p.pushkey &&
+                p.pushkey !== keep
+            ) {
+                // The REAL pushkey is required; an empty one deletes nothing.
+                await (matrixClient as any)
+                    .setPusher({
+                        kind: null,
+                        app_id: APP_ID,
+                        pushkey: p.pushkey,
+                        app_display_name: "",
+                        device_display_name: "",
+                        lang: "en",
+                        data: {},
+                    })
+                    .catch(() => {});
+            }
+        }
+    } catch {
+        /* best-effort */
     }
 }
 
