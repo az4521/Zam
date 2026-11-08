@@ -26,6 +26,7 @@
     import { untrack } from "svelte";
     import { Star } from "lucide-svelte";
     import { resizeHandle } from "$lib/actions/resizeHandle";
+    import { gifTileVideo } from "$lib/actions/gifTileVideo";
     import { COMPOSER_PICKER_SIZE } from "$lib/utils/pickerSize";
     import { safeAspectRatio } from "$lib/utils/mediaDimensions";
     import {
@@ -583,7 +584,7 @@
                                             />
                                         {:else if gif.previewVideoUrl}
                                             <video
-                                                src={gif.previewVideoUrl}
+                                                use:gifTileVideo={gif.previewVideoUrl}
                                                 poster={gif.previewUrl !==
                                                 gif.previewVideoUrl
                                                     ? gif.previewUrl
@@ -769,7 +770,7 @@
                                          starts animating once fully downloaded,
                                          mp4 plays while it streams. -->
                                             <video
-                                                src={r.previewVideoUrl}
+                                                use:gifTileVideo={r.previewVideoUrl}
                                                 class="w-full h-auto block rounded bg-discord-backgroundTertiary pointer-events-none"
                                                 style={gifAspectRatioStyle(
                                                     r.width,
