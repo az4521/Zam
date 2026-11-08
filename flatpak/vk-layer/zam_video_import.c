@@ -319,6 +319,14 @@ static VKAPI_ATTR VkResult VKAPI_CALL zam_AllocateMemory(VkDevice device,
     logf_("vkAllocateMemory dma-buf import: size=%llu dmabuf=%lld type=%u dedicated=%s",
           (unsigned long long)info->allocationSize, (long long)fd_size,
           info->memoryTypeIndex, dedicated && dedicated->image ? "image" : "no");
+    // The driver sizes a linear image from its own row pitch, ignoring the one
+    // the import gave (NVD_LINEAR_PITCH on the VA-API side). A buffer bigger
+    // than the image needs means the two disagree, and the picture shears.
+    if (dedicated && dedicated->image && fd_size > 0 &&
+        (unsigned long long)fd_size > (unsigned long long)info->allocationSize)
+        logf_("  warning: dma-buf is %lld bytes larger than the image needs; the "
+              "exporter's row pitch probably differs from the driver's",
+              (long long)fd_size - (long long)info->allocationSize);
     VkResult r = dev->AllocateMemory(device, info, alloc, memory);
     logf_("  -> vkAllocateMemory %d", r);
     return r;
