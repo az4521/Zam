@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.17
+
+🐛 **Fixed**
+
+- **Green, sheared video on NVIDIA in the Flatpak:** on Linux with an NVIDIA GPU, 1080p video (and anything whose width isn't a multiple of 256) could play as a green band with diagonal smearing. Hardware-decoded frames are now laid out the way NVIDIA's Vulkan driver reads them. If a different NVIDIA driver misbehaves, `NVD_LINEAR_PITCH=256` restores the old layout.
+- **GIF picker crashes and green corruption:** the picker started every GIF result at once, which could use up the GPU's video decoders. Only the GIFs near the visible part of the picker play now.
+
 ## v1.54.16
 
 🐛 **Fixed**
