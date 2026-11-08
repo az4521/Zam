@@ -650,6 +650,7 @@ body {
 /* Rich contenteditable editors: the composer (MessageInput) and the inline
    message editor (MessageEditBox). Decorations come from composerDecorate.ts. */
 .composer-editor {
+    position: relative;
     min-height: 1.625rem;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
@@ -659,7 +660,15 @@ body {
    wrap and grow the composer. */
 .composer-editor:empty::before {
     content: attr(placeholder);
-    display: block;
+    /* Out of flow: an in-flow ::before gives the empty editor a line box that
+       is not the caret's, so the caret rendered lower than the placeholder
+       text. Absolute leaves a normal empty line for the caret; the inherited
+       padding/line-height keep the text exactly where it was. */
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    padding: inherit;
+    box-sizing: border-box;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
