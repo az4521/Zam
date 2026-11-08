@@ -923,7 +923,10 @@ ipcMain.on("updates:quit-and-install", () => {
     // set it first (mirrors the tray Quit item) or quitAndInstall would just
     // minimise instead of restarting.
     isQuitting = true;
-    autoUpdater.quitAndInstall();
+    // Silent + force-run: the NSIS installer otherwise opens its own UI and, for
+    // an update, does not relaunch the app, so a hidden or stalled installer
+    // looked like "restarted and still on the old version".
+    autoUpdater.quitAndInstall(true, true);
 });
 
 // --- Proxy (Settings > General > Network) ----------------------------------
