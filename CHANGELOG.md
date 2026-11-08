@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.54.16
+
+🐛 **Fixed**
+
+- **iOS app after an update:** reopening Zam after a new version no longer gets stuck on "500 Internal Error". It now waits for the network, clears the old cached copy and reloads into the new version.
+- **Duplicate and own-message notifications on iOS:** notifications for messages you sent, and a second copy of the same notification, are now suppressed. Old leftover push registrations from this device are cleaned up.
+- **Windows updates:** "Restart to apply" now installs silently and reopens Zam. A version that failed to install is no longer re-applied automatically, and Zam keeps an update log.
+- **Windows portable build:** it no longer tries to install an update it cannot apply and points to the release page instead.
+- **Crashes when switching windows on Windows:** Zam now recovers a crashed window by reloading it and records what went wrong in a log file.
+
 ## v1.54.15
 
 🐛 **Fixed**
