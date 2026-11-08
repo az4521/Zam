@@ -1724,23 +1724,6 @@ function claimShownEvent(key, now = Date.now()) {
 	return false;
 }
 
-let silentPushCount = 0;
-
-// A push that must not alert still has to show a notification: iOS Safari
-// (and Chrome's userVisibleOnly) revokes the subscription when a push shows
-// nothing. So post a silent one and close it at once. It gets its own tag so
-// closing it cannot touch a real notification for the same room.
-async function showAndCloseSilently() {
-	const tag = `silent:${++silentPushCount}`;
-	await self.registration.showNotification("New message", {
-		tag,
-		silent: true,
-		badge: "/favicon_foreground.png",
-	});
-	const list = await self.registration.getNotifications({ tag });
-	for (const n of list) n.close();
-}
-
 self.addEventListener("push", (event) => {
 	let data = {};
 	try {
@@ -2021,6 +2004,23 @@ async function handleQuickMarkRead(roomId, eventId, postedBy) {
 	} catch {
 		// Swallow — waitUntil must never reject.
 	}
+}
+
+let silentPushCount = 0;
+
+// A push that must not alert still has to show a notification: iOS Safari
+// (and Chrome's userVisibleOnly) revokes the subscription when a push shows
+// nothing. So post a silent one and close it at once. It gets its own tag so
+// closing it cannot touch a real notification for the same room.
+async function showAndCloseSilently() {
+	const tag = `silent:${++silentPushCount}`;
+	await self.registration.showNotification("New message", {
+		tag,
+		silent: true,
+		badge: "/favicon_foreground.png",
+	});
+	const list = await self.registration.getNotifications({ tag });
+	for (const n of list) n.close();
 }
 
 self.addEventListener("notificationclick", (event) => {
