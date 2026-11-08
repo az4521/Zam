@@ -24,6 +24,7 @@ const {
     powerMonitor,
     net,
     contentTracing,
+    dialog,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const http = require("http");
@@ -47,6 +48,22 @@ const { createPresenceImages } = require("./presenceImages.cjs");
 const { linuxExeIconAsync, windowsSteamIcon } = require("./exeIcon.cjs");
 const { createAppAudio } = require("./appAudio.cjs");
 const { resolveShareAudio } = require("./shareAudio.cjs");
+const { createFileLog } = require("./fileLog.cjs");
+const { createUpdateGuard } = require("./updateGuard.cjs");
+
+// userData/main.log: what a packaged app would otherwise lose (crashes, renderer
+// and GPU exits). Capped at start by fileLog.cjs.
+const mainLog = createFileLog(path.join(app.getPath("userData"), "main.log"));
+// With a handler installed Electron no longer shows its own error dialog. Log
+// every failure; before the app is ready there is no window to fail quietly
+// under, so show the error box ourselves. Exit behaviour is unchanged.
+process.on("uncaughtException", (err) => {
+    mainLog.error("uncaught exception", err);
+    if (!app.isReady()) dialog.showErrorBox("Zam", String(err?.stack ?? err));
+});
+process.on("unhandledRejection", (reason) => {
+    mainLog.error("unhandled rejection", reason);
+});
 
 const BUILD_DIR = path.join(__dirname, "..", "build");
 // What the local server serves: the site packed in the app, or a newer web
@@ -252,7 +269,7 @@ function startServer() {
 }
 
 function showWindow() {
-    if (!mainWindow) return;
+    if (!mainWindow || mainWindow.isDestroyed()) return;
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
@@ -290,6 +307,25 @@ let autoUpdatePref = false;
 // `desktop.updates` out so Settings doesn't offer the control at all.
 const IN_FLATPAK = !!process.env.FLATPAK_ID;
 
+// A portable build (the single .exe, run from a temporary folder) cannot be
+// replaced by the installer: that would put a second copy in place and leave
+// the one the user launched on the old version. electron-builder sets
+// PORTABLE_EXECUTABLE_FILE for portable builds (autostart.cjs relies on it too).
+// Like Flatpak, such a build is told about new releases and sent to the
+// release page instead of installing one.
+const IS_PORTABLE = !!process.env.PORTABLE_EXECUTABLE_FILE;
+
+// Logs for the installer path (userData/updater.log) and the failed-install
+// record that keeps a broken installer from looping (updateGuard.cjs).
+const updaterLog = createFileLog(
+    path.join(app.getPath("userData"), "updater.log"),
+);
+const updateGuard = createUpdateGuard({
+    userDataDir: app.getPath("userData"),
+    currentVersion: app.getVersion(),
+    log: (level, text) => updaterLog[level](text),
+});
+
 // Post a status object to the current window (reassigned by createWindow).
 // The latest status, so a check asked for mid-download (opening About) can
 // repeat it instead of flipping the UI back to "available" while progress
@@ -300,6 +336,11 @@ function sendUpdateStatus(payload) {
     // `kind` says what is being updated, so the renderer words "restart" vs
     // "reload" right and a bundle's kind never lingers into an installer update.
     payload = { kind: "shell", ...payload };
+    // An installer that failed before, or was already started for this version,
+    // is not applied again on the renderer's say-so (updateGuard.cjs).
+    if (payload.phase === "downloaded" && payload.kind !== "bundle") {
+        payload.autoApplyBlocked = updateGuard.isBlocked(payload.version);
+    }
     lastUpdateStatus = payload;
     if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send("updates:status", payload);
@@ -471,8 +512,10 @@ async function checkBundleThenInstaller(manual) {
             console.error("[bundle] check failed:", err);
         }
     }
-    if (IN_FLATPAK) {
-        // `flatpak update` owns shell updates; there is nothing to install here.
+    if (IN_FLATPAK || IS_PORTABLE) {
+        // `flatpak update` owns shell updates in Flatpak, and a portable build
+        // cannot install one (see IS_PORTABLE): either way there is nothing to
+        // install here, so a newer release is only pointed at.
         sendUpdateStatus(
             shellVersion
                 ? { phase: "unsupported", version: shellVersion }
@@ -527,7 +570,7 @@ async function applyStagedBundle() {
 }
 
 function runInstallerCheck(manual) {
-    if (IN_FLATPAK) return;
+    if (IN_FLATPAK || IS_PORTABLE) return;
     autoUpdater.autoDownload = manual ? false : autoUpdatePref;
     try {
         const p = autoUpdater.checkForUpdates();
@@ -545,29 +588,46 @@ function setupInstallerUpdater() {
     autoUpdater.autoInstallOnAppQuit = true;
     // Fail-safe default: stay OFF until the renderer seeds the persisted preference at boot (see app shell onMount). Prevents a forced silent download when the user has turned auto-updates OFF but hasn't opened Settings before the launch check.
     autoUpdater.autoDownload = false;
-    // Integrity invariant (audit SEC-M8): electron-updater verifies the release
-    // signature by default — Authenticode on Windows, code signing on macOS —
-    // and this build NEVER disables it (no verifyUpdateCodeSignature override,
-    // no flag that turns the check off). Also refuse a downgrade so a
-    // compromised update feed cannot force an older, validly-signed but
+    // Integrity (audit SEC-M8): electron-updater checks every download against
+    // the sha512 recorded in latest.yml, and this build NEVER turns that check
+    // off. Windows builds are not Authenticode-signed (release.yml sets
+    // CSC_IDENTITY_AUTO_DISCOVERY=false), so there is no publisher signature to
+    // verify there: the sha512 match only shows the installer is the one that
+    // release describes, not that the release itself is trustworthy. Also refuse
+    // a downgrade so a compromised update feed cannot force an older but
     // vulnerable build onto the user. (Linux AppImage has no built-in signer
     // check — a documented gap tracked separately as AppImage signing, not
     // addressed in this file.)
     autoUpdater.allowDowngrade = false;
 
     autoUpdater.on("checking-for-update", () => {
+        updaterLog.info("checking for update");
         sendUpdateStatus({ phase: "checking" });
     });
     autoUpdater.on("update-available", (info) => {
-        sendUpdateStatus({ phase: "available", version: info?.version });
+        // Emitted synchronously, before electron-updater reads autoDownload to
+        // decide whether to fetch the update by itself. A version that failed to
+        // install is offered, never fetched automatically (updateGuard.cjs).
+        const failed = updateGuard.isFailed(info?.version);
+        if (failed) autoUpdater.autoDownload = false;
+        updaterLog.info(
+            `update ${info?.version} available${failed ? " (failed to install before; not auto-downloading)" : ""}`,
+        );
+        sendUpdateStatus({
+            phase: "available",
+            version: info?.version,
+            installFailed: failed || undefined,
+        });
     });
     autoUpdater.on("update-not-available", (info) => {
+        updaterLog.info(`up to date (latest ${info?.version})`);
         sendUpdateStatus({ phase: "up-to-date", version: info?.version });
     });
     autoUpdater.on("download-progress", (p) => {
         sendUpdateStatus({ phase: "downloading", percent: p?.percent });
     });
     autoUpdater.on("update-downloaded", (info) => {
+        updaterLog.info(`update ${info?.version} downloaded`);
         sendUpdateStatus({ phase: "downloaded", version: info?.version });
     });
     autoUpdater.on("error", (err) => {
@@ -578,6 +638,7 @@ function setupInstallerUpdater() {
         // mis-signed release is visible in the main-process log rather than
         // looking like an ordinary network hiccup.
         const message = err?.message ?? String(err);
+        updaterLog.error("update error:", err);
         if (
             /sign|signature|publisher|not signed|sha512|checksum|integrity/i.test(
                 message,
@@ -592,14 +653,36 @@ function setupInstallerUpdater() {
     });
 }
 
+// The installer that did not take stays in electron-updater's download cache;
+// clearing it stops the next check from announcing it as downloaded again.
+async function clearInstallerCache() {
+    try {
+        const helper = await autoUpdater.getOrCreateDownloadHelper();
+        await helper.clear();
+    } catch (err) {
+        updaterLog.warn("could not clear the installer cache:", err);
+    }
+}
+
 function setupAutoUpdater() {
     if (!app.isPackaged) return;
+    // Every updater event lands in userData/updater.log.
+    autoUpdater.logger = {
+        info: (m) => updaterLog.info(m),
+        warn: (m) => updaterLog.warn(m),
+        error: (m) => updaterLog.error(m),
+        debug: () => {},
+    };
+    // Did the last installer take? If not, record its version as failed before
+    // the first check can offer it.
+    const { pendingFailed } = updateGuard.reconcile();
+    if (pendingFailed) void clearInstallerCache();
     // The saved choice (on unless turned off) governs from the first check; the
     // renderer re-sends it at boot.
     autoUpdatePref = readAutoUpdatePref();
-    // Flatpak builds take their shell from `flatpak update`; they still check
-    // for web bundles below.
-    if (!IN_FLATPAK) setupInstallerUpdater();
+    // Flatpak builds take their shell from `flatpak update`, and portable ones
+    // cannot install one (IS_PORTABLE); both still check for web bundles below.
+    if (!IN_FLATPAK && !IS_PORTABLE) setupInstallerUpdater();
 
     // Background checks: ~10s after launch (so it never blocks or races
     // startup), then every few hours and after waking from sleep, so an app
@@ -624,7 +707,7 @@ ipcMain.on("updates:download", () => {
         void downloadFoundBundle();
         return;
     }
-    if (IN_FLATPAK) return;
+    if (IN_FLATPAK || IS_PORTABLE) return;
     try {
         const p = autoUpdater.downloadUpdate();
         if (p && typeof p.catch === "function") {
@@ -827,6 +910,14 @@ ipcMain.on("updates:quit-and-install", () => {
     if (lastUpdateStatus?.kind === "bundle") {
         void applyStagedBundle();
         return;
+    }
+    if (IS_PORTABLE) return;
+    // Recorded before quitting, so a launch that still finds this version
+    // running knows the install did not take (updateGuard.cjs). The status is
+    // re-sent so the renderer stops offering to apply the same version again.
+    if (lastUpdateStatus?.version) {
+        updateGuard.beginInstall(lastUpdateStatus.version);
+        sendUpdateStatus(lastUpdateStatus);
     }
     // The window's close handler hides to tray unless isQuitting is set, so
     // set it first (mirrors the tray Quit item) or quitAndInstall would just
@@ -1396,6 +1487,18 @@ function disarmGpuRecycle() {
     gpuRecycled = false;
 }
 
+// Every helper-process exit (GPU, utility, plugin...) leaves a line in main.log,
+// so a crash that only shows as a blank or frozen window can be explained later.
+// Listeners below still do their own work; this one only records.
+app.on("child-process-gone", (_e, details) => {
+    mainLog.warn(
+        "child-process-gone",
+        `type=${details.type} reason=${details.reason} exitCode=${details.exitCode}` +
+            (details.serviceName ? ` service=${details.serviceName}` : "") +
+            (details.name ? ` name=${details.name}` : ""),
+    );
+});
+
 // If the Vulkan path makes the GPU process crash, Chromium falls back to
 // software rendering for this run; record it so the next launch goes back to
 // the GL path, unless the user chose Vulkan in Settings. The Vulkan path fails
@@ -1764,6 +1867,12 @@ function saveWindowState(win) {
     }
 }
 
+// A renderer that dies (crash, out-of-memory kill) is reloaded, at most this
+// many times a minute, so a page that dies on load cannot loop.
+const RENDERER_RELOAD_LIMIT = 3;
+const RENDERER_RELOAD_WINDOW_MS = 60_000;
+const rendererReloadTimes = [];
+
 async function createWindow() {
     const url = await startServer();
     const savedState = loadWindowState();
@@ -1837,16 +1946,64 @@ async function createWindow() {
 
     // A taskbar flash lasts until the user comes back; clear it (Linux never
     // clears it by itself) as soon as they do.
+    // Window events can land after the window was destroyed (closed while a
+    // focus or show was still queued); those must not touch it.
+    const liveWindow = () =>
+        mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
     mainWindow.on("focus", () => {
-        mainWindow.flashFrame(false);
+        const win = liveWindow();
+        if (!win) return;
+        win.flashFrame(false);
         globalHotkeys.recheck();
     });
-    mainWindow.on("show", () => mainWindow.flashFrame(false));
+    mainWindow.on("show", () => liveWindow()?.flashFrame(false));
 
-    mainWindow.on("hide", armGpuRecycle);
-    mainWindow.on("minimize", armGpuRecycle);
-    mainWindow.on("show", disarmGpuRecycle);
-    mainWindow.on("restore", disarmGpuRecycle);
+    mainWindow.on("hide", () => {
+        if (liveWindow()) armGpuRecycle();
+    });
+    mainWindow.on("minimize", () => {
+        if (liveWindow()) armGpuRecycle();
+    });
+    mainWindow.on("show", () => {
+        if (liveWindow()) disarmGpuRecycle();
+    });
+    mainWindow.on("restore", () => {
+        if (liveWindow()) disarmGpuRecycle();
+    });
+
+    // A renderer exit that is not a clean close or a kill reloads the page once,
+    // so the window recovers rather than sitting dead. Logged either way.
+    mainWindow.webContents.on("render-process-gone", (_e, details) => {
+        mainLog.error(
+            "render-process-gone",
+            `reason=${details.reason} exitCode=${details.exitCode}`,
+        );
+        if (details.reason === "clean-exit" || details.reason === "killed")
+            return;
+        const win = liveWindow();
+        if (!win) return;
+        const now = Date.now();
+        while (
+            rendererReloadTimes.length &&
+            rendererReloadTimes[0] < now - RENDERER_RELOAD_WINDOW_MS
+        ) {
+            rendererReloadTimes.shift();
+        }
+        if (rendererReloadTimes.length >= RENDERER_RELOAD_LIMIT) {
+            mainLog.error(
+                "render-process-gone: reload limit reached, not reloading",
+            );
+            return;
+        }
+        rendererReloadTimes.push(now);
+        win.webContents.reload();
+    });
+    mainWindow.webContents.on("unresponsive", () =>
+        mainLog.warn("renderer unresponsive"),
+    );
+    mainWindow.webContents.on("responsive", () =>
+        mainLog.info("renderer responsive again"),
+    );
 
     mainWindow.loadURL(url);
 

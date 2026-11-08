@@ -236,6 +236,12 @@ async function applyDownloadedUpdateWhenIdle(): Promise<void> {
     if (
         updateBannerState.status.phase !== "downloaded" ||
         !settingsState.autoUpdateEnabled ||
+        // An installer that failed before, or was already started for this
+        // version, is applied only by a click, never again on its own: a broken
+        // installer would otherwise restart the app in a loop. The main process
+        // decides this (electron/updateGuard.cjs) and re-sends it after a start.
+        (updateBannerState.status.kind !== "bundle" &&
+            updateBannerState.status.autoApplyBlocked === true) ||
         Date.now() - applyingSince < APPLY_RETRY_MS
     )
         return;

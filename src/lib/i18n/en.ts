@@ -3281,6 +3281,8 @@ export const en = {
     // src/lib/update.ts
     "update.noReleasesFoundYet": "No releases found yet.",
     "update.githubApiError": "GitHub API error ({status}).",
+    "update.staleBuild":
+        "This web version ({current}) is older than the latest release ({latest}). The server may still be catching up; try again in a few minutes.",
     "update.couldNotReadTheLatestVersion": "Could not read the latest version.",
 
     // src/lib/utils/accountSecurity.ts
@@ -3865,6 +3867,8 @@ export const en = {
         "You're on the latest version{versionSuffix}",
     "updateStatus.checkForUpdates": "Check for updates",
     "updateStatus.updateAvailable": "Update available{versionSuffix}",
+    "updateStatus.lastInstallFailed":
+        "Update{versionSuffix} did not install last time",
     "updateStatus.downloadInstall": "Download & install",
     "updateStatus.downloadingV": "Downloading v{version}",
     "updateStatus.downloadingUpdate": "Downloading update",

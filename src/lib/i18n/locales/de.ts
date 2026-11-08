@@ -3398,6 +3398,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     // src/lib/update.ts
     "update.noReleasesFoundYet": "Noch keine Versionen gefunden.",
     "update.githubApiError": "GitHub-API-Fehler ({status}).",
+    "update.staleBuild":
+        "Diese Webversion ({current}) ist älter als die neueste Version ({latest}). Der Server holt vielleicht noch auf; bitte in ein paar Minuten erneut versuchen.",
     "update.couldNotReadTheLatestVersion":
         "Die neueste Version konnte nicht gelesen werden.",
 
@@ -4018,6 +4020,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Du verwendest die neueste Version{versionSuffix}",
     "updateStatus.checkForUpdates": "Nach Updates suchen",
     "updateStatus.updateAvailable": "Update verfügbar{versionSuffix}",
+    "updateStatus.lastInstallFailed":
+        "Update{versionSuffix} wurde beim letzten Mal nicht installiert",
     "updateStatus.downloadInstall": "Herunterladen und installieren",
     "updateStatus.downloadingV": "v{version} wird heruntergeladen",
     "updateStatus.downloadingUpdate": "Update wird heruntergeladen",

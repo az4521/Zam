@@ -3404,6 +3404,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     // src/lib/update.ts
     "update.noReleasesFoundYet": "Todavía no se han encontrado versiones.",
     "update.githubApiError": "Error de la API de GitHub ({status}).",
+    "update.staleBuild":
+        "Esta versión web ({current}) es anterior a la última versión ({latest}). El servidor puede seguir actualizándose; inténtalo de nuevo en unos minutos.",
     "update.couldNotReadTheLatestVersion": "No se pudo leer la última versión.",
 
     // src/lib/utils/accountSecurity.ts
@@ -4019,6 +4021,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Tienes la última versión{versionSuffix}",
     "updateStatus.checkForUpdates": "Buscar actualizaciones",
     "updateStatus.updateAvailable": "Actualización disponible{versionSuffix}",
+    "updateStatus.lastInstallFailed":
+        "La actualización{versionSuffix} no se instaló la última vez",
     "updateStatus.downloadInstall": "Descargar e instalar",
     "updateStatus.downloadingV": "Descargando v{version}",
     "updateStatus.downloadingUpdate": "Descargando la actualización",

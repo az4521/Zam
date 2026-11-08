@@ -22,6 +22,11 @@ export interface UpdateStatusInput {
     /** What is being updated: the installer or APK ("shell", the default) or
      *  just the web UI ("bundle"), which applies with a reload, not a restart. */
     kind?: "shell" | "bundle";
+    /** A downloaded installer must not be applied on the renderer's say-so: it
+     *  failed to install before, or was already started for this version. */
+    autoApplyBlocked?: boolean;
+    /** The offered version already failed to install on an earlier launch. */
+    installFailed?: boolean;
 }
 
 export interface UpdateStatusView {
@@ -40,7 +45,8 @@ export interface UpdateStatusView {
  * omits the `(v…)` fragment rather than printing `(undefined)`.
  */
 export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
-    const { phase, percent, version, message, platform, kind } = input;
+    const { phase, percent, version, message, platform, kind, installFailed } =
+        input;
 
     const versionSuffix = version ? ` (v${version})` : "";
     const clampedPercent = Math.max(0, Math.min(100, Math.round(percent ?? 0)));
@@ -71,9 +77,13 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
             // download only starts once the user confirms. Background
             // auto-download (when the preference is on) is driven solely by the
             // launch check in the main process and surfaces as "downloading",
-            // so it never lands here as a stuck "available".
+            // so it never lands here as a stuck "available". A version that
+            // failed to install before is still offered, but says so: it is
+            // never fetched on its own.
             return {
-                label: t("updateStatus.updateAvailable", { versionSuffix }),
+                label: installFailed
+                    ? t("updateStatus.lastInstallFailed", { versionSuffix })
+                    : t("updateStatus.updateAvailable", { versionSuffix }),
                 action: "download",
                 actionLabel: t("updateStatus.downloadInstall"),
                 busy: false,

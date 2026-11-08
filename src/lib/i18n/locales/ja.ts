@@ -2958,6 +2958,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "このルームから削除されました - 通話を終了しました",
     "update.noReleasesFoundYet": "リリースがまだ見つかりません。",
     "update.githubApiError": "GitHub APIエラー({status})。",
+    "update.staleBuild":
+        "このWeb版({current})は最新リリース({latest})より古いです。サーバーの更新が追いついていない可能性があります。数分後にもう一度お試しください。",
     "update.couldNotReadTheLatestVersion":
         "最新バージョンを取得できませんでした。",
     "accountSecurity.enterYourCurrentPassword":
@@ -3427,6 +3429,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "updateStatus.youReOnTheLatestVersion": "最新バージョンです{versionSuffix}",
     "updateStatus.checkForUpdates": "アップデートを確認",
     "updateStatus.updateAvailable": "アップデートがあります{versionSuffix}",
+    "updateStatus.lastInstallFailed":
+        "前回のアップデート{versionSuffix}はインストールされませんでした",
     "updateStatus.downloadInstall": "ダウンロードしてインストール",
     "updateStatus.downloadingV": "v{version} をダウンロード中",
     "updateStatus.downloadingUpdate": "アップデートをダウンロード中",
