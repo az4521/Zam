@@ -290,6 +290,31 @@ export function openReleasePage(url: string): void {
 }
 
 /**
+ * Unregister the service worker and delete its caches, so the reload that
+ * follows cannot be answered from an old precached shell (or old hashed
+ * chunks). Only called once the network has just answered, so offline support
+ * comes back when the page registers a fresh worker on boot.
+ */
+async function dropServiceWorkerCaches(): Promise<void> {
+    try {
+        if ("serviceWorker" in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map((r) => r.unregister()));
+        }
+    } catch {
+        // ignore
+    }
+    try {
+        if (typeof caches !== "undefined") {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((k) => caches.delete(k)));
+        }
+    } catch {
+        // ignore
+    }
+}
+
+/**
  * Force this tab/PWA to pick up a newly deployed build. Web/PWA installs have
  * no installer to run — "updating" means making sure a stale service worker
  * or HTTP-cached HTML/JS bundle isn't still being served, then reloading.
@@ -329,12 +354,21 @@ export async function reloadToLatest(): Promise<void> {
             // Ignore — still attempt the reload below regardless.
         }
     }
-    try {
-        // Bypass the HTTP cache so a stale cached document doesn't just get
-        // handed straight back to us by the reload() call that follows.
-        await fetch(location.href, { cache: "reload" });
-    } catch {
-        // Offline or blocked — fall through and reload anyway.
+    // Bypass the HTTP cache so a stale cached document doesn't just get handed
+    // straight back to us by the reload() below. Right after iOS resumes a
+    // PWA the network is often not up yet and this fetch fails; reloading then
+    // would be answered by the OLD cached shell and show the same error again,
+    // so retry a few times first.
+    let fresh = false;
+    for (let attempt = 0; attempt < 4 && !fresh; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 1500));
+        try {
+            const res = await fetch(location.href, { cache: "reload" });
+            fresh = res.ok;
+        } catch {
+            // Offline or blocked — retry, then reload anyway.
+        }
     }
+    if (fresh) await dropServiceWorkerCaches();
     location.reload();
 }
