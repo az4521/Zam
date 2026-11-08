@@ -150,12 +150,17 @@ diff --git a/src/direct/nv-driver.c b/src/direct/nv-driver.c
 index 658a2d2..ca21862 100644
 --- a/src/direct/nv-driver.c
 +++ b/src/direct/nv-driver.c
-@@ -32,6 +32,8 @@
+@@ -32,6 +32,13 @@
  #define GOB_WIDTH_IN_BYTES  64
  #define GOB_HEIGHT_IN_BYTES 8
  #define SINGLE_BUFFER_PLANE_ALIGNMENT 65536
-+// Row pitch of pitch-linear (NVD_LINEAR) images.
-+#define LINEAR_PITCH_ALIGNMENT 256
++// Row pitch of pitch-linear (NVD_LINEAR) images. NVIDIA's Vulkan driver sizes an
++// imported linear NV12 image from its own pitch, align(width, 128), and reads
++// rows at it whatever rowPitch the import says (it lists no DRM modifiers, so
++// the import is outside what it supports). Any other pitch shears the picture
++// as soon as the two differ: 256 broke every width that isn't a multiple of
++// 256, such as 1920 (pitch 2048 against 1920).
++#define LINEAR_PITCH_ALIGNMENT 128
  
  static const NvHandle NULL_OBJECT;
  
