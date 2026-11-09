@@ -91,6 +91,7 @@ import {
     setBlockedDecodeCodecs,
 } from "$lib/stores/settings.svelte";
 import { lazyModule } from "$lib/utils/lazyModule";
+import { RedundancyController } from "$lib/utils/audioRedundancy";
 import {
     availableOutgoingBitrate,
     summarizeTransport,
@@ -1449,12 +1450,15 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         // Each video publish sets its own backup codec
         // (videoCodecPublishOptions).
         // Speech, not the SDK's music preset: a lower bitrate that holds up
-        // on lossy links. RED carries the redundancy that recovers losses.
+        // on lossy links. RED (redundancy that recovers losses) doubles the
+        // audio bitrate, so it is off until the link loses packets
+        // (sampleMicRedundancy). Encrypted calls never get it: LiveKit
+        // disables RED under E2EE.
         publishDefaults: {
             backupCodec: false,
             audioPreset: lk.AudioPresets.speech,
             dtx: true,
-            red: true,
+            red: false,
         },
         // Stop encoding simulcast layers (and codecs) no subscriber is
         // watching. Only this room publishes; remote SFUs are receive-only.
@@ -3186,7 +3190,86 @@ function startUploadSampling(call: ActiveVoiceCall): void {
         }
         void sampleUpload(call);
         void checkDecodeHealth(call);
+        void sampleMicRedundancy(call);
     }, UPLOAD_SAMPLE_MS);
+}
+
+const micRedundancy = new WeakMap<ActiveVoiceCall, RedundancyController>();
+
+/** Turn RED on the mic on while the far end reports loss and off once the
+ *  link is clean again (utils/audioRedundancy). The track is republished, so
+ *  a muted mic waits: the change is picked up on a later sample. */
+async function sampleMicRedundancy(call: ActiveVoiceCall): Promise<void> {
+    // LiveKit never sends RED under E2EE, so there is nothing to switch.
+    if (call.e2ee) return;
+    const lp = call.lkRoom.localParticipant;
+    const source = call.lk.Track.Source.Microphone;
+    const pub = lp.getTrackPublication(source);
+    if (!pub?.track || pub.isMuted || micCreation) return;
+    const pcm = (
+        call.lkRoom.engine as
+            | {
+                  pcManager?: {
+                      publisher?: {
+                          getStats(): Promise<RTCStatsReport> | undefined;
+                      };
+                  };
+              }
+            | undefined
+    )?.pcManager;
+    const stats = await reportValues(pcm?.publisher?.getStats());
+    if (!stats || activeVoice !== call) return;
+    let controller = micRedundancy.get(call);
+    if (!controller) {
+        controller = new RedundancyController();
+        micRedundancy.set(call, controller);
+    }
+    const change = controller.push(
+        summarizeTransport(stats, Date.now()).outgoingLoss,
+        Date.now(),
+    );
+    if (change === null) return;
+    await republishMicRed(call, change);
+}
+
+async function republishMicRed(
+    call: ActiveVoiceCall,
+    red: boolean,
+): Promise<void> {
+    const lp = call.lkRoom.localParticipant;
+    const source = call.lk.Track.Source.Microphone;
+    while (micCreation) await micCreation;
+    const pub = lp.getTrackPublication(source);
+    const track = pub?.audioTrack;
+    if (!pub || !track || activeVoice !== call) return;
+    const previous = { ...pub.options, source };
+    // Held in micCreation so a mute or unmute during the swap waits for it
+    // rather than creating a second track.
+    const run = (async () => {
+        try {
+            await lp.unpublishTrack(track, false);
+            if (activeVoice !== call) {
+                track.stop();
+                return;
+            }
+            await publishWithRetry(lp, track, { ...previous, red });
+        } catch (err) {
+            console.error("Mic redundancy switch failed:", err);
+            if (activeVoice === call) {
+                try {
+                    await publishWithRetry(lp, track, previous);
+                } catch (restoreErr) {
+                    console.error("Couldn't restore the mic:", restoreErr);
+                }
+            }
+        }
+    })();
+    micCreation = run;
+    try {
+        await run;
+    } finally {
+        micCreation = null;
+    }
 }
 
 async function sampleUpload(call: ActiveVoiceCall): Promise<void> {
