@@ -50,7 +50,13 @@ import { satisfiesMinAppVersion } from "./semver";
 import { checkInstallId, decideRepoLoad } from "./pluginPin";
 import { deleteCachedBundle } from "./bundleCache";
 import { deletePluginFiles, putLocalPluginFiles } from "./pluginAssets";
-import { filesFromDirectory, readLocalPlugin } from "./localPlugin";
+import {
+    directoryUnder,
+    filesFromDirectory,
+    filesUnder,
+    findPluginDirs,
+    readLocalPlugin,
+} from "./localPlugin";
 import {
     deleteLocalHandle,
     ensureReadable,
@@ -755,6 +761,53 @@ export async function loadLocalPlugin(
     } catch (e) {
         return { ok: false, error: (e as Error).message };
     }
+}
+
+/** Load whatever plugins a picked folder holds: the folder itself when it has a
+ *  manifest.json, otherwise every plugin folder inside it (a repo). Each gets
+ *  its own sub-folder handle, so Reload re-reads just that plugin. With
+ *  `expectedId` (a reload re-picked by hand) only the plugin with that id is
+ *  loaded. Never throws; `error` joins what failed, `ids` is what loaded. */
+export async function loadLocalFolder(
+    files: Map<string, Blob>,
+    opts: { handle?: FileSystemDirectoryHandle; expectedId?: string } = {},
+): Promise<{ ok: boolean; ids: string[]; error?: string }> {
+    const dirs = findPluginDirs(files);
+    if (!dirs.length) {
+        // Nothing found: let the plugin reader say what's missing.
+        const res = await loadLocalPlugin(files, {
+            expectedId: opts.expectedId,
+        });
+        return { ok: res.ok, ids: [], error: res.error };
+    }
+    const ids: string[] = [];
+    const errors: string[] = [];
+    for (const dir of dirs) {
+        let handle: FileSystemDirectoryHandle | undefined;
+        try {
+            if (opts.handle) handle = await directoryUnder(opts.handle, dir);
+        } catch {
+            /* no handle: Reload asks for the folder again */
+        }
+        const res = await loadLocalPlugin(filesUnder(files, dir), {
+            handle,
+            expectedId: opts.expectedId,
+        });
+        const label = dir ? `${dir}: ` : "";
+        if (res.ok && res.id) ids.push(res.id);
+        else if (
+            dirs.length === 1 ||
+            !res.error?.startsWith("That folder holds")
+        )
+            errors.push(label + res.error);
+    }
+    if (opts.expectedId && !ids.length && !errors.length)
+        errors.push(`No plugin "${opts.expectedId}" in that folder`);
+    return {
+        ok: ids.length > 0 && !errors.length,
+        ids,
+        error: errors.join("\n") || undefined,
+    };
 }
 
 /** Re-read a local plugin from the folder it was loaded from. `needsPick` means

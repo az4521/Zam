@@ -60,6 +60,42 @@ export async function filesFromDirectory(
     return out;
 }
 
+/** Folders under `files` that are plugins, as path prefixes ("" for the top,
+ *  else "sub/dir/"). A manifest.json at the top means the folder is one plugin;
+ *  otherwise it's a repo, and every folder holding a manifest.json is one (the
+ *  search stops at a plugin, so its own subfolders aren't taken for more). */
+export function findPluginDirs(files: Map<string, Blob>): string[] {
+    if (files.has("manifest.json")) return [""];
+    const dirs = [...files.keys()]
+        .filter((p) => p.endsWith("/manifest.json"))
+        .map((p) => p.slice(0, -"manifest.json".length))
+        .sort();
+    return dirs.filter((d) => !dirs.some((o) => o !== d && d.startsWith(o)));
+}
+
+/** The files inside `prefix` (from findPluginDirs), keyed relative to it. */
+export function filesUnder(
+    files: Map<string, Blob>,
+    prefix: string,
+): Map<string, Blob> {
+    if (!prefix) return files;
+    const out = new Map<string, Blob>();
+    for (const [p, f] of files)
+        if (p.startsWith(prefix)) out.set(p.slice(prefix.length), f);
+    return out;
+}
+
+/** The handle of the folder at `prefix` inside `root`. */
+export async function directoryUnder(
+    root: FileSystemDirectoryHandle,
+    prefix: string,
+): Promise<FileSystemDirectoryHandle> {
+    let h = root;
+    for (const seg of prefix.split("/").filter(Boolean))
+        h = await h.getDirectoryHandle(seg);
+    return h;
+}
+
 /** Validate a plugin folder's files. Throws an Error naming what's wrong. */
 export async function readLocalPlugin(
     files: Map<string, Blob>,
@@ -67,7 +103,7 @@ export async function readLocalPlugin(
     const manifestFile = files.get("manifest.json");
     if (!manifestFile)
         throw new Error(
-            "No manifest.json at the top of that folder. Pick the plugin's own folder.",
+            "No manifest.json found in that folder or the folders inside it.",
         );
     let raw: unknown;
     try {

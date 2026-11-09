@@ -1465,7 +1465,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "pluginsSettings.localFolder": "ローカルフォルダー",
     "pluginsSettings.loadFromFolder": "フォルダーからプラグインを読み込む",
     "pluginsSettings.loadFromFolderHint":
-        "プラグイン開発用: manifest.json とバンドルが入ったフォルダーを選びます。Zam はそのコピーを保存し、通常のプラグインと同じように実行します。ビルドし直したら「再読み込み」を使ってください。完全な権限で動くコードなので、自分で書いたか信頼できるフォルダーだけを読み込んでください。",
+        "プラグイン開発用: manifest.json とバンドルが入ったフォルダー、またはそのようなプラグインフォルダーを複数含むリポジトリのフォルダーを選びます。Zam はそのコピーを保存し、通常のプラグインと同じように実行します。ビルドし直したら「再読み込み」を使ってください。完全な権限で動くコードなので、自分で書いたか信頼できるフォルダーだけを読み込んでください。",
     "pluginsSettings.chooseFolder": "フォルダーを選択",
     "pluginsSettings.reload": "再読み込み",
     "pluginsSettings.reloading": "再読み込み中…",

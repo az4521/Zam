@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { filesFromList, readLocalPlugin } from "./localPlugin";
+import {
+    filesFromList,
+    filesUnder,
+    findPluginDirs,
+    readLocalPlugin,
+} from "./localPlugin";
 import {
     emptyPersistedState,
     parsePersistedState,
@@ -39,7 +44,7 @@ describe("readLocalPlugin", () => {
         expect(new Uint8Array(out.assets.get("model.bin")!).length).toBe(3);
     });
 
-    it("needs manifest.json at the folder's top", async () => {
+    it("needs a manifest.json in the folder", async () => {
         await expect(
             readLocalPlugin(folder({ "sub/manifest.json": "{}" })),
         ).rejects.toThrow(/manifest\.json/);
@@ -77,6 +82,34 @@ describe("readLocalPlugin", () => {
                 }),
             ),
         ).rejects.toThrow(/a\.bin/);
+    });
+});
+
+describe("findPluginDirs", () => {
+    it("treats a folder with a top manifest.json as one plugin", () => {
+        expect(
+            findPluginDirs(
+                folder({ "manifest.json": "{}", "sub/manifest.json": "{}" }),
+            ),
+        ).toEqual([""]);
+    });
+
+    it("finds every plugin folder in a repo, not those nested in one", () => {
+        const files = folder({
+            "index.json": "[]",
+            "plugins/a/manifest.json": "{}",
+            "plugins/a/dist/manifest.json": "{}",
+            "plugins/b/manifest.json": "{}",
+            "src/x.ts": "",
+        });
+        expect(findPluginDirs(files)).toEqual(["plugins/a/", "plugins/b/"]);
+        expect([...filesUnder(files, "plugins/b/").keys()]).toEqual([
+            "manifest.json",
+        ]);
+    });
+
+    it("finds nothing when there is no manifest", () => {
+        expect(findPluginDirs(folder({ "a.txt": "" }))).toEqual([]);
     });
 });
 

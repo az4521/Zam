@@ -16,7 +16,7 @@
         removeRepo,
         installRepoPlugin,
         uninstallRepoPlugin,
-        loadLocalPlugin,
+        loadLocalFolder,
         reloadLocalPlugin,
         disableAllPlugins,
         pushPluginSync,
@@ -265,15 +265,14 @@
         files: Map<string, Blob>,
         handle?: FileSystemDirectoryHandle,
     ) {
-        const res = await loadLocalPlugin(files, {
+        const res = await loadLocalFolder(files, {
             handle,
             expectedId: pickFor,
         });
-        if (!res.ok)
-            localError = res.error ?? t("pluginsSettings.installFailed");
+        if (res.error) localError = res.error;
     }
 
-    /** Ask for the plugin's folder. Where the browser can keep a handle to it,
+    /** Ask for the plugin's folder (or a repo folder holding several). Where the browser can keep a handle to it,
      *  later reloads need no picking. */
     async function chooseFolder(forId?: string) {
         localError = "";

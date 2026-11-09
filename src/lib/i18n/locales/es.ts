@@ -1608,7 +1608,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "pluginsSettings.localFolder": "Carpeta local",
     "pluginsSettings.loadFromFolder": "Cargar un plugin desde una carpeta",
     "pluginsSettings.loadFromFolderHint":
-        "Para desarrollar un plugin: elige la carpeta con su manifest.json y el bundle. Zam guarda una copia y lo ejecuta como cualquier plugin; usa Recargar tras recompilar. Ejecuta código con confianza total, así que carga solo carpetas que hayas escrito o en las que confíes.",
+        "Para desarrollar un plugin: elige la carpeta con su manifest.json y el bundle, o una carpeta de repositorio con varias carpetas de plugin así. Zam guarda una copia y lo ejecuta como cualquier plugin; usa Recargar tras recompilar. Ejecuta código con confianza total, así que carga solo carpetas que hayas escrito o en las que confíes.",
     "pluginsSettings.chooseFolder": "Elegir carpeta",
     "pluginsSettings.reload": "Recargar",
     "pluginsSettings.reloading": "Recargando…",

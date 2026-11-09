@@ -1662,7 +1662,7 @@ export const en = {
     "pluginsSettings.localFolder": "Local folder",
     "pluginsSettings.loadFromFolder": "Load a plugin from a folder",
     "pluginsSettings.loadFromFolderHint":
-        "For developing a plugin: pick the folder with its manifest.json and bundle. Zam keeps a copy and runs it like any plugin; use Reload after you rebuild. It runs full-trust code, so only load folders you wrote or trust.",
+        "For developing a plugin: pick the folder with its manifest.json and bundle, or a repo folder holding several such plugin folders. Zam keeps a copy and runs it like any plugin; use Reload after you rebuild. It runs full-trust code, so only load folders you wrote or trust.",
     "pluginsSettings.chooseFolder": "Choose folder",
     "pluginsSettings.reload": "Reload",
     "pluginsSettings.reloading": "Reloading…",
