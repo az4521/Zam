@@ -378,6 +378,10 @@ jobs:
                   EOF
                   sed "s|@BASE@|$PAGES_BASE|g; s|@VERSION@|$VERSION|g" \
                     flatpak/index.html > site/index.html
+                  # The version the repo holds. The app's Flatpak updater reads
+                  # it to tell "not published yet" from "already installed, only
+                  # a restart is missing" (electron/flatpakShellUpdate.cjs).
+                  printf '{"version":"%s"}\n' "$VERSION" > site/version.json
             - uses: actions/upload-pages-artifact@v3
               if: env.RELEASE == 'true'
               with:

@@ -50,6 +50,11 @@ const { createAppAudio } = require("./appAudio.cjs");
 const { resolveShareAudio } = require("./shareAudio.cjs");
 const { createFileLog } = require("./fileLog.cjs");
 const { createUpdateGuard } = require("./updateGuard.cjs");
+const {
+    createFlatpakShellUpdate,
+    AFTER_UPDATE_FLAG,
+} = require("./flatpakShellUpdate.cjs");
+const { createFlatpakUpdateMonitor } = require("./portalFlatpakUpdate.cjs");
 
 // userData/main.log: what a packaged app would otherwise lose (crashes, renderer
 // and GPU exits). Capped at start by fileLog.cjs.
@@ -301,10 +306,10 @@ registerPluginFrames(app, ipcMain, () => mainWindow);
 // and only then asks for the download.
 let autoUpdatePref = false;
 
-// Inside Flatpak the app is updated by `flatpak update` from our repo, and
-// electron-updater has nothing it can replace (it only updates AppImages on
-// Linux). Every updater entry point is a no-op there, and the preload leaves
-// `desktop.updates` out so Settings doesn't offer the control at all.
+// Inside Flatpak electron-updater has nothing it can replace (it only updates
+// AppImages on Linux). The web UI updates through bundles as everywhere else,
+// and a new shell comes from our Flatpak repo through the Flatpak portal
+// (flatpakShellUpdate.cjs), or `flatpak update` where the portal can't.
 const IN_FLATPAK = !!process.env.FLATPAK_ID;
 
 // A portable build (the single .exe, run from a temporary folder) cannot be
@@ -512,13 +517,21 @@ async function checkBundleThenInstaller(manual) {
             console.error("[bundle] check failed:", err);
         }
     }
+    if (IN_FLATPAK && shellVersion && flatpakShell) {
+        flatpakShell.offer(shellVersion, { manual, auto: autoUpdatePref });
+        return;
+    }
     if (IN_FLATPAK || IS_PORTABLE) {
-        // `flatpak update` owns shell updates in Flatpak, and a portable build
-        // cannot install one (see IS_PORTABLE): either way there is nothing to
-        // install here, so a newer release is only pointed at.
+        // A Flatpak without the portal's update monitor needs `flatpak update`,
+        // and a portable build cannot install a shell (see IS_PORTABLE): either
+        // way a newer release is only pointed at.
         sendUpdateStatus(
             shellVersion
-                ? { phase: "unsupported", version: shellVersion }
+                ? {
+                      phase: "unsupported",
+                      version: shellVersion,
+                      ...(IN_FLATPAK ? { manual: "flatpak" } : {}),
+                  }
                 : {
                       phase: "up-to-date",
                       version:
@@ -567,6 +580,74 @@ async function applyStagedBundle() {
         .clearStorageData({ storages: ["serviceworkers"] })
         .catch(() => {});
     mainWindow.webContents.reloadIgnoringCache();
+}
+
+// --- Flatpak shell updates (flatpakShellUpdate.cjs) ------------------------
+
+let flatpakShell = null;
+
+// Published with the Flatpak repo by the release workflow (GitHub Pages).
+const FLATPAK_REPO_VERSION_URL = "https://az4521.github.io/Zam/version.json";
+
+function setupFlatpakUpdater() {
+    const log = (...a) =>
+        updaterLog.info(
+            `[flatpak] ${a.map((x) => (typeof x === "string" ? x : JSON.stringify(x))).join(" ")}`,
+        );
+    const monitor = createFlatpakUpdateMonitor({
+        log,
+        onUpdateAvailable: (info) => {
+            flatpakShell?.updateAvailable(info);
+            // The release check says what it is: often a web bundle, which
+            // needs no restart, and it names the version for the UI.
+            runUpdateCheck(false);
+        },
+    });
+    monitor
+        .start()
+        .then(() => {
+            flatpakShell = createFlatpakShellUpdate({
+                monitor,
+                runningVersion: app.getVersion(),
+                sendStatus: sendUpdateStatus,
+                isFailed: (v) => updateGuard.isFailed(v),
+                repoVersion: async () => {
+                    const res = await net.fetch(FLATPAK_REPO_VERSION_URL, {
+                        cache: "no-store",
+                    });
+                    if (!res.ok) return null;
+                    const { version } = await res.json();
+                    return typeof version === "string" ? version : null;
+                },
+                log,
+            });
+        })
+        .catch((err) => {
+            // Flatpak before 1.5, or no session bus: `flatpak update` it is.
+            monitor.close();
+            updaterLog.warn(
+                `[flatpak] no update portal: ${err?.message ?? err}`,
+            );
+        });
+}
+
+// The portal starts the installed version in a sandbox of its own; this one
+// quits, and the new one waits for it to let go (AFTER_UPDATE_FLAG).
+async function restartIntoFlatpakUpdate() {
+    if (!flatpakShell?.isInstalled()) return;
+    try {
+        await flatpakShell.restart();
+    } catch (err) {
+        updaterLog.error("[flatpak] could not start the update:", err);
+        sendUpdateStatus(mapUpdateError(err));
+        return;
+    }
+    if (lastUpdateStatus?.version) {
+        updateGuard.beginInstall(lastUpdateStatus.version);
+        sendUpdateStatus(lastUpdateStatus);
+    }
+    isQuitting = true;
+    app.quit();
 }
 
 function runInstallerCheck(manual) {
@@ -680,9 +761,11 @@ function setupAutoUpdater() {
     // The saved choice (on unless turned off) governs from the first check; the
     // renderer re-sends it at boot.
     autoUpdatePref = readAutoUpdatePref();
-    // Flatpak builds take their shell from `flatpak update`, and portable ones
-    // cannot install one (IS_PORTABLE); both still check for web bundles below.
+    // Flatpak builds take their shell through the Flatpak portal, and portable
+    // ones cannot install one (IS_PORTABLE); both still check for web bundles
+    // below.
     if (!IN_FLATPAK && !IS_PORTABLE) setupInstallerUpdater();
+    if (IN_FLATPAK) setupFlatpakUpdater();
 
     // Background checks: ~10s after launch (so it never blocks or races
     // startup), then every few hours and after waking from sleep, so an app
@@ -707,6 +790,7 @@ ipcMain.on("updates:download", () => {
         void downloadFoundBundle();
         return;
     }
+    if (IN_FLATPAK) void flatpakShell?.install();
     if (IN_FLATPAK || IS_PORTABLE) return;
     try {
         const p = autoUpdater.downloadUpdate();
@@ -912,6 +996,10 @@ ipcMain.on("updates:quit-and-install", () => {
         return;
     }
     if (IS_PORTABLE) return;
+    if (IN_FLATPAK) {
+        void restartIntoFlatpakUpdate();
+        return;
+    }
     // Recorded before quitting, so a launch that still finds this version
     // running knows the install did not take (updateGuard.cjs). The status is
     // re-sent so the renderer stops offering to apply the same version again.
@@ -2342,10 +2430,28 @@ app.commandLine.appendSwitch(
         .join(","),
 );
 
-if (!app.requestSingleInstanceLock()) {
-    app.quit();
-} else {
-    app.on("second-instance", showWindow);
+// Started by a Flatpak update (restartIntoFlatpakUpdate): the old version is
+// still quitting and holds the lock, and two processes must never share the
+// profile, so wait for it instead of handing over and quitting.
+const AFTER_UPDATE_WAIT_MS = 30 * 1000;
+const AFTER_UPDATE_RETRY_MS = 250;
+
+if (app.requestSingleInstanceLock()) startApp();
+else if (process.argv.includes(AFTER_UPDATE_FLAG)) {
+    const deadline = Date.now() + AFTER_UPDATE_WAIT_MS;
+    const retry = () => {
+        if (app.requestSingleInstanceLock()) startApp();
+        else if (Date.now() > deadline) app.quit();
+        else setTimeout(retry, AFTER_UPDATE_RETRY_MS);
+    };
+    setTimeout(retry, AFTER_UPDATE_RETRY_MS);
+} else app.quit();
+
+function startApp() {
+    app.on("second-instance", (_e, argv) => {
+        // The update we just started, waiting for this process to quit.
+        if (!argv.includes(AFTER_UPDATE_FLAG)) showWindow();
+    });
 
     app.whenReady().then(() => {
         // Required on Windows for native (Web Notification API) notifications

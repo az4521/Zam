@@ -3894,6 +3894,8 @@ export const en = {
     "updateStatus.aNewVersionIsAvailable":
         "A new version is available{versionSuffix}",
     "updateStatus.openReleasePage": "Open release page",
+    "updateStatus.flatpakManualUpdate":
+        "Update available{versionSuffix}. Install it from your software center or with flatpak update",
     "updateStatus.updateCheckFailed": "Update check failed",
     "updateStatus.checkForUpdatesToInstallThe":
         "Check for updates to install the latest version.",

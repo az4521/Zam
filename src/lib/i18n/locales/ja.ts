@@ -3456,6 +3456,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "updateStatus.aNewVersionIsAvailable":
         "新しいバージョンがあります{versionSuffix}",
     "updateStatus.openReleasePage": "リリースページを開く",
+    "updateStatus.flatpakManualUpdate":
+        "アップデートがあります{versionSuffix}。ソフトウェアセンターか flatpak update でインストールしてください",
     "updateStatus.updateCheckFailed": "アップデートの確認に失敗しました",
     "updateStatus.checkForUpdatesToInstallThe":
         "最新バージョンをインストールするにはアップデートを確認してください。",

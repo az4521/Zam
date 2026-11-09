@@ -61,8 +61,8 @@ contextBridge.exposeInMainWorld("desktop", {
             return () => ipcRenderer.removeListener("sso:callback", h);
         },
     },
-    // Updates. A Flatpak build takes its shell from `flatpak update`; the
-    // main process then only offers it web bundles (see bundleUpdater.cjs).
+    // Updates: a web bundle where the shell allows it (bundleUpdater.cjs),
+    // else the installer, or in Flatpak the Flatpak portal.
     updates: {
         check: () => ipcRenderer.send("updates:check"),
         download: () => ipcRenderer.send("updates:download"),

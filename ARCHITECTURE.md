@@ -458,7 +458,13 @@ that only changes the web UI ships it as a signed bundle (`scripts/build-bundle.
   or the user idle for `AUTO_AWAY_MS`. A staged bundle is also taken at launch, before any page exists.
   The page confirms each applied bundle with `updates:bundle-ready`; one that never does is banned at the
   next launch. Debug > "Hide update prompts" hides the banner and toast only; checking and auto-apply
-  carry on. Flatpak gets bundles too, but its shell still updates through `flatpak update`.
+  carry on. Flatpak gets bundles too. A release that needs a new shell installs through the Flatpak
+  portal's update monitor (`portalFlatpakUpdate.cjs`, decisions in `flatpakShellUpdate.cjs`): `Update` asks the
+  user once, then the restart is a portal `Spawn` with LATEST_VERSION, since relaunching inside the sandbox
+  runs the old `/app`. The new process gets `--zam-after-update` and waits for the old one's single-instance
+  lock instead of handing over. The portal refuses an update that adds sandbox permissions; that one (and any
+  Flatpak without the portal) shows "install it with your software center or `flatpak update`".
+  The Pages site's `version.json` tells "repo not published yet" from "already installed, restart needed".
 
 **Android web bundles.** Same bundle and rules, in Java: `WebBundlePlugin` (check, download, apply, ready,
 setAuto), `WebBundleStore` (staging, rollback, the same state files as desktop) and `WebBundleFormat` (the

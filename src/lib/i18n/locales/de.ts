@@ -4047,6 +4047,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "updateStatus.aNewVersionIsAvailable":
         "Eine neue Version ist verfügbar{versionSuffix}",
     "updateStatus.openReleasePage": "Versionsseite öffnen",
+    "updateStatus.flatpakManualUpdate":
+        "Update verfügbar{versionSuffix}. Installiere es über deine Softwareverwaltung oder mit flatpak update",
     "updateStatus.updateCheckFailed": "Updateprüfung fehlgeschlagen",
     "updateStatus.checkForUpdatesToInstallThe":
         "Suche nach Updates, um die neueste Version zu installieren.",

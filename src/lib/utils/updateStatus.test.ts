@@ -191,6 +191,23 @@ describe("updateStatusView — fold updater phase + toggle into a view model", (
         ).toBe("A new version is available (v1.2.0)");
     });
 
+    it("a Flatpak update only the system can install says how, with no button", () => {
+        expect(
+            updateStatusView({
+                phase: "unsupported",
+                autoEnabled: true,
+                version: "1.2.0",
+                manual: "flatpak",
+            }),
+        ).toEqual({
+            label: "Update available (v1.2.0). Install it from your software center or with flatpak update",
+            action: "none",
+            actionLabel: "",
+            busy: false,
+            percent: null,
+        });
+    });
+
     it("error surfaces the message verbatim", () => {
         expect(
             updateStatusView({
