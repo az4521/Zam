@@ -38,6 +38,15 @@ export const LOCALES = [
         aliases: ["syr"],
     },
     {
+        // Simplified script. Traditional-script tags (zh-TW, zh-HK) match
+        // too, which reads better for those users than English.
+        code: "zh",
+        nativeName: "简体中文",
+        englishName: "Chinese (Simplified)",
+        dir: "ltr",
+        intl: "zh-CN",
+    },
+    {
         code: "en",
         nativeName: "English",
         englishName: "English",
@@ -62,9 +71,29 @@ export const LOCALES = [
         dir: "ltr",
     },
     {
+        // Brazilian Portuguese; pt-PT users get it too.
+        code: "pt",
+        nativeName: "Português (Brasil)",
+        englishName: "Portuguese (Brazil)",
+        dir: "ltr",
+        intl: "pt-BR",
+    },
+    {
+        code: "ru",
+        nativeName: "Русский",
+        englishName: "Russian",
+        dir: "ltr",
+    },
+    {
         code: "es",
         nativeName: "Español",
         englishName: "Spanish",
+        dir: "ltr",
+    },
+    {
+        code: "uk",
+        nativeName: "Українська",
+        englishName: "Ukrainian",
         dir: "ltr",
     },
 ] as const satisfies readonly LocaleInfo[];
