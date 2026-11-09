@@ -3,7 +3,7 @@
     import FavouriteFileImg from "$lib/components/ui/FavouriteFileImg.svelte";
     import {
         eventFavouriteFile,
-        isHomeserverMediaUrl,
+        isMatrixMediaUrl,
         mediaUrlFavouriteFile,
         parseEventFavouriteSource,
     } from "$lib/matrix/favouriteFile";
@@ -238,11 +238,12 @@
             onClose();
             return;
         }
-        // An upload starred from an unencrypted room is keyed by its homeserver
+        // An upload starred from an unencrypted room is keyed by its Matrix
         // media URL. That needs the access token, so it cannot be previewed
         // from the URL; attach the bytes, as for an encrypted favourite, and it
-        // is sent as an image.
-        if (onSelectFile && isHomeserverMediaUrl(gif.url)) {
+        // is sent as an image. A URL naming another homeserver is routed
+        // through ours.
+        if (onSelectFile && isMatrixMediaUrl(gif.url)) {
             const file = await mediaUrlFavouriteFile(gif.url).catch(() => null);
             if (file) {
                 onSelectFile(file);
