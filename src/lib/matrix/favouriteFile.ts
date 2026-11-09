@@ -1,11 +1,16 @@
-// Favourites of encrypted GIFs. An encrypted upload has no plain URL, and its
+// Favourites of uploaded GIFs. An encrypted upload has no plain URL, and its
 // decryption key lives only in the message event, so the favourite stores a
-// pointer to that event instead of the media. The picker resolves the pointer
-// back to the decrypted bytes (browser-cached) to show a tile and, when picked,
-// to attach the GIF as a file.
+// pointer to that event instead of the media. An unencrypted upload is keyed by
+// an authenticated homeserver URL, which nothing can preview from the URL
+// alone. The picker resolves either back to the bytes to show a tile and, when
+// picked, to attach the GIF as a file.
 
-import { fetchSingleEvent } from "$lib/matrix/client";
-import { fetchDecryptedAttachmentBlob } from "$lib/matrix/media";
+import { fetchSingleEvent, getHomeserverBaseUrl } from "$lib/matrix/client";
+import {
+    fetchAttachmentBlob,
+    fetchDecryptedAttachmentBlob,
+} from "$lib/matrix/media";
+import { isAuthorisedMediaTarget } from "$lib/utils/mediaAuthOrigin";
 
 export interface EventFavouriteSource {
     roomId: string;
@@ -71,4 +76,28 @@ export async function eventFavouriteFile(
     if (!url) return null;
     const blob = await (await fetch(url)).blob();
     return new File([blob], "favourite.gif", { type: "image/gif" });
+}
+
+/** Whether `url` is a file on this session's own homeserver. Such a URL needs
+ *  the access token to download, so neither a receiving client nor the
+ *  homeserver's URL preview can fetch it from the URL alone. */
+export function isHomeserverMediaUrl(url: string): boolean {
+    const homeserver = getHomeserverBaseUrl();
+    return !!homeserver && isAuthorisedMediaTarget(url, homeserver);
+}
+
+/** The file at a homeserver media URL, ready to attach to the composer. Used
+ *  for a GIF starred from an unencrypted room: sending its URL only produced a
+ *  dead link, so the picker attaches the bytes instead. */
+export async function mediaUrlFavouriteFile(url: string): Promise<File | null> {
+    if (!isHomeserverMediaUrl(url)) return null;
+    const objectUrl = await fetchAttachmentBlob(url);
+    try {
+        const blob = await (await fetch(objectUrl)).blob();
+        return new File([blob], "favourite.gif", {
+            type: blob.type || "image/gif",
+        });
+    } finally {
+        URL.revokeObjectURL(objectUrl);
+    }
 }

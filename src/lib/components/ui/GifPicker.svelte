@@ -3,6 +3,8 @@
     import FavouriteFileImg from "$lib/components/ui/FavouriteFileImg.svelte";
     import {
         eventFavouriteFile,
+        isHomeserverMediaUrl,
+        mediaUrlFavouriteFile,
         parseEventFavouriteSource,
     } from "$lib/matrix/favouriteFile";
     import {
@@ -229,11 +231,26 @@
 
     async function pickFavourite(gif: FavouriteGif) {
         const source = parseEventFavouriteSource(gif.source);
-        if (!source) return pickUrl(gif.url);
-        const file = await eventFavouriteFile(source).catch(() => null);
-        if (!file) return;
-        onSelectFile?.(file);
-        onClose();
+        if (source) {
+            const file = await eventFavouriteFile(source).catch(() => null);
+            if (!file) return;
+            onSelectFile?.(file);
+            onClose();
+            return;
+        }
+        // An upload starred from an unencrypted room is keyed by its homeserver
+        // media URL. That needs the access token, so it cannot be previewed
+        // from the URL; attach the bytes, as for an encrypted favourite, and it
+        // is sent as an image.
+        if (onSelectFile && isHomeserverMediaUrl(gif.url)) {
+            const file = await mediaUrlFavouriteFile(gif.url).catch(() => null);
+            if (file) {
+                onSelectFile(file);
+                onClose();
+                return;
+            }
+        }
+        pickUrl(gif.url);
     }
 
     // KLIPY's width/height are typed as numbers but arrive as third-party JSON,
@@ -364,7 +381,12 @@
         // panel's own onkeydown, which closes the picker.
         if (e.key === "Enter" && activeIndex >= 0) {
             e.preventDefault();
-            pickUrl(activeKeys[activeIndex]);
+            if (tab === "favourites") {
+                const gif = visibleFavourites[activeIndex];
+                if (gif) void pickFavourite(gif);
+            } else {
+                pickUrl(activeKeys[activeIndex]);
+            }
         }
     }
 
@@ -549,7 +571,7 @@
                                  favourite carries; the URL in `title` would be
                                  a terrible name to hear read out. -->
                                     <button
-                                        onclick={() => pickUrl(gif.url)}
+                                        onclick={() => void pickFavourite(gif)}
                                         title={(gif.tags ?? []).length
                                             ? `${gif.url}\n${(gif.tags ?? []).join(", ")}`
                                             : gif.url}
