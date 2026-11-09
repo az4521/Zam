@@ -1,8 +1,11 @@
 // When the mic is sent with RED (a copy of the previous Opus frame in every
 // packet, about double the audio bitrate). It is a waste on a clean link, so
-// it comes on only while the far end reports loss, and goes off again once
-// the link has been quiet for a while. Turning it on or off republishes the
-// track, so the thresholds have a wide gap and a minimum on-time.
+// it comes on only while the far end reports loss. Encrypted calls can also
+// turn it off once the link is quiet again, since they switch redundancy
+// inside the packet without republishing. Unencrypted calls cannot: changing
+// RED republishes the mic and briefly cuts the other end's audio, so those
+// stay on once they have come on. The thresholds have a wide gap and a
+// minimum on-time either way.
 
 /** Mean loss over the last ON_SAMPLES samples that turns RED on, provided
  *  at least two of them show some loss: one bad report is not a lossy link. */
@@ -22,6 +25,12 @@ export class RedundancyController {
     private samples: number[] = [];
     private onSince = 0;
     on = false;
+
+    /** `holdOn` keeps redundancy on after it first comes on. Unencrypted
+     *  calls need it because switching RED off republishes the mic, which
+     *  drops the other end's audio; encrypted calls switch for free and
+     *  leave it off. */
+    constructor(private readonly holdOn = false) {}
 
     /** Take back a change `push` returned that could not be carried out, so
      *  the next sample reaches the same decision again. */
@@ -57,6 +66,7 @@ export class RedundancyController {
             this.onSince = now;
             return true;
         }
+        if (this.holdOn) return null;
         if (now - this.onSince < RED_MIN_ON_MS) return null;
         if (this.samples.length < RED_OFF_SAMPLES) return null;
         if (this.samples.some((s) => s >= RED_OFF_LOSS)) return null;

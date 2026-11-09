@@ -6,6 +6,12 @@
 // bandwidth. A Zam receiver reads the copies back after decryption and
 // refills the frames that never arrived.
 //
+// RFC 6716 section 3.2.5 tells encoders to zero the padding bytes so they
+// cannot carry a covert channel, but tells decoders to accept any value.
+// These bytes are non-zero on purpose, and they are encrypted with the rest
+// of the packet before they leave the machine, so an observer cannot read
+// them and a conformant decoder skips them.
+//
 // Opus packet layout (RFC 6716 section 3): TOC byte (config 5 bits, stereo
 // 1 bit, frame count code 2 bits). Code 0 is one frame filling the rest of
 // the packet. Code 3 has a count byte (v, p, M:6), then the padding length
@@ -19,15 +25,33 @@ export const MAX_DEPTH = 3;
 /** DTX and comfort-noise packets are this small or smaller: not worth it. */
 const MIN_PACKET = 3;
 
-/** Samples at 48 kHz in a one-frame packet, from its TOC byte: configs 0-11
- *  are SILK (10, 20, 40, 60 ms), 12-15 hybrid (10, 20 ms), 16-31 CELT
+/** Samples at 48 kHz in one frame of a packet, from its TOC byte: configs
+ *  0-11 are SILK (10, 20, 40, 60 ms), 12-15 hybrid (10, 20 ms), 16-31 CELT
  *  (2.5, 5, 10, 20 ms), each in groups. */
-export function packetSamples(packet: Uint8Array): number {
-    if (packet.length === 0) return 0;
-    const config = packet[0] >> 3;
+function frameSamples(config: number): number {
     if (config < 12) return [480, 960, 1920, 2880][config & 3];
     if (config < 16) return [480, 960][config & 1];
     return [120, 240, 480, 960][config & 3];
+}
+
+/** Samples at 48 kHz covered by the whole packet, from its TOC and framing.
+ *  Code 0 is one frame; codes 1 and 2 are two; code 3 carries the count in
+ *  the low six bits of its second byte (RFC 6716 section 3.2). A packet is
+ *  never longer than 120 ms, so a count that would exceed that is malformed
+ *  and reports 0 rather than throwing the receiver's timestamp tracking off. */
+export function packetSamples(packet: Uint8Array): number {
+    if (packet.length === 0) return 0;
+    const frame = frameSamples(packet[0] >> 3);
+    const code = packet[0] & 3;
+    let count = 1;
+    if (code === 1 || code === 2) {
+        count = 2;
+    } else if (code === 3) {
+        if (packet.length < 2) return 0;
+        count = packet[1] & 0x3f;
+    }
+    if (count === 0 || frame * count > 5760) return 0;
+    return frame * count;
 }
 
 /** Whether this is a packet we can add copies to: one frame, no padding. */
@@ -115,6 +139,7 @@ export function extractRedundancy(packet: Uint8Array): Extracted | null {
     let p = frameEnd;
     if (packet[p] !== MAGIC_A || packet[p + 1] !== MAGIC_B) return null;
     const count = packet[p + 2];
+    if (count > MAX_DEPTH) return null;
     p += 3;
     const copies: Uint8Array[] = [];
     for (let n = 0; n < count; n++) {

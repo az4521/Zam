@@ -51,6 +51,17 @@ describe("RedundancyController", () => {
         expect(c.push(Number.NaN, 0)).toBeNull();
     });
 
+    it("stays on for good when it may not switch off", () => {
+        const c = new RedundancyController(true);
+        feed(c, [0.05, 0.05, 0.05]);
+        expect(c.on).toBe(true);
+        // Long after the minimum on-time, on a perfectly clean link.
+        const quiet = feed(c, Array(40).fill(0), 70_000);
+        expect(quiet.every((r) => r === null)).toBe(true);
+        expect(c.on).toBe(true);
+        expect(c.depth()).toBe(1);
+    });
+
     it("sends two frames on a very lossy link", () => {
         const c = new RedundancyController();
         expect(c.depth()).toBe(0);

@@ -19,6 +19,32 @@ describe("packetSamples", () => {
         expect(packetSamples(Uint8Array.of(3 << 3))).toBe(2880);
         expect(packetSamples(Uint8Array.of(15 << 3))).toBe(960);
     });
+
+    it("counts every frame in code 1 and code 2 packets", () => {
+        expect(packetSamples(Uint8Array.of((31 << 3) | 1, 0, 0))).toBe(1920);
+        expect(packetSamples(Uint8Array.of((31 << 3) | 2, 1, 0, 0))).toBe(1920);
+    });
+
+    it("counts the frames a code 3 packet signals", () => {
+        // CBR, no padding, three 20 ms frames.
+        expect(packetSamples(Uint8Array.of((31 << 3) | 3, 3, 0, 0, 0))).toBe(
+            2880,
+        );
+        // With padding: the padding length byte does not add audio.
+        expect(
+            packetSamples(Uint8Array.of((31 << 3) | 3, 0x42, 1, 0, 0, 0)),
+        ).toBe(1920);
+        // The longest valid packet: 48 CELT 2.5 ms frames (120 ms).
+        expect(packetSamples(Uint8Array.of((16 << 3) | 3, 48))).toBe(5760);
+    });
+
+    it("reports 0 for impossible frame counts", () => {
+        expect(packetSamples(Uint8Array.of((31 << 3) | 3, 0))).toBe(0);
+        // 7 x 20 ms is 140 ms.
+        expect(packetSamples(Uint8Array.of((31 << 3) | 3, 7))).toBe(0);
+        expect(packetSamples(Uint8Array.of((16 << 3) | 3, 49))).toBe(0);
+        expect(packetSamples(Uint8Array.of((31 << 3) | 3))).toBe(0);
+    });
 });
 
 describe("withRedundancy / extractRedundancy", () => {

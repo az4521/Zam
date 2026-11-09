@@ -110,7 +110,9 @@ export function receiverStage(
                     const missing: { ts: number; packet: Uint8Array }[] = [];
                     let end = ts;
                     for (const c of got.copies) {
-                        const start = (end - packetSamples(c)) >>> 0;
+                        const samples = packetSamples(c);
+                        if (samples === 0) break;
+                        const start = (end - samples) >>> 0;
                         // Whole frames after `next` only: unsigned distance.
                         if (((start - next) | 0) < 0) break;
                         missing.push({ ts: start, packet: c });

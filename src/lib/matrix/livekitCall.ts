@@ -1878,7 +1878,7 @@ async function leaveVoiceCallInternal(): Promise<void> {
 
 // The first-mic-track creation in flight, so a double unmute can't publish
 // two microphones.
-let micCreation: Promise<void> | null = null;
+let micCreation: Promise<unknown> | null = null;
 
 /** Turn the call's mic on or off. Once a mic track exists this is LiveKit's
  *  own mute/unmute. Creating the FIRST one with Zam's mic chain on is done
@@ -3389,8 +3389,10 @@ function reportListeningLoss(call: ActiveVoiceCall, loss: number | null): void {
  * on the way out, or a listener's, which they report to us) and stop once
  * the call is clean again (utils/audioRedundancy). Encrypted calls repeat the
  * earlier frames inside each packet (audio/redundancy), which costs nothing
- * to switch; the others turn RED on by republishing the mic, so a muted mic
- * waits and picks the change up on a later sample.
+ * to switch. The others turn RED on by republishing the mic, which briefly
+ * cuts the other end's audio, so they never turn it back off: at most one
+ * switch per call. A muted mic waits and picks the change up on a later
+ * sample.
  */
 async function sampleAudioRedundancy(call: ActiveVoiceCall): Promise<void> {
     const lp = call.lkRoom.localParticipant;
@@ -3418,7 +3420,8 @@ async function sampleAudioRedundancy(call: ActiveVoiceCall): Promise<void> {
     const loss = Math.max(sending ?? 0, reportedLossOf(call).worst(now));
     let controller = micRedundancy.get(call);
     if (!controller) {
-        controller = new RedundancyController();
+        // Only encrypted calls can switch redundancy off without a republish.
+        controller = new RedundancyController(!call.e2ee);
         micRedundancy.set(call, controller);
     }
     const change = controller.push(loss, now);
@@ -3437,19 +3440,22 @@ async function sampleAudioRedundancy(call: ActiveVoiceCall): Promise<void> {
         controller.undo(change);
         return;
     }
-    await republishMicRed(call, change);
+    if (!(await republishMicRed(call, change))) controller.undo(change);
 }
 
+/** Republish the mic with RED on or off. Returns whether the new setting
+ *  took effect, so the caller can try again on a later sample when it did
+ *  not (and not believe a latched-on setting that never went out). */
 async function republishMicRed(
     call: ActiveVoiceCall,
     red: boolean,
-): Promise<void> {
+): Promise<boolean> {
     const lp = call.lkRoom.localParticipant;
     const source = call.lk.Track.Source.Microphone;
     while (micCreation) await micCreation;
     const pub = lp.getTrackPublication(source);
     const track = pub?.audioTrack;
-    if (!pub || !track || activeVoice !== call) return;
+    if (!pub || !track || activeVoice !== call) return false;
     const previous = { ...pub.options, source };
     // Held in micCreation so a mute or unmute during the swap waits for it
     // rather than creating a second track.
@@ -3458,9 +3464,10 @@ async function republishMicRed(
             await lp.unpublishTrack(track, false);
             if (activeVoice !== call) {
                 track.stop();
-                return;
+                return false;
             }
             await publishWithRetry(lp, track, { ...previous, red });
+            return true;
         } catch (err) {
             console.error("Mic redundancy switch failed:", err);
             if (activeVoice === call) {
@@ -3470,11 +3477,12 @@ async function republishMicRed(
                     console.error("Couldn't restore the mic:", restoreErr);
                 }
             }
+            return false;
         }
     })();
     micCreation = run;
     try {
-        await run;
+        return await run;
     } finally {
         micCreation = null;
     }
