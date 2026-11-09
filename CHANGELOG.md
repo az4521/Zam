@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.55.3
+
+✨ **New**
+
+- **Four more languages:** Zam can now be shown in Russian (Русский), Ukrainian (Українська), Chinese (简体中文) and Brazilian Portuguese (Português (Brasil)). Pick one under Appearance > Language in settings; dates use that language's month and weekday names too. Browsers set to Traditional Chinese get Simplified Chinese, and Portugal Portuguese gets the Brazilian translation. The translations are machine-drafted and need review by native speakers.
+- **Full updates in the Flatpak:** desktop updates that change the app itself now install in the Flatpak too, through the Flatpak portal, and Zam restarts into the new version. Before, the Flatpak could only take web updates and pointed you to the release page for the rest. If the portal refuses an update (for example, it needs new permissions), Zam tells you to update from your software center or with `flatpak update`.
+
+🐛 **Fixed**
+
+- **Untranslated text in German, French, Spanish and Japanese:** the soundboard, QR code sign-in, identity change warnings, rich presence, custom CSS and several call and debug settings were still in English. They are now translated.
+
 ## v1.55.2
 
 ✨ **New**
