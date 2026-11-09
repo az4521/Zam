@@ -79,3 +79,25 @@ export function reservedMediaBox(
         height: Math.max(1, Math.round(h * scale)),
     };
 }
+
+/**
+ * Display box (in px) for a VECTOR image (SVG) whose declared `width`/`height`
+ * are only a hint: it is scaled to the largest size that fits `maxWidth`×
+ * `maxHeight` keeping its aspect ratio, UPSCALING a tiny declared size as well
+ * as shrinking a large one. Null when either dimension fails `safeDimension`.
+ */
+export function vectorMediaBox(
+    width: unknown,
+    height: unknown,
+    maxWidth: number,
+    maxHeight: number,
+): { width: number; height: number } | null {
+    const w = safeDimension(width);
+    const h = safeDimension(height);
+    if (w === null || h === null) return null;
+    const scale = Math.min(maxWidth / w, maxHeight / h);
+    return {
+        width: Math.max(1, Math.round(w * scale)),
+        height: Math.max(1, Math.round(h * scale)),
+    };
+}

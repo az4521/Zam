@@ -727,6 +727,9 @@ export const en = {
 
     // src/lib/components/ui/FlashEmbed.svelte
     "flashEmbed.suspend": "Suspend",
+    "flashEmbed.resize": "Resize player",
+    "flashEmbed.resizeHint":
+        "Drag or use arrow keys to resize. Double-click to reset.",
 
     // src/lib/components/messages/ForwardMessageDialog.svelte
     "forwardMessageDialog.forwardMessage": "Forward message",
@@ -997,6 +1000,9 @@ export const en = {
     "lightbox.image": "Image",
     "lightbox.videoNoun": "video",
     "lightbox.imageNoun": "image",
+    "lightbox.zoomIn": "Zoom in",
+    "lightbox.zoomOut": "Zoom out",
+    "lightbox.zoomReset": "Reset zoom",
 
     // src/lib/components/messages/LinkPreview.svelte
     "linkPreview.youtubeVideo": "YouTube video",
@@ -2863,6 +2869,10 @@ export const en = {
     // src/lib/components/messages/VoiceMessagePlayer.svelte
     "voiceMessagePlayer.seek": "Seek",
     "voiceMessagePlayer.voiceMessage": "Voice message",
+    "midiPlayer.play": "Play",
+    "midiPlayer.pause": "Pause",
+    "midiPlayer.seek": "Position",
+    "midiPlayer.volume": "Volume",
 
     // src/lib/components/messages/VoiceRecorder.svelte
     "voiceRecorder.cancelRecording": "Cancel recording",

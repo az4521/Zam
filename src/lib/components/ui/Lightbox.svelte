@@ -65,7 +65,8 @@
     } from "$lib/matrix/client";
     import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
     import { rememberVolume } from "$lib/actions/rememberVolume";
-    import { safeMediaBlob } from "$lib/utils/attachmentMime";
+    import { authedMediaBlobUrl } from "$lib/stores/mediaAuth.svelte";
+    import { isSvg, safeMediaBlob } from "$lib/utils/attachmentMime";
     import { STREAM_ENCRYPTED_MIN_BYTES } from "$lib/matrix/videoStream";
     import type { EncryptedFileInfo } from "$lib/utils/decryptAttachment";
     import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
@@ -104,6 +105,9 @@
     }: Props = $props();
 
     const isVideo = $derived(kind === "video");
+    // An SVG is a vector: it is sized to the viewport rather than to its
+    // declared pixels, which are often a tiny icon-sized hint.
+    const vector = $derived(!isVideo && isSvg(mimetype, filenameFromSrc()));
     const mediaNoun = $derived(isVideo ? "video" : "image");
     const MediaNoun = $derived(
         isVideo ? t("lightbox.video") : t("lightbox.image"),
@@ -275,6 +279,8 @@
 
     // ── Zoom & pan ──────────────────────────────────────────────────────────
     let imgEl = $state<HTMLImageElement | null>(null);
+    // The whole viewer, which takes the wheel (the backdrop is under the image).
+    let viewerEl = $state<HTMLDivElement | null>(null);
     let scale = $state(1);
     let tx = $state(0);
     let ty = $state(0);
@@ -291,8 +297,37 @@
             tx = 0;
             ty = 0;
             imgLoaded = false;
+            authedSrc = null;
+            authedFallbackTried = false;
         });
     });
+
+    // A failed <img> (usually a 401 when the media service worker isn't
+    // authenticating it) is retried once with the token, as a blob URL this
+    // viewer owns and revokes. Encrypted originals and blob: sources never
+    // take this path, and a blob URL that also fails doesn't retry again.
+    let authedSrc = $state<string | null>(null);
+    let authedFallbackTried = false;
+    $effect(() => {
+        const url = authedSrc;
+        return () => {
+            if (url) URL.revokeObjectURL(url);
+        };
+    });
+    async function onImgError() {
+        if (encryptedFile || authedFallbackTried || !src) return;
+        if (src.startsWith("blob:")) return;
+        authedFallbackTried = true;
+        const want = src;
+        const url = await authedMediaBlobUrl(want, mimetype ?? undefined);
+        if (!url) return;
+        // The gallery may have stepped on while the fetch was in flight.
+        if (src !== want) {
+            URL.revokeObjectURL(url);
+            return;
+        }
+        authedSrc = url;
+    }
 
     // ── Progressive stand-ins ──────────────────────────────────────────────
     // Until `src` loads, the <img> shows `placeholders` as background layers
@@ -303,11 +338,24 @@
     const imgBoxStyle = $derived.by(() => {
         const w = safeDimension(dims?.w);
         const h = safeDimension(dims?.h);
+        const fitViewport = `calc(100${vu}vw - ${viewGutter})`;
+        if (vector) {
+            // A vector has no pixel size to cap at, so it fills the viewport
+            // width, or as much of it as its ratio allows, whatever its declared
+            // size. Without a ratio the file's own ratio sets the height.
+            if (w === null || h === null)
+                return `width: ${fitViewport}; height: auto;`;
+            return (
+                `width: min(${fitViewport}, ` +
+                `calc((100${vu}vh - ${viewGutter}) * ${w} / ${h})); ` +
+                `height: auto; aspect-ratio: ${w} / ${h};`
+            );
+        }
         if (w === null || h === null) return "";
         // What the loaded image would get from the max-width/max-height caps
         // below: never past its own size, never past the viewport.
         return (
-            `width: min(${w}px, calc(100${vu}vw - ${viewGutter}), ` +
+            `width: min(${w}px, ${fitViewport}, ` +
             `calc((100${vu}vh - ${viewGutter}) * ${w} / ${h})); ` +
             `height: auto; aspect-ratio: ${w} / ${h};`
         );
@@ -315,7 +363,8 @@
     // No size to lay out a box with and no original yet: show the best
     // stand-in as the image itself rather than nothing.
     const shownSrc = $derived(
-        src || (imgBoxStyle ? "" : (placeholders.find((p) => !!p) ?? "")),
+        authedSrc ??
+            (src || (imgBoxStyle ? "" : (placeholders.find((p) => !!p) ?? ""))),
     );
     const imgPlaceholderStyle = $derived(
         imgLoaded || !imgBoxStyle ? "" : placeholderStyle(placeholders),
@@ -348,7 +397,13 @@
     const DOUBLE_TAP_DIST = 40;
 
     const MIN_SCALE = 1;
-    const MAX_SCALE = 8;
+    const MAX_SCALE = 16;
+    // One +/- press, button or key, multiplies the zoom by this.
+    const ZOOM_STEP = 1.25;
+    // Kind of the last pointer down ("mouse", "touch", "pen"): a mouse
+    // double-click zooms through dblclick, a touch double-tap through
+    // onPointerUp below.
+    let lastPointerType = "";
 
     /** Clamp the pan so the image can't be dragged past its visible edges. */
     function clampPan() {
@@ -373,6 +428,47 @@
         clampPan();
     }
 
+    /** Zoom about the middle of the viewport (keys and the zoom buttons). */
+    function zoomCentre(factor: number) {
+        zoomAt(factor, window.innerWidth / 2, window.innerHeight / 2);
+    }
+
+    function resetZoom() {
+        scale = 1;
+        tx = 0;
+        ty = 0;
+    }
+
+    /** Mouse wheel and trackpad zoom about the cursor. Non-passive, attached
+     *  by the $effect below, so the page behind the viewer doesn't scroll. */
+    function onWheel(e: WheelEvent) {
+        if (!imgEl) return;
+        e.preventDefault();
+        // Line and page wheels report small deltas; scale them to pixels.
+        const dy =
+            e.deltaMode === 1
+                ? e.deltaY * 16
+                : e.deltaMode === 2
+                  ? e.deltaY * window.innerHeight
+                  : e.deltaY;
+        zoomAt(Math.exp(-dy * 0.002), e.clientX, e.clientY);
+    }
+
+    // Desktop double-click: fit to 2x at the cursor, or back to fit. Mouse
+    // only; a touch double-tap that also fires dblclick is ignored here.
+    function onImgDblClick(e: MouseEvent) {
+        if (lastPointerType !== "mouse") return;
+        if (scale > 1) resetZoom();
+        else zoomAt(2, e.clientX, e.clientY);
+    }
+
+    $effect(() => {
+        const el = viewerEl;
+        if (!el || isVideo) return;
+        el.addEventListener("wheel", onWheel, { passive: false });
+        return () => el.removeEventListener("wheel", onWheel);
+    });
+
     function dist(a: { x: number; y: number }, b: { x: number; y: number }) {
         return Math.hypot(a.x - b.x, a.y - b.y);
     }
@@ -386,6 +482,7 @@
     function onPointerDown(e: PointerEvent) {
         (e.target as Element).setPointerCapture?.(e.pointerId);
         pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        lastPointerType = e.pointerType;
         downX = e.clientX;
         downY = e.clientY;
         moved = false;
@@ -443,7 +540,7 @@
         // Zoom only on a DOUBLE tap: the first zooms in at the tap point, the
         // next resets. A single tap does nothing, so the gesture no longer
         // zooms-in-then-out on a quick double tap.
-        if (!moved && !wasPinch) {
+        if (!moved && !wasPinch && e.pointerType !== "mouse") {
             const now = e.timeStamp;
             const isDoubleTap =
                 now - lastTapTime < DOUBLE_TAP_MS &&
@@ -508,7 +605,7 @@
         };
     });
 
-    // Gallery arrow keys. Kept in its own onMount so the listener's lifecycle is
+    // Gallery arrow keys and the zoom keys (+ - 0). Kept in its own onMount so the listener's lifecycle is
     // independent of the modal-slot registration above. Escape is NOT handled
     // here — `use:focusTrap={{ onEscape: onClose }}` owns it.
     onMount(() => {
@@ -517,6 +614,23 @@
             // preventDefault-ing) it would swallow the popstate the app's back
             // guard depends on. Leave every modified arrow to the browser.
             if (e.altKey || e.ctrlKey || e.metaKey) return;
+            if (!isVideo) {
+                if (e.key === "+" || e.key === "=") {
+                    e.preventDefault();
+                    zoomCentre(ZOOM_STEP);
+                    return;
+                }
+                if (e.key === "-") {
+                    e.preventDefault();
+                    zoomCentre(1 / ZOOM_STEP);
+                    return;
+                }
+                if (e.key === "0") {
+                    e.preventDefault();
+                    resetZoom();
+                    return;
+                }
+            }
             if (e.key === "ArrowLeft" && onPrev) {
                 e.preventDefault();
                 onPrev();
@@ -533,7 +647,8 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-    class="fixed inset-0 z-[9998] overflow-hidden"
+    bind:this={viewerEl}
+    class="group fixed inset-0 z-[9998] overflow-hidden"
     style="touch-action: none;"
     onclick={containClicks}
     ondblclick={containClicks}
@@ -815,10 +930,12 @@
                     onload={() => {
                         if (src) imgLoaded = true;
                     }}
+                    onerror={onImgError}
                     onpointerdown={onPointerDown}
                     onpointermove={onPointerMove}
                     onpointerup={onPointerUp}
                     onpointercancel={onPointerUp}
+                    ondblclick={onImgDblClick}
                     ondragstart={(e) => e.preventDefault()}
                     style="max-width: calc(100{vu}vw - {interfaceState.isMobile
                         ? '6em'
@@ -851,6 +968,60 @@
                             : 'none'};"
                     ></canvas>
                 {/if}
+            </div>
+        {/if}
+        {#if !isVideo}
+            <!-- Zoom controls, shown while the viewer is hovered or has focus.
+                 Only the buttons take pointer events, so the rest of this
+                 strip still reaches the backdrop and closes the viewer. -->
+            <div
+                class="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 p-1 rounded-full bg-black/50 text-white pointer-events-auto opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+            >
+                <button
+                    type="button"
+                    onclick={() => zoomCentre(1 / ZOOM_STEP)}
+                    disabled={scale <= MIN_SCALE}
+                    title={t("lightbox.zoomOut")}
+                    aria-label={t("lightbox.zoomOut")}
+                    class="p-2 rounded-full hover:bg-black/70 transition-colors disabled:opacity-40"
+                >
+                    <svg
+                        class="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        viewBox="0 0 24 24"
+                    >
+                        <path stroke-linecap="round" d="M5 12h14" />
+                    </svg>
+                </button>
+                <button
+                    type="button"
+                    onclick={resetZoom}
+                    title={t("lightbox.zoomReset")}
+                    aria-label={t("lightbox.zoomReset")}
+                    class="min-w-[3.5rem] px-2 py-1 rounded-full text-sm tabular-nums hover:bg-black/70 transition-colors"
+                >
+                    {Math.round(scale * 100)}%
+                </button>
+                <button
+                    type="button"
+                    onclick={() => zoomCentre(ZOOM_STEP)}
+                    disabled={scale >= MAX_SCALE}
+                    title={t("lightbox.zoomIn")}
+                    aria-label={t("lightbox.zoomIn")}
+                    class="p-2 rounded-full hover:bg-black/70 transition-colors disabled:opacity-40"
+                >
+                    <svg
+                        class="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        viewBox="0 0 24 24"
+                    >
+                        <path stroke-linecap="round" d="M12 5v14M5 12h14" />
+                    </svg>
+                </button>
             </div>
         {/if}
     </div>

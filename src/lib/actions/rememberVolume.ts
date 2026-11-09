@@ -21,15 +21,17 @@ export function readSavedVolume(): Saved | null {
     }
 }
 
-function save(el: HTMLMediaElement): void {
+/** Saves the device-local media volume and mute, for readSavedVolume. */
+export function saveVolume(volume: number, muted: boolean): void {
     try {
-        localStorage.setItem(
-            KEY,
-            JSON.stringify({ volume: el.volume, muted: el.muted }),
-        );
+        localStorage.setItem(KEY, JSON.stringify({ volume, muted }));
     } catch {
         // ignore (private mode / storage full)
     }
+}
+
+function save(el: HTMLMediaElement): void {
+    saveVolume(el.volume, el.muted);
 }
 
 /** `use:rememberVolume` on a <video> or <audio> that plays with sound. */

@@ -149,3 +149,41 @@ export async function decodeOpusSample(
     const start = total >= preSkip + frames ? preSkip : 0;
     return all.slice(start, start + frames);
 }
+
+/** The part of a bank sample the decode loop reads (spessasynth_core's BasicSample has all of it). */
+export interface BankSampleLike {
+    readonly isCompressed: boolean;
+    readonly sampleRate: number;
+    getRawData(allowVorbis: boolean): Uint8Array;
+}
+
+export interface DecodedOpusSample {
+    /** Index into the bank's `samples`. */
+    index: number;
+    sampleRate: number;
+    pcm: Float32Array;
+}
+
+/**
+ * Decodes every ZOP1 sample of a bank, in parallel. Samples that aren't ZOP1
+ * (plain PCM, or Vorbis from another bank) are skipped. Shared by the render
+ * worker and the real-time player's bank prep worker.
+ */
+export async function decodeBankOpusSamples(
+    samples: readonly BankSampleLike[],
+    decode: (data: Uint8Array) => Promise<Float32Array> = decodeOpusSample,
+): Promise<DecodedOpusSample[]> {
+    const decoded = await Promise.all(
+        samples.map(async (sample, index) => {
+            if (!sample.isCompressed) return null;
+            const raw = sample.getRawData(true);
+            if (!isOpusSample(raw)) return null;
+            return {
+                index,
+                sampleRate: sample.sampleRate,
+                pcm: await decode(raw),
+            };
+        }),
+    );
+    return decoded.filter((d): d is DecodedOpusSample => d !== null);
+}

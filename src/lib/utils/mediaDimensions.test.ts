@@ -3,6 +3,7 @@ import {
     reservedMediaBox,
     safeAspectRatio,
     safeDimension,
+    vectorMediaBox,
 } from "./mediaDimensions";
 
 describe("safeDimension", () => {
@@ -151,5 +152,44 @@ describe("reservedMediaBox", () => {
         expect(
             reservedMediaBox("1px;background:url(https://x/y)", 1080, 512, 384),
         ).toBeNull();
+    });
+});
+
+describe("vectorMediaBox", () => {
+    it("upscales a tiny declared size to fill the box, keeping the ratio", () => {
+        expect(vectorMediaBox(16, 16, 512, 384)).toEqual({
+            width: 384,
+            height: 384,
+        });
+        expect(vectorMediaBox(100, 50, 512, 384)).toEqual({
+            width: 512,
+            height: 256,
+        });
+    });
+
+    it("shrinks a large declared size to fit, like reservedMediaBox", () => {
+        expect(vectorMediaBox(2000, 1000, 512, 384)).toEqual({
+            width: 512,
+            height: 256,
+        });
+    });
+
+    it("is bounded by the height for a tall image", () => {
+        expect(vectorMediaBox(10, 40, 512, 384)).toEqual({
+            width: 96,
+            height: 384,
+        });
+    });
+
+    it("returns null for missing or refused dimensions", () => {
+        expect(vectorMediaBox(undefined, 100, 512, 384)).toBeNull();
+        expect(vectorMediaBox(100, "1px;x", 512, 384)).toBeNull();
+        expect(vectorMediaBox(0, 100, 512, 384)).toBeNull();
+    });
+
+    it("never produces a zero side", () => {
+        const box = vectorMediaBox(100000, 1, 512, 384);
+        expect(box?.width).toBe(512);
+        expect(box?.height).toBeGreaterThanOrEqual(1);
     });
 });

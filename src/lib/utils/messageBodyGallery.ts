@@ -35,6 +35,8 @@ export interface GalleryImage {
     placeholders?: (string | null)[];
     /** The sender's untrusted `info.w`/`info.h`, to size the viewer early. */
     dims?: { w: unknown; h: unknown };
+    /** The attachment's declared mimetype (an SVG is sized as a vector). */
+    mimetype?: string;
 }
 
 /** A body `<img>` counts as gallery media iff it has a real src and is neither

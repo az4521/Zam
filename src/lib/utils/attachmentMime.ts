@@ -51,6 +51,19 @@ export function isSvgMimeType(mimetype: string | null | undefined): boolean {
     return (mimetype ?? "").toLowerCase().split(";")[0].trim() === SVG;
 }
 
+/**
+ * True when an attachment is an SVG, by its declared mimetype or, since senders
+ * often mislabel it as `image/*` or leave it generic, by a `.svg`/`.svgz` name.
+ * Used to keep SVGs at full size (the server thumbnailer rasterizes them small)
+ * and to size them as vectors.
+ */
+export function isSvg(
+    mimetype: string | null | undefined,
+    filename: string | null | undefined,
+): boolean {
+    return isSvgMimeType(mimetype) || /\.svgz?$/i.test((filename ?? "").trim());
+}
+
 /** SMIL animation values. DOMPurify drops them all because an animation of
  *  `href` could set it to `javascript:`; svgPurifier allows them on anything
  *  else, so animated SVGs keep moving. */
@@ -103,29 +116,57 @@ function svgPurifier(): ReturnType<typeof DOMPurify> {
     return purifier;
 }
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+const XLINK_NS = "http://www.w3.org/1999/xlink";
+const XMLNS_NS = "http://www.w3.org/2000/xmlns/";
+
+/**
+ * The `<svg>` root of `text`, or null if there isn't one. Strict XML first: a
+ * well-formed document with an SVG-namespaced root. Otherwise the text is
+ * re-read as HTML, which accepts what XML rejects (`&nbsp;`, a bare `&`) and
+ * puts an `<svg>` in the SVG namespace even when the file never declared
+ * `xmlns`. An `image/svg+xml` document with a null-namespace root renders
+ * nothing, so that case takes the HTML path too.
+ */
+function svgRoot(text: string): Element | null {
+    const xml = new DOMParser().parseFromString(text, SVG);
+    const root = xml.documentElement;
+    if (
+        root?.localName === "svg" &&
+        root.namespaceURI === SVG_NS &&
+        !xml.getElementsByTagName("parsererror").length
+    )
+        return root;
+    return new DOMParser()
+        .parseFromString(text, "text/html")
+        .querySelector("svg");
+}
+
 /**
  * An encrypted SVG made safe to keep its real type. safeAttachmentMimeType
  * turns SVG into octet-stream, which an `<img>` won't render at all, so an
- * E2EE SVG showed as a broken image. Instead the markup is parsed as XML and
- * run through DOMPurify's SVG profile (no `<script>`, no `on*` handlers, no
- * `javascript:` links, no `<foreignObject>`), so the `image/svg+xml` blob stays
- * inert even if its URL is opened in a tab of our origin. Null when the bytes
- * aren't a well-formed SVG; the caller then keeps the octet-stream blob.
+ * E2EE SVG showed as a broken image. Instead the markup is parsed (see
+ * svgRoot) and run through DOMPurify's SVG profile (no `<script>`, no `on*`
+ * handlers, no `javascript:` links, no `<foreignObject>`), so the
+ * `image/svg+xml` blob stays inert even if its URL is opened in a tab of our
+ * origin. Null when the bytes hold no `<svg>` at all; the caller then keeps the
+ * octet-stream blob.
  */
 export function sanitizedSvgBlob(bytes: ArrayBuffer | Uint8Array): Blob | null {
     const text = new TextDecoder().decode(bytes);
-    const doc = new DOMParser().parseFromString(text, SVG);
-    const root = doc.documentElement;
-    if (
-        root.localName !== "svg" ||
-        doc.getElementsByTagName("parsererror").length
-    )
-        return null;
+    const root = svgRoot(text);
+    if (!root) return null;
     svgPurifier().sanitize(root, {
         IN_PLACE: true,
         USE_PROFILES: { svg: true, svgFilters: true },
         ADD_ATTR: [...ANIMATION_VALUES],
     });
+    // A root read from HTML may use `xlink:` attributes it never declared.
+    if (
+        root.hasAttributeNS(XLINK_NS, "href") &&
+        !root.hasAttributeNS(XMLNS_NS, "xlink")
+    )
+        root.setAttributeNS(XMLNS_NS, "xmlns:xlink", XLINK_NS);
     return new Blob([new XMLSerializer().serializeToString(root)], {
         type: SVG,
     });

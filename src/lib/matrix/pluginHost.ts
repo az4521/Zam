@@ -17,6 +17,7 @@ import {
     type PluginTimelineRecord,
 } from "../plugins/pluginTimeline";
 import { exceedsUploadLimit, FileTooLargeError } from "$lib/utils/uploadLimits";
+import { isMidiAttachment, midiSendMimetype } from "$lib/utils/midi";
 import { withThreadRelation } from "$lib/utils/threadContent";
 import {
     createMediaOwnership,
@@ -175,10 +176,14 @@ export async function sendPluginMedia(
             maxUploadSize as number,
         );
     }
-    const fileType = opts.type || blob.type || "application/octet-stream";
+    const fileType = midiSendMimetype(
+        opts.type || blob.type || "application/octet-stream",
+        fileName,
+    );
     const isImage = fileType.startsWith("image/");
     const isVideo = fileType.startsWith("video/");
-    const isAudio = fileType.startsWith("audio/");
+    const isAudio =
+        fileType.startsWith("audio/") || isMidiAttachment(fileType, fileName);
     if (
         opts.msgtype &&
         !["m.image", "m.video", "m.audio", "m.file"].includes(opts.msgtype)

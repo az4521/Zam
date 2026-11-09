@@ -1,17 +1,46 @@
 // Runs Ruffle inside FlashEmbed.svelte's sandboxed iframe (see index.html).
 //
 // The app posts one "init" message carrying the SWF bytes and a MessagePort.
-// Over the port, the app can send "suspend", and this page asks for Ruffle's
-// wasm: an opaque origin cannot read /ruffle/*.wasm itself (the response has
-// no CORS headers), and the CSP allows no fetches anyway.
+// Over the port, the app can send "suspend" and "volume", and this page asks
+// for Ruffle's wasm: an opaque origin cannot read /ruffle/*.wasm itself (the
+// response has no CORS headers), and the CSP allows no fetches anyway.
+//
+// Ruffle fires no event when its volume changes, so the page polls it and
+// reports changes (from Ruffle's own menu) to the app, which remembers them.
 (function () {
     "use strict";
 
     var WASM_PATH = /^\/ruffle\/([0-9a-f]{20}\.wasm)$/;
+    var VOLUME_POLL_MS = 1000;
     var port = null;
     var player = null;
     var nextId = 0;
     var pending = new Map();
+    // The volume we last set or read, so a poll only reports real changes.
+    var volume = null;
+    // The level the app asked for; applied again once the movie has loaded.
+    var wantedVolume = null;
+
+    function setVolume(value) {
+        if (!player) return;
+        // Ruffle's own volume menu reads this internal record, not the
+        // instance, so keep it in step or the slider opens at 100%.
+        var settings = player.volumeSettings;
+        if (settings && typeof settings.volume === "number") {
+            settings.volume = Math.round(value * 100);
+            settings.isMuted = false;
+        }
+        player.volume = value;
+        volume = player.volume;
+    }
+
+    function pollVolume() {
+        if (!player || !port) return;
+        var v = player.volume;
+        if (typeof v !== "number" || v === volume) return;
+        volume = v;
+        port.postMessage({ type: "volume", value: v });
+    }
 
     // Ruffle's wasm loader goes through fetch; serve its two files from the
     // app and refuse everything else.
@@ -44,6 +73,14 @@
             else p.reject(new TypeError("wasm unavailable"));
         } else if (msg.type === "suspend" && player) {
             player.ruffle().suspend();
+        } else if (
+            msg.type === "volume" &&
+            typeof msg.value === "number" &&
+            msg.value >= 0 &&
+            msg.value <= 1
+        ) {
+            wantedVolume = msg.value;
+            setVolume(msg.value);
         }
     }
 
@@ -57,16 +94,25 @@
             player.style.width = "100%";
             player.style.height = "100%";
             document.body.appendChild(player);
+            volume = player.volume;
             // Ruffle's own limits, kept behind the sandbox: no network
             // (URLLoader/Socket), no host script access (ExternalInterface),
             // no navigation via getURL.
-            player.ruffle().load({
-                data: new Uint8Array(swf),
-                allowNetworking: "none",
-                allowScriptAccess: false,
-                openUrlMode: "deny",
+            // Promise.resolve: load() may or may not return a promise.
+            Promise.resolve(
+                player.ruffle().load({
+                    data: new Uint8Array(swf),
+                    allowNetworking: "none",
+                    allowScriptAccess: false,
+                    openUrlMode: "deny",
+                }),
+            ).then(function () {
+                // Ruffle may reset its volume while the movie loads.
+                if (wantedVolume !== null) setVolume(wantedVolume);
+                else volume = player.volume;
             });
             port.postMessage({ type: "ready" });
+            setInterval(pollVolume, VOLUME_POLL_MS);
         };
         document.head.appendChild(script);
     }

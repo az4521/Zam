@@ -39,6 +39,7 @@
     import VerificationRequestMessage from "$lib/components/messages/VerificationRequestMessage.svelte";
     import CallEventCard from "$lib/components/messages/CallEventCard.svelte";
     import VoiceMessagePlayer from "$lib/components/messages/VoiceMessagePlayer.svelte";
+    import MidiPlayer from "$lib/components/ui/MidiPlayer.svelte";
     import ForwardMessageDialog from "$lib/components/messages/ForwardMessageDialog.svelte";
     import MessageReportAction from "$lib/components/messages/MessageReportAction.svelte";
     import MessageRedactAction from "$lib/components/messages/MessageRedactAction.svelte";
@@ -116,12 +117,16 @@
     import { isVerificationRequestMessage } from "$lib/utils/verificationMessage";
     import { stripFormattedFallback } from "$lib/utils/replyFallback";
     import { parseVoiceContent } from "$lib/utils/voiceMessage";
-    import { isMidiAttachment, midiUrlToWavUrl } from "$lib/utils/midi";
+    import { isMidiAttachment } from "$lib/utils/midi";
     import {
         isTrackerAttachment,
         trackerUrlToWavUrl,
     } from "$lib/utils/tracker";
-    import { reservedMediaBox } from "$lib/utils/mediaDimensions";
+    import {
+        reservedMediaBox,
+        vectorMediaBox,
+    } from "$lib/utils/mediaDimensions";
+    import { isSvg } from "$lib/utils/attachmentMime";
     import {
         learnImageSize,
         learnedMediaSize,
@@ -699,16 +704,23 @@
         };
         const sender = videoPoster(c as Record<string, unknown>);
         const isGifUpload = c.info?.mimetype === "image/gif";
+        // An SVG is a vector: the server's raster thumbnail would be small and
+        // soft, so the viewer's stand-ins come from the full file instead.
+        const isVectorUpload = isSvg(
+            c.info?.mimetype,
+            (c.filename ?? c.body) as string | undefined,
+        );
         return {
             src: mxcToHttp(c.url as string) ?? "",
             alt: (c.filename ?? c.body ?? "") as string,
             placeholders: [
-                isGifUpload
+                isGifUpload || isVectorUpload
                     ? null
                     : mxcToHttp(c.url as string, 800, 600, "scale"),
                 sender?.kind === "plain" ? mxcToHttp(sender.mxc) : null,
             ],
             dims: { w: c.info?.w, h: c.info?.h },
+            mimetype: c.info?.mimetype,
         };
     }
 
@@ -1281,6 +1293,15 @@
                 )),
     );
 
+    // Whether this image is an SVG (a vector, see utils/attachmentMime).
+    const isSvgImage = $derived(
+        msgtype === "m.image" &&
+            isSvg(
+                (content?.info as { mimetype?: string } | undefined)?.mimetype,
+                mediaFilename || (content?.body as string | undefined),
+            ),
+    );
+
     // Image conversion.
     // In chat we show a server-scaled 800x600 thumbnail to save bandwidth; the
     // full-resolution image is only requested when opened in the lightbox.
@@ -1301,6 +1322,9 @@
             mediaFilename.toLowerCase().endsWith(".jxl")
         )
             return mxcToHttp(content?.url as string);
+        // An SVG is a vector: the server's raster thumbnail would be small and
+        // blurry, so it is shown from the full file, which the browser scales.
+        if (isSvgImage) return mxcToHttp(content?.url as string);
         return (
             mxcToHttp(content?.url as string, 800, 600, "scale") ??
             mxcToHttp(content?.url as string)
@@ -1333,7 +1357,14 @@
             (content?.info as any)?.thumbnail_info?.h ??
             learnedSize?.height,
     );
-    const imageBox = $derived(reservedMediaBox(imgInfoW, imgInfoH, 512, 384));
+    // An SVG's declared size is only a hint, so it is fitted up as well as down
+    // (a 16×16 icon fills the tile). With no usable size it gets no box here and
+    // the tile falls back to a 384px-wide image that takes its ratio from the file.
+    const imageBox = $derived(
+        isSvgImage
+            ? vectorMediaBox(imgInfoW, imgInfoH, 512, 384)
+            : reservedMediaBox(imgInfoW, imgInfoH, 512, 384),
+    );
     const stickerBox = $derived(reservedMediaBox(imgInfoW, imgInfoH, 192, 192));
 
     // Encrypted image: decrypt on mount when content.file is present
@@ -1359,7 +1390,10 @@
     const mediaImgSrc = $derived(
         encryptedImageThumbUrl ?? imageThumbUrl() ?? stickerHttpUrl(),
     );
-    const mediaImgRetry = createMediaRetry(() => mediaImgSrc);
+    const mediaImgRetry = createMediaRetry(
+        () => mediaImgSrc,
+        () => (isSvgImage ? "image/svg+xml" : undefined),
+    );
 
     $effect(() => {
         if (msgtype !== "m.image") return;
@@ -1609,7 +1643,8 @@
     );
     // Tracker modules (MOD/XM/S3M/IT...) are rendered like MIDI. Browsers
     // don't give them an audio/ type, so they usually arrive as m.file and
-    // get the player alongside the download card.
+    // get the player alongside the download card. MIDI sent as m.file (from
+    // before a .MID was typed as audio) gets the same player.
     const audioIsTracker = $derived(
         isTrackerAttachment(
             (content?.info as { mimetype?: string } | undefined)?.mimetype,
@@ -1617,7 +1652,8 @@
         ),
     );
     const audioPlayable = $derived(
-        msgtype === "m.audio" || (msgtype === "m.file" && audioIsTracker),
+        msgtype === "m.audio" ||
+            (msgtype === "m.file" && (audioIsTracker || audioIsMidi)),
     );
 
     /**
@@ -1669,16 +1705,13 @@
         if (!audioClicked || !audioPlayable) return;
         if (audioStreamUrl) return;
         const file = content?.file as EncryptedFile | undefined;
-        const isMidi = audioIsMidi;
         const isTracker = audioIsTracker;
         let cancelled = false;
-        // <audio> can't decode MIDI or tracker modules, so render to WAV first.
+        // <audio> can't decode tracker modules, so render those to WAV first.
+        // MIDI goes to MidiPlayer as downloaded: it plays live, or renders
+        // to WAV itself when there is no sound bank.
         const toPlayableAudio = (url: string) =>
-            isMidi
-                ? midiUrlToWavUrl(url)
-                : isTracker
-                  ? trackerUrlToWavUrl(url)
-                  : url;
+            isTracker ? trackerUrlToWavUrl(url) : url;
         if (file) {
             // Encrypted audio
             audioLoading = true;
@@ -2454,42 +2487,45 @@
                 <div
                     class="flex items-center gap-3 p-3 bg-discord-backgroundTertiary rounded-lg mt-1 max-w-sm w-full"
                 >
-                    <!-- svelte-ignore a11y_consider_explicit_label -->
-                    <button
-                        onclick={() => {
-                            if (audioBlobUrl) return;
-                            if (audioFailed) {
-                                audioFailed = false;
-                                audioAttempt++;
-                            } else {
-                                audioClicked = true;
-                            }
-                        }}
-                        class="w-8 h-8 rounded-full bg-discord-accent flex-shrink-0 flex items-center justify-center disabled:opacity-50"
-                        disabled={audioLoading}
-                    >
-                        {#if audioLoading || (audioStreamUrl && !audioStreamReady)}
-                            <div
-                                class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
-                            ></div>
-                        {:else if !audioBlobUrl && !audioStreamUrl}
-                            <svg
-                                class="w-4 h-4 text-white ms-0.5"
-                                fill="currentColor"
-                                viewBox="0 0 24 24"
-                                ><path d="M8 5v14l11-7z" /></svg
-                            >
-                        {:else}
-                            <svg
-                                class="w-4 h-4 text-white"
-                                fill="currentColor"
-                                viewBox="0 0 24 24"
-                                ><path
-                                    d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"
-                                /></svg
-                            >
-                        {/if}
-                    </button>
+                    <!-- MIDI's own player below takes over the play button. -->
+                    {#if !(audioIsMidi && audioBlobUrl)}
+                        <!-- svelte-ignore a11y_consider_explicit_label -->
+                        <button
+                            onclick={() => {
+                                if (audioBlobUrl) return;
+                                if (audioFailed) {
+                                    audioFailed = false;
+                                    audioAttempt++;
+                                } else {
+                                    audioClicked = true;
+                                }
+                            }}
+                            class="w-8 h-8 rounded-full bg-discord-accent flex-shrink-0 flex items-center justify-center disabled:opacity-50"
+                            disabled={audioLoading}
+                        >
+                            {#if audioLoading || (audioStreamUrl && !audioStreamReady)}
+                                <div
+                                    class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"
+                                ></div>
+                            {:else if !audioBlobUrl && !audioStreamUrl}
+                                <svg
+                                    class="w-4 h-4 text-white ms-0.5"
+                                    fill="currentColor"
+                                    viewBox="0 0 24 24"
+                                    ><path d="M8 5v14l11-7z" /></svg
+                                >
+                            {:else}
+                                <svg
+                                    class="w-4 h-4 text-white"
+                                    fill="currentColor"
+                                    viewBox="0 0 24 24"
+                                    ><path
+                                        d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"
+                                    /></svg
+                                >
+                            {/if}
+                        </button>
+                    {/if}
                     <div class="flex-1 min-w-0">
                         <p
                             class="text-discord-textPrimary text-xs font-medium truncate mb-1"
@@ -2549,8 +2585,16 @@
                                 class="w-full h-8"
                             ></audio>
                             {#if !audioStreamReady}{@render audioBar()}{/if}
+                        {:else if audioIsMidi && audioBlobUrl}
+                            <MidiPlayer
+                                midiUrl={audioBlobUrl}
+                                onfail={() => {
+                                    audioBlobUrl = null;
+                                    audioFailed = true;
+                                }}
+                            />
                         {:else if audioBlobUrl}
-                            <!-- For MIDI and trackers, this <audio>'s own
+                            <!-- For trackers, this <audio>'s own
                              download saves the rendered WAV; the button
                              beside it saves the original. -->
                             <!-- svelte-ignore a11y_media_has_caption -->
@@ -2781,14 +2825,19 @@
                                     src={mediaImgRetry.src}
                                     alt={mediaFilename}
                                     title={mediaFilename || undefined}
-                                    class="max-w-lg w-full max-h-96 rounded-lg object-contain cursor-pointer block"
+                                    class={isSvgImage
+                                        ? "w-96 max-w-full max-h-96 h-auto rounded-lg object-contain cursor-pointer block"
+                                        : "max-w-lg w-full max-h-96 rounded-lg object-contain cursor-pointer block"}
                                     loading="lazy"
                                     data-own-retry
                                     onerror={mediaImgRetry.onError}
                                     style={imageTilePlaceholder}
                                     onload={(e) => {
                                         imageTileLoaded = true;
-                                        learnImageSize(mediaSizeKey)(e);
+                                        // A vector's size is its declared hint, not
+                                        // its rendered size, so it is never learned.
+                                        if (!isSvgImage)
+                                            learnImageSize(mediaSizeKey)(e);
                                     }}
                                 />
                             {/if}
@@ -2841,6 +2890,7 @@
                                 alt={ucur.alt}
                                 placeholders={ucur.placeholders}
                                 dims={ucur.dims}
+                                mimetype={ucur.mimetype}
                                 onClose={() => (uploadGallery = null)}
                                 onPrev={uprev !== null
                                     ? () =>
@@ -2879,6 +2929,9 @@
                         placeholders={lightboxPlaceholders}
                         preview={file ? imagePreview : null}
                         dims={{ w: imgInfoW, h: imgInfoH }}
+                        mimetype={(
+                            content?.info as { mimetype?: string } | undefined
+                        )?.mimetype}
                         favourite={!isGif
                             ? undefined
                             : file
@@ -2960,7 +3013,7 @@
                                 : fetchAttachmentBlob(fileUrl!)}
                     />
                 {/if}
-                {#if audioIsTracker}
+                {#if audioIsTracker || audioIsMidi}
                     {@render audioCard()}
                 {/if}
                 <!-- svelte-ignore a11y_no_static_element_interactions -->

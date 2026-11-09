@@ -29,7 +29,7 @@
 {:else}
     <button
         onclick={activate}
-        class="flex items-center gap-3 mt-1 w-full max-w-sm aspect-video rounded-lg bg-black/80 hover:bg-black/60 transition-colors justify-center flex-col"
+        class="flex items-center gap-3 mt-1 w-full max-w-2xl aspect-video rounded-lg bg-black/80 hover:bg-black/60 transition-colors justify-center flex-col"
         disabled={loading}
     >
         {#if loading}

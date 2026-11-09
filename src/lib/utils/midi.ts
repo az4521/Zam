@@ -28,6 +28,22 @@ export function isMidiAttachment(
     return /\.(midi?|kar|rmi)$/i.test((filename ?? "").trim());
 }
 
+/**
+ * The mimetype to send a MIDI file with. Browsers often give a `.mid` no type
+ * (or application/octet-stream), so that becomes audio/midi; any other type
+ * the browser gave is kept. Non-MIDI files come back unchanged.
+ */
+export function midiSendMimetype(
+    mimetype: string | null | undefined,
+    filename: string | null | undefined,
+): string {
+    const base = (mimetype ?? "").toLowerCase().split(";")[0].trim();
+    if (!isMidiAttachment(mimetype, filename)) return mimetype ?? "";
+    return base === "" || base === "application/octet-stream"
+        ? "audio/midi"
+        : (mimetype ?? "");
+}
+
 export type MidiEvent =
     | {
           time: number;

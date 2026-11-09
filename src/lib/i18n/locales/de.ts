@@ -727,6 +727,9 @@ const messages: Partial<Record<MessageKey, string>> = {
 
     // src/lib/components/ui/FlashEmbed.svelte
     "flashEmbed.suspend": "Anhalten",
+    "flashEmbed.resize": "Player-Größe ändern",
+    "flashEmbed.resizeHint":
+        "Ziehen oder Pfeiltasten zum Ändern der Größe. Doppelklick zum Zurücksetzen.",
 
     // src/lib/components/messages/ForwardMessageDialog.svelte
     "forwardMessageDialog.forwardMessage": "Nachricht weiterleiten",
@@ -889,6 +892,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "lightbox.image": "Bild",
     "lightbox.videoNoun": "Video",
     "lightbox.imageNoun": "Bild",
+    "lightbox.zoomIn": "Vergrößern",
+    "lightbox.zoomOut": "Verkleinern",
+    "lightbox.zoomReset": "Zoom zurücksetzen",
 
     // src/lib/components/messages/LinkPreview.svelte
     "linkPreview.youtubeVideo": "YouTube-Video",
@@ -2914,6 +2920,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     // src/lib/components/messages/VoiceMessagePlayer.svelte
     "voiceMessagePlayer.seek": "Spulen",
     "voiceMessagePlayer.voiceMessage": "Sprachnachricht",
+    "midiPlayer.play": "Abspielen",
+    "midiPlayer.pause": "Pausieren",
+    "midiPlayer.seek": "Position",
+    "midiPlayer.volume": "Lautstärke",
 
     // src/lib/components/messages/VoiceRecorder.svelte
     "voiceRecorder.cancelRecording": "Aufnahme abbrechen",

@@ -10,6 +10,7 @@ import { progressiveJpegForUpload } from "$lib/utils/progressiveJpegUpload";
 import { stripLocationMetadata } from "$lib/utils/stripMetadata";
 import { withRandomFileName } from "$lib/utils/randomFileName";
 import { gifToAnimatedWebp } from "$lib/utils/gifToWebp";
+import { isMidiAttachment, midiSendMimetype } from "$lib/utils/midi";
 import { createImageThumbnail } from "$lib/utils/imageThumbnail";
 import { isRoomEncrypted, isRoomEncryptedForSend } from "$lib/matrix/crypto";
 import { withMessageRelation } from "$lib/utils/threadContent";
@@ -239,7 +240,10 @@ export async function sendFile(
     }
     const isImage = file.type.startsWith("image/");
     const isVideo = file.type.startsWith("video/");
-    const isAudio = file.type.startsWith("audio/");
+    // A .mid the browser typed as nothing (or octet-stream) still goes as audio.
+    const isAudio =
+        file.type.startsWith("audio/") ||
+        isMidiAttachment(file.type, file.name);
     const msgtype = isImage
         ? "m.image"
         : isVideo
@@ -284,7 +288,7 @@ export async function sendFile(
     });
 
     const info: Record<string, unknown> = {
-        mimetype: toUpload.type || file.type,
+        mimetype: midiSendMimetype(toUpload.type || file.type, file.name),
         size: toUpload.size,
     };
 

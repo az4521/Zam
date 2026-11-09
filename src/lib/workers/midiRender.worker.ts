@@ -14,7 +14,7 @@ import {
     audioToWav,
     type BasicSoundBank,
 } from "spessasynth_core";
-import { decodeOpusSample, isOpusSample } from "$lib/utils/opusSample";
+import { decodeBankOpusSamples } from "$lib/utils/opusSample";
 
 export interface MidiRenderRequest {
     id: number;
@@ -41,14 +41,9 @@ let loaded: { key: string; bank: BasicSoundBank } | null = null;
  * which the synth can't decode itself: decode them all up front.
  */
 async function decodeOpusSamples(bank: BasicSoundBank): Promise<void> {
-    await Promise.all(
-        bank.samples.map(async (sample) => {
-            if (!sample.isCompressed) return;
-            const raw = sample.getRawData(true);
-            if (!isOpusSample(raw)) return;
-            sample.setAudioData(await decodeOpusSample(raw), sample.sampleRate);
-        }),
-    );
+    for (const d of await decodeBankOpusSamples(bank.samples)) {
+        bank.samples[d.index].setAudioData(d.pcm, d.sampleRate);
+    }
 }
 
 async function render(req: MidiRenderRequest): Promise<ArrayBuffer> {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isMidiAttachment, parseMidi } from "./midi";
+import { isMidiAttachment, midiSendMimetype, parseMidi } from "./midi";
 
 /** Build a format-0 SMF from raw track bytes (after the MTrk header). */
 function smf(track: number[], division = 96): Uint8Array {
@@ -44,6 +44,30 @@ describe("isMidiAttachment", () => {
         expect(isMidiAttachment(undefined, "tune.midi")).toBe(true);
         expect(isMidiAttachment("audio/mpeg", "song.mp3")).toBe(false);
         expect(isMidiAttachment(undefined, "midi.txt")).toBe(false);
+    });
+});
+
+describe("midiSendMimetype", () => {
+    it("types a MIDI the browser gave no type as audio/midi", () => {
+        expect(midiSendMimetype("", "song.MID")).toBe("audio/midi");
+        expect(midiSendMimetype(undefined, "SONG.Mid")).toBe("audio/midi");
+        expect(midiSendMimetype("application/octet-stream", "tune.midi")).toBe(
+            "audio/midi",
+        );
+    });
+
+    it("keeps a MIDI type the browser did give", () => {
+        expect(midiSendMimetype("audio/x-midi", "song.mid")).toBe(
+            "audio/x-midi",
+        );
+        expect(midiSendMimetype("application/x-midi", "song.mid")).toBe(
+            "application/x-midi",
+        );
+    });
+
+    it("leaves other files alone", () => {
+        expect(midiSendMimetype("", "notes.txt")).toBe("");
+        expect(midiSendMimetype("image/png", "a.png")).toBe("image/png");
     });
 });
 

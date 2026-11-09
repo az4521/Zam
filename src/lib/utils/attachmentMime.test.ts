@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import DOMPurify from "dompurify";
 import {
+    isSvg,
     isSvgMimeType,
     safeAttachmentMimeType,
     safeMediaBlob,
@@ -9,6 +10,26 @@ import {
 } from "./attachmentMime";
 
 const FALLBACK = "application/octet-stream";
+
+describe("isSvg", () => {
+    it("recognises the SVG mimetype, case-insensitively, with parameters", () => {
+        expect(isSvg("image/svg+xml", null)).toBe(true);
+        expect(isSvg("Image/SVG+XML; charset=utf-8", "")).toBe(true);
+    });
+
+    it("recognises an SVG by its filename when the mimetype is generic", () => {
+        expect(isSvg(undefined, "logo.svg")).toBe(true);
+        expect(isSvg("image/png", "logo.SVG")).toBe(true);
+        expect(isSvg("application/octet-stream", " art.svgz ")).toBe(true);
+    });
+
+    it("does not match a name that only contains svg", () => {
+        expect(isSvg(undefined, "svg-notes.png")).toBe(false);
+        expect(isSvg(undefined, "logo.svg.png")).toBe(false);
+        expect(isSvg("image/png", "photo.jpg")).toBe(false);
+        expect(isSvg(undefined, undefined)).toBe(false);
+    });
+});
 
 describe("safeAttachmentMimeType", () => {
     it("passes inert image/video/audio types through unchanged", () => {
@@ -246,5 +267,77 @@ describe("sanitizedSvgBlob animation and shared hooks", () => {
         } finally {
             DOMPurify.removeAllHooks();
         }
+    });
+});
+
+describe("sanitizedSvgBlob fallbacks", () => {
+    const enc = (s: string) => new TextEncoder().encode(s);
+
+    it("accepts an entity XML rejects (&nbsp;) through the HTML path", async () => {
+        const blob = sanitizedSvgBlob(
+            enc(
+                '<svg xmlns="http://www.w3.org/2000/svg"><text x="1" y="5">a&nbsp;b</text><rect width="2" height="2"/></svg>',
+            ),
+        );
+        expect(blob?.type).toBe("image/svg+xml");
+        const out = await blob!.text();
+        expect(out).toContain("<rect");
+        expect(out).toContain('xmlns="http://www.w3.org/2000/svg"');
+    });
+
+    it("accepts a bare ampersand XML rejects", async () => {
+        const blob = sanitizedSvgBlob(
+            enc(
+                '<svg xmlns="http://www.w3.org/2000/svg"><text>Tom & Jerry</text><rect width="2" height="2"/></svg>',
+            ),
+        );
+        const out = await blob!.text();
+        expect(out).toContain("<rect");
+        expect(out).toContain("Tom");
+    });
+
+    it("gives a renderable root to an <svg> that never declared xmlns", async () => {
+        const blob = sanitizedSvgBlob(
+            enc('<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>'),
+        );
+        const out = await blob!.text();
+        expect(out).toContain("<circle");
+        expect(out).toMatch(
+            /^<svg[^>]*xmlns="http:\/\/www\.w3\.org\/2000\/svg"/,
+        );
+    });
+
+    it("keeps xlink references working on the HTML path", async () => {
+        const blob = sanitizedSvgBlob(
+            enc(
+                '<svg xmlns="http://www.w3.org/2000/svg"><text>a&nbsp;b</text><a xlink:href="#r"><text>link</text></a><rect id="r" width="1" height="1"/></svg>',
+            ),
+        );
+        const out = await blob!.text();
+        // The prefix is whatever the serializer picks; the namespace must be bound.
+        expect(out).toMatch(/:href="#r"/);
+        expect(out).toContain("http://www.w3.org/1999/xlink");
+    });
+
+    it("still strips scripts, handlers and external links on the HTML path", async () => {
+        const blob = sanitizedSvgBlob(
+            enc(
+                '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><text>a&nbsp;b</text>' +
+                    "<script>alert(2)</script>" +
+                    '<a href="https://evil.example/x"><rect width="1" height="1" onclick="alert(3)"/></a>' +
+                    '<image href="https://tracker.example/p.png" width="1" height="1"/>' +
+                    "</svg>",
+            ),
+        );
+        const out = (await blob!.text()).toLowerCase();
+        expect(out).not.toContain("script");
+        expect(out).not.toContain("alert");
+        expect(out).not.toContain("evil.example");
+        expect(out).not.toContain("tracker.example");
+        expect(out).toContain("<rect");
+    });
+
+    it("returns null when the HTML fallback finds no <svg>", () => {
+        expect(sanitizedSvgBlob(enc("Tom & Jerry &nbsp; notes"))).toBeNull();
     });
 });
