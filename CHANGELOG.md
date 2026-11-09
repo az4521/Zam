@@ -4,6 +4,20 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.55.0
+
+✨ **New**
+
+- **MIDI plays instantly:** MIDI files now stream through the built-in synthesizer as they play, instead of being converted to audio first, so playback starts at once with its own seek bar and volume. Playing another MIDI pauses the first and remembers where it was. Phones use lighter synth settings, so MIDI should play more smoothly on mobile.
+- **Lightbox zoom:** zoom images with the mouse wheel, the `+` / `-` keys (`0` resets), a double-click, or the new zoom buttons, up to 16×.
+- **Resizable Flash player:** Flash embeds open larger and have a resize grip in the corner (drag it, or use the arrow keys; double-click resets). Zam remembers the size you chose.
+
+🐛 **Fixed**
+
+- **MIDI files with an uppercase extension:** files like `SONG.MID` now embed and play, including ones already sent.
+- **Flash volume:** the volume you set in a Flash player is remembered for the next one.
+- **SVG images:** SVGs that only declare a viewBox or a tiny size no longer show up tiny in the timeline and viewer, and SVGs that use HTML entities such as `&nbsp;` now display instead of failing. Images that fail to load in the viewer are retried.
+
 ## v1.54.17
 
 🐛 **Fixed**
