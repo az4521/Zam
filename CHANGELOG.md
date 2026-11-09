@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.55.1
+
+✨ **New**
+
+- **Load a whole folder of local plugins:** picking a folder that has no `manifest.json` of its own now loads every subfolder that does, each as its own local plugin. Reload re-reads just that plugin, and one plugin failing to load no longer stops the others.
+
+🐛 **Fixed**
+
+- **Voice calls on lossy connections:** audio redundancy is now sent only while someone in the call is losing packets, instead of always. On a clean connection that saves bandwidth; once anyone reports loss, everyone's mic sends redundancy until the link has been quiet for about 30 seconds. In unencrypted calls this switches RED on and off, which briefly restarts your mic stream when it changes.
+- **Unintelligible voices over ~5% packet loss in encrypted calls:** encrypted calls could not use RED at all and fell apart on bad connections. Zam now carries copies of the previous audio frames inside each packet while loss is reported, and rebuilds lost frames on the other end. In testing with 10% of frames dropped, concealed (guessed) audio fell from about 10% to under 1%, for roughly 20 kbps extra while it is active. Other clients in the call are unaffected, and a bad listening connection now also triggers it for the people they are listening to. This works in Chromium-based browsers and the desktop app.
+- **Icons:** the encryption setup badge no longer uses a lock emoji, and close, warning, expand/collapse and status controls across the app use matching icons instead of text symbols. "Copied" and "selected" labels show a check icon beside the text.
+
 ## v1.55.0
 
 ✨ **New**
