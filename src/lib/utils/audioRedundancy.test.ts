@@ -50,4 +50,13 @@ describe("RedundancyController", () => {
         expect(c.push(null, 0)).toBeNull();
         expect(c.push(Number.NaN, 0)).toBeNull();
     });
+
+    it("sends two frames on a very lossy link", () => {
+        const c = new RedundancyController();
+        expect(c.depth()).toBe(0);
+        feed(c, [0.03, 0.04, 0.05]);
+        expect(c.depth()).toBe(1);
+        feed(c, [0.1, 0.12, 0.1], 9000);
+        expect(c.depth()).toBe(2);
+    });
 });

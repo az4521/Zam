@@ -41,6 +41,11 @@ const isSourceFile = (f: string) => /\.(ts|svelte)$/.test(f);
 const isTestFile = (f: string) => /\.(test|spec)\.ts$/.test(f);
 
 const SOURCE_FILES = entries.filter((f) => isSourceFile(f) && !isTestFile(f));
+
+// A worker entry is bundled into its own chunk, loaded only through a
+// `?worker` dynamic import, so its static import never reaches the core.
+// Zam's E2EE worker is LiveKit's own worker plus a hook, so it must import it.
+const WORKER_ENTRIES = new Set(["lib/audio/redundancy/e2eeWorker.ts"]);
 const TEST_FILES = entries.filter((f) => isSourceFile(f) && isTestFile(f));
 
 const readSource = (f: string) => readFileSync(join(SRC_DIR, f), "utf8");
@@ -81,7 +86,7 @@ describe("no source file under src/ statically imports a heavy dependency", () =
         ).toBe(true);
     });
 
-    it.each(SOURCE_FILES.map((f) => [f]))(
+    it.each(SOURCE_FILES.filter((f) => !WORKER_ENTRIES.has(f)).map((f) => [f]))(
         "%s statically imports neither heavy dep",
         (file) => {
             const source = readSource(file);
