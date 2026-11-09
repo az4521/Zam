@@ -47,6 +47,7 @@ import {
     setActiveRoom,
     resolvePendingSurface,
     reloadLastLocationFromStorage,
+    getLastOpenedRoomId,
 } from "./rooms.svelte";
 
 const VIDEO = "!video:remote";
@@ -113,6 +114,21 @@ describe("rooms store: surface choice on navigation", () => {
         setActiveRoom(CHAT);
 
         expect(interfaceState.callViewRoomId).toBeNull();
+    });
+});
+
+describe("rooms store: boot room lookup", () => {
+    it("reads the boot room for a stored account before auth is set", () => {
+        // startSync hydrates the room-list cache before commitStartup writes
+        // auth.userId, so the module default cannot be trusted here.
+        localStorage.setItem("matrix_last_space:@me:server", "!space:server");
+        localStorage.setItem(
+            "matrix_last_room_by_space:@me:server",
+            JSON.stringify({ "!space:server": CHAT }),
+        );
+
+        expect(getLastOpenedRoomId("@me:server")).toBe(CHAT);
+        expect(getLastOpenedRoomId("@other:server")).toBeNull();
     });
 });
 

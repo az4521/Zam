@@ -1375,6 +1375,12 @@ export async function startSync(
     onStateChange: (state: string) => void,
     onSessionExpired?: () => void,
     onSlidingSyncFallback?: (reason: string) => void,
+    /**
+     * The room the app is about to open. Its cached encrypted tail is
+     * decrypted before the cache is published so the first timeline paint is
+     * already cleartext. Other cached rooms decrypt in the background.
+     */
+    preferredRoomId?: string | null,
 ): Promise<() => void> {
     const owner = captureClient();
     const client = owner.client;
@@ -1561,7 +1567,7 @@ export async function startSync(
     }, 10_000);
 
     // Paint the last known room list while sync catches up.
-    await hydrateRoomListCache(client);
+    await hydrateRoomListCache(client, preferredRoomId);
     // A hidden page may never come back (mobile kills it): save on the way out.
     const onHidden = () => {
         if (document.visibilityState === "hidden")
@@ -2053,6 +2059,11 @@ let roomListCache: MaterializedCache | null = null;
 let roomListComplete = false;
 let lastSnapshotSaveAt = 0;
 const SNAPSHOT_SAVE_INTERVAL_MS = 2 * 60_000;
+// A cached event with its key present decrypts from the local store in a few
+// milliseconds. With a key missing the SDK may consult key backup, which can
+// hit the network, so the boot paint waits at most this long for the landing
+// room and then lets the rest fill in behind the neutral "decrypting" row.
+const PREFERRED_DECRYPT_WAIT_MS = 500;
 
 function resetRoomListCache(): void {
     roomListCache = null;
@@ -2102,35 +2113,64 @@ export function isRoomCachedOnly(roomId: string): boolean {
     return !!roomListCache?.rooms.get(roomId) && !matrixClient?.getRoom(roomId);
 }
 
-async function hydrateRoomListCache(client: MatrixClient): Promise<void> {
+async function hydrateRoomListCache(
+    client: MatrixClient,
+    preferredRoomId?: string | null,
+): Promise<void> {
     resetRoomListCache();
     const userId = client.getUserId();
     const deviceId = client.getDeviceId();
     if (!userId || !deviceId) return;
     const snapshot = await loadSnapshot(snapshotKey(userId, deviceId));
     if (!snapshot || matrixClient !== client || roomListComplete) return;
-    roomListCache = materializeSnapshot(client, snapshot);
+    const cache = materializeSnapshot(client, snapshot);
+    // The cached tail of an encrypted room is ciphertext. Decrypt the room the
+    // user is about to open BEFORE publishing, so its first paint is normally
+    // the real conversation instead of a placeholder. The wait is bounded: a
+    // missing key can send the SDK to key backup (network), and boot must not
+    // hang on that. Every other room, and anything this pass did not finish,
+    // is decrypted in the background; while an event waits there, MessageItem
+    // renders a neutral "decrypting" row rather than claiming its keys are
+    // missing.
+    if (preferredRoomId) {
+        const preferred = cache.rooms.get(preferredRoomId);
+        if (preferred)
+            await Promise.race([
+                decryptRoomEvents(client, preferred),
+                new Promise<void>((resolve) =>
+                    setTimeout(resolve, PREFERRED_DECRYPT_WAIT_MS),
+                ),
+            ]);
+        // A logout/reconnect during that await must win over this snapshot.
+        if (matrixClient !== client || roomListComplete) return;
+    }
     for (const [spaceId, list] of Object.entries(snapshot.hierarchies ?? {}))
         if (!hierarchyCache.has(spaceId)) hierarchyCache.set(spaceId, list);
-    // The cached events of an encrypted room are ciphertext. Decrypt them from
-    // the local crypto store so an offline room reads instead of showing
-    // "unable to decrypt" everywhere. Never awaited: no key means the
-    // placeholder is the correct rendering anyway.
-    void decryptCachedEvents(client, roomListCache);
+    roomListCache = cache;
+    void decryptCachedEvents(client, cache, preferredRoomId);
 }
 
 async function decryptCachedEvents(
     client: MatrixClient,
     cache: MaterializedCache,
+    skipRoomId?: string | null,
 ): Promise<void> {
-    for (const room of cache.rooms.values()) {
-        for (const ev of room.getLiveTimeline().getEvents()) {
-            if (!ev.isEncrypted()) continue;
-            try {
-                await client.decryptEventIfNeeded(ev);
-            } catch {
-                // Keys are gone or the event is for another session: leave it.
-            }
+    for (const [roomId, room] of cache.rooms) {
+        if (roomId === skipRoomId) continue;
+        await decryptRoomEvents(client, room);
+    }
+}
+
+async function decryptRoomEvents(
+    client: MatrixClient,
+    room: Room,
+): Promise<void> {
+    for (const ev of room.getLiveTimeline().getEvents()) {
+        if (!ev.isEncrypted()) continue;
+        try {
+            await client.decryptEventIfNeeded(ev);
+        } catch {
+            // Keys are gone or the event is for another session: leave it.
         }
     }
 }

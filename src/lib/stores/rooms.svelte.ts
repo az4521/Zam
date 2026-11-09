@@ -26,9 +26,11 @@ const STORAGE_KEY = "matrix_last_room_by_space";
 const SPACE_KEY = "matrix_last_space";
 const HOME_KEY = "__home__";
 
-function loadLastRooms(): Record<string, string> {
+function loadLastRooms(
+    userId: string | null = auth.userId,
+): Record<string, string> {
     try {
-        return JSON.parse(readScoped(STORAGE_KEY, auth.userId) ?? "{}");
+        return JSON.parse(readScoped(STORAGE_KEY, userId) ?? "{}");
     } catch {
         return {};
     }
@@ -40,8 +42,21 @@ function saveLastRoom(spaceId: string | null, roomId: string): void {
     writeScoped(STORAGE_KEY, auth.userId, JSON.stringify(map));
 }
 
-function getLastRoom(spaceId: string | null): string | null {
-    return loadLastRooms()[spaceId ?? HOME_KEY] ?? null;
+function getLastRoom(
+    spaceId: string | null,
+    userId: string | null = auth.userId,
+): string | null {
+    return loadLastRooms(userId)[spaceId ?? HOME_KEY] ?? null;
+}
+
+/**
+ * The room this account would land in on boot, read straight from storage.
+ * Sync has not started when the room-list cache is hydrated, so `auth.userId`
+ * is not set yet and `roomsState` still holds module-init defaults: boot passes
+ * the stored session's user id here instead.
+ */
+export function getLastOpenedRoomId(userId: string | null): string | null {
+    return getLastRoom(readScoped(SPACE_KEY, userId), userId);
 }
 
 function loadLastSpace(): string | null {

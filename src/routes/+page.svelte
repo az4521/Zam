@@ -40,6 +40,7 @@
         applyRefreshedTokens,
     } from "$lib/stores/auth.svelte";
     import { accountsState, switchActive } from "$lib/stores/accounts.svelte";
+    import { getLastOpenedRoomId } from "$lib/stores/rooms.svelte";
     import { rootView, shouldRestoreSession } from "$lib/utils/sessionView";
     import {
         IDLE_SESSION_STARTUP,
@@ -146,7 +147,10 @@
      * it just created instead of publishing them, so a dead session can never
      * own `disposeSync`.
      */
-    async function beginSync(attempt: number): Promise<void> {
+    async function beginSync(
+        attempt: number,
+        preferredRoomId: string | null = null,
+    ): Promise<void> {
         disposeSync?.();
         disposeSync = null;
         const dispose = await startSync(
@@ -155,6 +159,7 @@
             },
             handleSessionExpired,
             (reason) => showToast(reason, { tone: "accent" }),
+            preferredRoomId,
         );
         if (!isLiveAttempt(startup, attempt)) {
             dispose();
@@ -181,6 +186,7 @@
             },
             handleSessionExpired,
             (reason) => showToast(reason, { tone: "accent" }),
+            getLastOpenedRoomId(auth.userId),
         );
         if (startup.phase !== "active" || startup.attempt !== attempt) {
             dispose();
@@ -319,7 +325,7 @@
                           }
                         : undefined,
                 );
-                await beginSync(attempt);
+                await beginSync(attempt, getLastOpenedRoomId(stored.userId));
             } catch (err) {
                 // The device was signed out (its encryption data was lost):
                 // back to login like an expired session, saying why.

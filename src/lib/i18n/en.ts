@@ -3377,6 +3377,7 @@ export const en = {
     "encryptionState.historicalNotJoined":
         "This message was sent while you weren't in the room.",
     "encryptionState.encryptedMessage": "🔒 Encrypted message",
+    "encryptionState.decryptingMessage": "Decrypting message...",
 
     // src/lib/utils/eventShield.ts
     "eventShield.thisMessageSEncryptionCouldNot":

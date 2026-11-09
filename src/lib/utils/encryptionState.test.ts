@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+    DECRYPTING_MESSAGE_TEXT,
+    isDecryptionPending,
     isUndecryptedEvent,
     isEncryptionEnabled,
     previewForEvent,
@@ -21,6 +23,36 @@ describe("isUndecryptedEvent", () => {
         expect(isUndecryptedEvent("m.room.message")).toBe(false);
         expect(isUndecryptedEvent("m.sticker")).toBe(false);
         expect(isUndecryptedEvent("m.reaction")).toBe(false);
+    });
+});
+
+describe("isDecryptionPending — not-yet vs failed", () => {
+    it("is true for a still-encrypted envelope with no failure reason", () => {
+        expect(isDecryptionPending("m.room.encrypted", null)).toBe(true);
+        expect(isDecryptionPending("m.room.encrypted", undefined)).toBe(true);
+        // Empty string is not a failure reason either.
+        expect(isDecryptionPending("m.room.encrypted", "")).toBe(true);
+    });
+
+    it("is false once decryption failed, so the UTD copy can win", () => {
+        // A failure swaps in the SDK's m.room.message stand-in AND sets a
+        // reason; either signal alone is enough to leave the pending state.
+        expect(
+            isDecryptionPending("m.room.encrypted", "MEGOLM_KEY_WITHHELD"),
+        ).toBe(false);
+        expect(isDecryptionPending("m.room.message", "UNKNOWN_ERROR")).toBe(
+            false,
+        );
+    });
+
+    it("is false for cleartext / successfully decrypted events", () => {
+        expect(isDecryptionPending("m.room.message", null)).toBe(false);
+        expect(isDecryptionPending("m.sticker", undefined)).toBe(false);
+    });
+
+    it("exposes neutral copy that does not claim missing keys", () => {
+        expect(DECRYPTING_MESSAGE_TEXT.toLowerCase()).toContain("decrypt");
+        expect(DECRYPTING_MESSAGE_TEXT).not.toBe(UTD_PLACEHOLDER_TEXT);
     });
 });
 

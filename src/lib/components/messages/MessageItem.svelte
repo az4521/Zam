@@ -82,6 +82,7 @@
         resendMessage,
         deleteFailedMessage,
         getRoom,
+        isRoomCachedOnly,
         getMessageShareLink,
         joinRoom,
         seedRoomStateIfMissing,
@@ -139,7 +140,11 @@
     import { videoPoster } from "$lib/utils/roomMedia";
     import { placeholderStyle } from "$lib/utils/imagePlaceholder";
     import { createMediaRetry } from "$lib/stores/mediaAuth.svelte";
-    import { utdPlaceholderText } from "$lib/utils/encryptionState";
+    import {
+        DECRYPTING_MESSAGE_TEXT,
+        isDecryptionPending,
+        utdPlaceholderText,
+    } from "$lib/utils/encryptionState";
     import {
         canRequestRoomKeys,
         requestRoomKeys,
@@ -888,6 +893,24 @@
     );
 
     const msgtype = $derived(content?.msgtype ?? "");
+
+    // An encrypted envelope nobody has decided yet (a cached replay before the
+    // background decryption pass reaches it, or an attempt in flight) is NOT a
+    // failure. It gets a neutral row; the missing-keys copy is reserved for
+    // events whose decryption actually failed.
+    const decryptionPending = $derived.by(() => {
+        void messagesState.timelineTick;
+        // Rooms tick too: a cached-only room stops being cached when sync
+        // publishes the live rooms, which changes the answer below.
+        void roomsState.roomsTick;
+        if (!isDecryptionPending(eventType, event.decryptionFailureReason))
+            return false;
+        // Only promise progress where something will actually attempt it: an
+        // attempt already in flight, or a cached room whose background pass is
+        // still coming. A live event that nobody is decrypting (crypto never
+        // started) keeps the UTD copy instead of an eternal spinner.
+        return event.isBeingDecrypted() || isRoomCachedOnly(room.roomId);
+    });
 
     // Still encrypted, or failed to decrypt: a failure swaps in an
     // m.room.message stand-in (msgtype m.bad.encrypted) whose body is the
@@ -2689,6 +2712,18 @@
                 <PollBody {event} {room} />
             {:else if isFileOffer}
                 <FileOfferCard {event} />
+            {:else if decryptionPending}
+                <!-- Encrypted, not attempted/failed yet. Neutral copy: the
+                 missing-keys line would be a claim we cannot make until the
+                 decryption attempt actually fails. When it finishes the
+                 decryption tick re-runs this derived timeline and the row
+                 swaps to real content (or to the UTD branch below). -->
+                <div
+                    class="message-body flex items-center gap-1.5 text-sm italic text-discord-textMuted leading-relaxed animate-pulse"
+                >
+                    <Lock size={14} class="flex-shrink-0" />
+                    <span>{DECRYPTING_MESSAGE_TEXT}</span>
+                </div>
             {:else if isUtd}
                 <!-- E2EE UTD (unable-to-decrypt) placeholder. The row chrome
                  (avatar / sender / timestamp) is cleartext; only the body is

@@ -121,12 +121,37 @@ export const ENCRYPTED_MESSAGE_PLACEHOLDER = t(
 );
 
 /**
+ * Timeline body while an encrypted event is still an envelope but decryption
+ * has not failed: either the attempt is in flight or it has not started yet
+ * (a cached event being replayed before the background pass reaches it). This
+ * is deliberately distinct from {@link UTD_PLACEHOLDER_TEXT}, which claims the
+ * keys are missing and only belongs on an event whose decryption actually
+ * failed.
+ */
+export const DECRYPTING_MESSAGE_TEXT = t("encryptionState.decryptingMessage");
+
+/**
  * True when an event is still an encrypted envelope (no keys / not yet
  * decrypted). A *successfully* decrypted event reports its cleartext type
  * (e.g. "m.room.message"), so only "m.room.encrypted" means undecrypted.
  */
 export function isUndecryptedEvent(eventType: string): boolean {
     return eventType === "m.room.encrypted";
+}
+
+/**
+ * True while an encrypted event is merely not decrypted yet, as opposed to one
+ * whose decryption has failed. `eventType` is `MatrixEvent.getType()`; a failed
+ * attempt swaps in the SDK's `m.room.message` / `m.bad.encrypted` stand-in and
+ * sets `failureReason`, so a still-encrypted type with no reason means "no
+ * answer yet" (in flight, or a cached replay the background pass has not
+ * reached), never "you have no keys".
+ */
+export function isDecryptionPending(
+    eventType: string,
+    failureReason: string | null | undefined,
+): boolean {
+    return isUndecryptedEvent(eventType) && !failureReason;
 }
 
 /**

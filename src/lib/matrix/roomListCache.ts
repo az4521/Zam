@@ -51,8 +51,11 @@ const MAX_CACHED_MEMBERS = 8;
 
 // Recent timeline events kept per room so a boot with no network can show the
 // conversation instead of an empty pane. Wire events only: encrypted rooms
-// cache the ciphertext the SDK's own store already holds, and decryption
-// happens at materialise time from the local crypto store.
+// cache the ciphertext the SDK's own store already holds. Decryption is NOT
+// part of materialising (there is no decrypt call there): client.ts decrypts
+// the room about to be opened before publishing the cache, then the rest in
+// the background. Until that pass reaches an event, the timeline renders a
+// neutral "decrypting" row, never the missing-keys copy.
 const MAX_CACHED_EVENTS = 40;
 
 interface CachedHero {
