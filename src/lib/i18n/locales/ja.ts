@@ -2445,9 +2445,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.videoCodecHint":
         "カメラと画面共有をどの形式で送信するかです。自動では、GPUがエンコードでき、通話の全員が再生できる最適なコーデックを選びます。再生できない人にはH.264のコピーが送られ、通話中にも切り替えられます。次にオンにしたときから適用されます。",
     "voiceAudioSettings.videoCodecAuto": "自動",
-    "voiceAudioSettings.adaptiveStream": "Adaptive video quality",
+    "voiceAudioSettings.adaptiveStream": "適応型ビデオ画質",
     "voiceAudioSettings.adaptiveStreamHint":
-        "Receive each video at the size it's shown, and pause video that isn't on screen or while Zam is minimised. Saves bandwidth and decoding. Applies the next time you join a call.",
+        "各ビデオを表示されているサイズで受信し、画面外のビデオや Zam を最小化している間のビデオを一時停止します。帯域幅とデコード負荷を節約します。次に通話に参加したときから適用されます。",
     "voiceAudioSettings.stopPreview": "プレビューを停止",
     "voiceAudioSettings.preview": "プレビュー",
     "voiceAudioSettings.callSounds": "通話サウンド",
@@ -3359,7 +3359,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.mirrorMyCamera": "カメラをミラー表示",
     "settingsSearch.videoCodec": "映像コーデック",
     "settingsSearch.noiseSuppressionGpu": "GPUアクセラレーション",
-    "settingsSearch.adaptiveStream": "Adaptive video quality",
+    "settingsSearch.adaptiveStream": "適応型ビデオ画質",
     "settingsSearch.callVolume": "通話音量",
     "settingsSearch.playCallSounds": "通話音を再生",
     "settingsSearch.ringForIncomingDmCalls": "DMの着信通話で呼び出し音を鳴らす",
@@ -3667,6 +3667,99 @@ const messages: Partial<Record<MessageKey, string>> = {
     "richPresence.autoRestart": "Discord を自動で再起動",
     "richPresence.autoRestartHint":
         "Zam の起動時に Discord がすでに先に起動している場合、Discord を閉じて開き直し、アプリが Zam に報告するようにします。通話や配信中の場合は終了します。Zam の起動ごとに 1 回だけ行います。",
+    "appearanceSettings.customCss": "カスタム CSS",
+    "appearanceSettings.customCssEnable": "カスタム CSS を使う",
+    "appearanceSettings.customCssHint":
+        "テーマの上にリアルタイムで適用される独自のスタイルです。テーマの色はページに設定された変数なので、!important で上書きしてください。",
+    "appearanceSettings.customCssRecovery":
+        "ルールのせいで Zam が使えなくなったら、アドレスに ?nocustomcss を付けて開く (またはスイッチをオフにする) と元に戻せます。",
+    "gpuDebug.memoryReport": "メモリレポート",
+    "gpuDebug.memoryReportHint":
+        "Zam のプロセスが使っているメモリ (GPU プロセスのビデオメモリを含む) を、何が保持しているかごとに内訳表示します。問題が表示されている状態で測定し、レポートをバグ報告にコピーしてください。",
+    "gpuDebug.repaint": "再描画",
+    "gpuDebug.repaintHint":
+        "GPU プロセスを再起動して、ウィンドウを最初から描き直します。ウィンドウの一部が黒や白の四角になったり、ずれた位置に表示されたりするときに使ってください。ビデオメモリが不足した後に起こることがあります。通話は続きます。トレイメニューにもあります。",
+    "gpuDebug.memoryMeasure": "測定",
+    "gpuDebug.memoryMeasuring": "測定中…",
+    "gpuDebug.memoryRecord": "メモリを継続的に記録",
+    "gpuDebug.memoryRecordHint":
+        "一定間隔でメモリレポートを取り、設定を閉じても記録を続けるので、Zam を普段どおり使ってから戻ってこられます。各項目の最初・最小・最大・最新のサイズを表示し、すべてのサンプルをグラフ用の CSV に保存します。",
+    "gpuDebug.memoryRecordInterval": "間隔",
+    "gpuDebug.memoryRecordEvery": "{seconds} 秒ごと",
+    "gpuDebug.memoryRecordStart": "記録",
+    "gpuDebug.memoryRecordStop": "停止",
+    "gpuDebug.memoryRecordStatus": "{elapsed} で {count} サンプル",
+    "gpuDebug.memoryRecordCsv": "CSV を保存",
+    "richPresence.heading": "リッチプレゼンス",
+    "richPresence.share": "今していることを共有",
+    "richPresence.shareHint":
+        "このコンピューターのアプリが、プレイ中や再生中のものをプロフィールに表示できるようにします。すべてのアプリが既定で許可されます。不要なものは下でオフにしてください。",
+    "richPresence.arrpc": "Discord リッチプレゼンスを使うアプリ",
+    "richPresence.arrpcHint":
+        "Discord に報告するアプリも受け付けます。Discord が起動していると、アプリは通常まず Discord に報告するため、Discord を閉じているときに最もよく動作します。",
+    "richPresence.scan": "ゲームを検出",
+    "richPresence.scanHint":
+        "このコンピューターで実行中のゲームを探し、何も報告しないゲームも表示されるようにします。数秒ごとに実行中のプログラムの一覧を読み取ります。",
+    "richPresence.scanNeedsPermission":
+        "Flatpak のサンドボックスからは他のプログラムが見えません。Zam がゲームを探せるようにするには、次のコマンドを実行してから Zam を再起動してください:",
+    "richPresence.scanGrantCommand":
+        "flatpak override --user --talk-name=org.freedesktop.Flatpak moe.crafty.matrix",
+    "richPresence.scanFailed": "ゲームを探せませんでした: {error}",
+    "richPresence.socket": "{path} でも待ち受けています。",
+    "richPresence.arrpcNeedsShare": "先に共有をオンにしてください。",
+    "richPresence.listening": "ポート {port} でアプリを待ち受けています。",
+    "richPresence.listenFailed": "待ち受けを開始できませんでした: {error}",
+    "richPresence.arrpcFailed": "arRPC を開始できませんでした: {error}",
+    "richPresence.publishFailed": "プロフィールを更新できませんでした。",
+    "richPresence.gameList": "ゲーム一覧: {count} 件 (更新: {when})",
+    "richPresence.gameListDownloading":
+        "Discord からゲーム一覧をダウンロード中…",
+    "richPresence.gameListFailed":
+        "ゲーム一覧をダウンロードできませんでした: {error}",
+    "richPresence.addedGames": "登録済みのゲーム",
+    "richPresence.addedGamesHint":
+        "実行中に見つかったゲーム、アプリ、メディアプレーヤーと、自分で追加したプログラムです。それぞれ既定でプロフィールへの表示が許可されます。不要なものはオフにしてください。ゲームは「ゲームを検出」がオンのときだけ、メディアプレーヤーは「メディア再生を共有」がオンのときだけ見つかります。",
+    "richPresence.addGame": "ゲームを追加",
+    "richPresence.pickProgram": "実行中のプログラムを選択",
+    "richPresence.searchPrograms": "実行中のプログラムを検索",
+    "richPresence.noPrograms": "実行中のプログラムが見つかりません。",
+    "richPresence.gameName": "プロフィールに表示する名前",
+    "richPresence.refreshPrograms": "更新",
+    "richPresence.lastPlayed": "最終プレイ: {when}",
+    "richPresence.neverPlayed": "まだプレイしていません",
+    "richPresence.apps": "アプリ",
+    "richPresence.noApps":
+        "まだ何も報告したアプリはありません。報告したアプリはここに表示され、オフにしない限り許可されます。",
+    "richPresence.allowApp": "{name} を許可",
+    "richPresence.forgetApp": "{name} を削除",
+    "richPresence.forget": "削除",
+    "richPresence.viaDiscord": "ゲームまたは Discord リッチプレゼンス",
+    "richPresence.viaMatrix": "Matrix アプリ",
+    "richPresence.blocked": "ブロック中",
+    "richPresence.allowed": "許可済み",
+    "richPresenceCard.playing": "{name} をプレイ中",
+    "richPresence.sharingTitle": "プロフィールに表示中",
+    "richPresenceCard.listening": "{name} を再生中",
+    "richPresenceCard.elapsed": "{time} 経過",
+    "richPresenceCard.remaining": "残り {time}",
+    "richPresenceCard.openLinkTitle": "このリンクを開きますか?",
+    "richPresenceCard.openLinkBody":
+        "{name} がこのアドレスをブラウザーで開こうとしています:",
+    "richPresenceCard.openidWarning":
+        "このリンクには Matrix アカウントの OpenID トークンも含まれています。サイトはこれを使ってあなたの Matrix ID とホームサーバーを知ることができ、IP アドレスも見えます。",
+    "richPresenceCard.open": "開く",
+    "richPresenceCard.openFailed": "OpenID トークンを取得できませんでした。",
+    "roomTopicSheet.description": "説明",
+    "roomTopicSheet.open": "ルームの説明をすべて表示",
+    "roomList.clickAgainToLeaveLastMember":
+        "メンバーはあなただけなので、退出すると誰も参加できなくなります。もう一度クリックすると退出します",
+    "spaceSidebar.clickAgainToLeaveLastMember":
+        "メンバーはあなただけなので、退出するとこのスペースには誰も参加できなくなります。もう一度クリックすると退出します",
+    "userProfileCard.editProfile": "プロフィールを編集",
+    "composerActionsMenu.camera": "カメラ",
+    "composerActionsMenu.photosAndVideos": "写真と動画",
+    "composerActionsMenu.files": "ファイル",
+    "settingsSearch.richPresence": "リッチプレゼンス",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ja };

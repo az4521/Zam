@@ -259,7 +259,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callParticipantMenu.message": "Nachricht",
     "callParticipantMenu.mention": "Erwähnen",
     "callParticipantMenu.userVolume": "Benutzerlautstärke",
-    "callParticipantMenu.soundboardVolume": "Soundboard Volume",
+    "callParticipantMenu.soundboardVolume": "Soundboard-Lautstärke",
     "callParticipantMenu.hideVideo": "Video ausblenden",
     "callParticipantMenu.kicking": "Wird entfernt…",
     "callParticipantMenu.confirmKick": "{name} wirklich entfernen?",
@@ -340,45 +340,49 @@ const messages: Partial<Record<MessageKey, string>> = {
 
     // src/lib/components/layout/SoundboardPopover.svelte, settings/SoundPackEditor.svelte
     "soundboard.title": "Soundboard",
-    "soundboard.yourVolume": "Your sounds volume",
+    "soundboard.yourVolume": "Lautstärke deiner Sounds",
     "soundboard.empty":
-        "No sounds yet. Add some under Settings, Emotes, or in a room's settings.",
-    "soundboard.sendFailed": "Couldn't send that sound to the call.",
-    "soundboard.add": "Add a sound",
-    "soundboard.limits": "Audio files up to {seconds} seconds and {kb} KB.",
-    "soundboard.pack": "Pack",
-    "soundboard.newPack": "New pack",
-    "soundboard.packName": "Pack name",
-    "soundboard.enterAPackName": "Enter a pack name.",
-    "soundboard.name": "Sound name",
-    "soundboard.upload": "Upload sound",
-    "soundboard.uploadFailed": "Couldn't upload the sound.",
-    "soundboard.removeFailed": "Couldn't remove that.",
-    "soundboard.previewFailed": "Couldn't play that sound.",
-    "soundboard.preview": "Preview",
-    "soundboard.remove": "Remove sound",
-    "soundboard.noSounds": "No sounds in this pack",
-    "soundboard.deletePack": "Delete pack",
+        "Noch keine Sounds. Füge welche unter Einstellungen, Emotes oder in den Einstellungen eines Raums hinzu.",
+    "soundboard.sendFailed":
+        "Der Sound konnte nicht an den Anruf gesendet werden.",
+    "soundboard.add": "Sound hinzufügen",
+    "soundboard.limits": "Audiodateien bis {seconds} Sekunden und {kb} KB.",
+    "soundboard.pack": "Paket",
+    "soundboard.newPack": "Neues Paket",
+    "soundboard.packName": "Paketname",
+    "soundboard.enterAPackName": "Gib einen Paketnamen ein.",
+    "soundboard.name": "Sound-Name",
+    "soundboard.upload": "Sound hochladen",
+    "soundboard.uploadFailed": "Der Sound konnte nicht hochgeladen werden.",
+    "soundboard.removeFailed": "Das konnte nicht entfernt werden.",
+    "soundboard.previewFailed": "Der Sound konnte nicht abgespielt werden.",
+    "soundboard.preview": "Vorhören",
+    "soundboard.remove": "Sound entfernen",
+    "soundboard.noSounds": "Keine Sounds in diesem Paket",
+    "soundboard.deletePack": "Paket löschen",
     "soundboard.confirmDeletePack":
-        'Delete the pack "{name}" and all its sounds?',
-    "soundboard.inheritedFrom": "From {sourceName}",
-    "soundboard.addToMine": "Add to mine",
-    "soundboard.useEverywhere": "Use in every call",
-    "soundboard.usedEverywhere": "In every call",
+        "Das Paket „{name}“ und alle seine Sounds löschen?",
+    "soundboard.inheritedFrom": "Aus {sourceName}",
+    "soundboard.addToMine": "Zu meinen hinzufügen",
+    "soundboard.useEverywhere": "In jedem Anruf verwenden",
+    "soundboard.usedEverywhere": "In jedem Anruf",
     "soundboard.useEverywhereHint":
-        "Offer this pack in your calls in every room, not only this one.",
-    "soundboard.globalFailed": "Couldn't change where this pack is offered.",
+        "Biete dieses Paket in deinen Anrufen in jedem Raum an, nicht nur in diesem.",
+    "soundboard.globalFailed":
+        "Konnte nicht ändern, wo dieses Paket angeboten wird.",
     "soundboard.addedToYours":
-        "{count, plural, one {Added # sound to your pack.} other {Added # sounds to your pack.}}",
-    "soundboard.alreadyYours": "Already in your pack.",
+        "{count, plural, one {# Sound zu deinem Paket hinzugefügt.} other {# Sounds zu deinem Paket hinzugefügt.}}",
+    "soundboard.alreadyYours": "Bereits in deinem Paket.",
     // src/lib/matrix/soundboard.ts
     "soundboard.badName":
-        "Use 1 to 100 letters, numbers, dashes or underscores (A-Z, 0-9). Spaces become underscores.",
-    "soundboard.noPermission": "You can't edit sounds in this room.",
-    "soundboard.notAudio": "That isn't an audio file.",
-    "soundboard.tooBig": "That file is too big.",
-    "soundboard.tooLong": "Sounds can be at most {seconds} seconds long.",
-    "soundboard.unreadable": "Couldn't read that audio file.",
+        "Verwende 1 bis 100 Buchstaben, Ziffern, Bindestriche oder Unterstriche (A-Z, 0-9). Leerzeichen werden zu Unterstrichen.",
+    "soundboard.noPermission":
+        "Du kannst in diesem Raum keine Sounds bearbeiten.",
+    "soundboard.notAudio": "Das ist keine Audiodatei.",
+    "soundboard.tooBig": "Diese Datei ist zu groß.",
+    "soundboard.tooLong":
+        "Sounds dürfen höchstens {seconds} Sekunden lang sein.",
+    "soundboard.unreadable": "Diese Audiodatei konnte nicht gelesen werden.",
 
     // src/lib/components/settings/CustomPackSettings.svelte
     "customPackSettings.add": "Hinzufügen: {singular}",
@@ -592,19 +596,21 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Zam fügt deinen Nachrichten einen Hinweis hinzu, was am Ende deines Chatverlaufs stand, und setzt Nachrichten anderer Zam-Nutzer unter die Nachricht, die sie nennen. Wenn aus, werden Nachrichten in der Reihenfolge des Servers angezeigt, wie in Element.",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Jedes Matrix-Ereignis des Verlaufs im Chat anzeigen.",
-    "debugSettings.ignoreCodecSupport": "Ignore reported codec support",
+    "debugSettings.ignoreCodecSupport":
+        "Gemeldete Codec-Unterstützung ignorieren",
     "debugSettings.ignoreCodecSupportHint":
-        "Send the picked codec even if others say they can't decode it, and accept every codec this device lists (including ones blocked as broken). For testing, e.g. HEVC on Linux.",
-    "debugSettings.h264ProfileFix": "GPU H.264 profile fix",
+        "Sendet den gewählten Codec, auch wenn andere angeben, ihn nicht decodieren zu können, und akzeptiert jeden Codec, den dieses Gerät auflistet (auch solche, die als defekt gesperrt sind). Zum Testen, z. B. HEVC unter Linux.",
+    "debugSettings.h264ProfileFix": "GPU-H.264-Profilkorrektur",
     "debugSettings.h264ProfileFixHint":
-        "Calls use the GPU H.264 encoder even when the server answers with Constrained Baseline, which Chromium encodes in software. Turn off to see the encoder a call gets without it. On Windows desktop the Chromium flag changes after a restart.",
-    "debugSettings.voiceProcessing": "Voice processing",
-    "debugSettings.pauseGate": "Pause gate",
+        "Anrufe verwenden den GPU-H.264-Encoder, auch wenn der Server mit Constrained Baseline antwortet, das Chromium in Software kodiert. Schalte es aus, um zu sehen, welchen Encoder ein Anruf ohne die Korrektur bekommt. Auf dem Windows-Desktop ändert sich das Chromium-Flag nach einem Neustart.",
+    "debugSettings.voiceProcessing": "Sprachverarbeitung",
+    "debugSettings.pauseGate": "Pausen-Gate",
     "debugSettings.pauseGateHint":
-        "Takes an extra 20 dB off pauses after noise removal. Off by default; may clip quiet word starts.",
-    "debugSettings.noiseAttenuationLimit": "Noise removal limit: {value} dB",
+        "Senkt Pausen nach der Rauschunterdrückung um weitere 20 dB ab. Standardmäßig aus; kann leise Wortanfänge abschneiden.",
+    "debugSettings.noiseAttenuationLimit":
+        "Grenze der Rauschunterdrückung: {value} dB",
     "debugSettings.noiseAttenuationLimitHint":
-        "The most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
+        "Wie viel der Rauschfilter (DeepFilterNet3 oder DPDFNet) höchstens von einem Teil des Signals abziehen darf (Standard {value}). 100 bedeutet unbegrenzt.",
     "debugSettings.soundboardInterval": "Soundboard-Abstand: {value} ms",
     "debugSettings.soundboardIntervalHint":
         "Kürzester Abstand zwischen Soundboard-Sounds einer Person. Schnellere Sounds werden ignoriert (Standard 1500).",
@@ -1358,9 +1364,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Entfernt EXIF, GPS-Standort, Kameradetails und andere versteckte Metadaten aus Fotos und Videos, die du sendest. Das Bild bleibt unverändert, die Drehung bleibt erhalten, damit Fotos weiterhin aufrecht angezeigt werden.",
     "messagesMediaSettings.stripMetadataWarning":
         "Warnung: Wenn dies deaktiviert ist, können gesendete Dateien persönliche Informationen preisgeben, einschließlich des Aufnahmeorts.",
-    "messagesMediaSettings.randomizeFileNames": "Randomize file names",
+    "messagesMediaSettings.randomizeFileNames": "Zufällige Dateinamen",
     "messagesMediaSettings.randomizeFileNamesDescription":
-        "Upload files under a random name made of letters and numbers instead of their real name. The file extension is kept, including ones like .tar.gz.",
+        "Lädt Dateien unter einem zufälligen Namen aus Buchstaben und Ziffern statt ihres echten Namens hoch. Die Dateiendung bleibt erhalten, auch Endungen wie .tar.gz.",
     "messagesMediaSettings.sendGifsAsAnimatedWebp":
         "GIFs als animiertes WebP senden",
     "messagesMediaSettings.reencodeGifsYouSend":
@@ -2271,16 +2277,16 @@ const messages: Partial<Record<MessageKey, string>> = {
     "sessionSettings.newDmsYouStartAreEncrypted":
         "Neue Direktnachrichten, die du beginnst, sind standardmäßig verschlüsselt. Bestehende bleiben unverändert. Schalte das aus, wenn du Personen schreibst, deren Clients keine Verschlüsselung unterstützen.",
     "identityChange.own":
-        "Your cross-signing keys changed. Verify this session again, or reset and re-sign your devices, before trusting encrypted messages.",
+        "Deine Cross-Signing-Schlüssel haben sich geändert. Verifiziere diese Sitzung erneut oder setze zurück und signiere deine Geräte neu, bevor du verschlüsselten Nachrichten vertraust.",
     "identityChange.other":
-        "{user}'s cross-signing identity changed. Encrypted messages to them are held back until you accept the new identity.",
-    "identityChange.accept": "Accept new identity",
-    "identityChange.withdraw": "Withdraw verification",
-    "identityChange.dismiss": "Dismiss identity warning",
+        "Die Cross-Signing-Identität von {user} hat sich geändert. Verschlüsselte Nachrichten an diese Person werden zurückgehalten, bis du die neue Identität akzeptierst.",
+    "identityChange.accept": "Neue Identität akzeptieren",
+    "identityChange.withdraw": "Verifizierung zurückziehen",
+    "identityChange.dismiss": "Identitätswarnung schließen",
     "sessionSettings.excludeInsecureDevices":
-        "Exclude non-cross-signed devices",
+        "Nicht cross-signierte Geräte ausschließen",
     "sessionSettings.excludeInsecureDevicesHelp":
-        "Only share message keys with, and only show messages from, devices their owner has cross-signed (MSC4153). Messages from devices that are not cross-signed will show as unable to decrypt.",
+        "Teilt Nachrichtenschlüssel nur mit Geräten, die ihr Besitzer cross-signiert hat, und zeigt nur Nachrichten von diesen an (MSC4153). Nachrichten von nicht cross-signierten Geräten werden als nicht entschlüsselbar angezeigt.",
     "sessionSettings.onlySendToVerifiedDevices":
         "Nur an verifizierte Geräte senden",
     "sessionSettings.refuseToEncryptMessagesForSessions":
@@ -2289,90 +2295,92 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Geräte, die derzeit bei diesem Konto angemeldet sind.",
     "sessionSettings.refreshing": "Wird aktualisiert…",
     "sessionSettings.refresh": "Aktualisieren",
-    "qrLogin.failed": "QR sign-in failed. Please try again.",
-    "qrLogin.cancelled": "QR sign-in was cancelled.",
-    "qrLogin.cancelledOther": "The other device cancelled the sign-in.",
+    "qrLogin.failed": "QR-Anmeldung fehlgeschlagen. Bitte versuche es erneut.",
+    "qrLogin.cancelled": "Die QR-Anmeldung wurde abgebrochen.",
+    "qrLogin.cancelledOther": "Das andere Gerät hat die Anmeldung abgebrochen.",
     "qrLogin.insecure":
-        "The connection to the other device could not be trusted, so sign-in was stopped.",
+        "Der Verbindung zum anderen Gerät konnte nicht vertraut werden, daher wurde die Anmeldung gestoppt.",
     "qrLogin.wrongServer":
-        "The other device is signed in on {server}, which is not the server you chose here.",
+        "Das andere Gerät ist auf {server} angemeldet, nicht auf dem Server, den du hier gewählt hast.",
     "qrLogin.codeMismatch":
-        "The number did not match, so sign-in was stopped. Only continue if the number shown on the other device is the one you typed.",
+        "Die Zahl stimmte nicht überein, daher wurde die Anmeldung gestoppt. Fahre nur fort, wenn die auf dem anderen Gerät angezeigte Zahl die ist, die du eingegeben hast.",
     "qrLogin.untrustedApproval":
-        "The new device asked you to approve on an address that does not belong to your account's sign-in provider, so it was refused.",
+        "Das neue Gerät hat dich gebeten, auf einer Adresse zu bestätigen, die nicht zum Anmeldeanbieter deines Kontos gehört, daher wurde es abgelehnt.",
     "qrLogin.enterNumber":
-        "Enter the number shown on your other device. This checks that only the two of you are connected.",
-    "qrLogin.numberLabel": "Number",
-    "qrLogin.confirm": "Continue",
+        "Gib die Zahl ein, die auf deinem anderen Gerät angezeigt wird. So wird geprüft, dass nur diese beiden Geräte verbunden sind.",
+    "qrLogin.numberLabel": "Zahl",
+    "qrLogin.confirm": "Weiter",
     "qrLogin.waitingApproval":
-        "Approve the sign-in on your other device to finish.",
+        "Bestätige die Anmeldung auf deinem anderen Gerät, um abzuschließen.",
     "qrLogin.notVerified":
-        "You are signed in, but this session could not receive your encryption keys. Verify it from Settings to read older encrypted messages.",
-    "qrLogin.linkConnecting": "Connecting to the new device...",
-    "qrLogin.linkShowNumber": "Type this number on the new device",
-    "qrLogin.linkDoneVerified": "The new device is signed in and verified.",
-    "qrLogin.denied": "The sign-in was refused on the other device.",
-    "qrLogin.expired": "The QR code expired. Please try again.",
+        "Du bist angemeldet, aber diese Sitzung konnte deine Verschlüsselungsschlüssel nicht empfangen. Verifiziere sie in den Einstellungen, um ältere verschlüsselte Nachrichten zu lesen.",
+    "qrLogin.linkConnecting": "Verbindung zum neuen Gerät wird hergestellt...",
+    "qrLogin.linkShowNumber": "Gib diese Zahl auf dem neuen Gerät ein",
+    "qrLogin.linkDoneVerified":
+        "Das neue Gerät ist angemeldet und verifiziert.",
+    "qrLogin.denied": "Die Anmeldung wurde auf dem anderen Gerät abgelehnt.",
+    "qrLogin.expired": "Der QR-Code ist abgelaufen. Bitte versuche es erneut.",
     "qrLogin.notALoginCode":
-        "That is not a sign-in code from a new device of this account. Open Sign in with QR code on the device you want to sign in.",
+        "Das ist kein Anmeldecode von einem neuen Gerät dieses Kontos. Öffne „Mit QR-Code anmelden“ auf dem Gerät, das du anmelden möchtest.",
     "qrLogin.notSupportedHere":
-        "This account's sign-in provider does not support signing in by QR code.",
-    "qrLogin.signInButton": "Sign in with QR code",
-    "qrLogin.signInTitle": "Sign in with QR code",
+        "Der Anmeldeanbieter dieses Kontos unterstützt keine Anmeldung per QR-Code.",
+    "qrLogin.signInButton": "Mit QR-Code anmelden",
+    "qrLogin.signInTitle": "Mit QR-Code anmelden",
     "qrLogin.signInSteps":
-        "On a device that is already signed in to Zam, open Settings, then Account, then Scan QR code to sign in a new device, and scan this code.",
-    "qrLogin.codeAlt": "QR code to scan from a signed-in device",
-    "qrLogin.preparing": "Preparing the code...",
+        "Öffne auf einem Gerät, das bereits bei Zam angemeldet ist, Einstellungen, dann Konto, dann „QR-Code scannen, um ein neues Gerät anzumelden“, und scanne diesen Code.",
+    "qrLogin.codeAlt": "QR-Code zum Scannen von einem angemeldeten Gerät",
+    "qrLogin.preparing": "Code wird vorbereitet...",
     "qrLogin.matchCode":
-        "The approval page will show this code. Only approve if it matches.",
-    "qrLogin.signingIn": "Signing in...",
-    "qrLogin.cancel": "Cancel",
-    "qrLogin.linkButton": "Scan QR code to sign in a new device",
-    "qrLogin.linkTitle": "Link a new device",
+        "Die Bestätigungsseite zeigt diesen Code. Bestätige nur, wenn er übereinstimmt.",
+    "qrLogin.signingIn": "Anmeldung läuft...",
+    "qrLogin.cancel": "Abbrechen",
+    "qrLogin.linkButton": "QR-Code scannen, um ein neues Gerät anzumelden",
+    "qrLogin.linkTitle": "Neues Gerät verknüpfen",
     "qrLogin.linkIntro":
-        "On the new device choose Sign in with QR code, then scan the code it shows. You approve the sign-in on your account's sign-in page, and the two devices are then verified against each other.",
+        "Wähle auf dem neuen Gerät „Mit QR-Code anmelden“ und scanne dann den angezeigten Code. Du bestätigst die Anmeldung auf der Anmeldeseite deines Kontos, danach werden die beiden Geräte gegenseitig verifiziert.",
     "qrLogin.linkWarning":
-        "Only continue for a device that is in your hands right now.",
+        "Fahre nur für ein Gerät fort, das du gerade in der Hand hast.",
     "qrLogin.linkApprove":
-        "Approve the sign-in on {host}. Check that the code there matches the one on the new device, and only approve if the device is yours.",
-    "qrLogin.linkApproveButton": "Approve on {host}",
-    "qrLogin.linkWaiting": "Waiting for the new device to sign in...",
+        "Bestätige die Anmeldung auf {host}. Prüfe, dass der Code dort mit dem auf dem neuen Gerät übereinstimmt, und bestätige nur, wenn das Gerät dir gehört.",
+    "qrLogin.linkApproveButton": "Auf {host} bestätigen",
+    "qrLogin.linkWaiting": "Warte darauf, dass sich das neue Gerät anmeldet...",
     "qrLogin.linkDone":
-        "The new device is signed in. Finish verifying it in the window that just opened on both devices.",
+        "Das neue Gerät ist angemeldet. Schließe die Verifizierung in dem Fenster ab, das sich gerade auf beiden Geräten geöffnet hat.",
     "qrLogin.linkDoneUnverified":
-        "The new device is signed in. Verification could not be started automatically; verify it from Settings, then Sessions.",
+        "Das neue Gerät ist angemeldet. Die Verifizierung konnte nicht automatisch gestartet werden; verifiziere es unter Einstellungen, dann Sitzungen.",
     "qrLogin.notADeviceCode":
-        "That is not a valid code. Type the code shown on the new device.",
-    "qrLogin.loginSectionTitle": "Login",
+        "Das ist kein gültiger Code. Gib den Code ein, der auf dem neuen Gerät angezeigt wird.",
+    "qrLogin.loginSectionTitle": "Anmeldung",
     "qrLogin.loginSectionIntro":
-        "Sign in another device from this one, without typing your username and password.",
-    "qrLogin.codeButton": "Enter a code from the new device",
-    "qrLogin.codeTitle": "Sign in with a code",
+        "Melde ein anderes Gerät von diesem aus an, ohne Benutzernamen und Passwort einzugeben.",
+    "qrLogin.codeButton": "Code vom neuen Gerät eingeben",
+    "qrLogin.codeTitle": "Mit einem Code anmelden",
     "qrLogin.codeIntro":
-        "On the new device choose Sign in with QR code. It shows a short code under the QR code; type that code here.",
-    "qrLogin.codeLabel": "Code shown on the new device",
-    "qrLogin.codeContinue": "Continue",
+        "Wähle auf dem neuen Gerät „Mit QR-Code anmelden“. Unter dem QR-Code wird ein kurzer Code angezeigt; gib diesen Code hier ein.",
+    "qrLogin.codeLabel": "Auf dem neuen Gerät angezeigter Code",
+    "qrLogin.codeContinue": "Weiter",
     "qrLogin.orEnterCode":
-        "No camera? On a signed-in device open Settings, then Account, then Login, choose Enter a code from the new device, and type the code below.",
+        "Keine Kamera? Öffne auf einem angemeldeten Gerät Einstellungen, dann Konto, dann Anmeldung, wähle „Code vom neuen Gerät eingeben“ und gib den Code unten ein.",
     "qrLogin.notAShownCode":
-        "That is not a code from a signed-in device. On the signed-in device open Settings, then Account, then Login, and choose Show a QR code for the new device to scan.",
-    "qrLogin.showButton": "Show a QR code for the new device to scan",
-    "qrLogin.showTitle": "Show a code for the new device",
+        "Das ist kein Code von einem angemeldeten Gerät. Öffne auf dem angemeldeten Gerät Einstellungen, dann Konto, dann Anmeldung, und wähle „QR-Code zum Scannen für das neue Gerät anzeigen“.",
+    "qrLogin.showButton": "QR-Code zum Scannen für das neue Gerät anzeigen",
+    "qrLogin.showTitle": "Code für das neue Gerät anzeigen",
     "qrLogin.showIntro":
-        "On the new device choose Sign in with QR code, then Scan a code from a signed-in device, and scan this code.",
-    "qrLogin.showCodeAlt": "QR code to scan from the new device",
-    "qrLogin.showEnterNumber": "Type the number the new device shows",
-    "qrLogin.showRetry": "Show a new code",
-    "qrLogin.scanInstead": "Scan a code from a signed-in device instead",
-    "qrLogin.scanTitle": "Scan a code from a signed-in device",
+        "Wähle auf dem neuen Gerät „Mit QR-Code anmelden“, dann „Code von einem angemeldeten Gerät scannen“, und scanne diesen Code.",
+    "qrLogin.showCodeAlt": "QR-Code zum Scannen vom neuen Gerät",
+    "qrLogin.showEnterNumber": "Gib die Zahl ein, die das neue Gerät anzeigt",
+    "qrLogin.showRetry": "Neuen Code anzeigen",
+    "qrLogin.scanInstead":
+        "Stattdessen einen Code von einem angemeldeten Gerät scannen",
+    "qrLogin.scanTitle": "Code von einem angemeldeten Gerät scannen",
     "qrLogin.scanIntro":
-        "On a signed-in device open Settings, then Account, then Login, choose Show a QR code for the new device to scan, and scan it here.",
+        "Öffne auf einem angemeldeten Gerät Einstellungen, dann Konto, dann Anmeldung, wähle „QR-Code zum Scannen für das neue Gerät anzeigen“ und scanne ihn hier.",
     "qrLogin.scanShowNumber":
-        "Type this number on the signed-in device, then approve the sign-in there.",
-    "qrLogin.showInstead": "Show my own code instead",
+        "Gib diese Zahl auf dem angemeldeten Gerät ein und bestätige dort dann die Anmeldung.",
+    "qrLogin.showInstead": "Stattdessen meinen eigenen Code anzeigen",
     "qrLogin.chooseIntro":
-        "More than one new session signed in at the same moment. Pick the one you are setting up.",
-    "qrLogin.linkClose": "Close",
+        "Mehrere neue Sitzungen haben sich im selben Moment angemeldet. Wähle die aus, die du gerade einrichtest.",
+    "qrLogin.linkClose": "Schließen",
     "sessionSettings.loadingSessions": "Sitzungen werden geladen…",
     "sessionSettings.otherSessions": "Andere Sitzungen {value}",
     "sessionSettings.noOtherSessionsYouReOnly":
@@ -2761,9 +2769,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.videoCodec": "Videocodec",
     "voiceAudioSettings.videoCodecHint":
         "Das Format, in dem Kamera und Bildschirmfreigabe gesendet werden. Wer es im Anruf nicht abspielen kann, bekommt eine H.264-Kopie; im Anruf lässt es sich auch umstellen. Gilt beim nächsten Einschalten.",
-    "voiceAudioSettings.adaptiveStream": "Adaptive video quality",
+    "voiceAudioSettings.adaptiveStream": "Adaptive Videoqualität",
     "voiceAudioSettings.adaptiveStreamHint":
-        "Receive each video at the size it's shown, and pause video that isn't on screen or while Zam is minimised. Saves bandwidth and decoding. Applies the next time you join a call.",
+        "Empfängt jedes Video in der Größe, in der es angezeigt wird, und pausiert Videos, die nicht auf dem Bildschirm sind oder während Zam minimiert ist. Spart Bandbreite und Decodierung. Gilt ab dem nächsten Beitritt zu einem Anruf.",
     "voiceAudioSettings.stopPreview": "Vorschau beenden",
     "voiceAudioSettings.preview": "Vorschau",
     "voiceAudioSettings.callSounds": "Anruftöne",
@@ -3926,7 +3934,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.mirrorMyCamera": "Meine Kamera spiegeln",
     "settingsSearch.videoCodec": "Videocodec",
     "settingsSearch.noiseSuppressionGpu": "GPU-Beschleunigung",
-    "settingsSearch.adaptiveStream": "Adaptive video quality",
+    "settingsSearch.adaptiveStream": "Adaptive Videoqualität",
     "settingsSearch.callVolume": "Anruflautstärke",
     "settingsSearch.playCallSounds": "Anruftöne abspielen",
     "settingsSearch.ringForIncomingDmCalls":
@@ -4159,21 +4167,21 @@ const messages: Partial<Record<MessageKey, string>> = {
         "{room}, {count, plural, one {# Bild} other {# Bilder}}",
     "sharedPackSettings.failedToSave": "Speichern fehlgeschlagen",
     // Not translated yet; shown in English.
-    "callParticipantMenu.shareVolume": "Share Volume",
-    "screenShareQualityChips.bitrateUpTo": "Up to",
+    "callParticipantMenu.shareVolume": "Freigabe-Lautstärke",
+    "screenShareQualityChips.bitrateUpTo": "Bis zu",
     "screenShareQualityChips.bitrateCapHint":
-        "A limit, not a target: the share uses only what the picture needs and your connection can carry, up to this.",
+        "Eine Obergrenze, kein Ziel: Die Freigabe nutzt nur, was das Bild braucht und deine Verbindung schafft, bis zu diesem Wert.",
     "screenShareQualityChips.bitrateOverridden":
-        "Using the upload speed you entered, {upload}, so this goes up to {max}.",
-    "screenShareQualityChips.uploadOverride": "Upload speed (Mbps)",
-    "screenShareQualityChips.uploadOverrideAuto": "Auto",
+        "Es wird die von dir eingegebene Upload-Geschwindigkeit {upload} verwendet, daher geht dies bis zu {max}.",
+    "screenShareQualityChips.uploadOverride": "Upload-Geschwindigkeit (Mbit/s)",
+    "screenShareQualityChips.uploadOverrideAuto": "Automatisch",
     "screenShareQualityChips.uploadOverrideHint":
-        "The automatic measurement can read well under your real speed. Enter your own figure to raise the limit; leave it empty to measure.",
-    "voiceAudioSettings.cannotWatch": "Video I can't watch",
+        "Die automatische Messung kann deutlich unter deiner echten Geschwindigkeit liegen. Gib einen eigenen Wert ein, um die Grenze anzuheben; lass das Feld leer, um zu messen.",
+    "voiceAudioSettings.cannotWatch": "Video, das ich nicht sehen kann",
     "voiceAudioSettings.cannotWatchHint":
-        "Pick the codecs that show nothing (or a black picture) on this device. Others in the call then send you H.264 instead. Zam also fills this in when a stream arrives and never decodes.",
+        "Wähle die Codecs, die auf diesem Gerät nichts (oder ein schwarzes Bild) zeigen. Andere im Anruf senden dir dann stattdessen H.264. Zam trägt sie auch selbst ein, wenn ein Stream ankommt und nie decodiert wird.",
     "client.codecCouldNotBeDecoded":
-        "This device can't decode {codec} video. Asking for H.264 instead.",
+        "Dieses Gerät kann {codec}-Video nicht decodieren. Stattdessen wird H.264 angefordert.",
     // src/lib/components/messages/MessageEmbed.svelte
     "messageEmbed.deleted": "Nachricht gelöscht",
     "messageEmbed.inRoom": "in {room}",
@@ -4206,6 +4214,102 @@ const messages: Partial<Record<MessageKey, string>> = {
     "richPresence.autoRestart": "Discord automatisch neu starten",
     "richPresence.autoRestartHint":
         "Wenn Zam startet und Discord schon vorher läuft, wird Discord geschlossen und neu geöffnet, damit Apps an Zam melden. Dabei endet ein laufender Anruf oder Stream. Passiert einmal bei jedem Start von Zam.",
+    "appearanceSettings.customCss": "Eigenes CSS",
+    "appearanceSettings.customCssEnable": "Eigenes CSS verwenden",
+    "appearanceSettings.customCssHint":
+        "Deine eigenen Stile, live über dem Theme angewendet. Theme-Farben sind Variablen auf der Seite, überschreibe sie also mit !important.",
+    "appearanceSettings.customCssRecovery":
+        "Wenn eine Regel Zam unbenutzbar macht, öffne es mit ?nocustomcss an der Adresse (oder schalte den Schalter aus), um wieder hineinzukommen.",
+    "gpuDebug.memoryReport": "Speicherbericht",
+    "gpuDebug.memoryReportHint":
+        "Schlüsselt den Speicher auf, den die Prozesse von Zam belegen, einschließlich des Videospeichers im GPU-Prozess, und zeigt, was ihn hält. Miss, während der Bildschirm das Problem zeigt, und kopiere den Bericht dann in einen Fehlerbericht.",
+    "gpuDebug.repaint": "Neu zeichnen",
+    "gpuDebug.repaintHint":
+        "Startet den GPU-Prozess neu, sodass das Fenster komplett neu gezeichnet wird. Verwende das, wenn Teile des Fensters als schwarze oder weiße Kästen oder an der falschen Stelle erscheinen, was passieren kann, wenn der Videospeicher ausgeht. Anrufe laufen weiter. Auch im Tray-Menü.",
+    "gpuDebug.memoryMeasure": "Messen",
+    "gpuDebug.memoryMeasuring": "Wird gemessen…",
+    "gpuDebug.memoryRecord": "Speicher über die Zeit aufzeichnen",
+    "gpuDebug.memoryRecordHint":
+        "Erstellt den Speicherbericht in einem festen Intervall und läuft auch bei geschlossenen Einstellungen weiter, sodass du Zam normal nutzen und später zurückkommen kannst. Zeigt die erste, niedrigste, höchste und letzte Größe jedes Eintrags und speichert jede Messung als CSV für Diagramme.",
+    "gpuDebug.memoryRecordInterval": "Intervall",
+    "gpuDebug.memoryRecordEvery": "Alle {seconds} s",
+    "gpuDebug.memoryRecordStart": "Aufzeichnen",
+    "gpuDebug.memoryRecordStop": "Stopp",
+    "gpuDebug.memoryRecordStatus": "{count} Messungen über {elapsed}",
+    "gpuDebug.memoryRecordCsv": "CSV speichern",
+    "richPresence.heading": "Rich Presence",
+    "richPresence.share": "Teilen, was du gerade tust",
+    "richPresence.shareHint":
+        "Erlaube Apps auf diesem Computer, auf deinem Profil anzuzeigen, was du spielst oder hörst. Jede App ist standardmäßig erlaubt; schalte unten die aus, die du nicht möchtest.",
+    "richPresence.arrpc": "Apps, die Discord Rich Presence verwenden",
+    "richPresence.arrpcHint":
+        "Auch Apps annehmen, die an Discord melden. Wenn Discord läuft, melden Apps meist zuerst dorthin, daher funktioniert das am besten bei geschlossenem Discord.",
+    "richPresence.scan": "Spiele erkennen",
+    "richPresence.scanHint":
+        "Sucht nach laufenden Spielen auf diesem Computer, damit auch solche erscheinen, die nichts melden. Dafür wird alle paar Sekunden die Liste der laufenden Programme gelesen.",
+    "richPresence.scanNeedsPermission":
+        "Die Flatpak-Sandbox kann andere Programme nicht sehen. Damit Zam nach Spielen suchen kann, führe diesen Befehl aus und starte Zam danach neu:",
+    "richPresence.scanGrantCommand":
+        "flatpak override --user --talk-name=org.freedesktop.Flatpak moe.crafty.matrix",
+    "richPresence.scanFailed": "Konnte nicht nach Spielen suchen: {error}",
+    "richPresence.socket": "Lauscht auch auf {path}.",
+    "richPresence.arrpcNeedsShare": "Schalte zuerst das Teilen ein.",
+    "richPresence.listening": "Lauscht auf Apps an Port {port}.",
+    "richPresence.listenFailed":
+        "Lauschen konnte nicht gestartet werden: {error}",
+    "richPresence.arrpcFailed": "arRPC konnte nicht gestartet werden: {error}",
+    "richPresence.publishFailed":
+        "Dein Profil konnte nicht aktualisiert werden.",
+    "richPresence.gameList": "Spieleliste: {count} Spiele, aktualisiert {when}",
+    "richPresence.gameListDownloading":
+        "Spieleliste wird von Discord heruntergeladen…",
+    "richPresence.gameListFailed":
+        "Spieleliste konnte nicht heruntergeladen werden: {error}",
+    "richPresence.addedGames": "Registrierte Spiele",
+    "richPresence.addedGamesHint":
+        "Laufend gefundene Spiele, Apps und Medienplayer sowie Programme, die du selbst hinzufügst. Jedes ist standardmäßig auf deinem Profil erlaubt; schalte die aus, die du nicht möchtest. Spiele werden nur gefunden, solange „Spiele erkennen“ an ist, und Medienplayer nur, solange „Medienwiedergabe melden“ an ist.",
+    "richPresence.addGame": "Spiel hinzufügen",
+    "richPresence.pickProgram": "Laufendes Programm auswählen",
+    "richPresence.searchPrograms": "Laufende Programme durchsuchen",
+    "richPresence.noPrograms": "Keine laufenden Programme gefunden.",
+    "richPresence.gameName": "Auf deinem Profil angezeigter Name",
+    "richPresence.refreshPrograms": "Aktualisieren",
+    "richPresence.lastPlayed": "Zuletzt gespielt {when}",
+    "richPresence.neverPlayed": "Noch nicht gespielt",
+    "richPresence.apps": "Apps",
+    "richPresence.noApps":
+        "Noch keine App hat etwas gemeldet. Apps, die es tun, erscheinen hier und sind erlaubt, bis du sie ausschaltest.",
+    "richPresence.allowApp": "{name} erlauben",
+    "richPresence.forgetApp": "{name} vergessen",
+    "richPresence.forget": "Vergessen",
+    "richPresence.viaDiscord": "Spiel oder Discord Rich Presence",
+    "richPresence.viaMatrix": "Matrix-App",
+    "richPresence.blocked": "Blockiert",
+    "richPresence.allowed": "Erlaubt",
+    "richPresenceCard.playing": "Spielt {name}",
+    "richPresence.sharingTitle": "Auf deinem Profil sichtbar",
+    "richPresenceCard.listening": "Hört {name}",
+    "richPresenceCard.elapsed": "{time} vergangen",
+    "richPresenceCard.remaining": "noch {time}",
+    "richPresenceCard.openLinkTitle": "Diesen Link öffnen?",
+    "richPresenceCard.openLinkBody":
+        "{name} möchte diese Adresse in deinem Browser öffnen:",
+    "richPresenceCard.openidWarning":
+        "Dieser Link enthält außerdem ein OpenID-Token für dein Matrix-Konto. Die Seite kann damit deine Matrix-ID und deinen Homeserver erfahren und sieht deine IP-Adresse.",
+    "richPresenceCard.open": "Öffnen",
+    "richPresenceCard.openFailed":
+        "Es konnte kein OpenID-Token abgerufen werden.",
+    "roomTopicSheet.description": "Beschreibung",
+    "roomTopicSheet.open": "Vollständige Raumbeschreibung anzeigen",
+    "roomList.clickAgainToLeaveLastMember":
+        "Du bist das einzige Mitglied, daher kann niemand mehr beitreten, nachdem du gehst. Klicke erneut, um zu gehen",
+    "spaceSidebar.clickAgainToLeaveLastMember":
+        "Du bist das einzige Mitglied, daher kann niemand mehr diesem Space beitreten, nachdem du gehst. Klicke erneut, um zu gehen",
+    "userProfileCard.editProfile": "Profil bearbeiten",
+    "composerActionsMenu.camera": "Kamera",
+    "composerActionsMenu.photosAndVideos": "Fotos & Videos",
+    "composerActionsMenu.files": "Dateien",
+    "settingsSearch.richPresence": "Rich Presence",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: de };
