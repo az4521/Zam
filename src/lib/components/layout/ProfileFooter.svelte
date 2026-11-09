@@ -64,10 +64,18 @@
         accountSwitcherOpen = true;
     }
 
+    // Until the first sync the account data is not in, so the secret storage
+    // key reads as missing and the nudge offered to set up encryption for a
+    // few seconds after switching to an account that already has it.
+    const synced = $derived(
+        auth.syncState === "SYNCING" || auth.syncState === "PREPARED",
+    );
+
     // Verification status refresh (guarded by tick to avoid re-triggering).
     let vLoaded = false;
     let vLastTick = -1;
     $effect(() => {
+        if (!synced) return;
         const tick =
             securityState.securityTick + verificationState.verificationTick;
         if (!vLoaded || tick !== vLastTick) {
@@ -79,7 +87,8 @@
 
     // Verification nudge (shown only when actionable and not dismissed).
     const nudge = $derived(
-        verificationStatusState.view &&
+        synced &&
+            verificationStatusState.view &&
             verificationStatusState.view.actionable &&
             !verificationStatusState.nudgeDismissed
             ? verificationStatusState.view
