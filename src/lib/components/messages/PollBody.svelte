@@ -1,6 +1,7 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
     import type { MatrixEvent, Room } from "matrix-js-sdk";
+    import { Check } from "lucide-svelte";
     import {
         getPollView,
         fetchPollRelations,
@@ -189,8 +190,10 @@
                             {answer.text}
                             {#if isMine}
                                 <span
-                                    class="text-xs text-discord-accent font-semibold whitespace-nowrap"
-                                    >{t("pollBody.selected")}</span
+                                    class="inline-flex items-center gap-1 text-xs text-discord-accent font-semibold whitespace-nowrap"
+                                    ><Check size={12} />{t(
+                                        "pollBody.selected",
+                                    )}</span
                                 >
                             {/if}
                         </span>

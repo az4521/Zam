@@ -6,6 +6,7 @@
     // keeps the full toolbox; this is the short path for everyone else.
     import { t } from "$lib/i18n";
     import ModalDialog from "$lib/components/ui/ModalDialog.svelte";
+    import { Check, Lock } from "lucide-svelte";
     import {
         accountHasCrossSigning,
         getBackupStatus,
@@ -395,7 +396,11 @@
                 aria-hidden="true"
                 class="flex-shrink-0 w-10 h-10 rounded-full bg-discord-accent/15 text-discord-accent flex items-center justify-center text-xl"
             >
-                {flow === "finished" || plan.kind === "done" ? "✓" : "🔒"}
+                {#if flow === "finished" || plan.kind === "done"}
+                    <Check size={22} />
+                {:else}
+                    <Lock size={20} />
+                {/if}
             </div>
             <div class="min-w-0">
                 <h2
@@ -433,9 +438,13 @@
                     type="button"
                     onclick={copyKey}
                     class="flex-1 py-2 bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary rounded border border-discord-divider text-sm"
-                    >{copied
-                        ? t("securitySettings.copied")
-                        : t("securitySettings.copyKey")}</button
+                    >{#if copied}<Check
+                            size={14}
+                            class="inline-block align-[-2px]"
+                        />
+                        {t("securitySettings.copied")}{:else}{t(
+                            "securitySettings.copyKey",
+                        )}{/if}</button
                 >
                 <button
                     type="button"

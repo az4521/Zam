@@ -1,5 +1,6 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
+    import { X } from "lucide-svelte";
     import { onMount } from "svelte";
     import {
         APP_VERSION,
@@ -82,7 +83,7 @@
             aria-label={t("common.close")}
             class="text-discord-textMuted hover:text-discord-textPrimary text-lg leading-none px-1"
         >
-            ✕
+            <X size={16} />
         </button>
     </header>
     <div class="overflow-y-auto px-4 py-3 flex-1 min-h-0">

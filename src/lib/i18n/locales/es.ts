@@ -399,7 +399,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugPanel.debugPanel": "PANEL DE DEPURACIÓN",
     "debugPanel.sync": "Sincronización:",
     "debugPanel.refresh": "↻ actualizar",
-    "debugPanel.copied": "✓ copiado",
+    "debugPanel.copied": "copiado",
     "debugPanel.copy": "⧉ copiar",
     "debugPanel.unreadState": "ESTADO DE NO LEÍDOS",
     "debugPanel.unread": "no leídos:",
@@ -1645,7 +1645,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "pollBody.resultsAreRevealedWhenThePoll":
         "Los resultados se muestran cuando termina la encuesta",
     "pollBody.chooseUpTo": "· elige hasta {maxSelections}",
-    "pollBody.selected": "✓ seleccionada",
+    "pollBody.selected": "seleccionada",
     "pollBody.submitting": "Enviando…",
     "pollBody.submitVote": "Enviar voto",
     "pollBody.votesAreHidden": "Los votos están ocultos",
@@ -2175,7 +2175,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "securitySettings.onlyOnce": "solo una vez",
     "securitySettings.storeItNowWithoutItYou":
         ". Guárdala ahora: sin ella no podrás recuperar tu historial cifrado si pierdes el acceso a tus sesiones.",
-    "securitySettings.copied": "Copiada ✓",
+    "securitySettings.copied": "Copiada",
     "securitySettings.copyKey": "Copiar la clave",
     "securitySettings.youCanAlsoUnlockWithThe":
         "También puedes desbloquear con la frase de contraseña que elegiste. Conserva la clave de todos modos: es la única forma de entrar si olvidas la frase.",

@@ -360,7 +360,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugPanel.debugPanel": "デバッグパネル",
     "debugPanel.sync": "同期:",
     "debugPanel.refresh": "↻ 更新",
-    "debugPanel.copied": "✓ コピーしました",
+    "debugPanel.copied": "コピーしました",
     "debugPanel.copy": "⧉ コピー",
     "debugPanel.unreadState": "未読状態",
     "debugPanel.unread": "未読:",
@@ -1500,7 +1500,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "pollBody.resultsAreRevealedWhenThePoll":
         "結果は投票の終了時に公開されます",
     "pollBody.chooseUpTo": "· 最大{maxSelections}件まで選択",
-    "pollBody.selected": "✓ 選択済み",
+    "pollBody.selected": "選択済み",
     "pollBody.submitting": "送信しています…",
     "pollBody.submitVote": "投票を送信",
     "pollBody.votesAreHidden": "投票は非公開です",
@@ -1986,7 +1986,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "securitySettings.onlyOnce": "一度きりです。",
     "securitySettings.storeItNowWithoutItYou":
         "今すぐ保存してください - これがないと、セッションへのアクセスを失ったときに暗号化された履歴を復元できません。",
-    "securitySettings.copied": "コピーしました ✓",
+    "securitySettings.copied": "コピーしました",
     "securitySettings.copyKey": "キーをコピー",
     "securitySettings.youCanAlsoUnlockWithThe":
         "選択したパスフレーズでも解錠できます。パスフレーズを忘れたときの唯一の手段なので、キーは必ず保管してください。",

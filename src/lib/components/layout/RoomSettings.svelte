@@ -109,7 +109,13 @@
     } from "$lib/utils/roomSettingsNav";
     import { roomStateTrustBadge } from "$lib/utils/roomStateTrust";
     import { focusTrap } from "$lib/actions/focusTrap";
-    import { ChevronRight, ArrowLeft, Circle } from "lucide-svelte";
+    import {
+        ChevronDown,
+        ChevronRight,
+        ArrowLeft,
+        Circle,
+        TriangleAlert,
+    } from "lucide-svelte";
 
     import { discardRoomSession, isRoomEncrypted } from "$lib/matrix/crypto";
     import {
@@ -2156,7 +2162,11 @@
                                                 <p
                                                     class="text-sm text-discord-danger"
                                                 >
-                                                    ⚠ {w}
+                                                    <TriangleAlert
+                                                        size={14}
+                                                        class="inline-block align-[-2px]"
+                                                    />
+                                                    {w}
                                                 </p>
                                             {/each}
                                         </div>

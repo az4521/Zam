@@ -1,5 +1,6 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
+    import { ChevronDown, ChevronRight } from "lucide-svelte";
     import { onMount } from "svelte";
     import { page } from "$app/state";
     import { replaceState } from "$app/navigation";
@@ -1335,7 +1336,13 @@
                     aria-expanded={showAdvanced}
                     aria-controls="login-advanced"
                     class="text-xs text-discord-textMuted hover:text-discord-textPrimary"
-                    >{showAdvanced ? "▾" : "▸"}
+                    >{#if showAdvanced}<ChevronDown
+                            size={12}
+                            class="inline-block align-[-2px]"
+                        />{:else}<ChevronRight
+                            size={12}
+                            class="inline-block align-[-2px]"
+                        />{/if}
                     {t("loginView.advancedOptions")}</button
                 >
                 {#if showAdvanced}

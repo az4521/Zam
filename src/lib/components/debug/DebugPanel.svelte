@@ -10,6 +10,7 @@
     import { getMessages } from "$lib/stores/messages.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { tick } from "svelte";
+    import { Check, Circle, X } from "lucide-svelte";
 
     interface Props {
         room: Room;
@@ -221,14 +222,21 @@
                         onclick={copyReport}
                         class="text-xs px-2 py-0.5 rounded bg-[#2a4a2a] hover:bg-[#3a5a3a] font-mono"
                     >
-                        {copyDone
-                            ? t("debugPanel.copied")
-                            : t("debugPanel.copy")}
+                        {#if copyDone}<Check
+                                size={12}
+                                class="inline-block align-[-2px]"
+                            />
+                            {t("debugPanel.copied")}{:else}{t(
+                                "debugPanel.copy",
+                            )}{/if}
                     </button>
                     <button
                         onclick={() => (interfaceState.debugOpen = false)}
                         class="text-xs px-2 py-0.5 rounded bg-[#4a2a2a] hover:bg-[#5a3a3a] font-mono"
-                        >✕</button
+                        ><X
+                            size={14}
+                            class="inline-block align-[-2px]"
+                        /></button
                     >
                 </div>
             </div>
@@ -377,7 +385,14 @@
                                                 class:text-green-400={rule.enabled}
                                                 class:text-red-400={!rule.enabled}
                                             >
-                                                {rule.enabled ? "●" : "○"}
+                                                {#if rule.enabled}<Circle
+                                                        size={10}
+                                                        fill="currentColor"
+                                                        class="inline-block align-[-1px]"
+                                                    />{:else}<Circle
+                                                        size={10}
+                                                        class="inline-block align-[-1px]"
+                                                    />{/if}
                                             </span>
                                             <span
                                                 class="text-yellow-200 font-medium"

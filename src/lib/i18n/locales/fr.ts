@@ -398,7 +398,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugPanel.debugPanel": "PANNEAU DE DÉBOGAGE",
     "debugPanel.sync": "Synchro :",
     "debugPanel.refresh": "↻ actualiser",
-    "debugPanel.copied": "✓ copié",
+    "debugPanel.copied": "copié",
     "debugPanel.copy": "⧉ copier",
     "debugPanel.unreadState": "ÉTAT NON LU",
     "debugPanel.unread": "non lus :",
@@ -1612,7 +1612,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "pollBody.resultsAreRevealedWhenThePoll":
         "Les résultats seront révélés à la fin du sondage",
     "pollBody.chooseUpTo": "· choisissez jusqu'à {maxSelections}",
-    "pollBody.selected": "✓ sélectionné",
+    "pollBody.selected": "sélectionné",
     "pollBody.submitting": "Envoi…",
     "pollBody.submitVote": "Voter",
     "pollBody.votesAreHidden": "Les votes sont masqués",
@@ -2136,7 +2136,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "securitySettings.onlyOnce": "une seule fois",
     "securitySettings.storeItNowWithoutItYou":
         ". Conservez-la maintenant - sans elle, vous ne pourrez pas récupérer votre historique chiffré si vous perdez l'accès à vos sessions.",
-    "securitySettings.copied": "Copié ✓",
+    "securitySettings.copied": "Copié",
     "securitySettings.copyKey": "Copier la clé",
     "securitySettings.youCanAlsoUnlockWithThe":
         "Vous pouvez aussi déverrouiller avec la phrase secrète choisie. Gardez quand même la clé - c'est le seul moyen d'accès si vous oubliez la phrase secrète.",

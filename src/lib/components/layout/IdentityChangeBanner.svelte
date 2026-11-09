@@ -1,5 +1,6 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
+    import { X } from "lucide-svelte";
     // MSC4153: alert when a cross-signing identity changes. Own-account
     // changes need re-verification (Settings → Sessions); another user's
     // change blocks encrypted sends to them until accepted here.
@@ -55,7 +56,7 @@
                     aria-label={t("identityChange.dismiss")}
                     class="flex-shrink-0 text-discord-textMuted hover:text-discord-textPrimary"
                 >
-                    ✕
+                    <X size={14} />
                 </button>
             </div>
         {/each}

@@ -1,6 +1,7 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
     import { onDestroy } from "svelte";
+    import { Pencil, TriangleAlert, X } from "lucide-svelte";
     import {
         settingsState,
         setActivePreset,
@@ -407,7 +408,7 @@
                                 }}
                                 title={t("themeColorEditor.rename")}
                             >
-                                ✎
+                                <Pencil size={12} />
                             </button>
                             <button
                                 type="button"
@@ -488,7 +489,7 @@
                             disabled={activeIsBuiltin}
                             title={t("themeColorEditor.resetToDefault")}
                         >
-                            ✕
+                            <X size={14} />
                         </button>
                     </div>
                 {/each}
@@ -531,7 +532,7 @@
                             disabled={activeIsBuiltin}
                             title={t("themeColorEditor.resetToDefault")}
                         >
-                            ✕
+                            <X size={14} />
                         </button>
                     </div>
                 {/each}
@@ -574,7 +575,7 @@
                             disabled={activeIsBuiltin}
                             title={t("themeColorEditor.resetToDefault")}
                         >
-                            ✕
+                            <X size={14} />
                         </button>
                     </div>
                 {/each}
@@ -617,7 +618,7 @@
                             disabled={activeIsBuiltin}
                             title={t("themeColorEditor.resetToDefault")}
                         >
-                            ✕
+                            <X size={14} />
                         </button>
                     </div>
                 {/each}
@@ -660,7 +661,7 @@
                             disabled={activeIsBuiltin}
                             title={t("themeColorEditor.resetToDefault")}
                         >
-                            ✕
+                            <X size={14} />
                         </button>
                     </div>
                 {/each}
@@ -677,7 +678,10 @@
             <div class="flex flex-col gap-1">
                 {#each warnings as warning}
                     <p class="text-xs text-discord-danger">
-                        ⚠ {warning.label}: {warning.ratio}:1
+                        <TriangleAlert
+                            size={12}
+                            class="inline-block align-[-2px] mr-1"
+                        />{warning.label}: {warning.ratio}:1
                     </p>
                 {/each}
             </div>

@@ -1,5 +1,6 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
+    import { Check } from "lucide-svelte";
     import KeyExportSettings from "$lib/components/settings/KeyExportSettings.svelte";
     import {
         getSecurityStatus,
@@ -829,9 +830,11 @@
                     <button
                         onclick={copyKey}
                         class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-xs"
-                        >{copied
-                            ? t("securitySettings.copied")
-                            : t("securitySettings.copyKey")}</button
+                        >{#if copied}<Check size={14} />{t(
+                                "securitySettings.copied",
+                            )}{:else}{t(
+                                "securitySettings.copyKey",
+                            )}{/if}</button
                     >
                     {#if keyHasPassphrase}
                         <p class="text-xs text-discord-textMuted">

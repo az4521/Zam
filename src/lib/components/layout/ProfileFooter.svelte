@@ -1,5 +1,6 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
+    import { X } from "lucide-svelte";
     import { openEncryptionSetup } from "$lib/stores/onboarding.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import AccountSwitcher from "$lib/components/layout/AccountSwitcher.svelte";
@@ -138,7 +139,7 @@
             aria-label={t("profileFooter.dismiss")}
             class="text-discord-textMuted hover:text-discord-textPrimary text-sm"
         >
-            ×
+            <X size={14} />
         </button>
     </div>
 {/if}

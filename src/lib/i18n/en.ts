@@ -395,7 +395,7 @@ export const en = {
     "debugPanel.debugPanel": "DEBUG PANEL",
     "debugPanel.sync": "Sync:",
     "debugPanel.refresh": "↻ refresh",
-    "debugPanel.copied": "✓ copied",
+    "debugPanel.copied": "copied",
     "debugPanel.copy": "⧉ copy",
     "debugPanel.unreadState": "UNREAD STATE",
     "debugPanel.unread": "unread:",
@@ -1697,7 +1697,7 @@ export const en = {
     "pollBody.resultsAreRevealedWhenThePoll":
         "Results are revealed when the poll ends",
     "pollBody.chooseUpTo": "· choose up to {maxSelections}",
-    "pollBody.selected": "✓ selected",
+    "pollBody.selected": "selected",
     "pollBody.submitting": "Submitting…",
     "pollBody.submitVote": "Submit vote",
     "pollBody.votesAreHidden": "Votes are hidden",
@@ -2222,7 +2222,7 @@ export const en = {
     "securitySettings.onlyOnce": "only once",
     "securitySettings.storeItNowWithoutItYou":
         ". Store it now - without it you can't recover your encrypted history if you lose access to your sessions.",
-    "securitySettings.copied": "Copied ✓",
+    "securitySettings.copied": "Copied",
     "securitySettings.copyKey": "Copy key",
     "securitySettings.youCanAlsoUnlockWithThe":
         "You can also unlock with the passphrase you chose. Keep the key anyway - it's the only way in if you forget the passphrase.",

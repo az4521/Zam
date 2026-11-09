@@ -406,7 +406,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugPanel.debugPanel": "DEBUG-PANEL",
     "debugPanel.sync": "Sync:",
     "debugPanel.refresh": "↻ aktualisieren",
-    "debugPanel.copied": "✓ kopiert",
+    "debugPanel.copied": "kopiert",
     "debugPanel.copy": "⧉ kopieren",
     "debugPanel.unreadState": "UNGELESEN-STATUS",
     "debugPanel.unread": "ungelesen:",
@@ -1632,7 +1632,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "pollBody.resultsAreRevealedWhenThePoll":
         "Die Ergebnisse werden am Ende der Umfrage angezeigt",
     "pollBody.chooseUpTo": "· bis zu {maxSelections} auswählen",
-    "pollBody.selected": "✓ ausgewählt",
+    "pollBody.selected": "ausgewählt",
     "pollBody.submitting": "Wird gesendet…",
     "pollBody.submitVote": "Abstimmen",
     "pollBody.votesAreHidden": "Stimmen sind verborgen",
@@ -2161,7 +2161,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "securitySettings.onlyOnce": "nur einmal",
     "securitySettings.storeItNowWithoutItYou":
         " angezeigt. Speichere ihn jetzt - ohne ihn kannst du deinen verschlüsselten Verlauf nicht wiederherstellen, wenn du den Zugriff auf deine Sitzungen verlierst.",
-    "securitySettings.copied": "Kopiert ✓",
+    "securitySettings.copied": "Kopiert",
     "securitySettings.copyKey": "Schlüssel kopieren",
     "securitySettings.youCanAlsoUnlockWithThe":
         "Du kannst auch mit der gewählten Passphrase entsperren. Behalte den Schlüssel trotzdem - er ist der einzige Weg hinein, falls du die Passphrase vergisst.",

@@ -6,7 +6,7 @@
         setOwnProfileField,
         uploadContent,
     } from "$lib/matrix/client";
-    import { Smile } from "lucide-svelte";
+    import { Smile, X } from "lucide-svelte";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import { auth } from "$lib/stores/auth.svelte";
@@ -581,7 +581,7 @@
                             class={smallButtonClass}
                             onclick={clearColour}
                             title={t("profileFieldsEditor.resetToDefault")}
-                            >✕</button
+                            ><X size={14} /></button
                         >
                     </div>
                 {:else}
@@ -630,7 +630,7 @@
                                 class={smallButtonClass}
                                 onclick={() => removeConnection(index)}
                                 title={t("profileFieldsEditor.removeLink")}
-                                >✕</button
+                                ><X size={14} /></button
                             >
                         </div>
                     {/each}

@@ -385,7 +385,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugPanel.debugPanel": "ܦܢܝܬܐ ܕܬܘܪܨܐ",
     "debugPanel.sync": "ܐܚܕܝܘܬܐ:",
     "debugPanel.refresh": "↻ ܚܕܬ",
-    "debugPanel.copied": "✓ ܢܣܝܚܐ",
+    "debugPanel.copied": "ܢܣܝܚܐ",
     "debugPanel.copy": "⧉ ܢܣܘܚ",
     "debugPanel.unreadState": "ܐܝܟܢܝܘܬܐ ܕܠܐ ܩܪܝܐ",
     "debugPanel.unread": "ܠܐ ܩܪܝܐ:",
@@ -1506,7 +1506,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "pollBody.resultsAreRevealedWhenThePoll":
         "ܦܠܛ̈ܐ ܒܕ ܓܠܝܐ ܗܘܝ ܐܡܬܝ ܕܫܘܐܠܬܐ ܡܛܝܐ ܠܫܘܠܡܐ",
     "pollBody.chooseUpTo": "· ܓܒܝ ܗܕܝܡܐ {maxSelections}",
-    "pollBody.selected": "✓ ܓܒܝܐ",
+    "pollBody.selected": "ܓܒܝܐ",
     "pollBody.submitting": "ܒܫܕܪܐ…",
     "pollBody.submitVote": "ܫܕܪ ܩܠܐ",
     "pollBody.votesAreHidden": "ܩܠ̈ܐ ܛܫܝ̈ܐ ܝܢ",
@@ -1995,7 +1995,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "securitySettings.onlyOnce": "ܒܣ ܚܕ ܙܒܢܐ",
     "securitySettings.storeItNowWithoutItYou":
         ". ܢܛܘܪ ܠܗ̇ ܗܫܐ - ܕܠܐ ܕܝܗ̇ ܠܐ ܡܨܝܬ ܕܦܪܩܬ ܬܫܥܝܬܐ ܡܛܫܝܬܐ ܕܝܘܟ ܐܢ ܚܣܪܠܘܟ ܡܥܠܬܐ ܠܓܠܣ̈ܐ ܕܝܘܟ.",
-    "securitySettings.copied": "ܢܣܝܚܐ ✓",
+    "securitySettings.copied": "ܢܣܝܚܐ",
     "securitySettings.copyKey": "ܢܣܘܚ ܩܠܝܕܐ",
     "securitySettings.youCanAlsoUnlockWithThe":
         "ܡܨܝܬ ܐܦ ܕܦܬܚܬ ܒܦܬܓܡܐ ܕܓܒܝܠܘܟ. ܢܛܘܪ ܩܠܝܕܐ ܐܦܢ ܗܕܟܐ - ܗܘ ܝܠܗ ܐܘܪܚܐ ܝܚܝܕܝܬܐ ܐܢ ܛܥܝܠܘܟ ܦܬܓܡܐ.",

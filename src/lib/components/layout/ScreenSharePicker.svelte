@@ -1,5 +1,6 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
+    import { ChevronDown, ChevronRight } from "lucide-svelte";
     // Electron-only. The main process arbitrates getDisplayMedia() and pushes
     // the screen/window list here; this dialog collects the choice and sends it
     // back. It deliberately does NOT join the shared modal slot: it exists only
@@ -174,7 +175,13 @@
                         aria-expanded={showQuality}
                         aria-controls="screenshare-picker-quality"
                         class="me-auto rounded px-3 py-2 text-sm text-discord-textSecondary hover:text-discord-textPrimary hover:bg-discord-messageHover"
-                        >{showQuality ? "▾" : "▸"}
+                        >{#if showQuality}<ChevronDown
+                                size={12}
+                                class="inline-block align-[-2px]"
+                            />{:else}<ChevronRight
+                                size={12}
+                                class="inline-block align-[-2px]"
+                            />{/if}
                         {t("screenSharePicker.quality", {
                             quality: `${SCREEN_RESOLUTIONS.find((r) => r.key === settingsState.screenShareResolution)?.label ?? settingsState.screenShareResolution} · ${settingsState.screenShareFps} fps`,
                         })}</button
