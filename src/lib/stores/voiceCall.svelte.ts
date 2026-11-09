@@ -34,6 +34,7 @@ import {
     fetchOwnExtendedProfile,
     selfHasActiveCall,
     setOwnProfileField,
+    clearStaleOwnCallMemberships,
 } from "$lib/matrix/client";
 import {
     PROFILE_FIELDS,
@@ -453,7 +454,12 @@ export function initVoiceCall(): () => void {
                 auth.syncState === "SYNCING" || auth.syncState === "PREPARED";
             if (!synced || swept) return;
             swept = true;
-            untrack(() => void clearStaleCallStatus());
+            untrack(() => {
+                // A membership a reload left behind, then the call field.
+                void clearStaleOwnCallMemberships()
+                    .catch(() => {})
+                    .then(() => clearStaleCallStatus());
+            });
         });
     });
     return () => {

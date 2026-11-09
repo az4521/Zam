@@ -1716,6 +1716,105 @@ export async function leaveVoiceCall(): Promise<void> {
     await leaveVoiceCallInternal();
 }
 
+// ── Calls a reload walked out of ────────────────────────────────────────
+// A reload (or a closed window) never runs leaveVoiceCall, and the homeserver
+// has no delayed leave event to send for us, so this device's membership stayed
+// in the room for its whole 4 h expiry: everyone else kept a ghost of us in the
+// call, and the reloaded page saw itself as already in it.
+
+/** When this page started: a membership sent before then is a previous
+ *  page's. */
+const PAGE_STARTED = Date.now();
+
+/** State keys of this device's live legacy call memberships in `room`. */
+function ownMembershipStateKeys(
+    client: MatrixClient,
+    room: Room,
+    sentBefore = Infinity,
+): string[] {
+    const me = client.getUserId();
+    const device = client.getDeviceId();
+    if (!me || !device) return [];
+    const keys: string[] = [];
+    for (const ev of room.currentState.getStateEvents(
+        EventType.GroupCallMemberPrefix,
+    ) ?? []) {
+        const content = ev.getContent();
+        if (ev.getSender() !== me || content.device_id !== device) continue;
+        if (ev.getTs() >= sentBefore) continue;
+        const key = ev.getStateKey();
+        if (key) keys.push(key);
+    }
+    return keys;
+}
+
+function membershipStatePath(
+    client: MatrixClient,
+    roomId: string,
+    stateKey: string,
+): string {
+    return (
+        `${client.getHomeserverUrl().replace(/\/+$/, "")}/_matrix/client/v3/rooms/` +
+        `${encodeURIComponent(roomId)}/state/` +
+        `${encodeURIComponent(EventType.GroupCallMemberPrefix)}/` +
+        encodeURIComponent(stateKey)
+    );
+}
+
+/** Once synced: empty every call membership of this device that an earlier
+ *  page left behind. Skipped while a call is joining or joined, which would
+ *  be sending the same state key. */
+export async function clearStaleOwnCallMemberships(): Promise<void> {
+    const client = matrixClient;
+    if (!client || activeVoice) return;
+    const seq = voiceJoinSeq;
+    const sends: Promise<unknown>[] = [];
+    for (const room of client.getRooms()) {
+        for (const key of ownMembershipStateKeys(client, room, PAGE_STARTED)) {
+            if (activeVoice || seq !== voiceJoinSeq) break;
+            sends.push(
+                client.sendStateEvent(
+                    room.roomId,
+                    EventType.GroupCallMemberPrefix,
+                    {} as never,
+                    key,
+                ),
+            );
+        }
+    }
+    await Promise.allSettled(sends);
+}
+
+/** The page is going away mid-call: drop the membership with a request that
+ *  outlives the page (keepalive), since the SDK's own leave is async and is
+ *  cut off. Whatever this misses, the sweep above clears on the next load. */
+function leaveCallOnPageHide(): void {
+    const call = activeVoice;
+    const client = matrixClient;
+    const token = client?.getAccessToken();
+    if (!call || !client || !token) return;
+    const room = client.getRoom(call.roomId);
+    if (!room) return;
+    for (const key of ownMembershipStateKeys(client, room)) {
+        try {
+            void fetch(membershipStatePath(client, call.roomId, key), {
+                method: "PUT",
+                keepalive: true,
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+                body: "{}",
+            }).catch(() => {});
+        } catch {
+            // Best effort.
+        }
+    }
+    for (const r of callLkRooms(call)) void r.disconnect().catch(() => {});
+}
+if (typeof window !== "undefined")
+    window.addEventListener("pagehide", leaveCallOnPageHide);
+
 let voiceLeaveInFlight: Promise<void> | null = null;
 
 async function leaveVoiceCallInternal(): Promise<void> {
