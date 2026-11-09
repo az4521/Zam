@@ -1,5 +1,50 @@
 import { describe, it, expect } from "vitest";
-import { receiptTypeForSetting, orderReadReceipts } from "./readReceipts";
+import {
+    receiptTypeForSetting,
+    orderReadReceipts,
+    readPositions,
+} from "./readReceipts";
+
+describe("readPositions — stored receipt or own newest event, whichever is later", () => {
+    const ev = (
+        sender: string | null,
+        readers: string[] = [],
+        isRedaction = false,
+    ) => ({ sender, readers, isRedaction });
+
+    it("uses the stored receipt when the user sent nothing later", () => {
+        const pos = readPositions([ev("@a:hs"), ev("@b:hs", ["@a:hs"])]);
+        expect(pos.get("@a:hs")).toBe(1);
+    });
+
+    it("moves a user to their own newer message past an older stored receipt", () => {
+        const pos = readPositions([
+            ev("@b:hs", ["@a:hs"]),
+            ev("@b:hs"),
+            ev("@a:hs"),
+            ev("@b:hs"),
+        ]);
+        expect(pos.get("@a:hs")).toBe(2);
+        expect(pos.get("@b:hs")).toBe(3);
+    });
+
+    it("keeps a stored receipt that is newer than the user's own message", () => {
+        const pos = readPositions([ev("@a:hs"), ev("@b:hs", ["@a:hs"])]);
+        expect(pos.get("@a:hs")).toBe(1);
+    });
+
+    it("does not treat a sent redaction as reading up to it", () => {
+        const pos = readPositions([
+            ev("@b:hs", ["@a:hs"]),
+            ev("@a:hs", [], true),
+        ]);
+        expect(pos.get("@a:hs")).toBe(0);
+    });
+
+    it("places users with no receipt and no message nowhere", () => {
+        expect(readPositions([ev(null)]).size).toBe(0);
+    });
+});
 
 describe("receiptTypeForSetting — pick the read-receipt wire type", () => {
     it("sends public m.read receipts by default", () => {

@@ -158,7 +158,7 @@ import {
     supportsPasswordUia,
     type DeviceInfo,
 } from "$lib/utils/deviceSessions";
-import { receiptTypeForSetting } from "$lib/utils/readReceipts";
+import { readPositions, receiptTypeForSetting } from "$lib/utils/readReceipts";
 import { computeEditMentions, type Mentions } from "$lib/utils/editMentions";
 import { buildReplyContent } from "$lib/utils/replyContent";
 import {
@@ -6117,13 +6117,15 @@ export function getReceiptsForEvent(
  * Read receipts per displayed event. A receipt on an event the timeline hides
  * (state, an edit, a reaction) shows on the displayed event just above it,
  * not nowhere, so a reader never vanishes because their client receipted a
- * hidden event. Events outside the live timeline (a jump-to-message window)
- * keep only their own receipts.
+ * hidden event. In the live timeline a user sits at the later of their stored
+ * receipt and their own newest event (see readPositions). Events outside the
+ * live timeline (a jump-to-message window) keep only their own receipts.
  */
 export function getReceiptsByDisplayedEvent(
     room: Room,
     displayed: MatrixEvent[],
 ): Map<string, ReadReceiptInfo[]> {
+    const myId = matrixClient?.getUserId();
     const shown = new Set(displayed.map((e) => e.getId()));
     const result = new Map<string, ReadReceiptInfo[]>();
     const add = (id: string, found: ReadReceiptInfo[]) => {
@@ -6133,16 +6135,43 @@ export function getReceiptsByDisplayedEvent(
             if (!have.some((h) => h.userId === r.userId)) have.push(r);
         result.set(id, have);
     };
-    let current: string | undefined;
+    const live = room
+        .getLiveTimeline()
+        .getEvents()
+        .filter((e) => e.getId());
+    const receipts = live.map((e) => getReceiptsForEvent(room, e));
+    const positions = readPositions(
+        live.map((e, i) => ({
+            sender: e.getSender() ?? null,
+            isRedaction: e.getType() === EventType.RoomRedaction,
+            readers: receipts[i].map((r) => r.userId),
+        })),
+    );
+    // Displayed event each live index rolls up to: itself, or the nearest
+    // displayed event above it.
+    const displayedAt: (string | undefined)[] = [];
     const walked = new Set<string>();
-    for (const e of room.getLiveTimeline().getEvents()) {
-        const id = e.getId();
-        if (!id) continue;
+    let current: string | undefined;
+    live.forEach((e, i) => {
+        const id = e.getId()!;
         if (shown.has(id)) {
             current = id;
             walked.add(id);
         }
-        if (current) add(current, getReceiptsForEvent(room, e));
+        displayedAt[i] = current;
+    });
+    for (const [userId, i] of positions) {
+        const at = displayedAt[i];
+        if (!at || userId === myId) continue;
+        const stored = receipts[i].find((r) => r.userId === userId);
+        add(at, [
+            stored ?? {
+                userId,
+                avatarUrl: getMemberAvatar(room, userId),
+                name: getMemberName(room, userId),
+                ts: live[i].getTs(),
+            },
+        ]);
     }
     for (const e of displayed) {
         const id = e.getId();

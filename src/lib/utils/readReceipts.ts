@@ -14,6 +14,33 @@ export function receiptTypeForSetting(
     return privateReadReceipts ? "m.read.private" : "m.read";
 }
 
+export interface ReceiptTimelineEvent {
+    sender: string | null;
+    /** m.room.redaction: sending one does not imply reading up to it (SDK rule). */
+    isRedaction: boolean;
+    /** Users whose stored receipt sits on this event. */
+    readers: string[];
+}
+
+/**
+ * Each user's read position as an index into `events` (timeline order): the
+ * later of their stored receipt and the newest event they sent, since sending
+ * an event implies reading up to it. The SDK only synthesizes that implied
+ * receipt for events added live, so after a reload a user's own messages that
+ * came in by backfill lost it and their avatar jumped back to an older stored
+ * receipt.
+ */
+export function readPositions(
+    events: ReceiptTimelineEvent[],
+): Map<string, number> {
+    const positions = new Map<string, number>();
+    events.forEach((e, i) => {
+        for (const userId of e.readers) positions.set(userId, i);
+        if (e.sender && !e.isRedaction) positions.set(e.sender, i);
+    });
+    return positions;
+}
+
 /**
  * Presentation ordering for read receipts: exclude the viewer, dedupe by userId
  * (keeping the latest ts), sort by ts descending (most recent first), tie-break
