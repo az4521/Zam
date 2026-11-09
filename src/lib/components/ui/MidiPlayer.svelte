@@ -84,6 +84,9 @@
                         },
                         onEnded: () => {
                             playing = false;
+                            // Time arrives about 4 times a second, so the
+                            // last report falls short of the end.
+                            if (!scrubbing) position = duration;
                         },
                         onPreempted: () => {
                             playing = false;
