@@ -6,8 +6,21 @@ import {
     onSyncPrepared,
     type FavouriteGif,
 } from "$lib/matrix/client";
+import { safeDimension } from "$lib/utils/mediaDimensions";
 
 export type { FavouriteGif };
+
+/** `width`/`height` for a new favourite, from a size that may be untrusted
+ *  (event info, og tags): nothing unless both sides are usable. The picker
+ *  reserves a starred GIF's tile from these before its preview loads. */
+export function favouriteSize(
+    width: unknown,
+    height: unknown,
+): { width?: number; height?: number } {
+    const w = safeDimension(width);
+    const h = safeDimension(height);
+    return w !== null && h !== null ? { width: w, height: h } : {};
+}
 
 class FavouritesState {
     gifs = $state<FavouriteGif[]>([]);

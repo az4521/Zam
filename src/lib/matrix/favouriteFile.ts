@@ -12,6 +12,7 @@ import {
     mxcToHttp,
 } from "$lib/matrix/media";
 import { parseMxc } from "$lib/utils/mxcUri";
+import { withExtension } from "$lib/utils/saveFile";
 
 export interface EventFavouriteSource {
     roomId: string;
@@ -75,8 +76,14 @@ export async function eventFavouriteFile(
 ): Promise<File | null> {
     const url = await resolveEventFavouriteUrl(source);
     if (!url) return null;
-    const blob = await (await fetch(url)).blob();
-    return new File([blob], "favourite.gif", { type: "image/gif" });
+    return favouriteAsFile(await (await fetch(url)).blob());
+}
+
+/** A favourite's bytes as a File named for what they are: a starred PNG or
+ *  WebP sent as "favourite.gif" was misnamed on every other client. */
+function favouriteAsFile(blob: Blob): File {
+    const type = blob.type || "image/gif";
+    return new File([blob], withExtension("favourite", type), { type });
 }
 
 /** A Matrix media download path, with any homeserver base prefix in front. */
@@ -140,10 +147,7 @@ export async function mediaUrlFavouriteFile(url: string): Promise<File | null> {
     if (!httpUrl) return null;
     const objectUrl = await fetchAttachmentBlob(httpUrl);
     try {
-        const blob = await (await fetch(objectUrl)).blob();
-        return new File([blob], "favourite.gif", {
-            type: blob.type || "image/gif",
-        });
+        return favouriteAsFile(await (await fetch(objectUrl)).blob());
     } finally {
         URL.revokeObjectURL(objectUrl);
     }

@@ -58,6 +58,7 @@
         isFavouriteGif,
         addFavouriteGif,
         removeFavouriteGif,
+        favouriteSize,
     } from "$lib/stores/favourites.svelte";
     import {
         fetchAttachmentBlob,
@@ -129,10 +130,16 @@
         if (isFavouriteGif(favourite.url)) {
             removeFavouriteGif(favourite.url);
         } else {
+            // The loaded file's own size, else the size it was sent with.
+            const natural =
+                imgLoaded && imgEl
+                    ? favouriteSize(imgEl.naturalWidth, imgEl.naturalHeight)
+                    : {};
             addFavouriteGif({
                 url: favourite.url,
                 previewUrl: favourite.previewUrl,
                 source: favourite.source,
+                ...(natural.width ? natural : favouriteSize(dims?.w, dims?.h)),
             });
         }
     }

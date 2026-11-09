@@ -199,6 +199,7 @@
         isFavouriteGif,
         addFavouriteGif,
         removeFavouriteGif,
+        favouriteSize,
         favouritesState,
     } from "$lib/stores/favourites.svelte";
     import {
@@ -1841,13 +1842,18 @@
                     url: key,
                     previewUrl: key,
                     source: encryptedFavouriteSource,
+                    ...favouriteSize(imgInfoW, imgInfoH),
                 });
             return;
         }
         if (isFavouriteGif(full)) {
             removeFavouriteGif(full);
         } else {
-            addFavouriteGif({ url: full, previewUrl: imageThumbUrl() ?? full });
+            addFavouriteGif({
+                url: full,
+                previewUrl: imageThumbUrl() ?? full,
+                ...favouriteSize(imgInfoW, imgInfoH),
+            });
         }
     }
 

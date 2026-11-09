@@ -115,6 +115,34 @@ describe("mediaUrlFavouriteFile", () => {
         expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:favourite");
     });
 
+    it("names a non-GIF favourite for its own type", async () => {
+        fetchAttachmentBlob.mockResolvedValue("blob:png");
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => ({
+                blob: async () => new Blob(["png"], { type: "image/png" }),
+            })),
+        );
+
+        const file = await mediaUrlFavouriteFile(HS_MEDIA);
+
+        expect(file?.name).toBe("favourite.png");
+        expect(file?.type).toBe("image/png");
+    });
+
+    it("treats untyped bytes as a GIF", async () => {
+        fetchAttachmentBlob.mockResolvedValue("blob:untyped");
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => ({ blob: async () => new Blob(["x"]) })),
+        );
+
+        const file = await mediaUrlFavouriteFile(HS_MEDIA);
+
+        expect(file?.name).toBe("favourite.gif");
+        expect(file?.type).toBe("image/gif");
+    });
+
     it("routes another homeserver's media through ours", async () => {
         fetchAttachmentBlob.mockResolvedValue("blob:foreign");
         vi.stubGlobal(

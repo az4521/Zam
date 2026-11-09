@@ -11,7 +11,11 @@ vi.mock("$lib/matrix/client", () => ({
     onSyncPrepared: () => () => {},
 }));
 
-import { favouritesState, upgradeFavouriteGifs } from "./favourites.svelte";
+import {
+    favouriteSize,
+    favouritesState,
+    upgradeFavouriteGifs,
+} from "./favourites.svelte";
 
 const old = {
     url: "https://static2.klipy.com/a.gif",
@@ -59,5 +63,22 @@ describe("upgradeFavouriteGifs", () => {
         const before = server.gifs;
         await upgradeFavouriteGifs([{ from: "nope", to: "x" }]);
         expect(server.gifs).toBe(before);
+    });
+});
+
+describe("favouriteSize", () => {
+    it("keeps a usable size, from numbers or numeric strings", () => {
+        expect(favouriteSize(480, 270)).toEqual({ width: 480, height: 270 });
+        expect(favouriteSize("480", "270")).toEqual({
+            width: 480,
+            height: 270,
+        });
+    });
+
+    it("drops a size with either side unusable", () => {
+        expect(favouriteSize(480, undefined)).toEqual({});
+        expect(favouriteSize(0, 270)).toEqual({});
+        expect(favouriteSize([480], 270)).toEqual({});
+        expect(favouriteSize(Number.NaN, Number.NaN)).toEqual({});
     });
 });
