@@ -56,6 +56,11 @@
     import LinkPreview from "$lib/components/messages/LinkPreview.svelte";
     import MessageEmbed from "$lib/components/messages/MessageEmbed.svelte";
     import { orderReadReceipts } from "$lib/utils/readReceipts";
+    import {
+        receiptGlide,
+        receiptGlideKey,
+        noteLeavingReceipts,
+    } from "$lib/actions/receiptGlide";
     import { eventFavouriteKey } from "$lib/matrix/favouriteFile";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
     import SwfEmbed from "$lib/components/ui/SwfEmbed.svelte";
@@ -416,6 +421,17 @@
                 ? 4 + 6 * (String(receiptCluster.overflow).length + 1)
                 : 0;
         return avatars + overflow + 4;
+    });
+    // A receipt moving to another message glides there (actions/receiptGlide):
+    // before this row drops an avatar, note where it was.
+    let receiptClusterEl = $state<HTMLElement | null>(null);
+    $effect.pre(() => {
+        const staying = new Set(
+            receiptCluster.shown.map((r) =>
+                receiptGlideKey(room.roomId, r.userId),
+            ),
+        );
+        untrack(() => noteLeavingReceipts(receiptClusterEl, staying));
     });
     const receiptReaderList = $derived(
         orderReadReceipts(receipts, auth.userId, 20),
@@ -3262,17 +3278,28 @@
                     title={t("messageItem.readThis", {
                         count: receipts.length,
                     })}
+                    bind:this={receiptClusterEl}
                     class="absolute bottom-0 flex items-center justify-center gap-0.5 max-w-[45%] min-h-6 min-w-6 rounded pointer-events-auto"
                     class:end-4={!bubble.alignOwn}
                     class:start-4={bubble.alignOwn}
                 >
                     {#each receiptCluster.shown as r (r.userId)}
-                        <Avatar
-                            src={r.avatarUrl}
-                            name={r.name}
-                            id={r.userId}
-                            size={16}
-                        />
+                        <!-- Glides from the message the receipt left. -->
+                        <span
+                            class="flex"
+                            data-receipt-key={receiptGlideKey(
+                                room.roomId,
+                                r.userId,
+                            )}
+                            use:receiptGlide
+                        >
+                            <Avatar
+                                src={r.avatarUrl}
+                                name={r.name}
+                                id={r.userId}
+                                size={16}
+                            />
+                        </span>
                     {/each}
                     {#if receiptCluster.overflow > 0}
                         <span class="text-[10px] text-discord-textMuted ms-1"
