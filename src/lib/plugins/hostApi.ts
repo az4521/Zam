@@ -34,6 +34,17 @@ import {
     redactOwnEvent,
     getPluginMedia,
 } from "../matrix/pluginHost";
+import {
+    clearPluginPresence,
+    setPluginPresence,
+} from "../stores/richPresence.svelte";
+import {
+    getCachedProfile,
+    requestProfile,
+} from "../stores/profileFields.svelte";
+import { PROFILE_FIELDS, readFieldWithLegacy } from "../utils/extendedProfile";
+import { parseRpcField } from "../utils/richPresence";
+import { entryToPluginPresence, pluginPresenceToEntry } from "./pluginPresence";
 
 export interface BuildHostApiOptions {
     pluginId: string;
@@ -335,6 +346,43 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                 redactOwnEvent(roomId, eventId, reason),
         },
 
+        presence: {
+            set: (entry) => {
+                if (!manifest.capabilities?.includes("presence"))
+                    throw new Error(
+                        `[plugin ${pluginId}] presence.set needs the "presence" capability`,
+                    );
+                const parsed = pluginPresenceToEntry(entry, Date.now());
+                if (typeof parsed === "string")
+                    throw new Error(
+                        `[plugin ${pluginId}] presence.set: ${parsed}`,
+                    );
+                setPluginPresence(
+                    pluginId,
+                    manifest.name,
+                    parsed,
+                    entry.expiry !== undefined,
+                );
+                const id = parsed.id;
+                return track({
+                    dispose: () => clearPluginPresence(pluginId, id),
+                });
+            },
+            clear: (id) => clearPluginPresence(pluginId, id),
+            get: (userId) => {
+                const who = userId ?? getOwnUserId();
+                if (!who) return [];
+                requestProfile(who, 60_000);
+                const value = readFieldWithLegacy(
+                    getCachedProfile(who),
+                    PROFILE_FIELDS.rpc,
+                );
+                return parseRpcField(value, Date.now()).map(
+                    entryToPluginPresence,
+                );
+            },
+        },
+
         unsafe: {
             getClient: () => getClient(),
         },
@@ -371,6 +419,8 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
         }
         disposables.clear();
         changeListeners.clear();
+        // Entries set without keeping the handle go too.
+        clearPluginPresence(pluginId);
     };
 
     return { zam, disposeAll, setSettings };

@@ -3645,6 +3645,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "richPresence.viaScan": "プロセススキャン",
     "richPresence.viaRpc": "Discord リッチプレゼンス",
     "richPresence.viaMedia": "メディアプレーヤー",
+    "richPresence.viaPlugin": "プラグイン",
     "richPresence.media": "メディア再生を共有",
     "richPresence.mediaHint":
         "このコンピューターのメディアプレーヤーで再生中の曲や動画を、システムの再生情報から表示します。オンにすると各プレーヤーは既定で許可されます。不要なものは下でオフにできます。",

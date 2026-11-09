@@ -27,6 +27,8 @@ export const KNOWN_CAPABILITIES = [
     /** zam.frames: run scripts in the pages embedded in Zam, e.g. a YouTube
      *  player (desktop only). */
     "frames",
+    /** zam.presence.set: put rich presence on the user's profile. */
+    "presence",
 ] as const;
 
 export type Capability = (typeof KNOWN_CAPABILITIES)[number];

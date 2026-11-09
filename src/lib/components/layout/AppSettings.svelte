@@ -42,7 +42,10 @@
         type SettingsSearchEntry,
     } from "$lib/utils/settingsSearch";
     import { isDesktopTray } from "$lib/desktopTray";
-    import { richPresenceAvailable } from "$lib/stores/richPresence.svelte";
+    import {
+        pluginPresenceKnown,
+        richPresenceAvailable,
+    } from "$lib/stores/richPresence.svelte";
     import RichPresenceSettings from "$lib/components/settings/RichPresenceSettings.svelte";
     import { Capacitor } from "@capacitor/core";
     import { scrollBehavior } from "$lib/utils/motionPreference";
@@ -82,7 +85,7 @@
     const platform = {
         desktopTray: isDesktopTray(),
         nativeApp: Capacitor.isNativePlatform(),
-        richPresence: richPresenceAvailable(),
+        richPresence: richPresenceAvailable() || pluginPresenceKnown(),
     };
     const settingsGroups = visibleSettingsGroups(platform);
     const searchIndex = SETTINGS_SEARCH_INDEX.filter(

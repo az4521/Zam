@@ -847,6 +847,7 @@ export const en = {
     "richPresence.viaScan": "Process scan",
     "richPresence.viaRpc": "Discord Rich Presence",
     "richPresence.viaMedia": "Media player",
+    "richPresence.viaPlugin": "Plugin",
     "richPresence.blocked": "Blocked",
     "richPresence.allowed": "Allowed",
 

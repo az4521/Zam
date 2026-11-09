@@ -4183,6 +4183,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "richPresence.viaScan": "Prozess-Scan",
     "richPresence.viaRpc": "Discord Rich Presence",
     "richPresence.viaMedia": "Medienplayer",
+    "richPresence.viaPlugin": "Plugin",
     "richPresence.media": "Medienwiedergabe melden",
     "richPresence.mediaHint":
         "Zeigt den Titel oder das Video, das ein Medienplayer auf diesem Computer abspielt, aus den Wiedergabeinformationen des Systems. Jeder Player ist standardmäßig erlaubt, sobald dies eingeschaltet ist; unten kannst du die nicht gewünschten ausschalten.",

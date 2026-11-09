@@ -24,6 +24,7 @@ import { buildHostApi } from "./hostApi";
 import { createRegistryData, countEntries } from "./registry";
 import type { Manifest } from "./manifest";
 import { hostBridge } from "./hostBridge";
+import * as richPresence from "../stores/richPresence.svelte";
 
 const manifest = (id: string): Manifest => ({
     id,
@@ -425,5 +426,50 @@ describe("buildHostApi — zam.frames", () => {
             appVersion: "1",
         });
         expect(host.zam.frames.available()).toBe(false);
+    });
+});
+
+describe("buildHostApi — presence", () => {
+    const build = (capabilities?: string[]) =>
+        buildHostApi({
+            pluginId: "p",
+            manifest: { ...manifest("p"), name: "Plug", capabilities },
+            registry: createRegistryData(),
+            appVersion: "1",
+        });
+    const activity = {
+        kind: "activity" as const,
+        id: "a",
+        name: "Game",
+    };
+
+    it("needs the presence capability to publish", () => {
+        expect(() => build().zam.presence.set(activity)).toThrow(/capability/);
+    });
+
+    it("refuses a malformed entry", () => {
+        expect(() =>
+            build(["presence"]).zam.presence.set({
+                kind: "activity",
+                id: "a",
+            } as never),
+        ).toThrow(/name/);
+    });
+
+    it("publishes under the plugin, and unloading takes it off", () => {
+        const set = vi.spyOn(richPresence, "setPluginPresence");
+        const clear = vi.spyOn(richPresence, "clearPluginPresence");
+        const host = build(["presence"]);
+        const d = host.zam.presence.set(activity);
+        expect(set).toHaveBeenCalledWith(
+            "p",
+            "Plug",
+            expect.objectContaining({ id: "a", name: "Game" }),
+            false,
+        );
+        d.dispose();
+        expect(clear).toHaveBeenLastCalledWith("p", "a");
+        host.disposeAll();
+        expect(clear).toHaveBeenLastCalledWith("p");
     });
 });

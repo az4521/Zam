@@ -288,6 +288,48 @@ export interface MicFilter {
     ): Promise<MicFilterInstance>;
 }
 
+interface PluginPresenceBase {
+    /** The plugin's own name for the entry: setting the same id again
+     *  replaces it. */
+    id: string;
+    /** Unix ms when the entry stops counting. Omit and Zam keeps it on the
+     *  profile until it is cleared or the plugin unloads. At most 15 minutes
+     *  ahead. */
+    expiry?: number;
+    /** Up to 3, http(s) links only. */
+    buttons?: { label: string; url: string }[];
+}
+
+/** Rich presence (MSC4544): what the user is doing, on their profile. */
+export interface PluginPresenceActivity extends PluginPresenceBase {
+    kind: "activity";
+    name: string;
+    state?: string;
+    details?: string;
+    /** Unix ms, shown as elapsed or remaining time. */
+    since?: number;
+    until?: number;
+    /** mxc:// URIs (zam.matrix.uploadMedia). A small icon needs a large one. */
+    largeIconUrl?: string;
+    smallIconUrl?: string;
+    largeIconTooltip?: string;
+    smallIconTooltip?: string;
+}
+
+export interface PluginPresenceMusic extends PluginPresenceBase {
+    kind: "music";
+    track: string;
+    artist?: string;
+    album?: string;
+    playerName?: string;
+    /** mxc:// URI. */
+    coverUrl?: string;
+    /** Unix ms; both or neither. */
+    progress?: { since: number; until: number };
+}
+
+export type PluginPresence = PluginPresenceActivity | PluginPresenceMusic;
+
 /** The `zam` object a plugin's `onload` receives (spec §6). */
 export interface ZamPluginApi {
     app: { version: string };
@@ -485,6 +527,23 @@ export interface ZamPluginApi {
     frames: {
         available(): boolean;
         inject(rule: FrameScript): Disposable;
+    };
+
+    /** Rich presence (MSC4544), the "Playing ..." / "Listening to ..." card
+     *  on profiles. */
+    presence: {
+        /** Put an entry on the user's profile, or replace the one with the
+         *  same id. Needs the "presence" capability. It appears under the
+         *  plugin's name in Settings > Rich presence, where the user can
+         *  switch it off; then nothing is published, and set() still
+         *  succeeds. Malformed entries throw. Disposing clears the entry. */
+        set(entry: PluginPresence): Disposable;
+        /** Take one entry (or, with no id, all of this plugin's) off. */
+        clear(id?: string): void;
+        /** Current entries on a user's profile (the logged-in user when
+         *  omitted), from what Zam has loaded; asks the server for a fresh
+         *  copy in the background when it is older than a minute. */
+        get(userId?: string): PluginPresence[];
     };
 
     /** Full-power escape hatch (full-trust model). Returns the live matrix-js-sdk

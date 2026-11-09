@@ -40,7 +40,7 @@ const PUBLISH_DEBOUNCE_MS = 1500;
 
 export interface KnownApp {
     name: string;
-    source: "msc4544" | "arrpc";
+    source: "msc4544" | "arrpc" | "plugin";
     allowed: boolean;
     lastSeen: number;
     /** Found by the process scanner. */
@@ -98,7 +98,10 @@ function loadApps(): Record<string, KnownApp> {
             if (typeof a?.name !== "string") continue;
             out[key] = {
                 name: a.name,
-                source: a.source === "arrpc" ? "arrpc" : "msc4544",
+                source:
+                    a.source === "arrpc" || a.source === "plugin"
+                        ? a.source
+                        : "msc4544",
                 allowed: a.allowed === true,
                 lastSeen: typeof a.lastSeen === "number" ? a.lastSeen : 0,
                 viaScan: a.viaScan === true,
@@ -197,6 +200,13 @@ export function richPresenceAvailable(): boolean {
     return bridge() != null;
 }
 
+/** Whether a plugin has published here, so its switch has a page to be on. */
+export function pluginPresenceKnown(): boolean {
+    return Object.values(richPresenceState.apps).some(
+        (a) => a.source === "plugin",
+    );
+}
+
 /** Start listening, if the settings say so. Returns a stop function. */
 export function startRichPresence(): () => void {
     void syncRichPresence();
@@ -230,7 +240,7 @@ export async function syncRichPresence(): Promise<void> {
     if (!local) {
         unsubscribe?.();
         unsubscribe = null;
-        clearHeld();
+        clearLocal();
     } else if (!arrpc) {
         // arRPC went off: whatever it reported is gone.
         for (const [k, h] of held) {
@@ -298,6 +308,15 @@ export function stopRichPresence(): void {
 function clearHeld(): void {
     held.clear();
     blocked.clear();
+    pluginWanted.clear();
+    schedulePublish();
+}
+
+/** Sharing from this computer went off: plugins have their own switches. */
+function clearLocal(): void {
+    for (const [k, h] of held)
+        if (!h.appKey.startsWith("plugin:")) held.delete(k);
+    blocked.clear();
     schedulePublish();
 }
 
@@ -318,6 +337,7 @@ export function setAppAllowed(appKey: string, allowed: boolean): void {
         blocked.delete(k);
         handleEvent(ev);
     }
+    for (const [k, w] of pluginWanted) if (w.appKey === appKey) holdPlugin(k);
 }
 
 export function forgetApp(appKey: string): void {
@@ -326,6 +346,99 @@ export function forgetApp(appKey: string): void {
     for (const [k, h] of held) if (h.appKey === appKey) held.delete(k);
     for (const [k, ev] of blocked)
         if (`${ev.source}:${ev.app.id}` === appKey) blocked.delete(k);
+    for (const [k, w] of pluginWanted)
+        if (w.appKey === appKey) pluginWanted.delete(k);
+    schedulePublish();
+}
+
+// ── Plugins ────────────────────────────────────────────────────────────────
+// A plugin (zam.presence) is one more app: listed in Settings, allowed when
+// first seen, and switchable. It needs no desktop listener, so it works on
+// every build and does not wait for "share from this computer".
+
+/** What each plugin asked for, allowed or not, by held key. */
+const pluginWanted = new Map<
+    string,
+    { appKey: string; name: string; entry: RpcEntry; renewable: boolean }
+>();
+
+/**
+ * Publish `entry` for a plugin, replacing its earlier entry with the same id.
+ * Without an expiry it is renewed until cleared.
+ */
+export function setPluginPresence(
+    pluginId: string,
+    pluginName: string,
+    entry: RpcEntry,
+    hasExpiry: boolean,
+): void {
+    const appKey = `plugin:${pluginId}`;
+    const name = pluginName.trim().slice(0, 64) || pluginId;
+    const now = Date.now();
+    const known = richPresenceState.apps[appKey];
+    if (!known) {
+        richPresenceState.apps[appKey] = {
+            name,
+            source: "plugin",
+            allowed: true,
+            lastSeen: now,
+        };
+        saveApps();
+    } else if (now - known.lastSeen > 60_000 || known.name !== name) {
+        known.name = name;
+        known.lastSeen = now;
+        saveApps();
+    }
+    const heldKey = `${appKey}|${entry.id}`;
+    const own = { ...entry, id: `${pluginId}-${entry.id}`.slice(0, 128) };
+    own.expiry = hasExpiry
+        ? Math.min(own.expiry, now + MAX_TTL_MS)
+        : now + RENEWABLE_TTL_MS;
+    if (own.expiry <= now) {
+        clearPluginPresence(pluginId, entry.id);
+        return;
+    }
+    pluginWanted.set(heldKey, {
+        appKey,
+        name,
+        entry: own,
+        renewable: !hasExpiry,
+    });
+    holdPlugin(heldKey);
+}
+
+/** Take a plugin's entry (or, with no id, all of them) off the profile. */
+export function clearPluginPresence(pluginId: string, id?: string): void {
+    const appKey = `plugin:${pluginId}`;
+    const matches = (k: string) =>
+        id === undefined ? k.startsWith(`${appKey}|`) : k === `${appKey}|${id}`;
+    let dropped = false;
+    for (const k of [...pluginWanted.keys()])
+        if (matches(k)) pluginWanted.delete(k);
+    for (const k of [...held.keys()])
+        if (matches(k)) dropped = held.delete(k) || dropped;
+    if (dropped) schedulePublish();
+}
+
+function holdPlugin(heldKey: string): void {
+    const w = pluginWanted.get(heldKey);
+    if (!w || !richPresenceState.apps[w.appKey]?.allowed) {
+        held.delete(heldKey);
+    } else {
+        held.set(heldKey, {
+            appKey: w.appKey,
+            scan: false,
+            media: false,
+            appName: w.name.toLowerCase(),
+            // A renewable entry may have sat blocked past its first expiry.
+            entry: w.renewable
+                ? { ...w.entry, expiry: Date.now() + RENEWABLE_TTL_MS }
+                : { ...w.entry },
+            renewable: w.renewable,
+            updated: Date.now(),
+            raw: "",
+        });
+    }
     schedulePublish();
 }
 
@@ -604,7 +717,11 @@ function schedulePublish(): void {
 async function publish(): Promise<void> {
     const now = Date.now();
     // Drop whatever has run out.
-    for (const [k, h] of held) if (h.entry.expiry <= now) held.delete(k);
+    for (const [k, h] of held)
+        if (h.entry.expiry <= now) {
+            held.delete(k);
+            pluginWanted.delete(k);
+        }
     richPresenceState.heldCount = held.size;
 
     const entries = pickPublishable(
@@ -679,6 +796,7 @@ function renew(): void {
 export function resetRichPresenceForTests(): void {
     held.clear();
     blocked.clear();
+    pluginWanted.clear();
     published = false;
     chain = Promise.resolve();
     for (const timer of [publishTimer, expiryTimer])

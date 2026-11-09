@@ -470,4 +470,96 @@ describe("rich presence store", () => {
         handler!(media());
         expect(rp.richPresenceState.heldCount).toBe(0);
     });
+
+    describe("plugins", () => {
+        const entry = (id = "e1") => ({
+            kind: "activity" as const,
+            id,
+            expiry: Date.now() + 60_000,
+            buttons: [],
+            name: "Plugin game",
+        });
+        const lastValue = () =>
+            setOwnProfileField.mock.lastCall?.[1] as Array<{
+                id: string;
+                name: string;
+                expiry: number;
+            }> | null;
+
+        it("publishes without sharing from this computer, or a desktop", async () => {
+            delete (window as unknown as { desktop?: unknown }).desktop;
+            const { rp } = await load();
+            rp.setPluginPresence("com.x", "X", entry(), false);
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toEqual([
+                expect.objectContaining({
+                    id: "com.x-e1",
+                    name: "Plugin game",
+                }),
+            ]);
+            expect(rp.richPresenceState.apps["plugin:com.x"]).toMatchObject({
+                name: "X",
+                source: "plugin",
+                allowed: true,
+            });
+            expect(rp.pluginPresenceKnown()).toBe(true);
+        });
+
+        it("renews an entry set without an expiry", async () => {
+            const { rp } = await load();
+            rp.setPluginPresence("com.x", "X", entry(), false);
+            await vi.advanceTimersByTimeAsync(20 * 60_000);
+            expect(lastValue()).toHaveLength(1);
+            expect(lastValue()![0].expiry).toBeGreaterThan(Date.now());
+        });
+
+        it("lets a timed entry run out", async () => {
+            const { rp } = await load();
+            rp.setPluginPresence("com.x", "X", entry(), true);
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toHaveLength(1);
+            await vi.advanceTimersByTimeAsync(70_000);
+            expect(lastValue()).toBeNull();
+        });
+
+        it("is held back while blocked and published again when allowed", async () => {
+            const { rp } = await load();
+            rp.setPluginPresence("com.x", "X", entry(), false);
+            await vi.advanceTimersByTimeAsync(2000);
+            rp.setAppAllowed("plugin:com.x", false);
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toBeNull();
+            rp.setPluginPresence("com.x", "X", entry(), false);
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toBeNull();
+            rp.setAppAllowed("plugin:com.x", true);
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toHaveLength(1);
+        });
+
+        it("clears one entry or all of a plugin's", async () => {
+            const { rp } = await load();
+            rp.setPluginPresence("com.x", "X", entry("a"), false);
+            rp.setPluginPresence("com.x", "X", entry("b"), false);
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toHaveLength(2);
+            rp.clearPluginPresence("com.x", "a");
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()!.map((e) => e.id)).toEqual(["com.x-b"]);
+            rp.clearPluginPresence("com.x");
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toBeNull();
+        });
+
+        it("survives sharing from this computer going off", async () => {
+            const { settings, rp } = await load();
+            settings.setRichPresenceEnabled(true);
+            await rp.syncRichPresence();
+            rp.setPluginPresence("com.x", "X", entry(), false);
+            settings.setRichPresenceEnabled(false);
+            await rp.syncRichPresence();
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toHaveLength(1);
+        });
+    });
 });

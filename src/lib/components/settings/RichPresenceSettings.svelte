@@ -32,6 +32,9 @@
         ),
     );
     const status = $derived(richPresenceState.status);
+    const desktop = richPresenceAvailable();
+    // Off the desktop app only plugins publish, so only they are listed.
+    const hasPlugins = $derived(apps.some(([, a]) => a.source === "plugin"));
 
     function onToggleShare(next: boolean): void {
         setRichPresenceEnabled(next);
@@ -150,273 +153,282 @@
     };
 </script>
 
-{#if richPresenceAvailable()}
+{#if desktop || hasPlugins}
     <section data-setting-anchor="cust-rich-presence">
         <p
             class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
         >
             {t("richPresence.heading")}
         </p>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
-            <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
-                    {t("richPresence.share")}
-                </p>
-                <p class="text-xs text-discord-textMuted">
-                    {t("richPresence.shareHint")}
-                </p>
-                {#if settingsState.richPresenceEnabled && status?.msc4544.listening}
+        {#if !desktop && richPresenceState.error}
+            <p class="text-xs text-discord-danger mb-2">
+                {t("richPresence.publishFailed")}
+                {richPresenceState.error}
+            </p>
+        {/if}
+        {#if desktop}
+            <div
+                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+            >
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-discord-textPrimary">
+                        {t("richPresence.share")}
+                    </p>
                     <p class="text-xs text-discord-textMuted">
-                        {t("richPresence.listening", {
-                            port: String(status.msc4544.port),
-                        })}
+                        {t("richPresence.shareHint")}
                     </p>
-                {/if}
-                {#if settingsState.richPresenceEnabled && status?.msc4544.socket}
-                    <p class="text-xs text-discord-textMuted break-all">
-                        {t("richPresence.socket", {
-                            path: status.msc4544.socket,
-                        })}
-                    </p>
-                {/if}
-                {#if settingsState.richPresenceEnabled && status?.msc4544.error}
-                    <p class="text-xs text-discord-danger">
-                        {t("richPresence.listenFailed", {
-                            error: status.msc4544.error,
-                        })}
-                    </p>
-                {/if}
-                {#if richPresenceState.error}
-                    <p class="text-xs text-discord-danger">
-                        {t("richPresence.publishFailed")}
-                        {richPresenceState.error}
-                    </p>
-                {/if}
-            </div>
-            <ToggleSwitch
-                checked={settingsState.richPresenceEnabled}
-                onChange={onToggleShare}
-                label={t("richPresence.share")}
-            />
-        </div>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
-            <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
-                    {t("richPresence.arrpc")}
-                </p>
-                <p class="text-xs text-discord-textMuted">
-                    {t("richPresence.arrpcHint")}
-                </p>
-                {#if !settingsState.richPresenceEnabled}
-                    <p class="text-xs text-discord-textMuted">
-                        {t("richPresence.arrpcNeedsShare")}
-                    </p>
-                {/if}
-                {#if discordFirst}
-                    <p class="text-xs text-discord-textMuted">
-                        {t("richPresence.discordFirst")}
-                    </p>
-                    {#if status?.arrpc.canRestartDiscord}
-                        <button
-                            type="button"
-                            class="mt-1 rounded bg-discord-backgroundSecondary px-2 py-1 text-xs text-discord-textPrimary hover:bg-discord-backgroundSecondaryAlt disabled:opacity-50"
-                            disabled={restarting}
-                            onclick={() => (confirmingRestart = true)}
-                        >
-                            {t("richPresence.restartDiscord")}
-                        </button>
-                    {:else if status?.arrpc.needsPermission}
+                    {#if settingsState.richPresenceEnabled && status?.msc4544.listening}
                         <p class="text-xs text-discord-textMuted">
-                            {t("richPresence.hostNeedsPermission")}
+                            {t("richPresence.listening", {
+                                port: String(status.msc4544.port),
+                            })}
+                        </p>
+                    {/if}
+                    {#if settingsState.richPresenceEnabled && status?.msc4544.socket}
+                        <p class="text-xs text-discord-textMuted break-all">
+                            {t("richPresence.socket", {
+                                path: status.msc4544.socket,
+                            })}
+                        </p>
+                    {/if}
+                    {#if settingsState.richPresenceEnabled && status?.msc4544.error}
+                        <p class="text-xs text-discord-danger">
+                            {t("richPresence.listenFailed", {
+                                error: status.msc4544.error,
+                            })}
+                        </p>
+                    {/if}
+                    {#if richPresenceState.error}
+                        <p class="text-xs text-discord-danger">
+                            {t("richPresence.publishFailed")}
+                            {richPresenceState.error}
+                        </p>
+                    {/if}
+                </div>
+                <ToggleSwitch
+                    checked={settingsState.richPresenceEnabled}
+                    onChange={onToggleShare}
+                    label={t("richPresence.share")}
+                />
+            </div>
+            <div
+                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+            >
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-discord-textPrimary">
+                        {t("richPresence.arrpc")}
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        {t("richPresence.arrpcHint")}
+                    </p>
+                    {#if !settingsState.richPresenceEnabled}
+                        <p class="text-xs text-discord-textMuted">
+                            {t("richPresence.arrpcNeedsShare")}
+                        </p>
+                    {/if}
+                    {#if discordFirst}
+                        <p class="text-xs text-discord-textMuted">
+                            {t("richPresence.discordFirst")}
+                        </p>
+                        {#if status?.arrpc.canRestartDiscord}
+                            <button
+                                type="button"
+                                class="mt-1 rounded bg-discord-backgroundSecondary px-2 py-1 text-xs text-discord-textPrimary hover:bg-discord-backgroundSecondaryAlt disabled:opacity-50"
+                                disabled={restarting}
+                                onclick={() => (confirmingRestart = true)}
+                            >
+                                {t("richPresence.restartDiscord")}
+                            </button>
+                        {:else if status?.arrpc.needsPermission}
+                            <p class="text-xs text-discord-textMuted">
+                                {t("richPresence.hostNeedsPermission")}
+                            </p>
+                            <code
+                                class="mt-1 block select-all break-all rounded bg-discord-backgroundTertiary p-2 text-xs text-discord-textPrimary"
+                            >
+                                {t("richPresence.scanGrantCommand")}
+                            </code>
+                        {/if}
+                    {/if}
+                    {#if restartError !== null}
+                        <p class="text-xs text-discord-danger">
+                            {t("richPresence.restartDiscordFailed", {
+                                error: restartError,
+                            })}
+                        </p>
+                    {/if}
+                    {#if settingsState.richPresenceEnabled && settingsState.richPresenceArrpc && status?.arrpc.error}
+                        <p class="text-xs text-discord-danger">
+                            {t("richPresence.arrpcFailed", {
+                                error: status.arrpc.error,
+                            })}
+                        </p>
+                    {/if}
+                </div>
+                <ToggleSwitch
+                    checked={settingsState.richPresenceArrpc}
+                    onChange={onToggleArrpc}
+                    label={t("richPresence.arrpc")}
+                />
+            </div>
+
+            {#if settingsState.richPresenceEnabled && settingsState.richPresenceArrpc && status?.arrpc.canRestartDiscord}
+                <div
+                    class="flex items-center gap-3 py-2 ps-4 border-b border-discord-divider"
+                >
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm text-discord-textPrimary">
+                            {t("richPresence.autoRestart")}
+                        </p>
+                        <p class="text-xs text-discord-textMuted">
+                            {t("richPresence.autoRestartHint")}
+                        </p>
+                    </div>
+                    <ToggleSwitch
+                        checked={settingsState.richPresenceAutoRestartDiscord}
+                        onChange={onToggleAutoRestart}
+                        label={t("richPresence.autoRestart")}
+                    />
+                </div>
+            {/if}
+
+            {#if settingsState.richPresenceEnabled && settingsState.richPresenceArrpc && status?.fake?.supported}
+                <div
+                    class="flex items-center gap-3 py-2 ps-4 border-b border-discord-divider"
+                >
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm text-discord-textPrimary">
+                            {t("richPresence.fake")}
+                        </p>
+                        <p class="text-xs text-discord-textMuted">
+                            {t("richPresence.fakeHint")}
+                        </p>
+                        {#if status.fake.needsPermission}
+                            <p class="text-xs text-discord-textMuted">
+                                {t("richPresence.hostNeedsPermission")}
+                            </p>
+                            <code
+                                class="mt-1 block select-all break-all rounded bg-discord-backgroundTertiary p-2 text-xs text-discord-textPrimary"
+                            >
+                                {t("richPresence.scanGrantCommand")}
+                            </code>
+                        {/if}
+                        {#if settingsState.richPresenceFakeDiscord && status.fake.error}
+                            <p class="text-xs text-discord-danger">
+                                {t("richPresence.fakeFailed", {
+                                    error: status.fake.error,
+                                })}
+                            </p>
+                        {/if}
+                    </div>
+                    <ToggleSwitch
+                        checked={settingsState.richPresenceFakeDiscord}
+                        onChange={onToggleFake}
+                        label={t("richPresence.fake")}
+                    />
+                </div>
+            {/if}
+
+            <div
+                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+            >
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-discord-textPrimary">
+                        {t("richPresence.scan")}
+                    </p>
+                    <p class="text-xs text-discord-textMuted">
+                        {t("richPresence.scanHint")}
+                    </p>
+                    {#if settingsState.richPresenceEnabled && settingsState.richPresenceScan && status?.scan.needsPermission}
+                        <p class="text-xs text-discord-textMuted">
+                            {t("richPresence.scanNeedsPermission")}
                         </p>
                         <code
                             class="mt-1 block select-all break-all rounded bg-discord-backgroundTertiary p-2 text-xs text-discord-textPrimary"
                         >
                             {t("richPresence.scanGrantCommand")}
                         </code>
+                    {:else if !settingsState.richPresenceEnabled}
+                        <p class="text-xs text-discord-textMuted">
+                            {t("richPresence.arrpcNeedsShare")}
+                        </p>
                     {/if}
-                {/if}
-                {#if restartError !== null}
-                    <p class="text-xs text-discord-danger">
-                        {t("richPresence.restartDiscordFailed", {
-                            error: restartError,
-                        })}
-                    </p>
-                {/if}
-                {#if settingsState.richPresenceEnabled && settingsState.richPresenceArrpc && status?.arrpc.error}
-                    <p class="text-xs text-discord-danger">
-                        {t("richPresence.arrpcFailed", {
-                            error: status.arrpc.error,
-                        })}
-                    </p>
-                {/if}
-            </div>
-            <ToggleSwitch
-                checked={settingsState.richPresenceArrpc}
-                onChange={onToggleArrpc}
-                label={t("richPresence.arrpc")}
-            />
-        </div>
-
-        {#if settingsState.richPresenceEnabled && settingsState.richPresenceArrpc && status?.arrpc.canRestartDiscord}
-            <div
-                class="flex items-center gap-3 py-2 ps-4 border-b border-discord-divider"
-            >
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm text-discord-textPrimary">
-                        {t("richPresence.autoRestart")}
-                    </p>
-                    <p class="text-xs text-discord-textMuted">
-                        {t("richPresence.autoRestartHint")}
-                    </p>
+                    {#if settingsState.richPresenceEnabled && settingsState.richPresenceScan && status?.scan.error}
+                        <p class="text-xs text-discord-danger">
+                            {t("richPresence.scanFailed", {
+                                error: status.scan.error,
+                            })}
+                        </p>
+                    {/if}
+                    {#if settingsState.richPresenceEnabled && (settingsState.richPresenceScan || settingsState.richPresenceArrpc) && status?.games}
+                        {#if status.games.downloading}
+                            <p class="text-xs text-discord-textMuted">
+                                {t("richPresence.gameListDownloading")}
+                            </p>
+                        {:else if status.games.updated !== null}
+                            <p class="text-xs text-discord-textMuted">
+                                {t("richPresence.gameList", {
+                                    count: String(status.games.count),
+                                    when: new Date(
+                                        status.games.updated,
+                                    ).toLocaleDateString(),
+                                })}
+                            </p>
+                        {/if}
+                        {#if status.games.error}
+                            <p class="text-xs text-discord-danger">
+                                {t("richPresence.gameListFailed", {
+                                    error: status.games.error,
+                                })}
+                            </p>
+                        {/if}
+                    {/if}
                 </div>
                 <ToggleSwitch
-                    checked={settingsState.richPresenceAutoRestartDiscord}
-                    onChange={onToggleAutoRestart}
-                    label={t("richPresence.autoRestart")}
+                    checked={settingsState.richPresenceScan}
+                    onChange={onToggleScan}
+                    label={t("richPresence.scan")}
                 />
             </div>
-        {/if}
 
-        {#if settingsState.richPresenceEnabled && settingsState.richPresenceArrpc && status?.fake?.supported}
             <div
-                class="flex items-center gap-3 py-2 ps-4 border-b border-discord-divider"
+                class="flex items-center gap-3 py-2 border-b border-discord-divider"
             >
                 <div class="flex-1 min-w-0">
                     <p class="text-sm text-discord-textPrimary">
-                        {t("richPresence.fake")}
+                        {t("richPresence.media")}
                     </p>
                     <p class="text-xs text-discord-textMuted">
-                        {t("richPresence.fakeHint")}
+                        {t("richPresence.mediaHint")}
                     </p>
-                    {#if status.fake.needsPermission}
+                    {#if !settingsState.richPresenceEnabled}
                         <p class="text-xs text-discord-textMuted">
-                            {t("richPresence.hostNeedsPermission")}
+                            {t("richPresence.arrpcNeedsShare")}
                         </p>
-                        <code
-                            class="mt-1 block select-all break-all rounded bg-discord-backgroundTertiary p-2 text-xs text-discord-textPrimary"
-                        >
-                            {t("richPresence.scanGrantCommand")}
-                        </code>
                     {/if}
-                    {#if settingsState.richPresenceFakeDiscord && status.fake.error}
+                    {#if settingsState.richPresenceEnabled && settingsState.richPresenceMedia && status?.media?.error}
                         <p class="text-xs text-discord-danger">
-                            {t("richPresence.fakeFailed", {
-                                error: status.fake.error,
+                            {t("richPresence.mediaFailed", {
+                                error: status.media.error,
                             })}
                         </p>
                     {/if}
                 </div>
                 <ToggleSwitch
-                    checked={settingsState.richPresenceFakeDiscord}
-                    onChange={onToggleFake}
-                    label={t("richPresence.fake")}
+                    checked={settingsState.richPresenceMedia}
+                    onChange={onToggleMedia}
+                    label={t("richPresence.media")}
                 />
             </div>
         {/if}
-
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
-            <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
-                    {t("richPresence.scan")}
-                </p>
-                <p class="text-xs text-discord-textMuted">
-                    {t("richPresence.scanHint")}
-                </p>
-                {#if settingsState.richPresenceEnabled && settingsState.richPresenceScan && status?.scan.needsPermission}
-                    <p class="text-xs text-discord-textMuted">
-                        {t("richPresence.scanNeedsPermission")}
-                    </p>
-                    <code
-                        class="mt-1 block select-all break-all rounded bg-discord-backgroundTertiary p-2 text-xs text-discord-textPrimary"
-                    >
-                        {t("richPresence.scanGrantCommand")}
-                    </code>
-                {:else if !settingsState.richPresenceEnabled}
-                    <p class="text-xs text-discord-textMuted">
-                        {t("richPresence.arrpcNeedsShare")}
-                    </p>
-                {/if}
-                {#if settingsState.richPresenceEnabled && settingsState.richPresenceScan && status?.scan.error}
-                    <p class="text-xs text-discord-danger">
-                        {t("richPresence.scanFailed", {
-                            error: status.scan.error,
-                        })}
-                    </p>
-                {/if}
-                {#if settingsState.richPresenceEnabled && (settingsState.richPresenceScan || settingsState.richPresenceArrpc) && status?.games}
-                    {#if status.games.downloading}
-                        <p class="text-xs text-discord-textMuted">
-                            {t("richPresence.gameListDownloading")}
-                        </p>
-                    {:else if status.games.updated !== null}
-                        <p class="text-xs text-discord-textMuted">
-                            {t("richPresence.gameList", {
-                                count: String(status.games.count),
-                                when: new Date(
-                                    status.games.updated,
-                                ).toLocaleDateString(),
-                            })}
-                        </p>
-                    {/if}
-                    {#if status.games.error}
-                        <p class="text-xs text-discord-danger">
-                            {t("richPresence.gameListFailed", {
-                                error: status.games.error,
-                            })}
-                        </p>
-                    {/if}
-                {/if}
-            </div>
-            <ToggleSwitch
-                checked={settingsState.richPresenceScan}
-                onChange={onToggleScan}
-                label={t("richPresence.scan")}
-            />
-        </div>
-
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
-            <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
-                    {t("richPresence.media")}
-                </p>
-                <p class="text-xs text-discord-textMuted">
-                    {t("richPresence.mediaHint")}
-                </p>
-                {#if !settingsState.richPresenceEnabled}
-                    <p class="text-xs text-discord-textMuted">
-                        {t("richPresence.arrpcNeedsShare")}
-                    </p>
-                {/if}
-                {#if settingsState.richPresenceEnabled && settingsState.richPresenceMedia && status?.media?.error}
-                    <p class="text-xs text-discord-danger">
-                        {t("richPresence.mediaFailed", {
-                            error: status.media.error,
-                        })}
-                    </p>
-                {/if}
-            </div>
-            <ToggleSwitch
-                checked={settingsState.richPresenceMedia}
-                onChange={onToggleMedia}
-                label={t("richPresence.media")}
-            />
-        </div>
-
-        <p class="text-sm text-discord-textPrimary mt-4 mb-1">
-            {t("richPresence.addedGames")}
-        </p>
-        <p class="text-xs text-discord-textMuted mb-2">
-            {t("richPresence.addedGamesHint")}
-        </p>
+        {#if desktop}
+            <p class="text-sm text-discord-textPrimary mt-4 mb-1">
+                {t("richPresence.addedGames")}
+            </p>
+            <p class="text-xs text-discord-textMuted mb-2">
+                {t("richPresence.addedGamesHint")}
+            </p>
+        {/if}
         {#if apps.length === 0}
             <p class="text-xs text-discord-textMuted">
                 {t("richPresence.noApps")}
@@ -445,20 +457,26 @@
                                 </p>
                             {:else}
                                 <p class="text-xs text-discord-textMuted">
-                                    {app.source !== "arrpc"
-                                        ? t("richPresence.viaMatrix")
-                                        : app.viaMedia
-                                          ? t("richPresence.viaMedia")
-                                          : app.viaScan || app.viaRpc
-                                            ? [
-                                                  app.viaRpc &&
-                                                      t("richPresence.viaRpc"),
-                                                  app.viaScan &&
-                                                      t("richPresence.viaScan"),
-                                              ]
-                                                  .filter(Boolean)
-                                                  .join(" + ")
-                                            : t("richPresence.viaDiscord")}
+                                    {app.source === "plugin"
+                                        ? t("richPresence.viaPlugin")
+                                        : app.source !== "arrpc"
+                                          ? t("richPresence.viaMatrix")
+                                          : app.viaMedia
+                                            ? t("richPresence.viaMedia")
+                                            : app.viaScan || app.viaRpc
+                                              ? [
+                                                    app.viaRpc &&
+                                                        t(
+                                                            "richPresence.viaRpc",
+                                                        ),
+                                                    app.viaScan &&
+                                                        t(
+                                                            "richPresence.viaScan",
+                                                        ),
+                                                ]
+                                                    .filter(Boolean)
+                                                    .join(" + ")
+                                              : t("richPresence.viaDiscord")}
                                     · {lastPlayed(app.lastSeen)}
                                 </p>
                             {/if}
@@ -578,7 +596,7 @@
                     {/if}
                 {/if}
             </div>
-        {:else}
+        {:else if desktop}
             <button
                 type="button"
                 class="mt-2 px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-sm font-semibold text-discord-textPrimary"

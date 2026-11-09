@@ -120,7 +120,8 @@ export interface SettingsPlatform {
     desktopTray: boolean;
     /** The Capacitor Android app. */
     nativeApp: boolean;
-    /** The desktop app's rich presence bridge exists (`richPresenceAvailable()`). */
+    /** The desktop app's rich presence bridge exists (`richPresenceAvailable()`),
+     *  or a plugin has published rich presence. */
     richPresence: boolean;
 }
 
