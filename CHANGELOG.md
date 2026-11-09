@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.55.4
+
+🐛 **Fixed**
+
+- **Mic restarts during lossy voice calls:** in unencrypted calls, audio redundancy no longer switches back off once the connection recovers. Turning it off restarted your mic stream, which briefly cut your voice for everyone else; it now stays on for the rest of the call after it first comes on. Encrypted calls still turn it off when the link is clean, since that costs nothing.
+
 ## v1.55.3
 
 ✨ **New**
