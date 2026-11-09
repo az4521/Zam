@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.55.2
+
+✨ **New**
+
+- **Rich presence for plugins:** plugins can now show what you're doing on your profile ("Playing ...", "Listening to ...") and read other people's rich presence, through the new `zam.presence` API (needs the `"presence"` capability). Each plugin is listed under Settings > Rich presence, where you can switch it off. This works in the web and Android apps too, not only on desktop.
+
+🐛 **Fixed**
+
+- **Read avatars jumping back after a reload:** someone's read avatar now stays on their own latest message after you reload, instead of moving back to an older one.
+
 ## v1.55.1
 
 ✨ **New**
