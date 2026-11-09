@@ -1801,7 +1801,10 @@ self.addEventListener("push", (event) => {
 	// even if enrichment fails.
 	event.waitUntil(
 		(async () => {
-			if (duplicatePush) {
+			if (
+				duplicatePush ||
+				(await alreadyNotified(data.room_id, data.event_id))
+			) {
 				await showAndCloseSilently();
 				return;
 			}
@@ -2004,6 +2007,23 @@ async function handleQuickMarkRead(roomId, eventId, postedBy) {
 	} catch {
 		// Swallow — waitUntil must never reject.
 	}
+}
+
+// The same check against what is still on screen. iOS starts a fresh worker
+// for most pushes, so the in-memory record above rarely sees the second copy
+// there; a notification this worker posted earlier carries its event id in
+// `data` and survives the restart.
+async function alreadyNotified(roomId, eventId) {
+	if (typeof roomId !== "string" || typeof eventId !== "string") return false;
+	try {
+		for (const tag of roomNotificationTags(roomId)) {
+			const list = await self.registration.getNotifications({ tag });
+			if (list.some((n) => n.data && n.data.eventId === eventId)) return true;
+		}
+	} catch {
+		/* no lookup: treat as new */
+	}
+	return false;
 }
 
 let silentPushCount = 0;

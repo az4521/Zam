@@ -50,6 +50,28 @@ export function webPushConfigured(): boolean {
 
 export const WEBPUSH_APP_ID = APP_ID;
 
+// Set once this page has registered its pusher, so the service worker is
+// posting this account's notifications.
+let pusherRegistered = false;
+
+/** Whether web push is delivering this account's notifications here. */
+export function webPushDelivers(): boolean {
+    return pusherRegistered;
+}
+
+/** An iPhone/iPad Home Screen web app (iPadOS reports itself as a Mac). */
+export function isIosHomeScreenApp(): boolean {
+    if (typeof navigator === "undefined") return false;
+    const ios =
+        /iP(hone|ad|od)/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    return (
+        ios &&
+        ((navigator as { standalone?: boolean }).standalone === true ||
+            matchMedia("(display-mode: standalone)").matches)
+    );
+}
+
 export interface WebPushDebug {
     supported: boolean;
     configured: boolean;
@@ -183,6 +205,7 @@ async function registerWebPusher(
             append: true,
         });
         console.log("[webpush] Pusher registered");
+        pusherRegistered = true;
         // A rotated subscription leaves the previous p256dh registered, and
         // Sygnal then pushes this device twice for every message.
         await removeStaleWebPushers(matrixClient, deviceId, p256dh);
@@ -258,6 +281,7 @@ export async function teardownWebPush(
     matrixClient: import("matrix-js-sdk").MatrixClient,
 ): Promise<void> {
     if (!webPushSupported()) return;
+    pusherRegistered = false;
     try {
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.getSubscription();
