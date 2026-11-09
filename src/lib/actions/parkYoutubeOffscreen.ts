@@ -1,4 +1,4 @@
-import { KEEP_MARGIN, scrollParent } from "./unloadOffscreen";
+import { KEEP_MARGIN, inFullscreen, scrollParent } from "./unloadOffscreen";
 
 /** Parameters for the {@link parkYoutubeOffscreen} action. */
 export interface ParkYoutubeParams {
@@ -47,6 +47,7 @@ export function parkYoutubeOffscreen(
 
     function check() {
         if (parked || !away || state === null || PLAYING.has(state)) return;
+        if (inFullscreen(node)) return;
         parked = true;
         onPark(state === 0 ? 0 : time);
     }
@@ -101,7 +102,13 @@ export function parkYoutubeOffscreen(
             ([entry]) => {
                 const wasVisible = visible;
                 visible = entry.isIntersecting;
-                if (wasVisible && !visible && pause && state === 1)
+                if (
+                    wasVisible &&
+                    !visible &&
+                    pause &&
+                    state === 1 &&
+                    !inFullscreen(node)
+                )
                     post({ event: "command", func: "pauseVideo", args: [] });
             },
             { threshold: 0 },
@@ -110,6 +117,7 @@ export function parkYoutubeOffscreen(
         near.observe(node);
         observers.push(far, near);
     }
+    document.addEventListener("fullscreenchange", check);
 
     return {
         update(next: ParkYoutubeParams) {
@@ -119,6 +127,7 @@ export function parkYoutubeOffscreen(
         destroy() {
             stopHandshake();
             window.removeEventListener("message", onMessage);
+            document.removeEventListener("fullscreenchange", check);
             for (const o of observers) o.disconnect();
         },
     };

@@ -13,6 +13,23 @@ export function scrollParent(node: Element): Element | null {
     return null;
 }
 
+/** Whether `node` is (inside) the fullscreen element. A fullscreen element
+ *  is drawn over everything, out of its scroll parent, so an observer rooted
+ *  there reports it as scrolled away; acting on that unmounted or paused a
+ *  video the moment it went fullscreen. */
+export function inFullscreen(node: Element): boolean {
+    const doc = document as Document & {
+        webkitFullscreenElement?: Element | null;
+    };
+    const fs = doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
+    if (fs && (fs === node || fs.contains(node))) return true;
+    // iOS Safari fullscreens a <video> natively, with no fullscreenElement.
+    return (
+        (node as HTMLVideoElement & { webkitDisplayingFullscreen?: boolean })
+            .webkitDisplayingFullscreen === true
+    );
+}
+
 /**
  * Svelte action: own a looping `<video>`'s `src`, dropping it while the
  * element is well out of view and putting it back on the way in.

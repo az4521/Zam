@@ -1,4 +1,4 @@
-import { KEEP_MARGIN, scrollParent } from "./unloadOffscreen";
+import { KEEP_MARGIN, inFullscreen, scrollParent } from "./unloadOffscreen";
 
 /**
  * Svelte action: report when a played `<video>` that is no longer playing
@@ -20,6 +20,7 @@ export function parkOffscreen(
 
     function check() {
         if (parked || !away || !(node.paused || node.ended)) return;
+        if (inFullscreen(node)) return;
         parked = true;
         park(node.ended ? 0 : node.currentTime);
     }
@@ -35,6 +36,10 @@ export function parkOffscreen(
     observer.observe(node);
     node.addEventListener("pause", check);
     node.addEventListener("ended", check);
+    // Leaving fullscreen may not change the observed intersection, so look
+    // again then.
+    document.addEventListener("fullscreenchange", check);
+    node.addEventListener("webkitendfullscreen", check);
 
     return {
         update(next: (resumeAt: number) => void) {
@@ -44,6 +49,8 @@ export function parkOffscreen(
             observer.disconnect();
             node.removeEventListener("pause", check);
             node.removeEventListener("ended", check);
+            document.removeEventListener("fullscreenchange", check);
+            node.removeEventListener("webkitendfullscreen", check);
         },
     };
 }
