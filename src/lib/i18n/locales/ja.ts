@@ -1197,6 +1197,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.failedToUnpinMessage": "ピン留めの解除に失敗しました",
     "messageItem.failedToPinMessage": "ピン留めに失敗しました",
     "messageItem.couldNotOpenTheMatrixLink": "Matrixのリンクを開けませんでした",
+    "messageItem.viewSource": "ソースを表示",
+
+    // src/lib/components/messages/ViewSourceDialog.svelte
+    "viewSource.title": "メッセージのソース",
+    "viewSource.decrypted": "復号されたイベント",
+    "viewSource.encrypted": "元のイベント（暗号化済み）",
+    "viewSource.copied": "コピーしました",
+
     "messageRedactAction.removeMessage": "メッセージを削除",
     "messageRedactAction.removeThisMessage": "このメッセージを削除しますか？",
     "messageRedactAction.removing": "削除しています…",

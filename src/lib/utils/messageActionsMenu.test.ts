@@ -11,6 +11,7 @@ const NONE: MessageActionContext = {
     canPin: false,
     isPinned: false,
     hasLink: false,
+    canViewSource: false,
     canReport: false,
     canRedact: false,
     canDelete: false,
@@ -71,11 +72,26 @@ describe("messageActionsMenu", () => {
                 canPin: true,
                 isPinned: false,
                 hasLink: true,
+                canViewSource: true,
                 canReport: true,
                 canRedact: true,
                 canDelete: true,
             }),
-        ).toEqual(["thread", "pin", "copy-link", "report", "redact", "delete"]);
+        ).toEqual([
+            "thread",
+            "pin",
+            "copy-link",
+            "view-source",
+            "report",
+            "redact",
+            "delete",
+        ]);
+    });
+
+    it("view source is offered on any message, with its own label", () => {
+        expect(messageActionsMenu({ ...NONE, canViewSource: true })).toEqual([
+            { key: "view-source", label: "View source" },
+        ]);
     });
 
     it("pin row label reflects the pinned state", () => {

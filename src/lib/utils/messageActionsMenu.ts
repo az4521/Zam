@@ -13,7 +13,14 @@ import { t } from "$lib/i18n";
 
 /** The actions that move off the inline bar and into the overflow sheet. */
 export type MessageActionKey =
-    "thread" | "edit" | "pin" | "copy-link" | "report" | "redact" | "delete";
+    | "thread"
+    | "edit"
+    | "pin"
+    | "copy-link"
+    | "view-source"
+    | "report"
+    | "redact"
+    | "delete";
 
 export interface MessageActionContext {
     /**
@@ -33,6 +40,8 @@ export interface MessageActionContext {
     isPinned: boolean;
     /** A sent event with a shareable permalink (a real `$`-id, not a failure). */
     hasLink: boolean;
+    /** The event's JSON can be inspected (every message the menu is shown on). */
+    canViewSource: boolean;
     /** Someone else's non-failed message — reportable. */
     canReport: boolean;
     /** Someone else's non-failed message the viewer has redact power over. */
@@ -56,10 +65,10 @@ export interface MessageActionRow {
 
 /**
  * Build the overflow rows for one message. Order is fixed and mirrors the
- * desktop bar's left-to-right order (thread, pin, copy-link, report, redact,
- * delete) so the two layouts stay learnable; the two destructive rows land at
- * the bottom. `delete` and `redact` never both appear — delete is own-message
- * only, redact is other-message only.
+ * desktop bar's left-to-right order (thread, pin, copy-link, view-source, report,
+ * redact, delete) so the two layouts stay learnable; the two destructive rows
+ * land at the bottom. `delete` and `redact` never both appear — delete is
+ * own-message only, redact is other-message only.
  */
 export function messageActionsMenu(
     ctx: MessageActionContext,
@@ -87,6 +96,8 @@ export function messageActionsMenu(
             key: "copy-link",
             label: t("messageActionsMenu.copyLink"),
         });
+    if (ctx.canViewSource)
+        rows.push({ key: "view-source", label: t("messageItem.viewSource") });
     if (ctx.canReport)
         rows.push({ key: "report", label: t("messageActionsMenu.report") });
     if (ctx.canRedact)

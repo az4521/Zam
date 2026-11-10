@@ -44,13 +44,22 @@
     import MessageReportAction from "$lib/components/messages/MessageReportAction.svelte";
     import MessageRedactAction from "$lib/components/messages/MessageRedactAction.svelte";
     import MessageActionsSheet from "$lib/components/messages/MessageActionsSheet.svelte";
+    import ViewSourceDialog from "$lib/components/messages/ViewSourceDialog.svelte";
     import {
         messageActionsMenu,
         type MessageActionKey,
     } from "$lib/utils/messageActionsMenu";
     import EventShield from "./EventShield.svelte";
     import MessageDecorations from "$lib/components/messages/MessageDecorations.svelte";
-    import { Check, Forward, Link, Lock, Reply, Pencil } from "lucide-svelte";
+    import {
+        Check,
+        Code,
+        Forward,
+        Link,
+        Lock,
+        Reply,
+        Pencil,
+    } from "lucide-svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
     import ReactorPopover from "./ReactorPopover.svelte";
     import LinkPreview from "$lib/components/messages/LinkPreview.svelte";
@@ -369,6 +378,7 @@
     let confirmingDelete = $state(false);
     let pinning = $state(false);
     let showForwardDialog = $state(false);
+    let showViewSourceDialog = $state(false);
 
     // Elements that own their own tap/gesture — a row tap/hold must defer to
     // them (links, buttons, media, reaction pills, the composer, etc.).
@@ -1121,10 +1131,20 @@
         showActionsSheet = true;
     }
 
+    function openViewSourceDialog() {
+        slotToken = openModal("view-source", () => {
+            showViewSourceDialog = false;
+        });
+        showViewSourceDialog = true;
+    }
+
     function handleActionChoose(key: MessageActionKey) {
         // The sheet has already released the modal slot (it closes before
         // choosing), so report/redact are free to claim it via show().
         switch (key) {
+            case "view-source":
+                openViewSourceDialog();
+                break;
             case "thread":
                 onOpenThread?.(threadRootId);
                 break;
@@ -1350,6 +1370,23 @@
                     (n ?? "").trim().toLowerCase().endsWith(".gif"),
                 )),
     );
+
+    // Whether this uploaded image is a WebP. The "send GIFs as animated WebP"
+    // setting turns a GIF into one, named *.webp, so it can still be starred.
+    const isWebp = $derived(
+        msgtype === "m.image" &&
+            ((
+                (content?.info as { mimetype?: string } | undefined)
+                    ?.mimetype ?? ""
+            )
+                .trim()
+                .toLowerCase() === "image/webp" ||
+                [mediaFilename, content?.body as string | undefined].some((n) =>
+                    (n ?? "").trim().toLowerCase().endsWith(".webp"),
+                )),
+    );
+    // Whether this image can be starred as a favourite GIF.
+    const canFavouriteImage = $derived(isGif || isWebp);
 
     // Whether this image is an SVG (a vector, see utils/attachmentMime).
     const isSvgImage = $derived(
@@ -1893,6 +1930,10 @@
             addFavouriteGif({
                 url: full,
                 previewUrl: imageThumbUrl() ?? full,
+                // Kept so a GIF sent from the picker goes out under its name.
+                ...(typeof mediaFilename === "string" && mediaFilename
+                    ? { name: mediaFilename }
+                    : {}),
                 ...favouriteSize(imgInfoW, imgInfoH),
             });
         }
@@ -1941,6 +1982,7 @@
             canPin,
             isPinned,
             hasLink: eventId.startsWith("$") && !isFailed,
+            canViewSource: true,
             canReport: !isOwnMessage && !isFailed,
             canRedact: !isOwnMessage && !isFailed && canRedact,
             canDelete: isOwnMessage,
@@ -1983,15 +2025,26 @@
         return extractEventPermalinks(body(), formattedBody());
     });
 
-    // Extract http/https URLs from the plain body for link previews
-    const linkedUrls = $derived.by(() => {
-        if (msgtype !== "m.text") return [];
-        const matches = body().match(/https?:\/\/[^\s<>"')\]]+/g) ?? [];
+    /** The http/https URLs in `text` worth a link preview. */
+    function previewableUrls(text: string): string[] {
+        const matches = text.match(/https?:\/\/[^\s<>"')\]]+/g) ?? [];
         return [...new Set(matches)].filter((url) => {
             const target = parseMatrixLink(url);
             return !(target && target.kind !== "user" && target.eventId);
         });
+    }
+
+    // Extract http/https URLs from the plain body for link previews
+    const linkedUrls = $derived.by(() => {
+        if (msgtype !== "m.text") return [];
+        return previewableUrls(body());
     });
+
+    // A media caption gets the same previews, shown under it. Without a caption
+    // `body` is only the file name, which is not text to preview.
+    const captionLinkedUrls = $derived.by(() =>
+        hasCaption() ? previewableUrls(body()) : [],
+    );
 
     // True if the body text consists entirely of emoji + whitespace (no other characters)
     const emojiOnly = $derived.by(() => {
@@ -2748,6 +2801,11 @@
                             >
                         {/if}
                     </div>
+                    {#if settingsState.linkPreviewsEnabled}
+                        {#each captionLinkedUrls as url (url)}
+                            <LinkPreview {url} />
+                        {/each}
+                    {/if}
                 {/if}
             {/snippet}
 
@@ -2959,7 +3017,7 @@
                                 />
                             {/if}
                         </a>
-                        {#if isGif}
+                        {#if canFavouriteImage}
                             <button
                                 onclick={toggleImageFavourite}
                                 title={imageIsFavourited
@@ -3049,7 +3107,7 @@
                         mimetype={(
                             content?.info as { mimetype?: string } | undefined
                         )?.mimetype}
-                        favourite={!isGif
+                        favourite={!canFavouriteImage
                             ? undefined
                             : file
                               ? {
@@ -3067,6 +3125,7 @@
                                       url: full,
                                       previewUrl: thumb ?? full,
                                       mxc: imageMediaMxc,
+                                      name: mediaFilename || undefined,
                                   }
                                 : undefined}
                         onClose={() => (imageLightboxOpen = false)}
@@ -3753,6 +3812,17 @@
                     {/if}
                 </button>
             {/if}
+            {#if !interfaceState.isTouchscreen}
+                <button
+                    data-message-action
+                    onclick={openViewSourceDialog}
+                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    title={t("messageItem.viewSource")}
+                    aria-label={t("messageItem.viewSource")}
+                >
+                    <Code size={16} />
+                </button>
+            {/if}
             {#if !interfaceState.isTouchscreen && !isOwnMessage && !isFailed}
                 <MessageReportAction
                     roomId={room.roomId}
@@ -3867,6 +3937,10 @@
 
 {#if showForwardDialog}
     <ForwardMessageDialog {event} />
+{/if}
+
+{#if showViewSourceDialog}
+    <ViewSourceDialog {event} />
 {/if}
 
 <style>

@@ -26,6 +26,7 @@ import { fetchSingleEvent } from "$lib/matrix/client";
 import { fetchDecryptedAttachmentBlob } from "$lib/matrix/media";
 import {
     eventFavouriteFile,
+    favouriteFileName,
     isMatrixMediaUrl,
     matrixMediaMxc,
     mediaUrlFavouriteFile,
@@ -134,6 +135,32 @@ describe("mediaUrlFavouriteFile", () => {
         expect(file?.type).toBe("image/png");
     });
 
+    it("keeps the name a GIF was starred with, matched to its bytes", async () => {
+        fetchAttachmentBlob.mockResolvedValue("blob:named");
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => ({
+                blob: async () => new Blob(["gif"], { type: "image/gif" }),
+            })),
+        );
+
+        const named = await mediaUrlFavouriteFile(
+            HS_MEDIA,
+            undefined,
+            undefined,
+            "holiday.gif",
+        );
+        const renamed = await mediaUrlFavouriteFile(
+            HS_MEDIA,
+            undefined,
+            undefined,
+            "holiday.png",
+        );
+
+        expect(named?.name).toBe("holiday.gif");
+        expect(renamed?.name).toBe("holiday.gif");
+    });
+
     it("treats untyped bytes as a GIF", async () => {
         fetchAttachmentBlob.mockResolvedValue("blob:untyped");
         vi.stubGlobal(
@@ -219,6 +246,144 @@ describe("mediaUrlFavouriteFile reuse", () => {
 
         expect(file).not.toBeNull();
         expect(reusableMediaOfFile(file!)).toBeUndefined();
+    });
+});
+
+describe("favouriteFileName", () => {
+    it("keeps a usable name whose extension already matches", () => {
+        expect(favouriteFileName("cat.gif", "image/gif")).toBe("cat.gif");
+        expect(favouriteFileName("photo.jpeg", "image/jpeg")).toBe(
+            "photo.jpeg",
+        );
+        expect(favouriteFileName("my cat.GIF", "image/gif")).toBe("my cat.GIF");
+    });
+
+    it("replaces a wrong extension with the bytes' own", () => {
+        expect(favouriteFileName("cat.png", "image/gif")).toBe("cat.gif");
+        expect(favouriteFileName("cat.gif", "image/webp")).toBe("cat.webp");
+    });
+
+    it("adds the bytes' extension to a name without one", () => {
+        expect(favouriteFileName("cat", "image/webp")).toBe("cat.webp");
+    });
+
+    it("keeps a name whose type it cannot name", () => {
+        expect(favouriteFileName("notes.txt", "application/x-thing")).toBe(
+            "notes.txt",
+        );
+    });
+
+    it("removes path separators and control characters", () => {
+        expect(favouriteFileName("../../etc/cat.gif", "image/gif")).toBe(
+            "....etccat.gif",
+        );
+        expect(favouriteFileName("a\\b\u0007c.gif", "image/gif")).toBe(
+            "abc.gif",
+        );
+    });
+
+    it("caps the length, keeping the extension", () => {
+        const long = favouriteFileName(`${"a".repeat(300)}.gif`, "image/gif");
+        expect(long).toHaveLength(255);
+        expect(long.endsWith(".gif")).toBe(true);
+
+        const longPng = favouriteFileName("a".repeat(300), "image/png");
+        expect(longPng).toHaveLength(255);
+        expect(longPng.endsWith(".png")).toBe(true);
+    });
+
+    it("falls back to favourite with the bytes' extension when unusable", () => {
+        expect(favouriteFileName(undefined, "image/png")).toBe("favourite.png");
+        expect(favouriteFileName(42, "image/png")).toBe("favourite.png");
+        expect(favouriteFileName("   ", "image/png")).toBe("favourite.png");
+        expect(favouriteFileName("///", "image/png")).toBe("favourite.png");
+        expect(favouriteFileName("..", "image/png")).toBe("favourite.png");
+        expect(favouriteFileName(".png", "image/gif")).toBe("favourite.gif");
+    });
+});
+
+describe("eventFavouriteFile name", () => {
+    const cleanFile = {
+        url: "mxc://hs.example/NameFile",
+        key: { kty: "oct", alg: "A256CTR", k: "KEYBYTES", ext: true },
+        iv: "IVBYTES",
+        hashes: { sha256: "HASH" },
+        v: "v2",
+    };
+
+    beforeEach(() => {
+        vi.mocked(fetchDecryptedAttachmentBlob).mockResolvedValue("blob:name");
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => ({
+                blob: async () => new Blob(["png"], { type: "image/png" }),
+            })),
+        );
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    const source = (eventId: string) => ({
+        roomId: "!room:hs.example",
+        eventId,
+    });
+
+    it("takes the name from the filename of a captioned event", async () => {
+        vi.mocked(fetchSingleEvent).mockResolvedValueOnce({
+            getContent: () => ({
+                msgtype: "m.image",
+                file: cleanFile,
+                info: { mimetype: "image/png" },
+                filename: "holiday.png",
+                body: "look at this",
+            }),
+        } as never);
+
+        const file = await eventFavouriteFile(source("$captioned"));
+
+        expect(file?.name).toBe("holiday.png");
+    });
+
+    it("takes the name from the body of an uncaptioned event", async () => {
+        vi.mocked(fetchSingleEvent).mockResolvedValueOnce({
+            getContent: () => ({
+                msgtype: "m.image",
+                file: cleanFile,
+                info: { mimetype: "image/png" },
+                body: "party.png",
+            }),
+        } as never);
+
+        const file = await eventFavouriteFile(source("$uncaptioned"));
+
+        expect(file?.name).toBe("party.png");
+    });
+
+    it("sanitises a hostile name and falls back when there is none", async () => {
+        vi.mocked(fetchSingleEvent)
+            .mockResolvedValueOnce({
+                getContent: () => ({
+                    file: cleanFile,
+                    info: { mimetype: "image/png" },
+                    body: "../../secret/x.png",
+                }),
+            } as never)
+            .mockResolvedValueOnce({
+                getContent: () => ({
+                    file: cleanFile,
+                    info: { mimetype: "image/png" },
+                    body: 7,
+                }),
+            } as never);
+
+        expect((await eventFavouriteFile(source("$hostile")))?.name).toBe(
+            "....secretx.png",
+        );
+        expect((await eventFavouriteFile(source("$nameless")))?.name).toBe(
+            "favourite.png",
+        );
     });
 });
 

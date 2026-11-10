@@ -1277,6 +1277,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.failedToPinMessage": "Impossible d'épingler le message",
     "messageItem.couldNotOpenTheMatrixLink":
         "Impossible d'ouvrir le lien Matrix",
+    "messageItem.viewSource": "Voir la source",
+
+    // src/lib/components/messages/ViewSourceDialog.svelte
+    "viewSource.title": "Source du message",
+    "viewSource.decrypted": "Événement déchiffré",
+    "viewSource.encrypted": "Événement d'origine (chiffré)",
+    "viewSource.copied": "Copié",
 
     // src/lib/components/messages/MessageRedactAction.svelte
     "messageRedactAction.removeMessage": "Retirer le message",

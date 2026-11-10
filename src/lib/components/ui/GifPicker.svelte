@@ -254,6 +254,7 @@
                 gif.url,
                 gif.width,
                 gif.height,
+                gif.name,
             ).catch(() => null);
             if (file) {
                 onSelectFile(file);

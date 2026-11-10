@@ -1426,6 +1426,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.failedToPinMessage": "Не вдалося закріпити повідомлення",
     "messageItem.couldNotOpenTheMatrixLink":
         "Не вдалося відкрити посилання Matrix",
+    "messageItem.viewSource": "Переглянути джерело",
+
+    // src/lib/components/messages/ViewSourceDialog.svelte
+    "viewSource.title": "Джерело повідомлення",
+    "viewSource.decrypted": "Розшифрована подія",
+    "viewSource.encrypted": "Початкова (зашифрована) подія",
+    "viewSource.copied": "Скопійовано",
 
     // src/lib/components/messages/MessageRedactAction.svelte
     "messageRedactAction.removeMessage": "Вилучити повідомлення",

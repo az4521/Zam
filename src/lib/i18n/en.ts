@@ -1375,6 +1375,13 @@ export const en = {
     "messageItem.failedToUnpinMessage": "Failed to unpin message",
     "messageItem.failedToPinMessage": "Failed to pin message",
     "messageItem.couldNotOpenTheMatrixLink": "Could not open the Matrix link",
+    "messageItem.viewSource": "View source",
+
+    // src/lib/components/messages/ViewSourceDialog.svelte
+    "viewSource.title": "Message source",
+    "viewSource.decrypted": "Decrypted event",
+    "viewSource.encrypted": "Original (encrypted) event",
+    "viewSource.copied": "Copied",
 
     // src/lib/components/messages/MessageRedactAction.svelte
     "messageRedactAction.removeMessage": "Remove message",

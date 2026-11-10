@@ -1673,6 +1673,10 @@ export interface FavouriteGif {
      *  that reuses that media matches this favourite. Untrusted on read:
      *  compared as a string only. */
     mxc?: string;
+    /** The original file name, saved when starred from an unencrypted message
+     *  so a GIF sent from the picker keeps it. Untrusted on read (account
+     *  data): favouriteFile.ts cleans it before use. */
+    name?: string;
     tags?: string[];
     /** Natural size of the GIF, when known at the time it was starred. Lets
      *  the picker reserve the tile before the preview loads. Untrusted on

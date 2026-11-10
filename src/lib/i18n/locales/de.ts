@@ -1297,6 +1297,13 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Nachricht konnte nicht angeheftet werden",
     "messageItem.couldNotOpenTheMatrixLink":
         "Matrix-Link konnte nicht geöffnet werden",
+    "messageItem.viewSource": "Quelltext anzeigen",
+
+    // src/lib/components/messages/ViewSourceDialog.svelte
+    "viewSource.title": "Nachrichtenquelle",
+    "viewSource.decrypted": "Entschlüsseltes Ereignis",
+    "viewSource.encrypted": "Originales (verschlüsseltes) Ereignis",
+    "viewSource.copied": "Kopiert",
 
     // src/lib/components/messages/MessageRedactAction.svelte
     "messageRedactAction.removeMessage": "Nachricht entfernen",

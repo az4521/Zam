@@ -45,6 +45,8 @@ export type ModalId =
     | "report-message"
     | "redact-message"
     | "forward-message"
+    // The message "View source" dialog (ViewSourceDialog, MessageItem).
+    | "view-source"
     | "share-target"
     | "composer-picker"
     | "composer-actions"

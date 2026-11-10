@@ -14,7 +14,7 @@ import {
 import type { EncryptedFileInfo } from "$lib/utils/decryptAttachment";
 import { parseMxc } from "$lib/utils/mxcUri";
 import { safeDimension } from "$lib/utils/mediaDimensions";
-import { withExtension } from "$lib/utils/saveFile";
+import { extensionForMime, withExtension } from "$lib/utils/saveFile";
 
 export interface EventFavouriteSource {
     roomId: string;
@@ -186,6 +186,17 @@ interface EventFavourite {
     url: string;
     /** The media to reuse, when the event's file can be trusted. */
     reuse: ReusableMedia | undefined;
+    /** The file name the event was sent with. Untrusted: see favouriteFileName. */
+    name: string | undefined;
+}
+
+/** The file name an event was sent with, as MessageItem reads it: `filename`
+ *  when there is one (a caption is present), else `body`. */
+function eventFileName(content: {
+    filename?: unknown;
+    body?: unknown;
+}): string | undefined {
+    return stringField(content.filename) || stringField(content.body);
 }
 
 const eventFavourites = new Map<string, Promise<EventFavourite | null>>();
@@ -205,6 +216,8 @@ function loadEventFavourite(
                 | {
                       file?: Parameters<typeof fetchDecryptedAttachmentBlob>[0];
                       info?: { mimetype?: string };
+                      filename?: unknown;
+                      body?: unknown;
                   }
                 | undefined;
             if (!content?.file) return null;
@@ -212,7 +225,11 @@ function loadEventFavourite(
                 content.file,
                 content.info?.mimetype ?? "image/gif",
             );
-            return { url, reuse: encryptedReusableMedia(content) };
+            return {
+                url,
+                reuse: encryptedReusableMedia(content),
+                name: eventFileName(content),
+            };
         })().catch(() => {
             eventFavourites.delete(key);
             return null;
@@ -231,22 +248,57 @@ export function resolveEventFavouriteUrl(
 }
 
 /** The pointed-at GIF as a File, ready to attach to the composer. Carries the
- *  source event's media for reuse when it has some. */
+ *  source event's media for reuse when it has some, and its file name. */
 export async function eventFavouriteFile(
     source: EventFavouriteSource,
 ): Promise<File | null> {
     const found = await loadEventFavourite(source);
     if (!found) return null;
-    const file = favouriteAsFile(await (await fetch(found.url)).blob());
+    const file = favouriteAsFile(
+        await (await fetch(found.url)).blob(),
+        found.name,
+    );
     if (found.reuse) reusableMedia.set(file, found.reuse);
     return file;
 }
 
+/** The longest file name kept, in characters. */
+const MAX_FILE_NAME = 255;
+
+/**
+ * The name a favourite is attached as: the name it was starred with when that
+ * is usable, else "favourite" with an extension for the bytes' type. Account
+ * data is untrusted on read, so the name has its path separators and control
+ * characters removed and is capped in length first. Its extension is then made
+ * to match the bytes: a GIF starred as "cat.gif" and sent as WebP must not go
+ * out as "cat.gif".
+ */
+export function favouriteFileName(name: unknown, type: string): string {
+    const fallback = withExtension("favourite", type);
+    const cleaned =
+        typeof name === "string"
+            ? name.replace(/[\\/\u0000-\u001f\u007f]/g, "").trim()
+            : "";
+    // Only dots would name a relative path, not a file.
+    if (!cleaned || /^\.+$/.test(cleaned)) return fallback;
+
+    const ext = extensionForMime(type);
+    if (!ext) return cleaned.slice(0, MAX_FILE_NAME);
+    const dot = /\.([a-z0-9]{2,5})$/i.exec(cleaned);
+    const given = dot?.[1].toLowerCase();
+    const keepsExt = given === ext || (ext === "jpg" && given === "jpeg");
+    const stem = dot ? cleaned.slice(0, dot.index) : cleaned;
+    if (!stem.trim()) return fallback;
+    // The cap trims the stem, so an extension survives a long name.
+    const suffix = keepsExt && dot ? dot[0] : `.${ext}`;
+    return stem.slice(0, MAX_FILE_NAME - suffix.length) + suffix;
+}
+
 /** A favourite's bytes as a File named for what they are: a starred PNG or
  *  WebP sent as "favourite.gif" was misnamed on every other client. */
-function favouriteAsFile(blob: Blob): File {
+function favouriteAsFile(blob: Blob, name?: unknown): File {
     const type = blob.type || "image/gif";
-    return new File([blob], withExtension("favourite", type), { type });
+    return new File([blob], favouriteFileName(name, type), { type });
 }
 
 /** A Matrix media download path, with any homeserver base prefix in front. */
@@ -308,11 +360,13 @@ export function isMatrixMediaUrl(url: string): boolean {
  *
  *  The file carries the media's mxc for reuse when its bytes are an image, so
  *  sending it re-points at the media rather than uploading the bytes again.
- *  `width`/`height` are the favourite's stored size, used only if usable. */
+ *  `width`/`height` are the favourite's stored size, used only if usable.
+ *  `name` is the file name it was starred with, if any. */
 export async function mediaUrlFavouriteFile(
     url: string,
     width?: unknown,
     height?: unknown,
+    name?: unknown,
 ): Promise<File | null> {
     const httpUrl = homeserverMediaUrl(url);
     if (!httpUrl) return null;
@@ -320,7 +374,7 @@ export async function mediaUrlFavouriteFile(
     const objectUrl = await fetchAttachmentBlob(httpUrl);
     try {
         const blob = await (await fetch(objectUrl)).blob();
-        const file = favouriteAsFile(blob);
+        const file = favouriteAsFile(blob, name);
         // Judged on the bytes' own type: favouriteAsFile labels an untyped blob
         // as a GIF, which is not something the server vouches for.
         if (mxc && blob.type.startsWith("image/")) {

@@ -1329,6 +1329,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.failedToUnpinMessage": "取消置顶消息失败",
     "messageItem.failedToPinMessage": "置顶消息失败",
     "messageItem.couldNotOpenTheMatrixLink": "无法打开 Matrix 链接",
+    "messageItem.viewSource": "查看源代码",
+
+    // src/lib/components/messages/ViewSourceDialog.svelte
+    "viewSource.title": "消息源码",
+    "viewSource.decrypted": "解密后的事件",
+    "viewSource.encrypted": "原始（加密）事件",
+    "viewSource.copied": "已复制",
 
     // src/lib/components/messages/MessageRedactAction.svelte
     "messageRedactAction.removeMessage": "移除消息",

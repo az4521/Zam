@@ -41,11 +41,16 @@ const EXT_BY_MIME: Record<string, string> = {
     "application/pdf": "pdf",
 };
 
+/** The extension we name a file of this MIME type with, or undefined. */
+export function extensionForMime(mime: string): string | undefined {
+    return EXT_BY_MIME[mime.split(";")[0].trim().toLowerCase()];
+}
+
 /** Append an extension from the MIME type when `name` has none, so a file
  *  saved as e.g. "image" still opens as an image. */
 export function withExtension(name: string, mime: string): string {
     if (/\.[a-z0-9]{2,5}$/i.test(name)) return name;
-    const ext = EXT_BY_MIME[mime.split(";")[0].trim().toLowerCase()];
+    const ext = extensionForMime(mime);
     return ext ? `${name}.${ext}` : name;
 }
 

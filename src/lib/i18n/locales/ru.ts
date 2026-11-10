@@ -1429,6 +1429,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.failedToUnpinMessage": "Не удалось открепить сообщение",
     "messageItem.failedToPinMessage": "Не удалось закрепить сообщение",
     "messageItem.couldNotOpenTheMatrixLink": "Не удалось открыть ссылку Matrix",
+    "messageItem.viewSource": "Исходный код",
+
+    // src/lib/components/messages/ViewSourceDialog.svelte
+    "viewSource.title": "Исходный код сообщения",
+    "viewSource.decrypted": "Расшифрованное событие",
+    "viewSource.encrypted": "Исходное (зашифрованное) событие",
+    "viewSource.copied": "Скопировано",
 
     // src/lib/components/messages/MessageRedactAction.svelte
     "messageRedactAction.removeMessage": "Удалить сообщение",

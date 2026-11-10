@@ -23,6 +23,10 @@
             /** The image's media mxc: a favourite holding that media counts as
              *  this one, and an encrypted gif is saved with it. */
             mxc?: string;
+            /** The file name, saved with an unencrypted gif so the picker sends
+             *  it under that name. Not stored for an encrypted one: its name is
+             *  read from its message. */
+            name?: string;
         };
         /** Gallery navigation. When supplied, a chevron and the matching arrow
          *  key step to the neighbouring item; omit at the ends of the list. */
@@ -155,6 +159,9 @@
                 // already matches through the media its URL names.
                 ...(favourite.source && favourite.mxc
                     ? { mxc: favourite.mxc }
+                    : {}),
+                ...(!favourite.source && favourite.name
+                    ? { name: favourite.name }
                     : {}),
                 ...(natural.width ? natural : favouriteSize(dims?.w, dims?.h)),
             });
