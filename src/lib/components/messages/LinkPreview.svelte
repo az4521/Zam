@@ -58,6 +58,7 @@
     import {
         learnImageSize,
         learnedMediaSize,
+        learnMediaSize,
     } from "$lib/utils/learnedMediaSize";
     import { galleryNav, galleryPositionLabel } from "$lib/utils/mediaGallery";
     import { isInstagramUrl } from "$lib/utils/instagramUrl";
@@ -422,6 +423,14 @@
 
     let videoFrame = $state<string | null>(null);
     let videoFrameDone = $state(false);
+    // Size of the grabbed frame, for a video whose preview gave no dimensions
+    // (the poster would otherwise be cropped into a guessed 16/9 box).
+    let frameSize = $state<{ width: number; height: number } | null>(null);
+    const videoAspect = $derived.by(() => {
+        const w = preview?.videoWidth ?? frameSize?.width;
+        const h = preview?.videoHeight ?? frameSize?.height;
+        return w && h ? `${w}/${h}` : "16/9";
+    });
     $effect(() => {
         const src = preview?.videoUrl;
         const needsFrame =
@@ -430,6 +439,7 @@
             !canLoad(preview?.videoThumbnailUrl) &&
             canLoad(src);
         videoFrame = null;
+        frameSize = learnedMediaSize(src) ?? null;
         videoFrameDone = !needsFrame;
         if (!needsFrame || !src) return;
         let live = true;
@@ -770,13 +780,13 @@
 {:else if pending && !preview}
     {#if likelyMedia}
         <div
-            class="mt-1 w-full max-w-[min(100%,32rem)] aspect-video rounded-lg bg-discord-backgroundSecondary"
+            class="skeleton-delay mt-1 w-full max-w-[min(100%,32rem)] aspect-video rounded-lg bg-discord-backgroundSecondary"
             aria-hidden="true"
         ></div>
     {:else}
         <!-- The card below with one line of title, two of description and
              the fixed image box. -->
-        <div class="mt-2" aria-hidden="true">
+        <div class="skeleton-delay mt-2" aria-hidden="true">
             <div
                 class="flex max-w-lg rounded overflow-hidden border border-discord-divider bg-discord-backgroundSecondary"
             >
@@ -1106,7 +1116,7 @@
                     src={preview.videoUrl}
                     poster={posterUrl}
                     class="max-w-lg w-full max-h-96 rounded-lg block"
-                    style={`aspect-ratio: ${preview.videoWidth && preview.videoHeight ? `${preview.videoWidth}/${preview.videoHeight}` : "16/9"}; max-height: 24rem;`}
+                    style={`aspect-ratio: ${videoAspect}; max-height: 24rem;`}
                     use:rememberVolume
                     controls
                     autoplay={videoPlaying}
@@ -1132,7 +1142,7 @@
                     type="button"
                     aria-label={t("linkPreview.playVideo")}
                     class="relative max-w-lg w-full max-h-96 rounded-lg overflow-hidden cursor-pointer bg-black block p-0 border-0"
-                    style={`aspect-ratio: ${preview.videoWidth && preview.videoHeight ? `${preview.videoWidth}/${preview.videoHeight}` : "16/9"}; max-height: 24rem;`}
+                    style={`aspect-ratio: ${videoAspect}; max-height: 24rem;`}
                     onclick={() => (videoPlaying = true)}
                 >
                     <img
@@ -1141,6 +1151,21 @@
                         class="w-full h-full object-cover"
                         loading="lazy"
                         referrerpolicy="no-referrer"
+                        onload={(e) => {
+                            const img = e.currentTarget as HTMLImageElement;
+                            if (!img.naturalWidth || !img.naturalHeight) return;
+                            if (preview?.videoThumbnailUrl === posterUrl)
+                                return;
+                            frameSize = {
+                                width: img.naturalWidth,
+                                height: img.naturalHeight,
+                            };
+                            learnMediaSize(
+                                preview?.videoUrl,
+                                img.naturalWidth,
+                                img.naturalHeight,
+                            );
+                        }}
                         onerror={() => (videoThumbError = true)}
                     />
                     <div
@@ -1195,3 +1220,16 @@
         </div>
     {/if}
 {/snippet}
+
+<style>
+    /* Space is reserved at once, but the placeholder stays invisible for the
+       first 500ms so a preview that resolves quickly never flashes it. */
+    .skeleton-delay {
+        animation: skeleton-delay-in 150ms ease-out 500ms backwards;
+    }
+    @keyframes skeleton-delay-in {
+        from {
+            opacity: 0;
+        }
+    }
+</style>
