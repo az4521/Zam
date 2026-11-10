@@ -4,6 +4,19 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.56.0
+
+✨ **New**
+
+- **A fuller plugin API:** plugins can now add room settings tabs, app settings pages, actions and sections on profile cards, actions in the room list menu, badges in the member list, and full-window overlays. They can also draw custom event types and message types themselves. `zam.dom` gives plugins stable hooks into parts of the app, and `zam.navigation` lets them open rooms and jump to messages. `zam.matrix` can now send events, read events, rooms, room state, account data, profiles and presence. It refuses the types Zam manages itself.
+- **Favourite GIFs are sent without uploading them again:** a favourite that was originally an image upload now points at the media already on the server, so it sends instantly and shows as starred in the chat. An encrypted favourite sent into an unencrypted room is still uploaded again, so its key never ends up in a plaintext message.
+
+🐛 **Fixed**
+
+- **"Unable to decrypt" flashing on startup:** in encrypted rooms, messages loaded from the cache briefly showed as undecryptable until decryption caught up. They now show a neutral placeholder while they decrypt, and the room you open first is decrypted before it appears.
+- **Plugin panels and events:** panels registered by plugins can now be opened (with `ui.openPanel`). The typing, member-join, message-sent, room-enter and notification events now fire, and message and reaction events now fire in encrypted rooms too.
+- **Favourite GIF tiles and names:** images starred from a message or the viewer now keep their size, so their tile in the picker doesn't jump when it loads. A favourite PNG or WebP is no longer sent named `favourite.gif`.
+
 ## v1.55.4
 
 ✨ **New**
