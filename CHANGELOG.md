@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.57.1
+
+🔧 **Improved**
+
+- **Compact message action bar on mobile:** the action bar buttons are back to their original size (the 44px touch targets were too big).
+- **Long-press preview text size:** the message text shown in the long-press menu now matches the size used in the chat log.
+
 ## v1.57.0
 
 ✨ **New**
