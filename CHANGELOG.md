@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.57.2
+
+🔧 **Improved**
+
+- **Link preview skeleton waits half a second:** the loading placeholder only appears if a preview takes longer than 500ms, so fast previews no longer flash it.
+- **Video previews with no size:** a video preview whose site gives no dimensions now sizes its thumbnail from the video's first frame instead of cropping it into 16:9.
+
 ## v1.57.1
 
 🔧 **Improved**
