@@ -3678,9 +3678,7 @@
                       isEditing
                           ? ''
                           : 'group-focus-visible:flex group-has-[:focus-visible]:flex'
-                  }`} absolute end-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20 {interfaceState.isTouchscreen
-                ? '[&_button]:flex [&_button]:min-h-11 [&_button]:min-w-11 [&_button]:items-center [&_button]:justify-center [&_button_svg]:h-5 [&_button_svg]:w-5'
-                : ''}"
+                  }`} absolute end-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
         >
             {#if !interfaceState.isTouchscreen && canEditMessage}
                 <button

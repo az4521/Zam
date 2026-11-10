@@ -114,7 +114,7 @@
                 -->
                 <div class="px-4 pb-3" data-sheet-no-drag>
                     <p
-                        class="max-h-[28vh] overflow-y-auto rounded-lg bg-discord-backgroundSecondary px-3 py-3 text-lg leading-relaxed text-discord-textPrimary whitespace-pre-wrap break-words select-text"
+                        class="max-h-[28vh] overflow-y-auto rounded-lg bg-discord-backgroundSecondary px-3 py-3 text-sm leading-relaxed text-discord-textPrimary whitespace-pre-wrap break-words select-text"
                     >
                         {preview}
                     </p>
