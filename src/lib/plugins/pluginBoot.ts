@@ -58,10 +58,14 @@ import {
     readLocalPlugin,
 } from "./localPlugin";
 import {
+    canPickDirectory,
     deleteLocalHandle,
+    deleteRepoHandle,
     ensureReadable,
     getLocalHandle,
+    listRepoHandles,
     saveLocalHandle,
+    saveRepoHandle,
 } from "./localHandles";
 import { removePluginNative } from "./pluginNative";
 import { APP_VERSION } from "$lib/update";
@@ -581,9 +585,11 @@ export function initPlugins(): () => void {
 
     // 3) Boot-load enabled plugins (built-ins first, each error-isolated).
     void loader.bootLoad(toBoot);
+    const stopRepoWatch = startLocalRepoWatch();
 
     // Disposer: unsubscribe the event bus + disable every loaded plugin.
     return () => {
+        stopRepoWatch();
         disposeEventBus();
         for (const id of [...loadables.keys()]) {
             if (loader.isLoaded(id)) void loader.disable(id);
@@ -876,10 +882,101 @@ export async function loadLocalFolder(
     }
     if (opts.expectedId && !ids.length && !errors.length)
         errors.push(`No plugin "${opts.expectedId}" in that folder`);
+    // A repo (not a single plugin): remember the root so the watcher finds
+    // plugin folders added to it later.
+    if (opts.handle && dirs[0] !== "") await saveRepoHandle(opts.handle);
     return {
         ok: ids.length > 0 && !errors.length,
         ids,
         error: errors.join("\n") || undefined,
+    };
+}
+
+const REPO_WATCH_MS = 3000;
+
+/** Poll the picked repo folders and load any plugin folder that appears in them.
+ *  Only read permission is used (no prompts). A folder is looked at once per
+ *  session: when its plugin is already installed, or when loading it succeeded
+ *  or failed (a failure is retried only once its manifest.json changes). Removing
+ *  a plugin therefore sticks until the app restarts. Returns the stop function. */
+export function startLocalRepoWatch(): () => void {
+    if (!canPickDirectory()) return () => {};
+    const seen = new Set<string>(); // "<root>/<folder>", handled this session
+    const failed = new Map<string, number>(); // key -> manifest mtime that failed
+    let scanning = false;
+    let stopped = false;
+
+    async function scanRoot(root: FileSystemDirectoryHandle) {
+        const perm = root as unknown as {
+            queryPermission(o: { mode: "read" }): Promise<string>;
+        };
+        if ((await perm.queryPermission({ mode: "read" })) !== "granted")
+            return;
+        const subs: FileSystemDirectoryHandle[] = [];
+        const entries = (
+            root as unknown as {
+                values(): AsyncIterable<FileSystemHandle>;
+            }
+        ).values();
+        for await (const h of entries)
+            if (h.kind === "directory")
+                subs.push(h as FileSystemDirectoryHandle);
+
+        for (const sub of subs) {
+            const key = `${root.name}/${sub.name}`;
+            if (seen.has(key)) continue;
+            let manifest: File;
+            try {
+                manifest = await (
+                    await sub.getFileHandle("manifest.json")
+                ).getFile();
+            } catch {
+                continue; // not a plugin folder
+            }
+            const stamp = manifest.lastModified;
+            if (failed.get(key) === stamp) continue;
+            let id: string;
+            try {
+                id = parseManifest(JSON.parse(await manifest.text())).id;
+            } catch {
+                failed.set(key, stamp);
+                continue;
+            }
+            if (installedPlugins[id]) {
+                seen.add(key);
+                continue;
+            }
+            const res = await loadLocalPlugin(await filesFromDirectory(sub), {
+                handle: sub,
+            });
+            if (res.ok) seen.add(key);
+            else failed.set(key, stamp);
+        }
+    }
+
+    async function tick() {
+        if (document.hidden || scanning || stopped) return;
+        scanning = true;
+        try {
+            for (const root of await listRepoHandles()) {
+                try {
+                    await scanRoot(root);
+                } catch (e) {
+                    // Folder moved or deleted: forget it. Other errors may be
+                    // transient, so keep the handle.
+                    if ((e as Error).name === "NotFoundError")
+                        await deleteRepoHandle(root.name);
+                }
+            }
+        } finally {
+            scanning = false;
+        }
+    }
+
+    const timer = setInterval(() => void tick(), REPO_WATCH_MS);
+    return () => {
+        stopped = true;
+        clearInterval(timer);
     };
 }
 

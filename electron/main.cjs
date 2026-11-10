@@ -2121,7 +2121,7 @@ async function createWindow() {
     });
 
     // Electron shows no context menu by default; build a Chromium-like one
-    // (links, images, text editing, spellcheck) so right-click works.
+    // (reload, links, images, text editing, spellcheck) so right-click works.
     mainWindow.webContents.on("context-menu", (_e, params) => {
         const wc = mainWindow.webContents;
         const items = [];
@@ -2180,6 +2180,11 @@ async function createWindow() {
                     click: () =>
                         wc.send("context-menu:save-image", params.srcURL),
                 },
+                {
+                    label: "Copy image address",
+                    click: () =>
+                        clipboard.writeText(params.srcURL).catch(() => {}),
+                },
             ]);
         }
         if (params.isEditable) {
@@ -2196,10 +2201,20 @@ async function createWindow() {
                 { role: "selectAll", enabled: editFlags.canSelectAll },
             ]);
         } else if (params.selectionText.trim()) {
-            section([{ role: "copy" }]);
+            section([{ role: "copy" }, { role: "selectAll" }]);
+        } else {
+            if (!params.linkURL && params.mediaType !== "image") {
+                section([{ label: "Reload", click: () => wc.reload() }]);
+            }
+            section([{ role: "selectAll" }]);
         }
-        if (items.length)
-            Menu.buildFromTemplate(items).popup({ window: mainWindow });
+        section([
+            {
+                label: "Inspect",
+                click: () => wc.inspectElement(params.x, params.y),
+            },
+        ]);
+        Menu.buildFromTemplate(items).popup({ window: mainWindow });
     });
 
     // Close button (X): hide to the system tray, or quit, per the device-local

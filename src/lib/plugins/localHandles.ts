@@ -84,6 +84,58 @@ export async function deleteLocalHandle(pluginId: string): Promise<void> {
     }
 }
 
+const REPO_PREFIX = "repo:";
+
+/** Keep a picked repo folder (one holding several plugin folders), keyed by its
+ *  name, so the plugin watcher can notice folders added to it later. */
+export async function saveRepoHandle(
+    root: FileSystemDirectoryHandle,
+): Promise<void> {
+    try {
+        await run("readwrite", (s) => s.put(root, REPO_PREFIX + root.name));
+    } catch {
+        /* the watcher just doesn't see this folder */
+    }
+}
+
+/** Every saved repo folder. Empty when nothing is saved or IndexedDB fails. */
+export async function listRepoHandles(): Promise<FileSystemDirectoryHandle[]> {
+    try {
+        const db = await openDb();
+        try {
+            return await new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE, "readonly");
+                const s = tx.objectStore(STORE);
+                const keys = s.getAllKeys();
+                const values = s.getAll();
+                tx.oncomplete = () => {
+                    const out: FileSystemDirectoryHandle[] = [];
+                    keys.result.forEach((k, i) => {
+                        if (typeof k === "string" && k.startsWith(REPO_PREFIX))
+                            out.push(
+                                values.result[i] as FileSystemDirectoryHandle,
+                            );
+                    });
+                    resolve(out);
+                };
+                tx.onerror = () => reject(tx.error);
+            });
+        } finally {
+            db.close();
+        }
+    } catch {
+        return [];
+    }
+}
+
+export async function deleteRepoHandle(name: string): Promise<void> {
+    try {
+        await run("readwrite", (s) => s.delete(REPO_PREFIX + name));
+    } catch {
+        /* ignore */
+    }
+}
+
 /** Make sure we may read `handle`, prompting if the browser needs to. */
 export async function ensureReadable(
     handle: FileSystemDirectoryHandle,
