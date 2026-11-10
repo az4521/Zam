@@ -3524,6 +3524,11 @@ export const en = {
     "messageActionsMenu.pin": "Pin",
     "messageActionsMenu.copyLink": "Copy link",
     "messageActionsMenu.report": "Report",
+    "messageActionsMenu.copyText": "Copy message text",
+    "messageActionsMenu.textCopied": "Message text copied",
+    "messageActionsMenu.couldnTCopyText": "Couldn't copy the message text",
+    "messageActionsMenu.selectHint":
+        "Press and hold the text to select part of it",
 
     // src/lib/utils/messageDisplay.ts
     "messageDisplay.systemDefault": "System default",

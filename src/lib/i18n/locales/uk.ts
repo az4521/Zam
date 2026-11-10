@@ -4224,6 +4224,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageEmbed.inRoom": "у {room}",
     "messageEmbed.jumpToMessage":
         "Перейти до повідомлення, на яке є посилання:",
+    "messageActionsMenu.copyText": "Копіювати текст повідомлення",
+    "messageActionsMenu.textCopied": "Текст повідомлення скопійовано",
+    "messageActionsMenu.couldnTCopyText":
+        "Не вдалося скопіювати текст повідомлення",
+    "messageActionsMenu.selectHint":
+        "Натисніть і утримуйте текст, щоб виділити його частину",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: uk };

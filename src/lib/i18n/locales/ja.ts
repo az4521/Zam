@@ -3768,6 +3768,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "composerActionsMenu.photosAndVideos": "写真と動画",
     "composerActionsMenu.files": "ファイル",
     "settingsSearch.richPresence": "リッチプレゼンス",
+    "messageActionsMenu.copyText": "メッセージのテキストをコピー",
+    "messageActionsMenu.textCopied": "メッセージのテキストをコピーしました",
+    "messageActionsMenu.couldnTCopyText":
+        "メッセージのテキストをコピーできませんでした",
+    "messageActionsMenu.selectHint": "テキストを長押しして一部を選択",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ja };

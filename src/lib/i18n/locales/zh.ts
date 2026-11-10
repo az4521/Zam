@@ -3869,6 +3869,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageEmbed.deleted": "消息已删除",
     "messageEmbed.inRoom": "在 {room}",
     "messageEmbed.jumpToMessage": "跳转到链接的消息：",
+    "messageActionsMenu.copyText": "复制消息文本",
+    "messageActionsMenu.textCopied": "消息文本已复制",
+    "messageActionsMenu.couldnTCopyText": "无法复制消息文本",
+    "messageActionsMenu.selectHint": "按住文本可选择部分内容",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: zhCN };

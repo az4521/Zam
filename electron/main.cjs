@@ -1161,6 +1161,40 @@ ipcMain.on("call:set-active", (e, active) => {
 });
 app.on("will-quit", () => callPriority.restore());
 
+// Message actions the renderer offers for the next right-click (see the
+// context-menu handler in createWindow). Set by a sendSync from the page, so it
+// is stored before Chromium's context-menu event for the same click.
+let pendingMessageActions = null;
+ipcMain.on("context-menu:message-actions", (e, items) => {
+    e.returnValue = null;
+    if (!mainWindow || e.sender !== mainWindow.webContents) return;
+    const valid = Array.isArray(items)
+        ? items
+              .slice(0, 20)
+              .filter(
+                  (it) =>
+                      it &&
+                      typeof it === "object" &&
+                      typeof it.key === "string" &&
+                      it.key.length > 0 &&
+                      it.key.length <= 40 &&
+                      typeof it.label === "string" &&
+                      it.label.length > 0 &&
+                      it.label.length <= 120 &&
+                      (it.danger === undefined ||
+                          typeof it.danger === "boolean"),
+              )
+              .map((it) => ({
+                  key: it.key,
+                  label: it.label,
+                  danger: it.danger === true,
+              }))
+        : [];
+    pendingMessageActions = valid.length
+        ? { items: valid, at: Date.now() }
+        : null;
+});
+
 // --- GPU (Settings > Debug) ------------------------------------------------
 //
 // Hardware acceleration can be switched off for GPUs whose drivers misrender
@@ -2132,6 +2166,30 @@ async function createWindow() {
         };
         const { editFlags } = params;
 
+        // Message actions the page offered for this click, if it offered any
+        // just now. Always cleared so they never leak into a later right-click.
+        const msgActions = pendingMessageActions;
+        pendingMessageActions = null;
+        const useMessageActions =
+            !!msgActions &&
+            Date.now() - msgActions.at < 1500 &&
+            !params.isEditable;
+        if (useMessageActions) {
+            const group = [];
+            let dangerSeparated = false;
+            for (const it of msgActions.items) {
+                if (it.danger && !dangerSeparated && group.length) {
+                    group.push({ type: "separator" });
+                    dangerSeparated = true;
+                }
+                group.push({
+                    label: it.label,
+                    click: () => wc.send("context-menu:message-action", it.key),
+                });
+            }
+            section(group);
+        }
+
         if (params.misspelledWord) {
             section([
                 ...params.dictionarySuggestions.slice(0, 5).map((word) => ({
@@ -2203,7 +2261,11 @@ async function createWindow() {
         } else if (params.selectionText.trim()) {
             section([{ role: "copy" }, { role: "selectAll" }]);
         } else {
-            if (!params.linkURL && params.mediaType !== "image") {
+            if (
+                !params.linkURL &&
+                params.mediaType !== "image" &&
+                !useMessageActions
+            ) {
                 section([{ label: "Reload", click: () => wc.reload() }]);
             }
             section([{ role: "selectAll" }]);

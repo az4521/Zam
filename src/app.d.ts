@@ -337,6 +337,13 @@ declare global {
             ) => Promise<string>;
             contextMenu?: {
                 onSaveImage: (cb: (url: string) => void) => () => void;
+                /** Actions for the message under the next right-click; null clears. */
+                setMessageActions: (
+                    items:
+                        | { key: string; label: string; danger?: boolean }[]
+                        | null,
+                ) => void;
+                onMessageAction: (cb: (key: string) => void) => () => void;
             };
             /** Voice keybinds while the window isn't focused
              *  (electron/globalHotkeys.cjs, $lib/keybinds/globalHotkeys). */

@@ -4255,6 +4255,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageEmbed.deleted": "Mensagem excluída",
     "messageEmbed.inRoom": "em {room}",
     "messageEmbed.jumpToMessage": "Ir para a mensagem vinculada:",
+    "messageActionsMenu.copyText": "Copiar texto da mensagem",
+    "messageActionsMenu.textCopied": "Texto da mensagem copiado",
+    "messageActionsMenu.couldnTCopyText":
+        "Não foi possível copiar o texto da mensagem",
+    "messageActionsMenu.selectHint":
+        "Pressione e segure o texto para selecionar parte dele",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ptBR };

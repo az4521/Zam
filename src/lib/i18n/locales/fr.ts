@@ -4289,6 +4289,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "composerActionsMenu.photosAndVideos": "Photos et vidéos",
     "composerActionsMenu.files": "Fichiers",
     "settingsSearch.richPresence": "Rich Presence",
+    "messageActionsMenu.copyText": "Copier le texte du message",
+    "messageActionsMenu.textCopied": "Texte du message copié",
+    "messageActionsMenu.couldnTCopyText":
+        "Impossible de copier le texte du message",
+    "messageActionsMenu.selectHint":
+        "Appuyez longuement sur le texte pour en sélectionner une partie",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: fr };

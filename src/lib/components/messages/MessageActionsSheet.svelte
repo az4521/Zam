@@ -9,8 +9,13 @@
     import type { PluginMessageActionView } from "$lib/utils/pluginMessageActions";
 
     interface Props {
-        /** Ordered overflow rows from `messageActionsMenu`. */
+        /** Ordered rows from `messageActionsMenu`. */
         rows: MessageActionRow[];
+        /**
+         * Plain text of the message, shown large and selectable above the rows
+         * so part of it can be picked out and copied. Empty hides the preview.
+         */
+        preview?: string;
         /** Plugin-contributed action rows (appended after core rows). */
         pluginRows?: PluginMessageActionView[];
         /** Run the chosen core action. The sheet closes itself first. */
@@ -22,6 +27,7 @@
     }
     let {
         rows,
+        preview = "",
         pluginRows = [],
         onChoose,
         onChoosePlugin,
@@ -36,6 +42,11 @@
     // Solid glyphs matching the desktop toolbar buttons, so the sheet reads as
     // the same controls in a different layout.
     const ICONS: Record<MessageActionKey, string> = {
+        react: "M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zM8.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM15.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM6.89 13.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5s-4.31-1.46-5.11-3.5z",
+        reply: "M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z",
+        forward: "M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z",
+        "copy-text":
+            "M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z",
         thread: "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM8 14H6v-2h2v2zm0-3H6V9h2v2zm0-3H6V6h2v2zm7 6h-5v-2h5v2zm3-3h-8V9h8v2zm0-3h-8V6h8v2z",
         edit: "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
         pin: "M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z",
@@ -84,17 +95,34 @@
                 <div class="flex justify-end gap-2">
                     <button
                         onclick={() => (pending = null)}
-                        class="px-3 py-1.5 rounded text-sm font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                        class="px-4 min-h-11 rounded text-sm font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
                         >{t("common.cancel")}</button
                     >
                     <button
                         onclick={() => run(pending!.key)}
-                        class="px-3 py-1.5 rounded text-sm font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors"
+                        class="px-4 min-h-11 rounded text-sm font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors"
                         >{pending.label}</button
                     >
                 </div>
             </div>
         {:else}
+            {#if preview}
+                <!--
+                    Long-press on the message lands here, so this is where text
+                    gets selected: big, selectable, and opted out of the
+                    sheet's swipe-down so dragging a selection can't dismiss it.
+                -->
+                <div class="px-4 pb-3" data-sheet-no-drag>
+                    <p
+                        class="max-h-[28vh] overflow-y-auto rounded-lg bg-discord-backgroundSecondary px-3 py-3 text-lg leading-relaxed text-discord-textPrimary whitespace-pre-wrap break-words select-text"
+                    >
+                        {preview}
+                    </p>
+                    <p class="mt-1.5 text-xs text-discord-textMuted">
+                        {t("messageActionsMenu.selectHint")}
+                    </p>
+                </div>
+            {/if}
             <div
                 role="menu"
                 aria-label={t("messageActionsSheet.messageActions")}

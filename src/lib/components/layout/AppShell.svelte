@@ -155,6 +155,7 @@
     import { isDesktopTray, setMinimizeToTray } from "$lib/desktopTray";
     import { startRichPresence } from "$lib/stores/richPresence.svelte";
     import { installDesktopSaveImage } from "$lib/desktopContextMenu";
+    import { installDesktopMessageMenu } from "$lib/desktopMessageMenu";
     import { watchVideoPlayback } from "$lib/utils/videoPlaybackWatch";
     import { initUpdateWatch } from "$lib/stores/updateBanner.svelte";
     import UpdateBanner from "$lib/components/layout/UpdateBanner.svelte";
@@ -1587,6 +1588,7 @@
 
     // Electron right-click "Save image as" (fetches with auth; see module).
     onMount(installDesktopSaveImage);
+    onMount(installDesktopMessageMenu);
 
     // Tell the main process when video plays (it weighs GPU crashes by it).
     onMount(() => {

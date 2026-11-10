@@ -4239,6 +4239,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageEmbed.deleted": "Сообщение удалено",
     "messageEmbed.inRoom": "в {room}",
     "messageEmbed.jumpToMessage": "Перейти к связанному сообщению:",
+    "messageActionsMenu.copyText": "Копировать текст сообщения",
+    "messageActionsMenu.textCopied": "Текст сообщения скопирован",
+    "messageActionsMenu.couldnTCopyText":
+        "Не удалось скопировать текст сообщения",
+    "messageActionsMenu.selectHint":
+        "Нажмите и удерживайте текст, чтобы выделить его часть",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ru };

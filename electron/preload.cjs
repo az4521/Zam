@@ -264,5 +264,18 @@ contextBridge.exposeInMainWorld("desktop", {
             return () =>
                 ipcRenderer.removeListener("context-menu:save-image", h);
         },
+        // Message actions (React, Reply, Edit, ...) for the next right-click.
+        // sendSync so main has the items stored before Chromium's own
+        // context-menu event for the same click fires.
+        setMessageActions: (items) => {
+            ipcRenderer.sendSync("context-menu:message-actions", items);
+        },
+        // The key of the message action picked from the native menu.
+        onMessageAction: (cb) => {
+            const h = (_e, key) => cb(key);
+            ipcRenderer.on("context-menu:message-action", h);
+            return () =>
+                ipcRenderer.removeListener("context-menu:message-action", h);
+        },
     },
 });

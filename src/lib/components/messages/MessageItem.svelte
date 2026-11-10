@@ -48,6 +48,7 @@
     import {
         messageActionsMenu,
         type MessageActionKey,
+        type MessageActionRow,
     } from "$lib/utils/messageActionsMenu";
     import EventShield from "./EventShield.svelte";
     import MessageDecorations from "$lib/components/messages/MessageDecorations.svelte";
@@ -223,7 +224,11 @@
     } from "$lib/stores/interface.svelte";
     import { openProfileCard } from "$lib/stores/profileCard.svelte";
     import { nameColourFor } from "$lib/stores/profileFields.svelte";
-    import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import { showErrorToast, showToast } from "$lib/stores/toasts.svelte";
+    import {
+        publishMessageMenu,
+        type DesktopMenuItem,
+    } from "$lib/desktopMessageMenu";
     import { settingsState } from "$lib/stores/settings.svelte";
     import { isDoubleTap, type TapPoint } from "$lib/utils/doubleTap";
     import { longPress } from "$lib/actions/longPress";
@@ -499,6 +504,9 @@
         interfaceState.selectedMessageId = null;
     }
 
+    // A long-press always opens the full actions sheet (see the longPress
+    // action on the row), so the tap/hold setting only decides whether a tap
+    // brings up the quick action bar.
     function handleRowGesture(kind: "tap" | "hold") {
         if (!interfaceState.isTouchscreen) return;
         if (!shouldOpenMessageMenu(menuMode, kind)) return;
@@ -1138,10 +1146,42 @@
         showViewSourceDialog = true;
     }
 
+    async function copyMessageText() {
+        try {
+            await navigator.clipboard.writeText(copyableText);
+            showToast(t("messageActionsMenu.textCopied"), { tone: "accent" });
+        } catch {
+            showErrorToast(t("messageActionsMenu.couldnTCopyText"));
+        }
+    }
+
+    // Report/redact/delete live in the hover action bar on desktop, which is
+    // only mounted while the row is hovered, focused or pinned. A native menu
+    // pick can land after the pointer has left, so mount it before driving it.
+    async function mountBarThen(run: () => void) {
+        rowHovered = true;
+        await tick();
+        run();
+    }
+
     function handleActionChoose(key: MessageActionKey) {
         // The sheet has already released the modal slot (it closes before
         // choosing), so report/redact are free to claim it via show().
         switch (key) {
+            case "react":
+                emojiPickerBelow =
+                    (rootEl?.getBoundingClientRect().top ?? 400) < 400;
+                openReactionPicker();
+                break;
+            case "reply":
+                onReply(event);
+                break;
+            case "forward":
+                openForwardDialog();
+                break;
+            case "copy-text":
+                copyMessageText();
+                break;
             case "view-source":
                 openViewSourceDialog();
                 break;
@@ -1158,18 +1198,56 @@
                 copyMessageLink();
                 break;
             case "report":
-                reportComp?.show();
+                mountBarThen(() => reportComp?.show());
                 break;
             case "redact":
-                redactComp?.show();
+                mountBarThen(() => redactComp?.show());
                 break;
             case "delete":
+                // The touch sheet has already confirmed; desktop confirms in
+                // the action bar, like its own delete button.
+                if (!interfaceState.isTouchscreen) {
+                    mountBarThen(() => (confirmingDelete = true));
+                    break;
+                }
                 deleteMessage(room.roomId, eventId).catch((err) => {
                     console.error("[MessageItem] delete failed", err);
                     showErrorToast(t("messageItem.couldnTDeleteTheMessage"));
                 });
                 break;
         }
+    }
+
+    // Desktop right-click: hand the native menu this row's actions (plugin
+    // actions before the destructive rows) and run whichever one is picked.
+    function onRowContextMenu(e: MouseEvent) {
+        if (interfaceState.isTouchscreen) {
+            // A long-press raises the browser's own menu on some Androids; the
+            // actions sheet is the menu here.
+            e.preventDefault();
+            return;
+        }
+        if (isEditing) return;
+        const toItem = (r: MessageActionRow): DesktopMenuItem => ({
+            key: r.key,
+            label: r.label,
+            danger: r.danger,
+        });
+        publishMessageMenu(
+            [
+                ...overflowRows.filter((r) => !r.danger).map(toItem),
+                ...pluginActionViews.map((v) => ({
+                    key: `plugin:${v.key}`,
+                    label: v.label,
+                })),
+                ...overflowRows.filter((r) => r.danger).map(toItem),
+            ],
+            (key) => {
+                if (key.startsWith("plugin:"))
+                    handlePluginAction(key.slice("plugin:".length));
+                else handleActionChoose(key as MessageActionKey);
+            },
+        );
     }
 
     function handlePluginAction(key: string) {
@@ -1972,11 +2050,28 @@
                 : "reply"
             : null,
     );
-    // The overflow rows for THIS message, gated exactly like the desktop
-    // buttons. Drives the mobile ⋯ sheet only; desktop keeps every button
-    // inline.
+    // Plain text a "Copy message text" action and the sheet's preview use:
+    // the message's text (or a media caption), never a bare file name.
+    const copyableText = $derived.by(() => {
+        if (eventType !== "m.room.message" || isFailed) return "";
+        const textual =
+            msgtype === "m.text" ||
+            msgtype === "m.notice" ||
+            msgtype === "m.emote" ||
+            hasCaption();
+        return textual ? body().trim() : "";
+    });
+    // Every action this message offers, with full names. Drives the mobile ⋯
+    // / long-press sheet and the desktop right-click menu; the hover bar keeps
+    // its icon buttons for the everyday ones.
     const overflowRows = $derived(
         messageActionsMenu({
+            canReact: eventId.startsWith("$") && !isFailed,
+            canReply: true,
+            canForward:
+                (eventType === "m.room.message" || eventType === "m.sticker") &&
+                !isFailed,
+            canCopyText: copyableText.length > 0,
             canEdit: canEditMessage,
             thread: threadAction,
             canPin,
@@ -2336,7 +2431,7 @@
 <div
     bind:this={rootEl}
     class="group {interfaceState.isTouchscreen
-        ? ''
+        ? 'select-none [-webkit-touch-callout:none]'
         : 'hover:bg-discord-messageHover'} relative px-4 py-0.5 rounded transition-colors touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent {mentionHighlight
         ? 'bg-discord-warning/10 border-s-2 border-discord-warning'
         : ''}"
@@ -2370,13 +2465,14 @@
     ondblclick={onMessageDblClick}
     data-event-id={eventId}
     data-sender={senderId}
+    oncontextmenu={onRowContextMenu}
     use:longPress={{
         onTrigger: () => {
             heldJustFired = true;
-            handleRowGesture("hold");
+            openActionsSheet();
         },
         shouldStart: (e) => {
-            if (menuMode !== "hold") return false;
+            if (!interfaceState.isTouchscreen || isEditing) return false;
             const t = e.target as Element | null;
             return !t?.closest(INTERACTIVE_TARGET_SELECTOR);
         },
@@ -3582,7 +3678,9 @@
                       isEditing
                           ? ''
                           : 'group-focus-visible:flex group-has-[:focus-visible]:flex'
-                  }`} absolute end-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
+                  }`} absolute end-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20 {interfaceState.isTouchscreen
+                ? '[&_button]:flex [&_button]:min-h-11 [&_button]:min-w-11 [&_button]:items-center [&_button]:justify-center [&_button_svg]:h-5 [&_button_svg]:w-5'
+                : ''}"
         >
             {#if !interfaceState.isTouchscreen && canEditMessage}
                 <button
@@ -3825,6 +3923,7 @@
             {/if}
             {#if !interfaceState.isTouchscreen && !isOwnMessage && !isFailed}
                 <MessageReportAction
+                    bind:this={reportComp}
                     roomId={room.roomId}
                     {eventId}
                     {keyboardOffset}
@@ -3833,6 +3932,7 @@
             {/if}
             {#if !interfaceState.isTouchscreen && !isOwnMessage && !isFailed && canRedact}
                 <MessageRedactAction
+                    bind:this={redactComp}
                     roomId={room.roomId}
                     {eventId}
                     {keyboardOffset}
@@ -3928,6 +4028,7 @@
 {#if showActionsSheet}
     <MessageActionsSheet
         rows={overflowRows}
+        preview={copyableText}
         pluginRows={pluginActionViews}
         onChoose={handleActionChoose}
         onChoosePlugin={handlePluginAction}

@@ -110,6 +110,9 @@ export function sheetDrag(node: HTMLElement, params: SheetDragParams) {
         clearTimeout(settleTimer);
         sheet().style.transition = "";
         if (scrolledBelowTop(e.target as Element | null, node)) return;
+        // Text the sheet wants selectable opts out: a drag there selects.
+        if ((e.target as Element | null)?.closest?.("[data-sheet-no-drag]"))
+            return;
         const t = e.touches[0];
         startX = t.clientX;
         startY = lastY = t.clientY;

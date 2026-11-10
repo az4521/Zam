@@ -1,20 +1,20 @@
-// Pure model for the mobile message-actions overflow ("⋯ More") sheet.
+// Pure model for the full message-actions menu: the mobile bottom sheet
+// (opened by the "⋯" button or a long-press) and the desktop right-click menu.
 //
-// On a phone the floating action bar cannot hold ~8 buttons and still sit over
-// the message, so only the four everyday actions stay inline — react, reply,
-// forward, and edit on your own editable messages or thread otherwise — and the
-// rest move into a bottom sheet. Which rows the sheet
-// shows, in what order, and how they label lives here so it can be tested
-// without a DOM; MessageItem supplies the gating flags and renders the result.
-//
-// Desktop is unaffected: it keeps every button inline. This model only drives
-// the touch layout.
+// Both list EVERY action the message offers, with its full name, so nobody has
+// to decode the action bar's icons. Which rows appear, in what order, and how
+// they label lives here so it can be tested without a DOM; MessageItem supplies
+// the gating flags and each surface renders the result.
 import { t } from "$lib/i18n";
 
-/** The actions that move off the inline bar and into the overflow sheet. */
+/** Every action the menu can offer. */
 export type MessageActionKey =
+    | "react"
+    | "reply"
     | "thread"
+    | "forward"
     | "edit"
+    | "copy-text"
     | "pin"
     | "copy-link"
     | "view-source"
@@ -23,17 +23,21 @@ export type MessageActionKey =
     | "delete";
 
 export interface MessageActionContext {
-    /**
-     * Own message that can be edited in place. Edit then takes the inline
-     * bar's fourth slot, so it never appears as a sheet row; the thread
-     * action is displaced into the sheet instead.
-     */
+    /** Reactions apply (a sent, non-failed event). */
+    canReact: boolean;
+    /** Replying applies (every message the action bar is shown on). */
+    canReply: boolean;
+    /** Own message that can be edited in place. */
     canEdit: boolean;
     /**
      * The thread action this message offers: "reply" starts a thread on it,
      * "open" opens the thread it belongs to, null when threads don't apply.
      */
     thread: "reply" | "open" | null;
+    /** A message or sticker that can be forwarded. */
+    canForward: boolean;
+    /** The message has body text worth copying. */
+    canCopyText: boolean;
     /** The viewer may pin/unpin in this room. */
     canPin: boolean;
     /** The message is currently pinned (flips the pin row's label). */
@@ -57,32 +61,42 @@ export interface MessageActionRow {
     danger?: boolean;
     /**
      * Needs an in-sheet "are you sure?" step before it runs. Only `delete`
-     * uses this: unlike `redact`, deleting your own message has no follow-up
-     * dialog of its own, so the confirmation lives in the sheet.
+     * uses this on the sheet: unlike `redact`, deleting your own message has no
+     * follow-up dialog of its own, so the confirmation lives in the sheet.
      */
     confirm?: boolean;
 }
 
 /**
- * Build the overflow rows for one message. Order is fixed and mirrors the
- * desktop bar's left-to-right order (thread, pin, copy-link, view-source, report,
- * redact, delete) so the two layouts stay learnable; the two destructive rows
- * land at the bottom. `delete` and `redact` never both appear — delete is
- * own-message only, redact is other-message only.
+ * Build the menu rows for one message. The everyday actions come first in the
+ * action bar's order (react, reply, thread, forward, edit), then copy, pin and
+ * inspection, with the destructive rows last. `delete` and `redact` never both
+ * appear — delete is own-message only, redact is other-message only.
  */
 export function messageActionsMenu(
     ctx: MessageActionContext,
 ): MessageActionRow[] {
     const rows: MessageActionRow[] = [];
-    // Edit sits inline when allowed and bumps thread here; otherwise thread
-    // stays inline and there is no edit to offer.
-    if (ctx.canEdit && ctx.thread)
+    if (ctx.canReact)
+        rows.push({ key: "react", label: t("messageItem.addReaction") });
+    if (ctx.canReply)
+        rows.push({ key: "reply", label: t("messageItem.reply") });
+    if (ctx.thread)
         rows.push({
             key: "thread",
             label:
                 ctx.thread === "open"
                     ? t("messageItem.openThread")
                     : t("messageItem.replyInThread"),
+        });
+    if (ctx.canForward)
+        rows.push({ key: "forward", label: t("messageItem.forwardMessage") });
+    if (ctx.canEdit)
+        rows.push({ key: "edit", label: t("messageItem.editMessage") });
+    if (ctx.canCopyText)
+        rows.push({
+            key: "copy-text",
+            label: t("messageActionsMenu.copyText"),
         });
     if (ctx.canPin)
         rows.push({
@@ -105,7 +119,7 @@ export function messageActionsMenu(
     if (ctx.canDelete)
         rows.push({
             key: "delete",
-            label: "Delete",
+            label: t("common.delete"),
             danger: true,
             confirm: true,
         });

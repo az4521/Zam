@@ -6,6 +6,10 @@ import {
 
 /** Everything off — the base every case overrides from. */
 const NONE: MessageActionContext = {
+    canReact: false,
+    canReply: false,
+    canForward: false,
+    canCopyText: false,
     canEdit: false,
     thread: null,
     canPin: false,
@@ -25,7 +29,7 @@ describe("messageActionsMenu", () => {
         expect(messageActionsMenu(NONE)).toEqual([]);
     });
 
-    it("own editable message: edit goes inline, thread moves to the sheet", () => {
+    it("own editable message offers edit and thread as full rows", () => {
         expect(
             keys({
                 ...NONE,
@@ -34,21 +38,32 @@ describe("messageActionsMenu", () => {
                 hasLink: true,
                 canDelete: true,
             }),
-        ).toEqual(["thread", "copy-link", "delete"]);
+        ).toEqual(["thread", "edit", "copy-link", "delete"]);
     });
 
-    it("thread stays inline when the message is not editable", () => {
-        expect(keys({ ...NONE, thread: "reply", hasLink: true })).toEqual([
-            "copy-link",
+    it("lists the everyday actions with their full names", () => {
+        expect(
+            messageActionsMenu({
+                ...NONE,
+                canReact: true,
+                canReply: true,
+                canForward: true,
+                canCopyText: true,
+            }),
+        ).toEqual([
+            { key: "react", label: "Add reaction" },
+            { key: "reply", label: "Reply" },
+            { key: "forward", label: "Forward message" },
+            { key: "copy-text", label: "Copy message text" },
         ]);
     });
 
     it("thread row label reflects open vs reply", () => {
         expect(
-            messageActionsMenu({ ...NONE, canEdit: true, thread: "open" })[0],
+            messageActionsMenu({ ...NONE, thread: "open" })[0],
         ).toMatchObject({ key: "thread", label: "Open thread" });
         expect(
-            messageActionsMenu({ ...NONE, canEdit: true, thread: "reply" })[0],
+            messageActionsMenu({ ...NONE, thread: "reply" })[0],
         ).toMatchObject({ key: "thread", label: "Reply in thread" });
     });
 
@@ -67,6 +82,10 @@ describe("messageActionsMenu", () => {
         // Everything on at once (not a real message, but proves ordering).
         expect(
             keys({
+                canReact: true,
+                canReply: true,
+                canForward: true,
+                canCopyText: true,
                 canEdit: true,
                 thread: "reply",
                 canPin: true,
@@ -78,7 +97,12 @@ describe("messageActionsMenu", () => {
                 canDelete: true,
             }),
         ).toEqual([
+            "react",
+            "reply",
             "thread",
+            "forward",
+            "edit",
+            "copy-text",
             "pin",
             "copy-link",
             "view-source",
