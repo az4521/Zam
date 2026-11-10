@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.56.1
+
+✨ **New**
+
+- **View source:** every message now has a View source action (the `</>` button on desktop, or the long-press menu on touch). It shows the event's JSON with a copy button. Encrypted messages show the decrypted event and the original encrypted one.
+- **Link previews in captions:** links in the caption of an image, video or file now get previews, like links in a normal message.
+
+🐛 **Fixed**
+
+- **GIFs sent as WebP couldn't be starred:** with "Send GIFs as animated WebP" on, sent GIFs had no star button. WebP images can now be favourited from the message and the image viewer.
+- **Favourite GIFs sent as "favourite.gif":** a favourite now keeps its original file name and is sent under it, with the extension matched to the file. This covers favourites from encrypted rooms and uploads you star from now on in unencrypted rooms.
+
 ## v1.56.0
 
 ✨ **New**
