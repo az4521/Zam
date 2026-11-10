@@ -6,6 +6,7 @@ import {
     onSyncPrepared,
     type FavouriteGif,
 } from "$lib/matrix/client";
+import { matrixMediaMxc } from "$lib/matrix/favouriteFile";
 import { safeDimension } from "$lib/utils/mediaDimensions";
 
 export type { FavouriteGif };
@@ -143,6 +144,50 @@ export function upgradeFavouriteGifs(
 
 export function removeFavouriteGif(url: string): Promise<void> {
     return mutate((gifs) => gifs.filter((g) => g.url !== url));
+}
+
+/** Record the media `mxc` an encrypted favourite holds, for favourites starred
+ *  before `mxc` was stored. Idempotent: a favourite that is gone or already
+ *  has it is left alone. */
+export function setFavouriteGifMxc(url: string, mxc: string): Promise<void> {
+    const current = favouritesState.gifs.find((g) => g.url === url);
+    if (!current || current.mxc === mxc) return Promise.resolve();
+    return mutate((gifs) =>
+        gifs.some((g) => g.url === url && g.mxc !== mxc)
+            ? gifs.map((g) => (g.url === url ? { ...g, mxc } : g))
+            : gifs,
+    );
+}
+
+/** Index of the favourites by the media they hold, rebuilt whenever the list
+ *  is replaced. The list is never mutated in place, so its identity is enough
+ *  to tell whether the index is stale. */
+let mxcIndex: { gifs: FavouriteGif[]; urls: Map<string, string> } | null = null;
+
+/**
+ * The URL of the favourite holding the media `mxc`, so a message whose media
+ * is one already starred shows as starred. An encrypted favourite matches on
+ * its stored `mxc`; a plain one on the media its URL names. Reads the list
+ * reactively, so callers in templates and $derived update with it.
+ */
+export function favouriteUrlForMxc(mxc: string): string | undefined {
+    const gifs = favouritesState.gifs;
+    if (mxcIndex?.gifs !== gifs) {
+        const urls = new Map<string, string>();
+        for (const g of gifs) {
+            // Account data is untrusted: only strings can be media ids. The
+            // first favourite in list order wins on a clash.
+            const fromUrl =
+                typeof g.url === "string" ? matrixMediaMxc(g.url) : null;
+            for (const id of [g.mxc, fromUrl]) {
+                if (typeof id === "string" && !urls.has(id)) {
+                    urls.set(id, g.url);
+                }
+            }
+        }
+        mxcIndex = { gifs, urls };
+    }
+    return mxcIndex.urls.get(mxc);
 }
 
 // Call once on app mount. Returns a cleanup function.

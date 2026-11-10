@@ -8,6 +8,7 @@ import { settingsState } from "$lib/stores/settings.svelte";
 import { faststartMp4 } from "$lib/utils/mp4Faststart";
 import { progressiveJpegForUpload } from "$lib/utils/progressiveJpegUpload";
 import { stripLocationMetadata } from "$lib/utils/stripMetadata";
+import type { ReusableMedia } from "$lib/matrix/favouriteFile";
 import { withRandomFileName } from "$lib/utils/randomFileName";
 import { gifToAnimatedWebp } from "$lib/utils/gifToWebp";
 import { isMidiAttachment, midiSendMimetype } from "$lib/utils/midi";
@@ -204,6 +205,39 @@ export async function uploadAttachment(
     }
 }
 
+/**
+ * The event content for a media send, shared by an upload and a reused media.
+ * MSC2530 captions: with a caption, `filename` carries the original file name
+ * and `body` (plus optional formatted_body) carries the caption text, rendered
+ * as a message alongside the media. Without one, `body` is just the file name
+ * and no `filename` is sent.
+ */
+function mediaEventContent(
+    msgtype: string,
+    name: string,
+    attached: UploadedAttachment,
+    info: Record<string, unknown>,
+    caption: MediaCaption | undefined,
+): Record<string, unknown> {
+    const content: Record<string, unknown> = {
+        msgtype,
+        body: caption ? caption.body : name,
+        ...attached, // { url } or { file } — never both
+        info,
+        // Always present (spec recommendation): an m.mentions key — even empty —
+        // disables the legacy body-scan push rules on the receiving server.
+        "m.mentions": caption?.mentions ?? {},
+    };
+    if (caption) {
+        content.filename = name;
+        if (caption.formattedBody) {
+            content.format = "org.matrix.custom.html";
+            content.formatted_body = caption.formattedBody;
+        }
+    }
+    return content;
+}
+
 export async function sendFile(
     roomId: string,
     file: File,
@@ -348,26 +382,13 @@ export async function sendFile(
         }
     }
 
-    // MSC2530 media captions: when a caption is supplied, `filename` carries the
-    // original file name and `body` (plus optional formatted_body) carries the
-    // caption text — rendered as a message alongside the media. Without a
-    // caption, `body` is just the file name and no `filename` is sent.
-    const content: Record<string, unknown> = {
+    const content = mediaEventContent(
         msgtype,
-        body: caption ? caption.body : toUpload.name,
-        ...uploadResult, // { url } or { file } — never both
+        toUpload.name,
+        uploadResult,
         info,
-        // Always present (spec recommendation): an m.mentions key — even empty —
-        // disables the legacy body-scan push rules on the receiving server.
-        "m.mentions": caption?.mentions ?? {},
-    };
-    if (caption) {
-        content.filename = toUpload.name;
-        if (caption.formattedBody) {
-            content.format = "org.matrix.custom.html";
-            content.formatted_body = caption.formattedBody;
-        }
-    }
+        caption,
+    );
 
     const finalContent = relationFor(roomId, content, relation);
     const outgoing = transformContent
@@ -375,6 +396,52 @@ export async function sendFile(
         : finalContent;
     if (beforeSend) await beforeSend();
     await ownedClientOrThrow(owner).sendMessage(roomId, outgoing as never);
+}
+
+/**
+ * Send a file whose media is already on the server (a favourite starred from an
+ * earlier message) by pointing a new `m.image` event at it, with no upload.
+ * Resolves false, having sent nothing, when that can't be done safely: the
+ * key of encrypted media sits in the event itself, so it may only go into an
+ * encrypted room. The caller then uploads the bytes instead.
+ */
+export async function sendExistingMedia(
+    roomId: string,
+    media: ReusableMedia,
+    name: string,
+    caption?: MediaCaption,
+    relation?: MediaRelation,
+    transformContent?: (
+        content: Record<string, unknown>,
+    ) => Record<string, unknown>,
+    beforeSend?: () => Promise<void>,
+): Promise<boolean> {
+    const owner = captureClient();
+    const attached: UploadedAttachment | null = media.file
+        ? { file: media.file }
+        : media.url
+          ? { url: media.url }
+          : null;
+    if (!attached) return false;
+    if ("file" in attached && !(await isRoomEncryptedForSend(roomId))) {
+        return false;
+    }
+    ownedClientOrThrow(owner);
+
+    const content = mediaEventContent(
+        "m.image",
+        name,
+        attached,
+        { ...media.info },
+        caption,
+    );
+    const finalContent = relationFor(roomId, content, relation);
+    const outgoing = transformContent
+        ? transformContent(finalContent)
+        : finalContent;
+    if (beforeSend) await beforeSend();
+    await ownedClientOrThrow(owner).sendMessage(roomId, outgoing as never);
+    return true;
 }
 
 /**

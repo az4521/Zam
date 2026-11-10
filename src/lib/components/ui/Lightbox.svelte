@@ -20,6 +20,9 @@
             previewUrl: string;
             /** Pointer to the message, for an encrypted gif (see favouriteFile.ts). */
             source?: { roomId: string; eventId: string };
+            /** The image's media mxc: a favourite holding that media counts as
+             *  this one, and an encrypted gif is saved with it. */
+            mxc?: string;
         };
         /** Gallery navigation. When supplied, a chevron and the matching arrow
          *  key step to the neighbouring item; omit at the ends of the list. */
@@ -59,6 +62,7 @@
         addFavouriteGif,
         removeFavouriteGif,
         favouriteSize,
+        favouriteUrlForMxc,
     } from "$lib/stores/favourites.svelte";
     import {
         fetchAttachmentBlob,
@@ -119,16 +123,24 @@
         isVideo ? t("lightbox.videoNoun") : t("lightbox.imageNoun"),
     );
 
+    /** The favourite this image is saved as, by its URL or else by its media,
+     *  or undefined. Reads favouritesState, so callers stay reactive. */
+    function savedFavouriteUrl(f: NonNullable<typeof favourite>) {
+        if (isFavouriteGif(f.url)) return f.url;
+        return f.mxc ? favouriteUrlForMxc(f.mxc) : undefined;
+    }
+
     // Reactively tracks favourite state (reads favouritesState.gifs $state).
     const favourited = $derived(
-        favourite ? isFavouriteGif(favourite.url) : false,
+        favourite ? savedFavouriteUrl(favourite) !== undefined : false,
     );
 
     function toggleFavourite(e: MouseEvent) {
         e.stopPropagation();
         if (!favourite) return;
-        if (isFavouriteGif(favourite.url)) {
-            removeFavouriteGif(favourite.url);
+        const saved = savedFavouriteUrl(favourite);
+        if (saved !== undefined) {
+            removeFavouriteGif(saved);
         } else {
             // The loaded file's own size, else the size it was sent with.
             const natural =
@@ -139,6 +151,11 @@
                 url: favourite.url,
                 previewUrl: favourite.previewUrl,
                 source: favourite.source,
+                // Only an encrypted gif is stored with its mxc: a plain one
+                // already matches through the media its URL names.
+                ...(favourite.source && favourite.mxc
+                    ? { mxc: favourite.mxc }
+                    : {}),
                 ...(natural.width ? natural : favouriteSize(dims?.w, dims?.h)),
             });
         }

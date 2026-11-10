@@ -11,6 +11,8 @@
 // The store owns object-URL revocation: every path that drops an item goes
 // through here, so a preview URL can't be leaked by a caller that forgets.
 
+import type { ReusableMedia } from "$lib/matrix/favouriteFile";
+
 export type QueuedFile = {
     /** Stable identity so a batch send can commit items one at a time. */
     id: string;
@@ -20,6 +22,9 @@ export type QueuedFile = {
     previewUrl: string | null;
     /** Sent as a direct file offer (matrix/fileTransfer) instead of uploaded. */
     direct: boolean;
+    /** Media already on the server (a starred GIF): sent by reference, not
+     *  re-uploaded. Kept across rename, since the bytes don't change. */
+    reuse?: ReusableMedia;
 };
 
 const queueState = $state<{ queues: Record<string, QueuedFile[]> }>({
@@ -52,6 +57,7 @@ export function addQueuedFile(
     name: string,
     previewUrl: string | null,
     direct = false,
+    reuse?: ReusableMedia,
 ): QueuedFile {
     const item: QueuedFile = {
         id: `q${++nextId}`,
@@ -59,6 +65,7 @@ export function addQueuedFile(
         name,
         previewUrl,
         direct,
+        reuse,
     };
     // Replace the record (not just the nested array) so a $derived that reads
     // getFileQueue re-runs even for a room that had no entry before.

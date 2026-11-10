@@ -408,6 +408,7 @@ export {
     getMediaUploadSizeLimit,
     uploadAttachment,
     sendFile,
+    sendExistingMedia,
     sendVoiceMessage,
     mxcToHttp,
     fetchAttachmentBlob,
@@ -1668,6 +1669,10 @@ export interface FavouriteGif {
      *  key (see favouriteFile.ts) and the GIF is read from this message.
      *  Untrusted on read; validate with parseEventFavouriteSource. */
     source?: { roomId: string; eventId: string };
+    /** The media's mxc, set for an encrypted GIF when starred, so a message
+     *  that reuses that media matches this favourite. Untrusted on read:
+     *  compared as a string only. */
+    mxc?: string;
     tags?: string[];
     /** Natural size of the GIF, when known at the time it was starred. Lets
      *  the picker reserve the tile before the preview loads. Untrusted on

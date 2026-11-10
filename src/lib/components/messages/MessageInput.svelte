@@ -8,6 +8,7 @@
         sendFormattedMessage,
         sendSticker,
         sendFile,
+        sendExistingMedia,
         getMediaUploadSizeLimit,
         getMemberName,
         getMemberAvatar,
@@ -34,7 +35,10 @@
         sendThreadReply,
         type CustomEmoji,
         type CustomSticker,
+        type MediaCaption,
+        type MediaRelation,
     } from "$lib/matrix/client";
+    import { reusableMediaOfFile } from "$lib/matrix/favouriteFile";
     import { sendEventContent } from "$lib/matrix/pluginHost";
     import { composerThreadKey } from "$lib/utils/threadContent";
     import {
@@ -1271,6 +1275,44 @@
     let heldUnknown: { text: string; key: string; toastId: number } | null =
         null;
 
+    // Sends one queued file as media. A starred GIF re-uses its existing media
+    // instead of uploading the bytes again; when the room can't take that media
+    // (an encrypted one in a plaintext room) the bytes are uploaded as usual.
+    async function sendQueuedMedia(
+        item: QueuedFile,
+        roomId: string,
+        caption: MediaCaption | undefined,
+        relation: MediaRelation | undefined,
+        transform:
+            | ((c: Record<string, unknown>) => Record<string, unknown>)
+            | undefined,
+        onProgress: ((loaded: number, total: number) => void) | undefined,
+        ready: () => Promise<void>,
+    ): Promise<void> {
+        if (
+            item.reuse &&
+            (await sendExistingMedia(
+                roomId,
+                item.reuse,
+                item.name,
+                caption,
+                relation,
+                transform,
+                ready,
+            ))
+        )
+            return;
+        await sendFile(
+            roomId,
+            item.file,
+            caption,
+            relation,
+            transform,
+            onProgress,
+            ready,
+        );
+    }
+
     async function send() {
         // `s/old/new/` edits the last message instead of sending one. Not with
         // files queued: then the text is a caption.
@@ -1550,9 +1592,9 @@
                         );
                     if (useCaption && i === 0 && formatted) {
                         const { html } = formatted;
-                        return sendFile(
+                        return sendQueuedMedia(
+                            item,
                             targetRoomId,
-                            item.file,
                             {
                                 body: trimmed,
                                 formattedBody: html ?? undefined,
@@ -1564,9 +1606,9 @@
                             ready,
                         );
                     }
-                    return sendFile(
+                    return sendQueuedMedia(
+                        item,
                         targetRoomId,
-                        item.file,
                         undefined,
                         fileRelation(i),
                         undefined,
@@ -1622,6 +1664,7 @@
                     item.name,
                     previewUrlFor(item.file),
                     item.direct,
+                    item.reuse,
                 );
             }
         } finally {
@@ -1840,7 +1883,14 @@
 
     function enqueueFile(file: File, defaultName?: string, direct = false) {
         const name = file.name || defaultName || "file";
-        addQueuedFile(effComposerKey, file, name, previewUrlFor(file), direct);
+        addQueuedFile(
+            effComposerKey,
+            file,
+            name,
+            previewUrlFor(file),
+            direct,
+            reusableMediaOfFile(file),
+        );
         // Look up the upload size limit now, while the user is still writing,
         // so its round trip isn't added to the send (slow links: Tor).
         void getMediaUploadSizeLimit();

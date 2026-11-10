@@ -203,7 +203,9 @@
         removeFavouriteGif,
         favouriteSize,
         favouritesState,
+        favouriteUrlForMxc,
     } from "$lib/stores/favourites.svelte";
+    import { parseMxc } from "$lib/utils/mxcUri";
     import {
         interfaceState,
         openModal,
@@ -1840,15 +1842,37 @@
         roomId: room.roomId,
         eventId,
     });
+    /** An mxc URI from event content, or undefined. */
+    function validMxc(value: unknown): string | undefined {
+        return typeof value === "string" && parseMxc(value) ? value : undefined;
+    }
+
+    // The media's mxc, whichever kind of image this is. A message that reuses
+    // a starred GIF's media carries the same mxc, so it matches that favourite.
+    const encryptedMxc = $derived(
+        validMxc((content?.file as { url?: unknown } | undefined)?.url),
+    );
+    const imageMediaMxc = $derived(validMxc(content?.url) ?? encryptedMxc);
     const imageIsFavourited = $derived.by(() => {
         favouritesState.gifs; // track
         const src =
             imageFullUrl() ?? eventFavouriteKey(encryptedFavouriteSource);
-        return !!src && isFavouriteGif(src);
+        if (!!src && isFavouriteGif(src)) return true;
+        return (
+            !!imageMediaMxc && favouriteUrlForMxc(imageMediaMxc) !== undefined
+        );
     });
 
     function toggleImageFavourite(e: MouseEvent) {
         e.stopPropagation();
+        // Remove the favourite of this media first, whichever message starred it.
+        const byMedia = imageMediaMxc
+            ? favouriteUrlForMxc(imageMediaMxc)
+            : undefined;
+        if (byMedia !== undefined) {
+            removeFavouriteGif(byMedia);
+            return;
+        }
         const full = imageFullUrl();
         if (!full) {
             const key = eventFavouriteKey(encryptedFavouriteSource);
@@ -1858,6 +1882,7 @@
                     url: key,
                     previewUrl: key,
                     source: encryptedFavouriteSource,
+                    ...(encryptedMxc ? { mxc: encryptedMxc } : {}),
                     ...favouriteSize(imgInfoW, imgInfoH),
                 });
             return;
@@ -3035,9 +3060,14 @@
                                         encryptedFavouriteSource,
                                     ),
                                     source: encryptedFavouriteSource,
+                                    mxc: encryptedMxc,
                                 }
                               : full
-                                ? { url: full, previewUrl: thumb ?? full }
+                                ? {
+                                      url: full,
+                                      previewUrl: thumb ?? full,
+                                      mxc: imageMediaMxc,
+                                  }
                                 : undefined}
                         onClose={() => (imageLightboxOpen = false)}
                     />

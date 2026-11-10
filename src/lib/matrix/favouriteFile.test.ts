@@ -22,10 +22,14 @@ vi.mock("$lib/matrix/media", () => ({
     },
 }));
 
+import { fetchSingleEvent } from "$lib/matrix/client";
+import { fetchDecryptedAttachmentBlob } from "$lib/matrix/media";
 import {
+    eventFavouriteFile,
     isMatrixMediaUrl,
     matrixMediaMxc,
     mediaUrlFavouriteFile,
+    reusableMediaOfFile,
 } from "./favouriteFile";
 
 const HS_MEDIA =
@@ -165,5 +169,206 @@ describe("mediaUrlFavouriteFile", () => {
             await mediaUrlFavouriteFile("https://klipy.com/gifs/cat"),
         ).toBeNull();
         expect(fetchAttachmentBlob).not.toHaveBeenCalled();
+    });
+});
+
+describe("mediaUrlFavouriteFile reuse", () => {
+    beforeEach(() => {
+        fetchAttachmentBlob.mockReset();
+        fetchAttachmentBlob.mockResolvedValue("blob:reuse");
+        (URL as unknown as { revokeObjectURL: unknown }).revokeObjectURL =
+            vi.fn();
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    const serveBlob = (blob: Blob) =>
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => ({ blob: async () => blob })),
+        );
+
+    it("keeps the media's mxc, the bytes' type and the stored size", async () => {
+        serveBlob(new Blob(["png"], { type: "image/png" }));
+
+        const file = await mediaUrlFavouriteFile(HS_MEDIA, 480, 270);
+
+        expect(reusableMediaOfFile(file!)).toEqual({
+            url: "mxc://hs.example/AbC123",
+            info: { mimetype: "image/png", size: 3, w: 480, h: 270 },
+        });
+    });
+
+    it("drops a stored size unless both sides are usable", async () => {
+        serveBlob(new Blob(["gif"], { type: "image/gif" }));
+
+        const file = await mediaUrlFavouriteFile(HS_MEDIA, "wide", 270);
+
+        expect(reusableMediaOfFile(file!)?.info).toEqual({
+            mimetype: "image/gif",
+            size: 3,
+        });
+    });
+
+    it("reuses nothing for bytes that are not an image", async () => {
+        serveBlob(new Blob(["x"]));
+
+        const file = await mediaUrlFavouriteFile(HS_MEDIA, 480, 270);
+
+        expect(file).not.toBeNull();
+        expect(reusableMediaOfFile(file!)).toBeUndefined();
+    });
+});
+
+describe("eventFavouriteFile reuse", () => {
+    // Each test uses its own event id: resolved events are cached per id.
+    const source = (eventId: string) => ({
+        roomId: "!room:hs.example",
+        eventId,
+    });
+    const cleanFile = {
+        url: "mxc://hs.example/Enc123",
+        key: { kty: "oct", alg: "A256CTR", k: "KEYBYTES", ext: true },
+        iv: "IVBYTES",
+        hashes: { sha256: "HASH" },
+        v: "v2",
+    };
+    const goodInfo = {
+        mimetype: "image/png",
+        size: 99,
+        w: 40,
+        h: 30,
+        thumbnail_file: { ...cleanFile, url: "mxc://hs.example/Thumb1" },
+        thumbnail_info: { mimetype: "image/jpeg", w: 20, h: 15, size: 5 },
+    };
+
+    beforeEach(() => {
+        vi.mocked(fetchDecryptedAttachmentBlob).mockResolvedValue("blob:event");
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => ({
+                blob: async () => new Blob(["png"], { type: "image/png" }),
+            })),
+        );
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    const givenEvent = (eventId: string, content: unknown) =>
+        vi
+            .mocked(fetchSingleEvent)
+            .mockResolvedValueOnce({ getContent: () => content } as never);
+
+    it("keeps the event's encrypted media for reuse", async () => {
+        givenEvent("$good", {
+            msgtype: "m.image",
+            file: cleanFile,
+            info: goodInfo,
+        });
+
+        const file = await eventFavouriteFile(source("$good"));
+
+        expect(reusableMediaOfFile(file!)).toEqual({
+            file: cleanFile,
+            info: {
+                mimetype: "image/png",
+                size: 99,
+                w: 40,
+                h: 30,
+                thumbnail_file: {
+                    ...cleanFile,
+                    url: "mxc://hs.example/Thumb1",
+                },
+                thumbnail_info: {
+                    mimetype: "image/jpeg",
+                    w: 20,
+                    h: 15,
+                    size: 5,
+                },
+            },
+        });
+    });
+
+    it("copies only the fields a decryption needs", async () => {
+        givenEvent("$extra", {
+            file: {
+                ...cleanFile,
+                key: { ...cleanFile.key, key_ops: ["decrypt"], evil: "x" },
+                extra: "x",
+            },
+            info: goodInfo,
+        });
+
+        const file = await eventFavouriteFile(source("$extra"));
+
+        const reuse = reusableMediaOfFile(file!);
+        expect(reuse?.file).toEqual(cleanFile);
+        expect(reuse?.file?.key).not.toHaveProperty("key_ops");
+    });
+
+    it("keeps only the usable parts of a malformed info", async () => {
+        givenEvent("$badinfo", {
+            file: cleanFile,
+            info: {
+                mimetype: "image/png",
+                size: "99",
+                w: -4,
+                h: 30,
+                thumbnail_file: "nope",
+                thumbnail_info: ["nope"],
+            },
+        });
+
+        const file = await eventFavouriteFile(source("$badinfo"));
+
+        expect(reusableMediaOfFile(file!)).toEqual({
+            file: cleanFile,
+            info: { mimetype: "image/png", h: 30 },
+        });
+    });
+
+    it("reuses nothing when the file's url is not an mxc", async () => {
+        givenEvent("$badurl", {
+            file: { ...cleanFile, url: "https://evil.example/x" },
+            info: goodInfo,
+        });
+
+        const file = await eventFavouriteFile(source("$badurl"));
+
+        expect(file).not.toBeNull();
+        expect(reusableMediaOfFile(file!)).toBeUndefined();
+    });
+
+    it("reuses nothing when the decryption key or iv is missing", async () => {
+        givenEvent("$nokey", {
+            file: { ...cleanFile, key: { alg: "A256CTR" } },
+            info: goodInfo,
+        });
+        givenEvent("$noiv", {
+            file: { ...cleanFile, iv: undefined },
+            info: goodInfo,
+        });
+
+        expect(
+            reusableMediaOfFile((await eventFavouriteFile(source("$nokey")))!),
+        ).toBeUndefined();
+        expect(
+            reusableMediaOfFile((await eventFavouriteFile(source("$noiv")))!),
+        ).toBeUndefined();
+    });
+
+    it("reuses nothing for media that is not an image", async () => {
+        givenEvent("$video", {
+            file: cleanFile,
+            info: { ...goodInfo, mimetype: "video/mp4" },
+        });
+
+        const file = await eventFavouriteFile(source("$video"));
+
+        expect(reusableMediaOfFile(file!)).toBeUndefined();
     });
 });
