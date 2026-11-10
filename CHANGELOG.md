@@ -4,6 +4,19 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.57.0
+
+✨ **New**
+
+- **Long-press opens the full message menu:** holding a message on touch now opens a sheet with every action by its full name (react, reply, thread, forward, edit, copy, pin, copy link, view source, report, delete). The message text is shown large at the top so you can select part of it.
+- **Copy message text:** a new action that copies a message's text.
+- **Read receipts per room and space:** your read receipt setting is now a default that any room or space can override from its Notifications settings, so you can hide receipts in big rooms and keep them in small ones. A space's choice covers its rooms. Hidden receipts are still private receipts, so your unread state keeps syncing. Notification Mark as read actions follow it too.
+- **Message actions in the desktop right-click menu:** right-clicking a message now offers the same actions.
+
+🔧 **Improved**
+
+- **Bigger touch targets:** the message action bar buttons and the sheet's confirm buttons are now 44px tall on touch.
+
 ## v1.56.2
 
 ✨ **New**
