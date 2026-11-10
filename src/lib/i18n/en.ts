@@ -3524,6 +3524,23 @@ export const en = {
     "messageActionsMenu.pin": "Pin",
     "messageActionsMenu.copyLink": "Copy link",
     "messageActionsMenu.report": "Report",
+    "roomSettings.readReceipts": "Read receipts",
+    "roomSettings.readReceiptsRoomHelp":
+        "Choose whether other members can see which messages you've read in this room.",
+    "roomSettings.readReceiptsSpaceHelp":
+        "Choose whether other members can see which messages you've read in this space and its rooms. A room's own choice takes priority.",
+    "roomSettings.readReceiptsDefaultShare":
+        "Follows your privacy settings, currently shared with others",
+    "roomSettings.readReceiptsDefaultHide":
+        "Follows your privacy settings, currently hidden from others",
+    "roomSettings.readReceiptsShare": "Share my read receipts",
+    "roomSettings.readReceiptsShareDesc":
+        "Others can see which messages you've read.",
+    "roomSettings.readReceiptsHide": "Hide my read receipts",
+    "roomSettings.readReceiptsHideDesc":
+        "Your unread state still syncs, but others can't see what you've read.",
+    "privacySafetySettings.receiptsOverrideHint":
+        "Rooms and spaces can override this in their Notifications settings.",
     "messageActionsMenu.copyText": "Copy message text",
     "messageActionsMenu.textCopied": "Message text copied",
     "messageActionsMenu.couldnTCopyText": "Couldn't copy the message text",

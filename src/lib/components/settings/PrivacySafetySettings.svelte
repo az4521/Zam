@@ -14,14 +14,11 @@
     import type { LinkPreviewMedia } from "$lib/utils/linkPreviewPolicy";
     import {
         updateServiceWorkerNotificationPrivacy,
-        updateServiceWorkerReceiptPrivacy,
         startEventIndex,
         deleteEventIndex,
     } from "$lib/matrix/client";
-    import {
-        syncNativeNotificationPrivacy,
-        syncNativeReceiptPrivacy,
-    } from "$lib/nativeSession";
+    import { syncNativeNotificationPrivacy } from "$lib/nativeSession";
+    import { mirrorReceiptPrivacy } from "$lib/receiptPrivacySync";
     import { auth } from "$lib/stores/auth.svelte";
 
     const linkPreviewOptions: Array<{
@@ -67,10 +64,7 @@
         setPrivateReadReceipts(value);
         // The service worker and the Android notification actions each keep
         // their own copy for quick mark-read.
-        if (auth.userId) {
-            updateServiceWorkerReceiptPrivacy(auth.userId, value);
-            syncNativeReceiptPrivacy(auth.userId, value).catch(() => {});
-        }
+        mirrorReceiptPrivacy();
     }
 </script>
 
@@ -90,6 +84,7 @@
                 </p>
                 <p class="text-xs text-discord-textMuted">
                     {t("privacySafetySettings.hideYourReadReceiptsFromOther")}
+                    {t("privacySafetySettings.receiptsOverrideHint")}
                 </p>
             </div>
             <ToggleSwitch

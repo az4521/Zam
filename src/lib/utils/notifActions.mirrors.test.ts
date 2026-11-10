@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
     swReceiptTypeFor,
+    parseReceiptRoomPrivacy,
     ringNotificationTag,
     messageNotificationTag,
     roomNotificationTags,
@@ -16,6 +17,8 @@ import {
 import {
     RECEIPT_TYPE_CASES,
     SW_RECEIPT_TYPE_CASES,
+    SW_RECEIPT_ROOM_CASES,
+    RECEIPT_ROOM_PARSE_CASES,
     RING_DISMISS_CASES,
 } from "./notifActions.test";
 
@@ -42,6 +45,7 @@ const mirrored = new Function(
     return {
         buildReadReceiptPath,
         swReceiptTypeFor,
+        parseReceiptRoomPrivacy,
         ringNotificationTag,
         messageNotificationTag,
         roomNotificationTags,
@@ -59,7 +63,10 @@ const mirrored = new Function(
     swReceiptTypeFor: (
         privacyByUser: Record<string, boolean> | null | undefined,
         userId: string | null | undefined,
+        roomId?: string | null,
+        roomPrivacy?: Record<string, boolean> | null,
     ) => string;
+    parseReceiptRoomPrivacy: (raw: unknown) => Record<string, boolean>;
     ringNotificationTag: (roomId: string) => string;
     messageNotificationTag: (roomId: string) => string;
     roomNotificationTags: (roomId: string) => string[];
@@ -107,6 +114,28 @@ describe("static/sw.js mirrors notifActions.ts", () => {
             expect(mirrored.swReceiptTypeFor(c.privacyByUser, c.userId)).toBe(
                 c.expected,
             );
+        });
+    }
+
+    for (const c of SW_RECEIPT_ROOM_CASES) {
+        it(`swReceiptTypeFor per-room: ${c.name}`, () => {
+            expect(
+                mirrored.swReceiptTypeFor(
+                    c.privacyByUser,
+                    c.userId,
+                    c.roomId,
+                    c.roomPrivacy,
+                ),
+            ).toBe(c.expected);
+        });
+    }
+
+    for (const c of RECEIPT_ROOM_PARSE_CASES) {
+        it(`parseReceiptRoomPrivacy: ${c.name}`, () => {
+            expect(mirrored.parseReceiptRoomPrivacy(c.raw)).toEqual(
+                parseReceiptRoomPrivacy(c.raw),
+            );
+            expect(mirrored.parseReceiptRoomPrivacy(c.raw)).toEqual(c.expected);
         });
     }
 

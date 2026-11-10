@@ -3873,6 +3873,22 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageActionsMenu.textCopied": "消息文本已复制",
     "messageActionsMenu.couldnTCopyText": "无法复制消息文本",
     "messageActionsMenu.selectHint": "按住文本可选择部分内容",
+    "roomSettings.readReceipts": "已读回执",
+    "roomSettings.readReceiptsRoomHelp":
+        "选择其他成员能否看到你在此房间中已读的消息。",
+    "roomSettings.readReceiptsSpaceHelp":
+        "选择其他成员能否看到你在此空间及其房间中已读的消息。房间自身的设置优先。",
+    "roomSettings.readReceiptsDefaultShare":
+        "跟随你的隐私设置，当前对其他人可见",
+    "roomSettings.readReceiptsDefaultHide":
+        "跟随你的隐私设置，当前对其他人隐藏",
+    "roomSettings.readReceiptsShare": "共享我的已读回执",
+    "roomSettings.readReceiptsShareDesc": "其他人可以看到你已读的消息。",
+    "roomSettings.readReceiptsHide": "隐藏我的已读回执",
+    "roomSettings.readReceiptsHideDesc":
+        "你的未读状态仍会同步，但其他人无法看到你已读到哪里。",
+    "privacySafetySettings.receiptsOverrideHint":
+        "房间和空间可以在其通知设置中覆盖此设置。",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: zhCN };

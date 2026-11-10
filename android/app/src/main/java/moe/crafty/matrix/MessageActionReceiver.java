@@ -35,9 +35,11 @@ public class MessageActionReceiver extends BroadcastReceiver {
 
     // The account's "private read receipts" setting, mirrored by
     // syncNativeReceiptPrivacy() in src/lib/nativeSession.ts as
-    // {"userId": ..., "private": bool}. Missing, malformed or for another
-    // account → private (fail closed: never reveal a read the user may
-    // have chosen to hide).
+    // {"userId": ..., "private": bool, "rooms": {roomId: bool}}. "rooms" is
+    // optional: a per-room override (true = private) for rooms whose effective
+    // value differs from the account default; a room not listed uses "private".
+    // Missing, malformed or for another account → private (fail closed: never
+    // reveal a read the user may have chosen to hide).
     static final String KEY_RECEIPT_PRIVACY = "matrix_receipt_privacy";
 
     private static final int TIMEOUT_MS = 8000;
@@ -95,16 +97,22 @@ public class MessageActionReceiver extends BroadcastReceiver {
 
         JSONObject body = new JSONObject();
         body.put("m.fully_read", target);
-        body.put(receiptsPrivate(prefs, session.userId) ? "m.read.private" : "m.read", target);
+        body.put(receiptsPrivate(prefs, session.userId, roomId) ? "m.read.private" : "m.read", target);
         request("POST", base + "/read_markers", session.accessToken, body.toString());
     }
 
-    private static boolean receiptsPrivate(SharedPreferences prefs, String userId) {
+    private static boolean receiptsPrivate(SharedPreferences prefs, String userId, String roomId) {
         try {
             String raw = prefs.getString(KEY_RECEIPT_PRIVACY, null);
             if (raw == null) return true;
             JSONObject o = new JSONObject(raw);
             if (!userId.equals(o.opt("userId"))) return true;
+            // Per-room override first; a non-boolean entry is ignored.
+            JSONObject rooms = o.optJSONObject("rooms");
+            if (rooms != null && roomId != null) {
+                Object roomPriv = rooms.opt(roomId);
+                if (roomPriv instanceof Boolean) return (Boolean) roomPriv;
+            }
             Object priv = o.opt("private");
             return !(priv instanceof Boolean) || (Boolean) priv;
         } catch (Throwable t) {

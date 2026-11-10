@@ -4278,6 +4278,23 @@ const messages: Partial<Record<MessageKey, string>> = {
         "No se pudo copiar el texto del mensaje",
     "messageActionsMenu.selectHint":
         "Mantén pulsado el texto para seleccionar una parte",
+    "roomSettings.readReceipts": "Confirmaciones de lectura",
+    "roomSettings.readReceiptsRoomHelp":
+        "Elige si otros miembros pueden ver qué mensajes has leído en esta sala.",
+    "roomSettings.readReceiptsSpaceHelp":
+        "Elige si otros miembros pueden ver qué mensajes has leído en este espacio y sus salas. La elección propia de una sala tiene prioridad.",
+    "roomSettings.readReceiptsDefaultShare":
+        "Según tus ajustes de privacidad, actualmente compartidas con otros",
+    "roomSettings.readReceiptsDefaultHide":
+        "Según tus ajustes de privacidad, actualmente ocultas a otros",
+    "roomSettings.readReceiptsShare": "Compartir mis confirmaciones de lectura",
+    "roomSettings.readReceiptsShareDesc":
+        "Otros pueden ver qué mensajes has leído.",
+    "roomSettings.readReceiptsHide": "Ocultar mis confirmaciones de lectura",
+    "roomSettings.readReceiptsHideDesc":
+        "Tu estado de no leídos sigue sincronizándose, pero otros no pueden ver lo que has leído.",
+    "privacySafetySettings.receiptsOverrideHint":
+        "Las salas y los espacios pueden anular esto en sus ajustes de notificaciones.",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: es };

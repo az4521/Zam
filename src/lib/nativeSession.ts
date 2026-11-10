@@ -177,12 +177,13 @@ export async function syncNativeRingEnabled(enabled: boolean): Promise<void> {
 export async function syncNativeReceiptPrivacy(
     userId: string,
     isPrivate: boolean,
+    rooms: Record<string, boolean> = {},
 ): Promise<void> {
     if (!Capacitor.isNativePlatform()) return;
     try {
         await Preferences.set({
             key: KEY_RECEIPT_PRIVACY,
-            value: JSON.stringify({ userId, private: isPrivate }),
+            value: JSON.stringify({ userId, private: isPrivate, rooms }),
         });
     } catch (err) {
         console.warn("[nativeSession] failed to sync receipt privacy", err);

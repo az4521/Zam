@@ -7,6 +7,10 @@
 // sync lands. See stores/customizationSync.svelte for the transport.
 import { t } from "$lib/i18n";
 import { MIN_SOUND_INTERVAL_MS } from "$lib/utils/soundboard";
+import {
+    parseReceiptOverrides,
+    type ReceiptOverride,
+} from "$lib/utils/receiptPrivacy";
 
 import { isPresenceState, type PresenceState } from "$lib/utils/presence";
 import {
@@ -422,6 +426,11 @@ export const settingsState = $state({
     /** Send private read receipts (m.read.private): the server still tracks
      *  what you've read, but other users can't see it. Default is public. */
     privateReadReceipts: readAccountBool("privateReadReceipts", false),
+    /** Per-room / per-space overrides of `privateReadReceipts`, keyed by room
+     *  or space id (see utils/receiptPrivacy.ts). Absent = use the default. */
+    receiptOverrides: parseReceiptOverrides(
+        readAccountString("receiptOverrides"),
+    ),
     /** Tell other room members when you are typing. Default ON. Turning it
      *  off means no typing notification is ever sent (see sendTyping). */
     sendTypingIndicators: readAccountBool("sendTypingIndicators", true),
@@ -780,6 +789,9 @@ export function reloadAccountSettings(): void {
     settingsState.privateReadReceipts = readAccountBool(
         "privateReadReceipts",
         false,
+    );
+    settingsState.receiptOverrides = parseReceiptOverrides(
+        readAccountString("receiptOverrides"),
     );
     settingsState.sendTypingIndicators = readAccountBool(
         "sendTypingIndicators",
@@ -1207,6 +1219,18 @@ export function setKeepSidebarOpen(value: boolean): void {
 export function setPrivateReadReceipts(value: boolean): void {
     settingsState.privateReadReceipts = value;
     writeAccountBool("privateReadReceipts", value);
+}
+
+/** Set (or, with null, clear) a room's or space's read-receipt override. */
+export function setReceiptOverride(
+    id: string,
+    value: ReceiptOverride | null,
+): void {
+    const next = { ...settingsState.receiptOverrides };
+    if (value) next[id] = value;
+    else delete next[id];
+    settingsState.receiptOverrides = next;
+    writeAccountString("receiptOverrides", JSON.stringify(next));
 }
 
 export function setSendTypingIndicators(value: boolean): void {

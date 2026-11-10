@@ -156,6 +156,7 @@
     import { startRichPresence } from "$lib/stores/richPresence.svelte";
     import { installDesktopSaveImage } from "$lib/desktopContextMenu";
     import { installDesktopMessageMenu } from "$lib/desktopMessageMenu";
+    import { mirrorReceiptPrivacy } from "$lib/receiptPrivacySync";
     import { watchVideoPlayback } from "$lib/utils/videoPlaybackWatch";
     import { initUpdateWatch } from "$lib/stores/updateBanner.svelte";
     import UpdateBanner from "$lib/components/layout/UpdateBanner.svelte";
@@ -214,7 +215,6 @@
         publishActiveSession,
         getActiveSessionHeartbeat,
         updateServiceWorkerNotificationPrivacy,
-        updateServiceWorkerReceiptPrivacy,
         updateServiceWorkerRingEnabled,
         clearServiceWorkerNotifications,
         ensureCallNotifyPushRule,
@@ -297,7 +297,6 @@
         clearNativeSession,
         syncNativeNotificationPrivacy,
         syncNativeRingEnabled,
-        syncNativeReceiptPrivacy,
     } from "$lib/nativeSession";
     import { onNativeCallEvent } from "$lib/nativeCall";
     import { startPushDecryptResponder } from "$lib/pushDecrypt";
@@ -1383,6 +1382,23 @@
         setSlidingSyncActiveRoom(roomsState.activeRoomId);
     });
 
+    // Per-room read-receipt overrides reach the service worker and Android
+    // notification action as a resolved room list, so re-send it when the
+    // overrides change or the room/space tree does (rooms load after boot).
+    // Throttled, not debounced: roomsTick fires on every sync, which would
+    // keep resetting a debounce. An unchanged payload is dropped inside
+    // mirrorReceiptPrivacy.
+    let receiptMirrorTimer: ReturnType<typeof setTimeout> | undefined;
+    $effect(() => {
+        void roomsState.roomsTick;
+        void settingsState.receiptOverrides;
+        void settingsState.privateReadReceipts;
+        receiptMirrorTimer ??= setTimeout(() => {
+            receiptMirrorTimer = undefined;
+            mirrorReceiptPrivacy();
+        }, 3000);
+    });
+
     // MSC4153: surface changed cross-signing identities among the open room's
     // members.
     $effect(() => {
@@ -1775,16 +1791,7 @@
         updateServiceWorkerNotificationPrivacy(
             settingsState.hideNotificationBody,
         );
-        if (auth.userId) {
-            updateServiceWorkerReceiptPrivacy(
-                auth.userId,
-                settingsState.privateReadReceipts,
-            );
-            syncNativeReceiptPrivacy(
-                auth.userId,
-                settingsState.privateReadReceipts,
-            ).catch(() => {});
-        }
+        mirrorReceiptPrivacy();
         // The DM ring setting, for the native push service and the SW.
         syncNativeRingEnabled(settingsState.ringEnabled).catch(() => {});
         updateServiceWorkerRingEnabled(settingsState.ringEnabled);

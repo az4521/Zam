@@ -4323,6 +4323,23 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Nachrichtentext konnte nicht kopiert werden",
     "messageActionsMenu.selectHint":
         "Halte den Text gedrückt, um einen Teil davon auszuwählen",
+    "roomSettings.readReceipts": "Lesebestätigungen",
+    "roomSettings.readReceiptsRoomHelp":
+        "Lege fest, ob andere Mitglieder sehen können, welche Nachrichten du in diesem Raum gelesen hast.",
+    "roomSettings.readReceiptsSpaceHelp":
+        "Lege fest, ob andere Mitglieder sehen können, welche Nachrichten du in diesem Space und seinen Räumen gelesen hast. Die Einstellung eines Raums hat Vorrang.",
+    "roomSettings.readReceiptsDefaultShare":
+        "Richtet sich nach deinen Datenschutzeinstellungen, derzeit für andere sichtbar",
+    "roomSettings.readReceiptsDefaultHide":
+        "Richtet sich nach deinen Datenschutzeinstellungen, derzeit für andere verborgen",
+    "roomSettings.readReceiptsShare": "Meine Lesebestätigungen teilen",
+    "roomSettings.readReceiptsShareDesc":
+        "Andere können sehen, welche Nachrichten du gelesen hast.",
+    "roomSettings.readReceiptsHide": "Meine Lesebestätigungen verbergen",
+    "roomSettings.readReceiptsHideDesc":
+        "Dein Ungelesen-Status wird weiterhin synchronisiert, aber andere können nicht sehen, was du gelesen hast.",
+    "privacySafetySettings.receiptsOverrideHint":
+        "Räume und Spaces können dies in ihren Benachrichtigungseinstellungen überschreiben.",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: de };

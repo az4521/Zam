@@ -4230,6 +4230,23 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Не вдалося скопіювати текст повідомлення",
     "messageActionsMenu.selectHint":
         "Натисніть і утримуйте текст, щоб виділити його частину",
+    "roomSettings.readReceipts": "Позначки про прочитання",
+    "roomSettings.readReceiptsRoomHelp":
+        "Виберіть, чи можуть інші учасники бачити, які повідомлення ви прочитали в цій кімнаті.",
+    "roomSettings.readReceiptsSpaceHelp":
+        "Виберіть, чи можуть інші учасники бачити, які повідомлення ви прочитали в цьому просторі та його кімнатах. Власний вибір кімнати має пріоритет.",
+    "roomSettings.readReceiptsDefaultShare":
+        "Залежить від ваших налаштувань приватності, зараз показується іншим",
+    "roomSettings.readReceiptsDefaultHide":
+        "Залежить від ваших налаштувань приватності, зараз приховано від інших",
+    "roomSettings.readReceiptsShare": "Показувати мої позначки про прочитання",
+    "roomSettings.readReceiptsShareDesc":
+        "Інші можуть бачити, які повідомлення ви прочитали.",
+    "roomSettings.readReceiptsHide": "Приховувати мої позначки про прочитання",
+    "roomSettings.readReceiptsHideDesc":
+        "Стан непрочитаного і далі синхронізується, але інші не бачать, що ви прочитали.",
+    "privacySafetySettings.receiptsOverrideHint":
+        "Кімнати та простори можуть перевизначити це в своїх налаштуваннях сповіщень.",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: uk };

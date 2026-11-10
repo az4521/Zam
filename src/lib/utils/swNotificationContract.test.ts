@@ -211,5 +211,9 @@ describe("static/sw.js notification contract", () => {
         const body = receiptPrivacy.slice(0, closeBrace);
         expect(body).toMatch(/receiptPrivacyByUser/);
         expect(body).toMatch(/dbSet\(\s*"receiptPrivacyByUser"/);
+        // Per-room overrides: the same message's `rooms` is validated and
+        // persisted under its own key.
+        expect(body).toMatch(/parseReceiptRoomPrivacy\(\s*event\.data\.rooms/);
+        expect(body).toMatch(/dbSet\(\s*"receiptRoomPrivacyByUser"/);
     });
 });

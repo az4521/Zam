@@ -167,8 +167,36 @@ function buildReadReceiptPath(roomId, eventId, receiptType) {
 	return `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/receipt/${receiptType}/${encodeURIComponent(eventId)}`;
 }
 
-function swReceiptTypeFor(privacyByUser, userId) {
-	if (!userId || !privacyByUser) return "m.read.private";
+// Per-room receipt privacy for ONE account: { roomId: bool }, true = private.
+// Holds only rooms whose effective value differs from the account default.
+// Junk → {} (the account default then applies, fail closed). An object over
+// the entry cap is rejected whole. Mirrors parseReceiptRoomPrivacy in
+// src/lib/utils/notifActions.ts.
+const RECEIPT_ROOM_PRIVACY_MAX = 5000;
+const RECEIPT_ROOM_ID_MAX = 255;
+
+function parseReceiptRoomPrivacy(raw) {
+	const out = {};
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+	const keys = Object.keys(raw);
+	if (keys.length > RECEIPT_ROOM_PRIVACY_MAX) return out;
+	for (const key of keys) {
+		const value = raw[key];
+		if (typeof value !== "boolean") continue;
+		if (!key.startsWith("!") || key.length > RECEIPT_ROOM_ID_MAX) continue;
+		out[key] = value;
+	}
+	return out;
+}
+
+// A per-room entry (roomPrivacy[roomId]) wins over the account default
+// (privacyByUser[userId]). Unknown/missing user → "m.read.private".
+function swReceiptTypeFor(privacyByUser, userId, roomId, roomPrivacy) {
+	if (!userId) return "m.read.private";
+	if (typeof roomId === "string" && roomPrivacy && typeof roomPrivacy[roomId] === "boolean") {
+		return roomPrivacy[roomId] ? "m.read.private" : "m.read";
+	}
+	if (!privacyByUser) return "m.read.private";
 	return privacyByUser[userId] === false ? "m.read" : "m.read.private";
 }
 
@@ -708,6 +736,9 @@ let ringEnabled = true;
 // Per-user read receipt privacy: { userId: boolean } where true = private receipts.
 // Hydrated from IDB and kept in sync via SET_RECEIPT_PRIVACY.
 let receiptPrivacyByUser = {};
+// Per-room overrides: { userId: { roomId: bool } }, from the same message's
+// optional `rooms` field. Persisted under "receiptRoomPrivacyByUser".
+let receiptRoomPrivacyByUser = {};
 // Every account signed in on this origin, user id → session, mirrored from the
 // page (SET_ACCOUNTS) and kept in IndexedDB. A push names its account (the
 // pusher's default_payload `zam_account`) and is handled with THAT account's
@@ -765,6 +796,15 @@ const authReady = (async () => {
 	const storedPrivacy = await dbGet("receiptPrivacyByUser").catch(() => null);
 	receiptPrivacyByUser =
 		storedPrivacy && typeof storedPrivacy === "object" ? storedPrivacy : {};
+	// Same junk-tolerant shape for the per-room map: each user's entry is
+	// re-validated, anything malformed becomes {} for that user.
+	const storedRooms = await dbGet("receiptRoomPrivacyByUser").catch(() => null);
+	receiptRoomPrivacyByUser = {};
+	if (storedRooms && typeof storedRooms === "object" && !Array.isArray(storedRooms)) {
+		for (const uid of Object.keys(storedRooms)) {
+			receiptRoomPrivacyByUser[uid] = parseReceiptRoomPrivacy(storedRooms[uid]);
+		}
+	}
 	// Installs that predate the record still have the four per-key values at
 	// rest. They are NEVER read back — reading them is the bug — but they are
 	// swept so a stale token does not sit there forever. Slot 0 is the access
@@ -1119,6 +1159,12 @@ self.addEventListener("message", (event) => {
 					// next handler that might mutate the live object).
 					const copy = { ...receiptPrivacyByUser };
 					await queueWrite(() => dbSet("receiptPrivacyByUser", copy));
+					// `rooms` REPLACES this user's map; absent or junk → {}.
+					receiptRoomPrivacyByUser[userId] = parseReceiptRoomPrivacy(
+						event.data.rooms,
+					);
+					const roomsCopy = { ...receiptRoomPrivacyByUser };
+					await queueWrite(() => dbSet("receiptRoomPrivacyByUser", roomsCopy));
 				}
 			}
 		})().catch(() => {}),
@@ -1997,6 +2043,8 @@ async function handleQuickMarkRead(roomId, eventId, postedBy) {
 			const receiptType = swReceiptTypeFor(
 				receiptPrivacyByUser,
 				session.userId,
+				roomId,
+				receiptRoomPrivacyByUser[session.userId],
 			);
 			await mxPost(
 				buildReadReceiptPath(roomId, eventId, receiptType),

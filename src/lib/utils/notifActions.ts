@@ -53,17 +53,52 @@ export function buildReadReceiptPath(
     return `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/receipt/${receiptType}/${encodeURIComponent(eventId)}`;
 }
 
+export const RECEIPT_ROOM_PRIVACY_MAX = 5000;
+export const RECEIPT_ROOM_ID_MAX = 255;
+
+/**
+ * Validate one account's per-room receipt privacy map ({ roomId: bool }, true =
+ * private). Keeps only string keys starting with "!" (<= 255 chars) whose value
+ * is a boolean; anything else is dropped. Not a plain object, or over the entry
+ * cap → {}. Mirrors parseReceiptRoomPrivacy in static/sw.js.
+ */
+export function parseReceiptRoomPrivacy(raw: unknown): Record<string, boolean> {
+    const out: Record<string, boolean> = {};
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+    const r = raw as Record<string, unknown>;
+    const keys = Object.keys(r);
+    if (keys.length > RECEIPT_ROOM_PRIVACY_MAX) return out;
+    for (const key of keys) {
+        const value = r[key];
+        if (typeof value !== "boolean") continue;
+        if (!key.startsWith("!") || key.length > RECEIPT_ROOM_ID_MAX) continue;
+        out[key] = value;
+    }
+    return out;
+}
+
 /**
  * Determine the receipt type to use when sending a read receipt from the SW.
- * Returns "m.read" ONLY when the user has explicitly opted for public receipts
+ * A per-room entry (roomPrivacy[roomId], this user's map) wins when present;
+ * otherwise "m.read" ONLY when the user has explicitly opted for public receipts
  * (privacyByUser[userId] === false). Fail closed: unknown user, missing map,
  * junk value, or null userId → "m.read.private".
  */
 export function swReceiptTypeFor(
     privacyByUser: Record<string, boolean> | null | undefined,
     userId: string | null | undefined,
+    roomId?: string | null,
+    roomPrivacy?: Record<string, boolean> | null,
 ): ReadReceiptType {
-    if (!userId || !privacyByUser) return "m.read.private";
+    if (!userId) return "m.read.private";
+    if (
+        typeof roomId === "string" &&
+        roomPrivacy &&
+        typeof roomPrivacy[roomId] === "boolean"
+    ) {
+        return roomPrivacy[roomId] ? "m.read.private" : "m.read";
+    }
+    if (!privacyByUser) return "m.read.private";
     return privacyByUser[userId] === false ? "m.read" : "m.read.private";
 }
 

@@ -159,6 +159,10 @@ import {
     type DeviceInfo,
 } from "$lib/utils/deviceSessions";
 import { readPositions, receiptTypeForSetting } from "$lib/utils/readReceipts";
+import {
+    isRoomReceiptPrivate,
+    receiptPrivacyExceptions,
+} from "$lib/utils/receiptPrivacy";
 import { computeEditMentions, type Mentions } from "$lib/utils/editMentions";
 import { buildReplyContent } from "$lib/utils/replyContent";
 import {
@@ -3672,7 +3676,7 @@ export async function markThreadRead(
     )
         return clearReadThreadCounts(room);
     const receiptType = receiptTypeForSetting(
-        settingsState.privateReadReceipts,
+        receiptsPrivateFor(room.roomId),
     ) as ReceiptType;
     if (eventId) inFlightReceipts.set(key, eventId);
     try {
@@ -4316,6 +4320,7 @@ export function updateServiceWorkerRingEnabled(enabled: boolean): void {
 export function updateServiceWorkerReceiptPrivacy(
     userId: string,
     isPrivate: boolean,
+    rooms: Record<string, boolean> = {},
 ): void {
     if (!("serviceWorker" in navigator)) return;
     navigator.serviceWorker.ready
@@ -4324,6 +4329,7 @@ export function updateServiceWorkerReceiptPrivacy(
                 type: "SET_RECEIPT_PRIVACY",
                 userId,
                 private: isPrivate,
+                rooms,
             }),
         )
         .catch(() => {});
@@ -6042,6 +6048,36 @@ export async function searchRoomMessagesMore(
     return matrixClient.backPaginateRoomEventsSearch(results);
 }
 
+/**
+ * Whether read receipts for this room are private: the room's own override,
+ * else its spaces', else the account default (see utils/receiptPrivacy.ts).
+ */
+export function receiptsPrivateFor(roomId: string): boolean {
+    const overrides = settingsState.receiptOverrides;
+    return isRoomReceiptPrivate(
+        roomId,
+        Object.keys(overrides).length ? getParentSpaceIds(roomId) : [],
+        overrides,
+        settingsState.privateReadReceipts,
+    );
+}
+
+/** The rooms whose receipts differ from the account default, for the
+ *  service-worker and Android mirrors that cannot resolve spaces themselves. */
+export function receiptPrivacyRoomExceptions(): Record<string, boolean> {
+    if (!matrixClient) return {};
+    const overrides = settingsState.receiptOverrides;
+    if (Object.keys(overrides).length === 0) return {};
+    return receiptPrivacyExceptions(
+        matrixClient.getRooms().map((r) => ({
+            roomId: r.roomId,
+            parentSpaceIds: getParentSpaceIds(r.roomId),
+        })),
+        overrides,
+        settingsState.privateReadReceipts,
+    );
+}
+
 export async function sendReadReceipt(event: MatrixEvent): Promise<void> {
     if (!matrixClient) return;
     const roomId = event.getRoomId();
@@ -6073,7 +6109,7 @@ export async function sendReadReceipt(event: MatrixEvent): Promise<void> {
     }
 
     const receiptType = receiptTypeForSetting(
-        settingsState.privateReadReceipts,
+        receiptsPrivateFor(roomId),
     ) as ReceiptType;
     inFlightReceipts.set(roomId, eventId);
     try {

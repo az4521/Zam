@@ -69,6 +69,7 @@
         isRoomStateHealed,
         getRoomNotificationSetting,
         setRoomNotificationSetting,
+        getParentSpaceIds,
         getRoomsInSpace,
         getSpaceChildIds,
         type RoomNotificationSetting,
@@ -133,7 +134,14 @@
         clearSubPageIfOwner,
     } from "$lib/stores/interface.svelte";
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
-    import { settingsState } from "$lib/stores/settings.svelte";
+    import {
+        settingsState,
+        setReceiptOverride,
+    } from "$lib/stores/settings.svelte";
+    import {
+        isRoomReceiptPrivate,
+        type ReceiptOverride,
+    } from "$lib/utils/receiptPrivacy";
     import {
         blockUser,
         unblockUser,
@@ -214,6 +222,45 @@
         getRoomNotificationSetting(room.roomId),
     );
     let notifSaving = $state(false);
+
+    // Read receipts: this room's (or space's) override of the account default.
+    const receiptChoice = $derived<ReceiptOverride | null>(
+        settingsState.receiptOverrides[room.roomId] ?? null,
+    );
+    // What "Default" resolves to here: the account setting, or a parent
+    // space's override. Ignores this room's own choice, so the label stays put
+    // while the user flips between options.
+    const inheritedReceiptsPrivate = $derived.by(() => {
+        const { [room.roomId]: _own, ...others } =
+            settingsState.receiptOverrides;
+        return isRoomReceiptPrivate(
+            room.roomId,
+            getParentSpaceIds(room.roomId),
+            others,
+            settingsState.privateReadReceipts,
+        );
+    });
+    const RECEIPT_CHOICES = $derived<
+        readonly [ReceiptOverride | null, string, string][]
+    >([
+        [
+            null,
+            t("common.default"),
+            inheritedReceiptsPrivate
+                ? t("roomSettings.readReceiptsDefaultHide")
+                : t("roomSettings.readReceiptsDefaultShare"),
+        ],
+        [
+            "public",
+            t("roomSettings.readReceiptsShare"),
+            t("roomSettings.readReceiptsShareDesc"),
+        ],
+        [
+            "private",
+            t("roomSettings.readReceiptsHide"),
+            t("roomSettings.readReceiptsHideDesc"),
+        ],
+    ]);
 
     const NOTIF_LEVELS: readonly [RoomNotificationSetting, string, string][] = [
         [
@@ -2292,6 +2339,62 @@
                                                 class="mt-0.5 w-3 flex items-center justify-center flex-shrink-0 text-discord-accent"
                                             >
                                                 {#if notifSetting === val}<Circle
+                                                        size={8}
+                                                        fill="currentColor"
+                                                    />{/if}
+                                            </span>
+                                            <span class="min-w-0">
+                                                <span
+                                                    class="block text-sm font-medium text-discord-textPrimary"
+                                                    >{label}</span
+                                                >
+                                                <span
+                                                    class="block text-xs text-discord-textMuted"
+                                                    >{desc}</span
+                                                >
+                                            </span>
+                                        </button>
+                                    {/each}
+                                </div>
+                            </div>
+                            <div>
+                                <p
+                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                >
+                                    {t("roomSettings.readReceipts")}
+                                </p>
+                                <p class="text-xs text-discord-textMuted mb-3">
+                                    {isSpace
+                                        ? t(
+                                              "roomSettings.readReceiptsSpaceHelp",
+                                          )
+                                        : t(
+                                              "roomSettings.readReceiptsRoomHelp",
+                                          )}
+                                </p>
+                                <div
+                                    class="flex flex-col gap-1"
+                                    role="radiogroup"
+                                    aria-label={t("roomSettings.readReceipts")}
+                                >
+                                    {#each RECEIPT_CHOICES as [val, label, desc] (val ?? "default")}
+                                        <button
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={receiptChoice === val}
+                                            onclick={() =>
+                                                setReceiptOverride(
+                                                    room.roomId,
+                                                    val,
+                                                )}
+                                            class="w-full text-start px-3 py-2 rounded flex items-start gap-3 transition-colors hover:bg-discord-messageHover"
+                                            class:bg-discord-messageHover={receiptChoice ===
+                                                val}
+                                        >
+                                            <span
+                                                class="mt-0.5 w-3 flex items-center justify-center flex-shrink-0 text-discord-accent"
+                                            >
+                                                {#if receiptChoice === val}<Circle
                                                         size={8}
                                                         fill="currentColor"
                                                     />{/if}

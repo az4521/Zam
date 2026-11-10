@@ -4295,6 +4295,23 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Impossible de copier le texte du message",
     "messageActionsMenu.selectHint":
         "Appuyez longuement sur le texte pour en sélectionner une partie",
+    "roomSettings.readReceipts": "Accusés de lecture",
+    "roomSettings.readReceiptsRoomHelp":
+        "Choisissez si les autres membres peuvent voir quels messages vous avez lus dans ce salon.",
+    "roomSettings.readReceiptsSpaceHelp":
+        "Choisissez si les autres membres peuvent voir quels messages vous avez lus dans cet espace et ses salons. Le choix propre à un salon est prioritaire.",
+    "roomSettings.readReceiptsDefaultShare":
+        "Suit vos paramètres de confidentialité, actuellement partagés avec les autres",
+    "roomSettings.readReceiptsDefaultHide":
+        "Suit vos paramètres de confidentialité, actuellement masqués aux autres",
+    "roomSettings.readReceiptsShare": "Partager mes accusés de lecture",
+    "roomSettings.readReceiptsShareDesc":
+        "Les autres peuvent voir quels messages vous avez lus.",
+    "roomSettings.readReceiptsHide": "Masquer mes accusés de lecture",
+    "roomSettings.readReceiptsHideDesc":
+        "Votre état non lu reste synchronisé, mais les autres ne peuvent pas voir ce que vous avez lu.",
+    "privacySafetySettings.receiptsOverrideHint":
+        "Les salons et les espaces peuvent remplacer ce réglage dans leurs paramètres de notifications.",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: fr };

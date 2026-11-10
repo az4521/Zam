@@ -3773,6 +3773,23 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageActionsMenu.couldnTCopyText":
         "メッセージのテキストをコピーできませんでした",
     "messageActionsMenu.selectHint": "テキストを長押しして一部を選択",
+    "roomSettings.readReceipts": "既読情報",
+    "roomSettings.readReceiptsRoomHelp":
+        "このルームで既読にしたメッセージを他のメンバーが見られるかどうかを選択します。",
+    "roomSettings.readReceiptsSpaceHelp":
+        "このスペースとそのルームで既読にしたメッセージを他のメンバーが見られるかどうかを選択します。ルーム自身の設定が優先されます。",
+    "roomSettings.readReceiptsDefaultShare":
+        "プライバシー設定に従い、現在は他の人に共有されています",
+    "roomSettings.readReceiptsDefaultHide":
+        "プライバシー設定に従い、現在は他の人から非表示になっています",
+    "roomSettings.readReceiptsShare": "自分の既読情報を共有する",
+    "roomSettings.readReceiptsShareDesc":
+        "他の人があなたが既読にしたメッセージを確認できます。",
+    "roomSettings.readReceiptsHide": "自分の既読情報を非表示にする",
+    "roomSettings.readReceiptsHideDesc":
+        "未読の状態は引き続き同期されますが、他の人があなたの既読状況を見ることはできません。",
+    "privacySafetySettings.receiptsOverrideHint":
+        "ルームやスペースは通知設定でこの設定を上書きできます。",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ja };

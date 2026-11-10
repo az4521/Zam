@@ -4,6 +4,7 @@ import {
     classifyNotificationAction,
     buildReadReceiptPath,
     swReceiptTypeFor,
+    parseReceiptRoomPrivacy,
     ringNotificationTag,
     messageNotificationTag,
     roomNotificationTags,
@@ -137,6 +138,123 @@ export const SW_RECEIPT_TYPE_CASES: Array<{
         privacyByUser: { "@alice:hs": "yes" as unknown as boolean },
         userId: "@alice:hs",
         expected: "m.read.private",
+    },
+];
+
+// Per-room overrides: roomPrivacy is this user's { roomId: bool } map.
+export const SW_RECEIPT_ROOM_CASES: Array<{
+    name: string;
+    privacyByUser: Record<string, boolean> | null | undefined;
+    userId: string | null | undefined;
+    roomId: string | null | undefined;
+    roomPrivacy: Record<string, boolean> | null | undefined;
+    expected: "m.read" | "m.read.private";
+}> = [
+    {
+        name: "per-room true overrides account default false",
+        privacyByUser: { "@alice:hs": false },
+        userId: "@alice:hs",
+        roomId: "!r:hs",
+        roomPrivacy: { "!r:hs": true },
+        expected: "m.read.private",
+    },
+    {
+        name: "per-room false overrides account default true",
+        privacyByUser: { "@alice:hs": true },
+        userId: "@alice:hs",
+        roomId: "!r:hs",
+        roomPrivacy: { "!r:hs": false },
+        expected: "m.read",
+    },
+    {
+        name: "missing room uses account default public",
+        privacyByUser: { "@alice:hs": false },
+        userId: "@alice:hs",
+        roomId: "!r:hs",
+        roomPrivacy: { "!other:hs": true },
+        expected: "m.read",
+    },
+    {
+        name: "missing room uses account default private",
+        privacyByUser: { "@alice:hs": true },
+        userId: "@alice:hs",
+        roomId: "!r:hs",
+        roomPrivacy: {},
+        expected: "m.read.private",
+    },
+    {
+        name: "junk per-room value ignored, account default applies",
+        privacyByUser: { "@alice:hs": false },
+        userId: "@alice:hs",
+        roomId: "!r:hs",
+        roomPrivacy: { "!r:hs": "no" as unknown as boolean },
+        expected: "m.read",
+    },
+    {
+        name: "no roomId uses account default",
+        privacyByUser: { "@alice:hs": false },
+        userId: "@alice:hs",
+        roomId: null,
+        roomPrivacy: { "!r:hs": true },
+        expected: "m.read",
+    },
+    {
+        name: "per-room entry ignored for null userId (fail closed)",
+        privacyByUser: { "@alice:hs": false },
+        userId: null,
+        roomId: "!r:hs",
+        roomPrivacy: { "!r:hs": false },
+        expected: "m.read.private",
+    },
+];
+
+// parseReceiptRoomPrivacy: junk is dropped, the rest kept.
+export const RECEIPT_ROOM_PARSE_CASES: Array<{
+    name: string;
+    raw: unknown;
+    expected: Record<string, boolean>;
+}> = [
+    {
+        name: "keeps valid entries",
+        raw: { "!a:hs": true, "!b:hs": false },
+        expected: { "!a:hs": true, "!b:hs": false },
+    },
+    {
+        name: "drops non-boolean values",
+        raw: { "!a:hs": "yes", "!b:hs": 1, "!c:hs": null, "!d:hs": true },
+        expected: { "!d:hs": true },
+    },
+    {
+        name: "drops keys that do not start with !",
+        raw: { "@x:hs": true, "!ok:hs": false },
+        expected: { "!ok:hs": false },
+    },
+    {
+        name: "keeps a 255-char key, drops a 256-char key",
+        raw: { ["!" + "a".repeat(254)]: true, ["!" + "a".repeat(255)]: true },
+        expected: { ["!" + "a".repeat(254)]: true },
+    },
+    {
+        name: "array is rejected",
+        raw: [true, false],
+        expected: {},
+    },
+    {
+        name: "null is rejected",
+        raw: null,
+        expected: {},
+    },
+    {
+        name: "string is rejected",
+        raw: "!a:hs",
+        expected: {},
+    },
+    {
+        name: "over the 5000-entry cap is rejected whole",
+        raw: Object.fromEntries(
+            Array.from({ length: 5001 }, (_, i) => [`!r${i}:hs`, true]),
+        ),
+        expected: {},
     },
 ];
 
@@ -336,6 +454,26 @@ describe("swReceiptTypeFor", () => {
             expect(swReceiptTypeFor(c.privacyByUser, c.userId)).toBe(
                 c.expected,
             );
+        });
+    }
+    for (const c of SW_RECEIPT_ROOM_CASES) {
+        it(`per-room: ${c.name}`, () => {
+            expect(
+                swReceiptTypeFor(
+                    c.privacyByUser,
+                    c.userId,
+                    c.roomId,
+                    c.roomPrivacy,
+                ),
+            ).toBe(c.expected);
+        });
+    }
+});
+
+describe("parseReceiptRoomPrivacy", () => {
+    for (const c of RECEIPT_ROOM_PARSE_CASES) {
+        it(c.name, () => {
+            expect(parseReceiptRoomPrivacy(c.raw)).toEqual(c.expected);
         });
     }
 });
