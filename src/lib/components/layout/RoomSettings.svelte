@@ -2,6 +2,8 @@
     import { t } from "$lib/i18n";
     import type { Room, RoomMember } from "matrix-js-sdk";
     import { tick, untrack } from "svelte";
+    import { pluginRegistry } from "$lib/stores/plugins.svelte";
+    import { pluginMount } from "$lib/plugins/pluginMount";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import InvitePanel from "./InvitePanel.svelte";
     import ImagePackEditor from "./ImagePackEditor.svelte";
@@ -157,12 +159,37 @@
 
     const isSpace = $derived(room.isSpaceRoom());
 
+    // Plugin tabs (zam.room.addSettingsTab) this room gets, after Zam's own.
+    const pluginTabEntries = $derived(
+        (void pluginRegistry.tick,
+        pluginRegistry.roomSettingsTabs.filter((e) => {
+            try {
+                return e.value.when?.({ roomId: room.roomId, isSpace }) ?? true;
+            } catch (err) {
+                console.error("[zam] room settings tab when() threw", err);
+                return false;
+            }
+        })),
+    );
+    const pluginTabs = $derived(
+        pluginTabEntries.map((e) => ({
+            id: `plugin:${e.entryId}` as RoomSettingsTab,
+            label: String(e.value.label),
+        })),
+    );
+
     const view = $derived(
         roomSettingsNavView({
             isMobile: interfaceState.isMobile,
             isSpace,
             selectedTab,
+            pluginTabs,
         }),
+    );
+
+    const activePluginTab = $derived(
+        pluginTabEntries.find((e) => activeTab === `plugin:${e.entryId}`) ??
+            null,
     );
 
     // The tab whose panel is on screen, or null on the mobile category list
@@ -1309,7 +1336,7 @@
         }
     }
 
-    const tabs = $derived(roomSettingsTabs({ isSpace }));
+    const tabs = $derived(roomSettingsTabs({ isSpace, pluginTabs }));
 </script>
 
 {#snippet stateLoading()}
@@ -1372,7 +1399,7 @@
                          only the category — so name the room for screen readers
                          without repeating it on screen. -->
                     <span class="sr-only">{`${room.name} - `}</span
-                    >{roomSettingsTabLabel(view.tab)}
+                    >{roomSettingsTabLabel(view.tab, pluginTabs)}
                 {:else}
                     {t("roomSettings.settings", { name: room.name })}
                 {/if}
@@ -1454,8 +1481,21 @@
                         </div>
                     {/if}
 
-                    <!-- ── General ─────────────────────────────────────────── -->
-                    {#if activeTab === "general"}
+                    <!-- ── Plugin tab ────────────────────────────────────── -->
+                    {#if activePluginTab}
+                        {@const tab = activePluginTab}
+                        {#key `${tab.entryId}:${room.roomId}`}
+                            <div
+                                data-zam-plugin={tab.pluginId}
+                                use:pluginMount={(el) =>
+                                    tab.value.render(el, {
+                                        roomId: room.roomId,
+                                        isSpace,
+                                    })}
+                            ></div>
+                        {/key}
+                        <!-- ── General ─────────────────────────────────────────── -->
+                    {:else if activeTab === "general"}
                         <div class="space-y-5">
                             <!-- Avatar -->
                             <div>

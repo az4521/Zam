@@ -2679,6 +2679,15 @@ function bottomEventId(room: Room): string | undefined {
     return undefined;
 }
 
+// Custom event types a plugin renders (zam.messages.registerRenderer). Set by
+// the plugin store; client.ts never imports plugins/.
+let pluginTimelineTypes: () => ReadonlySet<string> = () => new Set();
+export function setPluginTimelineTypes(
+    source: () => ReadonlySet<string>,
+): void {
+    pluginTimelineTypes = source;
+}
+
 function isRenderableTimelineEvent(e: MatrixEvent): boolean {
     if (settingsState.showAllEvents) return true;
     if (e.isRedacted()) return false;
@@ -2693,7 +2702,8 @@ function isRenderableTimelineEvent(e: MatrixEvent): boolean {
         e.getType() !== "m.room.encrypted" &&
         !isPollStartEventType(e.getType()) &&
         !isFileOfferEventType(e.getType()) &&
-        !isCallEventType(e.getType())
+        !isCallEventType(e.getType()) &&
+        !pluginTimelineTypes().has(e.getType())
     )
         return false;
     const rel = e.getContent()?.["m.relates_to"];
@@ -5069,7 +5079,8 @@ export function onTimelineEvent(
                     (event.getType() === "m.room.message" ||
                         event.getType() === "m.sticker" ||
                         isFileOfferEventType(event.getType()) ||
-                        isPollStartEventType(event.getType())) &&
+                        isPollStartEventType(event.getType()) ||
+                        pluginTimelineTypes().has(event.getType())) &&
                     !event.isRedacted()))
         ) {
             callback(event, room, isLiveAppend);
@@ -9647,6 +9658,112 @@ export function onEventDecrypted(
             MatrixEventEvent.Decrypted as never,
             handler as never,
         );
+}
+
+/**
+ * Every new non-state room event in cleartext, for the plugin event bus: plain
+ * events as they reach a timeline, encrypted ones once they decrypt (the
+ * ciphertext's arrival facts are remembered, as in onDecryptedTimelineEvent).
+ * Scroll-up backfill is skipped. `isLive` is false for what the first sync
+ * after start-up replays.
+ */
+export function onClearRoomEvent(
+    callback: (event: MatrixEvent, room: Room, isLive: boolean) => void,
+): () => void {
+    if (!matrixClient) return () => {};
+    const pending = createBoundedIdMap<{ isLive: boolean }>();
+    const onTimeline = (
+        event: MatrixEvent,
+        room: Room | undefined,
+        toStartOfTimeline?: boolean,
+        removed?: boolean,
+    ) => {
+        if (toStartOfTimeline || removed || !room || event.isState()) return;
+        const isLive = isInitialSyncComplete();
+        if (event.isEncrypted() && event.getClearContent() === null) {
+            const eventId = event.getId();
+            if (eventId) pending.set(eventId, { isLive });
+            return;
+        }
+        callback(event, room, isLive);
+    };
+    const onDecrypted = (event: MatrixEvent) => {
+        const eventId = event.getId();
+        const meta = eventId ? pending.get(eventId) : undefined;
+        if (!eventId || !meta || event.isDecryptionFailure()) return;
+        const roomId = event.getRoomId();
+        const room = roomId ? matrixClient?.getRoom(roomId) : undefined;
+        if (!room) return;
+        pending.delete(eventId);
+        callback(event, room, meta.isLive);
+    };
+    matrixClient.on(RoomEvent.Timeline, onTimeline as never);
+    matrixClient.on(MatrixEventEvent.Decrypted as never, onDecrypted as never);
+    return () => {
+        matrixClient?.off(RoomEvent.Timeline, onTimeline as never);
+        matrixClient?.off(
+            MatrixEventEvent.Decrypted as never,
+            onDecrypted as never,
+        );
+    };
+}
+
+/** An event sent from this device that the server accepted. */
+export function onOwnEventSent(
+    callback: (event: MatrixEvent, room: Room) => void,
+): () => void {
+    if (!matrixClient) return () => {};
+    const handler = (event: MatrixEvent, room: Room | undefined) => {
+        if (room && event.status === EventStatus.SENT) callback(event, room);
+    };
+    matrixClient.on(RoomEvent.LocalEchoUpdated, handler as never);
+    return () =>
+        matrixClient?.off(RoomEvent.LocalEchoUpdated, handler as never);
+}
+
+/** Someone (not you) joined a room you are in, after the first sync. */
+export function onMemberJoin(
+    callback: (roomId: string, userId: string, displayName: string) => void,
+): () => void {
+    if (!matrixClient) return () => {};
+    const handler = (
+        _event: MatrixEvent,
+        member: RoomMember,
+        oldMembership?: string,
+    ) => {
+        if (!isInitialSyncComplete()) return;
+        if (member.membership !== "join" || oldMembership === "join") return;
+        if (member.userId === matrixClient?.getUserId()) return;
+        callback(member.roomId, member.userId, member.name);
+    };
+    matrixClient.on(RoomMemberEvent.Membership as never, handler as never);
+    return () =>
+        matrixClient?.off(
+            RoomMemberEvent.Membership as never,
+            handler as never,
+        );
+}
+
+/** Typing changes in any room (others only). */
+export function onAnyTyping(
+    callback: (roomId: string, userIds: string[]) => void,
+): () => void {
+    if (!matrixClient) return () => {};
+    const handler = (_event: unknown, member: RoomMember) => {
+        const room = matrixClient?.getRoom(member.roomId);
+        if (!room) return;
+        const myId = matrixClient?.getUserId();
+        callback(
+            room.roomId,
+            room
+                .getMembers()
+                .filter((m) => m.typing && m.userId !== myId)
+                .map((m) => m.userId),
+        );
+    };
+    matrixClient.on(RoomMemberEvent.Typing as never, handler as never);
+    return () =>
+        matrixClient?.off(RoomMemberEvent.Typing as never, handler as never);
 }
 
 export interface DecryptedTimelineMeta {

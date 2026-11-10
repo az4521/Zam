@@ -86,12 +86,23 @@ import {
 // self-scoped account data; plugins never import client.ts.
 import { persistPluginSync, loadPluginSync } from "../matrix/pluginHost";
 import {
-    onTimelineEvent,
-    onReactionEvent,
+    getOwnUserId,
+    onAnyTyping,
+    onClearRoomEvent,
+    onMemberJoin,
+    onOwnEventSent,
     onRoomUpdate,
     onSyncPrepared,
     onSyncReconnected,
+    setPluginTimelineTypes,
 } from "../matrix/client";
+import type { MatrixEvent, Room } from "matrix-js-sdk";
+import type { PluginEventMap, PluginEventName } from "./types";
+import { rendererEventTypes } from "./pluginRenderers";
+import { belongsToMainTimeline } from "../utils/threadModel";
+import { isPollStartEventType } from "../utils/pollContent";
+import { isFileOfferEventType } from "../utils/fileTransfer";
+import { watchActiveRoom } from "./pluginNav.svelte";
 import { readPluginSettings, writePluginSettings } from "./pluginSettingsStore";
 import {
     installedPlugins,
@@ -346,86 +357,134 @@ function repoLoadable(manifest: Manifest, repoRef: string): LoadablePlugin {
 // re-enable without rebuilding boot state.
 const loadables = new Map<string, LoadablePlugin>();
 
-/** Subscribe the globally-available client events and fan them out to plugin
- *  `events.on(...)` handlers. Payloads are plain + serializable (never live
- *  SDK objects), matching the §6 boundary. dispatchPluginEvent reads
+function emit<K extends PluginEventName>(
+    name: K,
+    payload: PluginEventMap[K],
+): void {
+    dispatchPluginEvent(
+        pluginRegistry.eventSubs.map((e) => e.value),
+        name,
+        payload,
+    );
+}
+
+/** Zam's notification path tells plugins it showed one (AppShell). */
+export function emitPluginNotification(
+    payload: PluginEventMap["notification"],
+): void {
+    emit("notification", payload);
+}
+
+/** Whether a cleartext event counts as a "message" for plugins: what the
+ *  main timeline shows as one (not edits or thread replies). */
+function isPluginMessage(event: MatrixEvent, timelineTypes: Set<string>) {
+    const type = event.getType();
+    if (
+        type !== "m.room.message" &&
+        type !== "m.sticker" &&
+        !isPollStartEventType(type) &&
+        !isFileOfferEventType(type) &&
+        !timelineTypes.has(type)
+    )
+        return false;
+    if (event.isRedacted()) return false;
+    if (event.getContent()?.["m.relates_to"]?.rel_type === "m.replace")
+        return false;
+    return belongsToMainTimeline({
+        relatesTo: event.getOriginalContent()?.["m.relates_to"],
+        eventId: event.getId() ?? "",
+    });
+}
+
+function timelinePayload(
+    event: MatrixEvent,
+    room: Room,
+    isLive: boolean,
+): PluginEventMap["message"] {
+    const sender = event.getSender() ?? "";
+    return {
+        roomId: room.roomId,
+        eventId: event.getId() ?? "",
+        sender,
+        type: event.getType(),
+        // Shallow-clone so a plugin that mutates the handed-out content
+        // can't corrupt the SDK's stored event (full-trust footgun).
+        content: { ...event.getContent() },
+        timestamp: event.getTs(),
+        isOwn: sender === getOwnUserId(),
+        isLive,
+    };
+}
+
+/** Subscribe the client events and fan them out to plugin `events.on(...)`
+ *  handlers. Payloads are plain + serializable (never live SDK objects),
+ *  matching the §6 boundary. dispatchPluginEvent reads
  *  pluginRegistry.eventSubs at fire time, so late-registered subs are seen.
- *  Deferred (registered but not fired in v1, no consumer this run): typing
- *  (needs a per-room Room), member-join, message-sent, room-enter, notification.
+ *  Encrypted events are handed over once they decrypt (onClearRoomEvent).
  *  Returns an unsubscribe-all. */
 function initEventBus(): () => void {
     const unsubs: Array<() => void> = [];
 
     unsubs.push(
-        onTimelineEvent((event, room) => {
-            const payload = {
-                roomId: room.roomId,
-                eventId: event.getId() ?? "",
-                sender: event.getSender() ?? "",
-                type: event.getType(),
-                // Shallow-clone so a plugin that mutates the handed-out content
-                // can't corrupt the SDK's stored event (full-trust footgun).
-                content: { ...event.getContent() },
-            };
-            dispatchPluginEvent(
-                pluginRegistry.eventSubs.map((e) => e.value),
-                "message",
-                payload,
-            );
-            dispatchPluginEvent(
-                pluginRegistry.eventSubs.map((e) => e.value),
-                "timeline",
-                payload,
-            );
-        }),
-    );
-
-    unsubs.push(
-        onReactionEvent((event, room) => {
-            dispatchPluginEvent(
-                pluginRegistry.eventSubs.map((e) => e.value),
-                "reaction-added",
-                {
+        onClearRoomEvent((event, room, isLive) => {
+            if (event.getType() === "m.reaction") {
+                const rel = event.getContent()["m.relates_to"] as
+                    { event_id?: unknown; key?: unknown } | undefined;
+                const sender = event.getSender() ?? "";
+                emit("reaction-added", {
                     roomId: room.roomId,
                     eventId: event.getId() ?? "",
-                    sender: event.getSender() ?? "",
-                    relatesTo: event.getContent()["m.relates_to"] ?? null,
-                },
+                    sender,
+                    targetEventId:
+                        typeof rel?.event_id === "string" ? rel.event_id : null,
+                    key: typeof rel?.key === "string" ? rel.key : null,
+                    relatesTo: rel ?? null,
+                    isOwn: sender === getOwnUserId(),
+                    isLive,
+                });
+                return;
+            }
+            const types = rendererEventTypes(
+                pluginRegistry.messageRenderers.map((e) => e.value),
             );
+            if (!isPluginMessage(event, types)) return;
+            const payload = timelinePayload(event, room, isLive);
+            emit("message", payload);
+            emit("timeline", { ...payload });
         }),
     );
 
     unsubs.push(
-        onRoomUpdate(() => {
-            dispatchPluginEvent(
-                pluginRegistry.eventSubs.map((e) => e.value),
-                "room-update",
-                {},
-            );
+        onOwnEventSent((event, room) => {
+            emit("message-sent", {
+                roomId: room.roomId,
+                eventId: event.getId() ?? "",
+                type: event.getType(),
+                content: { ...event.getContent() },
+            });
         }),
     );
 
     unsubs.push(
-        onSyncPrepared(() => {
-            dispatchPluginEvent(
-                pluginRegistry.eventSubs.map((e) => e.value),
-                "sync",
-                {
-                    state: "PREPARED",
-                },
-            );
-        }),
+        onMemberJoin((roomId, userId, displayName) =>
+            emit("member-join", { roomId, userId, displayName }),
+        ),
     );
+
     unsubs.push(
-        onSyncReconnected(() => {
-            dispatchPluginEvent(
-                pluginRegistry.eventSubs.map((e) => e.value),
-                "sync",
-                {
-                    state: "RECONNECTED",
-                },
-            );
-        }),
+        onAnyTyping((roomId, userIds) => emit("typing", { roomId, userIds })),
+    );
+
+    unsubs.push(
+        watchActiveRoom((roomId, previousRoomId) =>
+            emit("room-enter", { roomId, previousRoomId }),
+        ),
+    );
+
+    unsubs.push(onRoomUpdate(() => emit("room-update", {})));
+    unsubs.push(onSyncPrepared(() => emit("sync", { state: "PREPARED" })));
+    unsubs.push(
+        onSyncReconnected(() => emit("sync", { state: "RECONNECTED" })),
     );
 
     return () => {
@@ -443,6 +502,20 @@ export function initPlugins(): () => void {
     // Wire the imperative UI seam item 8 owns: zam.ui.openPopover routes
     // through hostBridge.openPopover (hostApi.ts). Set once at boot.
     hostBridge.openPopover = openPluginPopover;
+
+    // Custom event types a plugin renders join the timeline. Memoized on the
+    // registry tick: the timeline filter asks once per event.
+    let typesTick = -1;
+    let types = new Set<string>();
+    setPluginTimelineTypes(() => {
+        if (typesTick !== pluginRegistry.tick) {
+            typesTick = pluginRegistry.tick;
+            types = rendererEventTypes(
+                pluginRegistry.messageRenderers.map((e) => e.value),
+            );
+        }
+        return types;
+    });
 
     // Fan client events out to plugin events.on(...) handlers (no-ops safely if
     // the client is not ready yet; the on* helpers guard internally).

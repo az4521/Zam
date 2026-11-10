@@ -175,6 +175,8 @@
         collectAnnotation,
     } from "$lib/utils/pluginMessageActions";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
+    import { findRenderer } from "$lib/plugins/pluginRenderers";
+    import { pluginMount } from "$lib/plugins/pluginMount";
 
     import { messagesState } from "$lib/stores/messages.svelte";
     import {
@@ -1164,6 +1166,20 @@
 
     const isPoll = $derived(isPollStartEventType(eventType));
     const isFileOffer = $derived(isFileOfferEventType(eventType));
+    // A plugin's message renderer for this event (first registered wins).
+    const pluginRenderer = $derived.by(() => {
+        void pluginRegistry.tick;
+        return findRenderer(
+            pluginRegistry.messageRenderers.map((e) => e.value),
+            eventType,
+            msgtype,
+        );
+    });
+    // Remount a plugin's view only when the event's content really changes
+    // (an edit), not on every reaction or receipt that re-runs `content`.
+    const pluginRenderKey = $derived(
+        pluginRenderer ? `${eventId}:${JSON.stringify(content ?? {})}` : "",
+    );
     const isCallEvent = $derived(
         (void messagesState.timelineTick, isCallEventType(eventType)),
     );
@@ -2275,6 +2291,7 @@
     }}
     ondblclick={onMessageDblClick}
     data-event-id={eventId}
+    data-sender={senderId}
     use:longPress={{
         onTrigger: () => {
             heldJustFired = true;
@@ -2718,6 +2735,24 @@
                 <PollBody {event} {room} />
             {:else if isFileOffer}
                 <FileOfferCard {event} />
+            {:else if pluginRenderer && !decryptionPending && !isUtd}
+                {@const r = pluginRenderer}
+                {@const ctx = {
+                    roomId: room.roomId,
+                    eventId,
+                    sender: senderId,
+                    type: eventType,
+                    content: { ...(content ?? {}) },
+                    timestamp,
+                    isOwn: isOwnMessage,
+                }}
+                {#key pluginRenderKey}
+                    <div
+                        class="message-body"
+                        data-zam-plugin-render
+                        use:pluginMount={(el) => r.render(el, ctx)}
+                    ></div>
+                {/key}
             {:else if decryptionPending}
                 <!-- Encrypted, not attempted/failed yet. Neutral copy: the
                  missing-keys line would be a claim we cannot make until the

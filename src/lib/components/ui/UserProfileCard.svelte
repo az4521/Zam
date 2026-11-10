@@ -100,6 +100,10 @@
         verificationState,
         verifyUser,
     } from "$lib/stores/verification.svelte";
+    import { pluginRegistry } from "$lib/stores/plugins.svelte";
+    import { pluginMount } from "$lib/plugins/pluginMount";
+    import { visibleUserActions } from "$lib/plugins/pluginMembers";
+    import type { UserActionItem } from "$lib/plugins/types";
 
     interface Props {
         room: Room;
@@ -113,6 +117,26 @@
     );
     const userId = $derived(profileCardState.userId ?? "");
     const isSelf = $derived(userId === auth.userId);
+    // Context handed to plugin profile sections and action buttons.
+    const pluginCtx = $derived({ userId, roomId: room.roomId, isSelf });
+    // Plugin profile sections and action buttons. Re-derived on every registry
+    // mutation (tick) and when the card retargets. Actions are filtered by the
+    // same `when` rule the helper applies, mapped back to their entries for keys.
+    const profileSections = $derived.by(() => {
+        void pluginRegistry.tick;
+        return [...pluginRegistry.profileSections];
+    });
+    const pluginActions = $derived.by(() => {
+        void pluginRegistry.tick;
+        const entries = [...pluginRegistry.userActions];
+        const visible = new Set<UserActionItem>(
+            visibleUserActions(
+                entries.map((e) => e.value),
+                pluginCtx,
+            ),
+        );
+        return entries.filter((e) => visible.has(e.value));
+    });
 
     // Live SDK objects mutate in place — depend on the ticks so kicks/bans,
     // membership and presence changes re-render the open card.
@@ -354,6 +378,18 @@
     function editOwnProfile() {
         // openAppSettingsTab claims the modal slot, closing this card.
         openAppSettingsTab("account");
+    }
+
+    // Plugin action buttons (zam.members.addAction). The helper's try/catch
+    // covers synchronous throws; a rejected promise is caught here.
+    function runPluginAction(action: UserActionItem) {
+        try {
+            Promise.resolve(action.onSelect(pluginCtx)).catch((e) =>
+                console.error("[zam] members.addAction onSelect threw", e),
+            );
+        } catch (e) {
+            console.error("[zam] members.addAction onSelect threw", e);
+        }
     }
 
     async function copyUserId() {
@@ -606,6 +642,16 @@
                 {@html renderPlainTextWithTwemoji(bio)}
             </p>
         {/if}
+        <!-- Plugin profile sections (zam.members.addProfileSection). -->
+        {#each profileSections as entry (entry.entryId)}
+            {#key `${entry.entryId}:${userId}`}
+                <div
+                    class="mt-2"
+                    data-zam-plugin={entry.pluginId}
+                    use:pluginMount={(el) => entry.value.render(el, pluginCtx)}
+                ></div>
+            {/key}
+        {/each}
         {#if localTime}
             <p class="mt-2 text-xs text-discord-textMuted">
                 {t("userProfileCard.localTime", { localTime, timezone })}
@@ -864,6 +910,20 @@
                 >
                     {t("userProfileCard.editProfile")}
                 </button>
+            </div>
+        {/if}
+
+        {#if pluginActions.length > 0}
+            <div class="mt-3 pt-3 border-t border-discord-divider space-y-1.5">
+                {#each pluginActions as entry (entry.entryId)}
+                    <button
+                        onclick={() => runPluginAction(entry.value)}
+                        data-zam-plugin={entry.pluginId}
+                        class="w-full px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm font-semibold transition-colors"
+                    >
+                        {String(entry.value.label)}
+                    </button>
+                {/each}
             </div>
         {/if}
 

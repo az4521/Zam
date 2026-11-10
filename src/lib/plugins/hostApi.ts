@@ -22,6 +22,16 @@ import { createAssetAccess, type PluginFileSource } from "./pluginAssets";
 import { connectNative, nativeAvailable } from "./pluginNative";
 import { framesAvailable, injectFrameScript } from "./pluginFrames";
 import { removeStyleSheet, setStyleSheet } from "../utils/customCss";
+import {
+    messageElement,
+    observeDom,
+    regionElement,
+    styleElement,
+} from "./pluginDom";
+import { rendererProblem } from "./pluginRenderers";
+import { closePluginPanelOf, openRegisteredPanel } from "./pluginPanel.svelte";
+import { navigateToRoom } from "../stores/rooms.svelte";
+import { viewedRoomId } from "./pluginNav.svelte";
 import { sendReaction, getOwnUserId, getClient } from "../matrix/client";
 import {
     sendEventContent,
@@ -33,6 +43,17 @@ import {
     sendPluginMedia,
     redactOwnEvent,
     getPluginMedia,
+    sendPluginEvent,
+    getPluginEvent,
+    getPluginRooms,
+    getPluginState,
+    listPluginState,
+    canSetPluginState,
+    setPluginState,
+    getPluginAccountData,
+    setPluginAccountData,
+    getPluginProfile,
+    getPluginPresence,
 } from "../matrix/pluginHost";
 import {
     clearPluginPresence,
@@ -261,11 +282,53 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
             },
             registerEmbed: (e) =>
                 track(addEntry(registry, "embeds", pluginId, e)),
+            registerRenderer: (r) => {
+                const problem = rendererProblem(r);
+                if (problem)
+                    throw new Error(
+                        `[plugin ${pluginId}] registerRenderer: ${problem}`,
+                    );
+                return track(
+                    addEntry(registry, "messageRenderers", pluginId, r),
+                );
+            },
         },
 
         room: {
             addHeaderButton: (btn) =>
                 track(addEntry(registry, "headerButtons", pluginId, btn)),
+            addSettingsTab: (tab) =>
+                track(addEntry(registry, "roomSettingsTabs", pluginId, tab)),
+        },
+
+        rooms: {
+            addAction: (a) =>
+                track(addEntry(registry, "roomActions", pluginId, a)),
+        },
+
+        members: {
+            decorate: (fn) =>
+                track(addEntry(registry, "memberDecorators", pluginId, fn)),
+            refresh: () => {
+                registry.tick++;
+            },
+            addAction: (a) =>
+                track(addEntry(registry, "userActions", pluginId, a)),
+            addProfileSection: (sec) =>
+                track(addEntry(registry, "profileSections", pluginId, sec)),
+        },
+
+        navigation: {
+            getActiveRoomId: () => viewedRoomId(),
+            openRoom: (roomId, o) => navigateToRoom(roomId, o?.eventId),
+        },
+
+        dom: {
+            region: (name) => regionElement(name),
+            messageElement: (eventId) => messageElement(eventId),
+            observe: (selector, observer) =>
+                track(observeDom(selector, observer)),
+            style: (el, props) => track(styleElement(el, props)),
         },
 
         shortcuts: {
@@ -285,6 +348,23 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                     : warnNoopDisposable("ui.openPopover"),
             registerPanel: (p) =>
                 track(addEntry(registry, "panels", pluginId, p)),
+            openPanel: (id, o) => {
+                const entry = registry.panels.find(
+                    (e) => e.pluginId === pluginId && e.value.id === id,
+                );
+                if (!entry)
+                    throw new Error(
+                        `[plugin ${pluginId}] openPanel: no panel "${id}" registered`,
+                    );
+                const roomId = o?.roomId ?? viewedRoomId();
+                if (!roomId) return;
+                openRegisteredPanel(pluginId, roomId, entry.value);
+            },
+            closePanel: () => closePluginPanelOf(pluginId),
+            addOverlay: (o) =>
+                track(addEntry(registry, "overlays", pluginId, o)),
+            addSettingsPage: (page) =>
+                track(addEntry(registry, "settingsPages", pluginId, page)),
             addStyles: (css) => {
                 const id = `plugin:${pluginId}:${++styleCount}`;
                 setStyleSheet(id, String(css));
@@ -306,7 +386,7 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                 track(
                     addEntry(registry, "eventSubs", pluginId, {
                         event,
-                        handler,
+                        handler: handler as (payload: unknown) => void,
                     }),
                 ),
         },
@@ -344,6 +424,23 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
             }),
             redactOwn: (roomId, eventId, reason) =>
                 redactOwnEvent(roomId, eventId, reason),
+            sendEvent: async (roomId, type, content) => ({
+                eventId: await sendPluginEvent(roomId, type, content),
+            }),
+            getEvent: (roomId, eventId) => getPluginEvent(roomId, eventId),
+            getRooms: () => getPluginRooms(),
+            getState: (roomId, type, stateKey) =>
+                getPluginState(roomId, type, stateKey),
+            listState: (roomId, type) => listPluginState(roomId, type),
+            canSetState: (roomId, type) => canSetPluginState(roomId, type),
+            setState: (roomId, type, content, stateKey) =>
+                setPluginState(roomId, type, content, stateKey),
+            getAccountData: (type, roomId) =>
+                getPluginAccountData(type, roomId),
+            setAccountData: (type, content, roomId) =>
+                setPluginAccountData(type, content, roomId),
+            getProfile: (userId) => getPluginProfile(userId),
+            getPresence: (userId) => getPluginPresence(userId),
         },
 
         presence: {
@@ -421,6 +518,7 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
         changeListeners.clear();
         // Entries set without keeping the handle go too.
         clearPluginPresence(pluginId);
+        closePluginPanelOf(pluginId);
     };
 
     return { zam, disposeAll, setSettings };

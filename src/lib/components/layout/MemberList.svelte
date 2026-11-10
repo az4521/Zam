@@ -20,6 +20,8 @@
         presenceDotClass,
         presenceLabel,
     } from "$lib/utils/presence";
+    import { pluginRegistry } from "$lib/stores/plugins.svelte";
+    import { collectMemberDecorations } from "$lib/plugins/pluginMembers";
 
     interface Props {
         room: Room;
@@ -98,9 +100,88 @@
         }
         return map;
     });
+
+    // Plugin badges / second lines (zam.members.decorate). Re-run on every
+    // registry tick (members.refresh() bumps it) and member change.
+    const memberDecorations = $derived.by(() => {
+        void pluginRegistry.tick;
+        const decorators = pluginRegistry.memberDecorators.map((e) => e.value);
+        const map = new Map<
+            string,
+            ReturnType<typeof collectMemberDecorations>
+        >();
+        if (decorators.length === 0) return map;
+        for (const member of members) {
+            map.set(
+                member.userId,
+                collectMemberDecorations(decorators, {
+                    roomId: room.roomId,
+                    userId: member.userId,
+                }),
+            );
+        }
+        return map;
+    });
 </script>
 
+{#snippet memberRow(
+    member: RoomMember,
+    roleLabel: string | null,
+    muted: boolean,
+)}
+    {@const presence = memberPresence.get(member.userId)}
+    {@const deco = memberDecorations.get(member.userId)}
+    <button
+        onclick={(e) => openProfileCard(member.userId, e.currentTarget)}
+        data-user-id={member.userId}
+        title={deco?.tooltip ?? undefined}
+        class="w-[calc(100%-1rem)] text-start flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
+    >
+        <div class="relative flex-shrink-0">
+            <Avatar
+                src={getAvatarSrc(member)}
+                name={member.name}
+                id={member.userId}
+                size={32}
+            />
+            <div
+                title={presence?.label}
+                class="absolute bottom-0 end-0 w-2.5 h-2.5 {presence?.dotClass ??
+                    'bg-discord-offline'} rounded-full border-2 border-discord-backgroundSecondary"
+            ></div>
+        </div>
+        <div class="min-w-0 flex-1">
+            <p class="flex items-center gap-1 min-w-0">
+                <span
+                    class="text-sm font-medium truncate group-hover:text-discord-textPrimary transition-colors {muted
+                        ? 'text-discord-textMuted'
+                        : 'text-discord-textPrimary'}"
+                >
+                    {memberDisplayName(member)}
+                </span>
+                {#each deco?.badges ?? [] as badge, i (i)}
+                    <span
+                        class="flex-shrink-0 px-1 rounded bg-discord-backgroundTertiary text-[10px] font-semibold uppercase text-discord-textMuted"
+                        >{badge}</span
+                    >
+                {/each}
+            </p>
+            {#if roleLabel}
+                <p class="text-xs text-discord-textMuted truncate">
+                    {roleLabel}
+                </p>
+            {/if}
+            {#if deco?.subtitle}
+                <p class="text-xs text-discord-textMuted truncate">
+                    {deco.subtitle}
+                </p>
+            {/if}
+        </div>
+    </button>
+{/snippet}
+
 <div
+    data-zam-region="member-list"
     class="{interfaceState.isMobile
         ? ''
         : 'w-72'} h-full bg-discord-backgroundSecondary flex flex-col flex-shrink-0 overflow-hidden border-l border-discord-divider"
@@ -124,36 +205,11 @@
                     {t("memberList.creators", { length: creators.length })}
                 </p>
                 {#each creators as member (member.userId)}
-                    {@const presence = memberPresence.get(member.userId)}
-                    <button
-                        onclick={(e) =>
-                            openProfileCard(member.userId, e.currentTarget)}
-                        class="w-[calc(100%-1rem)] text-start flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
-                    >
-                        <div class="relative flex-shrink-0">
-                            <Avatar
-                                src={getAvatarSrc(member)}
-                                name={member.name}
-                                id={member.userId}
-                                size={32}
-                            />
-                            <div
-                                title={presence?.label}
-                                class="absolute bottom-0 end-0 w-2.5 h-2.5 {presence?.dotClass ??
-                                    'bg-discord-offline'} rounded-full border-2 border-discord-backgroundSecondary"
-                            ></div>
-                        </div>
-                        <div class="min-w-0 flex-1">
-                            <p
-                                class="text-sm font-medium text-discord-textPrimary truncate group-hover:text-discord-textPrimary transition-colors"
-                            >
-                                {memberDisplayName(member)}
-                            </p>
-                            <p class="text-xs text-discord-textMuted truncate">
-                                {t("roomSettings.creatorLabel")}
-                            </p>
-                        </div>
-                    </button>
+                    {@render memberRow(
+                        member,
+                        t("roomSettings.creatorLabel"),
+                        false,
+                    )}
                 {/each}
             </div>
         {/if}
@@ -167,36 +223,7 @@
                     {t("memberList.admins", { length: admins.length })}
                 </p>
                 {#each admins as member (member.userId)}
-                    {@const presence = memberPresence.get(member.userId)}
-                    <button
-                        onclick={(e) =>
-                            openProfileCard(member.userId, e.currentTarget)}
-                        class="w-[calc(100%-1rem)] text-start flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
-                    >
-                        <div class="relative flex-shrink-0">
-                            <Avatar
-                                src={getAvatarSrc(member)}
-                                name={member.name}
-                                id={member.userId}
-                                size={32}
-                            />
-                            <div
-                                title={presence?.label}
-                                class="absolute bottom-0 end-0 w-2.5 h-2.5 {presence?.dotClass ??
-                                    'bg-discord-offline'} rounded-full border-2 border-discord-backgroundSecondary"
-                            ></div>
-                        </div>
-                        <div class="min-w-0 flex-1">
-                            <p
-                                class="text-sm font-medium text-discord-textPrimary truncate group-hover:text-discord-textPrimary transition-colors"
-                            >
-                                {memberDisplayName(member)}
-                            </p>
-                            <p class="text-xs text-discord-textMuted truncate">
-                                {t("memberList.admin")}
-                            </p>
-                        </div>
-                    </button>
+                    {@render memberRow(member, t("memberList.admin"), false)}
                 {/each}
             </div>
         {/if}
@@ -209,33 +236,7 @@
                     {t("memberList.moderators", { length: moderators.length })}
                 </p>
                 {#each moderators as member (member.userId)}
-                    {@const presence = memberPresence.get(member.userId)}
-                    <button
-                        onclick={(e) =>
-                            openProfileCard(member.userId, e.currentTarget)}
-                        class="w-[calc(100%-1rem)] text-start flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
-                    >
-                        <div class="relative flex-shrink-0">
-                            <Avatar
-                                src={getAvatarSrc(member)}
-                                name={member.name}
-                                id={member.userId}
-                                size={32}
-                            />
-                            <div
-                                title={presence?.label}
-                                class="absolute bottom-0 end-0 w-2.5 h-2.5 {presence?.dotClass ??
-                                    'bg-discord-offline'} rounded-full border-2 border-discord-backgroundSecondary"
-                            ></div>
-                        </div>
-                        <div class="min-w-0 flex-1">
-                            <p
-                                class="text-sm font-medium text-discord-textPrimary truncate group-hover:text-discord-textPrimary transition-colors"
-                            >
-                                {memberDisplayName(member)}
-                            </p>
-                        </div>
-                    </button>
+                    {@render memberRow(member, null, false)}
                 {/each}
             </div>
         {/if}
@@ -248,33 +249,7 @@
                     {t("memberList.members", { length: regularMembers.length })}
                 </p>
                 {#each regularMembers as member (member.userId)}
-                    {@const presence = memberPresence.get(member.userId)}
-                    <button
-                        onclick={(e) =>
-                            openProfileCard(member.userId, e.currentTarget)}
-                        class="w-[calc(100%-1rem)] text-start flex items-center gap-2 px-2 py-1 mx-2 rounded hover:bg-discord-messageHover transition-colors cursor-pointer group"
-                    >
-                        <div class="relative flex-shrink-0">
-                            <Avatar
-                                src={getAvatarSrc(member)}
-                                name={member.name}
-                                id={member.userId}
-                                size={32}
-                            />
-                            <div
-                                title={presence?.label}
-                                class="absolute bottom-0 end-0 w-2.5 h-2.5 {presence?.dotClass ??
-                                    'bg-discord-offline'} rounded-full border-2 border-discord-backgroundSecondary"
-                            ></div>
-                        </div>
-                        <div class="min-w-0 flex-1">
-                            <p
-                                class="text-sm font-medium text-discord-textMuted truncate group-hover:text-discord-textPrimary transition-colors"
-                            >
-                                {memberDisplayName(member)}
-                            </p>
-                        </div>
-                    </button>
+                    {@render memberRow(member, null, true)}
                 {/each}
             </div>
         {/if}

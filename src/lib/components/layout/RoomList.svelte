@@ -96,6 +96,7 @@
     import { longPress } from "$lib/actions/longPress";
     import { focusTrap } from "$lib/actions/focusTrap";
     import { dismissOnOutsidePointer } from "$lib/actions/dismissOnOutsidePointer";
+    import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
 
@@ -181,6 +182,47 @@
         y: number;
         touch: boolean;
     } | null>(null);
+
+    // Plugin room actions (zam.rooms.addAction) for the open context menu. Each
+    // entry carries the ctx it was filtered with, so the click passes the same
+    // room and space flag. A throwing `when` hides that entry only.
+    const menuPluginActions = $derived.by(() => {
+        void pluginRegistry.tick;
+        void roomsState.roomsTick;
+        if (!contextMenu) return [];
+        const roomId = contextMenu.roomId;
+        const ctx = {
+            roomId,
+            isSpace: getRoom(roomId)?.isSpaceRoom() ?? false,
+        };
+        return pluginRegistry.roomActions
+            .filter((e) => {
+                try {
+                    return e.value.when?.(ctx) ?? true;
+                } catch (err) {
+                    console.error("[zam] rooms.addAction when() threw", err);
+                    return false;
+                }
+            })
+            .map((e) => ({
+                key: e.entryId,
+                pluginId: e.pluginId,
+                label: e.value.label,
+                run: () => e.value.onSelect(ctx),
+            }));
+    });
+
+    // Runs a plugin room action after closing the menu, as the built-in items do.
+    function runPluginRoomAction(run: () => void | Promise<void>) {
+        closeModal();
+        try {
+            Promise.resolve(run()).catch((e) =>
+                console.error("[zam] rooms.addAction onSelect threw", e),
+            );
+        } catch (e) {
+            console.error("[zam] rooms.addAction onSelect threw", e);
+        }
+    }
 
     function positionMenu(node: HTMLElement, pos: { x: number; y: number }) {
         let raf = 0;
@@ -887,7 +929,10 @@
     }
 </script>
 
-<div class="flex-1 min-w-0 bg-discord-backgroundSecondary flex flex-col">
+<div
+    data-zam-region="room-list"
+    class="flex-1 min-w-0 bg-discord-backgroundSecondary flex flex-col"
+>
     <!-- Header -->
     <div
         class="h-12 px-4 flex items-center border-b border-discord-divider shadow-sm flex-shrink-0 gap-2"
@@ -1164,7 +1209,7 @@
                 style={isActive
                     ? "border-inline-start: 3px solid var(--discord-accent); background: linear-gradient(to var(--end-side), var(--discord-bg-selected) 85%, var(--discord-bg-secondary));"
                     : ""}
-                data-room-id={draggable ? room.roomId : undefined}
+                data-room-id={room.roomId}
                 data-section={draggable ? section : undefined}
                 data-list={draggable ? "main" : undefined}
                 data-nav-room={room.roomId}
@@ -1586,7 +1631,7 @@
                     <div
                         class:touch-none={dmDraggable}
                         class:cursor-grab={dmDraggable}
-                        data-room-id={dmDraggable ? room.roomId : undefined}
+                        data-room-id={room.roomId}
                         data-section={dmDraggable ? dmSection : undefined}
                         data-list={dmDraggable ? "dm" : undefined}
                         data-nav-room={room.roomId}
@@ -1858,6 +1903,17 @@
                     class="w-full text-start px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors"
                     >{t("roomList.leaveRoom")}</button
                 >
+            {/if}
+            {#if menuPluginActions.length > 0}
+                <div class="w-full h-px bg-discord-divider my-1"></div>
+                {#each menuPluginActions as entry (entry.key)}
+                    <button
+                        onclick={() => runPluginRoomAction(entry.run)}
+                        data-zam-plugin={entry.pluginId}
+                        class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+                        >{entry.label}</button
+                    >
+                {/each}
             {/if}
         {/snippet}
 

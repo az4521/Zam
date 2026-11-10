@@ -26,6 +26,14 @@ import type {
     SwipeHandler,
     EventSubscription,
     MicFilter,
+    MessageRenderer,
+    RoomSettingsTabRegistration,
+    SettingsPageRegistration,
+    MemberDecorator,
+    UserActionItem,
+    ProfileSectionRegistration,
+    RoomActionItem,
+    OverlayOptions,
 } from "./types";
 
 export interface RegistryEntry<T> {
@@ -52,6 +60,14 @@ export interface PluginRegistryData {
     swipeHandlers: RegistryEntry<SwipeHandler>[];
     eventSubs: RegistryEntry<EventSubscription>[];
     micFilters: RegistryEntry<MicFilter>[];
+    messageRenderers: RegistryEntry<MessageRenderer>[];
+    roomSettingsTabs: RegistryEntry<RoomSettingsTabRegistration>[];
+    settingsPages: RegistryEntry<SettingsPageRegistration>[];
+    memberDecorators: RegistryEntry<MemberDecorator>[];
+    userActions: RegistryEntry<UserActionItem>[];
+    profileSections: RegistryEntry<ProfileSectionRegistration>[];
+    roomActions: RegistryEntry<RoomActionItem>[];
+    overlays: RegistryEntry<OverlayOptions>[];
     tick: number;
     nextEntryId: number;
 }
@@ -79,6 +95,14 @@ export const EXTENSION_KINDS: ExtensionKind[] = [
     "swipeHandlers",
     "eventSubs",
     "micFilters",
+    "messageRenderers",
+    "roomSettingsTabs",
+    "settingsPages",
+    "memberDecorators",
+    "userActions",
+    "profileSections",
+    "roomActions",
+    "overlays",
 ];
 
 export function createRegistryData(): PluginRegistryData {
@@ -100,6 +124,14 @@ export function createRegistryData(): PluginRegistryData {
         swipeHandlers: [],
         eventSubs: [],
         micFilters: [],
+        messageRenderers: [],
+        roomSettingsTabs: [],
+        settingsPages: [],
+        memberDecorators: [],
+        userActions: [],
+        profileSections: [],
+        roomActions: [],
+        overlays: [],
         tick: 0,
         nextEntryId: 1,
     };

@@ -6,7 +6,8 @@
  * central stack. `pluginPanel.current` holds the bound render + title + roomId;
  * MessageArea renders it via the pluginMount action. No SDK/client import.
  */
-import { openSidebar } from "$lib/stores/interface.svelte";
+import { closeSidebar, openSidebar } from "$lib/stores/interface.svelte";
+import type { PanelRegistration } from "./types";
 
 export interface PluginPanelState {
     /** Stable header-button key (pluginHeaderKey) — identifies which button's
@@ -15,6 +16,8 @@ export interface PluginPanelState {
     title: string;
     roomId: string;
     render(el: HTMLElement): void | (() => void);
+    /** The plugin that owns it, so its unload can close it. */
+    pluginId?: string;
 }
 
 export const pluginPanel = $state<{ current: PluginPanelState | null }>({
@@ -29,4 +32,34 @@ export function openPluginPanel(state: PluginPanelState): void {
         pluginPanel.current = null;
     });
     pluginPanel.current = state;
+}
+
+/** Key of a panel a plugin registered with ui.registerPanel (header-button
+ *  panels use pluginHeaderKey instead). */
+export function registeredPanelKey(pluginId: string, id: string): string {
+    return `panel:${pluginId}:${id}`;
+}
+
+/** zam.ui.openPanel: show a registered panel for a room. */
+export function openRegisteredPanel(
+    pluginId: string,
+    roomId: string,
+    panel: PanelRegistration,
+): void {
+    openPluginPanel({
+        key: registeredPanelKey(pluginId, panel.id),
+        title: panel.title,
+        roomId,
+        render: (el) => panel.render(el),
+        pluginId,
+    });
+}
+
+/** Close the open panel if `pluginId` owns it. */
+export function closePluginPanelOf(pluginId: string): void {
+    const cur = pluginPanel.current;
+    if (!cur) return;
+    const owned =
+        cur.pluginId === pluginId || cur.key.startsWith(`plugin:${pluginId}:`);
+    if (owned) closeSidebar();
 }

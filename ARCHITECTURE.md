@@ -523,12 +523,18 @@ available for third-party plugins to use; the app's own pickers just don't route
 **The `zam` host API.** `types.ts` is the full contract; `hostApi.ts` builds a per-plugin instance.
 It is grouped into namespaces: `commands` (slash commands), `composer` (buttons, "+" actions,
 `startReply` / `startEdit` / `insertText`), `messages` (outgoing text and content transforms,
-double-tap handlers, action-menu items, decorators, custom embeds), `room` (header buttons and
-panels), `shortcuts` (global hotkeys, conflict-checked against core), `ui` (`openPopover` with an
-optional accessible `label`, `registerPanel`, `notify`), `events` (a read-only event bus), `matrix` (a curated,
-boundary-preserving slice of `client.ts` — `sendMessage` [2-arg], `sendMedia` (encrypts in encrypted
-rooms), `sendImage` (plaintext only), `sendSticker`, `react`, and plain room/member summaries, never
-live SDK objects), `storage` (per-plugin namespaced key/value), `settings` (schema-driven — see
+double-tap handlers, action-menu items, decorators, custom embeds, `registerRenderer` for custom
+event types and msgtypes), `room` (header buttons, room settings tabs), `rooms` (room list context
+menu), `members` (member list decorations, profile card buttons and sections), `navigation` (the
+viewed room, `openRoom`), `dom` (see below), `shortcuts` (global hotkeys, conflict-checked against
+core), `ui` (`openPopover` with an optional accessible `label`, `registerPanel` / `openPanel`,
+full-window overlays, app settings pages, `notify`), `events` (a read-only bus with typed payloads,
+`PluginEventMap`; encrypted events are handed over once they decrypt), `matrix` (a curated,
+boundary-preserving slice of `client.ts` — `sendMessage` [2-arg], `sendEvent` (custom non-state
+types), `sendMedia` (encrypts in encrypted rooms), `sendImage` (plaintext only), `sendSticker`,
+`react`, state and account data reads and writes (minus the types Zam's own settings, moderation and
+crypto own), profiles, presence, and plain room/member/event summaries, never live SDK objects),
+`storage` (per-plugin namespaced key/value), `settings` (schema-driven — see
 below), and `unsafe` (`getClient()` — the escape hatch). The curated `matrix` API is a
 stability/ergonomics layer and a seam for a future sandbox, not a security cage.
 **`zam.unsafe.getClient()`** hands a plugin the live matrix-js-sdk client instance for anything the
@@ -542,6 +548,16 @@ The same listener gives YouTube players the Referer `https://localhost/` when no
 because YouTube refuses label videos embedded on a bare address like `http://127.0.0.1:<port>/`. Every `register` /
 `add` / `on` returns a **`Disposable`**, and the host tracks all of a plugin's disposables so
 disabling it removes exactly its contributions.
+
+**Zam's DOM for plugins** (`pluginDom.ts`). Plugins run in the page, so they could always reach
+the DOM; `zam.dom` gives them hooks that don't change with styling: `data-zam-region` on the app's
+named parts (app, space-sidebar, room-list, room-header, timeline, composer, member-list),
+`data-event-id` / `data-sender` on message rows, `data-user-id` on member rows, `data-room-id` on
+room rows. `observe(selector, {added})` runs one shared MutationObserver, scanned once per frame;
+`style(el, props)` remembers what it overwrote and restores it on dispose or unload. Plugins must
+not remove or move Svelte-owned nodes. A custom-type renderer may only take types Zam has no view
+of its own for (`pluginRenderers.ts`); `client.ts` lets those types into the timeline through
+`setPluginTimelineTypes`, set by `pluginBoot.ts`, so the dependency still runs one way.
 
 **The registry** (`registry.ts` plus `stores/plugins.svelte.ts`) is a reactive `$state` store keyed
 per plugin, with one array per extension point — commands, composer buttons and actions, message

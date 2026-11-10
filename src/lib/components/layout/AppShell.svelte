@@ -34,6 +34,7 @@
     import ScreenSharePicker from "$lib/components/layout/ScreenSharePicker.svelte";
     import JoinConsentDialog from "$lib/components/layout/JoinConsentDialog.svelte";
     import PluginPopoverHost from "$lib/components/plugins/PluginPopoverHost.svelte";
+    import PluginOverlayHost from "$lib/components/plugins/PluginOverlayHost.svelte";
     import QuickSwitcher from "$lib/components/layout/QuickSwitcher.svelte";
     import QuickActions from "$lib/components/layout/QuickActions.svelte";
     import KeyboardShortcutsDialog from "$lib/components/keybinds/KeyboardShortcutsDialog.svelte";
@@ -113,7 +114,10 @@
     import { initOutbox } from "$lib/stores/outbox.svelte";
     import { initBackgroundRelease } from "$lib/backgroundRelease";
     import { initHistoryTrim, noteOpenRoom } from "$lib/historyTrim";
-    import { initPlugins } from "$lib/plugins/pluginBoot";
+    import {
+        initPlugins,
+        emitPluginNotification,
+    } from "$lib/plugins/pluginBoot";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import {
         resolveShortcut,
@@ -850,6 +854,16 @@
             body,
             hideBody: settingsState.hideNotificationBody,
         });
+        try {
+            emitPluginNotification({
+                roomId: room.roomId,
+                eventId: eventId ?? "",
+                title,
+                body: text,
+            });
+        } catch {
+            // A plugin listener must never break posting the notification.
+        }
         try {
             // The desktop shell posts through the main process (no web
             // permission involved); the browser uses the Web Notification API.
@@ -2652,6 +2666,7 @@
          get the UI direction back via `dir={uiDir}` wrappers below. -->
     <div
         dir="ltr"
+        data-zam-region="app"
         class="flex overflow-hidden bg-discord-background"
         style="position: fixed; inset: 0;"
         ontouchstart={drawerDragStart}
@@ -2878,6 +2893,8 @@
 {#if interfaceState.modal === "plugin-popover"}
     <PluginPopoverHost />
 {/if}
+
+<PluginOverlayHost />
 
 {#if interfaceState.modal === "share-target" && shareInboxState.payload}
     <ShareTargetSheet />

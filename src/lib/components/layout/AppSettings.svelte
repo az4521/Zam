@@ -22,6 +22,8 @@
     import { fade } from "svelte/transition";
     import { motionOK } from "$lib/utils/motionPreference";
     import { tick, untrack } from "svelte";
+    import { pluginRegistry } from "$lib/stores/plugins.svelte";
+    import { pluginMount } from "$lib/plugins/pluginMount";
     import {
         interfaceState,
         openSubPage,
@@ -87,7 +89,29 @@
         nativeApp: Capacitor.isNativePlatform(),
         richPresence: richPresenceAvailable() || pluginPresenceKnown(),
     };
-    const settingsGroups = visibleSettingsGroups(platform);
+    const coreGroups = visibleSettingsGroups(platform);
+    // Plugin pages (zam.ui.addSettingsPage) get a group of their own.
+    const pluginPages = $derived(
+        (void pluginRegistry.tick,
+        pluginRegistry.settingsPages.map((e) => ({
+            id: `plugin:${e.entryId}` as SettingsTab,
+            label: String(e.value.label),
+            entry: e,
+        }))),
+    );
+    const settingsGroups = $derived(
+        pluginPages.length > 0
+            ? [
+                  ...coreGroups,
+                  { title: t("settingsNav.plugins"), tabs: pluginPages },
+              ]
+            : coreGroups,
+    );
+    function tabLabel(id: SettingsTab): string {
+        return (
+            pluginPages.find((p) => p.id === id)?.label ?? settingsTabLabel(id)
+        );
+    }
     const searchIndex = SETTINGS_SEARCH_INDEX.filter(
         (e) =>
             isSettingsTabAvailable(e.tab, platform) &&
@@ -239,7 +263,7 @@
                 class="text-lg font-bold text-discord-textPrimary min-w-0 truncate flex-1"
             >
                 {view.mode === "detail"
-                    ? settingsTabLabel(view.tab)
+                    ? tabLabel(view.tab)
                     : t("common.settings")}
             </h2>
             <button
@@ -436,5 +460,13 @@
             <DebugSettings />
             <PushDiagnostics />
         </div>
+    {:else}
+        {@const page = pluginPages.find((p) => p.id === tab)}
+        {#if page}
+            <div
+                data-zam-plugin={page.entry.pluginId}
+                use:pluginMount={(el) => page.entry.value.render(el)}
+            ></div>
+        {/if}
     {/if}
 {/snippet}

@@ -945,6 +945,7 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <nav
+    data-zam-region="space-sidebar"
     class="space-rail w-[4.5rem] bg-discord-backgroundTertiary flex flex-col items-center py-3 gap-2 overflow-y-auto scrollbar-hide flex-shrink-0"
     bind:this={navEl}
     ondragover={onNavDragOver}

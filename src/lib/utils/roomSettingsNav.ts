@@ -17,7 +17,9 @@ export type RoomSettingsTab =
     | "permissions"
     | "members"
     | "emotes"
-    | "rooms";
+    | "rooms"
+    // A plugin's tab (zam.room.addSettingsTab), by registry entry id.
+    | `plugin:${number}`;
 
 export interface RoomSettingsTabEntry {
     id: RoomSettingsTab;
@@ -27,7 +29,7 @@ export interface RoomSettingsTabEntry {
 /** Tab the desktop layout falls back to before the user picks one. */
 export const DEFAULT_ROOM_SETTINGS_TAB: RoomSettingsTab = "general";
 
-const LABELS: Record<RoomSettingsTab, string> = {
+const LABELS: Record<string, string> = {
     general: t("roomSettingsNav.general"),
     access: t("roomSettingsNav.access"),
     notifications: t("common.notifications"),
@@ -46,6 +48,8 @@ const LABELS: Record<RoomSettingsTab, string> = {
  */
 export function roomSettingsTabs(args: {
     isSpace: boolean;
+    /** Plugin tabs, after Zam's own. */
+    pluginTabs?: readonly RoomSettingsTabEntry[];
 }): readonly RoomSettingsTabEntry[] {
     const { isSpace } = args;
     const ids: RoomSettingsTab[] = [
@@ -58,13 +62,19 @@ export function roomSettingsTabs(args: {
         "emotes",
         ...(isSpace ? (["rooms"] as RoomSettingsTab[]) : []),
     ];
-    return ids.map((id) => ({ id, label: LABELS[id] }));
+    return [
+        ...ids.map((id) => ({ id, label: LABELS[id] })),
+        ...(args.pluginTabs ?? []),
+    ];
 }
 
 /** Human label for a tab id; falls back to the id so a new tab can never
  *  render as an empty header. */
-export function roomSettingsTabLabel(id: RoomSettingsTab): string {
-    return LABELS[id] ?? id;
+export function roomSettingsTabLabel(
+    id: RoomSettingsTab,
+    pluginTabs: readonly RoomSettingsTabEntry[] = [],
+): string {
+    return LABELS[id] ?? pluginTabs.find((t) => t.id === id)?.label ?? id;
 }
 
 export type RoomSettingsNavView =
@@ -93,9 +103,10 @@ export function roomSettingsNavView(args: {
     isMobile: boolean;
     isSpace: boolean;
     selectedTab: RoomSettingsTab | null;
+    pluginTabs?: readonly RoomSettingsTabEntry[];
 }): RoomSettingsNavView {
-    const { isMobile, isSpace, selectedTab } = args;
-    const visible = roomSettingsTabs({ isSpace }).some(
+    const { isMobile, isSpace, selectedTab, pluginTabs } = args;
+    const visible = roomSettingsTabs({ isSpace, pluginTabs }).some(
         (t) => t.id === selectedTab,
     );
     const tab = visible ? (selectedTab as RoomSettingsTab) : null;

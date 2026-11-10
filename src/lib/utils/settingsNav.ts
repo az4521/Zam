@@ -23,7 +23,9 @@ export type SettingsTab =
     | "plugins"
     | "server"
     | "about"
-    | "debug";
+    | "debug"
+    // A plugin's page (zam.ui.addSettingsPage), by registry entry id.
+    | `plugin:${number}`;
 
 export interface SettingsTabEntry {
     id: SettingsTab;

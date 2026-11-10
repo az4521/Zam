@@ -134,3 +134,74 @@ describe("roomSettingsNavView", () => {
         ).toEqual({ mode: "detail", tab: "emotes" });
     });
 });
+
+describe("plugin tabs", () => {
+    const plug = { id: "plugin:3" as const, label: "Plug" };
+
+    it("come after Zam's own tabs, in the given order", () => {
+        const other = { id: "plugin:4" as const, label: "Other" };
+        const core = roomSettingsTabs({ isSpace: false }).map((t) => t.id);
+        const ids = roomSettingsTabs({
+            isSpace: false,
+            pluginTabs: [plug, other],
+        }).map((t) => t.id);
+        expect(ids).toEqual([...core, "plugin:3", "plugin:4"]);
+    });
+
+    it("come after Rooms on a space", () => {
+        const ids = roomSettingsTabs({
+            isSpace: true,
+            pluginTabs: [plug],
+        }).map((t) => t.id);
+        expect(ids.at(-1)).toBe("plugin:3");
+        expect(ids.at(-2)).toBe("rooms");
+    });
+
+    it("keep a selected plugin tab on desktop when the room offers it", () => {
+        expect(
+            roomSettingsNavView({
+                isMobile: false,
+                isSpace: false,
+                selectedTab: "plugin:3",
+                pluginTabs: [plug],
+            }),
+        ).toEqual({ mode: "desktop", tab: "plugin:3" });
+    });
+
+    it("drop a selected plugin tab that the room does not offer", () => {
+        expect(
+            roomSettingsNavView({
+                isMobile: false,
+                isSpace: false,
+                selectedTab: "plugin:3",
+                pluginTabs: [],
+            }),
+        ).toEqual({ mode: "desktop", tab: DEFAULT_ROOM_SETTINGS_TAB });
+        expect(
+            roomSettingsNavView({
+                isMobile: true,
+                isSpace: false,
+                selectedTab: "plugin:3",
+            }),
+        ).toEqual({ mode: "list" });
+    });
+
+    it("open a plugin tab's detail page on mobile", () => {
+        expect(
+            roomSettingsNavView({
+                isMobile: true,
+                isSpace: false,
+                selectedTab: "plugin:3",
+                pluginTabs: [plug],
+            }),
+        ).toEqual({ mode: "detail", tab: "plugin:3" });
+    });
+
+    it("resolve a plugin tab's label from the plugin tabs", () => {
+        expect(roomSettingsTabLabel("plugin:3", [plug])).toBe("Plug");
+    });
+
+    it("fall back to the id when no plugin tab carries it", () => {
+        expect(roomSettingsTabLabel("plugin:3", [])).toBe("plugin:3");
+    });
+});

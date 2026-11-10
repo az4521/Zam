@@ -2030,6 +2030,7 @@
 </script>
 
 <div
+    data-zam-region={isThread ? undefined : "composer"}
     class="px-4 pt-2 pb-[calc(1rem_+_env(safe-area-inset-bottom,0px))] md:pb-[calc(0.5rem_+_env(safe-area-inset-bottom,0px))] flex-shrink-0 relative"
 >
     <!-- Typing indicator: a reserved (fixed-height) row ABOVE the input, in

@@ -137,6 +137,7 @@
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import {
         pluginPanel,
+        registeredPanelKey,
         openPluginPanel,
     } from "$lib/plugins/pluginPanel.svelte";
     import { pluginMount } from "$lib/plugins/pluginMount";
@@ -564,7 +565,11 @@
             if (
                 interfaceState.sidebar === "plugin" &&
                 cur &&
-                !pluginHeaderBtns.some((b) => b.key === cur.key)
+                !pluginHeaderBtns.some((b) => b.key === cur.key) &&
+                !pluginRegistry.panels.some(
+                    (e) =>
+                        registeredPanelKey(e.pluginId, e.value.id) === cur.key,
+                )
             ) {
                 closeSidebar();
             }
@@ -2395,6 +2400,7 @@
     >
         <!-- Room header -->
         <div
+            data-zam-region="room-header"
             class="h-12 px-4 flex items-center gap-3 border-b border-discord-divider shadow-sm flex-shrink-0"
         >
             {#if isMobile}
@@ -2658,6 +2664,7 @@
              dedicated sr-only region after this container instead. -->
         <div
             bind:this={scrollEl}
+            data-zam-region="timeline"
             onscroll={onScroll}
             onwheel={stopScrollIntoView}
             ontouchstart={stopScrollIntoView}

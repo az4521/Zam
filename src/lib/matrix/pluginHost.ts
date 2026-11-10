@@ -7,10 +7,13 @@
  * `runtime.ts` and reuses the room/media helpers `client.ts` exports.
  */
 import { t } from "$lib/i18n";
+import { EventTimeline } from "matrix-js-sdk";
 import type {
     PluginRoomSummary,
     PluginMemberSummary,
     PluginTimelineMessage,
+    PluginEventSummary,
+    PluginPresenceState,
 } from "../plugins/types";
 import {
     selectRecentMessages,
@@ -37,7 +40,9 @@ import {
     getRoomAvatar,
     getRoomMembers,
     getRoomTopic,
+    getRooms,
     getTimelineMessages,
+    getUserPresence,
     mxcToHttp,
     threadRelationParams,
     type PluginSyncAccountData,
@@ -96,6 +101,213 @@ export function getPluginRoomSummary(roomId: string): PluginRoomSummary | null {
         memberCount: getRoomMembers(room).length,
         avatarUrl: getRoomAvatar(room),
         joinRule: getJoinRule(room),
+        isSpace: room.isSpaceRoom(),
+    };
+}
+
+/** Plain summaries of every joined room and space. */
+export function getPluginRooms(): PluginRoomSummary[] {
+    return getRooms().flatMap((r) => {
+        const s = getPluginRoomSummary(r.roomId);
+        return s ? [s] : [];
+    });
+}
+
+/** State event types a plugin may not write through `setState`: they are
+ *  what Zam's own settings and moderation UI own, and a stray write can lock
+ *  everyone out of a room. `unsafe.getClient()` remains for the rare plugin
+ *  that truly needs one. */
+const CORE_STATE_TYPES = new Set([
+    "m.room.create",
+    "m.room.member",
+    "m.room.power_levels",
+    "m.room.encryption",
+    "m.room.tombstone",
+    "m.room.server_acl",
+    "m.room.join_rules",
+    "m.room.history_visibility",
+    "m.room.guest_access",
+]);
+
+/** Event types `sendEvent` refuses: state goes through setState, and these
+ *  have dedicated, checked paths (redactOwn, react, the call stack). */
+const RESERVED_SEND_TYPES = new Set([
+    "m.room.redaction",
+    "m.room.encrypted",
+    "m.reaction",
+    "m.call.invite",
+    "m.call.answer",
+    "m.call.hangup",
+    "m.call.candidates",
+]);
+
+/** Send a non-state event of any type for a plugin. */
+export async function sendPluginEvent(
+    roomId: string,
+    type: string,
+    content: Record<string, unknown>,
+): Promise<string> {
+    if (typeof type !== "string" || type === "")
+        throw new Error("sendEvent: type must be a non-empty string");
+    if (RESERVED_SEND_TYPES.has(type))
+        throw new Error(`sendEvent: ${type} can't be sent this way`);
+    if (type === "m.room.message") return sendEventContent(roomId, content);
+    const owner = captureClient();
+    assertMediaOwned(mxcUrlsInContent(content), owner.generation);
+    const res = await owner.client.sendEvent(
+        roomId,
+        type as never,
+        content as never,
+    );
+    return res.event_id;
+}
+
+/** One loaded event as a plain summary. */
+export function getPluginEvent(
+    roomId: string,
+    eventId: string,
+): PluginEventSummary | null {
+    const ev = getRoom(roomId)?.findEventById(eventId);
+    if (!ev) return null;
+    return {
+        eventId,
+        roomId,
+        sender: ev.getSender() ?? "",
+        type: ev.getType(),
+        content: { ...(ev.getContent() ?? {}) },
+        timestamp: ev.getTs(),
+        isRedacted: ev.isRedacted(),
+        isOwn: ev.getSender() === matrixClient?.getUserId(),
+    };
+}
+
+export function getPluginState(
+    roomId: string,
+    type: string,
+    stateKey = "",
+): Record<string, unknown> | null {
+    const ev = getRoom(roomId)
+        ?.getLiveTimeline()
+        .getState(EventTimeline.FORWARDS)
+        ?.getStateEvents(type, stateKey);
+    const content = ev?.getContent();
+    return content && Object.keys(content).length > 0 ? { ...content } : null;
+}
+
+export function listPluginState(
+    roomId: string,
+    type: string,
+): { stateKey: string; sender: string; content: Record<string, unknown> }[] {
+    const evs =
+        getRoom(roomId)
+            ?.getLiveTimeline()
+            .getState(EventTimeline.FORWARDS)
+            ?.getStateEvents(type) ?? [];
+    return evs
+        .filter((e) => Object.keys(e.getContent() ?? {}).length > 0)
+        .map((e) => ({
+            stateKey: e.getStateKey() ?? "",
+            sender: e.getSender() ?? "",
+            content: { ...e.getContent() },
+        }));
+}
+
+export function canSetPluginState(roomId: string, type: string): boolean {
+    const me = matrixClient?.getUserId();
+    const state = getRoom(roomId)
+        ?.getLiveTimeline()
+        .getState(EventTimeline.FORWARDS);
+    if (!me || !state) return false;
+    return state.maySendStateEvent(type, me);
+}
+
+export async function setPluginState(
+    roomId: string,
+    type: string,
+    content: Record<string, unknown>,
+    stateKey = "",
+): Promise<void> {
+    if (CORE_STATE_TYPES.has(type))
+        throw new Error(
+            `setState: ${type} is managed by Zam; use the room settings`,
+        );
+    const owner = captureClient();
+    assertMediaOwned(mxcUrlsInContent(content), owner.generation);
+    await owner.client.sendStateEvent(
+        roomId,
+        type as never,
+        content as never,
+        stateKey,
+    );
+}
+
+/** Account data types Zam itself relies on; a plugin writing one would
+ *  corrupt DMs, ignores, push rules or key backup. */
+function isProtectedAccountData(type: string): boolean {
+    return (
+        type === "m.direct" ||
+        type === "m.ignored_user_list" ||
+        type === "m.push_rules" ||
+        type === "m.fully_read" ||
+        type.startsWith("m.secret_storage") ||
+        type.startsWith("m.cross_signing") ||
+        type.startsWith("m.megolm_backup") ||
+        type.startsWith("m.org.matrix.custom.backup") ||
+        type === PLUGIN_SYNC_KEY
+    );
+}
+
+export function getPluginAccountData(
+    type: string,
+    roomId?: string,
+): Record<string, unknown> | null {
+    if (!matrixClient) return null;
+    const ev = roomId
+        ? getRoom(roomId)?.getAccountData(type)
+        : matrixClient.getAccountData(type as never);
+    const content = ev?.getContent();
+    return content ? { ...content } : null;
+}
+
+export async function setPluginAccountData(
+    type: string,
+    content: Record<string, unknown>,
+    roomId?: string,
+): Promise<void> {
+    if (isProtectedAccountData(type))
+        throw new Error(`setAccountData: ${type} is managed by Zam`);
+    const owner = captureClient();
+    if (roomId)
+        await owner.client.setRoomAccountData(
+            roomId,
+            type as never,
+            content as never,
+        );
+    else await owner.client.setAccountData(type as never, content as never);
+}
+
+export async function getPluginProfile(
+    userId: string,
+): Promise<{ displayName: string | null; avatarUrl: string | null }> {
+    const owner = captureClient();
+    const p = await owner.client.getProfileInfo(userId);
+    return {
+        displayName: p.displayname ?? null,
+        avatarUrl: mxcToHttp(p.avatar_url ?? null),
+    };
+}
+
+export function getPluginPresence(userId: string): PluginPresenceState | null {
+    const info = getUserPresence(userId);
+    if (!info) return null;
+    const p = info.presence;
+    const lastActive = matrixClient?.getUser(userId)?.getLastActiveTs() ?? 0;
+    return {
+        presence:
+            p === "online" || p === "unavailable" ? p : ("offline" as const),
+        statusMsg: info.statusMsg ?? null,
+        lastActiveAt: lastActive > 0 ? lastActive : null,
+        currentlyActive: info.currentlyActive ?? false,
     };
 }
 
