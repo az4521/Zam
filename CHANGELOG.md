@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.56.2
+
+✨ **New**
+
+- **Right-click menu in the desktop app:** right-clicking now always opens a menu, like a regular browser. Plain areas offer Reload and Select all, selected text offers Copy and Select all, images gain Copy image address, and Inspect is at the bottom.
+- **Local plugin folders are watched:** plugin folders added to a picked repo folder are found automatically within a few seconds, without re-selecting the directory. They load disabled, like any first load. Pick the folder once more so it is remembered.
+
 ## v1.56.1
 
 ✨ **New**
