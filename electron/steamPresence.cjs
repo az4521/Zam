@@ -29,7 +29,8 @@ const SHARED_TITLE = "SharedJSContext";
 const EXPRESSION = [
     "(() => {",
     "const fs = window.friendStore;",
-    "const self = fs && fs.self;",
+    // window.friendStore wraps the UI store, which holds the user's own friend.
+    "const self = fs && ((fs.m_FriendsUIFriendStore && fs.m_FriendsUIFriendStore.self) || fs.self);",
     "if (!self) return null;",
     "const p = self.persona || self.m_persona || self;",
     "const appId = Number(p.m_unGamePlayedAppID || 0) || 0;",
