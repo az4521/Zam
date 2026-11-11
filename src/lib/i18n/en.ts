@@ -1580,6 +1580,16 @@ export const en = {
         "Notifications are turned off for this account",
     "notificationSettings.accountNotificationsOffDetail":
         "Every notification for this account is switched off on the server, probably from another app, so nothing notifies on any device whatever the settings below say.",
+    "notificationSettings.accountNotifications":
+        "Notifications for this account",
+    "notificationSettings.accountNotificationsDetail":
+        "Turns notifications on or off for this account on all your devices.",
+    "notificationSettings.thisDeviceNotifications":
+        "Notifications on this device",
+    "notificationSettings.thisDeviceNotificationsDetail":
+        "Turns off pop-ups, sounds and push on this device only. Your other devices keep notifying.",
+    "notificationSettings.couldNotUpdateNotifications":
+        "Couldn't update notification settings",
     "notificationSettings.turnOn": "Turn on",
     "notificationSettings.couldNotTurnOnNotifications":
         "Couldn't turn notifications on",

@@ -1511,6 +1511,16 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Benachrichtigungen sind für dieses Konto ausgeschaltet",
     "notificationSettings.accountNotificationsOffDetail":
         "Alle Benachrichtigungen für dieses Konto sind auf dem Server ausgeschaltet, vermutlich über eine andere App. Unabhängig von den Einstellungen unten benachrichtigt kein Gerät.",
+    "notificationSettings.accountNotifications":
+        "Benachrichtigungen für dieses Konto",
+    "notificationSettings.accountNotificationsDetail":
+        "Schaltet Benachrichtigungen für dieses Konto auf allen deinen Geräten ein oder aus.",
+    "notificationSettings.thisDeviceNotifications":
+        "Benachrichtigungen auf diesem Gerät",
+    "notificationSettings.thisDeviceNotificationsDetail":
+        "Schaltet Pop-ups, Töne und Push nur auf diesem Gerät aus. Deine anderen Geräte benachrichtigen weiter.",
+    "notificationSettings.couldNotUpdateNotifications":
+        "Benachrichtigungseinstellungen konnten nicht aktualisiert werden",
     "notificationSettings.turnOn": "Einschalten",
     "notificationSettings.couldNotTurnOnNotifications":
         "Benachrichtigungen konnten nicht eingeschaltet werden",

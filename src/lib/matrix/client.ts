@@ -5509,7 +5509,16 @@ export function isAccountNotificationsDisabled(): boolean | null {
 }
 
 /** Turn notifications for this account back on (disable `.m.rule.master`). */
-export async function enableAccountNotifications(): Promise<void> {
+export function enableAccountNotifications(): Promise<void> {
+    return setAccountNotificationsDisabled(false);
+}
+
+/** Switch every notification for this account off (`disabled`) or on, by
+ *  toggling the `.m.rule.master` override — what Element's "Enable
+ *  notifications for this account" does. */
+export async function setAccountNotificationsDisabled(
+    disabled: boolean,
+): Promise<void> {
     if (!matrixClient) return;
     const client = matrixClient;
     return pushRuleWriteQueue.run(async () => {
@@ -5518,7 +5527,7 @@ export async function enableAccountNotifications(): Promise<void> {
                 "global",
                 PushRuleKind.Override,
                 ".m.rule.master",
-                false,
+                disabled,
             );
             await refreshCachedPushRules(client);
         } finally {

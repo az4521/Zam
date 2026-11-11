@@ -427,6 +427,10 @@ export const settingsState = $state({
      *  ⚠ Must stay readBool/writeBool (device-global), for the same reason as
      *  hideNotificationBody. */
     streamerMode: readBool("streamerMode", false),
+    /** Device-local master switch for notifications on THIS device: popups,
+     *  sound and push delivery. Off unregisters this device's pusher; other
+     *  devices and the account's push rules are untouched. */
+    deviceNotifications: readBool("deviceNotifications", true),
     /** Device-global: which notifications raise the OS pop-up and taskbar
      *  flash: "loud" (sound tweak only), "all" (loud + silent, the default) or
      *  "none". Device-local by design (readString/writeString, never scoped):
@@ -1232,6 +1236,11 @@ export function setStreamerMode(value: boolean): void {
  *  streamer mode. Every notification producer reads this, never the raw flag. */
 export function notificationBodyHidden(): boolean {
     return settingsState.hideNotificationBody || settingsState.streamerMode;
+}
+
+export function setDeviceNotifications(value: boolean): void {
+    settingsState.deviceNotifications = value;
+    writeBool("deviceNotifications", value);
 }
 
 export function setDesktopAlertMode(value: DesktopAlertMode): void {

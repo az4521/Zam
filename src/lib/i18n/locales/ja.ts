@@ -1394,6 +1394,14 @@ const messages: Partial<Record<MessageKey, string>> = {
         "このアカウントの通知はオフです",
     "notificationSettings.accountNotificationsOffDetail":
         "このアカウントの通知はサーバー側ですべてオフになっています（おそらく別のアプリから）。そのため下の設定に関わらず、どの端末でも通知されません。",
+    "notificationSettings.accountNotifications": "このアカウントの通知",
+    "notificationSettings.accountNotificationsDetail":
+        "このアカウントの通知をすべてのデバイスでオン／オフします。",
+    "notificationSettings.thisDeviceNotifications": "このデバイスの通知",
+    "notificationSettings.thisDeviceNotificationsDetail":
+        "このデバイスのポップアップ、音、プッシュだけをオフにします。他のデバイスは通知を続けます。",
+    "notificationSettings.couldNotUpdateNotifications":
+        "通知設定を更新できませんでした",
     "notificationSettings.turnOn": "オンにする",
     "notificationSettings.couldNotTurnOnNotifications":
         "通知をオンにできませんでした",

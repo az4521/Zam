@@ -4,7 +4,7 @@
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import {
         DEFAULT_PUSH_RULES,
-        enableAccountNotifications,
+        setAccountNotificationsDisabled,
         getClient,
         isAccountNotificationsDisabled,
         getDefaultPushRuleLevel,
@@ -32,18 +32,25 @@
     import {
         setActiveSessionGraceMs,
         setDesktopAlertMode,
+        setDeviceNotifications,
         settingsState,
     } from "$lib/stores/settings.svelte";
     import {
         canFlashTaskbar,
         type DesktopAlertMode,
     } from "$lib/utils/desktopAlert";
-    import { initWebPush, requestWebPushPermission } from "$lib/webPush";
+    import {
+        initWebPush,
+        requestWebPushPermission,
+        teardownWebPush,
+    } from "$lib/webPush";
     import {
         checkNativeNotificationPermission,
         pushDebug,
         requestNativeNotificationPermission,
         switchPushProvider,
+        unregisterPush,
+        initPush,
     } from "$lib/push";
     import {
         getPushProviderPref,
@@ -65,17 +72,39 @@
     const accountNotificationsOff = $derived(
         isAccountNotificationsDisabled() === true,
     );
-    let enablingAccountNotifications = $state(false);
-    async function turnOnAccountNotifications() {
-        enablingAccountNotifications = true;
+    let accountNotificationsPending = $state(false);
+    async function setAccountNotifications(enabled: boolean) {
+        if (accountNotificationsPending) return;
+        accountNotificationsPending = true;
         try {
-            await enableAccountNotifications();
+            await setAccountNotificationsDisabled(!enabled);
         } catch {
             showErrorToast(
-                t("notificationSettings.couldNotTurnOnNotifications"),
+                t("notificationSettings.couldNotUpdateNotifications"),
             );
         } finally {
-            enablingAccountNotifications = false;
+            accountNotificationsPending = false;
+        }
+    }
+
+    // This device only: stop its popups and sound, and drop its pusher so the
+    // server stops pushing here. Other devices are untouched.
+    async function setDeviceNotificationsEnabled(enabled: boolean) {
+        setDeviceNotifications(enabled);
+        const client = getClient();
+        if (!client) return;
+        try {
+            if (enabled) {
+                await initPush(client);
+                await initWebPush(client);
+            } else {
+                await unregisterPush(client);
+                await teardownWebPush(client);
+            }
+        } catch {
+            showErrorToast(
+                t("notificationSettings.couldNotUpdateNotifications"),
+            );
         }
     }
     const taskbarFlash = canFlashTaskbar();
@@ -436,28 +465,51 @@
 </script>
 
 <div class="space-y-6">
-    {#if accountNotificationsOff}
-        <section
-            data-setting-anchor="notif-account-off"
-            class="flex items-center gap-3 rounded-md p-3 bg-discord-warning/20"
+    <section data-setting-anchor="notif-account-off">
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider {accountNotificationsOff
+                ? 'rounded-md p-3 bg-discord-warning/20'
+                : ''}"
         >
             <div class="flex-1 min-w-0">
-                <p class="text-sm font-semibold text-discord-warning">
-                    {t("notificationSettings.accountNotificationsOff")}
+                <p class="text-sm text-discord-textPrimary">
+                    {t("notificationSettings.accountNotifications")}
                 </p>
                 <p class="text-xs text-discord-textMuted">
-                    {t("notificationSettings.accountNotificationsOffDetail")}
+                    {accountNotificationsOff
+                        ? t(
+                              "notificationSettings.accountNotificationsOffDetail",
+                          )
+                        : t("notificationSettings.accountNotificationsDetail")}
                 </p>
             </div>
-            <button
-                onclick={turnOnAccountNotifications}
-                disabled={enablingAccountNotifications}
-                class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-            >
-                {t("notificationSettings.turnOn")}
-            </button>
-        </section>
-    {/if}
+            <ToggleSwitch
+                checked={!accountNotificationsOff}
+                onChange={setAccountNotifications}
+                label={t("notificationSettings.accountNotifications")}
+            />
+        </div>
+    </section>
+
+    <section data-setting-anchor="notif-device-enabled">
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("notificationSettings.thisDeviceNotifications")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("notificationSettings.thisDeviceNotificationsDetail")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.deviceNotifications}
+                onChange={setDeviceNotificationsEnabled}
+                label={t("notificationSettings.thisDeviceNotifications")}
+            />
+        </div>
+    </section>
 
     <h3
         class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"

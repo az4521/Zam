@@ -838,7 +838,8 @@
         // another one now would strand it above the next account's session.
         if (notificationsShutDown) return;
         // Streamer mode: not even "<sender> in <room>" may pop over a stream.
-        if (settingsState.streamerMode) return;
+        if (settingsState.streamerMode || !settingsState.deviceNotifications)
+            return;
         if (!shouldAlertDesktop(settingsState.desktopAlertMode, loud)) return;
         if (
             document.hasFocus() &&
@@ -966,7 +967,8 @@
      */
     function postAccountNotification(notice: AccountNotice) {
         if (notificationsShutDown) return;
-        if (settingsState.streamerMode) return;
+        if (settingsState.streamerMode || !settingsState.deviceNotifications)
+            return;
         if (!shouldAlertDesktop(settingsState.desktopAlertMode, notice.loud))
             return;
         flashTaskbar();
@@ -1129,6 +1131,7 @@
                 soundEnabled &&
                 !quietForOtherDevice &&
                 !settingsState.streamerMode
+                settingsState.deviceNotifications &&
             ) {
                 playPing();
             }
@@ -1700,9 +1703,11 @@
 
         refreshRooms();
         const client = getClient();
-        if (client) initPush(client).catch(console.error);
-        // PWA / browser web push (no-op on native or when no VAPID key set).
-        if (client) initWebPush(client).catch(console.error);
+        if (client && settingsState.deviceNotifications) {
+            initPush(client).catch(console.error);
+            // PWA / browser web push (no-op on native or when no VAPID key set).
+            initWebPush(client).catch(console.error);
+        }
         // Ring on a closed device: register the m.call.notify push rule once.
         // Idempotent + best-effort — never blocks or breaks the session.
         if (client) ensureCallNotifyPushRule().catch(() => {});

@@ -1642,6 +1642,16 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Сповіщення для цього облікового запису вимкнено",
     "notificationSettings.accountNotificationsOffDetail":
         "Усі сповіщення для цього облікового запису вимкнено на сервері, імовірно з іншого застосунку, тож жодне сповіщення не надходить на жодному пристрої, що б не казали налаштування нижче.",
+    "notificationSettings.accountNotifications":
+        "Сповіщення для цього облікового запису",
+    "notificationSettings.accountNotificationsDetail":
+        "Вмикає або вимикає сповіщення для цього облікового запису на всіх ваших пристроях.",
+    "notificationSettings.thisDeviceNotifications":
+        "Сповіщення на цьому пристрої",
+    "notificationSettings.thisDeviceNotificationsDetail":
+        "Вимикає спливні вікна, звуки та push лише на цьому пристрої. Інші пристрої й надалі сповіщатимуть.",
+    "notificationSettings.couldNotUpdateNotifications":
+        "Не вдалося оновити налаштування сповіщень",
     "notificationSettings.turnOn": "Увімкнути",
     "notificationSettings.couldNotTurnOnNotifications":
         "Не вдалося ввімкнути сповіщення",

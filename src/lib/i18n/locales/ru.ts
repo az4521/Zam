@@ -1644,6 +1644,16 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Уведомления для этой учётной записи отключены",
     "notificationSettings.accountNotificationsOffDetail":
         "Все уведомления для этой учётной записи отключены на сервере, вероятно из другого приложения, поэтому ни одно устройство не получает уведомлений, что бы ни говорили настройки ниже.",
+    "notificationSettings.accountNotifications":
+        "Уведомления для этой учётной записи",
+    "notificationSettings.accountNotificationsDetail":
+        "Включает или отключает уведомления для этой учётной записи на всех ваших устройствах.",
+    "notificationSettings.thisDeviceNotifications":
+        "Уведомления на этом устройстве",
+    "notificationSettings.thisDeviceNotificationsDetail":
+        "Отключает всплывающие окна, звуки и push только на этом устройстве. Другие устройства продолжат уведомлять.",
+    "notificationSettings.couldNotUpdateNotifications":
+        "Не удалось обновить настройки уведомлений",
     "notificationSettings.turnOn": "Включить",
     "notificationSettings.couldNotTurnOnNotifications":
         "Не удалось включить уведомления",

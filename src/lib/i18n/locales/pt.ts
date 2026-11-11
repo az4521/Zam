@@ -1633,6 +1633,15 @@ const messages: Partial<Record<MessageKey, string>> = {
         "As notificações estão desativadas para esta conta",
     "notificationSettings.accountNotificationsOffDetail":
         "Todas as notificações desta conta estão desativadas no servidor, provavelmente a partir de outro aplicativo, então nada notifica em nenhum dispositivo, independentemente das configurações abaixo.",
+    "notificationSettings.accountNotifications": "Notificações desta conta",
+    "notificationSettings.accountNotificationsDetail":
+        "Ativa ou desativa as notificações desta conta em todos os seus dispositivos.",
+    "notificationSettings.thisDeviceNotifications":
+        "Notificações neste dispositivo",
+    "notificationSettings.thisDeviceNotificationsDetail":
+        "Desativa pop-ups, sons e push apenas neste dispositivo. Seus outros dispositivos continuam notificando.",
+    "notificationSettings.couldNotUpdateNotifications":
+        "Não foi possível atualizar as configurações de notificação",
     "notificationSettings.turnOn": "Ativar",
     "notificationSettings.couldNotTurnOnNotifications":
         "Não foi possível ativar as notificações",

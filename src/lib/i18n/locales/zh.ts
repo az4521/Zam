@@ -1520,6 +1520,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "notificationSettings.accountNotificationsOff": "此账户的通知已关闭",
     "notificationSettings.accountNotificationsOffDetail":
         "此账户的所有通知已在服务器上被关闭（可能是通过另一个应用），因此无论下方如何设置，任何设备都不会收到通知。",
+    "notificationSettings.accountNotifications": "此账户的通知",
+    "notificationSettings.accountNotificationsDetail":
+        "在你的所有设备上开启或关闭此账户的通知。",
+    "notificationSettings.thisDeviceNotifications": "此设备上的通知",
+    "notificationSettings.thisDeviceNotificationsDetail":
+        "仅在此设备上关闭弹窗、提示音和推送。你的其他设备仍会通知。",
+    "notificationSettings.couldNotUpdateNotifications": "无法更新通知设置",
     "notificationSettings.turnOn": "开启",
     "notificationSettings.couldNotTurnOnNotifications": "无法开启通知",
 
