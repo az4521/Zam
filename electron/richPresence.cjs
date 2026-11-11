@@ -38,6 +38,7 @@ const { createKnownGames } = require("./knownGames.cjs");
 const { createMediaSession } = require("./mediaSession.cjs");
 const { restartDiscord } = require("./discordRestart.cjs");
 const { createFakeDiscord } = require("./fakeDiscord.cjs");
+const { isConnectString, steamRunUrl } = require("./steamUrl.cjs");
 
 const PORT_RANGE = [44190, 45190];
 const WS_PATH = "/presence";
@@ -114,6 +115,9 @@ function createRichPresence({
     fetch,
     // Where the macOS MediaRemote adapter lives (see mediaSession.cjs).
     mediaDir,
+    // Opens a steam:// link for a Steam game invite (joinGame). Only the link
+    // built by steamUrl.cjs is passed to it.
+    openExternal = null,
     // Injected by tests; the real modules are required when first needed.
     createSteamPresence: makeSteamPresence = null,
     createSteamDebug: makeSteamDebug = null,
@@ -619,6 +623,7 @@ function createRichPresence({
         const name =
             (typeof state.name === "string" && state.name.trim()) ||
             "Steam game";
+        const connect = state.richPresence?.connect;
         steamReported = { appId, app: { id, name } };
         send({
             source: "arrpc",
@@ -635,6 +640,8 @@ function createRichPresence({
                         : `steam:${appId}`,
                 },
                 timestamps: { start: state.startedAt },
+                // Where the game can be joined (an invite's target), if Steam says.
+                ...(isConnectString(connect) ? { steam_connect: connect } : {}),
             },
         });
     }
@@ -874,6 +881,28 @@ function createRichPresence({
     }
 
     /**
+     * Opens the Steam run link of a game invite the user accepted, with its
+     * connect string. Validates everything it is given.
+     */
+    async function joinGame(req) {
+        const invalid = { ok: false, error: "invalid" };
+        if (!req || typeof req !== "object") return invalid;
+        if (req.kind === "steam") {
+            const url = steamRunUrl({ appId: req.appId, connect: req.connect });
+            if (!url) return invalid;
+            if (!openExternal) return { ok: false, error: "unsupported" };
+            try {
+                await openExternal(url);
+                return { ok: true };
+            } catch (e) {
+                log("steam join failed", String(e?.message || e));
+                return { ok: false, error: "unsupported" };
+            }
+        }
+        return invalid;
+    }
+
+    /**
      * Close Discord, take the first discord-ipc slot and start Discord again
      * (so apps report to us and we pass them on). The caller has asked the
      * user first.
@@ -910,6 +939,7 @@ function createRichPresence({
         restartDiscord: restartDiscordApp,
         setSteamDebugging,
         restartSteam,
+        joinGame,
         stop,
         programs: () => listPrograms(inFlatpak),
         /** The cover behind a "media:" reference, or null (see createCoverStore). */

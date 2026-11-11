@@ -156,6 +156,14 @@ contextBridge.exposeInMainWorld("desktop", {
         setSteamDebugging: (enabled) =>
             ipcRenderer.invoke("rich-presence:steam-debugging", !!enabled),
         restartSteam: () => ipcRenderer.invoke("rich-presence:restart-steam"),
+        // Accept a Steam game invite (see richPresence.cjs joinGame). Only the
+        // known fields cross over; the main process validates the rest.
+        joinGame: (req) =>
+            ipcRenderer.invoke("rich-presence:join-game", {
+                kind: req?.kind === "steam" ? "steam" : "",
+                appId: String(req?.appId ?? ""),
+                connect: String(req?.connect ?? ""),
+            }),
         onEvent: (cb) => {
             const h = (_e, ev) => cb(ev);
             ipcRenderer.on("rich-presence:event", h);

@@ -317,6 +317,50 @@ describe("Steam presence source", () => {
     });
 });
 
+describe("Steam run link", () => {
+    const { steamRunUrl, isConnectString } = electron("steamUrl.cjs");
+
+    it("builds the run-with-arguments link, encoding the connect string", () => {
+        expect(
+            steamRunUrl({ appId: "730", connect: "+connect 1.2.3.4:27015" }),
+        ).toBe("steam://run/730//%2Bconnect%201.2.3.4%3A27015/");
+        expect(steamRunUrl({ appId: "1", connect: "é/?#" })).toBe(
+            `steam://run/1//${encodeURIComponent("é/?#")}/`,
+        );
+    });
+
+    it("rejects an app id that is not digits", () => {
+        for (const appId of [
+            "",
+            "abc",
+            "12a",
+            "-1",
+            "1.5",
+            "1/../x",
+            "1".repeat(21),
+        ]) {
+            expect(steamRunUrl({ appId, connect: "c" })).toBeNull();
+        }
+    });
+
+    it("rejects connect strings with control characters, empty or too long", () => {
+        for (const connect of [
+            "",
+            "a\u0000",
+            "a\tb",
+            "a\nb",
+            "a\u007f",
+            "x".repeat(513),
+        ]) {
+            expect(steamRunUrl({ appId: "730", connect })).toBeNull();
+            expect(isConnectString(connect)).toBe(false);
+        }
+        expect(
+            steamRunUrl({ appId: "730", connect: "x".repeat(512) }),
+        ).not.toBeNull();
+    });
+});
+
 describe("Steam presence expression", () => {
     const run = (window: unknown) => vm.runInNewContext(EXPRESSION, { window });
 

@@ -764,4 +764,130 @@ describe("rich presence store", () => {
             expect(lastValue()).toHaveLength(1);
         });
     });
+
+    describe("game invites", () => {
+        const CONNECT = "+connect 10.0.0.1:27015";
+        const steamGame = (over: Partial<DesktopRichPresenceEvent> = {}) =>
+            ev({
+                source: "arrpc",
+                app: { id: "steam-440", name: "Team Fortress 2" },
+                presenceId: "steam-440",
+                presence: {
+                    application_id: "440",
+                    name: "Team Fortress 2",
+                    details: "Payload",
+                    steam_connect: CONNECT,
+                },
+                ...over,
+            });
+        const on = async (
+            rp: typeof import("./richPresence.svelte"),
+            settings: typeof import("$lib/stores/settings.svelte"),
+        ) => {
+            settings.setRichPresenceEnabled(true);
+            settings.setRichPresenceSteam(true);
+            await rp.syncRichPresence();
+        };
+
+        it("offers a running Steam game with its app id and launch arguments", async () => {
+            const { settings, rp } = await load();
+            await on(rp, settings);
+            handler!(steamGame());
+            expect(rp.invitableGames()).toEqual([
+                expect.objectContaining({
+                    key: "arrpc:steam-440|steam-440",
+                    name: "Team Fortress 2",
+                    steam: { appId: "440", connect: CONNECT },
+                }),
+            ]);
+        });
+
+        it("keeps the invite when the app is not shared", async () => {
+            const { settings, rp } = await load();
+            await on(rp, settings);
+            handler!(steamGame());
+            rp.setAppAllowed("arrpc:steam-440", false);
+            expect(rp.invitableGames()).toHaveLength(1);
+        });
+
+        it("never publishes the launch arguments to the profile", async () => {
+            const { settings, rp } = await load();
+            await on(rp, settings);
+            handler!(steamGame());
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(setOwnProfileField).toHaveBeenCalled();
+            for (const call of setOwnProfileField.mock.calls)
+                expect(JSON.stringify(call)).not.toContain("+connect");
+        });
+
+        it("offers nothing for a Steam report without launch arguments", async () => {
+            const { settings, rp } = await load();
+            await on(rp, settings);
+            const { steam_connect: _, ...noConnect } = steamGame()
+                .presence as Record<string, unknown>;
+            handler!(steamGame({ presence: noConnect }));
+            expect(rp.invitableGames()).toEqual([]);
+        });
+
+        it("offers nothing when the presence id is not a Steam app id", async () => {
+            const { settings, rp } = await load();
+            await on(rp, settings);
+            handler!(steamGame({ presenceId: "steam-abc" }));
+            expect(rp.invitableGames()).toEqual([]);
+        });
+
+        it("offers no Discord game, even one carrying a join secret", async () => {
+            const { settings, rp } = await load();
+            settings.setRichPresenceEnabled(true);
+            settings.setRichPresenceArrpc(true);
+            await rp.syncRichPresence();
+            handler!(
+                ev({
+                    source: "arrpc",
+                    app: { id: "123", name: "Among Us" },
+                    presenceId: "p-1",
+                    presence: {
+                        name: "Among Us",
+                        application_id: "123",
+                        secrets: { join: "join-secret" },
+                    },
+                }),
+            );
+            expect(rp.invitableGames()).toEqual([]);
+        });
+
+        it("drops the invite when the game stops", async () => {
+            const { settings, rp } = await load();
+            await on(rp, settings);
+            handler!(steamGame());
+            handler!(steamGame({ presence: null }));
+            expect(rp.invitableGames()).toEqual([]);
+        });
+
+        it("drops Steam invites when Steam is switched off", async () => {
+            const { settings, rp } = await load();
+            await on(rp, settings);
+            handler!(steamGame());
+            settings.setRichPresenceSteam(false);
+            await rp.syncRichPresence();
+            expect(rp.invitableGames()).toEqual([]);
+        });
+
+        it("drops every invite when sharing from this computer goes off", async () => {
+            const { settings, rp } = await load();
+            await on(rp, settings);
+            handler!(steamGame());
+            settings.setRichPresenceEnabled(false);
+            await rp.syncRichPresence();
+            expect(rp.invitableGames()).toEqual([]);
+        });
+
+        it("drops the invite when its app is forgotten", async () => {
+            const { settings, rp } = await load();
+            await on(rp, settings);
+            handler!(steamGame());
+            rp.forgetApp("arrpc:steam-440");
+            expect(rp.invitableGames()).toEqual([]);
+        });
+    });
 });

@@ -1073,6 +1073,105 @@ describe("Steam presence", () => {
     });
 });
 
+describe("Steam connect strings", () => {
+    const report = (richPresence: Record<string, string>) => ({
+        appId: "570",
+        name: "Dota 2",
+        status: "",
+        richPresence,
+        startedAt: 1,
+    });
+
+    it("forwards a valid connect string as steam_connect", async () => {
+        const sp = stubSteamPresence();
+        const { rp, events } = setup({ createSteamPresence: sp.create });
+        await rp.configure({ local: true, steam: true });
+        sp.instances[0].onSteam(
+            report({
+                connect: "+connect 10.0.0.5:27015",
+                steam_player_group: "x",
+            }),
+        );
+        expect(events[0].presence!.steam_connect).toBe(
+            "+connect 10.0.0.5:27015",
+        );
+        expect(events[0].presence).not.toHaveProperty("steam_player_group");
+    });
+
+    it("omits steam_connect when it has control characters or is too long", async () => {
+        const sp = stubSteamPresence();
+        const { rp, events } = setup({ createSteamPresence: sp.create });
+        await rp.configure({ local: true, steam: true });
+        const onSteam = sp.instances[0].onSteam;
+        for (const connect of [
+            "a\u0000b",
+            "a\nb",
+            "a\u007fb",
+            "x".repeat(513),
+            "",
+        ]) {
+            events.length = 0;
+            onSteam(report({ connect }));
+            expect(events[0].presence).not.toHaveProperty("steam_connect");
+        }
+    });
+});
+
+describe("Game invites (joinGame)", () => {
+    it("reports invalid for bad input", async () => {
+        const opened: string[] = [];
+        const { rp } = setup({ openExternal: (u: string) => opened.push(u) });
+        for (const req of [
+            null,
+            { kind: "other" },
+            { kind: "discord", applicationId: "1", secret: "s" },
+            { kind: "steam", appId: "570", connect: "a\u0001" },
+            { kind: "steam", appId: "5x", connect: "+connect a" },
+            { kind: "steam", appId: "570", connect: "" },
+        ]) {
+            expect(await rp.joinGame(req as never)).toEqual({
+                ok: false,
+                error: "invalid",
+            });
+        }
+        expect(opened).toEqual([]);
+    });
+
+    it("opens exactly the Steam run link for a valid Steam invite", async () => {
+        const opened: string[] = [];
+        const { rp } = setup({ openExternal: (u: string) => opened.push(u) });
+        expect(
+            await rp.joinGame({
+                kind: "steam",
+                appId: "570",
+                connect: "+connect 10.0.0.5:27015 & x",
+            }),
+        ).toEqual({ ok: true });
+        expect(opened).toEqual([
+            "steam://run/570//%2Bconnect%2010.0.0.5%3A27015%20%26%20x/",
+        ]);
+    });
+
+    it("reports unsupported when the link cannot be opened", async () => {
+        const { rp } = setup({
+            openExternal: async () => {
+                throw new Error("no handler");
+            },
+        });
+        expect(
+            await rp.joinGame({ kind: "steam", appId: "570", connect: "c" }),
+        ).toEqual({ ok: false, error: "unsupported" });
+        const none = setup();
+        expect(
+            await none.rp.joinGame({
+                kind: "steam",
+                appId: "570",
+                connect: "c",
+            }),
+        ).toEqual({ ok: false, error: "unsupported" });
+    });
+});
+
 describe("Steam pictures", () => {
     it("resolves a Steam header only under the game's own steam app id", async () => {
         const img = createPresenceImages({

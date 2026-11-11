@@ -1054,6 +1054,8 @@ const richPresence = createRichPresence({
     mediaDir: app.isPackaged
         ? path.join(process.resourcesPath, "mediaremote")
         : path.join(app.getAppPath(), "native", "mediaremote-adapter"),
+    // Steam game invites open their steam:// link (richPresence joinGame).
+    openExternal: (url) => shell.openExternal(url),
     send: (event) => {
         if (mainWindow && !mainWindow.isDestroyed())
             mainWindow.webContents.send("rich-presence:event", event);
@@ -1150,6 +1152,9 @@ ipcMain.handle("rich-presence:steam-debugging", (_e, enabled) =>
 );
 ipcMain.handle("rich-presence:restart-steam", () =>
     richPresence.restartSteam(),
+);
+ipcMain.handle("rich-presence:join-game", (_e, req) =>
+    richPresence.joinGame(req),
 );
 app.on("will-quit", () => richPresence.stop());
 

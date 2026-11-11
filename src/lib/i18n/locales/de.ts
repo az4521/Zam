@@ -3030,6 +3030,27 @@ const messages: Partial<Record<MessageKey, string>> = {
     "composerActionsMenu.recordVoiceMessage": "Sprachnachricht aufnehmen",
     "composerActionsMenu.shareLocation": "Standort teilen",
     "composerActionsMenu.createThread": "Thread erstellen",
+    "composerActionsMenu.inviteToGame": "Zum Spiel einladen",
+    "gameInvite.title": "Zum Spiel einladen",
+    "gameInvite.game": "Spiel",
+    "gameInvite.note": "Notiz (optional)",
+    "gameInvite.notePlaceholder": "Schreib etwas…",
+    "gameInvite.send": "Einladung senden",
+    "gameInvite.noGames":
+        "Gerade kann kein laufendes Steam-Spiel eingeladen werden.",
+    "gameInvite.failedToSend": "Die Einladung konnte nicht gesendet werden.",
+    "gameInvite.cardTitle": "Spieleinladung",
+    "gameInvite.sourceSteam": "Steam",
+    "gameInvite.partySize": "{current} von {max} in der Gruppe",
+    "gameInvite.confirmSteam":
+        "{game} mit diesen Argumenten starten: {connect}",
+    "gameInvite.joinGame": "Spiel beitreten",
+    "gameInvite.joinSent": "Beitritt an das Spiel gesendet.",
+    "gameInvite.openInDesktop": "Zum Beitreten in der Zam-Desktop-App öffnen.",
+    "gameInvite.joinUnsupported":
+        "Dem Spiel beizutreten wird auf diesem Computer nicht unterstützt.",
+    "gameInvite.joinInvalid": "Diese Einladung ist ungültig.",
+    "gameInvite.joinFailed": "Dem Spiel konnte nicht beigetreten werden.",
 
     // src/lib/components/messages/Reactions.svelte
     "reactions.couldNotAddReaction": "Reaktion konnte nicht hinzugefügt werden",

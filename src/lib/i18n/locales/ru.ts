@@ -3036,6 +3036,27 @@ const messages: Partial<Record<MessageKey, string>> = {
     "composerActionsMenu.recordVoiceMessage": "Записать голосовое сообщение",
     "composerActionsMenu.shareLocation": "Поделиться местоположением",
     "composerActionsMenu.createThread": "Создать обсуждение",
+    "composerActionsMenu.inviteToGame": "Пригласить в игру",
+    "gameInvite.title": "Пригласить в игру",
+    "gameInvite.game": "Игра",
+    "gameInvite.note": "Заметка (необязательно)",
+    "gameInvite.notePlaceholder": "Напишите что-нибудь…",
+    "gameInvite.send": "Отправить приглашение",
+    "gameInvite.noGames":
+        "Сейчас нельзя пригласить ни одну запущенную игру Steam.",
+    "gameInvite.failedToSend": "Не удалось отправить приглашение.",
+    "gameInvite.cardTitle": "Приглашение в игру",
+    "gameInvite.sourceSteam": "Steam",
+    "gameInvite.partySize": "{current} из {max} в группе",
+    "gameInvite.confirmSteam": "Запустить {game} с аргументами: {connect}",
+    "gameInvite.joinGame": "Присоединиться к игре",
+    "gameInvite.joinSent": "Запрос на присоединение отправлен в игру.",
+    "gameInvite.openInDesktop":
+        "Откройте в настольном приложении Zam, чтобы присоединиться.",
+    "gameInvite.joinUnsupported":
+        "Присоединение к этой игре на этом компьютере не поддерживается.",
+    "gameInvite.joinInvalid": "Это приглашение недействительно.",
+    "gameInvite.joinFailed": "Не удалось присоединиться к игре.",
 
     // src/lib/components/messages/Reactions.svelte
     "reactions.couldNotAddReaction": "Не удалось добавить реакцию",

@@ -2,6 +2,7 @@
     import { t } from "$lib/i18n";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import { mergeComposerActions } from "$lib/utils/pluginComposer";
+    import { invitableGames } from "$lib/stores/richPresence.svelte";
 
     interface Props {
         roomId: string;
@@ -14,6 +15,7 @@
         onRecordVoice?: () => void;
         onShareLocation?: () => void;
         onCreateThread?: () => void;
+        onInviteToGame?: () => void;
     }
     let {
         roomId,
@@ -26,6 +28,7 @@
         onRecordVoice,
         onShareLocation,
         onCreateThread,
+        onInviteToGame,
     }: Props = $props();
 
     const FALLBACK_ICON =
@@ -77,6 +80,17 @@
                 run: () => onCreatePoll(),
                 icon: "M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z",
             },
+            // Only with a running game someone could be invited to.
+            ...(onInviteToGame && invitableGames().length > 0
+                ? [
+                      {
+                          key: "invite-game",
+                          label: t("composerActionsMenu.inviteToGame"),
+                          run: () => onInviteToGame?.(),
+                          icon: "M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z",
+                      },
+                  ]
+                : []),
             ...(onRecordVoice
                 ? [
                       {

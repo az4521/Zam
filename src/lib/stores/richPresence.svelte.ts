@@ -14,6 +14,12 @@ import {
 } from "$lib/stores/settings.svelte";
 import { PROFILE_FIELDS } from "$lib/utils/extendedProfile";
 import {
+    GAME_INVITE_LIMITS,
+    gameInvitePayload,
+    parseGameInvite,
+    type GameInvite,
+} from "$lib/utils/gameInvite";
+import {
     discordActivityToEntry,
     discordImageRefs,
     parseRpcEntry,
@@ -80,9 +86,15 @@ export interface CustomGame {
     exe: string;
 }
 
+/** A running game the user can invite someone to. `key` is its held key. */
+export type InvitableGame = GameInvite & { key: string };
+
 class RichPresenceState {
     apps = $state<Record<string, KnownApp>>(loadApps());
     games = $state<CustomGame[]>(loadGames());
+    /** Running games with a join secret, by held key. Kept apart from what is
+     *  published, so an invite works for an app that is not shared. */
+    invites = $state<Record<string, InvitableGame>>({});
     status = $state<DesktopRichPresenceStatus | null>(null);
     /** Entries currently held for allowed apps (what we would publish). */
     heldCount = $state(0);
@@ -255,10 +267,47 @@ export async function syncRichPresence(): Promise<void> {
             if (richPresenceState.apps[h.appKey]?.source === "arrpc")
                 held.delete(k);
         }
+        dropInvites(() => true);
         schedulePublish();
     }
     if (!media) dropMedia();
     if (!steam) dropSteam();
+}
+
+/** The games that can be invited to right now (see richPresenceState.invites). */
+export function invitableGames(): InvitableGame[] {
+    return Object.values(richPresenceState.invites);
+}
+
+function setInvite(key: string, invite: InvitableGame | null): void {
+    if (invite) richPresenceState.invites[key] = invite;
+    else delete richPresenceState.invites[key];
+}
+
+function dropInvites(match: (invite: InvitableGame) => boolean): void {
+    for (const [k, invite] of Object.entries(richPresenceState.invites))
+        if (match(invite)) delete richPresenceState.invites[k];
+}
+
+/** The invite for one Steam game report, or null when it has no launch
+ *  arguments. Steam's `steam_connect` is added by the electron side. */
+function inviteFor(
+    key: string,
+    name: string,
+    raw: unknown,
+    presenceId: string,
+): InvitableGame | null {
+    if (!raw || typeof raw !== "object") return null;
+    const m = /^steam-(\d{1,20})$/.exec(presenceId);
+    const connect = (raw as Record<string, unknown>).steam_connect;
+    if (!m || typeof connect !== "string") return null;
+    const game: GameInvite = {
+        name: name.slice(0, GAME_INVITE_LIMITS.name),
+        steam: { appId: m[1], connect },
+    };
+    // Only a game that would pass the receiver's checks can be invited to.
+    if (!parseGameInvite(gameInvitePayload(game))) return null;
+    return { key, ...game };
 }
 
 /** Media players went off: what they were playing goes too, held or blocked. */
@@ -282,6 +331,8 @@ function dropSteam(): void {
             dropped = true;
         }
     for (const [k, ev] of blocked) if (isSteamEvent(ev)) blocked.delete(k);
+    // Every invite is a Steam game now.
+    dropInvites(() => true);
     if (dropped) schedulePublish();
 }
 
@@ -336,6 +387,7 @@ function clearHeld(): void {
     held.clear();
     blocked.clear();
     pluginWanted.clear();
+    dropInvites(() => true);
     schedulePublish();
 }
 
@@ -344,6 +396,7 @@ function clearLocal(): void {
     for (const [k, h] of held)
         if (!h.appKey.startsWith("plugin:")) held.delete(k);
     blocked.clear();
+    dropInvites(() => true);
     schedulePublish();
 }
 
@@ -370,6 +423,7 @@ export function setAppAllowed(appKey: string, allowed: boolean): void {
 export function forgetApp(appKey: string): void {
     delete richPresenceState.apps[appKey];
     saveApps();
+    dropInvites((i) => i.key.startsWith(`${appKey}|`));
     for (const [k, h] of held) if (h.appKey === appKey) held.delete(k);
     for (const [k, ev] of blocked)
         if (`${ev.source}:${ev.app.id}` === appKey) blocked.delete(k);
@@ -537,6 +591,7 @@ function handleEvent(ev: DesktopRichPresenceEvent): void {
     // A removal says nothing new about the app.
     if (ev.presence === null || ev.presence === undefined) {
         blocked.delete(heldKey);
+        setInvite(heldKey, null);
         if (held.delete(heldKey)) schedulePublish();
         return;
     }
@@ -600,6 +655,14 @@ function handleEvent(ev: DesktopRichPresenceEvent): void {
             }
         if (dropped) schedulePublish();
     }
+
+    // Kept whether or not the app is published: an invite is a deliberate
+    // action, and the launch arguments only leave this computer inside one.
+    if (isSteam)
+        setInvite(
+            heldKey,
+            inviteFor(heldKey, name, ev.presence, ev.presenceId),
+        );
 
     if (!richPresenceState.apps[appKey].allowed) {
         // Kept so allowing the app publishes at once (see setAppAllowed).
@@ -885,6 +948,7 @@ export function resetRichPresenceForTests(): void {
     held.clear();
     blocked.clear();
     pluginWanted.clear();
+    dropInvites(() => true);
     published = false;
     chain = Promise.resolve();
     for (const timer of [publishTimer, expiryTimer])

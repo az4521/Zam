@@ -121,6 +121,14 @@ declare global {
         presence: unknown;
     }
 
+    /** A Steam game invite the user accepted: the game and its connect string
+     *  (electron/richPresence.cjs joinGame). */
+    type DesktopGameJoinRequest = {
+        kind: "steam";
+        appId: string;
+        connect: string;
+    };
+
     /** App version, injected from package.json at build time (see vite.config.ts). */
     const __APP_VERSION__: string;
 
@@ -346,6 +354,14 @@ declare global {
                 }>;
                 /** Restart Steam. Only after the user confirmed. */
                 restartSteam: () => Promise<{ ok: boolean; error?: string }>;
+                /** Accept a Steam game invite: open Steam's link to the game. */
+                joinGame: (req: DesktopGameJoinRequest) => Promise<
+                    | { ok: true }
+                    | {
+                          ok: false;
+                          error: "unsupported" | "invalid";
+                      }
+                >;
                 onEvent: (
                     cb: (event: DesktopRichPresenceEvent) => void,
                 ) => () => void;

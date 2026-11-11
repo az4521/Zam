@@ -104,6 +104,7 @@
     import OutboxStrip from "$lib/components/messages/OutboxStrip.svelte";
     import { pickAudioMimeType } from "$lib/utils/voiceMessage";
     import { openCreatePollDialog } from "$lib/stores/pollDialog.svelte";
+    import { openGameInviteDialog } from "$lib/stores/gameInviteDialog.svelte";
     import { openShareLocationDialog } from "$lib/stores/locationDialog.svelte";
     import {
         getDraft,
@@ -2486,6 +2487,8 @@
                                 onCreateThread={onThreadCreated && !isThread
                                     ? () => (createThreadArmed = true)
                                     : undefined}
+                                onInviteToGame={() =>
+                                    openGameInviteDialog(roomId)}
                             />
                         </div>
                     {:else}
@@ -2517,6 +2520,8 @@
                                 onCreateThread={onThreadCreated && !isThread
                                     ? () => (createThreadArmed = true)
                                     : undefined}
+                                onInviteToGame={() =>
+                                    openGameInviteDialog(roomId)}
                             />
                         </div>
                     {/if}

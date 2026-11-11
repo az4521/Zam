@@ -14,6 +14,7 @@
     import RoomSettings from "$lib/components/layout/RoomSettings.svelte";
     import InviteModal from "$lib/components/layout/InviteModal.svelte";
     import CreatePollDialog from "$lib/components/messages/CreatePollDialog.svelte";
+    import GameInviteDialog from "$lib/components/messages/GameInviteDialog.svelte";
     import ShareLocationDialog from "$lib/components/messages/ShareLocationDialog.svelte";
     import ShareTargetSheet from "$lib/components/messages/ShareTargetSheet.svelte";
     import AppSettings from "$lib/components/layout/AppSettings.svelte";
@@ -76,6 +77,7 @@
     } from "$lib/stores/interface.svelte";
     import { inviteDialogState } from "$lib/stores/inviteDialog.svelte";
     import { pollDialogState } from "$lib/stores/pollDialog.svelte";
+    import { gameInviteDialogState } from "$lib/stores/gameInviteDialog.svelte";
     import { locationDialogState } from "$lib/stores/locationDialog.svelte";
     import {
         shareInboxState,
@@ -2893,6 +2895,10 @@
 
 {#if interfaceState.modal === "create-poll" && pollDialogState.roomId}
     <CreatePollDialog />
+{/if}
+
+{#if interfaceState.modal === "game-invite" && gameInviteDialogState.roomId}
+    <GameInviteDialog />
 {/if}
 
 {#if interfaceState.modal === "share-location" && locationDialogState.roomId}

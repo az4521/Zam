@@ -17,6 +17,7 @@
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import PollBody from "$lib/components/messages/PollBody.svelte";
     import FileOfferCard from "$lib/components/messages/FileOfferCard.svelte";
+    import GameInviteCard from "$lib/components/messages/GameInviteCard.svelte";
     import MessageVideo from "$lib/components/messages/MessageVideo.svelte";
     import MediaProgress from "$lib/components/ui/MediaProgress.svelte";
     import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
@@ -128,6 +129,7 @@
     import { requestJoinConsent } from "$lib/stores/joinConsent.svelte";
     import { isPollStartEventType } from "$lib/utils/pollContent";
     import { isFileOfferEventType } from "$lib/utils/fileTransfer";
+    import { gameInviteOf } from "$lib/utils/gameInvite";
     import { isCallEventType, type CallSummary } from "$lib/utils/callSummary";
     import { mayRedactEvent } from "$lib/utils/redaction";
     import { isVerificationRequestMessage } from "$lib/utils/verificationMessage";
@@ -1266,6 +1268,14 @@
 
     const isPoll = $derived(isPollStartEventType(eventType));
     const isFileOffer = $derived(isFileOfferEventType(eventType));
+    // A text message that carries a game invite under Zam's key. Read from the
+    // original content, and never from an edit: an edit cannot add or change it.
+    const gameInvite = $derived(
+        eventType === "m.room.message" &&
+            event.getRelation()?.rel_type !== "m.replace"
+            ? gameInviteOf(event.getOriginalContent())
+            : null,
+    );
     // A plugin's message renderer for this event (first registered wins).
     const pluginRenderer = $derived.by(() => {
         void pluginRegistry.tick;
@@ -2914,6 +2924,8 @@
                 <PollBody {event} {room} />
             {:else if isFileOffer}
                 <FileOfferCard {event} />
+            {:else if gameInvite}
+                <GameInviteCard invite={gameInvite} />
             {:else if pluginRenderer && !decryptionPending && !isUtd}
                 {@const r = pluginRenderer}
                 {@const ctx = {

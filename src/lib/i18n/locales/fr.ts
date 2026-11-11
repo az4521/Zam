@@ -3007,6 +3007,27 @@ const messages: Partial<Record<MessageKey, string>> = {
     "composerActionsMenu.recordVoiceMessage": "Enregistrer un message vocal",
     "composerActionsMenu.shareLocation": "Partager la position",
     "composerActionsMenu.createThread": "Créer un fil",
+    "composerActionsMenu.inviteToGame": "Inviter à jouer",
+    "gameInvite.title": "Inviter à jouer",
+    "gameInvite.game": "Jeu",
+    "gameInvite.note": "Note (facultatif)",
+    "gameInvite.notePlaceholder": "Écrivez quelque chose…",
+    "gameInvite.send": "Envoyer l'invitation",
+    "gameInvite.noGames":
+        "Aucun jeu Steam en cours ne peut être invité pour le moment.",
+    "gameInvite.failedToSend": "Impossible d'envoyer l'invitation.",
+    "gameInvite.cardTitle": "Invitation à jouer",
+    "gameInvite.sourceSteam": "Steam",
+    "gameInvite.partySize": "{current} sur {max} dans le groupe",
+    "gameInvite.confirmSteam": "Lancer {game} avec les arguments : {connect}",
+    "gameInvite.joinGame": "Rejoindre la partie",
+    "gameInvite.joinSent": "Demande envoyée au jeu.",
+    "gameInvite.openInDesktop":
+        "Ouvrez-le dans l'application de bureau Zam pour rejoindre.",
+    "gameInvite.joinUnsupported":
+        "Rejoindre ce jeu n'est pas pris en charge sur cet ordinateur.",
+    "gameInvite.joinInvalid": "Cette invitation n'est pas valide.",
+    "gameInvite.joinFailed": "Impossible de rejoindre le jeu.",
 
     // src/lib/components/messages/Reactions.svelte
     "reactions.couldNotAddReaction": "Impossible d'ajouter la réaction",

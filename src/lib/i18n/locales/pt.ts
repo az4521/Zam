@@ -3040,6 +3040,27 @@ const messages: Partial<Record<MessageKey, string>> = {
     "composerActionsMenu.recordVoiceMessage": "Gravar mensagem de voz",
     "composerActionsMenu.shareLocation": "Compartilhar localização",
     "composerActionsMenu.createThread": "Criar tópico",
+    "composerActionsMenu.inviteToGame": "Convidar para o jogo",
+    "gameInvite.title": "Convidar para o jogo",
+    "gameInvite.game": "Jogo",
+    "gameInvite.note": "Nota (opcional)",
+    "gameInvite.notePlaceholder": "Escreva algo…",
+    "gameInvite.send": "Enviar convite",
+    "gameInvite.noGames":
+        "Nenhum jogo do Steam em execução pode ser convidado agora.",
+    "gameInvite.failedToSend": "Não foi possível enviar o convite.",
+    "gameInvite.cardTitle": "Convite para jogar",
+    "gameInvite.sourceSteam": "Steam",
+    "gameInvite.partySize": "{current} de {max} no grupo",
+    "gameInvite.confirmSteam": "Iniciar {game} com os argumentos: {connect}",
+    "gameInvite.joinGame": "Entrar no jogo",
+    "gameInvite.joinSent": "Pedido de entrada enviado ao jogo.",
+    "gameInvite.openInDesktop":
+        "Abra no aplicativo de desktop do Zam para entrar.",
+    "gameInvite.joinUnsupported":
+        "Não é possível entrar neste jogo neste computador.",
+    "gameInvite.joinInvalid": "Este convite não é válido.",
+    "gameInvite.joinFailed": "Não foi possível entrar no jogo.",
 
     // src/lib/components/messages/Reactions.svelte
     "reactions.couldNotAddReaction": "Não foi possível adicionar a reação",
