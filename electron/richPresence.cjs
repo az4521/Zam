@@ -594,8 +594,8 @@ function createRichPresence({
 
     /**
      * The game Steam reports as running, as a "Playing" activity, or its
-     * removal (state null, or another game). Its picture is Steam's header
-     * image (presenceImages.cjs). The renderer drops the copy the game scanner
+     * removal (state null, or another game). Its picture is the game's Steam
+     * icon, or its header image when Steam gave no icon (presenceImages.cjs). The renderer drops the copy the game scanner
      * may also report.
      */
     function forwardSteam(state) {
@@ -629,7 +629,11 @@ function createRichPresence({
                 name,
                 type: 0,
                 details: state.status || undefined,
-                assets: { large_image: `steam:${appId}` },
+                assets: {
+                    large_image: /^[0-9a-f]{40}$/.test(String(state.icon))
+                        ? `steam:${appId}:${state.icon}`
+                        : `steam:${appId}`,
+                },
                 timestamps: { start: state.startedAt },
             },
         });

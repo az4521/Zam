@@ -111,6 +111,7 @@ const CS2 = {
     appId: "730",
     name: "Counter-Strike 2",
     status: "Competitive - Dust II",
+    icon: "a".repeat(40),
     richPresence: { steam_display: "#StatusCS", score: "3:4" },
 };
 const SHARED: Target = { id: "shared", title: "SharedJSContext", type: "page" };
@@ -161,6 +162,7 @@ describe("Steam presence source", () => {
             appId: CS2.appId,
             name: CS2.name,
             status: CS2.status,
+            icon: CS2.icon,
             richPresence: CS2.richPresence,
             startedAt: expect.any(Number),
         });
@@ -318,17 +320,19 @@ describe("Steam presence source", () => {
 describe("Steam presence expression", () => {
     const run = (window: unknown) => vm.runInNewContext(EXPRESSION, { window });
 
-    it("reads the local player's game and rich presence", () => {
+    const persona = {
+        m_unGamePlayedAppID: 730,
+        m_strGameExtraInfo: "CS2",
+        m_mapRichPresence: new Map([["steam_display", "#x"]]),
+        GetCurrentGameStatus: () => "Dust II",
+    };
+
+    it("reads the local player's game, rich presence and icon", () => {
         const window = {
-            friendStore: {
-                self: {
-                    persona: {
-                        m_unGamePlayedAppID: 730,
-                        m_strGameExtraInfo: "CS2",
-                        m_mapRichPresence: new Map([["steam_display", "#x"]]),
-                        GetCurrentGameStatus: () => "Dust II",
-                    },
-                },
+            friendStore: { m_FriendsUIFriendStore: { self: { persona } } },
+            appStore: {
+                GetAppOverviewByAppID: (id: number) =>
+                    id === 730 ? { icon_hash: "b".repeat(40) } : null,
             },
         };
         expect(run(window)).toEqual({
@@ -336,8 +340,14 @@ describe("Steam presence expression", () => {
             appId: "730",
             name: "CS2",
             status: "Dust II",
+            icon: "b".repeat(40),
             richPresence: { steam_display: "#x" },
         });
+    });
+
+    it("still reads the game when Steam has no app store or icon", () => {
+        const window = { friendStore: { self: { persona } } };
+        expect(run(window)).toMatchObject({ appId: "730", icon: "" });
     });
 
     it("answers null without a friend store and inGame false when idle", () => {

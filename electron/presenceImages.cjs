@@ -7,7 +7,8 @@
 //   media.discordapp.net  pictures Discord proxies from elsewhere ("mp:...")
 //   i.scdn.co             Spotify covers ("spotify:...")
 //   shared.fastly.steamstatic.com
-//                         Steam's header pictures ("steam:<appid>")
+//                         Steam's game icons ("steam:<appid>:<hash>") and
+//                         header pictures ("steam:<appid>")
 //
 // Arbitrary URLs from apps are refused: a local app could otherwise point
 // this at an address inside the user's network.
@@ -61,12 +62,15 @@ function createPresenceImages({
     async function resolve(appId, ref) {
         if (typeof ref !== "string" || !ref || ref.length > 1024) return null;
 
-        // A Steam game's header, under its own "steam-<appid>" app id.
-        const steam = /^steam:(\d{1,20})$/.exec(ref);
-        if (steam)
-            return appId === `steam-${steam[1]}`
-                ? `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${steam[1]}/header.jpg`
-                : null;
+        // A Steam game's icon (with its hash) or header, under its own
+        // "steam-<appid>" app id.
+        const steam = /^steam:(\d{1,20})(?::([0-9a-f]{40}))?$/.exec(ref);
+        if (steam) {
+            if (appId !== `steam-${steam[1]}`) return null;
+            return steam[2]
+                ? `https://shared.fastly.steamstatic.com/community_assets/images/apps/${steam[1]}/${steam[2]}_full.jpg`
+                : `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${steam[1]}/header.jpg`;
+        }
 
         if (!/^\d{1,25}$/.test(appId)) return null;
 
@@ -121,6 +125,17 @@ function createPresenceImages({
             // executable icon, when the game is known.
             if (!image && /^icon:/.test(ref))
                 return (await exeIcon(String(appId))) ?? null;
+            // A Steam icon that is gone: the small icon (the same hash without
+            // "_full"), then the header.
+            const withIcon = /^steam:(\d{1,20}):[0-9a-f]{40}$/.exec(ref);
+            if (!image && withIcon) {
+                const small = await download(
+                    url.replace(/_full\.jpg$/, ".jpg"),
+                );
+                return (
+                    small ?? (await fetchImage(appId, `steam:${withIcon[1]}`))
+                );
+            }
             return image;
         } catch {
             return null;

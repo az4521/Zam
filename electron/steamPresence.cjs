@@ -40,7 +40,9 @@ const EXPRESSION = [
     'if (map && typeof map.forEach === "function") map.forEach((v, k) => { rp[k] = String(v); });',
     'let status = ""; try { status = String(p.GetCurrentGameStatus ? p.GetCurrentGameStatus() : ""); } catch (e) {}',
     'let name = ""; try { name = String(p.GetCurrentGameName ? p.GetCurrentGameName() : ""); } catch (e) {}',
-    'return { inGame: true, appId: String(appId), name: name || String(p.m_strGameExtraInfo || ""), status, richPresence: rp };',
+    // The game's own icon: its hash is on the app overview in Steam's app store.
+    'let icon = ""; try { const o = window.appStore.GetAppOverviewByAppID(appId); icon = String((o && o.icon_hash) || ""); } catch (e) {}',
+    'return { inGame: true, appId: String(appId), name: name || String(p.m_strGameExtraInfo || ""), status, icon, richPresence: rp };',
     "})()",
 ].join("\n");
 
@@ -78,6 +80,8 @@ function readReport(v) {
             appId,
             name: clip(v.name, LIMITS.name) || `Steam game ${appId}`,
             status: clip(v.status, LIMITS.status),
+            // Part of a URL later, so only a plain hash passes.
+            icon: /^[0-9a-f]{40}$/.test(String(v.icon ?? "")) ? v.icon : "",
             // fromEntries defines keys as data, so a key like "__proto__" is safe.
             richPresence: Object.fromEntries(entries),
         },
@@ -91,6 +95,7 @@ function stateKey(state) {
         state.appId,
         state.name,
         state.status,
+        state.icon,
         Object.keys(rp)
             .sort()
             .map((k) => [k, rp[k]]),

@@ -918,6 +918,23 @@ describe("Steam presence", () => {
         ]);
     });
 
+    it("uses the game's Steam icon when Steam gives its hash", async () => {
+        const sp = stubSteamPresence();
+        const { rp, events } = setup({ createSteamPresence: sp.create });
+        await rp.configure({ local: true, steam: true });
+        const icon = "d".repeat(40);
+        sp.instances[0].onSteam({
+            appId: "570",
+            name: "Dota 2",
+            status: "",
+            icon,
+            startedAt: 1,
+        });
+        expect(events[0].presence!.assets).toEqual({
+            large_image: `steam:570:${icon}`,
+        });
+    });
+
     it("removes the previous game when the app changes or Steam reports none", async () => {
         const sp = stubSteamPresence();
         const { rp, events } = setup({ createSteamPresence: sp.create });
@@ -1066,10 +1083,54 @@ describe("Steam pictures", () => {
         expect(await img.resolve("steam-570", "steam:570")).toBe(
             "https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/570/header.jpg",
         );
+        const hash = "c".repeat(40);
+        expect(await img.resolve("steam-570", `steam:570:${hash}`)).toBe(
+            `https://shared.fastly.steamstatic.com/community_assets/images/apps/570/${hash}_full.jpg`,
+        );
+        expect(await img.resolve("steam-730", `steam:570:${hash}`)).toBeNull();
+        expect(await img.resolve("steam-570", "steam:570:zz")).toBeNull();
         expect(await img.resolve("steam-730", "steam:570")).toBeNull();
         expect(await img.resolve("570", "steam:570")).toBeNull();
         expect(await img.resolve("steam-abc", "steam:abc")).toBeNull();
         expect(await img.resolve("steam-570", "steam:570/../x")).toBeNull();
+    });
+
+    it("falls back from the full Steam icon to the small one, then the header", async () => {
+        const hash = "e".repeat(40);
+        const base = "https://shared.fastly.steamstatic.com";
+        const full = `${base}/community_assets/images/apps/570/${hash}_full.jpg`;
+        const small = `${base}/community_assets/images/apps/570/${hash}.jpg`;
+        const header = `${base}/store_item_assets/steam/apps/570/header.jpg`;
+        const run = async (available: string[]) => {
+            const urls: string[] = [];
+            const img = createPresenceImages({
+                fetch: async (url: string) => {
+                    urls.push(url);
+                    return {
+                        ok: available.includes(url),
+                        url,
+                        headers: new Map([["content-type", "image/jpeg"]]),
+                        arrayBuffer: async () =>
+                            new Uint8Array([urls.length]).buffer,
+                    };
+                },
+            });
+            const got = await img.fetchImage("steam-570", `steam:570:${hash}`);
+            return { urls, got };
+        };
+        expect(await run([full, small, header])).toMatchObject({
+            urls: [full],
+            got: { data: new Uint8Array([1]) },
+        });
+        expect(await run([small, header])).toMatchObject({
+            urls: [full, small],
+            got: { data: new Uint8Array([2]) },
+        });
+        expect(await run([header])).toMatchObject({
+            urls: [full, small, header],
+            got: { data: new Uint8Array([3]) },
+        });
+        expect((await run([])).got).toBeNull();
     });
 
     it("fetches the header picture, and refuses it if it redirects elsewhere", async () => {
