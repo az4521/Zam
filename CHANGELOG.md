@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.58.1
+
+🔧 **Improved**
+
+- **Game invites show the game's icon:** the card for a Steam game invite now shows the game's own icon instead of a controller. Invites without an icon, or whose icon cannot load, still show the controller.
+
 ## v1.58.0
 
 ✨ **New**
