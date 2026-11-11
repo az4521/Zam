@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.57.6
+
+🔧 **Improved**
+
+- **Steam rich presence shows the game icon:** the picture on your profile is now the game's own icon instead of its wide store banner. If the large icon is unavailable it uses the small one, then the banner.
+
 ## v1.57.5
 
 🐛 **Fixed**
