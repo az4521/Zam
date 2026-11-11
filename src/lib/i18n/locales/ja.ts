@@ -2918,6 +2918,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "それは公式リポジトリです(すでに含まれています)。",
     "repoList.thatRepoIsAlreadyAdded":
         "そのリポジトリはすでに追加されています。",
+    "gifSearch.couldNotLoadGifsTryAgain":
+        "GIFを読み込めませんでした。もう一度お試しください。",
     "gifSearch.couldnTReachKlipyTryAgain":
         "KLIPY に接続できませんでした - もう一度お試しください。",
     "liveLocation.youCanTShareLiveLocation":

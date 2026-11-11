@@ -3075,6 +3075,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "repoList.thatRepoIsAlreadyAdded": "该仓库已添加。",
 
     // src/lib/stores/gifSearch.svelte.ts
+    "gifSearch.couldNotLoadGifsTryAgain": "无法加载 GIF，请重试。",
     "gifSearch.couldnTReachKlipyTryAgain": "无法连接 KLIPY，请重试。",
 
     // src/lib/stores/liveLocation.svelte.ts

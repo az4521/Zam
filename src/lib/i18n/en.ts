@@ -3229,6 +3229,7 @@ export const en = {
     "repoList.thatRepoIsAlreadyAdded": "That repo is already added.",
 
     // src/lib/stores/gifSearch.svelte.ts
+    "gifSearch.couldNotLoadGifsTryAgain": "Couldn't load GIFs - try again.",
     "gifSearch.couldnTReachKlipyTryAgain": "Couldn't reach KLIPY - try again.",
 
     // src/lib/stores/liveLocation.svelte.ts

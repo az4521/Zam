@@ -4,6 +4,7 @@ import {
     trendingUrl,
     searchUrl,
     type GifKind,
+    type GifPage,
     type GifResult,
 } from "$lib/utils/klipy";
 import {
@@ -14,6 +15,27 @@ import {
 
 const DEBOUNCE_MS = 350;
 
+/** Where results come from. The built-in source is KLIPY; a plugin's GIF
+ *  provider is another. `key` keeps their reopen caches apart. */
+export interface GifSource {
+    key: string;
+    /** Empty query = trending/featured. */
+    fetch(query: string, page: number, kind: GifKind): Promise<GifPage>;
+}
+
+export const KLIPY_SOURCE: GifSource = {
+    key: "klipy",
+    fetch: (query, page, kind) => {
+        const q = query.trim();
+        return fetchKlipy(
+            q ? searchUrl(kind, q, page) : trendingUrl(kind, page),
+            kind,
+        );
+    },
+};
+
+let source: GifSource = KLIPY_SOURCE;
+
 class GifSearchState {
     kind = $state<GifKind>("gifs");
     query = $state("");
@@ -22,6 +44,8 @@ class GifSearchState {
     loading = $state(false);
     error = $state<string | null>(null);
     exhausted = $state(false);
+    /** True when the results come from a plugin, not KLIPY. */
+    pluginSource = $state(false);
 }
 
 export const gifSearchState = new GifSearchState();
@@ -35,9 +59,24 @@ let requestSeq = 0; // stale-response guard: only the newest request may write
 let cachedKey: string | null = null;
 let cachedAt = 0;
 
-function urlFor(kind: GifKind, query: string, page: number): string {
-    const q = query.trim();
-    return q ? searchUrl(kind, q, page) : trendingUrl(kind, page);
+/** Cache identity: plain `kind` for KLIPY so its keys are unchanged. */
+function sourceKind(kind: GifKind): string {
+    return source === KLIPY_SOURCE ? kind : `${source.key}:${kind}`;
+}
+
+function useSource(next: GifSource | undefined): void {
+    const resolved = next ?? KLIPY_SOURCE;
+    if (resolved.key !== source.key) {
+        // Another source's tiles must not show under this one while it loads.
+        requestSeq++;
+        gifSearchState.items = [];
+        gifSearchState.page = 1;
+        gifSearchState.exhausted = false;
+        gifSearchState.loading = false;
+        cachedKey = null;
+    }
+    source = resolved;
+    gifSearchState.pluginSource = resolved !== KLIPY_SOURCE;
 }
 
 async function run(
@@ -56,10 +95,7 @@ async function run(
     // survive into this request's in-flight window or an error.
     if (!append) gifSearchState.exhausted = false;
     try {
-        const { items, hasNext } = await fetchKlipy(
-            urlFor(kind, query, page),
-            kind,
-        );
+        const { items, hasNext } = await source.fetch(query, page, kind);
         if (seq !== requestSeq) return; // a newer request superseded this one
         if (append) {
             const seen = new Set(gifSearchState.items.map((i) => i.id));
@@ -74,11 +110,14 @@ async function run(
         gifSearchState.exhausted = !hasNext;
         // Mark the now-displayed set reusable on reopen. Recorded on appended
         // pages too so an actively-scrolled list stays fresh under the same key.
-        cachedKey = gifCacheKey(kind, query);
+        cachedKey = gifCacheKey(sourceKind(kind), query);
         cachedAt = Date.now();
     } catch {
         if (seq !== requestSeq) return;
-        gifSearchState.error = t("gifSearch.couldnTReachKlipyTryAgain");
+        gifSearchState.error =
+            source === KLIPY_SOURCE
+                ? t("gifSearch.couldnTReachKlipyTryAgain")
+                : t("gifSearch.couldNotLoadGifsTryAgain");
         if (!append) gifSearchState.items = [];
     } finally {
         if (seq === requestSeq) gifSearchState.loading = false;
@@ -86,7 +125,12 @@ async function run(
 }
 
 /** Immediate page-1 load (tab/kind switch, retry). Cancels any pending debounce. */
-export function loadGifs(kind: GifKind, query: string): void {
+export function loadGifs(
+    kind: GifKind,
+    query: string,
+    gifSource?: GifSource,
+): void {
+    useSource(gifSource);
     if (debounceTimer) {
         clearTimeout(debounceTimer);
         debounceTimer = null;
@@ -97,7 +141,7 @@ export function loadGifs(kind: GifKind, query: string): void {
     // in flight can't overwrite the reused set when it resolves.
     if (
         canReuseGifResults({
-            requestedKey: gifCacheKey(kind, query),
+            requestedKey: gifCacheKey(sourceKind(kind), query),
             cachedKey,
             cachedAt,
             now: Date.now(),
@@ -116,7 +160,12 @@ export function loadGifs(kind: GifKind, query: string): void {
 }
 
 /** Debounced page-1 load (while typing). */
-export function queueSearch(kind: GifKind, query: string): void {
+export function queueSearch(
+    kind: GifKind,
+    query: string,
+    gifSource?: GifSource,
+): void {
+    useSource(gifSource);
     gifSearchState.kind = kind;
     gifSearchState.query = query;
     if (debounceTimer) clearTimeout(debounceTimer);

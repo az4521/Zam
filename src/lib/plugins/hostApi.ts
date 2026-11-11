@@ -29,6 +29,7 @@ import {
     styleElement,
 } from "./pluginDom";
 import { rendererProblem } from "./pluginRenderers";
+import { gifProviderProblem } from "./pluginGifs";
 import { closePluginPanelOf, openRegisteredPanel } from "./pluginPanel.svelte";
 import { navigateToRoom } from "../stores/rooms.svelte";
 import { viewedRoomId } from "./pluginNav.svelte";
@@ -322,6 +323,17 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                 return track(
                     addEntry(registry, "messageRenderers", pluginId, r),
                 );
+            },
+        },
+
+        gifs: {
+            registerProvider: (p) => {
+                const problem = gifProviderProblem(p);
+                if (problem)
+                    throw new Error(
+                        `[plugin ${pluginId}] gifs.registerProvider: ${problem}`,
+                    );
+                return track(addEntry(registry, "gifProviders", pluginId, p));
             },
         },
 

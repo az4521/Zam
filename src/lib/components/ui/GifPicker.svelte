@@ -26,7 +26,10 @@
         loadGifs,
         queueSearch,
         loadMore,
+        type GifSource,
     } from "$lib/stores/gifSearch.svelte";
+    import { pluginRegistry } from "$lib/stores/plugins.svelte";
+    import { normalizeProviderPage } from "$lib/plugins/pluginGifs";
     import { untrack } from "svelte";
     import { Star } from "lucide-svelte";
     import { resizeHandle } from "$lib/actions/resizeHandle";
@@ -64,7 +67,25 @@
         onSwitchToSticker,
     }: Props = $props();
 
-    type Tab = "gifs" | "favourites";
+    // "gifs" is KLIPY; `plugin:<entryId>` is a plugin's GIF provider.
+    type Tab = string;
+
+    const providerTabs = $derived.by(() => {
+        void pluginRegistry.tick;
+        return pluginRegistry.gifProviders.map((e) => ({
+            value: `plugin:${e.entryId}`,
+            label: e.value.label,
+            source: {
+                key: `plugin:${e.pluginId}:${e.value.id}`,
+                fetch: async (query: string, page: number) =>
+                    normalizeProviderPage(
+                        await e.value.search(query.trim(), page),
+                    ),
+            } satisfies GifSource,
+        }));
+    });
+    const providerTab = $derived(providerTabs.find((p) => p.value === tab));
+    const gifSource = $derived<GifSource | undefined>(providerTab?.source);
 
     // Land on the configured tab ("gifs" or "favourites").
     let tab = $state<Tab>(
@@ -85,8 +106,13 @@
     $effect(() => {
         const t = tab;
         if (t === "favourites") return;
+        // A provider whose plugin was disabled while its tab was open.
+        if (t !== "gifs" && !providerTab) {
+            tab = "gifs";
+            return;
+        }
         const kind: GifKind = "gifs";
-        untrack(() => loadGifs(kind, search));
+        untrack(() => loadGifs(kind, search, gifSource));
     });
 
     function onSearchInput(e: Event & { currentTarget: HTMLInputElement }) {
@@ -98,7 +124,7 @@
         moveCursor(-1);
         if (tab !== "favourites") {
             const kind: GifKind = "gifs";
-            queueSearch(kind, search);
+            queueSearch(kind, search, gifSource);
         }
     }
 
@@ -465,7 +491,7 @@
 
     <!-- Inner content tabs -->
     <div class="flex gap-1 px-2 pt-2 flex-shrink-0">
-        {#each [["gifs", "GIFs"], ["favourites", "Favourites"]] as [value, label] (value)}
+        {#each [["gifs", "GIFs"], ...providerTabs.map( (p) => [p.value, p.label] ), ["favourites", "Favourites"]] as [value, label] (value)}
             <button
                 onclick={() => selectTab(value as Tab)}
                 class="flex-1 py-1.5 text-xs font-semibold rounded transition-colors {tab ===
@@ -754,7 +780,7 @@
             <!-- KLIPY GIFs -->
             {#if gifSearchState.error && gifSearchState.items.length === 0}
                 <button
-                    onclick={() => loadGifs("gifs", search)}
+                    onclick={() => loadGifs("gifs", search, gifSource)}
                     class="w-full text-center text-discord-textMuted text-sm py-8 px-4 hover:text-discord-textPrimary transition-colors"
                 >
                     {gifSearchState.error}

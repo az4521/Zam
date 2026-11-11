@@ -16,6 +16,7 @@ import type {
     MessageDecorator,
     MessageAnnotator,
     MessageEmbed,
+    GifProvider,
     HeaderButton,
     ShortcutRegistration,
     PanelRegistration,
@@ -53,6 +54,7 @@ export interface PluginRegistryData {
     decorators: RegistryEntry<MessageDecorator>[];
     annotators: RegistryEntry<MessageAnnotator>[];
     embeds: RegistryEntry<MessageEmbed>[];
+    gifProviders: RegistryEntry<GifProvider>[];
     headerButtons: RegistryEntry<HeaderButton>[];
     shortcuts: RegistryEntry<ShortcutRegistration>[];
     panels: RegistryEntry<PanelRegistration>[];
@@ -91,6 +93,7 @@ export const EXTENSION_KINDS: ExtensionKind[] = [
     "decorators",
     "annotators",
     "embeds",
+    "gifProviders",
     "headerButtons",
     "shortcuts",
     "panels",
@@ -123,6 +126,7 @@ export function createRegistryData(): PluginRegistryData {
         decorators: [],
         annotators: [],
         embeds: [],
+        gifProviders: [],
         headerButtons: [],
         shortcuts: [],
         panels: [],

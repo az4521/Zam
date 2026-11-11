@@ -45,6 +45,37 @@ afterEach(() => {
     vi.useRealTimers();
 });
 
+describe("gifSearch store: plugin source", () => {
+    it("loads from the source, pages through it, and swaps back to KLIPY clean", async () => {
+        const fetch = vi.fn().mockResolvedValue(page(2, true));
+        const src = { key: "plugin:a:b", fetch };
+        loadGifs("gifs", "cat", src);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(fetch).toHaveBeenCalledWith("cat", 1, "gifs");
+        expect(gifSearchState.pluginSource).toBe(true);
+        expect(fetchKlipy).not.toHaveBeenCalled();
+        fetch.mockResolvedValueOnce(page(2, false, 2));
+        loadMore();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(fetch).toHaveBeenLastCalledWith("cat", 2, "gifs");
+        expect(gifSearchState.items).toHaveLength(4);
+
+        fetchKlipy.mockResolvedValueOnce(page(1, false, 9));
+        loadGifs("gifs", "cat");
+        expect(gifSearchState.items).toHaveLength(0);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(gifSearchState.pluginSource).toBe(false);
+        expect(gifSearchState.items.map((i) => i.id)).toEqual(["9"]);
+    });
+
+    it("a failing source shows the generic error, not the KLIPY one", async () => {
+        const src = { key: "plugin:a:b", fetch: vi.fn().mockRejectedValue(1) };
+        loadGifs("gifs", "", src);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(gifSearchState.error).not.toMatch(/KLIPY/i);
+    });
+});
+
 describe("gifSearch store", () => {
     it("debounces queueSearch and loads only the latest query", async () => {
         fetchKlipy.mockResolvedValueOnce(page(3, true));

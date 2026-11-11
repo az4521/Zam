@@ -524,7 +524,7 @@ available for third-party plugins to use; the app's own pickers just don't route
 It is grouped into namespaces: `commands` (slash commands), `composer` (buttons, "+" actions,
 `startReply` / `startEdit` / `insertText`), `messages` (outgoing text and content transforms,
 double-tap handlers, action-menu items, decorators, custom embeds, `registerRenderer` for custom
-event types and msgtypes), `room` (header buttons, room settings tabs), `rooms` (room list context
+event types and msgtypes), `room` (header buttons, room settings tabs), `gifs` (`registerProvider`: a GIF picker tab fed by the plugin), `rooms` (room list context
 menu), `members` (member list decorations, profile card buttons and sections), `navigation` (the
 viewed room, `openRoom`), `dom` (see below), `shortcuts` (global hotkeys, conflict-checked against
 core), `ui` (`openPopover` with an optional accessible `label`, `registerPanel` / `openPanel`,
@@ -561,7 +561,7 @@ of its own for (`pluginRenderers.ts`); `client.ts` lets those types into the tim
 
 **The registry** (`registry.ts` plus `stores/plugins.svelte.ts`) is a reactive `$state` store keyed
 per plugin, with one array per extension point — commands, composer buttons and actions, message
-actions, decorators, embeds, header buttons, shortcuts, panels, outgoing text and content
+actions, decorators, embeds, GIF providers, header buttons, shortcuts, panels, outgoing text and content
 transforms, double-tap handlers, event subscriptions — plus a mutation tick. Core UI reads
 `[...core, ...pluginRegistry.x]` and re-derives on the tick. **Core always wins on a conflict**: a
 full-trust plugin can never shadow `/ban` or a reserved hotkey, because the merge drops the colliding

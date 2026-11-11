@@ -3349,6 +3349,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "repoList.thatRepoIsAlreadyAdded": "Dieses Repo ist bereits hinzugefügt.",
 
     // src/lib/stores/gifSearch.svelte.ts
+    "gifSearch.couldNotLoadGifsTryAgain":
+        "GIFs konnten nicht geladen werden – versuche es erneut.",
     "gifSearch.couldnTReachKlipyTryAgain":
         "KLIPY nicht erreichbar - versuche es erneut.",
 

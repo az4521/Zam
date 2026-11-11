@@ -120,6 +120,37 @@ export interface MessageEmbed {
     ): void | (() => void);
 }
 
+/** One GIF in a provider's results. `url` and `previewUrl` must be http(s). */
+export interface GifProviderItem {
+    id: string;
+    /** Full-size media: what gets sent when `pageUrl` is absent. */
+    url: string;
+    /** A page link sent in place of `url`, so the message carries a readable
+     *  link. */
+    pageUrl?: string;
+    /** Small still or animated image for the grid. */
+    previewUrl: string;
+    /** Small mp4 for the grid; tiles animate sooner than with an image. */
+    previewVideoUrl?: string;
+    width?: number;
+    height?: number;
+}
+
+/** A source of GIFs, shown as its own tab in the GIF picker. */
+export interface GifProvider {
+    /** Unique within the plugin. */
+    id: string;
+    /** The tab's name. */
+    label: string;
+    /** An empty `query` asks for trending/featured GIFs. `page` starts at 1
+     *  and grows as the user scrolls; the picker never skips one. A thrown
+     *  error shows a "try again" message. */
+    search(
+        query: string,
+        page: number,
+    ): Promise<{ items: GifProviderItem[]; hasNext: boolean }>;
+}
+
 export interface HeaderButton {
     id: string;
     label: string;
@@ -674,6 +705,13 @@ export interface ZamPluginApi {
         /** Show a custom event type or msgtype in the timeline (see
          *  MessageRenderer). Throws for types Zam renders itself. */
         registerRenderer(renderer: MessageRenderer): Disposable;
+    };
+
+    /** The GIF picker. */
+    gifs: {
+        /** Add a tab with GIFs from another source. Items with a non-http(s)
+         *  URL are dropped. */
+        registerProvider(provider: GifProvider): Disposable;
     };
 
     room: {
