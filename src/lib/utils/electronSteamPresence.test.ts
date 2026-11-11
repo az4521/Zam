@@ -408,6 +408,25 @@ describe("Steam join links", () => {
         expect(
             steamRunUrl({ appId: "730", connect: "+connect 1.2.3.4:27015" }),
         ).toBe("steam://run/730//%2Bconnect%201.2.3.4%3A27015/");
+        // TF2's own party string lacks the argument its handler needs.
+        const party = "+tf_party_request_join_user 76561198047388312";
+        expect(
+            steamJoinUrl({ appId: "440", connect: party, steamId: FRIEND }),
+        ).toBe(
+            `steam://rungame/440/${FRIEND}/${encodeURIComponent(party + " 0")}`,
+        );
+        expect(
+            steamJoinUrl({
+                appId: "440",
+                connect: party + " 1",
+                steamId: FRIEND,
+            }),
+        ).toBe(
+            `steam://rungame/440/${FRIEND}/${encodeURIComponent(party + " 1")}`,
+        );
+        expect(
+            steamJoinUrl({ appId: "730", connect: party, steamId: FRIEND }),
+        ).toBe(`steam://rungame/730/${FRIEND}/${encodeURIComponent(party)}`);
         expect(steamRunUrl({ appId: "1", connect: "é/?#" })).toBe(
             `steam://run/1//${encodeURIComponent("é/?#")}/`,
         );
