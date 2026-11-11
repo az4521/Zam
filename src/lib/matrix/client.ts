@@ -138,6 +138,9 @@ import { nestedSpaceIds, topLevelSpaceOf } from "$lib/utils/spaceTree";
 import {
     buildSnapshot,
     deleteSnapshot,
+    deleteHierarchies,
+    loadHierarchies,
+    saveHierarchies,
     loadSnapshot,
     materializeSnapshot,
     saveSnapshot,
@@ -570,6 +573,7 @@ async function createAuthenticatedClient(opts: {
     // space-child lists must not be carried into the incoming account's session.
     spaceChildCache.clear();
     resetRoomListCache();
+    resetHierarchyCache();
     // Drop the previous server's cached media-config upload limit — this funnel
     // runs on every login, session restore, and account switch, so a switch to
     // a different homeserver must not keep the old server's `m.upload.size`.
@@ -1875,10 +1879,12 @@ export async function logout(): Promise<void> {
         // The cached room list is account data too: wipe it with the rest.
         if (userId && deviceId) {
             void deleteSnapshot(snapshotKey(userId, deviceId));
+            void deleteHierarchies(snapshotKey(userId, deviceId));
             // Decrypted message text: must not outlive the session.
             void deleteEventIndex(userId, deviceId);
         }
         resetRoomListCache();
+        resetHierarchyCache();
         if (userId && deviceId) {
             forgetOwnDeviceKey(userId, deviceId);
             rememberPendingWipe({
@@ -1962,6 +1968,7 @@ export function stopClient(): void {
     // but it must not outlive the session it was built for.
     spaceChildCache.clear();
     resetRoomListCache();
+    resetHierarchyCache();
     slidingPresenceFetchedAt.clear();
 }
 
@@ -2085,7 +2092,6 @@ function resetRoomListCache(): void {
     roomListCache = null;
     roomListComplete = false;
     lastSnapshotSaveAt = 0;
-    hierarchyCache.clear();
 }
 
 function lookupRoom(roomId: string): Room | null {
@@ -2137,6 +2143,14 @@ async function hydrateRoomListCache(
     const userId = client.getUserId();
     const deviceId = client.getDeviceId();
     if (!userId || !deviceId) return;
+    // Independent of the snapshot and of the room list completing: sync
+    // finishing first must not leave a big space to be walked from scratch.
+    resetHierarchyCache();
+    hierarchyPersistKey = snapshotKey(userId, deviceId);
+    const savedHierarchies = await loadHierarchies(hierarchyPersistKey);
+    if (matrixClient === client && savedHierarchies)
+        for (const [spaceId, list] of Object.entries(savedHierarchies))
+            if (!hierarchyCache.has(spaceId)) hierarchyCache.set(spaceId, list);
     const snapshot = await loadSnapshot(snapshotKey(userId, deviceId));
     if (!snapshot || matrixClient !== client || roomListComplete) return;
     const cache = materializeSnapshot(client, snapshot);
@@ -6502,6 +6516,8 @@ export async function fetchSpaceHierarchy(
         };
     });
     hierarchyCache.set(spaceId, result);
+    hierarchyFetchedAt.set(spaceId, Date.now());
+    persistHierarchiesSoon();
     return result;
 }
 
@@ -6519,6 +6535,38 @@ export function isJoinedNow(child: SpaceChildInfo): boolean {
 // opened again (and on boot, via the room-list snapshot) while a fresh fetch
 // runs, so unjoined rooms and sub-space contents don't blink out on a switch.
 const hierarchyCache = new Map<string, SpaceChildInfo[]>();
+// When each space's entry was fetched from the server THIS session. Entries
+// restored from the room-list snapshot have none, so they count as stale.
+const hierarchyFetchedAt = new Map<string, number>();
+
+// Written to IndexedDB shortly after a fetch lands (one write per burst of
+// sub-space fetches), so the next launch starts from it.
+let hierarchyPersistKey: string | null = null;
+let hierarchyPersistTimer: ReturnType<typeof setTimeout> | null = null;
+function persistHierarchiesSoon(): void {
+    if (!hierarchyPersistKey || hierarchyPersistTimer) return;
+    const key = hierarchyPersistKey;
+    hierarchyPersistTimer = setTimeout(() => {
+        hierarchyPersistTimer = null;
+        if (key !== hierarchyPersistKey) return;
+        void saveHierarchies(key, Object.fromEntries(hierarchyCache));
+    }, 3000);
+}
+
+function resetHierarchyCache(): void {
+    hierarchyCache.clear();
+    hierarchyFetchedAt.clear();
+    hierarchyPersistKey = null;
+    if (hierarchyPersistTimer) clearTimeout(hierarchyPersistTimer);
+    hierarchyPersistTimer = null;
+}
+
+/** Milliseconds since `spaceId`'s hierarchy was last fetched this session,
+ *  or null when it has not been (a snapshot-restored entry is not fresh). */
+export function getCachedHierarchyAge(spaceId: string): number | null {
+    const at = hierarchyFetchedAt.get(spaceId);
+    return at === undefined ? null : Date.now() - at;
+}
 
 export function getCachedHierarchy(
     spaceId: string,

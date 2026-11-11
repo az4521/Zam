@@ -298,6 +298,54 @@ export async function saveSnapshot(
     }
 }
 
+// The /hierarchy cache lives in its own record, not in the room-list snapshot:
+// a snapshot is rewritten on a timer, only once the room list is complete, and
+// dropped to heal rooms, any of which would lose a hierarchy that took a
+// minute to fetch. It is kept until logout.
+const HIERARCHY_RECORD_VERSION = 1;
+const hierarchyRecordKey = (key: string) => `${key}|hierarchy`;
+
+export async function loadHierarchies(
+    key: string,
+): Promise<Record<string, SpaceChildInfo[]> | null> {
+    try {
+        const rec = await withStore<
+            | { v: number; hierarchies: Record<string, SpaceChildInfo[]> }
+            | undefined
+        >("readonly", (s) => s.get(hierarchyRecordKey(key)));
+        return rec && rec.v === HIERARCHY_RECORD_VERSION
+            ? rec.hierarchies
+            : null;
+    } catch {
+        return null;
+    }
+}
+
+export async function saveHierarchies(
+    key: string,
+    hierarchies: Record<string, SpaceChildInfo[]>,
+): Promise<void> {
+    try {
+        await withStore("readwrite", (s) =>
+            s.put(
+                { v: HIERARCHY_RECORD_VERSION, hierarchies },
+                hierarchyRecordKey(key),
+            ),
+        );
+    } catch (err) {
+        reportStorageError(err, { fromIndexedDB: true });
+        console.warn("[roomListCache] hierarchy save failed", err);
+    }
+}
+
+export async function deleteHierarchies(key: string): Promise<void> {
+    try {
+        await withStore("readwrite", (s) => s.delete(hierarchyRecordKey(key)));
+    } catch {
+        // Nothing stored or no IndexedDB: nothing to wipe.
+    }
+}
+
 export async function deleteSnapshot(key: string): Promise<void> {
     try {
         await withStore("readwrite", (s) => s.delete(key));

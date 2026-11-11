@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { HIERARCHY_TTL_MS } from "$lib/utils/hierarchyRefresh";
     import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
@@ -39,6 +40,7 @@
         getSpaceChildIds,
         fetchSpaceHierarchy,
         getCachedHierarchy,
+        getCachedHierarchyAge,
         patchCachedHierarchyEntry,
         getDMPartnerId,
         getRoomCallMemberships,
@@ -500,11 +502,37 @@
     let subHierarchies = $state<Record<string, SpaceChildInfo[]>>({});
     let subHierarchyLoading = $state(new Set<string>());
     const subHierarchyRequested = new Set<string>();
+    const subHierarchyDepths = new Map<string, number>();
     $effect(() => {
         void roomsState.activeSpaceId;
         subHierarchies = {};
         subHierarchyLoading = new Set();
         subHierarchyRequested.clear();
+        subHierarchyDepths.clear();
+    });
+
+    // Keep expanded sub-spaces current while the app is open: re-fetch each
+    // one that has been shown, quietly, now and then.
+    const SUB_HIERARCHY_REFRESH_MS = 5 * 60_000;
+    $effect(() => {
+        const timer = setInterval(async () => {
+            if (document.visibilityState !== "visible") return;
+            const active = roomsState.activeSpaceId;
+            if (!active) return;
+            for (const id of [...subHierarchyRequested]) {
+                if (roomsState.activeSpaceId !== active) return;
+                const parent = roomsState.spaceDrillParentId ?? active;
+                const depth =
+                    (roomsState.spaceDrillDepth || 0) +
+                    (subHierarchyDepths.get(id) ?? 1);
+                const h = await fetchSpaceHierarchy(id, parent, depth).catch(
+                    () => null,
+                );
+                if (h && roomsState.activeSpaceId === active)
+                    subHierarchies = { ...subHierarchies, [id]: h };
+            }
+        }, SUB_HIERARCHY_REFRESH_MS);
+        return () => clearInterval(timer);
     });
 
     function loadSubHierarchy(
@@ -516,6 +544,17 @@
             if (!p.expanded || !active || subHierarchyRequested.has(p.id))
                 return;
             subHierarchyRequested.add(p.id);
+            subHierarchyDepths.set(p.id, p.depth);
+            // Show the last known listing at once (kept across launches), and
+            // only re-walk the nested hierarchy when it is not fresh. The
+            // fetch below then updates it silently: `loading` is only true
+            // while there is nothing to show.
+            const age = getCachedHierarchyAge(p.id);
+            const cached = getCachedHierarchy(p.id);
+            if (cached) {
+                subHierarchies = { ...subHierarchies, [p.id]: cached };
+                if (age !== null && age < HIERARCHY_TTL_MS) return;
+            }
             // The fallback walks in through the nearest joined ancestor.
             const parent = roomsState.spaceDrillParentId ?? active;
             const depth = p.depth + (roomsState.spaceDrillDepth || 0);

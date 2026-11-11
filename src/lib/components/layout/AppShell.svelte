@@ -187,6 +187,7 @@
         getSpaceLayout,
         getSpaceChildSignature,
         fetchSpaceHierarchy,
+        getCachedHierarchy,
         scheduleJoinedRoomsReconcile,
         setSlidingSyncActiveRoom,
         getRoom,
@@ -1130,8 +1131,8 @@
                 live &&
                 soundEnabled &&
                 !quietForOtherDevice &&
-                !settingsState.streamerMode
                 settingsState.deviceNotifications &&
+                !settingsState.streamerMode
             ) {
                 playPing();
             }
@@ -1450,14 +1451,16 @@
     // stayed open.
     let hierarchyGeneration = 0;
     let hierarchyInFlightKey: string | null = null;
-    let hierarchyLastAppliedKey: string | null = null;
-    let hierarchyLastAppliedAt: number | null = null;
+    // Per key, not just the latest: re-opening a space whose hierarchy was
+    // applied a moment ago must not refetch it because another space was
+    // opened in between. Bounded; keys carry child signatures so they churn.
+    const hierarchyAppliedAt = new Map<string, number>();
     let hierarchyLastFailedKey: string | null = null;
     let hierarchyLastFailedAt: number | null = null;
 
     function requestHierarchy(spaceId: string, force: boolean) {
         const parentSpaceId = roomsState.spaceDrillParentId ?? null;
-        const key = hierarchyKey({
+        const key: string = hierarchyKey({
             spaceId,
             parentSpaceId,
             drillDepth: roomsState.spaceDrillDepth || 1,
@@ -1468,12 +1471,28 @@
             // Cheap: the child list behind this is memoized by signature.
             joinedChildCount: getRoomsInSpace(spaceId).length,
         });
+        const appliedAt = hierarchyAppliedAt.get(key) ?? null;
+        // A user-driven open of a space we already hold a fresh answer for
+        // (same key: its child state is unchanged) reuses it instead of
+        // re-walking a possibly huge, nested hierarchy. Stale-while-
+        // revalidate: the TTL path below still refreshes it in the
+        // background once it ages out.
+        if (
+            force &&
+            appliedAt !== null &&
+            Date.now() - appliedAt < HIERARCHY_TTL_MS &&
+            getCachedHierarchy(spaceId)
+        ) {
+            roomsState.spaceHierarchy = getCachedHierarchy(spaceId) ?? [];
+            roomsState.hierarchyLoading = false;
+            return;
+        }
         if (
             !shouldFetchHierarchy({
                 key,
                 inFlightKey: hierarchyInFlightKey,
-                lastAppliedKey: hierarchyLastAppliedKey,
-                lastAppliedAt: hierarchyLastAppliedAt,
+                lastAppliedKey: appliedAt === null ? null : key,
+                lastAppliedAt: appliedAt,
                 lastFailedKey: hierarchyLastFailedKey,
                 lastFailedAt: hierarchyLastFailedAt,
                 failureBackoffMs: HIERARCHY_FAILURE_BACKOFF_MS,
@@ -1490,16 +1509,23 @@
             // Cannot strand — the request holding this key settles into apply
             // or keep-previous, both of which clear the flag, and leaving for
             // Home clears it too.
-            if (force && hierarchyInFlightKey === key)
+            if (
+                force &&
+                hierarchyInFlightKey === key &&
+                !getCachedHierarchy(spaceId)
+            )
                 roomsState.hierarchyLoading = true;
             return;
         }
 
         const generation = ++hierarchyGeneration;
         hierarchyInFlightKey = key;
-        // Only a user-driven open shows the spinner; a background TTL refresh
-        // must not flash one over data that is already on screen.
-        if (force) roomsState.hierarchyLoading = true;
+        // Only a user-driven open with nothing cached shows the spinner. A
+        // background TTL refresh, or an open that has the last known listing
+        // on screen (setActiveSpace seeds it from the persisted cache), just
+        // updates it in place when the fetch lands.
+        if (force && !getCachedHierarchy(spaceId))
+            roomsState.hierarchyLoading = true;
 
         fetchSpaceHierarchy(
             spaceId,
@@ -1520,8 +1546,12 @@
                 if (action === "drop") return;
                 if (action === "apply") {
                     roomsState.spaceHierarchy = hierarchy ?? [];
-                    hierarchyLastAppliedKey = key;
-                    hierarchyLastAppliedAt = Date.now();
+                    hierarchyAppliedAt.delete(key);
+                    hierarchyAppliedAt.set(key, Date.now());
+                    if (hierarchyAppliedAt.size > 50)
+                        hierarchyAppliedAt.delete(
+                            hierarchyAppliedAt.keys().next().value as string,
+                        );
                     hierarchyLastFailedKey = null;
                     hierarchyLastFailedAt = null;
                 } else {
@@ -1535,8 +1565,7 @@
                     // minutes with no spinner and no error.
                     hierarchyLastFailedKey = key;
                     hierarchyLastFailedAt = Date.now();
-                    hierarchyLastAppliedKey = null;
-                    hierarchyLastAppliedAt = null;
+                    hierarchyAppliedAt.delete(key);
                 }
                 roomsState.hierarchyLoading = false;
             });
