@@ -4340,6 +4340,28 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Dein Ungelesen-Status wird weiterhin synchronisiert, aber andere können nicht sehen, was du gelesen hast.",
     "privacySafetySettings.receiptsOverrideHint":
         "Räume und Spaces können dies in ihren Benachrichtigungseinstellungen überschreiben.",
+    "richPresence.steam": "Steam Rich Presence",
+    "richPresence.steamHint":
+        "Zeige das Steam-Spiel, das du spielst, zusammen mit seinem Rich-Presence-Status, etwa Karte oder Modus. Dafür wird Steams lokaler Debugging-Port aktiviert, der nur auf diesem Computer lauscht. Steam muss einmal neu gestartet werden, damit es wirksam wird.",
+    "richPresence.steamConnected": "Mit Steam verbunden.",
+    "richPresence.steamNeedsRestart":
+        "Steams Debugging-Port ist noch nicht geöffnet. Starte Steam neu, um ihn zu öffnen.",
+    "richPresence.steamNotRunning":
+        "Steam läuft nicht. Starte es, dann verbindet sich Zam automatisch.",
+    "richPresence.restartSteam": "Steam neu starten",
+    "richPresence.restartSteamTitle": "Steam neu starten?",
+    "richPresence.restartSteamBody":
+        "Steam wird geschlossen und wieder gestartet. Spiele, die über Steam gestartet wurden, können dabei ebenfalls beendet werden.",
+    "richPresence.restartSteamFailed":
+        "Steam konnte nicht neu gestartet werden: {error}",
+    "richPresence.steamEnableFailed":
+        "Steams Debugging-Port konnte nicht aktiviert werden: {error}",
+    "richPresence.steamDisableFailed":
+        "Steams Debugging-Port konnte nicht deaktiviert werden: {error}",
+    "richPresence.steamUacCancelled":
+        "Windows hat nach Administratorrechten gefragt, und sie wurden nicht erteilt, daher wurde nichts geändert.",
+    "richPresence.steamFailed": "Steam Rich Presence fehlgeschlagen: {error}",
+    "richPresence.viaSteam": "Steam",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: de };

@@ -13,13 +13,17 @@
     } from "$lib/stores/settings.svelte";
     import {
         addCustomGame,
+        disableSteam,
+        enableSteam,
         forgetApp,
         listRunningPrograms,
+        refreshRichPresenceStatus,
         removeCustomGame,
         richPresenceAvailable,
         richPresenceState,
         setAppAllowed,
         syncRichPresence,
+        type SteamDebugOutcome,
     } from "$lib/stores/richPresence.svelte";
 
     // Desktop only: apps on this computer report what they are doing and it is
@@ -64,6 +68,83 @@
     function onToggleFake(next: boolean): void {
         setRichPresenceFakeDiscord(next);
         void syncRichPresence();
+    }
+
+    // Steam: the debug flag is written first (Windows asks for permission), so
+    // the source only turns on once that worked. Turning it off always tries to
+    // remove the flag; the outcome is shown rather than swallowed.
+    let steamBusy = $state(false);
+    let steamEnableError = $state<string | null>(null);
+    let steamDisable = $state<SteamDebugOutcome | null>(null);
+    let confirmingSteamRestart = $state(false);
+    let steamRestarting = $state(false);
+    let steamRestartError = $state<string | null>(null);
+    let steamPoll: ReturnType<typeof setInterval> | null = null;
+
+    const steamVisible = $derived(
+        status?.steam?.supported !== false ||
+            status?.steam?.needsPermission === true,
+    );
+    // The flag is still set after a failed removal, per the last status read.
+    const steamFlagLeft = $derived(
+        !settingsState.richPresenceSteam &&
+            steamDisable !== null &&
+            !steamDisable.ok &&
+            status?.steam?.enabled !== false,
+    );
+
+    function stopSteamPoll(): void {
+        if (steamPoll) clearInterval(steamPoll);
+        steamPoll = null;
+    }
+
+    $effect(() => stopSteamPoll);
+
+    /** After a restart Steam's port takes a moment: look every 2s, for 30s. */
+    function pollSteamPort(): void {
+        stopSteamPoll();
+        let tries = 0;
+        steamPoll = setInterval(async () => {
+            tries++;
+            await refreshRichPresenceStatus();
+            if (richPresenceState.status?.steam?.portOpen || tries >= 15)
+                stopSteamPoll();
+        }, 2000);
+    }
+
+    async function onToggleSteam(next: boolean): Promise<void> {
+        if (steamBusy) return;
+        steamEnableError = null;
+        steamDisable = null;
+        steamBusy = true;
+        if (next) {
+            const res = await enableSteam();
+            if (!res.ok)
+                steamEnableError = res.cancelled
+                    ? t("richPresence.steamUacCancelled")
+                    : t("richPresence.steamEnableFailed", {
+                          error: res.error ?? "",
+                      });
+        } else {
+            stopSteamPoll();
+            steamDisable = await disableSteam();
+        }
+        steamBusy = false;
+    }
+
+    async function restartSteam(): Promise<void> {
+        confirmingSteamRestart = false;
+        steamRestarting = true;
+        steamRestartError = null;
+        try {
+            const res = await window.desktop?.richPresence?.restartSteam();
+            if (res && !res.ok) steamRestartError = res.error ?? "";
+        } catch (e) {
+            steamRestartError = String((e as Error)?.message ?? e);
+        }
+        await refreshRichPresenceStatus();
+        steamRestarting = false;
+        if (steamRestartError === null) pollSteamPort();
     }
 
     // Discord holds the first slot when it started before Zam.
@@ -391,6 +472,97 @@
                 />
             </div>
 
+            {#if steamVisible}
+                <div
+                    class="flex items-center gap-3 py-2 border-b border-discord-divider {steamBusy
+                        ? 'opacity-50 pointer-events-none'
+                        : ''}"
+                    aria-busy={steamBusy}
+                >
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm text-discord-textPrimary">
+                            {t("richPresence.steam")}
+                        </p>
+                        <p class="text-xs text-discord-textMuted">
+                            {t("richPresence.steamHint")}
+                        </p>
+                        {#if !settingsState.richPresenceEnabled}
+                            <p class="text-xs text-discord-textMuted">
+                                {t("richPresence.arrpcNeedsShare")}
+                            </p>
+                        {/if}
+                        {#if status?.steam?.needsPermission}
+                            <p class="text-xs text-discord-textMuted">
+                                {t("richPresence.hostNeedsPermission")}
+                            </p>
+                            <code
+                                class="mt-1 block select-all break-all rounded bg-discord-backgroundTertiary p-2 text-xs text-discord-textPrimary"
+                            >
+                                {t("richPresence.scanGrantCommand")}
+                            </code>
+                        {/if}
+                        {#if steamEnableError !== null}
+                            <p class="text-xs text-discord-danger">
+                                {steamEnableError}
+                            </p>
+                        {/if}
+                        {#if steamFlagLeft && steamDisable}
+                            <p class="text-xs text-discord-danger">
+                                {steamDisable.cancelled
+                                    ? t("richPresence.steamUacCancelled")
+                                    : t("richPresence.steamDisableFailed", {
+                                          error: steamDisable.error ?? "",
+                                      })}
+                            </p>
+                        {/if}
+                        {#if settingsState.richPresenceEnabled && settingsState.richPresenceSteam && status?.steam?.error}
+                            <p class="text-xs text-discord-danger">
+                                {t("richPresence.steamFailed", {
+                                    error: status.steam.error,
+                                })}
+                            </p>
+                        {/if}
+                        {#if settingsState.richPresenceEnabled && settingsState.richPresenceSteam && status?.steam?.connected}
+                            <p class="text-xs text-discord-textMuted">
+                                {t("richPresence.steamConnected")}
+                            </p>
+                        {/if}
+                        {#if settingsState.richPresenceSteam && status?.steam && !status.steam.portOpen}
+                            {#if status.steam.steamRunning}
+                                <p class="text-xs text-discord-textMuted">
+                                    {t("richPresence.steamNeedsRestart")}
+                                </p>
+                                <button
+                                    type="button"
+                                    class="mt-1 rounded bg-discord-backgroundSecondary px-2 py-1 text-xs text-discord-textPrimary hover:bg-discord-backgroundSecondaryAlt disabled:opacity-50"
+                                    disabled={steamRestarting}
+                                    onclick={() =>
+                                        (confirmingSteamRestart = true)}
+                                >
+                                    {t("richPresence.restartSteam")}
+                                </button>
+                            {:else}
+                                <p class="text-xs text-discord-textMuted">
+                                    {t("richPresence.steamNotRunning")}
+                                </p>
+                            {/if}
+                        {/if}
+                        {#if steamRestartError !== null}
+                            <p class="text-xs text-discord-danger">
+                                {t("richPresence.restartSteamFailed", {
+                                    error: steamRestartError,
+                                })}
+                            </p>
+                        {/if}
+                    </div>
+                    <ToggleSwitch
+                        checked={settingsState.richPresenceSteam}
+                        onChange={onToggleSteam}
+                        label={t("richPresence.steam")}
+                    />
+                </div>
+            {/if}
+
             <div
                 class="flex items-center gap-3 py-2 border-b border-discord-divider"
             >
@@ -463,7 +635,9 @@
                                           ? t("richPresence.viaMatrix")
                                           : app.viaMedia
                                             ? t("richPresence.viaMedia")
-                                            : app.viaScan || app.viaRpc
+                                            : app.viaScan ||
+                                                app.viaRpc ||
+                                                app.viaSteam
                                               ? [
                                                     app.viaRpc &&
                                                         t(
@@ -472,6 +646,10 @@
                                                     app.viaScan &&
                                                         t(
                                                             "richPresence.viaScan",
+                                                        ),
+                                                    app.viaSteam &&
+                                                        t(
+                                                            "richPresence.viaSteam",
                                                         ),
                                                 ]
                                                     .filter(Boolean)
@@ -637,6 +815,40 @@
                 onclick={restartDiscord}
             >
                 {t("richPresence.restartDiscord")}
+            </button>
+        </div>
+    </ModalDialog>
+{/if}
+
+{#if confirmingSteamRestart}
+    <ModalDialog
+        onClose={() => (confirmingSteamRestart = false)}
+        labelledBy="restart-steam-title"
+        panelClass="relative w-full max-w-sm rounded-lg bg-discord-backgroundSecondary p-4 shadow-xl"
+    >
+        <h2
+            id="restart-steam-title"
+            class="mb-2 text-base font-semibold text-discord-textPrimary"
+        >
+            {t("richPresence.restartSteamTitle")}
+        </h2>
+        <p class="mb-3 text-sm text-discord-textSecondary">
+            {t("richPresence.restartSteamBody")}
+        </p>
+        <div class="flex justify-end gap-2">
+            <button
+                type="button"
+                class="px-3 py-1 text-sm text-discord-textMuted hover:text-discord-textPrimary"
+                onclick={() => (confirmingSteamRestart = false)}
+            >
+                {t("common.cancel")}
+            </button>
+            <button
+                type="button"
+                class="rounded bg-discord-accent px-3 py-1 text-sm text-white"
+                onclick={restartSteam}
+            >
+                {t("richPresence.restartSteam")}
             </button>
         </div>
     </ModalDialog>

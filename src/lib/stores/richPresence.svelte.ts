@@ -6,6 +6,7 @@ import {
     readRichPresenceApps,
     readRichPresenceGames,
     readRichPresenceImages,
+    setRichPresenceSteam,
     settingsState,
     writeRichPresenceApps,
     writeRichPresenceGames,
@@ -49,6 +50,8 @@ export interface KnownApp {
     viaRpc?: boolean;
     /** A media player, from the system's now-playing info. */
     viaMedia?: boolean;
+    /** A Steam game, read through Steam's local debugging port. */
+    viaSteam?: boolean;
 }
 
 interface Held {
@@ -57,6 +60,8 @@ interface Held {
     scan: boolean;
     /** From a media player's now-playing info. */
     media: boolean;
+    /** From Steam's local debugging port. */
+    steam: boolean;
     /** Lower-cased app name, to match a scan against an app's own report. */
     appName: string;
     entry: RpcEntry;
@@ -107,6 +112,7 @@ function loadApps(): Record<string, KnownApp> {
                 viaScan: a.viaScan === true,
                 viaRpc: a.viaRpc === true,
                 viaMedia: a.viaMedia === true,
+                viaSteam: a.viaSteam === true,
             };
         }
         return out;
@@ -221,6 +227,7 @@ export async function syncRichPresence(): Promise<void> {
     const arrpc = local && settingsState.richPresenceArrpc;
     const scan = local && settingsState.richPresenceScan;
     const media = local && settingsState.richPresenceMedia;
+    const steam = local && settingsState.richPresenceSteam;
     if (local && !unsubscribe) unsubscribe = b.onEvent(handleEvent);
     try {
         richPresenceState.status = await b.configure({
@@ -228,6 +235,7 @@ export async function syncRichPresence(): Promise<void> {
             arrpc,
             scan,
             media,
+            steam,
             fake: settingsState.richPresenceFakeDiscord,
             autoRestartDiscord: settingsState.richPresenceAutoRestartDiscord,
             userId: auth.userId ?? "",
@@ -250,6 +258,7 @@ export async function syncRichPresence(): Promise<void> {
         schedulePublish();
     }
     if (!media) dropMedia();
+    if (!steam) dropSteam();
 }
 
 /** Media players went off: what they were playing goes too, held or blocked. */
@@ -264,9 +273,26 @@ function dropMedia(): void {
     if (dropped) schedulePublish();
 }
 
+/** Steam went off: its games go too, held or blocked. */
+function dropSteam(): void {
+    let dropped = false;
+    for (const [k, h] of held)
+        if (h.steam) {
+            held.delete(k);
+            dropped = true;
+        }
+    for (const [k, ev] of blocked) if (isSteamEvent(ev)) blocked.delete(k);
+    if (dropped) schedulePublish();
+}
+
 /** Media players report under their own ids (see electron/mediaSession.cjs). */
 function isMediaEvent(ev: DesktopRichPresenceEvent): boolean {
     return ev.source === "arrpc" && ev.presenceId.startsWith("media-");
+}
+
+/** Steam games report under `steam-<appid>` (see electron/steamPresence.cjs). */
+function isSteamEvent(ev: DesktopRichPresenceEvent): boolean {
+    return ev.source === "arrpc" && ev.presenceId.startsWith("steam-");
 }
 
 let listWatch: ReturnType<typeof setTimeout> | null = null;
@@ -297,6 +323,7 @@ export function stopRichPresence(): void {
         arrpc: false,
         scan: false,
         media: false,
+        steam: false,
         fake: false,
         autoRestartDiscord: false,
         userId: "",
@@ -349,6 +376,58 @@ export function forgetApp(appKey: string): void {
     for (const [k, w] of pluginWanted)
         if (w.appKey === appKey) pluginWanted.delete(k);
     schedulePublish();
+}
+
+// ── Steam ──────────────────────────────────────────────────────────────────
+// Steam's debugging port is switched on by writing Steam's debug flag. The
+// setting only turns on once that succeeded, and turning it off always tries
+// to remove the flag again so the port is not left open.
+
+export interface SteamDebugOutcome {
+    ok: boolean;
+    cancelled?: boolean;
+    error?: string;
+}
+
+async function callSteamDebugging(
+    enabled: boolean,
+): Promise<SteamDebugOutcome> {
+    try {
+        const res = await bridge()?.setSteamDebugging(enabled);
+        return res ?? { ok: false, error: "" };
+    } catch (e) {
+        return { ok: false, error: String((e as Error)?.message ?? e) };
+    }
+}
+
+/** Re-read the desktop status, so the settings show what is really set. */
+export async function refreshRichPresenceStatus(): Promise<void> {
+    try {
+        richPresenceState.status = (await bridge()?.status()) ?? null;
+    } catch {
+        // Keep whatever status we had.
+    }
+}
+
+/** Write Steam's debug flag, then turn the Steam source on. On failure the
+ *  setting stays off and the outcome says why. */
+export async function enableSteam(): Promise<SteamDebugOutcome> {
+    const res = await callSteamDebugging(true);
+    if (!res.ok) return res;
+    setRichPresenceSteam(true);
+    await syncRichPresence();
+    return res;
+}
+
+/** Turn the Steam source off, then remove Steam's debug flag. The setting is
+ *  off either way; if the flag could not be removed, the outcome says so and
+ *  the status is re-read so the settings do not claim it was removed. */
+export async function disableSteam(): Promise<SteamDebugOutcome> {
+    setRichPresenceSteam(false);
+    await syncRichPresence();
+    const res = await callSteamDebugging(false);
+    if (!res.ok) await refreshRichPresenceStatus();
+    return res;
 }
 
 // ── Plugins ────────────────────────────────────────────────────────────────
@@ -429,6 +508,7 @@ function holdPlugin(heldKey: string): void {
             appKey: w.appKey,
             scan: false,
             media: false,
+            steam: false,
             appName: w.name.toLowerCase(),
             // A renewable entry may have sat blocked past its first expiry.
             entry: w.renewable
@@ -463,10 +543,12 @@ function handleEvent(ev: DesktopRichPresenceEvent): void {
 
     const isScan = ev.source === "arrpc" && ev.presenceId.startsWith("scan-");
     const isMedia = isMediaEvent(ev);
-    const isRpc = ev.source === "arrpc" && !isScan && !isMedia;
-    // Media players are only reported once the user has switched them on, so
-    // a late report after that is dropped.
+    const isSteam = isSteamEvent(ev);
+    const isRpc = ev.source === "arrpc" && !isScan && !isMedia && !isSteam;
+    // Media players and Steam are only reported once the user has switched
+    // them on, so a late report after that is dropped.
     if (isMedia && !settingsState.richPresenceMedia) return;
+    if (isSteam && !settingsState.richPresenceSteam) return;
 
     // Remember the app the first time we see it, allowed by default, and how
     // it was found.
@@ -481,6 +563,7 @@ function handleEvent(ev: DesktopRichPresenceEvent): void {
             viaScan: isScan,
             viaRpc: isRpc,
             viaMedia: isMedia,
+            viaSteam: isSteam,
         };
         saveApps();
     } else if (
@@ -488,23 +571,27 @@ function handleEvent(ev: DesktopRichPresenceEvent): void {
         known.name !== name ||
         (isScan && !known.viaScan) ||
         (isRpc && !known.viaRpc) ||
-        (isMedia && !known.viaMedia)
+        (isMedia && !known.viaMedia) ||
+        (isSteam && !known.viaSteam)
     ) {
         known.name = name;
         known.lastSeen = now;
         if (isScan) known.viaScan = true;
         if (isRpc) known.viaRpc = true;
         if (isMedia) known.viaMedia = true;
+        if (isSteam) known.viaSteam = true;
         saveApps();
     }
 
     // An app that reports for itself wins over the process scanner's guess,
-    // whether the two share a client id or only a name.
+    // whether the two share a client id or only a name. A Steam game is one of
+    // those reports: it replaces a scanner's copy, and the scanner's later
+    // reports for it are skipped (they fall under the `!h.scan` check above).
     const nameKey = name.toLowerCase();
     if (isScan) {
         for (const h of held.values())
             if (!h.scan && h.appName === nameKey) return;
-    } else if (isRpc) {
+    } else if (isRpc || isSteam) {
         let dropped = false;
         for (const [k, h] of held)
             if (h.scan && h.appName === nameKey) {
@@ -554,6 +641,7 @@ function handleEvent(ev: DesktopRichPresenceEvent): void {
         appKey,
         scan: isScan,
         media: isMedia,
+        steam: isSteam,
         appName: nameKey,
         entry: refs.large || refs.small ? withIcons(entry, ready, refs) : entry,
         renewable,

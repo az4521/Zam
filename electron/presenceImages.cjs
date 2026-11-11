@@ -6,6 +6,8 @@
 //   cdn.discordapp.com    app icons and assets registered with Discord
 //   media.discordapp.net  pictures Discord proxies from elsewhere ("mp:...")
 //   i.scdn.co             Spotify covers ("spotify:...")
+//   shared.fastly.steamstatic.com
+//                         Steam's header pictures ("steam:<appid>")
 //
 // Arbitrary URLs from apps are refused: a local app could otherwise point
 // this at an address inside the user's network.
@@ -14,6 +16,7 @@ const ALLOWED_HOSTS = new Set([
     "cdn.discordapp.com",
     "media.discordapp.net",
     "i.scdn.co",
+    "shared.fastly.steamstatic.com",
 ]);
 const MAX_BYTES = 4 * 1024 * 1024;
 const TIMEOUT_MS = 10_000;
@@ -57,6 +60,14 @@ function createPresenceImages({
     /** The URL an image reference stands for, or null if it is not one we fetch. */
     async function resolve(appId, ref) {
         if (typeof ref !== "string" || !ref || ref.length > 1024) return null;
+
+        // A Steam game's header, under its own "steam-<appid>" app id.
+        const steam = /^steam:(\d{1,20})$/.exec(ref);
+        if (steam)
+            return appId === `steam-${steam[1]}`
+                ? `https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/${steam[1]}/header.jpg`
+                : null;
+
         if (!/^\d{1,25}$/.test(appId)) return null;
 
         const icon = /^icon:([0-9a-f]{8,64})$/i.exec(ref);

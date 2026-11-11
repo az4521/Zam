@@ -4312,6 +4312,28 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Votre état non lu reste synchronisé, mais les autres ne peuvent pas voir ce que vous avez lu.",
     "privacySafetySettings.receiptsOverrideHint":
         "Les salons et les espaces peuvent remplacer ce réglage dans leurs paramètres de notifications.",
+    "richPresence.steam": "Rich Presence Steam",
+    "richPresence.steamHint":
+        "Affiche le jeu Steam auquel vous jouez avec son statut Rich Presence, comme la carte ou le mode. Cela active le port de débogage local de Steam, qui n’écoute que sur cet ordinateur. Steam doit être redémarré une fois pour que cela prenne effet.",
+    "richPresence.steamConnected": "Connecté à Steam.",
+    "richPresence.steamNeedsRestart":
+        "Le port de débogage de Steam n’est pas encore ouvert. Redémarrez Steam pour l’ouvrir.",
+    "richPresence.steamNotRunning":
+        "Steam n’est pas lancé. Démarrez-le et Zam se connectera automatiquement.",
+    "richPresence.restartSteam": "Redémarrer Steam",
+    "richPresence.restartSteamTitle": "Redémarrer Steam ?",
+    "richPresence.restartSteamBody":
+        "Steam va se fermer puis se rouvrir. Les jeux lancés depuis Steam peuvent être fermés avec lui.",
+    "richPresence.restartSteamFailed":
+        "Impossible de redémarrer Steam : {error}",
+    "richPresence.steamEnableFailed":
+        "Impossible d’activer le port de débogage de Steam : {error}",
+    "richPresence.steamDisableFailed":
+        "Impossible de désactiver le port de débogage de Steam : {error}",
+    "richPresence.steamUacCancelled":
+        "Windows a demandé les droits d’administrateur, mais ils n’ont pas été accordés. Rien n’a donc été modifié.",
+    "richPresence.steamFailed": "Échec de la Rich Presence Steam : {error}",
+    "richPresence.viaSteam": "Steam",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: fr };

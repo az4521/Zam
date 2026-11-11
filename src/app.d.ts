@@ -78,6 +78,23 @@ declare global {
             running: boolean;
             error: string | null;
         };
+        /** The game Steam reports as running (electron/steamPresence.cjs), and
+         *  Steam's debug setting (electron/steamDebug.cjs). */
+        steam: {
+            running: boolean;
+            /** Steam's local rich presence is being read. */
+            connected: boolean;
+            /** Steam's local rich presence port answers. */
+            portOpen: boolean;
+            error: string | null;
+            /** Steam's debug setting can be changed on this computer. */
+            supported: boolean;
+            /** The debug setting is on. */
+            enabled: boolean;
+            steamRunning: boolean;
+            /** In a Flatpak: changing Steam needs org.freedesktop.Flatpak. */
+            needsPermission: boolean;
+        };
         /** The stand-in Discord process (electron/fakeDiscord.cjs). */
         fake: {
             supported: boolean;
@@ -294,6 +311,9 @@ declare global {
                     /** Report what media players are playing (the system's
                      *  now-playing info), as Discord "listening" entries. */
                     media: boolean;
+                    /** Report the game Steam says is running, as a "Playing"
+                     *  entry (electron/steamPresence.cjs). */
+                    steam: boolean;
                     /** Run a stand-in process named Discord, for apps that
                      *  look for one. */
                     fake: boolean;
@@ -317,6 +337,15 @@ declare global {
                 /** Close Discord, let Zam take the first slot, start Discord
                  *  again. Only after the user confirmed. */
                 restartDiscord: () => Promise<{ ok: boolean; error?: string }>;
+                /** Turn Steam's debug setting on or off (it asks the user
+                 *  first, so `cancelled` is set when they say no). */
+                setSteamDebugging: (enabled: boolean) => Promise<{
+                    ok: boolean;
+                    cancelled?: boolean;
+                    error?: string;
+                }>;
+                /** Restart Steam. Only after the user confirmed. */
+                restartSteam: () => Promise<{ ok: boolean; error?: string }>;
                 onEvent: (
                     cb: (event: DesktopRichPresenceEvent) => void,
                 ) => () => void;

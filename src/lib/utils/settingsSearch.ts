@@ -267,6 +267,7 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
             "msc4544",
             "media",
             "now playing",
+            "steam",
         ],
         anchor: "cust-rich-presence",
         available: (p) => p.richPresence,

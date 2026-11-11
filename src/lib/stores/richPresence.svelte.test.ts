@@ -16,6 +16,14 @@ const image = vi.fn(async (..._a: unknown[]) => ({
     type: "image/png",
     data: new Uint8Array([1, 2, 3]),
 }));
+const setSteamDebugging = vi.fn(
+    async (
+        _on: boolean,
+    ): Promise<{ ok: boolean; cancelled?: boolean; error?: string }> => ({
+        ok: true,
+    }),
+);
+const statusFn = vi.fn(async () => ({ steam: { enabled: true } }));
 
 async function load() {
     vi.resetModules();
@@ -46,12 +54,16 @@ beforeEach(() => {
     configure.mockClear();
     image.mockClear();
     uploadContent.mockClear();
+    setSteamDebugging.mockReset();
+    setSteamDebugging.mockImplementation(async () => ({ ok: true }));
+    statusFn.mockClear();
     handler = null;
     (window as unknown as { desktop: unknown }).desktop = {
         richPresence: {
             configure,
             image,
-            status: vi.fn(),
+            setSteamDebugging,
+            status: statusFn,
             onEvent: (cb: typeof handler) => {
                 handler = cb;
                 return () => {
@@ -469,6 +481,196 @@ describe("rich presence store", () => {
         // Reports that still arrive while it is off are not held.
         handler!(media());
         expect(rp.richPresenceState.heldCount).toBe(0);
+    });
+
+    describe("steam", () => {
+        const steam = (over: Partial<DesktopRichPresenceEvent> = {}) =>
+            ev({
+                source: "arrpc",
+                app: { id: "steam-440", name: "Team Fortress 2" },
+                presenceId: "steam-440",
+                presence: {
+                    application_id: "440",
+                    name: "Team Fortress 2",
+                    details: "Payload",
+                    state: "Map: pl_upward",
+                },
+                ...over,
+            });
+
+        it("passes the steam flag to the main process only with sharing and the setting on", async () => {
+            const { settings, rp } = await load();
+            settings.setRichPresenceSteam(true);
+            await rp.syncRichPresence();
+            expect(configure).toHaveBeenLastCalledWith(
+                expect.objectContaining({ local: false, steam: false }),
+            );
+            settings.setRichPresenceEnabled(true);
+            await rp.syncRichPresence();
+            expect(configure).toHaveBeenLastCalledWith(
+                expect.objectContaining({ local: true, steam: true }),
+            );
+            settings.setRichPresenceSteam(false);
+            await rp.syncRichPresence();
+            expect(configure).toHaveBeenLastCalledWith(
+                expect.objectContaining({ local: true, steam: false }),
+            );
+        });
+
+        it("publishes a Steam game as a game, recorded as Steam and not as Discord", async () => {
+            const { settings, rp } = await load();
+            settings.setRichPresenceEnabled(true);
+            settings.setRichPresenceSteam(true);
+            await rp.syncRichPresence();
+            handler!(steam());
+            await vi.advanceTimersByTimeAsync(2000);
+
+            expect(rp.richPresenceState.apps["arrpc:steam-440"]).toMatchObject({
+                name: "Team Fortress 2",
+                allowed: true,
+                viaSteam: true,
+                viaRpc: false,
+                viaScan: false,
+                viaMedia: false,
+            });
+            const last = setOwnProfileField.mock.calls.at(-1) as [
+                string,
+                Array<Record<string, unknown>>,
+            ];
+            expect(last[1][0]).toMatchObject({
+                name: "Team Fortress 2",
+                details: "Payload",
+                state: "Map: pl_upward",
+            });
+        });
+
+        it("drops Steam reports while the setting is off", async () => {
+            const { settings, rp } = await load();
+            settings.setRichPresenceEnabled(true);
+            await rp.syncRichPresence();
+            handler!(steam());
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(rp.richPresenceState.heldCount).toBe(0);
+            expect(
+                rp.richPresenceState.apps["arrpc:steam-440"],
+            ).toBeUndefined();
+        });
+
+        it("turning Steam off drops what it was playing", async () => {
+            const { settings, rp } = await load();
+            settings.setRichPresenceEnabled(true);
+            settings.setRichPresenceSteam(true);
+            await rp.syncRichPresence();
+            handler!(steam());
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(rp.richPresenceState.heldCount).toBe(1);
+
+            settings.setRichPresenceSteam(false);
+            await rp.syncRichPresence();
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(rp.richPresenceState.heldCount).toBe(0);
+            expect(setOwnProfileField).toHaveBeenLastCalledWith(
+                "xyz.extera.msc4544.rpc",
+                null,
+            );
+        });
+
+        it("replaces the scanner's copy of a game and skips later scanner reports for it", async () => {
+            const { settings, rp } = await load();
+            settings.setRichPresenceEnabled(true);
+            settings.setRichPresenceSteam(true);
+            await rp.syncRichPresence();
+            handler!(game());
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(rp.richPresenceState.heldCount).toBe(1);
+
+            // Same name, reported by Steam: the scanner's copy goes.
+            handler!(steam({ app: { id: "steam-123", name: "Some Game" } }));
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(rp.richPresenceState.heldCount).toBe(1);
+            expect(rp.richPresenceState.apps["arrpc:steam-123"]).toMatchObject({
+                viaSteam: true,
+            });
+
+            // The scanner repeating itself does not bring its copy back.
+            setOwnProfileField.mockClear();
+            handler!(game({ state: "again" }));
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(rp.richPresenceState.heldCount).toBe(1);
+            expect(setOwnProfileField).not.toHaveBeenCalled();
+        });
+
+        it("removing a Steam game takes it off the profile", async () => {
+            const { settings, rp } = await load();
+            settings.setRichPresenceEnabled(true);
+            settings.setRichPresenceSteam(true);
+            await rp.syncRichPresence();
+            handler!(steam());
+            await vi.advanceTimersByTimeAsync(2000);
+
+            handler!(steam({ presence: null }));
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(rp.richPresenceState.heldCount).toBe(0);
+            expect(setOwnProfileField).toHaveBeenLastCalledWith(
+                "xyz.extera.msc4544.rpc",
+                null,
+            );
+        });
+
+        it("enableSteam turns the source on only after the debug flag is written", async () => {
+            const { settings, rp } = await load();
+            settings.setRichPresenceEnabled(true);
+            await rp.syncRichPresence();
+
+            setSteamDebugging.mockResolvedValueOnce({
+                ok: false,
+                cancelled: true,
+            });
+            const failed = await rp.enableSteam();
+            expect(setSteamDebugging).toHaveBeenLastCalledWith(true);
+            expect(failed).toMatchObject({ ok: false, cancelled: true });
+            expect(settings.settingsState.richPresenceSteam).toBe(false);
+
+            const ok = await rp.enableSteam();
+            expect(ok.ok).toBe(true);
+            expect(settings.settingsState.richPresenceSteam).toBe(true);
+            expect(configure).toHaveBeenLastCalledWith(
+                expect.objectContaining({ local: true, steam: true }),
+            );
+        });
+
+        it("disableSteam turns the source off and reports when the flag could not be removed", async () => {
+            const { settings, rp } = await load();
+            settings.setRichPresenceEnabled(true);
+            settings.setRichPresenceSteam(true);
+            await rp.syncRichPresence();
+
+            setSteamDebugging.mockResolvedValueOnce({
+                ok: false,
+                error: "access denied",
+            });
+            const out = await rp.disableSteam();
+            // The source is off regardless, and the outcome is not swallowed.
+            expect(settings.settingsState.richPresenceSteam).toBe(false);
+            expect(configure).toHaveBeenLastCalledWith(
+                expect.objectContaining({ local: true, steam: false }),
+            );
+            expect(setSteamDebugging).toHaveBeenLastCalledWith(false);
+            expect(out).toEqual({ ok: false, error: "access denied" });
+            // The status is re-read so the UI sees the flag as still set.
+            expect(statusFn).toHaveBeenCalled();
+        });
+
+        it("disableSteam reports success without re-reading the status", async () => {
+            const { settings, rp } = await load();
+            settings.setRichPresenceEnabled(true);
+            settings.setRichPresenceSteam(true);
+            await rp.syncRichPresence();
+            const out = await rp.disableSteam();
+            expect(out.ok).toBe(true);
+            expect(setSteamDebugging).toHaveBeenLastCalledWith(false);
+            expect(statusFn).not.toHaveBeenCalled();
+        });
     });
 
     describe("plugins", () => {

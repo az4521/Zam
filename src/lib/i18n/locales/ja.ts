@@ -3790,6 +3790,28 @@ const messages: Partial<Record<MessageKey, string>> = {
         "未読の状態は引き続き同期されますが、他の人があなたの既読状況を見ることはできません。",
     "privacySafetySettings.receiptsOverrideHint":
         "ルームやスペースは通知設定でこの設定を上書きできます。",
+    "richPresence.steam": "Steam リッチプレゼンス",
+    "richPresence.steamHint":
+        "プレイ中の Steam ゲームを、マップやモードなどのリッチプレゼンス状態とともに表示します。これにより Steam のローカルデバッグポートが有効になり、このコンピューターからのみ接続を受け付けます。反映させるには Steam を一度再起動する必要があります。",
+    "richPresence.steamConnected": "Steam に接続しました。",
+    "richPresence.steamNeedsRestart":
+        "Steam のデバッグポートはまだ開いていません。Steam を再起動して開いてください。",
+    "richPresence.steamNotRunning":
+        "Steam が起動していません。起動すると Zam が自動的に接続します。",
+    "richPresence.restartSteam": "Steam を再起動",
+    "richPresence.restartSteamTitle": "Steam を再起動しますか?",
+    "richPresence.restartSteamBody":
+        "Steam が閉じてから再び起動します。Steam から起動したゲームも一緒に終了する場合があります。",
+    "richPresence.restartSteamFailed":
+        "Steam を再起動できませんでした: {error}",
+    "richPresence.steamEnableFailed":
+        "Steam のデバッグポートを有効にできませんでした: {error}",
+    "richPresence.steamDisableFailed":
+        "Steam のデバッグポートを無効にできませんでした: {error}",
+    "richPresence.steamUacCancelled":
+        "Windows が管理者権限を求めましたが許可されなかったため、何も変更されませんでした。",
+    "richPresence.steamFailed": "Steam リッチプレゼンスに失敗しました: {error}",
+    "richPresence.viaSteam": "Steam",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ja };

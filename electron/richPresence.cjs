@@ -12,6 +12,9 @@
 //   Media               mediaSession.cjs reports what media players are playing
 //                       (SMTC on Windows, MPRIS on Linux, MediaRemote on
 //                       macOS) as "Listening to".
+//   Steam               steamPresence.cjs follows the game Steam reports as
+//                       running (its local rich presence port). steamDebug.cjs
+//                       holds the optional setting that makes Steam report it.
 //
 // Everything is off until the renderer asks (Settings > General). Nothing is
 // interpreted here beyond framing: the renderer validates every payload.
@@ -111,6 +114,9 @@ function createRichPresence({
     fetch,
     // Where the macOS MediaRemote adapter lives (see mediaSession.cjs).
     mediaDir,
+    // Injected by tests; the real modules are required when first needed.
+    createSteamPresence: makeSteamPresence = null,
+    createSteamDebug: makeSteamDebug = null,
     log = () => {},
 }) {
     const knownGames = createKnownGames({
@@ -150,6 +156,18 @@ function createRichPresence({
     const fake = createFakeDiscord({ userDataDir, inFlatpak, log });
     // Games the user added by hand; the scanner reads this on every pass.
     let customGames = [];
+    // The Steam source (steamPresence.cjs), created when wanted. Its module is
+    // required on first use, so a missing file only fails this source.
+    let steam = null;
+    let steamLoadError = null;
+    // The game last reported for Steam ({ appId, app }), so it can be removed.
+    let steamReported = null;
+    // In a Flatpak, whether the user has not granted host access (for Steam).
+    let steamNeedsPermission = false;
+    // Steam's debug setting (steamDebug.cjs), made on first use. Its status is
+    // cached here because getStatus() is synchronous.
+    let steamDebug = null;
+    let steamDebugStatus = null;
     const status = {
         msc4544: { listening: false, port: null, socket: null, error: null },
         arrpc: { running: false, ipcPath: null, wsPort: null, error: null },
@@ -572,11 +590,105 @@ function createRichPresence({
         }
     }
 
+    // ── Steam ──────────────────────────────────────────────────────────────
+
+    /**
+     * The game Steam reports as running, as a "Playing" activity, or its
+     * removal (state null, or another game). Its picture is Steam's header
+     * image (presenceImages.cjs). The renderer drops the copy the game scanner
+     * may also report.
+     */
+    function forwardSteam(state) {
+        const prev = steamReported;
+        const appId =
+            state && /^\d{1,20}$/.test(String(state.appId))
+                ? String(state.appId)
+                : null;
+        if (prev && (!appId || prev.appId !== appId)) {
+            steamReported = null;
+            send({
+                source: "arrpc",
+                app: prev.app,
+                presenceId: prev.app.id,
+                presence: null,
+            });
+        }
+        if (!appId) return;
+
+        const id = `steam-${appId}`;
+        const name =
+            (typeof state.name === "string" && state.name.trim()) ||
+            "Steam game";
+        steamReported = { appId, app: { id, name } };
+        send({
+            source: "arrpc",
+            app: { id, name },
+            presenceId: id,
+            presence: {
+                application_id: id,
+                name,
+                type: 0,
+                details: state.status || undefined,
+                assets: { large_image: `steam:${appId}` },
+                timestamps: { start: state.startedAt },
+            },
+        });
+    }
+
+    function startSteam() {
+        try {
+            const create =
+                makeSteamPresence ??
+                require("./steamPresence.cjs").createSteamPresence;
+            const inst = create({
+                onSteam: (st) => {
+                    if (steam === inst) forwardSteam(st);
+                },
+                log,
+            });
+            steam = inst;
+            steamLoadError = null;
+            inst.start();
+        } catch (e) {
+            steam = null;
+            steamLoadError = String(e?.message || e);
+            log("steam presence failed", steamLoadError);
+        }
+    }
+
+    function stopSteam() {
+        const s = steam;
+        steam = null;
+        steamLoadError = null;
+        s?.stop();
+        // Whatever Steam reported is no longer true.
+        forwardSteam(null);
+    }
+
+    function getSteamDebug() {
+        if (!steamDebug) {
+            const make =
+                makeSteamDebug ?? require("./steamDebug.cjs").createSteamDebug;
+            steamDebug = make({ inFlatpak, log });
+        }
+        return steamDebug;
+    }
+
+    /** Refreshes the cached status; never throws. */
+    async function refreshSteamDebug() {
+        try {
+            steamDebugStatus = await getSteamDebug().status();
+        } catch (e) {
+            steamDebugStatus = null;
+            log("steam debug status failed", String(e?.message || e));
+        }
+    }
+
     // ── Control ────────────────────────────────────────────────────────────
 
     /**
      * Start or stop each source to match `want` ({ local, arrpc, scan, media,
-     * autoRestartDiscord, userId });
+     * steam, autoRestartDiscord, userId });
      * resolves to the status.
      */
     async function configure(want) {
@@ -604,6 +716,7 @@ function createRichPresence({
         if (!local || !want.arrpc) stopDiscord();
         if (!local || !want.scan) stopScanner();
         if (!local || !want.media) stopMedia();
+        if (!local || !want?.steam) stopSteam();
         if (unix && unix.key !== userId) stopUnix();
 
         if (local && !tcp) {
@@ -654,6 +767,12 @@ function createRichPresence({
             });
             media.start();
         }
+        if (local && want?.steam) {
+            if (!steam) startSteam();
+            steamNeedsPermission = inFlatpak && !(await checkHostAccess());
+        } else {
+            steamNeedsPermission = false;
+        }
         if (
             local &&
             want.arrpc &&
@@ -669,11 +788,22 @@ function createRichPresence({
             const res = await restartDiscordApp();
             if (!res.ok) log("automatic Discord restart failed", res.error);
         }
+        // Only a user of Steam needs it re-read each time; the rest need it once,
+        // for whether the section is shown at all.
+        if ((local && want?.steam) || !steamDebugStatus)
+            await refreshSteamDebug();
+        return getStatus();
+    }
+
+    /** The status with Steam's process and port state read fresh. */
+    async function refreshStatus() {
+        if (steam) await refreshSteamDebug();
         return getStatus();
     }
 
     function getStatus() {
         const d = discord?.status();
+        const sst = steam?.status() ?? {};
         return JSON.parse(
             JSON.stringify({
                 msc4544: status.msc4544,
@@ -696,10 +826,47 @@ function createRichPresence({
                     needsPermission: status.scan.needsPermission,
                 },
                 media: media ? media.status() : { running: false, error: null },
+                steam: {
+                    running: !!steam,
+                    connected: sst.connected === true,
+                    portOpen: steam
+                        ? sst.portOpen === true
+                        : steamDebugStatus?.portOpen === true,
+                    error: sst.error ?? steamLoadError ?? null,
+                    supported: steamDebugStatus?.supported === true,
+                    enabled: steamDebugStatus?.enabled === true,
+                    steamRunning: steamDebugStatus?.steamRunning === true,
+                    needsPermission: steamNeedsPermission,
+                },
                 games: knownGames.status(),
                 fake: fake.status(),
             }),
         );
+    }
+
+    /** Turns Steam's debug setting on or off (steamDebug.cjs). */
+    async function setSteamDebugging(enabled) {
+        let res;
+        try {
+            const d = getSteamDebug();
+            res = enabled ? await d.enable() : await d.disable();
+        } catch (e) {
+            res = { ok: false, error: String(e?.message || e) };
+        }
+        await refreshSteamDebug();
+        return res;
+    }
+
+    /** Restarts Steam (steamDebug.cjs); the Steam source reconnects by polling. */
+    async function restartSteam() {
+        let res;
+        try {
+            res = await getSteamDebug().restartSteam();
+        } catch (e) {
+            res = { ok: false, error: String(e?.message || e) };
+        }
+        await refreshSteamDebug();
+        return res;
     }
 
     /**
@@ -728,13 +895,17 @@ function createRichPresence({
         stopDiscord();
         stopScanner();
         stopMedia();
+        stopSteam();
         void fake.stop();
     }
 
     return {
         configure,
         getStatus,
+        refreshStatus,
         restartDiscord: restartDiscordApp,
+        setSteamDebugging,
+        restartSteam,
         stop,
         programs: () => listPrograms(inFlatpak),
         /** The cover behind a "media:" reference, or null (see createCoverStore). */

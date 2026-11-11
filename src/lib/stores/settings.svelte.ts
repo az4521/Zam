@@ -310,6 +310,10 @@ export const settingsState = $state({
      *  computer are playing, from the system's now-playing info (SMTC/MPRIS).
      *  Needs richPresenceEnabled. Default OFF. */
     richPresenceMedia: readBool("richPresenceMedia", false),
+    /** Device-global (desktop only): report the Steam game being played and
+     *  its rich presence line, read through Steam's local debugging port.
+     *  Needs richPresenceEnabled. Default OFF. */
+    richPresenceSteam: readBool("richPresenceSteam", false),
     /** Device-global: render the read-receipt avatars under messages. Default
      *  ON (existing behaviour). Display only — it does not change whether we
      *  SEND receipts; that is `privateReadReceipts`. */
@@ -1010,6 +1014,11 @@ export function setRichPresenceScan(value: boolean): void {
 export function setRichPresenceMedia(value: boolean): void {
     settingsState.richPresenceMedia = value;
     writeBool("richPresenceMedia", value);
+}
+
+export function setRichPresenceSteam(value: boolean): void {
+    settingsState.richPresenceSteam = value;
+    writeBool("richPresenceSteam", value);
 }
 
 /** Device-local: pictures already uploaded for rich presence, by source

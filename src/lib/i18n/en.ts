@@ -4110,6 +4110,28 @@ export const en = {
     "messageEmbed.deleted": "Message deleted",
     "messageEmbed.inRoom": "in {room}",
     "messageEmbed.jumpToMessage": "Jump to the linked message:",
+    // src/lib/components/settings/RichPresenceSettings.svelte (Steam)
+    "richPresence.steam": "Steam rich presence",
+    "richPresence.steamHint":
+        "Show the Steam game you are playing along with its rich presence status, such as the map or mode. This turns on Steam's local debugging port, which only listens on this computer. Steam has to be restarted once for it to take effect.",
+    "richPresence.steamConnected": "Connected to Steam.",
+    "richPresence.steamNeedsRestart":
+        "Steam's debugging port isn't open yet. Restart Steam to open it.",
+    "richPresence.steamNotRunning":
+        "Steam isn't running. Start it and Zam will connect automatically.",
+    "richPresence.restartSteam": "Restart Steam",
+    "richPresence.restartSteamTitle": "Restart Steam?",
+    "richPresence.restartSteamBody":
+        "Steam will close and start again. Games launched from Steam may be closed along with it.",
+    "richPresence.restartSteamFailed": "Couldn't restart Steam: {error}",
+    "richPresence.steamEnableFailed":
+        "Couldn't turn on Steam's debugging port: {error}",
+    "richPresence.steamDisableFailed":
+        "Couldn't turn off Steam's debugging port: {error}",
+    "richPresence.steamUacCancelled":
+        "Windows asked for administrator permission and it wasn't granted, so nothing was changed.",
+    "richPresence.steamFailed": "Steam rich presence failed: {error}",
+    "richPresence.viaSteam": "Steam",
 };
 
 export type MessageKey = keyof typeof en;

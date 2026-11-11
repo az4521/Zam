@@ -4262,6 +4262,28 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Состояние непрочитанного по-прежнему синхронизируется, но другие не видят, что вы прочитали.",
     "privacySafetySettings.receiptsOverrideHint":
         "Комнаты и пространства могут переопределить это в своих настройках уведомлений.",
+    "richPresence.steam": "Расширенный статус Steam",
+    "richPresence.steamHint":
+        "Показывает игру Steam, в которую вы играете, вместе с её расширенным статусом, например картой или режимом. Это включает локальный порт отладки Steam, который слушает только этот компьютер. Чтобы изменения вступили в силу, Steam нужно перезапустить один раз.",
+    "richPresence.steamConnected": "Подключено к Steam.",
+    "richPresence.steamNeedsRestart":
+        "Порт отладки Steam ещё не открыт. Перезапустите Steam, чтобы открыть его.",
+    "richPresence.steamNotRunning":
+        "Steam не запущен. Запустите его, и Zam подключится автоматически.",
+    "richPresence.restartSteam": "Перезапустить Steam",
+    "richPresence.restartSteamTitle": "Перезапустить Steam?",
+    "richPresence.restartSteamBody":
+        "Steam закроется и откроется снова. Игры, запущенные из Steam, могут быть закрыты вместе с ним.",
+    "richPresence.restartSteamFailed":
+        "Не удалось перезапустить Steam: {error}",
+    "richPresence.steamEnableFailed":
+        "Не удалось включить порт отладки Steam: {error}",
+    "richPresence.steamDisableFailed":
+        "Не удалось выключить порт отладки Steam: {error}",
+    "richPresence.steamUacCancelled":
+        "Windows запросила права администратора, но они не были предоставлены, поэтому ничего не изменено.",
+    "richPresence.steamFailed": "Ошибка расширенного статуса Steam: {error}",
+    "richPresence.viaSteam": "Steam",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ru };

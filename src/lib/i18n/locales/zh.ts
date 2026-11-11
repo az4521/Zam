@@ -3889,6 +3889,25 @@ const messages: Partial<Record<MessageKey, string>> = {
         "你的未读状态仍会同步，但其他人无法看到你已读到哪里。",
     "privacySafetySettings.receiptsOverrideHint":
         "房间和空间可以在其通知设置中覆盖此设置。",
+    "richPresence.steam": "Steam Rich Presence",
+    "richPresence.steamHint":
+        "显示你正在玩的 Steam 游戏及其 Rich Presence 状态，例如地图或模式。这会开启 Steam 的本地调试端口，该端口只在这台电脑上监听。需要重启 Steam 一次才会生效。",
+    "richPresence.steamConnected": "已连接到 Steam。",
+    "richPresence.steamNeedsRestart":
+        "Steam 的调试端口尚未开启。请重启 Steam 以开启。",
+    "richPresence.steamNotRunning":
+        "Steam 未在运行。启动 Steam 后，Zam 会自动连接。",
+    "richPresence.restartSteam": "重启 Steam",
+    "richPresence.restartSteamTitle": "重启 Steam？",
+    "richPresence.restartSteamBody":
+        "Steam 将关闭并重新启动。从 Steam 启动的游戏可能会随之关闭。",
+    "richPresence.restartSteamFailed": "无法重启 Steam：{error}",
+    "richPresence.steamEnableFailed": "无法开启 Steam 的调试端口：{error}",
+    "richPresence.steamDisableFailed": "无法关闭 Steam 的调试端口：{error}",
+    "richPresence.steamUacCancelled":
+        "Windows 请求管理员权限但未获授予，因此未做任何更改。",
+    "richPresence.steamFailed": "Steam Rich Presence 失败：{error}",
+    "richPresence.viaSteam": "Steam",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: zhCN };

@@ -1067,6 +1067,7 @@ ipcMain.handle("rich-presence:configure", (_e, want) =>
         scan: want?.scan === true,
         fake: want?.fake === true,
         media: want?.media === true,
+        steam: want?.steam === true,
         autoRestartDiscord: want?.autoRestartDiscord === true,
         userId: typeof want?.userId === "string" ? want.userId : "",
         games: want?.games,
@@ -1140,9 +1141,15 @@ const presenceImages = createPresenceImages({
 ipcMain.handle("rich-presence:image", (_e, appId, ref) =>
     presenceImages.fetchImage(appId, ref),
 );
-ipcMain.handle("rich-presence:status", () => richPresence.getStatus());
+ipcMain.handle("rich-presence:status", () => richPresence.refreshStatus());
 ipcMain.handle("rich-presence:restart-discord", () =>
     richPresence.restartDiscord(),
+);
+ipcMain.handle("rich-presence:steam-debugging", (_e, enabled) =>
+    richPresence.setSteamDebugging(enabled === true),
+);
+ipcMain.handle("rich-presence:restart-steam", () =>
+    richPresence.restartSteam(),
 );
 app.on("will-quit", () => richPresence.stop());
 

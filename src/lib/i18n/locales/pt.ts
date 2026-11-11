@@ -4279,6 +4279,28 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Seu status de não lidas continua sincronizando, mas outros não conseguem ver o que você leu.",
     "privacySafetySettings.receiptsOverrideHint":
         "Salas e espaços podem substituir isso nas suas configurações de notificações.",
+    "richPresence.steam": "Presença detalhada do Steam",
+    "richPresence.steamHint":
+        "Mostra o jogo do Steam que você está jogando junto com o status de presença detalhada, como o mapa ou o modo. Isto ativa a porta de depuração local do Steam, que só escuta neste computador. O Steam precisa ser reiniciado uma vez para que tenha efeito.",
+    "richPresence.steamConnected": "Conectado ao Steam.",
+    "richPresence.steamNeedsRestart":
+        "A porta de depuração do Steam ainda não está aberta. Reinicie o Steam para abri-la.",
+    "richPresence.steamNotRunning":
+        "O Steam não está em execução. Inicie-o e o Zam se conectará automaticamente.",
+    "richPresence.restartSteam": "Reiniciar o Steam",
+    "richPresence.restartSteamTitle": "Reiniciar o Steam?",
+    "richPresence.restartSteamBody":
+        "O Steam vai fechar e abrir novamente. Jogos iniciados pelo Steam podem ser fechados junto com ele.",
+    "richPresence.restartSteamFailed":
+        "Não foi possível reiniciar o Steam: {error}",
+    "richPresence.steamEnableFailed":
+        "Não foi possível ativar a porta de depuração do Steam: {error}",
+    "richPresence.steamDisableFailed":
+        "Não foi possível desativar a porta de depuração do Steam: {error}",
+    "richPresence.steamUacCancelled":
+        "O Windows pediu permissão de administrador e ela não foi concedida, então nada foi alterado.",
+    "richPresence.steamFailed": "A presença detalhada do Steam falhou: {error}",
+    "richPresence.viaSteam": "Steam",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ptBR };

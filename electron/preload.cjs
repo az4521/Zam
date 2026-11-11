@@ -132,6 +132,7 @@ contextBridge.exposeInMainWorld("desktop", {
                 scan: !!want?.scan,
                 fake: !!want?.fake,
                 media: !!want?.media,
+                steam: !!want?.steam,
                 autoRestartDiscord: !!want?.autoRestartDiscord,
                 userId: String(want?.userId ?? ""),
                 games: Array.isArray(want?.games)
@@ -152,6 +153,9 @@ contextBridge.exposeInMainWorld("desktop", {
         status: () => ipcRenderer.invoke("rich-presence:status"),
         restartDiscord: () =>
             ipcRenderer.invoke("rich-presence:restart-discord"),
+        setSteamDebugging: (enabled) =>
+            ipcRenderer.invoke("rich-presence:steam-debugging", !!enabled),
+        restartSteam: () => ipcRenderer.invoke("rich-presence:restart-steam"),
         onEvent: (cb) => {
             const h = (_e, ev) => cb(ev);
             ipcRenderer.on("rich-presence:event", h);

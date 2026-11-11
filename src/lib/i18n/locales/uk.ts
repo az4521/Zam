@@ -4247,6 +4247,29 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Стан непрочитаного і далі синхронізується, але інші не бачать, що ви прочитали.",
     "privacySafetySettings.receiptsOverrideHint":
         "Кімнати та простори можуть перевизначити це в своїх налаштуваннях сповіщень.",
+    "richPresence.steam": "Розширена присутність Steam",
+    "richPresence.steamHint":
+        "Показувати гру Steam, у яку ви граєте, разом із її станом розширеної присутності, наприклад картою чи режимом. Це вмикає локальний порт налагодження Steam, який слухає лише цей комп’ютер. Щоб зміни набули чинності, Steam потрібно перезапустити один раз.",
+    "richPresence.steamConnected": "Підключено до Steam.",
+    "richPresence.steamNeedsRestart":
+        "Порт налагодження Steam ще не відкрито. Перезапустіть Steam, щоб відкрити його.",
+    "richPresence.steamNotRunning":
+        "Steam не запущено. Запустіть його, і Zam підключиться автоматично.",
+    "richPresence.restartSteam": "Перезапустити Steam",
+    "richPresence.restartSteamTitle": "Перезапустити Steam?",
+    "richPresence.restartSteamBody":
+        "Steam закриється і відкриється знову. Ігри, запущені зі Steam, можуть закритися разом із ним.",
+    "richPresence.restartSteamFailed":
+        "Не вдалося перезапустити Steam: {error}",
+    "richPresence.steamEnableFailed":
+        "Не вдалося увімкнути порт налагодження Steam: {error}",
+    "richPresence.steamDisableFailed":
+        "Не вдалося вимкнути порт налагодження Steam: {error}",
+    "richPresence.steamUacCancelled":
+        "Windows запросила права адміністратора, але їх не надали, тому нічого не змінено.",
+    "richPresence.steamFailed":
+        "Розширена присутність Steam не працює: {error}",
+    "richPresence.viaSteam": "Steam",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: uk };
