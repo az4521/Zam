@@ -579,3 +579,33 @@ describe("buildHostApi — UI and message extension points", () => {
         expect(() => host.zam.ui.openPanel("missing")).toThrow(/missing/);
     });
 });
+
+describe("buildHostApi — call and midi capabilities", () => {
+    const build = (capabilities?: string[]) =>
+        buildHostApi({
+            pluginId: "p",
+            manifest: { ...manifest("p"), name: "Plug", capabilities },
+            registry: createRegistryData(),
+            appVersion: "1",
+        });
+
+    it("call needs the call capability", async () => {
+        const { zam } = build();
+        await expect(zam.call.sendData("t", new Uint8Array(1))).rejects.toThrow(
+            /"call" capability/,
+        );
+        await expect(zam.call.publishDataTrack("t")).rejects.toThrow(
+            /"call" capability/,
+        );
+        expect(() => zam.call.onData("t", () => {})).toThrow(/capability/);
+        expect(() => zam.call.onDataTrack(() => {})).toThrow(/capability/);
+    });
+
+    it("midi needs the midi capability", async () => {
+        const { zam } = build();
+        await expect(zam.midi.openSynth()).rejects.toThrow(/"midi" capability/);
+        await expect(zam.midi.play(new ArrayBuffer(1))).rejects.toThrow(
+            /"midi" capability/,
+        );
+    });
+});

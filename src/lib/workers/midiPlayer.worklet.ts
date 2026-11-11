@@ -20,7 +20,11 @@ import {
     SpessaSynthProcessor,
     SpessaSynthSequencer,
 } from "spessasynth_core";
-import type { WorkletIn, WorkletOut } from "./midiPlayer.messages";
+import {
+    applyChannelMessage,
+    type WorkletIn,
+    type WorkletOut,
+} from "./midiPlayer.messages";
 
 /** The worklet global scope's own names, typed here since DOM lib omits them. */
 const scope = globalThis as unknown as {
@@ -44,6 +48,8 @@ const BLOCK = 128;
 const MOBILE_VOICE_CAP = 96;
 /** Reverb and release tail played after the last event, then "ended". */
 const TAIL_SECONDS = 2;
+/** MIDI channel controller 121: resets that channel's controllers to their defaults. */
+const RESET_ALL_CONTROLLERS = 121;
 /** How often "time" is posted, in seconds of audio. */
 const REPORT_SECONDS = 0.25;
 
@@ -54,6 +60,10 @@ class MidiPlayerProcessor extends scope.AudioWorkletProcessor {
     private songId = 0;
     /** What the user asked for. A finished song still counts as playing until its tail is out. */
     private playing = false;
+    /** Live mode: the synth renders without a song, for notes sent as "midi". */
+    private live = false;
+    /** Live mode is off: frames left to render while the last voices and reverb decay. */
+    private liveTail = 0;
     private tailFrames = 0;
     private framesSinceReport = 0;
     private readonly reportFrames = Math.round(
@@ -90,6 +100,12 @@ class MidiPlayerProcessor extends scope.AudioWorkletProcessor {
                 return;
             case "song":
                 this.loadSong(msg);
+                return;
+            case "midi":
+                this.playLive(msg);
+                return;
+            case "live":
+                this.setLive(msg.on);
                 return;
         }
         const seq = this.seq;
@@ -175,6 +191,8 @@ class MidiPlayerProcessor extends scope.AudioWorkletProcessor {
             if (!(song.duration > 0)) throw new Error("MIDI has no duration");
             this.songId = 0;
             this.playing = false;
+            this.live = false;
+            this.liveTail = 0;
             seq.pause();
             synth.stopAllChannels(true);
             seq.loadNewSongList([song]);
@@ -191,6 +209,39 @@ class MidiPlayerProcessor extends scope.AudioWorkletProcessor {
         }
     }
 
+    /**
+     * Entering live mode stops the song (paused where it was) and resets every
+     * channel's controllers. Leaving it stops the live notes, and the synth
+     * keeps rendering their release and reverb tail.
+     */
+    private setLive(on: boolean): void {
+        const synth = this.synth;
+        const seq = this.seq;
+        if (!synth || !seq) return;
+        if (on) {
+            if (this.live) return;
+            this.live = true;
+            this.liveTail = 0;
+            this.playing = false;
+            if (!seq.paused) seq.pause();
+            synth.stopAllChannels(true);
+            for (let channel = 0; channel < 16; channel++) {
+                synth.controllerChange(channel, RESET_ALL_CONTROLLERS, 0);
+            }
+        } else {
+            if (!this.live) return;
+            this.live = false;
+            synth.stopAllChannels(false);
+            this.liveTail = this.tailTotal;
+        }
+    }
+
+    private playLive(msg: Extract<WorkletIn, { type: "midi" }>): void {
+        const synth = this.synth;
+        if (!synth || !this.live) return;
+        applyChannelMessage(synth, msg.status, msg.data1, msg.data2);
+    }
+
     process(_inputs: Float32Array[][], outputs: Float32Array[][]): boolean {
         const out = outputs[0];
         const left = out?.[0];
@@ -198,12 +249,28 @@ class MidiPlayerProcessor extends scope.AudioWorkletProcessor {
         const right = out[1] ?? left;
         const seq = this.seq;
         const synth = this.synth;
-        if (!seq || !synth || !this.playing) {
+        if (!seq || !synth) {
             left.fill(0);
             right.fill(0);
             return true;
         }
         const frames = left.length;
+        if (!this.playing) {
+            if (!this.live && this.liveTail <= 0) {
+                left.fill(0);
+                right.fill(0);
+                return true;
+            }
+            // Live notes, or the tail after them: render until it has decayed.
+            synth.process(left, right, 0, frames);
+            if (!this.live) {
+                this.liveTail =
+                    synth.voiceCount > 0
+                        ? this.tailTotal
+                        : this.liveTail - frames;
+            }
+            return true;
+        }
         if (!seq.isFinished) {
             seq.processTick();
             this.framesSinceReport += frames;

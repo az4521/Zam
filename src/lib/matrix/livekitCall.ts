@@ -162,6 +162,14 @@ import {
     openShareAudioTrack,
     type ShareAudioTrack,
 } from "$lib/audio/shareAudioTrack";
+import {
+    bindPluginCallHost,
+    handlePluginCallData,
+    pluginDataTrackPublished,
+    pluginDataTrackUnpublished,
+    pluginDataTracksRoomGone,
+    scanPluginDataTracks,
+} from "./callPluginData";
 
 type LivekitModule = typeof import("livekit-client");
 type LivekitRoom = LivekitClient.Room;
@@ -1008,6 +1016,18 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
     lkRoom.on(lk.RoomEvent.AudioPlaybackStatusChanged, () =>
         refreshPlaybackBlocked(call),
     );
+    // Plugin data tracks, per room (callPluginData.ts keeps the registry).
+    lkRoom.on(
+        lk.RoomEvent.DataTrackPublished,
+        (track: LivekitClient.RemoteDataTrack) =>
+            pluginDataTrackPublished(lkRoom, track),
+    );
+    lkRoom.on(lk.RoomEvent.DataTrackUnpublished, (sid: string) =>
+        pluginDataTrackUnpublished(sid),
+    );
+    lkRoom.on(lk.RoomEvent.Disconnected, () =>
+        pluginDataTracksRoomGone(lkRoom),
+    );
     lkRoom.on(
         lk.RoomEvent.DataReceived,
         (
@@ -1017,6 +1037,12 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
             topic?: string,
         ) => {
             if (!participant || activeVoice !== call) return;
+            // Plugin topics first: they are namespaced, so never core topics.
+            if (
+                topic &&
+                handlePluginCallData(topic, payload, participant.identity)
+            )
+                return;
             if (topic === AUDIO_LOSS_TOPIC) {
                 const loss = decodeLossReport(payload);
                 if (loss !== null)
@@ -1315,6 +1341,7 @@ async function connectRemoteSfu(
             return;
         }
         call.remotes.set(key, lkRoom);
+        scanPluginDataTracks(lkRoom);
         notifyCallMutes(call);
         announceCodecs(call, lkRoom);
         notifyCallEncryption(call);
@@ -1679,6 +1706,17 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             return;
         }
         notifyVoiceConnState("connected");
+        // Plugins may send and publish data from here until the call ends.
+        bindPluginCallHost({
+            roomId,
+            participantIdentities: () =>
+                [...lkRoom.remoteParticipants.values()].map((p) => p.identity),
+            publishData: (payload, opts) =>
+                lkRoom.localParticipant.publishData(payload, opts),
+            publishDataTrack: (name) =>
+                lkRoom.localParticipant.publishDataTrack({ name }),
+        });
+        scanPluginDataTracks(lkRoom);
         setVoicePlaybackBlocked(!lkRoom.canPlaybackAudio);
         // Now listen on every other member's SFU, and keep that set in step
         // with the call's membership.
@@ -1823,6 +1861,8 @@ async function leaveVoiceCallInternal(): Promise<void> {
     if (!call) return;
     const run = (async () => {
         activeVoice = null;
+        // Ends plugins' data tracks while the rooms are still up to unpublish.
+        bindPluginCallHost(null);
         cancelGpuReconnect();
         // The room disconnect below unpublishes it; this stops the capture.
         stopShareAudio();

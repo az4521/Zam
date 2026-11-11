@@ -10,14 +10,19 @@
  * is a MidiStream handle; only one handle owns the engine at a time, and the
  * others are paused where they were. The engine goes away after a minute
  * without playback, so the bank's memory comes back.
+ *
+ * A live synth (MidiLiveSynth) is an owner too: it plays raw notes sent by a
+ * plugin instead of a song. A song or another live synth preempts it, the
+ * same way a song is preempted by another player.
  */
 import midiPlayerWorkletUrl from "$lib/workers/midiPlayer.worklet.ts?worker&url";
-import type {
-    BankPrepRequest,
-    BankPrepResponse,
-    DecodedSample,
-    WorkletIn,
-    WorkletOut,
+import {
+    checkChannelMessage,
+    type BankPrepRequest,
+    type BankPrepResponse,
+    type DecodedSample,
+    type WorkletIn,
+    type WorkletOut,
 } from "$lib/workers/midiPlayer.messages";
 import { parseMidi } from "./midi";
 import { findPlaybackSoundBank, type SoundBank } from "./midiSoundBank";
@@ -49,6 +54,19 @@ type OwnerEvent =
     | { type: "preempted" }
     | { type: "blocked" }
     | { type: "error" };
+
+/** Whatever can own the engine: a song player or a live synth. */
+type EngineOwner = MidiStream | MidiLiveSynth;
+
+/** Events for a live synth. Failure while opening is reported by open()'s promise instead. */
+export interface MidiLiveSynthEvents {
+    /** Another player (a song, or another live synth) took the engine. Notes stop. */
+    onPreempted: () => void;
+    /** The browser stopped audio after the synth opened. Closed. */
+    onBlocked: () => void;
+    /** The engine failed after the synth opened. Closed. */
+    onError: () => void;
+}
 
 /** Time with nothing playing before the engine tears down. */
 const IDLE_MS = 60_000;
@@ -98,6 +116,8 @@ function wait(ms: number): Promise<void> {
  * its position so it can pick up there again after another player took over.
  */
 export class MidiStream {
+    /** Not a live synth: the engine sends this owner a song, not notes. */
+    readonly live = false as const;
     /** Where the song was last heard, in seconds. Loading the song seeks here. */
     position = 0;
     private wantPlay = false;
@@ -192,6 +212,100 @@ export class MidiStream {
 }
 
 /**
+ * A live synth for a plugin: raw channel messages played through the shared
+ * sound bank. open() claims the engine at once, so it must run inside a click.
+ * Like a song player it owns the engine until something else claims it.
+ */
+export class MidiLiveSynth {
+    readonly live = true as const;
+    /** Phones and tablets: linear interpolation and a lower voice cap. */
+    readonly mobile: boolean;
+    private closed = false;
+    private readonly events: MidiLiveSynthEvents;
+    /** Set while open() waits for the engine; the first outcome settles it. */
+    private pending: {
+        resolve: (synth: MidiLiveSynth | null) => void;
+        reject: (err: Error) => void;
+    } | null = null;
+
+    constructor(options: MidiStreamOptions, events: MidiLiveSynthEvents) {
+        this.mobile = options.mobile;
+        this.events = events;
+    }
+
+    /** True from open() until close, a preemption, a block or an error. */
+    get isPlaying(): boolean {
+        return !this.closed;
+    }
+
+    /**
+     * Claims the engine and resolves with this synth once live audio runs, or
+     * null when the engine can't (no bank, or it failed). Rejects if the browser
+     * blocks audio.
+     */
+    open(): Promise<MidiLiveSynth | null> {
+        return new Promise((resolve, reject) => {
+            this.pending = { resolve, reject };
+            engine.claim(this);
+        });
+    }
+
+    /**
+     * Plays one channel voice message (status 0x80-0xEF). Throws RangeError for
+     * bad bytes; ignored once closed or preempted.
+     */
+    send(status: number, data1: number, data2: number): void {
+        checkChannelMessage(status, data1, data2);
+        if (this.closed) return;
+        engine.midi(this, status, data1, data2);
+    }
+
+    /** Stops the notes and gives the engine back. Safe to call again. */
+    close(): void {
+        if (this.closed) return;
+        const pending = this.pending;
+        this.pending = null;
+        this.closed = true;
+        engine.release(this);
+        pending?.resolve(null);
+    }
+
+    /** @internal Called by the engine for the synth that owns it. */
+    engineEvent(ev: OwnerEvent): void {
+        if (this.closed) return;
+        const pending = this.pending;
+        switch (ev.type) {
+            case "playing":
+                if (!pending) return;
+                this.pending = null;
+                pending.resolve(this);
+                return;
+            case "blocked":
+            case "preempted":
+            case "error":
+                this.closed = true;
+                this.pending = null;
+                engine.release(this);
+                if (pending) {
+                    if (ev.type === "blocked") {
+                        pending.reject(new Error("Audio is blocked"));
+                    } else {
+                        pending.resolve(null);
+                    }
+                    return;
+                }
+                if (ev.type === "blocked") this.events.onBlocked();
+                else if (ev.type === "preempted") this.events.onPreempted();
+                else this.events.onError();
+                return;
+            default:
+                // Song time and song end don't apply to a live synth.
+                return;
+        }
+    }
+}
+
+/**
  * The shared synth. Holds one AudioContext and one worklet node, and the id
  * of the song loaded for the owner. Methods are called from MidiStream.
  */
@@ -213,7 +327,7 @@ class MidiEngine {
     /** A bank decoded ahead of play (see warm). */
     private warmed: { key: string; prepared: Promise<PreparedBank> } | null =
         null;
-    private owner: MidiStream | null = null;
+    private owner: EngineOwner | null = null;
     /** Id of the owner's song in the worklet; 0 while there is none. */
     private songId = 0;
     private idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -246,7 +360,7 @@ class MidiEngine {
      * Makes `handle` the owner and starts its song. The context is made and
      * resumed here, synchronously, so this has to run inside the click.
      */
-    claim(handle: MidiStream): void {
+    claim(handle: EngineOwner): void {
         this.cancelIdle();
         if (this.owner !== handle) {
             const prev = this.owner;
@@ -254,6 +368,8 @@ class MidiEngine {
             // Anything the worklet still has from the last owner is now stale.
             this.songId = 0;
             this.post({ type: "pause" });
+            // The last owner's live notes stop gracefully.
+            if (prev?.live) this.post({ type: "live", on: false });
             prev?.engineEvent({ type: "preempted" });
         }
         this.ensureContext();
@@ -272,10 +388,25 @@ class MidiEngine {
         }
     }
 
-    /** The handle is closing. Its song stays in the worklet until another takes over. */
-    release(handle: MidiStream): void {
+    /** Live notes for the owning live synth. */
+    midi(
+        handle: MidiLiveSynth,
+        status: number,
+        data1: number,
+        data2: number,
+    ): void {
         if (this.owner !== handle) return;
-        this.post({ type: "pause" });
+        this.post({ type: "midi", status, data1, data2 });
+    }
+
+    /**
+     * The handle is closing. A song stays in the worklet until another takes
+     * over; a live synth's notes stop.
+     */
+    release(handle: EngineOwner): void {
+        if (this.owner !== handle) return;
+        if (handle.live) this.post({ type: "live", on: false });
+        else this.post({ type: "pause" });
         this.owner = null;
         this.songId = 0;
         this.scheduleIdle();
@@ -320,7 +451,7 @@ class MidiEngine {
      * Loads the bank if it changed, then the owner's song, then plays. Each
      * step re-checks that `handle` still owns the engine and still wants to play.
      */
-    private async start(handle: MidiStream): Promise<void> {
+    private async start(handle: EngineOwner): Promise<void> {
         try {
             const found = await findPlaybackSoundBank();
             if (this.owner !== handle) return;
@@ -355,8 +486,12 @@ class MidiEngine {
                 return;
             }
             if (this.owner !== handle || !handle.isPlaying) return;
-            if (this.songId === 0) this.sendSong(handle);
-            this.post({ type: "play" });
+            if (handle.live) {
+                this.post({ type: "live", on: true });
+            } else {
+                if (this.songId === 0) this.sendSong(handle);
+                this.post({ type: "play" });
+            }
             handle.engineEvent({ type: "playing" });
             this.cancelIdle();
         } catch {
@@ -464,7 +599,7 @@ class MidiEngine {
         }
     }
 
-    private fail(handle: MidiStream): void {
+    private fail(handle: EngineOwner): void {
         this.songId = 0;
         handle.engineEvent({ type: "error" });
         this.scheduleIdle();

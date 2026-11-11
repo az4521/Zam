@@ -29,6 +29,11 @@ export const KNOWN_CAPABILITIES = [
     "frames",
     /** zam.presence.set: put rich presence on the user's profile. */
     "presence",
+    /** zam.call: data packets and data tracks in the voice call you are in. */
+    "call",
+    /** zam.midi: Zam's MIDI synth (the sound bank), for playing songs and
+     *  live notes. */
+    "midi",
 ] as const;
 
 export type Capability = (typeof KNOWN_CAPABILITIES)[number];

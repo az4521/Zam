@@ -516,6 +516,84 @@ export interface PluginPresenceMusic extends PluginPresenceBase {
 
 export type PluginPresence = PluginPresenceActivity | PluginPresenceMusic;
 
+/** A data packet from someone in the call (zam.call.onData). */
+export interface PluginCallPacket {
+    payload: Uint8Array;
+    /** Matrix ID of the sender. */
+    userId: string;
+    /** The sender's device, when known. */
+    deviceId: string | null;
+    topic: string;
+}
+
+export interface PluginDataTrackFrame {
+    payload: Uint8Array;
+    /** The publisher's timestamp for the frame (ms), if it set one. */
+    timestamp: number | null;
+}
+
+/** A data track you publish into the call. */
+export interface PluginLocalDataTrack {
+    readonly name: string;
+    /** Send one frame to everyone subscribed. Resolves false when the frame
+     *  was dropped (the track is unpublished, or the connection can't keep
+     *  up). */
+    push(payload: Uint8Array, timestamp?: number): Promise<boolean>;
+    unpublish(): Promise<void>;
+}
+
+/** A data track someone else publishes in the call. */
+export interface PluginRemoteDataTrack {
+    readonly name: string;
+    readonly userId: string;
+    readonly deviceId: string | null;
+    /** Start receiving frames; only those sent after this call arrive.
+     *  Disposing stops them (the last one stops the subscription). */
+    subscribe(onFrame: (frame: PluginDataTrackFrame) => void): Disposable;
+    /** Runs when the publisher unpublishes or the call ends. */
+    onEnded(cb: () => void): Disposable;
+}
+
+/** The live synth (zam.midi.openSynth). Channels are 0-15, the rest 0-127
+ *  unless stated. */
+export interface PluginMidiSynth {
+    noteOn(channel: number, note: number, velocity: number): void;
+    noteOff(channel: number, note: number): void;
+    /** Pick the instrument (General MIDI program) for a channel. */
+    programChange(channel: number, program: number): void;
+    controlChange(channel: number, controller: number, value: number): void;
+    /** 0 to 16383; 8192 is centre. */
+    pitchBend(channel: number, value: number): void;
+    /** Silence every sounding note (all channels, or one). */
+    allNotesOff(channel?: number): void;
+    /** Another player (a MIDI message in the timeline, or another plugin's
+     *  synth) took the engine; the synth stops and ignores further notes.
+     *  Open it again to carry on. */
+    onPreempted(cb: () => void): Disposable;
+    /** Give the engine up. */
+    close(): void;
+}
+
+/** A song playing on the sound bank (zam.midi.play). */
+export interface PluginMidiPlayer {
+    /** Start or resume. Call it from a click: browsers only allow audio
+     *  then. */
+    play(): void;
+    pause(): void;
+    /** Seconds. */
+    seek(time: number): void;
+    /** The song's length in seconds. */
+    readonly duration: number;
+    onTime(cb: (currentTime: number, duration: number) => void): Disposable;
+    onEnded(cb: () => void): Disposable;
+    /** Another player took the engine; it stays where it was and play()
+     *  picks it up again. */
+    onPreempted(cb: () => void): Disposable;
+    /** Audio was blocked (not started from a click). */
+    onBlocked(cb: () => void): Disposable;
+    close(): void;
+}
+
 /** The `zam` object a plugin's `onload` receives (spec §6). */
 export interface ZamPluginApi {
     app: { version: string };
@@ -854,6 +932,59 @@ export interface ZamPluginApi {
          *  omitted), from what Zam has loaded; asks the server for a fresh
          *  copy in the background when it is older than a minute. */
         get(userId?: string): PluginPresence[];
+    };
+
+    /** The voice call you are in. Needs the "call" capability. Everything
+     *  here is private to your plugin: topics and track names are scoped to
+     *  its id, so only copies of the same plugin (on other users' devices)
+     *  see them, and core messages (soundboard and the like) can't be read or
+     *  forged. Nothing is stored; late joiners miss earlier packets. */
+    call: {
+        /** The room whose call you are in, or null. */
+        getRoomId(): string | null;
+        /** Runs when you join (the room id) or leave (null) a call. */
+        onChange(handler: (roomId: string | null) => void): Disposable;
+        /** Send a data packet to the call (or just `to`, Matrix IDs).
+         *  Reliable packets (the default) are ordered and at most 15000
+         *  bytes; lossy ones (`reliable: false`) at most 1300. Rejects when
+         *  you are not in a call. */
+        sendData(
+            topic: string,
+            payload: Uint8Array,
+            opts?: { reliable?: boolean; to?: string[] },
+        ): Promise<void>;
+        /** Packets other copies of the plugin send to `topic`. */
+        onData(
+            topic: string,
+            handler: (packet: PluginCallPacket) => void,
+        ): Disposable;
+        /** Publish a data track: a stream of frames for steady or
+         *  high-rate data. Rejects when you are not in a call; unpublished
+         *  when the call ends. */
+        publishDataTrack(name: string): Promise<PluginLocalDataTrack>;
+        /** Data tracks other copies of the plugin publish, including those
+         *  already there. */
+        onDataTrack(
+            handler: (track: PluginRemoteDataTrack) => void,
+        ): Disposable;
+    };
+
+    /** Zam's MIDI synth: the sound bank behind MIDI messages in the
+     *  timeline. One thing plays at a time (a plugin's synth or player, or a
+     *  message), and a new one takes the engine from the last. Local audio
+     *  only: it is not sent into a call. Needs the "midi" capability. */
+    midi: {
+        /** Whether this device can play MIDI (an AudioWorklet and a sound
+         *  bank). */
+        available(): Promise<boolean>;
+        /** Open the live synth. Call it from a click (browsers only start
+         *  audio then); rejects if audio is blocked, resolves null when
+         *  MIDI can't play here. */
+        openSynth(): Promise<PluginMidiSynth | null>;
+        /** Load a standard MIDI file into a player; null when MIDI can't
+         *  play here. Playback starts with `play()`. Throws on a file that
+         *  is not MIDI. */
+        play(midi: ArrayBuffer | Uint8Array): Promise<PluginMidiPlayer | null>;
     };
 
     /** Full-power escape hatch (full-trust model). Returns the live matrix-js-sdk
