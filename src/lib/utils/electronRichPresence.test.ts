@@ -1074,12 +1074,39 @@ describe("Steam presence", () => {
 });
 
 describe("Steam connect strings", () => {
-    const report = (richPresence: Record<string, string>) => ({
+    const report = (
+        richPresence: Record<string, string>,
+        ids: { steamId?: string; lobbyId?: string } = {},
+    ) => ({
         appId: "570",
         name: "Dota 2",
         status: "",
+        steamId: "",
+        lobbyId: "",
+        ...ids,
         richPresence,
         startedAt: 1,
+    });
+
+    it("forwards the Steam id and lobby as steam_id and steam_lobby, digits only", async () => {
+        const sp = stubSteamPresence();
+        const { rp, events } = setup({ createSteamPresence: sp.create });
+        await rp.configure({ local: true, steam: true });
+        const onSteam = sp.instances[0].onSteam;
+        onSteam(
+            report(
+                {},
+                { steamId: "76561198000000001", lobbyId: "109775240000000000" },
+            ),
+        );
+        expect(events[0].presence).toMatchObject({
+            steam_id: "76561198000000001",
+            steam_lobby: "109775240000000000",
+        });
+        events.length = 0;
+        onSteam(report({}, { steamId: "7656 ; x", lobbyId: "" }));
+        expect(events[0].presence).not.toHaveProperty("steam_id");
+        expect(events[0].presence).not.toHaveProperty("steam_lobby");
     });
 
     it("forwards a valid connect string as steam_connect", async () => {
@@ -1128,6 +1155,15 @@ describe("Game invites (joinGame)", () => {
             { kind: "steam", appId: "570", connect: "a\u0001" },
             { kind: "steam", appId: "5x", connect: "+connect a" },
             { kind: "steam", appId: "570", connect: "" },
+            { kind: "steam", appId: "570", steamId: "7656/x", connect: "c" },
+            { kind: "steam", appId: "570", steamId: "76561198000000001" },
+            {
+                kind: "steam",
+                appId: "570",
+                steamId: "76561198000000001",
+                lobbyId: "1 x",
+            },
+            { kind: "steam", appId: "570", lobbyId: "109775240000000000" },
         ]) {
             expect(await rp.joinGame(req as never)).toEqual({
                 ok: false,
@@ -1137,7 +1173,7 @@ describe("Game invites (joinGame)", () => {
         expect(opened).toEqual([]);
     });
 
-    it("opens exactly the Steam run link for a valid Steam invite", async () => {
+    it("opens exactly the Steam run link for a valid Steam invite without a Steam id", async () => {
         const opened: string[] = [];
         const { rp } = setup({ openExternal: (u: string) => opened.push(u) });
         expect(
@@ -1149,6 +1185,42 @@ describe("Game invites (joinGame)", () => {
         ).toEqual({ ok: true });
         expect(opened).toEqual([
             "steam://run/570//%2Bconnect%2010.0.0.5%3A27015%20%26%20x/",
+        ]);
+    });
+
+    it("opens Steam's join link for the friend's game, or the friend's lobby", async () => {
+        const opened: string[] = [];
+        const { rp } = setup({ openExternal: (u: string) => opened.push(u) });
+        const steamId = "76561198000000001";
+        expect(
+            await rp.joinGame({
+                kind: "steam",
+                appId: "570",
+                steamId,
+                connect: "+connect 10.0.0.5:27015",
+            }),
+        ).toEqual({ ok: true });
+        expect(
+            await rp.joinGame({
+                kind: "steam",
+                appId: "570",
+                steamId,
+                lobbyId: "109775240000000000",
+                connect: "+connect 10.0.0.5:27015",
+            }),
+        ).toEqual({ ok: true });
+        expect(
+            await rp.joinGame({
+                kind: "steam",
+                appId: "570",
+                steamId,
+                lobbyId: "109775240000000000",
+            }),
+        ).toEqual({ ok: true });
+        expect(opened).toEqual([
+            `steam://rungame/570/${steamId}/%2Bconnect%2010.0.0.5%3A27015`,
+            `steam://joinlobby/570/109775240000000000/${steamId}`,
+            `steam://joinlobby/570/109775240000000000/${steamId}`,
         ]);
     });
 

@@ -6,6 +6,7 @@ import {
     gameInviteOf,
     gameInvitePayload,
     parseGameInvite,
+    steamJoinLink,
     type GameInvite,
 } from "./gameInvite";
 
@@ -16,6 +17,9 @@ const steamGame: GameInvite = {
     partySize: [3, 24],
     steam: { appId: "440", connect: "+connect 10.0.0.1:27015" },
 };
+
+const FRIEND = "76561198000000001";
+const LOBBY = "109775240000000000";
 
 /** A valid Steam invite's structured value, to break one field at a time. */
 const steamWire = () => ({
@@ -29,10 +33,66 @@ describe("game invite key", () => {
     });
 });
 
+describe("steamJoinLink", () => {
+    it("opens the friend's lobby when the invite has one, as Steam's button does", () => {
+        expect(
+            steamJoinLink({ appId: "440", steamId: FRIEND, lobbyId: LOBBY }),
+        ).toBe(`steam://joinlobby/440/${LOBBY}/${FRIEND}`);
+        // A connect string does not change a lobby join.
+        expect(
+            steamJoinLink({
+                appId: "440",
+                steamId: FRIEND,
+                lobbyId: LOBBY,
+                connect: "+connect x",
+            }),
+        ).toBe(`steam://joinlobby/440/${LOBBY}/${FRIEND}`);
+    });
+
+    it("joins the friend's game with the encoded connect string otherwise", () => {
+        expect(
+            steamJoinLink({
+                appId: "440",
+                steamId: FRIEND,
+                connect: "+connect 10.0.0.1:27015",
+            }),
+        ).toBe(`steam://rungame/440/${FRIEND}/%2Bconnect%2010.0.0.1%3A27015`);
+    });
+
+    it("falls back to the run link without a Steam id", () => {
+        expect(
+            steamJoinLink({
+                appId: "440",
+                connect: "+connect 10.0.0.1:27015",
+            }),
+        ).toBe("steam://run/440//%2Bconnect%2010.0.0.1%3A27015/");
+    });
+});
+
 describe("gameInviteBody", () => {
     it("links the game with a steam:// run URL, encoding the connect string", () => {
         expect(gameInviteBody(steamGame, "Ann")).toBe(
             "Ann invited you to join Team Fortress 2: steam://run/440//%2Bconnect%2010.0.0.1%3A27015/",
+        );
+    });
+
+    it("links the friend's game with the join link when the Steam id is known", () => {
+        const game: GameInvite = {
+            ...steamGame,
+            steam: { ...steamGame.steam, steamId: FRIEND },
+        };
+        expect(gameInviteBody(game, "Ann")).toBe(
+            `Ann invited you to join Team Fortress 2: steam://rungame/440/${FRIEND}/%2Bconnect%2010.0.0.1%3A27015`,
+        );
+    });
+
+    it("links the lobby when the invite has one", () => {
+        const game: GameInvite = {
+            ...steamGame,
+            steam: { appId: "440", steamId: FRIEND, lobbyId: LOBBY },
+        };
+        expect(gameInviteBody(game, "Ann")).toBe(
+            `Ann invited you to join Team Fortress 2: steam://joinlobby/440/${LOBBY}/${FRIEND}`,
         );
     });
 
@@ -72,6 +132,18 @@ describe("buildGameInvite", () => {
     it("builds content that reads back to the same game", () => {
         const parsed = gameInviteOf(buildGameInvite(steamGame, "Ann", "hi"));
         expect(parsed).toEqual({ ...steamGame, note: "hi" });
+    });
+
+    it("sends the Steam id and lobby as steam_id and lobby_id", () => {
+        const game: GameInvite = {
+            name: "Team Fortress 2",
+            steam: { appId: "440", steamId: FRIEND, lobbyId: LOBBY },
+        };
+        expect(gameInvitePayload(game)).toEqual({
+            app: { name: "Team Fortress 2", source: "steam" },
+            steam: { app_id: "440", steam_id: FRIEND, lobby_id: LOBBY },
+        });
+        expect(gameInviteOf(buildGameInvite(game, "Ann"))).toEqual(game);
     });
 });
 
@@ -223,7 +295,69 @@ describe("parseGameInvite", () => {
                         steam: { app_id: "440", connect },
                     }),
                 ).toBeNull();
+                // The same holds when a Steam id is there too.
+                expect(
+                    parseGameInvite({
+                        ...steamWire(),
+                        steam: { app_id: "440", steam_id: FRIEND, connect },
+                    }),
+                ).toBeNull();
             }
+        });
+
+        it("accepts an old invite without a Steam id, with its connect string", () => {
+            expect(parseGameInvite(steamWire())).toEqual({
+                name: "Team Fortress 2",
+                steam: { appId: "440", connect: "+connect 10.0.0.1:27015" },
+            });
+            expect(parseGameInvite(steamWire())?.steam.steamId).toBeUndefined();
+        });
+
+        it("reads the Steam id and lobby, digits only", () => {
+            expect(
+                parseGameInvite({
+                    ...steamWire(),
+                    steam: {
+                        app_id: "440",
+                        steam_id: FRIEND,
+                        lobby_id: LOBBY,
+                        connect: "+connect x",
+                    },
+                })?.steam,
+            ).toEqual({
+                appId: "440",
+                steamId: FRIEND,
+                lobbyId: LOBBY,
+                connect: "+connect x",
+            });
+            for (const bad of ["7656 1", "../x", "1".repeat(21), "", 5]) {
+                expect(
+                    parseGameInvite({
+                        ...steamWire(),
+                        steam: { app_id: "440", steam_id: bad, connect: "c" },
+                    }),
+                ).toBeNull();
+                expect(
+                    parseGameInvite({
+                        ...steamWire(),
+                        steam: { app_id: "440", lobby_id: bad, connect: "c" },
+                    }),
+                ).toBeNull();
+            }
+        });
+
+        it("needs a connect string unless it has both a Steam id and a lobby", () => {
+            const steam = { app_id: "440", steam_id: FRIEND };
+            expect(parseGameInvite({ ...steamWire(), steam })).toBeNull();
+            expect(
+                parseGameInvite({
+                    ...steamWire(),
+                    steam: { ...steam, lobby_id: LOBBY },
+                }),
+            ).toEqual({
+                name: "Team Fortress 2",
+                steam: { appId: "440", steamId: FRIEND, lobbyId: LOBBY },
+            });
         });
     });
 

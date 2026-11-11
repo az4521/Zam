@@ -767,6 +767,8 @@ describe("rich presence store", () => {
 
     describe("game invites", () => {
         const CONNECT = "+connect 10.0.0.1:27015";
+        const FRIEND = "76561198000000001";
+        const LOBBY = "109775240000000000";
         const steamGame = (over: Partial<DesktopRichPresenceEvent> = {}) =>
             ev({
                 source: "arrpc",
@@ -776,6 +778,7 @@ describe("rich presence store", () => {
                     application_id: "440",
                     name: "Team Fortress 2",
                     details: "Payload",
+                    steam_id: FRIEND,
                     steam_connect: CONNECT,
                 },
                 ...over,
@@ -798,6 +801,7 @@ describe("rich presence store", () => {
                     presence: {
                         application_id: "440",
                         name: "Team Fortress 2",
+                        steam_id: FRIEND,
                         steam_connect: CONNECT,
                         assets: { large_image: `steam:440:${icon}` },
                     },
@@ -814,9 +818,37 @@ describe("rich presence store", () => {
                 expect.objectContaining({
                     key: "arrpc:steam-440|steam-440",
                     name: "Team Fortress 2",
-                    steam: { appId: "440", connect: CONNECT },
+                    steam: { appId: "440", steamId: FRIEND, connect: CONNECT },
                 }),
             ]);
+        });
+
+        it("offers a lobby invite with its lobby id, even without launch arguments", async () => {
+            const { settings, rp } = await load();
+            await on(rp, settings);
+            const { steam_connect: _, ...noConnect } = steamGame()
+                .presence as Record<string, unknown>;
+            handler!(
+                steamGame({
+                    presence: { ...noConnect, steam_lobby: LOBBY },
+                }),
+            );
+            expect(rp.invitableGames()).toEqual([
+                expect.objectContaining({
+                    steam: { appId: "440", steamId: FRIEND, lobbyId: LOBBY },
+                }),
+            ]);
+        });
+
+        it("offers nothing for a Steam report without the friend's Steam id", async () => {
+            const { settings, rp } = await load();
+            await on(rp, settings);
+            const { steam_id: _, ...noId } = steamGame().presence as Record<
+                string,
+                unknown
+            >;
+            handler!(steamGame({ presence: { ...noId, steam_lobby: LOBBY } }));
+            expect(rp.invitableGames()).toEqual([]);
         });
 
         it("keeps the invite when the app is not shared", async () => {

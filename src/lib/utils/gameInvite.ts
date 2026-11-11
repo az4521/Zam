@@ -24,20 +24,45 @@ export const GAME_INVITE_LIMITS = {
     partyMax: 1_000_000,
 } as const;
 
-/** A Steam game a user can invite others to, in the camelCase form Zam uses. */
+/**
+ * A Steam game a user can invite others to, in the camelCase form Zam uses.
+ * `steamId` (the inviter's SteamID64) and `lobbyId` let the link be Steam's own
+ * join link; without a steamId the link runs the game with `connect`. `connect`
+ * may be left out only when both steamId and lobbyId are there.
+ * `icon` is the hash of the game's Steam icon, when Steam gave one.
+ */
 export interface GameInvite {
     name: string;
     details?: string;
     state?: string;
     /** [current, max] players in the game's party. */
     partySize?: [number, number];
-    /** `icon` is the hash of the game's Steam icon, when Steam gave one. */
-    steam: { appId: string; connect: string; icon?: string };
+    steam: {
+        appId: string;
+        steamId?: string;
+        lobbyId?: string;
+        connect?: string;
+        icon?: string;
+    };
 }
 
 /** The address of a Steam game's icon picture. */
 export function steamIconUrl(appId: string, icon: string): string {
     return `https://shared.fastly.steamstatic.com/community_assets/images/apps/${appId}/${icon}.jpg`;
+}
+
+/**
+ * The steam:// link for a Steam invite, the same one Steam's Join Game button
+ * opens (steamUrl.cjs): joinlobby when the friend is in a lobby, else rungame
+ * with the connect string, else the run link for an invite with no Steam id.
+ */
+export function steamJoinLink(steam: GameInvite["steam"]): string {
+    const { appId, steamId, lobbyId, connect } = steam;
+    if (steamId && lobbyId)
+        return `steam://joinlobby/${appId}/${lobbyId}/${steamId}`;
+    if (steamId && connect !== undefined)
+        return `steam://rungame/${appId}/${steamId}/${encodeURIComponent(connect)}`;
+    return `steam://run/${appId}//${encodeURIComponent(connect ?? "")}/`;
 }
 
 /** A validated invite, with the sender's optional note. */
@@ -52,7 +77,11 @@ export function gameInvitePayload(
         app: { name: game.name, source: "steam" },
         steam: {
             app_id: game.steam.appId,
-            connect: game.steam.connect,
+            ...(game.steam.steamId ? { steam_id: game.steam.steamId } : {}),
+            ...(game.steam.lobbyId ? { lobby_id: game.steam.lobbyId } : {}),
+            ...(game.steam.connect !== undefined
+                ? { connect: game.steam.connect }
+                : {}),
             ...(game.steam.icon ? { icon: game.steam.icon } : {}),
         },
     };
@@ -66,10 +95,7 @@ export function gameInvitePayload(
 /** The plain-text body other clients show: a steam:// link that runs the game. */
 export function gameInviteBody(game: GameInvite, from: string): string {
     const who = from.slice(0, GAME_INVITE_LIMITS.from);
-    const link = `steam://run/${game.steam.appId}//${encodeURIComponent(
-        game.steam.connect,
-    )}/`;
-    return `${who} invited you to join ${game.name}: ${link}`;
+    return `${who} invited you to join ${game.name}: ${steamJoinLink(game.steam)}`;
 }
 
 /** The whole message content: a text message with the invite under its key. */
@@ -104,6 +130,7 @@ function text(v: unknown, max: number, min = 0): string | undefined | null {
 }
 
 const STEAM_ICON = /^[0-9a-f]{40}$/;
+const STEAM_ID = /^\d{1,20}$/;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
     return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -125,11 +152,28 @@ export function parseGameInvite(value: unknown): ParsedGameInvite | null {
     const s = value.steam;
     if (!isRecord(s)) return null;
     const appId = text(s.app_id, L.steamAppId, 1);
-    if (!appId || !/^\d{1,20}$/.test(appId)) return null;
+    if (!appId || !STEAM_ID.test(appId)) return null;
+    // Ids are digits only: they become part of the link. Older invites have no
+    // steam_id; they still parse and use the run link.
+    const steamId = s.steam_id;
+    if (
+        steamId !== undefined &&
+        (typeof steamId !== "string" || !STEAM_ID.test(steamId))
+    )
+        return null;
+    const lobbyId = s.lobby_id;
+    if (
+        lobbyId !== undefined &&
+        (typeof lobbyId !== "string" || !STEAM_ID.test(lobbyId))
+    )
+        return null;
     const connect = text(s.connect, L.steamConnect, 1);
+    if (connect === null) return null;
     // Handed to the launcher and shown in the confirm step: no control
     // characters, so it cannot hide or split what the user reads.
-    if (!connect || /[\x00-\x1f\x7f]/.test(connect)) return null;
+    if (connect !== undefined && /[\x00-\x1f\x7f]/.test(connect)) return null;
+    // Without a connect string the invite must be a lobby join.
+    if (connect === undefined && !(steamId && lobbyId)) return null;
 
     // An icon is only ever a hash, since it becomes part of an image address.
     const icon = s.icon;
@@ -141,7 +185,13 @@ export function parseGameInvite(value: unknown): ParsedGameInvite | null {
 
     const game: GameInvite = {
         name,
-        steam: { appId, connect, ...(icon ? { icon } : {}) },
+        steam: {
+            appId,
+            ...(steamId ? { steamId } : {}),
+            ...(lobbyId ? { lobbyId } : {}),
+            ...(connect !== undefined ? { connect } : {}),
+            ...(icon ? { icon } : {}),
+        },
     };
 
     const details = text(value.details, L.details);

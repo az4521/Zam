@@ -112,6 +112,8 @@ const CS2 = {
     name: "Counter-Strike 2",
     status: "Competitive - Dust II",
     icon: "a".repeat(40),
+    steamId: "76561198000000001",
+    lobbyId: "",
     richPresence: { steam_display: "#StatusCS", score: "3:4" },
 };
 const SHARED: Target = { id: "shared", title: "SharedJSContext", type: "page" };
@@ -163,6 +165,8 @@ describe("Steam presence source", () => {
             name: CS2.name,
             status: CS2.status,
             icon: CS2.icon,
+            steamId: CS2.steamId,
+            lobbyId: "",
             richPresence: CS2.richPresence,
             startedAt: expect.any(Number),
         });
@@ -174,6 +178,33 @@ describe("Steam presence source", () => {
             connected: true,
             error: null,
         });
+    });
+
+    it("keeps the Steam id and lobby only as digits, and re-reports a lobby change", async () => {
+        const fake = await fakeSteam([SHARED]);
+        fake.answers.set("shared", { ...CS2, lobbyId: "109775240000000000" });
+        const { s, calls } = source(fake.port);
+        s.start();
+        await waitFor(() => calls.length === 1);
+        expect(calls[0]).toMatchObject({
+            steamId: CS2.steamId,
+            lobbyId: "109775240000000000",
+        });
+        const startedAt = calls[0]!.startedAt;
+
+        // Lobby left: the same game, re-reported without the lobby.
+        fake.answers.set("shared", { ...CS2, lobbyId: "" });
+        await waitFor(() => calls.length === 2);
+        expect(calls[1]).toMatchObject({ lobbyId: "", startedAt });
+
+        // Junk ids read as no id at all.
+        fake.answers.set("shared", {
+            ...CS2,
+            steamId: "7656 ; x",
+            lobbyId: "1".repeat(21),
+        });
+        await waitFor(() => calls.length === 3);
+        expect(calls[2]).toMatchObject({ steamId: "", lobbyId: "" });
     });
 
     it("re-reports a status or rich presence change with the same startedAt", async () => {
@@ -317,8 +348,61 @@ describe("Steam presence source", () => {
     });
 });
 
-describe("Steam run link", () => {
-    const { steamRunUrl, isConnectString } = electron("steamUrl.cjs");
+describe("Steam join links", () => {
+    const { steamJoinUrl, steamRunUrl, isConnectString } =
+        electron("steamUrl.cjs");
+    const FRIEND = "76561198000000001";
+    const LOBBY = "109775240000000000";
+
+    it("opens the friend's lobby when there is one, as Steam's Join Game does", () => {
+        expect(
+            steamJoinUrl({
+                appId: "730",
+                steamId: FRIEND,
+                lobbyId: LOBBY,
+                connect: "+connect 1.2.3.4:27015",
+            }),
+        ).toBe(`steam://joinlobby/730/${LOBBY}/${FRIEND}`);
+        // No connect string is needed for a lobby.
+        expect(
+            steamJoinUrl({ appId: "730", steamId: FRIEND, lobbyId: LOBBY }),
+        ).toBe(`steam://joinlobby/730/${LOBBY}/${FRIEND}`);
+    });
+
+    it("joins the friend's game with the encoded connect string otherwise", () => {
+        expect(
+            steamJoinUrl({
+                appId: "730",
+                steamId: FRIEND,
+                connect: "+connect 1.2.3.4:27015",
+            }),
+        ).toBe(`steam://rungame/730/${FRIEND}/%2Bconnect%201.2.3.4%3A27015`);
+        // A lobby id that is not digits is not used; the game is joined instead.
+        expect(
+            steamJoinUrl({
+                appId: "730",
+                steamId: FRIEND,
+                lobbyId: "1x",
+                connect: "c",
+            }),
+        ).toBe(`steam://rungame/730/${FRIEND}/c`);
+    });
+
+    it("gives null when the parts do not allow a join", () => {
+        const connect = "+connect 1.2.3.4:27015";
+        for (const req of [
+            { appId: "x", steamId: FRIEND, lobbyId: LOBBY },
+            { appId: "730", steamId: "", lobbyId: LOBBY, connect },
+            { appId: "730", steamId: "7656/../x", connect },
+            { appId: "730", steamId: FRIEND },
+            { appId: "730", steamId: FRIEND, connect: "" },
+            { appId: "730", steamId: FRIEND, connect: "a\nb" },
+            { appId: "730", connect },
+            { appId: "730", lobbyId: LOBBY, connect },
+        ]) {
+            expect(steamJoinUrl(req)).toBeNull();
+        }
+    });
 
     it("builds the run-with-arguments link, encoding the connect string", () => {
         expect(
@@ -373,7 +457,11 @@ describe("Steam presence expression", () => {
 
     it("reads the local player's game, rich presence and icon", () => {
         const window = {
-            friendStore: { m_FriendsUIFriendStore: { self: { persona } } },
+            friendStore: {
+                m_FriendsUIFriendStore: {
+                    self: { steamid64: "76561198000000001", persona },
+                },
+            },
             appStore: {
                 GetAppOverviewByAppID: (id: number) =>
                     id === 730 ? { icon_hash: "b".repeat(40) } : null,
@@ -385,7 +473,40 @@ describe("Steam presence expression", () => {
             name: "CS2",
             status: "Dust II",
             icon: "b".repeat(40),
+            steamId: "76561198000000001",
+            lobbyId: "",
             richPresence: { steam_display: "#x" },
+        });
+    });
+
+    it("reads the lobby only when Steam says it is a valid one", () => {
+        const lobby = { m_game_lobby_id: "109775240000000000" };
+        const read = (extra: Record<string, unknown>) =>
+            run({
+                friendStore: {
+                    self: {
+                        steamid64: "76561198000000001",
+                        persona: { ...persona, ...extra },
+                    },
+                },
+            });
+        expect(read({ is_in_valid_lobby: true, ...lobby })).toMatchObject({
+            lobbyId: "109775240000000000",
+        });
+        expect(read({ is_in_valid_lobby: false, ...lobby })).toMatchObject({
+            lobbyId: "",
+        });
+        expect(
+            read({ is_in_valid_lobby: true, m_game_lobby_id: "0" }),
+        ).toMatchObject({ lobbyId: "" });
+        expect(read({ is_in_valid_lobby: true })).toMatchObject({
+            lobbyId: "",
+        });
+    });
+
+    it("answers an empty Steam id when the self object has none", () => {
+        expect(run({ friendStore: { self: { persona } } })).toMatchObject({
+            steamId: "",
         });
     });
 

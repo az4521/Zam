@@ -3044,6 +3044,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "gameInvite.partySize": "{current} von {max} in der Gruppe",
     "gameInvite.confirmSteam":
         "{game} mit diesen Argumenten starten: {connect}",
+    "gameInvite.confirmLobby": "Der Lobby von {game} beitreten",
     "gameInvite.joinGame": "Spiel beitreten",
     "gameInvite.joinSent": "Beitritt an das Spiel gesendet.",
     "gameInvite.openInDesktop": "Zum Beitreten in der Zam-Desktop-App öffnen.",

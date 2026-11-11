@@ -163,6 +163,8 @@ contextBridge.exposeInMainWorld("desktop", {
                 kind: req?.kind === "steam" ? "steam" : "",
                 appId: String(req?.appId ?? ""),
                 connect: String(req?.connect ?? ""),
+                steamId: String(req?.steamId ?? ""),
+                lobbyId: String(req?.lobbyId ?? ""),
             }),
         onEvent: (cb) => {
             const h = (_e, ev) => cb(ev);

@@ -35,12 +35,16 @@
             typeof window.desktop?.richPresence?.joinGame === "function",
     );
 
-    // Said in plain text: the arguments are shown exactly as they will run.
+    // Said in plain text: the arguments are shown exactly as they will run. A
+    // lobby join (steam://joinlobby, see steamJoinLink) has no arguments.
+    const viaLobby = $derived(!!(invite.steam.steamId && invite.steam.lobbyId));
     const confirmText = $derived(
-        t("gameInvite.confirmSteam", {
-            game: invite.name,
-            connect: invite.steam.connect,
-        }),
+        viaLobby
+            ? t("gameInvite.confirmLobby", { game: invite.name })
+            : t("gameInvite.confirmSteam", {
+                  game: invite.name,
+                  connect: invite.steam.connect ?? "",
+              }),
     );
 
     async function join() {
@@ -53,6 +57,8 @@
                 kind: "steam",
                 appId: invite.steam.appId,
                 connect: invite.steam.connect,
+                steamId: invite.steam.steamId,
+                lobbyId: invite.steam.lobbyId,
             });
             if (res.ok) {
                 joined = true;

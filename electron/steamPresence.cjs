@@ -26,6 +26,8 @@ const SHARED_TITLE = "SharedJSContext";
 // defensive. The result is null for a page with no friend store (not the right
 // target), { inGame: false } when the user is not playing, and otherwise plain
 // data. Only the page is expected to answer; a stray JS error just means "no".
+// steamId and lobbyId (the lobby only when Steam calls it valid) are what
+// Steam's own Join Game button builds its link from (steamUrl.cjs).
 const EXPRESSION = [
     "(() => {",
     "const fs = window.friendStore;",
@@ -42,7 +44,7 @@ const EXPRESSION = [
     'let name = ""; try { name = String(p.GetCurrentGameName ? p.GetCurrentGameName() : ""); } catch (e) {}',
     // The game's own icon: its hash is on the app overview in Steam's app store.
     'let icon = ""; try { const o = window.appStore.GetAppOverviewByAppID(appId); icon = String((o && o.icon_hash) || ""); } catch (e) {}',
-    'return { inGame: true, appId: String(appId), name: name || String(p.m_strGameExtraInfo || ""), status, icon, richPresence: rp };',
+    'return { inGame: true, appId: String(appId), name: name || String(p.m_strGameExtraInfo || ""), status, icon, steamId: String(self.steamid64 || ""), lobbyId: (p.is_in_valid_lobby && p.m_game_lobby_id && String(p.m_game_lobby_id) !== "0") ? String(p.m_game_lobby_id) : "", richPresence: rp };',
     "})()",
 ].join("\n");
 
@@ -55,6 +57,12 @@ function clip(value, max) {
     return String(value ?? "")
         .trim()
         .slice(0, max);
+}
+
+/** The value as a string of digits (an id), or "" when it is not one. */
+function digits(value) {
+    const s = String(value ?? "");
+    return /^\d{1,20}$/.test(s) ? s : "";
 }
 
 /**
@@ -82,6 +90,8 @@ function readReport(v) {
             status: clip(v.status, LIMITS.status),
             // Part of a URL later, so only a plain hash passes.
             icon: /^[0-9a-f]{40}$/.test(String(v.icon ?? "")) ? v.icon : "",
+            steamId: digits(v.steamId),
+            lobbyId: digits(v.lobbyId),
             // fromEntries defines keys as data, so a key like "__proto__" is safe.
             richPresence: Object.fromEntries(entries),
         },
@@ -96,6 +106,8 @@ function stateKey(state) {
         state.name,
         state.status,
         state.icon,
+        state.steamId,
+        state.lobbyId,
         Object.keys(rp)
             .sort()
             .map((k) => [k, rp[k]]),

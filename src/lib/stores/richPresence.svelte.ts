@@ -289,8 +289,9 @@ function dropInvites(match: (invite: InvitableGame) => boolean): void {
         if (match(invite)) delete richPresenceState.invites[k];
 }
 
-/** The invite for one Steam game report, or null when it has no launch
- *  arguments. Steam's `steam_connect` is added by the electron side. */
+/** The invite for one Steam game report, or null when it cannot be joined: it
+ *  needs the friend's Steam id and either a lobby or launch arguments. The
+ *  electron side adds `steam_id`, `steam_lobby` and `steam_connect`. */
 function inviteFor(
     key: string,
     name: string,
@@ -299,8 +300,12 @@ function inviteFor(
 ): InvitableGame | null {
     if (!raw || typeof raw !== "object") return null;
     const m = /^steam-(\d{1,20})$/.exec(presenceId);
-    const connect = (raw as Record<string, unknown>).steam_connect;
-    if (!m || typeof connect !== "string") return null;
+    const r = raw as Record<string, unknown>;
+    const steamId = r.steam_id;
+    const lobbyId = r.steam_lobby;
+    const connect = r.steam_connect;
+    if (!m || typeof steamId !== "string") return null;
+    if (typeof connect !== "string" && typeof lobbyId !== "string") return null;
     // The presence picture is `steam:<appid>:<icon hash>` when Steam has an icon.
     const picture = (raw as { assets?: { large_image?: unknown } }).assets
         ?.large_image;
@@ -312,7 +317,13 @@ function inviteFor(
             : undefined;
     const game: GameInvite = {
         name: name.slice(0, GAME_INVITE_LIMITS.name),
-        steam: { appId: m[1], connect, ...(icon ? { icon } : {}) },
+        steam: {
+            appId: m[1],
+            steamId,
+            ...(typeof lobbyId === "string" ? { lobbyId } : {}),
+            ...(typeof connect === "string" ? { connect } : {}),
+            ...(icon ? { icon } : {}),
+        },
     };
     // Only a game that would pass the receiver's checks can be invited to.
     if (!parseGameInvite(gameInvitePayload(game))) return null;

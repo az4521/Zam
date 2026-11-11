@@ -38,13 +38,23 @@ const { createKnownGames } = require("./knownGames.cjs");
 const { createMediaSession } = require("./mediaSession.cjs");
 const { restartDiscord } = require("./discordRestart.cjs");
 const { createFakeDiscord } = require("./fakeDiscord.cjs");
-const { isConnectString, steamRunUrl } = require("./steamUrl.cjs");
+const {
+    isConnectString,
+    steamJoinUrl,
+    steamRunUrl,
+} = require("./steamUrl.cjs");
 
 const PORT_RANGE = [44190, 45190];
 const WS_PATH = "/presence";
 const MAX_PAYLOAD = 16 * 1024;
 // A misbehaving app should not be able to flood the renderer.
 const MAX_MESSAGES_PER_SECOND = 20;
+
+/** The value as a string of digits (an id), or "" when it is not one. */
+function digits(value) {
+    const s = String(value ?? "");
+    return /^\d{1,20}$/.test(s) ? s : "";
+}
 
 /**
  * Where the MSC4544 Unix socket lives. The MSC says /tmp/.zam_<id>/, but a
@@ -624,6 +634,9 @@ function createRichPresence({
             (typeof state.name === "string" && state.name.trim()) ||
             "Steam game";
         const connect = state.richPresence?.connect;
+        // The friend's Steam id and lobby: what Steam's Join Game link needs.
+        const steamId = digits(state.steamId);
+        const lobbyId = digits(state.lobbyId);
         steamReported = { appId, app: { id, name } };
         send({
             source: "arrpc",
@@ -642,6 +655,8 @@ function createRichPresence({
                 timestamps: { start: state.startedAt },
                 // Where the game can be joined (an invite's target), if Steam says.
                 ...(isConnectString(connect) ? { steam_connect: connect } : {}),
+                ...(steamId ? { steam_id: steamId } : {}),
+                ...(lobbyId ? { steam_lobby: lobbyId } : {}),
             },
         });
     }
@@ -881,14 +896,22 @@ function createRichPresence({
     }
 
     /**
-     * Opens the Steam run link of a game invite the user accepted, with its
-     * connect string. Validates everything it is given.
+     * Opens Steam's join link for a game invite the user accepted (the one
+     * Steam's Join Game button opens; steamUrl.cjs), or the run link when the
+     * invite has no Steam id. Validates everything it is given.
      */
     async function joinGame(req) {
         const invalid = { ok: false, error: "invalid" };
         if (!req || typeof req !== "object") return invalid;
         if (req.kind === "steam") {
-            const url = steamRunUrl({ appId: req.appId, connect: req.connect });
+            const url = req.steamId
+                ? steamJoinUrl({
+                      appId: req.appId,
+                      connect: req.connect,
+                      steamId: req.steamId,
+                      lobbyId: req.lobbyId,
+                  })
+                : steamRunUrl({ appId: req.appId, connect: req.connect });
             if (!url) return invalid;
             if (!openExternal) return { ok: false, error: "unsupported" };
             try {

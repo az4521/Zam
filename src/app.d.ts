@@ -121,12 +121,17 @@ declare global {
         presence: unknown;
     }
 
-    /** A Steam game invite the user accepted: the game and its connect string
-     *  (electron/richPresence.cjs joinGame). */
+    /** A Steam game invite the user accepted: the game, its connect string and
+     *  the friend's Steam id and lobby (electron/richPresence.cjs joinGame).
+     *  The connect string is needed unless a lobby and a Steam id are given. */
     type DesktopGameJoinRequest = {
         kind: "steam";
         appId: string;
-        connect: string;
+        connect?: string;
+        /** The friend's SteamID64 (digits); without it the run link is used. */
+        steamId?: string;
+        /** The lobby the friend is in (digits), when Steam says it is valid. */
+        lobbyId?: string;
     };
 
     /** App version, injected from package.json at build time (see vite.config.ts). */

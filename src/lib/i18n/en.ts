@@ -2942,6 +2942,7 @@ export const en = {
     "gameInvite.sourceSteam": "Steam",
     "gameInvite.partySize": "{current} of {max} in party",
     "gameInvite.confirmSteam": "Launch {game} with arguments: {connect}",
+    "gameInvite.confirmLobby": "Join {game}'s lobby",
     "gameInvite.joinGame": "Join game",
     "gameInvite.joinSent": "Join sent to the game.",
     "gameInvite.openInDesktop": "Open in the Zam desktop app to join.",

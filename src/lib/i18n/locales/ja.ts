@@ -2657,6 +2657,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "gameInvite.sourceSteam": "Steam",
     "gameInvite.partySize": "パーティー {current}/{max}人",
     "gameInvite.confirmSteam": "{game} を引数 {connect} で起動します",
+    "gameInvite.confirmLobby": "{game} のロビーに参加します",
     "gameInvite.joinGame": "ゲームに参加",
     "gameInvite.joinSent": "ゲームに参加を送信しました。",
     "gameInvite.openInDesktop":

@@ -2822,6 +2822,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "gameInvite.sourceSteam": "Steam",
     "gameInvite.partySize": "队伍 {current}/{max}",
     "gameInvite.confirmSteam": "用参数 {connect} 启动 {game}",
+    "gameInvite.confirmLobby": "加入 {game} 的大厅",
     "gameInvite.joinGame": "加入游戏",
     "gameInvite.joinSent": "已将加入请求发送给游戏。",
     "gameInvite.openInDesktop": "请在 Zam 桌面应用中打开以加入。",

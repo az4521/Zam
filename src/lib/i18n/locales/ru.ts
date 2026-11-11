@@ -3049,6 +3049,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "gameInvite.sourceSteam": "Steam",
     "gameInvite.partySize": "{current} из {max} в группе",
     "gameInvite.confirmSteam": "Запустить {game} с аргументами: {connect}",
+    "gameInvite.confirmLobby": "Присоединиться к лобби {game}",
     "gameInvite.joinGame": "Присоединиться к игре",
     "gameInvite.joinSent": "Запрос на присоединение отправлен в игру.",
     "gameInvite.openInDesktop":
