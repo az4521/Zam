@@ -15,6 +15,7 @@ export const ZAM_REGIONS: readonly ZamRegion[] = [
     "timeline",
     "composer",
     "member-list",
+    "call",
 ];
 
 export function regionElement(name: ZamRegion): HTMLElement | null {

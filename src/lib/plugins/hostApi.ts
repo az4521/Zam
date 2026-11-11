@@ -75,6 +75,11 @@ import {
     publishPluginDataTrack,
     sendPluginCallData,
 } from "../matrix/callPluginData";
+import {
+    closeCallPanel,
+    openCallPanel,
+    refreshCallUi,
+} from "./pluginCall.svelte";
 import { midiAvailable, openSynth, playSong } from "./pluginMidiApi";
 
 export interface BuildHostApiOptions {
@@ -529,6 +534,41 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                     ),
                 });
             },
+            addControl: (control) => {
+                needCapability("call", "call.addControl");
+                return track(
+                    addEntry(registry, "callControls", pluginId, control),
+                );
+            },
+            addPanel: (panel) => {
+                needCapability("call", "call.addPanel");
+                const entry = track(
+                    addEntry(registry, "callPanels", pluginId, panel),
+                );
+                return track({
+                    dispose: () => {
+                        entry.dispose();
+                        closeCallPanel(pluginId, panel.id);
+                    },
+                });
+            },
+            openPanel: (id) => {
+                needCapability("call", "call.openPanel");
+                openCallPanel(pluginId, id);
+            },
+            closePanel: (id) => closeCallPanel(pluginId, id),
+            addTileDecoration: (decoration) => {
+                needCapability("call", "call.addTileDecoration");
+                return track(
+                    addEntry(
+                        registry,
+                        "callTileDecorations",
+                        pluginId,
+                        decoration,
+                    ),
+                );
+            },
+            refreshUi: () => refreshCallUi(),
             publishDataTrack: async (name) => {
                 needCapability("call", "call.publishDataTrack");
                 return publishPluginDataTrack(pluginId, name);
@@ -595,6 +635,7 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
         // Entries set without keeping the handle go too.
         clearPluginPresence(pluginId);
         clearPluginCallData(pluginId);
+        closeCallPanel(pluginId);
         closePluginPanelOf(pluginId);
     };
 

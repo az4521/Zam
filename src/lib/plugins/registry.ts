@@ -34,6 +34,9 @@ import type {
     ProfileSectionRegistration,
     RoomActionItem,
     OverlayOptions,
+    CallControl,
+    CallPanelRegistration,
+    CallTileDecoration,
 } from "./types";
 
 export interface RegistryEntry<T> {
@@ -68,6 +71,9 @@ export interface PluginRegistryData {
     profileSections: RegistryEntry<ProfileSectionRegistration>[];
     roomActions: RegistryEntry<RoomActionItem>[];
     overlays: RegistryEntry<OverlayOptions>[];
+    callControls: RegistryEntry<CallControl>[];
+    callPanels: RegistryEntry<CallPanelRegistration>[];
+    callTileDecorations: RegistryEntry<CallTileDecoration>[];
     tick: number;
     nextEntryId: number;
 }
@@ -103,6 +109,9 @@ export const EXTENSION_KINDS: ExtensionKind[] = [
     "profileSections",
     "roomActions",
     "overlays",
+    "callControls",
+    "callPanels",
+    "callTileDecorations",
 ];
 
 export function createRegistryData(): PluginRegistryData {
@@ -132,6 +141,9 @@ export function createRegistryData(): PluginRegistryData {
         profileSections: [],
         roomActions: [],
         overlays: [],
+        callControls: [],
+        callPanels: [],
+        callTileDecorations: [],
         tick: 0,
         nextEntryId: 1,
     };

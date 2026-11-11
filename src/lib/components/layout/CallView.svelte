@@ -28,6 +28,12 @@
     import CallParticipantMenu from "$lib/components/layout/CallParticipantMenu.svelte";
     import ScreenShareQualityPopover from "$lib/components/layout/ScreenShareQualityPopover.svelte";
     import SoundboardButton from "$lib/components/layout/SoundboardButton.svelte";
+    import { pluginMount } from "$lib/plugins/pluginMount";
+    import {
+        callControlItems,
+        callPanelItems,
+        callTileDecorationItems,
+    } from "$lib/plugins/pluginCall.svelte";
     import CallEncryptionBadge from "$lib/components/layout/CallEncryptionBadge.svelte";
     import UserProfileCard from "$lib/components/ui/UserProfileCard.svelte";
     import VideoTile from "$lib/components/layout/VideoTile.svelte";
@@ -333,7 +339,10 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="flex-1 flex flex-col min-w-0 bg-discord-backgroundTertiary">
+<div
+    data-zam-region="call"
+    class="flex-1 flex flex-col min-w-0 bg-discord-backgroundTertiary"
+>
     <!-- Header -->
     <div
         class="h-12 px-4 flex items-center gap-2 flex-shrink-0 border-b border-discord-divider bg-discord-background"
@@ -574,6 +583,12 @@
                         >
                             <EllipsisVertical size={14} />
                         </button>
+                        {#each callTileDecorationItems(room.roomId, p.userId) as d (d.key)}
+                            <div
+                                class="absolute inset-0 pointer-events-none"
+                                use:pluginMount={d.render}
+                            ></div>
+                        {/each}
                     </div>
                 {/each}
             </div>
@@ -847,11 +862,28 @@
                         >
                             <EllipsisVertical size={16} />
                         </button>
+                        {#each callTileDecorationItems(room.roomId, p.userId) as d (d.key)}
+                            <div
+                                class="absolute inset-0 pointer-events-none"
+                                use:pluginMount={d.render}
+                            ></div>
+                        {/each}
                     </div>
                 {/each}
             </div>
         {/if}
     </div>
+
+    <!-- Plugin panels (open ones only; each scrolls within its own cap) -->
+    {#each callPanelItems(room.roomId) as panel (panel.key)}
+        <div
+            class="flex-shrink-0 border-t border-discord-divider bg-discord-background max-h-[60%] overflow-auto"
+            role="region"
+            aria-label={panel.title}
+        >
+            <div class="w-full" use:pluginMount={panel.render}></div>
+        </div>
+    {/each}
 
     <!-- Controls -->
     <div class="flex-shrink-0 p-4 flex flex-col items-center gap-2">
@@ -977,6 +1009,32 @@
                     buttonClass="p-3 rounded-full hover:bg-discord-messageHover"
                     idleClass="text-discord-textPrimary"
                 />
+                {#each callControlItems(room.roomId) as c (c.key)}
+                    <button
+                        onclick={(e) => c.click(e.currentTarget)}
+                        class="p-3 rounded-full hover:bg-discord-messageHover {c.active
+                            ? 'text-discord-accent'
+                            : 'text-discord-textPrimary'}"
+                        title={c.label}
+                        aria-label={c.label}
+                    >
+                        {#if c.icon}
+                            <svg
+                                class="w-5 h-5"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                                aria-hidden="true"
+                            >
+                                <path d={c.icon} />
+                            </svg>
+                        {:else}
+                            <span
+                                class="w-5 h-5 flex items-center justify-center text-sm font-semibold leading-none"
+                                aria-hidden="true">{c.label.slice(0, 1)}</span
+                            >
+                        {/if}
+                    </button>
+                {/each}
                 <button
                     onclick={leaveCall}
                     class="p-3 rounded-full bg-discord-danger hover:bg-discord-dangerHover text-white transition-colors"

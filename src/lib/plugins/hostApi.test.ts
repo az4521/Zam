@@ -525,6 +525,21 @@ describe("buildHostApi — UI and message extension points", () => {
             (h: ReturnType<typeof buildHostApi>) =>
                 h.zam.ui.addOverlay({ render() {} }),
         ],
+        [
+            "callControls",
+            (h: ReturnType<typeof buildHostApi>) =>
+                h.zam.call.addControl({ id: "c", label: "C", onClick() {} }),
+        ],
+        [
+            "callPanels",
+            (h: ReturnType<typeof buildHostApi>) =>
+                h.zam.call.addPanel({ id: "p", title: "P", render() {} }),
+        ],
+        [
+            "callTileDecorations",
+            (h: ReturnType<typeof buildHostApi>) =>
+                h.zam.call.addTileDecoration({ id: "d", render() {} }),
+        ],
     ] as const;
 
     for (const [kind, add] of kinds) {
@@ -532,7 +547,7 @@ describe("buildHostApi — UI and message extension points", () => {
             const registry = createRegistryData();
             const host = buildHostApi({
                 pluginId: "a",
-                manifest: manifest("a"),
+                manifest: { ...manifest("a"), capabilities: ["call"] },
                 registry,
                 appVersion: "1",
             });
