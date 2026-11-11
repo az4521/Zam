@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.57.4
+
+✨ **New**
+
+- **Plugins can add to the call screen:** `zam.call` gains `addControl` (a button in the call control bar), `addPanel` with `openPanel` and `closePanel` (an area between the tiles and the controls), and `addTileDecoration` (content over each participant's tile). The call screen is also a `call` region for `zam.dom`.
+
 ## v1.57.3
 
 ✨ **New**
