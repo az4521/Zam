@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.57.3
+
+✨ **New**
+
+- **Steam rich presence:** your in-game status from Steam can now show on your profile (desktop app). A setting turns Steam's local debugging port on or off by adding or removing a flag file in the Steam folder, and offers to restart Steam when the port is closed. It also cleans up any leftover registry entry from earlier versions.
+- **Plugins can use the call and the MIDI synth:** new `zam.call` lets a plugin send and receive data packets and data tracks in the voice call you are in (private to copies of the same plugin), and `zam.midi` gives it Zam's MIDI sound bank for playing songs or live notes. Plugins ask for the `call` and `midi` capabilities.
+
 ## v1.57.2
 
 🔧 **Improved**
