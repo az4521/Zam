@@ -528,10 +528,21 @@
     }
 </script>
 
-{#snippet row(label: string, value: string, tone: StatTone = "ok")}
+{#snippet row(
+    label: string,
+    value: string,
+    tone: StatTone = "ok",
+    secret = false,
+)}
     <div class="flex justify-between gap-3 py-0.5">
         <dt class="text-discord-textMuted">{label}</dt>
-        <dd class="font-mono text-end {TONE_CLASS[tone]}">{value}</dd>
+        <dd
+            class="font-mono text-end {TONE_CLASS[tone]} {secret
+                ? 'streamer-hide'
+                : ''}"
+        >
+            {value}
+        </dd>
     </div>
 {/snippet}
 
@@ -579,7 +590,12 @@
                     )}
                 {/if}
                 {#if s.remoteAddress}
-                    {@render row(t("callStats.remoteAddress"), s.remoteAddress)}
+                    {@render row(
+                        t("callStats.remoteAddress"),
+                        s.remoteAddress,
+                        "ok",
+                        true,
+                    )}
                 {/if}
                 {#if s.serverOfferedNoUdp}
                     {@render row(

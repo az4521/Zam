@@ -837,6 +837,8 @@
         // This session's notifications have already been taken down; posting
         // another one now would strand it above the next account's session.
         if (notificationsShutDown) return;
+        // Streamer mode: not even "<sender> in <room>" may pop over a stream.
+        if (settingsState.streamerMode) return;
         if (!shouldAlertDesktop(settingsState.desktopAlertMode, loud)) return;
         if (
             document.hasFocus() &&
@@ -964,6 +966,7 @@
      */
     function postAccountNotification(notice: AccountNotice) {
         if (notificationsShutDown) return;
+        if (settingsState.streamerMode) return;
         if (!shouldAlertDesktop(settingsState.desktopAlertMode, notice.loud))
             return;
         flashTaskbar();
@@ -1121,7 +1124,12 @@
         if (loud) {
             const soundEnabled =
                 localStorage.getItem("notifSoundEnabled") !== "false";
-            if (live && soundEnabled && !quietForOtherDevice) {
+            if (
+                live &&
+                soundEnabled &&
+                !quietForOtherDevice &&
+                !settingsState.streamerMode
+            ) {
                 playPing();
             }
         }

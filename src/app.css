@@ -601,8 +601,13 @@ body {
 /* Streamer mode (applyStreamerMode in utils/theme.ts): blur private values.
    No hover reveal — a stream shows the pointer too. */
 :root[data-streamer-mode="true"] .streamer-hide {
-    filter: blur(7px);
+    /* Em-relative so small mono text and big headings are equally unreadable;
+       inline-block because a filter on a bare inline box is unreliable. */
+    display: inline-block;
+    max-width: 100%;
+    filter: blur(0.45em);
     user-select: none;
+    pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

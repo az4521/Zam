@@ -1661,7 +1661,7 @@
                                     </p>
                                     <div class="flex items-center gap-2">
                                         <code
-                                            class="flex-1 min-w-0 select-all truncate bg-discord-backgroundTertiary text-discord-textPrimary text-xs font-mono rounded px-3 py-2"
+                                            class="flex-1 min-w-0 select-all truncate bg-discord-backgroundTertiary text-discord-textPrimary text-xs font-mono rounded px-3 py-2 streamer-hide"
                                             title={room.roomId}
                                             >{room.roomId}</code
                                         >
