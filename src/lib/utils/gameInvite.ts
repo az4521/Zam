@@ -31,7 +31,13 @@ export interface GameInvite {
     state?: string;
     /** [current, max] players in the game's party. */
     partySize?: [number, number];
-    steam: { appId: string; connect: string };
+    /** `icon` is the hash of the game's Steam icon, when Steam gave one. */
+    steam: { appId: string; connect: string; icon?: string };
+}
+
+/** The address of a Steam game's icon picture. */
+export function steamIconUrl(appId: string, icon: string): string {
+    return `https://shared.fastly.steamstatic.com/community_assets/images/apps/${appId}/${icon}.jpg`;
 }
 
 /** A validated invite, with the sender's optional note. */
@@ -44,7 +50,11 @@ export function gameInvitePayload(
 ): Record<string, unknown> {
     const out: Record<string, unknown> = {
         app: { name: game.name, source: "steam" },
-        steam: { app_id: game.steam.appId, connect: game.steam.connect },
+        steam: {
+            app_id: game.steam.appId,
+            connect: game.steam.connect,
+            ...(game.steam.icon ? { icon: game.steam.icon } : {}),
+        },
     };
     if (game.details) out.details = game.details;
     if (game.state) out.state = game.state;
@@ -93,6 +103,8 @@ function text(v: unknown, max: number, min = 0): string | undefined | null {
     return v;
 }
 
+const STEAM_ICON = /^[0-9a-f]{40}$/;
+
 function isRecord(v: unknown): v is Record<string, unknown> {
     return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -119,7 +131,18 @@ export function parseGameInvite(value: unknown): ParsedGameInvite | null {
     // characters, so it cannot hide or split what the user reads.
     if (!connect || /[\x00-\x1f\x7f]/.test(connect)) return null;
 
-    const game: GameInvite = { name, steam: { appId, connect } };
+    // An icon is only ever a hash, since it becomes part of an image address.
+    const icon = s.icon;
+    if (
+        icon !== undefined &&
+        (typeof icon !== "string" || !STEAM_ICON.test(icon))
+    )
+        return null;
+
+    const game: GameInvite = {
+        name,
+        steam: { appId, connect, ...(icon ? { icon } : {}) },
+    };
 
     const details = text(value.details, L.details);
     if (details === null) return null;

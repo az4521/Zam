@@ -301,9 +301,18 @@ function inviteFor(
     const m = /^steam-(\d{1,20})$/.exec(presenceId);
     const connect = (raw as Record<string, unknown>).steam_connect;
     if (!m || typeof connect !== "string") return null;
+    // The presence picture is `steam:<appid>:<icon hash>` when Steam has an icon.
+    const picture = (raw as { assets?: { large_image?: unknown } }).assets
+        ?.large_image;
+    const icon =
+        typeof picture === "string"
+            ? new RegExp("^steam:" + m[1] + ":([0-9a-f]{40})$").exec(
+                  picture,
+              )?.[1]
+            : undefined;
     const game: GameInvite = {
         name: name.slice(0, GAME_INVITE_LIMITS.name),
-        steam: { appId: m[1], connect },
+        steam: { appId: m[1], connect, ...(icon ? { icon } : {}) },
     };
     // Only a game that would pass the receiver's checks can be invited to.
     if (!parseGameInvite(gameInvitePayload(game))) return null;

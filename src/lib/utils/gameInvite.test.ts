@@ -280,3 +280,23 @@ describe("parseGameInvite", () => {
         });
     });
 });
+
+describe("game icon", () => {
+    const hash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    it("round-trips a valid icon hash", () => {
+        const game = {
+            ...steamGame,
+            steam: { ...steamGame.steam, icon: hash },
+        };
+        expect(parseGameInvite(gameInvitePayload(game))?.steam.icon).toBe(hash);
+    });
+
+    it("rejects an icon that is not a hash, since it becomes part of an address", () => {
+        for (const icon of ["../x", "A".repeat(40), "a".repeat(39), 5, ""]) {
+            const wire = steamWire();
+            Object.assign(wire.steam, { icon });
+            expect(parseGameInvite(wire)).toBeNull();
+        }
+    });
+});

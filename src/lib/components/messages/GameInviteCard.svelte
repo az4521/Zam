@@ -2,7 +2,7 @@
     import { t } from "$lib/i18n";
     import { Gamepad2 } from "lucide-svelte";
     import type { MessageKey } from "$lib/i18n/en";
-    import type { ParsedGameInvite } from "$lib/utils/gameInvite";
+    import { steamIconUrl, type ParsedGameInvite } from "$lib/utils/gameInvite";
 
     interface Props {
         invite: ParsedGameInvite;
@@ -15,6 +15,14 @@
         unsupported: "gameInvite.joinUnsupported",
         invalid: "gameInvite.joinInvalid",
     };
+
+    // The game's icon when the invite has one and it loads; else the gamepad.
+    let iconFailed = $state(false);
+    const iconUrl = $derived(
+        invite.steam.icon && !iconFailed
+            ? steamIconUrl(invite.steam.appId, invite.steam.icon)
+            : null,
+    );
 
     let confirming = $state(false);
     let joining = $state(false);
@@ -64,7 +72,18 @@
     class="mt-1 max-w-md rounded-lg border border-discord-divider bg-discord-backgroundSecondary px-3 py-2.5"
 >
     <div class="flex items-center gap-2.5">
-        <Gamepad2 size={20} class="flex-shrink-0 text-discord-textMuted" />
+        {#if iconUrl}
+            <img
+                src={iconUrl}
+                alt=""
+                class="h-8 w-8 flex-shrink-0 rounded"
+                loading="lazy"
+                referrerpolicy="no-referrer"
+                onerror={() => (iconFailed = true)}
+            />
+        {:else}
+            <Gamepad2 size={20} class="flex-shrink-0 text-discord-textMuted" />
+        {/if}
         <div class="min-w-0">
             <p class="text-xs text-discord-textMuted">
                 {t("gameInvite.cardTitle")} · {t("gameInvite.sourceSteam")}

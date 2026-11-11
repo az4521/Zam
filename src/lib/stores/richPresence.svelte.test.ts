@@ -789,6 +789,23 @@ describe("rich presence store", () => {
             await rp.syncRichPresence();
         };
 
+        it("carries the game icon hash from its presence picture", async () => {
+            const { settings, rp } = await load();
+            await on(rp, settings);
+            const icon = "b".repeat(40);
+            handler!(
+                steamGame({
+                    presence: {
+                        application_id: "440",
+                        name: "Team Fortress 2",
+                        steam_connect: CONNECT,
+                        assets: { large_image: `steam:440:${icon}` },
+                    },
+                }),
+            );
+            expect(rp.invitableGames()[0].steam.icon).toBe(icon);
+        });
+
         it("offers a running Steam game with its app id and launch arguments", async () => {
             const { settings, rp } = await load();
             await on(rp, settings);
