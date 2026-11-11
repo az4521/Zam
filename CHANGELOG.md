@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.57.5
+
+🐛 **Fixed**
+
+- **Steam rich presence showed nothing:** the game you were playing was looked up in the wrong place in Steam, so it never appeared. Games such as 64-bit Team Fortress 2, which game detection by executable name does not recognise, now show with their Steam status.
+
 ## v1.57.4
 
 ✨ **New**
