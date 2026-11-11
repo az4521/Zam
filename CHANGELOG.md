@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.58.2
+
+🐛 **Fixed**
+
+- **Joining a Steam game invite did nothing in a running game:** Join now opens the same link Steam's own Join Game button does, so it can join a party or lobby in a game that is already open (such as Team Fortress 2). New invites carry the sender's Steam ID, and a lobby when they are in one. Invites sent before this still use the old link.
+
 ## v1.58.1
 
 🔧 **Improved**
