@@ -43,6 +43,7 @@ export const CACHED_ACCOUNT_DATA_TYPES = [
     EventType.Direct as string,
     "im.client.space_layout",
     "im.client.space_order",
+    "chat.commet.sidebar_ordering",
 ];
 
 // A DM with more joined members than this is a group chat; don't cache its

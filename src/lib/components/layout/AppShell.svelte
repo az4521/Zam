@@ -2457,7 +2457,8 @@
                 roomsState.roomsTick++;
             if (
                 type === "im.client.space_layout" ||
-                type === "im.client.space_order"
+                type === "im.client.space_order" ||
+                type === "chat.commet.sidebar_ordering"
             )
                 refreshRooms();
             if (type === ACTIVE_SESSION_KEY) {

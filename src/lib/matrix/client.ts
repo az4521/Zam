@@ -220,6 +220,13 @@ import {
 } from "$lib/utils/threadName";
 import type { ThreadInfo } from "$lib/utils/threadList";
 import { addOrderHints, placeAfterHints } from "./orderHint";
+import {
+    COMMET_ORDER_KEY,
+    ELEMENT_SPACE_ORDER_KEY,
+    commetToLayout,
+    elementToLayout,
+    layoutToCommet,
+} from "./spaceLayoutKeys";
 import { historyTrimCut } from "$lib/utils/historyTrim";
 import { rebuildLiveTimeline } from "./timelineRebuild";
 import {
@@ -6611,12 +6618,43 @@ export function getSpaceLayout(): SpaceLayout {
     const oldOrder =
         (lookupAccountData(SPACE_ORDER_KEY)?.getContent()?.order as string[]) ??
         [];
-    return { order: oldOrder, folders: {} };
+    if (oldOrder.length) return { order: oldOrder, folders: {} };
+    // Nothing of ours: fall back to Commet's folders, then Element's order.
+    const commet = commetToLayout(
+        lookupAccountData(COMMET_ORDER_KEY)?.getContent(),
+    );
+    if (commet) return commet;
+    const orders = new Map<string, unknown>();
+    for (const room of listRooms()) {
+        if (!room.isSpaceRoom()) continue;
+        orders.set(
+            room.roomId,
+            (
+                room.getAccountData?.(ELEMENT_SPACE_ORDER_KEY as never) as
+                    MatrixEvent | undefined
+            )?.getContent()?.order,
+        );
+    }
+    return elementToLayout(orders) ?? { order: [], folders: {} };
 }
 
 export async function setSpaceLayout(layout: SpaceLayout): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     await matrixClient.setAccountData(SPACE_LAYOUT_KEY, layout);
+    // Commet reads its own key; mirror what it can represent. A failure here
+    // must not fail the save of ours.
+    if (!layout.order.length) return;
+    try {
+        const existing = lookupAccountData(COMMET_ORDER_KEY)?.getContent();
+        const next = layoutToCommet(layout, existing);
+        if (JSON.stringify(next) === JSON.stringify(existing)) return;
+        await matrixClient.setAccountData(
+            COMMET_ORDER_KEY as never,
+            next as never,
+        );
+    } catch (err) {
+        console.warn("[setSpaceLayout] Commet ordering not written:", err);
+    }
 }
 
 export function getSpaceOrder(): string[] {
