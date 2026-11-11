@@ -42,6 +42,7 @@
         type Capabilities,
     } from "$lib/utils/serverCapabilities";
     import { syncStateLabel } from "$lib/utils/syncStatus";
+    import { shownHomeserver, shownUserId } from "$lib/utils/streamerAlias";
 
     interface Props {
         onLogout: () => void;
@@ -410,16 +411,22 @@
         <div class="flex justify-between py-2 border-b border-discord-divider">
             <span class="text-discord-textMuted"
                 >{t("accountSettings.userId")}</span
-            ><span
-                class="text-discord-textPrimary font-mono text-xs streamer-hide"
-                >{auth.userId}</span
+            ><span class="text-discord-textPrimary font-mono text-xs"
+                >{auth.userId
+                    ? shownUserId(auth.userId, settingsState.streamerMode)
+                    : ""}</span
             >
         </div>
         <div class="flex justify-between py-2 border-b border-discord-divider">
             <span class="text-discord-textMuted"
                 >{t("accountSettings.homeserver")}</span
             ><span class="text-discord-textPrimary text-xs"
-                >{auth.homeserverUrl}</span
+                >{auth.homeserverUrl
+                    ? shownHomeserver(
+                          auth.homeserverUrl,
+                          settingsState.streamerMode,
+                      )
+                    : ""}</span
             >
         </div>
         <div class="flex justify-between py-2 border-b border-discord-divider">

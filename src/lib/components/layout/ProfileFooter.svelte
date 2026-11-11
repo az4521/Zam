@@ -5,6 +5,7 @@
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import AccountSwitcher from "$lib/components/layout/AccountSwitcher.svelte";
     import { auth } from "$lib/stores/auth.svelte";
+    import { aliasUserLocalpart, shownUserId } from "$lib/utils/streamerAlias";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import {
         presenceDot,
@@ -198,7 +199,9 @@
         >
             <Avatar
                 src={ownAvatarSrc}
-                name={auth.userId || "?"}
+                name={auth.userId
+                    ? shownUserId(auth.userId, settingsState.streamerMode)
+                    : "?"}
                 id={auth.userId}
                 size={32}
             />
@@ -212,16 +215,17 @@
             class="flex-1 min-w-0 rounded p-1 -m-1 hover:bg-discord-messageHover transition-colors text-start"
             title={t("profileFooter.switchAccounts")}
         >
-            <p
-                class="text-sm font-semibold text-discord-textPrimary truncate streamer-hide"
-            >
-                {auth.userId?.split(":")[0].replace("@", "") ??
-                    t("profileFooter.unknown")}
+            <p class="text-sm font-semibold text-discord-textPrimary truncate">
+                {auth.userId
+                    ? settingsState.streamerMode
+                        ? aliasUserLocalpart(auth.userId)
+                        : auth.userId.split(":")[0].replace("@", "")
+                    : t("profileFooter.unknown")}
             </p>
-            <p
-                class="text-xs text-discord-textSecondary truncate streamer-hide"
-            >
-                {auth.userId ?? ""}
+            <p class="text-xs text-discord-textSecondary truncate">
+                {auth.userId
+                    ? shownUserId(auth.userId, settingsState.streamerMode)
+                    : ""}
             </p>
         </button>
     </div>

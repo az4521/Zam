@@ -41,6 +41,10 @@
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import {
+        aliasUserLocalpart,
+        shownHomeserver,
+    } from "$lib/utils/streamerAlias";
+    import {
         PROFILE_FIELDS,
         formatStatusMessage,
         parseBanner,
@@ -223,12 +227,16 @@
                 <AccountAvatar {account} size={32} />
                 <span class="flex-1 min-w-0">
                     <span
-                        class="block text-sm text-discord-textPrimary truncate streamer-hide"
-                        >{account.displayName ?? account.userId}</span
+                        class="block text-sm text-discord-textPrimary truncate"
+                        >{settingsState.streamerMode
+                            ? aliasUserLocalpart(account.userId)
+                            : (account.displayName ?? account.userId)}</span
                     >
-                    <span
-                        class="block text-xs text-discord-textMuted truncate streamer-hide"
-                        >{serverHost(account.homeserverUrl)}</span
+                    <span class="block text-xs text-discord-textMuted truncate"
+                        >{shownHomeserver(
+                            serverHost(account.homeserverUrl),
+                            settingsState.streamerMode,
+                        )}</span
                     >
                 </span>
                 {#if isActive}
