@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.58.3
+
+🐛 **Fixed**
+
+- **Team Fortress 2 party invites now join:** the game publishes its party join command without an argument its own join handler requires, so the game rejected it with "Invalid rich presence join string". Zam adds the missing argument when you join a TF2 party from an invite, including invites sent earlier. The change is in the desktop app.
+
 ## v1.58.2
 
 🐛 **Fixed**
