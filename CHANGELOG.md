@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.59.0
+
+✨ **Added**
+
+- **Streamer mode:** a new switch in Settings > Privacy & Safety for when you are on a live stream. It blurs your account ID, email and phone numbers and the recovery key shown when you set up backup, and keeps message text out of notifications. It applies to this device only.
+- **GIF sources for plugins:** plugins can add their own tab to the GIF picker (`zam.gifs.registerProvider`) with search, trending and endless scrolling, instead of rewriting the built-in KLIPY requests.
+
 ## v1.58.3
 
 🐛 **Fixed**
