@@ -4,6 +4,20 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.59.1
+
+✨ **Added**
+
+- **Turn notifications off:** Settings > Notifications has a new "Notifications for this account" switch that silences every notification for the account on all your devices, and a "Notifications on this device" switch that stops pop-ups, sounds and push on just this device.
+
+🔧 **Improved**
+
+- **Big spaces open instantly:** the room list of a space, and of its nested sub-spaces, is now remembered between launches. It shows straight away and is refreshed quietly in the background (expanded sub-spaces every few minutes) instead of being fetched again, with a spinner, every time you open the space.
+
+🐛 **Fixed**
+
+- **Long replies overflowed the reply bar:** the quoted text no longer runs under the cancel button.
+
 ## v1.59.0
 
 ✨ **Added**
