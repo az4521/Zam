@@ -227,12 +227,13 @@
                 <AccountAvatar {account} size={32} />
                 <span class="flex-1 min-w-0">
                     <span
-                        class="block text-sm text-discord-textPrimary truncate"
+                        class="block text-sm text-discord-textPrimary truncate streamer-hide"
                         >{settingsState.streamerMode
                             ? aliasUserLocalpart(account.userId)
                             : (account.displayName ?? account.userId)}</span
                     >
-                    <span class="block text-xs text-discord-textMuted truncate"
+                    <span
+                        class="block text-xs text-discord-textMuted truncate streamer-hide"
                         >{shownHomeserver(
                             serverHost(account.homeserverUrl),
                             settingsState.streamerMode,

@@ -215,14 +215,18 @@
             class="flex-1 min-w-0 rounded p-1 -m-1 hover:bg-discord-messageHover transition-colors text-start"
             title={t("profileFooter.switchAccounts")}
         >
-            <p class="text-sm font-semibold text-discord-textPrimary truncate">
+            <p
+                class="text-sm font-semibold text-discord-textPrimary truncate streamer-hide"
+            >
                 {auth.userId
                     ? settingsState.streamerMode
                         ? aliasUserLocalpart(auth.userId)
                         : auth.userId.split(":")[0].replace("@", "")
                     : t("profileFooter.unknown")}
             </p>
-            <p class="text-xs text-discord-textSecondary truncate">
+            <p
+                class="text-xs text-discord-textSecondary truncate streamer-hide"
+            >
                 {auth.userId
                     ? shownUserId(auth.userId, settingsState.streamerMode)
                     : ""}

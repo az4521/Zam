@@ -411,7 +411,8 @@
         <div class="flex justify-between py-2 border-b border-discord-divider">
             <span class="text-discord-textMuted"
                 >{t("accountSettings.userId")}</span
-            ><span class="text-discord-textPrimary font-mono text-xs"
+            ><span
+                class="text-discord-textPrimary font-mono text-xs streamer-hide"
                 >{auth.userId
                     ? shownUserId(auth.userId, settingsState.streamerMode)
                     : ""}</span
@@ -420,7 +421,7 @@
         <div class="flex justify-between py-2 border-b border-discord-divider">
             <span class="text-discord-textMuted"
                 >{t("accountSettings.homeserver")}</span
-            ><span class="text-discord-textPrimary text-xs"
+            ><span class="text-discord-textPrimary text-xs streamer-hide"
                 >{auth.homeserverUrl
                     ? shownHomeserver(
                           auth.homeserverUrl,
