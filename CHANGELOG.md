@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.58.0
+
+✨ **New**
+
+- **Steam game invites:** while you are playing a Steam game that can be joined, "Invite to game" in the composer menu sends an invite to the room. Other clients see a `steam://` link; in Zam it shows as a card with a Join button that asks before launching the game with the invite's arguments. Joining needs the desktop app.
+
 ## v1.57.6
 
 🔧 **Improved**
