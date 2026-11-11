@@ -144,6 +144,7 @@
         reloadAccountSettings,
         setActiveSessionGraceMs,
         settingsState,
+        notificationBodyHidden,
         getLastSeenVersion,
         setLastSeenVersion,
     } from "$lib/stores/settings.svelte";
@@ -854,7 +855,7 @@
         const text = notificationBody({
             sender,
             body,
-            hideBody: settingsState.hideNotificationBody,
+            hideBody: notificationBodyHidden(),
         });
         try {
             emitPluginNotification({
@@ -969,7 +970,7 @@
         const text = notificationBody({
             sender: notice.sender,
             body: notice.body,
-            hideBody: settingsState.hideNotificationBody,
+            hideBody: notificationBodyHidden(),
         });
         try {
             const native = showNativeNotification({
@@ -1787,12 +1788,8 @@
         // one guaranteed chance to correct a stale one. Deliberately OUTSIDE
         // the session guard above: logout clears the native key and the SW
         // auth, so a logout -> login cycle must re-arm both mirrors.
-        syncNativeNotificationPrivacy(settingsState.hideNotificationBody).catch(
-            () => {},
-        );
-        updateServiceWorkerNotificationPrivacy(
-            settingsState.hideNotificationBody,
-        );
+        syncNativeNotificationPrivacy(notificationBodyHidden()).catch(() => {});
+        updateServiceWorkerNotificationPrivacy(notificationBodyHidden());
         mirrorReceiptPrivacy();
         // The DM ring setting, for the native push service and the SW.
         syncNativeRingEnabled(settingsState.ringEnabled).catch(() => {});

@@ -410,7 +410,8 @@
         <div class="flex justify-between py-2 border-b border-discord-divider">
             <span class="text-discord-textMuted"
                 >{t("accountSettings.userId")}</span
-            ><span class="text-discord-textPrimary font-mono text-xs"
+            ><span
+                class="text-discord-textPrimary font-mono text-xs streamer-hide"
                 >{auth.userId}</span
             >
         </div>
@@ -552,7 +553,8 @@
                         >{identifier.medium === "email"
                             ? t("accountSettings.email")
                             : t("accountSettings.phone")}</span
-                    ><span class="text-discord-textPrimary font-mono text-xs"
+                    ><span
+                        class="text-discord-textPrimary font-mono text-xs streamer-hide"
                         >{identifier.address}</span
                     >
                 </div>

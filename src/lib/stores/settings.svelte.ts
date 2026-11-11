@@ -17,6 +17,7 @@ import {
     applyTheme,
     applyPreset,
     applyReduceMotion,
+    applyStreamerMode,
     normalizeTheme,
     themeColorsToCssText,
     type Theme,
@@ -419,6 +420,13 @@ export const settingsState = $state({
      *  key into the ACTIVE account's scope and DELETE it, silently dropping the
      *  toggle for every other account on this device — with no error anywhere. */
     hideNotificationBody: readBool("hideNotificationBody", false),
+    /** Device-global: streamer mode. Blurs account identifiers and secrets
+     *  (`.streamer-hide`) and forces notification text off, so nothing private
+     *  lands on a live stream. Default OFF.
+     *
+     *  ⚠ Must stay readBool/writeBool (device-global), for the same reason as
+     *  hideNotificationBody. */
+    streamerMode: readBool("streamerMode", false),
     /** Device-global: which notifications raise the OS pop-up and taskbar
      *  flash: "loud" (sound tweak only), "all" (loud + silent, the default) or
      *  "none". Device-local by design (readString/writeString, never scoped):
@@ -588,6 +596,7 @@ writeString("themeVars", themeColorsToCssText(bootColors));
 // element so CSS suppression is live before first paint, not only after a
 // toggle. The OS media query works independently of this attribute.
 applyReduceMotion(settingsState.reduceMotion);
+applyStreamerMode(settingsState.streamerMode);
 
 // Boot apply: the user's own stylesheet, unless the URL asks for none.
 applyCustomCss();
@@ -1211,6 +1220,18 @@ export function setLinkPreviewMedia(value: LinkPreviewMedia): void {
 export function setHideNotificationBody(value: boolean): void {
     settingsState.hideNotificationBody = value;
     writeBool("hideNotificationBody", value);
+}
+
+export function setStreamerMode(value: boolean): void {
+    settingsState.streamerMode = value;
+    writeBool("streamerMode", value);
+    applyStreamerMode(value);
+}
+
+/** Whether notification text must be withheld: the explicit setting, or
+ *  streamer mode. Every notification producer reads this, never the raw flag. */
+export function notificationBodyHidden(): boolean {
+    return settingsState.hideNotificationBody || settingsState.streamerMode;
 }
 
 export function setDesktopAlertMode(value: DesktopAlertMode): void {

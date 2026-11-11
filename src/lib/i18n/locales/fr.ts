@@ -1646,6 +1646,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "privacySafetySettings.privateReadReceipts": "Accusés de lecture privés",
     "privacySafetySettings.hideYourReadReceiptsFromOther":
         "Masquer vos accusés de lecture aux autres utilisateurs. Vos compteurs de non-lus fonctionnent toujours ; les autres ne voient simplement pas jusqu'où vous avez lu.",
+    "privacySafetySettings.streamerMode": "Mode streamer",
+    "privacySafetySettings.streamerModeHint":
+        "Floute votre identifiant de compte, vos adresses e-mail et votre clé de récupération, et masque le texte des messages dans les notifications, pour que rien de privé n'apparaisse en direct. S'applique uniquement à cet appareil.",
     "privacySafetySettings.hideMessageTextInNotifications":
         "Masquer le texte des messages dans les notifications",
     "privacySafetySettings.notificationsOnThisDeviceSayWho":

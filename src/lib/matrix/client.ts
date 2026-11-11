@@ -151,7 +151,10 @@ import {
     resetSyncStoreFallback,
     setSyncHeldForCrypto,
 } from "$lib/stores/sessionHealth.svelte";
-import { settingsState } from "$lib/stores/settings.svelte";
+import {
+    settingsState,
+    notificationBodyHidden,
+} from "$lib/stores/settings.svelte";
 import { classifyWellKnown } from "$lib/utils/wellKnown";
 import { hasUnstableFeature } from "$lib/utils/serverCapabilities";
 import {
@@ -4197,7 +4200,7 @@ export async function initServiceWorker(): Promise<void> {
     };
     const notifMsg = {
         type: "SET_NOTIF_PRIVACY",
-        hideBody: settingsState.hideNotificationBody,
+        hideBody: notificationBodyHidden(),
     };
     // The per-account private-read-receipts mirror is NOT posted here: this
     // runs before AppShell's reloadAccountSettings(), so the value would be the

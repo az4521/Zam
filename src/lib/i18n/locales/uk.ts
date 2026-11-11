@@ -1800,6 +1800,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Дозволити іншим людям у кімнаті бачити, коли ви друкуєте. Вимкніть, щоб друкувати, нікого про це не сповіщаючи.",
     "privacySafetySettings.hideYourReadReceiptsFromOther":
         "Приховувати ваші підтвердження прочитання від інших користувачів. Лічильники непрочитаного й далі працюють; інші просто не бачать, до якого місця ви прочитали.",
+    "privacySafetySettings.streamerMode": "Режим стрімера",
+    "privacySafetySettings.streamerModeHint":
+        "Розмиває ID облікового запису, адреси електронної пошти та ключ відновлення і приховує текст повідомлень у сповіщеннях, щоб у трансляції не з'являлося нічого приватного. Діє лише на цьому пристрої.",
     "privacySafetySettings.hideMessageTextInNotifications":
         "Приховувати текст повідомлень у сповіщеннях",
     "privacySafetySettings.notificationsOnThisDeviceSayWho":

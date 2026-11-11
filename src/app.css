@@ -598,6 +598,13 @@ body {
 
    `!important` is required: it has to beat Tailwind's `animate-*`
    utilities and component-scoped `<style>` blocks alike. */
+/* Streamer mode (applyStreamerMode in utils/theme.ts): blur private values.
+   No hover reveal — a stream shows the pointer too. */
+:root[data-streamer-mode="true"] .streamer-hide {
+    filter: blur(7px);
+    user-select: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

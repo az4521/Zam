@@ -1532,6 +1532,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "ルームの他の人に、入力中であることを表示します。オフにすると誰にも知られずに入力できます。",
     "privacySafetySettings.hideYourReadReceiptsFromOther":
         "他のユーザーに既読を表示しません。未読数は引き続き機能し、他の人にはどこまで読んだかが見えなくなります。",
+    "privacySafetySettings.streamerMode": "配信者モード",
+    "privacySafetySettings.streamerModeHint":
+        "アカウントID、メールアドレス、リカバリーキーにぼかしをかけ、通知のメッセージ本文を非表示にして、配信に個人情報が映らないようにします。このデバイスにのみ適用されます。",
     "privacySafetySettings.hideMessageTextInNotifications":
         "通知でメッセージ本文を隠す",
     "privacySafetySettings.notificationsOnThisDeviceSayWho":

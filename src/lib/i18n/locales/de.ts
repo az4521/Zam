@@ -1666,6 +1666,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "privacySafetySettings.privateReadReceipts": "Private Lesebestätigungen",
     "privacySafetySettings.hideYourReadReceiptsFromOther":
         "Deine Lesebestätigungen vor anderen Benutzern verbergen. Deine Ungelesen-Zähler funktionieren weiterhin; andere sehen nur nicht, wie weit du gelesen hast.",
+    "privacySafetySettings.streamerMode": "Streamer-Modus",
+    "privacySafetySettings.streamerModeHint":
+        "Verwischt deine Konto-ID, E-Mail-Adressen und den Wiederherstellungsschlüssel und blendet Nachrichtentext in Benachrichtigungen aus, damit nichts Privates im Stream erscheint. Gilt nur für dieses Gerät.",
     "privacySafetySettings.hideMessageTextInNotifications":
         "Nachrichtentext in Benachrichtigungen ausblenden",
     "privacySafetySettings.notificationsOnThisDeviceSayWho":

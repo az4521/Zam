@@ -823,7 +823,7 @@
                         )}
                     </p>
                     <div
-                        class="font-mono text-sm text-discord-textPrimary bg-discord-backgroundDark rounded px-3 py-2 break-all select-all"
+                        class="font-mono text-sm text-discord-textPrimary bg-discord-backgroundDark rounded px-3 py-2 break-all select-all streamer-hide"
                     >
                         {formatRecoveryKey(recoveryKey)}
                     </div>

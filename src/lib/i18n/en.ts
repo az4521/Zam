@@ -1733,6 +1733,9 @@ export const en = {
         "Let other people in a room see when you are typing. Turn off to type without anyone being told.",
     "privacySafetySettings.hideYourReadReceiptsFromOther":
         "Hide your read receipts from other users. Your unread counts still work; others just can't see how far you've read.",
+    "privacySafetySettings.streamerMode": "Streamer mode",
+    "privacySafetySettings.streamerModeHint":
+        "Blurs your account ID, email addresses and recovery key, and hides message text in notifications, so nothing private shows up on a stream. Applies to this device only.",
     "privacySafetySettings.hideMessageTextInNotifications":
         "Hide message text in notifications",
     "privacySafetySettings.notificationsOnThisDeviceSayWho":

@@ -30,6 +30,17 @@ export function applyReduceMotion(on: boolean): void {
     else delete document.documentElement.dataset.reduceMotion;
 }
 
+/**
+ * Streamer mode: a root attribute that `app.css` keys on to blur anything
+ * marked `.streamer-hide` (own account id, emails, recovery key, tokens).
+ * Off deletes the attribute, like applyReduceMotion.
+ */
+export function applyStreamerMode(on: boolean): void {
+    if (typeof document === "undefined") return;
+    if (on) document.documentElement.dataset.streamerMode = "true";
+    else delete document.documentElement.dataset.streamerMode;
+}
+
 export function applyTheme(theme: Theme): void {
     if (typeof document === "undefined") return;
     document.documentElement.dataset.theme = theme;

@@ -7,6 +7,8 @@
         setPrivateReadReceipts,
         setSendTypingIndicators,
         setHideNotificationBody,
+        setStreamerMode,
+        notificationBodyHidden,
         setLinkPreviewMedia,
         setIndexEncryptedRooms,
         settingsState,
@@ -47,10 +49,20 @@
 
     function onToggleHideNotificationBody(value: boolean) {
         setHideNotificationBody(value);
+        pushNotificationPrivacy();
+    }
+
+    function onToggleStreamerMode(value: boolean) {
+        setStreamerMode(value);
+        pushNotificationPrivacy();
+    }
+
+    function pushNotificationPrivacy() {
         // The service worker and the Android FCM service each keep their own
         // copy of this flag — they cannot read localStorage.
-        updateServiceWorkerNotificationPrivacy(value);
-        syncNativeNotificationPrivacy(value).catch(() => {});
+        const hidden = notificationBodyHidden();
+        updateServiceWorkerNotificationPrivacy(hidden);
+        syncNativeNotificationPrivacy(hidden).catch(() => {});
     }
 
     function onToggleIndexEncryptedRooms(value: boolean) {
@@ -75,6 +87,23 @@
         >
             {t("privacySafetySettings.privacy")}
         </p>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("privacySafetySettings.streamerMode")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("privacySafetySettings.streamerModeHint")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.streamerMode}
+                onChange={onToggleStreamerMode}
+                label={t("privacySafetySettings.streamerMode")}
+            />
+        </div>
         <div
             class="flex items-center gap-3 py-2 border-b border-discord-divider"
         >

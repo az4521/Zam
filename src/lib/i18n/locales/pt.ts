@@ -1794,6 +1794,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Permite que as outras pessoas em uma sala vejam quando você está digitando. Desative para digitar sem que ninguém seja avisado.",
     "privacySafetySettings.hideYourReadReceiptsFromOther":
         "Oculta suas confirmações de leitura de outros usuários. Suas contagens de não lidas continuam funcionando; os outros só não conseguem ver até onde você leu.",
+    "privacySafetySettings.streamerMode": "Modo streamer",
+    "privacySafetySettings.streamerModeHint":
+        "Desfoca o ID da sua conta, endereços de e-mail e chave de recuperação, e oculta o texto das mensagens nas notificações, para que nada privado apareça numa transmissão. Aplica-se apenas a este dispositivo.",
     "privacySafetySettings.hideMessageTextInNotifications":
         "Ocultar o texto das mensagens nas notificações",
     "privacySafetySettings.notificationsOnThisDeviceSayWho":

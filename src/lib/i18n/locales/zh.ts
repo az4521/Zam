@@ -1664,6 +1664,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "让房间中的其他人看到你正在输入。关闭后，输入时不会通知任何人。",
     "privacySafetySettings.hideYourReadReceiptsFromOther":
         "对其他用户隐藏你的已读回执。你的未读计数仍然有效；别人只是看不到你读到了哪里。",
+    "privacySafetySettings.streamerMode": "主播模式",
+    "privacySafetySettings.streamerModeHint":
+        "模糊账号 ID、电子邮件地址和恢复密钥，并在通知中隐藏消息文本，避免私人信息出现在直播中。仅适用于此设备。",
     "privacySafetySettings.hideMessageTextInNotifications":
         "在通知中隐藏消息文本",
     "privacySafetySettings.notificationsOnThisDeviceSayWho":
