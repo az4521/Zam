@@ -2108,11 +2108,11 @@
                     d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"
                 />
             </svg>
-            <div class="flex-1 min-w-0 text-xs">
-                <span class="text-discord-accent font-semibold">
+            <div class="flex-1 min-w-0 text-xs flex items-baseline gap-2">
+                <span class="text-discord-accent font-semibold flex-shrink-0">
                     {t("messageInput.replyingTo", { replyTargetName })}
                 </span>
-                <span class="text-discord-textMuted ms-2 truncate"
+                <span class="text-discord-textMuted min-w-0 truncate"
                     >{getReplyPreview()}</span
                 >
             </div>
