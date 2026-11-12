@@ -95,12 +95,16 @@
             <h2>Install</h2>
             <p>
                 <a class="button" href="zam.flatpakref">Install Zam</a>
-                opens in your software centre, or from a terminal:
+                opens in your software centre and installs Zam together with its
+                repository, so it keeps updating. Or from a terminal:
             </p>
             <pre>flatpak install --user @BASE@/zam.flatpakref</pre>
 
-            <h2>Add the repository</h2>
-            <p>To browse or update it as its own remote:</p>
+            <h2>Add only the repository</h2>
+            <p>
+                Not needed if you used the button above. To add the remote
+                without installing yet:
+            </p>
             <pre>
 flatpak remote-add --user --if-not-exists zam @BASE@/zam.flatpakrepo
 flatpak install --user zam moe.crafty.matrix</pre>

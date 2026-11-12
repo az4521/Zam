@@ -524,7 +524,7 @@ jobs:
                     echo
                     echo "| Platform | Download |"
                     echo "| --- | --- |"
-                    echo "| 🐧 **Linux** | $(join "$(link 'AppImage' '*.AppImage')" "$(link 'Flatpak' '*.flatpak')" "[Flatpak repository]($PAGES/zam.flatpakrepo)") |"
+                    echo "| 🐧 **Linux** | $(join "[Flatpak]($PAGES/zam.flatpakref)" "$(link 'AppImage' '*.AppImage')" "$(link 'Flatpak bundle (offline)' '*.flatpak')") |"
                     echo "| 🪟 **Windows** | $(join "$(link 'Installer' '*Setup*.exe')" "$(link 'Portable' '*Portable*.exe')") |"
                     echo "| 🍎 **macOS** | $(join "$(link 'DMG' '*.dmg')") |"
                     echo "| 🤖 **Android** | $(join "$(link 'APK' '*.apk')" "$([ "$FDROID_PUBLISHED" = true ] && printf '[F-Droid repository](%s/fdroid/)' "$PAGES")") |"
