@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.5
+
+✨ **New**
+
+- **File transfers without a call server:** if your homeserver has no call server, sending a file directly now connects your device to the receiver's instead of failing. Both people are asked first, and are told their IP address is visible to the other (unless "Relay peer-to-peer calls" is on).
+
 ## v1.60.4
 
 🐛 **Fixed**
