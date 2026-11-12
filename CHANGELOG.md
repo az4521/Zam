@@ -4,6 +4,14 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.0
+
+✨ **New**
+
+- **Calls without a call server:** when your homeserver has no LiveKit server, calls now connect people directly (MSC4575 full mesh) instead of failing to send your audio and video. Everyone can still share one call: people with a call server keep using it, and connect directly only to whoever can't be reached any other way.
+- **Your IP address stays your choice:** a direct connection shows your IP address to the person at the other end, so Zam asks first, both when you join such a call and when someone who can only be reached directly joins yours.
+- **Relay peer-to-peer calls:** a new setting in Voice & Video sends direct connections through your homeserver's relay (TURN) server, so the others see the relay instead of your address.
+
 ## v1.59.7
 
 🐛 **Fixed**
