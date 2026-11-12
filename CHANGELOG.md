@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.59.2
+
+✨ **Added**
+
+- **Search stays complete on every device:** your Zam sessions now share their message search index with each other (encrypted, and only between your own verified sessions). A phone that was offline for days asks your other sessions for the messages it missed instead of re-downloading them from the server, and only fetches what none of them have. It follows the existing "index encrypted rooms" setting.
+- **Space order from Commet and Element:** the order and folders of your spaces are read from Commet's sidebar ordering (falling back to Element's), and saving mirrors the layout to Commet.
+- **Streamer mode hides your ID and server:** your Matrix ID and homeserver are swapped for random made-up ones, blurred, in the profile footer, account page and account switcher, so the blur can't be undone to reveal them.
+
+🐛 **Fixed**
+
+- **Search missed messages after being offline:** the index now notices the stretch it missed while the app was closed and fills it in, instead of marking a room as finished for good.
+
 ## v1.59.1
 
 ✨ **Added**
