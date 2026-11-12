@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.7
+
+🐛 **Fixed**
+
+- **Direct-connection calls after a reload:** reloading Zam during a call could leave a direct connection to someone, an Element Call user in particular, stuck for minutes, with neither of you hearing the other. It now reconnects right away. Rejoining a call with someone who uses Element Call no longer adds a 10-second delay either.
+
 ## v1.60.6
 
 🐛 **Fixed**
