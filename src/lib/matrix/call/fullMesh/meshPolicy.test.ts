@@ -3,6 +3,8 @@ import {
     isLivekitTransport,
     joinUsesMesh,
     meshIceConfig,
+    lacksIceServers,
+    PUBLIC_STUN_URL,
     meshTransportOf,
     ownMeshTransport,
     receivesOverMesh,
@@ -187,5 +189,36 @@ describe("meshIceConfig", () => {
 
     it("relay-only with no TURN server returns null", () => {
         expect(meshIceConfig(null, true)).toBeNull();
+    });
+});
+
+describe("public STUN fallback", () => {
+    it("is used only with no homeserver servers and the user's yes", () => {
+        expect(meshIceConfig(null, false, true)).toEqual({
+            iceServers: [{ urls: PUBLIC_STUN_URL }],
+        });
+        expect(meshIceConfig({ uris: [] }, false, true)).toEqual({
+            iceServers: [{ urls: PUBLIC_STUN_URL }],
+        });
+        expect(meshIceConfig(null, false, false)).toEqual({ iceServers: [] });
+    });
+
+    it("never replaces the homeserver's own servers", () => {
+        const config = meshIceConfig(
+            { uris: ["turn:hs.example"], username: "u", password: "p" },
+            false,
+            true,
+        );
+        expect(JSON.stringify(config)).not.toContain(PUBLIC_STUN_URL);
+    });
+
+    it("can't stand in for a relay when relay-only is on", () => {
+        expect(meshIceConfig(null, true, true)).toBeNull();
+    });
+
+    it("lacksIceServers", () => {
+        expect(lacksIceServers(null)).toBe(true);
+        expect(lacksIceServers({ uris: [] })).toBe(true);
+        expect(lacksIceServers({ uris: ["turn:x"] })).toBe(false);
     });
 });

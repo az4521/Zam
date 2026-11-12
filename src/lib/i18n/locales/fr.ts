@@ -4417,6 +4417,17 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Les appels sans serveur d'appels connectent directement les personnes, ce qui leur montre votre adresse IP. Avec cette option activée, ils passent par le serveur relais de votre serveur d'accueil : plus lent, mais votre adresse reste masquée.",
     "voiceCall.meshPeerUnreachable":
         "Quelqu'un dans cet appel n'est joignable qu'en direct, mais le relais est activé et votre serveur d'accueil n'a pas de serveur relais (TURN) : vous ne l'entendrez pas.",
+    "meshConsent.usePublicStun": "Utiliser un serveur STUN public.",
+    "meshConsent.usePublicStunHint":
+        "Votre serveur d'accueil ne dispose d'aucun serveur qui aide les connexions à traverser les routeurs domestiques, si bien que la plupart des connexions directes échouent sans lui. Le serveur STUN de Cloudflare connaîtrait votre adresse IP, mais rien de l'appel.",
+    "voiceAudioSettings.meshPublicStun": "Utiliser un serveur STUN public",
+    "voiceAudioSettings.meshPublicStunHint":
+        "Uniquement si votre serveur d'accueil n'offre ni serveur relais ni serveur STUN : les appels pair à pair demandent au serveur STUN de Cloudflare votre adresse publique, dont la plupart des routeurs domestiques ont besoin. Il voit votre adresse IP, jamais l'appel.",
+    "settingsSearch.meshPublicStun": "Utiliser un serveur STUN public",
+    "voiceCall.meshFailed":
+        "Impossible de se connecter directement à {name}. Son réseau peut bloquer la connexion, ou son serveur d'accueil n'offre aucun moyen de traverser les routeurs domestiques.",
+    "voiceCall.meshFailedNoServers":
+        "Impossible de se connecter directement à {name}. Votre serveur d'accueil n'offre aucun serveur relais ni STUN, si bien que les connexions à travers les routeurs domestiques échouent généralement. Activer « Utiliser un serveur STUN public » dans les paramètres Voix et vidéo peut aider.",
     "settingsSearch.meshRelayOnly": "Relayer les appels pair à pair",
 };
 

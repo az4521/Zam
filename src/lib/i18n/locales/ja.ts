@@ -3891,6 +3891,17 @@ const messages: Partial<Record<MessageKey, string>> = {
         "通話サーバーのない通話では、参加者同士が直接接続するため、相手にあなたのIPアドレスが見えてしまいます。この設定をオンにすると、代わりにホームサーバーの中継サーバーを経由します。速度は遅くなりますが、アドレスは隠されたままになります。",
     "voiceCall.meshPeerUnreachable":
         "この通話には直接接続でしか届かない参加者がいますが、中継がオンで、ホームサーバーにTURN中継サーバーがないため、その人の声は聞こえません。",
+    "meshConsent.usePublicStun": "公開STUNサーバーを使用する。",
+    "meshConsent.usePublicStunHint":
+        "ホームサーバーには家庭用ルーターを越えて接続するのを助けるサーバーがないため、それがないと直接接続のほとんどは失敗します。CloudflareのSTUNサーバーはあなたのIPアドレスを知ることになりますが、通話の内容は知りません。",
+    "voiceAudioSettings.meshPublicStun": "公開STUNサーバーを使用する",
+    "voiceAudioSettings.meshPublicStunHint":
+        "ホームサーバーに中継サーバーもSTUNサーバーもない場合にのみ使われます。ピアツーピア通話は、多くの家庭用ルーターが必要とする公開アドレスをCloudflareのSTUNサーバーに問い合わせます。サーバーが知るのはIPアドレスだけで、通話の内容は知りません。",
+    "settingsSearch.meshPublicStun": "公開STUNサーバーを使用する",
+    "voiceCall.meshFailed":
+        "{name}への直接接続に失敗しました。相手のネットワークが接続をブロックしているか、相手のホームサーバーに家庭用ルーターを越える方法がない可能性があります。",
+    "voiceCall.meshFailedNoServers":
+        "{name}への直接接続に失敗しました。ホームサーバーには中継サーバーもSTUNサーバーもないため、家庭用ルーターを経由する接続は通常失敗します。「音声と映像」設定で「公開STUNサーバーを使用する」をオンにすると改善する場合があります。",
     "settingsSearch.meshRelayOnly": "ピアツーピア通話を中継する",
 };
 

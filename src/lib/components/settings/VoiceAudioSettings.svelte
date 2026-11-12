@@ -17,6 +17,7 @@
         setNoiseSuppressionMode,
         setEchoCancellation,
         setMeshRelayOnly,
+        setMeshPublicStun,
         setMicGainMode,
         setNormalizeCallAudio,
         setCallSoundsEnabled,
@@ -766,6 +767,23 @@
                 checked={settingsState.meshRelayOnly}
                 onChange={setMeshRelayOnly}
                 label={t("voiceAudioSettings.meshRelayOnly")}
+            />
+        </div>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("voiceAudioSettings.meshPublicStun")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("voiceAudioSettings.meshPublicStunHint")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.meshPublicStun}
+                onChange={setMeshPublicStun}
+                label={t("voiceAudioSettings.meshPublicStun")}
             />
         </div>
         <div

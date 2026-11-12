@@ -55,6 +55,11 @@ export function receivesOverMesh(
     return !isLivekitTransport(picked) && meshTransportOf(transports, deviceId);
 }
 
+/** Whether the homeserver gave us nothing to get through a home router. */
+export function lacksIceServers(turn: TurnCredentials | null): boolean {
+    return !turn || turn.uris.length === 0;
+}
+
 /** Whether joining a call would open peer-to-peer connections. */
 export function joinUsesMesh(opts: {
     ownHasSfu: boolean;
@@ -70,17 +75,25 @@ export interface TurnCredentials {
     password?: string;
 }
 
+/** The public STUN server used when the homeserver has none and the user
+ *  allowed it. It learns the user's IP address, never the call. */
+export const PUBLIC_STUN_URL = "stun:stun.cloudflare.com:3478";
+
 /**
- * The peer connection setup. Only our homeserver's TURN/STUN servers: the
- * MSC forbids a third-party fallback without the user's consent. Null when
- * relay-only is asked but there is no TURN server to relay through, so no
- * connection can be made without showing the address.
+ * The peer connection setup. Our homeserver's TURN/STUN servers; when it
+ * has none, a public STUN server only if the user allowed one
+ * (`publicStun`), as the MSC forbids a third-party fallback without
+ * consent. Null when relay-only is asked but there is no TURN server to
+ * relay through, so no connection can be made without showing the address.
  */
 export function meshIceConfig(
     turn: TurnCredentials | null,
     relayOnly: boolean,
+    publicStun = false,
 ): RTCConfiguration | null {
     const uris = turn?.uris.filter((u) => typeof u === "string") ?? [];
+    if (uris.length === 0 && publicStun && !relayOnly)
+        return { iceServers: [{ urls: PUBLIC_STUN_URL }] };
     const iceServers: RTCIceServer[] =
         uris.length > 0
             ? [

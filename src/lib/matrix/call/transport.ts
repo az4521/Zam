@@ -74,6 +74,8 @@ export interface CallTransportListener {
         track: PluginRemoteTrackLike,
     ): void;
     dataTrackUnpublished(sid: string): void;
+    /** A direct connection to someone failed without ever coming up. */
+    connectionFailed?(identity: string): void;
 }
 
 export interface CallTransport {

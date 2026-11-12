@@ -463,6 +463,19 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     },
     {
         tab: "voice",
+        label: t("settingsSearch.meshPublicStun"),
+        keywords: [
+            "stun",
+            "nat",
+            "router",
+            "peer",
+            "p2p",
+            "mesh",
+            "cloudflare",
+        ],
+    },
+    {
+        tab: "voice",
         label: t("settingsSearch.autoGainControl"),
         keywords: ["agc", "gain", "leveller", "agc2", "webrtc", "mic volume"],
     },

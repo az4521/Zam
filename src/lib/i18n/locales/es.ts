@@ -4400,6 +4400,17 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Las llamadas sin servidor de llamadas conectan a las personas directamente, lo que les muestra tu dirección IP. Con esta opción activada, pasan por el servidor de retransmisión de tu servidor doméstico: más lentas, pero tu dirección queda oculta.",
     "voiceCall.meshPeerUnreachable":
         "Alguien en esta llamada solo es accesible directamente, pero la retransmisión está activada y tu servidor doméstico no tiene servidor de retransmisión (TURN), así que no lo oirás.",
+    "meshConsent.usePublicStun": "Usar un servidor STUN público.",
+    "meshConsent.usePublicStunHint":
+        "Tu servidor doméstico no tiene ningún servidor que ayude a las conexiones a través de los routers domésticos, así que la mayoría de las conexiones directas fallan sin uno. El servidor STUN de Cloudflare conocería tu dirección IP, pero nada sobre la llamada.",
+    "voiceAudioSettings.meshPublicStun": "Usar un servidor STUN público",
+    "voiceAudioSettings.meshPublicStunHint":
+        "Solo cuando tu servidor doméstico no ofrece ningún servidor de retransmisión ni STUN: las llamadas entre pares piden al servidor STUN de Cloudflare tu dirección pública, que necesitan la mayoría de los routers domésticos. Ve tu dirección IP, nunca la llamada.",
+    "settingsSearch.meshPublicStun": "Usar un servidor STUN público",
+    "voiceCall.meshFailed":
+        "No se pudo conectar directamente con {name}. Su red podría bloquearlo, o su servidor doméstico no ofrece ninguna forma de atravesar los routers domésticos.",
+    "voiceCall.meshFailedNoServers":
+        "No se pudo conectar directamente con {name}. Tu servidor doméstico no ofrece ningún servidor de retransmisión ni STUN, así que las conexiones a través de routers domésticos suelen fallar. Activar «Usar un servidor STUN público» en los ajustes de Voz y vídeo puede ayudar.",
     "settingsSearch.meshRelayOnly": "Retransmitir llamadas entre pares",
 };
 

@@ -3981,6 +3981,17 @@ const messages: Partial<Record<MessageKey, string>> = {
         "没有通话服务器的通话会让人们直接连接，从而向对方显示您的 IP 地址。开启后，通话将改为通过您主服务器的中继服务器：速度较慢，但您的地址保持隐藏。",
     "voiceCall.meshPeerUnreachable":
         "此通话中有人只能直接连接，但中继已开启，而您的主服务器没有中继（TURN）服务器，因此您听不到对方。",
+    "meshConsent.usePublicStun": "使用公共 STUN 服务器。",
+    "meshConsent.usePublicStunHint":
+        "您的主服务器没有帮助连接穿透家用路由器的服务器，因此没有它，大多数直接连接都会失败。Cloudflare 的 STUN 服务器会知道您的 IP 地址，但不会知道通话的任何内容。",
+    "voiceAudioSettings.meshPublicStun": "使用公共 STUN 服务器",
+    "voiceAudioSettings.meshPublicStunHint":
+        "仅当您的主服务器既不提供中继服务器也不提供 STUN 服务器时：点对点通话会向 Cloudflare 的 STUN 服务器请求您的公网地址，大多数家用路由器都需要它。它只会看到您的 IP 地址，不会看到通话内容。",
+    "settingsSearch.meshPublicStun": "使用公共 STUN 服务器",
+    "voiceCall.meshFailed":
+        "无法直接连接到 {name}。其网络可能阻止了连接，或其主服务器没有提供穿透家用路由器的方式。",
+    "voiceCall.meshFailedNoServers":
+        "无法直接连接到 {name}。您的主服务器未提供中继服务器或 STUN 服务器，因此通过家用路由器的连接通常会失败。在“语音和视频”设置中开启“使用公共 STUN 服务器”可能会有所帮助。",
     "settingsSearch.meshRelayOnly": "中继点对点通话",
 };
 

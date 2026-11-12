@@ -9,10 +9,23 @@
         meshConsentState,
         resolveMeshConsent,
     } from "$lib/stores/meshConsent.svelte";
-    import { settingsState } from "$lib/stores/settings.svelte";
+    import {
+        settingsState,
+        setMeshPublicStun,
+    } from "$lib/stores/settings.svelte";
 
     const pending = $derived(meshConsentState.pending);
     const relayOnly = $derived(settingsState.meshRelayOnly);
+    /** The public STUN choice, saved only when the user connects. */
+    let publicStun = $state(false);
+    $effect(() => {
+        if (pending) publicStun = settingsState.meshPublicStun;
+    });
+    const allow = () => {
+        if (pending?.offerPublicStun && !relayOnly)
+            setMeshPublicStun(publicStun);
+        resolveMeshConsent("allow");
+    };
     /** Closing the dialog takes the choice that opens nothing. */
     const dismiss = () =>
         resolveMeshConsent(pending?.joining ? "cancel" : "deny");
@@ -56,6 +69,23 @@
                 {t("meshConsent.ipVisible")}
             </p>
         {/if}
+        {#if pending.offerPublicStun && !relayOnly}
+            <label
+                class="mb-3 flex items-start gap-2 text-sm text-discord-textMuted"
+            >
+                <input
+                    type="checkbox"
+                    class="mt-0.5"
+                    bind:checked={publicStun}
+                />
+                <span>
+                    <span class="font-medium text-discord-textPrimary"
+                        >{t("meshConsent.usePublicStun")}</span
+                    >
+                    {t("meshConsent.usePublicStunHint")}
+                </span>
+            </label>
+        {/if}
         <div class="mt-4 flex flex-wrap justify-end gap-2">
             {#if pending.joining}
                 <button
@@ -79,7 +109,7 @@
             {/if}
             <button
                 type="button"
-                onclick={() => resolveMeshConsent("allow")}
+                onclick={allow}
                 class="rounded bg-discord-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
             >
                 {pending.joining && pending.publishing

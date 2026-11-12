@@ -4445,6 +4445,18 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Anrufe ohne Anrufserver verbinden Personen direkt, wodurch sie deine IP-Adresse sehen. Mit dieser Option laufen sie stattdessen über den Relay-Server deines Homeservers: langsamer, aber deine Adresse bleibt verborgen.",
     "voiceCall.meshPeerUnreachable":
         "Jemand in diesem Anruf ist nur direkt erreichbar, aber das Relay ist aktiviert und dein Homeserver hat keinen Relay-Server (TURN). Du wirst diese Person daher nicht hören.",
+    "meshConsent.usePublicStun": "Einen öffentlichen STUN-Server verwenden.",
+    "meshConsent.usePublicStunHint":
+        "Dein Homeserver hat keinen Server, der Verbindungen durch Heimrouter unterstützt, daher scheitern die meisten direkten Verbindungen ohne einen solchen. Cloudflares STUN-Server würde deine IP-Adresse erfahren, aber nichts über den Anruf.",
+    "voiceAudioSettings.meshPublicStun":
+        "Einen öffentlichen STUN-Server verwenden",
+    "voiceAudioSettings.meshPublicStunHint":
+        "Nur wenn dein Homeserver keinen Relay- oder STUN-Server anbietet: Peer-to-Peer-Anrufe fragen den STUN-Server von Cloudflare nach deiner öffentlichen Adresse, die die meisten Heimrouter benötigen. Er sieht deine IP-Adresse, nie den Anruf.",
+    "settingsSearch.meshPublicStun": "Einen öffentlichen STUN-Server verwenden",
+    "voiceCall.meshFailed":
+        "Direkte Verbindung zu {name} nicht möglich. Das Netzwerk der Gegenseite blockiert sie möglicherweise, oder der Homeserver der Gegenseite bietet keinen Weg durch Heimrouter.",
+    "voiceCall.meshFailedNoServers":
+        "Direkte Verbindung zu {name} nicht möglich. Dein Homeserver bietet keinen Relay- oder STUN-Server, daher scheitern Verbindungen durch Heimrouter meist. Das Aktivieren von „Einen öffentlichen STUN-Server verwenden“ in den Einstellungen unter Sprache und Video kann helfen.",
     "settingsSearch.meshRelayOnly": "Peer-to-Peer-Anrufe über Relay leiten",
 };
 

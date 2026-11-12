@@ -55,6 +55,8 @@ interface Subscription {
     attempts: number;
     retryTimer?: ReturnType<typeof setTimeout>;
     startedAt: number;
+    /** connectionFailed was reported for this member. */
+    reported?: boolean;
 }
 
 export class FullMeshTransport implements CallTransport, CallDataPublisher {
@@ -202,6 +204,11 @@ export class FullMeshTransport implements CallTransport, CallDataPublisher {
                     listener.changed();
                     if (Date.now() - sub.startedAt > STABLE_MS)
                         sub.attempts = 0;
+                    // Never came up: no route between us (once per member).
+                    if (failed && !connection.everConnected && !sub.reported) {
+                        sub.reported = true;
+                        listener.connectionFailed?.(identity);
+                    }
                     // A publisher that closed on us (left, stopped publishing)
                     // is retried too while its membership says it publishes.
                     if (this.subscriptions.get(sub.peer.memberId) === sub)

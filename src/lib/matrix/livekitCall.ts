@@ -194,6 +194,7 @@ import {
 } from "./call/fullMesh/meshTransport";
 import {
     joinUsesMesh,
+    lacksIceServers,
     meshIceConfig,
     ownMeshTransport,
     receivesOverMesh,
@@ -1057,7 +1058,30 @@ function callListener(
         dataTrackPublished: (room, track) =>
             pluginDataTrackPublished(room, track),
         dataTrackUnpublished: (sid) => pluginDataTrackUnpublished(sid),
+        connectionFailed: (identity) =>
+            void meshConnectionFailed(call, identity),
     };
+}
+
+/** A direct connection to someone never came up: say so, and what could
+ *  help, instead of leaving them silent. */
+async function meshConnectionFailed(
+    call: ActiveVoiceCall,
+    identity: string,
+): Promise<void> {
+    const turn = await homeserverTurn();
+    if (activeVoice !== call) return;
+    const userId = userIdFromIdentity(identity);
+    const name =
+        matrixClient?.getRoom(call.roomId)?.getMember(userId)?.name ?? userId;
+    // Nothing of ours got us through a home router, unless the user already
+    // let a public STUN server do it.
+    const noServers = lacksIceServers(turn) && !settingsState.meshPublicStun;
+    notifyVoiceNotice(
+        noServers
+            ? t("voiceCall.meshFailedNoServers", { name })
+            : t("voiceCall.meshFailed", { name }),
+    );
 }
 
 /** One LiveKit connection of `call` (publishing or listen-only): its media
@@ -1406,13 +1430,19 @@ function syncMesh(
     );
     if (unasked.length > 0) {
         for (const o of unasked) call.meshAsked.add(o.memberId);
-        void requestMeshConsent({ joining: false, publishing: false }).then(
-            (answer) => {
+        void homeserverTurn()
+            .then((turn) =>
+                requestMeshConsent({
+                    joining: false,
+                    publishing: false,
+                    offerPublicStun: lacksIceServers(turn),
+                }),
+            )
+            .then((answer) => {
                 if (answer !== "allow" || activeVoice !== call) return;
                 call.meshConsent = true;
                 void syncRemoteSfus(call);
-            },
-        );
+            });
     }
     const members: MeshMember[] = others.map((o) => ({
         userId: o.userId,
@@ -1575,6 +1605,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         const answer = await requestMeshConsent({
             joining: true,
             publishing: !target,
+            offerPublicStun: lacksIceServers(await homeserverTurn()),
         });
         if (seq !== voiceJoinSeq || answer === "cancel") return;
         meshConsent = answer === "allow";
@@ -1983,7 +2014,11 @@ async function homeserverTurn(): Promise<TurnCredentials | null> {
 /** How mesh connections are set up now; null when relay-only is on and the
  *  homeserver has no TURN server to relay through. */
 async function callIceConfig(): Promise<RTCConfiguration | null> {
-    return meshIceConfig(await homeserverTurn(), settingsState.meshRelayOnly);
+    return meshIceConfig(
+        await homeserverTurn(),
+        settingsState.meshRelayOnly,
+        settingsState.meshPublicStun,
+    );
 }
 
 export async function leaveVoiceCall(): Promise<void> {

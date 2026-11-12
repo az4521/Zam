@@ -562,6 +562,10 @@ export const settingsState = $state({
      *  server, so the others see its address instead of ours. Read when a
      *  connection is made. */
     meshRelayOnly: readAccountBool("meshRelayOnly", false),
+    /** When the homeserver offers no TURN/STUN server: let peer-to-peer
+     *  calls ask a public STUN server (meshPolicy PUBLIC_STUN_URL) for our
+     *  public address. Off until the user says yes. */
+    meshPublicStun: readAccountBool("meshPublicStun", false),
     callSoundsEnabled: readAccountBool("callSoundsEnabled", true),
     callSoundsVolume: readAccountNumber("callSoundsVolume", 0.5),
     /** Ring for incoming DM calls. Deliberately independent of
@@ -889,6 +893,7 @@ export function reloadAccountSettings(): void {
     );
     settingsState.adaptiveStream = readAccountBool("adaptiveStream", false);
     settingsState.meshRelayOnly = readAccountBool("meshRelayOnly", false);
+    settingsState.meshPublicStun = readAccountBool("meshPublicStun", false);
     settingsState.callSoundsEnabled = readAccountBool(
         "callSoundsEnabled",
         true,
@@ -1507,6 +1512,11 @@ export function setCallVideoCodec(value: string): void {
 export function setMeshRelayOnly(value: boolean): void {
     settingsState.meshRelayOnly = value;
     writeAccountBool("meshRelayOnly", value);
+}
+
+export function setMeshPublicStun(value: boolean): void {
+    settingsState.meshPublicStun = value;
+    writeAccountBool("meshPublicStun", value);
 }
 
 export function setAdaptiveStream(value: boolean): void {

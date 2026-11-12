@@ -21,6 +21,8 @@ export interface MeshConsentRequest {
     joining: boolean;
     /** We'd send our own media over it: no call server of our own. */
     publishing: boolean;
+    /** Our homeserver has no TURN/STUN server: offer the public STUN one. */
+    offerPublicStun?: boolean;
 }
 
 interface Pending extends MeshConsentRequest {
@@ -43,6 +45,7 @@ export function requestMeshConsent(
         meshConsentState.pending = {
             joining: request.joining,
             publishing: request.publishing ?? false,
+            offerPublicStun: request.offerPublicStun ?? false,
             resolve,
         };
     });

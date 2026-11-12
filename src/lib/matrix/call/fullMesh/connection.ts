@@ -88,6 +88,8 @@ abstract class MeshConnection {
     private candidateTimer: ReturnType<typeof setTimeout> | undefined;
     private connectTimer: ReturnType<typeof setTimeout> | undefined;
     closed = false;
+    /** Whether ICE ever connected, to tell a dead route from a dropped one. */
+    everConnected = false;
 
     constructor(opts: ConnectionOptions) {
         this.peer = opts.peer;
@@ -109,7 +111,10 @@ abstract class MeshConnection {
         });
         this.pc.addEventListener("connectionstatechange", () => {
             const state = this.pc.connectionState;
-            if (state === "connected") clearTimeout(this.connectTimer);
+            if (state === "connected") {
+                this.everConnected = true;
+                clearTimeout(this.connectTimer);
+            }
             if (state === "failed") this.fail("ice_failed");
         });
         this.connectTimer = setTimeout(() => {

@@ -4211,6 +4211,17 @@ export const en = {
         "Calls without a call server connect people directly, which shows your IP address to them. With this on, they go through your homeserver's relay server instead: slower, but your address stays hidden.",
     "voiceCall.meshPeerUnreachable":
         "Someone in this call can only be reached directly, but relaying is on and your homeserver has no relay (TURN) server, so you won't hear them.",
+    "meshConsent.usePublicStun": "Use a public STUN server.",
+    "meshConsent.usePublicStunHint":
+        "Your homeserver has no server that helps connections through home routers, so most direct connections fail without one. Cloudflare's STUN server would learn your IP address, but nothing about the call.",
+    "voiceAudioSettings.meshPublicStun": "Use a public STUN server",
+    "voiceAudioSettings.meshPublicStunHint":
+        "Only when your homeserver offers no relay or STUN server: peer-to-peer calls ask Cloudflare's STUN server for your public address, which most home routers need. It sees your IP address, never the call.",
+    "settingsSearch.meshPublicStun": "Use a public STUN server",
+    "voiceCall.meshFailed":
+        "Couldn't connect directly to {name}. Their network may block it, or their homeserver offers no way through home routers.",
+    "voiceCall.meshFailedNoServers":
+        'Couldn\'t connect directly to {name}. Your homeserver offers no relay or STUN server, so connections through home routers usually fail. Turning on "Use a public STUN server" in Voice & Video settings may help.',
     "settingsSearch.meshRelayOnly": "Relay peer-to-peer calls",
 };
 
