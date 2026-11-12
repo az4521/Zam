@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.6
+
+🐛 **Fixed**
+
+- **Screen share not shown on direct-connection calls:** a screen share started while a peer-to-peer connection was still being set up, after a mute in that time, could stay hidden from the other person until the next mute or unmute.
+- **Direct-connection calls follow the call spec more closely:** Zam now tells other apps that it can receive calls over direct connections, and in encrypted rooms it only connects directly to a device that really sent that person's call membership.
+
 ## v1.60.5
 
 ✨ **New**
