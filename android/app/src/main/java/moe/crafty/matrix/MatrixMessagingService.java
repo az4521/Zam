@@ -942,13 +942,35 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             conn.setRequestProperty("Authorization", "Bearer " + token);
             if (conn.getResponseCode() != 200) return null;
             try (InputStream is = conn.getInputStream()) {
-                return BitmapFactory.decodeStream(is);
+                return circleCrop(BitmapFactory.decodeStream(is), size);
             }
         } catch (Exception e) {
             return null;
         } finally {
             if (conn != null) conn.disconnect();
         }
+    }
+
+    /**
+     * Centre-crop to a square (never stretch, whatever the server returned) and
+     * mask to a circle, the shape Android avatars use.
+     */
+    private static Bitmap circleCrop(Bitmap src, int size) {
+        if (src == null) return null;
+        int side = Math.min(src.getWidth(), src.getHeight());
+        if (side <= 0) return null;
+        int x = (src.getWidth() - side) / 2;
+        int y = (src.getHeight() - side) / 2;
+        Bitmap out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas = new android.graphics.Canvas(out);
+        android.graphics.Paint paint = new android.graphics.Paint(
+            android.graphics.Paint.ANTI_ALIAS_FLAG | android.graphics.Paint.FILTER_BITMAP_FLAG);
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint);
+        paint.setXfermode(new android.graphics.PorterDuffXfermode(
+            android.graphics.PorterDuff.Mode.SRC_IN));
+        canvas.drawBitmap(src, new android.graphics.Rect(x, y, x + side, y + side),
+            new android.graphics.Rect(0, 0, size, size), paint);
+        return out;
     }
 
     private static String httpGet(String urlStr, String token) {
