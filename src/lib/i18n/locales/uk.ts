@@ -613,6 +613,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.stickyCallMembership": "Sticky-участь у дзвінках",
     "debugSettings.stickyCallMembershipHint":
         "Приєднуватися до дзвінків за допомогою sticky-події m.rtc.member (MSC4354) замість події стану m.call.member. Клієнти, які читають лише події стану, зокрема Zam до 1.51, не побачать вас у дзвінку. Діє з наступного дзвінка.",
+    "debugSettings.indexSync": "Синхронізація індексу повідомлень",
+    "debugSettings.indexSyncHint":
+        "Записи пошукового індексу обмінюються з вашими іншими підтвердженими сеансами. На обох сеансах має бути ця версія. Сеанси: придатні / підтверджені / усі. Фрагменти: надіслано / отримано.",
+    "debugSettings.indexSyncOff":
+        "Синхронізація індексу не працює: потрібно ввімкнути індексацію зашифрованих кімнат.",
+    "debugSettings.indexSyncNow": "Синхронізувати зараз",
+    "debugSettings.indexSyncNever": "ніколи",
+    "debugSettings.indexSyncSessions": "Сеанси",
+    "debugSettings.indexSyncAsked": "Запитано",
+    "debugSettings.indexSyncRoomsMissing": "Кімнати з прогалинами",
+    "debugSettings.indexSyncRequestsReceived": "Отримано запитів",
+    "debugSettings.indexSyncChunks": "Фрагменти",
+    "debugSettings.indexSyncMerged": "Об'єднано записів",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Показувати в журналі чату кожну подію стрічки Matrix.",
     "debugSettings.ignoreCodecSupport":

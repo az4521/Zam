@@ -599,6 +599,19 @@ export const en = {
     "debugSettings.stickyCallMembership": "Sticky call membership",
     "debugSettings.stickyCallMembershipHint":
         "Join calls with a sticky m.rtc.member event (MSC4354) instead of an m.call.member state event. Clients that only read state events, including Zam before 1.51, won't see you in the call. Applies from your next call.",
+    "debugSettings.indexSync": "Message index sync",
+    "debugSettings.indexSyncHint":
+        "Search-index entries are traded with your other verified sessions. Both sessions need to be running this version. Sessions: eligible / verified / all. Chunks: sent / received.",
+    "debugSettings.indexSyncOff":
+        "Index sync isn't running: it needs encrypted-room indexing turned on.",
+    "debugSettings.indexSyncNow": "Sync now",
+    "debugSettings.indexSyncNever": "never",
+    "debugSettings.indexSyncSessions": "Sessions",
+    "debugSettings.indexSyncAsked": "Asked",
+    "debugSettings.indexSyncRoomsMissing": "Rooms with holes",
+    "debugSettings.indexSyncRequestsReceived": "Requests received",
+    "debugSettings.indexSyncChunks": "Chunks",
+    "debugSettings.indexSyncMerged": "Entries merged",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Display every Matrix timeline event in the chat log.",
     "debugSettings.ignoreCodecSupport": "Ignore reported codec support",

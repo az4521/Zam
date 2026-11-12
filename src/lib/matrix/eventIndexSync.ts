@@ -65,8 +65,64 @@ const WINDOW_ENTRIES = 1_000;
 const MAX_ASSEMBLIES = 64;
 const MAX_ENTRIES_PER_WINDOW = 5_000;
 
+/** What the debug panel shows: counters since the sync attached, plus the
+ *  last few log lines. Plain data, read by polling. */
+export interface IndexSyncStatus {
+    attached: boolean;
+    /** Our other sessions, those verified, those we'd also trade with. */
+    otherSessions: number;
+    verifiedSessions: number;
+    eligibleSessions: number;
+    asks: number;
+    lastAskAt: number | null;
+    /** Rooms with holes at the last ask. */
+    roomsMissing: number;
+    requestsReceived: number;
+    chunksSent: number;
+    chunksReceived: number;
+    entriesMerged: number;
+    lastMergeAt: number | null;
+    log: string[];
+}
+
+const LOG_LINES = 40;
+
+function freshStatus(): IndexSyncStatus {
+    return {
+        attached: false,
+        otherSessions: 0,
+        verifiedSessions: 0,
+        eligibleSessions: 0,
+        asks: 0,
+        lastAskAt: null,
+        roomsMissing: 0,
+        requestsReceived: 0,
+        chunksSent: 0,
+        chunksReceived: 0,
+        entriesMerged: 0,
+        lastMergeAt: null,
+        log: [],
+    };
+}
+
+let status = freshStatus();
+let askNow: (() => Promise<void>) | null = null;
+
+export function getIndexSyncStatus(): IndexSyncStatus {
+    return { ...status, log: [...status.log] };
+}
+
+/** Ask the other sessions again right now. False when the sync isn't running. */
+export function requestIndexSyncNow(): boolean {
+    if (!askNow) return false;
+    void askNow().catch((e) => log(`ask failed: ${e}`));
+    return true;
+}
+
 function log(message: string): void {
     console.info(`[index-sync] ${message}`);
+    status.log.push(`${new Date().toISOString().slice(11, 19)} ${message}`);
+    if (status.log.length > LOG_LINES) status.log.shift();
 }
 
 interface Assembly {
@@ -141,18 +197,25 @@ export function attachIndexSync(client: MatrixClient): () => void {
             ownUserId!,
         );
         const out: { userId: string; deviceId: string }[] = [];
+        let others = 0;
+        let verified = 0;
         for (const id of known?.keys() ?? []) {
             if (id === ownDeviceId) continue;
-            const status = await crypto!.getDeviceVerificationStatus(
+            others++;
+            const trust = await crypto!.getDeviceVerificationStatus(
                 ownUserId!,
                 id,
             );
+            if (trust?.isVerified()) verified++;
             if (
-                status?.isVerified() &&
-                deviceAllowed(crypto!, ownUserId!, status)
+                trust?.isVerified() &&
+                deviceAllowed(crypto!, ownUserId!, trust)
             )
                 out.push({ userId: ownUserId!, deviceId: id });
         }
+        status.otherSessions = others;
+        status.verifiedSessions = verified;
+        status.eligibleSessions = out.length;
         return out;
     }
 
@@ -167,9 +230,21 @@ export function attachIndexSync(client: MatrixClient): () => void {
     async function ask(): Promise<void> {
         if (isSyncStale()) return later(() => void ask().catch(warn), 30_000);
         const targets = await peers();
-        if (targets.length === 0) return;
-        const missing = (await getMissingRanges()).slice(0, 200);
-        if (missing.length === 0) return;
+        status.lastAskAt = Date.now();
+        if (targets.length === 0) {
+            log(
+                `not asking: ${status.otherSessions} other sessions, ${status.verifiedSessions} verified, none eligible`,
+            );
+            return;
+        }
+        const all = await getMissingRanges();
+        status.roomsMissing = all.length;
+        const missing = all.slice(0, 200);
+        if (missing.length === 0) {
+            log("not asking: no holes in the index");
+            return;
+        }
+        status.asks++;
         const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
         const now = Date.now();
         for (const [k, v] of requests)
@@ -199,7 +274,10 @@ export function attachIndexSync(client: MatrixClient): () => void {
         const peer = await check(payload);
         if (!peer) return;
         const request = parseSyncRequest(payload.message.content);
-        if (!request || !canAnswer()) return;
+        if (!request) return log(`bad request from ${peer.deviceId}`);
+        status.requestsReceived++;
+        if (!canAnswer()) return log(`rate limited ${peer.deviceId}`);
+        log(`${peer.deviceId} asks about ${request.rooms.length} rooms`);
         const target = [{ userId: ownUserId!, deviceId: peer.deviceId }];
         let chunks = 0;
         for (const { roomId, missing } of request.rooms) {
@@ -230,6 +308,7 @@ export function attachIndexSync(client: MatrixClient): () => void {
                 for (const block of blocks) {
                     await send(INDEX_SYNC_BLOCK, target, { ...block });
                     chunks++;
+                    status.chunksSent++;
                     await new Promise((r) => setTimeout(r, CHUNK_PAUSE_MS));
                 }
             }
@@ -243,7 +322,8 @@ export function attachIndexSync(client: MatrixClient): () => void {
         const asked = requests.get(block.id);
         const wanted = asked?.missing.get(block.roomId);
         // Only answers to a request we made, for a range we asked about.
-        if (!wanted || !rangesCover(wanted, block.range)) return;
+        if (!wanted || !rangesCover(wanted, block.range))
+            return log(`dropped a chunk nobody asked for (${block.roomId})`);
         if (!(await check(payload))) return;
         const key = `${block.id}|${block.roomId}|${block.range[0]}-${block.range[1]}`;
         let asm = assemblies.get(key);
@@ -260,6 +340,7 @@ export function attachIndexSync(client: MatrixClient): () => void {
         }
         if (block.total !== asm.total) return;
         asm.parts.set(block.seq, block);
+        status.chunksReceived++;
         if (asm.parts.size < asm.total) return;
         assemblies.delete(key);
         const entries: IndexEntry[] = [];
@@ -271,6 +352,8 @@ export function attachIndexSync(client: MatrixClient): () => void {
         );
         const added = await importPeerEntries(asm.roomId, asm.range, inRange);
         importedSinceAsk = true;
+        status.entriesMerged += added;
+        status.lastMergeAt = Date.now();
         log(`merged ${added} new entries for ${asm.roomId}`);
     }
 
@@ -289,12 +372,16 @@ export function attachIndexSync(client: MatrixClient): () => void {
         ClientEvent.ReceivedToDeviceMessage as never,
         onToDevice as never,
     );
+    status = { ...freshStatus(), attached: true };
+    askNow = ask;
     // The crawler starts at once; let the first question go out before it
     // spends a server request on something a peer may hold.
     holdBackfill(Date.now() + FIRST_ASK_DELAY_MS + 5_000);
     later(() => void ask().catch(warn), FIRST_ASK_DELAY_MS);
     return () => {
         stopped = true;
+        askNow = null;
+        status.attached = false;
         client.off(
             ClientEvent.ReceivedToDeviceMessage as never,
             onToDevice as never,

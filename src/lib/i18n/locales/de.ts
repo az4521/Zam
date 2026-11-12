@@ -601,6 +601,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.stickyCallMembership": "Sticky-Anrufmitgliedschaft",
     "debugSettings.stickyCallMembershipHint":
         "Anrufen mit einem Sticky-Event m.rtc.member (MSC4354) statt eines m.call.member-Statusevents beitreten. Clients, die nur Statusevents lesen, darunter Zam vor 1.51, sehen dich nicht im Anruf. Gilt ab deinem nächsten Anruf.",
+    "debugSettings.indexSync": "Nachrichtenindex-Sync",
+    "debugSettings.indexSyncHint":
+        "Suchindex-Einträge werden mit deinen anderen verifizierten Sitzungen ausgetauscht. Beide Sitzungen müssen diese Version nutzen. Sitzungen: berechtigt / verifiziert / alle. Chunks: gesendet / empfangen.",
+    "debugSettings.indexSyncOff":
+        "Index-Sync läuft nicht: Die Indizierung verschlüsselter Räume muss aktiviert sein.",
+    "debugSettings.indexSyncNow": "Jetzt synchronisieren",
+    "debugSettings.indexSyncNever": "nie",
+    "debugSettings.indexSyncSessions": "Sitzungen",
+    "debugSettings.indexSyncAsked": "Angefragt",
+    "debugSettings.indexSyncRoomsMissing": "Räume mit Lücken",
+    "debugSettings.indexSyncRequestsReceived": "Empfangene Anfragen",
+    "debugSettings.indexSyncChunks": "Chunks",
+    "debugSettings.indexSyncMerged": "Zusammengeführte Einträge",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Jedes Matrix-Ereignis des Verlaufs im Chat anzeigen.",
     "debugSettings.ignoreCodecSupport":

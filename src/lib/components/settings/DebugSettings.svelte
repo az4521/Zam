@@ -61,6 +61,11 @@
         getWebViewDebugging,
         setWebViewDebugging,
     } from "$lib/debugTools";
+    import {
+        getIndexSyncStatus,
+        requestIndexSyncNow,
+    } from "$lib/matrix/eventIndexSync";
+    import { onMount } from "svelte";
     import { showToast } from "$lib/stores/toasts.svelte";
 
     let loading = $state(false);
@@ -122,6 +127,47 @@
             logsBusy = false;
         }
     }
+
+    // Search index sync with our other sessions: polled while the panel is open.
+    let indexSync = $state(getIndexSyncStatus());
+    onMount(() => {
+        const timer = setInterval(
+            () => (indexSync = getIndexSyncStatus()),
+            1_000,
+        );
+        return () => clearInterval(timer);
+    });
+    const ago = (at: number | null) => {
+        if (!at) return t("debugSettings.indexSyncNever");
+        const sec = Math.max(0, Math.round((Date.now() - at) / 1000));
+        return sec < 90 ? `${sec}s` : `${Math.round(sec / 60)}m`;
+    };
+    const indexSyncRows = $derived([
+        [
+            t("debugSettings.indexSyncSessions"),
+            `${indexSync.eligibleSessions} / ${indexSync.verifiedSessions} / ${indexSync.otherSessions}`,
+        ],
+        [
+            t("debugSettings.indexSyncAsked"),
+            `${indexSync.asks} (${ago(indexSync.lastAskAt)})`,
+        ],
+        [
+            t("debugSettings.indexSyncRoomsMissing"),
+            String(indexSync.roomsMissing),
+        ],
+        [
+            t("debugSettings.indexSyncRequestsReceived"),
+            String(indexSync.requestsReceived),
+        ],
+        [
+            t("debugSettings.indexSyncChunks"),
+            `${indexSync.chunksSent} / ${indexSync.chunksReceived}`,
+        ],
+        [
+            t("debugSettings.indexSyncMerged"),
+            `${indexSync.entriesMerged} (${ago(indexSync.lastMergeAt)})`,
+        ],
+    ] as [string, string][]);
 
     const webViewDebugAvailable = canToggleWebViewDebugging();
     let webViewDebug = $state(false);
@@ -617,6 +663,49 @@
         {:else}
             <pre
                 class="mt-1 max-h-60 overflow-auto whitespace-pre-wrap break-all rounded bg-discord-backgroundTertiary p-2 text-xs font-mono text-discord-textPrimary select-text">{syncLog.join(
+                    "\n",
+                )}</pre>
+        {/if}
+    </section>
+
+    <section>
+        <div class="mb-2 flex items-center gap-2">
+            <p
+                class="flex-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+            >
+                {t("debugSettings.indexSync")}
+            </p>
+            <button
+                onclick={() => {
+                    requestIndexSyncNow();
+                    indexSync = getIndexSyncStatus();
+                }}
+                disabled={!indexSync.attached}
+                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
+                >{t("debugSettings.indexSyncNow")}</button
+            >
+        </div>
+        <p class="mb-2 text-xs text-discord-textMuted">
+            {indexSync.attached
+                ? t("debugSettings.indexSyncHint")
+                : t("debugSettings.indexSyncOff")}
+        </p>
+        {#each indexSyncRows as [label, value]}
+            <div
+                class="flex items-start gap-3 text-sm py-1 border-b border-discord-divider"
+            >
+                <span class="text-discord-textMuted flex-shrink-0 w-44"
+                    >{label}</span
+                >
+                <span
+                    class="text-discord-textPrimary break-all font-mono text-xs"
+                    >{value}</span
+                >
+            </div>
+        {/each}
+        {#if indexSync.log.length > 0}
+            <pre
+                class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-discord-backgroundTertiary p-2 text-xs font-mono text-discord-textPrimary select-text">{indexSync.log.join(
                     "\n",
                 )}</pre>
         {/if}

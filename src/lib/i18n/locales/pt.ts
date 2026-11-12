@@ -612,6 +612,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.stickyCallMembership": "Participação em chamadas sticky",
     "debugSettings.stickyCallMembershipHint":
         "Entrar nas chamadas com um evento sticky m.rtc.member (MSC4354) em vez de um evento de estado m.call.member. Clientes que só leem eventos de estado, incluindo o Zam anterior à 1.51, não verão você na chamada. Vale a partir da sua próxima chamada.",
+    "debugSettings.indexSync": "Sincronização do índice de mensagens",
+    "debugSettings.indexSyncHint":
+        "As entradas do índice de pesquisa são trocadas com as suas outras sessões verificadas. Ambas as sessões precisam usar esta versão. Sessões: elegíveis / verificadas / todas. Blocos: enviados / recebidos.",
+    "debugSettings.indexSyncOff":
+        "A sincronização do índice não está ativa: é preciso ativar a indexação de salas criptografadas.",
+    "debugSettings.indexSyncNow": "Sincronizar agora",
+    "debugSettings.indexSyncNever": "nunca",
+    "debugSettings.indexSyncSessions": "Sessões",
+    "debugSettings.indexSyncAsked": "Consultado",
+    "debugSettings.indexSyncRoomsMissing": "Salas com lacunas",
+    "debugSettings.indexSyncRequestsReceived": "Pedidos recebidos",
+    "debugSettings.indexSyncChunks": "Blocos",
+    "debugSettings.indexSyncMerged": "Entradas mescladas",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Exibir todos os eventos da linha do tempo do Matrix no histórico do chat.",
     "debugSettings.ignoreCodecSupport": "Ignorar suporte a codecs informado",

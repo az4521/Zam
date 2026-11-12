@@ -545,6 +545,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.stickyCallMembership": "スティッキー通話メンバーシップ",
     "debugSettings.stickyCallMembershipHint":
         "通話に m.call.member ステートイベントの代わりに、スティッキーな m.rtc.member イベント (MSC4354) で参加します。ステートイベントしか読まないクライアント (1.51 より前の Zam を含む) には、通話中のあなたが見えません。次の通話から適用されます。",
+    "debugSettings.indexSync": "メッセージインデックスの同期",
+    "debugSettings.indexSyncHint":
+        "検索インデックスのエントリを、確認済みの他のセッションと交換します。両方のセッションがこのバージョンである必要があります。セッション：対象 / 確認済み / すべて。チャンク：送信 / 受信。",
+    "debugSettings.indexSyncOff":
+        "インデックス同期は動作していません。暗号化ルームのインデックス作成を有効にしてください。",
+    "debugSettings.indexSyncNow": "今すぐ同期",
+    "debugSettings.indexSyncNever": "なし",
+    "debugSettings.indexSyncSessions": "セッション",
+    "debugSettings.indexSyncAsked": "問い合わせ",
+    "debugSettings.indexSyncRoomsMissing": "欠けがあるルーム",
+    "debugSettings.indexSyncRequestsReceived": "受信したリクエスト",
+    "debugSettings.indexSyncChunks": "チャンク",
+    "debugSettings.indexSyncMerged": "統合したエントリ",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "チャットログにすべての Matrix タイムラインイベントを表示します。",
     "debugSettings.ignoreCodecSupport": "報告されたコーデック対応を無視",

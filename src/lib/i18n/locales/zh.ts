@@ -589,6 +589,18 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.stickyCallMembership": "粘性通话成员身份",
     "debugSettings.stickyCallMembershipHint":
         "使用粘性 m.rtc.member 事件 (MSC4354) 而不是 m.call.member 状态事件加入通话。只读取状态事件的客户端（包括 1.51 之前的 Zam）看不到你在通话中。从下一次通话起生效。",
+    "debugSettings.indexSync": "消息索引同步",
+    "debugSettings.indexSyncHint":
+        "搜索索引条目会与你其他已验证的会话互相交换。两个会话都需要运行此版本。会话：符合条件 / 已验证 / 全部。数据块：已发送 / 已接收。",
+    "debugSettings.indexSyncOff": "索引同步未运行：需要开启加密房间索引。",
+    "debugSettings.indexSyncNow": "立即同步",
+    "debugSettings.indexSyncNever": "从未",
+    "debugSettings.indexSyncSessions": "会话",
+    "debugSettings.indexSyncAsked": "已询问",
+    "debugSettings.indexSyncRoomsMissing": "有缺口的房间",
+    "debugSettings.indexSyncRequestsReceived": "收到的请求",
+    "debugSettings.indexSyncChunks": "数据块",
+    "debugSettings.indexSyncMerged": "已合并条目",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "在聊天记录中显示每一个 Matrix 时间线事件。",
     "debugSettings.ignoreCodecSupport": "忽略报告的编解码器支持情况",

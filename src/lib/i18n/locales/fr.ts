@@ -593,6 +593,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.stickyCallMembership": "Appartenance aux appels en sticky",
     "debugSettings.stickyCallMembershipHint":
         "Rejoindre les appels avec un événement sticky m.rtc.member (MSC4354) au lieu d'un événement d'état m.call.member. Les clients qui ne lisent que les événements d'état, dont Zam avant 1.51, ne vous verront pas dans l'appel. S'applique dès votre prochain appel.",
+    "debugSettings.indexSync": "Synchronisation de l'index des messages",
+    "debugSettings.indexSyncHint":
+        "Les entrées de l'index de recherche sont échangées avec vos autres sessions vérifiées. Les deux sessions doivent utiliser cette version. Sessions : éligibles / vérifiées / toutes. Fragments : envoyés / reçus.",
+    "debugSettings.indexSyncOff":
+        "La synchronisation de l'index est inactive : l'indexation des salons chiffrés doit être activée.",
+    "debugSettings.indexSyncNow": "Synchroniser maintenant",
+    "debugSettings.indexSyncNever": "jamais",
+    "debugSettings.indexSyncSessions": "Sessions",
+    "debugSettings.indexSyncAsked": "Demandé",
+    "debugSettings.indexSyncRoomsMissing": "Salons avec des trous",
+    "debugSettings.indexSyncRequestsReceived": "Demandes reçues",
+    "debugSettings.indexSyncChunks": "Fragments",
+    "debugSettings.indexSyncMerged": "Entrées fusionnées",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Afficher chaque événement Matrix du fil dans la discussion.",
     "debugSettings.ignoreCodecSupport":
