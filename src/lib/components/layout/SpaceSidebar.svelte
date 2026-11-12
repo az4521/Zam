@@ -38,6 +38,7 @@
         setActiveSpace,
         setActiveRoom,
         showSpaceHome,
+        restoreLastRoom,
     } from "$lib/stores/rooms.svelte";
     import { openInviteDialog } from "$lib/stores/inviteDialog.svelte";
     import {
@@ -1007,7 +1008,9 @@
                 onclick={() =>
                     roomsState.activeSpaceId === item.space.roomId &&
                     roomsState.spaceDrillParentId === null
-                        ? showSpaceHome()
+                        ? roomsState.showSpaceHome
+                            ? restoreLastRoom()
+                            : showSpaceHome()
                         : setActiveSpace(item.space.roomId)}
                 data-nav-space={item.space.roomId}
                 oncontextmenu={(e) =>

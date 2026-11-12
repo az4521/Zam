@@ -237,6 +237,20 @@ export function showSpaceHome(): void {
         interfaceState.leftOpen = false;
 }
 
+/**
+ * Leave the space's home page for the room last open in this space. Falls back
+ * to the landing chain (first room) when that room is gone or was never set.
+ */
+export function restoreLastRoom(): void {
+    const last = getLastRoom(roomsState.activeSpaceId);
+    roomsState.showSpaceHome = false;
+    if (last && isRoomLandable(last)) setActiveRoom(last);
+    else {
+        roomsState.activeRoomId = null;
+        resolveLandingSurface();
+    }
+}
+
 /** Room ids of the current context, in the order the sidebar renders them. */
 function sidebarOrderedIds(rooms: readonly Room[]): string[] {
     return sortRoomsByTag(rooms, (r) => getRoomTags(r.roomId)).map(
