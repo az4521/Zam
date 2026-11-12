@@ -1,7 +1,6 @@
 # fdroidserver configuration for the Zam repo, built by the release workflow
-# (the `fdroid` job). The index is signed with the APK signing key; its
-# passwords come from FDROID_KEY_STORE_PASS and FDROID_KEY_PASS in the
-# environment, so none are written here.
+# (the `fdroid` job). The index is signed with the APK signing key; the job
+# appends keystorepass and keypass to its copy of this file at build time.
 repo_url: "@BASE@/fdroid/repo"
 repo_name: Zam
 repo_description: >-

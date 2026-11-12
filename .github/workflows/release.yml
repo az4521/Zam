@@ -400,16 +400,15 @@ jobs:
         env:
             ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
             ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-            # fdroidserver reads the passwords from these, not from config.yml.
-            FDROID_KEY_STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-            FDROID_KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+            ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+            ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
             VERSION: ${{ needs.check.outputs.version }}
             GH_TOKEN: ${{ github.token }}
         steps:
             - name: Check for the repo key
               id: key
               run: |
-                  if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$FDROID_KEY_STORE_PASS" ]; then
+                  if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ]; then
                     echo "::warning::ANDROID_KEYSTORE_* secrets are not set; skipping the F-Droid repo."
                     echo "present=false" >> "$GITHUB_OUTPUT"
                   else
@@ -432,6 +431,13 @@ jobs:
                   cp electron/icons/icon.png work/metadata/moe.crafty.matrix/en-US/icon.png
                   sed "s|@BASE@|$BASE|g; s|@ALIAS@|$ANDROID_KEY_ALIAS|g"                     fdroid/config.yml > work/config.yml
                   echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > work/keystore.jks
+                  # fdroidserver takes the passwords only from config.yml. jq
+                  # quotes them as JSON strings, which YAML reads as written.
+                  {
+                    echo "keystorepass: $(jq -Rn --arg v "$ANDROID_KEYSTORE_PASSWORD" '$v')"
+                    echo "keypass: $(jq -Rn --arg v "$ANDROID_KEY_PASSWORD" '$v')"
+                  } >> work/config.yml
+                  chmod 600 work/config.yml
                   # Earlier releases stay installable (and downgradable) from the
                   # repo: bring the last few APKs along with the new one.
                   for tag in $(gh release list --limit 5 --json tagName --jq '.[].tagName'); do
@@ -442,7 +448,7 @@ jobs:
                   cd work
                   fdroid update --create-metadata --verbose
                   # What clients pin when adding the repo by hand.
-                  FP=$(keytool -list -keystore keystore.jks -storepass "$FDROID_KEY_STORE_PASS"                     -alias "$ANDROID_KEY_ALIAS" | grep -oE '([0-9A-F]{2}:){31}[0-9A-F]{2}' | head -n1 | tr -d ':')
+                  FP=$(keytool -list -keystore keystore.jks -storepass "$ANDROID_KEYSTORE_PASSWORD"                     -alias "$ANDROID_KEY_ALIAS" | grep -oE '([0-9A-F]{2}:){31}[0-9A-F]{2}' | head -n1 | tr -d ':')
                   [ -n "$FP" ] || FP=$(unzip -p repo/index-v1.jar 'META-INF/*.RSA'                     | openssl pkcs7 -inform DER -print_certs | openssl x509 -fingerprint -sha256 -noout                     | cut -d= -f2 | tr -d ':')
                   cd ..
                   mkdir -p site-fdroid/fdroid
@@ -534,7 +540,10 @@ jobs:
     # Needs Settings -> Pages -> Source: "GitHub Actions".
     pages:
         needs: [check, flatpak, fdroid, release]
-        if: needs.check.outputs.release == 'true'
+        # A failed or skipped F-Droid build still lets the Flatpak site deploy.
+        if: >-
+            !cancelled() && needs.check.outputs.release == 'true' &&
+            needs.flatpak.result == 'success' && needs.release.result == 'success'
         runs-on: ubuntu-latest
         permissions:
             pages: write
