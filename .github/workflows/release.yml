@@ -411,6 +411,48 @@ jobs:
                   path: artifacts
                   # Not the github-pages artifact (the Flatpak repo tarball).
                   pattern: "{android,desktop-*,flatpak,web-bundle}"
+            # A friendly platform table placed above the changelog, so nobody
+            # has to pick through the update manifests (latest*.yml), blockmaps
+            # and web bundles. Files are found by pattern because electron-builder
+            # adds an arch suffix on some platforms; a platform whose file is
+            # missing is left out rather than linked dead.
+            - name: Build the download table
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  VER="${{ needs.check.outputs.version }}"
+                  BASE="https://github.com/$GITHUB_REPOSITORY/releases/download/v$VER"
+                  PAGES="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}"
+                  link() { # label, glob under artifacts/
+                    local f
+                    f=$(find artifacts -type f -name "$2" | sort | head -n1)
+                    [ -n "$f" ] && printf '[%s](%s/%s)' "$1" "$BASE" "$(basename "$f")" || true
+                  }
+                  join() { # joins the non-empty arguments with " · "
+                    local out="" a
+                    for a in "$@"; do
+                      [ -z "$a" ] && continue
+                      out="${out:+$out · }$a"
+                    done
+                    printf '%s' "$out"
+                  }
+                  {
+                    echo "## Download Zam"
+                    echo
+                    echo "| Platform | Download |"
+                    echo "| --- | --- |"
+                    echo "| 🐧 **Linux** | $(join "$(link 'AppImage' '*.AppImage')" "$(link 'Flatpak' '*.flatpak')" "[Flatpak repository]($PAGES/zam.flatpakrepo)") |"
+                    echo "| 🪟 **Windows** | $(join "$(link 'Installer' '*Setup*.exe')" "$(link 'Portable' '*Portable*.exe')") |"
+                    echo "| 🍎 **macOS** | $(join "$(link 'DMG' '*.dmg')") |"
+                    echo "| 🤖 **Android** | $(join "$(link 'APK' '*.apk')") |"
+                    echo "| 📱 **iOS** | [Open the web app](https://matrix.crafty.moe) and use Share > Add to Home Screen |"
+                    echo
+                    echo "The other files below (\`.yml\`, \`.blockmap\`, \`.zbundle\`) are used by Zam's built-in updater. You don't need them."
+                    echo
+                  } > "$RUNNER_TEMP/download-table.md"
+                  cat "$RUNNER_TEMP/release-body.md" >> "$RUNNER_TEMP/download-table.md"
+                  mv "$RUNNER_TEMP/download-table.md" "$RUNNER_TEMP/release-body.md"
+                  cat "$RUNNER_TEMP/release-body.md"
             - name: Create GitHub release
               uses: softprops/action-gh-release@v2
               with:

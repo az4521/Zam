@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.59.3
+
+🔧 **Improved**
+
+- **Easier downloads:** the release page now opens with a table of downloads per platform (Linux, Windows, macOS, Android, iOS), so you no longer have to pick the right file out of the update manifests and bundles.
+- **Sticky call membership (debug):** a new switch in Settings > Debug makes Zam join calls with the newer sticky membership event instead of a state event. It is off by default, and clients that only read state events will not see you in the call while it is on.
+
+🐛 **Fixed**
+
+- **Double or stale word on mobile send:** tapping send while the keyboard still held a word being typed or autocorrected could send it twice (Android) or send the uncorrected word (iOS). The keyboard's pending word is now committed before sending.
+
 ## v1.59.2
 
 ✨ **Added**
