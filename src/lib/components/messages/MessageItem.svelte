@@ -2484,6 +2484,11 @@
         shouldStart: (e) => {
             if (!interfaceState.isTouchscreen || isEditing) return false;
             const t = e.target as Element | null;
+            // An image embed is a tap target (it opens the viewer), but a
+            // hold on it should still open the actions sheet like a hold on
+            // the text beside it. A tap is unaffected: a fired hold swallows
+            // its own click, a short press never fires.
+            if (t instanceof Element && t.matches("img, canvas")) return true;
             return !t?.closest(INTERACTIVE_TARGET_SELECTOR);
         },
     }}

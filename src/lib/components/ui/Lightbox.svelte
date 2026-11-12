@@ -599,7 +599,17 @@
         return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     }
 
+    // When a drag or pinch last ended. The backdrop is a button, so the
+    // pointer-up that ends a gesture started on it would otherwise click it
+    // and close the viewer.
+    let gestureEndedAt = -Infinity;
+    function onBackdropClick() {
+        if (performance.now() - gestureEndedAt < 400) return;
+        onClose();
+    }
+
     function onPointerDown(e: PointerEvent) {
+        if (isVideo) return;
         (e.target as Element).setPointerCapture?.(e.pointerId);
         pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         lastPointerType = e.pointerType;
@@ -659,8 +669,10 @@
 
         // A click or tap on an empty part of a vector's box is a click on
         // the backdrop.
+        if (moved) gestureEndedAt = performance.now();
         if (
             e.type === "pointerup" &&
+            e.target === imgEl &&
             !moved &&
             !wasPinch &&
             vector &&
@@ -793,7 +805,12 @@
         aria-label={t("lightbox.closeViewer", { mediaNoun: mediaNounLabel })}
         in:fade={{ duration: motionOK() ? 150 : 0 }}
         class="absolute inset-0 bg-black/80"
-        onclick={onClose}
+        style="touch-action: none;"
+        onclick={onBackdropClick}
+        onpointerdown={onPointerDown}
+        onpointermove={onPointerMove}
+        onpointerup={onPointerUp}
+        onpointercancel={onPointerUp}
     ></button>
 
     <!-- Dialog: full-screen flex-centered layer. pointer-events-none lets clicks
