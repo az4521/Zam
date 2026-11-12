@@ -4,6 +4,15 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.4
+
+🐛 **Fixed**
+
+- **Notification replies sent twice on Android:** reopening the app could send the last reply you made from a notification again. Each reply is now sent once.
+- **Calls fell back to direct connections although the server has one:** if your homeserver's call server couldn't be looked up from its `.well-known`, Zam used peer-to-peer connections instead. It now asks the homeserver directly, so calls on matrix.org use its call server.
+- **People shown as muted on direct-connection calls:** a mute or unmute arriving just after a connection update could be overwritten by older information, leaving someone shown as muted (or unmuted) until they toggled their mic again.
+- **Opening a space:** clicking the space you're already in while on its home page now takes you back to the room you were last in.
+
 ## v1.60.3
 
 🐛 **Fixed**
