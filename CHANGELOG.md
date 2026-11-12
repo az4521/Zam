@@ -4,18 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.59.5
+
+🐛 **Fixed**
+
+- **Download links in What's New:** the download table that release pages now show is hidden inside the app, where it only got in the way.
+
 ## v1.59.4
 
 🔧 **Improved**
 
 - **Steps aside for games that fill your video memory:** a new switch in Settings > Debug > GPU ("Pause the GPU while a game runs", off by default) restarts Zam without hardware acceleration when the GPU keeps crashing while a game is running, then restarts it again with acceleration once the game has closed. It needs game detection turned on in Settings > General, and waits for the end of a call before restarting.
 - **Index sync diagnostics:** Settings > Debug has a new "Message index sync" section showing how many of your other sessions can trade search entries, what was asked and received, and a short log, with a "Sync now" button, so you can tell why a device's search isn't filling in.
-
-## v1.59.4
-
-🐛 **Fixed**
-
-- **Download links in What's New:** the download table that release pages now show is hidden inside the app, where it only got in the way.
 
 ## v1.59.3
 
