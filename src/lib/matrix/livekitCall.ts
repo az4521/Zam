@@ -9,7 +9,13 @@
  * client through the runtime slot, like `media.ts`.
  */
 import { t } from "$lib/i18n";
-import { EventType, type MatrixClient, type Room } from "matrix-js-sdk";
+import {
+    ClientPrefix,
+    EventType,
+    Method,
+    type MatrixClient,
+    type Room,
+} from "matrix-js-sdk";
 import type * as LivekitClient from "livekit-client";
 import { matrixClient } from "./runtime";
 import { getDirectRoomIds, getRoomCallMemberships } from "./client";
@@ -852,7 +858,25 @@ export async function configuredRtcFoci(): Promise<unknown[]> {
         })) as Record<string, unknown> | undefined;
     }
     const foci = wk?.["org.matrix.msc4143.rtc_foci"];
-    return Array.isArray(foci) ? foci : [];
+    if (Array.isArray(foci) && foci.length > 0) return foci;
+    // No well-known (the fetch failed, or the delegation lives elsewhere):
+    // ask the homeserver itself (MSC4143, stable on matrix.org). Treating
+    // "couldn't find out" as "no SFU" would put a call on the full mesh
+    // although the homeserver has one.
+    try {
+        const res = await matrixClient.http.authedRequest<{
+            rtc_transports?: unknown;
+        }>(Method.Get, "/rtc/transports", undefined, undefined, {
+            prefix: ClientPrefix.V1,
+        });
+        if (Array.isArray(res.rtc_transports)) return res.rtc_transports;
+    } catch (err) {
+        console.warn(
+            "[call] couldn't read the homeserver's RTC transports",
+            err,
+        );
+    }
+    return [];
 }
 
 /** Ask an SFU's lk-jwt-service for a LiveKit token (legacy /sfu/get). On our
