@@ -1,0 +1,191 @@
+import { describe, it, expect } from "vitest";
+import {
+    isLivekitTransport,
+    joinUsesMesh,
+    meshIceConfig,
+    meshTransportOf,
+    ownMeshTransport,
+    receivesOverMesh,
+} from "./meshPolicy";
+import { FULL_MESH_TRANSPORT_TYPE } from "./protocol";
+
+const meshFor = (deviceId: string) => ({
+    type: FULL_MESH_TRANSPORT_TYPE,
+    device_id: deviceId,
+});
+const livekit = { type: "livekit", livekit_service_url: "https://sfu.example" };
+
+describe("ownMeshTransport", () => {
+    it("names the mesh transport type and our device", () => {
+        expect(ownMeshTransport("DEV1")).toEqual({
+            type: "org.matrix.msc4575.full_mesh",
+            device_id: "DEV1",
+        });
+    });
+});
+
+describe("meshTransportOf", () => {
+    it("is true when a mesh transport names the device", () => {
+        expect(meshTransportOf([meshFor("D1")], "D1")).toBe(true);
+    });
+
+    it("is true when the matching transport is among other transports", () => {
+        expect(meshTransportOf([livekit, meshFor("D1")], "D1")).toBe(true);
+    });
+
+    it("is false when the mesh transport names another device", () => {
+        expect(meshTransportOf([meshFor("D2")], "D1")).toBe(false);
+    });
+
+    it("ignores transports of other types that carry the same device id", () => {
+        expect(
+            meshTransportOf(
+                [
+                    { type: "livekit", device_id: "D1" },
+                    {
+                        type: "org.matrix.msc4575.full_mesh.other",
+                        device_id: "D1",
+                    },
+                ],
+                "D1",
+            ),
+        ).toBe(false);
+    });
+
+    it("ignores non-object entries", () => {
+        expect(
+            meshTransportOf(
+                [null, undefined, "org.matrix.msc4575.full_mesh", 7, []],
+                "D1",
+            ),
+        ).toBe(false);
+    });
+
+    it("is false for an empty list", () => {
+        expect(meshTransportOf([], "D1")).toBe(false);
+    });
+});
+
+describe("isLivekitTransport", () => {
+    it("is true only for a livekit transport", () => {
+        expect(isLivekitTransport(livekit)).toBe(true);
+        expect(isLivekitTransport(meshFor("D1"))).toBe(false);
+    });
+
+    it("is false for non-objects and missing values", () => {
+        expect(isLivekitTransport(undefined)).toBe(false);
+        expect(isLivekitTransport(null)).toBe(false);
+        expect(isLivekitTransport("livekit")).toBe(false);
+    });
+});
+
+describe("receivesOverMesh", () => {
+    it("is false when the picked transport is livekit, even if a mesh transport is published", () => {
+        expect(receivesOverMesh(livekit, [livekit, meshFor("D1")], "D1")).toBe(
+            false,
+        );
+    });
+
+    it("is true when the picked transport is the mesh one", () => {
+        const mesh = meshFor("D1");
+        expect(receivesOverMesh(mesh, [mesh], "D1")).toBe(true);
+    });
+
+    it("is true when nothing was picked and a matching mesh transport exists", () => {
+        expect(receivesOverMesh(undefined, [meshFor("D1")], "D1")).toBe(true);
+    });
+
+    it("is false when the mesh transport names another device", () => {
+        expect(receivesOverMesh(undefined, [meshFor("D2")], "D1")).toBe(false);
+    });
+
+    it("is false when nothing is picked and no mesh transport exists", () => {
+        expect(receivesOverMesh(undefined, [], "D1")).toBe(false);
+    });
+});
+
+describe("joinUsesMesh", () => {
+    it("is true when we have no SFU of our own", () => {
+        expect(joinUsesMesh({ ownHasSfu: false, othersOverMesh: [] })).toBe(
+            true,
+        );
+    });
+
+    it("is false with our own SFU and nobody received over the mesh", () => {
+        expect(
+            joinUsesMesh({ ownHasSfu: true, othersOverMesh: [false, false] }),
+        ).toBe(false);
+    });
+
+    it("is true with our own SFU when one member is received over the mesh", () => {
+        expect(
+            joinUsesMesh({ ownHasSfu: true, othersOverMesh: [false, true] }),
+        ).toBe(true);
+    });
+});
+
+describe("meshIceConfig", () => {
+    it("gives no ICE servers when there is no TURN server", () => {
+        expect(meshIceConfig(null, false)).toEqual({ iceServers: [] });
+    });
+
+    it("maps TURN credentials to one RTCIceServer", () => {
+        expect(
+            meshIceConfig(
+                {
+                    uris: ["turn:turn.example:3478", "turns:turn.example:5349"],
+                    username: "user",
+                    password: "secret",
+                },
+                false,
+            ),
+        ).toEqual({
+            iceServers: [
+                {
+                    urls: ["turn:turn.example:3478", "turns:turn.example:5349"],
+                    username: "user",
+                    credential: "secret",
+                },
+            ],
+        });
+    });
+
+    it("relay-only with a turn: or turns: uri forces the relay policy", () => {
+        const turn = {
+            uris: ["turn:turn.example:3478"],
+            username: "u",
+            password: "p",
+        };
+        expect(meshIceConfig(turn, true)).toEqual({
+            iceServers: [
+                {
+                    urls: ["turn:turn.example:3478"],
+                    username: "u",
+                    credential: "p",
+                },
+            ],
+            iceTransportPolicy: "relay",
+        });
+        const turns = { uris: ["turns:turn.example:5349"] };
+        expect(meshIceConfig(turns, true)).toEqual({
+            iceServers: [
+                {
+                    urls: ["turns:turn.example:5349"],
+                    username: undefined,
+                    credential: undefined,
+                },
+            ],
+            iceTransportPolicy: "relay",
+        });
+    });
+
+    it("relay-only with only stun: uris returns null", () => {
+        expect(
+            meshIceConfig({ uris: ["stun:stun.example:3478"] }, true),
+        ).toBeNull();
+    });
+
+    it("relay-only with no TURN server returns null", () => {
+        expect(meshIceConfig(null, true)).toBeNull();
+    });
+});

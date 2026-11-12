@@ -449,6 +449,20 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     },
     {
         tab: "voice",
+        label: t("settingsSearch.meshRelayOnly"),
+        keywords: [
+            "ip",
+            "address",
+            "privacy",
+            "turn",
+            "relay",
+            "peer",
+            "p2p",
+            "mesh",
+        ],
+    },
+    {
+        tab: "voice",
         label: t("settingsSearch.autoGainControl"),
         keywords: ["agc", "gain", "leveller", "agc2", "webrtc", "mic volume"],
     },

@@ -3960,6 +3960,28 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Windows 请求管理员权限但未获授予，因此未做任何更改。",
     "richPresence.steamFailed": "Steam Rich Presence 失败：{error}",
     "richPresence.viaSteam": "Steam",
+    "meshConsent.titleJoining": "此通话会直接连接您与其他人",
+    "meshConsent.titleNewcomer": "通话中有人只能直接连接",
+    "meshConsent.noCallServer":
+        "您的主服务器没有通话服务器，因此您的音频、视频和屏幕共享将从您的设备直接发送给通话中的每个人。",
+    "meshConsent.someoneWithoutCallServer":
+        "通话中有人所在的主服务器没有通话服务器。为了听到和看到对方，您的设备将直接连接到对方的设备。",
+    "meshConsent.ipVisible":
+        "所有与您直接连接的人都可以看到您的 IP 地址，这可能大致泄露您的位置。要隐藏它，请在“语音和视频”设置中开启“中继点对点通话”。",
+    "meshConsent.relayOnlyOn":
+        "“中继点对点通话”已开启：其他人看到的是您主服务器的中继服务器，而不是您的 IP 地址。",
+    "meshConsent.join": "加入",
+    "meshConsent.connectDirectly": "直接连接",
+    "meshConsent.joinWithoutThem": "不与其连接并加入",
+    "meshConsent.notNow": "暂不",
+    "voiceCall.meshNeedsTurn":
+        "“中继点对点通话”已开启，但您的主服务器没有中继（TURN）服务器。请在“语音和视频”设置中关闭它以加入通话。",
+    "voiceAudioSettings.meshRelayOnly": "中继点对点通话",
+    "voiceAudioSettings.meshRelayOnlyHint":
+        "没有通话服务器的通话会让人们直接连接，从而向对方显示您的 IP 地址。开启后，通话将改为通过您主服务器的中继服务器：速度较慢，但您的地址保持隐藏。",
+    "voiceCall.meshPeerUnreachable":
+        "此通话中有人只能直接连接，但中继已开启，而您的主服务器没有中继（TURN）服务器，因此您听不到对方。",
+    "settingsSearch.meshRelayOnly": "中继点对点通话",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: zhCN };

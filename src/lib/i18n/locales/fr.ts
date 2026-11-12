@@ -4394,6 +4394,30 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Windows a demandé les droits d’administrateur, mais ils n’ont pas été accordés. Rien n’a donc été modifié.",
     "richPresence.steamFailed": "Échec de la Rich Presence Steam : {error}",
     "richPresence.viaSteam": "Steam",
+    "meshConsent.titleJoining":
+        "Cet appel vous connecte directement aux autres",
+    "meshConsent.titleNewcomer":
+        "Une personne de cet appel ne peut être jointe que directement",
+    "meshConsent.noCallServer":
+        "Votre serveur d'accueil n'a pas de serveur d'appels : votre audio, votre vidéo et votre partage d'écran vont directement de votre appareil à chaque personne de l'appel.",
+    "meshConsent.someoneWithoutCallServer":
+        "Une personne de cet appel se trouve sur un serveur d'accueil sans serveur d'appels. Pour l'entendre et la voir, votre appareil se connecte directement au sien.",
+    "meshConsent.ipVisible":
+        "Toutes les personnes avec lesquelles vous vous connectez directement peuvent voir votre adresse IP, qui peut révéler approximativement où vous vous trouvez. Pour la masquer, activez « Relayer les appels pair à pair » dans les paramètres Voix et vidéo.",
+    "meshConsent.relayOnlyOn":
+        "« Relayer les appels pair à pair » est activé : les autres voient le serveur relais de votre serveur d'accueil, et non votre adresse IP.",
+    "meshConsent.join": "Rejoindre",
+    "meshConsent.connectDirectly": "Se connecter directement",
+    "meshConsent.joinWithoutThem": "Rejoindre sans elles",
+    "meshConsent.notNow": "Pas maintenant",
+    "voiceCall.meshNeedsTurn":
+        "« Relayer les appels pair à pair » est activé, mais votre serveur d'accueil n'a pas de serveur relais (TURN). Désactivez-le dans les paramètres Voix et vidéo pour rejoindre l'appel.",
+    "voiceAudioSettings.meshRelayOnly": "Relayer les appels pair à pair",
+    "voiceAudioSettings.meshRelayOnlyHint":
+        "Les appels sans serveur d'appels connectent directement les personnes, ce qui leur montre votre adresse IP. Avec cette option activée, ils passent par le serveur relais de votre serveur d'accueil : plus lent, mais votre adresse reste masquée.",
+    "voiceCall.meshPeerUnreachable":
+        "Quelqu'un dans cet appel n'est joignable qu'en direct, mais le relais est activé et votre serveur d'accueil n'a pas de serveur relais (TURN) : vous ne l'entendrez pas.",
+    "settingsSearch.meshRelayOnly": "Relayer les appels pair à pair",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: fr };

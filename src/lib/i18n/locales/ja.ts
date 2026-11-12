@@ -3869,6 +3869,29 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Windows が管理者権限を求めましたが許可されなかったため、何も変更されませんでした。",
     "richPresence.steamFailed": "Steam リッチプレゼンスに失敗しました: {error}",
     "richPresence.viaSteam": "Steam",
+    "meshConsent.titleJoining": "この通話は他の参加者と直接接続されます",
+    "meshConsent.titleNewcomer":
+        "この通話の参加者の一人は、直接接続でしか到達できません",
+    "meshConsent.noCallServer":
+        "お使いのホームサーバーには通話サーバーがないため、音声・ビデオ・画面共有は、お使いの端末から通話内の各参加者へ直接送られます。",
+    "meshConsent.someoneWithoutCallServer":
+        "この通話の参加者の一人は、通話サーバーのないホームサーバーを使用しています。その人の音声と映像を受信するため、お使いの端末はその人の端末に直接接続します。",
+    "meshConsent.ipVisible":
+        "直接接続する相手は全員あなたのIPアドレスを見ることができ、おおよその所在地が推測される可能性があります。隠すには、「音声と映像」設定で「ピアツーピア通話を中継する」をオンにしてください。",
+    "meshConsent.relayOnlyOn":
+        "「ピアツーピア通話を中継する」がオンです。相手にはあなたのIPアドレスではなく、ホームサーバーの中継サーバーが表示されます。",
+    "meshConsent.join": "参加",
+    "meshConsent.connectDirectly": "直接接続",
+    "meshConsent.joinWithoutThem": "その人を除いて参加",
+    "meshConsent.notNow": "今はしない",
+    "voiceCall.meshNeedsTurn":
+        "「ピアツーピア通話を中継する」がオンですが、お使いのホームサーバーにはTURN中継サーバーがありません。参加するには、「音声と映像」設定でオフにしてください。",
+    "voiceAudioSettings.meshRelayOnly": "ピアツーピア通話を中継する",
+    "voiceAudioSettings.meshRelayOnlyHint":
+        "通話サーバーのない通話では、参加者同士が直接接続するため、相手にあなたのIPアドレスが見えてしまいます。この設定をオンにすると、代わりにホームサーバーの中継サーバーを経由します。速度は遅くなりますが、アドレスは隠されたままになります。",
+    "voiceCall.meshPeerUnreachable":
+        "この通話には直接接続でしか届かない参加者がいますが、中継がオンで、ホームサーバーにTURN中継サーバーがないため、その人の声は聞こえません。",
+    "settingsSearch.meshRelayOnly": "ピアツーピア通話を中継する",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ja };

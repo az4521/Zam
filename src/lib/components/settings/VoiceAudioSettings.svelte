@@ -16,6 +16,7 @@
         setCallOutputVolume,
         setNoiseSuppressionMode,
         setEchoCancellation,
+        setMeshRelayOnly,
         setMicGainMode,
         setNormalizeCallAudio,
         setCallSoundsEnabled,
@@ -748,6 +749,23 @@
                     void applyConstraints();
                 }}
                 label={t("voiceAudioSettings.echoCancellation")}
+            />
+        </div>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("voiceAudioSettings.meshRelayOnly")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("voiceAudioSettings.meshRelayOnlyHint")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.meshRelayOnly}
+                onChange={setMeshRelayOnly}
+                label={t("voiceAudioSettings.meshRelayOnly")}
             />
         </div>
         <div

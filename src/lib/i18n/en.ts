@@ -4189,6 +4189,29 @@ export const en = {
         "Windows asked for administrator permission and it wasn't granted, so nothing was changed.",
     "richPresence.steamFailed": "Steam rich presence failed: {error}",
     "richPresence.viaSteam": "Steam",
+    "meshConsent.titleJoining": "This call connects you directly to others",
+    "meshConsent.titleNewcomer":
+        "Someone in this call can only be reached directly",
+    "meshConsent.noCallServer":
+        "Your homeserver has no call server, so your audio, video and screen share go straight from your device to each person in the call.",
+    "meshConsent.someoneWithoutCallServer":
+        "Someone in this call is on a homeserver without a call server. To hear and see them, your device connects to theirs directly.",
+    "meshConsent.ipVisible":
+        'Everyone you connect to directly can see your IP address, which can reveal roughly where you are. To hide it, turn on "Relay peer-to-peer calls" in Voice & Video settings.',
+    "meshConsent.relayOnlyOn":
+        "Relay peer-to-peer calls is on: the others see your homeserver's relay server, not your IP address.",
+    "meshConsent.join": "Join",
+    "meshConsent.connectDirectly": "Connect directly",
+    "meshConsent.joinWithoutThem": "Join without them",
+    "meshConsent.notNow": "Not now",
+    "voiceCall.meshNeedsTurn":
+        "Relay peer-to-peer calls is on, but your homeserver has no relay (TURN) server. Turn it off in Voice & Video settings to join.",
+    "voiceAudioSettings.meshRelayOnly": "Relay peer-to-peer calls",
+    "voiceAudioSettings.meshRelayOnlyHint":
+        "Calls without a call server connect people directly, which shows your IP address to them. With this on, they go through your homeserver's relay server instead: slower, but your address stays hidden.",
+    "voiceCall.meshPeerUnreachable":
+        "Someone in this call can only be reached directly, but relaying is on and your homeserver has no relay (TURN) server, so you won't hear them.",
+    "settingsSearch.meshRelayOnly": "Relay peer-to-peer calls",
 };
 
 export type MessageKey = keyof typeof en;

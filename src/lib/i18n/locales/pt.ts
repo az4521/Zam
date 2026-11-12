@@ -4360,6 +4360,30 @@ const messages: Partial<Record<MessageKey, string>> = {
         "O Windows pediu permissão de administrador e ela não foi concedida, então nada foi alterado.",
     "richPresence.steamFailed": "A presença detalhada do Steam falhou: {error}",
     "richPresence.viaSteam": "Steam",
+    "meshConsent.titleJoining":
+        "Esta chamada conecta você diretamente com outras pessoas",
+    "meshConsent.titleNewcomer":
+        "Alguém nesta chamada só pode ser alcançado diretamente",
+    "meshConsent.noCallServer":
+        "Seu servidor doméstico não tem servidor de chamadas, então seu áudio, vídeo e compartilhamento de tela vão diretamente do seu dispositivo para cada pessoa na chamada.",
+    "meshConsent.someoneWithoutCallServer":
+        "Alguém nesta chamada está em um servidor doméstico sem servidor de chamadas. Para ouvir e ver essa pessoa, seu dispositivo se conecta diretamente ao dela.",
+    "meshConsent.ipVisible":
+        "Todas as pessoas com quem você se conectar diretamente podem ver seu endereço IP, que pode revelar aproximadamente onde você está. Para ocultá-lo, ative “Retransmitir chamadas ponto a ponto” nas configurações de Voz e vídeo.",
+    "meshConsent.relayOnlyOn":
+        "“Retransmitir chamadas ponto a ponto” está ativado: os outros veem o servidor de retransmissão do seu servidor doméstico, não seu endereço IP.",
+    "meshConsent.join": "Entrar",
+    "meshConsent.connectDirectly": "Conectar diretamente",
+    "meshConsent.joinWithoutThem": "Entrar sem eles",
+    "meshConsent.notNow": "Agora não",
+    "voiceCall.meshNeedsTurn":
+        "“Retransmitir chamadas ponto a ponto” está ativado, mas seu servidor doméstico não tem servidor de retransmissão (TURN). Desative-o nas configurações de Voz e vídeo para entrar.",
+    "voiceAudioSettings.meshRelayOnly": "Retransmitir chamadas ponto a ponto",
+    "voiceAudioSettings.meshRelayOnlyHint":
+        "Chamadas sem servidor de chamadas conectam as pessoas diretamente, o que mostra seu endereço IP para elas. Com isso ativado, elas passam pelo servidor de retransmissão do seu servidor doméstico: mais lento, mas seu endereço fica oculto.",
+    "voiceCall.meshPeerUnreachable":
+        "Alguém nesta chamada só pode ser alcançado diretamente, mas a retransmissão está ativada e seu servidor doméstico não tem servidor de retransmissão (TURN), então você não vai ouvi-lo.",
+    "settingsSearch.meshRelayOnly": "Retransmitir chamadas ponto a ponto",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ptBR };

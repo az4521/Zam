@@ -4377,6 +4377,30 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Windows pidió permiso de administrador y no se concedió, así que no se cambió nada.",
     "richPresence.steamFailed": "Error en Rich Presence de Steam: {error}",
     "richPresence.viaSteam": "Steam",
+    "meshConsent.titleJoining":
+        "Esta llamada te conecta directamente con otras personas",
+    "meshConsent.titleNewcomer":
+        "Alguien en esta llamada solo puede ser alcanzado directamente",
+    "meshConsent.noCallServer":
+        "Tu servidor doméstico no tiene servidor de llamadas, así que tu audio, vídeo y uso compartido de pantalla van directamente desde tu dispositivo a cada persona de la llamada.",
+    "meshConsent.someoneWithoutCallServer":
+        "Alguien en esta llamada está en un servidor doméstico sin servidor de llamadas. Para oírle y verle, tu dispositivo se conecta directamente al suyo.",
+    "meshConsent.ipVisible":
+        "Todas las personas con las que te conectes directamente podrán ver tu dirección IP, que puede revelar aproximadamente dónde estás. Para ocultarla, activa «Retransmitir llamadas entre pares» en los ajustes de Voz y vídeo.",
+    "meshConsent.relayOnlyOn":
+        "«Retransmitir llamadas entre pares» está activado: los demás ven el servidor de retransmisión de tu servidor doméstico, no tu dirección IP.",
+    "meshConsent.join": "Unirse",
+    "meshConsent.connectDirectly": "Conectar directamente",
+    "meshConsent.joinWithoutThem": "Unirse sin ellos",
+    "meshConsent.notNow": "Ahora no",
+    "voiceCall.meshNeedsTurn":
+        "«Retransmitir llamadas entre pares» está activado, pero tu servidor doméstico no tiene servidor de retransmisión (TURN). Desactívalo en los ajustes de Voz y vídeo para unirte.",
+    "voiceAudioSettings.meshRelayOnly": "Retransmitir llamadas entre pares",
+    "voiceAudioSettings.meshRelayOnlyHint":
+        "Las llamadas sin servidor de llamadas conectan a las personas directamente, lo que les muestra tu dirección IP. Con esta opción activada, pasan por el servidor de retransmisión de tu servidor doméstico: más lentas, pero tu dirección queda oculta.",
+    "voiceCall.meshPeerUnreachable":
+        "Alguien en esta llamada solo es accesible directamente, pero la retransmisión está activada y tu servidor doméstico no tiene servidor de retransmisión (TURN), así que no lo oirás.",
+    "settingsSearch.meshRelayOnly": "Retransmitir llamadas entre pares",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: es };

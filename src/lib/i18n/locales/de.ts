@@ -4422,6 +4422,30 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Windows hat nach Administratorrechten gefragt, und sie wurden nicht erteilt, daher wurde nichts geändert.",
     "richPresence.steamFailed": "Steam Rich Presence fehlgeschlagen: {error}",
     "richPresence.viaSteam": "Steam",
+    "meshConsent.titleJoining":
+        "Dieser Anruf verbindet dich direkt mit anderen",
+    "meshConsent.titleNewcomer":
+        "Jemand in diesem Anruf ist nur direkt erreichbar",
+    "meshConsent.noCallServer":
+        "Dein Homeserver hat keinen Anrufserver, daher gehen Audio, Video und Bildschirmfreigabe direkt von deinem Gerät zu jeder Person im Anruf.",
+    "meshConsent.someoneWithoutCallServer":
+        "Jemand in diesem Anruf ist auf einem Homeserver ohne Anrufserver. Um diese Person zu hören und zu sehen, verbindet sich dein Gerät direkt mit ihrem.",
+    "meshConsent.ipVisible":
+        "Alle, mit denen du direkt verbunden wirst, können deine IP-Adresse sehen, die ungefähr deinen Standort verraten kann. Um sie zu verbergen, aktiviere „Peer-to-Peer-Anrufe über Relay leiten“ in den Einstellungen unter Sprache und Video.",
+    "meshConsent.relayOnlyOn":
+        "„Peer-to-Peer-Anrufe über Relay leiten“ ist aktiviert: Die anderen sehen den Relay-Server deines Homeservers, nicht deine IP-Adresse.",
+    "meshConsent.join": "Beitreten",
+    "meshConsent.connectDirectly": "Direkt verbinden",
+    "meshConsent.joinWithoutThem": "Ohne sie beitreten",
+    "meshConsent.notNow": "Nicht jetzt",
+    "voiceCall.meshNeedsTurn":
+        "„Peer-to-Peer-Anrufe über Relay leiten“ ist aktiviert, aber dein Homeserver hat keinen TURN-Relay-Server. Schalte es in den Einstellungen unter Sprache und Video aus, um beizutreten.",
+    "voiceAudioSettings.meshRelayOnly": "Peer-to-Peer-Anrufe über Relay leiten",
+    "voiceAudioSettings.meshRelayOnlyHint":
+        "Anrufe ohne Anrufserver verbinden Personen direkt, wodurch sie deine IP-Adresse sehen. Mit dieser Option laufen sie stattdessen über den Relay-Server deines Homeservers: langsamer, aber deine Adresse bleibt verborgen.",
+    "voiceCall.meshPeerUnreachable":
+        "Jemand in diesem Anruf ist nur direkt erreichbar, aber das Relay ist aktiviert und dein Homeserver hat keinen Relay-Server (TURN). Du wirst diese Person daher nicht hören.",
+    "settingsSearch.meshRelayOnly": "Peer-to-Peer-Anrufe über Relay leiten",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: de };

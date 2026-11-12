@@ -558,6 +558,10 @@ export const settingsState = $state({
     /** Ask the SFU for video sized to the tile showing it, and pause video
      *  that isn't on screen (LiveKit adaptiveStream). Read at join. */
     adaptiveStream: readAccountBool("adaptiveStream", false),
+    /** Peer-to-peer calls (MSC4575) only through the homeserver's TURN
+     *  server, so the others see its address instead of ours. Read when a
+     *  connection is made. */
+    meshRelayOnly: readAccountBool("meshRelayOnly", false),
     callSoundsEnabled: readAccountBool("callSoundsEnabled", true),
     callSoundsVolume: readAccountNumber("callSoundsVolume", 0.5),
     /** Ring for incoming DM calls. Deliberately independent of
@@ -884,6 +888,7 @@ export function reloadAccountSettings(): void {
         readAccountString("callVideoCodec"),
     );
     settingsState.adaptiveStream = readAccountBool("adaptiveStream", false);
+    settingsState.meshRelayOnly = readAccountBool("meshRelayOnly", false);
     settingsState.callSoundsEnabled = readAccountBool(
         "callSoundsEnabled",
         true,
@@ -1497,6 +1502,11 @@ export function setBlockedDecodeCodecs(codecs: readonly VideoCodec[]): void {
 export function setCallVideoCodec(value: string): void {
     settingsState.callVideoCodec = normalizeCallVideoCodec(value);
     writeAccountString("callVideoCodec", settingsState.callVideoCodec);
+}
+
+export function setMeshRelayOnly(value: boolean): void {
+    settingsState.meshRelayOnly = value;
+    writeAccountBool("meshRelayOnly", value);
 }
 
 export function setAdaptiveStream(value: boolean): void {

@@ -34,6 +34,7 @@
     import ErrorToasts from "$lib/components/ui/ErrorToasts.svelte";
     import ScreenSharePicker from "$lib/components/layout/ScreenSharePicker.svelte";
     import JoinConsentDialog from "$lib/components/layout/JoinConsentDialog.svelte";
+    import MeshConsentDialog from "$lib/components/layout/MeshConsentDialog.svelte";
     import PluginPopoverHost from "$lib/components/plugins/PluginPopoverHost.svelte";
     import PluginOverlayHost from "$lib/components/plugins/PluginOverlayHost.svelte";
     import QuickSwitcher from "$lib/components/layout/QuickSwitcher.svelte";
@@ -3001,3 +3002,4 @@
 <UpdateToastWatch />
 <IdentityChangeBanner />
 <JoinConsentDialog />
+<MeshConsentDialog />
