@@ -3045,8 +3045,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Der Absender ist nicht erreichbar. Zam muss bei ihm geöffnet sein.",
     "fileOffer.failedRefused":
         "Die Sitzung des Absenders hat diese Übertragung abgelehnt.",
-    "fileOffer.failedNoSfu":
-        "Der Server des Absenders hat keinen Anrufdienst, der die Datei übertragen kann.",
+    "fileOffer.failedNoRelay":
+        "„Peer-to-Peer-Anrufe über Relay leiten“ ist aktiviert, aber es fehlt ein Relay-Server (TURN), daher kann die Datei nicht gesendet werden, ohne eine IP-Adresse zu zeigen.",
     "fileOffer.failedConnection": "Die Verbindung wurde unterbrochen.",
     "fileOffer.failedStalled": "Die Übertragung kommt nicht mehr voran.",
     "fileOffer.failedCorrupt":
@@ -4437,6 +4437,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Alle, mit denen du direkt verbunden wirst, können deine IP-Adresse sehen, die ungefähr deinen Standort verraten kann. Um sie zu verbergen, aktiviere „Peer-to-Peer-Anrufe über Relay leiten“ in den Einstellungen unter Sprache und Video.",
     "meshConsent.relayOnlyOn":
         "„Peer-to-Peer-Anrufe über Relay leiten“ ist aktiviert: Die anderen sehen den Relay-Server deines Homeservers, nicht deine IP-Adresse.",
+    "meshConsent.titleFileTransfer":
+        "Diese Dateiübertragung verbindet dich direkt mit der anderen Person",
+    "meshConsent.fileTransferDirect":
+        "Dein Homeserver oder der der anderen Person hat keinen Anrufserver, daher geht die Datei direkt von einem Gerät zum anderen.",
     "meshConsent.join": "Beitreten",
     "meshConsent.connectDirectly": "Direkt verbinden",
     "meshConsent.joinWithoutThem": "Ohne sie beitreten",

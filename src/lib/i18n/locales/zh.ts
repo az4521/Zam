@@ -3831,7 +3831,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "fileOffer.cancelled": "传输已取消。",
     "fileOffer.failedOffline": "发送者不可用。他们需要打开 Zam。",
     "fileOffer.failedRefused": "发送者的会话拒绝了此次传输。",
-    "fileOffer.failedNoSfu": "发送者的服务器没有可用于传输文件的通话服务。",
+    "fileOffer.failedNoRelay":
+        "“中继点对点通话”已开启，但缺少中继（TURN）服务器，因此无法在不暴露 IP 地址的情况下发送文件。",
     "fileOffer.failedConnection": "连接已断开。",
     "fileOffer.failedStalled": "传输已停滞。",
     "fileOffer.failedCorrupt": "文件在传输途中被改动，因此已被丢弃。",
@@ -3972,6 +3973,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "所有与您直接连接的人都可以看到您的 IP 地址，这可能大致泄露您的位置。要隐藏它，请在“语音和视频”设置中开启“中继点对点通话”。",
     "meshConsent.relayOnlyOn":
         "“中继点对点通话”已开启：其他人看到的是您主服务器的中继服务器，而不是您的 IP 地址。",
+    "meshConsent.titleFileTransfer": "此文件传输将直接连接到对方",
+    "meshConsent.fileTransferDirect":
+        "你或对方的主服务器没有通话服务器，因此文件会直接从一台设备传到另一台设备。",
     "meshConsent.join": "加入",
     "meshConsent.connectDirectly": "直接连接",
     "meshConsent.joinWithoutThem": "不与其连接并加入",

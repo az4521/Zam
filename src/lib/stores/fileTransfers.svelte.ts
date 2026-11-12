@@ -12,7 +12,7 @@ export type TransferPhase =
 export type TransferFailure =
     | "offline"
     | "refused"
-    | "no-sfu"
+    | "no-relay"
     | "connection"
     | "stalled"
     | "corrupt"

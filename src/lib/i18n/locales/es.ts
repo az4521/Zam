@@ -3065,8 +3065,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "El remitente no está disponible. Necesita tener Zam abierto.",
     "fileOffer.failedRefused":
         "La sesión del remitente ha rechazado esta transferencia.",
-    "fileOffer.failedNoSfu":
-        "El servidor del remitente no tiene un servicio de llamadas que transporte el archivo.",
+    "fileOffer.failedNoRelay":
+        "«Retransmitir llamadas entre pares» está activado, pero falta un servidor de retransmisión (TURN), así que el archivo no se puede enviar sin mostrar una dirección IP.",
     "fileOffer.failedConnection": "Se ha perdido la conexión.",
     "fileOffer.failedStalled": "La transferencia ha dejado de avanzar.",
     "fileOffer.failedCorrupt":
@@ -4392,6 +4392,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Todas las personas con las que te conectes directamente podrán ver tu dirección IP, que puede revelar aproximadamente dónde estás. Para ocultarla, activa «Retransmitir llamadas entre pares» en los ajustes de Voz y vídeo.",
     "meshConsent.relayOnlyOn":
         "«Retransmitir llamadas entre pares» está activado: los demás ven el servidor de retransmisión de tu servidor doméstico, no tu dirección IP.",
+    "meshConsent.titleFileTransfer":
+        "Esta transferencia de archivos te conecta directamente con la otra persona",
+    "meshConsent.fileTransferDirect":
+        "Tu servidor doméstico o el de la otra persona no tiene servidor de llamadas, así que el archivo va directamente de un dispositivo al otro.",
     "meshConsent.join": "Unirse",
     "meshConsent.connectDirectly": "Conectar directamente",
     "meshConsent.joinWithoutThem": "Unirse sin ellos",

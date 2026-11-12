@@ -30,7 +30,7 @@
     const FAILURE_TEXT: Record<TransferFailure, MessageKey> = {
         offline: "fileOffer.failedOffline",
         refused: "fileOffer.failedRefused",
-        "no-sfu": "fileOffer.failedNoSfu",
+        "no-relay": "fileOffer.failedNoRelay",
         connection: "fileOffer.failedConnection",
         stalled: "fileOffer.failedStalled",
         corrupt: "fileOffer.failedCorrupt",

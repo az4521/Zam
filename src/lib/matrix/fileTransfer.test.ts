@@ -28,6 +28,19 @@ let dropTo: ((type: string) => boolean) | null = null;
 let memberships: Record<string, string> = {};
 /** Identities whose homeserver has no SFU. */
 const sfuless = new Set<string>();
+/** What the user answers when asked to connect directly. */
+/** Identities that say no. */
+const declines = new Set<string>();
+const consentAsked: { identity: string; fileTransfer: boolean }[] = [];
+/** The direct links, by "transfer|identity", and what happened to them. */
+interface FakeMeshLink {
+    identity: string;
+    handler: (packet: Uint8Array) => void;
+    subscribed: boolean;
+    closed: boolean;
+}
+const meshLinks = new Map<string, FakeMeshLink>();
+const meshLog: string[] = [];
 const SENDER = "@alice:x:A";
 const RECEIVER = "@bob:x:B";
 
@@ -76,6 +89,8 @@ class FakeRoom {
 /** One session's SFU connections, as `identity`. */
 function fakeLivekit(identity: string) {
     return {
+        callIceConfig: async () => ({ iceServers: [] }),
+        homeserverTurn: async () => null,
         ownSfuTarget: async (alias: string) =>
             sfuless.has(identity)
                 ? null
@@ -210,6 +225,55 @@ async function session(userId: string, deviceId: string) {
     vi.resetModules();
     const identity = `${userId}:${deviceId}`;
     vi.doMock("./livekitCall", () => fakeLivekit(identity));
+    vi.doMock("./fileTransferMesh", () => ({
+        openMeshLink: (opts: {
+            client: { getUserId(): string; getDeviceId(): string };
+            transferId: string;
+            peer: { userId: string; deviceId: string };
+        }) => {
+            // The module is loaded on demand, so by then the mock of the
+            // session made last is the one in place: the client says who.
+            const identity = `${opts.client.getUserId()}:${opts.client.getDeviceId()}`;
+            const link: FakeMeshLink = {
+                identity,
+                handler: () => {},
+                subscribed: false,
+                closed: false,
+            };
+            meshLinks.set(`${opts.transferId}|${identity}`, link);
+            meshLog.push(`open ${identity}`);
+            const peerIdentity = `${opts.peer.userId}:${opts.peer.deviceId}`;
+            return {
+                subscribe: () => {
+                    link.subscribed = true;
+                    meshLog.push(`subscribe ${identity}`);
+                },
+                send: async (packet: Uint8Array) => {
+                    // Reaches the peer once the peer subscribed to us.
+                    const peer = meshLinks.get(
+                        `${opts.transferId}|${peerIdentity}`,
+                    );
+                    if (!peer?.subscribed || peer.closed)
+                        throw new Error("link down");
+                    queueMicrotask(() => peer.handler(packet));
+                },
+                onPacket: (h: (packet: Uint8Array) => void) =>
+                    (link.handler = h),
+                close: () => {
+                    link.closed = true;
+                },
+            };
+        },
+    }));
+    vi.doMock("$lib/stores/meshConsent.svelte", () => ({
+        requestMeshConsent: async (request: { fileTransfer?: boolean }) => {
+            consentAsked.push({
+                identity,
+                fileTransfer: !!request.fileTransfer,
+            });
+            return declines.has(identity) ? "cancel" : "allow";
+        },
+    }));
     const transfer = await import("./fileTransfer");
     const store = await import("$lib/stores/fileTransfers.svelte");
     const client = fakeClient(userId, deviceId);
@@ -256,6 +320,10 @@ beforeEach(() => {
     rooms.clear();
     owners.clear();
     sfuless.clear();
+    declines.clear();
+    consentAsked.length = 0;
+    meshLinks.clear();
+    meshLog.length = 0;
     joined.length = 0;
     foreignPublishes = 0;
     sent.length = 0;
@@ -330,6 +398,74 @@ describe("a direct transfer", () => {
         expect(joinedBy(RECEIVER)).toEqual(joinedBy(SENDER));
         expect(sent.some((m) => m.type.endsWith(".ack"))).toBe(true);
         expect(sink.finished).toBe(1);
+    });
+
+    it("connects the two devices when the sender has no SFU", async () => {
+        sfuless.add(SENDER);
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        const size = 2 * 1024 * 1024 + 5;
+        await alice.transfer.offerFile("!r:x", fileOf(size));
+        await bob.transfer.acceptOffer("!r:x", "@alice:x", offerIn(alice));
+        expect(sink.finished).toBe(1);
+        expect(sink.written.size).toBe(3);
+        await until(() =>
+            alice.store.fileTransfersState.views.some(
+                (v) => v.phase === "done",
+            ),
+        );
+        // Both are asked, as the page about IP addresses, before connecting.
+        expect(consentAsked).toEqual([
+            { identity: SENDER, fileTransfer: true },
+            { identity: RECEIVER, fileTransfer: true },
+        ]);
+        // The sender listens before the receiver asks it for anything, and
+        // only subscribes once the receiver is listening.
+        expect(meshLog).toEqual([
+            `open ${SENDER}`,
+            `open ${RECEIVER}`,
+            `subscribe ${RECEIVER}`,
+            `subscribe ${SENDER}`,
+        ]);
+        expect(sent.some((m) => m.type.endsWith(".ready"))).toBe(true);
+        // No room anywhere: not even the receiver's.
+        expect(joinedBy(SENDER)).toEqual([]);
+        expect([...meshLinks.values()].every((l) => l.closed)).toBe(true);
+    });
+
+    it("sends nothing when the sender won't connect directly", async () => {
+        sfuless.add(SENDER);
+        declines.add(SENDER);
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        await alice.transfer.offerFile("!r:x", fileOf(1000));
+        await bob.transfer.acceptOffer("!r:x", "@alice:x", offerIn(alice));
+        expect(sink.finished).toBe(0);
+        expect(sink.aborted).toBe(1);
+        expect(bob.store.fileTransfersState.views[0]).toMatchObject({
+            phase: "failed",
+            failure: "refused",
+        });
+        expect(meshLinks.size).toBe(0);
+    });
+
+    it("sends nothing when the receiver won't connect directly", async () => {
+        sfuless.add(SENDER);
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        await alice.transfer.offerFile("!r:x", fileOf(1000));
+        // Only the sender agrees.
+        declines.add(RECEIVER);
+        await bob.transfer.acceptOffer("!r:x", "@alice:x", offerIn(alice));
+        expect(sink.finished).toBe(0);
+        expect(bob.store.fileTransfersState.views[0]).toMatchObject({
+            phase: "cancelled",
+        });
+        await until(() =>
+            alice.store.fileTransfersState.views.some(
+                (v) => v.phase === "cancelled",
+            ),
+        );
     });
 
     it("discards the file when the final hash doesn't match", async () => {

@@ -1996,7 +1996,7 @@ async function connectPublishingRoom(
 /** TURN credentials from our homeserver, reused until they near expiry. */
 let turnCache: { creds: TurnCredentials | null; until: number } | null = null;
 
-async function homeserverTurn(): Promise<TurnCredentials | null> {
+export async function homeserverTurn(): Promise<TurnCredentials | null> {
     if (turnCache && Date.now() < turnCache.until) return turnCache.creds;
     let creds: TurnCredentials | null = null;
     let ttlMs = 5 * 60_000;
@@ -2037,7 +2037,7 @@ async function homeserverTurn(): Promise<TurnCredentials | null> {
 
 /** How mesh connections are set up now; null when relay-only is on and the
  *  homeserver has no TURN server to relay through. */
-async function callIceConfig(): Promise<RTCConfiguration | null> {
+export async function callIceConfig(): Promise<RTCConfiguration | null> {
     return meshIceConfig(
         await homeserverTurn(),
         settingsState.meshRelayOnly,

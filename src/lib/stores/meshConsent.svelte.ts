@@ -21,6 +21,8 @@ export interface MeshConsentRequest {
     joining: boolean;
     /** We'd send our own media over it: no call server of our own. */
     publishing: boolean;
+    /** Asked for a file transfer, not a call. */
+    fileTransfer?: boolean;
     /** Our homeserver has no TURN/STUN server: offer the public STUN one. */
     offerPublicStun?: boolean;
 }
@@ -45,6 +47,7 @@ export function requestMeshConsent(
         meshConsentState.pending = {
             joining: request.joining,
             publishing: request.publishing ?? false,
+            fileTransfer: request.fileTransfer ?? false,
             offerPublicStun: request.offerPublicStun ?? false,
             resolve,
         };

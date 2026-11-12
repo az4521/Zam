@@ -46,14 +46,18 @@
             id="mesh-consent-title"
             class="mb-2 text-lg font-semibold text-discord-textPrimary"
         >
-            {pending.joining
-                ? t("meshConsent.titleJoining")
-                : t("meshConsent.titleNewcomer")}
+            {pending.fileTransfer
+                ? t("meshConsent.titleFileTransfer")
+                : pending.joining
+                  ? t("meshConsent.titleJoining")
+                  : t("meshConsent.titleNewcomer")}
         </h2>
         <p class="mb-3 text-sm text-discord-textMuted">
-            {pending.publishing
-                ? t("meshConsent.noCallServer")
-                : t("meshConsent.someoneWithoutCallServer")}
+            {pending.fileTransfer
+                ? t("meshConsent.fileTransferDirect")
+                : pending.publishing
+                  ? t("meshConsent.noCallServer")
+                  : t("meshConsent.someoneWithoutCallServer")}
         </p>
         {#if relayOnly}
             <p
@@ -112,7 +116,7 @@
                 onclick={allow}
                 class="rounded bg-discord-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
             >
-                {pending.joining && pending.publishing
+                {pending.joining && pending.publishing && !pending.fileTransfer
                     ? t("meshConsent.join")
                     : t("meshConsent.connectDirectly")}
             </button>

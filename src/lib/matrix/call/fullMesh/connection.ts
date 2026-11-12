@@ -477,6 +477,11 @@ export class PublisherConnection extends MeshConnection {
         }
     }
 
+    /** Bytes queued on the reliable data channel, not yet sent. */
+    dataBuffered(): number {
+        return this.data.bufferedAmount;
+    }
+
     addDataTrack(name: string): void {
         if (this.closed || this.dataTracks.has(name)) return;
         this.dataTracks.set(

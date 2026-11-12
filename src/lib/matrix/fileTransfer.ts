@@ -15,6 +15,11 @@
 // Like a call's media, each end publishes only on its own homeserver's SFU and
 // listens on the other's: an SFU need not let another server's users publish
 // (MSC4576). Neither side sees the other's address, only the SFUs.
+//
+// A sender whose homeserver has no SFU can't make a room, so, as a call does,
+// the transfer falls back to the full mesh (fileTransferMesh.ts): the accept
+// names no room (`transport: "full_mesh"`) and the two devices connect to each
+// other. That shows each its peer's IP address, so each is asked first.
 
 import {
     ClientEvent,
@@ -42,6 +47,7 @@ import {
     FILE_DONE_TYPE,
     FILE_FINISH_TYPE,
     FILE_OFFER_EVENT,
+    FILE_READY_TYPE,
     FILE_REFUSE_TYPE,
     FILE_REQUEST_TYPE,
     OFFER_LIFETIME_MS,
@@ -76,12 +82,25 @@ import {
     holdAppForTransfer,
     openSaveSink,
 } from "./fileTransferSink";
-import { joinHiddenSfuRoom, ownSfuTarget } from "./livekitCall";
+import {
+    callIceConfig,
+    homeserverTurn,
+    joinHiddenSfuRoom,
+    ownSfuTarget,
+} from "./livekitCall";
+import type { MeshTransferLink, openMeshLink } from "./fileTransferMesh";
+import { lacksIceServers } from "./call/fullMesh/meshPolicy";
+import { requestMeshConsent } from "$lib/stores/meshConsent.svelte";
 
 /** How long an accepted offer waits for the sender's device to answer. */
 const ANSWER_TIMEOUT_MS = 30_000;
 /** How long the sender waits for the receiver's verdict on the hash. */
 const VERDICT_TIMEOUT_MS = 120_000;
+/** How long the sender waits for the receiver to open its end of a direct
+ *  link, which may mean waiting for the user to answer a dialog. */
+const READY_TIMEOUT_MS = 120_000;
+/** The accept's `transport` when the devices connect to each other. */
+const MESH_TRANSPORT = "full_mesh";
 /** One file, sent to this many devices at once. */
 const MAX_RECEIVERS = 3;
 const REJOIN_ATTEMPTS = 10;
@@ -312,6 +331,41 @@ function namedRoom(content: Record<string, unknown>): SfuRoomTarget | null {
     return { serviceUrl, alias };
 }
 
+/**
+ * Whether the user lets this device connect straight to the peer's, which
+ * shows each its other's IP address (unless relaying). Throws "no-relay"
+ * when relaying is asked for and the homeserver has no TURN server.
+ */
+async function allowDirectLink(): Promise<boolean> {
+    const answer = await requestMeshConsent({
+        joining: true,
+        publishing: true,
+        fileTransfer: true,
+        offerPublicStun: lacksIceServers(await homeserverTurn()),
+    });
+    if (answer !== "allow") return false;
+    if (!(await callIceConfig())) throw new TransferFailed("no-relay");
+    return true;
+}
+
+/** The mesh's code, which a transfer with an SFU never needs. */
+async function openDirectLink(
+    opts: Omit<Parameters<typeof openMeshLink>[0], "client" | "rtcConfig">,
+): Promise<MeshTransferLink> {
+    const { openMeshLink } = await import("./fileTransferMesh");
+    return openMeshLink({
+        ...opts,
+        client: liveCrypto().client,
+        rtcConfig: directIceConfig,
+    });
+}
+
+async function directIceConfig(): Promise<RTCConfiguration> {
+    const config = await callIceConfig();
+    if (!config) throw new TransferFailed("no-relay");
+    return config;
+}
+
 /** Keeps the page, and on Android the whole app, going. */
 function holdWhileTransferring(): () => void {
     const releasePage = holdPageAlive();
@@ -359,31 +413,68 @@ async function serveRequest(
     const { peer } = session;
     const release = holdWhileTransferring();
     let link: TransferRooms | null = null;
+    let direct: MeshTransferLink | null = null;
     let sender: BlockSender | null = null;
     try {
         const alias = transferRoomAlias(offered.roomId, randomToken());
         const target = await ownSfuTarget(alias);
-        if (!target) throw new TransferFailed("no-sfu");
         const { key, raw } = await generateTransferKey();
-        link = openLink(transferIdentity(peer.userId, peer.deviceId), session);
-        await link.joinOwn(target);
-        // Without it, acknowledgements still come over to-device messages.
-        if (receiverRoom)
-            await link
-                .joinPeer(receiverRoom)
-                .catch((err) =>
-                    console.warn("[file-transfer] receiver's room", err),
-                );
-        const progress = trackProgress(session.viewId);
-        sender = new BlockSender(offered.file, key, transferId, link, progress);
-        const running = sender;
-        session.onAck = (ack) => running.handleSlowAck(ack);
-        await sendToDevice(FILE_ACCEPT_TYPE, peer, {
+        const accept: Record<string, unknown> = {
             transfer_id: transferId,
             key: bytesToBase64Url(raw),
-            service_url: target.serviceUrl,
-            alias,
-        });
+        };
+        if (target) {
+            link = openLink(
+                transferIdentity(peer.userId, peer.deviceId),
+                session,
+            );
+            await link.joinOwn(target);
+            // Without it, acknowledgements still come over to-device messages.
+            if (receiverRoom)
+                await link
+                    .joinPeer(receiverRoom)
+                    .catch((err) =>
+                        console.warn("[file-transfer] receiver's room", err),
+                    );
+            accept.service_url = target.serviceUrl;
+            accept.alias = alias;
+        } else {
+            // No SFU of ours: connect to the receiver's device instead.
+            if (!(await untilAborted(session, allowDirectLink()))) {
+                await sendToDevice(FILE_REFUSE_TYPE, peer, {
+                    transfer_id: transferId,
+                    reason: "declined",
+                });
+                throw new TransferCancelled();
+            }
+            direct = await openDirectLink({
+                roomId: offered.roomId,
+                transferId,
+                peer,
+                onFailed: () =>
+                    session.abort.abort(new TransferFailed("connection")),
+            });
+            accept.transport = MESH_TRANSPORT;
+        }
+        const progress = trackProgress(session.viewId);
+        sender = new BlockSender(
+            offered.file,
+            key,
+            transferId,
+            (direct ?? link)!,
+            progress,
+        );
+        const running = sender;
+        session.onAck = (ack) => running.handleSlowAck(ack);
+        await sendToDevice(FILE_ACCEPT_TYPE, peer, accept);
+        if (direct) {
+            // Their end listens before ours asks it for anything.
+            await untilAborted(
+                session,
+                expectMessage(session, FILE_READY_TYPE, READY_TIMEOUT_MS),
+            );
+            direct.subscribe();
+        }
         const root = await untilAborted(session, running.run());
         updateTransfer(session.viewId, {
             phase: "verifying",
@@ -412,6 +503,7 @@ async function serveRequest(
     } finally {
         sender?.stop();
         link?.close();
+        direct?.close();
         release();
     }
 }
@@ -499,6 +591,7 @@ function onToDevice(payload: ReceivedToDevice): void {
         type === FILE_ACCEPT_TYPE ||
         type === FILE_REFUSE_TYPE ||
         type === FILE_FINISH_TYPE ||
+        type === FILE_READY_TYPE ||
         type === FILE_DONE_TYPE
     ) {
         const waiter = session.waiters.get(type);
@@ -625,6 +718,7 @@ async function receiveFile(
     const transferId = offer.transferId;
     const release = holdWhileTransferring();
     let link: TransferRooms | null = null;
+    let direct: MeshTransferLink | null = null;
     let receiver: BlockReceiver | null = null;
     try {
         link = openLink(transferIdentity(peer.userId, peer.deviceId), session);
@@ -660,17 +754,42 @@ async function receiveFile(
             ]),
         );
         refused.catch(() => {});
-        const senderRoom = namedRoom(answer);
-        if (typeof answer.key !== "string" || !senderRoom)
+        if (typeof answer.key !== "string")
             throw new TransferFailed("connection");
         const key = await importTransferKey(base64UrlToBytes(answer.key));
-        await link.joinPeer(senderRoom);
+        if (answer.transport === MESH_TRANSPORT) {
+            // The sender has no SFU: the rooms are no use, and the two
+            // devices connect to each other if the user lets them.
+            link.close();
+            link = null;
+            if (!(await untilAborted(session, allowDirectLink()))) {
+                void sendToDevice(FILE_CANCEL_TYPE, peer, {
+                    transfer_id: transferId,
+                }).catch(() => {});
+                throw new TransferCancelled();
+            }
+            direct = await openDirectLink({
+                roomId,
+                transferId,
+                peer,
+                onFailed: () =>
+                    session.abort.abort(new TransferFailed("connection")),
+            });
+            direct.subscribe();
+            await sendToDevice(FILE_READY_TYPE, peer, {
+                transfer_id: transferId,
+            });
+        } else {
+            const senderRoom = namedRoom(answer);
+            if (!senderRoom) throw new TransferFailed("connection");
+            await link.joinPeer(senderRoom);
+        }
         updateTransfer(session.viewId, { phase: "transferring" });
         receiver = new BlockReceiver(
             offer.size,
             key,
             transferId,
-            link,
+            (direct ?? link)!,
             sink,
             trackProgress(session.viewId),
             (ack) =>
@@ -708,6 +827,7 @@ async function receiveFile(
     } finally {
         receiver?.stop();
         link?.close();
+        direct?.close();
         release();
     }
 }

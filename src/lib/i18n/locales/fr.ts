@@ -3022,8 +3022,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "L'expéditeur n'est pas disponible. Zam doit être ouvert de son côté.",
     "fileOffer.failedRefused":
         "La session de l'expéditeur a refusé ce transfert.",
-    "fileOffer.failedNoSfu":
-        "Le serveur de l'expéditeur n'a pas de service d'appel pour transporter le fichier.",
+    "fileOffer.failedNoRelay":
+        "« Relayer les appels pair à pair » est activé, mais il manque un serveur de relais (TURN) : le fichier ne peut pas être envoyé sans révéler une adresse IP.",
     "fileOffer.failedConnection": "La connexion a été perdue.",
     "fileOffer.failedStalled": "Le transfert ne progresse plus.",
     "fileOffer.failedCorrupt":
@@ -4409,6 +4409,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Toutes les personnes avec lesquelles vous vous connectez directement peuvent voir votre adresse IP, qui peut révéler approximativement où vous vous trouvez. Pour la masquer, activez « Relayer les appels pair à pair » dans les paramètres Voix et vidéo.",
     "meshConsent.relayOnlyOn":
         "« Relayer les appels pair à pair » est activé : les autres voient le serveur relais de votre serveur d'accueil, et non votre adresse IP.",
+    "meshConsent.titleFileTransfer":
+        "Ce transfert de fichier vous connecte directement à l'autre personne",
+    "meshConsent.fileTransferDirect":
+        "Votre serveur d'accueil ou le sien n'a pas de serveur d'appels : le fichier passe directement d'un appareil à l'autre.",
     "meshConsent.join": "Rejoindre",
     "meshConsent.connectDirectly": "Se connecter directement",
     "meshConsent.joinWithoutThem": "Rejoindre sans elles",

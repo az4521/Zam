@@ -4068,8 +4068,8 @@ export const en = {
     "fileOffer.failedOffline":
         "The sender isn't available. They need Zam open.",
     "fileOffer.failedRefused": "The sender's session refused this transfer.",
-    "fileOffer.failedNoSfu":
-        "The sender's server has no call service to carry the file.",
+    "fileOffer.failedNoRelay":
+        "Relay peer-to-peer calls is on, but a relay (TURN) server is missing, so the file can't be sent without showing an IP address.",
     "fileOffer.failedConnection": "The connection was lost.",
     "fileOffer.failedStalled": "The transfer stopped making progress.",
     "fileOffer.failedCorrupt":
@@ -4203,6 +4203,10 @@ export const en = {
         'Everyone you connect to directly can see your IP address, which can reveal roughly where you are. To hide it, turn on "Relay peer-to-peer calls" in Voice & Video settings.',
     "meshConsent.relayOnlyOn":
         "Relay peer-to-peer calls is on: the others see your homeserver's relay server, not your IP address.",
+    "meshConsent.titleFileTransfer":
+        "This file transfer connects you directly to the other person",
+    "meshConsent.fileTransferDirect":
+        "Your homeserver or theirs has no call server, so the file goes straight from one device to the other.",
     "meshConsent.join": "Join",
     "meshConsent.connectDirectly": "Connect directly",
     "meshConsent.joinWithoutThem": "Join without them",

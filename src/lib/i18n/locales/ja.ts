@@ -3599,8 +3599,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "fileOffer.failedOffline":
         "送信者に接続できません。送信者が Zam を開いている必要があります。",
     "fileOffer.failedRefused": "送信者のセッションがこの転送を拒否しました。",
-    "fileOffer.failedNoSfu":
-        "送信者のサーバーには、ファイルを中継する通話サービスがありません。",
+    "fileOffer.failedNoRelay":
+        "「ピアツーピア通話を中継する」がオンですが、中継(TURN)サーバーがないため、IPアドレスを公開せずにファイルを送ることはできません。",
     "fileOffer.failedConnection": "接続が切れました。",
     "fileOffer.failedStalled": "転送が進まなくなりました。",
     "fileOffer.failedCorrupt":
@@ -3883,6 +3883,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "直接接続する相手は全員あなたのIPアドレスを見ることができ、おおよその所在地が推測される可能性があります。隠すには、「音声と映像」設定で「ピアツーピア通話を中継する」をオンにしてください。",
     "meshConsent.relayOnlyOn":
         "「ピアツーピア通話を中継する」がオンです。相手にはあなたのIPアドレスではなく、ホームサーバーの中継サーバーが表示されます。",
+    "meshConsent.titleFileTransfer": "このファイル転送は相手と直接接続します",
+    "meshConsent.fileTransferDirect":
+        "あなたまたは相手のホームサーバーに通話サーバーがないため、ファイルは端末から端末へ直接送られます。",
     "meshConsent.join": "参加",
     "meshConsent.connectDirectly": "直接接続",
     "meshConsent.joinWithoutThem": "その人を除いて参加",

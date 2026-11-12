@@ -34,6 +34,9 @@ const SPEAKER_POLL_MS = 250;
 const SPEAKING_LEVEL = 0.03;
 /** Speaking stays shown this long after the level drops, so it doesn't flicker. */
 const SPEAKING_HOLD_MS = 600;
+/** Queued bytes past which sendDataTo waits. */
+const SEND_BUFFER_MAX = 1024 * 1024;
+const SEND_BUFFER_POLL_MS = 10;
 const RETRY_BASE_MS = 1_000;
 const RETRY_MAX_MS = 30_000;
 /** A connection up this long counts as having worked: retries start over. */
@@ -489,6 +492,32 @@ export class FullMeshTransport implements CallTransport, CallDataPublisher {
         for (const p of this.publishers.values())
             if (!only || only.has(meshIdentity(p.peer)))
                 p.sendData(payload, opts.topic, opts.reliable);
+    }
+
+    /**
+     * Reliable data to one member, waiting while a lot is already queued, so
+     * a sender that sends faster than the link carries doesn't fill the
+     * channel's buffer (which makes the browser throw). Rejects when there is
+     * no open connection to them.
+     */
+    async sendDataTo(
+        identity: string,
+        payload: Uint8Array,
+        topic: string,
+    ): Promise<void> {
+        const find = () =>
+            [...this.publishers.values()].find(
+                (p) => meshIdentity(p.peer) === identity,
+            );
+        const connection = find();
+        if (!connection) throw new Error("link down");
+        while (connection.dataBuffered() > SEND_BUFFER_MAX) {
+            await new Promise((r) => setTimeout(r, SEND_BUFFER_POLL_MS));
+            if (this.closed || find() !== connection)
+                throw new Error("link down");
+        }
+        if (!connection.sendData(payload, topic, true))
+            throw new Error("link down");
     }
 
     async publishDataTrack(name: string): Promise<PluginLocalTrackLike> {

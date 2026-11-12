@@ -2774,7 +2774,6 @@ const messages: Partial<Record<MessageKey, string>> = {
     "fileOffer.cancelled": "ܫܘܕܪܐ ܒܛܝܠܐ ܝܠܗ.",
     "fileOffer.failedOffline": "ܫܕܪܢܐ ܠܝܬܠܗ. ܓܪܡ Zam ܦܝܫܐ ܦܬܝܚܐ ܓܒܝܗ.",
     "fileOffer.failedRefused": "ܫܘܬܐܣܐ ܕܫܕܪܢܐ ܠܐ ܩܒܠܠܗ ܐܗܐ ܫܘܕܪܐ.",
-    "fileOffer.failedNoSfu": "ܣܪܒܪ ܕܫܕܪܢܐ ܠܝܬܠܗ ܚܕܡܬܐ ܕܩܪܝܬܐ ܠܫܘܕܪܐ ܕܦܝܠ.",
     "fileOffer.failedConnection": "ܐܣܩܘܠܬܐ ܦܫܝܠܗ ܦܣܝܩܬܐ.",
     "fileOffer.failedStalled": "ܫܘܕܪܐ ܠܐ ܟܐ ܙܠܐ ܠܩܕܡ.",
     "fileOffer.failedCorrupt": "ܦܝܠ ܫܘܚܠܦܐ ܝܠܗ ܒܐܘܪܚܐ، ܡܛܠ ܗܕܐ ܫܕܐ ܝܠܗ.",

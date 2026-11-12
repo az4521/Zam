@@ -17,6 +17,8 @@ export const FILE_OFFER_EVENT = "moe.crafty.matrix.file_offer";
 const TO_DEVICE_PREFIX = "moe.crafty.matrix.file_transfer";
 export const FILE_REQUEST_TYPE = `${TO_DEVICE_PREFIX}.request`;
 export const FILE_ACCEPT_TYPE = `${TO_DEVICE_PREFIX}.accept`;
+/** From the receiver once its end of a direct link listens (see accept). */
+export const FILE_READY_TYPE = `${TO_DEVICE_PREFIX}.ready`;
 export const FILE_REFUSE_TYPE = `${TO_DEVICE_PREFIX}.refuse`;
 export const FILE_ACK_TYPE = `${TO_DEVICE_PREFIX}.ack`;
 export const FILE_FINISH_TYPE = `${TO_DEVICE_PREFIX}.finish`;
