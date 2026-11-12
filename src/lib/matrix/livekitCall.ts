@@ -1433,6 +1433,21 @@ async function meshSendersMatch(
     );
 }
 
+/**
+ * A legacy m.call.member's created_ts, which a refresh keeps and only a
+ * rejoin changes; the mesh restarts its message count to a member who
+ * rejoined. Undefined for a sticky m.rtc.member, whose timestamp is the
+ * event's own and changes on every refresh.
+ */
+function legacyMembershipSince(m: RtcMembership): number | undefined {
+    // CallMembership keeps its kind private.
+    const kind = (m as unknown as { membershipData?: { kind?: unknown } })
+        .membershipData?.kind;
+    if (kind !== "session") return undefined;
+    const since = m.createdTs();
+    return Number.isFinite(since) ? since : undefined;
+}
+
 /** The latest syncRemoteSfus run per call: an older one that waited on the
  *  device check mustn't apply after it. */
 const remoteSyncRun = new WeakMap<ActiveVoiceCall, number>();
@@ -1485,6 +1500,7 @@ async function syncRemoteSfus(call: ActiveVoiceCall): Promise<void> {
             userId: m.userId,
             deviceId: m.deviceId,
             memberId: m.memberId,
+            since: legacyMembershipSince(m),
             overMesh:
                 senderOk &&
                 receivesOverMesh(transport, m.transports, m.deviceId),
@@ -1507,6 +1523,7 @@ function syncMesh(
         userId: string;
         deviceId: string;
         memberId: string;
+        since?: number;
         overMesh: boolean;
     }[],
 ): void {
@@ -1534,6 +1551,7 @@ function syncMesh(
         userId: o.userId,
         deviceId: o.deviceId,
         memberId: o.memberId,
+        since: o.since,
         subscribe: o.overMesh && call.meshConsent,
     }));
     call.mesh.setMembers(members);

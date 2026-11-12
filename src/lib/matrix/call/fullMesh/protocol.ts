@@ -448,6 +448,11 @@ export class SeqOrderer<T> {
         if (wasEmpty) this.arm();
     }
 
+    /** Whether the count has moved past 0: a seq 0 now is a restart. */
+    get advanced(): boolean {
+        return this.next > 0;
+    }
+
     dispose(): void {
         this.disposed = true;
         this.clearTimer();

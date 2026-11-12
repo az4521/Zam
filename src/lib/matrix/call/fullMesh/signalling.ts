@@ -40,9 +40,102 @@ export interface Signalling {
 
 const OUR_TYPES = new Set(Object.values(SIGNALLING_TYPES));
 
-/** Next `seq` per (own member, target member), kept for the page's life:
- *  the MSC counts across connections, and a rejoin is a new connection. */
-const nextSeq = new Map<string, number>();
+/** Where the outgoing counts are kept across reloads. */
+const SEQ_STORE_KEY = "moe.crafty.full_mesh.seq";
+/** A count unused this long is forgotten. */
+const SEQ_STORE_TTL_MS = 2 * 24 * 60 * 60 * 1000;
+
+interface SeqRecord {
+    /** The next seq to send. */
+    next: number;
+    /** The peer's membership created_ts this count belongs to, if known. */
+    since?: number;
+    /** When it was last used. */
+    at: number;
+}
+
+/**
+ * The next `seq` per (own member, target member). The MSC counts across
+ * connections, and a receiver drops anything below the seq it expects next
+ * (Element Call does), so the count must not start over while the receiver
+ * keeps its own: not on a rejoin, not on a reload of ours either, since our
+ * member id is the same after one. It does start over when the receiver
+ * rejoined, which a legacy membership's created_ts tells: the receiver's
+ * count of us starts over too then.
+ */
+const seqStore = {
+    records: null as Map<string, SeqRecord> | null,
+
+    load(): Map<string, SeqRecord> {
+        if (this.records) return this.records;
+        const records = new Map<string, SeqRecord>();
+        try {
+            const raw: unknown = JSON.parse(
+                localStorage.getItem(SEQ_STORE_KEY) ?? "{}",
+            );
+            const now = Date.now();
+            if (raw && typeof raw === "object")
+                for (const [key, r] of Object.entries(raw)) {
+                    if (
+                        typeof r?.next === "number" &&
+                        Number.isSafeInteger(r.next) &&
+                        r.next >= 0 &&
+                        typeof r.at === "number" &&
+                        now - r.at < SEQ_STORE_TTL_MS
+                    )
+                        records.set(key, {
+                            next: r.next,
+                            at: r.at,
+                            ...(typeof r.since === "number"
+                                ? { since: r.since }
+                                : {}),
+                        });
+                }
+        } catch {
+            // No storage (private window, blocked): counts live for the page.
+        }
+        this.records = records;
+        return records;
+    },
+
+    take(key: string, since: number | undefined): number {
+        const records = this.load();
+        const record = records.get(key);
+        const restarted =
+            record?.since !== undefined &&
+            since !== undefined &&
+            record.since !== since;
+        const seq = record && !restarted ? record.next : 0;
+        records.set(key, {
+            next: seq + 1,
+            at: Date.now(),
+            ...((since ?? record?.since) !== undefined
+                ? { since: since ?? record?.since }
+                : {}),
+        });
+        try {
+            localStorage.setItem(
+                SEQ_STORE_KEY,
+                JSON.stringify(Object.fromEntries(records)),
+            );
+        } catch {
+            // As above.
+        }
+        return seq;
+    },
+};
+
+/** Tests: forget the counts in memory (a reload), and the stored ones
+ *  unless `keepStored`. */
+export function resetSeqStoreForTests(keepStored = false): void {
+    seqStore.records = null;
+    if (keepStored) return;
+    try {
+        localStorage.removeItem(SEQ_STORE_KEY);
+    } catch {
+        /* none */
+    }
+}
 
 export function createSignalling(opts: {
     client: MatrixClient;
@@ -50,14 +143,15 @@ export function createSignalling(opts: {
     slotId: string;
     own: MeshPeer;
     onMessage: (message: SignallingMessage) => void;
+    /** The created_ts of a member's legacy membership, which changes only
+     *  when they rejoin; undefined when not known (or a sticky one). */
+    peerSince?: (memberId: string) => number | undefined;
 }): Signalling {
-    const { client, roomId, slotId, own, onMessage } = opts;
+    const { client, roomId, slotId, own, onMessage, peerSince } = opts;
     // Sends to one member must reach the to-device queue in seq order, and
     // encryption is async.
     const chains = new Map<string, Promise<void>>();
     const orderers = new Map<string, SeqOrderer<SignallingMessage>>();
-    /** Senders whose seq 0 we have had: a second one is a restart. */
-    const sawZero = new Set<string>();
     let disposed = false;
 
     const send: Signalling["send"] = (peer, connectionId, payload) => {
@@ -69,8 +163,7 @@ export function createSignalling(opts: {
             peer.memberId,
             peer.deviceId,
         ].join("\n");
-        const seq = nextSeq.get(seqKey) ?? 0;
-        nextSeq.set(seqKey, seq + 1);
+        const seq = seqStore.take(seqKey, peerSince?.(peer.memberId));
         const { eventType, content } = buildSignalling(
             {
                 room_id: roomId,
@@ -136,10 +229,10 @@ export function createSignalling(opts: {
         // member id must not disturb the real one's order.
         const key = `${peer.userId}\n${peer.deviceId}\n${peer.memberId}`;
         let orderer = orderers.get(key);
-        // A second seq 0 is a sender that started counting again (a
-        // reload). The first may just come after later ones.
-        const restarted = common.seq === 0 && sawZero.has(key);
-        if (common.seq === 0) sawZero.add(key);
+        // A seq 0 once the count moved past it is a sender that started
+        // counting again (it rejoined or reloaded). Before that it may just
+        // come after later ones.
+        const restarted = common.seq === 0 && !!orderer?.advanced;
         if (!orderer || restarted) {
             orderer?.dispose();
             orderer = new SeqOrderer(

@@ -45,6 +45,10 @@ const STABLE_MS = 60_000;
 export interface MeshMember extends MeshPeer {
     /** Publishes on full mesh, and we receive them through it. */
     subscribe: boolean;
+    /** Their legacy membership's created_ts: changes only on a rejoin.
+     *  Undefined for a sticky m.rtc.member, whose timestamp changes on
+     *  every refresh. */
+    since?: number;
 }
 
 /** "@user:server:DEVICE", the identity every transport uses. */
@@ -110,6 +114,7 @@ export class FullMeshTransport implements CallTransport, CallDataPublisher {
             own: opts.own,
             onMessage: (m) =>
                 this.onSignalling(m.peer, m.connectionId, m.payload),
+            peerSince: (memberId) => this.members.get(memberId)?.since,
         });
         const subscriptions = this.subscriptions;
         this.pluginRoom = {

@@ -1,6 +1,10 @@
 import { ClientEvent, type MatrixClient } from "matrix-js-sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createSignalling, type SignallingMessage } from "./signalling";
+import {
+    createSignalling,
+    resetSeqStoreForTests,
+    type SignallingMessage,
+} from "./signalling";
 import {
     SIGNALLING_TYPES,
     buildSignalling,
@@ -119,6 +123,7 @@ describe("createSignalling", () => {
 
     beforeEach(() => {
         warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        resetSeqStoreForTests();
     });
     afterEach(() => {
         warn.mockRestore();
@@ -276,6 +281,87 @@ describe("createSignalling", () => {
         });
     });
 
+    describe("seq across joins and reloads", () => {
+        function sender(
+            f: ReturnType<typeof fakeClient>,
+            peerSince?: () => number | undefined,
+        ) {
+            return createSignalling({
+                client: f.client,
+                roomId: ROOM,
+                slotId: SLOT,
+                own: OWN,
+                onMessage: () => {},
+                peerSince,
+            });
+        }
+        const seqs = (f: ReturnType<typeof fakeClient>) =>
+            f.encryptToDeviceMessages.mock.calls.map(
+                (c) => (c[2] as { seq: number }).seq,
+            );
+
+        // A receiver that stays drops anything below the seq it expects
+        // (Element Call does), and our member id is the same after a reload.
+        it("keeps counting after a reload of ours", async () => {
+            const f = fakeClient();
+            const before = sender(f);
+            before.send(PEER, "c", { type: "subscribe" });
+            before.send(PEER, "c", CANDIDATE);
+            await vi.waitFor(() => expect(f.queued).toHaveLength(2));
+            before.dispose();
+
+            resetSeqStoreForTests(true);
+            const after = sender(f);
+            after.send(PEER, "c2", { type: "subscribe" });
+            await vi.waitFor(() => expect(f.queued).toHaveLength(3));
+            expect(seqs(f)).toEqual([0, 1, 2]);
+            after.dispose();
+        });
+
+        it("starts over at 0 when the peer rejoined (a new created_ts)", async () => {
+            const f = fakeClient();
+            let since = 1000;
+            const sig = sender(f, () => since);
+            sig.send(PEER, "c", { type: "subscribe" });
+            sig.send(PEER, "c", CANDIDATE);
+            since = 2000;
+            sig.send(PEER, "c2", { type: "subscribe" });
+            sig.send(PEER, "c2", CANDIDATE);
+            await vi.waitFor(() => expect(f.queued).toHaveLength(4));
+            expect(seqs(f)).toEqual([0, 1, 0, 1]);
+            sig.dispose();
+        });
+
+        it("keeps counting when the peer's created_ts only becomes known", async () => {
+            const f = fakeClient();
+            let since: number | undefined;
+            const sig = sender(f, () => since);
+            sig.send(PEER, "c", { type: "subscribe" });
+            since = 1000;
+            sig.send(PEER, "c", CANDIDATE);
+            since = undefined;
+            sig.send(PEER, "c", CANDIDATE);
+            await vi.waitFor(() => expect(f.queued).toHaveLength(3));
+            expect(seqs(f)).toEqual([0, 1, 2]);
+            sig.dispose();
+        });
+
+        it("starts over after a reload when the peer rejoined meanwhile", async () => {
+            const f = fakeClient();
+            const before = sender(f, () => 1000);
+            before.send(PEER, "c", { type: "subscribe" });
+            await vi.waitFor(() => expect(f.queued).toHaveLength(1));
+            before.dispose();
+
+            resetSeqStoreForTests(true);
+            const after = sender(f, () => 2000);
+            after.send(PEER, "c2", { type: "subscribe" });
+            await vi.waitFor(() => expect(f.queued).toHaveLength(2));
+            expect(seqs(f)).toEqual([0, 0]);
+            after.dispose();
+        });
+    });
+
     describe("receiving", () => {
         function setup() {
             const f = fakeClient();
@@ -409,6 +495,28 @@ describe("createSignalling", () => {
             );
             expect(received).toHaveLength(5);
             sig.dispose();
+        });
+
+        // We reloaded while the sender stayed: our count of them started
+        // midway, without a seq 0. When they rejoin, their 0 is a restart.
+        it("treats a seq 0 as a restart when the count started midway", () => {
+            vi.useFakeTimers();
+            try {
+                const { f, received, sig } = setup();
+                f.deliver(wire(PEER, CANDIDATE, { seq: 7 }));
+                vi.advanceTimersByTime(1_000);
+                f.deliver(wire(PEER, CANDIDATE, { seq: 8 }));
+                expect(received).toHaveLength(2);
+
+                f.deliver(
+                    wire(PEER, CANDIDATE, { seq: 0, connection_id: "conn-2" }),
+                );
+                expect(received).toHaveLength(3);
+                expect(received[2].connectionId).toBe("conn-2");
+                sig.dispose();
+            } finally {
+                vi.useRealTimers();
+            }
         });
     });
 
