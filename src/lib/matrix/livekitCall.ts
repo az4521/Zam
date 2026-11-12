@@ -206,6 +206,7 @@ import {
     receivesOverMesh,
     type TurnCredentials,
 } from "./call/fullMesh/meshPolicy";
+import { advertiseMeshSubscribe } from "./call/fullMesh/sdkMembership";
 
 type LivekitModule = typeof import("livekit-client");
 type LivekitRoom = LivekitClient.Room;
@@ -1850,6 +1851,8 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             : ownMeshTransport(deviceId);
         // Advertises the SFU we publish on, as multi_sfu (or the mesh). A
         // client that reads multi_sfu takes foci_preferred[0], the same one.
+        // We can receive over the mesh: say so in can_subscribe (MSC4575).
+        advertiseMeshSubscribe();
         session.join({ userId, deviceId, memberId }, [transport], {
             membershipEventExpiryMs: 4 * 60 * 60 * 1000,
             // Debug toggle: m.rtc.member as a sticky event (MSC4354).

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+    withMeshCanSubscribe,
     isLivekitTransport,
     joinUsesMesh,
     meshIceConfig,
@@ -220,5 +221,35 @@ describe("public STUN fallback", () => {
         expect(lacksIceServers(null)).toBe(true);
         expect(lacksIceServers({ uris: [] })).toBe(true);
         expect(lacksIceServers({ uris: ["turn:x"] })).toBe(false);
+    });
+});
+
+describe("withMeshCanSubscribe", () => {
+    it("adds the mesh to an m.rtc.member's can_subscribe", () => {
+        const content = {
+            slot_id: "m.call#",
+            transports: { published: [], can_subscribe: ["livekit"] },
+        };
+        expect(withMeshCanSubscribe(content)).toEqual({
+            slot_id: "m.call#",
+            transports: {
+                published: [],
+                can_subscribe: ["livekit", FULL_MESH_TRANSPORT_TYPE],
+            },
+        });
+        // The SDK's object is not changed in place.
+        expect(content.transports.can_subscribe).toEqual(["livekit"]);
+    });
+
+    it("doesn't add it twice", () => {
+        const content = {
+            transports: { can_subscribe: [FULL_MESH_TRANSPORT_TYPE] },
+        };
+        expect(withMeshCanSubscribe(content)).toBe(content);
+    });
+
+    it("leaves content without transports (m.call.member) alone", () => {
+        const legacy = { foci_preferred: [], device_id: "D" };
+        expect(withMeshCanSubscribe(legacy)).toBe(legacy);
     });
 });

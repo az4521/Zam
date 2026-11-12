@@ -183,8 +183,13 @@ abstract class MeshConnection {
         if (
             message.type === "description" &&
             message.description.type === "offer"
-        )
+        ) {
             this.awaitingAnswer = true;
+            // The offer carries the current track metadata. A copy held from
+            // before it may lack its new tracks, and sent at the switch it
+            // would overwrite the newer one.
+            this.pendingMetadata.delete("track_metadata");
+        }
         this.signalling.send(
             this.peer,
             this.connectionId,

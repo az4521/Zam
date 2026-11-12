@@ -21,6 +21,26 @@ function isRecord(v: unknown): v is Record<string, unknown> {
     return typeof v === "object" && v !== null;
 }
 
+/**
+ * Adds the mesh to an m.rtc.member content's `transports.can_subscribe`: we
+ * can receive over it, and the MSC has members say so there. Content without
+ * a `transports` object (the legacy m.call.member form) is left alone.
+ */
+export function withMeshCanSubscribe<T>(membership: T): T {
+    if (!isRecord(membership) || !isRecord(membership.transports))
+        return membership;
+    const { can_subscribe } = membership.transports;
+    const list = Array.isArray(can_subscribe) ? can_subscribe : [];
+    if (list.includes(FULL_MESH_TRANSPORT_TYPE)) return membership;
+    return {
+        ...membership,
+        transports: {
+            ...membership.transports,
+            can_subscribe: [...list, FULL_MESH_TRANSPORT_TYPE],
+        },
+    };
+}
+
 export function isLivekitTransport(t: unknown): boolean {
     return isRecord(t) && t.type === "livekit";
 }
