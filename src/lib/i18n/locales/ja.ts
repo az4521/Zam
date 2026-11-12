@@ -538,6 +538,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.orderHints": "メッセージ順序のヒント",
     "debugSettings.orderHintsHint":
         "送信するメッセージに、チャットログの一番下に何があったかを示すヒントを付けます。また、他の Zam ユーザーのメッセージは、ヒントが示すメッセージの下に表示します。オフにすると、Element と同じようにサーバーの順序で表示します。",
+    "debugSettings.stickyCallMembership": "スティッキー通話メンバーシップ",
+    "debugSettings.stickyCallMembershipHint":
+        "通話に m.call.member ステートイベントの代わりに、スティッキーな m.rtc.member イベント (MSC4354) で参加します。ステートイベントしか読まないクライアント (1.51 より前の Zam を含む) には、通話中のあなたが見えません。次の通話から適用されます。",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "チャットログにすべての Matrix タイムラインイベントを表示します。",
     "debugSettings.ignoreCodecSupport": "報告されたコーデック対応を無視",
@@ -3414,6 +3417,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.clearCache": "キャッシュを消去",
     "settingsSearch.showAllEvents": "すべてのイベントを表示",
     "settingsSearch.orderHints": "メッセージ順序のヒント",
+    "settingsSearch.stickyCallMembership": "スティッキー通話メンバーシップ",
     "settingsSearch.pushDiagnostics": "プッシュの診断",
     "settingsSearch.pushService": "プッシュサービス(UnifiedPush / Firebase)",
     "settingsSearch.language": "言語",

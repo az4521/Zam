@@ -594,6 +594,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.orderHints": "Hinweise zur Nachrichtenreihenfolge",
     "debugSettings.orderHintsHint":
         "Zam fügt deinen Nachrichten einen Hinweis hinzu, was am Ende deines Chatverlaufs stand, und setzt Nachrichten anderer Zam-Nutzer unter die Nachricht, die sie nennen. Wenn aus, werden Nachrichten in der Reihenfolge des Servers angezeigt, wie in Element.",
+    "debugSettings.stickyCallMembership": "Sticky-Anrufmitgliedschaft",
+    "debugSettings.stickyCallMembershipHint":
+        "Anrufen mit einem Sticky-Event m.rtc.member (MSC4354) statt eines m.call.member-Statusevents beitreten. Clients, die nur Statusevents lesen, darunter Zam vor 1.51, sehen dich nicht im Anruf. Gilt ab deinem nächsten Anruf.",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Jedes Matrix-Ereignis des Verlaufs im Chat anzeigen.",
     "debugSettings.ignoreCodecSupport":
@@ -3992,6 +3995,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.clearCache": "Cache leeren",
     "settingsSearch.showAllEvents": "Alle Ereignisse anzeigen",
     "settingsSearch.orderHints": "Hinweise zur Nachrichtenreihenfolge",
+    "settingsSearch.stickyCallMembership": "Sticky-Anrufmitgliedschaft",
     "settingsSearch.pushDiagnostics": "Push-Diagnose",
     "settingsSearch.pushService": "Push-Dienst (UnifiedPush / Firebase)",
     "settingsSearch.language": "Sprache",

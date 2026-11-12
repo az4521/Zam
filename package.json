@@ -121,7 +121,7 @@
         "livekit-client": "^2.20.1",
         "lucide-svelte": "^0.509.0",
         "marked": "^15.0.7",
-        "matrix-js-sdk": "^45.0.0",
+        "matrix-js-sdk": "^45.1.0",
         "mp4box": "^2.4.1",
         "postcss": "^8.5.3",
         "prettier": "^3.5.3",

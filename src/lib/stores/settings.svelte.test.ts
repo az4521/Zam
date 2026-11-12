@@ -18,6 +18,7 @@ import {
     setHoldToOpenMessageMenu,
     setSpellCheckEnabled,
     setOrderHints,
+    setStickyCallMembership,
     setMinimizeToTrayOnClose,
     setCallVideoCodec,
     normalizeCallVideoCodec,
@@ -887,6 +888,40 @@ describe("gifsAsWebp", () => {
         fresh.setGifsAsWebp(true);
         expect(fresh.settingsState.gifsAsWebp).toBe(true);
         expect(localStorage.getItem(GK)).toBe("true");
+    });
+});
+
+describe("stickyCallMembership (device-local)", () => {
+    const SK_KEY = "settings:stickyCallMembership";
+
+    afterEach(() => {
+        setStickyCallMembership(false);
+        localStorage.removeItem(SK_KEY);
+    });
+
+    async function bootWith(stored: string | null) {
+        if (stored === null) localStorage.removeItem(SK_KEY);
+        else localStorage.setItem(SK_KEY, stored);
+        vi.resetModules();
+        return await import("./settings.svelte");
+    }
+
+    it("defaults to off", async () => {
+        expect((await bootWith(null)).settingsState.stickyCallMembership).toBe(
+            false,
+        );
+    });
+
+    it("reads a stored true at boot", async () => {
+        expect(
+            (await bootWith("true")).settingsState.stickyCallMembership,
+        ).toBe(true);
+    });
+
+    it("saves the choice", () => {
+        setStickyCallMembership(true);
+        expect(settingsState.stickyCallMembership).toBe(true);
+        expect(localStorage.getItem(SK_KEY)).toBe("true");
     });
 });
 

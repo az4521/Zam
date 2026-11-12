@@ -1605,6 +1605,8 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             [transport],
             {
                 membershipEventExpiryMs: 4 * 60 * 60 * 1000,
+                // Debug toggle: m.rtc.member as a sticky event (MSC4354).
+                unstableSendStickyEvents: settingsState.stickyCallMembership,
                 // Make our media key, send it to everyone's devices, and
                 // report theirs (setupCallE2EE).
                 manageMediaKeys: encrypted,

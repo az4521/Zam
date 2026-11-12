@@ -582,6 +582,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.orderHints": "消息顺序提示",
     "debugSettings.orderHintsHint":
         "Zam 会在你的消息中加入一条提示，说明你聊天记录底部是什么内容，并将其他 Zam 用户的消息放在其所指向的那条消息下方。关闭后，消息按服务器的顺序显示，与 Element 一样。",
+    "debugSettings.stickyCallMembership": "粘性通话成员身份",
+    "debugSettings.stickyCallMembershipHint":
+        "使用粘性 m.rtc.member 事件 (MSC4354) 而不是 m.call.member 状态事件加入通话。只读取状态事件的客户端（包括 1.51 之前的 Zam）看不到你在通话中。从下一次通话起生效。",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "在聊天记录中显示每一个 Matrix 时间线事件。",
     "debugSettings.ignoreCodecSupport": "忽略报告的编解码器支持情况",
@@ -3636,6 +3639,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.clearCache": "清除缓存",
     "settingsSearch.showAllEvents": "显示所有事件",
     "settingsSearch.orderHints": "消息顺序提示",
+    "settingsSearch.stickyCallMembership": "粘性通话成员身份",
     "settingsSearch.pushDiagnostics": "推送诊断",
     "settingsSearch.pushService": "推送服务（UnifiedPush / Firebase）",
     "settingsSearch.language": "语言",

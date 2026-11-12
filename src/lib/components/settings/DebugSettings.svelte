@@ -41,6 +41,7 @@
         setSoundIntervalMs,
         setShowAllEvents,
         setOrderHints,
+        setStickyCallMembership,
         setUpdateNagDisabled,
         settingsState,
     } from "$lib/stores/settings.svelte";
@@ -404,6 +405,23 @@
                 checked={settingsState.orderHints}
                 onChange={setOrderHints}
                 label={t("debugSettings.orderHints")}
+            />
+        </div>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("debugSettings.stickyCallMembership")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("debugSettings.stickyCallMembershipHint")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.stickyCallMembership}
+                onChange={setStickyCallMembership}
+                label={t("debugSettings.stickyCallMembership")}
             />
         </div>
         <div

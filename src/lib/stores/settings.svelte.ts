@@ -273,6 +273,10 @@ export const settingsState = $state({
     /** Debug: send and obey the order hint (matrix/orderHint). Default ON; off
      *  shows messages in the server's order, as Element does. */
     orderHints: readBool("orderHints", true),
+    /** Debug: announce our call membership as a sticky m.rtc.member (MSC4354)
+     *  instead of an m.call.member state event. Default OFF: clients that
+     *  only read state events won't see us in the call. */
+    stickyCallMembership: readBool("stickyCallMembership", false),
     /** Device-global: whether the packaged desktop/Android build auto-downloads
      *  updates. Default ON; the escape hatch is this toggle. */
     autoUpdateEnabled: readBool("autoUpdateEnabled", true),
@@ -961,6 +965,11 @@ export function setShowAllEvents(value: boolean): void {
 export function setOrderHints(value: boolean): void {
     settingsState.orderHints = value;
     writeBool("orderHints", value);
+}
+
+export function setStickyCallMembership(value: boolean): void {
+    settingsState.stickyCallMembership = value;
+    writeBool("stickyCallMembership", value);
 }
 
 export function setAutoUpdateEnabled(value: boolean): void {

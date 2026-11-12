@@ -606,6 +606,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.orderHints": "Підказки порядку повідомлень",
     "debugSettings.orderHintsHint":
         "Zam додає до ваших повідомлень підказку про те, що було внизу вашого журналу чату, і розміщує повідомлення інших користувачів Zam під тим, яке вони вказують. Коли вимкнено, повідомлення показуються в порядку сервера, як в Element.",
+    "debugSettings.stickyCallMembership": "Sticky-участь у дзвінках",
+    "debugSettings.stickyCallMembershipHint":
+        "Приєднуватися до дзвінків за допомогою sticky-події m.rtc.member (MSC4354) замість події стану m.call.member. Клієнти, які читають лише події стану, зокрема Zam до 1.51, не побачать вас у дзвінку. Діє з наступного дзвінка.",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Показувати в журналі чату кожну подію стрічки Matrix.",
     "debugSettings.ignoreCodecSupport":
@@ -3964,6 +3967,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.clearCache": "Очистити кеш",
     "settingsSearch.showAllEvents": "Показувати всі події",
     "settingsSearch.orderHints": "Підказки порядку повідомлень",
+    "settingsSearch.stickyCallMembership": "Sticky-участь у дзвінках",
     "settingsSearch.pushDiagnostics": "Діагностика push",
     "settingsSearch.pushService": "Служба push (UnifiedPush / Firebase)",
     "settingsSearch.language": "Мова",

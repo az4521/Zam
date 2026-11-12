@@ -585,6 +585,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.orderHints": "Indications d'ordre des messages",
     "debugSettings.orderHintsHint":
         "Zam ajoute à vos messages une indication de ce qui se trouvait en bas de votre discussion et place les messages des autres utilisateurs de Zam sous celui qu'ils désignent. Désactivé, les messages s'affichent dans l'ordre du serveur, comme dans Element.",
+    "debugSettings.stickyCallMembership": "Appartenance aux appels en sticky",
+    "debugSettings.stickyCallMembershipHint":
+        "Rejoindre les appels avec un événement sticky m.rtc.member (MSC4354) au lieu d'un événement d'état m.call.member. Les clients qui ne lisent que les événements d'état, dont Zam avant 1.51, ne vous verront pas dans l'appel. S'applique dès votre prochain appel.",
     "debugSettings.displayEveryMatrixTimelineEventIn":
         "Afficher chaque événement Matrix du fil dans la discussion.",
     "debugSettings.ignoreCodecSupport":
@@ -3958,6 +3961,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.clearCache": "Vider le cache",
     "settingsSearch.showAllEvents": "Afficher tous les événements",
     "settingsSearch.orderHints": "Indications d'ordre des messages",
+    "settingsSearch.stickyCallMembership": "Appartenance aux appels en sticky",
     "settingsSearch.pushDiagnostics": "Diagnostic des notifications push",
     "settingsSearch.pushService": "Service push (UnifiedPush / Firebase)",
     "settingsSearch.language": "Langue",

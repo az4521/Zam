@@ -551,6 +551,11 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     },
     {
         tab: "debug",
+        label: t("settingsSearch.stickyCallMembership"),
+        keywords: ["msc4354", "m.rtc.member", "call", "matrixrtc"],
+    },
+    {
+        tab: "debug",
         label: t("settingsSearch.showAllEvents"),
         keywords: ["timeline events", "raw events", "developer"],
     },
