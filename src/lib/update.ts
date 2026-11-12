@@ -15,7 +15,11 @@ import {
     GITHUB_REPO,
     type ReleaseAsset,
 } from "$lib/utils/androidUpdate";
-import { normalizeRelease, type ChangelogRelease } from "$lib/utils/changelog";
+import {
+    normalizeRelease,
+    stripDownloadTable,
+    type ChangelogRelease,
+} from "$lib/utils/changelog";
 
 /** Current build version (from package.json via the Vite `define`). */
 export const APP_VERSION: string =
@@ -274,12 +278,13 @@ export async function fetchReleaseNotes(version: string): Promise<string> {
         if (!res.ok)
             throw new Error(t("update.githubApiError", { status: res.status }));
         const data = await res.json();
-        const body = typeof data.body === "string" ? data.body : "";
+        const body =
+            typeof data.body === "string" ? stripDownloadTable(data.body) : "";
         changelogCacheSet(key, body);
         return body;
     } catch (e) {
         const cached = changelogCacheGet(key);
-        if (cached !== null) return cached;
+        if (cached !== null) return stripDownloadTable(cached);
         throw e;
     }
 }

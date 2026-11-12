@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
     normalizeVersion,
     normalizeRelease,
+    stripDownloadTable,
     pickReleaseForVersion,
     shouldShowWhatsNew,
     releasesBetween,
@@ -22,6 +23,24 @@ describe("normalizeVersion", () => {
         expect(normalizeVersion("v1.5.1")).toBe("1.5.1");
         expect(normalizeVersion("  V2.0.0 ")).toBe("2.0.0");
         expect(normalizeVersion("1.5.1")).toBe("1.5.1");
+    });
+});
+
+describe("stripDownloadTable", () => {
+    const table =
+        "## Download Zam\n\n| Platform | Download |\n| --- | --- |\n| Linux | [A](x) |\n\nThe other files below are for the updater.\n\n";
+    it("removes the section and keeps the notes", () => {
+        expect(stripDownloadTable(table + "✨ **Added**\n\n- x")).toBe(
+            "✨ **Added**\n\n- x",
+        );
+    });
+    it("leaves a body without the table alone", () => {
+        expect(stripDownloadTable("## v1\n\n- x")).toBe("## v1\n\n- x");
+    });
+    it("handles CRLF", () => {
+        expect(stripDownloadTable(table.replace(/\n/g, "\r\n") + "notes")).toBe(
+            "notes",
+        );
     });
 });
 

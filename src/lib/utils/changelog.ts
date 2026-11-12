@@ -20,13 +20,25 @@ export function normalizeVersion(v: string): string {
     return v.trim().replace(/^v/i, "");
 }
 
+/**
+ * Drop the "Download Zam" section (platform table plus its note) that the
+ * release workflow puts at the top of a GitHub release page. It is for people
+ * on that page; inside the app the user already has the app.
+ */
+export function stripDownloadTable(body: string): string {
+    return body.replace(
+        /^## Download Zam[ \t]*\r?\n(?:[ \t]*\r?\n|\|[^\n]*\n)*[^\n]*\r?\n(?:[ \t]*\r?\n)*/m,
+        "",
+    );
+}
+
 /** Coerce one raw GitHub release object into a ChangelogRelease, or null. */
 export function normalizeRelease(raw: unknown): ChangelogRelease | null {
     if (!raw || typeof raw !== "object") return null;
     const r = raw as Record<string, unknown>;
     const tag = typeof r.tag_name === "string" ? r.tag_name : "";
     if (!tag) return null;
-    const body = typeof r.body === "string" ? r.body : "";
+    const body = typeof r.body === "string" ? stripDownloadTable(r.body) : "";
     const name = typeof r.name === "string" && r.name ? r.name : tag;
     const published = typeof r.published_at === "string" ? r.published_at : "";
     return { tag_name: tag, name, body, published_at: published };
