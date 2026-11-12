@@ -4,6 +4,25 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.2
+
+✨ **New**
+
+- **Do Not Disturb:** a new status in the account menu and Settings → Account. It silences notifications and calls on all your devices and shows you as idle to others.
+- **Pictures in Android notifications:** images and stickers show up in the notification itself, encrypted ones too (a GIF shows its first frame).
+- **Per-person notification settings on Android:** every person and room gets its own notification channel and share-sheet shortcut, so you can set sound, priority and bubbles for one conversation in the system settings.
+
+🔧 **Improved**
+
+- **Android notifications read like a chat:** a DM is titled with the other person instead of "New message" and no longer repeats their name in the text. Unread messages from a room stay in one notification, each with its author and avatar, instead of replacing each other.
+- **Image viewer on phones:** pinch, pan and double-tap work from the backdrop as well as the image, and a drag that ends on the backdrop no longer closes the viewer. Holding an image in a message opens the actions sheet.
+- **Smaller Flatpak updates:** Flatpak users now get updates as deltas against the last 12 releases.
+
+🐛 **Fixed**
+
+- **Notification Reply on Android:** replying (and Mark as read) from a notification now works when the app was closed, instead of being dropped while it started.
+- **Notifications that wouldn't go away:** an Android notification is now removed when you read the room, here or on another device.
+
 ## v1.60.1
 
 ✨ **New**
