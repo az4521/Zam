@@ -3442,6 +3442,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "presence.offline": "离线",
     "presence.seenAsOnlineWhileTheApp": "应用同步期间显示为在线",
     "presence.shownAsIdleToOtherUsers": "向其他用户显示为空闲",
+    "presence.doNotDisturb": "请勿打扰",
+    "presence.doNotDisturbDescription": "在你的所有设备上静音通知和来电",
     "presence.invisible": "隐身",
     "presence.appearOfflineToOtherUsers": "向其他用户显示为离线",
 

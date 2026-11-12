@@ -14,7 +14,12 @@ import android.net.Uri;
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.core.app.Person;
 import androidx.core.app.RemoteInput;
+import androidx.core.content.pm.ShortcutInfoCompat;
+import androidx.core.content.pm.ShortcutManagerCompat;
+import androidx.core.graphics.drawable.IconCompat;
+import android.service.notification.StatusBarNotification;
 
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
@@ -174,6 +179,15 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         // MSC4075 m.call.notify → render an incoming CALL, not a message.
         boolean isCall = false;
         String callerName = null;
+        // The message's author and the room kind, for the conversation
+        // notification (a per-person channel, shortcut and message history).
+        String msgSenderId = null;
+        String msgSenderName = null;
+        Bitmap senderIcon = null;
+        boolean msgDm = false;
+        long msgTs = System.currentTimeMillis();
+        String msgBody = null;
+        Bitmap msgImage = null;
 
         try {
             SharedPreferences prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
@@ -205,6 +219,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             // lose enrichment here.
             if (session != null && roomId != null && eventId != null) {
                 // Room display name.
+                // (A DM overrides this with the other person's name below.)
                 String roomName = fetchRoomName(hs, token, roomId);
                 if (roomName != null) title = roomName;
 
@@ -216,6 +231,8 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 JSONObject event = fetchEvent(hs, token, roomId, eventId);
                 if (event != null) {
                     sender = event.optString("sender", "");
+                    long originTs = event.optLong("origin_server_ts", 0L);
+                    if (originTs > 0) msgTs = originTs;
                     // This service holds no E2EE keys, so an encrypted
                     // message is still m.room.encrypted here. Ask the web
                     // layer to decrypt it when the app is running (see
@@ -245,6 +262,17 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     if (senderName == null || senderName.isEmpty()) senderName = sender;
 
                     String name = senderName.trim();
+
+                    // A DM is titled by the other person, and the sender is
+                    // not repeated in the text: it would only say the same
+                    // name twice. (A DM usually has no m.room.name, which is
+                    // why the title used to stay "New message".)
+                    if (direct == null) direct = isDirectRoom(hs, token, selfUserId, roomId);
+                    final boolean dm = direct;
+                    if (dm && !name.isEmpty()) title = name;
+                    msgSenderId = sender;
+                    msgSenderName = name.isEmpty() ? sender : name;
+                    msgDm = dm;
 
                     // Same rule as pushNotificationKind() (src/lib/utils) and
                     // buildNotification() in static/sw.js: an MSC4075 ring (the
@@ -284,8 +312,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     // src/lib/stores/incomingCalls.svelte.ts), so it gets a
                     // plain message-style notification even if the sender's
                     // client asked for a ring.
-                    if (isCallType && wantsRing
-                            && (direct = isDirectRoom(hs, token, selfUserId, roomId))) {
+                    if (isCallType && wantsRing && dm) {
                         if (ringEnabled) {
                             isCall = true;
                             callerName = name;
@@ -295,7 +322,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                             text = name.isEmpty() ? "Incoming call" : name + " is calling";
                         }
                     } else if (isCallType) {
-                        text = name.isEmpty() ? "A call started" : name + " started a call";
+                        text = name.isEmpty() || dm ? "A call started" : name + " started a call";
                     } else {
                         // Same comparisons as notificationBody() in
                         // src/lib/utils/notificationPrivacy.ts (and
@@ -305,10 +332,29 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                         // The room name still becomes the title — only the
                         // message text is gated.
                         String preview = hideBody ? "" : body.trim();
+                        // A picture (m.image, or a sticker) is shown in the
+                        // notification itself; never when message text is hidden.
+                        String msgtype = content != null ? content.optString("msgtype", "") : "";
+                        boolean isImage = type.equals("m.sticker")
+                            || (type.equals("m.room.message") && msgtype.equals("m.image"));
+                        if (isImage && !hideBody && content != null) {
+                            msgImage = fetchNotificationImage(ctx, hs, token, content);
+                            // The body of an image is its file name unless a
+                            // caption was given (then filename differs).
+                            String fileName = content.optString("filename", "");
+                            boolean caption = !fileName.isEmpty() && !fileName.equals(preview);
+                            if (!caption) preview = "";
+                            if (preview.isEmpty()) {
+                                msgBody = "Sent an image";
+                                text = dm || name.isEmpty() ? "Sent an image"
+                                    : name + " sent an image";
+                            }
+                        }
                         if (!preview.isEmpty()) {
-                            text = name.isEmpty() ? preview : name + ": " + preview;
+                            msgBody = preview;
+                            text = name.isEmpty() || dm ? preview : name + ": " + preview;
                         } else if (!name.isEmpty()) {
-                            text = name + " sent a message";
+                            text = dm ? "Sent a message" : name + " sent a message";
                         }
                     }
                 }
@@ -322,6 +368,13 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 }
                 if (avatarMxc != null) {
                     largeIcon = fetchMxcThumbnail(hs, token, avatarMxc, 128);
+                }
+                // The sender's own avatar, for their line in the conversation.
+                if (!sender.isEmpty()) {
+                    String senderMxc = fetchUserAvatar(hs, token, roomId, sender);
+                    if (senderMxc != null) {
+                        senderIcon = fetchMxcThumbnail(hs, token, senderMxc, 128);
+                    }
                 }
             }
         } catch (Throwable t) {
@@ -346,7 +399,8 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             }
         } else {
             if (sessionIsActive && MainActivity.isInForeground()) return;
-            showNotification(ctx, title, text, roomId, eventId, largeIcon, postedBy);
+            showNotification(ctx, title, text, roomId, eventId, largeIcon, postedBy,
+                msgSenderId, msgSenderName, senderIcon, msgDm, msgTs, msgBody, msgImage);
         }
     }
 
@@ -737,6 +791,139 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         return null;
     }
 
+    private static final int IMAGE_MAX_PX = 800;
+    private static final int IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+
+    /**
+     * The picture of an m.image / m.sticker, for the notification. A GIF comes
+     * back as its first frame (a notification cannot animate). Null on any
+     * failure, so the notification just says an image was sent.
+     */
+    private static Bitmap fetchNotificationImage(Context ctx, String hs, String token,
+            JSONObject content) {
+        try {
+            JSONObject file = content.optJSONObject("file");
+            if (file != null) {
+                // Encrypted: download the ciphertext, check it, decrypt it here.
+                String mxc = file.optString("url", "");
+                JSONObject key = file.optJSONObject("key");
+                String iv = file.optString("iv", "");
+                JSONObject hashes = file.optJSONObject("hashes");
+                if (!mxc.startsWith("mxc://") || key == null || iv.isEmpty()) return null;
+                byte[] cipher = downloadMxc(hs, token, mxc);
+                if (cipher == null) return null;
+                String want = hashes != null ? hashes.optString("sha256", "") : "";
+                if (want.isEmpty()) return null;
+                byte[] digest = java.security.MessageDigest.getInstance("SHA-256").digest(cipher);
+                String got = android.util.Base64.encodeToString(digest,
+                    android.util.Base64.NO_PADDING | android.util.Base64.NO_WRAP);
+                if (!got.equals(want.replace("=", ""))) return null;
+                byte[] k = android.util.Base64.decode(key.optString("k", ""),
+                    android.util.Base64.URL_SAFE | android.util.Base64.NO_PADDING);
+                byte[] ivBytes = android.util.Base64.decode(iv, android.util.Base64.DEFAULT);
+                javax.crypto.Cipher aes = javax.crypto.Cipher.getInstance("AES/CTR/NoPadding");
+                aes.init(javax.crypto.Cipher.DECRYPT_MODE,
+                    new javax.crypto.spec.SecretKeySpec(k, "AES"),
+                    new javax.crypto.spec.IvParameterSpec(ivBytes));
+                return decodeScaled(aes.doFinal(cipher));
+            }
+            String mxc = content.optString("url", "");
+            if (!mxc.startsWith("mxc://")) return null;
+            // Plain: ask the server for a small still (animated=false).
+            String rest = mxc.substring("mxc://".length());
+            int slash = rest.indexOf('/');
+            if (slash < 0) return null;
+            String url = hs + "/_matrix/client/v1/media/thumbnail/"
+                + enc(rest.substring(0, slash)) + "/" + enc(rest.substring(slash + 1))
+                + "?width=" + IMAGE_MAX_PX + "&height=" + IMAGE_MAX_PX
+                + "&method=scale&animated=false";
+            byte[] data = httpGetBytes(url, token);
+            Bitmap bmp = data != null ? decodeScaled(data) : null;
+            if (bmp != null) return bmp;
+            // No thumbnail (some servers): fall back to the file itself.
+            byte[] full = downloadMxc(hs, token, mxc);
+            return full != null ? decodeScaled(full) : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static byte[] downloadMxc(String hs, String token, String mxc) {
+        String rest = mxc.substring("mxc://".length());
+        int slash = rest.indexOf('/');
+        if (slash < 0) return null;
+        return httpGetBytes(hs + "/_matrix/client/v1/media/download/"
+            + enc(rest.substring(0, slash)) + "/" + enc(rest.substring(slash + 1)), token);
+    }
+
+    /** GET returning at most IMAGE_MAX_BYTES; null on error or when larger. */
+    private static byte[] httpGetBytes(String urlStr, String token) {
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) new URL(urlStr).openConnection();
+            conn.setConnectTimeout(CONNECT_TIMEOUT);
+            conn.setReadTimeout(READ_TIMEOUT);
+            conn.setRequestProperty("Authorization", "Bearer " + token);
+            if (conn.getResponseCode() != 200) return null;
+            if (conn.getContentLengthLong() > IMAGE_MAX_BYTES) return null;
+            try (InputStream is = conn.getInputStream()) {
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = is.read(buf)) != -1) {
+                    out.write(buf, 0, n);
+                    if (out.size() > IMAGE_MAX_BYTES) return null;
+                }
+                return out.toByteArray();
+            }
+        } catch (Exception e) {
+            return null;
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
+    }
+
+    /** Decode no larger than IMAGE_MAX_PX on a side (first frame of a GIF). */
+    private static Bitmap decodeScaled(byte[] data) {
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        BitmapFactory.decodeByteArray(data, 0, data.length, bounds);
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null;
+        int sample = 1;
+        while (Math.max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= IMAGE_MAX_PX) {
+            sample *= 2;
+        }
+        BitmapFactory.Options opts = new BitmapFactory.Options();
+        opts.inSampleSize = sample;
+        return BitmapFactory.decodeByteArray(data, 0, data.length, opts);
+    }
+
+    /**
+     * Write the picture where the system UI can read it: an app-private cache
+     * file behind the FileProvider, granted to System UI for this URI only.
+     * Files older than a day are removed on the way.
+     */
+    private static Uri saveNotificationImage(Context ctx, Bitmap bmp) {
+        try {
+            java.io.File dir = new java.io.File(ctx.getCacheDir(), "notif-images");
+            if (!dir.isDirectory() && !dir.mkdirs()) return null;
+            long cutoff = System.currentTimeMillis() - 24L * 60 * 60 * 1000;
+            java.io.File[] old = dir.listFiles();
+            if (old != null) for (java.io.File f : old) if (f.lastModified() < cutoff) f.delete();
+            java.io.File out = java.io.File.createTempFile("img", ".jpg", dir);
+            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(out)) {
+                bmp.compress(Bitmap.CompressFormat.JPEG, 85, fos);
+            }
+            Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                ctx, ctx.getPackageName() + ".fileprovider", out);
+            ctx.grantUriPermission("com.android.systemui", uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            return uri;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     /** Download an mxc:// thumbnail as a Bitmap (authenticated media endpoint). */
     private static Bitmap fetchMxcThumbnail(String hs, String token, String mxc, int size) {
         // mxc://server/mediaId
@@ -798,8 +985,14 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     // ── Notification ──────────────────────────────────────────────────────────
 
     private static void showNotification(Context ctx, String title, String body, String roomId,
-            String eventId, Bitmap largeIcon, String postedBy) {
+            String eventId, Bitmap largeIcon, String postedBy, String senderId,
+            String senderName, Bitmap senderIcon, boolean dm, long ts, String msgBody,
+            Bitmap msgImage) {
         createChannel(ctx);
+        // One channel per conversation (Android 11+): the system lists it under
+        // Conversations, where the user sets sound, priority and bubbles for
+        // that person or room alone. Older Androids use the shared channel.
+        String channelId = conversationChannel(ctx, roomId, title);
 
         Intent intent = new Intent(ctx, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -829,7 +1022,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         PendingIntent pending = PendingIntent.getActivity(
             ctx, roomId != null ? roomId.hashCode() : 0, intent, flags);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, channelId)
             // Small (status-bar) icon: Android renders it from the alpha channel
             // only, so it must be a transparent-background silhouette. The
             // adaptive foreground layer is a white-on-transparent logo, unlike
@@ -901,9 +1094,133 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
         int notificationId = roomId != null ? roomId.hashCode() : (int) System.currentTimeMillis();
 
+        // Conversation style: every unread message from this room stays in the
+        // one notification, each with its author. The messages already showing
+        // are read back from the notification being replaced, so the history
+        // survives this service being restarted between pushes.
+        if (roomId != null && postedBy != null && !postedBy.isEmpty()) {
+            try {
+                Person me = new Person.Builder().setName("You").setKey(postedBy).build();
+                Person.Builder author = new Person.Builder()
+                    .setName(senderName != null && !senderName.isEmpty() ? senderName : title)
+                    .setKey(senderId != null && !senderId.isEmpty() ? senderId : roomId);
+                if (senderIcon != null) author.setIcon(IconCompat.createWithBitmap(senderIcon));
+                else if (largeIcon != null && dm) author.setIcon(IconCompat.createWithBitmap(largeIcon));
+                Person authorPerson = author.build();
+
+                NotificationCompat.MessagingStyle style = null;
+                try {
+                    NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+                    if (nm != null) {
+                        for (StatusBarNotification sbn : nm.getActiveNotifications()) {
+                            if (sbn.getId() == notificationId && sbn.getTag() == null) {
+                                style = NotificationCompat.MessagingStyle
+                                    .extractMessagingStyleFromNotification(sbn.getNotification());
+                                break;
+                            }
+                        }
+                    }
+                } catch (Throwable ignored) {}
+                if (style == null) style = new NotificationCompat.MessagingStyle(me);
+                if (!dm) {
+                    style.setConversationTitle(title);
+                    style.setGroupConversation(true);
+                } else {
+                    style.setGroupConversation(false);
+                }
+                // The message itself when there is one (the "sent a message"
+                // placeholder when its text is hidden).
+                NotificationCompat.MessagingStyle.Message line =
+                    new NotificationCompat.MessagingStyle.Message(
+                        msgBody != null ? msgBody : body, ts, authorPerson);
+                if (msgImage != null) {
+                    Uri imageUri = saveNotificationImage(ctx, msgImage);
+                    if (imageUri != null) line.setData("image/jpeg", imageUri);
+                }
+                style.addMessage(line);
+                // Keep the tray notification short: the newest 12.
+                java.util.List<NotificationCompat.MessagingStyle.Message> all = style.getMessages();
+                if (all.size() > 12) {
+                    NotificationCompat.MessagingStyle trimmed =
+                        new NotificationCompat.MessagingStyle(me);
+                    trimmed.setConversationTitle(style.getConversationTitle());
+                    trimmed.setGroupConversation(style.isGroupConversation());
+                    for (NotificationCompat.MessagingStyle.Message m
+                            : all.subList(all.size() - 12, all.size())) {
+                        trimmed.addMessage(m);
+                    }
+                    style = trimmed;
+                }
+                builder.setStyle(style);
+                builder.setCategory(NotificationCompat.CATEGORY_MESSAGE);
+                // Lets the system treat it as a conversation: a per-person
+                // entry in the share sheet and in notification settings.
+                builder.setShortcutId(publishShortcut(ctx, roomId, title,
+                    dm ? (senderIcon != null ? senderIcon : largeIcon) : largeIcon,
+                    dm ? authorPerson : null, postedBy));
+            } catch (Throwable ignored) {
+                // Plain BigText notification already set above.
+            }
+        }
+
         try {
             NotificationManagerCompat.from(ctx).notify(notificationId, builder.build());
         } catch (SecurityException ignored) {}
+    }
+
+    /**
+     * The per-conversation channel for a room, created on first use (API 30+,
+     * where a channel can be tied to a conversation). Falls back to the shared
+     * channel on older Androids or on any failure.
+     */
+    private static String conversationChannel(Context ctx, String roomId, String title) {
+        if (roomId == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return CHANNEL_ID;
+        try {
+            NotificationManager manager = ctx.getSystemService(NotificationManager.class);
+            if (manager == null) return CHANNEL_ID;
+            String id = CHANNEL_ID + ":" + roomId;
+            NotificationChannel existing = manager.getNotificationChannel(id);
+            if (existing == null) {
+                NotificationChannel channel = new NotificationChannel(
+                    id, title, NotificationManager.IMPORTANCE_HIGH);
+                channel.setConversationId(CHANNEL_ID, roomId);
+                manager.createNotificationChannel(channel);
+            } else if (!title.contentEquals(existing.getName())) {
+                // Renamed room / person: keep the label current. The user's own
+                // settings on the channel are not touched by a rename.
+                existing.setName(title);
+                manager.createNotificationChannel(existing);
+            }
+            return id;
+        } catch (Throwable t) {
+            return CHANNEL_ID;
+        }
+    }
+
+    /**
+     * Publish a long-lived sharing shortcut for the conversation (one per room),
+     * which the system needs to show it as a conversation and offers as a
+     * direct-share target. Returns the shortcut id.
+     */
+    private static String publishShortcut(Context ctx, String roomId, String title,
+            Bitmap icon, Person person, String postedBy) {
+        try {
+            Intent open = new Intent(ctx, MainActivity.class);
+            open.setAction(Intent.ACTION_VIEW);
+            open.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            open.putExtra("room_id", roomId);
+            open.putExtra("user_id", postedBy);
+            ShortcutInfoCompat.Builder sc = new ShortcutInfoCompat.Builder(ctx, roomId)
+                .setShortLabel(title)
+                .setLongLived(true)
+                .setIntent(open)
+                .setCategories(java.util.Collections.singleton(
+                    "moe.crafty.matrix.category.CONVERSATION"));
+            if (person != null) sc.setPerson(person);
+            if (icon != null) sc.setIcon(IconCompat.createWithBitmap(icon));
+            ShortcutManagerCompat.pushDynamicShortcut(ctx, sc.build());
+        } catch (Throwable ignored) {}
+        return roomId;
     }
 
     private static void createChannel(Context ctx) {

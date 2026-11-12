@@ -32,7 +32,10 @@
     } from "$lib/matrix/client";
     import { deleteCryptoStore } from "$lib/matrix/crypto";
     import { deleteEventIndex } from "$lib/matrix/eventIndex";
-    import { changeOwnPresence } from "$lib/stores/presence.svelte";
+    import {
+        changeOwnPresence,
+        changeDoNotDisturb,
+    } from "$lib/stores/presence.svelte";
     import {
         getCachedProfile,
         nameColourFor,
@@ -135,6 +138,18 @@
         }
     }
 
+    async function toggleDoNotDisturb(): Promise<void> {
+        presenceError = "";
+        try {
+            await changeDoNotDisturb(!settingsState.doNotDisturb);
+            view = "main";
+        } catch (e) {
+            presenceError =
+                (e as Error)?.message ??
+                t("accountSwitcher.couldNotSetPresence");
+        }
+    }
+
     async function switchTo(userId: string): Promise<void> {
         if (userId === auth.userId) {
             onClose();
@@ -209,6 +224,24 @@
             {/if}
         </button>
     {/each}
+    <button
+        type="button"
+        onclick={toggleDoNotDisturb}
+        class="w-full flex items-center gap-3 p-2 rounded text-start hover:bg-discord-messageHover transition-colors"
+    >
+        <span class="w-3 h-3 rounded-full flex-shrink-0 bg-discord-dnd"></span>
+        <span class="flex-1 min-w-0">
+            <span class="block text-sm text-discord-textPrimary"
+                >{t("presence.doNotDisturb")}</span
+            >
+            <span class="block text-xs text-discord-textMuted"
+                >{t("presence.doNotDisturbDescription")}</span
+            >
+        </span>
+        {#if settingsState.doNotDisturb}
+            <Check size={16} class="text-discord-accent flex-shrink-0" />
+        {/if}
+    </button>
     {#if presenceError}<p class="px-2 py-1 text-xs text-discord-danger">
             {presenceError}
         </p>{/if}

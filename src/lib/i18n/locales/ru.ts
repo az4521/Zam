@@ -3768,6 +3768,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Отображается как «в сети», пока приложение синхронизируется",
     "presence.shownAsIdleToOtherUsers":
         "Другим пользователям отображается как «нет на месте»",
+    "presence.doNotDisturb": "Не беспокоить",
+    "presence.doNotDisturbDescription":
+        "Отключает уведомления и звонки на всех ваших устройствах",
     "presence.invisible": "Невидимка",
     "presence.appearOfflineToOtherUsers":
         "Выглядеть «не в сети» для других пользователей",

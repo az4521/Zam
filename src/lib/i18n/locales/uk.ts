@@ -3758,6 +3758,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Показується як «у мережі», поки застосунок синхронізується",
     "presence.shownAsIdleToOtherUsers":
         "Показується іншим користувачам як неактивний",
+    "presence.doNotDisturb": "Не турбувати",
+    "presence.doNotDisturbDescription":
+        "Вимикає сповіщення та дзвінки на всіх ваших пристроях",
     "presence.invisible": "Невидимий",
     "presence.appearOfflineToOtherUsers":
         "Показуватися іншим користувачам поза мережею",

@@ -3655,6 +3655,9 @@ export const en = {
     "presence.seenAsOnlineWhileTheApp":
         "Seen as online while the app is syncing",
     "presence.shownAsIdleToOtherUsers": "Shown as idle to other users",
+    "presence.doNotDisturb": "Do Not Disturb",
+    "presence.doNotDisturbDescription":
+        "Silences notifications and calls on all your devices",
     "presence.invisible": "Invisible",
     "presence.appearOfflineToOtherUsers": "Appear offline to other users",
 

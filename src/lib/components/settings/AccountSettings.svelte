@@ -27,7 +27,10 @@
     import { getBackupStatus } from "$lib/matrix/crypto";
     import { getClient } from "$lib/matrix/runtime";
     import { auth, isOAuthSession } from "$lib/stores/auth.svelte";
-    import { changeOwnPresence } from "$lib/stores/presence.svelte";
+    import {
+        changeOwnPresence,
+        changeDoNotDisturb,
+    } from "$lib/stores/presence.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import {
         deactivationConfirmed,
@@ -237,6 +240,17 @@
         presenceError = "";
         try {
             await changeOwnPresence(value);
+        } catch (error) {
+            presenceError =
+                (error as Error)?.message ??
+                t("accountSettings.couldNotSetPresence");
+        }
+    }
+
+    async function toggleDoNotDisturb() {
+        presenceError = "";
+        try {
+            await changeDoNotDisturb(!settingsState.doNotDisturb);
         } catch (error) {
             presenceError =
                 (error as Error)?.message ??
@@ -456,6 +470,22 @@
                 {selectedPresence?.description}
             </p>
         </div>
+        <label class="mt-3 flex items-start gap-3 cursor-pointer">
+            <input
+                type="checkbox"
+                class="mt-1"
+                checked={settingsState.doNotDisturb}
+                onchange={toggleDoNotDisturb}
+            />
+            <span>
+                <span class="block text-sm text-discord-textPrimary"
+                    >{t("presence.doNotDisturb")}</span
+                >
+                <span class="block text-xs text-discord-textMuted"
+                    >{t("presence.doNotDisturbDescription")}</span
+                >
+            </span>
+        </label>
         {#if presenceError}<p class="mt-2 text-xs text-discord-danger">
                 {presenceError}
             </p>{/if}

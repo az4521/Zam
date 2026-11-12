@@ -5,4 +5,7 @@
      nothing else (audit SEC-02). -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <cache-path name="apk_update" path="apk-update/" />
+    <!-- Pictures from message notifications (MatrixMessagingService), read by
+         the system UI only through a per-notification URI grant. -->
+    <cache-path name="notif_images" path="notif-images/" />
 </paths>

@@ -3781,6 +3781,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Aparece como online enquanto o aplicativo está sincronizando",
     "presence.shownAsIdleToOtherUsers":
         "Aparece como inativo para os outros usuários",
+    "presence.doNotDisturb": "Não incomodar",
+    "presence.doNotDisturbDescription":
+        "Silencia notificações e chamadas em todos os seus dispositivos",
     "presence.invisible": "Invisível",
     "presence.appearOfflineToOtherUsers":
         "Aparece como offline para os outros usuários",

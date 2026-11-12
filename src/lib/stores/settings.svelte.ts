@@ -480,6 +480,9 @@ export const settingsState = $state({
     excludeInsecureDevices: readAccountBool("excludeInsecureDevices", false),
     /** Presence advertised to the homeserver (Settings → Account). */
     ownPresence: readPresence("ownPresence", "online"),
+    /** Do Not Disturb: silences notifications and ringing on every device
+     *  (the account's master push rule) and shows as idle to others. */
+    doNotDisturb: readAccountBool("doNotDisturb", false),
     /** The presence status_msg we last mirrored our profile status into. A
      *  presence update without a status_msg clears it on some servers, so it
      *  is re-sent with every presence change. */
@@ -842,6 +845,7 @@ export function reloadAccountSettings(): void {
         false,
     );
     settingsState.ownPresence = readPresence("ownPresence", "online");
+    settingsState.doNotDisturb = readAccountBool("doNotDisturb", false);
     settingsState.ownStatusMessage =
         readAccountString("ownStatusMessage") ?? "";
     settingsState.audioInputDeviceId =
@@ -1323,6 +1327,11 @@ export function setExcludeInsecureDevices(value: boolean): void {
 export function setOwnStatusMessageSetting(value: string): void {
     settingsState.ownStatusMessage = value;
     writeAccountString("ownStatusMessage", value);
+}
+
+export function setDoNotDisturbSetting(value: boolean): void {
+    settingsState.doNotDisturb = value;
+    writeAccountBool("doNotDisturb", value);
 }
 
 export function setOwnPresenceSetting(value: PresenceState): void {

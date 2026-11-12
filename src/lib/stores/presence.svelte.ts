@@ -4,6 +4,7 @@ import {
     isUsingSlidingSync,
     onPresenceEvent,
     onSlidingSyncActiveChange,
+    setAccountNotificationsDisabled,
     setOwnPresence,
 } from "$lib/matrix/client";
 import {
@@ -19,6 +20,7 @@ import {
 } from "$lib/utils/presence";
 import {
     settingsState,
+    setDoNotDisturbSetting,
     setOwnPresenceSetting,
     setOwnStatusMessageSetting,
 } from "$lib/stores/settings.svelte";
@@ -51,12 +53,35 @@ export function presenceFor(userId: string): UserPresenceView | null {
     };
 }
 
+/** The state the user picked, as the server should see it: Do Not Disturb
+ *  has no Matrix presence of its own, so it shows as idle. Invisible stays
+ *  invisible. */
+function chosenPresence(): PresenceState {
+    return settingsState.doNotDisturb && settingsState.ownPresence === "online"
+        ? "unavailable"
+        : settingsState.ownPresence;
+}
+
+/** Turn Do Not Disturb on or off: the account's master push rule (so the
+ *  server stops pushing to every device), local alerts (see
+ *  emitNotificationNow) and idle presence. Rethrows a server failure and
+ *  leaves the setting as it was. */
+export async function changeDoNotDisturb(on: boolean): Promise<void> {
+    await setAccountNotificationsDisabled(on);
+    setDoNotDisturbSetting(on);
+    advertised = advertisedPresence(chosenPresence(), 0);
+    await setOwnPresence(
+        advertised,
+        settingsState.ownStatusMessage || undefined,
+    );
+}
+
 /** Change own advertised presence: persist the choice locally and push it to
  *  the homeserver. Rethrows so settings UI can surface the server error. */
 export async function changeOwnPresence(value: PresenceState): Promise<void> {
     setOwnPresenceSetting(value);
     // Picking a presence is itself input, so the device is in use.
-    advertised = advertisedPresence(value, 0);
+    advertised = advertisedPresence(chosenPresence(), 0);
     await setOwnPresence(
         advertised,
         settingsState.ownStatusMessage || undefined,
@@ -91,7 +116,7 @@ export async function readIdleMs(): Promise<number> {
 
 async function updateAdvertisedPresence(): Promise<void> {
     const idleMs = await readIdleMs();
-    const next = advertisedPresence(settingsState.ownPresence, idleMs);
+    const next = advertisedPresence(chosenPresence(), idleMs);
     if (next === advertised) return;
     advertised = next;
     await setOwnPresence(next, settingsState.ownStatusMessage || undefined);
@@ -120,7 +145,7 @@ const SLIDING_PRESENCE_HEARTBEAT_MS = 25_000;
 export function initPresence(): () => void {
     // Re-apply the persisted choice — the sync loop advertises "online" by
     // default, so away/invisible must be pushed again each session.
-    advertised = settingsState.ownPresence;
+    advertised = chosenPresence();
     lastInputTs = Date.now();
     if (advertised !== "online") {
         setOwnPresence(
@@ -163,10 +188,7 @@ export function initPresence(): () => void {
     // wait for the next check, so input while away re-checks at once.
     const onUserInput = () => {
         lastInputTs = Date.now();
-        if (
-            advertised === "unavailable" &&
-            settingsState.ownPresence === "online"
-        )
+        if (advertised === "unavailable" && chosenPresence() === "online")
             updateAdvertisedPresence().catch(() => {});
     };
     const inputEvents = ["pointerdown", "keydown", "wheel", "touchstart"];

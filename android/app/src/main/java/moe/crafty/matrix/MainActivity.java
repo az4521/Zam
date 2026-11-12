@@ -296,6 +296,20 @@ public class MainActivity extends BridgeActivity {
                                 ")";
                         }
                     }
+                    // A cold start (the notification woke a dead app) reaches
+                    // here long before the web app has defined its hooks, and a
+                    // bare `hook && hook(...)` silently dropped the reply / tap.
+                    // Wait for the hook instead, up to 30s.
+                    java.util.regex.Matcher hook = java.util.regex.Pattern
+                        .compile("^window\\.(\\w+) &&").matcher(js);
+                    if (hook.find()) {
+                        js =
+                            "(function(n){var f=function(){if(window." +
+                            hook.group(1) +
+                            "){" +
+                            js +
+                            "}else if(n-->0){setTimeout(f,500)}};f()})(60)";
+                    }
                     getBridge().getWebView().evaluateJavascript(js, null);
                 },
                 500

@@ -3251,6 +3251,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "アプリが同期している間はオンラインとして表示されます",
     "presence.shownAsIdleToOtherUsers":
         "他のユーザーにはアイドルとして表示されます",
+    "presence.doNotDisturb": "応答不可",
+    "presence.doNotDisturbDescription":
+        "すべての端末で通知と着信を鳴らしません",
     "presence.invisible": "オフライン表示",
     "presence.appearOfflineToOtherUsers": "他のユーザーにオフラインとして表示",
     "pushRuleWrite.yourHomeserverHasNoNotificationRule":

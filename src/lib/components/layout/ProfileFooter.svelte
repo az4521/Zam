@@ -45,6 +45,11 @@
         // The chosen state, not the server's: tuwunel reports the highest
         // state across all our sessions, so an away pick would never show.
         const state = settingsState.ownPresence;
+        if (settingsState.doNotDisturb && state !== "offline")
+            return {
+                dotClass: "bg-discord-dnd",
+                label: t("presence.doNotDisturb"),
+            };
         return {
             dotClass: presenceDotClass(presenceDot(state)),
             label: presenceLabel(state),

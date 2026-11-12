@@ -3747,6 +3747,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Affiché en ligne pendant que l'application se synchronise",
     "presence.shownAsIdleToOtherUsers":
         "Affiché comme absent aux autres utilisateurs",
+    "presence.doNotDisturb": "Ne pas déranger",
+    "presence.doNotDisturbDescription":
+        "Coupe les notifications et les appels sur tous vos appareils",
     "presence.invisible": "Invisible",
     "presence.appearOfflineToOtherUsers":
         "Apparaître hors ligne aux autres utilisateurs",

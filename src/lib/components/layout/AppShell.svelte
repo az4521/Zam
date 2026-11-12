@@ -288,6 +288,7 @@
         initPush,
         unregisterPush,
         clearDeliveredNativeNotifications,
+        dismissNativeRoomNotifications,
     } from "$lib/push";
     import {
         initWebPush,
@@ -1088,6 +1089,9 @@
         loud: boolean,
         live: boolean,
     ) {
+        // Do Not Disturb: no popup, sound or inbox ping on this device either
+        // (the master push rule only silences the server's pushes).
+        if (settingsState.doNotDisturb) return;
         const content = event.getContent() as any;
         // Extensible events (e.g. polls) carry their text fallback in the
         // MSC1767 key instead of body.
@@ -1894,6 +1898,12 @@
             );
         };
 
+        const waitForSignedInClient = async () => {
+            for (let i = 0; i < 60 && !(auth.userId && getClient()); i++) {
+                await new Promise((r) => setTimeout(r, 500));
+            }
+        };
+
         const quickReplyFromNotification = async (
             roomId: string,
             userId?: string | null,
@@ -1902,6 +1912,9 @@
             stashId?: string,
         ) => {
             if (!roomId || !text || !text.trim()) return;
+            // Woken from a dead app, the session and client may still be
+            // loading: wait for them (up to 30s) rather than dropping the reply.
+            await waitForSignedInClient();
             const decision = decideNotificationRoute(
                 { roomId, userId },
                 { userId: auth.userId },
@@ -1950,6 +1963,7 @@
             userId?: string | null,
         ) => {
             if (!roomId) return;
+            await waitForSignedInClient();
             const decision = decideNotificationRoute(
                 { roomId, userId },
                 { userId: auth.userId },
@@ -2249,6 +2263,23 @@
                 return;
             emitNotification(event, room, !!(actions?.tweaks as any)?.sound);
         });
+        // Android: the tray notifications are native, so take down the ones for
+        // rooms with nothing unread left (read here, or on another device).
+        // Debounced: receipts arrive in bursts.
+        let nativeSweepTimer: ReturnType<typeof setTimeout> | null = null;
+        const scheduleNativeNotificationSweep = () => {
+            if (nativeSweepTimer) clearTimeout(nativeSweepTimer);
+            nativeSweepTimer = setTimeout(() => {
+                nativeSweepTimer = null;
+                const client = getClient();
+                if (!client) return;
+                const read = client
+                    .getRooms()
+                    .filter((r) => r.getUnreadNotificationCount() === 0)
+                    .map((r) => r.roomId);
+                void dismissNativeRoomNotifications(read);
+            }, 400);
+        };
         const unsubReceipts = onAnyReceiptEvent(() => {
             const userId = getOwnUserId();
             const client = getClient();
@@ -2283,6 +2314,7 @@
                     readEventIds,
                 }),
             );
+            scheduleNativeNotificationSweep();
         });
         // Fires once the server confirms a read receipt (or it already is
         // confirmed), so the room's loud dot clears without waiting for a
