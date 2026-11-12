@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.1
+
+✨ **New**
+
+- **Public STUN server, if you want it:** when your homeserver offers no relay or STUN server, direct calls usually can't get through home routers. Zam can now ask Cloudflare's STUN server for your public address instead, but only after you say yes (in the call prompt, or "Use a public STUN server" in Voice & Video). It learns your IP address, never the call.
+
+🔧 **Improved**
+
+- **Failed direct connections are explained:** if a direct connection to someone never comes up, you're told who and why, instead of them just staying silent.
+
 ## v1.60.0
 
 ✨ **New**
