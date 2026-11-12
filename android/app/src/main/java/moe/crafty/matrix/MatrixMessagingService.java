@@ -1084,6 +1084,11 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             replyIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             replyIntent.putExtra("room_id", roomId);
             replyIntent.putExtra("user_id", postedBy);
+            // One reply per posted notification: MainActivity remembers the
+            // nonces it has sent, so the same intent handed back on a later
+            // reopen cannot send the reply again.
+            replyIntent.putExtra("reply_nonce",
+                java.util.UUID.randomUUID().toString());
             if (eventId != null && !eventId.isEmpty()) {
                 replyIntent.putExtra("event_id", eventId);
             }
