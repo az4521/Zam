@@ -643,8 +643,14 @@ export class SubscriberConnection extends MeshConnection {
                 this.addCandidates(message.candidates);
                 break;
             case "track_metadata":
-                this.trackMetadata = message.track_metadata;
-                this.events.changed();
+                // Queued like the offers: one that arrived behind a pending
+                // offer is newer than the metadata that offer carries, and
+                // applying it at once would let the offer overwrite it, leaving
+                // a peer shown muted (or not) until their next change.
+                this.enqueue(async () => {
+                    this.trackMetadata = message.track_metadata;
+                    this.events.changed();
+                });
                 break;
             default:
                 break;
