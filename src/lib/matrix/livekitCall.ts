@@ -202,6 +202,8 @@ import {
     joinUsesMesh,
     lacksIceServers,
     meshIceConfig,
+    meshSenderDeviceMatches,
+    meshTransportOf,
     ownMeshTransport,
     receivesOverMesh,
     type TurnCredentials,
@@ -1392,19 +1394,76 @@ function dropLkTransport(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
     if (transport) call.speakersByRoom.delete(transport);
 }
 
+type RtcMembership = RtcSession["memberships"][number];
+
+/**
+ * For each membership: whether its mesh transport may be used, i.e. the
+ * device it names sent the member event (MSC4575). Only an encrypted event
+ * says which device sent it, as the Megolm sender key; a legacy
+ * m.call.member state event is never encrypted and passes.
+ */
+async function meshSendersMatch(
+    memberships: readonly RtcMembership[],
+): Promise<boolean[]> {
+    const senderKeys = memberships.map((m) => {
+        if (!meshTransportOf(m.transports, m.deviceId)) return null;
+        // CallMembership keeps its event private; the key is all we read.
+        const event = (m as unknown as { matrixEvent?: unknown }).matrixEvent;
+        const getSenderKey = (event as { getSenderKey?: () => string | null })
+            ?.getSenderKey;
+        return typeof getSenderKey === "function"
+            ? getSenderKey.call(event)
+            : null;
+    });
+    const users = [
+        ...new Set(
+            memberships.filter((_, i) => senderKeys[i]).map((m) => m.userId),
+        ),
+    ];
+    const crypto = matrixClient?.getCrypto();
+    const devices =
+        users.length > 0 && crypto
+            ? await crypto.getUserDeviceInfo(users, true).catch(() => null)
+            : null;
+    return memberships.map((m, i) =>
+        meshSenderDeviceMatches(
+            senderKeys[i],
+            devices?.get(m.userId)?.get(m.deviceId)?.getIdentityKey(),
+        ),
+    );
+}
+
+/** The latest syncRemoteSfus run per call: an older one that waited on the
+ *  device check mustn't apply after it. */
+const remoteSyncRun = new WeakMap<ActiveVoiceCall, number>();
+
 /** Bring `call`'s receiving connections in line with where the other
  *  members publish: connect to new SFUs, drop ones nobody uses any more,
  *  and receive over the mesh whoever publishes only there. */
 async function syncRemoteSfus(call: ActiveVoiceCall): Promise<void> {
     if (activeVoice !== call || !matrixClient) return;
+    const run = (remoteSyncRun.get(call) ?? 0) + 1;
+    remoteSyncRun.set(call, run);
+    const memberships = [...call.session.memberships];
+    const sendersMatch = await meshSendersMatch(memberships);
+    if (
+        activeVoice !== call ||
+        !matrixClient ||
+        remoteSyncRun.get(call) !== run
+    )
+        return;
     const me = matrixClient.getUserId();
     const myDevice = matrixClient.getDeviceId();
     const published = memberPublishTransports(
-        call.session,
+        { memberships } as RtcSession,
         matrixClient.getRoom(call.roomId),
     );
-    const others = call.session.memberships
-        .map((m, i) => ({ m, transport: published[i] }))
+    const others = memberships
+        .map((m, i) => ({
+            m,
+            transport: published[i],
+            senderOk: sendersMatch[i],
+        }))
         .filter(({ m }) => !(m.userId === me && m.deviceId === myDevice));
     const wanted = remoteLivekitTargets(
         others.map(({ transport }) => transport),
@@ -1422,11 +1481,13 @@ async function syncRemoteSfus(call: ActiveVoiceCall): Promise<void> {
             void connectRemoteSfu(call, key, target);
     syncMesh(
         call,
-        others.map(({ m, transport }) => ({
+        others.map(({ m, transport, senderOk }) => ({
             userId: m.userId,
             deviceId: m.deviceId,
             memberId: m.memberId,
-            overMesh: receivesOverMesh(transport, m.transports, m.deviceId),
+            overMesh:
+                senderOk &&
+                receivesOverMesh(transport, m.transports, m.deviceId),
         })),
     );
     notifyCallMutes(call);
@@ -1618,12 +1679,17 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     // Peer-to-peer connections show our IP address to the other end: ask
     // before opening any. Who we'd receive over the mesh is known from the
     // memberships already there.
-    const picked = memberPublishTransports(session, room);
-    const othersOverMesh = session.memberships
-        .map((m, i) => ({ m, transport: picked[i] }))
+    const memberships = [...session.memberships];
+    const sendersMatch = await meshSendersMatch(memberships);
+    if (seq !== voiceJoinSeq) return;
+    const picked = memberPublishTransports({ memberships } as RtcSession, room);
+    const othersOverMesh = memberships
+        .map((m, i) => ({ m, transport: picked[i], senderOk: sendersMatch[i] }))
         .filter(({ m }) => !(m.userId === userId && m.deviceId === deviceId))
-        .map(({ m, transport }) =>
-            receivesOverMesh(transport, m.transports, m.deviceId),
+        .map(
+            ({ m, transport, senderOk }) =>
+                senderOk &&
+                receivesOverMesh(transport, m.transports, m.deviceId),
         );
     let meshConsent = false;
     if (joinUsesMesh({ ownHasSfu: !!target, othersOverMesh })) {

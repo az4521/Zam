@@ -62,6 +62,23 @@ export function meshTransportOf(
 }
 
 /**
+ * Whether a member event may name `device_id` for the mesh: the MSC has
+ * clients ignore a mesh transport naming another device than the one that
+ * sent the event. `senderKey` is the event's Megolm sender (curve25519) key,
+ * null when it wasn't encrypted (a legacy m.call.member state event): then
+ * the sending device is unknown and the MSC exempts it. `deviceIdentityKey`
+ * is the named device's curve25519 key, undefined when we don't know that
+ * device, which can't be the sender then.
+ */
+export function meshSenderDeviceMatches(
+    senderKey: string | null | undefined,
+    deviceIdentityKey: string | undefined,
+): boolean {
+    if (!senderKey) return true;
+    return deviceIdentityKey === senderKey;
+}
+
+/**
  * Whether we receive a member over the mesh: they publish on it, and not on
  * an SFU we'd use instead (`picked` is their publishing transport as
  * memberPublishTransport chooses it). An SFU hides both ends' addresses,

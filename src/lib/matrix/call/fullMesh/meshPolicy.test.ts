@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
     withMeshCanSubscribe,
+    meshSenderDeviceMatches,
     isLivekitTransport,
     joinUsesMesh,
     meshIceConfig,
@@ -251,5 +252,24 @@ describe("withMeshCanSubscribe", () => {
     it("leaves content without transports (m.call.member) alone", () => {
         const legacy = { foci_preferred: [], device_id: "D" };
         expect(withMeshCanSubscribe(legacy)).toBe(legacy);
+    });
+});
+
+describe("meshSenderDeviceMatches", () => {
+    it("passes an unencrypted event, whose sending device is unknown", () => {
+        expect(meshSenderDeviceMatches(null, undefined)).toBe(true);
+        expect(meshSenderDeviceMatches(undefined, "KEY")).toBe(true);
+    });
+
+    it("passes an encrypted event sent by the device it names", () => {
+        expect(meshSenderDeviceMatches("KEY", "KEY")).toBe(true);
+    });
+
+    it("refuses one sent by another device", () => {
+        expect(meshSenderDeviceMatches("OTHER", "KEY")).toBe(false);
+    });
+
+    it("refuses one naming a device we don't know", () => {
+        expect(meshSenderDeviceMatches("KEY", undefined)).toBe(false);
     });
 });
