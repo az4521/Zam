@@ -382,10 +382,77 @@ jobs:
                   # it to tell "not published yet" from "already installed, only
                   # a restart is missing" (electron/flatpakShellUpdate.cjs).
                   printf '{"version":"%s"}\n' "$VERSION" > site/version.json
-            - uses: actions/upload-pages-artifact@v3
+            # Published by the `pages` job, merged with the F-Droid repo.
+            - uses: actions/upload-artifact@v4
               if: env.RELEASE == 'true'
               with:
+                  name: pages-flatpak
                   path: site
+
+    # F-Droid: our own repo (served from GitHub Pages by the `pages` job, under
+    # /fdroid/repo), indexing the release APKs. The index is signed with the
+    # Android APK signing key (the ANDROID_KEYSTORE_* secrets), so clients pin
+    # that key. Without them the job is skipped and the release carries on.
+    fdroid:
+        needs: [check, android]
+        if: needs.check.outputs.release == 'true'
+        runs-on: ubuntu-latest
+        env:
+            ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+            ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+            # fdroidserver reads the passwords from these, not from config.yml.
+            FDROID_KEY_STORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+            FDROID_KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+            VERSION: ${{ needs.check.outputs.version }}
+            GH_TOKEN: ${{ github.token }}
+        steps:
+            - name: Check for the repo key
+              id: key
+              run: |
+                  if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$FDROID_KEY_STORE_PASS" ]; then
+                    echo "::warning::ANDROID_KEYSTORE_* secrets are not set; skipping the F-Droid repo."
+                    echo "present=false" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "present=true" >> "$GITHUB_OUTPUT"
+                  fi
+            - uses: actions/checkout@v4
+              if: steps.key.outputs.present == 'true'
+            - uses: actions/download-artifact@v4
+              if: steps.key.outputs.present == 'true'
+              with:
+                  name: android
+                  path: apk
+            - name: Build the F-Droid repo
+              if: steps.key.outputs.present == 'true'
+              run: |
+                  set -euo pipefail
+                  BASE="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}"
+                  mkdir -p work/repo work/metadata/moe.crafty.matrix/en-US
+                  cp fdroid/metadata/*.yml work/metadata/
+                  cp electron/icons/icon.png work/metadata/moe.crafty.matrix/en-US/icon.png
+                  sed "s|@BASE@|$BASE|g; s|@ALIAS@|$ANDROID_KEY_ALIAS|g"                     fdroid/config.yml > work/config.yml
+                  echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > work/keystore.jks
+                  # Earlier releases stay installable (and downgradable) from the
+                  # repo: bring the last few APKs along with the new one.
+                  for tag in $(gh release list --limit 5 --json tagName --jq '.[].tagName'); do
+                    gh release download "$tag" --pattern '*.apk' --dir work/repo --skip-existing || true
+                  done
+                  cp apk/*.apk work/repo/
+                  pip install fdroidserver androguard
+                  cd work
+                  fdroid update --create-metadata --verbose
+                  # What clients pin when adding the repo by hand.
+                  FP=$(keytool -list -keystore keystore.jks -storepass "$FDROID_KEY_STORE_PASS"                     -alias "$ANDROID_KEY_ALIAS" | grep -oE '([0-9A-F]{2}:){31}[0-9A-F]{2}' | head -n1 | tr -d ':')
+                  [ -n "$FP" ] || FP=$(unzip -p repo/index-v1.jar 'META-INF/*.RSA'                     | openssl pkcs7 -inform DER -print_certs | openssl x509 -fingerprint -sha256 -noout                     | cut -d= -f2 | tr -d ':')
+                  cd ..
+                  mkdir -p site-fdroid/fdroid
+                  mv work/repo site-fdroid/fdroid/repo
+                  sed "s|@BASE@|$BASE|g; s|@HOSTPATH@|${BASE#https://}|g; s|@VERSION@|$VERSION|g; s|@FINGERPRINT@|$FP|g"                     fdroid/index.html > site-fdroid/fdroid/index.html
+            - uses: actions/upload-artifact@v4
+              if: steps.key.outputs.present == 'true'
+              with:
+                  name: pages-fdroid
+                  path: site-fdroid
 
     release:
         needs: [check, android, desktop, flatpak, bundle]
@@ -466,7 +533,7 @@ jobs:
     # Publish the Flatpak repo to GitHub Pages, only once the release exists.
     # Needs Settings -> Pages -> Source: "GitHub Actions".
     pages:
-        needs: [check, flatpak, release]
+        needs: [check, flatpak, fdroid, release]
         if: needs.check.outputs.release == 'true'
         runs-on: ubuntu-latest
         permissions:
@@ -476,5 +543,13 @@ jobs:
             name: github-pages
             url: ${{ steps.deploy.outputs.page_url }}
         steps:
+            - uses: actions/download-artifact@v4
+              with:
+                  pattern: pages-*
+                  path: parts
+                  merge-multiple: true
+            - uses: actions/upload-pages-artifact@v3
+              with:
+                  path: parts
             - id: deploy
               uses: actions/deploy-pages@v4

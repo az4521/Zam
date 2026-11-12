@@ -3754,6 +3754,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "updateStatus.openReleasePage": "打开发行页面",
     "updateStatus.flatpakManualUpdate":
         "有可用更新{versionSuffix}。请通过你的软件中心或使用 flatpak update 安装",
+    "updateStatus.packageManagerUpdate":
+        "有可用更新{versionSuffix}。请使用 {manager} 更新",
     "updateStatus.updateCheckFailed": "检查更新失败",
     "updateStatus.checkForUpdatesToInstallThe": "检查更新以安装最新版本。",
 

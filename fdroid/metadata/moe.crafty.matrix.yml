@@ -1,0 +1,15 @@
+Categories:
+    - Internet
+License: GPL-3.0-only
+WebSite: https://github.com/az4521/Zam
+SourceCode: https://github.com/az4521/Zam
+IssueTracker: https://github.com/az4521/Zam/issues
+Changelog: https://github.com/az4521/Zam/blob/master/CHANGELOG.md
+AutoName: Zam
+Summary: A Matrix chat client with voice and video calls
+Description: |-
+    Zam is a Matrix chat client with encrypted rooms, voice and video calls,
+    screen sharing and file transfers.
+
+    This repository serves the signed release APKs. Zam does not update itself
+    when installed from here; F-Droid does.

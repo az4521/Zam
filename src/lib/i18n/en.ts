@@ -3981,6 +3981,8 @@ export const en = {
     "updateStatus.openReleasePage": "Open release page",
     "updateStatus.flatpakManualUpdate":
         "Update available{versionSuffix}. Install it from your software center or with flatpak update",
+    "updateStatus.packageManagerUpdate":
+        "Update available{versionSuffix}. Update it with {manager}",
     "updateStatus.updateCheckFailed": "Update check failed",
     "updateStatus.checkForUpdatesToInstallThe":
         "Check for updates to install the latest version.",

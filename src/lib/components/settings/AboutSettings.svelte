@@ -35,6 +35,7 @@
         downloadApk,
         apkDownloadInFlight,
         installApk,
+        installedBy,
         canInstall,
         openUnknownSourcesSettings,
     } from "$lib/androidUpdater";
@@ -149,6 +150,18 @@
                     ...androidStatus,
                     phase: "up-to-date",
                     version: result.latest,
+                };
+                return;
+            }
+            // A store or package manager updates its own installs.
+            const manager = await installedBy();
+            if (manager) {
+                androidStatus = {
+                    ...androidStatus,
+                    phase: "unsupported",
+                    version: result.latest,
+                    manual: "package-manager",
+                    manager,
                 };
                 return;
             }

@@ -27,6 +27,7 @@ const {
     dialog,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
+const { detectInstallSource } = require("./installSource.cjs");
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
@@ -321,6 +322,14 @@ const IN_FLATPAK = !!process.env.FLATPAK_ID;
 // release page instead of installing one.
 const IS_PORTABLE = !!process.env.PORTABLE_EXECUTABLE_FILE;
 
+// Installed by a package manager (winget, Scoop, …; installSource.cjs): it owns
+// upgrades, so the installer path stays off like it does for a portable build.
+const INSTALL_SOURCE = detectInstallSource({
+    exeDir: path.dirname(app.getPath("exe")),
+});
+const IS_MANAGED = INSTALL_SOURCE.managed;
+const NO_SHELL_INSTALL = IS_PORTABLE || IS_MANAGED;
+
 // Logs for the installer path (userData/updater.log) and the failed-install
 // record that keeps a broken installer from looping (updateGuard.cjs).
 const updaterLog = createFileLog(
@@ -522,16 +531,23 @@ async function checkBundleThenInstaller(manual) {
         flatpakShell.offer(shellVersion, { manual, auto: autoUpdatePref });
         return;
     }
-    if (IN_FLATPAK || IS_PORTABLE) {
+    if (IN_FLATPAK || NO_SHELL_INSTALL) {
         // A Flatpak without the portal's update monitor needs `flatpak update`,
-        // and a portable build cannot install a shell (see IS_PORTABLE): either
-        // way a newer release is only pointed at.
+        // a portable build cannot install a shell (see IS_PORTABLE) and a
+        // package manager upgrades its own: either way a newer release is only
+        // pointed at.
         sendUpdateStatus(
             shellVersion
                 ? {
                       phase: "unsupported",
                       version: shellVersion,
                       ...(IN_FLATPAK ? { manual: "flatpak" } : {}),
+                      ...(IS_MANAGED
+                          ? {
+                                manual: "package-manager",
+                                manager: INSTALL_SOURCE.manager,
+                            }
+                          : {}),
                   }
                 : {
                       phase: "up-to-date",
@@ -652,7 +668,7 @@ async function restartIntoFlatpakUpdate() {
 }
 
 function runInstallerCheck(manual) {
-    if (IN_FLATPAK || IS_PORTABLE) return;
+    if (IN_FLATPAK || NO_SHELL_INSTALL) return;
     autoUpdater.autoDownload = manual ? false : autoUpdatePref;
     try {
         const p = autoUpdater.checkForUpdates();
@@ -765,7 +781,7 @@ function setupAutoUpdater() {
     // Flatpak builds take their shell through the Flatpak portal, and portable
     // ones cannot install one (IS_PORTABLE); both still check for web bundles
     // below.
-    if (!IN_FLATPAK && !IS_PORTABLE) setupInstallerUpdater();
+    if (!IN_FLATPAK && !NO_SHELL_INSTALL) setupInstallerUpdater();
     if (IN_FLATPAK) setupFlatpakUpdater();
 
     // Background checks: ~10s after launch (so it never blocks or races
@@ -792,7 +808,7 @@ ipcMain.on("updates:download", () => {
         return;
     }
     if (IN_FLATPAK) void flatpakShell?.install();
-    if (IN_FLATPAK || IS_PORTABLE) return;
+    if (IN_FLATPAK || NO_SHELL_INSTALL) return;
     try {
         const p = autoUpdater.downloadUpdate();
         if (p && typeof p.catch === "function") {

@@ -29,6 +29,9 @@ export interface ApkUpdaterPlugin {
     installApk(): Promise<void>;
     /** Whether this app may request package installs (API 26+ unknown-sources). */
     canInstall(): Promise<{ granted: boolean }>;
+    /** The store or package manager that installed the app and updates it
+     *  itself (null for a sideload). */
+    installSource(): Promise<{ manager: string | null }>;
     /** Open the system "Install unknown apps" settings screen for this app. */
     openUnknownSourcesSettings(): Promise<void>;
     addListener(
@@ -151,4 +154,17 @@ export async function canInstall(): Promise<boolean> {
 /** Open the system unknown-sources settings screen for this app. */
 export async function openUnknownSourcesSettings(): Promise<void> {
     await ApkUpdater.openUnknownSourcesSettings();
+}
+
+/**
+ * The store or package manager (F-Droid, Obtainium, …) that installed this
+ * app, whose own updates must not be raced by the in-app APK updater; null for
+ * a sideloaded APK or when it can't be told.
+ */
+export async function installedBy(): Promise<string | null> {
+    try {
+        return (await ApkUpdater.installSource()).manager ?? null;
+    } catch {
+        return null;
+    }
 }

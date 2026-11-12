@@ -1,0 +1,47 @@
+<!doctype html>
+<!-- Landing page of the F-Droid repo (served at /fdroid/). @BASE@, @VERSION@ and
+     @FINGERPRINT@ are filled in by CI (.github/workflows/release.yml, job
+     "fdroid"). -->
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Zam F-Droid repo</title>
+        <style>
+            :root {
+                color-scheme: light dark;
+            }
+            body {
+                font:
+                    16px/1.5 system-ui,
+                    sans-serif;
+                margin: 0 auto;
+                max-width: 40rem;
+                padding: 2rem 16px;
+            }
+            code {
+                overflow-wrap: anywhere;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Zam on F-Droid</h1>
+        <p>
+            Version @VERSION@. Add this repository to F-Droid (or Droid-ify, Neo
+            Store) to install and update Zam through it.
+        </p>
+        <p>
+            <a
+                href="fdroidrepo://@HOSTPATH@/fdroid/repo?fingerprint=@FINGERPRINT@"
+                >Add to F-Droid</a
+            >
+            (on the phone), or add it by hand:
+        </p>
+        <p>Address: <code>@BASE@/fdroid/repo</code></p>
+        <p>Fingerprint (SHA-256): <code>@FINGERPRINT@</code></p>
+        <p>
+            An install from here is updated by F-Droid; Zam does not fetch its
+            own APK.
+        </p>
+    </body>
+</html>

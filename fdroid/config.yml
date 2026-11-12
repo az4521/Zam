@@ -1,0 +1,12 @@
+# fdroidserver configuration for the Zam repo, built by the release workflow
+# (the `fdroid` job). The index is signed with the APK signing key; its
+# passwords come from FDROID_KEY_STORE_PASS and FDROID_KEY_PASS in the
+# environment, so none are written here.
+repo_url: "@BASE@/fdroid/repo"
+repo_name: Zam
+repo_description: >-
+    The Zam Matrix client's own F-Droid repository. Builds are the same signed
+    APKs published on the GitHub releases page.
+repo_keyalias: "@ALIAS@"
+keystore: keystore.jks
+archive_older: 0

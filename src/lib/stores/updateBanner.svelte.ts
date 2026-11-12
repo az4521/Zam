@@ -21,7 +21,12 @@ import { canApplyUpdateNow } from "$lib/utils/updateApplyGate";
 import { readIdleMs } from "$lib/stores/presence.svelte";
 import { voiceCallState } from "$lib/stores/voiceCall.svelte";
 import { incomingCallsState } from "$lib/stores/incomingCalls.svelte";
-import { isAndroidUpdater, downloadApk, installApk } from "$lib/androidUpdater";
+import {
+    isAndroidUpdater,
+    downloadApk,
+    installApk,
+    installedBy,
+} from "$lib/androidUpdater";
 import {
     isAndroidWebBundle,
     webBundleApply,
@@ -148,6 +153,17 @@ async function androidFlow(force: boolean): Promise<void> {
         updateBannerState.releaseUrl = info.url || RELEASES_URL;
         if (!info.updateAvailable) {
             setStatus({ phase: "up-to-date", version: info.latest });
+            return;
+        }
+        // A store or package manager updates its own installs.
+        const manager = await installedBy();
+        if (manager) {
+            setStatus({
+                phase: "unsupported",
+                version: info.latest,
+                manual: "package-manager",
+                manager,
+            });
             return;
         }
         setStatus({ phase: "available", version: info.latest });

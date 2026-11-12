@@ -29,7 +29,9 @@ export interface UpdateStatusInput {
     installFailed?: boolean;
     /** With "unsupported": the app cannot install it, the system can (a
      *  Flatpak update that needs new permissions, or no update portal). */
-    manual?: "flatpak";
+    manual?: "flatpak" | "package-manager";
+    /** With manual "package-manager": which one installed the app. */
+    manager?: string;
 }
 
 export interface UpdateStatusView {
@@ -57,6 +59,7 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
         kind,
         installFailed,
         manual,
+        manager,
     } = input;
 
     const versionSuffix = version ? ` (v${version})` : "";
@@ -158,6 +161,18 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
                 return {
                     label: t("updateStatus.flatpakManualUpdate", {
                         versionSuffix,
+                    }),
+                    action: "none",
+                    actionLabel: "",
+                    busy: false,
+                    percent: null,
+                };
+            // A package manager upgrades its own installs; the app must not.
+            if (manual === "package-manager")
+                return {
+                    label: t("updateStatus.packageManagerUpdate", {
+                        versionSuffix,
+                        manager: manager ?? "",
                     }),
                     action: "none",
                     actionLabel: "",
