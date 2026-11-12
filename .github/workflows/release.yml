@@ -397,6 +397,8 @@ jobs:
         needs: [check, android]
         if: needs.check.outputs.release == 'true'
         runs-on: ubuntu-latest
+        outputs:
+            published: ${{ steps.key.outputs.present }}
         env:
             ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
             ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -461,8 +463,14 @@ jobs:
                   path: site-fdroid
 
     release:
-        needs: [check, android, desktop, flatpak, bundle]
-        if: needs.check.outputs.release == 'true'
+        # fdroid is only waited for, to know whether to link its repo; a failed
+        # F-Droid build must not stop the release, so every other job is checked
+        # by hand (a plain needs would skip the release when any of them fail).
+        needs: [check, android, desktop, flatpak, bundle, fdroid]
+        if: >-
+            !cancelled() && needs.check.outputs.release == 'true' &&
+            needs.android.result == 'success' && needs.desktop.result == 'success' &&
+            needs.flatpak.result == 'success' && needs.bundle.result == 'success'
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -491,6 +499,8 @@ jobs:
             # missing is left out rather than linked dead.
             - name: Build the download table
               shell: bash
+              env:
+                  FDROID_PUBLISHED: ${{ needs.fdroid.result == 'success' && needs.fdroid.outputs.published == 'true' }}
               run: |
                   set -euo pipefail
                   VER="${{ needs.check.outputs.version }}"
@@ -517,7 +527,7 @@ jobs:
                     echo "| 🐧 **Linux** | $(join "$(link 'AppImage' '*.AppImage')" "$(link 'Flatpak' '*.flatpak')" "[Flatpak repository]($PAGES/zam.flatpakrepo)") |"
                     echo "| 🪟 **Windows** | $(join "$(link 'Installer' '*Setup*.exe')" "$(link 'Portable' '*Portable*.exe')") |"
                     echo "| 🍎 **macOS** | $(join "$(link 'DMG' '*.dmg')") |"
-                    echo "| 🤖 **Android** | $(join "$(link 'APK' '*.apk')") |"
+                    echo "| 🤖 **Android** | $(join "$(link 'APK' '*.apk')" "$([ "$FDROID_PUBLISHED" = true ] && printf '[F-Droid repository](%s/fdroid/)' "$PAGES")") |"
                     echo "| 📱 **iOS** | [Open the web app](https://matrix.crafty.moe) and use Share > Add to Home Screen |"
                     echo
                     echo "The other files below (\`.yml\`, \`.blockmap\`, \`.zbundle\`) are used by Zam's built-in updater. You don't need them."
