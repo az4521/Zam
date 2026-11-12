@@ -336,10 +336,15 @@ jobs:
                   # each of the previous releases (2..12 back) to the head.
                   REF=app/$APP_ID/x86_64/stable
                   HEAD_REV=$(ostree --repo=repo rev-parse "$REF")
+                  FROMS=""
                   for N in $(seq 2 $DELTA_RELEASES); do
                     FROM=$(ostree --repo=repo rev-parse "$REF~$N" 2>/dev/null) || break
-                    ostree --repo=repo static-delta generate --from="$FROM" --to="$HEAD_REV" "$REF"
+                    FROMS="$FROMS $FROM"
                   done
+                  # Each delta is independent, so run them across the runner's
+                  # cores. xargs exits non-zero if any one fails.
+                  printf '%s\n' $FROMS | xargs -r -P "$(nproc)" -I{} \
+                    ostree --repo=repo static-delta generate --from={} --to="$HEAD_REV" "$REF"
                   # Re-index so the summary lists the new deltas, and re-sign it.
                   flatpak build-update-repo --title=Zam --default-branch=stable \
                     --prune --prune-depth=-1 ${GPG_ARGS:-} repo
