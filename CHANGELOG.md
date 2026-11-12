@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.59.7
+
+🐛 **Fixed**
+
+- **F-Droid repository build:** the repository now builds on release (1.59.6 shipped without it). The Flatpak repository also no longer waits on it, so a failed F-Droid build can no longer hold back a Flatpak update.
+
 ## v1.59.6
 
 ✨ **New**
