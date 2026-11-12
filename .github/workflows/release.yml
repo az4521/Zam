@@ -524,11 +524,11 @@ jobs:
                     echo
                     echo "| Platform | Download |"
                     echo "| --- | --- |"
-                    echo "| 🐧 **Linux** | $(join "[Flatpak]($PAGES/zam.flatpakref)" "$(link 'AppImage' '*.AppImage')" "$(link 'Flatpak bundle (offline)' '*.flatpak')") |"
-                    echo "| 🪟 **Windows** | $(join "$(link 'Installer' '*Setup*.exe')" "$(link 'Portable' '*Portable*.exe')") |"
-                    echo "| 🍎 **macOS** | $(join "$(link 'DMG' '*.dmg')") |"
-                    echo "| 🤖 **Android** | $(join "$(link 'APK' '*.apk')" "$([ "$FDROID_PUBLISHED" = true ] && printf '[F-Droid repository](%s/fdroid/)' "$PAGES")") |"
-                    echo "| 📱 **iOS** | [Open the web app](https://matrix.crafty.moe) and use Share > Add to Home Screen |"
+                    echo "| 🐧 **Linux** | $(join "[**Flatpak**]($PAGES/zam.flatpakref)" "$(link 'AppImage' '*.AppImage')" "$(link 'Flatpak bundle (offline)' '*.flatpak')") |"
+                    echo "| 🪟 **Windows** | $(join "$(link "**Installer**" '*Setup*.exe')" "$(link 'Portable' '*Portable*.exe')") |"
+                    echo "| 🍎 **macOS** | $(join "$(link "**DMG**" '*.dmg')") |"
+                    echo "| 🤖 **Android** | $(join "$(link "**APK**" '*.apk')" "$([ "$FDROID_PUBLISHED" = true ] && printf '[F-Droid repository](%s/fdroid/)' "$PAGES")") |"
+                    echo "| 📱 **iOS** | [**Open the web app**](https://matrix.crafty.moe) and use Share > Add to Home Screen |"
                     echo
                     echo "The other files below (\`.yml\`, \`.blockmap\`, \`.zbundle\`) are used by Zam's built-in updater. You don't need them."
                     echo
