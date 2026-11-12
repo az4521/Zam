@@ -263,6 +263,18 @@
         }
     }
 
+    async function setGameAuto(enabled: boolean) {
+        const ga = report?.gameAuto;
+        if (!ga) return;
+        ga.enabled = enabled;
+        try {
+            await window.desktop?.gpu?.setGameAuto(enabled);
+        } catch (e) {
+            ga.enabled = !enabled;
+            error = (e as Error)?.message ?? String(e);
+        }
+    }
+
     async function setVideoEncode(enabled: boolean) {
         const ve = report?.videoEncode;
         if (!ve) return;
@@ -536,6 +548,27 @@
                 checked={report?.hardwareAcceleration ?? true}
                 onChange={setHardwareAcceleration}
                 label={t("gpuDebug.hardwareAcceleration")}
+            />
+        </div>
+    {/if}
+    {#if report?.gameAuto}
+        {@const ga = report.gameAuto}
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("gpuDebug.gameAuto")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("gpuDebug.gameAutoHint")}
+                    {#if ga.pausedAtLaunch}{t("gpuDebug.gameAutoActive")}{/if}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={ga.enabled}
+                onChange={setGameAuto}
+                label={t("gpuDebug.gameAuto")}
             />
         </div>
     {/if}

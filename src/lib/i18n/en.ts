@@ -434,6 +434,10 @@ export const en = {
     "gpuDebug.hardwareAcceleration": "Hardware acceleration",
     "gpuDebug.hardwareAccelerationHint":
         "Turn this off if videos show up black or the window draws wrongly. Applies after a restart.",
+    "gpuDebug.gameAuto": "Pause the GPU while a game runs",
+    "gpuDebug.gameAutoHint":
+        "If the GPU keeps crashing while a game is running (the game holds its memory), Zam restarts without hardware acceleration and restarts again with it once the game closes. Needs game detection in Settings > General. Waits for the end of a call.",
+    "gpuDebug.gameAutoActive": "Running without the GPU until the game closes.",
     "gpuDebug.nvidiaVideo": "NVIDIA video decoding",
     "gpuDebug.nvidiaVideoHint":
         "Decodes video on NVIDIA GPUs through Chromium's Vulkan renderer. Automatic turns it on when an NVIDIA GPU drives your screens. On Wayland, Vulkan is not used and Automatic leaves it off; choosing Vulkan there tries hardware decoding through OpenGL instead (experimental).",

@@ -444,6 +444,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "gpuDebug.hardwareAcceleration": "Aceleração de hardware",
     "gpuDebug.hardwareAccelerationHint":
         "Desative se os vídeos aparecerem pretos ou a janela for desenhada de forma errada. Aplica-se após reiniciar.",
+    "gpuDebug.gameAuto": "Pausar a GPU enquanto um jogo roda",
+    "gpuDebug.gameAutoHint":
+        "Se a GPU continuar falhando enquanto um jogo roda (o jogo ocupa a memória dela), o Zam reinicia sem aceleração de hardware e reinicia de novo com ela quando o jogo fechar. Requer a detecção de jogos em Configurações > Geral. Espera o fim de uma chamada.",
+    "gpuDebug.gameAutoActive": "Rodando sem GPU até o jogo fechar.",
     "gpuDebug.nvidiaVideo": "Decodificação de vídeo NVIDIA",
     "gpuDebug.nvidiaVideoHint":
         "Decodifica vídeo em GPUs NVIDIA pelo renderizador Vulkan do Chromium. Automático ativa quando uma GPU NVIDIA controla suas telas. No Wayland, o Vulkan não é usado e Automático o deixa desativado; escolher Vulkan ali tenta a decodificação por hardware via OpenGL (experimental).",

@@ -191,6 +191,13 @@ declare global {
                         /** Whether this run has the flag on. */
                         activeAtLaunch: boolean;
                     } | null;
+                    /** Go without the GPU while a game holds its memory. */
+                    gameAuto: {
+                        /** The saved choice. */
+                        enabled: boolean;
+                        /** This run started without the GPU for a game. */
+                        pausedAtLaunch: boolean;
+                    };
                     /** Skia Graphite renderer (SkiaGraphite feature). */
                     skiaGraphite: {
                         /** The saved choice (applies on the next launch). */
@@ -232,6 +239,7 @@ declare global {
                 setVideoEncode: (enabled: boolean) => Promise<void>;
                 /** Windows: the PlatformH264CbpEncoding flag, on the next launch. */
                 setH264ProfileFix: (enabled: boolean) => Promise<void>;
+                setGameAuto: (enabled: boolean) => Promise<void>;
                 setSkiaGraphite: (enabled: boolean) => Promise<void>;
                 setNvidiaEncode: (enabled: boolean) => Promise<void>;
                 setNvidiaVideo: (

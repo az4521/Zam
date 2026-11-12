@@ -424,6 +424,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "gpuDebug.hardwareAcceleration": "硬件加速",
     "gpuDebug.hardwareAccelerationHint":
         "如果视频显示为黑屏或窗口绘制异常，请关闭此项。重启后生效。",
+    "gpuDebug.gameAuto": "游戏运行时暂停GPU",
+    "gpuDebug.gameAutoHint":
+        "如果游戏运行期间GPU不断崩溃（游戏占满了显存），Zam会在关闭硬件加速的状态下重启，并在游戏关闭后重新开启并再次重启。需要在设置 > 常规中开启游戏检测。会等待通话结束。",
+    "gpuDebug.gameAutoActive": "在游戏关闭前不使用GPU运行。",
     "gpuDebug.nvidiaVideo": "NVIDIA 视频解码",
     "gpuDebug.nvidiaVideoHint":
         "通过 Chromium 的 Vulkan 渲染器在 NVIDIA GPU 上解码视频。选择“自动”时，若由 NVIDIA GPU 驱动你的屏幕则会开启。在 Wayland 上不使用 Vulkan，“自动”会保持关闭；在那里选择 Vulkan 则会尝试通过 OpenGL 进行硬件解码（实验性）。",

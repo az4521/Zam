@@ -40,6 +40,7 @@ const { registerPluginFrames } = require("./pluginFrames.cjs");
 const { registerGlobalHotkeys } = require("./globalHotkeys.cjs");
 const { createUpdateSchedule } = require("./updateSchedule.cjs");
 const { createCallPriority } = require("./callPriority.cjs");
+const { createGameGpuPause } = require("./gameGpuPause.cjs");
 const { createProxyManager } = require("./proxy.cjs");
 const { recordMemoryReport } = require("./memoryReport.cjs");
 const { createAutostart } = require("./autostart.cjs");
@@ -1057,6 +1058,7 @@ const richPresence = createRichPresence({
     // Steam game invites open their steam:// link (richPresence joinGame).
     openExternal: (url) => shell.openExternal(url),
     send: (event) => {
+        gameGpuPause.onPresence(event);
         if (mainWindow && !mainWindow.isDestroyed())
             mainWindow.webContents.send("rich-presence:event", event);
     },
@@ -1165,6 +1167,7 @@ const callPriority = createCallPriority(app);
 let callActive = false;
 ipcMain.on("call:set-active", (e, active) => {
     callActive = !!active;
+    gameGpuPause.onCallChange();
     callPriority.set(callActive, e.sender);
     // Hidden to the tray, a call with nobody talking isn't "audible" to
     // Chromium, so its timers would drop to once a second, and with them the
@@ -1229,7 +1232,16 @@ const hardwareAccelerationAtLaunch =
 // Set by the crash-loop guard below: this one run goes without the GPU.
 const gpuCrashLoopAtLaunch =
     hardwareAccelerationAtLaunch && !!readGpuPrefs().gpuCrashLoopAt;
-if (!hardwareAccelerationAtLaunch || gpuCrashLoopAtLaunch) {
+// Set by gameGpuPause.cjs: a game is running and held the GPU's memory.
+const gamePausedAtLaunch =
+    hardwareAccelerationAtLaunch &&
+    readGpuPrefs().gameGpuAuto === true &&
+    !!readGpuPrefs().gamePausedAt;
+if (
+    !hardwareAccelerationAtLaunch ||
+    gpuCrashLoopAtLaunch ||
+    gamePausedAtLaunch
+) {
     app.disableHardwareAcceleration();
 } else {
     // Chromium gives up on the GPU after its third crash in a run, falling
@@ -1311,6 +1323,10 @@ ipcMain.handle("gpu:info", async () => {
                       activeAtLaunch: hardwareVideoEncode,
                   }
                 : null,
+        gameAuto: {
+            enabled: prefs.gameGpuAuto === true,
+            pausedAtLaunch: gamePausedAtLaunch,
+        },
         skiaGraphite: {
             enabled: prefs.skiaGraphite === true,
             activeAtLaunch: skiaGraphiteAtLaunch,
@@ -1332,6 +1348,23 @@ function writeGpuPrefs(patch) {
     }
     fs.writeFileSync(gpuPrefsPath(), JSON.stringify(prefs));
 }
+
+const gameGpuPause = createGameGpuPause({
+    enabled: () => readGpuPrefs().gameGpuAuto === true,
+    pausedAtLaunch: () => gamePausedAtLaunch,
+    hardwareAccelerationOn: () => hardwareAccelerationAtLaunch,
+    callActive: () => callActive,
+    writePrefs: writeGpuPrefs,
+    relaunch: () => relaunchApp(),
+    log: (msg) => mainLog.info("gameGpuPause", msg),
+});
+gameGpuPause.start();
+app.on("will-quit", () => gameGpuPause.stop());
+
+ipcMain.handle("gpu:set-game-auto", (_e, enabled) => {
+    // Turning it off while paused ends the pause on the next launch.
+    writeGpuPrefs({ gameGpuAuto: enabled ? true : undefined });
+});
 
 // Settings > Debug: Chromium's memory by process and allocator, plus each
 // process's resident memory as Task Manager counts it. One trace at a time:
@@ -1650,6 +1683,15 @@ app.on("child-process-gone", (_e, details) => {
     if (!videoPlaying && Date.now() - videoStoppedAt > 5000) return;
     if (++gpuCrashes < 2 || readGpuPrefs().nvidiaVideo === "vulkan") return;
     writeGpuPrefs({ nvidiaVulkanFailed: Date.now() });
+});
+
+// A game holding the video memory: restart without the GPU while it runs
+// (opt-in, Settings > Debug). The game state is fed from rich presence.
+app.on("child-process-gone", (_e, details) => {
+    if (details.type !== "GPU") return;
+    if (details.reason === "clean-exit" || details.reason === "killed") return;
+    if (isRepaintExit()) return;
+    gameGpuPause.onGpuExit();
 });
 
 // Any GPU-process exit, crash or not, leaves the page's WebRTC video stuck in

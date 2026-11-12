@@ -440,6 +440,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "gpuDebug.hardwareAcceleration": "Accélération matérielle",
     "gpuDebug.hardwareAccelerationHint":
         "Désactivez cette option si les vidéos s'affichent en noir ou si la fenêtre s'affiche mal. S'applique après un redémarrage.",
+    "gpuDebug.gameAuto": "Suspendre le GPU pendant un jeu",
+    "gpuDebug.gameAutoHint":
+        "Si le GPU plante pendant qu'un jeu tourne (le jeu occupe sa mémoire), Zam redémarre sans accélération matérielle puis avec elle une fois le jeu fermé. Nécessite la détection des jeux dans Paramètres > Général. Attend la fin d'un appel.",
+    "gpuDebug.gameAutoActive":
+        "Fonctionne sans GPU jusqu'à la fermeture du jeu.",
     "gpuDebug.restartToApply": "Redémarrez Zam pour appliquer ce changement.",
     "gpuDebug.restart": "Redémarrer",
     "gpuDebug.videoDecoding": "Décodage vidéo",

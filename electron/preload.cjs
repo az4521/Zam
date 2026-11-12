@@ -220,6 +220,8 @@ contextBridge.exposeInMainWorld("desktop", {
             ipcRenderer.invoke("gpu:set-video-encode", !!enabled),
         setH264ProfileFix: (enabled) =>
             ipcRenderer.invoke("gpu:set-h264-profile-fix", !!enabled),
+        setGameAuto: (enabled) =>
+            ipcRenderer.invoke("gpu:set-game-auto", !!enabled),
         setSkiaGraphite: (enabled) =>
             ipcRenderer.invoke("gpu:set-skia-graphite", !!enabled),
         setNvidiaVideo: (mode) =>

@@ -397,6 +397,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "gpuDebug.hardwareAcceleration": "ハードウェアアクセラレーション",
     "gpuDebug.hardwareAccelerationHint":
         "動画が黒く表示されたり、ウィンドウの描画が崩れたりする場合はオフにしてください。再起動後に適用されます。",
+    "gpuDebug.gameAuto": "ゲーム中はGPUを一時停止",
+    "gpuDebug.gameAutoHint":
+        "ゲームの実行中にGPUがクラッシュし続ける場合（ゲームがGPUメモリを占有）、Zamはハードウェアアクセラレーションなしで再起動し、ゲーム終了後に再び有効にして再起動します。設定 > 一般のゲーム検出が必要です。通話の終了を待ちます。",
+    "gpuDebug.gameAutoActive": "ゲームが終了するまでGPUなしで動作中です。",
     "gpuDebug.nvidiaVideo": "NVIDIA ビデオデコード",
     "gpuDebug.nvidiaVideoHint":
         "Chromium の Vulkan レンダラー経由で NVIDIA GPU 上の動画をデコードします。「自動」は NVIDIA GPU が画面を駆動している場合に有効になります。Wayland では Vulkan が使われないため「自動」ではオフのままです。そこで Vulkan を選ぶと、代わりに OpenGL 経由でハードウェアデコードを試みます（実験的）。",

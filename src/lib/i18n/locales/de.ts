@@ -449,6 +449,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "gpuDebug.hardwareAcceleration": "Hardwarebeschleunigung",
     "gpuDebug.hardwareAccelerationHint":
         "Deaktiviere das, wenn Videos schwarz bleiben oder das Fenster falsch gezeichnet wird. Wirkt nach einem Neustart.",
+    "gpuDebug.gameAuto": "GPU pausieren, solange ein Spiel läuft",
+    "gpuDebug.gameAutoHint":
+        "Stürzt die GPU ab, während ein Spiel läuft (das Spiel belegt ihren Speicher), startet Zam ohne Hardwarebeschleunigung neu und nach dem Ende des Spiels wieder mit. Benötigt die Spielerkennung unter Einstellungen > Allgemein. Wartet das Ende eines Anrufs ab.",
+    "gpuDebug.gameAutoActive": "Läuft ohne GPU, bis das Spiel beendet ist.",
     "gpuDebug.restartToApply": "Starte Zam neu, um diese Änderung anzuwenden.",
     "gpuDebug.restart": "Neu starten",
     "gpuDebug.videoDecoding": "Videodekodierung",

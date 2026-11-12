@@ -443,6 +443,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "gpuDebug.hardwareAcceleration": "Апаратне прискорення",
     "gpuDebug.hardwareAccelerationHint":
         "Вимкніть, якщо відео чорне або вікно малюється неправильно. Застосовується після перезапуску.",
+    "gpuDebug.gameAuto": "Вимикати GPU на час гри",
+    "gpuDebug.gameAutoHint":
+        "Якщо GPU постійно падає, поки йде гра (гра займає його пам'ять), Zam перезапускається без апаратного прискорення і знову з ним після закриття гри. Потрібне визначення ігор у Налаштування > Загальні. Чекає завершення дзвінка.",
+    "gpuDebug.gameAutoActive": "Робота без GPU до закриття гри.",
     "gpuDebug.nvidiaVideo": "Декодування відео NVIDIA",
     "gpuDebug.nvidiaVideoHint":
         "Декодує відео на GPU NVIDIA через рендерер Vulkan у Chromium. Режим «Автоматично» вмикає його, коли ваші екрани керуються GPU NVIDIA. У Wayland Vulkan не використовується, і «Автоматично» залишає його вимкненим; вибір Vulkan там спробує натомість апаратне декодування через OpenGL (експериментально).",
