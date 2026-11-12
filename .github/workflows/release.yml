@@ -260,6 +260,8 @@ jobs:
             VERSION: ${{ needs.check.outputs.version }}
             RELEASE: ${{ needs.check.outputs.release }}
             APP_ID: moe.crafty.matrix
+            # Releases back that get a direct delta to the head.
+            DELTA_RELEASES: 12
         steps:
             - uses: actions/checkout@v4
             - uses: actions/setup-node@v4
@@ -278,7 +280,7 @@ jobs:
             - name: Install Flatpak tooling
               run: |
                   sudo apt-get update
-                  sudo apt-get install -y flatpak flatpak-builder
+                  sudo apt-get install -y flatpak flatpak-builder ostree
                   flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
             - name: Import signing key
               if: env.FLATPAK_GPG_PRIVATE_KEY != ''
@@ -326,6 +328,21 @@ jobs:
                     build-dir flatpak/$APP_ID.yml
                   flatpak build-update-repo --title=Zam --default-branch=stable \
                     --generate-static-deltas --prune --prune-depth=-1 ${GPG_ARGS:-} repo
+                  # `--generate-static-deltas` only covers the newest parent
+                  # (and from-scratch). OSTree never chains deltas: a client
+                  # gets one only if it goes straight from its installed
+                  # commit to the head, so anyone more than one release behind
+                  # falls back to fetching changed objects. Add a delta from
+                  # each of the previous releases (2..12 back) to the head.
+                  REF=app/$APP_ID/x86_64/stable
+                  HEAD_REV=$(ostree --repo=repo rev-parse "$REF")
+                  for N in $(seq 2 $DELTA_RELEASES); do
+                    FROM=$(ostree --repo=repo rev-parse "$REF~$N" 2>/dev/null) || break
+                    ostree --repo=repo static-delta generate --from="$FROM" --to="$HEAD_REV" "$REF"
+                  done
+                  # Re-index so the summary lists the new deltas, and re-sign it.
+                  flatpak build-update-repo --title=Zam --default-branch=stable \
+                    --prune --prune-depth=-1 ${GPG_ARGS:-} repo
             - name: Build Flatpak bundle
               run: |
                   set -euo pipefail
