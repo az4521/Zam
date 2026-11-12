@@ -2013,6 +2013,34 @@
         syncFromEditor(!composing);
     }
 
+    /** Make the soft keyboard commit its pending word before a send. The send
+     *  button keeps focus (so the keyboard stays up), which leaves the IME
+     *  composition / iOS autocorrect candidate open: the send then read the
+     *  uncorrected word, and once the composer was cleared the keyboard
+     *  re-inserted the word (a second send posted it again on Android, and iOS
+     *  showed it still sitting in the composer). A synchronous blur()+focus()
+     *  inside the tap commits it without dismissing the keyboard. */
+    async function commitPendingComposition() {
+        if (
+            !textareaEl ||
+            !interfaceState.isMobile ||
+            document.activeElement !== textareaEl
+        )
+            return;
+        textareaEl.blur();
+        textareaEl.focus({ preventScroll: true });
+        // WebKit delivers the committed text (and compositionend) after the
+        // blur returns; wait a task so the model reads the final word.
+        await new Promise((r) => setTimeout(r, 0));
+        composing = false;
+        syncFromEditor();
+    }
+
+    async function sendFromButton() {
+        await commitPendingComposition();
+        await send();
+    }
+
     function onCompositionEnd() {
         composing = false;
         // WebKit (Safari, and the Android WebView Zam ships in) fires
@@ -2755,7 +2783,7 @@
             {/each}
 
             <button
-                onclick={send}
+                onclick={sendFromButton}
                 onpointerdown={(e) => e.preventDefault()}
                 disabled={(!text.trim() && fileQueue.length === 0) ||
                     isSending ||
