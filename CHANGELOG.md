@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.59.6
+
+✨ **New**
+
+- **F-Droid repository:** Zam now has its own F-Droid repo, published with each release. Add it in F-Droid, Droid-ify or Neo Store and updates come through the app, not from Zam itself.
+
+🔧 **Improved**
+
+- **No double updating on Android:** a copy installed from F-Droid, Droid-ify, Neo Store, Obtainium or Google Play no longer downloads its own APK; About tells you to update with that app.
+- **Package-managed desktop installs:** a Zam installed by a package manager that marks it leaves updates to the manager and just tells you a new version is out.
+
 ## v1.59.5
 
 🐛 **Fixed**
