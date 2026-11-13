@@ -210,6 +210,8 @@
         getClient,
         acceptInvite,
         rejectInvite,
+        lookupInvite,
+        settleDeclinedInvite,
         getOwnUserId,
         isInitialSyncComplete,
         clearServiceWorkerAuth,
@@ -280,6 +282,7 @@
         appendPostedEventId,
         type PostedNotificationEntry,
     } from "$lib/utils/notificationDismiss";
+    import { consumeNativeDeclines } from "$lib/declinedInvites";
     import { decideNotificationRoute } from "$lib/utils/notificationRouting";
     import { parseDeepLinkHash } from "$lib/utils/deepLinkHash";
     import { shouldShowWhatsNew } from "$lib/utils/changelog";
@@ -2030,6 +2033,24 @@
             }
         };
 
+        // Invites declined from an Android notification: settle them here, on
+        // start and on every return to the foreground (declinedInvites.ts).
+        const settleNotificationDeclines = async () => {
+            await waitForSignedInClient();
+            if (auth.userId)
+                await consumeNativeDeclines(
+                    auth.userId,
+                    lookupInvite,
+                    settleDeclinedInvite,
+                );
+        };
+        void settleNotificationDeclines();
+        const onVisibleSettleDeclines = () => {
+            if (document.visibilityState === "visible")
+                void settleNotificationDeclines();
+        };
+        document.addEventListener("visibilitychange", onVisibleSettleDeclines);
+
         (window as any).__matrixInviteFromNotification = (
             roomId: string,
             userId: string | undefined,
@@ -2668,6 +2689,10 @@
             if (onPopState) window.removeEventListener("popstate", onPopState);
             delete (window as any).__matrixOpenRoom;
             delete (window as any).__matrixInviteFromNotification;
+            document.removeEventListener(
+                "visibilitychange",
+                onVisibleSettleDeclines,
+            );
             delete (window as any).__matrixKeyboardContent;
             stopAccountPoller?.();
             stopAccountPoller = null;

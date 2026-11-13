@@ -7560,6 +7560,34 @@ function dismissInvite(roomId: string): void {
     for (const cb of roomUpdateSubscribers) cb();
 }
 
+/**
+ * A room's membership as the store holds it, with when the pending invite was
+ * sent; null when the store has no such room (see declinedInvites.ts).
+ */
+export function lookupInvite(
+    roomId: string,
+): { membership: string; inviteTs?: number } | null {
+    const room = matrixClient?.getRoom(roomId);
+    const me = matrixClient?.getUserId();
+    if (!room || !me) return null;
+    const membership = room.getMyMembership();
+    const ts = room.getMember(me)?.events.member?.getTs();
+    return membership === "invite" && ts
+        ? { membership, inviteTs: ts }
+        : { membership };
+}
+
+/**
+ * An invite already declined on the server (from a notification): settle it
+ * locally as rejectInvite does, without asking the server again.
+ */
+export function settleDeclinedInvite(roomId: string): void {
+    // dismissInvite keys by the invite event, so before the membership moves.
+    dismissInvite(roomId);
+    const room = matrixClient?.getRoom(roomId);
+    if (room?.getMyMembership() === "invite") room.updateMyMembership("leave");
+}
+
 /** A pending invite the user already rejected (see dismissInvite). */
 function isDismissedInvite(room: Room): boolean {
     const dismissed = loadDismissedInvites()[room.roomId];

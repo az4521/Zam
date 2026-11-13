@@ -98,6 +98,42 @@ public class MessageActionReceiver extends BroadcastReceiver {
         boolean ok = request("POST", url, session.accessToken, "{}") != null;
         PushLog.log(context, "invite to room " + PushLog.shortId(roomId)
             + (ok ? " declined" : " decline failed"));
+        if (ok) recordDecline(context, session.userId, roomId);
+    }
+
+    /**
+     * Declines the app has not seen yet, as a JSON array of
+     * {userId, roomId, ts}: the app holds the invite in its sync store, and
+     * sliding sync never tells it the invite is gone, so it would keep
+     * offering it. The web layer settles and removes them (see
+     * src/lib/declinedInvites.ts, which owns the format).
+     */
+    static final String KEY_DECLINED_INVITES = "moe.crafty.matrix.declined_invites";
+
+    private static synchronized void recordDecline(Context context, String userId,
+            String roomId) {
+        try {
+            SharedPreferences prefs = context.getSharedPreferences(
+                MatrixMessagingService.PREFS, Context.MODE_PRIVATE);
+            JSONArray list;
+            try {
+                list = new JSONArray(prefs.getString(KEY_DECLINED_INVITES, "[]"));
+            } catch (Exception e) {
+                list = new JSONArray();
+            }
+            JSONArray next = new JSONArray();
+            // Newest last; the 50 most recent are plenty.
+            for (int i = Math.max(0, list.length() - 49); i < list.length(); i++) {
+                JSONObject o = list.optJSONObject(i);
+                if (o != null && !(roomId.equals(o.optString("roomId"))
+                        && userId.equals(o.optString("userId")))) {
+                    next.put(o);
+                }
+            }
+            next.put(new JSONObject().put("userId", userId).put("roomId", roomId)
+                .put("ts", System.currentTimeMillis()));
+            prefs.edit().putString(KEY_DECLINED_INVITES, next.toString()).commit();
+        } catch (Throwable ignored) {}
     }
 
     private static void markRead(Context context, String roomId, String userId, String eventId)
