@@ -42,6 +42,7 @@ import type {
     MatrixError,
     Room,
     RoomMember,
+    RoomState,
     ReceiptType,
     Beacon,
     RegisterResponse,
@@ -4955,6 +4956,48 @@ export function getRoomMembers(room: Room): RoomMember[] {
     return room.getMembers().filter((m) => m.membership === "join");
 }
 
+/**
+ * Calls `callback` (coalesced, at most once per 250 ms) when `room`'s joined
+ * members, their names/avatars, or its power levels / create event change.
+ * Loading a big room's members fires one event per member, hence the coalescing.
+ */
+export function onRoomMembersChanged(
+    room: Room,
+    callback: () => void,
+): () => void {
+    if (!matrixClient) return () => {};
+    const client = matrixClient;
+    const roomId = room.roomId;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const schedule = () => {
+        if (timer !== null) return;
+        timer = setTimeout(() => {
+            timer = null;
+            callback();
+        }, 250);
+    };
+    const onMembers = (_event: MatrixEvent, state: RoomState) => {
+        if (state.roomId === roomId) schedule();
+    };
+    const onEvents = (event: MatrixEvent, state: RoomState) => {
+        if (state.roomId !== roomId) return;
+        const type = event.getType();
+        if (type === "m.room.power_levels" || type === "m.room.create") {
+            schedule();
+        }
+    };
+    client.on(RoomStateEvent.Members as never, onMembers as never);
+    client.on(RoomStateEvent.NewMember as never, onMembers as never);
+    client.on(RoomStateEvent.Events as never, onEvents as never);
+    return () => {
+        client.off(RoomStateEvent.Members as never, onMembers as never);
+        client.off(RoomStateEvent.NewMember as never, onMembers as never);
+        client.off(RoomStateEvent.Events as never, onEvents as never);
+        if (timer !== null) clearTimeout(timer);
+        timer = null;
+    };
+}
+
 // One fresh member load per Room object (so per account and session).
 const freshMemberLoads = new WeakMap<Room, Promise<void>>();
 
@@ -9057,15 +9100,24 @@ export function isRoomCreator(room: Room, userId: string): boolean {
     const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
     const create = state?.getStateEvents("m.room.create", "");
     if (!create) return roomCreatorCache.get(room.roomId)?.has(userId) ?? false;
-    const creators = new Set<string>();
-    const sender = create.getSender();
-    if (sender) creators.add(sender);
-    const additional =
-        (create.getContent()?.additional_creators as string[]) ?? [];
-    for (const id of additional) creators.add(id);
+    // Built once per m.room.create event rather than per call: a member list
+    // asks this for every member, and the event only changes on a new event.
+    let creators = creatorSetByEvent.get(create);
+    if (!creators) {
+        creators = new Set<string>();
+        const sender = create.getSender();
+        if (sender) creators.add(sender);
+        const additional =
+            (create.getContent()?.additional_creators as string[]) ?? [];
+        for (const id of additional) creators.add(id);
+        creatorSetByEvent.set(create, creators);
+    }
     roomCreatorCache.set(room.roomId, creators);
     return creators.has(userId);
 }
+
+/** Creator set per m.room.create event object (see isRoomCreator). */
+const creatorSetByEvent = new WeakMap<MatrixEvent, Set<string>>();
 
 /**
  * Creators seen in each room's `m.room.create`, so a just-joined room whose
@@ -10465,7 +10517,11 @@ const SLIDING_PRESENCE_TTL_MS = 60_000;
 const SLIDING_PRESENCE_ERROR_TTL_MS = 10 * 60_000;
 const slidingPresenceFetchedAt = new Map<string, number>();
 
-function refreshPresenceOverSlidingSync(userId: string): void {
+/**
+ * Fetches one user's presence over HTTP when sliding sync is on (sliding sync
+ * never pushes presence). At most once per TTL per user. No-op otherwise.
+ */
+export function refreshUserPresence(userId: string): void {
     const client = matrixClient;
     if (!client || !isUsingSlidingSync()) return;
     const now = Date.now();
@@ -10498,10 +10554,10 @@ function refreshPresenceOverSlidingSync(userId: string): void {
 /**
  * Locally-synced presence for a user, or null when the server has never sent
  * us presence for them (unknown ≠ offline — some servers disable presence;
- * callers decide how to render the gap).
+ * callers decide how to render the gap). A pure read: it never fetches. Call
+ * refreshUserPresence first if a fresh value over sliding sync is wanted.
  */
 export function getUserPresence(userId: string): PresenceInfo | null {
-    refreshPresenceOverSlidingSync(userId);
     const user = matrixClient?.getUser(userId);
     if (!user?.events.presence) return null;
     return {

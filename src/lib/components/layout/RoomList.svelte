@@ -63,7 +63,7 @@
         Circle,
         Check,
     } from "lucide-svelte";
-    import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
+    import { presenceFor } from "$lib/stores/presence.svelte";
     import { settingsState, setDmSortOrder } from "$lib/stores/settings.svelte";
     import {
         presenceDot,
@@ -118,9 +118,9 @@
     let { onOpenSpaceSettings, onOpenRoomSettings }: Props = $props();
 
     // Presence dot per DM partner, keyed by room id. Unknown presence (server
-    // may have it disabled) renders as offline.
+    // may have it disabled) renders as offline. presenceFor subscribes per
+    // partner, so only a change for a shown DM re-runs this.
     const dmPresence = $derived.by(() => {
-        void presenceState.presenceTick;
         void roomsState.roomsTick;
         const map = new Map<string, { dotClass: string; label: string }>();
         for (const room of roomsState.directRooms) {
@@ -426,12 +426,12 @@
 
     // Untagged DMs sort by the order picked in the header menu (latest
     // message by default; the SDK's room order is arbitrary). unreadTick: a
-    // new message or a read moves the row; presenceTick: "online first".
+    // new message or a read moves the row; "online first" re-reads presence
+    // per partner through presenceFor.
     const sortedDirectRooms = $derived.by(() => {
         void roomsState.roomsTick;
         void roomsState.unreadTick;
         const order = settingsState.dmSortOrder;
-        if (order === "online") void presenceState.presenceTick;
         const facts = new Map<string, DmSortFacts>();
         for (const room of roomsState.directRooms) {
             const found = latestMessage([

@@ -21,7 +21,7 @@
         setActiveRoom,
         openDraftDm,
     } from "$lib/stores/rooms.svelte";
-    import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
+    import { presenceFor } from "$lib/stores/presence.svelte";
     import {
         isUserBlocked,
         blockUser,
@@ -151,9 +151,7 @@
         (void roomsState.roomsTick,
         userId ? getMemberAvatar(room, userId) : null),
     );
-    const presence = $derived(
-        (void presenceState.presenceTick, userId ? presenceFor(userId) : null),
-    );
+    const presence = $derived(userId ? presenceFor(userId) : null);
     const dotState = $derived(presence?.state ?? "offline");
 
     // Extended profile (MSC4133 and friends). Hidden for banned users, as

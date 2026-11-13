@@ -44,6 +44,7 @@ import {
     getTimelineMessages,
     getUserPresence,
     mxcToHttp,
+    refreshUserPresence,
     threadRelationParams,
     type PluginSyncAccountData,
 } from "./client";
@@ -298,6 +299,7 @@ export async function getPluginProfile(
 }
 
 export function getPluginPresence(userId: string): PluginPresenceState | null {
+    refreshUserPresence(userId);
     const info = getUserPresence(userId);
     if (!info) return null;
     const p = info.presence;
