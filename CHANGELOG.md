@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.8
+
+✨ **New**
+
+- **Message preview in the long-press menu:** on mobile, the box at the top of the long-press menu now shows the message as it looks in the chat, with the sender's avatar, name, time and formatting, instead of plain text.
+
+⚡ **Improved**
+
+- **Direct-connection calls and file transfers use your homeserver's relay:** when your homeserver has a relay (TURN) server, peer-to-peer calls and file transfers now go through it by default, so the people you connect to don't see your IP address. If the relay can't reach someone, Zam connects to them directly instead, and the dialog that asks first tells you so.
+- **"Relay peer-to-peer calls" is now "Require a relay server for peer-to-peer calls":** with it on, Zam never connects directly and so never shows your IP address. If your homeserver has a relay server, you're no longer asked before connecting, since your address can't be seen.
+
 ## v1.60.7
 
 🐛 **Fixed**
@@ -992,7 +1003,7 @@ commit list is appended below it.
 
 ## v1.37.5
 
-🔒 **Privacy**
+⚡ **Improved**
 
 - **Location and metadata stripped from uploads:** photos and videos you send (and avatars, banners and emote images) no longer carry GPS location, camera details, XMP/IPTC data or comments. Works for JPEG, PNG, WebP, GIF, TIFF/DNG, HEIC/AVIF and MP4/MOV/M4A files, without re-encoding, and photos stay upright. On by default; turn it off in Settings > Messages & media (not recommended, as files you send could reveal where they were taken).
 
