@@ -4,6 +4,21 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.11
+
+✨ **New**
+
+- **Accept and Decline on invite notifications:** an invite notification now has Accept and Decline buttons. Accept opens the app, joins and takes you into the room; Decline turns the invite down without opening anything.
+
+🐛 **Fixed**
+
+- **Invite notifications made sense of:** an invite used to arrive as "New message: You have a new message" with Reply and Mark as read buttons that couldn't work. It now names who invited you and to what: the person's name and picture for a direct message, or the room's or space's name and picture with who invited you. Tapping it opens your pending invites.
+- **Declined invites stay gone:** an invite you declined from an Android notification no longer lingers in your pending invites.
+- **Smoother scrolling back through history:** scrolling up through older messages no longer jumps, stutters or undoes your own scrolling as images, videos and link previews load, and touch scrolling on phones keeps its momentum. A history page loading mid-scroll no longer nudges the view.
+- **Page no longer freezes scrolling history in Chrome and the desktop app.**
+- **No gap above a room's first message,** and mouse-wheel scrolling is no longer swallowed while older messages load.
+- **Jumping to a replied-to message is instant** when it's far away, instead of a long scroll animation that kept restarting.
+
 ## v1.60.10
 
 ✨ **New**
