@@ -1061,6 +1061,13 @@
             loadingOlder,
         });
     });
+    // Away from the bottom, native anchoring is off for the whole timeline and
+    // the reading anchor (restoreScrollAnchor) is the only thing holding the
+    // view. Both at once froze the page: Chromium keeps its anchor (the top
+    // row) still by re-scrolling whenever the top spacer is resized, so a
+    // shift between its anchor and ours was never cancelled, and every
+    // attempt re-ran the mutation observer — an endless microtask loop.
+    //
     // Native anchoring pins the view to the bottom anchor row only on the live
     // timeline. A context view's bottom is history: pinned there, each page
     // maybeLoadNewer added below kept the user at the bottom, so the next page
@@ -1984,12 +1991,21 @@
     // If the anchored message moved (content above/within it changed size),
     // cancel the move so the reading position stays put. Sub-pixel drift is left
     // to the browser; we only undo real jumps.
+    let correctionsThisFrame = 0;
+    const MAX_CORRECTIONS_PER_FRAME = 4;
+
     function restoreScrollAnchor() {
         if (!anchoringActive() || !anchorEl || !anchorEl.isConnected) return;
         const cTop = scrollEl!.getBoundingClientRect().top;
         const delta =
             anchorEl.getBoundingClientRect().top - cTop - anchorOffset;
         if (delta > 2 || delta < -2) {
+            // A correction resizes the spacer, which re-runs this observer. If
+            // something keeps undoing it, give up until the next frame rather
+            // than loop forever in microtasks (that froze the page once).
+            if (++correctionsThisFrame > MAX_CORRECTIONS_PER_FRAME) return;
+            if (correctionsThisFrame === 1)
+                requestAnimationFrame(() => (correctionsThisFrame = 0));
             // Usually absorbed by the top spacer without scrolling at all.
             const scrolled = cancelShift(delta);
             // Keep the selection baseline pinned to content, not raw scrollTop: a
@@ -2851,7 +2867,7 @@
             aria-live="off"
             class="overflow-y-auto overflow-x-hidden flex flex-1 flex-col{stickToBottom
                 ? ' *:[overflow-anchor:none]'
-                : ''}"
+                : ' [overflow-anchor:none]'}"
         >
             <!-- Pushes a short timeline down so it hugs the composer, like
                  flex-col-reverse used to. -->
