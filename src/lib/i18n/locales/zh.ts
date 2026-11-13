@@ -3972,7 +3972,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.ipVisible":
         "您的主服务器没有中继（TURN）服务器，因此与您直接连接的每个人都能看到您的 IP 地址，这可能暴露您的大致位置。",
     "meshConsent.relayed":
-        "此连接经由您主服务器的中继服务器：其他人看到的是它的地址，而不是您的 IP 地址。",
+        "此连接经由您主服务器的中继服务器：其他人看到的是它的地址，而不是您的 IP 地址。如果中继无法连到某人，您会与对方直接连接，对方将看到您的 IP 地址。若要避免这种情况，请在语音和视频设置中开启“点对点通话必须使用中继服务器”。",
     "meshConsent.relayRequired":
         "“点对点通话必须使用中继服务器”已开启，但您的主服务器没有中继（TURN）服务器，因此无法连接。在语音和视频设置中关闭它即可直接连接。",
     "meshConsent.titleFileTransfer": "此文件传输将直接连接到对方",
@@ -3986,7 +3986,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "“点对点通话必须使用中继服务器”已开启，但您的主服务器没有中继（TURN）服务器。在语音和视频设置中关闭它即可加入。",
     "voiceAudioSettings.meshRelayOnly": "点对点通话必须使用中继服务器",
     "voiceAudioSettings.meshRelayOnlyHint":
-        "如果您的主服务器有中继（TURN）服务器，点对点通话和文件传输会经由它进行，任何人都看不到您的 IP 地址。没有时则直接连接，会显示您的地址。开启后，永远不会直接连接：没有中继服务器就不连接。",
+        "如果您的主服务器有中继（TURN）服务器，点对点通话和文件传输会经由它进行，任何人都看不到您的 IP 地址。没有中继服务器，或中继无法连到某人时，则直接连接，会显示您的地址。开启后，永远不会直接连接：没有可用的中继就不连接。",
     "voiceCall.meshPeerUnreachable":
         "此通话中有人只能直接连接，但已要求使用中继服务器，而您的主服务器没有中继（TURN）服务器，因此您将听不到对方。",
     "meshConsent.usePublicStun": "使用公共 STUN 服务器。",

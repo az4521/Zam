@@ -4436,7 +4436,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.ipVisible":
         "Dein Homeserver hat keinen Relay-Server (TURN), daher können alle, mit denen du direkt verbunden wirst, deine IP-Adresse sehen, die ungefähr deinen Standort verraten kann.",
     "meshConsent.relayed":
-        "Die Verbindung läuft über den Relay-Server deines Homeservers: Die anderen sehen dessen Adresse, nicht deine IP-Adresse.",
+        "Die Verbindung läuft über den Relay-Server deines Homeservers: Die anderen sehen dessen Adresse, nicht deine IP-Adresse. Kann das Relay jemanden nicht erreichen, verbindest du dich direkt mit dieser Person, die dann deine IP-Adresse sieht. Um das zu verhindern, aktiviere „Relay-Server für Peer-to-Peer-Anrufe verlangen“ in den Einstellungen unter Sprache und Video.",
     "meshConsent.relayRequired":
         "„Relay-Server für Peer-to-Peer-Anrufe verlangen“ ist aktiviert, aber dein Homeserver hat keinen Relay-Server (TURN), daher kann keine Verbindung hergestellt werden. Schalte es in den Einstellungen unter Sprache und Video aus, um dich direkt zu verbinden.",
     "meshConsent.titleFileTransfer":
@@ -4452,7 +4452,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.meshRelayOnly":
         "Relay-Server für Peer-to-Peer-Anrufe verlangen",
     "voiceAudioSettings.meshRelayOnlyHint":
-        "Peer-to-Peer-Anrufe und Dateiübertragungen laufen über den Relay-Server (TURN) deines Homeservers, wenn er einen hat, sodass niemand deine IP-Adresse sieht. Ohne ihn verbinden sie sich direkt, wodurch sie sichtbar wird. Mit dieser Option verbinden sie sich nie direkt: Ohne Relay-Server kommt gar keine Verbindung zustande.",
+        "Peer-to-Peer-Anrufe und Dateiübertragungen laufen über den Relay-Server (TURN) deines Homeservers, wenn er einen hat, sodass niemand deine IP-Adresse sieht. Ohne ihn, oder wenn das Relay jemanden nicht erreicht, verbinden sie sich direkt, wodurch sie sichtbar wird. Mit dieser Option verbinden sie sich nie direkt: Ohne funktionierendes Relay kommt gar keine Verbindung zustande.",
     "voiceCall.meshPeerUnreachable":
         "Jemand in diesem Anruf ist nur direkt erreichbar, aber ein Relay-Server wird verlangt und dein Homeserver hat keinen (TURN). Du wirst diese Person daher nicht hören.",
     "meshConsent.usePublicStun": "Einen öffentlichen STUN-Server verwenden.",

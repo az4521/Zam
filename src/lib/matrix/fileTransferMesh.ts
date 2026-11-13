@@ -37,7 +37,8 @@ export function openMeshLink(opts: {
     roomId: string;
     transferId: string;
     peer: { userId: string; deviceId: string };
-    rtcConfig: () => Promise<RTCConfiguration>;
+    /** `direct`: a relayed connection to the peer never came up. */
+    rtcConfig: (direct: boolean) => Promise<RTCConfiguration>;
     /** A connection to the peer never came up. */
     onFailed: () => void;
 }): MeshTransferLink {

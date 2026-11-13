@@ -138,19 +138,21 @@ export function hasTurnRelay(turn: TurnCredentials | null): boolean {
  * The peer connection setup, in order of preference:
  * 1. relayed through our homeserver's TURN server whenever it has one, so
  *    nobody at the other end sees the user's IP address;
- * 2. direct, with the homeserver's STUN servers, or a public STUN server
- *    only if the user allowed one (`publicStun`), as the MSC forbids a
+ * 2. direct (also when `direct`: a relayed connection to that peer never
+ *    came up), with the homeserver's servers, or a public STUN server only
+ *    if the user allowed one (`publicStun`), as the MSC forbids a
  *    third-party fallback without consent.
- * Null when a relay is required (`requireRelay`) but there is no TURN
- * server, so no connection can be made without showing the address.
+ * A required relay (`requireRelay`) rules out 2; null then when there is
+ * no TURN server, so no connection can be made without showing the address.
  */
 export function meshIceConfig(
     turn: TurnCredentials | null,
     requireRelay: boolean,
     publicStun = false,
+    direct = false,
 ): RTCConfiguration | null {
     const uris = turn?.uris.filter((u) => typeof u === "string") ?? [];
-    if (hasTurnRelay(turn))
+    if (hasTurnRelay(turn) && (!direct || requireRelay))
         return {
             iceServers: [
                 {

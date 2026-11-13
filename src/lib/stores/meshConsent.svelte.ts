@@ -6,6 +6,7 @@
  * has no call server, or someone in the call can only be reached directly)
  * and when such a person joins later. MeshConsentDialog shows the request.
  */
+import { settingsState } from "./settings.svelte";
 
 /**
  * - allow: connect directly.
@@ -25,7 +26,8 @@ export interface MeshConsentRequest {
     /** Our homeserver has no TURN/STUN server: offer the public STUN one. */
     offerPublicStun?: boolean;
     /** Our homeserver has a TURN server, so the connection is relayed and
-     *  nobody sees our IP address. */
+     *  nobody sees our IP address unless the relay fails and we fall back
+     *  to connecting directly. */
     relayed?: boolean;
 }
 
@@ -39,10 +41,18 @@ class MeshConsentState {
 
 export const meshConsentState = new MeshConsentState();
 
-/** Ask the user. A newer request answers an open one with its safe choice. */
+/**
+ * Ask the user. A newer request answers an open one with its safe choice.
+ * Allowed without asking when nothing can show the address: every
+ * connection goes through our own TURN relay, with no direct fallback.
+ * (The other end relaying hides only their address: ours still reaches
+ * them in our ICE candidates.)
+ */
 export function requestMeshConsent(
     request: MeshConsentRequest,
 ): Promise<MeshConsentAnswer> {
+    if (request.relayed && settingsState.meshRelayOnly)
+        return Promise.resolve("allow");
     return new Promise((resolve) => {
         const old = meshConsentState.pending;
         if (old) old.resolve(old.joining ? "cancel" : "deny");

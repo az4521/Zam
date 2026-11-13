@@ -234,6 +234,22 @@ describe("public STUN fallback", () => {
         expect(meshIceConfig(null, true, true)).toBeNull();
     });
 
+    it("drops the relay policy for a direct retry unless a relay is required", () => {
+        const turn = {
+            uris: ["turn:hs.example"],
+            username: "u",
+            password: "p",
+        };
+        expect(meshIceConfig(turn, false, false, true)).toEqual({
+            iceServers: [
+                { urls: ["turn:hs.example"], username: "u", credential: "p" },
+            ],
+        });
+        expect(meshIceConfig(turn, true, false, true)?.iceTransportPolicy).toBe(
+            "relay",
+        );
+    });
+
     it("hasTurnRelay", () => {
         expect(hasTurnRelay(null)).toBe(false);
         expect(hasTurnRelay({ uris: ["stun:x"] })).toBe(false);

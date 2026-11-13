@@ -4374,7 +4374,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.ipVisible":
         "Seu servidor doméstico não tem servidor de retransmissão (TURN), então todos com quem você se conectar diretamente podem ver seu endereço IP, que pode revelar aproximadamente onde você está.",
     "meshConsent.relayed":
-        "A conexão passa pelo servidor de retransmissão do seu servidor doméstico: os outros veem o endereço dele, não seu endereço IP.",
+        "A conexão passa pelo servidor de retransmissão do seu servidor doméstico: os outros veem o endereço dele, não seu endereço IP. Se a retransmissão não alcançar alguém, você se conecta diretamente a essa pessoa, que vê seu endereço IP. Para evitar isso, ative “Exigir servidor de retransmissão para chamadas ponto a ponto” nas configurações de Voz e vídeo.",
     "meshConsent.relayRequired":
         "“Exigir servidor de retransmissão para chamadas ponto a ponto” está ativado, mas seu servidor doméstico não tem servidor de retransmissão (TURN), então não é possível conectar. Desative isso nas configurações de Voz e vídeo para conectar diretamente.",
     "meshConsent.titleFileTransfer":
@@ -4390,7 +4390,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.meshRelayOnly":
         "Exigir servidor de retransmissão para chamadas ponto a ponto",
     "voiceAudioSettings.meshRelayOnlyHint":
-        "Chamadas ponto a ponto e transferências de arquivos passam pelo servidor de retransmissão (TURN) do seu servidor doméstico quando ele tem um, então ninguém vê seu endereço IP. Sem ele, conectam-se diretamente, o que o mostra. Com isso ativado, nunca se conectam diretamente: sem servidor de retransmissão, não se conectam.",
+        "Chamadas ponto a ponto e transferências de arquivos passam pelo servidor de retransmissão (TURN) do seu servidor doméstico quando ele tem um, então ninguém vê seu endereço IP. Sem ele, ou quando a retransmissão não alcança alguém, conectam-se diretamente, o que o mostra. Com isso ativado, nunca se conectam diretamente: sem uma retransmissão funcionando, não se conectam.",
     "voiceCall.meshPeerUnreachable":
         "Alguém nesta chamada só pode ser alcançado diretamente, mas um servidor de retransmissão é exigido e seu servidor doméstico não tem um (TURN), então você não vai ouvi-lo.",
     "meshConsent.usePublicStun": "Usar um servidor STUN público.",

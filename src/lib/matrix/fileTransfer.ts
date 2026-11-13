@@ -360,8 +360,8 @@ async function openDirectLink(
     });
 }
 
-async function directIceConfig(): Promise<RTCConfiguration> {
-    const config = await callIceConfig();
+async function directIceConfig(direct: boolean): Promise<RTCConfiguration> {
+    const config = await callIceConfig(direct);
     if (!config) throw new TransferFailed("no-relay");
     return config;
 }

@@ -4202,7 +4202,7 @@ export const en = {
     "meshConsent.ipVisible":
         "Your homeserver has no relay (TURN) server, so everyone you connect to directly can see your IP address, which can reveal roughly where you are.",
     "meshConsent.relayed":
-        "This goes through your homeserver's relay server, so the others see its address, not your IP address.",
+        "This goes through your homeserver's relay server, so the others see its address, not your IP address. If the relay can't reach someone, you connect to them directly, which shows them your IP address. To prevent that, turn on \"Require a relay server for peer-to-peer calls\" in Voice & Video settings.",
     "meshConsent.relayRequired":
         '"Require a relay server for peer-to-peer calls" is on, but your homeserver has no relay (TURN) server, so this can\'t connect. Turn it off in Voice & Video settings to connect directly.',
     "meshConsent.titleFileTransfer":
@@ -4218,7 +4218,7 @@ export const en = {
     "voiceAudioSettings.meshRelayOnly":
         "Require a relay server for peer-to-peer calls",
     "voiceAudioSettings.meshRelayOnlyHint":
-        "Peer-to-peer calls and file transfers go through your homeserver's relay (TURN) server when it has one, so nobody sees your IP address. Without one they connect directly, which shows it. With this on, they never connect directly: without a relay server they don't connect at all.",
+        "Peer-to-peer calls and file transfers go through your homeserver's relay (TURN) server when it has one, so nobody sees your IP address. Without one, or when the relay can't reach someone, they connect directly, which shows it. With this on, they never connect directly: without a working relay they don't connect at all.",
     "voiceCall.meshPeerUnreachable":
         "Someone in this call can only be reached directly, but a relay server is required and your homeserver has no relay (TURN) server, so you won't hear them.",
     "meshConsent.usePublicStun": "Use a public STUN server.",

@@ -4408,7 +4408,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.ipVisible":
         "Votre serveur d'accueil n'a pas de serveur relais (TURN) : toutes les personnes auxquelles vous vous connectez directement peuvent voir votre adresse IP, qui peut révéler approximativement où vous êtes.",
     "meshConsent.relayed":
-        "La connexion passe par le serveur relais de votre serveur d'accueil : les autres voient son adresse, et non votre adresse IP.",
+        "La connexion passe par le serveur relais de votre serveur d'accueil : les autres voient son adresse, et non votre adresse IP. Si le relais ne parvient pas à joindre quelqu'un, vous vous connectez directement à cette personne, qui voit alors votre adresse IP. Pour l'éviter, activez « Exiger un serveur relais pour les appels pair à pair » dans les paramètres Voix et vidéo.",
     "meshConsent.relayRequired":
         "« Exiger un serveur relais pour les appels pair à pair » est activé, mais votre serveur d'accueil n'a pas de serveur relais (TURN), la connexion est donc impossible. Désactivez-le dans les paramètres Voix et vidéo pour vous connecter directement.",
     "meshConsent.titleFileTransfer":
@@ -4424,7 +4424,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.meshRelayOnly":
         "Exiger un serveur relais pour les appels pair à pair",
     "voiceAudioSettings.meshRelayOnlyHint":
-        "Les appels pair à pair et les transferts de fichiers passent par le serveur relais (TURN) de votre serveur d'accueil s'il en a un, pour que personne ne voie votre adresse IP. Sans lui, ils se connectent directement, ce qui la montre. Avec cette option activée, ils ne se connectent jamais directement : sans serveur relais, ils ne se connectent pas du tout.",
+        "Les appels pair à pair et les transferts de fichiers passent par le serveur relais (TURN) de votre serveur d'accueil s'il en a un, pour que personne ne voie votre adresse IP. Sans lui, ou si le relais ne parvient pas à joindre quelqu'un, ils se connectent directement, ce qui la montre. Avec cette option activée, ils ne se connectent jamais directement : sans relais fonctionnel, ils ne se connectent pas du tout.",
     "voiceCall.meshPeerUnreachable":
         "Quelqu'un dans cet appel n'est joignable que directement, mais un serveur relais est exigé et votre serveur d'accueil n'en a pas (TURN) : vous ne l'entendrez pas.",
     "meshConsent.usePublicStun": "Utiliser un serveur STUN public.",

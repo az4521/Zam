@@ -1854,8 +1854,8 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         // connects before setMembers.
         listener: null,
         local: meshLocal,
-        rtcConfig: async () => {
-            const config = await callIceConfig();
+        rtcConfig: async (direct) => {
+            const config = await callIceConfig(direct);
             if (!config) throw new Error("no ICE configuration");
             return config;
         },
@@ -2124,13 +2124,16 @@ export async function homeserverTurn(): Promise<TurnCredentials | null> {
 }
 
 /** How mesh connections are set up now: relayed whenever the homeserver has
- *  a TURN server, else direct; null when a relay is required and there is
- *  none. */
-export async function callIceConfig(): Promise<RTCConfiguration | null> {
+ *  a TURN server, else (or `direct`, after a relayed connection failed)
+ *  direct; null when a relay is required and there is none. */
+export async function callIceConfig(
+    direct = false,
+): Promise<RTCConfiguration | null> {
     return meshIceConfig(
         await homeserverTurn(),
         settingsState.meshRelayOnly,
         settingsState.meshPublicStun,
+        direct,
     );
 }
 

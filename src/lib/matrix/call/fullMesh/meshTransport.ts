@@ -82,6 +82,8 @@ export class FullMeshTransport implements CallTransport, CallDataPublisher {
         }
     >();
     private readonly localDataTracks = new Set<string>();
+    /** Members a relayed connection to never came up: connect directly. */
+    private readonly direct = new Set<string>();
     private closed = false;
     private readonly speakerTimer: ReturnType<typeof setInterval>;
     private readonly lastLoud = new Map<string, number>();
@@ -104,7 +106,9 @@ export class FullMeshTransport implements CallTransport, CallDataPublisher {
             listener: CallTransportListener | null;
             /** What we send; null when we don't publish on the mesh. */
             local: MeshLocalMedia | null;
-            rtcConfig: () => Promise<RTCConfiguration>;
+            /** `direct`: a relayed connection to this member never came
+             *  up, so leave the relay out if the user allows that. */
+            rtcConfig: (direct: boolean) => Promise<RTCConfiguration>;
         },
     ) {
         this.signalling = createSignalling({
@@ -152,6 +156,8 @@ export class FullMeshTransport implements CallTransport, CallDataPublisher {
         if (this.closed) return;
         this.members.clear();
         for (const m of members) this.members.set(m.memberId, m);
+        for (const memberId of this.direct)
+            if (!this.members.has(memberId)) this.direct.delete(memberId);
         // Publishers MUST stop sending to members that left.
         for (const [memberId, connection] of this.publishers) {
             const m = this.members.get(memberId);
@@ -190,7 +196,9 @@ export class FullMeshTransport implements CallTransport, CallDataPublisher {
     }
 
     private async connectSubscription(sub: Subscription): Promise<void> {
-        const rtcConfig = await this.opts.rtcConfig().catch(() => null);
+        const rtcConfig = await this.opts
+            .rtcConfig(this.direct.has(sub.peer.memberId))
+            .catch(() => null);
         if (this.closed || this.subscriptions.get(sub.peer.memberId) !== sub)
             return;
         if (!rtcConfig) {
@@ -199,6 +207,7 @@ export class FullMeshTransport implements CallTransport, CallDataPublisher {
         }
         const listener = this.listener;
         const identity = meshIdentity(sub.peer);
+        const relayed = rtcConfig.iceTransportPolicy === "relay";
         sub.startedAt = Date.now();
         const connection: SubscriberConnection = new SubscriberConnection(
             {
@@ -212,15 +221,28 @@ export class FullMeshTransport implements CallTransport, CallDataPublisher {
                     listener.changed();
                     if (Date.now() - sub.startedAt > STABLE_MS)
                         sub.attempts = 0;
-                    // Never came up: no route between us (once per member).
-                    if (failed && !connection.everConnected && !sub.reported) {
-                        sub.reported = true;
-                        listener.connectionFailed?.(identity);
-                    }
-                    // A publisher that closed on us (left, stopped publishing)
-                    // is retried too while its membership says it publishes.
-                    if (this.subscriptions.get(sub.peer.memberId) === sub)
+                    const deadRoute = failed && !connection.everConnected;
+                    void (
+                        deadRoute && relayed
+                            ? this.fallBackToDirect(sub.peer.memberId)
+                            : Promise.resolve(false)
+                    ).then((fellBack) => {
+                        if (this.subscriptions.get(sub.peer.memberId) !== sub)
+                            return;
+                        if (fellBack) {
+                            // Straight on to the direct attempt.
+                            sub.attempts = 0;
+                        } else if (deadRoute && !sub.reported) {
+                            // Never came up: no route between us (once per
+                            // member).
+                            sub.reported = true;
+                            listener.connectionFailed?.(identity);
+                        }
+                        // A publisher that closed on us (left, stopped
+                        // publishing) is retried too while its membership
+                        // says it publishes.
                         this.scheduleRetry(sub, failed);
+                    });
                 },
             },
             {
@@ -266,6 +288,23 @@ export class FullMeshTransport implements CallTransport, CallDataPublisher {
         }, delay);
     }
 
+    /**
+     * After a relayed connection to `memberId` never came up: connect to
+     * them directly from now on, if the user allows that (no required
+     * relay). False when nothing would change.
+     */
+    private async fallBackToDirect(memberId: string): Promise<boolean> {
+        if (this.direct.has(memberId)) return false;
+        const config = await this.opts.rtcConfig(true).catch(() => null);
+        if (this.closed || !config || config.iceTransportPolicy === "relay")
+            return false;
+        console.info(
+            `[full-mesh] relayed connection with ${memberId} failed; connecting directly`,
+        );
+        this.direct.add(memberId);
+        return true;
+    }
+
     private unsubscribe(memberId: string, reason: string): void {
         const sub = this.subscriptions.get(memberId);
         if (!sub) return;
@@ -280,7 +319,9 @@ export class FullMeshTransport implements CallTransport, CallDataPublisher {
     private async accept(peer: MeshPeer, connectionId: string): Promise<void> {
         const local = this.opts.local;
         if (!local) return;
-        const rtcConfig = await this.opts.rtcConfig().catch(() => null);
+        const rtcConfig = await this.opts
+            .rtcConfig(this.direct.has(peer.memberId))
+            .catch(() => null);
         if (this.closed) return;
         const member = this.members.get(peer.memberId);
         if (!rtcConfig || !member || !samePeer(member, peer)) {
@@ -298,10 +339,17 @@ export class FullMeshTransport implements CallTransport, CallDataPublisher {
                 connectionId,
                 signalling: this.signalling,
                 rtcConfig,
-                // The subscriber retries; a publisher doesn't.
-                onEnded: () => {
+                // The subscriber retries; a publisher doesn't, but answers
+                // the retry directly if the relay never came up.
+                onEnded: (failed) => {
                     if (this.publishers.get(peer.memberId) === connection)
                         this.publishers.delete(peer.memberId);
+                    if (
+                        failed &&
+                        !connection.everConnected &&
+                        rtcConfig.iceTransportPolicy === "relay"
+                    )
+                        void this.fallBackToDirect(peer.memberId);
                 },
             },
             local,
