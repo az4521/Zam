@@ -973,8 +973,9 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     }
 
     /**
-     * An invite: a plain notification on the shared channel, with no Reply or
-     * Mark-as-read (neither works in a room not yet joined). Same id as the
+     * An invite: a plain notification on the shared channel, with Accept and
+     * Decline instead of Reply and Mark-as-read (neither works in a room not
+     * yet joined). Same id as the
      * room's message notification, so joining (a clear push) takes it down.
      */
     private static void showInviteNotification(Context ctx, String title, String text,
@@ -1001,6 +1002,23 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setContentIntent(pending);
         if (icon != null) builder.setLargeIcon(icon);
+        // Accept / Decline, only when attributable (same guard as the tap).
+        if (postedBy != null && !postedBy.isEmpty()) {
+            Intent accept = new Intent(ctx, MainActivity.class);
+            accept.setAction(MessageActionReceiver.ACTION_ACCEPT_INVITE);
+            accept.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            accept.putExtra("room_id", roomId);
+            accept.putExtra("user_id", postedBy);
+            builder.addAction(0, "Accept", PendingIntent.getActivity(
+                ctx, (roomId + ":accept").hashCode(), accept, flags));
+
+            Intent decline = new Intent(ctx, MessageActionReceiver.class);
+            decline.setAction(MessageActionReceiver.ACTION_DECLINE_INVITE);
+            decline.putExtra("room_id", roomId);
+            decline.putExtra("user_id", postedBy);
+            builder.addAction(0, "Decline", PendingIntent.getBroadcast(
+                ctx, (roomId + ":decline").hashCode(), decline, flags));
+        }
         try {
             NotificationManagerCompat.from(ctx).notify(roomId.hashCode(), builder.build());
             PushLog.log(ctx, "posted invite for room " + PushLog.shortId(roomId)

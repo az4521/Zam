@@ -246,6 +246,15 @@ public class MainActivity extends BridgeActivity {
         final String replyText = typedReply;
         // Mark-read action: silent receipt send, no window focus.
         final boolean markRead = intent.getBooleanExtra("mark_read", false);
+        // Accept on an invite notification: the web layer joins (its accept
+        // records a DM in m.direct and loads the room's state), then opens it.
+        final boolean acceptInvite =
+            MessageActionReceiver.ACTION_ACCEPT_INVITE.equals(intent.getAction());
+        if (acceptInvite) {
+            try {
+                NotificationManagerCompat.from(this).cancel(roomId.hashCode());
+            } catch (Throwable ignored) {}
+        }
         if (getBridge() == null || getBridge().getWebView() == null) return;
         // Defer so the web app has a chance to define the hook / finish loading.
         getBridge()
@@ -296,6 +305,14 @@ public class MainActivity extends BridgeActivity {
                                 ", '" +
                                 safeUser +
                                 "')";
+                        } else if (acceptInvite) {
+                            js =
+                                "window.__matrixInviteFromNotification && " +
+                                "window.__matrixInviteFromNotification('" +
+                                safeRoom +
+                                "', '" +
+                                safeUser +
+                                "', true)";
                         } else if (markRead) {
                             // Mark-read: silent receipt send (the bridge skips
                             // window focus), same fail-closed guard.

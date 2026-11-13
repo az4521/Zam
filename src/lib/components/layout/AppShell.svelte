@@ -63,6 +63,8 @@
         roomsState,
         setActiveSpace,
         navigateToRoom,
+        isPendingInvite,
+        showInviteInbox,
         bumpUnreadTick,
         reloadLastLocationFromStorage,
         resolvePendingSurface,
@@ -206,6 +208,8 @@
         onTimelineEvent,
         onAnyReceiptEvent,
         getClient,
+        acceptInvite,
+        rejectInvite,
         getOwnUserId,
         isInitialSyncComplete,
         clearServiceWorkerAuth,
@@ -1634,6 +1638,11 @@
         publishBucket("orphanRooms", classification.orphanRooms);
         publishBucket("directRooms", classification.directRooms);
         publishBucket("invitedRooms", classification.invitedRooms);
+        // A notification's deep link can name an invite before sync has
+        // delivered it (a cold start): once it arrives, show the invites inbox
+        // instead of a room with no timeline.
+        if (roomsState.activeRoomId && isPendingInvite(roomsState.activeRoomId))
+            showInviteInbox();
         publishBucket("knockedRooms", classification.knockedRooms);
         if (roomsState.activeSpaceId) {
             publishBucket("roomsInSpace", classification.roomsInSpace);
@@ -1976,6 +1985,57 @@
             }
         };
 
+        // Accept / Decline on an invite notification. Goes through the app's
+        // own accept (it records a DM in m.direct and loads the room's full
+        // state), then opens the room; a failure lands on the invites inbox.
+        const inviteFromNotification = async (
+            roomId: string,
+            userId: string | null | undefined,
+            accept: boolean,
+        ) => {
+            if (!roomId) return;
+            if (accept) restoreAppWindow();
+            await waitForSignedInClient();
+            const decision = decideNotificationRoute(
+                { roomId, userId },
+                { userId: auth.userId },
+            );
+            if (decision.action !== "navigate") {
+                if (accept && decision.reason === "other-account" && userId)
+                    switchAccountForNotification(userId, roomId);
+                return;
+            }
+            // Woken from a dead app, sync may not have delivered the invite
+            // yet, and acceptInvite reads is_direct and the inviter from it.
+            for (let i = 0; i < 20 && !getClient()?.getRoom(roomId); i++) {
+                await new Promise((r) => setTimeout(r, 500));
+            }
+            try {
+                if (accept) {
+                    await acceptInvite(decision.roomId);
+                    navigateToRoom(decision.roomId);
+                } else {
+                    await rejectInvite(decision.roomId);
+                }
+            } catch (err) {
+                console.error("Invite action from notification failed", err);
+                showErrorToast(
+                    t(
+                        accept
+                            ? "inboxPanel.failedToAcceptInvite"
+                            : "inboxPanel.failedToRejectInvite",
+                    ),
+                );
+                if (accept) navigateToRoom(decision.roomId);
+            }
+        };
+
+        (window as any).__matrixInviteFromNotification = (
+            roomId: string,
+            userId: string | undefined,
+            accept: boolean,
+        ) => inviteFromNotification(roomId, userId, !!accept);
+
         (window as any).__matrixOpenRoom = (
             roomId: string,
             userId?: string,
@@ -2075,6 +2135,12 @@
                 );
             } else if (e.data?.type === "NOTIF_MARK_READ" && e.data.roomId) {
                 quickMarkReadFromNotification(e.data.roomId, e.data.userId);
+            } else if (e.data?.type === "NOTIF_INVITE" && e.data.roomId) {
+                void inviteFromNotification(
+                    e.data.roomId,
+                    e.data.userId,
+                    !!e.data.accept,
+                );
             }
         };
         if ("serviceWorker" in navigator) {
@@ -2601,6 +2667,7 @@
             nativeBackHandle?.remove();
             if (onPopState) window.removeEventListener("popstate", onPopState);
             delete (window as any).__matrixOpenRoom;
+            delete (window as any).__matrixInviteFromNotification;
             delete (window as any).__matrixKeyboardContent;
             stopAccountPoller?.();
             stopAccountPoller = null;

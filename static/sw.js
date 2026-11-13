@@ -882,7 +882,7 @@ function closeAllNotifications() {
  * without reopening PRIV-02: nothing this build posts is both routable and
  * unattributable.
  */
-function notificationData(roomId, isCall, eventId, postedBy) {
+function notificationData(roomId, isCall, eventId, postedBy, built) {
 	if (!postedBy) return {};
 	const d = roomId
 		? { roomId: roomId, userId: postedBy }
@@ -893,6 +893,13 @@ function notificationData(roomId, isCall, eventId, postedBy) {
 	// A call notification carries this so notificationclick's Accept knows to
 	// join, not just open the room.
 	if (isCall) d.isCall = true;
+	// An invite carries what Accept needs with no page open: whether it is a
+	// DM, and who sent it (see handleInviteAction).
+	if (roomId && built && built.isInvite) {
+		d.invite = true;
+		d.inviteDirect = !!built.inviteDirect;
+		d.inviterId = built.inviterId || "";
+	}
 	return d;
 }
 
@@ -1679,6 +1686,9 @@ async function buildNotification(data, session) {
 					eventId: null,
 					isCall: false,
 					isInvite: true,
+					// For an Accept with no page open (see handleInviteAction).
+					inviteDirect: invite.isDirect,
+					inviterId: invite.inviterId,
 				};
 			}
 		}
@@ -2045,6 +2055,7 @@ self.addEventListener("push", (event) => {
 					n.isCall,
 					n.eventId,
 					session ? session.userId : null,
+					n,
 				),
 				// A call persists until answered/dismissed and offers
 				// Accept/Decline; a message is a normal transient popup with
@@ -2057,7 +2068,16 @@ self.addEventListener("push", (event) => {
 								{ action: "decline", title: "Decline" },
 							],
 						}
-					: n.roomId && !n.isInvite
+					: n.isInvite
+						? n.roomId && session
+							? {
+									actions: [
+										{ action: "invite-accept", title: "Accept" },
+										{ action: "invite-decline", title: "Decline" },
+									],
+								}
+							: {}
+						: n.roomId
 						? {
 								actions: [
 									{
@@ -2208,6 +2228,81 @@ async function handleQuickMarkRead(roomId, eventId, postedBy) {
 	}
 }
 
+/**
+ * Accept / Decline on an invite notification. An open page does it (its
+ * accept records a DM in m.direct and loads the room's state, and its decline
+ * settles the room list); Accept also brings the page forward. With no page
+ * open, the worker joins or leaves itself, and Accept opens the room.
+ */
+async function handleInviteAction(roomId, postedBy, accept, data) {
+	try {
+		if (!roomId || !postedBy) return;
+		const clients = await self.clients.matchAll({
+			type: "window",
+			includeUncontrolled: true,
+		});
+		const open = clients.find((c) => "focus" in c);
+		if (open) {
+			if (accept) await open.focus().catch(() => {});
+			open.postMessage({
+				type: "NOTIF_INVITE",
+				roomId,
+				userId: postedBy,
+				accept,
+			});
+			return;
+		}
+		await Promise.race([
+			authReady,
+			new Promise((resolve) => setTimeout(resolve, 3000)),
+		]).catch(() => {});
+		const session = sessionForAccount(postedBy);
+		if (!session) return;
+		const rid = encodeURIComponent(roomId);
+		if (!accept) {
+			await mxPost(`/_matrix/client/v3/rooms/${rid}/leave`, {}, session);
+			return;
+		}
+		const joined = await mxPost(
+			`/_matrix/client/v3/rooms/${rid}/join`,
+			{},
+			session,
+		);
+		// A DM accepted here goes into m.direct, as the app's own accept does.
+		if (joined && data.inviteDirect && data.inviterId) {
+			await addDirectRoom(session, data.inviterId, roomId);
+		}
+		// Joined: open the room. Failed: the same link shows the invites
+		// inbox once the invite has synced, to try again there.
+		await self.clients.openWindow(deepLinkUrl(roomId, null, postedBy));
+	} catch {
+		// Swallow — waitUntil must never reject.
+	}
+}
+
+/** Add `roomId` to the account's m.direct under `userId`. Best effort. */
+async function addDirectRoom(session, userId, roomId) {
+	const path = `/_matrix/client/v3/user/${encodeURIComponent(session.userId)}/account_data/m.direct`;
+	const current = (await mxGet(path, session)) || {};
+	const rooms = Array.isArray(current[userId]) ? current[userId] : [];
+	if (rooms.includes(roomId)) return;
+	const base = session.homeserverUrl.endsWith("/")
+		? session.homeserverUrl.slice(0, -1)
+		: session.homeserverUrl;
+	try {
+		await fetch(base + path, {
+			method: "PUT",
+			headers: {
+				Authorization: `Bearer ${session.accessToken}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ ...current, [userId]: [...rooms, roomId] }),
+		});
+	} catch {
+		// The room still opens; it just files as a room, not a DM.
+	}
+}
+
 // The same check against what is still on screen. iOS starts a fresh worker
 // for most pushes, so the in-memory record above rarely sees the second copy
 // there; a notification this worker posted earlier carries its event id in
@@ -2251,6 +2346,12 @@ self.addEventListener("notificationclick", (event) => {
 	const postedBy = data.userId;
 	// Decline on a call notification just takes it down — open nothing.
 	if (event.action === "decline") return;
+	if (event.action === "invite-accept" || event.action === "invite-decline") {
+		event.waitUntil(
+			handleInviteAction(roomId, postedBy, event.action === "invite-accept", data),
+		);
+		return;
+	}
 	// Quick-reply: routes to page postMessage when open+text, else opens room.
 	if (event.action === "reply") {
 		event.waitUntil(

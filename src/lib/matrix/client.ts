@@ -7439,6 +7439,18 @@ export function getInvitedRooms(): Room[] {
         );
 }
 
+/**
+ * Invites being accepted whose join `/sync` has not confirmed yet: the room
+ * still reads as an invite meanwhile, and the shell must not take the user
+ * from it to the invites inbox (see `isAcceptingInvite`).
+ */
+const acceptingInvites = new Set<string>();
+
+/** Whether `roomId` is an invite this client is accepting right now. */
+export function isAcceptingInvite(roomId: string): boolean {
+    return acceptingInvites.has(roomId);
+}
+
 export async function acceptInvite(roomId: string): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // Read whether this invite is a direct (1:1) chat and who sent it BEFORE
@@ -7450,12 +7462,19 @@ export async function acceptInvite(roomId: string): Promise<void> {
     // Membership keeps reading "invite" until the join comes back over /sync;
     // claim the room as landable meanwhile so no refresh moves the user off it.
     markRoomPendingArrival(roomId);
+    acceptingInvites.add(roomId);
     try {
         await matrixClient.joinRoom(roomId);
     } catch (e) {
         pendingJoins.delete(roomId);
+        acceptingInvites.delete(roomId);
         throw e;
     }
+    clearPendingWhenSynced(
+        acceptingInvites,
+        roomId,
+        (room) => room?.getMyMembership() !== "invite",
+    );
     // Record peer-initiated DMs in m.direct so they surface in the DM section,
     // mirroring what createDirectMessage does for self-initiated DMs. Best-effort:
     // a failed account-data write must not strand the user after a joined room.

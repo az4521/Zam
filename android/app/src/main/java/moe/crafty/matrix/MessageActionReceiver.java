@@ -20,7 +20,9 @@ import java.nio.charset.StandardCharsets;
  * Handles Mark-as-read on a message notification posted by
  * {@link MatrixMessagingService}: cancels the notification and sends the read
  * marker straight to the homeserver, WITHOUT opening the app. A read marker
- * involves no encryption, so the web layer is not needed.
+ * involves no encryption, so the web layer is not needed. Decline on an
+ * invite notification is the same kind of thing: one leave request.
+ * (Accept opens the app instead: see ACTION_ACCEPT_INVITE.)
  *
  * (Reply is not handled here any more: it needs the web layer's SDK for E2EE,
  * and Android 12+ refuses to start an activity from a notification via a
@@ -32,6 +34,9 @@ public class MessageActionReceiver extends BroadcastReceiver {
     static final String ACTION_REPLY = "moe.crafty.matrix.MSG_REPLY";
     static final String ACTION_MARK_READ = "moe.crafty.matrix.MSG_MARK_READ";
     static final String KEY_TEXT_REPLY = "key_text_reply";
+    static final String ACTION_DECLINE_INVITE = "moe.crafty.matrix.INVITE_DECLINE";
+    // Handled by MainActivity: the web layer's accept does the bookkeeping.
+    static final String ACTION_ACCEPT_INVITE = "moe.crafty.matrix.INVITE_ACCEPT";
 
     // The account's "private read receipts" setting, mirrored by
     // syncNativeReceiptPrivacy() in src/lib/nativeSession.ts as
@@ -46,7 +51,9 @@ public class MessageActionReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (intent == null || !ACTION_MARK_READ.equals(intent.getAction())) return;
+        if (intent == null) return;
+        final boolean decline = ACTION_DECLINE_INVITE.equals(intent.getAction());
+        if (!decline && !ACTION_MARK_READ.equals(intent.getAction())) return;
         final String roomId = intent.getStringExtra("room_id");
         final String userId = intent.getStringExtra("user_id");
         final String eventId = intent.getStringExtra("event_id");
@@ -61,13 +68,36 @@ public class MessageActionReceiver extends BroadcastReceiver {
         final PendingResult pending = goAsync();
         new Thread(() -> {
             try {
-                markRead(app, roomId, userId, eventId);
+                if (decline) declineInvite(app, roomId, userId);
+                else markRead(app, roomId, userId, eventId);
             } catch (Throwable ignored) {
                 // Best effort: the next sync of the app reconciles.
             } finally {
                 pending.finish();
             }
-        }, "matrix-mark-read").start();
+        }, decline ? "matrix-decline-invite" : "matrix-mark-read").start();
+    }
+
+    /** The signed-in account the notification was posted under, or null (PRIV-02). */
+    private static MatrixMessagingService.SessionRecord sessionFor(Context context,
+            String userId) {
+        if (userId == null) return null;
+        SharedPreferences prefs = context.getSharedPreferences(
+            MatrixMessagingService.PREFS, Context.MODE_PRIVATE);
+        MatrixMessagingService.SessionRecord session = MatrixMessagingService.resolveSession(
+            prefs, MatrixMessagingService.readSessionRecord(prefs), userId);
+        return session != null && userId.equals(session.userId) ? session : null;
+    }
+
+    private static void declineInvite(Context context, String roomId, String userId)
+            throws Exception {
+        MatrixMessagingService.SessionRecord session = sessionFor(context, userId);
+        if (session == null) return;
+        String url = session.homeserverUrl + "/_matrix/client/v3/rooms/"
+            + MatrixMessagingService.enc(roomId) + "/leave";
+        boolean ok = request("POST", url, session.accessToken, "{}") != null;
+        PushLog.log(context, "invite to room " + PushLog.shortId(roomId)
+            + (ok ? " declined" : " decline failed"));
     }
 
     private static void markRead(Context context, String roomId, String userId, String eventId)
