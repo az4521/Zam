@@ -4,6 +4,14 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.12
+
+🐛 **Fixed**
+
+- **Member list no longer freezes the app in huge rooms:** opening the member list in a room with thousands of members (like Matrix HQ) used to lock up the client. It now opens instantly and scrolls smoothly, however big the room.
+- **Lighter presence updates:** online dots now only update and refresh for people you can actually see (direct messages, visible member list rows, an open profile card), instead of everyone the app has ever shown. Presence is no longer fetched for rows you scroll past quickly.
+- **Member list follows room switches:** switching rooms with the member list open now loads the new room's full member list and starts it at the top.
+
 ## v1.60.11
 
 ✨ **New**
