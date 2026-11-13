@@ -54,6 +54,8 @@ export function watchedPresenceUsers(): string[] {
     return [...watched];
 }
 
+const PRESENCE_SETTLE_MS = 300;
+
 function watcherFor(userId: string): PresenceWatcher {
     let entry = watchers.get(userId);
     if (entry) return entry;
@@ -62,8 +64,15 @@ function watcherFor(userId: string): PresenceWatcher {
         subscribe: createSubscriber((update) => {
             created.update = update;
             watched.add(userId);
-            refreshUserPresence(userId);
+            // Only fetch for someone who stays on screen: scrolling a big
+            // member list flashes hundreds of rows past, and each would
+            // otherwise cost a request.
+            const settle = setTimeout(
+                () => refreshUserPresence(userId),
+                PRESENCE_SETTLE_MS,
+            );
             return () => {
+                clearTimeout(settle);
                 created.update = null;
                 watched.delete(userId);
                 if (watchers.get(userId) === created) watchers.delete(userId);

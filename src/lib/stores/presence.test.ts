@@ -80,12 +80,25 @@ function mountProbe(
     flushSync();
 }
 
+// Past the 300 ms a watched row waits before its presence is fetched.
+const settle = () => new Promise((r) => setTimeout(r, 350));
+
 describe("presence watching", () => {
-    it("watches each rendered user and asks for their presence", () => {
+    it("watches each rendered user and asks for their presence", async () => {
         mountProbe(["@a:x", "@b:x"], () => {});
         expect([...watchedPresenceUsers()].sort()).toEqual(["@a:x", "@b:x"]);
+        expect(refreshMock).not.toHaveBeenCalled();
+        await settle();
         expect(refreshMock).toHaveBeenCalledWith("@a:x");
         expect(refreshMock).toHaveBeenCalledWith("@b:x");
+    });
+
+    it("does not fetch for a row that only flashed past", async () => {
+        mountProbe(["@a:x"], () => {});
+        if (instance) unmount(instance);
+        instance = null;
+        await settle();
+        expect(refreshMock).not.toHaveBeenCalled();
     });
 
     it("re-renders only the user whose presence changed", () => {
@@ -136,8 +149,7 @@ describe("presence watching", () => {
 
         // Re-running the derived must not drop and re-add the subscriptions
         // for good: after it settles both users are still watched once.
-        await Promise.resolve();
-        await Promise.resolve();
+        await settle();
         expect([...watchedPresenceUsers()].sort()).toEqual(["@a:x", "@b:x"]);
         expect(
             refreshMock.mock.calls.filter((c) => c[0] === "@a:x").length,
