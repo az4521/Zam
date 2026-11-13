@@ -1,7 +1,9 @@
 <script lang="ts">
+    import type { Snippet } from "svelte";
     import { t } from "$lib/i18n";
     import Portal from "$lib/components/ui/Portal.svelte";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
+    import Avatar from "$lib/components/ui/Avatar.svelte";
     import type {
         MessageActionKey,
         MessageActionRow,
@@ -16,6 +18,25 @@
          * so part of it can be picked out and copied. Empty hides the preview.
          */
         preview?: string;
+        /**
+         * The message body as the chat log renders it (formatting, emoji,
+         * links, spoilers). Shown in place of the plain `preview` text.
+         */
+        previewBody?: Snippet;
+        /**
+         * Who sent the message and when. With it, the preview box is laid out
+         * like a chat-log message: avatar, name and time, then the body.
+         */
+        sender?: {
+            id: string;
+            name: string;
+            avatarSrc?: string | null;
+            colour?: string;
+            /** Already formatted for display, as in the chat log header. */
+            time: string;
+            /** Full date and time, for the time's tooltip. */
+            fullTime?: string;
+        };
         /** Plugin-contributed action rows (appended after core rows). */
         pluginRows?: PluginMessageActionView[];
         /** Run the chosen core action. The sheet closes itself first. */
@@ -28,6 +49,8 @@
     let {
         rows,
         preview = "",
+        previewBody,
+        sender,
         pluginRows = [],
         onChoose,
         onChoosePlugin,
@@ -106,21 +129,63 @@
                 </div>
             </div>
         {:else}
-            {#if preview}
+            {#if sender || preview}
                 <!--
-                    Long-press on the message lands here, so this is where text
-                    gets selected: big, selectable, and opted out of the
-                    sheet's swipe-down so dragging a selection can't dismiss it.
+                    The message as the chat log shows it: avatar, name and time,
+                    then the body. Long-press on the message lands here, so this
+                    is also where text gets selected: selectable, and opted out
+                    of the sheet's swipe-down so dragging a selection can't
+                    dismiss it.
                 -->
                 <div class="px-4 pb-3" data-sheet-no-drag>
-                    <p
-                        class="max-h-[28vh] overflow-y-auto rounded-lg bg-discord-backgroundSecondary px-3 py-3 text-sm leading-relaxed text-discord-textPrimary whitespace-pre-wrap break-words select-text"
+                    <div
+                        class="max-h-[28vh] overflow-y-auto rounded-lg bg-discord-backgroundSecondary px-3 py-3 flex gap-3 min-w-0"
                     >
-                        {preview}
-                    </p>
-                    <p class="mt-1.5 text-xs text-discord-textMuted">
-                        {t("messageActionsMenu.selectHint")}
-                    </p>
+                        {#if sender}
+                            <div class="w-10 flex-shrink-0 mt-0.5">
+                                <Avatar
+                                    src={sender.avatarSrc}
+                                    name={sender.name}
+                                    id={sender.id}
+                                    size={40}
+                                />
+                            </div>
+                        {/if}
+                        <div class="flex-1 min-w-0">
+                            {#if sender}
+                                <div
+                                    class="flex items-baseline gap-2 mb-0.5 min-w-0"
+                                >
+                                    <span
+                                        class="min-w-0 truncate font-semibold text-sm text-discord-textPrimary"
+                                        style:color={sender.colour}
+                                        >{sender.name}</span
+                                    >
+                                    <span
+                                        class="text-xs text-discord-textMuted whitespace-nowrap flex-shrink-0"
+                                        title={sender.fullTime}
+                                        >{sender.time}</span
+                                    >
+                                </div>
+                            {/if}
+                            {#if previewBody && preview}
+                                <div class="select-text">
+                                    {@render previewBody()}
+                                </div>
+                            {:else if preview}
+                                <p
+                                    class="text-sm leading-relaxed text-discord-textPrimary whitespace-pre-wrap break-words select-text"
+                                >
+                                    {preview}
+                                </p>
+                            {/if}
+                        </div>
+                    </div>
+                    {#if preview}
+                        <p class="mt-1.5 text-xs text-discord-textMuted">
+                            {t("messageActionsMenu.selectHint")}
+                        </p>
+                    {/if}
                 </div>
             {/if}
             <div

@@ -4040,10 +4040,47 @@
     />
 {/if}
 
+{#snippet sheetPreviewBody()}
+    <!-- The long-press sheet's preview: the same body markup the chat log
+     renders (formatting, emoji, emote prefix, edited mark), so the sheet shows
+     the message as it looks in the timeline. -->
+    <div
+        use:spoilers
+        dir="auto"
+        class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
+        class:emoji-only={emojiOnly}
+        class:italic={msgtype === "m.emote"}
+        class:opacity-70={msgtype === "m.notice"}
+    >
+        {#if msgtype === "m.emote"}
+            <span>* {displayName}{" "}</span>
+        {/if}
+        {#if formattedBody()}
+            {@html withTwemoji(sanitize(formattedBody()!))}
+        {:else}
+            {@html withTwemoji(plainToHtml(body()))}
+        {/if}
+        {#if isEdited}
+            <span class="text-xs text-discord-textMuted ms-1"
+                >{t("messageItem.edited")}</span
+            >
+        {/if}
+    </div>
+{/snippet}
+
 {#if showActionsSheet}
     <MessageActionsSheet
         rows={overflowRows}
         preview={copyableText}
+        previewBody={sheetPreviewBody}
+        sender={{
+            id: senderId,
+            name: displayName,
+            avatarSrc,
+            colour: nameColour,
+            time: messageTimestamp(timestamp),
+            fullTime: fullTimestamp(timestamp),
+        }}
         pluginRows={pluginActionViews}
         onChoose={handleActionChoose}
         onChoosePlugin={handlePluginAction}
