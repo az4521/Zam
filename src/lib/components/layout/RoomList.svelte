@@ -1654,6 +1654,7 @@
                     {@const dmName =
                         (void roomsState.roomsTick, getRoomDisplayName(room))}
                     {@const preview = dmPreview.get(room.roomId)}
+                    {@const dmPresenceView = dmPresence.get(room.roomId)}
                     {@const dmKind =
                         (void roomsState.roomsTick,
                         roomTagKind(getRoomTags(room.roomId)))}
@@ -1744,23 +1745,14 @@
                                         name={dmName}
                                         size={32}
                                     />
-                                    {#if unread && !isActive}
-                                        <span
-                                            class="absolute -bottom-0.5 -end-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {loud ||
-                                            highlight
-                                                ? 'bg-discord-danger'
-                                                : 'bg-discord-textPrimary'}"
-                                        ></span>
-                                    {:else}
-                                        {@const presence = dmPresence.get(
-                                            room.roomId,
-                                        )}
-                                        <span
-                                            title={presence?.label}
-                                            class="absolute -bottom-0.5 -end-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {presence?.dotClass ??
-                                                'bg-discord-offline'}"
-                                        ></span>
-                                    {/if}
+                                    <!-- Presence only: a red unread dot here
+                                         read as Do Not Disturb. Unread sits at
+                                         the row's end instead. -->
+                                    <span
+                                        title={dmPresenceView?.label}
+                                        class="absolute -bottom-0.5 -end-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {dmPresenceView?.dotClass ??
+                                            'bg-discord-offline'}"
+                                    ></span>
                                 </div>
                                 <span class="flex-1 min-w-0 flex flex-col">
                                     <span class="text-sm truncate"
@@ -1786,6 +1778,15 @@
                                     >
                                         {highlight > 99 ? "99+" : highlight}
                                     </span>
+                                {:else if unread && !isActive}
+                                    <span
+                                        class="flex-shrink-0 w-2 h-2 me-1 rounded-full {loud
+                                            ? 'bg-discord-danger'
+                                            : 'bg-discord-textPrimary'}"
+                                        aria-label={t(
+                                            "messageArea.unreadNotifications",
+                                        )}
+                                    ></span>
                                 {/if}
                             </button>
                             {#if dmDraggable}
