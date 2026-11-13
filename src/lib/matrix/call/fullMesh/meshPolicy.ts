@@ -97,6 +97,17 @@ export function lacksIceServers(turn: TurnCredentials | null): boolean {
     return !turn || turn.uris.length === 0;
 }
 
+/** What the consent dialog says about the connection's servers. */
+export function meshConsentServers(turn: TurnCredentials | null): {
+    offerPublicStun: boolean;
+    relayed: boolean;
+} {
+    return {
+        offerPublicStun: lacksIceServers(turn),
+        relayed: hasTurnRelay(turn),
+    };
+}
+
 /** Whether joining a call would open peer-to-peer connections. */
 export function joinUsesMesh(opts: {
     ownHasSfu: boolean;
@@ -116,34 +127,53 @@ export interface TurnCredentials {
  *  allowed it. It learns the user's IP address, never the call. */
 export const PUBLIC_STUN_URL = "stun:stun.cloudflare.com:3478";
 
+/** Whether the homeserver offers a TURN server to relay through. */
+export function hasTurnRelay(turn: TurnCredentials | null): boolean {
+    return !!turn?.uris.some(
+        (u) => typeof u === "string" && /^turns?:/i.test(u),
+    );
+}
+
 /**
- * The peer connection setup. Our homeserver's TURN/STUN servers; when it
- * has none, a public STUN server only if the user allowed one
- * (`publicStun`), as the MSC forbids a third-party fallback without
- * consent. Null when relay-only is asked but there is no TURN server to
- * relay through, so no connection can be made without showing the address.
+ * The peer connection setup, in order of preference:
+ * 1. relayed through our homeserver's TURN server whenever it has one, so
+ *    nobody at the other end sees the user's IP address;
+ * 2. direct, with the homeserver's STUN servers, or a public STUN server
+ *    only if the user allowed one (`publicStun`), as the MSC forbids a
+ *    third-party fallback without consent.
+ * Null when a relay is required (`requireRelay`) but there is no TURN
+ * server, so no connection can be made without showing the address.
  */
 export function meshIceConfig(
     turn: TurnCredentials | null,
-    relayOnly: boolean,
+    requireRelay: boolean,
     publicStun = false,
 ): RTCConfiguration | null {
     const uris = turn?.uris.filter((u) => typeof u === "string") ?? [];
-    if (uris.length === 0 && publicStun && !relayOnly)
+    if (hasTurnRelay(turn))
+        return {
+            iceServers: [
+                {
+                    urls: uris,
+                    username: turn?.username,
+                    credential: turn?.password,
+                },
+            ],
+            iceTransportPolicy: "relay",
+        };
+    if (requireRelay) return null;
+    if (uris.length === 0 && publicStun)
         return { iceServers: [{ urls: PUBLIC_STUN_URL }] };
-    const iceServers: RTCIceServer[] =
-        uris.length > 0
-            ? [
-                  {
-                      urls: uris,
-                      username: turn?.username,
-                      credential: turn?.password,
-                  },
-              ]
-            : [];
-    if (relayOnly) {
-        if (!uris.some((u) => /^turns?:/i.test(u))) return null;
-        return { iceServers, iceTransportPolicy: "relay" };
-    }
-    return { iceServers };
+    return {
+        iceServers:
+            uris.length > 0
+                ? [
+                      {
+                          urls: uris,
+                          username: turn?.username,
+                          credential: turn?.password,
+                      },
+                  ]
+                : [],
+    };
 }

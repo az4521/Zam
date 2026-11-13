@@ -4069,7 +4069,7 @@ export const en = {
         "The sender isn't available. They need Zam open.",
     "fileOffer.failedRefused": "The sender's session refused this transfer.",
     "fileOffer.failedNoRelay":
-        "Relay peer-to-peer calls is on, but a relay (TURN) server is missing, so the file can't be sent without showing an IP address.",
+        "A relay server is required for peer-to-peer connections, but there is no relay (TURN) server, so the file can't be sent without showing an IP address.",
     "fileOffer.failedConnection": "The connection was lost.",
     "fileOffer.failedStalled": "The transfer stopped making progress.",
     "fileOffer.failedCorrupt":
@@ -4200,9 +4200,11 @@ export const en = {
     "meshConsent.someoneWithoutCallServer":
         "Someone in this call is on a homeserver without a call server. To hear and see them, your device connects to theirs directly.",
     "meshConsent.ipVisible":
-        'Everyone you connect to directly can see your IP address, which can reveal roughly where you are. To hide it, turn on "Relay peer-to-peer calls" in Voice & Video settings.',
-    "meshConsent.relayOnlyOn":
-        "Relay peer-to-peer calls is on: the others see your homeserver's relay server, not your IP address.",
+        "Your homeserver has no relay (TURN) server, so everyone you connect to directly can see your IP address, which can reveal roughly where you are.",
+    "meshConsent.relayed":
+        "This goes through your homeserver's relay server, so the others see its address, not your IP address.",
+    "meshConsent.relayRequired":
+        '"Require a relay server for peer-to-peer calls" is on, but your homeserver has no relay (TURN) server, so this can\'t connect. Turn it off in Voice & Video settings to connect directly.',
     "meshConsent.titleFileTransfer":
         "This file transfer connects you directly to the other person",
     "meshConsent.fileTransferDirect":
@@ -4212,12 +4214,13 @@ export const en = {
     "meshConsent.joinWithoutThem": "Join without them",
     "meshConsent.notNow": "Not now",
     "voiceCall.meshNeedsTurn":
-        "Relay peer-to-peer calls is on, but your homeserver has no relay (TURN) server. Turn it off in Voice & Video settings to join.",
-    "voiceAudioSettings.meshRelayOnly": "Relay peer-to-peer calls",
+        '"Require a relay server for peer-to-peer calls" is on, but your homeserver has no relay (TURN) server. Turn it off in Voice & Video settings to join.',
+    "voiceAudioSettings.meshRelayOnly":
+        "Require a relay server for peer-to-peer calls",
     "voiceAudioSettings.meshRelayOnlyHint":
-        "Calls without a call server connect people directly, which shows your IP address to them. With this on, they go through your homeserver's relay server instead: slower, but your address stays hidden.",
+        "Peer-to-peer calls and file transfers go through your homeserver's relay (TURN) server when it has one, so nobody sees your IP address. Without one they connect directly, which shows it. With this on, they never connect directly: without a relay server they don't connect at all.",
     "voiceCall.meshPeerUnreachable":
-        "Someone in this call can only be reached directly, but relaying is on and your homeserver has no relay (TURN) server, so you won't hear them.",
+        "Someone in this call can only be reached directly, but a relay server is required and your homeserver has no relay (TURN) server, so you won't hear them.",
     "meshConsent.usePublicStun": "Use a public STUN server.",
     "meshConsent.usePublicStunHint":
         "Your homeserver has no server that helps connections through home routers, so most direct connections fail without one. Cloudflare's STUN server would learn your IP address, but nothing about the call.",
@@ -4229,7 +4232,8 @@ export const en = {
         "Couldn't connect directly to {name}. Their network may block it, or their homeserver offers no way through home routers.",
     "voiceCall.meshFailedNoServers":
         'Couldn\'t connect directly to {name}. Your homeserver offers no relay or STUN server, so connections through home routers usually fail. Turning on "Use a public STUN server" in Voice & Video settings may help.',
-    "settingsSearch.meshRelayOnly": "Relay peer-to-peer calls",
+    "settingsSearch.meshRelayOnly":
+        "Require a relay server for peer-to-peer calls",
 };
 
 export type MessageKey = keyof typeof en;

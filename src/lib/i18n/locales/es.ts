@@ -3066,7 +3066,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "fileOffer.failedRefused":
         "La sesión del remitente ha rechazado esta transferencia.",
     "fileOffer.failedNoRelay":
-        "«Retransmitir llamadas entre pares» está activado, pero falta un servidor de retransmisión (TURN), así que el archivo no se puede enviar sin mostrar una dirección IP.",
+        "Se exige un servidor de retransmisión para las conexiones entre pares, pero no hay ninguno (TURN), así que el archivo no se puede enviar sin mostrar una dirección IP.",
     "fileOffer.failedConnection": "Se ha perdido la conexión.",
     "fileOffer.failedStalled": "La transferencia ha dejado de avanzar.",
     "fileOffer.failedCorrupt":
@@ -4389,9 +4389,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.someoneWithoutCallServer":
         "Alguien en esta llamada está en un servidor doméstico sin servidor de llamadas. Para oírle y verle, tu dispositivo se conecta directamente al suyo.",
     "meshConsent.ipVisible":
-        "Todas las personas con las que te conectes directamente podrán ver tu dirección IP, que puede revelar aproximadamente dónde estás. Para ocultarla, activa «Retransmitir llamadas entre pares» en los ajustes de Voz y vídeo.",
-    "meshConsent.relayOnlyOn":
-        "«Retransmitir llamadas entre pares» está activado: los demás ven el servidor de retransmisión de tu servidor doméstico, no tu dirección IP.",
+        "Tu servidor doméstico no tiene servidor de retransmisión (TURN), así que todas las personas con las que te conectes directamente pueden ver tu dirección IP, que puede revelar aproximadamente dónde estás.",
+    "meshConsent.relayed":
+        "La conexión pasa por el servidor de retransmisión de tu servidor doméstico: los demás ven su dirección, no tu dirección IP.",
+    "meshConsent.relayRequired":
+        "«Exigir un servidor de retransmisión para llamadas entre pares» está activado, pero tu servidor doméstico no tiene servidor de retransmisión (TURN), así que no se puede conectar. Desactívalo en los ajustes de Voz y vídeo para conectarte directamente.",
     "meshConsent.titleFileTransfer":
         "Esta transferencia de archivos te conecta directamente con la otra persona",
     "meshConsent.fileTransferDirect":
@@ -4401,12 +4403,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.joinWithoutThem": "Unirse sin ellos",
     "meshConsent.notNow": "Ahora no",
     "voiceCall.meshNeedsTurn":
-        "«Retransmitir llamadas entre pares» está activado, pero tu servidor doméstico no tiene servidor de retransmisión (TURN). Desactívalo en los ajustes de Voz y vídeo para unirte.",
-    "voiceAudioSettings.meshRelayOnly": "Retransmitir llamadas entre pares",
+        "«Exigir un servidor de retransmisión para llamadas entre pares» está activado, pero tu servidor doméstico no tiene servidor de retransmisión (TURN). Desactívalo en los ajustes de Voz y vídeo para unirte.",
+    "voiceAudioSettings.meshRelayOnly":
+        "Exigir un servidor de retransmisión para llamadas entre pares",
     "voiceAudioSettings.meshRelayOnlyHint":
-        "Las llamadas sin servidor de llamadas conectan a las personas directamente, lo que les muestra tu dirección IP. Con esta opción activada, pasan por el servidor de retransmisión de tu servidor doméstico: más lentas, pero tu dirección queda oculta.",
+        "Las llamadas entre pares y las transferencias de archivos pasan por el servidor de retransmisión (TURN) de tu servidor doméstico cuando tiene uno, así nadie ve tu dirección IP. Sin él se conectan directamente, lo que la muestra. Con esta opción activada, nunca se conectan directamente: sin servidor de retransmisión no se conectan.",
     "voiceCall.meshPeerUnreachable":
-        "Alguien en esta llamada solo es accesible directamente, pero la retransmisión está activada y tu servidor doméstico no tiene servidor de retransmisión (TURN), así que no lo oirás.",
+        "Alguien en esta llamada solo es accesible directamente, pero se exige un servidor de retransmisión y tu servidor doméstico no tiene ninguno (TURN), así que no lo oirás.",
     "meshConsent.usePublicStun": "Usar un servidor STUN público.",
     "meshConsent.usePublicStunHint":
         "Tu servidor doméstico no tiene ningún servidor que ayude a las conexiones a través de los routers domésticos, así que la mayoría de las conexiones directas fallan sin uno. El servidor STUN de Cloudflare conocería tu dirección IP, pero nada sobre la llamada.",
@@ -4418,7 +4421,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "No se pudo conectar directamente con {name}. Su red podría bloquearlo, o su servidor doméstico no ofrece ninguna forma de atravesar los routers domésticos.",
     "voiceCall.meshFailedNoServers":
         "No se pudo conectar directamente con {name}. Tu servidor doméstico no ofrece ningún servidor de retransmisión ni STUN, así que las conexiones a través de routers domésticos suelen fallar. Activar «Usar un servidor STUN público» en los ajustes de Voz y vídeo puede ayudar.",
-    "settingsSearch.meshRelayOnly": "Retransmitir llamadas entre pares",
+    "settingsSearch.meshRelayOnly":
+        "Exigir un servidor de retransmisión para llamadas entre pares",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: es };

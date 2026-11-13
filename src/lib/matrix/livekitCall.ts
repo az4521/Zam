@@ -201,6 +201,7 @@ import {
 import {
     joinUsesMesh,
     lacksIceServers,
+    meshConsentServers,
     meshIceConfig,
     meshSenderDeviceMatches,
     meshTransportOf,
@@ -1538,7 +1539,7 @@ function syncMesh(
                 requestMeshConsent({
                     joining: false,
                     publishing: false,
-                    offerPublicStun: lacksIceServers(turn),
+                    ...meshConsentServers(turn),
                 }),
             )
             .then((answer) => {
@@ -1714,7 +1715,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         const answer = await requestMeshConsent({
             joining: true,
             publishing: !target,
-            offerPublicStun: lacksIceServers(await homeserverTurn()),
+            ...meshConsentServers(await homeserverTurn()),
         });
         if (seq !== voiceJoinSeq || answer === "cancel") return;
         meshConsent = answer === "allow";
@@ -2122,8 +2123,9 @@ export async function homeserverTurn(): Promise<TurnCredentials | null> {
     return creds;
 }
 
-/** How mesh connections are set up now; null when relay-only is on and the
- *  homeserver has no TURN server to relay through. */
+/** How mesh connections are set up now: relayed whenever the homeserver has
+ *  a TURN server, else direct; null when a relay is required and there is
+ *  none. */
 export async function callIceConfig(): Promise<RTCConfiguration | null> {
     return meshIceConfig(
         await homeserverTurn(),

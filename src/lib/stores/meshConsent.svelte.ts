@@ -6,7 +6,6 @@
  * has no call server, or someone in the call can only be reached directly)
  * and when such a person joins later. MeshConsentDialog shows the request.
  */
-import { settingsState } from "./settings.svelte";
 
 /**
  * - allow: connect directly.
@@ -25,6 +24,9 @@ export interface MeshConsentRequest {
     fileTransfer?: boolean;
     /** Our homeserver has no TURN/STUN server: offer the public STUN one. */
     offerPublicStun?: boolean;
+    /** Our homeserver has a TURN server, so the connection is relayed and
+     *  nobody sees our IP address. */
+    relayed?: boolean;
 }
 
 interface Pending extends MeshConsentRequest {
@@ -49,6 +51,7 @@ export function requestMeshConsent(
             publishing: request.publishing ?? false,
             fileTransfer: request.fileTransfer ?? false,
             offerPublicStun: request.offerPublicStun ?? false,
+            relayed: request.relayed ?? false,
             resolve,
         };
     });
@@ -59,9 +62,4 @@ export function resolveMeshConsent(answer: MeshConsentAnswer): void {
     if (!pending) return;
     meshConsentState.pending = null;
     pending.resolve(answer);
-}
-
-/** Whether relaying hides the address (for the dialog's wording). */
-export function meshRelayOnly(): boolean {
-    return settingsState.meshRelayOnly;
 }

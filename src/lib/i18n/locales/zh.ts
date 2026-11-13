@@ -3832,7 +3832,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "fileOffer.failedOffline": "发送者不可用。他们需要打开 Zam。",
     "fileOffer.failedRefused": "发送者的会话拒绝了此次传输。",
     "fileOffer.failedNoRelay":
-        "“中继点对点通话”已开启，但缺少中继（TURN）服务器，因此无法在不暴露 IP 地址的情况下发送文件。",
+        "点对点连接要求使用中继服务器，但没有中继（TURN）服务器，因此无法在不显示 IP 地址的情况下发送文件。",
     "fileOffer.failedConnection": "连接已断开。",
     "fileOffer.failedStalled": "传输已停滞。",
     "fileOffer.failedCorrupt": "文件在传输途中被改动，因此已被丢弃。",
@@ -3970,9 +3970,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.someoneWithoutCallServer":
         "通话中有人所在的主服务器没有通话服务器。为了听到和看到对方，您的设备将直接连接到对方的设备。",
     "meshConsent.ipVisible":
-        "所有与您直接连接的人都可以看到您的 IP 地址，这可能大致泄露您的位置。要隐藏它，请在“语音和视频”设置中开启“中继点对点通话”。",
-    "meshConsent.relayOnlyOn":
-        "“中继点对点通话”已开启：其他人看到的是您主服务器的中继服务器，而不是您的 IP 地址。",
+        "您的主服务器没有中继（TURN）服务器，因此与您直接连接的每个人都能看到您的 IP 地址，这可能暴露您的大致位置。",
+    "meshConsent.relayed":
+        "此连接经由您主服务器的中继服务器：其他人看到的是它的地址，而不是您的 IP 地址。",
+    "meshConsent.relayRequired":
+        "“点对点通话必须使用中继服务器”已开启，但您的主服务器没有中继（TURN）服务器，因此无法连接。在语音和视频设置中关闭它即可直接连接。",
     "meshConsent.titleFileTransfer": "此文件传输将直接连接到对方",
     "meshConsent.fileTransferDirect":
         "你或对方的主服务器没有通话服务器，因此文件会直接从一台设备传到另一台设备。",
@@ -3981,12 +3983,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.joinWithoutThem": "不与其连接并加入",
     "meshConsent.notNow": "暂不",
     "voiceCall.meshNeedsTurn":
-        "“中继点对点通话”已开启，但您的主服务器没有中继（TURN）服务器。请在“语音和视频”设置中关闭它以加入通话。",
-    "voiceAudioSettings.meshRelayOnly": "中继点对点通话",
+        "“点对点通话必须使用中继服务器”已开启，但您的主服务器没有中继（TURN）服务器。在语音和视频设置中关闭它即可加入。",
+    "voiceAudioSettings.meshRelayOnly": "点对点通话必须使用中继服务器",
     "voiceAudioSettings.meshRelayOnlyHint":
-        "没有通话服务器的通话会让人们直接连接，从而向对方显示您的 IP 地址。开启后，通话将改为通过您主服务器的中继服务器：速度较慢，但您的地址保持隐藏。",
+        "如果您的主服务器有中继（TURN）服务器，点对点通话和文件传输会经由它进行，任何人都看不到您的 IP 地址。没有时则直接连接，会显示您的地址。开启后，永远不会直接连接：没有中继服务器就不连接。",
     "voiceCall.meshPeerUnreachable":
-        "此通话中有人只能直接连接，但中继已开启，而您的主服务器没有中继（TURN）服务器，因此您听不到对方。",
+        "此通话中有人只能直接连接，但已要求使用中继服务器，而您的主服务器没有中继（TURN）服务器，因此您将听不到对方。",
     "meshConsent.usePublicStun": "使用公共 STUN 服务器。",
     "meshConsent.usePublicStunHint":
         "您的主服务器没有帮助连接穿透家用路由器的服务器，因此没有它，大多数直接连接都会失败。Cloudflare 的 STUN 服务器会知道您的 IP 地址，但不会知道通话的任何内容。",
@@ -3998,7 +4000,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "无法直接连接到 {name}。其网络可能阻止了连接，或其主服务器没有提供穿透家用路由器的方式。",
     "voiceCall.meshFailedNoServers":
         "无法直接连接到 {name}。您的主服务器未提供中继服务器或 STUN 服务器，因此通过家用路由器的连接通常会失败。在“语音和视频”设置中开启“使用公共 STUN 服务器”可能会有所帮助。",
-    "settingsSearch.meshRelayOnly": "中继点对点通话",
+    "settingsSearch.meshRelayOnly": "点对点通话必须使用中继服务器",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: zhCN };

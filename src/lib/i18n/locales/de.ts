@@ -3046,7 +3046,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "fileOffer.failedRefused":
         "Die Sitzung des Absenders hat diese Übertragung abgelehnt.",
     "fileOffer.failedNoRelay":
-        "„Peer-to-Peer-Anrufe über Relay leiten“ ist aktiviert, aber es fehlt ein Relay-Server (TURN), daher kann die Datei nicht gesendet werden, ohne eine IP-Adresse zu zeigen.",
+        "Für Peer-to-Peer-Verbindungen wird ein Relay-Server verlangt, aber es gibt keinen Relay-Server (TURN), daher kann die Datei nicht gesendet werden, ohne eine IP-Adresse zu zeigen.",
     "fileOffer.failedConnection": "Die Verbindung wurde unterbrochen.",
     "fileOffer.failedStalled": "Die Übertragung kommt nicht mehr voran.",
     "fileOffer.failedCorrupt":
@@ -4434,9 +4434,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.someoneWithoutCallServer":
         "Jemand in diesem Anruf ist auf einem Homeserver ohne Anrufserver. Um diese Person zu hören und zu sehen, verbindet sich dein Gerät direkt mit ihrem.",
     "meshConsent.ipVisible":
-        "Alle, mit denen du direkt verbunden wirst, können deine IP-Adresse sehen, die ungefähr deinen Standort verraten kann. Um sie zu verbergen, aktiviere „Peer-to-Peer-Anrufe über Relay leiten“ in den Einstellungen unter Sprache und Video.",
-    "meshConsent.relayOnlyOn":
-        "„Peer-to-Peer-Anrufe über Relay leiten“ ist aktiviert: Die anderen sehen den Relay-Server deines Homeservers, nicht deine IP-Adresse.",
+        "Dein Homeserver hat keinen Relay-Server (TURN), daher können alle, mit denen du direkt verbunden wirst, deine IP-Adresse sehen, die ungefähr deinen Standort verraten kann.",
+    "meshConsent.relayed":
+        "Die Verbindung läuft über den Relay-Server deines Homeservers: Die anderen sehen dessen Adresse, nicht deine IP-Adresse.",
+    "meshConsent.relayRequired":
+        "„Relay-Server für Peer-to-Peer-Anrufe verlangen“ ist aktiviert, aber dein Homeserver hat keinen Relay-Server (TURN), daher kann keine Verbindung hergestellt werden. Schalte es in den Einstellungen unter Sprache und Video aus, um dich direkt zu verbinden.",
     "meshConsent.titleFileTransfer":
         "Diese Dateiübertragung verbindet dich direkt mit der anderen Person",
     "meshConsent.fileTransferDirect":
@@ -4446,12 +4448,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.joinWithoutThem": "Ohne sie beitreten",
     "meshConsent.notNow": "Nicht jetzt",
     "voiceCall.meshNeedsTurn":
-        "„Peer-to-Peer-Anrufe über Relay leiten“ ist aktiviert, aber dein Homeserver hat keinen TURN-Relay-Server. Schalte es in den Einstellungen unter Sprache und Video aus, um beizutreten.",
-    "voiceAudioSettings.meshRelayOnly": "Peer-to-Peer-Anrufe über Relay leiten",
+        "„Relay-Server für Peer-to-Peer-Anrufe verlangen“ ist aktiviert, aber dein Homeserver hat keinen Relay-Server (TURN). Schalte es in den Einstellungen unter Sprache und Video aus, um beizutreten.",
+    "voiceAudioSettings.meshRelayOnly":
+        "Relay-Server für Peer-to-Peer-Anrufe verlangen",
     "voiceAudioSettings.meshRelayOnlyHint":
-        "Anrufe ohne Anrufserver verbinden Personen direkt, wodurch sie deine IP-Adresse sehen. Mit dieser Option laufen sie stattdessen über den Relay-Server deines Homeservers: langsamer, aber deine Adresse bleibt verborgen.",
+        "Peer-to-Peer-Anrufe und Dateiübertragungen laufen über den Relay-Server (TURN) deines Homeservers, wenn er einen hat, sodass niemand deine IP-Adresse sieht. Ohne ihn verbinden sie sich direkt, wodurch sie sichtbar wird. Mit dieser Option verbinden sie sich nie direkt: Ohne Relay-Server kommt gar keine Verbindung zustande.",
     "voiceCall.meshPeerUnreachable":
-        "Jemand in diesem Anruf ist nur direkt erreichbar, aber das Relay ist aktiviert und dein Homeserver hat keinen Relay-Server (TURN). Du wirst diese Person daher nicht hören.",
+        "Jemand in diesem Anruf ist nur direkt erreichbar, aber ein Relay-Server wird verlangt und dein Homeserver hat keinen (TURN). Du wirst diese Person daher nicht hören.",
     "meshConsent.usePublicStun": "Einen öffentlichen STUN-Server verwenden.",
     "meshConsent.usePublicStunHint":
         "Dein Homeserver hat keinen Server, der Verbindungen durch Heimrouter unterstützt, daher scheitern die meisten direkten Verbindungen ohne einen solchen. Cloudflares STUN-Server würde deine IP-Adresse erfahren, aber nichts über den Anruf.",
@@ -4464,7 +4467,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Direkte Verbindung zu {name} nicht möglich. Das Netzwerk der Gegenseite blockiert sie möglicherweise, oder der Homeserver der Gegenseite bietet keinen Weg durch Heimrouter.",
     "voiceCall.meshFailedNoServers":
         "Direkte Verbindung zu {name} nicht möglich. Dein Homeserver bietet keinen Relay- oder STUN-Server, daher scheitern Verbindungen durch Heimrouter meist. Das Aktivieren von „Einen öffentlichen STUN-Server verwenden“ in den Einstellungen unter Sprache und Video kann helfen.",
-    "settingsSearch.meshRelayOnly": "Peer-to-Peer-Anrufe über Relay leiten",
+    "settingsSearch.meshRelayOnly":
+        "Relay-Server für Peer-to-Peer-Anrufe verlangen",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: de };

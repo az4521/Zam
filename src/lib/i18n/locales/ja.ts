@@ -3600,7 +3600,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "送信者に接続できません。送信者が Zam を開いている必要があります。",
     "fileOffer.failedRefused": "送信者のセッションがこの転送を拒否しました。",
     "fileOffer.failedNoRelay":
-        "「ピアツーピア通話を中継する」がオンですが、中継(TURN)サーバーがないため、IPアドレスを公開せずにファイルを送ることはできません。",
+        "ピアツーピア接続に中継サーバーが必須ですが、中継（TURN）サーバーがないため、IPアドレスを見せずにファイルを送ることはできません。",
     "fileOffer.failedConnection": "接続が切れました。",
     "fileOffer.failedStalled": "転送が進まなくなりました。",
     "fileOffer.failedCorrupt":
@@ -3880,9 +3880,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.someoneWithoutCallServer":
         "この通話の参加者の一人は、通話サーバーのないホームサーバーを使用しています。その人の音声と映像を受信するため、お使いの端末はその人の端末に直接接続します。",
     "meshConsent.ipVisible":
-        "直接接続する相手は全員あなたのIPアドレスを見ることができ、おおよその所在地が推測される可能性があります。隠すには、「音声と映像」設定で「ピアツーピア通話を中継する」をオンにしてください。",
-    "meshConsent.relayOnlyOn":
-        "「ピアツーピア通話を中継する」がオンです。相手にはあなたのIPアドレスではなく、ホームサーバーの中継サーバーが表示されます。",
+        "ホームサーバーに中継（TURN）サーバーがないため、直接接続する相手全員にあなたのIPアドレスが見え、おおよその所在地が分かる場合があります。",
+    "meshConsent.relayed":
+        "この接続はホームサーバーの中継サーバーを経由します。相手にはあなたのIPアドレスではなく、中継サーバーのアドレスが見えます。",
+    "meshConsent.relayRequired":
+        "「ピアツーピア通話に中継サーバーを必須にする」がオンですが、ホームサーバーに中継（TURN）サーバーがないため接続できません。直接接続するには、音声とビデオの設定でオフにしてください。",
     "meshConsent.titleFileTransfer": "このファイル転送は相手と直接接続します",
     "meshConsent.fileTransferDirect":
         "あなたまたは相手のホームサーバーに通話サーバーがないため、ファイルは端末から端末へ直接送られます。",
@@ -3891,12 +3893,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.joinWithoutThem": "その人を除いて参加",
     "meshConsent.notNow": "今はしない",
     "voiceCall.meshNeedsTurn":
-        "「ピアツーピア通話を中継する」がオンですが、お使いのホームサーバーにはTURN中継サーバーがありません。参加するには、「音声と映像」設定でオフにしてください。",
-    "voiceAudioSettings.meshRelayOnly": "ピアツーピア通話を中継する",
+        "「ピアツーピア通話に中継サーバーを必須にする」がオンですが、ホームサーバーに中継（TURN）サーバーがありません。参加するには、音声とビデオの設定でオフにしてください。",
+    "voiceAudioSettings.meshRelayOnly":
+        "ピアツーピア通話に中継サーバーを必須にする",
     "voiceAudioSettings.meshRelayOnlyHint":
-        "通話サーバーのない通話では、参加者同士が直接接続するため、相手にあなたのIPアドレスが見えてしまいます。この設定をオンにすると、代わりにホームサーバーの中継サーバーを経由します。速度は遅くなりますが、アドレスは隠されたままになります。",
+        "ピアツーピア通話とファイル転送は、ホームサーバーに中継（TURN）サーバーがあればそれを経由するため、誰にもIPアドレスは見えません。ない場合は直接接続し、アドレスが見えてしまいます。この設定をオンにすると、直接接続は一切行わず、中継サーバーがなければ接続しません。",
     "voiceCall.meshPeerUnreachable":
-        "この通話には直接接続でしか届かない参加者がいますが、中継がオンで、ホームサーバーにTURN中継サーバーがないため、その人の声は聞こえません。",
+        "この通話には直接しか接続できない人がいますが、中継サーバーが必須で、ホームサーバーに中継（TURN）サーバーがないため、その人の声は聞こえません。",
     "meshConsent.usePublicStun": "公開STUNサーバーを使用する。",
     "meshConsent.usePublicStunHint":
         "ホームサーバーには家庭用ルーターを越えて接続するのを助けるサーバーがないため、それがないと直接接続のほとんどは失敗します。CloudflareのSTUNサーバーはあなたのIPアドレスを知ることになりますが、通話の内容は知りません。",
@@ -3908,7 +3911,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "{name}への直接接続に失敗しました。相手のネットワークが接続をブロックしているか、相手のホームサーバーに家庭用ルーターを越える方法がない可能性があります。",
     "voiceCall.meshFailedNoServers":
         "{name}への直接接続に失敗しました。ホームサーバーには中継サーバーもSTUNサーバーもないため、家庭用ルーターを経由する接続は通常失敗します。「音声と映像」設定で「公開STUNサーバーを使用する」をオンにすると改善する場合があります。",
-    "settingsSearch.meshRelayOnly": "ピアツーピア通話を中継する",
+    "settingsSearch.meshRelayOnly":
+        "ピアツーピア通話に中継サーバーを必須にする",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ja };

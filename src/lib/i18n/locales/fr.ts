@@ -3023,7 +3023,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "fileOffer.failedRefused":
         "La session de l'expéditeur a refusé ce transfert.",
     "fileOffer.failedNoRelay":
-        "« Relayer les appels pair à pair » est activé, mais il manque un serveur de relais (TURN) : le fichier ne peut pas être envoyé sans révéler une adresse IP.",
+        "Un serveur relais est exigé pour les connexions pair à pair, mais il n'y en a aucun (TURN) : le fichier ne peut pas être envoyé sans montrer une adresse IP.",
     "fileOffer.failedConnection": "La connexion a été perdue.",
     "fileOffer.failedStalled": "Le transfert ne progresse plus.",
     "fileOffer.failedCorrupt":
@@ -4406,9 +4406,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.someoneWithoutCallServer":
         "Une personne de cet appel se trouve sur un serveur d'accueil sans serveur d'appels. Pour l'entendre et la voir, votre appareil se connecte directement au sien.",
     "meshConsent.ipVisible":
-        "Toutes les personnes avec lesquelles vous vous connectez directement peuvent voir votre adresse IP, qui peut révéler approximativement où vous vous trouvez. Pour la masquer, activez « Relayer les appels pair à pair » dans les paramètres Voix et vidéo.",
-    "meshConsent.relayOnlyOn":
-        "« Relayer les appels pair à pair » est activé : les autres voient le serveur relais de votre serveur d'accueil, et non votre adresse IP.",
+        "Votre serveur d'accueil n'a pas de serveur relais (TURN) : toutes les personnes auxquelles vous vous connectez directement peuvent voir votre adresse IP, qui peut révéler approximativement où vous êtes.",
+    "meshConsent.relayed":
+        "La connexion passe par le serveur relais de votre serveur d'accueil : les autres voient son adresse, et non votre adresse IP.",
+    "meshConsent.relayRequired":
+        "« Exiger un serveur relais pour les appels pair à pair » est activé, mais votre serveur d'accueil n'a pas de serveur relais (TURN), la connexion est donc impossible. Désactivez-le dans les paramètres Voix et vidéo pour vous connecter directement.",
     "meshConsent.titleFileTransfer":
         "Ce transfert de fichier vous connecte directement à l'autre personne",
     "meshConsent.fileTransferDirect":
@@ -4418,12 +4420,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.joinWithoutThem": "Rejoindre sans elles",
     "meshConsent.notNow": "Pas maintenant",
     "voiceCall.meshNeedsTurn":
-        "« Relayer les appels pair à pair » est activé, mais votre serveur d'accueil n'a pas de serveur relais (TURN). Désactivez-le dans les paramètres Voix et vidéo pour rejoindre l'appel.",
-    "voiceAudioSettings.meshRelayOnly": "Relayer les appels pair à pair",
+        "« Exiger un serveur relais pour les appels pair à pair » est activé, mais votre serveur d'accueil n'a pas de serveur relais (TURN). Désactivez-le dans les paramètres Voix et vidéo pour rejoindre l'appel.",
+    "voiceAudioSettings.meshRelayOnly":
+        "Exiger un serveur relais pour les appels pair à pair",
     "voiceAudioSettings.meshRelayOnlyHint":
-        "Les appels sans serveur d'appels connectent directement les personnes, ce qui leur montre votre adresse IP. Avec cette option activée, ils passent par le serveur relais de votre serveur d'accueil : plus lent, mais votre adresse reste masquée.",
+        "Les appels pair à pair et les transferts de fichiers passent par le serveur relais (TURN) de votre serveur d'accueil s'il en a un, pour que personne ne voie votre adresse IP. Sans lui, ils se connectent directement, ce qui la montre. Avec cette option activée, ils ne se connectent jamais directement : sans serveur relais, ils ne se connectent pas du tout.",
     "voiceCall.meshPeerUnreachable":
-        "Quelqu'un dans cet appel n'est joignable qu'en direct, mais le relais est activé et votre serveur d'accueil n'a pas de serveur relais (TURN) : vous ne l'entendrez pas.",
+        "Quelqu'un dans cet appel n'est joignable que directement, mais un serveur relais est exigé et votre serveur d'accueil n'en a pas (TURN) : vous ne l'entendrez pas.",
     "meshConsent.usePublicStun": "Utiliser un serveur STUN public.",
     "meshConsent.usePublicStunHint":
         "Votre serveur d'accueil ne dispose d'aucun serveur qui aide les connexions à traverser les routeurs domestiques, si bien que la plupart des connexions directes échouent sans lui. Le serveur STUN de Cloudflare connaîtrait votre adresse IP, mais rien de l'appel.",
@@ -4435,7 +4438,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Impossible de se connecter directement à {name}. Son réseau peut bloquer la connexion, ou son serveur d'accueil n'offre aucun moyen de traverser les routeurs domestiques.",
     "voiceCall.meshFailedNoServers":
         "Impossible de se connecter directement à {name}. Votre serveur d'accueil n'offre aucun serveur relais ni STUN, si bien que les connexions à travers les routeurs domestiques échouent généralement. Activer « Utiliser un serveur STUN public » dans les paramètres Voix et vidéo peut aider.",
-    "settingsSearch.meshRelayOnly": "Relayer les appels pair à pair",
+    "settingsSearch.meshRelayOnly":
+        "Exiger un serveur relais pour les appels pair à pair",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: fr };

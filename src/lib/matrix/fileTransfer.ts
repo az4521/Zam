@@ -89,7 +89,7 @@ import {
     ownSfuTarget,
 } from "./livekitCall";
 import type { MeshTransferLink, openMeshLink } from "./fileTransferMesh";
-import { lacksIceServers } from "./call/fullMesh/meshPolicy";
+import { meshConsentServers } from "./call/fullMesh/meshPolicy";
 import { requestMeshConsent } from "$lib/stores/meshConsent.svelte";
 
 /** How long an accepted offer waits for the sender's device to answer. */
@@ -333,7 +333,7 @@ function namedRoom(content: Record<string, unknown>): SfuRoomTarget | null {
 
 /**
  * Whether the user lets this device connect straight to the peer's, which
- * shows each its other's IP address (unless relaying). Throws "no-relay"
+ * shows each its other's IP address unless it goes through a TURN relay. Throws "no-relay"
  * when relaying is asked for and the homeserver has no TURN server.
  */
 async function allowDirectLink(): Promise<boolean> {
@@ -341,7 +341,7 @@ async function allowDirectLink(): Promise<boolean> {
         joining: true,
         publishing: true,
         fileTransfer: true,
-        offerPublicStun: lacksIceServers(await homeserverTurn()),
+        ...meshConsentServers(await homeserverTurn()),
     });
     if (answer !== "allow") return false;
     if (!(await callIceConfig())) throw new TransferFailed("no-relay");

@@ -15,7 +15,11 @@
     } from "$lib/stores/settings.svelte";
 
     const pending = $derived(meshConsentState.pending);
-    const relayOnly = $derived(settingsState.meshRelayOnly);
+    /** Through a TURN relay: by default when the homeserver has one, and
+     *  always when the user requires it (no relay then means no connection). */
+    const relayOnly = $derived(
+        !!pending?.relayed || settingsState.meshRelayOnly,
+    );
     /** The public STUN choice, saved only when the user connects. */
     let publicStun = $state(false);
     $effect(() => {
@@ -63,7 +67,9 @@
             <p
                 class="mb-3 rounded border border-discord-divider px-3 py-2 text-sm text-discord-textMuted"
             >
-                {t("meshConsent.relayOnlyOn")}
+                {pending.relayed
+                    ? t("meshConsent.relayed")
+                    : t("meshConsent.relayRequired")}
             </p>
         {:else}
             <p

@@ -5,6 +5,7 @@ import {
     isLivekitTransport,
     joinUsesMesh,
     meshIceConfig,
+    hasTurnRelay,
     lacksIceServers,
     PUBLIC_STUN_URL,
     meshTransportOf,
@@ -133,7 +134,7 @@ describe("meshIceConfig", () => {
         expect(meshIceConfig(null, false)).toEqual({ iceServers: [] });
     });
 
-    it("maps TURN credentials to one RTCIceServer", () => {
+    it("relays through a TURN server even when a relay isn't required", () => {
         expect(
             meshIceConfig(
                 {
@@ -151,10 +152,25 @@ describe("meshIceConfig", () => {
                     credential: "secret",
                 },
             ],
+            iceTransportPolicy: "relay",
         });
     });
 
-    it("relay-only with a turn: or turns: uri forces the relay policy", () => {
+    it("connects directly with only stun: uris unless a relay is required", () => {
+        expect(
+            meshIceConfig({ uris: ["stun:stun.example:3478"] }, false),
+        ).toEqual({
+            iceServers: [
+                {
+                    urls: ["stun:stun.example:3478"],
+                    username: undefined,
+                    credential: undefined,
+                },
+            ],
+        });
+    });
+
+    it("required relay with a turn: or turns: uri forces the relay policy", () => {
         const turn = {
             uris: ["turn:turn.example:3478"],
             username: "u",
@@ -183,13 +199,13 @@ describe("meshIceConfig", () => {
         });
     });
 
-    it("relay-only with only stun: uris returns null", () => {
+    it("required relay with only stun: uris returns null", () => {
         expect(
             meshIceConfig({ uris: ["stun:stun.example:3478"] }, true),
         ).toBeNull();
     });
 
-    it("relay-only with no TURN server returns null", () => {
+    it("required relay with no TURN server returns null", () => {
         expect(meshIceConfig(null, true)).toBeNull();
     });
 });
@@ -214,8 +230,14 @@ describe("public STUN fallback", () => {
         expect(JSON.stringify(config)).not.toContain(PUBLIC_STUN_URL);
     });
 
-    it("can't stand in for a relay when relay-only is on", () => {
+    it("can't stand in for a relay when one is required", () => {
         expect(meshIceConfig(null, true, true)).toBeNull();
+    });
+
+    it("hasTurnRelay", () => {
+        expect(hasTurnRelay(null)).toBe(false);
+        expect(hasTurnRelay({ uris: ["stun:x"] })).toBe(false);
+        expect(hasTurnRelay({ uris: ["stun:x", "TURNS:y"] })).toBe(true);
     });
 
     it("lacksIceServers", () => {
