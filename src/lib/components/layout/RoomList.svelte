@@ -72,6 +72,7 @@
     import {
         groupRoomsByTag,
         sortRoomsByTag,
+        byRecency,
         roomTagKind,
         TAG_FAVOURITE,
         TAG_LOWPRIORITY,
@@ -79,7 +80,10 @@
     import { shouldOfferKnock, matrixErrorMessage } from "$lib/utils/knock";
     import { collectSpaceAndDescendantRoomIds } from "$lib/utils/spaceNotifications";
     import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
-    import { latestMessagePreview } from "$lib/utils/roomPreview";
+    import {
+        latestMessage,
+        latestMessagePreview,
+    } from "$lib/utils/roomPreview";
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
     import { hasLoudInRoom } from "$lib/stores/notifications.svelte";
     import {
@@ -409,10 +413,28 @@
         return groupRoomsByTag(visibleRooms, (r) => getRoomTags(r.roomId));
     });
 
+    // Untagged DMs sort by their latest message, newest first (the SDK's room
+    // order is arbitrary). unreadTick: a new message moves the row.
     const sortedDirectRooms = $derived.by(() => {
         void roomsState.roomsTick;
-        return sortRoomsByTag(roomsState.directRooms, (r) =>
-            getRoomTags(r.roomId),
+        void roomsState.unreadTick;
+        const lastMessageTs = new Map<string, number | null>();
+        for (const room of roomsState.directRooms) {
+            const found = latestMessage([
+                ...room.getLiveTimeline().getEvents(),
+                ...room.getPendingEvents(),
+            ]);
+            const fallback = room.getLastActiveTimestamp();
+            lastMessageTs.set(
+                room.roomId,
+                found?.event.getTs() ??
+                    (fallback > Number.MIN_SAFE_INTEGER ? fallback : null),
+            );
+        }
+        return sortRoomsByTag(
+            roomsState.directRooms,
+            (r) => getRoomTags(r.roomId),
+            byRecency((r) => lastMessageTs.get(r.roomId) ?? null),
         );
     });
 

@@ -5,6 +5,7 @@ import {
     roomTagKind,
     groupRoomsByTag,
     sortRoomsByTag,
+    byRecency,
     tagUpdatesForToggle,
     tagOrderRollback,
     type RoomTagMap,
@@ -271,5 +272,48 @@ describe("tagOrderRollback", () => {
         expect(tagOrderRollback(["a"], [0.1], 5)).toEqual([
             { roomId: "a", order: 0.1 },
         ]);
+    });
+});
+
+describe("sortRoomsByTag with a normal-room comparator", () => {
+    const tagsOf: Record<string, RoomTagMap> = {
+        fav: { "m.favourite": { order: 0.5 } },
+        low: { "m.lowpriority": { order: 0.5 } },
+    };
+    const ts: Record<string, number | null> = {
+        old: 100,
+        new: 300,
+        mid: 200,
+        none: null,
+        fav: 1,
+        low: 999,
+    };
+    const sorted = (ids: string[]) =>
+        sortRoomsByTag(
+            ids,
+            (id) => tagsOf[id] ?? {},
+            byRecency((id) => ts[id]),
+        );
+
+    it("puts the newest untagged room first, unknown times last", () => {
+        expect(sorted(["none", "old", "new", "mid"])).toEqual([
+            "new",
+            "mid",
+            "old",
+            "none",
+        ]);
+    });
+
+    it("keeps favourites first and low priority last whatever their age", () => {
+        expect(sorted(["low", "old", "fav", "new"])).toEqual([
+            "fav",
+            "new",
+            "old",
+            "low",
+        ]);
+    });
+
+    it("keeps the input order without a comparator", () => {
+        expect(sortRoomsByTag(["b", "a"], () => ({}))).toEqual(["b", "a"]);
     });
 });

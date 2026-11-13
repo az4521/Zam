@@ -54,13 +54,24 @@ export function groupRoomsByTag<T>(
 }
 
 /** Flat ordering for lists without section headers (e.g. DMs):
- *  favourites first, low priority last. */
+ *  favourites first, low priority last. Tagged rooms keep their manual tag
+ *  order; untagged ones sort by `compareNormal` when given (stable, so ties
+ *  keep the input order). */
 export function sortRoomsByTag<T>(
     rooms: readonly T[],
     getTags: (room: T) => RoomTagMap,
+    compareNormal?: (a: T, b: T) => number,
 ): T[] {
     const { favourites, normal, lowPriority } = groupRoomsByTag(rooms, getTags);
+    if (compareNormal) normal.sort(compareNormal);
     return [...favourites, ...normal, ...lowPriority];
+}
+
+/** Newest first by a timestamp; rooms with no known time go last. */
+export function byRecency<T>(
+    tsOf: (room: T) => number | null,
+): (a: T, b: T) => number {
+    return (a, b) => (tsOf(b) ?? -Infinity) - (tsOf(a) ?? -Infinity) || 0;
 }
 
 /**
