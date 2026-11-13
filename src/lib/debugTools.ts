@@ -8,6 +8,7 @@ interface DebugToolsPlugin {
     setWebViewDebugging(options: {
         enabled: boolean;
     }): Promise<{ enabled: boolean }>;
+    getPushLog(): Promise<{ text: string }>;
 }
 
 const DebugTools = registerPlugin<DebugToolsPlugin>("DebugTools");
@@ -22,6 +23,20 @@ export function canToggleWebViewDebugging(): boolean {
 export async function getWebViewDebugging(): Promise<boolean> {
     if (!canToggleWebViewDebugging()) return false;
     return (await DebugTools.getWebViewDebugging()).enabled;
+}
+
+/**
+ * What the Android push service did with each recent push (posted, skipped
+ * and why, FCM priority as delivered). Null off Android, or from an APK older
+ * than the method, so the export still works there.
+ */
+export async function getNativePushLog(): Promise<string | null> {
+    if (!canToggleWebViewDebugging()) return null;
+    try {
+        return (await DebugTools.getPushLog()).text;
+    } catch {
+        return null;
+    }
 }
 
 export async function setWebViewDebugging(enabled: boolean): Promise<boolean> {

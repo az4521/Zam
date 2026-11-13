@@ -12,6 +12,7 @@ import {
 } from "$lib/matrix/crypto";
 import { getCapturedLogs, getDroppedLogCount, redact } from "$lib/logCapture";
 import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
+import { getNativePushLog } from "$lib/debugTools";
 
 function platformName(): string {
     if (Capacitor.isNativePlatform()) return Capacitor.getPlatform();
@@ -68,11 +69,23 @@ export async function buildLogExport(): Promise<string> {
     ].map(redact);
     const dropped = getDroppedLogCount();
     const lines = getCapturedLogs();
+    const pushLog = await getNativePushLog();
+    const pushSection =
+        pushLog === null
+            ? []
+            : [
+                  "",
+                  "=== Android push service ===",
+                  ...(pushLog.trim()
+                      ? pushLog.trimEnd().split("\n").map(redact)
+                      : ["(no pushes recorded)"]),
+              ];
     return [
         ...header,
         `log lines: ${lines.length}${dropped ? ` (${dropped} older lines dropped)` : ""}`,
         "",
         ...lines,
+        ...pushSection,
         "",
     ].join("\n");
 }

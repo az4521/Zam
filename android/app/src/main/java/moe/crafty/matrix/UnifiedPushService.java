@@ -135,6 +135,7 @@ public class UnifiedPushService extends PushService {
         if (counts != null && counts.has("unread")) {
             unread = String.valueOf(counts.optInt("unread"));
         }
+        PushLog.log(ctx, "unifiedpush received");
         MatrixMessagingService.handleMatrixPush(ctx, roomId, eventId, unread, accountOf(n));
     }
 

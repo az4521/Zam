@@ -39,6 +39,14 @@ public class DebugToolsPlugin extends Plugin {
         call.resolve(ret);
     }
 
+    /** The native push service's decision log (PushLog), for the log export. */
+    @PluginMethod
+    public void getPushLog(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("text", PushLog.read(getContext()));
+        call.resolve(ret);
+    }
+
     @PluginMethod
     public void setWebViewDebugging(PluginCall call) {
         boolean enabled = Boolean.TRUE.equals(call.getBoolean("enabled", false));

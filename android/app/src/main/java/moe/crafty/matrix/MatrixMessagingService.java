@@ -112,6 +112,17 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             PushNotificationsPlugin.sendRemoteMessage(remoteMessage);
         } catch (Throwable ignored) {}
 
+        // Priority as sent vs as delivered: FCM downgrades high-priority
+        // messages that keep ending without a visible notification, and a
+        // downgraded one waits for the phone to wake. The delay shows it.
+        try {
+            long sent = remoteMessage.getSentTime();
+            PushLog.log(this, "fcm received: priority " + priorityName(remoteMessage.getPriority())
+                + " (sent as " + priorityName(remoteMessage.getOriginalPriority()) + ")"
+                + (sent > 0 ? ", " + (System.currentTimeMillis() - sent) + "ms after sending" : "")
+                + (remoteMessage.getNotification() != null ? ", has notification block" : ""));
+        } catch (Throwable ignored) {}
+
         // A message carrying its own notification block is shown elsewhere.
         if (remoteMessage.getNotification() != null) return;
 
@@ -130,8 +141,21 @@ public class MatrixMessagingService extends FirebaseMessagingService {
      * `accountId` is the account the push names (null from a pusher that has
      * not re-registered since pushes were tagged: the active account then).
      */
+    private static String priorityName(int p) {
+        switch (p) {
+            case RemoteMessage.PRIORITY_HIGH: return "high";
+            case RemoteMessage.PRIORITY_NORMAL: return "normal";
+            default: return "unknown";
+        }
+    }
+
     static void handleMatrixPush(Context ctx, String roomId, String eventId, String unreadStr,
             String accountId) {
+        final long startedAt = System.currentTimeMillis();
+        final String tag = "push room " + PushLog.shortId(roomId) + " event "
+            + PushLog.shortId(eventId) + ": ";
+        PushLog.log(ctx, tag + "start, unread " + unreadStr
+            + (accountId != null ? ", names an account" : ", no account named"));
         // unread == 0 is a "clear" push: the room was read somewhere, so take
         // its notification DOWN rather than merely declining to post a new one.
         if (unreadStr != null) {
@@ -147,6 +171,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                                 .cancel(roomId.hashCode());
                         } catch (Throwable ignored) {}
                     }
+                    PushLog.log(ctx, tag + "clear push (room read), notification removed");
                     return;
                 }
             } catch (NumberFormatException ignored) {}
@@ -164,12 +189,18 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             session = resolveSession(sessionPrefs, active, accountId);
             sessionIsActive = session != null && session == active;
         } catch (Throwable ignored) {}
+        if (session == null) {
+            PushLog.log(ctx, tag + "no signed-in session matches; generic notification");
+        }
         // The app is open on this account: the user sees the message in the
         // app itself, so a notification would only duplicate it. Checked
         // here to skip the enrichment requests, and again before posting in
         // case the app came forward meanwhile. Another account's push still
         // notifies — the open app only syncs the active one.
-        if (sessionIsActive && MainActivity.isInForeground()) return;
+        if (sessionIsActive && MainActivity.isInForeground()) {
+            PushLog.log(ctx, tag + "skipped: app is open (resumed) on this account");
+            return;
+        }
         final String postedBy = session != null ? session.userId : null;
 
         // Defaults (used if enrichment fails).
@@ -203,7 +234,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             // Another device is demonstrably in use → stay quiet. Checked
             // before the enrichment fetches below so a suppressed push costs
             // one request instead of five. Never throws; false on any doubt.
-            if (shouldStayQuiet(hs, token, selfUserId, selfDeviceId)) return;
+            if (shouldStayQuiet(ctx, tag, hs, token, selfUserId, selfDeviceId)) return;
             // Device-global "hide message text in notifications" privacy setting,
             // mirrored by src/lib/nativeSession.ts. Capacitor Preferences stores
             // every value as a String, so compare rather than getBoolean() (which
@@ -379,12 +410,20 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             }
         } catch (Throwable t) {
             // Any failure → fall back to the generic notification.
+            PushLog.log(ctx, tag + "enrichment failed: " + t.getClass().getSimpleName());
         }
+        PushLog.log(ctx, tag + "enriched in " + (System.currentTimeMillis() - startedAt) + "ms"
+            + (msgSenderId != null ? "" : " (event not fetched)")
+            + (msgBody != null || msgImage != null ? "" : ", no message text"));
 
         if (isCall) {
             // App already in front: the in-app ringer shows the call (and
             // rings) itself — a second, notification ringtone would double up.
-            if (MainActivity.isInForeground()) return;
+            if (MainActivity.isInForeground()) {
+                PushLog.log(ctx, tag + "call skipped: app is open, in-app ringer has it");
+                return;
+            }
+            PushLog.log(ctx, tag + "ringing call");
             // Account stamp: only attribute (deep-link + join) when we can
             // name the poster, mirroring showNotification()'s PRIV-02 guard.
             // Report it to the system call stack so it rings like a phone
@@ -398,7 +437,10 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 IncomingCallNotification.show(ctx, callerName, roomId, postedBy, largeIcon);
             }
         } else {
-            if (sessionIsActive && MainActivity.isInForeground()) return;
+            if (sessionIsActive && MainActivity.isInForeground()) {
+                PushLog.log(ctx, tag + "skipped: app came to the front during enrichment");
+                return;
+            }
             showNotification(ctx, title, text, roomId, eventId, largeIcon, postedBy,
                 msgSenderId, msgSenderName, senderIcon, msgDm, msgTs, msgBody, msgImage);
         }
@@ -615,6 +657,21 @@ public class MatrixMessagingService extends FirebaseMessagingService {
      * already runs on a Firebase background thread, and httpGet is bounded by
      * the 5s connect/read timeouts.
      */
+    private static boolean shouldStayQuiet(Context ctx, String tag, String hs, String token,
+            String userId, String deviceId) {
+        boolean quiet = shouldStayQuiet(hs, token, userId, deviceId);
+        if (quiet) {
+            PushLog.log(ctx, tag + "skipped: another device is active ("
+                + lastQuietDetail + ")");
+        }
+        return quiet;
+    }
+
+    // Why the last shouldStayQuiet() said yes, for the push log only. Pushes
+    // are handled one at a time on Firebase's thread; a stale value from a
+    // UnifiedPush push racing it would only mislabel one log line.
+    private static volatile String lastQuietDetail = "";
+
     private static boolean shouldStayQuiet(String hs, String token, String userId, String deviceId) {
         if (hs == null || token == null || userId == null || deviceId == null) return false;
         if (userId.isEmpty() || deviceId.isEmpty()) return false;
@@ -662,6 +719,8 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             // doubles, cannot overflow, and would notify — match them.
             if (ts < 0) return false;
             if (ts > now + MAX_FUTURE_SKEW_MS) return false; // broken clock
+            lastQuietDetail = "device " + otherDevice + " heartbeat " + (now - ts)
+                + "ms ago, grace " + Math.min(graceMs, MAX_GRACE_MS) + "ms";
             return now - ts < Math.min(graceMs, MAX_GRACE_MS);
         } catch (Exception e) {
             return false; // anything unexpected (network, parse) → notify
@@ -1192,7 +1251,48 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
         try {
             NotificationManagerCompat.from(ctx).notify(notificationId, builder.build());
-        } catch (SecurityException ignored) {}
+            PushLog.log(ctx, "posted room " + PushLog.shortId(roomId) + " event "
+                + PushLog.shortId(eventId) + describeDelivery(ctx, channelId));
+        } catch (SecurityException e) {
+            PushLog.log(ctx, "post refused (no notification permission) for room "
+                + PushLog.shortId(roomId));
+        }
+    }
+
+    /**
+     * What could still stop a posted notification from being seen: the app's
+     * notifications switched off, the channel blocked or quietened, Do Not
+     * Disturb. Empty when nothing is in the way.
+     */
+    private static String describeDelivery(Context ctx, String channelId) {
+        StringBuilder sb = new StringBuilder();
+        try {
+            if (!NotificationManagerCompat.from(ctx).areNotificationsEnabled()) {
+                sb.append(", BUT app notifications are off");
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+                if (nm != null) {
+                    NotificationChannel ch = nm.getNotificationChannel(channelId);
+                    if (ch == null) sb.append(", channel missing");
+                    else if (ch.getImportance() == NotificationManager.IMPORTANCE_NONE) {
+                        sb.append(", BUT channel ").append(channelId.equals(CHANNEL_ID)
+                            ? "(shared)" : "(conversation)").append(" is blocked");
+                    } else if (ch.getImportance() < NotificationManager.IMPORTANCE_DEFAULT) {
+                        sb.append(", channel importance ").append(ch.getImportance())
+                            .append(" (silent)");
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        int filter = nm.getCurrentInterruptionFilter();
+                        if (filter > NotificationManager.INTERRUPTION_FILTER_ALL) {
+                            sb.append(", system Do Not Disturb on (filter ")
+                                .append(filter).append(")");
+                        }
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return sb.toString();
     }
 
     /**
