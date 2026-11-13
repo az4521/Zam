@@ -1061,13 +1061,6 @@
             loadingOlder,
         });
     });
-    // Away from the bottom, native anchoring is off for the whole timeline and
-    // the reading anchor (restoreScrollAnchor) is the only thing holding the
-    // view. Both at once froze the page: Chromium keeps its anchor (the top
-    // row) still by re-scrolling whenever the top spacer is resized, so a
-    // shift between its anchor and ours was never cancelled, and every
-    // attempt re-ran the mutation observer — an endless microtask loop.
-    //
     // Native anchoring pins the view to the bottom anchor row only on the live
     // timeline. A context view's bottom is history: pinned there, each page
     // maybeLoadNewer added below kept the user at the bottom, so the next page
@@ -1139,16 +1132,31 @@
         return w;
     });
 
-    // Pixels the top spacer is off from its estimate. Rows mounting above the
-    // viewport rarely measure what the spacer assumed (and the average the
-    // estimate uses drifts as rows get measured), so everything below them
-    // shifts. That shift is cancelled by resizing this spacer, not by writing
-    // scrollTop: a scrollTop write in the middle of a touch fling stops iOS
-    // momentum scrolling dead and stutters elsewhere, which made scrolling
-    // back through history on a phone laggy and jumpy. The slack is paid back
-    // with one scroll write once scrolling stops (settleTopSlack). It belongs
-    // to the list it was measured in: another room or context window starts
-    // at zero.
+    // Native scroll anchoring (Chromium, Firefox) cancels shifts from rows
+    // mounting above the viewport by itself, adjusting a running wheel or
+    // fling animation rather than cutting it off. WebKit has none.
+    const nativeAnchoring =
+        typeof CSS !== "undefined" &&
+        !!CSS.supports?.("overflow-anchor", "auto");
+
+    // Pixels the top spacer is off from its estimate (WebKit only). Rows
+    // mounting above the viewport rarely measure what the spacer assumed (and
+    // the average the estimate uses drifts as rows get measured), so
+    // everything below them shifts. Without native anchoring that shift is
+    // cancelled by resizing this spacer, not by writing scrollTop: a scrollTop
+    // write in the middle of a touch fling stops iOS momentum scrolling dead,
+    // which made scrolling back through history on a phone laggy and jumpy.
+    // The slack is paid back with one scroll write once scrolling stops
+    // (settleTopSlack). It belongs to the list it was measured in: another
+    // room or context window starts at zero.
+    //
+    // Never with native anchoring: Chromium keeps its own anchor (the top
+    // row) still by re-scrolling whenever the spacer is resized, so a shift
+    // between its anchor and ours was never cancelled and every attempt
+    // re-ran the mutation observer — an endless loop that froze the page.
+    // Turning native anchoring off instead made every prepend correction a
+    // scrollTop write, which cancels Chromium's wheel animation and swallowed
+    // scroll input.
     let topSlack = $state.raw<{ key: unknown; px: number }>({
         key: null,
         px: 0,
@@ -1162,17 +1170,25 @@
             estTop += rowHeight(messages[i]);
         for (let i = rowWindow.end; i < messages.length; i++)
             bottom += rowHeight(messages[i]);
-        const slack = topSlack.key === slackKey ? topSlack.px : 0;
+        // With the oldest loaded row mounted nothing is above it: any slack
+        // would show as a gap under the room's welcome header.
+        const slack =
+            topSlack.key === slackKey && rowWindow.start > 0 ? topSlack.px : 0;
         return { top: Math.max(0, estTop + slack), estTop, bottom };
     });
 
     /** Cancel a shift of `delta`px (positive = down) of everything below the
-     *  top spacer, by resizing the spacer as far as it can and scrolling for
-     *  the rest. Returns how far scrollTop had to move. */
+     *  top spacer: on WebKit by resizing the spacer as far as it can, and
+     *  scrolling for the rest. Returns how far scrollTop had to move. */
     function cancelShift(delta: number): number {
         if (!scrollEl) return 0;
         let rest = delta;
-        if (topSpacerEl && canWindow) {
+        if (
+            topSpacerEl &&
+            canWindow &&
+            !nativeAnchoring &&
+            rowWindow.start > 0
+        ) {
             const h = topSpacerEl.getBoundingClientRect().height;
             const next = Math.max(0, h - delta);
             if (next !== h) {
@@ -1308,6 +1324,10 @@
         const height = scrollEl.clientHeight;
         if (height === 0) return; // hidden: nothing to fit
         const current = rowWindow;
+        // Slack is ignored while the oldest row is mounted (spacerHeights);
+        // drop it so it can't reappear as a jump once that row unmounts.
+        if (current.start === 0 && topSlack.px !== 0)
+            topSlack = { key: slackKey, px: 0 };
         const offsets = rowOffsets(messages.map(rowHeight));
         // In list coordinates, measured from the first mounted row: the top
         // spacer carries slack (see topSlack), so its height is not where
@@ -2210,10 +2230,11 @@
                 prevTop !== undefined
             ) {
                 const el = scrollEl.querySelector(`[data-event-id="${refId}"]`);
-                if (el) {
-                    scrollEl.scrollTop +=
-                        el.getBoundingClientRect().top - prevTop;
-                }
+                // Native anchoring usually leaves nothing to fix; skip the
+                // no-op write, since any programmatic scroll can cut off a
+                // running wheel or fling animation.
+                const shift = el ? el.getBoundingClientRect().top - prevTop : 0;
+                if (shift >= 1 || shift <= -1) scrollEl.scrollTop += shift;
             }
         } finally {
             // Only release the lock for our own room. On a mid-load switch the
@@ -2867,7 +2888,7 @@
             aria-live="off"
             class="overflow-y-auto overflow-x-hidden flex flex-1 flex-col{stickToBottom
                 ? ' *:[overflow-anchor:none]'
-                : ' [overflow-anchor:none]'}"
+                : ''}"
         >
             <!-- Pushes a short timeline down so it hugs the composer, like
                  flex-col-reverse used to. -->
