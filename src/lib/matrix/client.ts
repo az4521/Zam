@@ -71,7 +71,12 @@ import {
     type KeywordRuleView,
 } from "$lib/utils/keywordRules";
 import { pickViaServers } from "$lib/utils/roomVia";
-import type { PresenceState } from "$lib/utils/presence";
+import {
+    BUSY_PRESENCE_FEATURE,
+    BUSY_PRESENCE_VALUES,
+    type PresenceState,
+    type SeenPresence,
+} from "$lib/utils/presence";
 import { sendPresenceWithSlidingSync } from "$lib/matrix/slidingSyncPresence";
 import {
     installMediaHealer,
@@ -10488,21 +10493,88 @@ const SYNC_PRESENCE: Record<PresenceState, SetPresence> = {
     offline: SetPresence.Offline,
 };
 
+// How this server spells MSC3026 busy, once known: undefined = not asked yet,
+// null = the server has no busy (then Do Not Disturb shows as away). Keyed by
+// client so switching accounts asks the other server afresh.
+const busySpelling = new WeakMap<MatrixClient, string | null>();
+
+/**
+ * Whether the homeserver takes MSC3026 busy presence. Answers from
+ * /versions; the spelling itself is settled by the first PUT (see
+ * setOwnPresence).
+ */
+export async function supportsBusyPresence(): Promise<boolean> {
+    if (!matrixClient) return false;
+    const known = busySpelling.get(matrixClient);
+    if (known !== undefined) return known !== null;
+    try {
+        const { unstableFeatures } = await getServerVersions();
+        const ok = hasUnstableFeature(unstableFeatures, BUSY_PRESENCE_FEATURE);
+        if (!ok) busySpelling.set(matrixClient, null);
+        return ok;
+    } catch {
+        return false;
+    }
+}
+
+/** PUT busy, trying each spelling until the server takes one. Returns the
+ *  accepted spelling, or null when it took none. */
+async function putBusyPresence(
+    client: MatrixClient,
+    statusMsg: string | undefined,
+): Promise<string | null> {
+    const known = busySpelling.get(client);
+    if (known === null) return null;
+    const candidates = known ? [known] : [...BUSY_PRESENCE_VALUES];
+    // Raw PUT: client.setPresence throws on anything but the spec states.
+    const path = `/presence/${encodeURIComponent(client.getSafeUserId())}/status`;
+    for (const value of candidates) {
+        try {
+            await client.http.authedRequest(Method.Put, path, undefined, {
+                presence: value,
+                ...(statusMsg !== undefined ? { status_msg: statusMsg } : {}),
+            });
+            busySpelling.set(client, value);
+            return value;
+        } catch (err) {
+            // Only a refused value means "try the other spelling"; anything
+            // else (offline, auth) is the caller's problem.
+            if ((err as { httpStatus?: number }).httpStatus !== 400) throw err;
+        }
+    }
+    busySpelling.set(client, null);
+    return null;
+}
+
 /**
  * Advertise our own presence. Sets both the immediate state (PUT /presence)
  * and the set_presence param of subsequent /sync long-polls — without the
  * latter the very next sync would flip us straight back to online.
+ *
+ * "busy" falls back to "unavailable" on a server that refuses it.
  */
 export async function setOwnPresence(
-    presence: PresenceState,
+    presence: SeenPresence,
     statusMsg?: string,
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
-    await matrixClient.setSyncPresence(SYNC_PRESENCE[presence]);
-    sendPresenceWithSlidingSync(matrixClient)(presence);
+    const client = matrixClient;
+    if (presence === "busy") {
+        const busy = await putBusyPresence(client, statusMsg);
+        if (busy) {
+            // tuwunel applies set_presence to this device on every poll, so
+            // the polls must say busy too or the next one undoes the PUT.
+            await client.setSyncPresence(busy as SetPresence);
+            sendPresenceWithSlidingSync(client)(busy);
+            return;
+        }
+        presence = "unavailable";
+    }
+    await client.setSyncPresence(SYNC_PRESENCE[presence]);
+    sendPresenceWithSlidingSync(client)(presence);
     // `undefined` omits status_msg; "" sends it explicitly, which is how a
     // cleared message is told apart from one we have no opinion about.
-    await matrixClient.setPresence({
+    await client.setPresence({
         presence,
         ...(statusMsg !== undefined ? { status_msg: statusMsg } : {}),
     });

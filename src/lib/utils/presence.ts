@@ -6,8 +6,26 @@ import { t } from "$lib/i18n";
 /** The three presence states the spec allows a user to have. */
 export type PresenceState = "online" | "unavailable" | "offline";
 
+/**
+ * A presence as shown or sent: the spec states plus MSC3026 "busy", which is
+ * what Do Not Disturb advertises on servers that support it. Not a choice of
+ * its own in the presence picker, so settings keep PresenceState.
+ */
+export type SeenPresence = PresenceState | "busy";
+
+/**
+ * Wire spellings of MSC3026 busy. tuwunel (ruma, snake_case) uses plain
+ * "busy"; Synapse uses the unstable "org.matrix.msc3026.busy". Both
+ * advertise `org.matrix.msc3026.busy_presence` in /versions.
+ */
+export const BUSY_PRESENCE_VALUES = [
+    "busy",
+    "org.matrix.msc3026.busy",
+] as const;
+export const BUSY_PRESENCE_FEATURE = "org.matrix.msc3026.busy_presence";
+
 /** Discord-style status-dot categories the theme has colors for. */
-export type PresenceDot = "online" | "idle" | "offline";
+export type PresenceDot = "online" | "idle" | "dnd" | "offline";
 
 const PRESENCE_STATES: readonly PresenceState[] = [
     "online",
@@ -20,12 +38,14 @@ export function isPresenceState(value: unknown): value is PresenceState {
 }
 
 /**
- * Normalize a raw presence string (from a User object, m.presence event or
- * persisted setting) to a spec state. Unknown values — including unstable
- * extensions like MSC3026 "busy" — degrade to "offline" rather than leaking
- * unstyled states into the UI.
+ * Normalize a raw presence string (from a User object or m.presence event)
+ * for rendering. MSC3026 busy, in either spelling, becomes "busy"; other
+ * unknown values degrade to "offline" rather than leaking unstyled states
+ * into the UI.
  */
-export function normalizePresence(value: unknown): PresenceState {
+export function normalizePresence(value: unknown): SeenPresence {
+    if ((BUSY_PRESENCE_VALUES as readonly unknown[]).includes(value))
+        return "busy";
     return isPresenceState(value) ? value : "offline";
 }
 
@@ -42,16 +62,19 @@ export const AUTO_AWAY_MS = 300_000;
  * going away never hides a phone that is in use.
  */
 export function advertisedPresence(
-    chosen: PresenceState,
+    chosen: SeenPresence,
     idleMs: number,
-): PresenceState {
+): SeenPresence {
     if (chosen !== "online") return chosen;
     return idleMs >= AUTO_AWAY_MS ? "unavailable" : "online";
 }
 
-/** Matrix "unavailable" renders as Discord-style idle (orange). */
-export function presenceDot(state: PresenceState): PresenceDot {
-    return state === "unavailable" ? "idle" : state;
+/** Matrix "unavailable" renders as Discord-style idle (orange), busy as
+ *  Do Not Disturb (red). */
+export function presenceDot(state: SeenPresence): PresenceDot {
+    if (state === "unavailable") return "idle";
+    if (state === "busy") return "dnd";
+    return state;
 }
 
 /**
@@ -64,13 +87,17 @@ export function presenceDotClass(dot: PresenceDot): string {
             return "bg-discord-online";
         case "idle":
             return "bg-discord-idle";
+        case "dnd":
+            return "bg-discord-dnd";
         case "offline":
             return "bg-discord-offline";
     }
 }
 
-export function presenceLabel(state: PresenceState): string {
+export function presenceLabel(state: SeenPresence): string {
     switch (state) {
+        case "busy":
+            return t("presence.doNotDisturb");
         case "online":
             return t("presence.online");
         case "unavailable":

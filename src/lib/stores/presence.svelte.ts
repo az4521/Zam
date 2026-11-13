@@ -6,6 +6,7 @@ import {
     onSlidingSyncActiveChange,
     setAccountNotificationsDisabled,
     setOwnPresence,
+    supportsBusyPresence,
 } from "$lib/matrix/client";
 import {
     PROFILE_FIELDS,
@@ -17,6 +18,7 @@ import {
     advertisedPresence,
     normalizePresence,
     type PresenceState,
+    type SeenPresence,
 } from "$lib/utils/presence";
 import {
     settingsState,
@@ -26,7 +28,7 @@ import {
 } from "$lib/stores/settings.svelte";
 
 export interface UserPresenceView {
-    state: PresenceState;
+    state: SeenPresence;
     currentlyActive: boolean;
     statusMsg?: string;
 }
@@ -54,13 +56,17 @@ export function presenceFor(userId: string): UserPresenceView | null {
 }
 
 /** The state the user picked, as the server should see it: Do Not Disturb
- *  has no Matrix presence of its own, so it shows as idle. Invisible stays
- *  invisible. */
-function chosenPresence(): PresenceState {
-    return settingsState.doNotDisturb && settingsState.ownPresence === "online"
-        ? "unavailable"
-        : settingsState.ownPresence;
+ *  is MSC3026 busy (red for others), or idle on a server without busy.
+ *  Invisible stays invisible. */
+function chosenPresence(): SeenPresence {
+    if (!settingsState.doNotDisturb || settingsState.ownPresence !== "online")
+        return settingsState.ownPresence;
+    return busySupported ? "busy" : "unavailable";
 }
+
+// Whether the homeserver takes busy; read from /versions in initPresence.
+// Until then Do Not Disturb advertises away, as it did before busy.
+let busySupported = false;
 
 /** Turn Do Not Disturb on or off: the account's master push rule (so the
  *  server stops pushing to every device), local alerts (see
@@ -69,6 +75,7 @@ function chosenPresence(): PresenceState {
 export async function changeDoNotDisturb(on: boolean): Promise<void> {
     await setAccountNotificationsDisabled(on);
     setDoNotDisturbSetting(on);
+    if (on) busySupported = await supportsBusyPresence();
     advertised = advertisedPresence(chosenPresence(), 0);
     await setOwnPresence(
         advertised,
@@ -99,7 +106,7 @@ export async function changeOwnStatusMessage(message: string): Promise<void> {
 // Without that, every sync long-poll re-marks the account online, and tuwunel
 // shows the highest state across devices, so a desktop left open kept the
 // user online forever. Plain module state: it only feeds SDK calls.
-let advertised: PresenceState = settingsState.ownPresence;
+let advertised: SeenPresence = settingsState.ownPresence;
 let lastInputTs = Date.now();
 
 const IDLE_CHECK_MS = 15_000;
@@ -145,6 +152,7 @@ const SLIDING_PRESENCE_HEARTBEAT_MS = 25_000;
 export function initPresence(): () => void {
     // Re-apply the persisted choice — the sync loop advertises "online" by
     // default, so away/invisible must be pushed again each session.
+    busySupported = false;
     advertised = chosenPresence();
     lastInputTs = Date.now();
     if (advertised !== "online") {
@@ -155,6 +163,21 @@ export function initPresence(): () => void {
             console.warn("[presence] could not apply own presence", err);
         });
     }
+    // Do Not Disturb went out as away above; upgrade it to busy once the
+    // server says it has busy.
+    let disposed = false;
+    supportsBusyPresence().then((ok) => {
+        if (disposed || !ok) return;
+        busySupported = true;
+        const next = chosenPresence();
+        if (next === advertised) return;
+        advertised = next;
+        setOwnPresence(next, settingsState.ownStatusMessage || undefined).catch(
+            (err) => {
+                console.warn("[presence] could not apply busy presence", err);
+            },
+        );
+    });
 
     reconcileStatusMessage().catch((err) => {
         console.warn("[presence] could not reconcile status message", err);
@@ -199,6 +222,7 @@ export function initPresence(): () => void {
         presenceState.presenceTick++;
     });
     return () => {
+        disposed = true;
         unsubSliding();
         clearInterval(heartbeat);
         clearInterval(idleCheck);

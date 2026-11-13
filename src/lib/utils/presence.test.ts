@@ -39,9 +39,14 @@ describe("normalizePresence", () => {
         expect(normalizePresence(undefined)).toBe("offline");
         expect(normalizePresence(null)).toBe("offline");
         expect(normalizePresence("")).toBe("offline");
-        // MSC3026 unstable busy state — not supported, degrade safely.
-        expect(normalizePresence("org.matrix.msc3026.busy")).toBe("offline");
+        expect(normalizePresence("BUSY")).toBe("offline");
         expect(normalizePresence(123)).toBe("offline");
+    });
+
+    it("reads MSC3026 busy in both server spellings", () => {
+        // tuwunel sends "busy", Synapse the unstable name.
+        expect(normalizePresence("busy")).toBe("busy");
+        expect(normalizePresence("org.matrix.msc3026.busy")).toBe("busy");
     });
 });
 
@@ -108,5 +113,18 @@ describe("OWN_PRESENCE_OPTIONS", () => {
         for (const option of OWN_PRESENCE_OPTIONS) {
             expect(option.label.length).toBeGreaterThan(0);
         }
+    });
+});
+
+describe("busy presence", () => {
+    it("renders as a red Do Not Disturb dot", () => {
+        expect(presenceDot("busy")).toBe("dnd");
+        expect(presenceDotClass("dnd")).toBe("bg-discord-dnd");
+        expect(presenceLabel("busy")).toBe(presenceLabel("busy"));
+        expect(presenceLabel("busy")).not.toBe(presenceLabel("unavailable"));
+    });
+
+    it("is not turned into away by idleness", () => {
+        expect(advertisedPresence("busy", AUTO_AWAY_MS * 10)).toBe("busy");
     });
 });

@@ -1,5 +1,4 @@
 import type { MatrixClient } from "matrix-js-sdk";
-import type { PresenceState } from "$lib/utils/presence";
 
 /**
  * Make sliding-sync requests carry our chosen presence.
@@ -11,14 +10,15 @@ import type { PresenceState } from "$lib/utils/presence";
  * online right after a PUT /presence chose away or invisible.
  *
  * Wraps the client's HTTP layer once and returns the setter for the state to
- * send; null leaves the parameter off, as the SDK does.
+ * send (a raw wire value, so a server's busy spelling passes through); null
+ * leaves the parameter off, as the SDK does.
  */
 export function sendPresenceWithSlidingSync(
     client: MatrixClient,
-): (presence: PresenceState | null) => void {
+): (presence: string | null) => void {
     const existing = installed.get(client);
     if (existing) return existing;
-    let current: PresenceState | null = null;
+    let current: string | null = null;
 
     type Http = {
         authedRequest: (
@@ -37,7 +37,7 @@ export function sendPresenceWithSlidingSync(
         return send(method, path, queryParams, ...rest);
     };
 
-    const set = (presence: PresenceState | null) => {
+    const set = (presence: string | null) => {
         current = presence;
     };
     installed.set(client, set);
@@ -53,5 +53,5 @@ function isSlidingRequest(opts: unknown): boolean {
 
 const installed = new WeakMap<
     MatrixClient,
-    (presence: PresenceState | null) => void
+    (presence: string | null) => void
 >();
