@@ -1975,10 +1975,38 @@
     // best; ~0.35 is the fallback candidate if it feels low (feel call — tune live).
     const READING_LINE_FRACTION = 0.5;
 
+    // Native anchoring holds the same row as the reading anchor. Every row
+    // opts out (the timeline's `*:[overflow-anchor:none]`) except this one,
+    // so Chromium anchors on it instead of the top visible row. Otherwise a
+    // shift between the two (an image or preview loading in the upper half)
+    // went uncorrected natively and restoreScrollAnchor had to write
+    // scrollTop, which cuts off a running wheel animation: scrolling jerked
+    // whenever content loaded. Kept through loads and jumps (backfill relies
+    // on it); dropped at the bottom, where the bottom anchor row must win.
+    let nativeAnchorRow: HTMLElement | null = null;
+
+    function setNativeAnchorRow(row: HTMLElement | null) {
+        if (row === nativeAnchorRow) return;
+        nativeAnchorRow?.style.removeProperty("overflow-anchor");
+        if (row) row.style.overflowAnchor = "auto";
+        nativeAnchorRow = row;
+    }
+
     // Record the message crossing the reading line and its offset from the
     // viewport top.
     function captureScrollAnchor() {
-        if (!anchoringActive()) {
+        if (!scrollEl) return;
+        // Only flush with the bottom does the bottom anchor row take over.
+        // In the slack above it (isAtBottom is true within 100px) that row
+        // is off screen, so Chromium had no anchor at all and rows mounting
+        // above shifted the view by hundreds of pixels.
+        const flushBottom =
+            isAtBottom &&
+            scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight <
+                2;
+        const nominate = nativeAnchoring && !flushBottom;
+        if (!nominate) setNativeAnchorRow(null);
+        if (!anchoringActive() && !nominate) {
             anchorEl = null;
             return;
         }
@@ -1986,26 +2014,36 @@
         const line = scrollEl!.clientHeight * READING_LINE_FRACTION;
         // Fallback for short/gappy content where nothing spans the line: the first
         // message reaching into the viewport, i.e. the old top-visible target.
-        let fallbackEl: HTMLElement | null = null;
-        let fallbackOffset = 0;
+        let found: HTMLElement | null = null;
+        let foundOffset = 0;
         for (const el of scrollEl!.querySelectorAll<HTMLElement>(
             "[data-event-id]",
         )) {
             const r = el.getBoundingClientRect();
             const top = r.top - cTop;
             const bottom = r.bottom - cTop;
-            if (fallbackEl === null && bottom > 8) {
-                fallbackEl = el;
-                fallbackOffset = top;
+            if (found === null && bottom > 8) {
+                found = el;
+                foundOffset = top;
             }
             if (top <= line && bottom >= line) {
-                anchorEl = el;
-                anchorOffset = top;
-                return;
+                found = el;
+                foundOffset = top;
+                break;
             }
         }
-        anchorEl = fallbackEl;
-        if (fallbackEl) anchorOffset = fallbackOffset;
+        if (nominate)
+            setNativeAnchorRow(
+                found?.closest<HTMLElement>("[data-row-index]") ?? null,
+            );
+        if (!anchoringActive()) {
+            anchorEl = null;
+            return;
+        }
+        anchorEl = found;
+        // Kept in content coordinates (offset + scrollTop), so a user scroll
+        // that lands before the next scroll event isn't mistaken for a shift.
+        anchorOffset = foundOffset + scrollEl.scrollTop;
     }
 
     // If the anchored message moved (content above/within it changed size),
@@ -2015,10 +2053,24 @@
     const MAX_CORRECTIONS_PER_FRAME = 4;
 
     function restoreScrollAnchor() {
-        if (!anchoringActive() || !anchorEl || !anchorEl.isConnected) return;
+        if (!anchoringActive()) return;
+        // Native anchoring already holds this same row (setNativeAnchorRow)
+        // against every shift above it, smoothly and within the frame.
+        // Correcting as well only fought it: measured mid-drag, a row mounting
+        // before the next scroll event read the user's own scroll as a shift
+        // and undid it, so content stood still for a frame (8 in 300 in a
+        // mixed-media room). Just make sure a row is nominated.
+        if (nativeAnchoring) {
+            if (!nativeAnchorRow?.isConnected) captureScrollAnchor();
+            return;
+        }
+        if (!anchorEl || !anchorEl.isConnected) return;
         const cTop = scrollEl!.getBoundingClientRect().top;
         const delta =
-            anchorEl.getBoundingClientRect().top - cTop - anchorOffset;
+            anchorEl.getBoundingClientRect().top -
+            cTop +
+            scrollEl!.scrollTop -
+            anchorOffset;
         if (delta > 2 || delta < -2) {
             // A correction resizes the spacer, which re-runs this observer. If
             // something keeps undoing it, give up until the next frame rather
@@ -2028,6 +2080,9 @@
                 requestAnimationFrame(() => (correctionsThisFrame = 0));
             // Usually absorbed by the top spacer without scrolling at all.
             const scrolled = cancelShift(delta);
+            // What scrolling covered is still off in content coordinates:
+            // move the baseline so it isn't corrected again.
+            anchorOffset += scrolled;
             // Keep the selection baseline pinned to content, not raw scrollTop: a
             // reading-anchor correction (late image/preview load above) must not read
             // as a user scroll and dismiss the actions bar.
@@ -2503,12 +2558,17 @@
             scheduleSettle();
         };
         root.addEventListener("load", onMediaLoad, true);
+        // Passive, unlike Svelte's onwheel: a blocking wheel listener makes
+        // Chromium wait for the main thread before scrolling each notch, so
+        // scrolling stuttered whenever history or rows were loading.
+        root.addEventListener("wheel", stopScrollIntoView, { passive: true });
         root.addEventListener("touchstart", onTouchStart, { passive: true });
         root.addEventListener("touchend", onTouchEnd, { passive: true });
         root.addEventListener("touchcancel", onTouchEnd, { passive: true });
         return () => {
             mo.disconnect();
             root.removeEventListener("load", onMediaLoad, true);
+            root.removeEventListener("wheel", stopScrollIntoView);
             root.removeEventListener("touchstart", onTouchStart);
             root.removeEventListener("touchend", onTouchEnd);
             root.removeEventListener("touchcancel", onTouchEnd);
@@ -2881,14 +2941,11 @@
             bind:this={scrollEl}
             data-zam-region="timeline"
             onscroll={onScroll}
-            onwheel={stopScrollIntoView}
             ontouchstart={stopScrollIntoView}
             role="log"
             aria-label={t("messageArea.messageTimeline")}
             aria-live="off"
-            class="overflow-y-auto overflow-x-hidden flex flex-1 flex-col{stickToBottom
-                ? ' *:[overflow-anchor:none]'
-                : ''}"
+            class="overflow-y-auto overflow-x-hidden flex flex-1 flex-col *:[overflow-anchor:none]"
         >
             <!-- Pushes a short timeline down so it hugs the composer, like
                  flex-col-reverse used to. -->
