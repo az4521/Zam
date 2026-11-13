@@ -1322,8 +1322,13 @@
             pinned: pinnedRows(),
             stickToEnd: isAtBottom && !isContextView,
         });
-        if (next.start !== current.start || next.end !== current.end)
+        if (next.start !== current.start || next.end !== current.end) {
+            // The reading anchor from the last scroll event can predate a
+            // scroll whose event hasn't fired yet; measured against it, the
+            // user's own scroll looked like a shift and was undone.
+            captureScrollAnchor();
             setRowWindow(next);
+        }
     }
 
     let windowFrame = 0;
@@ -2083,6 +2088,31 @@
     // (low in rooms full of joins); sizes the next page (utils/backfillSizing).
     let visibleRatio = INITIAL_VISIBLE_RATIO;
 
+    // The row a history prepend is measured against: the one after the first
+    // row on screen. Measuring the oldest rendered row missed its own change:
+    // older messages from the same sender fold its name and avatar away, and
+    // that 32px shrink moved everything below it up mid-scroll. Any row that
+    // can fold is now above the reference.
+    function backfillReferenceRow(): HTMLElement | null {
+        if (!scrollEl) return null;
+        const top = scrollEl.getBoundingClientRect().top;
+        let first: HTMLElement | null = null;
+        for (const el of scrollEl.querySelectorAll<HTMLElement>(
+            "[data-event-id]",
+        )) {
+            first ??= el;
+            if (el.getBoundingClientRect().bottom > top) {
+                const next = el
+                    .closest("[data-row-index]")
+                    ?.nextElementSibling?.querySelector<HTMLElement>(
+                        "[data-event-id]",
+                    );
+                return next ?? el;
+            }
+        }
+        return first;
+    }
+
     async function loadOlderMessages() {
         if (loadingOlder) return;
         // Context view paginates the jumped-to window; the live view paginates
@@ -2102,8 +2132,8 @@
         // drop the result so room A's "no more history" verdict is never written
         // into room B (which would leave B un-paginatable) (F2).
         const rid = room.roomId;
-        // Scroll preservation across a history prepend. The reference is the
-        // oldest rendered message; after prepending we nudge it back to the
+        // Scroll preservation across a history prepend. The reference is a
+        // message on screen (backfillReferenceRow); after prepending we nudge it back to the
         // viewport offset it held just before — a self-correcting form that lands
         // it right whether or not the browser's native scroll anchoring also
         // compensated (Chromium/Firefox do, WebKit doesn't). Do NOT replace this
@@ -2124,7 +2154,7 @@
             if (isContextView && contextWindow) {
                 await paginateContextWindow(contextWindow, false);
                 if (room.roomId !== rid) return;
-                const refEl = scrollEl?.querySelector("[data-event-id]");
+                const refEl = backfillReferenceRow();
                 refId = (refEl as HTMLElement | null)?.dataset.eventId;
                 prevTop = refEl?.getBoundingClientRect().top;
                 contextMessages = getContextWindowEvents(contextWindow);
@@ -2150,7 +2180,7 @@
                     events[0] === current[0]
                 )
                     return;
-                const refEl = scrollEl?.querySelector("[data-event-id]");
+                const refEl = backfillReferenceRow();
                 refId = (refEl as HTMLElement | null)?.dataset.eventId;
                 prevTop = refEl?.getBoundingClientRect().top;
                 setMessages(rid, events);
