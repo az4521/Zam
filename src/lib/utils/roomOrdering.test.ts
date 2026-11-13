@@ -6,6 +6,9 @@ import {
     groupRoomsByTag,
     sortRoomsByTag,
     byRecency,
+    dmComparator,
+    isDmSortOrder,
+    type DmSortFacts,
     tagUpdatesForToggle,
     tagOrderRollback,
     type RoomTagMap,
@@ -315,5 +318,89 @@ describe("sortRoomsByTag with a normal-room comparator", () => {
 
     it("keeps the input order without a comparator", () => {
         expect(sortRoomsByTag(["b", "a"], () => ({}))).toEqual(["b", "a"]);
+    });
+});
+
+describe("dmComparator", () => {
+    const facts: Record<string, DmSortFacts> = {
+        alice: {
+            lastMessageTs: 100,
+            unread: false,
+            presence: "offline",
+            name: "alice",
+        },
+        bob: {
+            lastMessageTs: 300,
+            unread: false,
+            presence: "unavailable",
+            name: "Bob",
+        },
+        carol: {
+            lastMessageTs: 200,
+            unread: true,
+            presence: "online",
+            name: "carol",
+        },
+        dave: {
+            lastMessageTs: 50,
+            unread: true,
+            presence: "busy",
+            name: "Dave",
+        },
+        erin: {
+            lastMessageTs: 400,
+            unread: false,
+            presence: "org.matrix.weird",
+            name: "erin",
+        },
+    };
+    const ids = Object.keys(facts);
+    const sortBy = (order: Parameters<typeof dmComparator>[0]) =>
+        [...ids].sort(dmComparator(order, (id: string) => facts[id]));
+
+    it("recent: newest message first", () => {
+        expect(sortBy("recent")).toEqual([
+            "erin",
+            "bob",
+            "carol",
+            "alice",
+            "dave",
+        ]);
+    });
+
+    it("unread: unread first, each group newest first", () => {
+        expect(sortBy("unread")).toEqual([
+            "carol",
+            "dave",
+            "erin",
+            "bob",
+            "alice",
+        ]);
+    });
+
+    it("online: online, busy, away, then offline and unknown by recency", () => {
+        expect(sortBy("online")).toEqual([
+            "carol",
+            "dave",
+            "bob",
+            "erin",
+            "alice",
+        ]);
+    });
+
+    it("name: case-insensitive A–Z", () => {
+        expect(sortBy("name")).toEqual([
+            "alice",
+            "bob",
+            "carol",
+            "dave",
+            "erin",
+        ]);
+    });
+
+    it("validates stored values", () => {
+        expect(isDmSortOrder("online")).toBe(true);
+        expect(isDmSortOrder("bogus")).toBe(false);
+        expect(isDmSortOrder(null)).toBe(false);
     });
 });

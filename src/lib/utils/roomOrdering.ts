@@ -74,6 +74,69 @@ export function byRecency<T>(
     return (a, b) => (tsOf(b) ?? -Infinity) - (tsOf(a) ?? -Infinity) || 0;
 }
 
+/** How untagged DMs are ordered (the DM list's header menu). */
+export type DmSortOrder = "recent" | "unread" | "online" | "name";
+
+export const DM_SORT_ORDERS: readonly DmSortOrder[] = [
+    "recent",
+    "unread",
+    "online",
+    "name",
+];
+
+export function isDmSortOrder(value: unknown): value is DmSortOrder {
+    return DM_SORT_ORDERS.includes(value as DmSortOrder);
+}
+
+/** What a DM sort needs to know about one room. */
+export interface DmSortFacts {
+    /** Time of the latest message, or null when none is known. */
+    lastMessageTs: number | null;
+    unread: boolean;
+    /** The other person's presence: "online" | "busy" | "unavailable" |
+     *  "offline" (anything else counts as offline). */
+    presence: string;
+    name: string;
+}
+
+// Online first means reachable first: active, then busy (there but not to
+// be disturbed), then away, then offline.
+const PRESENCE_RANK: Record<string, number> = {
+    online: 0,
+    busy: 1,
+    unavailable: 2,
+};
+
+/**
+ * Comparator for one DM sort order. Every order falls back to latest
+ * message, newest first, so rows that tie still move with the conversation.
+ */
+export function dmComparator<T>(
+    order: DmSortOrder,
+    factsOf: (room: T) => DmSortFacts,
+): (a: T, b: T) => number {
+    const recent = byRecency<T>((r) => factsOf(r).lastMessageTs);
+    const collator = new Intl.Collator(undefined, { sensitivity: "base" });
+    const first = (a: T, b: T): number => {
+        const fa = factsOf(a);
+        const fb = factsOf(b);
+        switch (order) {
+            case "unread":
+                return Number(fb.unread) - Number(fa.unread);
+            case "online":
+                return (
+                    (PRESENCE_RANK[fa.presence] ?? 3) -
+                    (PRESENCE_RANK[fb.presence] ?? 3)
+                );
+            case "name":
+                return collator.compare(fa.name, fb.name);
+            case "recent":
+                return 0;
+        }
+    };
+    return (a, b) => first(a, b) || recent(a, b);
+}
+
 /**
  * Compute the tag changes for toggling favourite / low priority on a room.
  * The two tags are mutually exclusive: turning one on removes the other

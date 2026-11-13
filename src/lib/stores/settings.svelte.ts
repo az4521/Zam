@@ -13,6 +13,7 @@ import {
 } from "$lib/utils/receiptPrivacy";
 
 import { isPresenceState, type PresenceState } from "$lib/utils/presence";
+import { isDmSortOrder, type DmSortOrder } from "$lib/utils/roomOrdering";
 import {
     applyTheme,
     applyPreset,
@@ -180,6 +181,11 @@ function clampSoundInterval(n: number): number {
 function readSoundInterval(): number {
     const v = readAccountString("soundIntervalMs");
     return v === null ? MIN_SOUND_INTERVAL_MS : clampSoundInterval(Number(v));
+}
+
+function readDmSortOrder(): DmSortOrder {
+    const v = readAccountString("dmSortOrder");
+    return isDmSortOrder(v) ? v : "recent";
 }
 
 function readPresence(key: string, fallback: PresenceState): PresenceState {
@@ -483,6 +489,8 @@ export const settingsState = $state({
     /** Do Not Disturb: silences notifications and ringing on every device
      *  (the account's master push rule) and shows as idle to others. */
     doNotDisturb: readAccountBool("doNotDisturb", false),
+    /** How untagged DMs are ordered (the DM list's header menu). */
+    dmSortOrder: readDmSortOrder(),
     /** The presence status_msg we last mirrored our profile status into. A
      *  presence update without a status_msg clears it on some servers, so it
      *  is re-sent with every presence change. */
@@ -846,6 +854,7 @@ export function reloadAccountSettings(): void {
     );
     settingsState.ownPresence = readPresence("ownPresence", "online");
     settingsState.doNotDisturb = readAccountBool("doNotDisturb", false);
+    settingsState.dmSortOrder = readDmSortOrder();
     settingsState.ownStatusMessage =
         readAccountString("ownStatusMessage") ?? "";
     settingsState.audioInputDeviceId =
@@ -1332,6 +1341,11 @@ export function setOwnStatusMessageSetting(value: string): void {
 export function setDoNotDisturbSetting(value: boolean): void {
     settingsState.doNotDisturb = value;
     writeAccountBool("doNotDisturb", value);
+}
+
+export function setDmSortOrder(value: DmSortOrder): void {
+    settingsState.dmSortOrder = value;
+    writeAccountString("dmSortOrder", value);
 }
 
 export function setOwnPresenceSetting(value: PresenceState): void {

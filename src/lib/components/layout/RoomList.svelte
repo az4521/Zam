@@ -61,9 +61,10 @@
         Video,
         Hash,
         Circle,
+        Check,
     } from "lucide-svelte";
     import { presenceState, presenceFor } from "$lib/stores/presence.svelte";
-    import { settingsState } from "$lib/stores/settings.svelte";
+    import { settingsState, setDmSortOrder } from "$lib/stores/settings.svelte";
     import {
         presenceDot,
         presenceDotClass,
@@ -72,7 +73,10 @@
     import {
         groupRoomsByTag,
         sortRoomsByTag,
-        byRecency,
+        dmComparator,
+        DM_SORT_ORDERS,
+        type DmSortFacts,
+        type DmSortOrder,
         roomTagKind,
         TAG_FAVOURITE,
         TAG_LOWPRIORITY,
@@ -413,28 +417,46 @@
         return groupRoomsByTag(visibleRooms, (r) => getRoomTags(r.roomId));
     });
 
-    // Untagged DMs sort by their latest message, newest first (the SDK's room
-    // order is arbitrary). unreadTick: a new message moves the row.
+    const DM_SORT_LABELS: Record<DmSortOrder, () => string> = {
+        recent: () => t("roomList.dmSortRecent"),
+        unread: () => t("roomList.dmSortUnread"),
+        online: () => t("roomList.dmSortOnline"),
+        name: () => t("roomList.dmSortName"),
+    };
+
+    // Untagged DMs sort by the order picked in the header menu (latest
+    // message by default; the SDK's room order is arbitrary). unreadTick: a
+    // new message or a read moves the row; presenceTick: "online first".
     const sortedDirectRooms = $derived.by(() => {
         void roomsState.roomsTick;
         void roomsState.unreadTick;
-        const lastMessageTs = new Map<string, number | null>();
+        const order = settingsState.dmSortOrder;
+        if (order === "online") void presenceState.presenceTick;
+        const facts = new Map<string, DmSortFacts>();
         for (const room of roomsState.directRooms) {
             const found = latestMessage([
                 ...room.getLiveTimeline().getEvents(),
                 ...room.getPendingEvents(),
             ]);
             const fallback = room.getLastActiveTimestamp();
-            lastMessageTs.set(
-                room.roomId,
-                found?.event.getTs() ??
+            const { unread } = roomButton(room);
+            facts.set(room.roomId, {
+                lastMessageTs:
+                    found?.event.getTs() ??
                     (fallback > Number.MIN_SAFE_INTEGER ? fallback : null),
-            );
+                unread,
+                presence:
+                    order === "online"
+                        ? (presenceFor(getDMPartnerId(room))?.state ??
+                          "offline")
+                        : "offline",
+                name: room.name,
+            });
         }
         return sortRoomsByTag(
             roomsState.directRooms,
             (r) => getRoomTags(r.roomId),
-            byRecency((r) => lastMessageTs.get(r.roomId) ?? null),
+            dmComparator(order, (r) => facts.get(r.roomId)!),
         );
     });
 
@@ -1082,6 +1104,41 @@
                     <QuickActions
                         spaceId={roomsState.activeSpaceId ?? undefined}
                     />
+                    {#if !roomsState.activeSpaceId}
+                        <div class="w-full h-px bg-discord-divider my-1"></div>
+                        <p
+                            class="px-2 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
+                        >
+                            {t("roomList.sortDmsBy")}
+                        </p>
+                        <div
+                            role="radiogroup"
+                            aria-label={t("roomList.sortDmsBy")}
+                        >
+                            {#each DM_SORT_ORDERS as order (order)}
+                                {@const selected =
+                                    settingsState.dmSortOrder === order}
+                                <button
+                                    role="radio"
+                                    aria-checked={selected}
+                                    onclick={() => setDmSortOrder(order)}
+                                    class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors {selected
+                                        ? 'text-discord-textPrimary'
+                                        : 'text-discord-textMuted'}"
+                                    style="padding-inline-start: 0.5rem;"
+                                >
+                                    <span
+                                        class="w-4 h-4 flex-shrink-0 flex items-center justify-center"
+                                    >
+                                        {#if selected}<Check size={14} />{/if}
+                                    </span>
+                                    <span class="flex-1 truncate"
+                                        >{DM_SORT_LABELS[order]()}</span
+                                    >
+                                </button>
+                            {/each}
+                        </div>
+                    {/if}
                     {#if canAccessSpaceSettings}
                         <div class="w-full h-px bg-discord-divider my-1"></div>
                         <button
