@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.10
+
+✨ **New**
+
+- **Choose how direct messages are sorted:** the menu on the Home header (with New DM and Join room by address) now has a "Sort DMs by" section: latest message (the default), unread first, online first, or name (A–Z). Favourite and Low priority direct messages keep the order you gave them.
+
 ## v1.60.9
 
 ✨ **New**
