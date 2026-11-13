@@ -650,18 +650,44 @@
             el = await revealRow(eventId);
             if (!el) return;
         }
-        const target = el as HTMLElement;
+        let target = el as HTMLElement;
         // Cancel any previous scroll loop so we never leak an interval that
         // would keep yanking the scroll position and block the user.
         stopScrollIntoView();
-        intervalId = setInterval(
-            () =>
-                target.scrollIntoView({
-                    behavior: scrollBehavior(),
-                    block: "center",
-                }),
-            50,
-        );
+        // Smooth-scroll only to a message that is nearly on screen. Further
+        // away, the animation ran through spacer where no rows are mounted
+        // (window updates wait for the jump), so it showed blank space for
+        // most of the way. Land there at once with its neighbours mounted.
+        const far = isFarFromView(target);
+        if (far) {
+            const i = messages.findIndex((e) => e.getId() === eventId);
+            if (i >= 0) {
+                // Leaving the bottom: a window stuck to the end would
+                // stretch from the target all the way down.
+                isAtBottom = false;
+                setRowWindow(windowAround(i, messages.length));
+                await tick();
+                const again = scrollEl?.querySelector<HTMLElement>(
+                    `[data-event-id="${CSS.escape(eventId)}"]`,
+                );
+                if (again) target = again;
+            }
+        }
+        target.scrollIntoView({
+            behavior: far ? "instant" : scrollBehavior(),
+            block: "center",
+        });
+        // Keep it centred while things around it settle (images, previews,
+        // rows mounting), but only re-aim when it actually moved in the list:
+        // re-issuing a smooth scroll every 50ms restarted the animation each
+        // time, so the jump crawled and stuttered.
+        let lastTop = listTop(target);
+        intervalId = setInterval(() => {
+            const top = listTop(target);
+            if (Math.abs(top - lastTop) < 1) return;
+            lastTop = top;
+            target.scrollIntoView({ behavior: "instant", block: "center" });
+        }, 50);
         target.classList.remove("message-highlight");
         void target.offsetWidth;
         target.classList.add("message-highlight");
@@ -672,6 +698,27 @@
             // scrolling, so onScroll would never page it forward.
             catchUpContextView();
         }, 2000);
+    }
+
+    /** Where `el` sits in the scrolled content, independent of scrolling. */
+    function listTop(el: HTMLElement): number {
+        if (!scrollEl) return 0;
+        return (
+            el.getBoundingClientRect().top -
+            scrollEl.getBoundingClientRect().top +
+            scrollEl.scrollTop
+        );
+    }
+
+    /** More than a screen and a half between `el` and the viewport centre. */
+    function isFarFromView(el: HTMLElement): boolean {
+        if (!scrollEl) return false;
+        const view = scrollEl.getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        const gap = Math.abs(
+            (r.top + r.bottom) / 2 - (view.top + view.bottom) / 2,
+        );
+        return gap > view.height * 1.5;
     }
 
     // Ensure the scroll loop never outlives the component (e.g. room switch).
@@ -1085,14 +1132,82 @@
         return w;
     });
 
+    // Pixels the top spacer is off from its estimate. Rows mounting above the
+    // viewport rarely measure what the spacer assumed (and the average the
+    // estimate uses drifts as rows get measured), so everything below them
+    // shifts. That shift is cancelled by resizing this spacer, not by writing
+    // scrollTop: a scrollTop write in the middle of a touch fling stops iOS
+    // momentum scrolling dead and stutters elsewhere, which made scrolling
+    // back through history on a phone laggy and jumpy. The slack is paid back
+    // with one scroll write once scrolling stops (settleTopSlack). It belongs
+    // to the list it was measured in: another room or context window starts
+    // at zero.
+    let topSlack = $state.raw<{ key: unknown; px: number }>({
+        key: null,
+        px: 0,
+    });
+    const slackKey = $derived(contextWindow ?? roomId);
+
     const spacerHeights = $derived.by(() => {
-        let top = 0;
+        let estTop = 0;
         let bottom = 0;
-        for (let i = 0; i < rowWindow.start; i++) top += rowHeight(messages[i]);
+        for (let i = 0; i < rowWindow.start; i++)
+            estTop += rowHeight(messages[i]);
         for (let i = rowWindow.end; i < messages.length; i++)
             bottom += rowHeight(messages[i]);
-        return { top, bottom };
+        const slack = topSlack.key === slackKey ? topSlack.px : 0;
+        return { top: Math.max(0, estTop + slack), estTop, bottom };
     });
+
+    /** Cancel a shift of `delta`px (positive = down) of everything below the
+     *  top spacer, by resizing the spacer as far as it can and scrolling for
+     *  the rest. Returns how far scrollTop had to move. */
+    function cancelShift(delta: number): number {
+        if (!scrollEl) return 0;
+        let rest = delta;
+        if (topSpacerEl && canWindow) {
+            const h = topSpacerEl.getBoundingClientRect().height;
+            const next = Math.max(0, h - delta);
+            if (next !== h) {
+                topSpacerEl.style.height = `${next}px`;
+                topSlack = { key: slackKey, px: next - spacerHeights.estTop };
+                rest = delta - (h - next);
+            }
+        }
+        if (rest > 0.5 || rest < -0.5) scrollEl.scrollTop += rest;
+        return rest;
+    }
+
+    // Once scrolling has stopped, give the top spacer back its estimated
+    // height and scroll by the difference, so slack never piles up into a
+    // gap above the oldest message or a spacer too short to scroll into.
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    let touching = false;
+    const SETTLE_MS = 250;
+
+    function scheduleSettle() {
+        clearTimeout(settleTimer);
+        settleTimer = setTimeout(settleTopSlack, SETTLE_MS);
+    }
+
+    function settleTopSlack() {
+        if (!scrollEl || !topSpacerEl || touching) return;
+        if (topSlack.key !== slackKey || topSlack.px === 0) return;
+        // A load or jump in progress positions the view itself; try later.
+        if (loadingOlder || intervalId !== undefined) {
+            scheduleSettle();
+            return;
+        }
+        const h = topSpacerEl.getBoundingClientRect().height;
+        const next = Math.max(0, spacerHeights.estTop);
+        topSlack = { key: slackKey, px: 0 };
+        topSpacerEl.style.height = `${next}px`;
+        // At the bottom the stick-to-bottom observer keeps the view there.
+        if (!isAtBottom) scrollEl.scrollTop += next - h;
+        captureScrollAnchor();
+    }
+
+    $effect(() => () => clearTimeout(settleTimer));
 
     const rowKeyOf = new WeakMap<Element, string>();
     let rowObserver: ResizeObserver | null = null;
@@ -1185,12 +1300,18 @@
         }
         const height = scrollEl.clientHeight;
         if (height === 0) return; // hidden: nothing to fit
+        const current = rowWindow;
+        const offsets = rowOffsets(messages.map(rowHeight));
+        // In list coordinates, measured from the first mounted row: the top
+        // spacer carries slack (see topSlack), so its height is not where
+        // the list puts that row.
+        const spacer = topSpacerEl.getBoundingClientRect();
         const viewTop =
             scrollEl.getBoundingClientRect().top -
-            topSpacerEl.getBoundingClientRect().top;
-        const current = rowWindow;
+            spacer.bottom +
+            offsets[Math.min(current.start, n)];
         const next = nextWindow({
-            offsets: rowOffsets(messages.map(rowHeight)),
+            offsets,
             viewTop,
             viewBottom: viewTop + height,
             margin: Math.max(
@@ -1864,11 +1985,12 @@
         const delta =
             anchorEl.getBoundingClientRect().top - cTop - anchorOffset;
         if (delta > 2 || delta < -2) {
-            scrollEl!.scrollTop += delta;
+            // Usually absorbed by the top spacer without scrolling at all.
+            const scrolled = cancelShift(delta);
             // Keep the selection baseline pinned to content, not raw scrollTop: a
             // reading-anchor correction (late image/preview load above) must not read
             // as a user scroll and dismiss the actions bar.
-            if (selectionScrollTop !== null) selectionScrollTop += delta;
+            if (selectionScrollTop !== null) selectionScrollTop += scrolled;
         }
     }
 
@@ -1880,6 +2002,7 @@
         // Track the reading position so a late content change can be undone.
         captureScrollAnchor();
         scheduleWindowUpdate();
+        scheduleSettle();
 
         // Touch: a meaningful scroll away from where a message was selected dismisses
         // its floating actions bar. Guarded so a bottom-sheet action in progress and
@@ -2282,8 +2405,11 @@
     // first, so the user still sees it flick). restoreScrollAnchor no-ops unless
     // we're calmly reading history and the anchor actually moved, so this is
     // inert at the bottom, during backfill, and during a jump.
+    // The top spacer also changes height without any row mounting (a new
+    // message re-deriving it with a drifted estimate), so it is watched too.
     $effect(() => {
         const root = scrollEl;
+        const spacer = topSpacerEl;
         roomId; // re-establish per room
         if (!root) return;
         const onMediaLoad = (e: Event) => {
@@ -2293,10 +2419,32 @@
         };
         const mo = new MutationObserver(restoreScrollAnchor);
         mo.observe(root, { childList: true, subtree: true });
+        if (spacer)
+            mo.observe(spacer, {
+                attributes: true,
+                attributeFilter: ["style"],
+            });
+        // A finger resting on the screen fires no scroll events but is still
+        // scrolling: settling then would yank the view under it.
+        const onTouchStart = () => {
+            touching = true;
+            clearTimeout(settleTimer);
+        };
+        const onTouchEnd = (e: TouchEvent) => {
+            if (e.touches.length > 0) return;
+            touching = false;
+            scheduleSettle();
+        };
         root.addEventListener("load", onMediaLoad, true);
+        root.addEventListener("touchstart", onTouchStart, { passive: true });
+        root.addEventListener("touchend", onTouchEnd, { passive: true });
+        root.addEventListener("touchcancel", onTouchEnd, { passive: true });
         return () => {
             mo.disconnect();
             root.removeEventListener("load", onMediaLoad, true);
+            root.removeEventListener("touchstart", onTouchStart);
+            root.removeEventListener("touchend", onTouchEnd);
+            root.removeEventListener("touchcancel", onTouchEnd);
         };
     });
 
