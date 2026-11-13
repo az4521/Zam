@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.9
+
+✨ **New**
+
+- **Do Not Disturb shows as busy:** on homeservers that support it, turning on Do Not Disturb now shows you as busy (a red dot) instead of away. Other people who are busy now show the red Do Not Disturb dot too, where they used to look offline.
+- **Push notification log on Android:** the client log export (Settings > Debug Info) now ends with what the Android app did with each recent push: whether it showed a notification and, if not, why. It contains no message text. If notifications stop arriving, export your logs and send them along.
+
+⚡ **Improved**
+
+- **Direct messages sorted by latest message:** direct messages without a Favourite or Low priority tag are now listed newest first, by their latest message. Reactions, edits and other changes don't move them.
+- **Clearer unread direct messages:** the dot in the corner of a direct message's avatar always shows the person's status now. Unread messages show at the end of the row instead, as the mention count or a small dot (red when it notifies you).
+
 ## v1.60.8
 
 ✨ **New**
