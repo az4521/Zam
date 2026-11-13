@@ -386,6 +386,17 @@ export function setActiveRoom(roomId: string): void {
  * the loaded timeline — so an old message still lands.
  */
 export function navigateToRoom(roomId: string, eventId?: string): void {
+    // A pending invite has no timeline to show: open the invites inbox, where
+    // it can be accepted or declined (an invite notification's tap).
+    if (roomsState.invitedRooms.some((r) => r.roomId === roomId)) {
+        roomsState.draftDm = null;
+        roomsState.activeRoomId = null;
+        roomsState.showSpaceHome = false;
+        roomsState.showInbox = true;
+        roomsState.pendingJump = null;
+        if (interfaceState.isMobile) interfaceState.leftOpen = false;
+        return;
+    }
     const targetSpace = findSpaceForRoom(roomId);
     if (targetSpace !== roomsState.activeSpaceId) {
         roomsState.activeSpaceId = targetSpace;

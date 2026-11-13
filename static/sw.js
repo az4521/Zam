@@ -1483,6 +1483,149 @@ async function decryptInWorker(roomId, event, session) {
 	}
 }
 
+/** An authenticated 128px thumbnail URL for an mxc:// URI, or null. */
+function thumbnailUrl(mxc, session) {
+	if (typeof mxc !== "string" || !mxc.startsWith("mxc://")) return null;
+	const rest = mxc.slice("mxc://".length);
+	const slash = rest.indexOf("/");
+	if (slash <= 0) return null;
+	const server = rest.slice(0, slash);
+	const mediaId = rest.slice(slash + 1);
+	const base = session.homeserverUrl.endsWith("/")
+		? session.homeserverUrl.slice(0, -1)
+		: session.homeserverUrl;
+	// authenticated thumbnail — the SW fetch handler injects auth too,
+	// but build the URL explicitly so the OS-side fetch carries it.
+	return (
+		`${base}/_matrix/client/v1/media/thumbnail/${encodeURIComponent(server)}/` +
+		`${encodeURIComponent(mediaId)}?width=128&height=128&method=crop`
+	);
+}
+
+// #region mirrored:invite
+/**
+ * What an invite's stripped state says: who invited us, the room's name and
+ * picture, and whether it is a space or a DM. Null when the events hold no
+ * pending invite for `selfUserId`. Mirrored by parseInviteState() in
+ * MatrixMessagingService.java.
+ */
+function parseInviteState(events, selfUserId) {
+	if (!Array.isArray(events)) return null;
+	const str = (v) => (typeof v === "string" ? v.trim() : "");
+	let invite = null;
+	let roomName = "";
+	let alias = "";
+	let roomAvatar = "";
+	let isSpace = false;
+	const members = new Map();
+	for (const e of events) {
+		if (!e || typeof e !== "object") continue;
+		const c = e.content && typeof e.content === "object" ? e.content : {};
+		if (e.type === "m.room.member" && typeof e.state_key === "string") {
+			members.set(e.state_key, c);
+			if (e.state_key === selfUserId && c.membership === "invite") invite = e;
+		} else if (e.type === "m.room.create") {
+			isSpace = c.type === "m.space";
+		} else if (e.type === "m.room.name") {
+			roomName = str(c.name);
+		} else if (e.type === "m.room.canonical_alias") {
+			alias = str(c.alias);
+		} else if (e.type === "m.room.avatar") {
+			roomAvatar = str(c.url);
+		}
+	}
+	if (!invite) return null;
+	const inviterId = str(invite.sender);
+	const inviter = members.get(inviterId) || {};
+	return {
+		inviterId,
+		inviterName: str(inviter.displayname),
+		inviterAvatar: str(inviter.avatar_url),
+		roomName: roomName || alias,
+		roomAvatar,
+		isSpace,
+		isDirect: invite.content && invite.content.is_direct === true,
+	};
+}
+
+/**
+ * Title, text and picture for an invite. A DM is the inviter's; a space or a
+ * named room is the room's, with the inviter in the text. Mirrored by
+ * inviteNotification() in MatrixMessagingService.java.
+ */
+function inviteNotificationText(info) {
+	const who = info.inviterName || info.inviterId || "Someone";
+	if (info.isSpace) {
+		return {
+			title: info.roomName || "Space invite",
+			body: `${who} invited you to join this space`,
+			avatar: info.roomAvatar || info.inviterAvatar,
+		};
+	}
+	if (info.isDirect || !info.roomName) {
+		return {
+			title: who,
+			body: info.isDirect
+				? "Invited you to a direct chat"
+				: "Invited you to a room",
+			avatar: info.inviterAvatar || info.roomAvatar,
+		};
+	}
+	return {
+		title: info.roomName,
+		body: `${who} invited you to join this room`,
+		avatar: info.roomAvatar || info.inviterAvatar,
+	};
+}
+
+// #endregion mirrored:invite
+
+/**
+ * The room's pending invite for this account, read from a one-room /sync: an
+ * invited user cannot read the room's events or state, but sync hands out
+ * the invite's stripped state. timeout=0 and set_presence=offline so this
+ * neither waits nor marks the account online; the next_batch is discarded,
+ * so the app's own sync (and its to-device queue) is untouched.
+ */
+async function fetchInvite(roomId, session) {
+	if (!session || !session.userId) return null;
+	const none = { not_types: ["*"] };
+	const filter = {
+		room: {
+			rooms: [roomId],
+			timeline: { limit: 0, not_types: ["*"] },
+			state: none,
+			ephemeral: none,
+			account_data: none,
+			include_leave: false,
+		},
+		presence: none,
+		account_data: none,
+	};
+	const res = await mxGet(
+		`/_matrix/client/v3/sync?timeout=0&set_presence=offline&filter=${encodeURIComponent(JSON.stringify(filter))}`,
+		session,
+	);
+	const invited =
+		res && res.rooms && res.rooms.invite && res.rooms.invite[roomId];
+	const events = invited && invited.invite_state && invited.invite_state.events;
+	const info = parseInviteState(events, session.userId);
+	// Stripped state may lack the inviter's member event: their profile.
+	if (info && info.inviterId && (!info.inviterName || !info.inviterAvatar)) {
+		const p = await mxGet(
+			`/_matrix/client/v3/profile/${encodeURIComponent(info.inviterId)}`,
+			session,
+		);
+		if (p && typeof p === "object") {
+			if (!info.inviterName && typeof p.displayname === "string")
+				info.inviterName = p.displayname.trim();
+			if (!info.inviterAvatar && typeof p.avatar_url === "string")
+				info.inviterAvatar = p.avatar_url.trim();
+		}
+	}
+	return info;
+}
+
 // `session` is the account the push is for; null → the generic text.
 async function buildNotification(data, session) {
 	// Never compose a body before the privacy flag has been hydrated from
@@ -1514,6 +1657,30 @@ async function buildNotification(data, session) {
 		// for it. Checked before decryption so none of that work runs.
 		if (event && session && event.sender === session.userId) {
 			return { own: true };
+		}
+		// An invite: the push names our own invite event, which an invitee can
+		// usually not fetch (only joined members see a room under "shared"
+		// history). Either way the room's stripped state says who invited us.
+		if (
+			!event ||
+			(event.type === "m.room.member" &&
+				event.state_key === session.userId &&
+				event.content &&
+				event.content.membership === "invite")
+		) {
+			const invite = await fetchInvite(roomId, session);
+			if (invite) {
+				const text = inviteNotificationText(invite);
+				return {
+					title: text.title,
+					body: text.body,
+					icon: thumbnailUrl(text.avatar, session) || "/favicon.png",
+					roomId,
+					eventId: null,
+					isCall: false,
+					isInvite: true,
+				};
+			}
 		}
 		// This worker holds no E2EE keys, so an encrypted message is still
 		// m.room.encrypted here. Ask an open page to decrypt it (see
@@ -1613,23 +1780,7 @@ async function buildNotification(data, session) {
 			`/_matrix/client/v3/rooms/${rid}/state/m.room.avatar/`,
 			session,
 		);
-		const mxc = avatarRes && avatarRes.url;
-		if (mxc && mxc.startsWith("mxc://")) {
-			const rest = mxc.slice("mxc://".length);
-			const slash = rest.indexOf("/");
-			if (slash > 0) {
-				const server = rest.slice(0, slash);
-				const mediaId = rest.slice(slash + 1);
-				const base = session.homeserverUrl.endsWith("/")
-					? session.homeserverUrl.slice(0, -1)
-					: session.homeserverUrl;
-				// authenticated thumbnail — the SW fetch handler injects auth too,
-				// but build the URL explicitly so the OS-side fetch carries it.
-				icon =
-					`${base}/_matrix/client/v1/media/thumbnail/${encodeURIComponent(server)}/` +
-					`${encodeURIComponent(mediaId)}?width=128&height=128&method=crop`;
-			}
-		}
+		icon = thumbnailUrl(avatarRes && avatarRes.url, session) || icon;
 	}
 
 	return { title, body, icon, roomId, eventId, isCall };
@@ -1906,7 +2057,7 @@ self.addEventListener("push", (event) => {
 								{ action: "decline", title: "Decline" },
 							],
 						}
-					: n.roomId
+					: n.roomId && !n.isInvite
 						? {
 								actions: [
 									{

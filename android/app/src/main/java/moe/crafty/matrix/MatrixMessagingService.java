@@ -25,6 +25,7 @@ import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 import com.capacitorjs.plugins.pushnotifications.PushNotificationsPlugin;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.InputStream;
@@ -260,6 +261,27 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 // fallback below both need it). Null until asked.
                 Boolean direct = null;
                 JSONObject event = fetchEvent(hs, token, roomId, eventId);
+                // An invite: the push names our own invite event, which an
+                // invitee usually cannot fetch (only joined members see a
+                // room under "shared" history). Either way the room's
+                // stripped state says who invited us and to what.
+                if (event == null || isOwnInvite(event, selfUserId)) {
+                    InviteInfo invite = fetchInvite(hs, token, selfUserId, roomId);
+                    if (invite != null) {
+                        PushLog.log(ctx, tag + "invite"
+                            + (invite.isSpace ? " to a space" : invite.isDirect ? " to a DM" : ""));
+                        String[] inviteText = inviteNotification(invite);
+                        Bitmap inviteIcon = inviteText[2] != null
+                            ? fetchMxcThumbnail(hs, token, inviteText[2], 128) : null;
+                        if (sessionIsActive && MainActivity.isInForeground()) {
+                            PushLog.log(ctx, tag + "skipped: app came to the front during enrichment");
+                            return;
+                        }
+                        showInviteNotification(ctx, inviteText[0], inviteText[1], roomId,
+                            inviteIcon, postedBy);
+                        return;
+                    }
+                }
                 if (event != null) {
                     sender = event.optString("sender", "");
                     long originTs = event.optLong("origin_server_ts", 0L);
@@ -802,6 +824,190 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             return joined != null && joined.length() <= 2;
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    // ── Invites ─────────────────────────────────────────────────────────────
+
+    /** What an invite's stripped state says. Mirror of parseInviteState() in static/sw.js. */
+    static final class InviteInfo {
+        String inviterId = "";
+        String inviterName = "";
+        String inviterAvatar = "";
+        String roomName = "";
+        String roomAvatar = "";
+        boolean isSpace;
+        boolean isDirect;
+    }
+
+    private static boolean isOwnInvite(JSONObject event, String selfUserId) {
+        if (selfUserId == null || !"m.room.member".equals(event.optString("type", ""))) {
+            return false;
+        }
+        JSONObject c = event.optJSONObject("content");
+        return selfUserId.equals(event.optString("state_key", ""))
+            && c != null && "invite".equals(c.optString("membership", ""));
+    }
+
+    /**
+     * The room's pending invite for this account, from a one-room /sync: an
+     * invitee cannot read the room's events or state, but sync hands out the
+     * invite's stripped state. timeout=0 and set_presence=offline so this
+     * neither waits nor marks the account online; next_batch is discarded, so
+     * the app's own sync (and its to-device queue) is untouched. Null when
+     * the room holds no pending invite for us.
+     */
+    private static InviteInfo fetchInvite(String hs, String token, String selfUserId,
+            String roomId) {
+        if (selfUserId == null) return null;
+        try {
+            JSONObject none = new JSONObject().put("not_types", new JSONArray().put("*"));
+            JSONObject room = new JSONObject()
+                .put("rooms", new JSONArray().put(roomId))
+                .put("timeline", new JSONObject().put("limit", 0)
+                    .put("not_types", new JSONArray().put("*")))
+                .put("state", none)
+                .put("ephemeral", none)
+                .put("account_data", none)
+                .put("include_leave", false);
+            JSONObject filter = new JSONObject()
+                .put("room", room)
+                .put("presence", none)
+                .put("account_data", none);
+            String json = httpGet(hs + "/_matrix/client/v3/sync?timeout=0&set_presence=offline"
+                + "&filter=" + enc(filter.toString()), token);
+            if (json == null) return null;
+            JSONObject rooms = new JSONObject(json).optJSONObject("rooms");
+            JSONObject invites = rooms != null ? rooms.optJSONObject("invite") : null;
+            JSONObject invited = invites != null ? invites.optJSONObject(roomId) : null;
+            JSONObject state = invited != null ? invited.optJSONObject("invite_state") : null;
+            JSONArray events = state != null ? state.optJSONArray("events") : null;
+            InviteInfo info = parseInviteState(events, selfUserId);
+            // Stripped state may lack the inviter's member event: their profile.
+            if (info != null && !info.inviterId.isEmpty()
+                    && (info.inviterName.isEmpty() || info.inviterAvatar.isEmpty())) {
+                String profile = httpGet(hs + "/_matrix/client/v3/profile/"
+                    + enc(info.inviterId), token);
+                if (profile != null) {
+                    JSONObject p = new JSONObject(profile);
+                    if (info.inviterName.isEmpty()) {
+                        info.inviterName = p.optString("displayname", "").trim();
+                    }
+                    if (info.inviterAvatar.isEmpty()) {
+                        info.inviterAvatar = p.optString("avatar_url", "").trim();
+                    }
+                }
+            }
+            return info;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static InviteInfo parseInviteState(JSONArray events, String selfUserId) {
+        if (events == null) return null;
+        JSONObject invite = null;
+        String alias = "";
+        InviteInfo info = new InviteInfo();
+        java.util.Map<String, JSONObject> members = new java.util.HashMap<>();
+        for (int i = 0; i < events.length(); i++) {
+            JSONObject e = events.optJSONObject(i);
+            if (e == null) continue;
+            JSONObject c = e.optJSONObject("content");
+            if (c == null) c = new JSONObject();
+            String type = e.optString("type", "");
+            if ("m.room.member".equals(type) && e.has("state_key")) {
+                String key = e.optString("state_key", "");
+                members.put(key, c);
+                if (key.equals(selfUserId) && "invite".equals(c.optString("membership", ""))) {
+                    invite = e;
+                }
+            } else if ("m.room.create".equals(type)) {
+                info.isSpace = "m.space".equals(c.optString("type", ""));
+            } else if ("m.room.name".equals(type)) {
+                info.roomName = c.optString("name", "").trim();
+            } else if ("m.room.canonical_alias".equals(type)) {
+                alias = c.optString("alias", "").trim();
+            } else if ("m.room.avatar".equals(type)) {
+                info.roomAvatar = c.optString("url", "").trim();
+            }
+        }
+        if (invite == null) return null;
+        if (info.roomName.isEmpty()) info.roomName = alias;
+        info.inviterId = invite.optString("sender", "").trim();
+        JSONObject inviter = members.get(info.inviterId);
+        if (inviter != null) {
+            info.inviterName = inviter.optString("displayname", "").trim();
+            info.inviterAvatar = inviter.optString("avatar_url", "").trim();
+        }
+        JSONObject own = invite.optJSONObject("content");
+        info.isDirect = own != null && own.optBoolean("is_direct", false);
+        return info;
+    }
+
+    /**
+     * { title, text, avatar mxc or null } for an invite. A DM is the
+     * inviter's; a space or a named room is the room's, with the inviter in
+     * the text. Mirror of inviteNotificationText() in static/sw.js.
+     */
+    private static String[] inviteNotification(InviteInfo info) {
+        String who = !info.inviterName.isEmpty() ? info.inviterName
+            : !info.inviterId.isEmpty() ? info.inviterId : "Someone";
+        String title;
+        String text;
+        String avatar;
+        if (info.isSpace) {
+            title = !info.roomName.isEmpty() ? info.roomName : "Space invite";
+            text = who + " invited you to join this space";
+            avatar = !info.roomAvatar.isEmpty() ? info.roomAvatar : info.inviterAvatar;
+        } else if (info.isDirect || info.roomName.isEmpty()) {
+            title = who;
+            text = info.isDirect ? "Invited you to a direct chat" : "Invited you to a room";
+            avatar = !info.inviterAvatar.isEmpty() ? info.inviterAvatar : info.roomAvatar;
+        } else {
+            title = info.roomName;
+            text = who + " invited you to join this room";
+            avatar = !info.roomAvatar.isEmpty() ? info.roomAvatar : info.inviterAvatar;
+        }
+        return new String[] { title, text, avatar.startsWith("mxc://") ? avatar : null };
+    }
+
+    /**
+     * An invite: a plain notification on the shared channel, with no Reply or
+     * Mark-as-read (neither works in a room not yet joined). Same id as the
+     * room's message notification, so joining (a clear push) takes it down.
+     */
+    private static void showInviteNotification(Context ctx, String title, String text,
+            String roomId, Bitmap icon, String postedBy) {
+        createChannel(ctx);
+        Intent intent = new Intent(ctx, MainActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        // Same attribution guard as showNotification() (audit PRIV-02).
+        if (postedBy != null && !postedBy.isEmpty()) {
+            intent.putExtra("room_id", roomId);
+            intent.putExtra("user_id", postedBy);
+        }
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        PendingIntent pending = PendingIntent.getActivity(ctx, roomId.hashCode(), intent, flags);
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_notify)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+            .setCategory(NotificationCompat.CATEGORY_SOCIAL)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setContentIntent(pending);
+        if (icon != null) builder.setLargeIcon(icon);
+        try {
+            NotificationManagerCompat.from(ctx).notify(roomId.hashCode(), builder.build());
+            PushLog.log(ctx, "posted invite for room " + PushLog.shortId(roomId)
+                + describeDelivery(ctx, CHANNEL_ID));
+        } catch (SecurityException e) {
+            PushLog.log(ctx, "post refused (no notification permission) for room "
+                + PushLog.shortId(roomId));
         }
     }
 
