@@ -122,6 +122,28 @@ export function autoCodec(
     );
 }
 
+/** Whether a screen share of this capture can go out as HEVC. Browsers have
+ *  no software HEVC encoder, and GPU encoders take only even frame sizes:
+ *  at an odd size (a half-size simulcast layer of 960x463, say) the encoder
+ *  makes nothing and Chrome switches the stream to another codec by itself,
+ *  which the SFU, told HEVC, doesn't forward, so viewers see black. A tab or
+ *  window has any size and can be resized mid-share, so only a monitor whose
+ *  sides halve to even numbers qualifies. */
+export function hevcFitsShare(settings: {
+    displaySurface?: string;
+    width?: number;
+    height?: number;
+}): boolean {
+    const { displaySurface, width, height } = settings;
+    return (
+        displaySurface === "monitor" &&
+        typeof width === "number" &&
+        typeof height === "number" &&
+        width % 4 === 0 &&
+        height % 4 === 0
+    );
+}
+
 export interface CodecPlan {
     /** What we can send that everyone can watch. */
     available: VideoCodec[];

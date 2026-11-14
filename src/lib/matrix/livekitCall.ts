@@ -126,6 +126,7 @@ import {
     withoutBlocked,
     VIDEO_CODEC_LABELS,
     planCodecs,
+    hevcFitsShare,
     DECODE_ATTRIBUTE,
     encodeDecodeAttribute,
     parseDecodeAttribute,
@@ -2595,14 +2596,16 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
                 // "motion"/"maintain-framerate" for the screen-share path.
                 contentHint: "detail",
             },
-            {
+            (track) => ({
                 screenShareEncoding: screenShareEncodingFor(
                     screenShareBitrateNow(),
                     Number(settingsState.screenShareFps),
                 ),
                 degradationPreference: "maintain-resolution",
-                ...videoCodecPublishOptions(call),
-            },
+                ...(track.kind === "video"
+                    ? shareCodecOptions(call, track)
+                    : videoCodecPublishOptions(call)),
+            }),
         );
         if (on) void publishShareAudio(call);
         else stopShareAudio();
@@ -3342,23 +3345,44 @@ function sendableCodecs(call: ActiveVoiceCall): VideoCodec[] {
  *  and for anything but VP8/H.264 an H.264 (or VP8) backup. The server asks
  *  for the backup only once a viewer can't decode the main stream, and sends
  *  it to them alone; everyone else keeps the picked codec. */
-function codecPlan(call: ActiveVoiceCall) {
+function codecPlan(call: ActiveVoiceCall, without: VideoCodec[] = []) {
     return planCodecs(
         settingsState.callVideoCodec,
-        sendableCodecs(call),
+        sendableCodecs(call).filter((c) => !without.includes(c)),
         peerDecode(call),
         call.e2ee !== null,
         call.codecs.hardware,
     );
 }
 
-function videoCodecPublishOptions(call: ActiveVoiceCall) {
-    const { current, backup } = codecPlan(call);
+function videoCodecPublishOptions(
+    call: ActiveVoiceCall,
+    without: VideoCodec[] = [],
+) {
+    const { current, backup } = codecPlan(call, without);
     return {
         videoCodec: current,
         backupCodec: backup ? { codec: backup } : false,
         backupCodecPolicy: call.lk.BackupCodecPolicy.SIMULCAST,
     } as const;
+}
+
+/** The codec options for a screen share, once its capture exists: HEVC only
+ *  where the capture can't trip its encoder (utils/videoCodecs hevcFitsShare),
+ *  otherwise the next pick, which has a software encoder to fall back on. */
+function shareCodecOptions(
+    call: ActiveVoiceCall,
+    track: LivekitClient.LocalTrack,
+) {
+    const options = videoCodecPublishOptions(call);
+    if (options.videoCodec !== "h265") return options;
+    const settings =
+        track.mediaStreamTrack.getSettings() as MediaTrackSettings & {
+            displaySurface?: string;
+        };
+    return hevcFitsShare(settings)
+        ? options
+        : videoCodecPublishOptions(call, ["h265"]);
 }
 
 /** Codecs this platform lists but can't show, known from how it is set up
@@ -3751,7 +3775,10 @@ async function republishVideo(
     const pub = lp.getTrackPublication(source);
     const track = pub?.videoTrack;
     if (!pub || !track) return;
-    const codecOptions = videoCodecPublishOptions(call);
+    const codecOptions =
+        source === call.lk.Track.Source.ScreenShare
+            ? shareCodecOptions(call, track)
+            : videoCodecPublishOptions(call);
     if (pub.options?.videoCodec === codecOptions.videoCodec) return;
     // What it was published with, to go back to if the new codec won't start.
     const previous = { ...pub.options, source };

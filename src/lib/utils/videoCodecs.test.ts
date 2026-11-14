@@ -5,9 +5,58 @@ import {
     codecsFromMimeTypes,
     effectiveCodec,
     encodeDecodeAttribute,
+    hevcFitsShare,
     parseDecodeAttribute,
     planCodecs,
 } from "./videoCodecs";
+
+describe("hevcFitsShare", () => {
+    it("allows a monitor whose half-size layer stays even", () => {
+        expect(
+            hevcFitsShare({
+                displaySurface: "monitor",
+                width: 1280,
+                height: 1024,
+            }),
+        ).toBe(true);
+        expect(
+            hevcFitsShare({
+                displaySurface: "monitor",
+                width: 1920,
+                height: 1080,
+            }),
+        ).toBe(true);
+    });
+    it("refuses a monitor whose half-size layer would be odd", () => {
+        // 1366x768 halves to 683x384: the GPU encoder makes no frames.
+        expect(
+            hevcFitsShare({
+                displaySurface: "monitor",
+                width: 1366,
+                height: 768,
+            }),
+        ).toBe(false);
+    });
+    it("refuses tabs and windows, whose size can change mid-share", () => {
+        expect(
+            hevcFitsShare({
+                displaySurface: "browser",
+                width: 1920,
+                height: 928,
+            }),
+        ).toBe(false);
+        expect(
+            hevcFitsShare({
+                displaySurface: "window",
+                width: 1280,
+                height: 720,
+            }),
+        ).toBe(false);
+    });
+    it("refuses when the browser doesn't say", () => {
+        expect(hevcFitsShare({ width: 1920, height: 1080 })).toBe(false);
+    });
+});
 
 describe("codecsFromMimeTypes", () => {
     it("keeps the video codecs, best first, once each", () => {

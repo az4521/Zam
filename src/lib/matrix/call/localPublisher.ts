@@ -40,10 +40,14 @@ export interface LocalPublisher {
         capture?: LivekitClient.VideoCaptureOptions,
         publish?: LivekitClient.TrackPublishOptions,
     ): Promise<void>;
+    /** `publish` may be worked out per captured track (its codec depends on
+     *  what was picked to share and its size). */
     setScreenShareEnabled(
         enabled: boolean,
         capture?: LivekitClient.ScreenShareCaptureOptions,
-        publish?: LivekitClient.TrackPublishOptions,
+        publish?:
+            | LivekitClient.TrackPublishOptions
+            | ((track: LocalTrack) => LivekitClient.TrackPublishOptions),
     ): Promise<void>;
     /** False when the device couldn't be switched to. */
     switchActiveDevice(
@@ -96,7 +100,29 @@ export function livekitLocalPublisher(
             await lp.setCameraEnabled(enabled, capture, publish);
         },
         async setScreenShareEnabled(enabled, capture, publish) {
-            await lp.setScreenShareEnabled(enabled, capture, publish);
+            if (typeof publish !== "function") {
+                await lp.setScreenShareEnabled(enabled, capture, publish);
+                return;
+            }
+            if (!enabled) {
+                await lp.setScreenShareEnabled(false);
+                return;
+            }
+            if (lp.getTrackPublication(lk.Track.Source.ScreenShare)) return;
+            // LiveKit's setScreenShareEnabled, split so the options can be
+            // read off the capture: the same createScreenTracks, then each
+            // track published (LiveKit unpublishes them when they end).
+            const tracks = await lp.createScreenTracks(capture);
+            try {
+                for (const track of tracks)
+                    await lp.publishTrack(track, publish(track));
+            } catch (err) {
+                for (const track of tracks) {
+                    await lp.unpublishTrack(track).catch(() => {});
+                    track.stop();
+                }
+                throw err;
+            }
         },
         switchActiveDevice: (kind, deviceId, exact) =>
             room.switchActiveDevice(kind, deviceId, exact),
