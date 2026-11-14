@@ -1629,7 +1629,28 @@
                 return;
             }
             if (marker) {
-                if (marker !== last?.getId()) readUpTo = marker;
+                // Unread only when a shown message from someone else follows
+                // the receipt. It often sits on a hidden event (a join, a
+                // reaction, an edit) newer than the last shown message; a
+                // plain "not the last shown message" check called such a
+                // fully read room unread and opened it at the receipt.
+                const live = room.getLiveTimeline().getEvents();
+                const at = live.findIndex((e) => e.getId() === marker);
+                if (at < 0) {
+                    if (marker !== last?.getId()) readUpTo = marker;
+                } else {
+                    const shown = new Set(events);
+                    if (
+                        live
+                            .slice(at + 1)
+                            .some(
+                                (e) =>
+                                    shown.has(e) &&
+                                    e.getSender() !== auth.userId,
+                            )
+                    )
+                        readUpTo = marker;
+                }
             } else if (
                 receipt &&
                 receipt.ts > 0 &&
