@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.18
+
+🐛 **Fixed**
+
+- **Less memory after watching YouTube videos:** a YouTube video you played and then paused stayed loaded (over 50 MB each) until you scrolled far away from it. It now goes back to its thumbnail as soon as it's off screen or the window is hidden, and clicking it carries on where you left off.
+
 ## v1.60.17
 
 🐛 **Fixed**
