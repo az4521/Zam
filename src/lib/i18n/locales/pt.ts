@@ -1310,6 +1310,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.loadingHistory": "Carregando mensagens mais antigas",
     "messageArea.room": ".",
     "messageArea.newMessages": "Novas mensagens",
+    "messageArea.unreadSince":
+        "{count, plural, one {# nova mensagem desde {since}} other {# novas mensagens desde {since}}}",
+    "messageArea.markAsRead": "Marcar como lida",
     "messageArea.messageFromABlockedUser": "Mensagem de um usuário bloqueado",
     "messageArea.showBlockedMessage": "Mostrar mensagem bloqueada",
     "messageArea.thisRoomHasBeenUpgraded": "Esta sala foi atualizada",

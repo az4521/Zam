@@ -107,7 +107,7 @@
     } from "$lib/utils/timelineDisplay";
     import { shouldDismissSelectionOnScroll } from "$lib/utils/scrollDismiss";
     import { targetCanScrollHoriz } from "$lib/utils/scrollHoriz";
-    import { daySeparator } from "$lib/utils/timeFormat";
+    import { daySeparator, messageTimestamp } from "$lib/utils/timeFormat";
     import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
     import { canSendReceipt } from "$lib/utils/receiptGate";
     import {
@@ -1435,8 +1435,26 @@
             : getCallSummaries(room)),
     );
 
-    // The event ID the user has read up to — used to show "New messages" divider on load
+    // The event ID the user had read up to when they opened the room, while
+    // that read state is still unacknowledged. Drives the unread bar and turns
+    // off sticking to the bottom; cleared once the room is marked read.
+    // Gap left above the divider on open: some read history plus the bar.
+    const UNREAD_DIVIDER_TOP_GAP = 72;
     let unreadMarkerEventId = $state<string | null>(null);
+    // Where the "New Messages" divider sits. Unlike the marker above it stays
+    // for the whole visit (as in Discord), so reaching the bottom doesn't wipe
+    // out where the new messages started. Re-derived on every room open.
+    let unreadDividerEventId = $state<string | null>(null);
+    // The unread bar's "N new messages since <time>", from the loaded rows.
+    const unreadSummary = $derived.by(() => {
+        if (!unreadMarkerEventId) return null;
+        const i = messages.findIndex((e) => e.getId() === unreadMarkerEventId);
+        if (i < 0 || i === messages.length - 1) return null;
+        return {
+            count: messages.length - 1 - i,
+            since: messageTimestamp(messages[i + 1].getTs()),
+        };
+    });
 
     // Clear reply and context view when switching rooms
     $effect(() => {
@@ -1474,13 +1492,34 @@
             }
         });
         unreadMarkerEventId = readUpTo;
+        unreadDividerEventId = readUpTo;
         tick().then(async () => {
             if (readUpTo) {
                 // Scroll so the first unread message is visible near the top
                 const markerEl = await revealRow(readUpTo);
                 if (room.roomId !== id) return;
                 if (markerEl && scrollEl) {
-                    markerEl.scrollIntoView({ block: "end" });
+                    const divider = scrollEl.querySelector<HTMLElement>(
+                        "[data-unread-divider]",
+                    );
+                    if (divider) {
+                        // Divider at the top, a little of the read history
+                        // above it and room for the unread bar. Few unread
+                        // messages clamp this to the bottom, which counts as
+                        // reading them.
+                        scrollEl.scrollTop +=
+                            divider.getBoundingClientRect().top -
+                            scrollEl.getBoundingClientRect().top -
+                            UNREAD_DIVIDER_TOP_GAP;
+                        isAtBottom = isNearBottom(
+                            scrollEl.scrollTop,
+                            scrollEl.clientHeight,
+                            scrollEl.scrollHeight,
+                        );
+                        if (isAtBottom) markAsReadIfDisplayable();
+                    } else {
+                        markerEl.scrollIntoView({ block: "end" });
+                    }
                 } else {
                     scrollToBottom(true);
                 }
@@ -1865,6 +1904,18 @@
         });
     });
 
+    // Another device, or Escape (Settings > Keybinds), can read the room while
+    // it's open: drop the unread bar once our receipt reaches the latest event.
+    $effect(() => {
+        void receiptTick;
+        untrack(() => {
+            if (!unreadMarkerEventId) return;
+            const last = getLatestTimelineEvent(room);
+            if (last && getReadUpToEventId(room) === last.getId())
+                unreadMarkerEventId = null;
+        });
+    });
+
     function markAsRead() {
         const currentRoom = room;
         const last = getLatestTimelineEvent(currentRoom);
@@ -1920,7 +1971,8 @@
     // Shift+PageUp (Settings > Keybinds): back to the oldest unread message.
     $effect(() => {
         interfaceState.jumpToUnread = () => {
-            if (unreadMarkerEventId) void scrollToMessage(unreadMarkerEventId);
+            if (unreadDividerEventId)
+                void scrollToMessage(unreadDividerEventId);
         };
         return () => {
             interfaceState.jumpToUnread = null;
@@ -3011,15 +3063,16 @@
                 {@const unreadHere = unreadDividerBefore(
                     messages,
                     i,
-                    unreadMarkerEventId,
+                    unreadDividerEventId,
                 )}
+                {@const anchorHere = unreadHere && unreadMarkerEventId !== null}
                 <!-- One box per row, measured for the spacers. It carries the
                      unread divider's anchoring: a child can't opt back in
                      under a parent that opted out. -->
                 <div
                     data-row-index={i}
                     use:measureRow={rowKey(event)}
-                    class="flex-shrink-0{unreadHere
+                    class="flex-shrink-0{anchorHere
                         ? ' ![overflow-anchor:auto]'
                         : ''}"
                 >
@@ -3035,7 +3088,10 @@
                     {/if}
                     {#if unreadHere}
                         <div
-                            class="flex items-center gap-3 px-4 my-2 ![overflow-anchor:auto]"
+                            data-unread-divider
+                            class="flex items-center gap-3 px-4 my-2{anchorHere
+                                ? ' ![overflow-anchor:auto]'
+                                : ''}"
                         >
                             <div class="flex-1 h-px bg-discord-danger/60"></div>
                             <span
@@ -3201,6 +3257,33 @@
                     ></div>
                     {t("messageArea.searchingForMessage")}
                 </div>
+            </div>
+        {/if}
+
+        <!-- Unread bar: how much arrived since last visit, with a jump back to
+             the divider and a way to dismiss it without scrolling down. -->
+        {#if unreadSummary && !isContextView}
+            <div
+                class="absolute top-12 start-0 end-0 mx-4 z-10 flex items-stretch rounded-b-lg overflow-hidden shadow-lg bg-discord-accent text-white text-sm font-semibold"
+            >
+                <button
+                    onpointerdown={(e) => e.preventDefault()}
+                    onclick={() => interfaceState.jumpToUnread?.()}
+                    class="flex-1 min-w-0 text-start px-3 py-1 hover:bg-white/10 truncate"
+                    >{t("messageArea.unreadSince", unreadSummary)}</button
+                >
+                <button
+                    onpointerdown={(e) => e.preventDefault()}
+                    onclick={markAsRead}
+                    class="flex-shrink-0 px-3 py-1 hover:bg-white/10 flex items-center gap-1"
+                >
+                    {t("messageArea.markAsRead")}
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"
+                        ><path
+                            d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+                        /></svg
+                    >
+                </button>
             </div>
         {/if}
 

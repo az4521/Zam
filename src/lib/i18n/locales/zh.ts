@@ -1232,6 +1232,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.loadingHistory": "正在加载更早的消息",
     "messageArea.room": "房间。",
     "messageArea.newMessages": "新消息",
+    "messageArea.unreadSince":
+        "{count, plural, other {自 {since} 以来有 # 条新消息}}",
+    "messageArea.markAsRead": "标为已读",
     "messageArea.messageFromABlockedUser": "来自被屏蔽用户的消息",
     "messageArea.showBlockedMessage": "显示被屏蔽的消息",
     "messageArea.thisRoomHasBeenUpgraded": "此房间已升级",

@@ -1097,6 +1097,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.loadingHistory": "過去のメッセージを読み込み中",
     "messageArea.room": "ルームの始まりです。",
     "messageArea.newMessages": "新着メッセージ",
+    "messageArea.unreadSince":
+        "{count, plural, other {{since}以降の新着メッセージ#件}}",
+    "messageArea.markAsRead": "既読にする",
     "messageArea.messageFromABlockedUser":
         "ブロックしたユーザーからのメッセージ",
     "messageArea.showBlockedMessage": "ブロックしたメッセージを表示",
