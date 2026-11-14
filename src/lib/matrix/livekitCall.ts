@@ -3393,10 +3393,31 @@ function videoCodecPublishOptions(
     } as const;
 }
 
+/** Whether a screen share in `codec` is sent as simulcast layers. Not H.264:
+ *  when the SFU moved a viewer from one H.264 layer to another it forwarded
+ *  the new layer before that layer's next keyframe, and a viewer can't start
+ *  H.264 mid-stream, so the picture froze until one came (3 to 11 s, measured
+ *  live 2026-11-14 with LiveKit 1.13.10: packets arriving, no frame
+ *  assembled). The SFU switches layers on its own as its bandwidth estimate
+ *  moves, so busy content froze over and over. One layer has nothing to
+ *  switch between. H.264 matters: it's the only encoder some machines have
+ *  (NVIDIA on Linux). */
+function shareSimulcast(codec: VideoCodec | undefined): boolean {
+    return codec !== "h264";
+}
+
 /** The codec options for a screen share, once its capture exists: HEVC only
  *  where the capture can't trip its encoder (utils/videoCodecs hevcFitsShare),
  *  otherwise the next pick, which has a software encoder to fall back on. */
 function shareCodecOptions(
+    call: ActiveVoiceCall,
+    track: LivekitClient.LocalTrack,
+) {
+    const options = shareCodecPick(call, track);
+    return { ...options, simulcast: shareSimulcast(options.videoCodec) };
+}
+
+function shareCodecPick(
     call: ActiveVoiceCall,
     track: LivekitClient.LocalTrack,
 ) {
@@ -3557,6 +3578,7 @@ async function superviseShareEncoder(call: ActiveVoiceCall): Promise<void> {
                     source,
                     videoCodec: codec,
                     backupCodec: backup ? { codec: backup } : false,
+                    simulcast: shareSimulcast(codec),
                 });
             } catch (err) {
                 console.error("Screen share encoder fallback failed:", err);
