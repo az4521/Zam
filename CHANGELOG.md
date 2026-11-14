@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.21
+
+🐛 **Fixed**
+
+- **H.264 screen shares froze in encrypted calls:** viewers saw only the first frame of a screen share sent as H.264, then nothing. It now plays normally. Shares sent as VP8, VP9 or HEVC were not affected.
+- **Screen shares no longer switch codec when the screen is still:** a share of a screen that wasn't changing was mistaken for a broken encoder after a few seconds and restarted on another codec, over and over.
+
 ## v1.60.20
 
 ✨ **New**
