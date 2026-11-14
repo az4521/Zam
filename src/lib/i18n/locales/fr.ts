@@ -625,7 +625,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Le maximum que le filtre de bruit (DeepFilterNet3 ou DPDFNet) peut retirer de n'importe quelle partie du signal (par défaut {value}). 100 signifie illimité.",
     "debugSettings.soundboardInterval": "Intervalle du soundboard : {value} ms",
     "debugSettings.soundboardIntervalHint":
-        "Délai minimal entre les sons du soundboard d'une même personne. Les sons plus rapprochés sont ignorés (1500 par défaut).",
+        "Délai minimal entre les sons du soundboard d'une même personne. Les sons plus rapprochés sont ignorés (250 par défaut).",
     "debugSettings.syncStatus": "État de la synchronisation",
     "debugSettings.clientLogs": "Journaux du client",
     "debugSettings.clientLogsHint":
@@ -2709,6 +2709,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "videoTile.fullscreen": "Plein écran",
     "videoTile.pictureInPicture": "Image dans l'image",
     "videoTile.exitPictureInPicture": "Quitter l'image dans l'image",
+    "videoTile.watchStream": "Regarder le stream",
+    "videoTile.stopWatching": "Arrêter de regarder",
 
     // src/lib/components/settings/VoiceAudioSettings.svelte
     "voiceAudioSettings.inputDevice": "Périphérique d'entrée",
@@ -4226,6 +4228,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     // Not translated yet; shown in English.
     "callParticipantMenu.shareVolume": "Volume du partage",
     "screenShareQualityChips.bitrateUpTo": "Jusqu'à",
+    "callParticipantMenu.muteShare": "Couper le son du partage d'écran",
     "screenShareQualityChips.bitrateCapHint":
         "Une limite, pas un objectif : le partage n'utilise que ce dont l'image a besoin et ce que votre connexion peut supporter, jusqu'à cette valeur.",
     "screenShareQualityChips.bitrateOverridden":

@@ -261,6 +261,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callParticipantMenu.soundboardVolume": "Volume da mesa de sons",
     "callParticipantMenu.shareVolume": "Volume do compartilhamento",
     "callParticipantMenu.hideVideo": "Ocultar vídeo",
+    "callParticipantMenu.muteShare": "Silenciar compartilhamento de tela",
     "callParticipantMenu.kicking": "Expulsando…",
     "callParticipantMenu.confirmKick": "Confirmar expulsão de {name}?",
     "callParticipantMenu.kickFromRoom": "Expulsar {name} da sala",
@@ -643,7 +644,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "O máximo que o filtro de ruído (DeepFilterNet3 ou DPDFNet) pode remover de qualquer parte do sinal (padrão {value}). 100 é ilimitado.",
     "debugSettings.soundboardInterval": "Intervalo da mesa de sons: {value} ms",
     "debugSettings.soundboardIntervalHint":
-        "Menor intervalo entre os sons da mesa de sons de uma mesma pessoa. Sons de outras pessoas que chegarem mais rápido são ignorados (padrão 1500).",
+        "Menor intervalo entre os sons da mesa de sons de uma mesma pessoa. Sons de outras pessoas que chegarem mais rápido são ignorados (padrão 250).",
     "debugSettings.syncStatus": "Status da sincronização",
     "debugSettings.clientLogs": "Logs do cliente",
     "debugSettings.clientLogsHint":
@@ -2778,6 +2779,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "videoTile.fullscreen": "Tela cheia",
     "videoTile.pictureInPicture": "Picture-in-picture (janela flutuante)",
     "videoTile.exitPictureInPicture": "Sair do picture in picture",
+    "videoTile.watchStream": "Assistir transmissão",
+    "videoTile.stopWatching": "Parar de assistir",
 
     // src/lib/components/settings/VoiceAudioSettings.svelte
     "voiceAudioSettings.inputDevice": "Dispositivo de entrada",

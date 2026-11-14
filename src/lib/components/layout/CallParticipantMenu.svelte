@@ -45,6 +45,7 @@
         setUserShareVolume,
         setUserSoundVolume,
         setUserLocalMute,
+        setUserShareMute,
         participantAudioFor,
         setUserVideoHidden,
     } from "$lib/stores/voiceCall.svelte";
@@ -628,6 +629,21 @@
             </span>
             {t("common.mute")}
         </button>
+        {#if sharesAudio}
+            <button
+                onclick={() => setUserShareMute(userId, !audio.shareMuted)}
+                aria-pressed={audio.shareMuted}
+                class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+            >
+                <span class="w-3 flex items-center justify-center">
+                    {#if audio.shareMuted}<Circle
+                            size={8}
+                            fill="currentColor"
+                        />{/if}
+                </span>
+                {t("callParticipantMenu.muteShare")}
+            </button>
+        {/if}
         <button
             onclick={() => setUserVideoHidden(userId, !audio.videoHidden)}
             aria-pressed={audio.videoHidden}

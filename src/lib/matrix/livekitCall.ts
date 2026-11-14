@@ -66,6 +66,7 @@ import {
     withShareVolume,
     withSoundVolume,
     withLocalMute,
+    withShareMute,
     withVideoHidden,
     DEFAULT_PARTICIPANT_AUDIO,
     type AudioKind,
@@ -383,11 +384,16 @@ function ensureAudioGraph(call: ActiveVoiceCall): CallAudioGraph | null {
  *  is unavailable the level is capped at 100%. */
 function applyElementVolume(el: HTMLAudioElement, identity: string): void {
     const call = activeVoice;
-    const gain = effectiveVolume(
-        voiceOutputVolume,
-        participantAudio.get(userIdFromIdentity(identity)),
-        elKind.get(el) ?? "voice",
-    );
+    const kind = elKind.get(el) ?? "voice";
+    // A share the user stopped watching goes quiet with its picture.
+    const gain =
+        kind === "share" && call && isShareUnwatched(call, identity)
+            ? 0
+            : effectiveVolume(
+                  voiceOutputVolume,
+                  participantAudio.get(userIdFromIdentity(identity)),
+                  kind,
+              );
     let graph = call?.audioGraph || null;
     if (call && !graph?.has(el) && (voiceNormalize || needsBoost(gain))) {
         graph = ensureAudioGraph(call);
@@ -448,6 +454,43 @@ export function setParticipantLocalMute(userId: string, muted: boolean): void {
     const current = participantAudio.get(userId) ?? DEFAULT_PARTICIPANT_AUDIO;
     participantAudio.set(userId, withLocalMute(current, muted));
     applyVolumeForUser(userId);
+}
+
+/** Mute just the sound of their screen or application share. */
+export function setParticipantShareMute(
+    userId: string,
+    shareMuted: boolean,
+): void {
+    const current = participantAudio.get(userId) ?? DEFAULT_PARTICIPANT_AUDIO;
+    participantAudio.set(userId, withShareMute(current, shareMuted));
+    applyVolumeForUser(userId);
+}
+
+// Screen shares the user stopped watching, by identity. Per call and never
+// saved: like leaving a stream in Discord, the next call starts watching.
+const unwatchedShares = new WeakMap<ActiveVoiceCall, Set<string>>();
+
+function isShareUnwatched(call: ActiveVoiceCall, identity: string): boolean {
+    return unwatchedShares.get(call)?.has(identity) === true;
+}
+
+/** Stop or start watching someone's screen share: stops its video arriving
+ *  and silences its sound, while the tile stays to start watching again. */
+export function setShareWatched(identity: string, watched: boolean): void {
+    const call = activeVoice;
+    if (!call) return;
+    let set = unwatchedShares.get(call);
+    if (!set) unwatchedShares.set(call, (set = new Set()));
+    if (watched) set.delete(identity);
+    else set.add(identity);
+    for (const p of callParticipants(call)) {
+        if (p.identity !== identity) continue;
+        for (const track of p.tracks)
+            if (track.source === "screen_share") track.setEnabled(watched);
+    }
+    for (const el of call.elsByIdentity.get(identity) ?? [])
+        applyElementVolume(el, identity);
+    notifyCallVideo(call);
 }
 
 export function setParticipantVideoHidden(
@@ -619,13 +662,19 @@ function currentVideoInputs(call: ActiveVoiceCall): VideoPublicationInput[] {
             // than an unpublish. Either way skip it so the tile drops back to
             // the avatar / disappears instead of freezing on a black frame.
             // No track yet: not subscribed.
-            if (!source || !view.track || view.muted || view.paused) continue;
+            // A share we stopped watching is paused by us, not by its
+            // sharer: keep its tile so it can be watched again.
+            const unwatched =
+                source === "screenshare" && isShareUnwatched(call, p.identity);
+            if (!source || !view.track || view.muted) continue;
+            if (view.paused && !unwatched) continue;
             out.push({
                 userId: userIdFromIdentity(p.identity),
                 identity: p.identity,
                 source,
                 isLocal: false,
                 track: view.track,
+                ...(unwatched ? { unwatched: true } : {}),
             });
         }
     const me = matrixClient?.getUserId();
@@ -1068,6 +1117,11 @@ function callListener(
             if (
                 view.source === "camera" &&
                 participantAudio.get(userIdFromIdentity(identity))?.videoHidden
+            )
+                view.setEnabled(false);
+            if (
+                view.source === "screen_share" &&
+                isShareUnwatched(call, identity)
             )
                 view.setEnabled(false);
         },

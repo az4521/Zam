@@ -58,6 +58,7 @@ describe("effectiveVolume", () => {
                 shareVolume: 1,
                 soundVolume: 1,
                 muted: false,
+                shareMuted: false,
                 videoHidden: false,
             }),
         ).toBe(0.5);
@@ -67,6 +68,7 @@ describe("effectiveVolume", () => {
                 shareVolume: 1,
                 soundVolume: 1,
                 muted: false,
+                shareMuted: false,
                 videoHidden: false,
             }),
         ).toBe(0.25);
@@ -78,6 +80,7 @@ describe("effectiveVolume", () => {
                 shareVolume: 1,
                 soundVolume: 1,
                 muted: true,
+                shareMuted: false,
                 videoHidden: false,
             }),
         ).toBe(0);
@@ -92,6 +95,7 @@ describe("effectiveVolume", () => {
                 shareVolume: 1,
                 soundVolume: 1,
                 muted: false,
+                shareMuted: false,
                 videoHidden: false,
             }),
         ).toBe(3);
@@ -101,6 +105,7 @@ describe("effectiveVolume", () => {
                 shareVolume: 1,
                 soundVolume: 1,
                 muted: false,
+                shareMuted: false,
                 videoHidden: false,
             }),
         ).toBe(2);
@@ -110,6 +115,7 @@ describe("effectiveVolume", () => {
                 shareVolume: 1,
                 soundVolume: 1,
                 muted: false,
+                shareMuted: false,
                 videoHidden: false,
             }),
         ).toBe(5);
@@ -125,6 +131,7 @@ describe("withVolume / withLocalMute", () => {
                     shareVolume: 1,
                     soundVolume: 1,
                     muted: true,
+                    shareMuted: false,
                     videoHidden: false,
                 },
                 7,
@@ -134,6 +141,7 @@ describe("withVolume / withLocalMute", () => {
             shareVolume: 1,
             soundVolume: 1,
             muted: true,
+            shareMuted: false,
             videoHidden: false,
         });
     });
@@ -145,6 +153,7 @@ describe("withVolume / withLocalMute", () => {
                     shareVolume: 1,
                     soundVolume: 1,
                     muted: false,
+                    shareMuted: false,
                     videoHidden: false,
                 },
                 true,
@@ -154,6 +163,7 @@ describe("withVolume / withLocalMute", () => {
             shareVolume: 1,
             soundVolume: 1,
             muted: true,
+            shareMuted: false,
             videoHidden: false,
         });
     });
@@ -169,6 +179,7 @@ describe("serializeAudioMap / parseAudioMap", () => {
                     shareVolume: 1,
                     soundVolume: 1,
                     muted: false,
+                    shareMuted: false,
                     videoHidden: false,
                 },
             ],
@@ -179,6 +190,7 @@ describe("serializeAudioMap / parseAudioMap", () => {
                     shareVolume: 1,
                     soundVolume: 1,
                     muted: true,
+                    shareMuted: false,
                     videoHidden: false,
                 },
             ],
@@ -210,6 +222,7 @@ describe("serializeAudioMap / parseAudioMap", () => {
             shareVolume: 1,
             soundVolume: 1,
             muted: false,
+            shareMuted: false,
             videoHidden: false,
         });
     });
@@ -222,6 +235,7 @@ describe("serializeAudioMap / parseAudioMap", () => {
                     shareVolume: 1,
                     soundVolume: 1,
                     muted: false,
+                    shareMuted: false,
                     videoHidden: false,
                 },
             ],
@@ -242,6 +256,7 @@ describe("videoHidden", () => {
             shareVolume: 1,
             soundVolume: 1,
             muted: true,
+            shareMuted: false,
             videoHidden: false,
         };
         expect(withVideoHidden(p, true)).toEqual({
@@ -249,6 +264,7 @@ describe("videoHidden", () => {
             shareVolume: 1,
             soundVolume: 1,
             muted: true,
+            shareMuted: false,
             videoHidden: true,
         });
     });
@@ -261,6 +277,7 @@ describe("videoHidden", () => {
                     shareVolume: 1,
                     soundVolume: 1,
                     muted: false,
+                    shareMuted: false,
                     videoHidden: true,
                 },
             ],
@@ -277,6 +294,7 @@ describe("videoHidden", () => {
                     shareVolume: 1,
                     soundVolume: 1,
                     muted: false,
+                    shareMuted: false,
                     videoHidden: false,
                 },
             ],
@@ -292,6 +310,7 @@ describe("videoHidden", () => {
                     shareVolume: 1,
                     soundVolume: 1,
                     muted: false,
+                    shareMuted: false,
                     videoHidden: true,
                 },
             ],
@@ -302,6 +321,7 @@ describe("videoHidden", () => {
             shareVolume: 1,
             soundVolume: 1,
             muted: false,
+            shareMuted: false,
             videoHidden: true,
         });
     });
@@ -314,6 +334,7 @@ describe("videoHidden", () => {
             shareVolume: 1,
             soundVolume: 1,
             muted: true,
+            shareMuted: false,
             videoHidden: false,
         });
     });

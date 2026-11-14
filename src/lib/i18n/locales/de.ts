@@ -633,7 +633,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Wie viel der Rauschfilter (DeepFilterNet3 oder DPDFNet) höchstens von einem Teil des Signals abziehen darf (Standard {value}). 100 bedeutet unbegrenzt.",
     "debugSettings.soundboardInterval": "Soundboard-Abstand: {value} ms",
     "debugSettings.soundboardIntervalHint":
-        "Kürzester Abstand zwischen Soundboard-Sounds einer Person. Schnellere Sounds werden ignoriert (Standard 1500).",
+        "Kürzester Abstand zwischen Soundboard-Sounds einer Person. Schnellere Sounds werden ignoriert (Standard 250).",
     "debugSettings.syncStatus": "Sync-Status",
     "debugSettings.clientLogs": "Client-Protokolle",
     "debugSettings.clientLogsHint":
@@ -2733,6 +2733,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "videoTile.fullscreen": "Vollbild",
     "videoTile.pictureInPicture": "Bild im Bild",
     "videoTile.exitPictureInPicture": "Bild im Bild beenden",
+    "videoTile.watchStream": "Stream ansehen",
+    "videoTile.stopWatching": "Nicht mehr zuschauen",
 
     // src/lib/components/settings/VoiceAudioSettings.svelte
     "voiceAudioSettings.inputDevice": "Eingabegerät",
@@ -4253,6 +4255,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     // Not translated yet; shown in English.
     "callParticipantMenu.shareVolume": "Freigabe-Lautstärke",
     "screenShareQualityChips.bitrateUpTo": "Bis zu",
+    "callParticipantMenu.muteShare": "Bildschirmübertragung stummschalten",
     "screenShareQualityChips.bitrateCapHint":
         "Eine Obergrenze, kein Ziel: Die Freigabe nutzt nur, was das Bild braucht und deine Verbindung schafft, bis zu diesem Wert.",
     "screenShareQualityChips.bitrateOverridden":

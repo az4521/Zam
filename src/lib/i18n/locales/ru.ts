@@ -267,6 +267,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callParticipantMenu.soundboardVolume": "Громкость звуковой панели",
     "callParticipantMenu.shareVolume": "Громкость демонстрации",
     "callParticipantMenu.hideVideo": "Скрыть видео",
+    "callParticipantMenu.muteShare": "Заглушить демонстрацию экрана",
     "callParticipantMenu.kicking": "Исключение…",
     "callParticipantMenu.confirmKick": "Подтвердите исключение: {name}?",
     "callParticipantMenu.kickFromRoom": "Исключить {name} из комнаты",
@@ -653,7 +654,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Максимум, который шумовой фильтр (DeepFilterNet3 или DPDFNet) может убрать из любой части сигнала (по умолчанию {value}). 100 - без ограничений.",
     "debugSettings.soundboardInterval": "Интервал звуковой панели: {value} мс",
     "debugSettings.soundboardIntervalHint":
-        "Наименьший промежуток между звуками звуковой панели одного человека. Звуки других, пришедшие быстрее, игнорируются (по умолчанию 1500).",
+        "Наименьший промежуток между звуками звуковой панели одного человека. Звуки других, пришедшие быстрее, игнорируются (по умолчанию 250).",
     "debugSettings.syncStatus": "Состояние синхронизации",
     "debugSettings.clientLogs": "Журналы клиента",
     "debugSettings.clientLogsHint":
@@ -2777,6 +2778,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "videoTile.fullscreen": "На весь экран",
     "videoTile.pictureInPicture": "Картинка в картинке",
     "videoTile.exitPictureInPicture": "Выйти из режима «картинка в картинке»",
+    "videoTile.watchStream": "Смотреть трансляцию",
+    "videoTile.stopWatching": "Перестать смотреть",
 
     // src/lib/components/settings/VoiceAudioSettings.svelte
     "voiceAudioSettings.inputDevice": "Устройство ввода",

@@ -262,6 +262,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callParticipantMenu.soundboardVolume": "Гучність саундборду",
     "callParticipantMenu.shareVolume": "Гучність показу",
     "callParticipantMenu.hideVideo": "Сховати відео",
+    "callParticipantMenu.muteShare": "Вимкнути звук демонстрації екрана",
     "callParticipantMenu.kicking": "Виключення…",
     "callParticipantMenu.confirmKick": "Підтвердити виключення {name}?",
     "callParticipantMenu.kickFromRoom": "Виключити {name} з кімнати",
@@ -644,7 +645,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Найбільше, що фільтр шуму (DeepFilterNet3 або DPDFNet) може зняти з будь-якої частини сигналу (типово {value}). 100 - без обмежень.",
     "debugSettings.soundboardInterval": "Інтервал саундборду: {value} мс",
     "debugSettings.soundboardIntervalHint":
-        "Найкоротша пауза між звуками саундборду однієї людини. Звуки інших, що надходять швидше, ігноруються (типово 1500).",
+        "Найкоротша пауза між звуками саундборду однієї людини. Звуки інших, що надходять швидше, ігноруються (типово 250).",
     "debugSettings.syncStatus": "Стан синхронізації",
     "debugSettings.clientLogs": "Журнали клієнта",
     "debugSettings.clientLogsHint":
@@ -2769,6 +2770,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "videoTile.fullscreen": "На весь екран",
     "videoTile.pictureInPicture": "Картинка в картинці",
     "videoTile.exitPictureInPicture": "Вийти з режиму «картинка в картинці»",
+    "videoTile.watchStream": "Дивитися трансляцію",
+    "videoTile.stopWatching": "Припинити перегляд",
 
     // src/lib/components/settings/VoiceAudioSettings.svelte
     "voiceAudioSettings.inputDevice": "Пристрій введення",

@@ -249,6 +249,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callParticipantMenu.soundboardVolume": "音效板音量",
     "callParticipantMenu.shareVolume": "共享音量",
     "callParticipantMenu.hideVideo": "隐藏视频",
+    "callParticipantMenu.muteShare": "静音屏幕共享",
     "callParticipantMenu.kicking": "正在移出…",
     "callParticipantMenu.confirmKick": "确认移出 {name}？",
     "callParticipantMenu.kickFromRoom": "将 {name} 移出房间",
@@ -618,7 +619,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "噪声过滤器（DeepFilterNet3 或 DPDFNet）对信号任何部分最多可削减的量（默认 {value}）。100 表示不设限。",
     "debugSettings.soundboardInterval": "音效板间隔：{value} 毫秒",
     "debugSettings.soundboardIntervalHint":
-        "同一个人的音效之间的最短间隔。其他人更快到达的音效会被忽略（默认 1500）。",
+        "同一个人的音效之间的最短间隔。其他人更快到达的音效会被忽略（默认 250）。",
     "debugSettings.syncStatus": "同步状态",
     "debugSettings.clientLogs": "客户端日志",
     "debugSettings.clientLogsHint":
@@ -2557,6 +2558,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "videoTile.fullscreen": "全屏",
     "videoTile.pictureInPicture": "画中画",
     "videoTile.exitPictureInPicture": "退出画中画",
+    "videoTile.watchStream": "观看直播",
+    "videoTile.stopWatching": "停止观看",
 
     // src/lib/components/settings/VoiceAudioSettings.svelte
     "voiceAudioSettings.inputDevice": "输入设备",

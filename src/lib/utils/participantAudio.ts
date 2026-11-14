@@ -16,6 +16,8 @@ export interface ParticipantAudio {
     soundVolume: number;
     /** Local mute, held apart from the slider so unmuting restores the level. */
     muted: boolean;
+    /** Local mute of their share's sound only, leaving their voice on. */
+    shareMuted: boolean;
     /** Local per-user video hide flag. */
     videoHidden: boolean;
 }
@@ -25,6 +27,7 @@ export const DEFAULT_PARTICIPANT_AUDIO: ParticipantAudio = {
     shareVolume: 1,
     soundVolume: 1,
     muted: false,
+    shareMuted: false,
     videoHidden: false,
 };
 
@@ -59,6 +62,7 @@ export function effectiveVolume(
     kind: AudioKind = "voice",
 ): number {
     if (p?.muted) return 0;
+    if (kind === "share" && p?.shareMuted) return 0;
     const level = kind === "share" ? p?.shareVolume : p?.volume;
     return clampVolume(master) * clampParticipantVolume(level ?? 1);
 }
@@ -93,6 +97,13 @@ export function withLocalMute(
     return { ...p, muted };
 }
 
+export function withShareMute(
+    p: ParticipantAudio,
+    shareMuted: boolean,
+): ParticipantAudio {
+    return { ...p, shareMuted };
+}
+
 export function withVideoHidden(
     p: ParticipantAudio,
     videoHidden: boolean,
@@ -100,11 +111,18 @@ export function withVideoHidden(
     return { ...p, videoHidden };
 }
 
-/** Persisted shape: {"@user:server": {v: 0.5, s?: 2, sv?: 2, m: true, h?: true}}. Defaults are dropped. */
+/** Persisted shape: {"@user:server": {v: 0.5, s?: 2, sv?: 2, m: true, sm?: true, h?: true}}. Defaults are dropped. */
 export function serializeAudioMap(map: Map<string, ParticipantAudio>): string {
     const out: Record<
         string,
-        { v: number; s?: number; sv?: number; m: boolean; h?: boolean }
+        {
+            v: number;
+            s?: number;
+            sv?: number;
+            m: boolean;
+            sm?: boolean;
+            h?: boolean;
+        }
     > = {};
     for (const [userId, p] of map) {
         if (
@@ -112,6 +130,7 @@ export function serializeAudioMap(map: Map<string, ParticipantAudio>): string {
             p.shareVolume === DEFAULT_PARTICIPANT_AUDIO.shareVolume &&
             p.soundVolume === DEFAULT_PARTICIPANT_AUDIO.soundVolume &&
             !p.muted &&
+            !p.shareMuted &&
             !p.videoHidden
         )
             continue;
@@ -124,6 +143,7 @@ export function serializeAudioMap(map: Map<string, ParticipantAudio>): string {
                 ? { sv: p.soundVolume }
                 : {}),
             m: p.muted,
+            ...(p.shareMuted ? { sm: true } : {}),
             ...(p.videoHidden ? { h: true } : {}),
         };
     }
@@ -149,23 +169,26 @@ export function parseAudioMap(
         raw as Record<string, unknown>,
     )) {
         if (typeof value !== "object" || value === null) continue;
-        const { v, s, sv, m, h } = value as {
+        const { v, s, sv, m, sm, h } = value as {
             v?: unknown;
             s?: unknown;
             sv?: unknown;
             m?: unknown;
+            sm?: unknown;
             h?: unknown;
         };
         const hasVolume = typeof v === "number";
         const hasShareVolume = typeof s === "number";
         const hasSoundVolume = typeof sv === "number";
         const hasMute = typeof m === "boolean";
+        const hasShareMute = typeof sm === "boolean";
         const hasVideoHidden = typeof h === "boolean";
         if (
             !hasVolume &&
             !hasShareVolume &&
             !hasSoundVolume &&
             !hasMute &&
+            !hasShareMute &&
             !hasVideoHidden
         )
             continue;
@@ -180,6 +203,7 @@ export function parseAudioMap(
                 ? clampParticipantVolume(sv)
                 : DEFAULT_PARTICIPANT_AUDIO.soundVolume,
             muted: m === true,
+            shareMuted: sm === true,
             videoHidden: h === true,
         });
     }

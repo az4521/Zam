@@ -17,6 +17,7 @@
         pipWindowSupported,
         openPipWindow,
         showPipTrack,
+        setPipLabel,
         closePipWindow,
         bindPipCallActions,
         reportPipCallState,
@@ -90,7 +91,11 @@
                 ? null
                 : () => void toggleCamera(),
             hangUp: leaveCall,
+            openCall,
         });
+    });
+    $effect(() => {
+        if (callPipState.windowOpen) setPipLabel(label);
     });
     $effect(() => {
         if (!callPipState.windowOpen) return;

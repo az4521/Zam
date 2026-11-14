@@ -20,7 +20,7 @@ export const MAX_SOUND_BYTES = 1024 * 1024;
 /** Longest clip accepted, in seconds. */
 export const MAX_SOUND_SECONDS = 15;
 /** Receivers drop a sender's sounds arriving faster than this. */
-export const MIN_SOUND_INTERVAL_MS = 1500;
+export const MIN_SOUND_INTERVAL_MS = 250;
 /** A sound that has not started this long after it arrived is dropped, so a
  *  slow download does not play it over a conversation that moved on. */
 export const SOUND_START_TTL_MS = 3000;

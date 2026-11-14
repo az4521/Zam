@@ -233,6 +233,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callParticipantMenu.soundboardVolume": "サウンドボードの音量",
     "callParticipantMenu.shareVolume": "共有音量",
     "callParticipantMenu.hideVideo": "ビデオを非表示",
+    "callParticipantMenu.muteShare": "画面共有をミュート",
     "callParticipantMenu.kicking": "キック中…",
     "callParticipantMenu.confirmKick": "{name} をキックしますか？",
     "callParticipantMenu.kickFromRoom": "{name} をルームからキック",
@@ -575,7 +576,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "ノイズフィルタ（DeepFilterNet3 または DPDFNet）が信号の各部分から取り除ける最大量です（既定 {value}）。100 は無制限です。",
     "debugSettings.soundboardInterval": "サウンドボードの間隔: {value} ms",
     "debugSettings.soundboardIntervalHint":
-        "同じ人のサウンドボード音の最短間隔。これより速く届いた音は無視されます（既定 1500）。",
+        "同じ人のサウンドボード音の最短間隔。これより速く届いた音は無視されます（既定 250）。",
     "debugSettings.syncStatus": "同期状態",
     "debugSettings.clientLogs": "クライアントログ",
     "debugSettings.clientLogsHint":
@@ -2408,6 +2409,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "videoTile.pictureInPicture": "ピクチャーインピクチャー",
     "videoTile.exitPictureInPicture": "ピクチャーインピクチャーを終了",
     "voiceAudioSettings.inputDevice": "入力デバイス",
+    "videoTile.stopWatching": "視聴をやめる",
+    "videoTile.watchStream": "配信を見る",
     "voiceAudioSettings.savedMicrophoneNotFoundUsingThe":
         "保存されたマイクが見つかりません - 再び利用できるまで既定のマイクを使用します。",
     "voiceAudioSettings.microphoneLevel": "マイクのレベル",

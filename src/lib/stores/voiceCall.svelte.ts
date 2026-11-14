@@ -19,6 +19,8 @@ import {
     setParticipantShareVolume,
     setParticipantSoundVolume,
     setParticipantLocalMute,
+    setParticipantShareMute,
+    setShareWatched,
     setParticipantVideoHidden,
     primeParticipantAudio,
     getRoom,
@@ -55,6 +57,7 @@ import {
     withShareVolume,
     withSoundVolume,
     withLocalMute,
+    withShareMute,
     withVideoHidden,
     type ParticipantAudio,
 } from "$lib/utils/participantAudio";
@@ -85,7 +88,7 @@ import { auth } from "$lib/stores/auth.svelte";
 import { showErrorToast, showToast } from "$lib/stores/toasts.svelte";
 import { interfaceState, showCallView } from "$lib/stores/interface.svelte";
 import { navigateToRoom, roomsState } from "$lib/stores/rooms.svelte";
-import { callPipState } from "$lib/stores/callPip.svelte";
+import { callPipState, closePipWindow } from "$lib/stores/callPip.svelte";
 import { matrixErrorMessage } from "$lib/utils/knock";
 import { micErrorMessage } from "$lib/utils/micErrorMessage";
 import { isChunkLoadError } from "$lib/utils/chunkLoadError";
@@ -629,6 +632,26 @@ export function setUserLocalMute(userId: string, muted: boolean): void {
     const next = withLocalMute(participantAudioFor(userId), muted);
     setParticipantAudioSetting(userId, next);
     setParticipantLocalMute(userId, next.muted);
+}
+
+/** Mute just the sound of their screen or application share. */
+export function setUserShareMute(userId: string, muted: boolean): void {
+    const next = withShareMute(participantAudioFor(userId), muted);
+    setParticipantAudioSetting(userId, next);
+    setParticipantShareMute(userId, next.shareMuted);
+}
+
+/** Stop watching someone's screen share for the rest of this call. Leaves
+ *  the spotlight and the system picture-in-picture window if it was there. */
+export function stopWatchingShare(tile: VideoTileDescriptor): void {
+    if (voiceCallState.focusedTileKey === tile.key)
+        voiceCallState.focusedTileKey = null;
+    if (callPipState.pinnedKey === tile.key) closePipWindow();
+    setShareWatched(tile.identity, false);
+}
+
+export function watchShare(tile: VideoTileDescriptor): void {
+    setShareWatched(tile.identity, true);
 }
 
 export function setUserVideoHidden(userId: string, hidden: boolean): void {

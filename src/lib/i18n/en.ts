@@ -253,6 +253,7 @@ export const en = {
     "callParticipantMenu.soundboardVolume": "Soundboard Volume",
     "callParticipantMenu.shareVolume": "Share Volume",
     "callParticipantMenu.hideVideo": "Hide video",
+    "callParticipantMenu.muteShare": "Mute screen share",
     "callParticipantMenu.kicking": "Kicking…",
     "callParticipantMenu.confirmKick": "Confirm kick {name}?",
     "callParticipantMenu.kickFromRoom": "Kick {name} from room",
@@ -629,7 +630,7 @@ export const en = {
         "The most the noise filter (DeepFilterNet3 or DPDFNet) may take off any part of the signal (default {value}). 100 is unlimited.",
     "debugSettings.soundboardInterval": "Soundboard interval: {value} ms",
     "debugSettings.soundboardIntervalHint":
-        "Shortest gap between one person's soundboard sounds. Others' sounds that come faster are ignored (default 1500).",
+        "Shortest gap between one person's soundboard sounds. Others' sounds that come faster are ignored (default 250).",
     "debugSettings.syncStatus": "Sync Status",
     "debugSettings.clientLogs": "Client logs",
     "debugSettings.clientLogsHint":
@@ -2674,6 +2675,8 @@ export const en = {
     "videoTile.fullscreen": "Fullscreen",
     "videoTile.pictureInPicture": "Picture in picture",
     "videoTile.exitPictureInPicture": "Exit picture in picture",
+    "videoTile.watchStream": "Watch stream",
+    "videoTile.stopWatching": "Stop watching",
 
     // src/lib/components/settings/VoiceAudioSettings.svelte
     "voiceAudioSettings.inputDevice": "Input device",
