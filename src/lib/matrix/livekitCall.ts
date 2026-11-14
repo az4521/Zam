@@ -972,13 +972,25 @@ export async function ownSfuTarget(
     return pickLivekitTransport([], await configuredRtcFoci(), alias);
 }
 
+/** A publishing and a subscribing peer connection, not LiveKit's default of
+ *  one for both. In one connection the client offers and the SFU answers
+ *  for incoming video, and LiveKit's SFU (1.13.10) answered H.264 with the
+ *  payload type number the *sender's* browser used: 108 from Chromium 152,
+ *  where a Chrome 157 viewer had offered 102/127. The viewer had no decoder
+ *  under 108 and dropped every packet (no frames, no keyframe requests), so
+ *  H.264 shares showed nothing between browser versions that number H.264
+ *  differently; VP8 and HEVC keep the same numbers and were unaffected.
+ *  With a subscribing connection the SFU offers and the viewer accepts its
+ *  numbers. Seen live 2026-11-14 in the viewer's SDP. */
+const SEPARATE_PEER_CONNECTIONS = { singlePeerConnection: false } as const;
+
 /** Join a LiveKit room no call knows about. Nothing goes in the Matrix room,
  *  so only someone told its name can find it (see fileTransfer.ts). */
 export async function joinHiddenSfuRoom(target: LivekitTarget) {
     const lk = await livekit.load();
     const { url, jwt } = await fetchSfuJwt(target);
     await bypassProxyFor(url);
-    const room = new lk.Room();
+    const room = new lk.Room({ ...SEPARATE_PEER_CONNECTIONS });
     await room.connect(url, jwt, { autoSubscribe: false });
     return { room, lk };
 }
@@ -1637,6 +1649,7 @@ async function connectRemoteSfu(
     const lkRoom = new call.lk.Room({
         ...(call.e2ee ? { e2ee: call.e2ee.roomOptions() } : {}),
         adaptiveStream: settingsState.adaptiveStream,
+        ...SEPARATE_PEER_CONNECTIONS,
     });
     try {
         const { url, jwt } = await fetchSfuJwt(target);
@@ -1865,6 +1878,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
               // and pause video that is off screen. Needs track.attach()
               // (videoTrack).
               adaptiveStream: settingsState.adaptiveStream,
+              ...SEPARATE_PEER_CONNECTIONS,
           })
         : null;
     const local = lkRoom
