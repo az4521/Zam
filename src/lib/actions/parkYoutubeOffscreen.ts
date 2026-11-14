@@ -1,8 +1,8 @@
-import { KEEP_MARGIN, inFullscreen, scrollParent } from "./unloadOffscreen";
+import { inFullscreen } from "./unloadOffscreen";
 
 /** Parameters for the {@link parkYoutubeOffscreen} action. */
 export interface ParkYoutubeParams {
-    /** Called once the player is not playing and well out of view, with
+    /** Called once the player is not playing and out of view, with
      *  the position to resume from (0 once it has ended). */
     onPark: (resumeAt: number) => void;
     /** Pause a playing video as it leaves the viewport (the
@@ -21,7 +21,7 @@ const PLAYING = new Set([1, 3]);
 
 /**
  * Svelte action: report when a YouTube embed (`enablejsapi=1`) that is not
- * playing is well out of view, so its owner can swap it back for its
+ * playing is out of view (or the page is hidden), so its owner can swap it back for its
  * thumbnail.
  *
  * Each embed is a whole YouTube player page in its own frame, with its own
@@ -46,7 +46,8 @@ export function parkYoutubeOffscreen(
     }
 
     function check() {
-        if (parked || !away || state === null || PLAYING.has(state)) return;
+        if (parked || state === null || PLAYING.has(state)) return;
+        if (!away && !document.hidden) return;
         if (inFullscreen(node)) return;
         parked = true;
         onPark(state === 0 ? 0 : time);
@@ -89,15 +90,13 @@ export function parkYoutubeOffscreen(
         handshake = null;
     }
 
+    // Unlike parkOffscreen there is no keep margin: the thumbnail that
+    // replaces a parked player has the same box, so nothing shifts, and a
+    // player kept "near" view still costs its whole frame process (measured
+    // ~110 MB for two paused players just above the viewport). A hidden page
+    // (minimized, or covered on Windows) counts as out of view too.
     const observers: IntersectionObserver[] = [];
     if (typeof IntersectionObserver === "function") {
-        const far = new IntersectionObserver(
-            ([entry]) => {
-                away = !entry.isIntersecting;
-                check();
-            },
-            { root: scrollParent(node), rootMargin: KEEP_MARGIN, threshold: 0 },
-        );
         const near = new IntersectionObserver(
             ([entry]) => {
                 const wasVisible = visible;
@@ -110,13 +109,18 @@ export function parkYoutubeOffscreen(
                     !inFullscreen(node)
                 )
                     post({ event: "command", func: "pauseVideo", args: [] });
+                away = !visible;
+                check();
             },
             { threshold: 0 },
         );
-        far.observe(node);
         near.observe(node);
-        observers.push(far, near);
+        observers.push(near);
     }
+    function onVisibility() {
+        check();
+    }
+    document.addEventListener("visibilitychange", onVisibility);
     document.addEventListener("fullscreenchange", check);
 
     return {
@@ -128,6 +132,7 @@ export function parkYoutubeOffscreen(
             stopHandshake();
             window.removeEventListener("message", onMessage);
             document.removeEventListener("fullscreenchange", check);
+            document.removeEventListener("visibilitychange", onVisibility);
             for (const o of observers) o.disconnect();
         },
     };
