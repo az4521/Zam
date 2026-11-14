@@ -2268,6 +2268,28 @@ async function createWindow() {
         win.on("page-title-updated", (e) => e.preventDefault());
         win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
         win.webContents.on("will-navigate", (e) => e.preventDefault());
+        // The page is all drag region (it moves the frameless window), and a
+        // drag region gets no mouse events, so :hover never fires there.
+        // Watch the cursor here and tell the page when it is over the window.
+        let hovered = false;
+        const hoverTimer = setInterval(() => {
+            if (win.isDestroyed()) return;
+            const p = screen.getCursorScreenPoint();
+            const b = win.getBounds();
+            const inside =
+                p.x >= b.x &&
+                p.x < b.x + b.width &&
+                p.y >= b.y &&
+                p.y < b.y + b.height;
+            if (inside === hovered) return;
+            hovered = inside;
+            win.webContents
+                .executeJavaScript(
+                    `document.documentElement.classList.toggle("hover", ${inside})`,
+                )
+                .catch(() => {});
+        }, 100);
+        win.on("closed", () => clearInterval(hoverTimer));
     });
     // It has no parent (an owned window would hide when the app minimises),
     // so close it with the app ourselves.

@@ -105,11 +105,13 @@ const ICON_STRIKE = '<line x1="2" x2="22" y1="2" y2="22"/>';
 
 // Chromium's picture-in-picture look: controls fade in on hover over a
 // shade at the top and bottom; everything but a button drags the window.
+// A drag region gets no mouse events, so the desktop app marks hovering
+// itself (the "hover" class, electron/main.cjs).
 const PIP_CSS = `
 html,body{margin:0;height:100%;background:#000;overflow:hidden;font:13px system-ui,sans-serif;color:#fff;-webkit-app-region:drag;user-select:none}
 video{width:100%;height:100%;object-fit:contain;display:block}
 .top,.bottom{position:fixed;left:0;right:0;display:flex;align-items:center;opacity:0;transition:opacity .15s}
-body:hover .top,body:hover .bottom{opacity:1}
+html.hover .top,html.hover .bottom{opacity:1}
 .top{top:0;height:40px;padding:0 4px 0 10px;gap:8px;background:linear-gradient(rgba(0,0,0,.65),transparent)}
 .top img{width:16px;height:16px}
 .label{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
