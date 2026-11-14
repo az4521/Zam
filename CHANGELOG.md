@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.22
+
+🐛 **Fixed**
+
+- **H.264 screen shares now play between different app versions:** a share sent as H.264 could show nothing at all to a viewer whose browser numbers H.264 differently from the sender's (for example the web app in an up-to-date Chrome watching the desktop app). Calls now use a separate connection for receiving, so the viewer always understands what it's sent.
+
 ## v1.60.21
 
 🐛 **Fixed**
