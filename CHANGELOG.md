@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.19
+
+🐛 **Fixed**
+
+- **Read rooms open at the bottom again:** a room you had fully read could open scrolled far up, with no "New Messages" divider, whenever its newest activity was something not shown as a message (someone joining, a reaction, an edit). It now opens at the newest message.
+
 ## v1.60.18
 
 🐛 **Fixed**
