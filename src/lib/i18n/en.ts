@@ -1990,6 +1990,7 @@ export const en = {
     "roomList.emptyCategory": "No rooms",
     "roomList.copyRoomLink": "Copy Room Link",
     "roomList.markAsRead": "Mark as Read",
+    "roomList.markAsUnread": "Mark as Unread",
     "roomList.addToSpace": "Add to Space",
     "roomList.clickAgainToLeave": "Click again to leave",
     "roomList.clickAgainToLeaveLastMember":
@@ -3587,6 +3588,8 @@ export const en = {
     "messageActionsMenu.unpin": "Unpin",
     "messageActionsMenu.pin": "Pin",
     "messageActionsMenu.copyLink": "Copy link",
+    "messageActionsMenu.markUnread": "Mark as unread",
+    "messageActionsMenu.couldNotMarkUnread": "Couldn't mark as unread",
     "messageActionsMenu.report": "Report",
     "roomSettings.readReceipts": "Read receipts",
     "roomSettings.readReceiptsRoomHelp":

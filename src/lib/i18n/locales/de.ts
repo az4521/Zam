@@ -1923,6 +1923,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomList.emptyCategory": "Keine Räume",
     "roomList.copyRoomLink": "Raumlink kopieren",
     "roomList.markAsRead": "Als gelesen markieren",
+    "roomList.markAsUnread": "Als ungelesen markieren",
     "roomList.addToSpace": "Zu Space hinzufügen",
     "roomList.clickAgainToLeave": "Zum Verlassen erneut klicken",
     "roomList.leaveRoom": "Raum verlassen",
@@ -3733,6 +3734,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageActionsMenu.unpin": "Lösen",
     "messageActionsMenu.pin": "Anheften",
     "messageActionsMenu.copyLink": "Link kopieren",
+    "messageActionsMenu.markUnread": "Als ungelesen markieren",
+    "messageActionsMenu.couldNotMarkUnread":
+        "Konnte nicht als ungelesen markiert werden",
     "messageActionsMenu.report": "Melden",
 
     // src/lib/utils/messageDisplay.ts

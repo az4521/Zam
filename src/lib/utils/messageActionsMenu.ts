@@ -17,6 +17,7 @@ export type MessageActionKey =
     | "copy-text"
     | "pin"
     | "copy-link"
+    | "mark-unread"
     | "view-source"
     | "report"
     | "redact"
@@ -44,6 +45,8 @@ export interface MessageActionContext {
     isPinned: boolean;
     /** A sent event with a shareable permalink (a real `$`-id, not a failure). */
     hasLink: boolean;
+    /** A sent main-timeline message the room can be marked unread from. */
+    canMarkUnread?: boolean;
     /** The event's JSON can be inspected (every message the menu is shown on). */
     canViewSource: boolean;
     /** Someone else's non-failed message — reportable. */
@@ -109,6 +112,11 @@ export function messageActionsMenu(
         rows.push({
             key: "copy-link",
             label: t("messageActionsMenu.copyLink"),
+        });
+    if (ctx.canMarkUnread)
+        rows.push({
+            key: "mark-unread",
+            label: t("messageActionsMenu.markUnread"),
         });
     if (ctx.canViewSource)
         rows.push({ key: "view-source", label: t("messageItem.viewSource") });

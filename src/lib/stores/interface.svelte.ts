@@ -131,6 +131,10 @@ export const interfaceState = $state({
     /** Scrolls the open room to its oldest unread message (set by
      *  MessageArea). */
     jumpToUnread: null as null | (() => void),
+    /** Shows the open room as unread from a message right away, before the
+     *  account data echoes back (set by MessageArea). */
+    markUnreadFrom: null as
+        null | ((from: { eventId: string; ts: number }) => void),
 
     /** The single open popup/modal, or null. */
     modal: null as ModalId | null,

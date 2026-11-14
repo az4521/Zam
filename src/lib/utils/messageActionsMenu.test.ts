@@ -112,6 +112,20 @@ describe("messageActionsMenu", () => {
         ]);
     });
 
+    it("offers mark as unread after copy link", () => {
+        expect(
+            keys({
+                ...NONE,
+                hasLink: true,
+                canMarkUnread: true,
+                canViewSource: true,
+            }),
+        ).toEqual(["copy-link", "mark-unread", "view-source"]);
+        expect(messageActionsMenu({ ...NONE, canMarkUnread: true })[0]).toEqual(
+            { key: "mark-unread", label: "Mark as unread" },
+        );
+    });
+
     it("view source is offered on any message, with its own label", () => {
         expect(messageActionsMenu({ ...NONE, canViewSource: true })).toEqual([
             { key: "view-source", label: "View source" },

@@ -23,6 +23,7 @@
         canInviteToRoom,
         getRoomShareLink,
         markRoomAsRead,
+        markRoomUnreadFromLatest,
         getSpaces,
         getRoomDisplayName as getSpaceName,
         addRoomToSpace,
@@ -331,6 +332,18 @@
     async function handleMarkRead(roomId: string) {
         closeModal();
         await markRoomAsRead(roomId);
+    }
+
+    async function handleMarkUnread(roomId: string) {
+        closeModal();
+        try {
+            const from = await markRoomUnreadFromLatest(roomId);
+            // The open room shows it at once rather than on the sync echo.
+            if (from && roomId === roomsState.activeRoomId)
+                interfaceState.markUnreadFrom?.(from);
+        } catch {
+            showErrorToast(t("messageActionsMenu.couldNotMarkUnread"));
+        }
     }
 
     async function handleSetNotification(
@@ -1938,6 +1951,11 @@
                 onclick={() => handleMarkRead(cm.roomId)}
                 class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
                 >{t("roomList.markAsRead")}</button
+            >
+            <button
+                onclick={() => handleMarkUnread(cm.roomId)}
+                class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+                >{t("roomList.markAsUnread")}</button
             >
             <div class="w-full h-px bg-discord-divider my-1"></div>
             <!-- px-3 matches this menu's buttons, not the sidebar's list headings. -->

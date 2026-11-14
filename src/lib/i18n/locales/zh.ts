@@ -1908,6 +1908,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomList.emptyCategory": "没有房间",
     "roomList.copyRoomLink": "复制房间链接",
     "roomList.markAsRead": "标为已读",
+    "roomList.markAsUnread": "标为未读",
     "roomList.addToSpace": "添加到空间",
     "roomList.clickAgainToLeave": "再次点击以离开",
     "roomList.clickAgainToLeaveLastMember":
@@ -3399,6 +3400,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageActionsMenu.unpin": "取消置顶",
     "messageActionsMenu.pin": "置顶",
     "messageActionsMenu.copyLink": "复制链接",
+    "messageActionsMenu.markUnread": "标为未读",
+    "messageActionsMenu.couldNotMarkUnread": "无法标为未读",
     "messageActionsMenu.report": "举报",
 
     // src/lib/utils/messageDisplay.ts

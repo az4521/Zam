@@ -95,6 +95,7 @@
         getRoom,
         isRoomCachedOnly,
         getMessageShareLink,
+        markRoomUnread,
         joinRoom,
         seedRoomStateIfMissing,
         getRoomIdForAlias,
@@ -875,6 +876,19 @@
         }
     }
 
+    // Discord's "Mark Unread": this message and everything after it. Shown
+    // at once in the open room; the account data carries it to the room list
+    // and other devices.
+    async function markUnreadFromHere() {
+        const from = { eventId, ts: event.getTs() };
+        interfaceState.markUnreadFrom?.(from);
+        try {
+            await markRoomUnread(room.roomId, from);
+        } catch {
+            showErrorToast(t("messageActionsMenu.couldNotMarkUnread"));
+        }
+    }
+
     let linkCopied = $state(false);
     let linkCopiedTimer: ReturnType<typeof setTimeout> | undefined;
     async function copyMessageLink() {
@@ -1198,6 +1212,9 @@
                 break;
             case "copy-link":
                 copyMessageLink();
+                break;
+            case "mark-unread":
+                void markUnreadFromHere();
                 break;
             case "report":
                 mountBarThen(() => reportComp?.show());
@@ -2087,6 +2104,8 @@
             canPin,
             isPinned,
             hasLink: eventId.startsWith("$") && !isFailed,
+            canMarkUnread:
+                eventId.startsWith("$") && !isFailed && !isThreadReply,
             canViewSource: true,
             canReport: !isOwnMessage && !isFailed,
             canRedact: !isOwnMessage && !isFailed && canRedact,
@@ -2467,7 +2486,21 @@
                 rowFocused = false;
         }, 0);
     }}
-    onclick={() => handleRowGesture("tap")}
+    onclick={(e) => {
+        // Alt+click marks the room unread from here, as in Discord: the
+        // desktop browser has no message menu to offer it in.
+        if (
+            e.altKey &&
+            !interfaceState.isTouchscreen &&
+            overflowRows.some((r) => r.key === "mark-unread") &&
+            !(e.target as Element | null)?.closest(INTERACTIVE_TARGET_SELECTOR)
+        ) {
+            e.preventDefault();
+            void markUnreadFromHere();
+            return;
+        }
+        handleRowGesture("tap");
+    }}
     ontouchend={onMessageTouchEnd}
     ontouchcancel={() => {
         heldJustFired = false;

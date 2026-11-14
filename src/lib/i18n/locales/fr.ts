@@ -1900,6 +1900,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomList.emptyCategory": "Aucun salon",
     "roomList.copyRoomLink": "Copier le lien du salon",
     "roomList.markAsRead": "Marquer comme lu",
+    "roomList.markAsUnread": "Marquer comme non lu",
     "roomList.addToSpace": "Ajouter à un espace",
     "roomList.clickAgainToLeave": "Cliquez à nouveau pour quitter",
     "roomList.leaveRoom": "Quitter le salon",
@@ -3700,6 +3701,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageActionsMenu.unpin": "Désépingler",
     "messageActionsMenu.pin": "Épingler",
     "messageActionsMenu.copyLink": "Copier le lien",
+    "messageActionsMenu.markUnread": "Marquer comme non lu",
+    "messageActionsMenu.couldNotMarkUnread":
+        "Impossible de marquer comme non lu",
     "messageActionsMenu.report": "Signaler",
 
     // src/lib/utils/messageDisplay.ts

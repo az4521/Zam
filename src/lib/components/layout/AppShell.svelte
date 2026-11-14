@@ -207,6 +207,7 @@
         clearReadThreadCounts,
         onTimelineEvent,
         onAnyReceiptEvent,
+        onMarkedUnreadChange,
         getClient,
         acceptInvite,
         rejectInvite,
@@ -2367,6 +2368,8 @@
                 void dismissNativeRoomNotifications(read);
             }, 400);
         };
+        // A room marked (or no longer marked) unread, from any device.
+        const unsubMarkedUnread = onMarkedUnreadChange(() => bumpUnreadTick());
         const unsubReceipts = onAnyReceiptEvent(() => {
             const userId = getOwnUserId();
             const client = getClient();
@@ -2658,6 +2661,7 @@
             unsubThreadNotify();
             unsubMissedNotify();
             unsubReceipts();
+            unsubMarkedUnread();
             unsubReadConfirmed();
             unsubFavourites();
             unsubCustomization();

@@ -44,6 +44,8 @@
         isRoomCachedOnly,
         getReadUpToEventId,
         getOwnReadReceipt,
+        getMarkedUnread,
+        onMarkedUnreadChange,
         getReceiptsByDisplayedEvent,
         onReceiptEvent,
         getRoomCallMemberships,
@@ -1498,13 +1500,26 @@
     let unreadDividerEventId = $state<string | null>(null);
     // When the receipt's event isn't loaded, its time places the divider.
     let unreadReadTs = $state<number | null>(null);
+    // "Mark as unread" names the first UNREAD message, so the divider goes
+    // above unreadDividerEventId instead of below it.
+    let unreadFromFirst = $state(false);
+    // Marked unread while looking at the room: reaching the bottom or
+    // refocusing doesn't read it again; leaving, Escape or "Mark as read" do.
+    let keepUnreadHere = $state(false);
     // Row the divider sits above; -1 while the loaded rows don't reach back
     // to the read position (or nothing is unread).
-    const dividerIndex = $derived(
-        unreadDividerEventId
-            ? unreadDividerIndex(messages, unreadDividerEventId, unreadReadTs)
-            : -1,
-    );
+    const dividerIndex = $derived.by(() => {
+        if (!unreadDividerEventId) return -1;
+        if (unreadFromFirst) {
+            const i = messages.findIndex(
+                (e) => e.getId() === unreadDividerEventId,
+            );
+            return i >= 0
+                ? i
+                : unreadDividerIndex(messages, null, unreadReadTs);
+        }
+        return unreadDividerIndex(messages, unreadDividerEventId, unreadReadTs);
+    });
     // The unread bar's "N new messages since <time>". When the read position
     // is further back than the loaded history, the count is a lower bound and
     // "since" is when the user last read the room.
@@ -1533,7 +1548,10 @@
                       params: { count: loaded, since },
                   } as const);
         }
-        if (messages.some((e) => e.getId() === unreadMarkerEventId))
+        if (
+            !unreadFromFirst &&
+            messages.some((e) => e.getId() === unreadMarkerEventId)
+        )
             return null;
         const newest = messages[messages.length - 1];
         if (unreadReadTs !== null && newest && newest.getTs() <= unreadReadTs)
@@ -1570,6 +1588,7 @@
         const id = room.roomId; // track room changes
         let readUpTo: string | null = null;
         let readTs: number | null = null;
+        let fromFirst = false;
         untrack(() => {
             const events = getTimelineMessages(room);
             setMessages(id, events);
@@ -1587,6 +1606,21 @@
             const marker = getReadUpToEventId(room);
             const receipt = getOwnReadReceipt(room);
             const last = events[events.length - 1];
+            // "Mark as unread" wins over the receipt (which can't move back):
+            // from the chosen message, or the newest one when the room was
+            // marked without a position (room menu, another client).
+            const marked = getMarkedUnread(room);
+            const from =
+                marked?.from ??
+                (marked && last?.getId()
+                    ? { eventId: last.getId()!, ts: last.getTs() }
+                    : null);
+            if (from) {
+                readUpTo = from.eventId;
+                readTs = from.ts - 1;
+                fromFirst = true;
+                return;
+            }
             if (marker) {
                 if (marker !== last?.getId()) readUpTo = marker;
             } else if (
@@ -1604,6 +1638,8 @@
         unreadMarkerEventId = readUpTo;
         unreadDividerEventId = readUpTo;
         unreadReadTs = readTs;
+        unreadFromFirst = fromFirst;
+        keepUnreadHere = false;
         tick().then(async () => {
             if (readUpTo) {
                 // The read position isn't loaded (under sliding sync a room
@@ -2042,14 +2078,47 @@
     $effect(() => {
         void receiptTick;
         untrack(() => {
-            if (!unreadMarkerEventId) return;
+            if (!unreadMarkerEventId || getMarkedUnread(room)) return;
             const last = getLatestTimelineEvent(room);
             if (last && getReadUpToEventId(room) === last.getId())
                 unreadMarkerEventId = null;
         });
     });
 
+    // Show the room as unread from `from` without leaving it (a message's
+    // "Mark as unread", here or on another device).
+    function showMarkedUnread(from: { eventId: string; ts: number }) {
+        unreadMarkerEventId = from.eventId;
+        unreadDividerEventId = from.eventId;
+        unreadReadTs = from.ts - 1;
+        unreadFromFirst = true;
+        keepUnreadHere = true;
+    }
+    $effect(() => {
+        interfaceState.markUnreadFrom = showMarkedUnread;
+        return () => {
+            interfaceState.markUnreadFrom = null;
+        };
+    });
+    // The flag changing for this room while it's open: marked elsewhere shows
+    // it; cleared (Escape, another device reading it) ends it.
+    $effect(() => {
+        const current = room;
+        return onMarkedUnreadChange((roomId) => {
+            if (roomId !== current.roomId) return;
+            const marked = getMarkedUnread(current);
+            if (marked?.from) {
+                if (unreadDividerEventId !== marked.from.eventId)
+                    showMarkedUnread(marked.from);
+            } else if (!marked && keepUnreadHere) {
+                keepUnreadHere = false;
+                unreadMarkerEventId = null;
+            }
+        });
+    });
+
     function markAsRead() {
+        keepUnreadHere = false;
         const currentRoom = room;
         const last = getLatestTimelineEvent(currentRoom);
         if (!last) return;
@@ -2065,6 +2134,7 @@
     // in the background. While gated out, local unread state deliberately
     // persists — it clears when the user next focuses (onWindowFocusRegained).
     function markAsReadIfDisplayable() {
+        if (keepUnreadHere) return;
         if (
             canSendReceipt({
                 hasFocus: document.hasFocus(),

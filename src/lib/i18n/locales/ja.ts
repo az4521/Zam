@@ -1762,6 +1762,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomList.emptyCategory": "ルームなし",
     "roomList.copyRoomLink": "ルームのリンクをコピー",
     "roomList.markAsRead": "既読にする",
+    "roomList.markAsUnread": "未読にする",
     "roomList.addToSpace": "スペースに追加",
     "roomList.clickAgainToLeave": "もう一度クリックすると退出",
     "roomList.leaveRoom": "ルームを退出",
@@ -3222,6 +3223,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageActionsMenu.unpin": "ピン留めを解除",
     "messageActionsMenu.pin": "ピン留め",
     "messageActionsMenu.copyLink": "リンクをコピー",
+    "messageActionsMenu.markUnread": "未読にする",
+    "messageActionsMenu.couldNotMarkUnread": "未読にできませんでした",
     "messageActionsMenu.report": "通報",
     "messageDisplay.systemDefault": "システム設定に従う",
     "micErrorMessage.microphoneAccessIsBlockedAllowIt":
