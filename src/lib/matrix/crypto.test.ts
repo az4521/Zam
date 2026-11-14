@@ -479,6 +479,38 @@ describe("getEventShield", () => {
         expect(spy).toHaveBeenCalledTimes(CAP + 2);
     });
 
+    it("runs at most four lookups at once and shares one per event", async () => {
+        let running = 0;
+        let peak = 0;
+        const release: (() => void)[] = [];
+        const spy = vi.fn(
+            () =>
+                new Promise((resolve) => {
+                    running++;
+                    peak = Math.max(peak, running);
+                    release.push(() => {
+                        running--;
+                        resolve({ shieldColour: 1, shieldReason: 1 });
+                    });
+                }),
+        );
+        const { mod } = await bootWithShield(spy);
+        const all = [];
+        for (let i = 0; i < 20; i++) {
+            all.push(mod.getEventShield(evt(`$q-${i}`)));
+        }
+        // A second row asking about the same event joins the first lookup.
+        all.push(mod.getEventShield(evt("$q-0")));
+        while (spy.mock.calls.length < 20 || release.length) {
+            await new Promise((r) => setTimeout(r, 0));
+            release.splice(0).forEach((r) => r());
+        }
+        const results = await Promise.all(all);
+        expect(peak).toBe(4);
+        expect(spy).toHaveBeenCalledTimes(20);
+        expect(results.every((r) => r?.colour === 1)).toBe(true);
+    });
+
     it("returns null when crypto isn't ready", async () => {
         const spy = vi.fn(() =>
             Promise.resolve({ shieldColour: 1, shieldReason: 1 }),

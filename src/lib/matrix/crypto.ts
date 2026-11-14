@@ -1978,12 +1978,56 @@ export function clearEventShieldCache(): void {
  * is transient (keys arrive later over to-device), so caching it would pin a
  * message to "no shield" forever.
  */
-export async function getEventShield(
+// Lookups running in the crypto WASM at once. Each one holds its own working
+// memory there, and WASM memory never shrinks: a room opening (or a trust
+// change re-checking every row) used to start ~350 at once and grew the
+// module from 4 MB to 61 MB in two seconds, for the rest of the session.
+const SHIELD_CONCURRENCY = 4;
+let shieldRunning = 0;
+const shieldWaiting: (() => void)[] = [];
+// One lookup per event and epoch, shared by every row that asks meanwhile.
+const shieldInFlight = new Map<string, Promise<EventShieldInfo | null>>();
+
+async function withShieldSlot<T>(run: () => Promise<T>): Promise<T> {
+    if (shieldRunning >= SHIELD_CONCURRENCY) {
+        await new Promise<void>((resolve) => shieldWaiting.push(resolve));
+    } else {
+        shieldRunning++;
+    }
+    try {
+        return await run();
+    } finally {
+        // Hand the slot straight to the next waiter, or give it back.
+        const next = shieldWaiting.shift();
+        if (next) next();
+        else shieldRunning--;
+    }
+}
+
+export function getEventShield(
     event: MatrixEvent,
 ): Promise<EventShieldInfo | null> {
     const eventId = event.getId();
-    if (!eventId) return null;
+    if (!eventId) return Promise.resolve(null);
 
+    const cached = eventShieldCache.get(eventId);
+    if (cached) return Promise.resolve(cached);
+
+    const key = `${shieldCacheEpoch}:${event.status ?? ""}:${eventId}`;
+    const pending = shieldInFlight.get(key);
+    if (pending) return pending;
+    const p = withShieldSlot(() => fetchEventShield(event, eventId)).finally(
+        () => shieldInFlight.delete(key),
+    );
+    shieldInFlight.set(key, p);
+    return p;
+}
+
+async function fetchEventShield(
+    event: MatrixEvent,
+    eventId: string,
+): Promise<EventShieldInfo | null> {
+    // A verdict may have landed while this one waited for a slot.
     const cached = eventShieldCache.get(eventId);
     if (cached) return cached;
 
