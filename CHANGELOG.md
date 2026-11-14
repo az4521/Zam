@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.13
+
+✨ **New**
+
+- **Catch up on rooms like in Discord:** opening a room with unread messages now starts at the "New Messages" line instead of just above it, and a bar at the top shows how many messages arrived and since when. Click the bar to jump back to where the new messages start, or "Mark as read" to dismiss it.
+- **The "New Messages" line stays put:** it no longer disappears as soon as you scroll to the bottom, so you can always find where you left off until you leave the room. Shift+PageUp jumps back to it.
+
+🐛 **Fixed**
+
+- **Less memory in encrypted rooms:** opening a busy encrypted room no longer checks the encryption status of hundreds of messages all at once, which permanently grew the app's memory use by tens of megabytes. Background search indexing also decrypts in smaller batches.
+
 ## v1.60.12
 
 🐛 **Fixed**
