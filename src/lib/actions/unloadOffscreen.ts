@@ -1,3 +1,5 @@
+import { reviveOnReturn } from "./reviveOnReturn";
+
 /** How far past the scroller's edges a video stays loaded, so a short scroll
  *  back doesn't refetch and a quick flick past doesn't unload. */
 export const KEEP_MARGIN = "150% 0px";
@@ -91,6 +93,16 @@ export function unloadOffscreen(node: HTMLVideoElement, url: string) {
         { root: scrollParent(node), rootMargin: KEEP_MARGIN, threshold: 0 },
     );
     observer.observe(node);
+    // Its player is freed while the window sits hidden; unload() pins the
+    // box so the reload doesn't shift the rows below.
+    const stopReviving = reviveOnReturn(
+        node,
+        () => loaded,
+        () => {
+            unload();
+            load();
+        },
+    );
 
     return {
         update(next: string) {
@@ -100,6 +112,7 @@ export function unloadOffscreen(node: HTMLVideoElement, url: string) {
         },
         destroy() {
             observer.disconnect();
+            stopReviving();
             loaded = false;
             node.removeAttribute("src");
             node.load();

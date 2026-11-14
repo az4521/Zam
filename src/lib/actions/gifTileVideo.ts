@@ -1,3 +1,4 @@
+import { reviveOnReturn } from "./reviveOnReturn";
 import { scrollParent } from "./unloadOffscreen";
 
 /** Just past the scroller's edges, so a tile is already playing when it
@@ -48,6 +49,15 @@ export function gifTileVideo(node: HTMLVideoElement, url: string) {
         { root: scrollParent(node), rootMargin: MARGIN, threshold: 0 },
     );
     observer.observe(node);
+    // Its player is freed while the window sits hidden (reviveOnReturn).
+    const stopReviving = reviveOnReturn(
+        node,
+        () => loaded,
+        () => {
+            unload();
+            load();
+        },
+    );
 
     return {
         update(next: string) {
@@ -57,6 +67,7 @@ export function gifTileVideo(node: HTMLVideoElement, url: string) {
         },
         destroy() {
             observer.disconnect();
+            stopReviving();
             unload();
         },
     };
