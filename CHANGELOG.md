@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.23
+
+🐛 **Fixed**
+
+- **H.264 screen shares no longer freeze on busy content:** sharing something that changes a lot (a video, a game) as H.264 could freeze for several seconds at a time for viewers. H.264 shares are now sent as a single stream, so viewers get a steady picture. VP8, VP9 and HEVC shares are unchanged.
+
 ## v1.60.22
 
 🐛 **Fixed**
