@@ -17,6 +17,12 @@ import {
     type Room,
 } from "matrix-js-sdk";
 import type * as LivekitClient from "livekit-client";
+import {
+    createShareCropProcessor,
+    SHARE_CROP_PROCESSOR,
+    type ShareCropProcessor,
+} from "./call/shareCrop";
+import { shareEncoderSteps } from "$lib/utils/shareCrop";
 import { matrixClient } from "./runtime";
 import { getDirectRoomIds, getRoomCallMemberships } from "./client";
 import {
@@ -120,6 +126,7 @@ import { clampBitrate } from "$lib/utils/screenShareBitrate";
 import {
     codecsFromMimeTypes,
     codecFromMime,
+    backupCodecFor,
     isBlockedMime,
     isDecodeStall,
     isMandatoryCodec,
@@ -2596,17 +2603,22 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
                 // "motion"/"maintain-framerate" for the screen-share path.
                 contentHint: "detail",
             },
-            (track) => ({
-                screenShareEncoding: screenShareEncodingFor(
-                    screenShareBitrateNow(),
-                    Number(settingsState.screenShareFps),
-                ),
-                degradationPreference: "maintain-resolution",
-                ...(track.kind === "video"
-                    ? shareCodecOptions(call, track)
-                    : videoCodecPublishOptions(call)),
-            }),
+            async (track) => {
+                if (track.kind === "video") await trimShareForGpu(track);
+                return {
+                    screenShareEncoding: screenShareEncodingFor(
+                        screenShareBitrateNow(),
+                        Number(settingsState.screenShareFps),
+                    ),
+                    degradationPreference: "maintain-resolution",
+                    ...(track.kind === "video"
+                        ? shareCodecOptions(call, track)
+                        : videoCodecPublishOptions(call)),
+                };
+            },
         );
+        if (on) void superviseShareEncoder(call);
+        else shareSupervision++;
         if (on) void publishShareAudio(call);
         else stopShareAudio();
         if (on && screenShareQualityKey() !== startedWith)
@@ -3374,15 +3386,169 @@ function shareCodecOptions(
     call: ActiveVoiceCall,
     track: LivekitClient.LocalTrack,
 ) {
-    const options = videoCodecPublishOptions(call);
+    // Never back onto a codec this capture's encoder already failed on.
+    const failed = [...(failedShareCodecs.get(track) ?? [])];
+    const options = videoCodecPublishOptions(call, failed);
     if (options.videoCodec !== "h265") return options;
+    // Trimmed frames suit the encoder whatever is shared.
+    if (track.getProcessor()?.name === SHARE_CROP_PROCESSOR) return options;
     const settings =
         track.mediaStreamTrack.getSettings() as MediaTrackSettings & {
             displaySurface?: string;
         };
     return hevcFitsShare(settings)
         ? options
-        : videoCodecPublishOptions(call, ["h265"]);
+        : videoCodecPublishOptions(call, [...failed, "h265"]);
+}
+
+/** Send a screen share trimmed to sizes a GPU encoder takes (a few pixels
+ *  off the right and bottom at most), so a tab or window can stay on the GPU
+ *  codec. Where the browser can't, or the trim fails, the share goes out
+ *  untrimmed and shareCodecOptions keeps it off HEVC. */
+// The share's encoder ladder (utils/shareCrop shareEncoderSteps). A GPU
+// encoder can refuse a frame size or fail to start; Chrome then sends nothing,
+// or switches codec by itself, which the SFU doesn't forward. So after each
+// publish the share's sender is watched, and on failure the share moves to
+// the next trim or codec.
+const SHARE_CHECK_MS = 1000;
+/** Seconds of sending with no new frames before an encoder counts as failed. */
+const SHARE_CHECKS_BEFORE_FAILING = 6;
+/** Codecs a capture's encoder already failed on, so a later codec switch
+ *  (republishVideo) doesn't put it back on one. */
+const failedShareCodecs = new WeakMap<
+    LivekitClient.LocalTrack,
+    Set<VideoCodec>
+>();
+let shareSupervision = 0;
+
+/** Whether `track`'s encoder makes `codec` frames. Waits while nothing is
+ *  being sent (no one watching: the server pauses every layer), and gives up
+ *  waiting (true) once `live` says the share moved on. */
+async function shareEncoderWorks(
+    track: LivekitClient.LocalTrack,
+    codec: VideoCodec,
+    live: () => boolean,
+): Promise<boolean> {
+    const sender = track.sender;
+    if (!sender) return true;
+    let firstFrames: number | null = null;
+    let checks = 0;
+    while (checks < SHARE_CHECKS_BEFORE_FAILING) {
+        await new Promise((resolve) => setTimeout(resolve, SHARE_CHECK_MS));
+        if (!live() || track.mediaStreamTrack.readyState === "ended")
+            return true;
+        const report = await sender.getStats().catch(() => null);
+        if (!report) continue;
+        let frames = 0;
+        let sending = false;
+        let otherCodec = false;
+        report.forEach((s: RTCStats & Record<string, unknown>) => {
+            if (s.type !== "outbound-rtp" || s.kind !== "video") return;
+            if (s.active === false) return;
+            sending = true;
+            frames += typeof s.framesEncoded === "number" ? s.framesEncoded : 0;
+            const c =
+                typeof s.codecId === "string"
+                    ? (report.get(s.codecId) as { mimeType?: string })
+                    : undefined;
+            const sent = c?.mimeType ? codecFromMime(c.mimeType) : null;
+            if (sent && sent !== codec) otherCodec = true;
+        });
+        // Chrome gave up on the encoder and switched codec itself.
+        if (otherCodec) return false;
+        if (!sending) {
+            firstFrames = null;
+            checks = 0;
+            continue;
+        }
+        if (firstFrames === null) firstFrames = frames;
+        else if (frames > firstFrames) return true;
+        checks++;
+    }
+    return false;
+}
+
+/** Watch the share just published and walk it down the ladder until its
+ *  encoder makes frames: each GPU codec at each trim, then software. */
+async function superviseShareEncoder(call: ActiveVoiceCall): Promise<void> {
+    const generation = ++shareSupervision;
+    const lp = call.lkRoom?.localParticipant;
+    if (!lp) return;
+    const source = call.lk.Track.Source.ScreenShare;
+    const pub = lp.getTrackPublication(source);
+    const track = pub?.videoTrack;
+    const first = pub?.options?.videoCodec as VideoCodec | undefined;
+    if (!pub || !track || !first) return;
+    const live = () =>
+        activeVoice === call &&
+        generation === shareSupervision &&
+        lp.getTrackPublication(source)?.videoTrack === track;
+    const processor = track.getProcessor() as ShareCropProcessor | undefined;
+    const trimming = processor?.name === SHARE_CROP_PROCESSOR;
+    const settings =
+        track.mediaStreamTrack.getSettings() as MediaTrackSettings & {
+            displaySurface?: string;
+        };
+    const failed = failedShareCodecs.get(track) ?? new Set<VideoCodec>();
+    failedShareCodecs.set(track, failed);
+    const steps = shareEncoderSteps({
+        first,
+        ranked: codecPlan(call).available.filter((c) => !failed.has(c)),
+        hardware: call.codecs.hardware,
+        software: ["h264", "vp8"],
+        canTrim: trimming,
+        allowWithoutTrim: (c) => c !== "h265" || hevcFitsShare(settings),
+    });
+    for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        const codec = step.codec as VideoCodec;
+        if (i > 0) {
+            if (trimming && step.align !== null)
+                processor!.setAlign(step.align);
+            console.warn(
+                `Screen share encoder failed on ${steps[i - 1].codec}` +
+                    `${steps[i - 1].align ? ` (${steps[i - 1].align}px)` : ""}` +
+                    `, trying ${codec}${step.align ? ` (${step.align}px)` : ""}`,
+            );
+            const backup = call.e2ee
+                ? null
+                : backupCodecFor(codec, sendableCodecs(call));
+            republishingSource = source;
+            try {
+                await lp.unpublishTrack(track, false);
+                if (activeVoice !== call) {
+                    track.stop();
+                    return;
+                }
+                await publishWithRetry(lp, track, {
+                    ...pub.options,
+                    source,
+                    videoCodec: codec,
+                    backupCodec: backup ? { codec: backup } : false,
+                });
+            } catch (err) {
+                console.error("Screen share encoder fallback failed:", err);
+                return;
+            } finally {
+                republishingSource = null;
+            }
+        }
+        if (await shareEncoderWorks(track, codec, live)) return;
+        if (!live()) return;
+        if (steps[i + 1]?.codec !== codec) failed.add(codec);
+    }
+    console.error("No encoder could send this screen share");
+    notifyVoiceNotice(t("client.couldNotStartScreenShare"));
+}
+
+async function trimShareForGpu(track: LivekitClient.LocalTrack): Promise<void> {
+    const processor = createShareCropProcessor();
+    if (!processor) return;
+    try {
+        await (track as LivekitClient.LocalVideoTrack).setProcessor(processor);
+    } catch (err) {
+        console.error("Screen share trim failed:", err);
+    }
 }
 
 /** Codecs this platform lists but can't show, known from how it is set up
@@ -3797,6 +3963,8 @@ async function republishVideo(
             return;
         }
         await publishWithRetry(lp, track, options);
+        if (source === call.lk.Track.Source.ScreenShare)
+            void superviseShareEncoder(call);
     } catch (err) {
         console.error("Video codec switch failed:", err);
         if (activeVoice === call) {

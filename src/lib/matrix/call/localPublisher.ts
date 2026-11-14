@@ -47,7 +47,11 @@ export interface LocalPublisher {
         capture?: LivekitClient.ScreenShareCaptureOptions,
         publish?:
             | LivekitClient.TrackPublishOptions
-            | ((track: LocalTrack) => LivekitClient.TrackPublishOptions),
+            | ((
+                  track: LocalTrack,
+              ) =>
+                  | LivekitClient.TrackPublishOptions
+                  | Promise<LivekitClient.TrackPublishOptions>),
     ): Promise<void>;
     /** False when the device couldn't be switched to. */
     switchActiveDevice(
@@ -115,7 +119,7 @@ export function livekitLocalPublisher(
             const tracks = await lp.createScreenTracks(capture);
             try {
                 for (const track of tracks)
-                    await lp.publishTrack(track, publish(track));
+                    await lp.publishTrack(track, await publish(track));
             } catch (err) {
                 for (const track of tracks) {
                     await lp.unpublishTrack(track).catch(() => {});
