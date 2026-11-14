@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.16
+
+🐛 **Fixed**
+
+- **The emoji picker scrolls smoothly again:** since 1.60.15 it stuttered every time a new row of emoji scrolled in. Emoji in the picker are now drawn from a few preloaded images instead of one image per emoji.
+- **No more "Return to live" banner after catching up:** when you opened a room at your unread messages and then marked it read, the bar at the top switched to "Viewing message context - Return to live". It now keeps the "Jump to present" button.
+
 ## v1.60.15
 
 🐛 **Fixed**
