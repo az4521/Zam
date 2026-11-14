@@ -4,6 +4,15 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.15
+
+🐛 **Fixed**
+
+- **The emoji picker opens instantly:** it used to take seconds to open, especially with big custom emoji packs, because it built every emoji at once. The emoji and sticker pickers now only draw what's on screen.
+- **Custom emoji and stickers load faster and are kept on your device:** the pickers now load small previews instead of full-size images, and keep them so reopening a picker doesn't download them again. They're removed when you sign out.
+- **Less memory in the desktop app while it's behind other windows:** the app now frees graphics memory when its window is fully covered, not only when it's minimised.
+- **Message box placeholder lines up again:** in rooms where you can't send messages, the placeholder text sat a few pixels below the icons beside it.
+
 ## v1.60.14
 
 ✨ **New**
