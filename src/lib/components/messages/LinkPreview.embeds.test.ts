@@ -5,21 +5,20 @@ import { settingsState } from "$lib/stores/settings.svelte";
 
 let instance: Record<string, unknown> | null = null;
 let host: HTMLElement | null = null;
-let fireFar: (isIntersecting: boolean) => void = () => {};
+// The observer watching the YouTube player (parkYoutubeOffscreen's viewport
+// observer): reports the player in or out of view.
+let fireAway: (isIntersecting: boolean) => void = () => {};
 
 class FakeObserver {
-    constructor(
-        cb: IntersectionObserverCallback,
-        opts?: IntersectionObserverInit,
-    ) {
-        if (opts?.rootMargin)
-            fireFar = (isIntersecting) =>
-                cb(
+    constructor(private cb: IntersectionObserverCallback) {}
+    observe(el: Element) {
+        if (el.tagName === "IFRAME")
+            fireAway = (isIntersecting) =>
+                this.cb(
                     [{ isIntersecting } as IntersectionObserverEntry],
                     this as unknown as IntersectionObserver,
                 );
     }
-    observe() {}
     disconnect() {}
 }
 
@@ -66,7 +65,7 @@ describe("LinkPreview embeds", () => {
                 source: frame.contentWindow,
             }),
         );
-        fireFar(false);
+        fireAway(false);
         flushSync();
         expect(host.querySelector("iframe")).toBeNull();
 
