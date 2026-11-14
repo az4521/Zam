@@ -645,6 +645,7 @@
                 if (win && room.roomId === rid) {
                     contextWindow = win;
                     contextMessages = getContextWindowEvents(win);
+                    contextAtReadPosition = false;
                     await tick();
                 }
             } finally {
@@ -1039,6 +1040,11 @@
     // back to the live timeline (see rejoinLive / maybeLoadNewer).
     let contextWindow = $state<TimelineWindow | null>(null);
     let contextMessages = $state<MatrixEvent[] | null>(null);
+    // The window was opened at the read position by entering the room, not
+    // by jumping to a message. It's an ordinary visit: "Jump to present"
+    // stays and the "Viewing message context" banner never shows, even once
+    // the room is read and the unread bar goes away.
+    let contextAtReadPosition = $state(false);
     let loadingNewer = $state(false);
     const messages = $derived(contextMessages ?? getMessages(roomId));
     const receiptsByEvent = $derived.by(() => {
@@ -1575,6 +1581,7 @@
         replyToEvent = null;
         contextWindow = null;
         contextMessages = null;
+        contextAtReadPosition = false;
         // Release the backfill lock so the new room's initial backfill isn't
         // blocked by a load still in flight for the previous room (F2). The
         // finally in loadOlderMessages only clears the lock for its own room.
@@ -1665,6 +1672,7 @@
                     if (win) {
                         contextWindow = win;
                         contextMessages = getContextWindowEvents(win);
+                        contextAtReadPosition = true;
                         await tick();
                     }
                 }
@@ -2635,6 +2643,7 @@
         }
         contextWindow = null;
         contextMessages = null;
+        contextAtReadPosition = false;
         setMessages(roomId, live);
         await tick();
         const el = anchor ? await revealRow(anchor.eventId) : null;
@@ -3424,7 +3433,7 @@
 
         <!-- Scroll to bottom button. Hidden while a composer suggestion list is
              open so it doesn't fight the autocomplete for the same space. -->
-        {#if !isAtBottom && (!isContextView || unreadSummary) && messages.length > 0 && !composerAutocompleteOpen}
+        {#if !isAtBottom && (!isContextView || unreadSummary || contextAtReadPosition) && messages.length > 0 && !composerAutocompleteOpen}
             <div
                 class="absolute start-0 end-0 flex justify-center z-10 pointer-events-none"
                 style="bottom: {composerHeight + 12}px;"
@@ -3497,7 +3506,7 @@
 
         <!-- Context view banner (the unread bar stands in for it while a room
              is opened at the read position) -->
-        {#if isContextView && !unreadSummary}
+        {#if isContextView && !unreadSummary && !contextAtReadPosition}
             <div
                 class="absolute top-12 start-0 end-0 flex justify-center z-10 pointer-events-none"
             >
