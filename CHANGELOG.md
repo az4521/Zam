@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.17
+
+🐛 **Fixed**
+
+- **Message box placeholder is centred for real:** in rooms where you can't send messages, the text still sat a few pixels below the icons beside it. The message box is now vertically centred, so the placeholder and the typing cursor line up with the icons.
+- **GIFs no longer stay blank after the window was hidden:** GIF-style videos in the timeline and the GIF picker that went black or white after the app sat in the background now reload when you come back.
+
 ## v1.60.16
 
 🐛 **Fixed**
