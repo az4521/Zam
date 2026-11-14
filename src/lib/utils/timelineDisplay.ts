@@ -60,6 +60,30 @@ export function unreadDividerBefore(
 }
 
 /**
+ * Index of the first unread row (where the "New Messages" divider goes), or
+ * -1 when the loaded rows don't reach back to the read position.
+ *
+ * The read receipt's event is often not a loaded row: sliding sync opens a
+ * room with only its newest event, and a receipt can sit on a hidden event
+ * (a reaction). Then the receipt's timestamp places the divider, but only
+ * once the rows reach back past it; until then every loaded row may be unread
+ * and the divider's spot is still unknown.
+ */
+export function unreadDividerIndex(
+    events: TimelineDisplayEvent[],
+    readUpToId: string | null,
+    readTs: number | null,
+): number {
+    if (readUpToId) {
+        const i = events.findIndex((e) => e.getId() === readUpToId);
+        if (i >= 0) return i + 1 < events.length ? i + 1 : -1;
+    }
+    if (readTs === null || !events.length || events[0].getTs() > readTs)
+        return -1;
+    return events.findIndex((e) => e.getTs() > readTs);
+}
+
+/**
  * The `{#each}` key for a timeline row: the transaction id when the event has
  * one, else the event id. Our own message starts as a local echo with a
  * `~room:txn` id that the SDK swaps for the real `$id` on the SAME event object

@@ -6258,6 +6258,27 @@ export function getMessageShareLink(roomId: string, eventId: string): string {
     return matrixToUrl(alias ?? roomId, roomViaServers(room), eventId);
 }
 
+/**
+ * Our newest read receipt in the room (public or private), even when its
+ * event isn't loaded. getEventReadUpTo returns null then, which under sliding
+ * sync is most rooms on open: they start with only their newest event.
+ */
+export function getOwnReadReceipt(
+    room: Room,
+): { eventId: string; ts: number } | null {
+    const userId = matrixClient?.getUserId();
+    if (!userId) return null;
+    const receipts = [
+        room.getReadReceiptForUserId(userId, true),
+        room.getReadReceiptForUserId(userId, true, "m.read.private" as any),
+    ].filter((r) => r !== null);
+    if (!receipts.length) return null;
+    const newest = receipts.reduce((a, b) =>
+        (b.data?.ts ?? 0) > (a.data?.ts ?? 0) ? b : a,
+    );
+    return { eventId: newest.eventId, ts: newest.data?.ts ?? 0 };
+}
+
 /** Returns the event ID the current user has read up to in this room, or null. */
 export function getReadUpToEventId(room: Room): string | null {
     const userId = matrixClient?.getUserId();

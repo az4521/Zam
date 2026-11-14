@@ -1100,6 +1100,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.unreadSince":
         "{count, plural, other {{since}以降の新着メッセージ#件}}",
     "messageArea.markAsRead": "既読にする",
+    "messageArea.unreadSinceMany": "{since}以降の新着メッセージ{count}件以上",
+    "messageArea.unreadMany": "新着メッセージ{count}件以上",
     "messageArea.messageFromABlockedUser":
         "ブロックしたユーザーからのメッセージ",
     "messageArea.showBlockedMessage": "ブロックしたメッセージを表示",

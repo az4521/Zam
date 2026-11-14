@@ -3,6 +3,7 @@ import {
     shouldShowHeader,
     dateSeparatorLabel,
     unreadDividerBefore,
+    unreadDividerIndex,
     isNearBottom,
     timelineKey,
 } from "./timelineDisplay";
@@ -143,5 +144,35 @@ describe("timelineKey", () => {
         expect(
             timelineKey({ getId: () => "$other", getTxnId: () => undefined }),
         ).toBe("$other");
+    });
+});
+
+describe("unreadDividerIndex", () => {
+    const events = [
+        ev("$a", "@alice:hs", 1000),
+        ev("$b", "@bob:hs", 2000),
+        ev("$c", "@alice:hs", 3000),
+    ];
+
+    it("goes after the receipt's event when it is loaded", () => {
+        expect(unreadDividerIndex(events, "$a", 1000)).toBe(1);
+    });
+
+    it("has no spot when the receipt is on the newest row", () => {
+        expect(unreadDividerIndex(events, "$c", 3000)).toBe(-1);
+    });
+
+    it("falls back to the receipt's time for an unloaded event", () => {
+        expect(unreadDividerIndex(events, "$hidden", 2500)).toBe(2);
+        expect(unreadDividerIndex(events, null, 1500)).toBe(1);
+    });
+
+    it("is unknown while the rows don't reach back to the receipt", () => {
+        expect(unreadDividerIndex(events, "$old", 500)).toBe(-1);
+        expect(unreadDividerIndex(events, null, null)).toBe(-1);
+    });
+
+    it("has no spot when everything loaded is older than the receipt", () => {
+        expect(unreadDividerIndex(events, "$gone", 4000)).toBe(-1);
     });
 });

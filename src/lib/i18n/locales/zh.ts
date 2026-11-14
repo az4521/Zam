@@ -1235,6 +1235,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.unreadSince":
         "{count, plural, other {自 {since} 以来有 # 条新消息}}",
     "messageArea.markAsRead": "标为已读",
+    "messageArea.unreadSinceMany": "自 {since} 以来有 {count}+ 条新消息",
+    "messageArea.unreadMany": "{count}+ 条新消息",
     "messageArea.messageFromABlockedUser": "来自被屏蔽用户的消息",
     "messageArea.showBlockedMessage": "显示被屏蔽的消息",
     "messageArea.thisRoomHasBeenUpgraded": "此房间已升级",

@@ -1277,6 +1277,8 @@ export const en = {
     "messageArea.unreadSince":
         "{count, plural, one {# new message since {since}} other {# new messages since {since}}}",
     "messageArea.markAsRead": "Mark as read",
+    "messageArea.unreadSinceMany": "{count}+ new messages since {since}",
+    "messageArea.unreadMany": "{count}+ new messages",
     "messageArea.messageFromABlockedUser": "Message from a blocked user",
     "messageArea.showBlockedMessage": "Show blocked message",
     "messageArea.thisRoomHasBeenUpgraded": "This room has been upgraded",

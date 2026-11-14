@@ -1316,6 +1316,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.unreadSince":
         "{count, plural, one {# нове повідомлення з {since}} few {# нові повідомлення з {since}} many {# нових повідомлень з {since}} other {# нового повідомлення з {since}}}",
     "messageArea.markAsRead": "Позначити як прочитане",
+    "messageArea.unreadSinceMany": "{count}+ нових повідомлень з {since}",
+    "messageArea.unreadMany": "{count}+ нових повідомлень",
     "messageArea.messageFromABlockedUser":
         "Повідомлення від заблокованого користувача",
     "messageArea.showBlockedMessage": "Показати заблоковане повідомлення",

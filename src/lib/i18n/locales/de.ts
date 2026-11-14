@@ -1186,6 +1186,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.unreadSince":
         "{count, plural, one {# neue Nachricht seit {since}} other {# neue Nachrichten seit {since}}}",
     "messageArea.markAsRead": "Als gelesen markieren",
+    "messageArea.unreadSinceMany": "{count}+ neue Nachrichten seit {since}",
+    "messageArea.unreadMany": "{count}+ neue Nachrichten",
     "messageArea.messageFromABlockedUser":
         "Nachricht von einem blockierten Benutzer",
     "messageArea.showBlockedMessage": "Blockierte Nachricht anzeigen",
