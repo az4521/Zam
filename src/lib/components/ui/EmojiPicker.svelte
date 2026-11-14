@@ -27,6 +27,7 @@
     import { pickerThumbUrl } from "$lib/matrix/media";
 
     import { renderEmoji } from "$lib/utils/twemoji";
+    import { emojiSpriteStyle } from "$lib/utils/emojiSprites";
 
     interface Props {
         room?: Room | null;
@@ -110,10 +111,11 @@
         });
     });
 
+    // Grid emoji come from the Twemoji sprite sheets (utils/emojiSprites.ts):
+    // an <img> per SVG builds an SVG document per emoji on the main thread,
+    // which stalled scrolling on every new row. Anything not in a sheet (the
+    // text symbols, or an emoji newer than the sheets) keeps the old path.
     function emojiHtml(emoji: string): string {
-        // Eager: the grid is virtualized, so only emoji on (or just off)
-        // screen are ever rendered, and a lazy <img> inside a scroll box only
-        // starts loading once it is already visible.
         return renderEmoji(emoji, "picker-twemoji");
     }
 
@@ -682,7 +684,18 @@
                                         decoding="async"
                                     />
                                 {:else}
-                                    {@html emojiHtml(item.data.emoji)}
+                                    {@const sprite = emojiSpriteStyle(
+                                        item.data.emoji,
+                                    )}
+                                    {#if sprite}
+                                        <span
+                                            class="picker-sprite"
+                                            style={sprite}
+                                            aria-hidden="true"
+                                        ></span>
+                                    {:else}
+                                        {@html emojiHtml(item.data.emoji)}
+                                    {/if}
                                 {/if}
                             </button>
                         {/each}
@@ -698,6 +711,12 @@
        `aspect-square p-1`), so a Twemoji <img> and a custom emote <img> are
        always identical — and neither depends on the root font-size, which
        Android's font-scaling setting changes. */
+    .picker-sprite {
+        width: 100%;
+        height: 100%;
+        display: block;
+        background-repeat: no-repeat;
+    }
     :global(.picker-twemoji) {
         width: 100%;
         height: 100%;

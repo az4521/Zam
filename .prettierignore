@@ -14,3 +14,5 @@ todo.md
 
 scripts/fastenhancer/target/
 electron/discordGames.json
+# Written by scripts/build-emoji-sheets.mjs
+src/lib/data/emojiSheets.json
