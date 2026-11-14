@@ -1,6 +1,6 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
-    import { tick } from "svelte";
+    import { untrack } from "svelte";
     import type { Room } from "matrix-js-sdk";
     import { EMOJI_CATEGORIES, ALL_EMOJIS } from "$lib/data/emojis";
     import {
@@ -16,6 +16,15 @@
     import { nextActiveIndex, optionId } from "$lib/utils/listboxNavigation";
     import { anchoredActiveIndex } from "$lib/utils/listboxAnchor";
     import { emojiOptionKeys } from "$lib/utils/pickerOptionKeys";
+    import {
+        buildGridLayout,
+        visibleRowRange,
+        rowAt,
+        scrollTopToReveal,
+        indexRange,
+        type GridSection,
+    } from "$lib/utils/virtualGrid";
+    import { pickerThumbUrl } from "$lib/matrix/media";
 
     import { renderEmoji } from "$lib/utils/twemoji";
 
@@ -61,20 +70,28 @@
     // widening the panel shows MORE emojis instead of spreading 6 apart.
     const CELL = 40;
     let cols = $state(6);
+    // The grid is virtualized (only rows near the viewport exist in the DOM):
+    // the standard set alone is ~1900 emoji, plus every custom pack, and
+    // building a button for each made the picker take seconds to open. Every
+    // row's position is computed from these measurements instead.
+    let gridWidth = $state(0);
+    let viewHeight = $state(0);
+    let scrollTop = $state(0);
     $effect(() => {
         if (!scrollEl) return;
         const measure = () => {
             const w = scrollEl!.clientWidth - 16; // minus the px-2 padding
-            if (w > 0) cols = Math.max(6, Math.floor(w / CELL));
+            if (w > 0) {
+                gridWidth = w;
+                cols = Math.max(6, Math.floor(w / CELL));
+            }
+            viewHeight = scrollEl!.clientHeight;
         };
         measure();
         const ro = new ResizeObserver(measure);
         ro.observe(scrollEl);
         return () => ro.disconnect();
     });
-
-    // Sections whose emoji have been revealed by the IntersectionObserver
-    let revealedSections = $state(new Set<string>());
 
     $effect(() => {
         if (!interfaceState.isTouchscreen) searchEl?.focus();
@@ -94,10 +111,10 @@
     });
 
     function emojiHtml(emoji: string): string {
-        // Defer the fetch/decode of grid emoji: a category can hold ~150, and
-        // eager-loading every one on open makes them visibly pop in. The tab
-        // strip (a handful, all on screen) stays eager below.
-        return renderEmoji(emoji, "picker-twemoji", { lazy: true });
+        // Eager: the grid is virtualized, so only emoji on (or just off)
+        // screen are ever rendered, and a lazy <img> inside a scroll box only
+        // starts loading once it is already visible.
+        return renderEmoji(emoji, "picker-twemoji");
     }
 
     // Pack data lives in room state that mutates in place, so this must depend
@@ -153,10 +170,14 @@
             : [],
     );
 
-    // Reset selection when search changes
+    // Reset selection, and go back to the top, when search changes
     $effect(() => {
         search; // track
         moveCursor(-1);
+        untrack(() => {
+            if (scrollEl) scrollEl.scrollTop = 0;
+            scrollTop = 0;
+        });
     });
 
     // Flat ordered list of all items for keyboard navigation
@@ -263,68 +284,127 @@
     // routinely drops.
     const hasOptions = $derived(flatItems.length > 0);
 
+    // ---- Virtualized layout (utils/virtualGrid.ts) ---------------------------
+    // Rows are either a section header or one line of `cols` cells, each at a
+    // computed `top`, so the scroll box is sized to the whole list while only
+    // the rows in view are rendered.
+    const GAP = 4; // gap-1, between cells and between rows
+    const HEADER_H = 28; // text-xs line (16) + pt-2 (8) + pb-1 (4)
+    const SECTION_GAP = 8; // mb-2 under each section's grid
+    const OVERSCAN = 400; // px rendered above and below the viewport
+    // Custom emoji are drawn ~32px; 96 covers a 3x screen without fetching
+    // the original (often a 512px animation) for every cell.
+    const EMOJI_THUMB_PX = 96;
+
+    const cellSize = $derived(
+        gridWidth > 0 ? (gridWidth - GAP * (cols - 1)) / cols : 0,
+    );
+
+    const sections = $derived.by((): GridSection[] => {
+        const at = (id: string) => sectionOffsets.get(id) ?? 0;
+        if (search) {
+            const out: GridSection[] = [];
+            if (searchCustom.length > 0)
+                out.push({
+                    id: "search-custom",
+                    label: t("emojiPicker.custom"),
+                    start: at("search-custom"),
+                    count: searchCustom.length,
+                });
+            if (searchStandard.length > 0)
+                out.push({
+                    id: "search-standard",
+                    label:
+                        searchCustom.length > 0
+                            ? t("emojiPicker.standard")
+                            : null,
+                    start: at("search-standard"),
+                    count: searchStandard.length,
+                });
+            return out;
+        }
+        return [
+            ...customPacks.map((p) => ({
+                id: p.id,
+                label: p.id === "user" ? t("emojiPicker.myEmojis2") : p.name,
+                start: at(p.id),
+                count: p.emojis.length,
+            })),
+            ...EMOJI_CATEGORIES.map((c) => ({
+                id: c.id,
+                label: c.name,
+                start: at(c.id),
+                count: c.emojis.length,
+            })),
+        ];
+    });
+
+    const layout = $derived(
+        buildGridLayout(sections, flatItems.length, {
+            cols,
+            cellSize,
+            gap: GAP,
+            headerHeight: HEADER_H,
+            sectionGap: SECTION_GAP,
+        }),
+    );
+    const visibleRange = $derived(
+        visibleRowRange(layout.rows, scrollTop, viewHeight, OVERSCAN),
+    );
+    const visibleRows = $derived(
+        layout.rows.slice(visibleRange.from, visibleRange.to),
+    );
+
     // aria-activedescendant may only name an element that is really in the DOM.
-    // A selected emoji whose section the lazy reveal has not rendered yet has
-    // no option element, so report nothing active until the effect below
-    // reveals it -- one flush later -- rather than emit a dangling reference.
-    // Search results are never lazy, so in search mode the id always resolves.
+    // A selected emoji outside the rendered window has no option element, so
+    // report nothing active until the effect below scrolls it into view -- one
+    // scroll event later -- rather than emit a dangling reference.
     const activeOptionId = $derived.by(() => {
-        if (activeIndex < 0) return undefined;
-        if (!search && !revealedSections.has(flatItems[activeIndex].sectionId))
+        if (activeIndex < 0 || activeIndex >= layout.itemRow.length)
             return undefined;
+        const r = layout.itemRow[activeIndex];
+        if (r < visibleRange.from || r >= visibleRange.to) return undefined;
         return optionId(listId, activeIndex);
     });
 
-    // Auto-reveal lazy section and scroll selected item into view
+    // Scroll the selected item into view and follow it with the active tab.
+    // Only `activeIndex` is tracked: reading `activeTab` or the scroll position
+    // here would re-run this on every scroll and yank the view back.
     $effect(() => {
         const idx = activeIndex;
-        if (idx < 0 || idx >= flatItems.length) return;
-        const item = flatItems[idx];
-
-        // Reveal lazy section if needed
-        if (
-            !revealedSections.has(item.sectionId) &&
-            item.sectionId !== "search-custom" &&
-            item.sectionId !== "search-standard"
-        ) {
-            revealedSections = new Set([...revealedSections, item.sectionId]);
-        }
-
-        // Update active tab when navigating
-        if (!search && activeTab !== item.sectionId) activeTab = item.sectionId;
-
-        tick().then(() => {
-            const btn = scrollEl?.querySelector<HTMLElement>(
-                `[data-item-index="${idx}"]`,
+        untrack(() => {
+            if (idx < 0 || idx >= flatItems.length) return;
+            const item = flatItems[idx];
+            if (!search && activeTab !== item.sectionId)
+                activeTab = item.sectionId;
+            const row = layout.rows[layout.itemRow[idx]];
+            if (!scrollEl || !row) return;
+            const next = scrollTopToReveal(
+                row,
+                scrollEl.scrollTop,
+                scrollEl.clientHeight,
             );
-            btn?.scrollIntoView({ block: "nearest" });
+            if (next !== null) scrollEl.scrollTop = next;
         });
     });
 
     function scrollToSection(id: string) {
         activeTab = id;
         if (!scrollEl) return;
-        const el = scrollEl.querySelector<HTMLElement>(
-            `[data-section="${id}"]`,
-        );
-        if (el)
+        const row = layout.rows.find((r) => r.sectionId === id);
+        if (row)
             scrollEl.scrollTo({
-                top: el.offsetTop - 4,
+                top: row.top,
                 behavior: scrollBehavior(),
             });
     }
 
     function onScroll() {
-        if (!scrollEl || search) return;
-        const top = scrollEl.scrollTop;
-        let current = "";
-        for (const header of scrollEl.querySelectorAll<HTMLElement>(
-            "[data-section]",
-        )) {
-            if (header.offsetTop <= top + 8) current = header.dataset.section!;
-            else break;
-        }
-        if (current && current !== activeTab) activeTab = current;
+        if (!scrollEl) return;
+        scrollTop = scrollEl.scrollTop;
+        if (search) return;
+        const row = layout.rows[rowAt(layout.rows, scrollTop + 8)];
+        if (row && row.sectionId !== activeTab) activeTab = row.sectionId;
     }
 
     function pick(emoji: string) {
@@ -409,38 +489,6 @@
             if (item.kind === "custom") pickCustom(item.data);
             else pick(item.data.emoji);
         }
-    }
-
-    // Svelte action: observe a section container and reveal it when near the viewport.
-    // Elements clipped by overflow:hidden are not considered intersecting, so this
-    // correctly defers rendering of sections scrolled out of the picker's scroll area.
-    function lazySection(node: HTMLElement) {
-        const id = node.dataset.lazyId!;
-        if (revealedSections.has(id)) return {};
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    revealedSections = new Set([...revealedSections, id]);
-                    observer.disconnect();
-                }
-            },
-            { rootMargin: "300px 0px" },
-        );
-        observer.observe(node);
-        return {
-            destroy() {
-                observer.disconnect();
-            },
-        };
-    }
-
-    // Estimated placeholder heights to keep scroll length stable before reveal.
-    // Standard grid: 8 cols, ~30px/row + 2px gap. Custom grid: 6 cols, ~40px/row + 4px gap.
-    function stdPlaceholderHeight(count: number) {
-        return Math.ceil(count / cols) * 44;
-    }
-    function customPlaceholderHeight(count: number) {
-        return Math.ceil(count / cols) * 44;
     }
 </script>
 
@@ -578,193 +626,70 @@
         aria-label={hasOptions ? t("common.emoji") : undefined}
         class="relative flex-1 overflow-y-auto min-h-0 px-2 pb-2"
     >
-        {#if search}
-            {#if searchCustom.length === 0 && searchStandard.length === 0}
-                <p class="text-center text-discord-textMuted text-sm py-8">
-                    {t("common.noResults")}
-                </p>
-            {/if}
-            {#if searchCustom.length > 0}
-                <p
-                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide px-1 py-1"
-                >
-                    {t("emojiPicker.custom")}
-                </p>
-                <div
-                    class="grid gap-1 mb-2"
-                    role="group"
-                    aria-label={t("emojiPicker.custom")}
-                    style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
-                >
-                    {#each searchCustom as e, li (e.packId + ":" + e.shortcode)}
-                        {@const globalIdx =
-                            (sectionOffsets.get("search-custom") ?? 0) + li}
-                        <button
-                            data-item-index={globalIdx}
-                            onclick={() => pickCustom(e)}
-                            title={e.shortcode}
-                            id={optionId(listId, globalIdx)}
-                            role="option"
-                            aria-selected={activeIndex === globalIdx}
-                            aria-label={e.shortcode}
-                            tabindex="-1"
-                            class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
-                            class:ring-2={activeIndex === globalIdx}
-                            class:ring-discord-accent={activeIndex ===
-                                globalIdx}
-                        >
-                            <img
-                                src={e.url}
-                                alt={e.shortcode}
-                                class="w-full h-full object-contain"
-                                loading="lazy"
-                            />
-                        </button>
-                    {/each}
-                </div>
-            {/if}
-            {#if searchStandard.length > 0}
-                {#if searchCustom.length > 0}
-                    <p
-                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide px-1 py-1"
-                    >
-                        {t("emojiPicker.standard")}
-                    </p>
-                {/if}
-                <div
-                    class="grid gap-1"
-                    role="group"
-                    aria-label={t("emojiPicker.standard")}
-                    style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
-                >
-                    {#each searchStandard as e, li (e.name)}
-                        {@const globalIdx =
-                            (sectionOffsets.get("search-standard") ?? 0) + li}
-                        <button
-                            data-item-index={globalIdx}
-                            onclick={() => pick(e.emoji)}
-                            title={e.name}
-                            id={optionId(listId, globalIdx)}
-                            role="option"
-                            aria-selected={activeIndex === globalIdx}
-                            aria-label={e.name}
-                            tabindex="-1"
-                            class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
-                            class:ring-2={activeIndex === globalIdx}
-                            class:ring-discord-accent={activeIndex ===
-                                globalIdx}
-                        >
-                            {@html emojiHtml(e.emoji)}
-                        </button>
-                    {/each}
-                </div>
-            {/if}
-        {:else}
-            <!-- All custom packs -->
-            {#each customPacks as pack (pack.id)}
-                <div data-lazy-id={pack.id} use:lazySection>
-                    <p
-                        data-section={pack.id}
-                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide px-1 pt-2 pb-1"
-                    >
-                        {pack.id === "user"
-                            ? t("emojiPicker.myEmojis2")
-                            : pack.name}
-                    </p>
-                    {#if revealedSections.has(pack.id)}
-                        <div
-                            class="grid gap-1 mb-2"
-                            role="group"
-                            aria-label={pack.id === "user"
-                                ? t("emojiPicker.myEmojis2")
-                                : pack.name}
-                            style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
-                        >
-                            {#each pack.emojis as e, li (pack.id + ":" + e.shortcode)}
-                                {@const globalIdx =
-                                    (sectionOffsets.get(pack.id) ?? 0) + li}
-                                <button
-                                    data-item-index={globalIdx}
-                                    onclick={() => pickCustom(e)}
-                                    title={e.shortcode}
-                                    id={optionId(listId, globalIdx)}
-                                    role="option"
-                                    aria-selected={activeIndex === globalIdx}
-                                    aria-label={e.shortcode}
-                                    tabindex="-1"
-                                    class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
-                                    class:ring-2={activeIndex === globalIdx}
-                                    class:ring-discord-accent={activeIndex ===
-                                        globalIdx}
-                                >
-                                    <img
-                                        src={e.url}
-                                        alt={e.shortcode}
-                                        class="w-full h-full object-contain"
-                                        loading="lazy"
-                                    />
-                                </button>
-                            {/each}
-                        </div>
-                    {:else}
-                        <div
-                            class="mb-2"
-                            style="height: {customPlaceholderHeight(
-                                pack.emojis.length,
-                            )}px"
-                        ></div>
-                    {/if}
-                </div>
-            {/each}
-
-            <!-- All standard categories -->
-            {#each EMOJI_CATEGORIES as cat (cat.id)}
-                <div data-lazy-id={cat.id} use:lazySection>
-                    <p
-                        data-section={cat.id}
-                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide px-1 pt-2 pb-1"
-                    >
-                        {cat.name}
-                    </p>
-                    {#if revealedSections.has(cat.id)}
-                        <div
-                            class="grid gap-1 mb-2"
-                            role="group"
-                            aria-label={cat.name}
-                            style="grid-template-columns: repeat({cols}, minmax(0, 1fr))"
-                        >
-                            {#each cat.emojis as e, li (e.name)}
-                                {@const globalIdx =
-                                    (sectionOffsets.get(cat.id) ?? 0) + li}
-                                <button
-                                    data-item-index={globalIdx}
-                                    onclick={() => pick(e.emoji)}
-                                    title={e.name}
-                                    id={optionId(listId, globalIdx)}
-                                    role="option"
-                                    aria-selected={activeIndex === globalIdx}
-                                    aria-label={e.name}
-                                    tabindex="-1"
-                                    class="p-1 rounded hover:bg-discord-messageHover transition-colors aspect-square flex items-center justify-center"
-                                    class:ring-2={activeIndex === globalIdx}
-                                    class:ring-discord-accent={activeIndex ===
-                                        globalIdx}
-                                >
-                                    {@html emojiHtml(e.emoji)}
-                                </button>
-                            {/each}
-                        </div>
-                    {:else}
-                        <div
-                            class="mb-2"
-                            style="height: {stdPlaceholderHeight(
-                                cat.emojis.length,
-                            )}px"
-                        ></div>
-                    {/if}
-                </div>
-            {/each}
+        {#if search && !hasOptions}
+            <p class="text-center text-discord-textMuted text-sm py-8">
+                {t("common.noResults")}
+            </p>
         {/if}
+        <div class="relative" style="height: {layout.total}px">
+            {#each visibleRows as row (row.key)}
+                {#if row.kind === "header"}
+                    <p
+                        data-section={row.sectionId}
+                        class="absolute inset-x-0 overflow-hidden whitespace-nowrap text-ellipsis text-xs font-semibold text-discord-textMuted uppercase tracking-wide px-1 pt-2 pb-1"
+                        style="top: {row.top}px; height: {HEADER_H}px"
+                    >
+                        {row.label}
+                    </p>
+                {:else}
+                    <div
+                        class="absolute inset-x-0 grid gap-1"
+                        style="top: {row.top}px; height: {cellSize}px; grid-template-columns: repeat({cols}, minmax(0, 1fr))"
+                    >
+                        {#each indexRange(row.start, row.end) as idx (idx)}
+                            {@const item = flatItems[idx]}
+                            {@const label =
+                                item.kind === "custom"
+                                    ? item.data.shortcode
+                                    : item.data.name}
+                            <button
+                                data-item-index={idx}
+                                onclick={() =>
+                                    item.kind === "custom"
+                                        ? pickCustom(item.data)
+                                        : pick(item.data.emoji)}
+                                title={label}
+                                id={optionId(listId, idx)}
+                                role="option"
+                                aria-selected={activeIndex === idx}
+                                aria-label={label}
+                                aria-setsize={flatItems.length}
+                                aria-posinset={idx + 1}
+                                tabindex="-1"
+                                class="p-1 rounded hover:bg-discord-messageHover transition-colors flex items-center justify-center"
+                                style="height: {cellSize}px"
+                                class:ring-2={activeIndex === idx}
+                                class:ring-discord-accent={activeIndex === idx}
+                            >
+                                {#if item.kind === "custom"}
+                                    <img
+                                        src={pickerThumbUrl(
+                                            item.data.mxcUrl,
+                                            EMOJI_THUMB_PX,
+                                        ) ?? item.data.url}
+                                        alt={item.data.shortcode}
+                                        class="w-full h-full object-contain"
+                                        decoding="async"
+                                    />
+                                {:else}
+                                    {@html emojiHtml(item.data.emoji)}
+                                {/if}
+                            </button>
+                        {/each}
+                    </div>
+                {/if}
+            {/each}
+        </div>
     </div>
 </div>
 

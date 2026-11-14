@@ -28,6 +28,7 @@ import {
 import { safeMediaBlob } from "$lib/utils/attachmentMime";
 import { exceedsUploadLimit, FileTooLargeError } from "$lib/utils/uploadLimits";
 import { parseMxc, isSameOrigin } from "$lib/utils/mxcUri";
+import { markPickerThumb, swControlsPage } from "$lib/utils/pickerThumbCache";
 import {
     readBodyWithProgress,
     type ReadProgressOptions,
@@ -504,6 +505,17 @@ export function mxcToHttp(
         return `${baseUrl}/_matrix/client/v1/media/thumbnail/${serverName}/${mediaId}?width=${width}&height=${height}&method=${method}&animated=true`;
     }
     return `${baseUrl}/_matrix/client/v1/media/download/${serverName}/${mediaId}`;
+}
+
+/**
+ * A server thumbnail of a custom emoji or sticker, sized for the pickers and
+ * marked so the service worker keeps it on the device
+ * (utils/pickerThumbCache.ts). Null when the mxc URL is not valid.
+ */
+export function pickerThumbUrl(mxcUrl: string, size: number): string | null {
+    const url = mxcToHttp(mxcUrl, size, size, "scale");
+    if (!url) return null;
+    return swControlsPage() ? markPickerThumb(url) : url;
 }
 
 /** Fetch an attachment from the homeserver with auth and return an object URL for use in <video/audio src> and file downloads. */

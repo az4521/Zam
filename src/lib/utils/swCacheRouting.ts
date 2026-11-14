@@ -11,6 +11,10 @@
  * anything cross-origin, anything with an Authorization header and anything
  * that is not a GET is classified `bypass` and left to the worker's existing
  * media-auth handling (or to the network).
+ *
+ * (The one exception lives in that media-auth handling, not here: picker
+ * thumbnails the page marks, in a per-account cache that is deleted when the
+ * account signs out. See utils/pickerThumbCache.ts.)
  */
 
 export const SHELL_CACHE_PREFIX = "zam-shell-";

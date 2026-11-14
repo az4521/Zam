@@ -122,7 +122,12 @@ describe("static/sw.js mirrors this gate", () => {
 
     it("injects the token only on an exact origin match, under the base path", () => {
         expect(swCompact).toContain(
-            "if(!accessToken||parsedUrl.origin!==hsUrl.origin||!reqBase.startsWith(hsBase))returnfetch(event.request);",
+            "if(!accessToken||parsedUrl.origin!==hsUrl.origin||!reqBase.startsWith(hsBase))returnpassThrough();",
+        );
+        // …and that fallback never carries the token: the original request,
+        // or for a picker thumbnail its marker-stripped URL, as a plain fetch.
+        expect(swCompact).toContain(
+            "constpassThrough=()=>pickerThumb?fetch(forwardUrl):fetch(event.request);",
         );
     });
 

@@ -1085,6 +1085,7 @@ self.addEventListener("message", (event) => {
 				// Token is now in memory — if we already control the page, its
 				// media requests will succeed; tell it to retry any that 401'd.
 				broadcastMediaAuthReady();
+				await prunePickerThumbCaches();
 			} else if (event.data?.type === "SET_ACCOUNTS") {
 				// Every account signed in on this origin (see accountSessions).
 				// Sent whenever the page's account registry changes, so an
@@ -1099,6 +1100,8 @@ self.addEventListener("message", (event) => {
 						records && typeof records === "object" ? records : null,
 					),
 				);
+				// An account signed out here takes its picker thumbnails along.
+				await prunePickerThumbCaches();
 			} else if (event.data?.type === "GET_MEDIA_AUTH_STATUS") {
 				// The page asks whether it can leave media auth to us. Answer
 				// after the stored token has been read, never with a guess.
@@ -1136,6 +1139,7 @@ self.addEventListener("message", (event) => {
 				// Credentials are gone; now take the notifications that were
 				// posted under them off the screen.
 				await closeAllNotifications();
+				await prunePickerThumbCaches();
 			} else if (event.data?.type === "CLEAR_NOTIFICATIONS") {
 				// An account switch keeps a valid session (the next account's
 				// boot re-sends SET_AUTH), so it must not clear auth — but the
@@ -1281,6 +1285,20 @@ self.addEventListener("fetch", (event) => {
 	)
 		return;
 
+	// Picker thumbnails (src/lib/utils/pickerThumbCache.ts): drop the marker
+	// before anything is sent, so the homeserver never sees it.
+	const pickerThumb =
+		parsedUrl.pathname.includes("/_matrix/client/v1/media/thumbnail/") &&
+		parsedUrl.searchParams.has(PICKER_THUMB_PARAM);
+	let forwardUrl = url;
+	if (pickerThumb) {
+		const stripped = new URL(url);
+		stripped.searchParams.delete(PICKER_THUMB_PARAM);
+		forwardUrl = stripped.href;
+	}
+	const passThrough = () =>
+		pickerThumb ? fetch(forwardUrl) : fetch(event.request);
+
 	event.respondWith(
 		authReady
 			.then(() => {
@@ -1295,7 +1313,7 @@ self.addEventListener("fetch", (event) => {
 				try {
 					hsUrl = new URL(homeserverUrl);
 				} catch {
-					return fetch(event.request);
+					return passThrough();
 				}
 				const hsBase = hsUrl.pathname.endsWith("/")
 					? hsUrl.pathname
@@ -1308,19 +1326,91 @@ self.addEventListener("fetch", (event) => {
 					parsedUrl.origin !== hsUrl.origin ||
 					!reqBase.startsWith(hsBase)
 				)
-					return fetch(event.request);
+					return passThrough();
 
 				const headers = new Headers(event.request.headers);
 				headers.set("Authorization", `Bearer ${accessToken}`);
-				return fetch(url, {
+				if (pickerThumb && userId)
+					return pickerThumbResponse(event, forwardUrl, headers, userId);
+				return fetch(forwardUrl, {
 					method: event.request.method,
 					headers,
 					cache: "default",
 				});
 			})
-			.catch(() => fetch(event.request)),
+			.catch(() => passThrough()),
 	);
 });
+
+// ── Picker thumbnail cache ──────────────────────────────────────────────────
+// Custom emoji / sticker thumbnails the pickers show, kept on the device so a
+// picker reopens without re-downloading every image. See
+// src/lib/utils/pickerThumbCache.ts, which holds the page half and the
+// constants repeated here (pickerThumbCache.test.ts pins them together).
+//
+// This is the one place the worker stores media fetched with the access
+// token, so it is fenced in: only thumbnails the page marked, one cache per
+// account, and that cache is deleted once the account is not signed in here
+// (prunePickerThumbCaches, run on SET_AUTH / SET_ACCOUNTS / CLEAR_AUTH).
+// An mxc:// image never changes, so an entry never goes stale.
+const PICKER_THUMB_PARAM = "zam_picker_thumb";
+const PICKER_THUMB_CACHE_PREFIX = "zam-picker-thumbs:";
+// Bound the cache: thumbnails are small, but packs come and go.
+const PICKER_THUMB_MAX_ENTRIES = 5000;
+let pickerThumbPutsSinceTrim = 0;
+
+async function pickerThumbResponse(event, fetchUrl, headers, forUser) {
+	let cache = null;
+	try {
+		cache = await caches.open(PICKER_THUMB_CACHE_PREFIX + forUser);
+		// ignoreVary: the stored response may say `Vary: Authorization`, and
+		// the lookup carries no header.
+		const hit = await cache.match(fetchUrl, { ignoreVary: true });
+		if (hit) return hit;
+	} catch {
+		cache = null;
+	}
+	const res = await fetch(fetchUrl, { headers, cache: "default" });
+	const type = res.headers.get("content-type") || "";
+	// Store only a whole image, and only if the account is still the one we
+	// fetched for: a put after sign-out would recreate a pruned cache.
+	if (cache && res.status === 200 && type.startsWith("image/")) {
+		const copy = res.clone();
+		event.waitUntil(
+			(async () => {
+				if (userId !== forUser) return;
+				await cache.put(fetchUrl, copy);
+				if (++pickerThumbPutsSinceTrim >= 100) {
+					pickerThumbPutsSinceTrim = 0;
+					const keys = await cache.keys();
+					// keys() is in insertion order: drop the oldest.
+					const excess = keys.length - PICKER_THUMB_MAX_ENTRIES;
+					for (let i = 0; i < excess; i++) await cache.delete(keys[i]);
+				}
+			})().catch(() => {}),
+		);
+	}
+	return res;
+}
+
+// Delete the picker thumbnail cache of every account not signed in here.
+async function prunePickerThumbCaches() {
+	if (typeof caches === "undefined") return;
+	// The stored account list is read in authReady; before that an empty
+	// list would delete every other signed-in account's cache.
+	await authReady.catch(() => {});
+	const keep = new Set(Object.keys(accountSessions));
+	if (userId) keep.add(userId);
+	try {
+		for (const name of await caches.keys()) {
+			if (!name.startsWith(PICKER_THUMB_CACHE_PREFIX)) continue;
+			if (!keep.has(name.slice(PICKER_THUMB_CACHE_PREFIX.length)))
+				await caches.delete(name);
+		}
+	} catch {
+		/* best effort */
+	}
+}
 
 // ── Web Push (PWA notifications) ────────────────────────────────────────────
 // Sygnal sends "event_id_only" web push: just event_id / room_id. We fetch the
