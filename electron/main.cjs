@@ -1594,14 +1594,27 @@ const GPU_RECYCLE_MIN_KB = 128 * 1024;
 let gpuRecycleTimer = null;
 // Once per spell out of sight: nothing new is drawn until the window is back.
 let gpuRecycled = false;
+// The page's own visibility (preload.cjs). On Windows it also goes hidden
+// while other windows cover this one entirely, which isVisible() and
+// isMinimized() don't see: a window kept open behind a browser or game all
+// day otherwise never got a fresh GPU process (measured: 230 MB after 11 h).
+let pageHidden = false;
 
 function windowOutOfSight() {
     return (
         !!mainWindow &&
         !mainWindow.isDestroyed() &&
-        (!mainWindow.isVisible() || mainWindow.isMinimized())
+        (pageHidden || !mainWindow.isVisible() || mainWindow.isMinimized())
     );
 }
+
+ipcMain.on("window:page-hidden", (e, hidden) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (e.sender !== mainWindow.webContents) return;
+    pageHidden = !!hidden;
+    if (windowOutOfSight()) armGpuRecycle();
+    else disarmGpuRecycle();
+});
 
 function recycleGpuIfIdle() {
     gpuRecycleTimer = null;
@@ -2159,11 +2172,13 @@ async function createWindow() {
     mainWindow.on("minimize", () => {
         if (liveWindow()) armGpuRecycle();
     });
+    // The page reports covered-by-other-windows separately (window:page-hidden),
+    // so showing a window that is still fully covered keeps the timers.
     mainWindow.on("show", () => {
-        if (liveWindow()) disarmGpuRecycle();
+        if (liveWindow() && !windowOutOfSight()) disarmGpuRecycle();
     });
     mainWindow.on("restore", () => {
-        if (liveWindow()) disarmGpuRecycle();
+        if (liveWindow() && !windowOutOfSight()) disarmGpuRecycle();
     });
 
     // A renderer exit that is not a clean close or a kill reloads the page once,

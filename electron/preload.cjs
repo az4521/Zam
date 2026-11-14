@@ -5,6 +5,14 @@
 
 const { contextBridge, ipcRenderer } = require("electron");
 
+// Page visibility for main.cjs's out-of-sight memory trims. Unlike the
+// window's own state it is also hidden while other windows fully cover it
+// (Chromium's occlusion tracking on Windows and macOS).
+const sendPageHidden = () =>
+    ipcRenderer.send("window:page-hidden", document.hidden);
+document.addEventListener("visibilitychange", sendPageHidden);
+window.addEventListener("DOMContentLoaded", sendPageHidden);
+
 // Plugins' native code (pluginNative.cjs): main answers "plugin-native:open"
 // with a MessagePort to the plugin's host. A port can't cross contextBridge,
 // so it is posted to the page's window, tagged with the id the page asked
