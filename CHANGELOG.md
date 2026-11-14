@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.14
+
+✨ **New**
+
+- **Mark as unread:** mark a room unread from the room list's menu, or from a specific message so that message and everything after it show as new. On phones it's in the message's long-press menu, in the desktop app it's in the right-click menu, and in a desktop browser Alt+click a message. The room stays unread on all your devices (and shows as unread in other Matrix apps) until you read it, press Escape or click "Mark as read".
+
+🐛 **Fixed**
+
+- **Catching up now works after restarting the app:** the "New Messages" line and the unread bar only appeared for messages that arrived while the app was open. Rooms now open at where you stopped reading, without loading the whole gap first: newer messages load as you scroll down, and "Jump to present" takes you straight to the latest.
+
 ## v1.60.13
 
 ✨ **New**
