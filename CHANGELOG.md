@@ -4,6 +4,19 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.60.20
+
+✨ **New**
+
+- **Stop watching a screen share:** someone else's screen share now has a "Stop watching" button. It stops the video and its sound for the rest of the call, and the tile stays with a "Watch stream" button to start again.
+- **Mute just a screen share's sound:** right-click someone who is sharing sound and pick "Mute screen share". Their voice stays on.
+- **Picture-in-picture without the address (desktop):** the pop-out video is now Zam's own small always-on-top window instead of the system one, which showed the loopback address and port the app runs on. It follows the same stream as the floating video and shows its name; hover it for mute, camera, hang up, back to the call and close.
+
+🐛 **Fixed**
+
+- **Shared tabs and windows were black for viewers:** on computers whose graphics card encodes HEVC, sharing a browser tab or a window showed viewers a black screen. Shares are now trimmed by up to 3 pixels to a size the graphics card accepts, and if its encoder still won't start, Zam tries the next one, ending with software encoding.
+- **Soundboard sounds can come quickly again:** the shortest gap between one person's sounds is back down to 250 ms.
+
 ## v1.60.19
 
 🐛 **Fixed**
