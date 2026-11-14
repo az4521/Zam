@@ -50,6 +50,8 @@ interface StreamMessage {
     kind?: string;
     data?: {
         depth?: number;
+        /** Set by LiveKit on video receivers only. */
+        codec?: string;
         readableStream?: ReadableStream<AudioFrameLike>;
         writableStream?: WritableStream<AudioFrameLike>;
     };
@@ -66,7 +68,16 @@ self.addEventListener("message", (ev) => {
         data.readableStream = data.readableStream.pipeThrough(
             senderStage(config),
         );
-    } else if (msg.kind === "decode" && data.writableStream) {
+    } else if (
+        msg.kind === "decode" &&
+        data.writableStream &&
+        // LiveKit names a codec only for video receivers. Video must reach
+        // the decoder straight from the decryptor: through one more stream,
+        // Chrome dropped every encrypted H.264 delta frame (viewers saw a
+        // share stuck on its first frame, then nothing). VP8 and HEVC were
+        // unaffected; measured in a two-page loopback.
+        !data.codec
+    ) {
         const pass = new TransformStream<AudioFrameLike, AudioFrameLike>();
         pass.readable
             .pipeThrough(receiverStage(makeFrame))

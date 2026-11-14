@@ -3411,7 +3411,8 @@ function shareCodecOptions(
 // publish the share's sender is watched, and on failure the share moves to
 // the next trim or codec.
 const SHARE_CHECK_MS = 1000;
-/** Seconds of sending with no new frames before an encoder counts as failed. */
+/** Seconds in which the capture delivered frames but the encoder made none
+ *  before an encoder counts as failed. */
 const SHARE_CHECKS_BEFORE_FAILING = 6;
 /** Codecs a capture's encoder already failed on, so a later codec switch
  *  (republishVideo) doesn't put it back on one. */
@@ -3432,6 +3433,7 @@ async function shareEncoderWorks(
     const sender = track.sender;
     if (!sender) return true;
     let firstFrames: number | null = null;
+    let lastSource: number | null = null;
     let checks = 0;
     while (checks < SHARE_CHECKS_BEFORE_FAILING) {
         await new Promise((resolve) => setTimeout(resolve, SHARE_CHECK_MS));
@@ -3442,7 +3444,17 @@ async function shareEncoderWorks(
         let frames = 0;
         let sending = false;
         let otherCodec = false;
+        // Frames the capture handed the encoder. A still screen or tab
+        // delivers none, so its encoder has nothing to make: that is not a
+        // failure (counting it as one walked healthy shares down the ladder).
+        let source = null as number | null;
         report.forEach((s: RTCStats & Record<string, unknown>) => {
+            if (
+                s.type === "media-source" &&
+                s.kind === "video" &&
+                typeof s.frames === "number"
+            )
+                source = Math.max(source ?? 0, s.frames);
             if (s.type !== "outbound-rtp" || s.kind !== "video") return;
             if (s.active === false) return;
             sending = true;
@@ -3463,7 +3475,13 @@ async function shareEncoderWorks(
         }
         if (firstFrames === null) firstFrames = frames;
         else if (frames > firstFrames) return true;
-        checks++;
+        // Only a second in which the capture delivered frames counts against
+        // the encoder. Without the capture's count (no media-source stats)
+        // there is no telling, so only a codec switch counts as failing.
+        const fed =
+            source !== null && lastSource !== null && source > lastSource;
+        if (source !== null) lastSource = source;
+        if (fed) checks++;
     }
     return false;
 }
