@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.63.1
+
+✨ **New**
+
+- **Message link pills:** a pasted link to a message now shows as a small pill naming where the message is: `#room name` for a room, or the person's avatar and name for a DM. Hovering a pill highlights the matching preview card. Links you gave your own label are left as they are. Thanks to the community author of the Message Link Pill plugin, now built in and on by default (turn it off under Settings → Plugins).
+- **Favourite videos:** video messages can be starred like images and GIFs. Starred videos play as muted, looping tiles in the GIF picker's Favourites tab and send as videos.
+
 ## v1.63.0
 
 ✨ **New**
