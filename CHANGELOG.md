@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.61.3
+
+✨ **New**
+
+- **Fit to screen in the image viewer:** a new button next to the zoom controls enlarges an image smaller than your screen to fill it. To have every image open that way, turn on **Fit images to the screen** in Settings → Messages and media (off by default).
+
+🐛 **Fixed**
+
+- **Zoom percentage is accurate:** the viewer now shows the image’s real scale, so a large image shrunk to fit your screen shows, say, 49% instead of 100%.
+- **Copy image copies the full image (desktop app):** right-click → Copy image on a photo in the chat now copies the original instead of the smaller preview shown in the timeline. Save image as also saves the original for encrypted photos and gallery photos.
+
 ## v1.61.2
 
 ✨ **New**
