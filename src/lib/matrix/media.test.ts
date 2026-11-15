@@ -32,7 +32,7 @@ const faststart = vi.hoisted(() => ({
 }));
 vi.mock("$lib/utils/mp4Faststart", () => ({ faststartMp4: faststart.fn }));
 
-import { sendExistingMedia, sendFile } from "./media";
+import { sendExistingMedia, sendFile, sendGallery } from "./media";
 import type { ReusableMedia } from "./favouriteFile";
 import { setFaststartVideos } from "$lib/stores/settings.svelte";
 
@@ -259,5 +259,79 @@ describe("sendFile video faststart", () => {
         await send(doc);
         expect(faststart.fn).not.toHaveBeenCalled();
         expect(uploaded()).toBe(doc);
+    });
+});
+
+describe("sendGallery", () => {
+    const client = () => slot.client as ReturnType<typeof makeClient>;
+    const a = new File(["a"], "a.txt", { type: "text/plain" });
+    const b = new File(["bb"], "b.txt", { type: "text/plain" });
+
+    it("sends one gallery event with one item per file, in order", async () => {
+        await sendGallery("!r", [a, b], { body: "two files" });
+        expect(client().sendMessage).toHaveBeenCalledTimes(1);
+        const content = sentContent(client());
+        expect(content.msgtype).toBe("dm.filament.gallery");
+        expect(content.body).toBe("two files");
+        const items = content.itemtypes as Record<string, unknown>[];
+        expect(items.map((i) => i.body)).toEqual(["a.txt", "b.txt"]);
+        expect(items.map((i) => i.itemtype)).toEqual(["m.file", "m.file"]);
+        expect(items[0]).not.toHaveProperty("msgtype");
+        expect(items[0].url).toBe("mxc://s/file");
+    });
+
+    it("sends an empty caption when none is given", async () => {
+        await sendGallery("!r", [a, b]);
+        expect(sentContent(client()).body).toBe("");
+    });
+
+    it("reports progress by file index", async () => {
+        const onProgress = vi.fn();
+        client().uploadContent.mockImplementation(
+            async (
+                _file: unknown,
+                opts?: { progressHandler?: (l: number, t: number) => void },
+            ) => {
+                opts?.progressHandler?.(1, 2);
+                return { content_uri: "mxc://s/file" };
+            },
+        );
+        await sendGallery(
+            "!r",
+            [a, b],
+            undefined,
+            undefined,
+            undefined,
+            onProgress,
+        );
+        const indexes = new Set(onProgress.mock.calls.map((c) => c[0]));
+        expect(indexes).toEqual(new Set([0, 1]));
+    });
+
+    it("puts a reply relation on the gallery, not on the items", async () => {
+        await sendGallery("!r", [a, b], undefined, { replyToEventId: "$q" });
+        const content = sentContent(client());
+        expect(content["m.relates_to"]).toEqual({
+            "m.in_reply_to": { event_id: "$q" },
+        });
+        for (const item of content.itemtypes as Record<string, unknown>[]) {
+            expect(item).not.toHaveProperty("m.relates_to");
+        }
+    });
+
+    it("sends nothing when beforeSend rejects", async () => {
+        const beforeSend = vi.fn().mockRejectedValue(new Error("stop"));
+        await expect(
+            sendGallery(
+                "!r",
+                [a, b],
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                beforeSend,
+            ),
+        ).rejects.toThrow("stop");
+        expect(client().sendMessage).not.toHaveBeenCalled();
     });
 });

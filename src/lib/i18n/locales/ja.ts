@@ -543,6 +543,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.orderHints": "メッセージ順序のヒント",
     "debugSettings.orderHintsHint":
         "送信するメッセージに、チャットログの一番下に何があったかを示すヒントを付けます。また、他の Zam ユーザーのメッセージは、ヒントが示すメッセージの下に表示します。オフにすると、Element と同じようにサーバーの順序で表示します。",
+    "debugSettings.disableGallerySend": "ギャラリーを送信しない",
+    "debugSettings.disableGallerySendHint":
+        "一緒に選んだ添付ファイルは通常、キャプション1つのギャラリーメッセージ1件として送信されます（MSC4274、dm.filament.gallery として送信）。オンにすると、それぞれ別のメッセージとして送信します。他の人のギャラリーは引き続き表示されます。",
     "debugSettings.stickyCallMembership": "スティッキー通話メンバーシップ",
     "debugSettings.stickyCallMembershipHint":
         "通話に m.call.member ステートイベントの代わりに、スティッキーな m.rtc.member イベント (MSC4354) で参加します。ステートイベントしか読まないクライアント (1.51 より前の Zam を含む) には、通話中のあなたが見えません。次の通話から適用されます。",
@@ -1173,6 +1176,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.replyPreviewVideo": "動画",
     "messageItem.replyPreviewAudio": "音声",
     "messageItem.replyPreviewFile": "ファイル",
+    "messageItem.replyPreviewGallery": "{n, plural, other {#件の添付ファイル}}",
+    "messageItem.galleryLabel": "ギャラリー、{n, plural, other {#件}}",
+    "messageItem.galleryOpenItem": "{name}を開く",
+    "messageItem.galleryDownload": "{name}をダウンロード",
+    "messageItem.galleryEmpty": "空のギャラリー",
     "messageItem.edited": "（編集済み）",
     "messageItem.decryptingImage": "画像を復号しています...",
     "messageItem.couldnTDecryptImage": "画像を復号できませんでした",
@@ -3453,6 +3461,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.clearCache": "キャッシュを消去",
     "settingsSearch.showAllEvents": "すべてのイベントを表示",
     "settingsSearch.orderHints": "メッセージ順序のヒント",
+    "settingsSearch.disableGallerySend": "ギャラリーを送信しない",
     "settingsSearch.stickyCallMembership": "スティッキー通話メンバーシップ",
     "settingsSearch.pushDiagnostics": "プッシュの診断",
     "settingsSearch.pushService": "プッシュサービス(UnifiedPush / Firebase)",

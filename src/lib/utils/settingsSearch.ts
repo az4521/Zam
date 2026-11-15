@@ -578,6 +578,11 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     },
     {
         tab: "debug",
+        label: t("settingsSearch.disableGallerySend"),
+        keywords: ["gallery", "album", "attachments", "msc4274", "m.gallery"],
+    },
+    {
+        tab: "debug",
         label: t("settingsSearch.stickyCallMembership"),
         keywords: ["msc4354", "m.rtc.member", "call", "matrixrtc"],
     },

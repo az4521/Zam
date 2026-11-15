@@ -20,6 +20,7 @@
         mediaThumbnailMxc,
         mediaTileSource,
         mediaViewerItem,
+        mediaItemKey,
         type RoomMediaItem,
     } from "$lib/utils/roomMedia";
     import { galleryPositionLabel } from "$lib/utils/mediaGallery";
@@ -53,9 +54,9 @@
     // video, so this is the ORDINARY path for them, not an error case: the tile
     // swaps to a placeholder instead of showing a broken-image glyph.
     let thumbFailed = $state<Record<string, boolean>>({});
-    // Decrypted encrypted thumbnails, keyed by eventId.
+    // Decrypted encrypted thumbnails, keyed by mediaItemKey.
     let decryptedThumbs = $state<Record<string, string>>({});
-    // Decrypted full media for the lightbox viewer, keyed by eventId.
+    // Decrypted full media for the lightbox viewer, keyed by mediaItemKey.
     let decryptedFull = $state<Record<string, string>>({});
     let viewerDecrypting = $state(false);
     let viewerProgress = $state<DownloadProgress | null>(null);
@@ -207,7 +208,8 @@
     });
 
     function openViewer(item: RoomMediaItem): void {
-        const index = gallery.findIndex((i) => i.eventId === item.eventId);
+        const key = mediaItemKey(item);
+        const index = gallery.findIndex((i) => mediaItemKey(i) === key);
         if (index === -1) return;
         viewerIndex = index;
     }
@@ -263,7 +265,7 @@
     // every "Load more", so it skips anything already decrypted or in flight.
     $effect(() => {
         const wanted = split.visual
-            .map((m) => ({ id: m.eventId, source: mediaTileSource(m) }))
+            .map((m) => ({ id: mediaItemKey(m), source: mediaTileSource(m) }))
             .filter((x) => x.source?.kind === "encrypted");
         untrack(() => {
             const gen = blobGen;
@@ -303,7 +305,7 @@
         // An encrypted video is decrypted by the viewer itself, which can
         // start playing while it is still downloading.
         if (item.kind === "video") return;
-        const id = item.eventId;
+        const id = mediaItemKey(item);
         if (untrack(() => decryptedFull[id])) return; // Already decrypted
         const gen = blobGen;
         let cancelled = false;
@@ -434,12 +436,12 @@
             </p>
         {:else if tab === "media"}
             <div class="grid grid-cols-3 gap-1 p-2">
-                {#each split.visual as media (media.eventId)}
+                {#each split.visual as media (mediaItemKey(media))}
                     {@const thumbMxc = mediaThumbnailMxc(media)}
-                    {@const thumb = thumbFailed[media.eventId]
+                    {@const thumb = thumbFailed[mediaItemKey(media)]
                         ? null
                         : media.encrypted
-                          ? (decryptedThumbs[media.eventId] ?? null)
+                          ? (decryptedThumbs[mediaItemKey(media)] ?? null)
                           : mxcToHttp(thumbMxc, 160, 160)}
                     {@const duration = formatMediaDuration(media.durationMs)}
                     <button
@@ -457,7 +459,7 @@
                                 loading="lazy"
                                 class="w-full h-full object-cover"
                                 onerror={() =>
-                                    (thumbFailed[media.eventId] = true)}
+                                    (thumbFailed[mediaItemKey(media)] = true)}
                             />
                         {:else if media.kind === "video"}
                             <!-- Nothing to show: a flat tile that lets the play
@@ -493,7 +495,7 @@
             </div>
         {:else}
             <div class="p-2 space-y-1">
-                {#each split.files as file (file.eventId)}
+                {#each split.files as file (mediaItemKey(file))}
                     <button
                         onclick={(e) => download(file, e.shiftKey)}
                         class="w-full text-start p-2 rounded-lg hover:bg-discord-messageHover transition-colors"
@@ -543,13 +545,13 @@
         // ciphertext, which the viewer would download and fail to show.
         full: (mxc) =>
             item.encrypted && item.kind !== "video"
-                ? (decryptedFull[item.eventId] ?? null)
+                ? (decryptedFull[mediaItemKey(item)] ?? null)
                 : mxcToHttp(mxc),
         // "scale" rather than the default crop: a poster must match the video's
         // own aspect ratio or the player letterboxes a distorted still.
         poster: (mxc) =>
-            item.encrypted && decryptedThumbs[item.eventId]
-                ? decryptedThumbs[item.eventId]
+            item.encrypted && decryptedThumbs[mediaItemKey(item)]
+                ? decryptedThumbs[mediaItemKey(item)]
                 : mxcToHttp(mxc, 800, 600, "scale"),
     })}
     {#if viewerDecrypting}
@@ -575,7 +577,7 @@
                 ? // An encrypted video has no thumbnail_url, so mediaViewerItem
                   // never asks for one: use the decrypted thumbnail_file tile.
                   view.kind === "video"
-                    ? (decryptedThumbs[item.eventId] ?? null)
+                    ? (decryptedThumbs[mediaItemKey(item)] ?? null)
                     : null
                 : view.poster}
             filename={view.filename}

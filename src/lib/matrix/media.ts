@@ -13,6 +13,7 @@ import { withRandomFileName } from "$lib/utils/randomFileName";
 import { gifToAnimatedWebp } from "$lib/utils/gifToWebp";
 import { isMidiAttachment, midiSendMimetype } from "$lib/utils/midi";
 import { createImageThumbnail } from "$lib/utils/imageThumbnail";
+import { buildGalleryContent, toGalleryItem } from "$lib/utils/gallery";
 import { isRoomEncrypted, isRoomEncryptedForSend } from "$lib/matrix/crypto";
 import { withMessageRelation } from "$lib/utils/threadContent";
 import {
@@ -34,7 +35,7 @@ import {
     type ReadProgressOptions,
 } from "$lib/utils/downloadProgress";
 import {
-    mediaItemFromEvent,
+    mediaItemsFromEvent,
     mediaFilterDefinition,
     type RoomMediaItem,
 } from "$lib/utils/roomMedia";
@@ -239,23 +240,18 @@ function mediaEventContent(
     return content;
 }
 
-export async function sendFile(
+/**
+ * Upload one file (and its thumbnail) and build its media event content,
+ * without sending anything. The content is what sendFile posts; sendGallery
+ * takes it apart into gallery items. `caption` is applied as sendFile applies
+ * it; omit it for the uncaptioned content a gallery item is built from.
+ */
+export async function prepareFileContent(
     roomId: string,
     file: File,
-    caption?: MediaCaption,
-    // Thread to post into and/or message this file replies to.
-    relation?: MediaRelation,
-    // Plugin outgoing content transforms: run over the fully-built event
-    // content (thread relation included), right before the send.
-    transformContent?: (
-        content: Record<string, unknown>,
-    ) => Record<string, unknown>,
-    // Upload progress of the main file (its thumbnail is not counted).
     onProgress?: (loaded: number, total: number) => void,
-    // Awaited after the uploads, right before the event is sent, so a batch
-    // can upload in parallel yet post in order (utils/queuedFileSend).
-    beforeSend?: () => Promise<void>,
-): Promise<void> {
+    caption?: MediaCaption,
+): Promise<Record<string, unknown>> {
     const owner = captureClient();
     // Precheck the size against the server's advertised upload limit so an
     // over-limit file fails fast instead of a 413 mid-upload. This REJECTS
@@ -383,14 +379,79 @@ export async function sendFile(
         }
     }
 
-    const content = mediaEventContent(
+    return mediaEventContent(
         msgtype,
         toUpload.name,
         uploadResult,
         info,
         caption,
     );
+}
 
+export async function sendFile(
+    roomId: string,
+    file: File,
+    caption?: MediaCaption,
+    // Thread to post into and/or message this file replies to.
+    relation?: MediaRelation,
+    // Plugin outgoing content transforms: run over the fully-built event
+    // content (thread relation included), right before the send.
+    transformContent?: (
+        content: Record<string, unknown>,
+    ) => Record<string, unknown>,
+    // Upload progress of the main file (its thumbnail is not counted).
+    onProgress?: (loaded: number, total: number) => void,
+    // Awaited after the uploads, right before the event is sent, so a batch
+    // can upload in parallel yet post in order (utils/queuedFileSend).
+    beforeSend?: () => Promise<void>,
+): Promise<void> {
+    // Captured synchronously, before prepareFileContent's own capture, so both
+    // name the same client generation.
+    const owner = captureClient();
+    const content = await prepareFileContent(roomId, file, onProgress, caption);
+    const finalContent = relationFor(roomId, content, relation);
+    const outgoing = transformContent
+        ? transformContent(finalContent)
+        : finalContent;
+    if (beforeSend) await beforeSend();
+    await ownedClientOrThrow(owner).sendMessage(roomId, outgoing as never);
+}
+
+/**
+ * Send several files as one MSC4274 gallery message: one event, the shared
+ * `caption`, and one item per file in the order given. Only the uploads run
+ * in parallel; the event is built and sent once they all finish. A failing
+ * upload rejects the whole gallery and nothing is sent. `onProgress` reports
+ * each file's upload by its index in `files`.
+ */
+export async function sendGallery(
+    roomId: string,
+    files: File[],
+    caption?: MediaCaption,
+    // Thread to post into and/or message these files reply to.
+    relation?: MediaRelation,
+    // Plugin outgoing content transforms, as for sendFile.
+    transformContent?: (
+        content: Record<string, unknown>,
+    ) => Record<string, unknown>,
+    // Upload progress of each file (its thumbnail is not counted).
+    onProgress?: (index: number, loaded: number, total: number) => void,
+    // Awaited after the uploads, right before the event is sent.
+    beforeSend?: () => Promise<void>,
+): Promise<void> {
+    const owner = captureClient();
+    const contents = await Promise.all(
+        files.map((file, index) =>
+            prepareFileContent(
+                roomId,
+                file,
+                onProgress
+                    ? (loaded, total) => onProgress(index, loaded, total)
+                    : undefined,
+            ),
+        ),
+    );
+    const content = buildGalleryContent(contents.map(toGalleryItem), caption);
     const finalContent = relationFor(roomId, content, relation);
     const outgoing = transformContent
         ? transformContent(finalContent)
@@ -663,9 +724,10 @@ export async function fetchRoomMediaPage(
 ): Promise<RoomMediaPage> {
     if (!matrixClient) throw new Error(t("media.notLoggedIn"));
     const encrypted = isRoomEncrypted(matrixClient.getRoom(roomId));
-    // An encrypted room can't be filtered server-side, so a page is every
-    // message and only a few are media: ask for more per round trip.
-    limit ??= encrypted ? 100 : 50;
+    // No room can be filtered to media server-side (see
+    // mediaFilterDefinition), so a page is every message and only a few are
+    // media: ask for more per round trip.
+    limit ??= 100;
 
     const filter = new Filter(matrixClient.getUserId());
     filter.setDefinition(mediaFilterDefinition(encrypted, limit));
@@ -693,14 +755,16 @@ export async function fetchRoomMediaPage(
 
     const items: RoomMediaItem[] = [];
     for (const event of events) {
-        const item = mediaItemFromEvent({
-            eventId: event.getId(),
-            sender: event.getSender(),
-            ts: event.getTs(),
-            type: event.getType(),
-            content: event.getContent() as Record<string, unknown>,
-        });
-        if (item) items.push(item);
+        // An MSC4274 gallery contributes one item per attachment.
+        items.push(
+            ...mediaItemsFromEvent({
+                eventId: event.getId(),
+                sender: event.getSender(),
+                ts: event.getTs(),
+                type: event.getType(),
+                content: event.getContent() as Record<string, unknown>,
+            }),
+        );
     }
 
     // End of history is the token, not the chunk: conduit-derived servers

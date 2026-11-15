@@ -597,6 +597,9 @@ export const en = {
     "debugSettings.orderHints": "Message order hints",
     "debugSettings.orderHintsHint":
         "Zam adds a hint to your messages saying what was at the bottom of your chat log, and puts other Zam users' messages below the one they name. Off, messages show in the server's order, as in Element.",
+    "debugSettings.disableGallerySend": "Don't send galleries",
+    "debugSettings.disableGallerySendHint":
+        "Attachments picked together normally go as one gallery message with one caption (MSC4274, sent as dm.filament.gallery). On, each goes as its own message instead. Galleries from others are still shown.",
     "debugSettings.stickyCallMembership": "Sticky call membership",
     "debugSettings.stickyCallMembershipHint":
         "Join calls with a sticky m.rtc.member event (MSC4354) instead of an m.call.member state event. Clients that only read state events, including Zam before 1.51, won't see you in the call. Applies from your next call.",
@@ -1351,6 +1354,13 @@ export const en = {
     "messageItem.replyPreviewVideo": "Video",
     "messageItem.replyPreviewAudio": "Audio",
     "messageItem.replyPreviewFile": "File",
+    "messageItem.replyPreviewGallery":
+        "{n, plural, one {# attachment} other {# attachments}}",
+    "messageItem.galleryLabel":
+        "Gallery, {n, plural, one {# item} other {# items}}",
+    "messageItem.galleryOpenItem": "Open {name}",
+    "messageItem.galleryDownload": "Download {name}",
+    "messageItem.galleryEmpty": "Empty gallery",
     "messageItem.edited": "(edited)",
     "messageItem.decryptingImage": "Decrypting image...",
     "messageItem.couldnTDecryptImage": "Couldn't decrypt image",
@@ -3895,6 +3905,7 @@ export const en = {
     "settingsSearch.clearCache": "Clear cache",
     "settingsSearch.showAllEvents": "Show all events",
     "settingsSearch.orderHints": "Message order hints",
+    "settingsSearch.disableGallerySend": "Don't send galleries",
     "settingsSearch.stickyCallMembership": "Sticky call membership",
     "settingsSearch.pushDiagnostics": "Push diagnostics",
     "settingsSearch.pushService": "Push service (UnifiedPush / Firebase)",

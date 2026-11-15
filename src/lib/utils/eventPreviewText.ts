@@ -2,6 +2,7 @@ import type { MatrixEvent } from "matrix-js-sdk";
 import { t } from "$lib/i18n";
 import { isPollStartEventType } from "$lib/utils/pollContent";
 import { isFileOfferEventType } from "$lib/utils/fileTransfer";
+import { galleryItems, isGalleryMsgtype } from "$lib/utils/gallery";
 
 /**
  * One-line text standing in for a message elsewhere (a reply quote, an
@@ -23,6 +24,10 @@ export function eventPreviewText(ev: MatrixEvent): string | null {
         if (parts.length >= 2 && parts[0].startsWith(">"))
             return parts.slice(1).join("\n\n");
         if (b) return b;
+        if (isGalleryMsgtype(c?.msgtype))
+            return t("messageItem.replyPreviewGallery", {
+                n: galleryItems(c).length,
+            });
         switch (c?.msgtype) {
             case "m.image":
                 return t("messageItem.replyPreviewImage");

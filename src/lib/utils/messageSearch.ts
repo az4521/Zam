@@ -151,17 +151,12 @@ export interface ServerSearchFilter {
     contains_url?: boolean;
 }
 
-const MEDIA_HAS: readonly HasFilter[] = [
-    "image",
-    "video",
-    "file",
-    "audio",
-    "voice",
-];
-
 /** Map a parsed query to the subset the homeserver `/search` filter can honor:
- *  full-mxid senders and `contains_url` for media. Everything else is refined
- *  client-side (see matchesParsedQuery). */
+ *  full-mxid senders, and `contains_url` for voice messages. Everything else is
+ *  refined client-side (see matchesParsedQuery). `contains_url` only matches a
+ *  top-level `url`, which an MSC4274 gallery lacks (its urls sit in
+ *  `itemtypes`), so has:image/video/file/audio must not set it or galleries
+ *  would never be found; a voice message is never a gallery item. */
 export function buildServerSearchFilter(
     roomId: string,
     parsed: ParsedSearchQuery,
@@ -169,8 +164,7 @@ export function buildServerSearchFilter(
     const filter: ServerSearchFilter = { rooms: [roomId] };
     const fullSenders = parsed.senders.filter(isFullMxid);
     if (fullSenders.length) filter.senders = fullSenders;
-    if (parsed.has.some((h) => MEDIA_HAS.includes(h)))
-        filter.contains_url = true;
+    if (parsed.has.includes("voice")) filter.contains_url = true;
     return filter;
 }
 
@@ -179,18 +173,25 @@ export interface SearchEventMeta {
     msgtype: string;
     body: string;
     isVoice: boolean;
+    /** msgtypes of a gallery's items (MSC4274); empty or absent otherwise. */
+    itemtypes?: string[];
 }
 
 function hasMatch(h: HasFilter, meta: SearchEventMeta): boolean {
+    const inGallery = (msgtype: string) =>
+        meta.itemtypes?.includes(msgtype) ?? false;
     switch (h) {
         case "image":
-            return meta.msgtype === "m.image";
+            return meta.msgtype === "m.image" || inGallery("m.image");
         case "video":
-            return meta.msgtype === "m.video";
+            return meta.msgtype === "m.video" || inGallery("m.video");
         case "file":
-            return meta.msgtype === "m.file";
+            return meta.msgtype === "m.file" || inGallery("m.file");
         case "audio":
-            return meta.msgtype === "m.audio" && !meta.isVoice;
+            return (
+                (meta.msgtype === "m.audio" || inGallery("m.audio")) &&
+                !meta.isVoice
+            );
         case "voice":
             return meta.isVoice;
         case "link":

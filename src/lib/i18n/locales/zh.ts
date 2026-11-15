@@ -587,6 +587,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.orderHints": "消息顺序提示",
     "debugSettings.orderHintsHint":
         "Zam 会在你的消息中加入一条提示，说明你聊天记录底部是什么内容，并将其他 Zam 用户的消息放在其所指向的那条消息下方。关闭后，消息按服务器的顺序显示，与 Element 一样。",
+    "debugSettings.disableGallerySend": "不发送图库",
+    "debugSettings.disableGallerySendHint":
+        "一起选择的附件通常会作为一条带有一个说明的图库消息发出（MSC4274，以 dm.filament.gallery 发送）。开启后，每个附件单独作为一条消息发送。其他人发送的图库仍会显示。",
     "debugSettings.stickyCallMembership": "粘性通话成员身份",
     "debugSettings.stickyCallMembershipHint":
         "使用粘性 m.rtc.member 事件 (MSC4354) 而不是 m.call.member 状态事件加入通话。只读取状态事件的客户端（包括 1.51 之前的 Zam）看不到你在通话中。从下一次通话起生效。",
@@ -1306,6 +1309,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.replyPreviewVideo": "视频",
     "messageItem.replyPreviewAudio": "音频",
     "messageItem.replyPreviewFile": "文件",
+    "messageItem.replyPreviewGallery": "{n, plural, other {# 个附件}}",
+    "messageItem.galleryLabel": "图库，{n, plural, other {# 项}}",
+    "messageItem.galleryOpenItem": "打开 {name}",
+    "messageItem.galleryDownload": "下载 {name}",
+    "messageItem.galleryEmpty": "空图库",
     "messageItem.edited": "（已编辑）",
     "messageItem.decryptingImage": "正在解密图片...",
     "messageItem.couldnTDecryptImage": "无法解密图片",
@@ -3673,6 +3681,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.clearCache": "清除缓存",
     "settingsSearch.showAllEvents": "显示所有事件",
     "settingsSearch.orderHints": "消息顺序提示",
+    "settingsSearch.disableGallerySend": "不发送图库",
     "settingsSearch.stickyCallMembership": "粘性通话成员身份",
     "settingsSearch.pushDiagnostics": "推送诊断",
     "settingsSearch.pushService": "推送服务（UnifiedPush / Firebase）",

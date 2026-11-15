@@ -127,6 +127,8 @@
     } from "$lib/stores/composerFileQueue.svelte";
     import { sendQueuedFiles } from "$lib/utils/queuedFileSend";
     import { filesToRestoreAfterSend } from "$lib/utils/composerFileRestore";
+    import { chunkGalleryItems } from "$lib/utils/gallery";
+    import { sendGallery } from "$lib/matrix/media";
     import {
         shouldClearComposerAfterSend,
         shouldClearStoredDraft,
@@ -1467,6 +1469,31 @@
                   }
                 : undefined;
 
+        // MSC4274 galleries (unless the debug setting disableGallerySend is
+        // on): the files that
+        // are neither direct offers nor reused media, in queue order, chunked
+        // to the per-event limit. A gallery needs two or more files; one file
+        // goes as before. Direct and reused files are never gallery items.
+        const galleryCandidates = !settingsState.disableGallerySend
+            ? filesToSend.filter((item) => !item.direct && !item.reuse)
+            : [];
+        const galleryChunks: QueuedFile[][] =
+            galleryCandidates.length >= 2
+                ? chunkGalleryItems(galleryCandidates)
+                : [];
+        const inGallery = galleryChunks.length > 0;
+        const galleried = new Set(galleryChunks.flat());
+        // Everything not in a gallery: the per-file path. With galleries off
+        // this is the whole queue, unchanged.
+        const rest = inGallery
+            ? filesToSend.filter((item) => !galleried.has(item))
+            : filesToSend;
+        // The thread relation alone, for a file that is not the first of a
+        // gallery's chunks (the reply rides on that first chunk only).
+        const threadOnlyRelation = isThread
+            ? { rootEventId: threadRootId!, replyToEventId: undefined }
+            : undefined;
+
         // The SDK creates the local echo synchronously, so a text message shows
         // in the timeline the moment we send it — with a retry/delete affordance
         // there if it fails (see MessageItem). Clear the composer up front so the
@@ -1584,55 +1611,119 @@
             // it lands. A failed file doesn't stop the rest (their uploads
             // would be orphaned); only the failed files are restored below,
             // so a retry sends just those (audit MEDIA-03).
-            await sendQueuedFiles(
-                filesToSend,
-                (item, i, ready) => {
-                    if (item.direct)
-                        return ready().then(() =>
-                            offerFile(targetRoomId, item.file),
-                        );
-                    if (useCaption && i === 0 && formatted) {
-                        const { html } = formatted;
+            // Galleries first (MSC4274, when the setting is on): the gallery
+            // files go out as chunks in queue order, and the caption and reply
+            // ride on the first chunk. Every other file then takes the per-file
+            // path below, in queue order, so a direct offer or reused media
+            // posts after the galleries rather than between them. Each phase
+            // keeps its own ordering gate. A failure in one phase doesn't stop
+            // the other; the first failure (galleries first) is rethrown after
+            // both, so the restore below covers every unsent file.
+            let galleryFailure: { error: unknown } | null = null;
+            if (inGallery) {
+                try {
+                    await sendQueuedFiles(
+                        galleryChunks,
+                        (chunk, i, ready) =>
+                            sendGallery(
+                                targetRoomId,
+                                chunk.map((item) => item.file),
+                                useCaption && i === 0 && formatted
+                                    ? {
+                                          body: trimmed,
+                                          formattedBody:
+                                              formatted.html ?? undefined,
+                                          mentions:
+                                              mentionsFromFormatted(formatted),
+                                      }
+                                    : undefined,
+                                i === 0 ? fileRelation(0) : threadOnlyRelation,
+                                transformOutgoingContent,
+                                (local, loaded, total) =>
+                                    onUploadProgress(
+                                        filesToSend.indexOf(chunk[local]),
+                                    )(loaded, total),
+                                ready,
+                            ),
+                        (chunk, i) => {
+                            for (const item of chunk) sentIds.add(item.id);
+                            // The caption and the reply both ride on the first
+                            // chunk, so they are only safely sent once it is.
+                            if (i !== 0) return;
+                            if (fileReplyToId && replyToEvent === replyTarget)
+                                onCancelReply?.();
+                            if (useCaption)
+                                clearComposerAfterSend(
+                                    targetComposerKey,
+                                    textAtSend,
+                                );
+                        },
+                    );
+                } catch (error) {
+                    galleryFailure = { error };
+                }
+            }
+
+            let restFailure: { error: unknown } | null = null;
+            try {
+                await sendQueuedFiles(
+                    rest,
+                    (item, i, ready) => {
+                        if (item.direct)
+                            return ready().then(() =>
+                                offerFile(targetRoomId, item.file),
+                            );
+                        if (!inGallery && useCaption && i === 0 && formatted) {
+                            const { html } = formatted;
+                            return sendQueuedMedia(
+                                item,
+                                targetRoomId,
+                                {
+                                    body: trimmed,
+                                    formattedBody: html ?? undefined,
+                                    mentions: mentionsFromFormatted(formatted),
+                                },
+                                fileRelation(i),
+                                transformOutgoingContent,
+                                onUploadProgress(filesToSend.indexOf(item)),
+                                ready,
+                            );
+                        }
                         return sendQueuedMedia(
                             item,
                             targetRoomId,
-                            {
-                                body: trimmed,
-                                formattedBody: html ?? undefined,
-                                mentions: mentionsFromFormatted(formatted),
-                            },
-                            fileRelation(i),
-                            transformOutgoingContent,
-                            onUploadProgress(i),
+                            undefined,
+                            inGallery ? threadOnlyRelation : fileRelation(i),
+                            undefined,
+                            onUploadProgress(filesToSend.indexOf(item)),
                             ready,
                         );
-                    }
-                    return sendQueuedMedia(
-                        item,
-                        targetRoomId,
-                        undefined,
-                        fileRelation(i),
-                        undefined,
-                        onUploadProgress(i),
-                        ready,
-                    );
-                },
-                (item, i) => {
-                    // The drawer was already cleared optimistically; just record
-                    // the success so a later failure won't restore this file.
-                    sentIds.add(item.id);
-                    if (
-                        i === 0 &&
-                        fileReplyToId &&
-                        replyToEvent === replyTarget
-                    )
-                        onCancelReply?.();
-                    // The caption rode on the first file — it's only safely
-                    // sent once that file is.
-                    if (useCaption && i === 0)
-                        clearComposerAfterSend(targetComposerKey, textAtSend);
-                },
-            );
+                    },
+                    (item, i) => {
+                        // The drawer was already cleared optimistically; just record
+                        // the success so a later failure won't restore this file.
+                        sentIds.add(item.id);
+                        if (
+                            !inGallery &&
+                            i === 0 &&
+                            fileReplyToId &&
+                            replyToEvent === replyTarget
+                        )
+                            onCancelReply?.();
+                        // The caption rode on the first file — it's only safely
+                        // sent once that file is.
+                        if (!inGallery && useCaption && i === 0)
+                            clearComposerAfterSend(
+                                targetComposerKey,
+                                textAtSend,
+                            );
+                    },
+                );
+            } catch (error) {
+                restFailure = { error };
+            }
+            const failure = galleryFailure ?? restFailure;
+            if (failure) throw failure.error;
             // Snap scroll to bottom after input shrinks — prevents content from drifting up
             await tick();
             snapTimelineToBottom();

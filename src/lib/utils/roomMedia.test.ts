@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
     mediaItemFromEvent,
+    mediaItemsFromEvent,
+    mediaItemKey,
     mediaFilterDefinition,
     mergeMediaPages,
     splitMediaItems,
@@ -263,12 +265,12 @@ describe("mediaItemFromEvent", () => {
 });
 
 describe("mediaFilterDefinition", () => {
-    it("asks the server for url-bearing messages in a clear room", () => {
+    it("asks for all messages in a clear room, so galleries are not skipped", () => {
+        // contains_url only matches a top-level url; a gallery has none.
         expect(mediaFilterDefinition(false, 40)).toEqual({
             room: {
                 timeline: {
                     types: ["m.room.message"],
-                    contains_url: true,
                     limit: 40,
                 },
             },
@@ -987,5 +989,177 @@ describe("mediaItemFromEvent with encrypted thumbnail", () => {
         );
         expect(result?.encrypted).toBe(false);
         expect(result?.url).toBe("mxc://example.org/vid");
+    });
+});
+
+describe("mediaItemsFromEvent", () => {
+    const enc = (name: string) => ({
+        url: `mxc://example.org/${name}`,
+        key: { k: `key-${name}`, alg: "A256CTR", kty: "oct", ext: true },
+        iv: `iv-${name}`,
+        hashes: { sha256: `hash-${name}` },
+        v: "v2",
+    });
+
+    const galleryEv = (itemtypes: unknown, over = {}) =>
+        ev({
+            eventId: "$gal",
+            content: {
+                msgtype: "dm.filament.gallery",
+                body: "caption",
+                itemtypes,
+                ...over,
+            },
+        });
+
+    it("returns one item for a single-media event, without itemIndex", () => {
+        const items = mediaItemsFromEvent(ev());
+        expect(items).toHaveLength(1);
+        expect(items[0].eventId).toBe("$1");
+        expect(items[0]).not.toHaveProperty("itemIndex");
+        expect(items[0]).toEqual(mediaItemFromEvent(ev()));
+    });
+
+    it("returns [] for a non-renderable single event", () => {
+        expect(
+            mediaItemsFromEvent(
+                ev({ content: { msgtype: "m.text", body: "hi" } }),
+            ),
+        ).toEqual([]);
+        expect(mediaItemsFromEvent({ ...ev(), type: "m.reaction" })).toEqual(
+            [],
+        );
+    });
+
+    it("maps each plain gallery item with its index and the event identity", () => {
+        const items = mediaItemsFromEvent(
+            galleryEv([
+                { itemtype: "m.image", url: "mxc://hs/a", body: "a.png" },
+                {
+                    itemtype: "m.video",
+                    url: "mxc://hs/b",
+                    body: "b.mp4",
+                    info: { thumbnail_url: "mxc://hs/bt", duration: 4000 },
+                },
+            ]),
+        );
+        expect(items.map((i) => i.kind)).toEqual(["image", "video"]);
+        expect(items.map((i) => i.itemIndex)).toEqual([0, 1]);
+        expect(items[0]).toMatchObject({
+            eventId: "$gal",
+            sender: "@alice:example.org",
+            ts: 1000,
+            url: "mxc://hs/a",
+            name: "a.png",
+            encrypted: false,
+        });
+        expect(items[1]).toMatchObject({
+            url: "mxc://hs/b",
+            thumbnailUrl: "mxc://hs/bt",
+            durationMs: 4000,
+        });
+    });
+
+    it("maps encrypted gallery items through the encrypted path", () => {
+        const items = mediaItemsFromEvent(
+            galleryEv([
+                {
+                    itemtype: "m.image",
+                    file: enc("one"),
+                    body: "one.png",
+                    info: {
+                        mimetype: "image/png",
+                        thumbnail_file: enc("one-thumb"),
+                        thumbnail_info: { mimetype: "image/jpeg" },
+                    },
+                },
+                { itemtype: "m.file", file: enc("two"), body: "two.pdf" },
+            ]),
+        );
+        expect(items).toHaveLength(2);
+        expect(items[0]).toMatchObject({
+            eventId: "$gal",
+            itemIndex: 0,
+            kind: "image",
+            encrypted: true,
+            url: "mxc://example.org/one",
+            name: "one.png",
+            mimetype: "image/png",
+            thumbnailMimetype: "image/jpeg",
+        });
+        expect(items[0].encryptedFile?.key.k).toBe("key-one");
+        expect(items[0].encryptedThumbnailFile?.url).toBe(
+            "mxc://example.org/one-thumb",
+        );
+        expect(items[1]).toMatchObject({
+            itemIndex: 1,
+            kind: "file",
+            encrypted: true,
+            url: "mxc://example.org/two",
+        });
+    });
+
+    it("drops invalid gallery items and indexes the survivors", () => {
+        const items = mediaItemsFromEvent(
+            galleryEv([
+                null,
+                { itemtype: "m.text", url: "mxc://hs/x" },
+                { itemtype: "m.image", body: "no url.png" },
+                { itemtype: "m.file", url: "mxc://hs/ok", body: "ok.bin" },
+            ]),
+        );
+        expect(items).toHaveLength(1);
+        expect(items[0].kind).toBe("file");
+        // The index is into galleryItems (type-valid items, before the url
+        // check), so the url-less m.image still takes slot 0 and the file is 1.
+        expect(items[0].itemIndex).toBe(1);
+    });
+
+    it("returns [] for a gallery with garbled itemtypes", () => {
+        expect(mediaItemsFromEvent(galleryEv("m.image"))).toEqual([]);
+        expect(mediaItemsFromEvent(galleryEv(undefined))).toEqual([]);
+        expect(mediaItemsFromEvent(galleryEv([]))).toEqual([]);
+    });
+
+    it("gives every item of a gallery the same eventId but unique keys", () => {
+        const items = mediaItemsFromEvent(
+            galleryEv([
+                { itemtype: "m.image", url: "mxc://hs/a" },
+                { itemtype: "m.image", url: "mxc://hs/b" },
+                { itemtype: "m.image", url: "mxc://hs/c" },
+            ]),
+        );
+        expect(items.every((i) => i.eventId === "$gal")).toBe(true);
+        const keys = items.map(mediaItemKey);
+        expect(new Set(keys).size).toBe(3);
+        expect(keys).toEqual(["$gal#0", "$gal#1", "$gal#2"]);
+    });
+
+    it("keeps a gallery's items apart in mergeMediaPages", () => {
+        const items = mediaItemsFromEvent(
+            galleryEv([
+                { itemtype: "m.image", url: "mxc://hs/a" },
+                { itemtype: "m.image", url: "mxc://hs/b" },
+            ]),
+        );
+        const merged = mergeMediaPages([items[0]], items);
+        expect(merged).toHaveLength(2);
+        expect(mergeMediaPages(merged, items)).toHaveLength(2);
+    });
+});
+
+describe("mediaItemKey", () => {
+    it("is the eventId for a single-media item", () => {
+        expect(mediaItemKey(mediaItemFromEvent(ev())!)).toBe("$1");
+    });
+
+    it("appends the index for a gallery item", () => {
+        const item = { ...mediaItemFromEvent(ev())!, itemIndex: 3 };
+        expect(mediaItemKey(item)).toBe("$1#3");
+    });
+
+    it("treats an explicit index 0 as a gallery item", () => {
+        const item = { ...mediaItemFromEvent(ev())!, itemIndex: 0 };
+        expect(mediaItemKey(item)).toBe("$1#0");
     });
 });

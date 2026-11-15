@@ -45,7 +45,7 @@ import {
 } from "$lib/utils/eventIndex";
 import {
     mediaFilterDefinition,
-    mediaItemFromEvent,
+    mediaItemsFromEvent,
     type RoomMediaItem,
 } from "$lib/utils/roomMedia";
 import type { ParsedSearchQuery } from "$lib/utils/messageSearch";
@@ -105,7 +105,17 @@ interface StoredCoverage {
     roomId: string;
     ranges: Range[];
 }
-type StoredMedia = RoomMediaItem & { roomId: string };
+/** A media row, keyed by event id. An MSC4274 gallery is ONE row whose
+ *  `gallery` holds its items: they share the event id, so separate rows would
+ *  overwrite each other, and one row still goes with a redaction of the event. */
+type StoredMedia =
+    | (RoomMediaItem & { roomId: string; gallery?: undefined })
+    | {
+          eventId: string;
+          roomId: string;
+          ts: number;
+          gallery: RoomMediaItem[];
+      };
 
 export function eventIndexDbName(userId: string, deviceId: string): string {
     return `matrix-client:${encodeURIComponent(userId)}:${encodeURIComponent(deviceId)}:event-index`;
@@ -225,8 +235,16 @@ function queueEvent(
     if (seen.size > 20_000) seen.clear();
     const b = bucket(roomId);
     b.entries.push(entry);
-    const media = mediaItemFromEvent(ev);
-    if (media) b.media.push({ ...media, roomId });
+    const media = mediaItemsFromEvent(ev);
+    if (media.length === 1 && media[0].itemIndex === undefined)
+        b.media.push({ ...media[0], roomId });
+    else if (media.length > 0)
+        b.media.push({
+            eventId: ev.eventId,
+            roomId,
+            ts: ev.ts,
+            gallery: media,
+        });
     return true;
 }
 
@@ -808,7 +826,13 @@ export async function getIndexedMedia(roomId: string): Promise<{
     const items = rows
         .filter((r) => !redacted.has(r.eventId))
         .reverse()
-        .map(({ roomId: _r, ...item }) => item as RoomMediaItem);
+        // Rows are oldest first; a gallery's items keep their own order
+        // within the newest-first list, as fetchRoomMediaPage gives them.
+        .flatMap((row): RoomMediaItem[] => {
+            if (row.gallery) return row.gallery;
+            const { roomId: _r, gallery: _g, ...item } = row;
+            return [item as RoomMediaItem];
+        });
     return {
         items,
         complete: !!crawl?.done,

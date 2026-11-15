@@ -180,3 +180,128 @@ describe("searchEntries", () => {
         expect(normalizeForSearch("ÉcOle")).toBe("ecole");
     });
 });
+
+describe("gallery item types (g)", () => {
+    const galleryEv = (
+        itemtypes: unknown,
+        extra: Record<string, unknown> = {},
+    ) => ({
+        eventId: "$gal",
+        sender: "@alice:example.org",
+        ts: 10,
+        type: "m.room.message",
+        content: {
+            msgtype: "dm.filament.gallery",
+            body: "our trip",
+            itemtypes,
+            ...extra,
+        },
+    });
+
+    it("records the item msgtypes of a gallery", () => {
+        const entry = entryFromEvent(
+            galleryEv([
+                { itemtype: "m.image", url: "mxc://hs/a" },
+                { itemtype: "m.video", url: "mxc://hs/b" },
+                { itemtype: "m.text" },
+            ]),
+        );
+        expect(entry).toEqual({
+            e: "$gal",
+            s: "@alice:example.org",
+            t: 10,
+            m: "dm.filament.gallery",
+            b: "our trip",
+            g: ["m.image", "m.video"],
+        });
+    });
+
+    it("omits g when a gallery has no valid items", () => {
+        const entry = entryFromEvent(galleryEv([{ itemtype: "m.text" }]));
+        expect(entry).not.toHaveProperty("g");
+        expect(entryFromEvent(galleryEv("nope"))).not.toHaveProperty("g");
+    });
+
+    it("omits g for single media and text", () => {
+        expect(entryFromEvent(msg("$1", "hello", 5))).not.toHaveProperty("g");
+    });
+
+    it("matches has:image against a gallery entry", () => {
+        const entries = [
+            entryFromEvent(
+                galleryEv([{ itemtype: "m.image", url: "mxc://hs/a" }]),
+            )!,
+        ];
+        expect(
+            searchEntries(entries, parseSearchQuery("has:image")).map(
+                (e) => e.e,
+            ),
+        ).toEqual(["$gal"]);
+        expect(searchEntries(entries, parseSearchQuery("has:file"))).toEqual(
+            [],
+        );
+    });
+
+    it("keeps g from an edit that is still a gallery", () => {
+        const original = entryFromEvent(
+            galleryEv([{ itemtype: "m.image", url: "mxc://hs/a" }]),
+        )!;
+        const edit = entryFromEvent({
+            eventId: "$edit",
+            sender: "@alice:example.org",
+            ts: 20,
+            type: "m.room.message",
+            content: {
+                msgtype: "m.text",
+                body: "* new",
+                "m.relates_to": { rel_type: "m.replace", event_id: "$gal" },
+                "m.new_content": {
+                    msgtype: "dm.filament.gallery",
+                    body: "new caption",
+                    itemtypes: [{ itemtype: "m.file", url: "mxc://hs/f" }],
+                },
+            },
+        })!;
+        const [resolved] = resolveEntries([original, edit], new Set());
+        expect(resolved.b).toBe("new caption");
+        expect(resolved.g).toEqual(["m.file"]);
+    });
+
+    it("drops g when an edit turns the gallery into plain text", () => {
+        const original = entryFromEvent(
+            galleryEv([{ itemtype: "m.image", url: "mxc://hs/a" }]),
+        )!;
+        const edit: IndexEntry = {
+            e: "$edit",
+            s: "@alice:example.org",
+            t: 20,
+            m: "m.text",
+            b: "just text now",
+            o: "$gal",
+        };
+        const [resolved] = resolveEntries([original, edit], new Set());
+        expect(resolved.m).toBe("m.text");
+        expect(resolved).not.toHaveProperty("g");
+        expect(
+            searchEntries([resolved], parseSearchQuery("has:image")),
+        ).toEqual([]);
+    });
+
+    it("keeps the original g when an edit has no msgtype", () => {
+        const original = entryFromEvent(
+            galleryEv([{ itemtype: "m.video", url: "mxc://hs/a" }]),
+        )!;
+        const edit: IndexEntry = {
+            e: "$edit",
+            s: "@alice:example.org",
+            t: 20,
+            m: "",
+            b: "fixed caption",
+            o: "$gal",
+        };
+        const [resolved] = resolveEntries([original, edit], new Set());
+        expect(resolved.b).toBe("fixed caption");
+        expect(resolved.m).toBe("dm.filament.gallery");
+        expect(resolved.g).toEqual(["m.video"]);
+    });
+});

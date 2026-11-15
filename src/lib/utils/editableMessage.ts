@@ -6,6 +6,8 @@
 // m.replace whose m.new_content is the FULL media content (url/file/info/...)
 // with the new caption, since m.new_content replaces the whole content.
 
+import { isGalleryContent } from "./gallery";
+
 const CAPTIONABLE_MSGTYPES = new Set([
     "m.image",
     "m.video",
@@ -15,8 +17,12 @@ const CAPTIONABLE_MSGTYPES = new Set([
 
 type Content = Record<string, unknown> | undefined | null;
 
-/** True when `content` is a media event carrying a real caption. */
+/** True when `content` is a media event carrying a real caption. A gallery's
+ *  caption is its body alone (it has no filename), so any non-empty body. */
 export function hasMediaCaption(content: Content): boolean {
+    if (isGalleryContent(content)) {
+        return typeof content!.body === "string" && content!.body !== "";
+    }
     if (!content || !CAPTIONABLE_MSGTYPES.has(content.msgtype as string)) {
         return false;
     }
@@ -46,7 +52,13 @@ export function isEditableContent(content: Content): boolean {
 export function mediaEditBase(
     content: Content,
 ): Record<string, unknown> | undefined {
-    if (!content || !CAPTIONABLE_MSGTYPES.has(content.msgtype as string)) {
+    if (
+        !content ||
+        !(
+            CAPTIONABLE_MSGTYPES.has(content.msgtype as string) ||
+            isGalleryContent(content)
+        )
+    ) {
         return undefined;
     }
     const {

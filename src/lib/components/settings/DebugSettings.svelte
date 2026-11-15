@@ -41,6 +41,7 @@
         setSoundIntervalMs,
         setShowAllEvents,
         setOrderHints,
+        setDisableGallerySend,
         setStickyCallMembership,
         setUpdateNagDisabled,
         settingsState,
@@ -451,6 +452,23 @@
                 checked={settingsState.orderHints}
                 onChange={setOrderHints}
                 label={t("debugSettings.orderHints")}
+            />
+        </div>
+        <div
+            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("debugSettings.disableGallerySend")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("debugSettings.disableGallerySendHint")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.disableGallerySend}
+                onChange={setDisableGallerySend}
+                label={t("debugSettings.disableGallerySend")}
             />
         </div>
         <div

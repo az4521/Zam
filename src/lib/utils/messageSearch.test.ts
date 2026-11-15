@@ -216,11 +216,15 @@ describe("buildServerSearchFilter", () => {
         const f = buildServerSearchFilter("!r:x", parseSearchQuery("from:bob"));
         expect(f.senders).toBeUndefined();
     });
-    it("sets contains_url for media has but not for link-only", () => {
+    it("sets contains_url for voice only, never for has:image (galleries have no top-level url)", () => {
+        expect(
+            buildServerSearchFilter("!r:x", parseSearchQuery("has:voice"))
+                .contains_url,
+        ).toBe(true);
         expect(
             buildServerSearchFilter("!r:x", parseSearchQuery("has:image"))
                 .contains_url,
-        ).toBe(true);
+        ).toBeUndefined();
         expect(
             buildServerSearchFilter("!r:x", parseSearchQuery("has:link"))
                 .contains_url,
@@ -314,4 +318,89 @@ describe("parsedQueryNeedsClientRefine", () => {
         expect(parsedQueryNeedsClientRefine(parseSearchQuery("hi"))).toBe(
             false,
         ));
+});
+
+describe("matchesParsedQuery — gallery item types", () => {
+    const gallery = (
+        itemtypes: string[],
+        isVoice = false,
+    ): SearchEventMeta => ({
+        sender: "@alice:example.org",
+        msgtype: "dm.filament.gallery",
+        body: "our trip",
+        isVoice,
+        itemtypes,
+    });
+
+    it("has:image matches a gallery with an image item", () => {
+        expect(
+            matchesParsedQuery(
+                gallery(["m.video", "m.image"]),
+                parseSearchQuery("has:image"),
+            ),
+        ).toBe(true);
+    });
+
+    it("has:video and has:file match a gallery holding that item type", () => {
+        expect(
+            matchesParsedQuery(
+                gallery(["m.video"]),
+                parseSearchQuery("has:video"),
+            ),
+        ).toBe(true);
+        expect(
+            matchesParsedQuery(
+                gallery(["m.file"]),
+                parseSearchQuery("has:file"),
+            ),
+        ).toBe(true);
+    });
+
+    it("has:audio matches a gallery audio item unless the event is voice", () => {
+        expect(
+            matchesParsedQuery(
+                gallery(["m.audio"]),
+                parseSearchQuery("has:audio"),
+            ),
+        ).toBe(true);
+        expect(
+            matchesParsedQuery(
+                gallery(["m.audio"], true),
+                parseSearchQuery("has:audio"),
+            ),
+        ).toBe(false);
+    });
+
+    it("does not match a gallery whose items lack the requested type", () => {
+        expect(
+            matchesParsedQuery(
+                gallery(["m.file"]),
+                parseSearchQuery("has:image"),
+            ),
+        ).toBe(false);
+        expect(
+            matchesParsedQuery(gallery([]), parseSearchQuery("has:image")),
+        ).toBe(false);
+    });
+
+    it("leaves has:voice to the event itself, not the items", () => {
+        expect(
+            matchesParsedQuery(
+                gallery(["m.audio"]),
+                parseSearchQuery("has:voice"),
+            ),
+        ).toBe(false);
+    });
+
+    it("still matches single media by msgtype when itemtypes is absent", () => {
+        const single: SearchEventMeta = {
+            sender: "@a:x",
+            msgtype: "m.image",
+            body: "",
+            isVoice: false,
+        };
+        expect(matchesParsedQuery(single, parseSearchQuery("has:image"))).toBe(
+            true,
+        );
+    });
 });

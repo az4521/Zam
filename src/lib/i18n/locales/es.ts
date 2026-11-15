@@ -589,6 +589,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.orderHints": "Pistas de orden de mensajes",
     "debugSettings.orderHintsHint":
         "Zam añade a tus mensajes una pista de lo que había al final de tu chat y coloca los mensajes de otros usuarios de Zam debajo del que nombran. Si está desactivado, los mensajes se muestran en el orden del servidor, como en Element.",
+    "debugSettings.disableGallerySend": "No enviar galerías",
+    "debugSettings.disableGallerySendHint":
+        "Los adjuntos elegidos juntos salen normalmente como un solo mensaje de galería con un solo pie de foto (MSC4274, enviado como dm.filament.gallery). Activado, cada uno sale como su propio mensaje. Las galerías de otros se siguen mostrando.",
     "debugSettings.stickyCallMembership": "Membresía de llamada sticky",
     "debugSettings.stickyCallMembershipHint":
         "Unirse a las llamadas con un evento sticky m.rtc.member (MSC4354) en lugar de un evento de estado m.call.member. Los clientes que solo leen eventos de estado, incluido Zam anterior a 1.51, no te verán en la llamada. Se aplica desde tu próxima llamada.",
@@ -1285,6 +1288,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.replyPreviewVideo": "Vídeo",
     "messageItem.replyPreviewAudio": "Audio",
     "messageItem.replyPreviewFile": "Archivo",
+    "messageItem.replyPreviewGallery":
+        "{n, plural, one {# adjunto} other {# adjuntos}}",
+    "messageItem.galleryLabel":
+        "Galería, {n, plural, one {# elemento} other {# elementos}}",
+    "messageItem.galleryOpenItem": "Abrir {name}",
+    "messageItem.galleryDownload": "Descargar {name}",
+    "messageItem.galleryEmpty": "Galería vacía",
     "messageItem.edited": "(editado)",
     "messageItem.decryptingImage": "Descifrando la imagen...",
     "messageItem.couldnTDecryptImage": "No se pudo descifrar la imagen",
@@ -4038,6 +4048,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.clearCache": "Borrar la caché",
     "settingsSearch.showAllEvents": "Mostrar todos los eventos",
     "settingsSearch.orderHints": "Pistas de orden de mensajes",
+    "settingsSearch.disableGallerySend": "No enviar galerías",
     "settingsSearch.stickyCallMembership": "Membresía de llamada sticky",
     "settingsSearch.pushDiagnostics": "Diagnóstico de notificaciones push",
     "settingsSearch.pushService": "Servicio push (UnifiedPush / Firebase)",

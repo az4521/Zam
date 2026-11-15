@@ -113,3 +113,65 @@ describe("lastEditableOwnMessage", () => {
         expect(lastEditableOwnMessage([], ME)).toBeUndefined();
     });
 });
+
+describe("galleries", () => {
+    const gallery = {
+        msgtype: "dm.filament.gallery",
+        body: "our trip",
+        "m.mentions": {},
+        itemtypes: [
+            { itemtype: "m.image", url: "mxc://hs/a", body: "a.png" },
+            { itemtype: "m.video", url: "mxc://hs/b", body: "b.mp4" },
+        ],
+    };
+
+    it("counts a gallery with a non-empty body as captioned", () => {
+        expect(hasMediaCaption(gallery)).toBe(true);
+        expect(hasMediaCaption({ ...gallery, msgtype: "m.gallery" })).toBe(
+            true,
+        );
+    });
+
+    it("does not count a gallery with an empty or missing body as captioned", () => {
+        expect(hasMediaCaption({ ...gallery, body: "" })).toBe(false);
+        expect(hasMediaCaption({ ...gallery, body: undefined })).toBe(false);
+        expect(hasMediaCaption({ ...gallery, body: 5 })).toBe(false);
+    });
+
+    it("makes a captioned gallery editable and an uncaptioned one not", () => {
+        expect(isEditableContent(gallery)).toBe(true);
+        expect(isEditableContent({ ...gallery, body: "" })).toBe(false);
+    });
+
+    it("carries msgtype and itemtypes into the edit base, minus the caption", () => {
+        const base = mediaEditBase(gallery);
+        expect(base).toEqual({
+            msgtype: "dm.filament.gallery",
+            itemtypes: gallery.itemtypes,
+        });
+        expect(base).not.toHaveProperty("body");
+        expect(base).not.toHaveProperty("m.mentions");
+    });
+
+    it("strips formatting and relation fields from a gallery edit base", () => {
+        const base = mediaEditBase({
+            ...gallery,
+            format: "org.matrix.custom.html",
+            formatted_body: "<b>our</b> trip",
+            "m.relates_to": { "m.in_reply_to": { event_id: "$p" } },
+            "m.new_content": { body: "old" },
+        });
+        expect(base).not.toHaveProperty("format");
+        expect(base).not.toHaveProperty("formatted_body");
+        expect(base).not.toHaveProperty("m.relates_to");
+        expect(base).not.toHaveProperty("m.new_content");
+        expect(base?.itemtypes).toEqual(gallery.itemtypes);
+    });
+
+    it("returns undefined for a non-gallery, non-media base", () => {
+        expect(
+            mediaEditBase({ msgtype: "m.text", body: "hi" }),
+        ).toBeUndefined();
+        expect(mediaEditBase(null)).toBeUndefined();
+    });
+});

@@ -19,6 +19,8 @@
     import FileOfferCard from "$lib/components/messages/FileOfferCard.svelte";
     import GameInviteCard from "$lib/components/messages/GameInviteCard.svelte";
     import MessageVideo from "$lib/components/messages/MessageVideo.svelte";
+    import GalleryBody from "$lib/components/messages/GalleryBody.svelte";
+    import { galleryItems, isGalleryMsgtype } from "$lib/utils/gallery";
     import MediaProgress from "$lib/components/ui/MediaProgress.svelte";
     import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
     import { rememberVolume } from "$lib/actions/rememberVolume";
@@ -1347,7 +1349,16 @@
     // A media caption exists when `filename` is present and differs from `body`
     // (i.e. `body` is real caption text, not just the file name). We render it as
     // a normal message above the media rather than as a label on the media.
-    const hasCaption = $derived(() => hasMediaCaption(content));
+    // A gallery's body is its caption (no file name in it, no `filename`), so
+    // it is a caption whenever it is non-empty, whatever hasMediaCaption says.
+    const isGallery = $derived(isGalleryMsgtype(msgtype));
+    const hasCaption = $derived(
+        () =>
+            hasMediaCaption(content) ||
+            (isGallery &&
+                typeof content?.body === "string" &&
+                content.body.length > 0),
+    );
 
     // Strip a leading <mx-reply> fallback from formatted_body so we don't
     // double-render the quote (we render it from the referenced event). Uses the
@@ -3043,6 +3054,14 @@
                         />
                     {/if}
                 {/if}
+            {:else if isGallery}
+                {@render mediaCaption()}
+                <GalleryBody
+                    items={galleryItems(content)}
+                    {eventId}
+                    sender={senderId}
+                    ts={timestamp}
+                />
             {:else if msgtype === "m.image"}
                 {@render mediaCaption()}
                 {@const file = content?.file as EncryptedFile | undefined}

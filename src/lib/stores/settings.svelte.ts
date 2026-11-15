@@ -349,6 +349,11 @@ export const settingsState = $state({
      *  pixels and metadata. Default ON; turn off to upload files byte-for-byte
      *  as picked. Local-only. */
     progressiveJpegs: readBool("progressiveJpegs", true),
+    /** Debug: stop sending MSC4274 galleries. Two or more attachments picked
+     *  together normally go as ONE gallery message (one caption, several
+     *  items); on, each goes as its own message as before. Galleries from
+     *  others are shown either way. Default OFF. Local-only. */
+    disableGallerySend: readBool("disableGallerySend", false),
     /** Device-global: strip location and other identifying metadata (Exif GPS,
      *  XMP, IPTC, video location atoms; see utils/stripMetadata) from files
      *  before upload, keeping only the Exif orientation. Default ON; turning
@@ -1129,6 +1134,11 @@ export function setFaststartVideos(value: boolean): void {
 export function setProgressiveJpegs(value: boolean): void {
     settingsState.progressiveJpegs = value;
     writeBool("progressiveJpegs", value);
+}
+
+export function setDisableGallerySend(value: boolean): void {
+    settingsState.disableGallerySend = value;
+    writeBool("disableGallerySend", value);
 }
 
 export function setStripMetadata(value: boolean): void {

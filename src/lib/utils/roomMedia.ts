@@ -9,6 +9,7 @@
 import { t } from "$lib/i18n";
 import { formatCallDuration } from "./callDuration";
 import type { EncryptedFileInfo } from "./decryptAttachment";
+import { galleryItems, isGalleryContent } from "./gallery";
 
 export type MediaKind = "image" | "video" | "file" | "audio";
 
@@ -61,6 +62,8 @@ export interface RoomMediaItem {
     encryptedThumbnailFile?: EncryptedFileRef;
     /** Mimetype of the thumbnail. */
     thumbnailMimetype?: string | null;
+    /** Index inside an MSC4274 gallery; absent for a single-media event. */
+    itemIndex?: number;
 }
 
 /** The minimum an event has to expose to be considered. Deliberately loose so
@@ -242,7 +245,43 @@ export function mediaItemFromEvent(ev: MediaSourceEvent): RoomMediaItem | null {
     if (eventId === null) return null;
     const content = ev.content;
     if (!content) return null;
+    return mediaItemFromContent(ev, eventId, content);
+}
 
+/**
+ * Every media item in an event: one for a single-media event, one per valid
+ * item for an MSC4274 gallery (each with `itemIndex`), none otherwise. Same
+ * post-decryption contract as mediaItemFromEvent.
+ */
+export function mediaItemsFromEvent(ev: MediaSourceEvent): RoomMediaItem[] {
+    if (ev.type !== "m.room.message" || !isGalleryContent(ev.content)) {
+        const single = mediaItemFromEvent(ev);
+        return single ? [single] : [];
+    }
+    const eventId = str(ev.eventId);
+    if (eventId === null) return [];
+    const out: RoomMediaItem[] = [];
+    galleryItems(ev.content).forEach((content, i) => {
+        const item = mediaItemFromContent(ev, eventId, content, i);
+        if (item) out.push(item);
+    });
+    return out;
+}
+
+/** Stable React-style key for a row: unique per gallery item. */
+export function mediaItemKey(item: RoomMediaItem): string {
+    return item.itemIndex === undefined
+        ? item.eventId
+        : `${item.eventId}#${item.itemIndex}`;
+}
+
+/** The per-content half of mediaItemFromEvent, shared with gallery items. */
+function mediaItemFromContent(
+    ev: MediaSourceEvent,
+    eventId: string,
+    content: Record<string, unknown>,
+    itemIndex?: number,
+): RoomMediaItem | null {
     // Own-property check only: `msgtype` is remote-controlled, and a plain
     // object literal would happily resolve "toString"/"constructor" off
     // Object.prototype and hand back a truthy non-MediaKind.
@@ -287,6 +326,7 @@ export function mediaItemFromEvent(ev: MediaSourceEvent): RoomMediaItem | null {
         eventId,
         sender: str(ev.sender) ?? "",
         ts: typeof ev.ts === "number" ? ev.ts : 0,
+        ...(itemIndex === undefined ? {} : { itemIndex }),
         kind,
         name: str(content.filename) ?? str(content.body) ?? FALLBACK_NAME[kind],
         url,
@@ -403,8 +443,10 @@ export function mediaViewerItem(
  *
  * In an encrypted room every message arrives as `m.room.encrypted` with an
  * opaque body, so `contains_url` would match nothing — ask for both event
- * types instead and filter after decryption. In a clear room `contains_url`
- * lets the server do the work and keeps the page small.
+ * types instead and filter after decryption. A clear room can't use
+ * `contains_url` either: it only matches a top-level `url`, and an MSC4274
+ * gallery keeps its urls inside `itemtypes`, so every gallery would be
+ * skipped. Ask for messages and filter here instead.
  */
 export function mediaFilterDefinition(
     isEncrypted: boolean,
@@ -419,15 +461,7 @@ export function mediaFilterDefinition(
                   },
               },
           }
-        : {
-              room: {
-                  timeline: {
-                      types: ["m.room.message"],
-                      contains_url: true,
-                      limit,
-                  },
-              },
-          };
+        : { room: { timeline: { types: ["m.room.message"], limit } } };
 }
 
 /** Append a newly fetched page, dropping any event id already held. Pages come
@@ -436,11 +470,12 @@ export function mergeMediaPages(
     existing: RoomMediaItem[],
     incoming: RoomMediaItem[],
 ): RoomMediaItem[] {
-    const seen = new Set(existing.map((i) => i.eventId));
+    const seen = new Set(existing.map(mediaItemKey));
     const out = [...existing];
     for (const candidate of incoming) {
-        if (seen.has(candidate.eventId)) continue;
-        seen.add(candidate.eventId);
+        const key = mediaItemKey(candidate);
+        if (seen.has(key)) continue;
+        seen.add(key);
         out.push(candidate);
     }
     return out;

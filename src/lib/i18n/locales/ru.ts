@@ -620,6 +620,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.orderHints": "Подсказки порядка сообщений",
     "debugSettings.orderHintsHint":
         "Zam добавляет к вашим сообщениям подсказку о том, что было внизу вашей ленты, и размещает сообщения других пользователей Zam под тем, на которое они указывают. Если выключено, сообщения идут в порядке сервера, как в Element.",
+    "debugSettings.disableGallerySend": "Не отправлять галереи",
+    "debugSettings.disableGallerySendHint":
+        "Вложения, выбранные вместе, обычно уходят одним сообщением-галереей с одной подписью (MSC4274, отправляется как dm.filament.gallery). Если включено, каждое уходит отдельным сообщением. Галереи других по-прежнему показываются.",
     "debugSettings.stickyCallMembership": "Sticky-участие в звонках",
     "debugSettings.stickyCallMembershipHint":
         "Входить в звонки с помощью sticky-события m.rtc.member (MSC4354) вместо события состояния m.call.member. Клиенты, которые читают только события состояния, в том числе Zam до 1.51, не увидят вас в звонке. Применяется со следующего звонка.",
@@ -1403,6 +1406,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.replyPreviewVideo": "Видео",
     "messageItem.replyPreviewAudio": "Аудио",
     "messageItem.replyPreviewFile": "Файл",
+    "messageItem.replyPreviewGallery":
+        "{n, plural, one {# вложение} few {# вложения} many {# вложений} other {# вложения}}",
+    "messageItem.galleryLabel":
+        "Галерея, {n, plural, one {# элемент} few {# элемента} many {# элементов} other {# элемента}}",
+    "messageItem.galleryOpenItem": "Открыть {name}",
+    "messageItem.galleryDownload": "Скачать {name}",
+    "messageItem.galleryEmpty": "Пустая галерея",
     "messageItem.edited": "(изменено)",
     "messageItem.decryptingImage": "Расшифровка изображения...",
     "messageItem.couldnTDecryptImage": "Не удалось расшифровать изображение",
@@ -4015,6 +4025,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.clearCache": "Очистить кэш",
     "settingsSearch.showAllEvents": "Показывать все события",
     "settingsSearch.orderHints": "Подсказки порядка сообщений",
+    "settingsSearch.disableGallerySend": "Не отправлять галереи",
     "settingsSearch.stickyCallMembership": "Sticky-участие в звонках",
     "settingsSearch.pushDiagnostics": "Диагностика push-уведомлений",
     "settingsSearch.pushService": "Push-служба (UnifiedPush / Firebase)",
