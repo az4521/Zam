@@ -1,6 +1,7 @@
 import type { MatrixEvent } from "matrix-js-sdk";
 import { t } from "$lib/i18n";
 import { eventPreviewText } from "$lib/utils/eventPreviewText";
+import { displayContent } from "$lib/utils/displayContent";
 import { belongsToMainTimeline } from "$lib/utils/threadModel";
 import {
     ENCRYPTED_MESSAGE_PLACEHOLDER,
@@ -36,7 +37,7 @@ export function latestMessage(
         else {
             text = eventPreviewText(ev);
             if (!text) continue;
-            if (ev.getContent()?.msgtype === "m.emote") text = `* ${text}`;
+            if (displayContent(ev)?.msgtype === "m.emote") text = `* ${text}`;
         }
         // Collapse a multi-line body onto the row's single line.
         text = text.replace(/\s+/g, " ").trim();

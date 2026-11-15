@@ -114,6 +114,7 @@
         isEmptyEdit,
         sendMessageEdit,
     } from "$lib/matrix/editMessage";
+    import { displayContent } from "$lib/utils/displayContent";
     import { resolveBubbleLayout } from "$lib/utils/bubbleLayout";
     import {
         parseMatrixLink,
@@ -734,7 +735,7 @@
     // an async per-event decrypt, so an encrypted room keeps single-image opens.
     function isPageableImageUpload(e: MatrixEvent): boolean {
         if (e.getType() !== "m.room.message") return false;
-        const c = e.getContent() as {
+        const c = displayContent(e) as {
             msgtype?: string;
             url?: unknown;
             file?: unknown;
@@ -751,7 +752,7 @@
     }
 
     function uploadImageOf(e: MatrixEvent): GalleryImage {
-        const c = e.getContent() as {
+        const c = displayContent(e) as {
             url?: string;
             filename?: string;
             body?: string;
@@ -930,7 +931,9 @@
         // so depend on timelineTick — bumped on MatrixEventEvent.Decrypted — or
         // the encrypted envelope's (empty) content sticks after decryption.
         void messagesState.timelineTick;
-        return event.getContent();
+        // displayContent, not getContent(): an applied edit that is still
+        // encrypted (or failed to decrypt) leaves getContent() empty.
+        return displayContent(event);
     });
     // Likewise tick-dependent: getType() flips "m.room.encrypted" → the cleartext
     // type on decryption without changing the object reference, so a plain

@@ -11,13 +11,14 @@ import {
     mediaEditBase,
 } from "$lib/utils/editableMessage";
 import { stripBodyFallback } from "$lib/utils/replyFallback";
+import { displayContent } from "$lib/utils/displayContent";
 import { applySedCommand, type SedCommand } from "$lib/utils/sedEdit";
 import { roomsState } from "$lib/stores/rooms.svelte";
 import { bumpReactionTick } from "$lib/stores/messages.svelte";
 
 /** The text an edit of `event` starts from: its current body, minus any reply fallback. */
 export function editableBody(event: MatrixEvent): string {
-    const raw = (event.getContent()?.body as string | undefined) ?? "";
+    const raw = (displayContent(event)?.body as string | undefined) ?? "";
     const isReply =
         !!event.getOriginalContent()?.["m.relates_to"]?.["m.in_reply_to"];
     return isReply ? stripBodyFallback(raw) : raw;

@@ -1,5 +1,6 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
+    import { displayContent } from "$lib/utils/displayContent";
     import type { MatrixEvent } from "matrix-js-sdk";
     import {
         getRoom,
@@ -96,7 +97,7 @@
 
     function fromServer(n: ServerNotification): DisplayItem {
         const e = n.event as MatrixEvent;
-        const content = e.getContent() as any;
+        const content = displayContent(e) as any;
         return {
             roomId: n.room_id,
             eventId: e.getId() ?? "",

@@ -3,6 +3,7 @@ import { t } from "$lib/i18n";
 import { isPollStartEventType } from "$lib/utils/pollContent";
 import { isFileOfferEventType } from "$lib/utils/fileTransfer";
 import { galleryItems, isGalleryMsgtype } from "$lib/utils/gallery";
+import { displayContent } from "$lib/utils/displayContent";
 
 /**
  * One-line text standing in for a message elsewhere (a reply quote, an
@@ -11,7 +12,7 @@ import { galleryItems, isGalleryMsgtype } from "$lib/utils/gallery";
  * state event, …).
  */
 export function eventPreviewText(ev: MatrixEvent): string | null {
-    const c = ev.getContent();
+    const c = displayContent(ev);
     const type = ev.getType();
     if (type === "m.sticker") return t("messageItem.replyPreviewSticker");
     if (isPollStartEventType(type)) return t("messageItem.replyPreviewPoll");

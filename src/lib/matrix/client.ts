@@ -48,6 +48,7 @@ import type {
     RegisterResponse,
 } from "matrix-js-sdk";
 import { VerificationMethod } from "matrix-js-sdk/lib/types";
+import { DecryptionFailureCode } from "matrix-js-sdk/lib/crypto-api";
 import {
     shouldKickSync,
     watchdogOverdueMs,
@@ -1315,9 +1316,65 @@ export async function restartAfterBackgroundRelease(): Promise<boolean> {
     if (!userId || !deviceId) return false;
     if (!(await restartCrypto(client, userId, deviceId))) return false;
     backgroundReleased = false;
+    retryEngineLostDecryptions(client);
     await syncRestarter();
     logSync("restarted after the background release");
     return true;
+}
+
+const decryptGuarded = new WeakSet<MatrixClient>();
+
+/**
+ * While the client is released the OlmMachine is closed, and a decryption
+ * attempted then (a push decrypt on resume, a timeline read, the SDK mapping
+ * a bundled edit) fails with UNKNOWN_ERROR and is never retried: the event
+ * keeps the m.bad.encrypted placeholder for good. Skip such attempts instead,
+ * leaving the event encrypted so it is decrypted once the new engine is up.
+ * Patched on the instance because the SDK's own mapper calls it there.
+ */
+function guardDecryptWhileReleased(client: MatrixClient): void {
+    if (decryptGuarded.has(client)) return;
+    decryptGuarded.add(client);
+    const decrypt = client.decryptEventIfNeeded.bind(client);
+    client.decryptEventIfNeeded = (event, options) => {
+        if (backgroundReleased && matrixClient === client)
+            return event.getDecryptionPromise() ?? Promise.resolve();
+        return decrypt(event, options);
+    };
+}
+
+/**
+ * After restartAfterBackgroundRelease: retry what failed while the old
+ * engine was closing (attempts already in flight when it closed, and direct
+ * attemptDecryption calls the guard does not see). A failed event no longer
+ * passes shouldAttemptDecryption, so it needs an explicit retry; bundled
+ * edits are on no timeline, so they are walked through their originals.
+ */
+function retryEngineLostDecryptions(client: MatrixClient): void {
+    const backend = (
+        client as unknown as {
+            cryptoBackend?: Parameters<MatrixEvent["attemptDecryption"]>[0];
+        }
+    ).cryptoBackend;
+    if (!backend) return;
+    for (const room of client.getRooms()) {
+        const events = [
+            ...liveChainEvents(room),
+            ...room.getThreads().flatMap((thread) => thread.events),
+        ];
+        for (const event of events) {
+            for (const ev of [event, event.replacingEvent()]) {
+                if (
+                    ev?.isDecryptionFailure() &&
+                    ev.decryptionFailureReason ===
+                        DecryptionFailureCode.UNKNOWN_ERROR
+                )
+                    void ev
+                        .attemptDecryption(backend, { isRetry: true })
+                        .catch(() => {});
+            }
+        }
+    }
 }
 
 /** Whether an upload, or a send the server hasn't confirmed, is in flight. */
@@ -1353,6 +1410,9 @@ export async function releaseClientForBackground(): Promise<boolean> {
     backgroundReleased = true;
     const client = matrixClient;
     if (client) {
+        // Before the engine closes: from here on a decryption would fail for
+        // good (see guardDecryptWhileReleased).
+        guardDecryptWhileReleased(client);
         // Stops sync and closes the OlmMachine (RustCrypto.stop): no new
         // engine work from here on.
         client.stopClient();
@@ -2880,6 +2940,12 @@ function decryptForDisplay(events: MatrixEvent[]): void {
     for (const e of events) {
         if (e.shouldAttemptDecryption())
             void matrixClient.decryptEventIfNeeded(e);
+        // A bundled edit (MSC3925) is a second event that supplies the
+        // content and is on no timeline, so nothing else retries it; until it
+        // decrypts the row draws the pre-edit content (displayContent).
+        const replacement = e.replacingEvent();
+        if (replacement?.shouldAttemptDecryption())
+            void matrixClient.decryptEventIfNeeded(replacement);
     }
 }
 

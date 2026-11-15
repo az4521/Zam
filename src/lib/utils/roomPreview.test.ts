@@ -16,6 +16,7 @@ function ev(opts: {
         getType: () => opts.type ?? "m.room.message",
         getContent: () => content,
         getOriginalContent: () => content,
+        replacingEvent: () => null,
         getSender: () => opts.sender ?? "@them:x",
         getId: () => opts.id ?? "$e",
         isState: () => !!opts.state,
