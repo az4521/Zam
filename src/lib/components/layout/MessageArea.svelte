@@ -2958,10 +2958,12 @@
         </div>
     {/if}
 
-    <!-- Main chat area -->
+    <!-- Main chat area. `relative` makes it the containing block for the
+         absolute overlays below (unread bar, jump pills), so they span only
+         the chat column and not the side panels beside it. -->
     <div
         dir={uiDir}
-        class="flex-1 flex flex-col min-w-0 overflow-hidden"
+        class="flex-1 flex flex-col min-w-0 overflow-hidden relative"
         data-chat-area
     >
         <!-- Room header -->
