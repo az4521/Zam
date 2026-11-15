@@ -4,6 +4,15 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.61.0
+
+✨ **New**
+
+- **Media galleries:** several photos, videos or files sent together now arrive as one message with one caption (MSC4274). Photos and videos are laid out in rows that fit your window, each keeping its own shape, and open full screen with arrows to step through them. Galleries sent from other apps that support them show the same way.
+- **Galleries are found everywhere:** they show in the room's media panel, match `has:image` and the other search filters, and their caption can be edited like any other.
+
+Apps that don't support galleries yet, such as Element, show only the caption. If that's a problem in your rooms, turn on **Settings → Debug → Don't send galleries** to send each file as its own message.
+
 ## v1.60.23
 
 🐛 **Fixed**
