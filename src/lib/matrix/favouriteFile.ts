@@ -1,4 +1,4 @@
-// Favourites of uploaded GIFs. An encrypted upload has no plain URL, and its
+// Favourites of uploaded GIFs and videos. An encrypted upload has no plain URL, and its
 // decryption key lives only in the message event, so the favourite stores a
 // pointer to that event instead of the media. An unencrypted upload is keyed by
 // an authenticated homeserver URL, which nothing can preview from the URL
@@ -125,18 +125,24 @@ function sanitiseEncryptedFile(raw: unknown): EncryptedFileLike | undefined {
     };
 }
 
+/** Whether a mimetype is one the picker reuses: an image or a video. */
+export function isReusableMediaType(mimetype: string): boolean {
+    return mimetype.startsWith("image/") || mimetype.startsWith("video/");
+}
+
 /**
- * The `info` a reused encrypted image keeps: what sendFile would have written
- * for it. Null unless the source says it is an image, since the picker only
- * reuses images. Thumbnail fields follow the media: `thumbnail_file` goes with
- * an encrypted original, as in an encrypted room's own uploads.
+ * The `info` a reused encrypted image or video keeps: what sendFile would have
+ * written for it. Null unless the source says it is an image or a video, since
+ * the picker only reuses those. Thumbnail fields follow the media:
+ * `thumbnail_file` goes with an encrypted original, as in an encrypted room's
+ * own uploads.
  */
-function sanitiseEncryptedImageInfo(
+function sanitiseEncryptedMediaInfo(
     raw: unknown,
 ): Record<string, unknown> | undefined {
     if (!isRecord(raw)) return undefined;
     const mimetype = stringField(raw.mimetype);
-    if (mimetype === undefined || !mimetype.startsWith("image/")) {
+    if (mimetype === undefined || !isReusableMediaType(mimetype)) {
         return undefined;
     }
     const info: Record<string, unknown> = { mimetype };
@@ -146,6 +152,11 @@ function sanitiseEncryptedImageInfo(
     if (size !== undefined) info.size = size;
     if (w !== null) info.w = w;
     if (h !== null) info.h = h;
+    // A video's length in ms, as m.video carries it.
+    const duration = sizeField(raw.duration);
+    if (duration !== undefined && mimetype.startsWith("video/")) {
+        info.duration = Math.round(duration);
+    }
 
     const thumbFile = sanitiseEncryptedFile(raw.thumbnail_file);
     if (thumbFile) {
@@ -171,13 +182,13 @@ function sanitiseThumbnailInfo(raw: Record<string, unknown>) {
 }
 
 /** Reusable media for a favourite's source event, or undefined when the event
- *  has no encrypted image worth reusing. */
+ *  has no encrypted image or video worth reusing. */
 function encryptedReusableMedia(content: {
     file?: unknown;
     info?: unknown;
 }): ReusableMedia | undefined {
     const file = sanitiseEncryptedFile(content.file);
-    const info = sanitiseEncryptedImageInfo(content.info);
+    const info = sanitiseEncryptedMediaInfo(content.info);
     return file && info ? { file, info } : undefined;
 }
 
@@ -347,6 +358,12 @@ function homeserverMediaUrl(url: string): string | null {
     return mxc ? mxcToHttp(mxc) : null;
 }
 
+/** This session's homeserver download URL for the Matrix media `url` names,
+ *  or null when it names none. For streaming a favourite video's tile. */
+export function favouriteMediaHttpUrl(url: string): string | null {
+    return homeserverMediaUrl(url);
+}
+
 /** Whether `url` names Matrix media the picker can fetch through this
  *  session's homeserver. */
 export function isMatrixMediaUrl(url: string): boolean {
@@ -358,15 +375,18 @@ export function isMatrixMediaUrl(url: string): boolean {
  *  dead link, so the picker attaches the bytes instead. A URL from another
  *  homeserver is rewritten to ours, which fetches the media over federation.
  *
- *  The file carries the media's mxc for reuse when its bytes are an image, so
- *  sending it re-points at the media rather than uploading the bytes again.
- *  `width`/`height` are the favourite's stored size, used only if usable.
- *  `name` is the file name it was starred with, if any. */
+ *  The file carries the media's mxc for reuse when its bytes are an image or a
+ *  video, so sending it re-points at the media rather than uploading the bytes
+ *  again. `width`/`height` are the favourite's stored size, used only if
+ *  usable. `name` is the file name it was starred with, if any. `thumbnail` is
+ *  a video favourite's poster URL; the poster is kept when it names Matrix
+ *  media, so the resent video keeps its thumbnail. */
 export async function mediaUrlFavouriteFile(
     url: string,
     width?: unknown,
     height?: unknown,
     name?: unknown,
+    thumbnail?: unknown,
 ): Promise<File | null> {
     const httpUrl = homeserverMediaUrl(url);
     if (!httpUrl) return null;
@@ -377,15 +397,20 @@ export async function mediaUrlFavouriteFile(
         const file = favouriteAsFile(blob, name);
         // Judged on the bytes' own type: favouriteAsFile labels an untyped blob
         // as a GIF, which is not something the server vouches for.
-        if (mxc && blob.type.startsWith("image/")) {
+        if (mxc && isReusableMediaType(blob.type)) {
             const w = safeDimension(width);
             const h = safeDimension(height);
+            const thumbMxc =
+                blob.type.startsWith("video/") && typeof thumbnail === "string"
+                    ? matrixMediaMxc(thumbnail)
+                    : null;
             reusableMedia.set(file, {
                 url: mxc,
                 info: {
                     mimetype: blob.type,
                     size: blob.size,
                     ...(w !== null && h !== null ? { w, h } : {}),
+                    ...(thumbMxc ? { thumbnail_url: thumbMxc } : {}),
                 },
             });
         }

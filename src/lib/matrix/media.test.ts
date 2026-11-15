@@ -85,6 +85,15 @@ describe("sendExistingMedia", () => {
         });
     });
 
+    it("points a new m.video at a reused video", async () => {
+        const video: ReusableMedia = {
+            url: "mxc://s/clip",
+            info: { mimetype: "video/mp4", size: 9 },
+        };
+        expect(await sendExistingMedia("!r", video, "clip.mp4")).toBe(true);
+        expect(sentContent(client()).msgtype).toBe("m.video");
+    });
+
     it("sends encrypted media in an encrypted room, without uploading", async () => {
         room.encrypted = true;
         expect(await sendExistingMedia("!r", encrypted, "cat.png")).toBe(true);

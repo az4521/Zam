@@ -3,6 +3,7 @@
     import FavouriteFileImg from "$lib/components/ui/FavouriteFileImg.svelte";
     import {
         eventFavouriteFile,
+        favouriteMediaHttpUrl,
         isMatrixMediaUrl,
         mediaUrlFavouriteFile,
         parseEventFavouriteSource,
@@ -31,7 +32,8 @@
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import { normalizeProviderPage } from "$lib/plugins/pluginGifs";
     import { untrack } from "svelte";
-    import { Star } from "lucide-svelte";
+    import { Film, Star } from "lucide-svelte";
+    import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
     import { resizeHandle } from "$lib/actions/resizeHandle";
     import { gifTileVideo } from "$lib/actions/gifTileVideo";
     import { COMPOSER_PICKER_SIZE } from "$lib/utils/pickerSize";
@@ -281,6 +283,7 @@
                 gif.width,
                 gif.height,
                 gif.name,
+                gif.video ? gif.previewUrl : undefined,
             ).catch(() => null);
             if (file) {
                 onSelectFile(file);
@@ -630,18 +633,42 @@
                                         class:ring-inset={activeIndex === idx}
                                         class:ring-discord-accent={activeIndex ===
                                             idx}
-                                        class="block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
+                                        class="relative block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
                                     >
                                         {#if parseEventFavouriteSource(gif.source)}
                                             <FavouriteFileImg
                                                 source={parseEventFavouriteSource(
                                                     gif.source,
                                                 )!}
-                                                class="w-full h-auto block rounded bg-discord-backgroundTertiary"
+                                                video={!!gif.video}
+                                                class="w-full h-auto block rounded bg-discord-backgroundTertiary pointer-events-none"
                                                 style={favouriteAspectStyle(
                                                     gif,
                                                 )}
                                             />
+                                        {:else if gif.video}
+                                            <!-- A starred plaintext video: streamed
+                                             with the session's token, its poster
+                                             shown until the first frame. -->
+                                            <video
+                                                use:authedVideoSrc={{
+                                                    url: favouriteMediaHttpUrl(
+                                                        gif.url,
+                                                    ),
+                                                }}
+                                                poster={gif.previewUrl ||
+                                                    undefined}
+                                                class="w-full h-auto block rounded bg-discord-backgroundTertiary pointer-events-none"
+                                                style={favouriteAspectStyle(
+                                                    gif,
+                                                )}
+                                                autoplay
+                                                muted
+                                                loop
+                                                playsinline
+                                                disablepictureinpicture
+                                                aria-hidden="true"
+                                            ></video>
                                         {:else if gif.previewVideoUrl}
                                             <video
                                                 use:gifTileVideo={gif.previewVideoUrl}
@@ -680,6 +707,14 @@
                                                     );
                                                 }}
                                             />
+                                        {/if}
+                                        {#if gif.video}
+                                            <span
+                                                class="absolute bottom-1 start-1 p-0.5 rounded bg-black/60 text-white pointer-events-none"
+                                                aria-hidden="true"
+                                            >
+                                                <Film size={12} />
+                                            </span>
                                         {/if}
                                     </button>
                                     <!-- Touchscreens have no hover, so the controls stay

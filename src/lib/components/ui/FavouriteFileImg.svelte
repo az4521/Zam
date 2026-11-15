@@ -8,9 +8,16 @@
         source: EventFavouriteSource;
         class?: string;
         style?: string;
+        /** The favourite is a video: shown as a muted looping clip. */
+        video?: boolean;
     }
 
-    let { source, class: className = "", style }: Props = $props();
+    let {
+        source,
+        class: className = "",
+        style,
+        video = false,
+    }: Props = $props();
 
     let src = $state<string | null>(null);
 
@@ -27,4 +34,24 @@
     });
 </script>
 
-<img src={src ?? undefined} alt="" class={className} {style} decoding="async" />
+{#if video}
+    <video
+        src={src ?? undefined}
+        class={className}
+        {style}
+        autoplay
+        muted
+        loop
+        playsinline
+        disablepictureinpicture
+        aria-hidden="true"
+    ></video>
+{:else}
+    <img
+        src={src ?? undefined}
+        alt=""
+        class={className}
+        {style}
+        decoding="async"
+    />
+{/if}

@@ -1,6 +1,6 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
-    import { untrack } from "svelte";
+    import { untrack, type Snippet } from "svelte";
     import {
         mxcToHttp,
         fetchAttachmentBlob,
@@ -35,8 +35,12 @@
         content: Record<string, unknown>;
         /** The original file name (MSC2530), shown on the play card. */
         filename: string;
+        /** Extra control drawn over the video (the favourite star), told
+         *  whether it sits on the unplayed poster or the playing video. The
+         *  box it sits in is `relative group/vid`. */
+        overlay?: Snippet<["poster" | "player"]>;
     }
-    let { content, filename }: Props = $props();
+    let { content, filename, overlay }: Props = $props();
 
     // Video: nothing is requested until the user clicks play, and then the
     // <video> element streams the media URL itself rather than us buffering the
@@ -376,7 +380,7 @@
      sizes to its intrinsic dimensions, which (a) jumps the
      box vs the poster on play and (b) lets a wide clip's
      min-content width push past the column and overflow. -->
-    <div class="relative max-w-lg w-full {extraClass}">
+    <div class="relative group/vid max-w-lg w-full {extraClass}">
         <video
             src={videoSrc?.kind === "plain"
                 ? videoStreamUrl
@@ -427,6 +431,7 @@
                 ><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z" /></svg
             >
         </button>
+        {@render overlay?.("player")}
     </div>
 {/snippet}
 
@@ -490,11 +495,12 @@
     <!-- Drawn at the player's own size so the rows around it don't move. -->
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div
-        class="relative max-w-lg w-full mt-1 rounded-lg overflow-hidden cursor-pointer group bg-black"
+        class="relative max-w-lg w-full mt-1 rounded-lg overflow-hidden cursor-pointer group group/vid bg-black"
         style={`aspect-ratio: ${effectiveVideoAspect}; max-height: 24rem;`}
         onclick={playVideo}
         title={filename || undefined}
     >
+        {@render overlay?.("poster")}
         {#if videoThumbnailUrl && !videoThumbFailed}
             <img
                 src={videoThumbnailUrl}
@@ -545,12 +551,13 @@
 {:else}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div
-        class="relative max-w-lg w-full mt-1 rounded-lg overflow-hidden cursor-pointer group bg-black"
+        class="relative max-w-lg w-full mt-1 rounded-lg overflow-hidden cursor-pointer group group/vid bg-black"
         style={videoThumbnailUrl && !videoThumbFailed
             ? `aspect-ratio: ${effectiveVideoAspect}; max-height: 24rem;`
             : ""}
         onclick={playVideo}
     >
+        {@render overlay?.("poster")}
         {#if videoThumbnailUrl && !videoThumbFailed}
             <img
                 src={videoThumbnailUrl}

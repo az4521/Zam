@@ -239,6 +239,47 @@ describe("mediaUrlFavouriteFile reuse", () => {
         });
     });
 
+    it("reuses a video, keeping a Matrix poster as its thumbnail", async () => {
+        serveBlob(new Blob(["mp4"], { type: "video/mp4" }));
+
+        const file = await mediaUrlFavouriteFile(
+            HS_MEDIA,
+            640,
+            360,
+            "clip.mp4",
+            "https://hs.example/_matrix/client/v1/media/download/hs.example/Poster1",
+        );
+
+        expect(file?.name).toBe("clip.mp4");
+        expect(reusableMediaOfFile(file!)).toEqual({
+            url: "mxc://hs.example/AbC123",
+            info: {
+                mimetype: "video/mp4",
+                size: 3,
+                w: 640,
+                h: 360,
+                thumbnail_url: "mxc://hs.example/Poster1",
+            },
+        });
+    });
+
+    it("drops a poster that is not Matrix media", async () => {
+        serveBlob(new Blob(["mp4"], { type: "video/mp4" }));
+
+        const file = await mediaUrlFavouriteFile(
+            HS_MEDIA,
+            undefined,
+            undefined,
+            undefined,
+            "https://evil.example/poster.jpg",
+        );
+
+        expect(reusableMediaOfFile(file!)?.info).toEqual({
+            mimetype: "video/mp4",
+            size: 3,
+        });
+    });
+
     it("reuses nothing for bytes that are not an image", async () => {
         serveBlob(new Blob(["x"]));
 
@@ -458,6 +499,21 @@ describe("eventFavouriteFile reuse", () => {
         });
     });
 
+    it("keeps an encrypted video with its duration", async () => {
+        givenEvent("$video", {
+            msgtype: "m.video",
+            file: cleanFile,
+            info: { mimetype: "video/mp4", size: 99, duration: 1234.4 },
+        });
+
+        const file = await eventFavouriteFile(source("$video"));
+
+        expect(reusableMediaOfFile(file!)).toEqual({
+            file: cleanFile,
+            info: { mimetype: "video/mp4", size: 99, duration: 1234 },
+        });
+    });
+
     it("copies only the fields a decryption needs", async () => {
         givenEvent("$extra", {
             file: {
@@ -526,13 +582,13 @@ describe("eventFavouriteFile reuse", () => {
         ).toBeUndefined();
     });
 
-    it("reuses nothing for media that is not an image", async () => {
-        givenEvent("$video", {
+    it("reuses nothing for media that is not an image or a video", async () => {
+        givenEvent("$audio", {
             file: cleanFile,
-            info: { ...goodInfo, mimetype: "video/mp4" },
+            info: { ...goodInfo, mimetype: "audio/ogg" },
         });
 
-        const file = await eventFavouriteFile(source("$video"));
+        const file = await eventFavouriteFile(source("$audio"));
 
         expect(reusableMediaOfFile(file!)).toBeUndefined();
     });

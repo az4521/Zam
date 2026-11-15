@@ -1709,6 +1709,11 @@ export interface FavouriteGif {
      *  data): favouriteFile.ts cleans it before use. */
     name?: string;
     tags?: string[];
+    /** Set for a starred video: the picker plays it as a muted looping tile
+     *  and it is sent back as m.video. `previewUrl` is then its poster's
+     *  download URL, or empty when it has none. Untrusted on read: only ever
+     *  tested for truthiness. */
+    video?: boolean;
     /** Natural size of the GIF, when known at the time it was starred. Lets
      *  the picker reserve the tile before the preview loads. Untrusted on
      *  read (account data): only ever used through safeAspectRatio. */

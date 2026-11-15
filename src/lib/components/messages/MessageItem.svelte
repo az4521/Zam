@@ -2008,7 +2008,7 @@
         }
     });
 
-    // Reactively track whether the current image URL is favourited. The
+    // Reactively track whether this image or video is favourited. The
     // full-resolution URL is the favourite key (so the picker sends full quality).
     // An encrypted GIF has no usable URL, so it is keyed by a pointer to this
     // message instead (see favouriteFile.ts).
@@ -2027,18 +2027,34 @@
         validMxc((content?.file as { url?: unknown } | undefined)?.url),
     );
     const imageMediaMxc = $derived(validMxc(content?.url) ?? encryptedMxc);
-    const imageIsFavourited = $derived.by(() => {
+    // A video's full URL: the favourite key of a starred plaintext video.
+    const videoFullUrl = $derived(
+        msgtype === "m.video" ? mxcToHttp(content?.url as string) : null,
+    );
+    // The full URL of this message's media, whichever kind it is.
+    const mediaFullUrl = $derived(
+        msgtype === "m.video" ? videoFullUrl : imageFullUrl(),
+    );
+    const mediaIsFavourited = $derived.by(() => {
         favouritesState.gifs; // track
-        const src =
-            imageFullUrl() ?? eventFavouriteKey(encryptedFavouriteSource);
+        const src = mediaFullUrl ?? eventFavouriteKey(encryptedFavouriteSource);
         if (!!src && isFavouriteGif(src)) return true;
         return (
             !!imageMediaMxc && favouriteUrlForMxc(imageMediaMxc) !== undefined
         );
     });
 
-    function toggleImageFavourite(e: MouseEvent) {
+    // A starred video's poster, for its picker tile and the resent event.
+    // Plaintext only: an encrypted video's poster is read from its event.
+    const videoPosterUrl = $derived.by(() => {
+        if (msgtype !== "m.video") return null;
+        const poster = videoPoster(content as Record<string, unknown>);
+        return poster?.kind === "plain" ? mxcToHttp(poster.mxc) : null;
+    });
+
+    function toggleMediaFavourite(e: MouseEvent) {
         e.stopPropagation();
+        const isVideo = msgtype === "m.video";
         // Remove the favourite of this media first, whichever message starred it.
         const byMedia = imageMediaMxc
             ? favouriteUrlForMxc(imageMediaMxc)
@@ -2047,7 +2063,7 @@
             removeFavouriteGif(byMedia);
             return;
         }
-        const full = imageFullUrl();
+        const full = mediaFullUrl;
         if (!full) {
             const key = eventFavouriteKey(encryptedFavouriteSource);
             if (isFavouriteGif(key)) removeFavouriteGif(key);
@@ -2057,6 +2073,7 @@
                     previewUrl: key,
                     source: encryptedFavouriteSource,
                     ...(encryptedMxc ? { mxc: encryptedMxc } : {}),
+                    ...(isVideo ? { video: true } : {}),
                     ...favouriteSize(imgInfoW, imgInfoH),
                 });
             return;
@@ -2066,7 +2083,10 @@
         } else {
             addFavouriteGif({
                 url: full,
-                previewUrl: imageThumbUrl() ?? full,
+                previewUrl: isVideo
+                    ? (videoPosterUrl ?? "")
+                    : (imageThumbUrl() ?? full),
+                ...(isVideo ? { video: true } : {}),
                 // Kept so a GIF sent from the picker goes out under its name.
                 ...(typeof mediaFilename === "string" && mediaFilename
                     ? { name: mediaFilename }
@@ -3237,39 +3257,11 @@
                                     {/if}
                                 </a>
                                 {#if canFavouriteImage}
-                                    <button
-                                        onclick={toggleImageFavourite}
-                                        title={imageIsFavourited
-                                            ? t("common.removeFromFavourites")
-                                            : t("common.addToFavourites")}
-                                        class="absolute top-1.5 end-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/img:opacity-100 transition-opacity hover:bg-black/70"
-                                    >
-                                        {#if imageIsFavourited}
-                                            <svg
-                                                class="w-4 h-4 text-discord-warning"
-                                                fill="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-                                                />
-                                            </svg>
-                                        {:else}
-                                            <svg
-                                                class="w-4 h-4"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                stroke-width="2"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    stroke-linecap="round"
-                                                    stroke-linejoin="round"
-                                                    d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-                                                />
-                                            </svg>
-                                        {/if}
-                                    </button>
+                                    {@render favouriteStar(
+                                        mediaIsFavourited,
+                                        toggleMediaFavourite,
+                                        "top-1.5 end-1.5 opacity-0 group-hover/img:opacity-100",
+                                    )}
                                 {/if}
                             </div>
                             {#if uploadGallery}
@@ -3367,7 +3359,17 @@
                 {/if}
             {:else if msgtype === "m.video"}
                 {@render mediaCaption()}
-                <MessageVideo {content} filename={mediaFilename} />
+                <MessageVideo {content} filename={mediaFilename}>
+                    {#snippet overlay(where: "poster" | "player")}
+                        {@render favouriteStar(
+                            mediaIsFavourited,
+                            toggleMediaFavourite,
+                            where === "player"
+                                ? "top-2 end-11 opacity-0 group-hover/vid:opacity-100 focus-visible:opacity-100"
+                                : "top-1.5 end-1.5 opacity-0 group-hover/vid:opacity-100 focus-visible:opacity-100",
+                        )}
+                    {/snippet}
+                </MessageVideo>
             {:else if msgtype === "m.audio"}
                 {@render mediaCaption()}
                 {#if voiceMsg}
@@ -4167,6 +4169,51 @@
         bind:open={showRedactDialog}
     />
 {/if}
+
+{#snippet favouriteStar(
+    active: boolean,
+    toggle: (e: MouseEvent) => void,
+    position: string,
+)}
+    <button
+        type="button"
+        onclick={toggle}
+        title={active
+            ? t("common.removeFromFavourites")
+            : t("common.addToFavourites")}
+        aria-label={active
+            ? t("common.removeFromFavourites")
+            : t("common.addToFavourites")}
+        aria-pressed={active}
+        class="absolute z-10 p-1 rounded-full bg-black/50 text-white transition-opacity hover:bg-black/70 {position}"
+    >
+        {#if active}
+            <svg
+                class="w-4 h-4 text-discord-warning"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+            >
+                <path
+                    d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                />
+            </svg>
+        {:else}
+            <svg
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+            >
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                />
+            </svg>
+        {/if}
+    </button>
+{/snippet}
 
 {#snippet sheetPreviewBody()}
     <!-- The long-press sheet's preview: the same body markup the chat log
