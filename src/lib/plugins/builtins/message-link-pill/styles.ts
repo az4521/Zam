@@ -34,6 +34,15 @@ export const MESSAGE_LINK_PILL_CSS = `
     flex-shrink: 0;
     opacity: 0.7;
 }
+.zam-linkpill-icon {
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    opacity: 0.7;
+}
+.zam-linkpill-icon + .zam-linkpill-icon {
+    margin-inline-start: -2px;
+}
 .zam-linkpill-avatar {
     flex-shrink: 0;
     width: 14px;

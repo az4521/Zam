@@ -36,6 +36,33 @@ interface Pairing {
     embeds: HTMLElement[];
 }
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+const CHEVRON_PATH = "m9 18 6-6-6-6";
+const BUBBLE_PATH =
+    "M12 2C6.48 2 2 6.03 2 11c0 2.4 1.05 4.58 2.75 6.2L4 22l4.9-2.33c.98.22 2.02.33 3.1.33 5.52 0 10-4.03 10-9S17.52 2 12 2Z";
+
+/** A small decorative icon: a stroked chevron or a filled speech bubble. */
+function icon(doc: Document, path: string, filled: boolean): SVGSVGElement {
+    const svg = doc.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("class", "zam-linkpill-icon");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    const el = doc.createElementNS(SVG_NS, "path");
+    el.setAttribute("d", path);
+    if (filled) {
+        el.setAttribute("fill", "currentColor");
+    } else {
+        el.setAttribute("fill", "none");
+        el.setAttribute("stroke", "currentColor");
+        el.setAttribute("stroke-width", "2.5");
+        el.setAttribute("stroke-linecap", "round");
+        el.setAttribute("stroke-linejoin", "round");
+    }
+    svg.appendChild(el);
+    return svg;
+}
+
 function renderLabel(anchor: HTMLElement, label: PillLabel, text: PillText) {
     const doc = anchor.ownerDocument;
     const span = (cls: string, content: string) => {
@@ -71,6 +98,12 @@ function renderLabel(anchor: HTMLElement, label: PillLabel, text: PillText) {
         nodes.push(span("zam-linkpill-text", label.name));
     } else {
         nodes.push(span("zam-linkpill-text", `\u{1F4AC} ${text.viewMessage}`));
+    }
+    // A named room or DM ends in "› 💬", the way Discord marks a link to a
+    // message rather than to the channel itself.
+    if (label.kind !== "unknown") {
+        nodes.push(icon(doc, CHEVRON_PATH, false));
+        nodes.push(icon(doc, BUBBLE_PATH, true));
     }
     anchor.replaceChildren(...nodes);
     anchor.setAttribute(
