@@ -104,6 +104,7 @@
     import type { DownloadProgress } from "$lib/utils/downloadProgress";
     import { fade, scale as scaleTransition } from "svelte/transition";
     import { motionOK } from "$lib/utils/motionPreference";
+    import { panLimit } from "$lib/utils/lightboxPan";
     import { swipeCommits, swipeSettleMs } from "$lib/utils/lightboxSwipe";
     import { onMount, untrack } from "svelte";
 
@@ -550,12 +551,12 @@
         };
     });
 
-    /** How far the image may pan sideways either way from centre: 0 unless
-     *  it is wider than the viewport. Always 0 for a video. */
+    /** How far the image may pan sideways either way from centre (see
+     *  `panLimit`). 0 at fit; always 0 for a video. */
     function maxPanX(): number {
         if (isVideo || !imgEl) return 0;
         const w = (imgEl.offsetWidth * scale) / renderScale;
-        return Math.max(0, (w - window.innerWidth) / 2);
+        return panLimit(w, window.innerWidth, scale, true);
     }
 
     /** A leftward drag goes forwards, mirrored in a right-to-left layout. */
@@ -780,13 +781,15 @@
         }
     }
 
-    /** Clamp the pan so the image can't be dragged past its visible edges. */
+    /** Clamp the pan to `panLimit`: the image's overhang past each visible
+     *  edge plus a slack margin while zoomed, so edge text can be brought
+     *  clear of the toolbar and caption overlays. */
     function clampPan() {
         if (!imgEl) return;
         const w = (imgEl.offsetWidth * scale) / renderScale;
         const h = (imgEl.offsetHeight * scale) / renderScale;
-        const maxX = Math.max(0, (w - window.innerWidth) / 2);
-        const maxY = Math.max(0, (h - window.innerHeight) / 2);
+        const maxX = panLimit(w, window.innerWidth, scale, true);
+        const maxY = panLimit(h, window.innerHeight, scale);
         tx = Math.min(maxX, Math.max(-maxX, tx));
         ty = Math.min(maxY, Math.max(-maxY, ty));
     }
