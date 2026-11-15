@@ -4,6 +4,14 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.61.1
+
+🐛 **Fixed**
+
+- **"Manage sessions" opens the right page again:** on accounts that sign in through an account provider, the link to manage your sessions now lands on the session list with providers that use the current Matrix names for it, instead of the provider's front page.
+- **Time zone uses the standard profile field:** your time zone is now saved under the name the Matrix spec defines, so other apps that follow the spec can show it. Time zones set by older versions still show.
+- **Better compatibility with newer servers and apps:** call clean-up after a crash, presence under sliding sync, notification previews, call summaries, location messages, live location and Element's space order now also understand the standard Matrix names, not only the older experimental ones.
+
 ## v1.61.0
 
 ✨ **New**
