@@ -111,6 +111,51 @@ describe("ProxySettings", () => {
         );
     });
 
+    it("offers only what Android supports", async () => {
+        setup(
+            info({
+                modes: ["system", "direct", "manual"],
+                callModes: ["default", "direct"],
+            }),
+        );
+        await render();
+        const options = (id: string) =>
+            [...host!.querySelectorAll<HTMLOptionElement>(`#${id} option`)].map(
+                (o) => o.value,
+            );
+        expect(options("proxy-mode")).not.toContain("pac");
+        expect(options("proxy-calls")).not.toContain("proxy");
+        select("proxy-mode", "manual");
+        expect(host!.textContent).toContain("socks5:// or http://");
+    });
+
+    it("keeps the draft when the new setting is rejected", async () => {
+        const proxy = setup(info());
+        proxy.set.mockResolvedValueOnce(info({ error: "Invalid proxy rules" }));
+        await render();
+        select("proxy-mode", "manual");
+        type("proxy-rules", "bogus://x");
+        saveButton().click();
+        await vi.waitFor(() =>
+            expect(host!.textContent).toContain("Invalid proxy rules"),
+        );
+        expect(
+            host!.querySelector<HTMLInputElement>("#proxy-rules")!.value,
+        ).toBe("bogus://x");
+    });
+
+    it("says when the WebView can't set a proxy", async () => {
+        setup(info({ supported: false }));
+        host = document.createElement("div");
+        document.body.appendChild(host);
+        instance = mount(ProxySettings, { target: host });
+        await vi.waitFor(() => {
+            flushSync();
+            expect(host!.textContent).toContain("can't set a proxy");
+        });
+        expect(host.querySelector("#proxy-mode")).toBeNull();
+    });
+
     it("renders nothing outside the desktop app", async () => {
         host = document.createElement("div");
         document.body.appendChild(host);

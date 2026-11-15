@@ -40,6 +40,12 @@ declare global {
         /** False when calls can't bypass (OS proxy settings in use). */
         callBypassAvailable: boolean;
         error: string | null;
+        /** Android: false when the WebView can't override the proxy. */
+        supported?: boolean;
+        /** Proxy / call modes this platform offers; all when absent
+         *  (desktop). Android has no PAC and no "proxy" call mode. */
+        modes?: DesktopProxyPrefs["mode"][];
+        callModes?: DesktopProxyPrefs["calls"][];
     }
 
     interface DesktopRichPresenceStatus {

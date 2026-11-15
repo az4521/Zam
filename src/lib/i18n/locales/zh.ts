@@ -770,6 +770,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "不进行直接连接，通话服务器也永远看不到你的 IP 地址：通话经代理，通过 TCP 或 TLS 连到通话服务器的 TURN 中继。如果服务器没有提供 TURN 中继，通话将无法连接。延迟会更高。",
     "proxySettings.callsDirectUnavailable":
         "通话无法绕过系统代理设置。请在此处设置代理（手动或 PAC）才能生效。",
+    "proxySettings.callsDirectUnavailableManual":
+        "通话无法绕过系统代理设置。请在此处设置代理（手动）才能生效。",
+    "proxySettings.androidBackgroundHint":
+        "通知和快速回复在 WebView 之外获取，只能通过 socks5:// 或 http:// 代理工作。",
+    "proxySettings.unsupported":
+        "此版本的 Android System WebView 无法设置代理。请从 Play 商店更新。",
     "proxySettings.callsDirectAddresses": "直连发送：",
     "proxySettings.save": "保存",
     "proxySettings.saved": "已保存",

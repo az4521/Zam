@@ -816,6 +816,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Никаких прямых соединений, и серверы звонков никогда не видят ваш IP-адрес: звонки идут через прокси к TURN-ретранслятору сервера звонков по TCP или TLS. Если сервер не предоставляет TURN-ретранслятор, звонки не подключатся. Ожидайте большей задержки.",
     "proxySettings.callsDirectUnavailable":
         "Звонки не могут обходить системные настройки прокси. Чтобы это работало, задайте прокси здесь (вручную или PAC).",
+    "proxySettings.callsDirectUnavailableManual":
+        "Звонки не могут обходить системные настройки прокси. Чтобы это работало, задайте прокси здесь (вручную).",
+    "proxySettings.androidBackgroundHint":
+        "Уведомления и быстрые ответы загружаются вне WebView и работают только через прокси socks5:// или http://.",
+    "proxySettings.unsupported":
+        "Эта версия Android System WebView не умеет задавать прокси. Обновите её в Play Маркете.",
     "proxySettings.callsDirectAddresses": "Отправляется напрямую:",
     "proxySettings.save": "Сохранить",
     "proxySettings.saved": "Сохранено",

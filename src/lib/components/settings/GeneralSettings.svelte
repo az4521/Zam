@@ -3,6 +3,7 @@
     import { onMount } from "svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import ProxySettings from "./ProxySettings.svelte";
+    import { proxyBridge } from "$lib/proxyBridge";
     import {
         setMinimizeToTrayOnClose,
         settingsState,
@@ -91,8 +92,10 @@
                 />
             </div>
         </section>
+    {/if}
+    {#if proxyBridge()}
         <ProxySettings />
-    {:else}
+    {:else if !isDesktopTray()}
         <p class="text-sm text-discord-textMuted">
             {t("generalSettings.noGeneralSettingsAreAvailableOn")}
         </p>

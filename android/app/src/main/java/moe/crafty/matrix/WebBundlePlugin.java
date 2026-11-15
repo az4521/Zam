@@ -59,7 +59,7 @@ public class WebBundlePlugin extends Plugin {
         for (int hop = 0; hop <= MAX_REDIRECTS; hop++) {
             URL url = new URL(current);
             if (!allowedHost(url)) throw new IOException("host not allowed: " + url.getHost());
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            HttpURLConnection conn = ZamProxy.open(url);
             conn.setInstanceFollowRedirects(false);
             conn.setConnectTimeout(CONNECT_TIMEOUT);
             conn.setReadTimeout(READ_TIMEOUT);

@@ -806,6 +806,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Жодних прямих з’єднань, і сервери викликів ніколи не бачать вашої IP-адреси: виклики йдуть через проксі до TURN-ретранслятора сервера викликів через TCP або TLS. Якщо сервер не пропонує TURN-ретранслятора, виклики не з’єднуватимуться. Очікуйте більшої затримки.",
     "proxySettings.callsDirectUnavailable":
         "Виклики не можуть оминати системні налаштування проксі. Щоб це працювало, задайте проксі тут (Вручну або PAC).",
+    "proxySettings.callsDirectUnavailableManual":
+        "Виклики не можуть оминати системні налаштування проксі. Щоб це працювало, задайте проксі тут (Вручну).",
+    "proxySettings.androidBackgroundHint":
+        "Сповіщення та швидкі відповіді завантажуються поза WebView і працюють лише через проксі socks5:// або http://.",
+    "proxySettings.unsupported":
+        "Ця версія Android System WebView не вміє задавати проксі. Оновіть її в Play Маркеті.",
     "proxySettings.callsDirectAddresses": "Надсилається напряму:",
     "proxySettings.save": "Зберегти",
     "proxySettings.saved": "Збережено",

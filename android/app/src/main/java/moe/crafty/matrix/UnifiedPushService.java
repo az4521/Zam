@@ -177,7 +177,7 @@ public class UnifiedPushService extends PushService {
             URL ep = new URL(endpoint);
             String candidate = ep.getProtocol() + "://" + ep.getAuthority()
                 + "/_matrix/push/v1/notify";
-            conn = (HttpURLConnection) new URL(candidate).openConnection();
+            conn = ZamProxy.open(new URL(candidate));
             conn.setConnectTimeout(CONNECT_TIMEOUT);
             conn.setReadTimeout(READ_TIMEOUT);
             conn.setInstanceFollowRedirects(false);

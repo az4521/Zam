@@ -723,6 +723,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "直接接続は行わず、通話サーバーに IP アドレスも見えません。通話はプロキシ経由で、通話サーバーの TURN リレーに TCP または TLS で送られます。サーバーが TURN リレーを提供しない場合、通話は接続できません。遅延が増える見込みです。",
     "proxySettings.callsDirectUnavailable":
         "通話はシステムのプロキシ設定を迂回できません。これを機能させるには、ここでプロキシ（手動または PAC）を設定してください。",
+    "proxySettings.callsDirectUnavailableManual":
+        "通話はシステムのプロキシ設定を迂回できません。これを機能させるには、ここでプロキシ（手動）を設定してください。",
+    "proxySettings.androidBackgroundHint":
+        "通知とクイック返信は WebView の外で取得され、socks5:// または http:// プロキシ経由でのみ動作します。",
+    "proxySettings.unsupported":
+        "このバージョンの Android System WebView ではプロキシを設定できません。Play ストアから更新してください。",
     "proxySettings.callsDirectAddresses": "直接送信:",
     "proxySettings.save": "保存",
     "proxySettings.saved": "保存しました",

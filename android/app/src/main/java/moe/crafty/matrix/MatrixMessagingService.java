@@ -1143,7 +1143,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     private static byte[] httpGetBytes(String urlStr, String token) {
         HttpURLConnection conn = null;
         try {
-            conn = (HttpURLConnection) new URL(urlStr).openConnection();
+            conn = ZamProxy.open(new URL(urlStr));
             conn.setConnectTimeout(CONNECT_TIMEOUT);
             conn.setReadTimeout(READ_TIMEOUT);
             conn.setRequestProperty("Authorization", "Bearer " + token);
@@ -1219,7 +1219,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             + enc(mediaId) + "?width=" + size + "&height=" + size + "&method=crop";
         HttpURLConnection conn = null;
         try {
-            conn = (HttpURLConnection) new URL(url).openConnection();
+            conn = ZamProxy.open(new URL(url));
             conn.setConnectTimeout(CONNECT_TIMEOUT);
             conn.setReadTimeout(READ_TIMEOUT);
             conn.setRequestProperty("Authorization", "Bearer " + token);
@@ -1259,7 +1259,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     private static String httpGet(String urlStr, String token) {
         HttpURLConnection conn = null;
         try {
-            conn = (HttpURLConnection) new URL(urlStr).openConnection();
+            conn = ZamProxy.open(new URL(urlStr));
             conn.setConnectTimeout(CONNECT_TIMEOUT);
             conn.setReadTimeout(READ_TIMEOUT);
             conn.setRequestProperty("Authorization", "Bearer " + token);

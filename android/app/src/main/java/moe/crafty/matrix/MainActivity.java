@@ -104,6 +104,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(PushDecryptPlugin.class);
         registerPlugin(PluginNativePlugin.class);
         registerPlugin(DebugToolsPlugin.class);
+        registerPlugin(ProxyPlugin.class);
         bridgeStarted = true;
         super.onCreate(savedInstanceState);
         // After the bridge, which sets debugging from the build type.

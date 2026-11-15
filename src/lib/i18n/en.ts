@@ -789,6 +789,12 @@ export const en = {
         "No direct connections, and call servers never see your IP address: calls go through the proxy to the call server's TURN relay over TCP or TLS. If the server offers no TURN relay, calls won't connect. Expect more delay.",
     "proxySettings.callsDirectUnavailable":
         "Calls can't bypass the system proxy settings. Set the proxy here (Manual or PAC) for this to work.",
+    "proxySettings.callsDirectUnavailableManual":
+        "Calls can't bypass the system proxy settings. Set the proxy here (Manual) for this to work.",
+    "proxySettings.androidBackgroundHint":
+        "Notifications and quick replies are fetched outside the WebView and only work through socks5:// or http:// proxies.",
+    "proxySettings.unsupported":
+        "This version of Android System WebView can't set a proxy. Update it from the Play Store.",
     "proxySettings.callsDirectAddresses": "Sent direct:",
     "proxySettings.save": "Save",
     "proxySettings.saved": "Saved",

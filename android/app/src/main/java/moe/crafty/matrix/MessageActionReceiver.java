@@ -189,7 +189,7 @@ public class MessageActionReceiver extends BroadcastReceiver {
     /** Minimal authenticated request; the body on 2xx, else null. */
     private static String request(String method, String url, String token, String jsonBody)
             throws Exception {
-        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection conn = ZamProxy.open(new URL(url));
         try {
             conn.setRequestMethod(method);
             conn.setConnectTimeout(TIMEOUT_MS);

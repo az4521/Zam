@@ -474,7 +474,7 @@ public class ApkUpdaterPlugin extends Plugin {
         for (int hop = 0; hop <= MAX_REDIRECTS; hop++) {
             URL parsed = new URL(current);
             if (!isAllowedUrl(parsed, hop)) return null;
-            HttpURLConnection conn = (HttpURLConnection) parsed.openConnection();
+            HttpURLConnection conn = ZamProxy.open(parsed);
             // Anything that leaves this block without handing `conn` to the
             // caller must disconnect it — including a throwing connect() /
             // getResponseCode(), whose connection the caller cannot see and

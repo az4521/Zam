@@ -9,6 +9,7 @@
          dataExtractionRules covers API 31+, where it supersedes allowBackup and
          where device transfer needs its own opt-out. -->
     <application
+        android:name=".ZamApplication"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"

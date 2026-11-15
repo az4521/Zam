@@ -796,6 +796,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Keine direkten Verbindungen, und Anrufserver sehen deine IP-Adresse nie: Anrufe laufen über den Proxy zum TURN-Relay des Anrufservers per TCP oder TLS. Bietet der Server kein TURN-Relay an, kommen Anrufe nicht zustande. Rechne mit mehr Verzögerung.",
     "proxySettings.callsDirectUnavailable":
         "Anrufe können die System-Proxy-Einstellungen nicht umgehen. Stelle den Proxy hier ein (Manuell oder PAC), damit das funktioniert.",
+    "proxySettings.callsDirectUnavailableManual":
+        "Anrufe können die System-Proxy-Einstellungen nicht umgehen. Stelle den Proxy hier ein (Manuell), damit das funktioniert.",
+    "proxySettings.androidBackgroundHint":
+        "Benachrichtigungen und Schnellantworten werden außerhalb der WebView abgerufen und funktionieren nur über socks5://- oder http://-Proxys.",
+    "proxySettings.unsupported":
+        "Diese Version von Android System WebView kann keinen Proxy setzen. Aktualisiere sie im Play Store.",
     "proxySettings.callsDirectAddresses": "Direkt gesendet:",
     "proxySettings.save": "Speichern",
     "proxySettings.saved": "Gespeichert",

@@ -805,6 +805,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Sem conexões diretas, e os servidores de chamada nunca veem seu endereço IP: as chamadas passam pelo proxy até o relay TURN do servidor de chamada por TCP ou TLS. Se o servidor não oferecer relay TURN, as chamadas não conectam. Espere mais atraso.",
     "proxySettings.callsDirectUnavailable":
         "As chamadas não podem ignorar as configurações de proxy do sistema. Defina o proxy aqui (Manual ou PAC) para isso funcionar.",
+    "proxySettings.callsDirectUnavailableManual":
+        "As chamadas não podem ignorar as configurações de proxy do sistema. Defina o proxy aqui (Manual) para isso funcionar.",
+    "proxySettings.androidBackgroundHint":
+        "Notificações e respostas rápidas são buscadas fora do WebView e só funcionam por proxies socks5:// ou http://.",
+    "proxySettings.unsupported":
+        "Esta versão do Android System WebView não consegue definir um proxy. Atualize-a pela Play Store.",
     "proxySettings.callsDirectAddresses": "Enviado diretamente:",
     "proxySettings.save": "Salvar",
     "proxySettings.saved": "Salvo",

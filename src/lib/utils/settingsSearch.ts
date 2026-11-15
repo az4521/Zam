@@ -283,7 +283,7 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         label: t("settingsSearch.proxy"),
         keywords: ["proxy", "socks", "tor", "pac", "bypass", "network"],
         anchor: "cust-network",
-        available: (p) => p.desktopTray,
+        available: (p) => p.desktopTray || p.nativeApp,
     },
     // appearance (language)
     {

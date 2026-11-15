@@ -134,6 +134,11 @@ describe("platform-gated tabs", () => {
         expect(isSettingsTabAvailable("rich-presence", desktop)).toBe(true);
         expect(visibleSettingsGroups(desktop)).toEqual(SETTINGS_GROUPS);
     });
+    it("shows General (proxy) but not Rich presence on Android", () => {
+        const android = { ...web, nativeApp: true };
+        expect(isSettingsTabAvailable("general", android)).toBe(true);
+        expect(isSettingsTabAvailable("rich-presence", android)).toBe(false);
+    });
     it("puts General first under App and Rich presence last under Account", () => {
         const [account, app] = SETTINGS_GROUPS;
         expect(account.tabs.at(-1)?.id).toBe("rich-presence");

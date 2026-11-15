@@ -213,7 +213,7 @@ public class PluginNativePlugin extends Plugin {
     }
 
     private static byte[] fetch(String url) throws Exception {
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection c = ZamProxy.open(new URL(url));
         c.setConnectTimeout(15000);
         c.setReadTimeout(60000);
         try {

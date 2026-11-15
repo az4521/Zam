@@ -128,15 +128,16 @@ export interface SettingsPlatform {
 }
 
 /**
- * Whether a tab has content on this platform. General only holds the
- * desktop tray toggle, so web and Android hide it (and its search entries)
- * instead of showing an empty panel; Rich presence needs the desktop bridge.
+ * Whether a tab has content on this platform. General holds the desktop
+ * tray toggles and the proxy setting (desktop and Android), so the web hides
+ * it (and its search entries) instead of showing an empty panel; Rich
+ * presence needs the desktop bridge.
  */
 export function isSettingsTabAvailable(
     tab: SettingsTab,
     platform: SettingsPlatform,
 ): boolean {
-    if (tab === "general") return platform.desktopTray;
+    if (tab === "general") return platform.desktopTray || platform.nativeApp;
     if (tab === "rich-presence") return platform.richPresence;
     return true;
 }
