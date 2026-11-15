@@ -97,10 +97,11 @@ function renderLabel(anchor: HTMLElement, label: PillLabel, text: PillText) {
         }
         nodes.push(span("zam-linkpill-text", label.name));
     } else {
-        nodes.push(span("zam-linkpill-text", `\u{1F4AC} ${text.viewMessage}`));
+        nodes.push(icon(doc, BUBBLE_PATH, true));
+        nodes.push(span("zam-linkpill-text", text.viewMessage));
     }
-    // A named room or DM ends in "› 💬", the way Discord marks a link to a
-    // message rather than to the channel itself.
+    // A named room or DM ends in a chevron and speech bubble, the way Discord
+    // marks a link to a message rather than to the channel itself.
     if (label.kind !== "unknown") {
         nodes.push(icon(doc, CHEVRON_PATH, false));
         nodes.push(icon(doc, BUBBLE_PATH, true));
