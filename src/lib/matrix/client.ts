@@ -285,6 +285,7 @@ import {
     isFileOfferEventType,
 } from "$lib/utils/fileTransfer";
 import { hasUnreadMessages } from "$lib/utils/roomUnread";
+import { localReadVerdict, type LocalReadMark } from "$lib/utils/localRead";
 import { callMemberSendersMissingMembership } from "$lib/utils/callMemberSenders";
 import {
     isPollStartEventType,
@@ -1995,6 +1996,9 @@ export function stopClient(): void {
     resetRoomListCache();
     resetHierarchyCache();
     slidingPresenceFetchedAt.clear();
+    // Read marks and local unread overrides belong to the session that set them.
+    localReadMarks.clear();
+    locallyClearedUnread.clear();
 }
 
 const pendingLeaves = new Set<string>();
@@ -3650,6 +3654,27 @@ const confirmedReceipts = new Map<string, string>();
  *  receipt-listener calls the SDK makes synchronously, without waiting for the server. */
 const inFlightReceipts = new Map<string, string>();
 const readReceiptConfirmedListeners = new Set<(roomId: string) => void>();
+/**
+ * Per-room read marks (see localRead.ts). Recorded when a receipt goes out, with
+ * the server's unread and highlight counts at that moment. getRoomUnreadInfo
+ * ignores those counts while they are still the stale ones, because the server
+ * only lowers them after the receipt lands and a later sync reports it.
+ */
+const localReadMarks = new Map<string, LocalReadMark>();
+/**
+ * Rooms whose "marked unread" flag we cleared locally before the account-data
+ * PUT was echoed back. Cleared on success by the echo, and on failure by the
+ * rollback in clearMarkedUnread. Without it, the flag stays set for the whole
+ * round-trip after the user has already read the room.
+ */
+const locallyClearedUnread = new Set<string>();
+/** Local listeners for changes that do not come through an SDK event (the
+ *  optimistic clear and its rollback). Subscribed via onMarkedUnreadChange. */
+const localUnreadListeners = new Set<(roomId: string) => void>();
+
+function notifyLocalUnreadChange(roomId: string): void {
+    for (const listener of localUnreadListeners) listener(roomId);
+}
 
 /** Subscribe to room read receipts the server confirmed (or that were already
  *  confirmed when asked again). Used to clear the room's loud notifications. */
@@ -5115,16 +5140,45 @@ function isNotificationEvent(event: MatrixEvent): boolean {
     return true;
 }
 
+/** Timestamp of the newest notification event from someone else, or null. */
+function newestOtherNotificationTs(room: Room, userId: string): number | null {
+    const events = room.getLiveTimeline().getEvents();
+    for (let i = events.length - 1; i >= 0; i--) {
+        const event = events[i];
+        if (isNotificationEvent(event) && event.getSender() !== userId)
+            return event.getTs();
+    }
+    return null;
+}
+
 /** Returns whether the room has any unread messages and whether any are highlights (mentions). */
 export function getRoomUnreadInfo(room: Room): {
     unread: boolean;
     highlight: number;
 } {
-    const highlight = getHighlightCount(room);
+    let highlight = getHighlightCount(room);
+    let total = getUnreadCount(room);
     const userId = matrixClient?.getUserId();
     if (!userId) return { unread: false, highlight };
 
-    if (getUnreadCount(room) >= 1) return { unread: true, highlight };
+    // The server's counts lag our own receipt by a round-trip (see
+    // localReadMarks). While they still match what we saw when we read the
+    // room, they describe messages we have already read, so ignore them.
+    const mark = localReadMarks.get(room.roomId);
+    if (mark) {
+        const verdict = localReadVerdict(
+            mark,
+            { total, highlight },
+            newestOtherNotificationTs(room, userId),
+        );
+        if (verdict === "settled") localReadMarks.delete(room.roomId);
+        else {
+            total = 0;
+            highlight = 0;
+        }
+    }
+
+    if (total >= 1) return { unread: true, highlight };
     if (getMarkedUnread(room)) return { unread: true, highlight };
 
     // getEventReadUpTo returns null when the receipt points at an event that
@@ -5830,6 +5884,18 @@ export interface UnreadFrom {
 export function getMarkedUnread(
     room: Room,
 ): { from: UnreadFrom | null } | null {
+    if (locallyClearedUnread.has(room.roomId)) {
+        // Still null until the account-data echo of our clear arrives; once it
+        // does, the server agrees and the local override can go.
+        const stillMarked = [
+            MARKED_UNREAD_TYPE,
+            LEGACY_MARKED_UNREAD_TYPE,
+        ].some(
+            (type) => room.getAccountData(type)?.getContent()?.unread === true,
+        );
+        if (!stillMarked) locallyClearedUnread.delete(room.roomId);
+        return null;
+    }
     for (const type of [MARKED_UNREAD_TYPE, LEGACY_MARKED_UNREAD_TYPE]) {
         const content = room.getAccountData(type)?.getContent();
         if (!content || typeof content.unread !== "boolean") continue;
@@ -5853,6 +5919,8 @@ export async function markRoomUnread(
     from: UnreadFrom | null,
 ): Promise<void> {
     if (!matrixClient) return;
+    // The user re-marked the room: an earlier local clear no longer applies.
+    locallyClearedUnread.delete(roomId);
     await matrixClient.setRoomAccountData(
         roomId,
         MARKED_UNREAD_TYPE as never,
@@ -5895,6 +5963,10 @@ export async function clearMarkedUnread(roomId: string): Promise<void> {
     if (!matrixClient || clearingMarkedUnread.has(roomId)) return;
     const room = matrixClient.getRoom(roomId);
     if (!room) return;
+    // Clear it locally first so the room reads as read for the whole PUT
+    // round-trip, which can be seconds on a slow proxy. Rolled back below on failure.
+    locallyClearedUnread.add(roomId);
+    notifyLocalUnreadChange(roomId);
     clearingMarkedUnread.add(roomId);
     try {
         for (const type of [MARKED_UNREAD_TYPE, LEGACY_MARKED_UNREAD_TYPE]) {
@@ -5909,24 +5981,35 @@ export async function clearMarkedUnread(roomId: string): Promise<void> {
         }
     } catch (err) {
         console.warn("Clearing marked-unread failed:", err);
+        // The server still says unread: drop the override so the flag shows again.
+        locallyClearedUnread.delete(roomId);
+        notifyLocalUnreadChange(roomId);
     } finally {
         clearingMarkedUnread.delete(roomId);
     }
 }
 
-/** Calls back with the room id whenever a room's marked-unread flag changes. */
+/** Calls back with the room id whenever a room's marked-unread flag changes,
+ *  including the optimistic local clear and its rollback. */
 export function onMarkedUnreadChange(
     callback: (roomId: string) => void,
 ): () => void {
-    if (!matrixClient) return () => {};
+    localUnreadListeners.add(callback);
+    if (!matrixClient) {
+        return () => {
+            localUnreadListeners.delete(callback);
+        };
+    }
     const handler = (event: MatrixEvent, room: Room) => {
         const type = event.getType();
         if (type === MARKED_UNREAD_TYPE || type === LEGACY_MARKED_UNREAD_TYPE)
             callback(room.roomId);
     };
     matrixClient.on(RoomEvent.AccountData as never, handler as never);
-    return () =>
+    return () => {
+        localUnreadListeners.delete(callback);
         matrixClient?.off(RoomEvent.AccountData as never, handler as never);
+    };
 }
 
 export function onAnyReceiptEvent(callback: () => void): () => void {
@@ -6343,10 +6426,30 @@ export async function sendReadReceipt(event: MatrixEvent): Promise<void> {
     const receiptType = receiptTypeForSetting(
         receiptsPrivateFor(roomId),
     ) as ReceiptType;
+    // Record the server counts we are reading past, before the SDK call: its
+    // synchronous local receipt re-renders rows, and they must already read as
+    // read. Only when a receipt really goes out (the guard above returned early otherwise).
+    let mark: LocalReadMark | null = null;
+    if (room) {
+        const total = getUnreadCount(room);
+        const highlight = getHighlightCount(room);
+        if (total + highlight > 0) {
+            mark = { total, highlight, ts: event.getTs() };
+            localReadMarks.set(roomId, mark);
+        } else localReadMarks.delete(roomId);
+    }
     inFlightReceipts.set(roomId, eventId);
     try {
         await matrixClient.sendReadReceipt(event, receiptType);
         confirmedReceipts.set(roomId, eventId);
+    } catch (err) {
+        // The receipt never reached the server, so the room is not read: drop
+        // the mark and let the UI show the server counts again.
+        if (mark && localReadMarks.get(roomId) === mark) {
+            localReadMarks.delete(roomId);
+            notifyLocalUnreadChange(roomId);
+        }
+        throw err;
     } finally {
         if (inFlightReceipts.get(roomId) === eventId)
             inFlightReceipts.delete(roomId);
