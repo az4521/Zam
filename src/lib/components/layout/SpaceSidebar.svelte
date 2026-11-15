@@ -7,10 +7,14 @@
     import ModalDialog from "$lib/components/ui/ModalDialog.svelte";
     import RoomDirectory from "$lib/components/layout/RoomDirectory.svelte";
     import QuickActions from "$lib/components/layout/QuickActions.svelte";
-    import { Circle } from "lucide-svelte";
+    import SpaceHoverCard from "$lib/components/layout/SpaceHoverCard.svelte";
+    import { Circle, Volume2 } from "lucide-svelte";
     import {
         getRoomAvatar,
         getRoomDisplayName,
+        getRoomCallMemberships,
+        getMemberName,
+        getMemberAvatar,
         leaveRoom,
         setSpaceLayout,
         getRoomUnreadInfo,
@@ -47,10 +51,18 @@
     } from "$lib/stores/notifications.svelte";
     import { openModal, closeModal } from "$lib/stores/interface.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import { voiceCallState } from "$lib/stores/voiceCall.svelte";
     import { focusTrap, activeFocusTrap } from "$lib/actions/focusTrap";
     import { dismissOnOutsidePointer } from "$lib/actions/dismissOnOutsidePointer";
     import { mapWithConcurrency } from "$lib/utils/async";
     import { collectSpaceAndDescendantRoomIds } from "$lib/utils/spaceNotifications";
+    import { dedupeParticipants } from "$lib/utils/voiceCall";
+    import {
+        summarizeVoice,
+        type LiveShareInfo,
+        type SpaceVoiceSummary,
+        type VoiceRoomInput,
+    } from "$lib/utils/spaceVoice";
     import type { RoomFollowUp } from "$lib/utils/roomCreationOutcome";
 
     function getSpaceNotifs(
@@ -105,6 +117,135 @@
         }
         return { unread, highlight, loud };
     }
+
+    // ── Voice presence: who is in a call, and who we know is screen sharing ──
+
+    /** Joined rooms under these spaces (sub-spaces included), no containers. */
+    function roomsForSpaces(spaceIds: string[]): Room[] {
+        const seen = new Set<string>();
+        const out: Room[] = [];
+        for (const spaceId of spaceIds) {
+            const ids = collectSpaceAndDescendantRoomIds(spaceId, {
+                roomsInSpace: (id) => getRoomsInSpace(id).map((r) => r.roomId),
+                childSpaceIds: (id) =>
+                    getSpaceChildIds(id).filter(
+                        (cid) => getRoom(cid)?.isSpaceRoom() ?? false,
+                    ),
+            });
+            for (const id of ids) {
+                if (seen.has(id)) continue;
+                seen.add(id);
+                const room = getRoom(id);
+                if (room && !room.isSpaceRoom()) out.push(room);
+            }
+        }
+        return out;
+    }
+
+    /** Rooms that currently have call members, with resolved names/avatars. */
+    function voiceRoomsOf(rooms: Room[]): VoiceRoomInput[] {
+        void roomsState.roomsTick; // member names/avatars mutate in place
+        void voiceCallState.voiceTick; // call membership is an SDK mutation
+        const out: VoiceRoomInput[] = [];
+        for (const room of rooms) {
+            const participants = dedupeParticipants(
+                getRoomCallMemberships(room),
+            );
+            if (participants.length === 0) continue;
+            out.push({
+                roomId: room.roomId,
+                name: getRoomDisplayName(room),
+                participants: participants.map((p) => ({
+                    userId: p.userId,
+                    name: getMemberName(room, p.userId),
+                    avatar: getMemberAvatar(room, p.userId),
+                })),
+            });
+        }
+        return out;
+    }
+
+    /** Screen shares are only known in the call THIS device is in. */
+    function currentLiveShare(): LiveShareInfo {
+        return {
+            roomId: voiceCallState.roomId,
+            userIds: new Set(
+                voiceCallState.videoTiles
+                    .filter((tile) => tile.source === "screenshare")
+                    .map((tile) => tile.userId),
+            ),
+        };
+    }
+
+    function getSpaceVoice(spaceIds: string[]): SpaceVoiceSummary {
+        return summarizeVoice(
+            voiceRoomsOf(roomsForSpaces(spaceIds)),
+            currentLiveShare(),
+        );
+    }
+
+    function getHomeVoice(): SpaceVoiceSummary {
+        return summarizeVoice(
+            voiceRoomsOf([...getOrphanRooms(), ...getDirectRooms()]),
+            currentLiveShare(),
+        );
+    }
+
+    // ── Hover card: replaces the native title= tooltip on rail icons ─────────
+
+    const HOVER_CARD_DELAY_MS = 100;
+
+    type HoverCard = {
+        anchor: HTMLElement;
+        name: string;
+        getVoice: () => SpaceVoiceSummary;
+    };
+    let hoverCard = $state.raw<HoverCard | null>(null);
+    let hoverTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function hideHoverCard() {
+        if (hoverTimer) {
+            clearTimeout(hoverTimer);
+            hoverTimer = null;
+        }
+        hoverCard = null;
+    }
+
+    function scheduleHoverCard(
+        anchor: HTMLElement,
+        name: string,
+        getVoice: () => SpaceVoiceSummary,
+    ) {
+        if (hoverTimer) clearTimeout(hoverTimer);
+        hoverTimer = setTimeout(() => {
+            hoverTimer = null;
+            hoverCard = { anchor, name, getVoice };
+        }, HOVER_CARD_DELAY_MS);
+    }
+
+    function onIconPointerEnter(
+        e: PointerEvent,
+        name: string,
+        getVoice: () => SpaceVoiceSummary,
+    ) {
+        // Touch has no hover; long-press opens the context menu instead.
+        if (e.pointerType === "touch") return;
+        scheduleHoverCard(e.currentTarget as HTMLElement, name, getVoice);
+    }
+
+    function onIconFocus(
+        e: FocusEvent,
+        name: string,
+        getVoice: () => SpaceVoiceSummary,
+    ) {
+        // Mouse clicks focus the button too; only keyboard focus shows the card.
+        const el = e.currentTarget as HTMLElement;
+        if (!el.matches(":focus-visible")) return;
+        scheduleHoverCard(el, name, getVoice);
+    }
+
+    // Clear a pending show timer when the rail unmounts.
+    $effect(() => () => hideHoverCard());
 
     interface Props {
         onHomeClick: () => void;
@@ -518,6 +659,7 @@
         folderId: string | null = null,
     ) {
         if (e instanceof MouseEvent) e.preventDefault();
+        hideHoverCard();
         // Claim first — a same-id handover runs the outgoing close.
         openModal("space-menu", () => (contextMenu = null));
         contextMenu = {
@@ -535,6 +677,7 @@
         folderId: string,
     ) {
         if (e instanceof MouseEvent) e.preventDefault();
+        hideHoverCard();
         // Claim first — a same-id handover runs the outgoing close.
         openModal("space-menu", () => (contextMenu = null));
         contextMenu = {
@@ -945,12 +1088,39 @@
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<!-- Voice badge at the icon's bottom-right corner (the unread/mention pill sits
+     on the left edge, so the two never overlap). A live screen share swaps the
+     speaker glyph for a red LIVE pill. `ring` matches the rail background so
+     the badge reads as a cut-out. -->
+{#snippet voiceBadge(v: SpaceVoiceSummary, small: boolean)}
+    {#if v.active}
+        {#if v.live}
+            <span
+                class="absolute -end-1.5 -bottom-1.5 h-4 px-1 rounded bg-discord-danger text-white text-[9px] font-bold leading-4 tracking-wide ring-[3px] ring-discord-backgroundTertiary pointer-events-none"
+                aria-hidden="true">{t("spaceSidebar.liveBadge")}</span
+            >
+        {:else}
+            <span
+                class="absolute -end-1.5 -bottom-1.5 rounded-full bg-discord-textPositive text-white flex items-center justify-center ring-[3px] ring-discord-backgroundTertiary pointer-events-none {small
+                    ? 'w-4 h-4'
+                    : 'w-[18px] h-[18px]'}"
+                aria-hidden="true"
+            >
+                <Volume2 size={small ? 10 : 11} />
+            </span>
+        {/if}
+    {/if}
+{/snippet}
+
 <nav
     data-zam-region="space-sidebar"
     class="space-rail w-[4.5rem] bg-discord-backgroundTertiary flex flex-col items-center py-3 gap-2 overflow-y-auto scrollbar-hide flex-shrink-0"
     bind:this={navEl}
     ondragover={onNavDragOver}
     ondrop={onDrop}
+    ondragstart={hideHoverCard}
+    onpointerdown={hideHoverCard}
+    onscroll={hideHoverCard}
 >
     <!-- Home button -->
     <button
@@ -964,7 +1134,12 @@
         class:rounded-xl={roomsState.activeSpaceId === null}
         class:bg-discord-backgroundSecondary={roomsState.activeSpaceId !== null}
         class:hover:rounded-xl={roomsState.activeSpaceId !== null}
-        title={t("spaceSidebar.home")}
+        aria-label={t("spaceSidebar.home")}
+        onpointerenter={(e) =>
+            onIconPointerEnter(e, t("spaceSidebar.home"), getHomeVoice)}
+        onpointerleave={hideHoverCard}
+        onfocus={(e) => onIconFocus(e, t("spaceSidebar.home"), getHomeVoice)}
+        onblur={hideHoverCard}
     >
         <svg
             class="w-6 h-6 transition-colors {roomsState.activeSpaceId === null
@@ -989,6 +1164,9 @@
                 ></div>
             {/if}
         {/each}
+        {#each [getHomeVoice()] as hv}
+            {@render voiceBadge(hv, false)}
+        {/each}
     </button>
 
     <!-- Separator -->
@@ -1004,6 +1182,8 @@
             {@const isMergeTarget =
                 dropTarget?.id === item.id && dropTarget.position === "into"}
             {@const spaceNotifs = getSpaceNotifs(item.space.roomId)}
+            {@const spaceVoice = getSpaceVoice([item.space.roomId])}
+            {@const spaceName = item.space.name || item.space.roomId}
             <button
                 onclick={() =>
                     roomsState.activeSpaceId === item.space.roomId &&
@@ -1036,7 +1216,17 @@
                 class:ring-2={isMergeTarget}
                 class:ring-discord-accent={isMergeTarget}
                 class:rounded-xl={isMergeTarget}
-                title={item.space.name || item.space.roomId}
+                aria-label={spaceName}
+                onpointerenter={(e) =>
+                    onIconPointerEnter(e, spaceName, () =>
+                        getSpaceVoice([item.space.roomId]),
+                    )}
+                onpointerleave={hideHoverCard}
+                onfocus={(e) =>
+                    onIconFocus(e, spaceName, () =>
+                        getSpaceVoice([item.space.roomId]),
+                    )}
+                onblur={hideHoverCard}
             >
                 <Avatar
                     src={avatarSrc}
@@ -1049,6 +1239,7 @@
                           ? 'rounded-xl'
                           : 'rounded-2xl group-hover:rounded-xl'} transition-all duration-200"
                 />
+                {@render voiceBadge(spaceVoice, false)}
                 {#if isActive}
                     <div
                         class="absolute start-0 top-1/2 -translate-y-1/2 -translate-x-3 mirror:translate-x-3 w-1 h-8 bg-discord-textPrimary rounded-e-full"
@@ -1094,6 +1285,11 @@
                 },
                 { unread: false, highlight: false, loud: false },
             )}
+            {@const folderSpaceIds = item.spaces.map((s) => s.roomId)}
+            {@const folderVoice = getSpaceVoice(folderSpaceIds)}
+            {@const folderName =
+                roomsState.spaceLayout.folders[item.id]?.name ||
+                t("spaceSidebar.folder")}
             <div
                 class="relative flex flex-col items-center gap-1 flex-shrink-0"
                 class:opacity-40={dragState?.id === item.id}
@@ -1129,6 +1325,18 @@
                     class:ring-2={isIntoTarget}
                     class:ring-discord-accent={isIntoTarget}
                     class:rounded-xl={isIntoTarget}
+                    aria-label={folderName}
+                    aria-expanded={isExpanded}
+                    onpointerenter={(e) =>
+                        onIconPointerEnter(e, folderName, () =>
+                            getSpaceVoice(folderSpaceIds),
+                        )}
+                    onpointerleave={hideHoverCard}
+                    onfocus={(e) =>
+                        onIconFocus(e, folderName, () =>
+                            getSpaceVoice(folderSpaceIds),
+                        )}
+                    onblur={hideHoverCard}
                 >
                     <div
                         class="w-11 h-11 {isExpanded || isIntoTarget
@@ -1171,6 +1379,9 @@
                             </div>
                         {/if}
                     </div>
+                    {#if !isExpanded}
+                        {@render voiceBadge(folderVoice, false)}
+                    {/if}
                     {#if folderHasActive && !isExpanded}
                         <div
                             class="absolute start-0 top-1/2 -translate-y-1/2 -translate-x-3 mirror:translate-x-3 w-1 h-8 bg-discord-textPrimary rounded-e-full"
@@ -1198,6 +1409,8 @@
                             {@const isActive =
                                 roomsState.activeSpaceId === space.roomId}
                             {@const isn = getSpaceNotifs(space.roomId)}
+                            {@const childVoice = getSpaceVoice([space.roomId])}
+                            {@const childName = space.name || space.roomId}
                             <button
                                 onclick={() => setActiveSpace(space.roomId)}
                                 data-nav-space={space.roomId}
@@ -1232,7 +1445,17 @@
                                 class="group relative w-9 h-9 flex items-center justify-center transition-all duration-200 flex-shrink-0"
                                 class:opacity-40={dragState?.id ===
                                     space.roomId}
-                                title={space.name || space.roomId}
+                                aria-label={childName}
+                                onpointerenter={(e) =>
+                                    onIconPointerEnter(e, childName, () =>
+                                        getSpaceVoice([space.roomId]),
+                                    )}
+                                onpointerleave={hideHoverCard}
+                                onfocus={(e) =>
+                                    onIconFocus(e, childName, () =>
+                                        getSpaceVoice([space.roomId]),
+                                    )}
+                                onblur={hideHoverCard}
                             >
                                 <Avatar
                                     src={getRoomAvatar(space)}
@@ -1243,6 +1466,7 @@
                                         ? 'rounded-lg'
                                         : 'rounded-2xl group-hover:rounded-lg'} transition-all duration-200"
                                 />
+                                {@render voiceBadge(childVoice, true)}
                                 {#if isActive}
                                     <div
                                         class="absolute start-0 top-1/2 -translate-y-1/2 -translate-x-3 mirror:translate-x-3 w-1 h-6 bg-discord-textPrimary rounded-e-full"
@@ -1352,6 +1576,14 @@
 </nav>
 
 <Portal>
+    {#if hoverCard}
+        <SpaceHoverCard
+            anchor={hoverCard.anchor}
+            name={hoverCard.name}
+            getVoice={hoverCard.getVoice}
+        />
+    {/if}
+
     <!-- Space-rail "+" flyout: compact Create-space / Join chooser. Kept
          MOUNTED (class-toggled, not `{#if}`) so QuickActions' own Portaled form
          modal survives this flyout closing when picking an action supersedes

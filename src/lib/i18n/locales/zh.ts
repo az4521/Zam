@@ -2393,6 +2393,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "spaceSidebar.setColor": "设置颜色",
     "spaceSidebar.dissolveFolder": "解散文件夹",
     "spaceSidebar.somethingWentWrong": "出错了",
+    "spaceSidebar.folder": "文件夹",
+    "spaceSidebar.liveBadge": "直播",
+    "spaceSidebar.inVoiceCount": "{count} 人在语音中",
+    "spaceSidebar.moreParticipants": "+{count} 人",
 
     // src/lib/components/layout/Splash.svelte
     "splash.restoringSession": "正在恢复会话…",

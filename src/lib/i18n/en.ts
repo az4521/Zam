@@ -2504,6 +2504,10 @@ export const en = {
     "spaceSidebar.setColor": "Set Color",
     "spaceSidebar.dissolveFolder": "Dissolve Folder",
     "spaceSidebar.somethingWentWrong": "Something went wrong",
+    "spaceSidebar.folder": "Folder",
+    "spaceSidebar.liveBadge": "LIVE",
+    "spaceSidebar.inVoiceCount": "{count} in voice",
+    "spaceSidebar.moreParticipants": "+{count} more",
 
     // src/lib/components/layout/Splash.svelte
     "splash.restoringSession": "Restoring session…",

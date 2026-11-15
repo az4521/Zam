@@ -2552,6 +2552,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "spaceSidebar.setColor": "Farbe festlegen",
     "spaceSidebar.dissolveFolder": "Ordner auflösen",
     "spaceSidebar.somethingWentWrong": "Etwas ist schiefgelaufen",
+    "spaceSidebar.folder": "Ordner",
+    "spaceSidebar.liveBadge": "LIVE",
+    "spaceSidebar.inVoiceCount": "{count} im Sprachkanal",
+    "spaceSidebar.moreParticipants": "+{count} weitere",
 
     // src/lib/components/layout/Splash.svelte
     "splash.restoringSession": "Sitzung wird wiederhergestellt…",
