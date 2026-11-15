@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.61.4
+
+✨ **New**
+
+- **Images fit the screen by default:** the image viewer now opens images fitted to your screen. If you had switched **Fit images to the screen** off, it stays off.
+
+🐛 **Fixed**
+
+- **Search index sync between your devices:** a device whose search index had gaps from before index sync existed never got them filled from your other devices, because it thought those stretches were already indexed. Each sync now compares how many messages each device holds per day, and a device holding more sends that day. Sync also runs again when you return to the app after half an hour, not only when it starts. Both devices need this version.
+
 ## v1.61.3
 
 ✨ **New**
