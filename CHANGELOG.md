@@ -4,6 +4,19 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.63.0
+
+✨ **New**
+
+- **Plugin ringtones:** plugins can now add their own ringtones, either a sound file or one they play themselves (for example through MIDI). Pick one under Settings → Voice & audio → Ringing, which now has a ringtone menu with a short preview. If the plugin is turned off or its ringtone fails to start, the built-in ringtone plays instead, so a call always rings.
+- **Smoother swiping in the image viewer:** letting go of a swipe now slides the current image fully off while the next one slides in, and a short swipe springs back, instead of the image swapping before the animation finished. The images on either side are loaded ahead of time (decrypted ahead in encrypted rooms), and the chat thumbnail shows while the full image loads.
+
+🐛 **Fixed**
+
+- **"New messages" bar:** it no longer spreads over the member list or thread panel, and shrinks to fit the chat when a side panel is open. The "Jump to present" button had the same problem.
+- **Custom reaction names:** hovering a custom (image) reaction shows its name, like `:blobcat:`, instead of an `mxc://` link. Custom reactions you send now carry their name for other apps too.
+- **Green and purple bands in X/Twitter previews:** GIFs in tweet previews only play while they are near the screen, so a chat full of them no longer runs out of video decoders.
+
 ## v1.62.0
 
 ✨ **New**
