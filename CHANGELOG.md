@@ -4,6 +4,21 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.63.2
+
+✨ **New**
+
+- **Proxy settings on Android:** Settings → General → Network now works on Android too, with the same panel as desktop. The proxy also covers push notifications and quick replies. Android has no PAC files and no "only through the proxy" mode for calls.
+- **Calls in the server list:** servers, Home and folders show a speaker badge when someone is in a call in one of their rooms, and a LIVE badge when someone is screen sharing in your call. Hovering an icon shows a card with the name and who is in each call.
+- **Pan zoomed images past their edges:** in the image viewer, a zoomed image can now be dragged a little past its edges, so text at the edge is no longer stuck under the toolbar or caption.
+- **Message link pills** now end in a chevron and speech bubble, so a link to a message looks different from a link to a room.
+
+🐛 **Fixed**
+
+- **Edited messages showing up empty:** an edited message could show only "(edited)" with no text, mostly on Android. It now shows the original text until the edit can be decrypted, and edits that failed to decrypt while the app was in the background are retried when you come back.
+- **Rooms staying unread on a slow connection:** opening a room marks it read right away instead of waiting for the server, and clearing "Mark as unread" is instant too.
+- **Swiping a zoomed image:** the zoomed image now slides fully off the screen, and the next image comes in from off-screen instead of popping in.
+
 ## v1.63.1
 
 ✨ **New**
