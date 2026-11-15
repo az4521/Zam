@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.61.2
+
+✨ **New**
+
+- **Swipe between photos on mobile:** in the full-screen viewer, swipe left or right to move to the next or previous photo or video in a gallery or room. When you're zoomed in, a swipe pans the photo; once you've panned to its edge, swipe again to move on.
+
 ## v1.61.1
 
 🐛 **Fixed**
