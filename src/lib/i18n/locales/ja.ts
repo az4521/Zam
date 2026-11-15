@@ -868,6 +868,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "lightbox.zoomIn": "拡大",
     "lightbox.zoomOut": "縮小",
     "lightbox.zoomReset": "ズームをリセット",
+    "lightbox.fitToScreen": "画面に合わせる",
+    "lightbox.actualSize": "実際のサイズ",
+    "messagesMediaSettings.fitImagesToScreen": "画像を画面に合わせる",
+    "messagesMediaSettings.fitImagesToScreenDescription":
+        "画像ビューアで、画面より小さい画像を画面いっぱいに拡大します。ビューアの「画面に合わせる」ボタンで、表示中の画像だけ切り替えられます。",
     "linkPreview.youtubeVideo": "YouTube 動画",
     "linkPreview.xTwitter": "X / Twitter",
     "linkPreview.loadingItContactsTheSiteHosting":

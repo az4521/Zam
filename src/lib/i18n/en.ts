@@ -1028,6 +1028,11 @@ export const en = {
     "lightbox.zoomIn": "Zoom in",
     "lightbox.zoomOut": "Zoom out",
     "lightbox.zoomReset": "Reset zoom",
+    "lightbox.fitToScreen": "Fit to screen",
+    "lightbox.actualSize": "Actual size",
+    "messagesMediaSettings.fitImagesToScreen": "Fit images to the screen",
+    "messagesMediaSettings.fitImagesToScreenDescription":
+        "In the image viewer, enlarge images smaller than the screen to fill it. The viewer's fit button switches this for the image you're looking at.",
 
     // src/lib/components/messages/LinkPreview.svelte
     "linkPreview.youtubeVideo": "YouTube video",

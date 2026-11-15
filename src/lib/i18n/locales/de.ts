@@ -924,6 +924,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "lightbox.zoomIn": "Vergrößern",
     "lightbox.zoomOut": "Verkleinern",
     "lightbox.zoomReset": "Zoom zurücksetzen",
+    "lightbox.fitToScreen": "An Bildschirm anpassen",
+    "lightbox.actualSize": "Originalgröße",
+    "messagesMediaSettings.fitImagesToScreen":
+        "Bilder an den Bildschirm anpassen",
+    "messagesMediaSettings.fitImagesToScreenDescription":
+        "Im Bildbetrachter werden Bilder, die kleiner als der Bildschirm sind, vergrößert, bis sie ihn ausfüllen. Mit der Anpassen-Schaltfläche im Betrachter lässt sich das für das gerade angezeigte Bild umschalten.",
 
     // src/lib/components/messages/LinkPreview.svelte
     "linkPreview.youtubeVideo": "YouTube-Video",

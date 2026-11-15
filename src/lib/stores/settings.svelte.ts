@@ -368,6 +368,10 @@ export const settingsState = $state({
      *  receivers can watch it as it downloads. Only used when the result is
      *  smaller. Default OFF, since the file type changes. Local-only. */
     gifsAsWebp: readBool("gifsAsWebp", false),
+    /** Device-global: the image viewer opens with images smaller than the
+     *  screen enlarged to fill it, instead of at their own size. The viewer's
+     *  fit button flips it for the image being viewed. Default OFF. */
+    lightboxFitToScreen: readBool("lightboxFitToScreen", false),
     /** Device-global: which sound bank plays MIDI attachments (see
      *  utils/midiSoundBank). Default "bundled", the SoundFont Zam ships, so
      *  MIDI sounds the same everywhere. Local-only: a custom bank lives in
@@ -1154,6 +1158,11 @@ export function setRandomizeFileNames(value: boolean): void {
 export function setGifsAsWebp(value: boolean): void {
     settingsState.gifsAsWebp = value;
     writeBool("gifsAsWebp", value);
+}
+
+export function setLightboxFitToScreen(value: boolean): void {
+    settingsState.lightboxFitToScreen = value;
+    writeBool("lightboxFitToScreen", value);
 }
 
 export function setMidiSoundBank(value: MidiSoundBankChoice): void {

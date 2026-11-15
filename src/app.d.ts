@@ -395,6 +395,12 @@ declare global {
             ) => Promise<string>;
             contextMenu?: {
                 onSaveImage: (cb: (url: string) => void) => () => void;
+                /** Right-click "Copy image": main has copied the image as
+                 *  shown; the page may answer with the original's PNG. */
+                onCopyImage?: (
+                    cb: (id: number, url: string) => void,
+                ) => () => void;
+                copyImageData?: (id: number, png: ArrayBuffer) => void;
                 /** Actions for the message under the next right-click; null clears. */
                 setMessageActions: (
                     items:

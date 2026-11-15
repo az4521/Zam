@@ -913,6 +913,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "lightbox.zoomIn": "Zoom avant",
     "lightbox.zoomOut": "Zoom arrière",
     "lightbox.zoomReset": "Réinitialiser le zoom",
+    "lightbox.fitToScreen": "Ajuster à l'écran",
+    "lightbox.actualSize": "Taille réelle",
+    "messagesMediaSettings.fitImagesToScreen": "Ajuster les images à l'écran",
+    "messagesMediaSettings.fitImagesToScreenDescription":
+        "Dans la visionneuse, agrandit les images plus petites que l'écran pour qu'elles le remplissent. Le bouton d'ajustement de la visionneuse bascule ce réglage pour l'image affichée.",
 
     // src/lib/components/messages/LinkPreview.svelte
     "linkPreview.youtubeVideo": "Vidéo YouTube",

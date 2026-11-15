@@ -61,6 +61,7 @@
         openModal,
         clearModalIfOwner,
     } from "$lib/stores/interface.svelte";
+    import { settingsState } from "$lib/stores/settings.svelte";
     import {
         isFavouriteGif,
         addFavouriteGif,
@@ -387,15 +388,54 @@
     // A vector sent without a size takes its ratio from the loaded file, so
     // its box hugs the drawing instead of spanning the whole viewport width.
     let loadedRatio = $state<{ w: number; h: number } | null>(null);
+    // Fit mode: an image smaller than the screen is enlarged to fill it,
+    // like a vector, instead of shown at its own size. Starts from the
+    // setting; the fit button flips it for as long as this viewer is open
+    // (stepping through a gallery keeps it).
+    let fitToScreen = $state(untrack(() => settingsState.lightboxFitToScreen));
+    function toggleFit() {
+        fitToScreen = !fitToScreen;
+        resetZoom();
+    }
+    // The <img>'s laid-out width (before the zoom transform), so the zoom
+    // label can show the real pixel scale: a large image shrunk to fit is
+    // below 100%, a small one enlarged by fit mode above it.
+    let layoutW = $state(0);
+    $effect(() => {
+        const el = imgEl;
+        if (!el || typeof ResizeObserver === "undefined") return;
+        const ro = new ResizeObserver(() => (layoutW = el.offsetWidth));
+        ro.observe(el);
+        return () => ro.disconnect();
+    });
+    const zoomPercent = $derived.by(() => {
+        const natural = imgLoaded ? (loadedRatio?.w ?? 0) : 0;
+        // A vector has no pixel size: its zoom is relative to its fit.
+        if (vector || !natural || !layoutW) return Math.round(scale * 100);
+        return Math.round(((scale * layoutW) / renderScale / natural) * 100);
+    });
     const viewGutter = $derived(interfaceState.isMobile ? "6em" : "2em");
     const imgBoxStyle = $derived.by(() => {
+        // Without a declared size, a fitted image takes its ratio from the
+        // loaded file, as a vector does.
+        const ratioFromFile = vector || fitToScreen;
         const w =
             safeDimension(dims?.w) ??
-            (vector ? (loadedRatio?.w ?? null) : null);
+            (ratioFromFile ? (loadedRatio?.w ?? null) : null);
         const h =
             safeDimension(dims?.h) ??
-            (vector ? (loadedRatio?.h ?? null) : null);
+            (ratioFromFile ? (loadedRatio?.h ?? null) : null);
         const fitViewport = `calc(100${vu}vw - ${viewGutter})`;
+        if (fitToScreen && !vector) {
+            // Until its ratio is known the image shows at its own size (the
+            // max caps still keep it on screen).
+            if (w === null || h === null) return "";
+            return (
+                `width: min(${fitViewport}, ` +
+                `calc((100${vu}vh - ${viewGutter}) * ${w} / ${h})); ` +
+                `height: auto; aspect-ratio: ${w} / ${h};`
+            );
+        }
         if (vector) {
             // A vector has no pixel size to cap at, so it fills the viewport
             // width, or as much of it as its ratio allows, whatever its declared
@@ -1184,6 +1224,7 @@
                     onload={() => {
                         if (!src) return;
                         imgLoaded = true;
+                        if (imgEl) layoutW = imgEl.offsetWidth;
                         if (imgEl?.naturalWidth && imgEl.naturalHeight)
                             loadedRatio = {
                                 w: imgEl.naturalWidth,
@@ -1265,7 +1306,7 @@
                     aria-label={t("lightbox.zoomReset")}
                     class="min-w-[3.5rem] px-2 py-1 rounded-full text-sm tabular-nums hover:bg-black/70 transition-colors"
                 >
-                    {Math.round(scale * 100)}%
+                    {zoomPercent}%
                 </button>
                 <button
                     type="button"
@@ -1283,6 +1324,42 @@
                         viewBox="0 0 24 24"
                     >
                         <path stroke-linecap="round" d="M12 5v14M5 12h14" />
+                    </svg>
+                </button>
+                <button
+                    type="button"
+                    onclick={toggleFit}
+                    aria-pressed={fitToScreen}
+                    title={fitToScreen
+                        ? t("lightbox.actualSize")
+                        : t("lightbox.fitToScreen")}
+                    aria-label={t("lightbox.fitToScreen")}
+                    class="p-2 rounded-full hover:bg-black/70 transition-colors {fitToScreen
+                        ? 'bg-white/20'
+                        : ''}"
+                >
+                    <svg
+                        class="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        viewBox="0 0 24 24"
+                    >
+                        {#if fitToScreen}
+                            <!-- Arrows pointing in: back to actual size. -->
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"
+                            />
+                        {:else}
+                            <!-- Arrows pointing out: fill the screen. -->
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"
+                            />
+                        {/if}
                     </svg>
                 </button>
             </div>

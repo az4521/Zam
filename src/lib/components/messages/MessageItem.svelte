@@ -272,6 +272,7 @@
     } from "$lib/utils/audioPlayback";
 
     import type { ReadReceiptInfo } from "$lib/matrix/client";
+    import { fullImage, type FullImageSource } from "$lib/actions/fullImage";
 
     type EncryptedFile = {
         url: string;
@@ -1817,6 +1818,21 @@
         return [server !== imageFullUrl() ? server : null, senderThumbUrl];
     });
 
+    /** The original behind the image tile, for the desktop right-click
+     *  "Copy image" / "Save image as" (the tile shows a smaller copy). */
+    function imageOriginal(): FullImageSource | null {
+        const file = content?.file as EncryptedFile | undefined;
+        if (file) {
+            if (encryptedImageFullUrl)
+                return { kind: "url", url: encryptedImageFullUrl };
+            const mime = (content?.info as { mimetype?: string } | undefined)
+                ?.mimetype;
+            return { kind: "encrypted", file, mimetype: mime };
+        }
+        const url = imageFullUrl();
+        return url ? { kind: "url", url } : null;
+    }
+
     // Audio: lazy-load blob only after play is clicked
     let audioClicked = $state(false);
     let audioBlobUrl = $state<string | null>(null);
@@ -3083,6 +3099,7 @@
                                 <img
                                     src={senderThumbUrl}
                                     alt={mediaFilename}
+                                    use:fullImage={imageOriginal}
                                     width={imageBox?.width}
                                     height={imageBox?.height}
                                     class="block rounded-lg {imageBox
@@ -3155,6 +3172,7 @@
                                     height={imageBox.height}
                                     class="max-w-full h-auto rounded-lg object-contain cursor-pointer block"
                                     loading="lazy"
+                                    use:fullImage={imageOriginal}
                                     data-own-retry
                                     onerror={mediaImgRetry.onError}
                                     style={imageTilePlaceholder}
@@ -3169,6 +3187,7 @@
                                         ? "w-96 max-w-full max-h-96 h-auto rounded-lg object-contain cursor-pointer block"
                                         : "max-w-lg w-full max-h-96 rounded-lg object-contain cursor-pointer block"}
                                     loading="lazy"
+                                    use:fullImage={imageOriginal}
                                     data-own-retry
                                     onerror={mediaImgRetry.onError}
                                     style={imageTilePlaceholder}

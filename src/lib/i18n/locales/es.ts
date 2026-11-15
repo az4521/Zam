@@ -953,6 +953,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "lightbox.zoomIn": "Acercar",
     "lightbox.zoomOut": "Alejar",
     "lightbox.zoomReset": "Restablecer el zoom",
+    "lightbox.fitToScreen": "Ajustar a la pantalla",
+    "lightbox.actualSize": "Tamaño real",
+    "messagesMediaSettings.fitImagesToScreen": "Ajustar imágenes a la pantalla",
+    "messagesMediaSettings.fitImagesToScreenDescription":
+        "En el visor de imágenes, amplía las imágenes más pequeñas que la pantalla hasta llenarla. El botón de ajuste del visor lo cambia para la imagen que estás viendo.",
 
     // src/lib/components/messages/LinkPreview.svelte
     "linkPreview.youtubeVideo": "Vídeo de YouTube",

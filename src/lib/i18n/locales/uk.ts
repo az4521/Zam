@@ -1057,6 +1057,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "lightbox.zoomIn": "Збільшити",
     "lightbox.zoomOut": "Зменшити",
     "lightbox.zoomReset": "Скинути масштаб",
+    "lightbox.fitToScreen": "За розміром екрана",
+    "lightbox.actualSize": "Справжній розмір",
+    "messagesMediaSettings.fitImagesToScreen":
+        "Розтягувати зображення на екран",
+    "messagesMediaSettings.fitImagesToScreenDescription":
+        "У переглядачі зображення, менші за екран, збільшуються, щоб заповнити його. Кнопка припасування в переглядачі перемикає це для відкритого зображення.",
 
     // src/lib/components/messages/LinkPreview.svelte
     "linkPreview.youtubeVideo": "Відео YouTube",

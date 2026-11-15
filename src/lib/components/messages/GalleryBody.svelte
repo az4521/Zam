@@ -33,6 +33,7 @@
     } from "$lib/utils/galleryLayout";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
+    import { fullImage, type FullImageSource } from "$lib/actions/fullImage";
     import MediaProgress from "$lib/components/ui/MediaProgress.svelte";
     import type { DownloadProgress } from "$lib/utils/downloadProgress";
 
@@ -270,6 +271,26 @@
         viewerIndex = next;
     }
 
+    /** The original behind an image tile, for the desktop right-click "Copy
+     *  image" / "Save image as". None for a video: its tile is a poster. */
+    function tileOriginal(entry: Entry): FullImageSource | null {
+        const media = entry.media;
+        if (media.kind !== "image") return null;
+        const name = media.name;
+        if (media.encrypted && media.encryptedFile) {
+            const done = decryptedFull[entry.key];
+            if (done) return { kind: "url", url: done, name };
+            return {
+                kind: "encrypted",
+                file: media.encryptedFile,
+                mimetype: media.mimetype ?? undefined,
+                name,
+            };
+        }
+        const url = mxcToHttp(media.url);
+        return url ? { kind: "url", url, name } : null;
+    }
+
     async function download(media: RoomMediaItem): Promise<void> {
         try {
             const blobUrl =
@@ -343,6 +364,7 @@
                                     src={thumb}
                                     alt=""
                                     loading="lazy"
+                                    use:fullImage={() => tileOriginal(entry)}
                                     class="w-full h-full object-contain bg-discord-backgroundTertiary"
                                     onload={(e) =>
                                         learnAspect(

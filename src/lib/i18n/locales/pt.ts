@@ -1054,6 +1054,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "lightbox.zoomIn": "Aumentar zoom",
     "lightbox.zoomOut": "Diminuir zoom",
     "lightbox.zoomReset": "Redefinir zoom",
+    "lightbox.fitToScreen": "Ajustar à tela",
+    "lightbox.actualSize": "Tamanho real",
+    "messagesMediaSettings.fitImagesToScreen": "Ajustar imagens à tela",
+    "messagesMediaSettings.fitImagesToScreenDescription":
+        "No visualizador, amplia imagens menores que a tela até preenchê-la. O botão de ajuste do visualizador alterna isso para a imagem que você está vendo.",
 
     // src/lib/components/messages/LinkPreview.svelte
     "linkPreview.youtubeVideo": "Vídeo do YouTube",

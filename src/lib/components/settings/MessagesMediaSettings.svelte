@@ -14,6 +14,7 @@
         setStripMetadata,
         setRandomizeFileNames,
         setGifsAsWebp,
+        setLightboxFitToScreen,
         setGifDefaultTab,
         setMidiSoundBank,
         settingsState,
@@ -264,6 +265,21 @@
                 checked={settingsState.pauseVideoOnScrollOff}
                 onChange={setPauseVideoOnScrollOff}
                 label={t("messagesMediaSettings.pauseVideosOffScreen")}
+            />
+        </div>
+        <div class="flex items-center gap-3 py-2">
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-discord-textPrimary">
+                    {t("messagesMediaSettings.fitImagesToScreen")}
+                </p>
+                <p class="text-xs text-discord-textMuted">
+                    {t("messagesMediaSettings.fitImagesToScreenDescription")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.lightboxFitToScreen}
+                onChange={setLightboxFitToScreen}
+                label={t("messagesMediaSettings.fitImagesToScreen")}
             />
         </div>
         <div class="flex items-center gap-3 py-2">

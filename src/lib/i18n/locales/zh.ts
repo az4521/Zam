@@ -1004,6 +1004,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "lightbox.zoomIn": "放大",
     "lightbox.zoomOut": "缩小",
     "lightbox.zoomReset": "重置缩放",
+    "lightbox.fitToScreen": "适应屏幕",
+    "lightbox.actualSize": "实际大小",
+    "messagesMediaSettings.fitImagesToScreen": "图片适应屏幕",
+    "messagesMediaSettings.fitImagesToScreenDescription":
+        "在图片查看器中，将小于屏幕的图片放大到铺满屏幕。查看器中的适应按钮可为当前图片切换此设置。",
 
     // src/lib/components/messages/LinkPreview.svelte
     "linkPreview.youtubeVideo": "YouTube 视频",

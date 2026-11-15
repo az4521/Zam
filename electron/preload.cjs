@@ -288,6 +288,18 @@ contextBridge.exposeInMainWorld("desktop", {
             return () =>
                 ipcRenderer.removeListener("context-menu:save-image", h);
         },
+        // Right-click "Copy image": main copies the image as shown, then
+        // asks for the original (a tile shows a smaller copy); the page
+        // answers with its PNG bytes, which replace the clipboard image.
+        onCopyImage: (cb) => {
+            const h = (_e, id, url) => cb(id, url);
+            ipcRenderer.on("context-menu:copy-image", h);
+            return () =>
+                ipcRenderer.removeListener("context-menu:copy-image", h);
+        },
+        copyImageData: (id, png) => {
+            ipcRenderer.send("context-menu:copy-image-data", id, png);
+        },
         // Message actions (React, Reply, Edit, ...) for the next right-click.
         // sendSync so main has the items stored before Chromium's own
         // context-menu event for the same click fires.

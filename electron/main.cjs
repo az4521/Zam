@@ -1195,6 +1195,31 @@ ipcMain.on("call:set-active", (e, active) => {
 });
 app.on("will-quit", () => callPriority.restore());
 
+// Right-click "Copy image": main copies the image as shown at once, then the
+// page sends the original's PNG (a tile shows a smaller copy), which replaces
+// it. Only the latest copy's answer counts, and only for a short while, so a
+// slow download can't overwrite something copied since.
+let copyImageSeq = 0;
+let copyImagePending = null; // { id, at }
+const COPY_IMAGE_WINDOW_MS = 30_000;
+ipcMain.on("context-menu:copy-image-data", (e, id, png) => {
+    if (!mainWindow || e.sender !== mainWindow.webContents) return;
+    const pending = copyImagePending;
+    if (!pending || pending.id !== id) return;
+    copyImagePending = null;
+    if (Date.now() - pending.at > COPY_IMAGE_WINDOW_MS) return;
+    // Something else copied since (text, another image): leave it.
+    if (clipboard.readImage().isEmpty()) return;
+    let buf;
+    if (png instanceof ArrayBuffer) buf = Buffer.from(png);
+    else if (ArrayBuffer.isView(png))
+        buf = Buffer.from(png.buffer, png.byteOffset, png.byteLength);
+    else return;
+    const img = nativeImage.createFromBuffer(buf);
+    if (img.isEmpty()) return;
+    clipboard.writeImage(img);
+});
+
 // Message actions the renderer offers for the next right-click (see the
 // context-menu handler in createWindow). Set by a sendSync from the page, so it
 // is stored before Chromium's context-menu event for the same click.
@@ -2383,7 +2408,12 @@ async function createWindow() {
             section([
                 {
                     label: "Copy image",
-                    click: () => wc.copyImageAt(params.x, params.y),
+                    click: () => {
+                        wc.copyImageAt(params.x, params.y);
+                        const id = ++copyImageSeq;
+                        copyImagePending = { id, at: Date.now() };
+                        wc.send("context-menu:copy-image", id, params.srcURL);
+                    },
                 },
                 {
                     label: "Save image as…",
