@@ -128,6 +128,11 @@
     let thumbFailed = $state<Record<string, boolean>>({});
     // Decrypted full media for the lightbox, keyed by entry key.
     let decryptedFull = $state<Record<string, string>>({});
+    // Encrypted images either side of the viewed one, decrypted ahead so a
+    // swipe lands on a loaded image. Handed over to decryptedFull when the
+    // viewer steps onto one; revoked once they are no longer neighbours.
+    let prefetchedFull = $state<Record<string, string>>({});
+    const prefetchPending = new Set<string>();
     let viewerDecrypting = $state(false);
     let viewerProgress = $state<DownloadProgress | null>(null);
     let viewerIndex = $state<number | null>(null);
@@ -139,12 +144,16 @@
     function releaseDecryptedBlobs(): void {
         blobGen++;
         thumbPending.clear();
+        prefetchPending.clear();
         for (const url of Object.values(decryptedThumbs))
             URL.revokeObjectURL(url);
         for (const url of Object.values(decryptedFull))
             URL.revokeObjectURL(url);
+        for (const url of Object.values(prefetchedFull))
+            URL.revokeObjectURL(url);
         decryptedThumbs = {};
         decryptedFull = {};
+        prefetchedFull = {};
         viewerDecrypting = false;
     }
     $effect(() => () => releaseDecryptedBlobs());
@@ -213,6 +222,15 @@
         if (!media.encrypted || !media.encryptedFile) return;
         if (media.kind === "video") return;
         if (untrack(() => decryptedFull[key])) return;
+        // Already decrypted ahead as a neighbour: take that copy over.
+        const ahead = untrack(() => prefetchedFull[key]);
+        if (ahead) {
+            untrack(() => {
+                decryptedFull[key] = ahead;
+                delete prefetchedFull[key];
+            });
+            return;
+        }
         const gen = blobGen;
         let cancelled = false;
         viewerDecrypting = true;
@@ -263,6 +281,106 @@
         // "scale" so the poster matches the video's own aspect ratio.
         return mxcToHttp(mediaThumbnailMxc(entry.media), 800, 600, "scale");
     });
+
+    // Decrypt the encrypted images either side of the viewed one, through the
+    // same helper the viewer uses, and release any blob that no longer belongs
+    // to a neighbour. Closing the viewer empties `wanted`, which releases all.
+    $effect(() => {
+        const idx = viewerIndex;
+        const wanted =
+            idx === null
+                ? []
+                : [visual[idx - 1], visual[idx + 1]].filter(
+                      (e): e is Entry =>
+                          !!e &&
+                          e.media.kind === "image" &&
+                          !!e.media.encrypted &&
+                          !!e.media.encryptedFile,
+                  );
+        untrack(() => {
+            const keep = new Set(wanted.map((e) => e.key));
+            for (const key of Object.keys(prefetchedFull)) {
+                if (keep.has(key)) continue;
+                URL.revokeObjectURL(prefetchedFull[key]);
+                delete prefetchedFull[key];
+            }
+            const gen = blobGen;
+            for (const entry of wanted) {
+                const key = entry.key;
+                if (
+                    decryptedFull[key] ||
+                    prefetchedFull[key] ||
+                    prefetchPending.has(key)
+                )
+                    continue;
+                prefetchPending.add(key);
+                fetchDecryptedAttachmentBlob(
+                    entry.media.encryptedFile!,
+                    entry.media.mimetype ?? undefined,
+                    { expectedSize: entry.media.size },
+                )
+                    .then((url) => {
+                        // Stale (torn down, or the viewer has since decrypted
+                        // it itself): nothing will own this URL, so release it.
+                        if (gen !== blobGen || decryptedFull[key]) {
+                            URL.revokeObjectURL(url);
+                            return;
+                        }
+                        prefetchedFull[key] = url;
+                    })
+                    .catch(() => {
+                        /* a failed prefetch just means no warm copy */
+                    })
+                    .finally(() => {
+                        if (gen === blobGen) prefetchPending.delete(key);
+                    });
+            }
+        });
+    });
+
+    /** The tile thumbnail for an entry, as the grid shows it (decrypted for an
+     *  encrypted one). Null until it is ready or if it failed. */
+    function thumbSrc(entry: Entry, box: number): string | null {
+        if (thumbFailed[entry.key]) return null;
+        const media = entry.media;
+        return media.encrypted
+            ? (decryptedThumbs[entry.key] ?? null)
+            : mxcToHttp(mediaThumbnailMxc(media), box, box, "scale");
+    }
+
+    /** Stand-ins and size for the lightbox, sized for the viewer rather than a tile. */
+    const VIEWER_THUMB_PX = 800;
+    function viewerStandIn(entry: Entry) {
+        return {
+            placeholders: [thumbSrc(entry, VIEWER_THUMB_PX)],
+            dims: { w: entry.info.w, h: entry.info.h },
+        };
+    }
+
+    /** A swipe neighbour: its full src (or "" while it is not ready, or for a
+     *  video, which the viewer does not preload), plus its stand-ins. */
+    function neighbourOf(entry: Entry | undefined) {
+        if (!entry) return null;
+        const media = entry.media;
+        const src =
+            media.kind !== "image"
+                ? ""
+                : media.encrypted
+                  ? (decryptedFull[entry.key] ??
+                    prefetchedFull[entry.key] ??
+                    "")
+                  : (mxcToHttp(media.url) ?? "");
+        return { src, ...viewerStandIn(entry) };
+    }
+
+    const viewerNeighbours = $derived(
+        viewerIndex === null
+            ? undefined
+            : {
+                  prev: neighbourOf(visual[viewerIndex - 1]),
+                  next: neighbourOf(visual[viewerIndex + 1]),
+              },
+    );
 
     function step(delta: number): void {
         if (viewerIndex === null) return;
@@ -335,16 +453,7 @@
                             tile.height,
                             devicePixelRatioOrOne(),
                         )}
-                        {@const thumb = thumbFailed[entry.key]
-                            ? null
-                            : media.encrypted
-                              ? (decryptedThumbs[entry.key] ?? null)
-                              : mxcToHttp(
-                                    mediaThumbnailMxc(media),
-                                    box,
-                                    box,
-                                    "scale",
-                                )}
+                        {@const thumb = thumbSrc(entry, box)}
                         {@const duration = formatMediaDuration(
                             media.durationMs,
                         )}
@@ -487,6 +596,9 @@
             onPrev={nav && nav.prevIndex !== null ? () => step(-1) : undefined}
             onNext={nav && nav.nextIndex !== null ? () => step(1) : undefined}
             position={galleryPositionLabel(visual.length, viewerIndex ?? -1)}
+            placeholders={viewerStandIn(viewerEntry).placeholders}
+            dims={viewerStandIn(viewerEntry).dims}
+            neighbours={viewerNeighbours}
         />
     {/if}
 {/if}

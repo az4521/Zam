@@ -54,6 +54,22 @@
          *  original painting in while it decrypts), shown over the stand-ins
          *  until `src` loads. */
         preview?: FrameRelay | null;
+        /** Images only: the items either side of this one in the gallery. A
+         *  swipe slides the neighbour in alongside the finger, and each
+         *  neighbour's `src` is fetched ahead so the step lands on a loaded
+         *  image. Omit a side at the ends of the list. */
+        neighbours?: {
+            prev?: LightboxNeighbour | null;
+            next?: LightboxNeighbour | null;
+        };
+    }
+
+    /** A neighbouring image: its full `src` ("" while still decrypting), and
+     *  the same stand-ins and size the viewer would show for it. */
+    interface LightboxNeighbour {
+        src: string;
+        placeholders?: readonly (string | null | undefined)[];
+        dims?: { w: unknown; h: unknown } | null;
     }
 
     import {
@@ -88,6 +104,7 @@
     import type { DownloadProgress } from "$lib/utils/downloadProgress";
     import { fade, scale as scaleTransition } from "svelte/transition";
     import { motionOK } from "$lib/utils/motionPreference";
+    import { swipeCommits, swipeSettleMs } from "$lib/utils/lightboxSwipe";
     import { onMount, untrack } from "svelte";
 
     // Dynamic viewport units (dvw/dvh) are Safari 15.4+; before that a style
@@ -112,6 +129,7 @@
         placeholders = [],
         dims = null,
         preview = null,
+        neighbours,
     }: Props = $props();
 
     const isVideo = $derived(kind === "video");
@@ -328,23 +346,11 @@
             scale = 1;
             tx = 0;
             ty = 0;
-            // A swipe that stepped here slides the new item in from the side
-            // it was pulled from: placed there with no transition, then let
-            // go to the centre with one.
-            const enter = pendingEnter;
-            pendingEnter = 0;
-            if (enter && motionOK()) {
-                rebasing = true;
-                swipeDx = enter;
-                requestAnimationFrame(() =>
-                    requestAnimationFrame(() => {
-                        rebasing = false;
-                        swipeDx = 0;
-                    }),
-                );
-            } else {
-                swipeDx = 0;
-            }
+            // The new item lands at the centre without animating. After a
+            // swipe it is already sitting there under the neighbour overlay
+            // (see finishSettle), so nothing moves.
+            holdStill();
+            swipeDx = 0;
             renderScale = 1;
             loadedRatio = null;
             imgLoaded = false;
@@ -490,18 +496,59 @@
     // screen, or it is already panned to the edge the drag pulls away from.
     // A drag that pans up to an edge stops there; the next drag swipes.
     // Touch and pen only: a mouse has the chevrons and arrow keys.
+    //
+    // The drag shows the neighbour sliding in beside the finger (`overlay`).
+    // A release that steps animates both off and on in one ease-out motion;
+    // only when that motion has ended is the parent told to step (its src
+    // swap then lands on the neighbour already in place). Below threshold the
+    // image animates back and the overlay goes.
     let swipeDx = $state(0); // how far the item follows the finger
     let swipeEligible = false; // this gesture may still become a swipe
     // Which way this gesture's finger may swipe (the image can't pan there).
     let swipeLeftOK = false;
     let swipeRightOK = false;
-    let swiping = false; // this gesture is a swipe
+    let swiping = $state(false); // this gesture is a swipe
     let downTime = 0;
-    // Where the next item starts its slide in from, set when a swipe steps.
-    let pendingEnter = 0;
     const SWIPE_LOCK = 10; // px before the drag picks an axis
-    const SWIPE_FLICK_SPEED = 0.4; // px/ms: a quick flick steps on its own
-    const SWIPE_FLICK_MIN = 30; // ...once it has gone at least this far
+    const SWIPE_EASE = "cubic-bezier(0.22, 1, 0.36, 1)"; // ease-out
+
+    type SwipeOverlay = {
+        /** 1: the neighbour comes from the right; -1: from the left. */
+        side: -1 | 1;
+        item: LightboxNeighbour;
+        /** "drag": follows the finger. "settle": animating with the item. "handoff":
+         *  parked at the centre until the stepped-to image has loaded, so the
+         *  swap shows no gap or stale frame. */
+        phase: "drag" | "settle" | "handoff";
+    };
+    let overlay = $state<SwipeOverlay | null>(null);
+    // Length of the release animation in ms; 0 when nothing is animating.
+    let swipeAnimMs = $state(0);
+    // A release that has been decided but whose animation has not yet ended.
+    let pendingSettle: {
+        commit: boolean;
+        target: () => void;
+        timer: ReturnType<typeof setTimeout>;
+    } | null = null;
+    let handoffTimer: ReturnType<typeof setTimeout> | undefined;
+
+    // Warm the neighbours' full images through the same <img> request the
+    // viewer makes for its own, so a step lands on an image already loaded.
+    // Nothing is decoded or copied into an object URL here; the Image refs
+    // only hold the request, and are released when the neighbours change.
+    $effect(() => {
+        const urls = [neighbours?.prev?.src, neighbours?.next?.src].filter(
+            (u): u is string => !!u && !u.startsWith("blob:"),
+        );
+        const warm = urls.map((u) => {
+            const img = new Image();
+            img.src = u;
+            return img;
+        });
+        return () => {
+            for (const img of warm) img.src = "";
+        };
+    });
 
     /** How far the image may pan sideways either way from centre: 0 unless
      *  it is wider than the viewport. Always 0 for a video. */
@@ -516,6 +563,121 @@
         const rtl =
             !!viewerEl && getComputedStyle(viewerEl).direction === "rtl";
         return dx < 0 !== rtl ? onNext : onPrev;
+    }
+
+    /** The neighbour a drag of `dx` steps to, if the gallery has one there. */
+    function neighbourFor(dx: number): LightboxNeighbour | null {
+        if (!swipeTarget(dx)) return null;
+        const rtl =
+            !!viewerEl && getComputedStyle(viewerEl).direction === "rtl";
+        return (dx < 0 !== rtl ? neighbours?.next : neighbours?.prev) ?? null;
+    }
+
+    /** The neighbour's box, sized the way the viewer sizes its own image so
+     *  the handoff lands on the same spot. "" when its size is unknown; then
+     *  there is no overlay and the swap is a plain one. */
+    function boxStyleFor(dims: LightboxNeighbour["dims"]): string {
+        const w = safeDimension(dims?.w);
+        const h = safeDimension(dims?.h);
+        if (w === null || h === null) return "";
+        const fitViewport = `calc(100${vu}vw - ${viewGutter})`;
+        const byHeight = `calc((100${vu}vh - ${viewGutter}) * ${w} / ${h})`;
+        if (fitToScreen)
+            return `width: min(${fitViewport}, ${byHeight}); height: auto; aspect-ratio: ${w} / ${h};`;
+        return `width: min(${w}px, ${fitViewport}, ${byHeight}); height: auto; aspect-ratio: ${w} / ${h};`;
+    }
+
+    const overlayShown = $derived(
+        overlay !== null && (overlay.phase !== "handoff" || !imgLoaded),
+    );
+    const overlayBox = $derived(overlay ? boxStyleFor(overlay.item.dims) : "");
+    const overlayPlaceholder = $derived(
+        overlay ? placeholderStyle(overlay.item.placeholders ?? []) : "",
+    );
+    // The overlay rides with the image: the neighbour sits one viewport to
+    // the side of the image's own position, and both move with the finger.
+    const overlayX = $derived(
+        overlay && overlay.phase !== "handoff"
+            ? overlay.side * window.innerWidth + swipeDx + tx
+            : 0,
+    );
+    const overlayTransition = $derived(
+        overlay?.phase === "settle" && swipeAnimMs
+            ? `transform ${swipeAnimMs}ms ${SWIPE_EASE}`
+            : "none",
+    );
+
+    // Frames in which the transform must not animate: an instant re-place.
+    // Each call holds for two frames; a later call keeps the hold alive.
+    let stillToken = 0;
+    function holdStill(): void {
+        rebasing = true;
+        const id = ++stillToken;
+        requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+                if (id === stillToken) rebasing = false;
+            }),
+        );
+    }
+
+    /** The release animation has ended (or was cut short): step if it was a
+     *  commit, then hand the viewer to the neighbour. Idempotent. */
+    function finishSettle(): void {
+        const p = pendingSettle;
+        if (!p) return;
+        pendingSettle = null;
+        clearTimeout(p.timer);
+        swipeAnimMs = 0;
+        if (!p.commit) {
+            overlay = null;
+            return;
+        }
+        // The track is already off-screen. The new item must appear at the
+        // centre without animating in from there; the overlay covers it until
+        // its image has loaded.
+        holdStill();
+        swipeDx = 0;
+        if (overlay) {
+            overlay = { ...overlay, phase: "handoff" };
+            clearTimeout(handoffTimer);
+            handoffTimer = setTimeout(() => {
+                if (overlay?.phase === "handoff") overlay = null;
+            }, 4000);
+        }
+        p.target();
+    }
+
+    /** Decide a released drag and animate it: a step carries the image off
+     *  one way and the neighbour in, a cancel sends the image back. */
+    function releaseSwipe(dx: number, elapsedMs: number, allowed: boolean) {
+        const width = window.innerWidth;
+        const target = swipeTarget(dx);
+        const commit =
+            allowed && !!target && swipeCommits(dx, elapsedMs, width);
+        if (!motionOK()) {
+            overlay = null;
+            swipeDx = 0;
+            if (commit && target) target();
+            return;
+        }
+        const side: -1 | 1 = dx < 0 ? 1 : -1;
+        // Where the image's own track ends: off-screen, or back at the centre.
+        const end = commit ? -side * width - tx : 0;
+        const ms = swipeSettleMs(Math.abs(end - swipeDx), width);
+        swipeAnimMs = ms;
+        swipeDx = end;
+        if (overlay) overlay = { ...overlay, phase: "settle" };
+        pendingSettle = {
+            commit,
+            target: target ?? (() => {}),
+            // transitionend normally ends it; this covers a transition that
+            // never runs (no distance to cover, or the event is missed).
+            timer: setTimeout(finishSettle, ms + 80),
+        };
+    }
+
+    function onSwipeEnd(e: TransitionEvent): void {
+        if (e.propertyName === "transform" && pendingSettle) finishSettle();
     }
 
     // Double-tap (mihon/tachiyomi style): the first double-tap zooms in at the
@@ -552,11 +714,8 @@
     // swaps without the transition animating it from the old ratio.
     let rebasing = $state(false);
     function setRenderScale(next: number) {
-        rebasing = true;
+        holdStill();
         renderScale = next;
-        requestAnimationFrame(() =>
-            requestAnimationFrame(() => (rebasing = false)),
-        );
     }
     $effect(() => {
         if (!vector || !imgLoaded) return;
@@ -578,7 +737,12 @@
             if (renderScale !== 1) setRenderScale(1);
         };
         window.addEventListener("resize", onResize);
-        return () => window.removeEventListener("resize", onResize);
+        return () => {
+            window.removeEventListener("resize", onResize);
+            clearTimeout(handoffTimer);
+            if (pendingSettle) clearTimeout(pendingSettle.timer);
+            pendingSettle = null;
+        };
     });
     const renderSizeStyle = $derived(
         renderScale > 1
@@ -703,6 +867,8 @@
         // A video's own controls take its gestures; only a swipe on the
         // backdrop around it is handled.
         if (isVideo && e.pointerType === "mouse") return;
+        // A new touch lands mid-animation: finish the release it interrupts.
+        finishSettle();
         (e.target as Element).setPointerCapture?.(e.pointerId);
         pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         lastPointerType = e.pointerType;
@@ -717,6 +883,7 @@
             swipeEligible = false;
             swiping = false;
             swipeDx = 0;
+            if (overlay?.phase === "drag") overlay = null;
         } else if (pointers.size === 1) {
             panStartX = e.clientX;
             panStartY = e.clientY;
@@ -767,6 +934,16 @@
         if (swiping) {
             // Pulling towards a side with nothing there only gives a little.
             swipeDx = swipeTarget(dx) ? dx : dx * 0.3;
+            const item = neighbourFor(dx);
+            if (item && boxStyleFor(item.dims)) {
+                overlay = {
+                    side: dx < 0 ? 1 : -1,
+                    item,
+                    phase: "drag",
+                };
+            } else if (overlay?.phase === "drag") {
+                overlay = null;
+            }
             return;
         }
         if (scale > 1 && !isVideo) {
@@ -794,20 +971,15 @@
         // the backdrop.
         if (moved) gestureEndedAt = performance.now();
 
+        if (!swiping && overlay?.phase === "drag") overlay = null;
         if (swiping) {
             swiping = false;
             swipeEligible = false;
-            const dx = e.clientX - downX;
-            const speed = Math.abs(dx) / Math.max(1, e.timeStamp - downTime);
-            const far =
-                Math.abs(dx) > Math.min(100, window.innerWidth * 0.2) ||
-                (Math.abs(dx) > SWIPE_FLICK_MIN && speed > SWIPE_FLICK_SPEED);
-            const target = swipeTarget(dx);
-            swipeDx = 0;
-            if (e.type === "pointerup" && far && target) {
-                pendingEnter = -Math.sign(dx) * window.innerWidth * 0.3;
-                target();
-            }
+            releaseSwipe(
+                e.clientX - downX,
+                e.timeStamp - downTime,
+                e.type === "pointerup",
+            );
             return;
         }
         if (isVideo) return;
@@ -1224,6 +1396,7 @@
                     onload={() => {
                         if (!src) return;
                         imgLoaded = true;
+                        if (overlay?.phase === "handoff") overlay = null;
                         if (imgEl) layoutW = imgEl.offsetWidth;
                         if (imgEl?.naturalWidth && imgEl.naturalHeight)
                             loadedRatio = {
@@ -1238,6 +1411,7 @@
                     onpointercancel={onPointerUp}
                     ondblclick={onImgDblClick}
                     ondragstart={(e) => e.preventDefault()}
+                    ontransitionend={onSwipeEnd}
                     style="max-width: calc(100{vu}vw - {interfaceState.isMobile
                         ? '6em'
                         : '2em'}); max-height: calc(100{vu}vh - {interfaceState.isMobile
@@ -1246,7 +1420,9 @@
                         swipeDx}px, {ty}px) scale({scale /
                         renderScale}); transition: {pointers.size === 0 &&
                     !rebasing
-                        ? 'transform 0.2s ease'
+                        ? swipeAnimMs
+                            ? `transform ${swipeAnimMs}ms ${SWIPE_EASE}`
+                            : 'transform 0.2s ease'
                         : 'none'}; cursor: {scale > 1
                         ? 'grab'
                         : 'zoom-in'}; {imgBoxStyle} {renderSizeStyle} {imgPlaceholderStyle}"
@@ -1273,6 +1449,29 @@
                     ></canvas>
                 {/if}
             </div>
+            <!-- The neighbour, one viewport to the side, moving with the finger
+                 during a swipe. Sits on top of the image until it has loaded
+                 after a step. Decorative: the gallery's own position label
+                 announces the change. -->
+            {#if overlay && overlayShown && overlayBox}
+                <div
+                    class="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden"
+                    aria-hidden="true"
+                >
+                    <div
+                        class="relative"
+                        style="{overlayBox} {overlayPlaceholder} border-radius: 0.5em; transform: translateX({overlayX}px); transition: {overlayTransition};"
+                        ontransitionend={onSwipeEnd}
+                    >
+                        <img
+                            src={overlay.item.src || undefined}
+                            alt=""
+                            class="block w-full h-full"
+                            style="object-fit: contain; border-radius: 0.5em;"
+                        />
+                    </div>
+                </div>
+            {/if}
         {/if}
         {#if !isVideo}
             <!-- Zoom controls, shown while the viewer is hovered or has focus.

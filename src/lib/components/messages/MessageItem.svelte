@@ -3288,6 +3288,16 @@
                                         placeholders={ucur.placeholders}
                                         dims={ucur.dims}
                                         mimetype={ucur.mimetype}
+                                        neighbours={{
+                                            prev:
+                                                uprev !== null
+                                                    ? ug.images[uprev]
+                                                    : null,
+                                            next:
+                                                unext !== null
+                                                    ? ug.images[unext]
+                                                    : null,
+                                        }}
                                         onClose={() => (uploadGallery = null)}
                                         onPrev={uprev !== null
                                             ? () =>
@@ -3546,6 +3556,12 @@
                     <Lightbox
                         src={cur.src}
                         alt={cur.alt}
+                        placeholders={cur.placeholders}
+                        dims={cur.dims}
+                        neighbours={{
+                            prev: prev !== null ? g.images[prev] : null,
+                            next: next !== null ? g.images[next] : null,
+                        }}
                         onClose={() => (bodyGallery = null)}
                         onPrev={prev !== null
                             ? () =>
@@ -3898,6 +3914,7 @@
                                     room.roomId,
                                     eventId,
                                     emoji.mxcUrl,
+                                    emoji.shortcode,
                                 );
                                 closeModal();
                             }}
@@ -3914,7 +3931,6 @@
                 aria-label={t("messageItem.reply")}
             >
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                    emoji.shortcode,
                     <path
                         d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"
                     />

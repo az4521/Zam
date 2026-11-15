@@ -3,7 +3,8 @@ import { mount, unmount, flushSync } from "svelte";
 import Lightbox from "./Lightbox.svelte";
 
 // Swiping between gallery items on touch, unless zoomed in far enough to
-// pan sideways (then the drag pans the image instead).
+// pan sideways (then the drag pans the image instead). A release that steps
+// calls onNext/onPrev only once its animation has ended.
 
 // jsdom has no Web Animations API, which the viewer's fade-in calls.
 if (!Element.prototype.animate) {
@@ -19,7 +20,7 @@ let onPrev: ReturnType<typeof vi.fn<() => void>>;
 let onNext: ReturnType<typeof vi.fn<() => void>>;
 const realInnerWidth = window.innerWidth;
 
-function render() {
+function render(extra: Record<string, unknown> = {}) {
     host = document.createElement("div");
     document.body.appendChild(host);
     instance = mount(Lightbox, {
@@ -30,6 +31,7 @@ function render() {
             onPrev,
             onNext,
             position: "2 of 3",
+            ...extra,
         },
     });
     flushSync();
@@ -81,7 +83,16 @@ function drag(
     pointer(el, "pointerup", x1, y1, pointerType);
 }
 
+/** Let the release animation run out (its fallback timer). */
+function settle() {
+    vi.advanceTimersByTime(400);
+    flushSync();
+}
+
+const NEXT = { src: "https://example.org/b.png", dims: { w: 100, h: 100 } };
+
 beforeEach(() => {
+    vi.useFakeTimers();
     onPrev = vi.fn<() => void>();
     onNext = vi.fn<() => void>();
     Object.defineProperty(window, "innerWidth", {
@@ -100,6 +111,7 @@ afterEach(() => {
     instance = null;
     host?.remove();
     host = null;
+    vi.useRealTimers();
     Object.defineProperty(window, "innerWidth", {
         value: realInnerWidth,
         configurable: true,
@@ -111,6 +123,7 @@ describe("Lightbox swipe", () => {
     it("steps forward on a leftward swipe", () => {
         const img = render();
         drag(img, 300, 400, 120, 410);
+        settle();
         expect(onNext).toHaveBeenCalledTimes(1);
         expect(onPrev).not.toHaveBeenCalled();
     });
@@ -119,6 +132,7 @@ describe("Lightbox swipe", () => {
         render();
         const backdrop = host!.querySelector("button")!;
         drag(backdrop, 50, 400, 250, 400);
+        settle();
         expect(onPrev).toHaveBeenCalledTimes(1);
         expect(onNext).not.toHaveBeenCalled();
     });
@@ -129,19 +143,31 @@ describe("Lightbox swipe", () => {
         pointer(img, "pointermove", 240, 400);
         expect(img.style.transform).toContain("translate(-60px");
         pointer(img, "pointerup", 240, 400);
+        settle();
+    });
+
+    it("does not step until the release animation has run", () => {
+        const img = render();
+        drag(img, 300, 400, 120, 410);
+        expect(onNext).not.toHaveBeenCalled();
+        settle();
+        expect(onNext).toHaveBeenCalledTimes(1);
     });
 
     it("steps on a short quick flick, not a short slow drag", () => {
         const img = render();
         drag(img, 200, 400, 150, 400, 600);
+        settle();
         expect(onNext).not.toHaveBeenCalled();
         drag(img, 200, 400, 150, 400, 50);
+        settle();
         expect(onNext).toHaveBeenCalledTimes(1);
     });
 
     it("ignores a mostly vertical drag", () => {
         const img = render();
         drag(img, 200, 300, 120, 600);
+        settle();
         expect(onNext).not.toHaveBeenCalled();
         expect(onPrev).not.toHaveBeenCalled();
     });
@@ -149,6 +175,7 @@ describe("Lightbox swipe", () => {
     it("leaves a mouse drag alone", () => {
         const img = render();
         drag(img, 300, 400, 100, 400, 300, "mouse");
+        settle();
         expect(onNext).not.toHaveBeenCalled();
     });
 
@@ -159,6 +186,7 @@ describe("Lightbox swipe", () => {
             window.dispatchEvent(new KeyboardEvent("keydown", { key: "+" }));
         flushSync();
         drag(img, 300, 400, 100, 400);
+        settle();
         expect(onNext).not.toHaveBeenCalled();
         expect(img.style.transform).not.toContain("translate(0px");
     });
@@ -170,14 +198,18 @@ describe("Lightbox swipe", () => {
         flushSync();
         // The first drag pans to the image's right edge and stops there...
         drag(img, 300, 400, 100, 400);
+        settle();
         expect(onNext).not.toHaveBeenCalled();
         // ...pulling back the other way still pans...
         drag(img, 100, 400, 140, 400);
+        settle();
         expect(onPrev).not.toHaveBeenCalled();
         // ...and once back at the edge, a drag past it steps.
         drag(img, 300, 400, 100, 400);
+        settle();
         expect(onNext).not.toHaveBeenCalled();
         drag(img, 300, 400, 100, 400);
+        settle();
         expect(onNext).toHaveBeenCalledTimes(1);
         expect(onPrev).not.toHaveBeenCalled();
     });
@@ -188,7 +220,9 @@ describe("Lightbox swipe", () => {
             window.dispatchEvent(new KeyboardEvent("keydown", { key: "+" }));
         flushSync();
         drag(img, 300, 400, 100, 400); // to the right edge
+        settle();
         drag(img, 100, 400, 300, 400); // back, with room to pan that way
+        settle();
         expect(onPrev).not.toHaveBeenCalled();
         expect(onNext).not.toHaveBeenCalled();
     });
@@ -198,6 +232,44 @@ describe("Lightbox swipe", () => {
         window.dispatchEvent(new KeyboardEvent("keydown", { key: "+" }));
         flushSync();
         drag(img, 300, 400, 100, 400);
+        settle();
         expect(onNext).toHaveBeenCalledTimes(1);
+    });
+
+    it("slides the neighbour in beside the finger", () => {
+        const img = render({ neighbours: { next: NEXT } });
+        pointer(img, "pointerdown", 300, 400);
+        pointer(img, "pointermove", 240, 400);
+        const neighbour = host!.querySelector(
+            `img[src="${NEXT.src}"]`,
+        ) as HTMLImageElement;
+        expect(neighbour).not.toBeNull();
+        // One viewport (375px) to the right of the image's own position.
+        expect(neighbour.parentElement!.style.transform).toContain(
+            "translateX(315px)",
+        );
+        pointer(img, "pointerup", 240, 400);
+        settle();
+    });
+
+    it("removes the neighbour when the swipe is cancelled", () => {
+        const img = render({ neighbours: { next: NEXT } });
+        drag(img, 300, 400, 280, 400); // too short to step
+        settle();
+        expect(onNext).not.toHaveBeenCalled();
+        expect(host!.querySelector(`img[src="${NEXT.src}"]`)).toBeNull();
+    });
+
+    it("keeps the neighbour in place until the stepped-to image loads", () => {
+        const img = render({ neighbours: { next: NEXT } });
+        drag(img, 300, 400, 120, 410);
+        settle();
+        expect(onNext).toHaveBeenCalledTimes(1);
+        // The parent has not swapped the src in this test, so the handoff
+        // overlay stays up over the image.
+        expect(host!.querySelector(`img[src="${NEXT.src}"]`)).not.toBeNull();
+        img.dispatchEvent(new Event("load"));
+        flushSync();
+        expect(host!.querySelector(`img[src="${NEXT.src}"]`)).toBeNull();
     });
 });

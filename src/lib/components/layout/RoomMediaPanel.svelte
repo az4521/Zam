@@ -58,6 +58,11 @@
     let decryptedThumbs = $state<Record<string, string>>({});
     // Decrypted full media for the lightbox viewer, keyed by mediaItemKey.
     let decryptedFull = $state<Record<string, string>>({});
+    // Encrypted images either side of the viewed one, decrypted ahead so a
+    // swipe lands on a loaded image. Handed over to decryptedFull when the
+    // viewer steps onto one; revoked once they are no longer neighbours.
+    let prefetchedFull = $state<Record<string, string>>({});
+    const prefetchPending = new Set<string>();
     let viewerDecrypting = $state(false);
     let viewerProgress = $state<DownloadProgress | null>(null);
 
@@ -250,12 +255,16 @@
     function releaseDecryptedBlobs(): void {
         blobGen++;
         thumbPending.clear();
+        prefetchPending.clear();
         for (const url of Object.values(decryptedThumbs))
             URL.revokeObjectURL(url);
         for (const url of Object.values(decryptedFull))
             URL.revokeObjectURL(url);
+        for (const url of Object.values(prefetchedFull))
+            URL.revokeObjectURL(url);
         decryptedThumbs = {};
         decryptedFull = {};
+        prefetchedFull = {};
         viewerDecrypting = false;
     }
     $effect(() => () => releaseDecryptedBlobs());
@@ -307,6 +316,15 @@
         if (item.kind === "video") return;
         const id = mediaItemKey(item);
         if (untrack(() => decryptedFull[id])) return; // Already decrypted
+        // Already decrypted ahead as a neighbour: take that copy over.
+        const ahead = untrack(() => prefetchedFull[id]);
+        if (ahead) {
+            untrack(() => {
+                decryptedFull[id] = ahead;
+                delete prefetchedFull[id];
+            });
+            return;
+        }
         const gen = blobGen;
         let cancelled = false;
         viewerDecrypting = true;
@@ -337,6 +355,95 @@
             viewerDecrypting = false;
         };
     });
+
+    // Decrypt the encrypted images either side of the viewed one, through the
+    // same helper the viewer uses, and release any blob that no longer belongs
+    // to a neighbour. Closing the viewer empties `wanted`, which releases all.
+    $effect(() => {
+        const idx = viewerIndex;
+        const wanted =
+            idx === null
+                ? []
+                : [gallery[idx - 1], gallery[idx + 1]].filter(
+                      (m): m is RoomMediaItem =>
+                          !!m &&
+                          m.kind === "image" &&
+                          !!m.encrypted &&
+                          !!m.encryptedFile,
+                  );
+        untrack(() => {
+            const keep = new Set(wanted.map((m) => mediaItemKey(m)));
+            for (const key of Object.keys(prefetchedFull)) {
+                if (keep.has(key)) continue;
+                URL.revokeObjectURL(prefetchedFull[key]);
+                delete prefetchedFull[key];
+            }
+            const gen = blobGen;
+            for (const media of wanted) {
+                const id = mediaItemKey(media);
+                if (
+                    decryptedFull[id] ||
+                    prefetchedFull[id] ||
+                    prefetchPending.has(id)
+                )
+                    continue;
+                prefetchPending.add(id);
+                fetchDecryptedAttachmentBlob(
+                    media.encryptedFile!,
+                    media.mimetype ?? undefined,
+                    { expectedSize: media.size },
+                )
+                    .then((url) => {
+                        // Stale (torn down, or the viewer has since decrypted
+                        // it itself): nothing will own this URL, so release it.
+                        if (gen !== blobGen || decryptedFull[id]) {
+                            URL.revokeObjectURL(url);
+                            return;
+                        }
+                        prefetchedFull[id] = url;
+                    })
+                    .catch(() => {
+                        /* a failed prefetch just means no warm copy */
+                    })
+                    .finally(() => {
+                        if (gen === blobGen) prefetchPending.delete(id);
+                    });
+            }
+        });
+    });
+
+    /** The tile thumbnail the grid shows for an item: the same URL, so the
+     *  viewer's stand-in comes from the browser cache. */
+    function tileThumb(item: RoomMediaItem): string | null {
+        const id = mediaItemKey(item);
+        if (thumbFailed[id]) return null;
+        return item.encrypted
+            ? (decryptedThumbs[id] ?? null)
+            : mxcToHttp(mediaThumbnailMxc(item), 160, 160);
+    }
+
+    /** A swipe neighbour: its full src ("" while not ready, or for a video,
+     *  which the viewer does not preload), plus its tile thumbnail. */
+    function neighbourOf(item: RoomMediaItem | undefined) {
+        if (!item) return null;
+        const id = mediaItemKey(item);
+        const src =
+            item.kind !== "image"
+                ? ""
+                : item.encrypted
+                  ? (decryptedFull[id] ?? prefetchedFull[id] ?? "")
+                  : (mxcToHttp(item.url) ?? "");
+        return { src, placeholders: [tileThumb(item)] };
+    }
+
+    const viewerNeighbours = $derived(
+        viewerIndex === null
+            ? undefined
+            : {
+                  prev: neighbourOf(gallery[viewerIndex - 1]),
+                  next: neighbourOf(gallery[viewerIndex + 1]),
+              },
+    );
 </script>
 
 <div
@@ -596,6 +703,8 @@
                 viewerIndex,
                 hasMore,
             )}
+            placeholders={[tileThumb(item)]}
+            neighbours={viewerNeighbours}
         />
     {:else}
         <!-- mediaViewerItem resolved to nothing (bad mxc / signed-out media

@@ -454,6 +454,10 @@
             onClose={() => (lightboxIndex = null)}
             onPrev={prev !== null ? () => (lightboxIndex = prev) : undefined}
             onNext={next !== null ? () => (lightboxIndex = next) : undefined}
+            neighbours={{
+                prev: prev !== null ? { src: photos[prev].url } : null,
+                next: next !== null ? { src: photos[next].url } : null,
+            }}
             position={galleryPositionLabel(photos.length, lightboxIndex)}
         />
     {/if}
