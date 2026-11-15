@@ -64,6 +64,44 @@ describe("preview", () => {
     });
 });
 
+describe("spoiler toggle", () => {
+    const spoilerSwitch = () =>
+        host!.querySelector<HTMLElement>(
+            `[role="switch"][aria-label="${t("renameAttachmentDialog.markSpoiler")}"]`,
+        );
+    const nameInput = () => host!.querySelector<HTMLInputElement>("input")!;
+
+    it("only shows for an image", () => {
+        render(false, true, { previewUrl: "blob:v", video: true });
+        expect(spoilerSwitch()).toBeNull();
+        unmount(instance!);
+        host!.remove();
+        render(false, true, { previewUrl: "blob:i", video: false });
+        expect(spoilerSwitch()).not.toBeNull();
+    });
+
+    it("prefixes the name and saves it", () => {
+        const { onSave } = render(false, true, {
+            previewUrl: "blob:i",
+            video: false,
+        });
+        spoilerSwitch()!.click();
+        flushSync();
+        expect(nameInput().value).toBe("SPOILER_a.webm");
+        clickButton(t("common.save"));
+        expect(onSave).toHaveBeenCalledWith("SPOILER_a.webm");
+    });
+
+    it("strips the prefix when turned back off", () => {
+        render(false, true, { previewUrl: "blob:i", video: false });
+        spoilerSwitch()!.click();
+        flushSync();
+        spoilerSwitch()!.click();
+        flushSync();
+        expect(nameInput().value).toBe("a.webm");
+    });
+});
+
 describe("direct send toggle", () => {
     it("is hidden where a file can't be sent directly", () => {
         render(false, false);

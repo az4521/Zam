@@ -264,6 +264,7 @@
         type GalleryImage,
     } from "$lib/utils/messageBodyGallery";
     import { galleryPositionLabel } from "$lib/utils/mediaGallery";
+    import { isSpoilerMedia } from "$lib/utils/spoilerAttachment";
     import { siblingUploadIndices } from "$lib/utils/uploadSiblings";
     import { scrollBehavior, motionOK } from "$lib/utils/motionPreference";
     import {
@@ -709,6 +710,8 @@
         }
     }
     let imageLightboxOpen = $state(false);
+    // A spoilered image (SPOILER_ filename) sits under a cover until clicked.
+    let spoilerRevealed = $state(false);
     // Paged lightbox over a single message's OWN inline body images (rich/bridged
     // messages with several <img> in the formatted_body). Null = closed.
     let bodyGallery = $state<{ images: GalleryImage[]; index: number } | null>(
@@ -738,6 +741,8 @@
         };
         if (c?.msgtype !== "m.image") return false;
         if (c?.file) return false;
+        // Paging must never show a spoiler its reader hasn't revealed.
+        if (isSpoilerMedia(c)) return false;
         if (typeof c?.url !== "string" || (c.url as string).length === 0)
             return false;
         // Must resolve to a real http URL: a non-mxc/malformed url yields null
@@ -3083,200 +3088,230 @@
                 {@const file = content?.file as EncryptedFile | undefined}
                 {@const thumb = file ? encryptedImageThumbUrl : imageThumbUrl()}
                 {@const full = file ? encryptedImageFullUrl : imageFullUrl()}
-                {#if file && imageDecrypting}
-                    <!-- The canvas is always mounted (the effect paints into
+                {@const spoilerHidden =
+                    !spoilerRevealed && isSpoilerMedia(content)}
+                <div
+                    class="relative w-fit max-w-full {spoilerHidden
+                        ? 'min-w-48 min-h-24'
+                        : ''}"
+                >
+                    {#if spoilerHidden}
+                        <button
+                            type="button"
+                            class="absolute inset-x-0 bottom-0 top-1 z-10 flex items-center justify-center rounded-lg bg-discord-backgroundDark text-sm font-bold uppercase tracking-wide text-discord-textPrimary hover:bg-discord-backgroundTertiary"
+                            aria-label={t("messageItem.revealSpoiler")}
+                            onclick={() => (spoilerRevealed = true)}
+                        >
+                            {t("messageItem.spoiler")}
+                        </button>
+                    {/if}
+                    <div inert={spoilerHidden} class="contents">
+                        {#if file && imageDecrypting}
+                            <!-- The canvas is always mounted (the effect paints into
                      it) but only shown once a first partial frame is drawn.
                      With a sender thumbnail, that sits underneath at the
                      reserved size and the canvas paints over it. -->
-                    <div class="relative inline-block mt-1 max-w-full">
-                        {#if senderThumbUrl}
-                            <button
-                                type="button"
-                                class="block cursor-pointer"
-                                title={mediaFilename || undefined}
-                                onclick={openImageUpload}
-                            >
-                                <img
-                                    src={senderThumbUrl}
-                                    alt={mediaFilename}
-                                    use:fullImage={imageOriginal}
-                                    width={imageBox?.width}
-                                    height={imageBox?.height}
-                                    class="block rounded-lg {imageBox
-                                        ? 'max-w-full h-auto'
-                                        : 'max-w-lg max-h-96 w-auto h-auto'}"
-                                />
-                            </button>
-                        {/if}
-                        <canvas
-                            use:frameSink={{
-                                relay: imagePreview,
-                                onFrame: () => (imagePreviewing = true),
-                            }}
-                            class={senderThumbUrl
-                                ? "absolute inset-0 w-full h-full rounded-lg pointer-events-none"
-                                : "block max-w-lg max-h-96 w-auto h-auto rounded-lg"}
-                            class:hidden={!imagePreviewing}
-                        ></canvas>
-                        {#if imagePreviewing || senderThumbUrl}
-                            <div
-                                class="absolute inset-x-2 bottom-2 pointer-events-none"
-                            >
+                            <div class="relative inline-block mt-1 max-w-full">
+                                {#if senderThumbUrl}
+                                    <button
+                                        type="button"
+                                        class="block cursor-pointer"
+                                        title={mediaFilename || undefined}
+                                        onclick={openImageUpload}
+                                    >
+                                        <img
+                                            src={senderThumbUrl}
+                                            alt={mediaFilename}
+                                            use:fullImage={imageOriginal}
+                                            width={imageBox?.width}
+                                            height={imageBox?.height}
+                                            class="block rounded-lg {imageBox
+                                                ? 'max-w-full h-auto'
+                                                : 'max-w-lg max-h-96 w-auto h-auto'}"
+                                        />
+                                    </button>
+                                {/if}
+                                <canvas
+                                    use:frameSink={{
+                                        relay: imagePreview,
+                                        onFrame: () => (imagePreviewing = true),
+                                    }}
+                                    class={senderThumbUrl
+                                        ? "absolute inset-0 w-full h-full rounded-lg pointer-events-none"
+                                        : "block max-w-lg max-h-96 w-auto h-auto rounded-lg"}
+                                    class:hidden={!imagePreviewing}
+                                ></canvas>
+                                {#if imagePreviewing || senderThumbUrl}
+                                    <div
+                                        class="absolute inset-x-2 bottom-2 pointer-events-none"
+                                    >
+                                        <MediaProgress
+                                            label={t(
+                                                "messageItem.decryptingImage",
+                                            )}
+                                            progress={imageProgress}
+                                        />
+                                    </div>
+                                {/if}
+                            </div>
+                            {#if !imagePreviewing && !senderThumbUrl}
                                 <MediaProgress
                                     label={t("messageItem.decryptingImage")}
                                     progress={imageProgress}
                                 />
-                            </div>
-                        {/if}
-                    </div>
-                    {#if !imagePreviewing && !senderThumbUrl}
-                        <MediaProgress
-                            label={t("messageItem.decryptingImage")}
-                            progress={imageProgress}
-                        />
-                    {/if}
-                {:else if file && imageDecryptFailed}
-                    <div
-                        class="flex items-center gap-2 p-3 bg-discord-backgroundSecondary rounded-lg mt-1 max-w-sm"
-                    >
-                        <svg
-                            class="w-4 h-4 text-discord-danger"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-                            />
-                        </svg>
-                        <span class="text-xs text-discord-danger"
-                            >{t("messageItem.couldnTDecryptImage")}</span
-                        >
-                    </div>
-                {:else if thumb && !mediaImgRetry.failed}
-                    <div class="relative inline-block group/img mt-1">
-                        <a
-                            href={full}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onclick={(e) => {
-                                e.preventDefault();
-                                openImageUpload();
-                            }}
-                        >
-                            {#if imageBox}
-                                <img
-                                    src={mediaImgRetry.src}
-                                    alt={mediaFilename}
-                                    title={mediaFilename || undefined}
-                                    width={imageBox.width}
-                                    height={imageBox.height}
-                                    class="max-w-full h-auto rounded-lg object-contain cursor-pointer block"
-                                    loading="lazy"
-                                    use:fullImage={imageOriginal}
-                                    data-own-retry
-                                    onerror={mediaImgRetry.onError}
-                                    style={imageTilePlaceholder}
-                                    onload={() => (imageTileLoaded = true)}
-                                />
-                            {:else}
-                                <img
-                                    src={mediaImgRetry.src}
-                                    alt={mediaFilename}
-                                    title={mediaFilename || undefined}
-                                    class={isSvgImage
-                                        ? "w-96 max-w-full max-h-96 h-auto rounded-lg object-contain cursor-pointer block"
-                                        : "max-w-lg w-full max-h-96 rounded-lg object-contain cursor-pointer block"}
-                                    loading="lazy"
-                                    use:fullImage={imageOriginal}
-                                    data-own-retry
-                                    onerror={mediaImgRetry.onError}
-                                    style={imageTilePlaceholder}
-                                    onload={(e) => {
-                                        imageTileLoaded = true;
-                                        // A vector's size is its declared hint, not
-                                        // its rendered size, so it is never learned.
-                                        if (!isSvgImage)
-                                            learnImageSize(mediaSizeKey)(e);
-                                    }}
-                                />
                             {/if}
-                        </a>
-                        {#if canFavouriteImage}
-                            <button
-                                onclick={toggleImageFavourite}
-                                title={imageIsFavourited
-                                    ? t("common.removeFromFavourites")
-                                    : t("common.addToFavourites")}
-                                class="absolute top-1.5 end-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/img:opacity-100 transition-opacity hover:bg-black/70"
+                        {:else if file && imageDecryptFailed}
+                            <div
+                                class="flex items-center gap-2 p-3 bg-discord-backgroundSecondary rounded-lg mt-1 max-w-sm"
                             >
-                                {#if imageIsFavourited}
-                                    <svg
-                                        class="w-4 h-4 text-discord-warning"
-                                        fill="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                <svg
+                                    class="w-4 h-4 text-discord-danger"
+                                    fill="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                                    />
+                                </svg>
+                                <span class="text-xs text-discord-danger"
+                                    >{t(
+                                        "messageItem.couldnTDecryptImage",
+                                    )}</span
+                                >
+                            </div>
+                        {:else if thumb && !mediaImgRetry.failed}
+                            <div class="relative inline-block group/img mt-1">
+                                <a
+                                    href={full}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onclick={(e) => {
+                                        e.preventDefault();
+                                        openImageUpload();
+                                    }}
+                                >
+                                    {#if imageBox}
+                                        <img
+                                            src={mediaImgRetry.src}
+                                            alt={mediaFilename}
+                                            title={mediaFilename || undefined}
+                                            width={imageBox.width}
+                                            height={imageBox.height}
+                                            class="max-w-full h-auto rounded-lg object-contain cursor-pointer block"
+                                            loading="lazy"
+                                            use:fullImage={imageOriginal}
+                                            data-own-retry
+                                            onerror={mediaImgRetry.onError}
+                                            style={imageTilePlaceholder}
+                                            onload={() =>
+                                                (imageTileLoaded = true)}
                                         />
-                                    </svg>
-                                {:else}
-                                    <svg
-                                        class="w-4 h-4"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        stroke-width="2"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                    {:else}
+                                        <img
+                                            src={mediaImgRetry.src}
+                                            alt={mediaFilename}
+                                            title={mediaFilename || undefined}
+                                            class={isSvgImage
+                                                ? "w-96 max-w-full max-h-96 h-auto rounded-lg object-contain cursor-pointer block"
+                                                : "max-w-lg w-full max-h-96 rounded-lg object-contain cursor-pointer block"}
+                                            loading="lazy"
+                                            use:fullImage={imageOriginal}
+                                            data-own-retry
+                                            onerror={mediaImgRetry.onError}
+                                            style={imageTilePlaceholder}
+                                            onload={(e) => {
+                                                imageTileLoaded = true;
+                                                // A vector's size is its declared hint, not
+                                                // its rendered size, so it is never learned.
+                                                if (!isSvgImage)
+                                                    learnImageSize(
+                                                        mediaSizeKey,
+                                                    )(e);
+                                            }}
                                         />
-                                    </svg>
+                                    {/if}
+                                </a>
+                                {#if canFavouriteImage}
+                                    <button
+                                        onclick={toggleImageFavourite}
+                                        title={imageIsFavourited
+                                            ? t("common.removeFromFavourites")
+                                            : t("common.addToFavourites")}
+                                        class="absolute top-1.5 end-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/img:opacity-100 transition-opacity hover:bg-black/70"
+                                    >
+                                        {#if imageIsFavourited}
+                                            <svg
+                                                class="w-4 h-4 text-discord-warning"
+                                                fill="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                                />
+                                            </svg>
+                                        {:else}
+                                            <svg
+                                                class="w-4 h-4"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                                />
+                                            </svg>
+                                        {/if}
+                                    </button>
                                 {/if}
-                            </button>
-                        {/if}
-                    </div>
-                    {#if uploadGallery}
-                        {@const ug = uploadGallery}
-                        {@const unav = galleryNav(ug.images.length, ug.index)}
-                        {@const ucur = ug.images[ug.index]}
-                        {@const uprev = unav.prevIndex}
-                        {@const unext = unav.nextIndex}
-                        {#if ucur}
-                            <Lightbox
-                                src={ucur.src}
-                                alt={ucur.alt}
-                                placeholders={ucur.placeholders}
-                                dims={ucur.dims}
-                                mimetype={ucur.mimetype}
-                                onClose={() => (uploadGallery = null)}
-                                onPrev={uprev !== null
-                                    ? () =>
-                                          (uploadGallery = {
-                                              images: ug.images,
-                                              index: uprev,
-                                          })
-                                    : undefined}
-                                onNext={unext !== null
-                                    ? () =>
-                                          (uploadGallery = {
-                                              images: ug.images,
-                                              index: unext,
-                                          })
-                                    : undefined}
-                                position={galleryPositionLabel(
+                            </div>
+                            {#if uploadGallery}
+                                {@const ug = uploadGallery}
+                                {@const unav = galleryNav(
                                     ug.images.length,
                                     ug.index,
                                 )}
-                            />
+                                {@const ucur = ug.images[ug.index]}
+                                {@const uprev = unav.prevIndex}
+                                {@const unext = unav.nextIndex}
+                                {#if ucur}
+                                    <Lightbox
+                                        src={ucur.src}
+                                        alt={ucur.alt}
+                                        placeholders={ucur.placeholders}
+                                        dims={ucur.dims}
+                                        mimetype={ucur.mimetype}
+                                        onClose={() => (uploadGallery = null)}
+                                        onPrev={uprev !== null
+                                            ? () =>
+                                                  (uploadGallery = {
+                                                      images: ug.images,
+                                                      index: uprev,
+                                                  })
+                                            : undefined}
+                                        onNext={unext !== null
+                                            ? () =>
+                                                  (uploadGallery = {
+                                                      images: ug.images,
+                                                      index: unext,
+                                                  })
+                                            : undefined}
+                                        position={galleryPositionLabel(
+                                            ug.images.length,
+                                            ug.index,
+                                        )}
+                                    />
+                                {/if}
+                            {/if}
+                        {:else}
+                            <span class="text-xs text-discord-textMuted italic"
+                                >{t("messageItem.imageUnavailable")}</span
+                            >
                         {/if}
-                    {/if}
-                {:else}
-                    <span class="text-xs text-discord-textMuted italic"
-                        >{t("messageItem.imageUnavailable")}</span
-                    >
-                {/if}
+                    </div>
+                </div>
                 <!-- Outside the branches above so an encrypted image's viewer,
                  opened on its thumbnail mid-decrypt, stays open when the
                  full image lands. -->

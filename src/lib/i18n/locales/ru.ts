@@ -1436,6 +1436,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.decryptingImage": "Расшифровка изображения...",
     "messageItem.couldnTDecryptImage": "Не удалось расшифровать изображение",
     "messageItem.imageUnavailable": "[Изображение недоступно]",
+    "messageItem.spoiler": "Спойлер",
+    "messageItem.revealSpoiler": "Показать спойлер",
     "messageItem.decryptingVideo": "Расшифровка видео...",
     "messageItem.couldnTDecryptVideo": "Не удалось расшифровать видео",
     "messageItem.video": "Видео",
@@ -2020,6 +2022,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     // src/lib/components/messages/RenameAttachmentDialog.svelte
     "renameAttachmentDialog.editAttachment": "Изменить вложение",
     "renameAttachmentDialog.filename": "Имя файла",
+    "renameAttachmentDialog.markSpoiler": "Пометить как спойлер",
+    "renameAttachmentDialog.markSpoilerHint":
+        "Скрывает изображение под обложкой, пока его не нажмут.",
     "renameThreadDialog.nameThread": "Назвать обсуждение",
     "renameThreadDialog.renameThread": "Переименовать обсуждение",
     "renameThreadDialog.threadName": "Название обсуждения",

@@ -1282,6 +1282,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.decryptingImage": "Déchiffrement de l'image...",
     "messageItem.couldnTDecryptImage": "Impossible de déchiffrer l'image",
     "messageItem.imageUnavailable": "[Image indisponible]",
+    "messageItem.spoiler": "Spoiler",
+    "messageItem.revealSpoiler": "Afficher le spoiler",
     "messageItem.decryptingVideo": "Déchiffrement de la vidéo...",
     "messageItem.couldnTDecryptVideo": "Impossible de déchiffrer la vidéo",
     "messageItem.video": "Vidéo",
@@ -1858,6 +1860,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     // src/lib/components/messages/RenameAttachmentDialog.svelte
     "renameAttachmentDialog.editAttachment": "Modifier la pièce jointe",
     "renameAttachmentDialog.filename": "Nom du fichier",
+    "renameAttachmentDialog.markSpoiler": "Marquer comme spoiler",
+    "renameAttachmentDialog.markSpoilerHint":
+        "Masque l’image sous un cache jusqu’à ce qu’on clique dessus.",
     "renameThreadDialog.nameThread": "Nommer le fil",
     "renameThreadDialog.renameThread": "Renommer le fil",
     "renameThreadDialog.threadName": "Nom du fil",

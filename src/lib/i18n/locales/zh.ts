@@ -1333,6 +1333,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.decryptingImage": "正在解密图片...",
     "messageItem.couldnTDecryptImage": "无法解密图片",
     "messageItem.imageUnavailable": "[图片不可用]",
+    "messageItem.spoiler": "剧透",
+    "messageItem.revealSpoiler": "显示剧透",
     "messageItem.decryptingVideo": "正在解密视频...",
     "messageItem.couldnTDecryptVideo": "无法解密视频",
     "messageItem.video": "视频",
@@ -1861,6 +1863,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     // src/lib/components/messages/RenameAttachmentDialog.svelte
     "renameAttachmentDialog.editAttachment": "编辑附件",
     "renameAttachmentDialog.filename": "文件名",
+    "renameAttachmentDialog.markSpoiler": "标记为剧透",
+    "renameAttachmentDialog.markSpoilerHint": "在有人点击之前用遮罩隐藏图片。",
     "renameThreadDialog.nameThread": "命名消息列",
     "renameThreadDialog.renameThread": "重命名消息列",
     "renameThreadDialog.threadName": "消息列名称",

@@ -1423,6 +1423,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.couldnTDecryptImage":
         "Não foi possível descriptografar a imagem",
     "messageItem.imageUnavailable": "[Imagem indisponível]",
+    "messageItem.spoiler": "Spoiler",
+    "messageItem.revealSpoiler": "Mostrar spoiler",
     "messageItem.decryptingVideo": "Descriptografando vídeo...",
     "messageItem.couldnTDecryptVideo":
         "Não foi possível descriptografar o vídeo",
@@ -2009,6 +2011,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     // src/lib/components/messages/RenameAttachmentDialog.svelte
     "renameAttachmentDialog.editAttachment": "Editar anexo",
     "renameAttachmentDialog.filename": "Nome do arquivo",
+    "renameAttachmentDialog.markSpoiler": "Marcar como spoiler",
+    "renameAttachmentDialog.markSpoilerHint":
+        "Esconde a imagem sob uma capa até alguém clicar nela.",
     "renameThreadDialog.nameThread": "Nomear tópico",
     "renameThreadDialog.renameThread": "Renomear tópico",
     "renameThreadDialog.threadName": "Nome do tópico",

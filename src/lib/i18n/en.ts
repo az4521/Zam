@@ -1382,6 +1382,8 @@ export const en = {
     "messageItem.decryptingImage": "Decrypting image...",
     "messageItem.couldnTDecryptImage": "Couldn't decrypt image",
     "messageItem.imageUnavailable": "[Image unavailable]",
+    "messageItem.spoiler": "Spoiler",
+    "messageItem.revealSpoiler": "Reveal spoiler",
     "messageItem.decryptingVideo": "Decrypting video...",
     "messageItem.couldnTDecryptVideo": "Couldn't decrypt video",
     "messageItem.video": "Video",
@@ -1945,6 +1947,9 @@ export const en = {
     // src/lib/components/messages/RenameAttachmentDialog.svelte
     "renameAttachmentDialog.editAttachment": "Edit attachment",
     "renameAttachmentDialog.filename": "Filename",
+    "renameAttachmentDialog.markSpoiler": "Mark as spoiler",
+    "renameAttachmentDialog.markSpoilerHint":
+        "Hides the image behind a cover until someone clicks it.",
     "renameThreadDialog.nameThread": "Name thread",
     "renameThreadDialog.renameThread": "Rename thread",
     "renameThreadDialog.threadName": "Thread name",

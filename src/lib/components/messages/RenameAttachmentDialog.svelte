@@ -5,6 +5,10 @@
     import { focusTrap } from "$lib/actions/focusTrap";
     import { onMount, untrack } from "svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
+    import {
+        isSpoilerFilename,
+        withSpoiler,
+    } from "$lib/utils/spoilerAttachment";
 
     interface Props {
         name: string;
@@ -34,6 +38,10 @@
     let inputEl = $state<HTMLInputElement | null>(null);
     // No path separators or control characters in a filename.
     const cleaned = $derived(value.replace(/[\\/\p{Cc}]/gu, "_").trim());
+    // A spoiler is just the filename prefix, so the toggle reads and writes
+    // the name field and the two can never disagree.
+    const spoiler = $derived(isSpoilerFilename(value.trimStart()));
+    const canSpoiler = $derived(!!previewUrl && !video);
 
     onMount(() => {
         if (!inputEl) return;
@@ -108,6 +116,24 @@
                     class="rounded bg-discord-backgroundTertiary px-3 py-2 text-sm text-discord-textPrimary outline-none focus:ring-2 focus:ring-discord-accent"
                 />
             </label>
+            {#if canSpoiler}
+                <div class="flex items-center justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm text-discord-textPrimary">
+                            {t("renameAttachmentDialog.markSpoiler")}
+                        </p>
+                        <p class="text-xs text-discord-textMuted">
+                            {t("renameAttachmentDialog.markSpoilerHint")}
+                        </p>
+                    </div>
+                    <ToggleSwitch
+                        checked={spoiler}
+                        onChange={(v) =>
+                            (value = withSpoiler(value.trimStart(), v))}
+                        label={t("renameAttachmentDialog.markSpoiler")}
+                    />
+                </div>
+            {/if}
             {#if onDirectChange}
                 <div class="flex items-center justify-between gap-3">
                     <div class="flex-1 min-w-0">

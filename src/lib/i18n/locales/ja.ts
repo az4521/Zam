@@ -1200,6 +1200,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.decryptingImage": "画像を復号しています...",
     "messageItem.couldnTDecryptImage": "画像を復号できませんでした",
     "messageItem.imageUnavailable": "[画像は利用できません]",
+    "messageItem.spoiler": "ネタバレ",
+    "messageItem.revealSpoiler": "ネタバレを表示",
     "messageItem.decryptingVideo": "動画を復号しています...",
     "messageItem.couldnTDecryptVideo": "動画を復号できませんでした",
     "messageItem.video": "動画",
@@ -1724,6 +1726,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "reactorPopover.userList": "ユーザー一覧",
     "renameAttachmentDialog.editAttachment": "添付ファイルを編集",
     "renameAttachmentDialog.filename": "ファイル名",
+    "renameAttachmentDialog.markSpoiler": "ネタバレとしてマーク",
+    "renameAttachmentDialog.markSpoilerHint":
+        "クリックされるまで画像をカバーで隠します。",
     "renameThreadDialog.nameThread": "スレッドに名前を付ける",
     "renameThreadDialog.renameThread": "スレッド名を変更",
     "renameThreadDialog.threadName": "スレッド名",
