@@ -29,6 +29,6 @@ describe("panLimit sideways (onlyWhenOverflowing)", () => {
         expect(panLimit(900, 1000, 1.5, true)).toBe(0);
     });
     it("gives slack once the zoomed image overflows", () => {
-        expect(panLimit(1200, 1000, 2, true)).toBe(100 + 400);
+        expect(panLimit(1200, 1000, 2, true)).toBe(100 + 250);
     });
 });

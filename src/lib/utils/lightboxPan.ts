@@ -4,7 +4,7 @@
 
 /** Extra room past each edge while zoomed, as a fraction of the viewport.
  *  Lets edge text be pulled clear of the toolbar and caption overlays. */
-export const PAN_SLACK_FRACTION = 0.4;
+export const PAN_SLACK_FRACTION = 0.25;
 
 /** Max |offset| from centre on one axis. At fit (scale <= 1) the image may
  *  not pan past its own overhang; once zoomed, it may also go
