@@ -190,6 +190,12 @@ import {
     type ReactionAnnotation,
 } from "$lib/utils/reactionCounts";
 import {
+    REACTION_SHORTCODE_KEY,
+    isMxcReactionKey,
+    normalizeReactionShortcode,
+    reactionShortcodeFromContent,
+} from "$lib/utils/reactionLabel";
+import {
     buildThreadReplyContent,
     isThreadReplyContent,
     withThreadRelation,
@@ -7864,6 +7870,8 @@ export interface ReactionGroup {
     isMine: boolean; // true even while local echo is pending
     myEventId: string | null; // only set once server-confirmed (used for removal)
     reactorIds: string[]; // deduped non-null senders for this key
+    /** MSC4027 shortcode carried by a custom reaction, if any (no colons). */
+    shortcode: string | null;
 }
 
 export function getReactions(room: Room, eventId: string): ReactionGroup[] {
@@ -7887,7 +7895,19 @@ export function getReactions(room: Room, eventId: string): ReactionGroup[] {
                 status: e.status,
                 isRedacted: e.isRedacted(),
             }));
-        return countReactions(annotations, ownUserId);
+        const shortcodeByKey = new Map<string, string>();
+        for (const e of relations.getRelations()) {
+            if (e.isRedacted()) continue;
+            const key = e.getContent()?.["m.relates_to"]?.key;
+            const name = reactionShortcodeFromContent(e.getContent());
+            if (typeof key === "string" && name && !shortcodeByKey.has(key)) {
+                shortcodeByKey.set(key, name);
+            }
+        }
+        return countReactions(annotations, ownUserId).map((g) => ({
+            ...g,
+            shortcode: shortcodeByKey.get(g.key) ?? null,
+        }));
     } catch {
         return [];
     }
@@ -7897,6 +7917,7 @@ export async function sendReaction(
     roomId: string,
     eventId: string,
     key: string,
+    shortcode?: string | null,
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // Deduplicate: don't send if user already has this reaction (including local echoes)
@@ -7905,6 +7926,11 @@ export async function sendReaction(
         const existing = getReactions(room, eventId);
         if (existing.some((g) => g.key === key && g.isMine)) return;
     }
+    // Custom (mxc) reactions also carry their emote name (MSC4027) so other
+    // clients and our own hover text can show `:name:` rather than the URI.
+    const name = isMxcReactionKey(key)
+        ? normalizeReactionShortcode(shortcode)
+        : null;
     await matrixClient.sendEvent(
         roomId,
         "m.reaction" as never,
@@ -7914,6 +7940,7 @@ export async function sendReaction(
                 event_id: eventId,
                 key,
             },
+            ...(name ? { [REACTION_SHORTCODE_KEY]: name } : {}),
         } as never,
     );
 }

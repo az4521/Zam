@@ -3,6 +3,7 @@
     import type { Room } from "matrix-js-sdk";
     import {
         getReactions,
+        getCustomEmojis,
         sendReaction,
         removeReaction,
         mxcToHttp,
@@ -15,6 +16,10 @@
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import { orderReactors } from "$lib/utils/reactionReactors";
+    import {
+        reactionDisplayName,
+        resolveReactionShortcode,
+    } from "$lib/utils/reactionLabel";
     import { longPress } from "$lib/actions/longPress";
     import ReactorPopover from "./ReactorPopover.svelte";
 
@@ -34,6 +39,23 @@
         reactionTick; // dependency
         return getReactions(room, eventId);
     });
+
+    // Known custom emoji, for naming mxc reactions that carry no shortcode.
+    // Only read when a custom reaction is actually on this message.
+    const customEmojis = $derived.by(() => {
+        roomsState.roomsTick; // re-resolve as packs load
+        if (!reactions.some((g) => g.key.startsWith("mxc://"))) return [];
+        return getCustomEmojis(room);
+    });
+
+    function labelFor(g: { key: string; shortcode: string | null }): string {
+        return reactionDisplayName(
+            g.key,
+            g.shortcode,
+            customEmojis,
+            t("common.emoji"),
+        );
+    }
 
     // Clean up pendingRemovals once the specific reaction event ID is gone from server state
     $effect(() => {
@@ -70,6 +92,7 @@
         key: string,
         isMine: boolean,
         myEventId: string | null,
+        shortcode: string | null,
     ) {
         if (isMine) {
             if (!myEventId) return; // local echo still pending — ignore click
@@ -85,7 +108,12 @@
             }
         } else {
             try {
-                await sendReaction(room.roomId, eventId, key);
+                await sendReaction(
+                    room.roomId,
+                    eventId,
+                    key,
+                    resolveReactionShortcode(key, shortcode, customEmojis),
+                );
             } catch (err) {
                 console.error("Failed to send reaction:", err);
                 showErrorToast(
@@ -124,7 +152,7 @@
         if (!g) return null;
         const info = reactorsFor(g.reactorIds);
         if (info.reactors.length === 0 && info.overflow === 0) return null;
-        return { key: g.key, ...info };
+        return { key: g.key, label: labelFor(g), ...info };
     });
 
     function openHover(e: PointerEvent, key: string) {
@@ -154,9 +182,15 @@
             {@const imgSrc = group.key.startsWith("mxc://")
                 ? mxcToHttp(group.key)
                 : null}
+            {@const name = labelFor(group)}
             <button
                 onclick={() =>
-                    toggleReaction(group.key, group.isMine, group.myEventId)}
+                    toggleReaction(
+                        group.key,
+                        group.isMine,
+                        group.myEventId,
+                        group.shortcode,
+                    )}
                 onpointerenter={(e) => openHover(e, group.key)}
                 onpointerleave={() => closeHover(group.key)}
                 use:longPress={{ onTrigger: () => openSheet(group.key) }}
@@ -168,12 +202,12 @@
                 class:border-discord-divider={!group.isMine}
                 class:text-discord-textSecondary={!group.isMine}
                 class:hover:border-discord-accent={!group.isMine}
-                title={group.key}
+                title={name}
             >
                 {#if imgSrc}
                     <img
                         src={imgSrc}
-                        alt={group.key}
+                        alt={name}
                         class="w-4 h-4 object-contain"
                     />
                 {:else if group.key.startsWith(":") && group.key.endsWith(":")}
@@ -192,7 +226,7 @@
                 <ReactorPopover
                     reactors={active.reactors}
                     overflow={active.overflow}
-                    label={active.key}
+                    label={active.label}
                     touch={openTouch}
                     x={anchorX}
                     y={anchorY}

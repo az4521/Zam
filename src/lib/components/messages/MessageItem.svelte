@@ -2472,7 +2472,12 @@
                     closeModal();
                 }}
                 onSelectCustom={async (emoji) => {
-                    await sendReaction(room.roomId, eventId, emoji.mxcUrl);
+                    await sendReaction(
+                        room.roomId,
+                        eventId,
+                        emoji.mxcUrl,
+                        emoji.shortcode,
+                    );
                     closeModal();
                 }}
                 onClose={closeModal}
@@ -3909,6 +3914,7 @@
                 aria-label={t("messageItem.reply")}
             >
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                    emoji.shortcode,
                     <path
                         d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"
                     />
