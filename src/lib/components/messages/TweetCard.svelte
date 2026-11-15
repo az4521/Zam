@@ -8,7 +8,7 @@
     import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
     import { rememberVolume } from "$lib/actions/rememberVolume";
     import { parkOffscreen } from "$lib/actions/parkOffscreen";
-    import { unloadOffscreen } from "$lib/actions/unloadOffscreen";
+    import { gifTileVideo } from "$lib/actions/gifTileVideo";
     import { reservedMediaBox } from "$lib/utils/mediaDimensions";
     import { galleryNav, galleryPositionLabel } from "$lib/utils/mediaGallery";
     import {
@@ -226,11 +226,14 @@
                 )}
                 {#if item.kind === "gif"}
                     <!-- Played like a GIF: muted, looped, no controls. Its
-                         src is owned by unloadOffscreen, which drops it once
-                         the row is well out of view. -->
+                         src is owned by gifTileVideo, which only gives it one
+                         while it is near the viewport: a post can carry four
+                         GIFs plus four in its quote, and holding a hardware
+                         decoder for each corrupts frames (green/purple bands)
+                         once the pool runs out. width/height keep the box. -->
                     <!-- svelte-ignore a11y_media_has_caption -->
                     <video
-                        use:unloadOffscreen={item.url}
+                        use:gifTileVideo={item.url}
                         poster={item.thumbnail}
                         width={box?.width}
                         height={box?.height}
