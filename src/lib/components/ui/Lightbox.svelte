@@ -327,6 +327,23 @@
             scale = 1;
             tx = 0;
             ty = 0;
+            // A swipe that stepped here slides the new item in from the side
+            // it was pulled from: placed there with no transition, then let
+            // go to the centre with one.
+            const enter = pendingEnter;
+            pendingEnter = 0;
+            if (enter && motionOK()) {
+                rebasing = true;
+                swipeDx = enter;
+                requestAnimationFrame(() =>
+                    requestAnimationFrame(() => {
+                        rebasing = false;
+                        swipeDx = 0;
+                    }),
+                );
+            } else {
+                swipeDx = 0;
+            }
             renderScale = 1;
             loadedRatio = null;
             imgLoaded = false;
@@ -426,6 +443,40 @@
     let downX = 0;
     let downY = 0;
     let moved = false; // distinguishes a tap from a drag/pinch
+
+    // ── Swipe between gallery items ─────────────────────────────────────────
+    // A one-finger horizontal drag steps to the neighbouring item, as long as
+    // the image has no room to pan that way: it is not zoomed wider than the
+    // screen, or it is already panned to the edge the drag pulls away from.
+    // A drag that pans up to an edge stops there; the next drag swipes.
+    // Touch and pen only: a mouse has the chevrons and arrow keys.
+    let swipeDx = $state(0); // how far the item follows the finger
+    let swipeEligible = false; // this gesture may still become a swipe
+    // Which way this gesture's finger may swipe (the image can't pan there).
+    let swipeLeftOK = false;
+    let swipeRightOK = false;
+    let swiping = false; // this gesture is a swipe
+    let downTime = 0;
+    // Where the next item starts its slide in from, set when a swipe steps.
+    let pendingEnter = 0;
+    const SWIPE_LOCK = 10; // px before the drag picks an axis
+    const SWIPE_FLICK_SPEED = 0.4; // px/ms: a quick flick steps on its own
+    const SWIPE_FLICK_MIN = 30; // ...once it has gone at least this far
+
+    /** How far the image may pan sideways either way from centre: 0 unless
+     *  it is wider than the viewport. Always 0 for a video. */
+    function maxPanX(): number {
+        if (isVideo || !imgEl) return 0;
+        const w = (imgEl.offsetWidth * scale) / renderScale;
+        return Math.max(0, (w - window.innerWidth) / 2);
+    }
+
+    /** A leftward drag goes forwards, mirrored in a right-to-left layout. */
+    function swipeTarget(dx: number): (() => void) | undefined {
+        const rtl =
+            !!viewerEl && getComputedStyle(viewerEl).direction === "rtl";
+        return dx < 0 !== rtl ? onNext : onPrev;
+    }
 
     // Double-tap (mihon/tachiyomi style): the first double-tap zooms in at the
     // point, the next resets. A single tap does nothing. The old code toggled on
@@ -609,21 +660,38 @@
     }
 
     function onPointerDown(e: PointerEvent) {
-        if (isVideo) return;
+        // A video's own controls take its gestures; only a swipe on the
+        // backdrop around it is handled.
+        if (isVideo && e.pointerType === "mouse") return;
         (e.target as Element).setPointerCapture?.(e.pointerId);
         pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         lastPointerType = e.pointerType;
         downX = e.clientX;
         downY = e.clientY;
+        downTime = e.timeStamp;
         moved = false;
         if (pointers.size === 2) {
             const [a, b] = [...pointers.values()];
             lastDist = dist(a, b);
+            // A second finger turns a swipe into a pinch.
+            swipeEligible = false;
+            swiping = false;
+            swipeDx = 0;
         } else if (pointers.size === 1) {
             panStartX = e.clientX;
             panStartY = e.clientY;
             panBaseTx = tx;
             panBaseTy = ty;
+            swiping = false;
+            // A finger moving left pans the image left (tx falls), so it may
+            // swipe only once the image's right edge is already in view.
+            const max = maxPanX();
+            swipeLeftOK = tx <= -max + 1;
+            swipeRightOK = tx >= max - 1;
+            swipeEligible =
+                e.pointerType !== "mouse" &&
+                !!(onPrev || onNext) &&
+                (swipeLeftOK || swipeRightOK);
         }
     }
 
@@ -635,7 +703,7 @@
         if (pointers.size >= 2) {
             const [a, b] = [...pointers.values()];
             const d = dist(a, b);
-            if (lastDist > 0) {
+            if (lastDist > 0 && !isVideo) {
                 const m = midpoint(a, b);
                 zoomAt(d / lastDist, m.x, m.y);
             }
@@ -644,9 +712,24 @@
             return;
         }
 
-        // Single pointer: pan only when zoomed in.
-        if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) moved = true;
-        if (scale > 1) {
+        // Single pointer: a sideways swipe steps the gallery, otherwise pan
+        // when zoomed in.
+        const dx = e.clientX - downX;
+        const dy = e.clientY - downY;
+        if (Math.hypot(dx, dy) > 8) moved = true;
+        if (swipeEligible && !swiping) {
+            if (Math.abs(dx) > SWIPE_LOCK && Math.abs(dx) > Math.abs(dy)) {
+                // Towards a side the image can still pan to: pan instead.
+                if (dx < 0 ? swipeLeftOK : swipeRightOK) swiping = true;
+                else swipeEligible = false;
+            } else if (Math.abs(dy) > SWIPE_LOCK) swipeEligible = false;
+        }
+        if (swiping) {
+            // Pulling towards a side with nothing there only gives a little.
+            swipeDx = swipeTarget(dx) ? dx : dx * 0.3;
+            return;
+        }
+        if (scale > 1 && !isVideo) {
             tx = panBaseTx + (e.clientX - panStartX);
             ty = panBaseTy + (e.clientY - panStartY);
             clampPan();
@@ -670,6 +753,24 @@
         // A click or tap on an empty part of a vector's box is a click on
         // the backdrop.
         if (moved) gestureEndedAt = performance.now();
+
+        if (swiping) {
+            swiping = false;
+            swipeEligible = false;
+            const dx = e.clientX - downX;
+            const speed = Math.abs(dx) / Math.max(1, e.timeStamp - downTime);
+            const far =
+                Math.abs(dx) > Math.min(100, window.innerWidth * 0.2) ||
+                (Math.abs(dx) > SWIPE_FLICK_MIN && speed > SWIPE_FLICK_SPEED);
+            const target = swipeTarget(dx);
+            swipeDx = 0;
+            if (e.type === "pointerup" && far && target) {
+                pendingEnter = -Math.sign(dx) * window.innerWidth * 0.3;
+                target();
+            }
+            return;
+        }
+        if (isVideo) return;
         if (
             e.type === "pointerup" &&
             e.target === imgEl &&
@@ -986,7 +1087,10 @@
                     ? '6em'
                     : '2em'}); max-height: calc(100{vu}vh - {interfaceState.isMobile
                     ? '6em'
-                    : '2em'});"
+                    : '2em'}); transform: translateX({swipeDx}px); transition: {swiping ||
+                rebasing
+                    ? 'none'
+                    : 'transform 0.2s ease'};"
             >
                 {#if (videoBlobUrl || videoStreamUrl) && !videoFailed}
                     <div class="relative">
@@ -1097,7 +1201,8 @@
                         ? '6em'
                         : '2em'}); max-height: calc(100{vu}vh - {interfaceState.isMobile
                         ? '6em'
-                        : '2em'}); object-fit: contain; border-radius: 0.5em; touch-action: none; transform: translate({tx}px, {ty}px) scale({scale /
+                        : '2em'}); object-fit: contain; border-radius: 0.5em; touch-action: none; transform: translate({tx +
+                        swipeDx}px, {ty}px) scale({scale /
                         renderScale}); transition: {pointers.size === 0 &&
                     !rebasing
                         ? 'transform 0.2s ease'
@@ -1119,8 +1224,9 @@
                             ? "absolute inset-0 w-full h-full pointer-events-none"
                             : "block"}
                         class:hidden={!previewShown}
-                        style="max-width: calc(100{vu}vw - {viewGutter}); max-height: calc(100{vu}vh - {viewGutter}); object-fit: contain; border-radius: 0.5em; transform: translate({tx}px, {ty}px) scale({scale}); transition: {pointers.size ===
-                        0
+                        style="max-width: calc(100{vu}vw - {viewGutter}); max-height: calc(100{vu}vh - {viewGutter}); object-fit: contain; border-radius: 0.5em; transform: translate({tx +
+                            swipeDx}px, {ty}px) scale({scale}); transition: {pointers.size ===
+                            0 && !rebasing
                             ? 'transform 0.2s ease'
                             : 'none'};"
                     ></canvas>
