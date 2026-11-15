@@ -3387,6 +3387,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "previewRewriter.rulesDescription":
         "Применяются по порядку к адресу, с которого получается предпросмотр. Сама ссылка не меняется.",
 
+    // src/lib/plugins/builtins/message-link-pill/index.ts
+    "messageLinkPill.name": "Плашки ссылок на сообщения",
+    "messageLinkPill.description":
+        "Показывает вставленные ссылки на сообщения в виде компактной плашки с названием комнаты или личного чата, на который они ведут, и подсвечивает соответствующий предпросмотр, когда вы наводите курсор на плашку.",
+    "messageLinkPill.viewMessage": "Открыть сообщение",
+    "messageLinkPill.viewMessageIn": "Открыть цитируемое сообщение в {room}",
+    "messageLinkPill.viewQuotedMessage": "Открыть цитируемое сообщение",
+
     // src/lib/plugins/pluginBoot.ts
     "pluginBoot.noPluginSyncDataOnYour":
         "В вашей учётной записи пока нет данных синхронизации плагинов.",

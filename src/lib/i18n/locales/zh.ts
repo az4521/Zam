@@ -3111,6 +3111,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "previewRewriter.rulesDescription":
         "按顺序应用于获取预览所用的地址。链接本身不会改变。",
 
+    // src/lib/plugins/builtins/message-link-pill/index.ts
+    "messageLinkPill.name": "消息链接胶囊",
+    "messageLinkPill.description":
+        "将粘贴的消息链接显示为紧凑的胶囊，标明其指向的房间或私信，并在你悬停某个胶囊时高亮对应的预览。",
+    "messageLinkPill.viewMessage": "查看消息",
+    "messageLinkPill.viewMessageIn": "查看 {room} 中的引用消息",
+    "messageLinkPill.viewQuotedMessage": "查看引用消息",
+
     // src/lib/plugins/pluginBoot.ts
     "pluginBoot.noPluginSyncDataOnYour": "你的账户上还没有插件同步数据。",
     "pluginBoot.theSyncDataOnYourAccount": "你账户上的同步数据格式有误。",

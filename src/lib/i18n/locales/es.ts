@@ -3402,6 +3402,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "previewRewriter.rulesDescription":
         "Se aplican en orden a la dirección desde la que se obtiene una vista previa. El enlace en sí no cambia.",
 
+    // src/lib/plugins/builtins/message-link-pill/index.ts
+    "messageLinkPill.name": "Pastillas de enlaces a mensajes",
+    "messageLinkPill.description":
+        "Muestra los enlaces a mensajes que pegues como una pastilla compacta con el nombre de la sala o del mensaje directo al que apuntan, y resalta la vista previa correspondiente cuando pasas el cursor sobre una.",
+    "messageLinkPill.viewMessage": "Ver mensaje",
+    "messageLinkPill.viewMessageIn": "Ver mensaje citado en {room}",
+    "messageLinkPill.viewQuotedMessage": "Ver mensaje citado",
+
     // src/lib/plugins/pluginBoot.ts
     "pluginBoot.noPluginSyncDataOnYour":
         "Todavía no hay datos de sincronización de plugins en tu cuenta.",

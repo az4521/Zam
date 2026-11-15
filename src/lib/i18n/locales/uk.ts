@@ -3380,6 +3380,15 @@ const messages: Partial<Record<MessageKey, string>> = {
     "previewRewriter.rulesDescription":
         "Застосовуються по порядку до адреси, з якої отримується попередній перегляд. Саме посилання не змінюється.",
 
+    // src/lib/plugins/builtins/message-link-pill/index.ts
+    "messageLinkPill.name": "Плашки посилань на повідомлення",
+    "messageLinkPill.description":
+        "Показує вставлені посилання на повідомлення у вигляді компактної плашки з назвою кімнати або особистого чату, на які вони ведуть, і підсвічує відповідний попередній перегляд, коли ви наводите курсор на плашку.",
+    "messageLinkPill.viewMessage": "Переглянути повідомлення",
+    "messageLinkPill.viewMessageIn":
+        "Переглянути цитоване повідомлення в {room}",
+    "messageLinkPill.viewQuotedMessage": "Переглянути цитоване повідомлення",
+
     // src/lib/plugins/pluginBoot.ts
     "pluginBoot.noPluginSyncDataOnYour":
         "У вашому обліковому записі ще немає даних синхронізації плагінів.",

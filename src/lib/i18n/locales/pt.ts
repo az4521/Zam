@@ -3398,6 +3398,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "previewRewriter.rulesDescription":
         "Aplicadas em ordem ao endereço de onde uma prévia é buscada. O link em si não é alterado.",
 
+    // src/lib/plugins/builtins/message-link-pill/index.ts
+    "messageLinkPill.name": "Pílulas de link de mensagem",
+    "messageLinkPill.description":
+        "Mostra links de mensagens colados como uma pílula compacta com o nome da sala ou da mensagem direta para onde apontam, e destaca a prévia correspondente quando você passa o cursor sobre uma delas.",
+    "messageLinkPill.viewMessage": "Ver mensagem",
+    "messageLinkPill.viewMessageIn": "Ver mensagem citada em {room}",
+    "messageLinkPill.viewQuotedMessage": "Ver mensagem citada",
+
     // src/lib/plugins/pluginBoot.ts
     "pluginBoot.noPluginSyncDataOnYour":
         "Ainda não há dados de sincronização de plugins na sua conta.",

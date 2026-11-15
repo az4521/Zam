@@ -3389,6 +3389,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "previewRewriter.rulesDescription":
         "Der Reihe nach auf die Adresse angewendet, von der eine Vorschau geladen wird. Der Link selbst bleibt unverändert.",
 
+    // src/lib/plugins/builtins/message-link-pill/index.ts
+    "messageLinkPill.name": "Nachrichtenlink-Pillen",
+    "messageLinkPill.description":
+        "Zeigt eingefügte Nachrichtenlinks als kompakte Pille mit dem Namen des Raums oder der Direktnachricht, auf die sie verweisen. Wenn du eine davon mit der Maus überfährst, wird die passende Vorschau hervorgehoben.",
+    "messageLinkPill.viewMessage": "Nachricht anzeigen",
+    "messageLinkPill.viewMessageIn": "Zitierte Nachricht in {room} anzeigen",
+    "messageLinkPill.viewQuotedMessage": "Zitierte Nachricht anzeigen",
+
     // src/lib/plugins/pluginBoot.ts
     "pluginBoot.noPluginSyncDataOnYour":
         "Noch keine Plugin-Synchronisierungsdaten in deinem Konto.",

@@ -2961,6 +2961,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "previewRewriter.rules": "書き換えルール",
     "previewRewriter.rulesDescription":
         "プレビューの取得先アドレスに順番に適用されます。リンク自体は変更されません。",
+    // src/lib/plugins/builtins/message-link-pill/index.ts
+    "messageLinkPill.name": "メッセージリンクのピル",
+    "messageLinkPill.description":
+        "貼り付けたメッセージリンクを、リンク先のルームまたはDMの名前を示すコンパクトなピルとして表示します。ピルにカーソルを合わせると、対応するプレビューがハイライトされます。",
+    "messageLinkPill.viewMessage": "メッセージを表示",
+    "messageLinkPill.viewMessageIn": "{room} の引用メッセージを表示",
+    "messageLinkPill.viewQuotedMessage": "引用メッセージを表示",
+
     "pluginBoot.noPluginSyncDataOnYour":
         "アカウントにまだプラグインの同期データがありません。",
     "pluginBoot.theSyncDataOnYourAccount":

@@ -3271,6 +3271,14 @@ export const en = {
     "previewRewriter.rulesDescription":
         "Applied in order to the address a preview is fetched from. The link itself is not changed.",
 
+    // src/lib/plugins/builtins/message-link-pill/index.ts
+    "messageLinkPill.name": "Message link pills",
+    "messageLinkPill.description":
+        "Shows pasted message links as a compact pill naming the room or DM they point to, and highlights the matching preview when you hover one.",
+    "messageLinkPill.viewMessage": "View message",
+    "messageLinkPill.viewMessageIn": "View quoted message in {room}",
+    "messageLinkPill.viewQuotedMessage": "View quoted message",
+
     // src/lib/plugins/pluginBoot.ts
     "pluginBoot.noPluginSyncDataOnYour":
         "No plugin sync data on your account yet.",

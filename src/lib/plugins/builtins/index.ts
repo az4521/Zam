@@ -20,6 +20,10 @@ import {
     manifest as previewRewriterManifest,
     plugin as previewRewriterPlugin,
 } from "./preview-rewriter/index";
+import {
+    manifest as messageLinkPillManifest,
+    plugin as messageLinkPillPlugin,
+} from "./message-link-pill/index";
 
 export interface BuiltinPlugin {
     manifest: Manifest;
@@ -46,6 +50,11 @@ export const BUILTIN_PLUGINS: BuiltinPlugin[] = [
     {
         manifest: previewRewriterManifest,
         module: previewRewriterPlugin,
+        defaultEnabled: true,
+    },
+    {
+        manifest: messageLinkPillManifest,
+        module: messageLinkPillPlugin,
         defaultEnabled: true,
     },
 ];
