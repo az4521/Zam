@@ -1041,6 +1041,18 @@ export const en = {
         "Loading it contacts the site hosting it, which reveals your IP address",
     "linkPreview.loadPreviewMedia": "Load preview media",
     "linkPreview.playVideo": "Play video",
+    "linkPreview.replyingTo": "Replying to",
+    "linkPreview.showMore": "Show more",
+    "linkPreview.showLess": "Show less",
+    "linkPreview.pollVotes":
+        "{count, plural, one {{votes} vote} other {{votes} votes}}",
+    "linkPreview.pollFinal": "Final results",
+    "linkPreview.pollEnds": "Ends {date}",
+    "linkPreview.quoteUnavailable": "This post is unavailable.",
+    "linkPreview.communityNote": "Readers added context",
+    "linkPreview.repostCount":
+        "{count, plural, one {# repost} other {# reposts}}",
+    "linkPreview.likeCount": "{count, plural, one {# like} other {# likes}}",
 
     // src/lib/components/layout/LiveLocationBanner.svelte
     "liveLocationBanner.openMap": "Open map",

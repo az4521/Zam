@@ -966,6 +966,19 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Al cargarlo se contacta con el sitio que lo aloja, lo que revela tu dirección IP",
     "linkPreview.loadPreviewMedia": "Cargar el contenido de la vista previa",
     "linkPreview.playVideo": "Reproducir vídeo",
+    "linkPreview.replyingTo": "En respuesta a",
+    "linkPreview.showMore": "Mostrar más",
+    "linkPreview.showLess": "Mostrar menos",
+    "linkPreview.pollVotes":
+        "{count, plural, one {{votes} voto} other {{votes} votos}}",
+    "linkPreview.pollFinal": "Resultados finales",
+    "linkPreview.pollEnds": "Termina {date}",
+    "linkPreview.quoteUnavailable": "Esta publicación no está disponible.",
+    "linkPreview.communityNote": "Los lectores añadieron contexto",
+    "linkPreview.repostCount":
+        "{count, plural, one {# repost} other {# reposts}}",
+    "linkPreview.likeCount":
+        "{count, plural, one {# me gusta} other {# me gusta}}",
 
     // src/lib/components/layout/LiveLocationBanner.svelte
     "liveLocationBanner.openMap": "Abrir el mapa",

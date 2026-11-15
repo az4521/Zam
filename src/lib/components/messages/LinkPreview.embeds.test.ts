@@ -83,12 +83,15 @@ describe("LinkPreview embeds", () => {
             "fetch",
             vi.fn(async () => ({
                 json: async () => ({
-                    tweet: {
+                    status: {
+                        type: "status",
+                        url: "https://x.com/a/status/123",
                         author: { name: "A", screen_name: "a" },
                         text: "hi",
                         media: {
                             videos: [
                                 {
+                                    type: "video",
                                     url: "https://video.example/v.mp4",
                                     thumbnail_url:
                                         "https://pbs.example/thumb.jpg",

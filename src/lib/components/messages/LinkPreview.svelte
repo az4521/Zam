@@ -60,7 +60,12 @@
         learnedMediaSize,
         learnMediaSize,
     } from "$lib/utils/learnedMediaSize";
-    import { galleryNav, galleryPositionLabel } from "$lib/utils/mediaGallery";
+    import {
+        fxStatusApiUrl,
+        parseFxStatusResponse,
+        type TweetEmbed,
+    } from "$lib/utils/tweetEmbed";
+    import TweetCard from "./TweetCard.svelte";
     import { isInstagramUrl } from "$lib/utils/instagramUrl";
     import { linkPreviewFavourite } from "$lib/utils/linkPreviewFavourite";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
@@ -147,29 +152,7 @@
         return `https://i.ytimg.com/vi/${encodeURIComponent(id)}/hqdefault.jpg`;
     }
 
-    interface TweetMedia {
-        url: string;
-        width?: number;
-        height?: number;
-        thumbnail?: string;
-    }
-
-    // Tweet videos, by URL, that the user has played. The rest show their
-    // thumbnail: a mounted <video>, even unplayed, holds a decoder. A played
-    // one that is paused and scrolled well away is unmounted again and
-    // resumes from `tweetResumeAt` (actions/parkOffscreen).
-    let tweetPlaying = $state<Set<string>>(new Set());
-    const tweetResumeAt = new Map<string, number>();
-    interface TweetEmbed {
-        authorName: string;
-        authorHandle: string;
-        text: string;
-        photos: TweetMedia[];
-        videos: TweetMedia[];
-    }
-
     let tweetEmbed = $state<TweetEmbed | null>(null);
-    let lightboxTweetIndex = $state<number | null>(null);
 
     // Reactively track favourite state — isFavouriteGif reads favouritesState.gifs ($state) so this auto-tracks
     const favourited = $derived(isFavouriteGif(url));
@@ -204,21 +187,6 @@
         return null;
     }
 
-    function getTwitterApiUrl(rawUrl: string): string | null {
-        try {
-            const u = new URL(rawUrl);
-            const h = u.hostname.replace(/^www\./, "");
-            if (h !== "x.com" && h !== "twitter.com") return null;
-            // Path: /{user}/status/{id}
-            const m = u.pathname.match(/^\/([^/]+)\/status\/(\d+)/);
-            if (!m) return null;
-            return `https://api.fxtwitter.com/${m[1]}/status/${m[2]}`;
-        } catch {
-            /* */
-        }
-        return null;
-    }
-
     $effect(() => {
         const currentUrl = url;
         const allowEmbeds = embedsAllowed;
@@ -228,14 +196,11 @@
         imageError = false;
         directEmbed = null;
         tweetEmbed = null;
-        lightboxTweetIndex = null;
         videoPlaying = false;
         videoParked = false;
         videoThumbError = false;
         youtubePlaying = false;
         youtubeResumeAt = 0;
-        tweetPlaying = new Set();
-        tweetResumeAt.clear();
 
         // A response that lands after the URL or the policy moved on must not
         // write itself back into state — otherwise flipping the setting to a
@@ -249,10 +214,10 @@
             return;
         }
 
-        // Twitter/X: use fxtwitter JSON API (has CORS headers). This is a
-        // request straight to a third party, so it needs the same consent as
-        // the media itself.
-        const twitterApiUrl = allowEmbeds ? getTwitterApiUrl(currentUrl) : null;
+        // Twitter/X: built from FxTwitter's status API (it sends CORS
+        // headers; see utils/tweetEmbed). This is a request straight to a
+        // third party, so it needs the same consent as the media itself.
+        const twitterApiUrl = allowEmbeds ? fxStatusApiUrl(currentUrl) : null;
         if (twitterApiUrl) {
             const known = resolvedPreviews.get(twitterApiUrl);
             if (known) {
@@ -265,29 +230,10 @@
                 referrerPolicy: "no-referrer",
             })
                 .then((r) => r.json())
-                .then((data: any) => {
+                .then((data: unknown) => {
                     if (cancelled) return;
-                    const tweet = data?.tweet;
-                    if (!tweet) return;
-                    const embed: TweetEmbed = {
-                        authorName: tweet.author?.name ?? "",
-                        authorHandle: tweet.author?.screen_name ?? "",
-                        text: tweet.text ?? "",
-                        // fxtwitter media objects carry width/height — keep them
-                        // so the grid can reserve layout space before the image
-                        // loads (otherwise it pops in and shoves the timeline).
-                        photos: (tweet.media?.photos ?? []).map((p: any) => ({
-                            url: p.url as string,
-                            width: p.width as number | undefined,
-                            height: p.height as number | undefined,
-                        })),
-                        videos: (tweet.media?.videos ?? []).map((v: any) => ({
-                            url: v.url as string,
-                            width: v.width as number | undefined,
-                            height: v.height as number | undefined,
-                            thumbnail: v.thumbnail_url as string | undefined,
-                        })),
-                    };
+                    const embed = parseFxStatusResponse(data);
+                    if (!embed) return;
                     tweetEmbed = embed;
                     rememberPreview(twitterApiUrl, {
                         preview: null,
@@ -502,8 +448,7 @@
     // anything, so the button can appear immediately.
     const blockedEmbed = $derived(
         !embedsAllowed &&
-            (getYoutubeEmbedUrl(url) !== null ||
-                getTwitterApiUrl(url) !== null),
+            (getYoutubeEmbedUrl(url) !== null || fxStatusApiUrl(url) !== null),
     );
     // Preview media the policy suppressed. `preview` is homeserver-sourced, so
     // reading it here costs nothing.
@@ -571,202 +516,7 @@
         preload="metadata"
     ></video>
 {:else if tweetEmbed}
-    <!-- Twitter/X card built from fxtwitter API -->
-    <div class="mt-2">
-        <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="flex max-w-lg rounded overflow-hidden border border-discord-divider bg-discord-backgroundSecondary hover:bg-discord-messageHover transition-colors no-underline"
-        >
-            <!-- Left accent bar -->
-            <div class="w-1 flex-shrink-0 bg-discord-accent"></div>
-
-            <div class="flex flex-1 min-w-0 flex-col p-3 gap-2">
-                <!-- Author -->
-                <div class="flex flex-col min-w-0">
-                    <p class="text-xs text-discord-textMuted mb-0.5">
-                        {t("linkPreview.xTwitter")}
-                    </p>
-                    <p
-                        class="text-sm font-semibold text-discord-accent leading-snug"
-                    >
-                        {tweetEmbed.authorName}
-                        <span class="font-normal text-discord-textMuted"
-                            >@{tweetEmbed.authorHandle}</span
-                        >
-                    </p>
-                    {#if tweetEmbed.text}
-                        <p
-                            class="text-xs text-discord-textSecondary mt-1 leading-relaxed line-clamp-4 whitespace-pre-wrap"
-                        >
-                            {tweetEmbed.text}
-                        </p>
-                    {/if}
-                </div>
-
-                <!-- Media grid -->
-                {#if tweetEmbed.videos.length > 0 || tweetEmbed.photos.length > 0}
-                    {@const allMedia = [
-                        ...tweetEmbed.videos.map((v) => ({
-                            type: "video" as const,
-                            photoIndex: -1,
-                            ...v,
-                        })),
-                        ...tweetEmbed.photos.map((p, pi) => ({
-                            type: "photo" as const,
-                            photoIndex: pi,
-                            ...p,
-                        })),
-                    ]}
-                    <div
-                        class="grid gap-1 rounded overflow-hidden"
-                        style="grid-template-columns: repeat({Math.min(
-                            allMedia.length,
-                            2,
-                        )}, minmax(0, 1fr))"
-                    >
-                        {#each allMedia as item}
-                            <!-- width/height reserve the box before load (from the
-                                 fxtwitter media dims); w-full/h-auto keep it
-                                 responsive within the grid cell. -->
-                            {@const box = reservedMediaBox(
-                                item.width,
-                                item.height,
-                                512,
-                                512,
-                            )}
-                            {#if item.type === "video" && !tweetPlaying.has(item.url)}
-                                <button
-                                    type="button"
-                                    aria-label={t("linkPreview.playVideo")}
-                                    class="group/media relative w-full max-h-72 min-w-0 rounded overflow-hidden cursor-pointer bg-black block p-0 border-0"
-                                    style={`aspect-ratio: ${box ? `${box.width}/${box.height}` : "16/9"}`}
-                                    onclick={(e) => {
-                                        // Don't follow the enclosing link.
-                                        e.preventDefault();
-                                        tweetPlaying = new Set(
-                                            tweetPlaying,
-                                        ).add(item.url);
-                                    }}
-                                >
-                                    {#if item.thumbnail}
-                                        <img
-                                            src={item.thumbnail}
-                                            alt=""
-                                            class="w-full h-full object-contain"
-                                            loading="lazy"
-                                            referrerpolicy="no-referrer"
-                                        />
-                                    {/if}
-                                    <div
-                                        class="absolute inset-0 flex items-center justify-center bg-black/30 group-hover/media:bg-black/40 transition-colors"
-                                    >
-                                        <div
-                                            class="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center"
-                                        >
-                                            <svg
-                                                class="w-7 h-7 text-white ms-1"
-                                                fill="currentColor"
-                                                viewBox="0 0 24 24"
-                                                ><path d="M8 5v14l11-7z" /></svg
-                                            >
-                                        </div>
-                                    </div>
-                                </button>
-                            {:else if item.type === "video"}
-                                <!-- svelte-ignore a11y_media_has_caption -->
-                                <video
-                                    src={item.url}
-                                    width={box?.width}
-                                    height={box?.height}
-                                    class="w-full h-auto max-h-72 min-w-0 max-w-full object-contain rounded"
-                                    use:rememberVolume
-                                    controls
-                                    autoplay
-                                    preload="auto"
-                                    use:pauseOffscreen={{
-                                        enabled:
-                                            settingsState.pauseVideoOnScrollOff,
-                                    }}
-                                    use:parkOffscreen={(at) => {
-                                        tweetResumeAt.set(item.url, at);
-                                        const next = new Set(tweetPlaying);
-                                        next.delete(item.url);
-                                        tweetPlaying = next;
-                                    }}
-                                    onloadedmetadata={(e) => {
-                                        const at = tweetResumeAt.get(item.url);
-                                        if (at) {
-                                            e.currentTarget.currentTime = at;
-                                            tweetResumeAt.delete(item.url);
-                                        }
-                                    }}
-                                    onclick={(e) => {
-                                        // Stop an enclosing link from navigating, but
-                                        // keep click-to-pause: preventDefault alone
-                                        // would also suppress the video's own toggle.
-                                        e.preventDefault();
-                                        const v = e.currentTarget;
-                                        // Clicks on the control bar are handled by the
-                                        // controls themselves; toggling here too would
-                                        // undo them.
-                                        const r = v.getBoundingClientRect();
-                                        if (e.clientY > r.bottom - 48) return;
-                                        if (v.paused)
-                                            void v.play().catch(() => {});
-                                        else v.pause();
-                                    }}
-                                ></video>
-                            {:else}
-                                <!-- svelte-ignore a11y_click_events_have_key_events -->
-                                <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-                                <img
-                                    src={item.url}
-                                    alt=""
-                                    width={box?.width}
-                                    height={box?.height}
-                                    class="w-full h-auto max-h-72 min-w-0 max-w-full object-contain rounded cursor-pointer bg-black/10"
-                                    loading="lazy"
-                                    referrerpolicy="no-referrer"
-                                    onclick={(e) => {
-                                        e.preventDefault();
-                                        lightboxTweetIndex = item.photoIndex;
-                                    }}
-                                />
-                            {/if}
-                        {/each}
-                    </div>
-                {/if}
-            </div>
-        </a>
-        {#if lightboxTweetIndex !== null}
-            {@const photo = tweetEmbed.photos[lightboxTweetIndex]}
-            {@const nav = galleryNav(
-                tweetEmbed.photos.length,
-                lightboxTweetIndex,
-            )}
-            {@const prev = nav.prevIndex}
-            {@const next = nav.nextIndex}
-            {#if photo}
-                <Lightbox
-                    src={photo.url}
-                    alt=""
-                    onClose={() => (lightboxTweetIndex = null)}
-                    onPrev={prev !== null
-                        ? () => (lightboxTweetIndex = prev)
-                        : undefined}
-                    onNext={next !== null
-                        ? () => (lightboxTweetIndex = next)
-                        : undefined}
-                    position={galleryPositionLabel(
-                        tweetEmbed.photos.length,
-                        lightboxTweetIndex,
-                    )}
-                />
-            {/if}
-        {/if}
-    </div>
+    <TweetCard tweet={tweetEmbed} />
 {:else if matchedEmbed}
     <!-- Plugin custom embed: renders a nicer card for a matching URL. ADDITIVE
          and host-sanitized — see src/lib/plugins/embeds.ts. Keyed so a change

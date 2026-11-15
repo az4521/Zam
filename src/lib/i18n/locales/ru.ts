@@ -1081,6 +1081,19 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Загрузка обращается к сайту, на котором оно размещено, и раскрывает ваш IP-адрес",
     "linkPreview.loadPreviewMedia": "Загрузить медиа предпросмотра",
     "linkPreview.playVideo": "Воспроизвести видео",
+    "linkPreview.replyingTo": "В ответ",
+    "linkPreview.showMore": "Показать больше",
+    "linkPreview.showLess": "Свернуть",
+    "linkPreview.pollVotes":
+        "{count, plural, one {{votes} голос} few {{votes} голоса} many {{votes} голосов} other {{votes} голоса}}",
+    "linkPreview.pollFinal": "Окончательные результаты",
+    "linkPreview.pollEnds": "Завершится {date}",
+    "linkPreview.quoteUnavailable": "Этот пост недоступен.",
+    "linkPreview.communityNote": "Читатели добавили контекст",
+    "linkPreview.repostCount":
+        "{count, plural, one {# репост} few {# репоста} many {# репостов} other {# репоста}}",
+    "linkPreview.likeCount":
+        "{count, plural, one {# отметка «Нравится»} few {# отметки «Нравится»} many {# отметок «Нравится»} other {# отметки «Нравится»}}",
 
     // src/lib/components/layout/LiveLocationBanner.svelte
     "liveLocationBanner.openMap": "Открыть карту",

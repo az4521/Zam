@@ -938,6 +938,18 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Beim Laden wird die hostende Website kontaktiert, die dadurch deine IP-Adresse erfährt",
     "linkPreview.loadPreviewMedia": "Vorschaumedien laden",
     "linkPreview.playVideo": "Video abspielen",
+    "linkPreview.replyingTo": "Antwort an",
+    "linkPreview.showMore": "Mehr anzeigen",
+    "linkPreview.showLess": "Weniger anzeigen",
+    "linkPreview.pollVotes":
+        "{count, plural, one {{votes} Stimme} other {{votes} Stimmen}}",
+    "linkPreview.pollFinal": "Endergebnis",
+    "linkPreview.pollEnds": "Endet {date}",
+    "linkPreview.quoteUnavailable": "Dieser Beitrag ist nicht verfügbar.",
+    "linkPreview.communityNote": "Leser haben Kontext hinzugefügt",
+    "linkPreview.repostCount":
+        "{count, plural, one {# Repost} other {# Reposts}}",
+    "linkPreview.likeCount": "{count, plural, one {# Like} other {# Likes}}",
 
     // src/lib/components/layout/LiveLocationBanner.svelte
     "liveLocationBanner.openMap": "Karte öffnen",

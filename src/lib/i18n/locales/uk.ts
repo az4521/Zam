@@ -1071,6 +1071,19 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Завантаження звертається до сайту, на якому це розміщено, і розкриває вашу IP-адресу",
     "linkPreview.loadPreviewMedia": "Завантажити медіа для перегляду",
     "linkPreview.playVideo": "Відтворити відео",
+    "linkPreview.replyingTo": "У відповідь",
+    "linkPreview.showMore": "Показати більше",
+    "linkPreview.showLess": "Згорнути",
+    "linkPreview.pollVotes":
+        "{count, plural, one {{votes} голос} few {{votes} голоси} many {{votes} голосів} other {{votes} голосу}}",
+    "linkPreview.pollFinal": "Остаточні результати",
+    "linkPreview.pollEnds": "Завершиться {date}",
+    "linkPreview.quoteUnavailable": "Цей допис недоступний.",
+    "linkPreview.communityNote": "Читачі додали контекст",
+    "linkPreview.repostCount":
+        "{count, plural, one {# репост} few {# репости} many {# репостів} other {# репосту}}",
+    "linkPreview.likeCount":
+        "{count, plural, one {# вподобання} few {# вподобання} many {# вподобань} other {# вподобання}}",
 
     // src/lib/components/layout/LiveLocationBanner.svelte
     "liveLocationBanner.openMap": "Відкрити карту",

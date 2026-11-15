@@ -1017,6 +1017,16 @@ const messages: Partial<Record<MessageKey, string>> = {
         "加载时会连接托管它的网站，这会暴露你的 IP 地址",
     "linkPreview.loadPreviewMedia": "加载预览媒体",
     "linkPreview.playVideo": "播放视频",
+    "linkPreview.replyingTo": "回复",
+    "linkPreview.showMore": "显示更多",
+    "linkPreview.showLess": "收起",
+    "linkPreview.pollVotes": "{count, plural, other {{votes} 票}}",
+    "linkPreview.pollFinal": "最终结果",
+    "linkPreview.pollEnds": "{date} 结束",
+    "linkPreview.quoteUnavailable": "此帖子不可用。",
+    "linkPreview.communityNote": "读者添加了背景信息",
+    "linkPreview.repostCount": "{count, plural, other {# 次转帖}}",
+    "linkPreview.likeCount": "{count, plural, other {# 个喜欢}}",
 
     // src/lib/components/layout/LiveLocationBanner.svelte
     "liveLocationBanner.openMap": "打开地图",
