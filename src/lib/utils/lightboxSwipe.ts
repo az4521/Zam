@@ -35,3 +35,12 @@ export function swipeSettleMs(remaining: number, width: number): number {
             (SWIPE_SETTLE_MAX_MS - SWIPE_SETTLE_MIN_MS) * ratio,
     );
 }
+
+/** Distance between the centres of the current item and the neighbour that
+ *  slides in beside it: one viewport, or, for an item zoomed wider than the
+ *  viewport, half its width plus half the viewport. Then the current item's
+ *  edge leaves the screen exactly as the neighbour reaches the centre, so a
+ *  zoomed image is never left covering the screen behind the incoming one. */
+export function swipeSeparation(itemWidth: number, width: number): number {
+    return Math.max(width, (itemWidth + width) / 2);
+}
