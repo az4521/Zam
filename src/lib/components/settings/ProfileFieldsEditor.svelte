@@ -123,7 +123,10 @@
     );
 
     const allowed = (field: FieldKeys) =>
-        profileFieldAllowed(field.unstable ?? field.stable, capabilities);
+        profileFieldAllowed(
+            field.specced ? field.stable : (field.unstable ?? field.stable),
+            capabilities,
+        );
 
     const pronounsDirty = $derived(
         pronounsText.trim() !== pronounsToText(savedPronouns),

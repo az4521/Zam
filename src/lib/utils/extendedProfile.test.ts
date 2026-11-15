@@ -66,6 +66,49 @@ describe("readField / planFieldWrite", () => {
     });
 });
 
+describe("specced timezone write", () => {
+    const tz = PROFILE_FIELDS.timezone;
+
+    it("writes only m.tz on a fresh profile", () => {
+        expect(planFieldWrite({}, tz, "Europe/Paris")).toEqual([
+            { key: "m.tz", value: "Europe/Paris" },
+        ]);
+    });
+
+    it("writes both keys when the profile already has the unstable one", () => {
+        expect(
+            planFieldWrite(
+                { "us.cloke.msc4175.tz": "UTC" },
+                tz,
+                "Europe/Paris",
+            ),
+        ).toEqual([
+            { key: "m.tz", value: "Europe/Paris" },
+            { key: "us.cloke.msc4175.tz", value: "Europe/Paris" },
+        ]);
+    });
+
+    it("keeps the non-specced behaviour for other fields", () => {
+        const f = PROFILE_FIELDS.pronouns;
+        expect(planFieldWrite({}, f, 1)).toEqual([
+            { key: f.unstable, value: 1 },
+        ]);
+    });
+
+    it("still clears both keys when they exist", () => {
+        expect(
+            planFieldWrite(
+                { "m.tz": "UTC", "us.cloke.msc4175.tz": "UTC" },
+                tz,
+                null,
+            ),
+        ).toEqual([
+            { key: "m.tz", value: null },
+            { key: "us.cloke.msc4175.tz", value: null },
+        ]);
+    });
+});
+
 describe("pronouns", () => {
     it("ignores malformed entries", () => {
         expect(

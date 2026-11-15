@@ -42,7 +42,7 @@ export interface ParsedBeaconInfo {
 /**
  * Parse an m.beacon_info state event's content. Returns null when the content
  * is missing required, well-typed fields (`timeout` > 0, strict boolean
- * `live`). `startTs` uses `org.matrix.msc3488.ts` when it is a finite number,
+ * `live`). `startTs` uses `m.ts` (or `org.matrix.msc3488.ts`) when it is a finite number,
  * otherwise the event's origin timestamp.
  */
 export function parseBeaconInfo(
@@ -63,7 +63,7 @@ export function parseBeaconInfo(
     const live = c.live;
     if (typeof live !== "boolean") return null;
 
-    const tsRaw = c["org.matrix.msc3488.ts"];
+    const tsRaw = c["m.ts"] ?? c["org.matrix.msc3488.ts"];
     const startTs =
         typeof tsRaw === "number" && Number.isFinite(tsRaw) ? tsRaw : eventTs;
 

@@ -229,6 +229,7 @@ import { addOrderHints, placeAfterHints } from "./orderHint";
 import {
     COMMET_ORDER_KEY,
     ELEMENT_SPACE_ORDER_KEY,
+    STABLE_SPACE_ORDER_KEY,
     commetToLayout,
     elementToLayout,
     layoutToCommet,
@@ -4696,9 +4697,11 @@ export async function getRoomVersionCapability(): Promise<{
  * - `rtcFoci`: the homeserver advertises at least one SFU focus via the
  *   `org.matrix.msc4143.rtc_foci` key in `.well-known/matrix/client` (reuses
  *   the same well-known fetch the voice-join path uses).
- * - `delayedEvents`: `/versions` `unstable_features` advertises
- *   `org.matrix.msc4140` — delayed events, which let a crashed call's
- *   membership self-expire in ~8s instead of lingering up to ~4h.
+ * - `delayedEvents`: delayed events, which let a crashed call's membership
+ *   self-expire in ~8s instead of lingering up to ~4h. True when `/versions`
+ *   `unstable_features` advertises `org.matrix.msc4140`, or `/capabilities`
+ *   has `m.delayed_events` (spec) or `org.matrix.msc4140.delayed_events`
+ *   with `enabled: true`. Failures count as false.
  */
 export async function probeCallingSupport(): Promise<{
     rtcFoci: boolean;
@@ -4709,11 +4712,23 @@ export async function probeCallingSupport(): Promise<{
         configuredRtcFoci()
             .then((foci) => foci.length > 0)
             .catch(() => false),
-        getServerVersions()
-            .then(({ unstableFeatures }) =>
-                hasUnstableFeature(unstableFeatures, "org.matrix.msc4140"),
-            )
-            .catch(() => false),
+        Promise.all([
+            getServerVersions()
+                .then(({ unstableFeatures }) =>
+                    hasUnstableFeature(unstableFeatures, "org.matrix.msc4140"),
+                )
+                .catch(() => false),
+            getServerCapabilities()
+                .then((caps) =>
+                    ["m.delayed_events", "org.matrix.msc4140.delayed_events"]
+                        .map((name) => caps[name])
+                        .some((cap) => cap?.enabled === true),
+                )
+                .catch(() => false),
+        ]).then(
+            ([fromVersions, fromCapabilities]) =>
+                fromVersions || fromCapabilities,
+        ),
     ]);
     return { rtcFoci, delayedEvents };
 }
@@ -6821,12 +6836,14 @@ export function getSpaceLayout(): SpaceLayout {
     const orders = new Map<string, unknown>();
     for (const room of listRooms()) {
         if (!room.isSpaceRoom()) continue;
+        // Stable key first; the unstable MSC key for Element builds before it.
+        const orderOf = (key: string) =>
+            (
+                room.getAccountData?.(key as never) as MatrixEvent | undefined
+            )?.getContent()?.order;
         orders.set(
             room.roomId,
-            (
-                room.getAccountData?.(ELEMENT_SPACE_ORDER_KEY as never) as
-                    MatrixEvent | undefined
-            )?.getContent()?.order,
+            orderOf(STABLE_SPACE_ORDER_KEY) ?? orderOf(ELEMENT_SPACE_ORDER_KEY),
         );
     }
     return elementToLayout(orders) ?? { order: [], folders: {} };

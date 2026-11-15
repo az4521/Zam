@@ -118,6 +118,14 @@ describe("parseBeaconInfo", () => {
         expect(parsed!.startTs).toBe(7777);
         expect(parsed!.expiresAt).toBe(8777);
     });
+    it("reads the stable m.ts as startTs", () => {
+        const parsed = parseBeaconInfo(
+            { timeout: 1000, live: true, "m.ts": 4321 },
+            123,
+        );
+        expect(parsed!.startTs).toBe(4321);
+        expect(parsed!.expiresAt).toBe(5321);
+    });
     it("falls back to eventTs when the msc3488.ts is absent or non-finite", () => {
         const a = parseBeaconInfo({ timeout: 1000, live: true }, 500);
         expect(a!.startTs).toBe(500);

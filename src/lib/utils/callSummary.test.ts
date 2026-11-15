@@ -49,6 +49,7 @@ describe("type guards", () => {
         expect(isCallMemberEventType("org.matrix.msc4143.rtc.member")).toBe(
             true,
         );
+        expect(isCallMemberEventType("m.rtc.member")).toBe(true);
         expect(isCallMemberEventType("m.room.message")).toBe(false);
     });
     it("recognizes notify types", () => {

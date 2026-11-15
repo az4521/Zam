@@ -4,8 +4,8 @@ import { buildAccountManagementUrl } from "./oauthAccount";
 describe("buildAccountManagementUrl", () => {
     const base = "https://auth.example/account/";
     const supported = [
-        "org.matrix.sessions_list",
-        "org.matrix.session_view",
+        "org.matrix.devices_list",
+        "org.matrix.device_view",
         "org.matrix.account_deactivate",
     ];
 
@@ -40,20 +40,84 @@ describe("buildAccountManagementUrl", () => {
         ).toBe(base);
         expect(
             buildAccountManagementUrl(base, {
-                action: "org.matrix.sessions_list",
+                action: "org.matrix.devices_list",
             }),
         ).toBe(base);
     });
 
-    it("deep-links a single session with its device id", () => {
+    it("uses the stable action name when the provider only lists that", () => {
+        expect(
+            buildAccountManagementUrl(base, {
+                action: "org.matrix.devices_list",
+                supportedActions: ["org.matrix.devices_list"],
+            }),
+        ).toBe(`${base}?action=org.matrix.devices_list`);
+    });
+
+    it("falls back to the legacy action name for a legacy-only provider", () => {
         const url = new URL(
             buildAccountManagementUrl(base, {
-                action: "org.matrix.session_view",
+                action: "org.matrix.devices_list",
+                supportedActions: ["org.matrix.sessions_list"],
+            })!,
+        );
+        expect(url.searchParams.get("action")).toBe("org.matrix.sessions_list");
+        expect(url.searchParams.has("device_id")).toBe(false);
+    });
+
+    it("prefers the stable name when both are listed", () => {
+        const url = new URL(
+            buildAccountManagementUrl(base, {
+                action: "org.matrix.device_view",
+                deviceId: "ABC",
+                supportedActions: [
+                    "org.matrix.session_view",
+                    "org.matrix.device_view",
+                ],
+            })!,
+        );
+        expect(url.searchParams.get("action")).toBe("org.matrix.device_view");
+        expect(url.searchParams.get("device_id")).toBe("ABC");
+    });
+
+    it("deep-links a single device with its device id", () => {
+        const url = new URL(
+            buildAccountManagementUrl(base, {
+                action: "org.matrix.device_view",
                 deviceId: "ABC",
                 supportedActions: supported,
             })!,
         );
+        expect(url.searchParams.get("action")).toBe("org.matrix.device_view");
+        expect(url.searchParams.get("device_id")).toBe("ABC");
+    });
+
+    it("deep-links a legacy session_view with its device id", () => {
+        const url = new URL(
+            buildAccountManagementUrl(base, {
+                action: "org.matrix.device_view",
+                deviceId: "ABC",
+                supportedActions: ["org.matrix.session_view"],
+            })!,
+        );
         expect(url.searchParams.get("action")).toBe("org.matrix.session_view");
         expect(url.searchParams.get("device_id")).toBe("ABC");
+    });
+
+    it("adds device_id for device_delete, stable and legacy", () => {
+        for (const name of [
+            "org.matrix.device_delete",
+            "org.matrix.session_end",
+        ]) {
+            const url = new URL(
+                buildAccountManagementUrl(base, {
+                    action: "org.matrix.device_delete",
+                    deviceId: "XYZ",
+                    supportedActions: [name],
+                })!,
+            );
+            expect(url.searchParams.get("action")).toBe(name);
+            expect(url.searchParams.get("device_id")).toBe("XYZ");
+        }
     });
 });

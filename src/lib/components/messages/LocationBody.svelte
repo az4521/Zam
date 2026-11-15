@@ -20,7 +20,9 @@
     let { content, senderName, senderAvatarUrl, isSelf }: Props = $props();
 
     const loc = $derived(
-        (content["org.matrix.msc3488.location"] ?? null) as {
+        (content["m.location"] ??
+            content["org.matrix.msc3488.location"] ??
+            null) as {
             uri?: string;
             description?: string;
         } | null,

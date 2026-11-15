@@ -31,6 +31,7 @@ const MEMBER_TYPES = new Set([
     "m.call.member",
     "org.matrix.msc3401.call.member",
     "org.matrix.msc4143.rtc.member",
+    "m.rtc.member",
 ]);
 const NOTIFY_TYPES = new Set([
     "org.matrix.msc4075.rtc.notification",

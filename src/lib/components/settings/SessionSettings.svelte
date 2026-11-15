@@ -61,7 +61,7 @@
     const oauthSession = isOAuthSession();
     let sessionsUrl = $state<string | null>(null);
     if (oauthSession)
-        void getAccountManagementUrl("org.matrix.sessions_list").then(
+        void getAccountManagementUrl("org.matrix.devices_list").then(
             (u) => (sessionsUrl = u),
         );
 

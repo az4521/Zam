@@ -13,6 +13,11 @@ export interface FieldKeys {
     stable: string;
     unstable?: string;
     legacy?: readonly string[];
+    /**
+     * The stable key is in a released spec: new writes go to it alone, and the
+     * unstable key is only kept in step where the profile already has it.
+     */
+    specced?: true;
 }
 
 export const PROFILE_FIELDS = {
@@ -32,7 +37,11 @@ export const PROFILE_FIELDS = {
         stable: "m.color_preference",
         unstable: "eu.she-a.color",
     },
-    timezone: { stable: "m.tz", unstable: "us.cloke.msc4175.tz" },
+    timezone: {
+        stable: "m.tz",
+        unstable: "us.cloke.msc4175.tz",
+        specced: true,
+    },
     banner: { stable: "m.banner_url", unstable: "chat.commet.profile_banner" },
     connections: { stable: "m.connections", unstable: "fyi.cisnt.connections" },
     rpc: { stable: "m.rpc", unstable: "xyz.extera.msc4544.rpc" },
@@ -90,6 +99,14 @@ export function planFieldWrite(
         return ownKeys(field)
             .filter((key) => profile?.[key] !== undefined)
             .map((key) => ({ key, value: null }));
+    }
+    if (field.specced) {
+        // Released spec: the stable key always; the unstable one only where
+        // the profile already has it, so older readers stay in sync.
+        const keys = new Set<string>([field.stable]);
+        if (field.unstable && profile?.[field.unstable] !== undefined)
+            keys.add(field.unstable);
+        return [...keys].map((key) => ({ key, value }));
     }
     const keys = new Set<string>([field.unstable ?? field.stable]);
     if (profile?.[field.stable] !== undefined) keys.add(field.stable);

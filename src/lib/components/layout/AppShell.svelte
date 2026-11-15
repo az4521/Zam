@@ -1101,14 +1101,27 @@
         // (the master push rule only silences the server's pushes).
         if (settingsState.doNotDisturb) return;
         const content = event.getContent() as any;
-        // Extensible events (e.g. polls) carry their text fallback in the
-        // MSC1767 key instead of body.
+        // Order: body, then stable m.text (a string, or the first text/plain
+        // entry of an array of representations), then the MSC1767 key that
+        // extensible events (e.g. polls) use for their text fallback.
+        const mText = content?.["m.text"];
+        const mTextBody = Array.isArray(mText)
+            ? mText.find(
+                  (r: any) =>
+                      r &&
+                      (r.mimetype === undefined ||
+                          r.mimetype === "text/plain") &&
+                      typeof r.body === "string",
+              )?.body
+            : mText;
         const rawBody =
             typeof content?.body === "string"
                 ? content.body
-                : typeof content?.["org.matrix.msc1767.text"] === "string"
-                  ? content["org.matrix.msc1767.text"]
-                  : "";
+                : typeof mTextBody === "string"
+                  ? mTextBody
+                  : typeof content?.["org.matrix.msc1767.text"] === "string"
+                    ? content["org.matrix.msc1767.text"]
+                    : "";
         // A still-encrypted (undecryptable) event has no cleartext body →
         // show a generic "🔒 Encrypted message" line instead of an empty one.
         const body = previewForEvent(event.getType(), rawBody);

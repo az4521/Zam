@@ -15,6 +15,8 @@ import type { SpaceFolder, SpaceLayout } from "./client";
 
 export const COMMET_ORDER_KEY = "chat.commet.sidebar_ordering";
 export const ELEMENT_SPACE_ORDER_KEY = "org.matrix.msc3230.space_order";
+/** The stable (spec) name of Element's per-space order; read before the MSC key. */
+export const STABLE_SPACE_ORDER_KEY = "m.space_order";
 
 export interface CommetOrdering {
     spaces?: Record<string, { group?: string; order?: string }>;

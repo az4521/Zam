@@ -45,6 +45,31 @@ describe("sendPresenceWithSlidingSync", () => {
         expect(authedRequest.mock.calls[1][2]).toBeUndefined();
     });
 
+    it("recognises a POST /sync on a stable path as sliding sync", async () => {
+        const { client, authedRequest, http } = fakeClient();
+        sendPresenceWithSlidingSync(client)("away");
+        await http.authedRequest(
+            "POST",
+            "/sync",
+            { timeout: 1 },
+            {},
+            { prefix: "/_matrix/client/v5" },
+        );
+        expect(authedRequest.mock.calls[0][2]).toEqual({
+            timeout: 1,
+            set_presence: "away",
+        });
+    });
+
+    it("does not treat a GET /sync on a stable path as sliding sync", async () => {
+        const { client, authedRequest, http } = fakeClient();
+        sendPresenceWithSlidingSync(client)("away");
+        await http.authedRequest("GET", "/sync", { timeout: 1 }, undefined, {
+            prefix: "/_matrix/client/v3",
+        });
+        expect(authedRequest.mock.calls[0][2]).toEqual({ timeout: 1 });
+    });
+
     it("wraps a client once", () => {
         const { client } = fakeClient();
         expect(sendPresenceWithSlidingSync(client)).toBe(
