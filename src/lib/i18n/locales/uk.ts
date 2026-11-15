@@ -2910,6 +2910,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.directMessagesRingRoomsNeverDo":
         "Особисті повідомлення дзвонять. Кімнати - ніколи: до них ви приєднуєтеся з самої кімнати.",
     "voiceAudioSettings.ringtoneVolume": "Гучність мелодії дзвінка",
+    "voiceAudioSettings.ringtone": "Мелодія дзвінка",
+    "voiceAudioSettings.ringtoneDefault": "Типова",
+    "voiceAudioSettings.ringtonePluginOption": "{name} ({plugin})",
+    "voiceAudioSettings.ringtoneUnavailable":
+        "Мелодія плагіна (плагін не завантажено)",
     "voiceAudioSettings.fullScreenCalls":
         "Показувати виклики на екрані блокування",
     "voiceAudioSettings.fullScreenCallsHint":

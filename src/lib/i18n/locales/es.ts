@@ -2890,6 +2890,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.directMessagesRingRoomsNeverDo":
         "Los mensajes directos suenan. Las salas nunca: a esas te unes desde la propia sala.",
     "voiceAudioSettings.ringtoneVolume": "Volumen del tono de llamada",
+    "voiceAudioSettings.ringtone": "Tono de llamada",
+    "voiceAudioSettings.ringtoneDefault": "Predeterminado",
+    "voiceAudioSettings.ringtonePluginOption": "{name} ({plugin})",
+    "voiceAudioSettings.ringtoneUnavailable":
+        "Tono del complemento (complemento no cargado)",
     "voiceAudioSettings.fullScreenCalls":
         "Mostrar las llamadas en la pantalla de bloqueo",
     "voiceAudioSettings.fullScreenCallsHint":

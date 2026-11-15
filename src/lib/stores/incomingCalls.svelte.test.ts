@@ -36,7 +36,12 @@ vi.mock("$lib/audio/soundEffects", () => ({
 }));
 
 vi.mock("$lib/stores/settings.svelte", () => ({
-    settingsState: { ringEnabled: true, ringVolume: 1 },
+    settingsState: { ringEnabled: true, ringVolume: 1, ringtone: "" },
+}));
+
+// No plugin ringtones loaded: the built-in tone rings.
+vi.mock("$lib/stores/plugins.svelte", () => ({
+    pluginRegistry: { ringtones: [] },
 }));
 
 vi.mock("$lib/stores/auth.svelte", () => ({

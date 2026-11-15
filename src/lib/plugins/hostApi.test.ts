@@ -354,6 +354,66 @@ describe("buildHostApi — storage + settings", () => {
     });
 });
 
+describe("buildHostApi — zam.ringtones", () => {
+    const callTone = (id: string) => ({
+        id,
+        name: id,
+        start: () => {},
+        stop: () => {},
+    });
+
+    it("register adds a ringtone; its Disposable removes only it", () => {
+        const registry = createRegistryData();
+        const host = buildHostApi({
+            pluginId: "p",
+            manifest: manifest("p"),
+            registry,
+            appVersion: "1",
+        });
+        const d = host.zam.ringtones.register(callTone("bell"));
+        expect(registry.ringtones.map((e) => e.value.id)).toEqual(["bell"]);
+        d.dispose();
+        expect(registry.ringtones.length).toBe(0);
+    });
+
+    it("refuses an invalid or duplicate ringtone with a plugin-scoped error", () => {
+        const registry = createRegistryData();
+        const host = buildHostApi({
+            pluginId: "p",
+            manifest: manifest("p"),
+            registry,
+            appVersion: "1",
+        });
+        host.zam.ringtones.register(callTone("bell"));
+        expect(() => host.zam.ringtones.register(callTone("bell"))).toThrow(
+            /already registered/,
+        );
+        expect(() =>
+            host.zam.ringtones.register({
+                id: "bad:id",
+                name: "x",
+                start: () => {},
+                stop: () => {},
+            }),
+        ).toThrow(/\[plugin p\]/);
+        expect(registry.ringtones.length).toBe(1);
+    });
+
+    it("disposeAll removes the plugin's ringtones", () => {
+        const registry = createRegistryData();
+        const host = buildHostApi({
+            pluginId: "p",
+            manifest: manifest("p"),
+            registry,
+            appVersion: "1",
+        });
+        host.zam.ringtones.register(callTone("a"));
+        host.zam.ringtones.register(callTone("b"));
+        host.disposeAll();
+        expect(registry.ringtones.length).toBe(0);
+    });
+});
+
 describe("buildHostApi — zam.ui.addStyles", () => {
     const sheets = () =>
         Array.from(document.head.querySelectorAll("style[data-zam-css]")).map(

@@ -14,6 +14,8 @@ import {
     RING_MAX_MS,
     type RingHandle,
 } from "$lib/audio/soundEffects";
+import { startRingtoneFor } from "$lib/audio/ringtoneChoice";
+import { pluginRegistry } from "$lib/stores/plugins.svelte";
 import { settingsState } from "$lib/stores/settings.svelte";
 import { auth } from "$lib/stores/auth.svelte";
 import {
@@ -143,7 +145,17 @@ export function initIncomingCalls(): () => void {
                         auth.userId ?? "",
                     );
             } else {
-                ringHandle = startRingtone();
+                // The chosen ringtone (a plugin's, or the built-in one). A
+                // plugin's ring that fails falls back to the built-in tone.
+                ringHandle = startRingtoneFor(
+                    settingsState.ringtone,
+                    pluginRegistry.ringtones,
+                    startRingtone,
+                    {
+                        enabled: settingsState.ringEnabled,
+                        volume: settingsState.ringVolume,
+                    },
+                );
                 // Visible in-app card + ringtone: the native notification
                 // would only ring a second time over it. The system call keeps
                 // ringing, so a headset can still pick it up.

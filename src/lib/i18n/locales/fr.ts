@@ -2846,6 +2846,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.directMessagesRingRoomsNeverDo":
         "Les messages directs sonnent. Les salons jamais - vous les rejoignez depuis le salon lui-même.",
     "voiceAudioSettings.ringtoneVolume": "Volume de la sonnerie",
+    "voiceAudioSettings.ringtone": "Sonnerie",
+    "voiceAudioSettings.ringtoneDefault": "Par défaut",
+    "voiceAudioSettings.ringtonePluginOption": "{name} ({plugin})",
+    "voiceAudioSettings.ringtoneUnavailable":
+        "Sonnerie du module (module non chargé)",
     "voiceAudioSettings.fullScreenCalls":
         "Afficher les appels sur l'écran de verrouillage",
     "voiceAudioSettings.fullScreenCallsHint":

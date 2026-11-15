@@ -2918,6 +2918,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.directMessagesRingRoomsNeverDo":
         "Личные чаты звонят. Комнаты - никогда, к ним присоединяются из самой комнаты.",
     "voiceAudioSettings.ringtoneVolume": "Громкость рингтона",
+    "voiceAudioSettings.ringtone": "Рингтон",
+    "voiceAudioSettings.ringtoneDefault": "По умолчанию",
+    "voiceAudioSettings.ringtonePluginOption": "{name} ({plugin})",
+    "voiceAudioSettings.ringtoneUnavailable":
+        "Рингтон плагина (плагин не загружен)",
     "voiceAudioSettings.fullScreenCalls":
         "Показывать звонки на экране блокировки",
     "voiceAudioSettings.fullScreenCallsHint":

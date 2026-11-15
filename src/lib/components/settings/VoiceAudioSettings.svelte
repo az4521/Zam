@@ -24,6 +24,7 @@
         setCallSoundsVolume,
         setRingEnabled,
         setRingVolume,
+        setRingtone,
         setMirrorCamera,
         setPushToTalk,
         setCallVideoCodec,
@@ -67,7 +68,11 @@
         listMicFilters,
         micFilterUsable,
     } from "$lib/audio/micFilters";
-    import { pluginRegistry } from "$lib/stores/plugins.svelte";
+    import { pluginRegistry, getPluginHost } from "$lib/stores/plugins.svelte";
+    import {
+        pluginRingtoneOptions,
+        previewRingtone,
+    } from "$lib/audio/ringtoneChoice";
     import { playSpeakerTestTone } from "$lib/audio/speakerTest";
     import {
         playCallSound,
@@ -126,6 +131,19 @@
     let cameraError = $state<string | null>(null);
     // Why incoming-call OS alerts stay silent (blocked/unsupported), or null.
     let ringNotifyHint = $state<string | null>(null);
+    // Plugin ringtones for the picker, labelled "name (Plugin Name)".
+    const ringtoneOptions = $derived.by(() => {
+        void pluginRegistry.tick;
+        return pluginRingtoneOptions(pluginRegistry.ringtones).map((o) => ({
+            ...o,
+            label: t("voiceAudioSettings.ringtonePluginOption", {
+                name: o.name,
+                plugin:
+                    getPluginHost(o.pluginId)?.zam.plugin.manifest.name ??
+                    o.pluginId,
+            }),
+        }));
+    });
     // Android 14+: whether an incoming DM call may ring full screen over the
     // lock screen. Re-checked when the user comes back from system settings.
     let fullScreenCallsGranted = $state(true);
@@ -1091,6 +1109,43 @@
                 }}
                 onchange={() => playRingPreview()}
             />
+        </div>
+        <div
+            class="flex items-center gap-3 py-2 mt-3 border-t border-discord-divider"
+        >
+            <p class="flex-1 text-sm text-discord-textPrimary">
+                {t("voiceAudioSettings.ringtone")}
+            </p>
+            <select
+                aria-label={t("voiceAudioSettings.ringtone")}
+                class="max-w-[60%] bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1.5 border border-discord-divider focus:outline-none focus:ring-2 focus:ring-discord-accent"
+                value={settingsState.ringtone}
+                onchange={(e) => {
+                    const key = e.currentTarget.value;
+                    setRingtone(key);
+                    previewRingtone(
+                        key,
+                        pluginRegistry.ringtones,
+                        {
+                            enabled: settingsState.ringEnabled,
+                            volume: settingsState.ringVolume,
+                        },
+                        playRingPreview,
+                    );
+                }}
+            >
+                <option value=""
+                    >{t("voiceAudioSettings.ringtoneDefault")}</option
+                >
+                {#each ringtoneOptions as o (o.key)}
+                    <option value={o.key}>{o.label}</option>
+                {/each}
+                {#if settingsState.ringtone && !ringtoneOptions.some((o) => o.key === settingsState.ringtone)}
+                    <option value={settingsState.ringtone}
+                        >{t("voiceAudioSettings.ringtoneUnavailable")}</option
+                    >
+                {/if}
+            </select>
         </div>
     </section>
 </div>

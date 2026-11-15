@@ -2869,6 +2869,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.directMessagesRingRoomsNeverDo":
         "Direktnachrichten klingeln. Räume nie - denen trittst du im Raum selbst bei.",
     "voiceAudioSettings.ringtoneVolume": "Klingeltonlautstärke",
+    "voiceAudioSettings.ringtone": "Klingelton",
+    "voiceAudioSettings.ringtoneDefault": "Standard",
+    "voiceAudioSettings.ringtonePluginOption": "{name} ({plugin})",
+    "voiceAudioSettings.ringtoneUnavailable":
+        "Klingelton des Plugins (Plugin nicht geladen)",
     "voiceAudioSettings.fullScreenCalls":
         "Anrufe auf dem Sperrbildschirm anzeigen",
     "voiceAudioSettings.fullScreenCallsHint":

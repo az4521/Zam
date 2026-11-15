@@ -82,6 +82,10 @@ import {
     refreshCallUi,
 } from "./pluginCall.svelte";
 import { midiAvailable, openSynth, playSong } from "./pluginMidiApi";
+import {
+    ringtoneProblem,
+    stopPluginRingtonesOf,
+} from "../audio/ringtoneChoice";
 
 export interface BuildHostApiOptions {
     pluginId: string;
@@ -619,6 +623,29 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                 track(addEntry(registry, "micFilters", pluginId, filter)),
         },
 
+        ringtones: {
+            register: (ringtone) => {
+                const problem = ringtoneProblem(ringtone);
+                if (problem)
+                    throw new Error(
+                        `[plugin ${pluginId}] ringtones.register: ${problem}`,
+                    );
+                if (
+                    registry.ringtones.some(
+                        (e) =>
+                            e.pluginId === pluginId &&
+                            e.value.id === ringtone.id,
+                    )
+                )
+                    throw new Error(
+                        `[plugin ${pluginId}] ringtones.register: "${ringtone.id}" is already registered`,
+                    );
+                return track(
+                    addEntry(registry, "ringtones", pluginId, ringtone),
+                );
+            },
+        },
+
         native: {
             available: () => nativeAvailable(manifest, source),
             connect: () => connectNative(pluginId, manifest, source),
@@ -649,6 +676,8 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
         clearPluginCallData(pluginId);
         closeCallPanel(pluginId);
         closePluginPanelOf(pluginId);
+        // A ring this plugin is playing falls back to the built-in tone.
+        stopPluginRingtonesOf(pluginId);
     };
 
     return { zam, disposeAll, setSettings };

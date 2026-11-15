@@ -593,6 +593,9 @@ export const settingsState = $state({
      *  different wishes. */
     ringEnabled: readAccountBool("ringEnabled", true),
     ringVolume: readAccountNumber("ringVolume", 1),
+    /** The ringtone: "" for the built-in tone, or a plugin's `plugin:<id>:<ringtone>`
+     *  (see audio/ringtoneChoice.ts). */
+    ringtone: readAccountString("ringtone") ?? "",
     /** Per-user call volume/mute, keyed by user id. */
     participantAudio: parseAudioMap(readAccountString("participantAudio")),
     /** Theme color presets. */
@@ -923,6 +926,7 @@ export function reloadAccountSettings(): void {
     settingsState.callSoundsVolume = readAccountNumber("callSoundsVolume", 0.5);
     settingsState.ringEnabled = readAccountBool("ringEnabled", true);
     settingsState.ringVolume = readAccountNumber("ringVolume", 1);
+    settingsState.ringtone = readAccountString("ringtone") ?? "";
     settingsState.participantAudio = parseAudioMap(
         readAccountString("participantAudio"),
     );
@@ -1587,6 +1591,12 @@ export function setRingEnabled(value: boolean): void {
 export function setRingVolume(value: number): void {
     settingsState.ringVolume = Math.min(1, Math.max(0, value));
     writeAccountString("ringVolume", String(settingsState.ringVolume));
+}
+
+/** "" for the built-in ringtone, or a plugin ringtone's stable key. */
+export function setRingtone(key: string): void {
+    settingsState.ringtone = key;
+    writeAccountString("ringtone", key);
 }
 
 /** Per-user call volume/mute. Stored as one account-scoped JSON blob. */

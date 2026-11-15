@@ -2688,6 +2688,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.directMessagesRingRoomsNeverDo":
         "私信会响铃。房间从不响铃，你需要在房间里自行加入。",
     "voiceAudioSettings.ringtoneVolume": "铃声音量",
+    "voiceAudioSettings.ringtone": "铃声",
+    "voiceAudioSettings.ringtoneDefault": "默认",
+    "voiceAudioSettings.ringtonePluginOption": "{name}（{plugin}）",
+    "voiceAudioSettings.ringtoneUnavailable": "插件铃声（插件未加载）",
     "voiceAudioSettings.fullScreenCalls": "在锁屏上显示通话",
     "voiceAudioSettings.fullScreenCallsHint":
         "让私信来电像电话一样唤醒屏幕并全屏响铃。Android 会单独请求此权限。",

@@ -2812,6 +2812,11 @@ export const en = {
     "voiceAudioSettings.directMessagesRingRoomsNeverDo":
         "Direct messages ring. Rooms never do - you join those from the room itself.",
     "voiceAudioSettings.ringtoneVolume": "Ringtone volume",
+    "voiceAudioSettings.ringtone": "Ringtone",
+    "voiceAudioSettings.ringtoneDefault": "Default",
+    "voiceAudioSettings.ringtonePluginOption": "{name} ({plugin})",
+    "voiceAudioSettings.ringtoneUnavailable":
+        "Plugin ringtone (plugin not loaded)",
     "voiceAudioSettings.fullScreenCalls": "Show calls on the lock screen",
     "voiceAudioSettings.fullScreenCallsHint":
         "Lets an incoming DM call wake the screen and ring full screen, like a phone call. Android asks for this separately.",

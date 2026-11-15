@@ -2539,6 +2539,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.directMessagesRingRoomsNeverDo":
         "ダイレクトメッセージは鳴ります。ルームは鳴りません - ルームはルーム自体から参加します。",
     "voiceAudioSettings.ringtoneVolume": "着信音の音量",
+    "voiceAudioSettings.ringtone": "着信音",
+    "voiceAudioSettings.ringtoneDefault": "デフォルト",
+    "voiceAudioSettings.ringtonePluginOption": "{name} ({plugin})",
+    "voiceAudioSettings.ringtoneUnavailable":
+        "プラグインの着信音（プラグインが読み込まれていません）",
     "voiceAudioSettings.fullScreenCalls": "ロック画面に通話を表示",
     "voiceAudioSettings.fullScreenCallsHint":
         "着信DM通話で画面を点灯し、電話のように全画面で鳴らせるようにします。Androidでは別途許可が必要です。",

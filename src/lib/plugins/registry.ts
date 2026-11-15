@@ -38,6 +38,7 @@ import type {
     CallControl,
     CallPanelRegistration,
     CallTileDecoration,
+    PluginRingtone,
 } from "./types";
 
 export interface RegistryEntry<T> {
@@ -76,6 +77,7 @@ export interface PluginRegistryData {
     callControls: RegistryEntry<CallControl>[];
     callPanels: RegistryEntry<CallPanelRegistration>[];
     callTileDecorations: RegistryEntry<CallTileDecoration>[];
+    ringtones: RegistryEntry<PluginRingtone>[];
     tick: number;
     nextEntryId: number;
 }
@@ -115,6 +117,7 @@ export const EXTENSION_KINDS: ExtensionKind[] = [
     "callControls",
     "callPanels",
     "callTileDecorations",
+    "ringtones",
 ];
 
 export function createRegistryData(): PluginRegistryData {
@@ -148,6 +151,7 @@ export function createRegistryData(): PluginRegistryData {
         callControls: [],
         callPanels: [],
         callTileDecorations: [],
+        ringtones: [],
         tick: 0,
         nextEntryId: 1,
     };
