@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { swipeCommits, swipeSeparation, swipeSettleMs } from "./lightboxSwipe";
+import { swipeCommits, swipeSettleMs } from "./lightboxSwipe";
 
 describe("swipeCommits", () => {
     it("does not step on a short slow drag", () => {
@@ -49,16 +49,5 @@ describe("swipeSettleMs", () => {
     it("never goes below the minimum for negative or unknown sizes", () => {
         expect(swipeSettleMs(-50, 375)).toBe(150);
         expect(swipeSettleMs(100, 0)).toBe(150);
-    });
-});
-
-describe("swipeSeparation", () => {
-    it("is one viewport for an item that fits", () => {
-        expect(swipeSeparation(300, 400)).toBe(400);
-        expect(swipeSeparation(400, 400)).toBe(400);
-    });
-    it("clears a zoomed item off-screen", () => {
-        // A 1200px item 1000px from centre has its edge at 400px: the screen edge.
-        expect(swipeSeparation(1200, 400)).toBe(800);
     });
 });

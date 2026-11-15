@@ -105,11 +105,7 @@
     import { fade, scale as scaleTransition } from "svelte/transition";
     import { motionOK } from "$lib/utils/motionPreference";
     import { panLimit } from "$lib/utils/lightboxPan";
-    import {
-        swipeCommits,
-        swipeSeparation,
-        swipeSettleMs,
-    } from "$lib/utils/lightboxSwipe";
+    import { swipeCommits, swipeSettleMs } from "$lib/utils/lightboxSwipe";
     import { onMount, untrack } from "svelte";
 
     // Dynamic viewport units (dvw/dvh) are Safari 15.4+; before that a style
@@ -599,18 +595,14 @@
     const overlayPlaceholder = $derived(
         overlay ? placeholderStyle(overlay.item.placeholders ?? []) : "",
     );
-    /** How far the neighbour sits from the image's own position (see
-     *  swipeSeparation): farther for an image zoomed wider than the screen,
-     *  so it has slid fully off by the time the neighbour is centred. */
-    function neighbourGap(): number {
-        const w = imgEl ? (imgEl.offsetWidth * scale) / renderScale : 0;
-        return swipeSeparation(w, window.innerWidth);
-    }
-    // The overlay rides with the image: the neighbour sits beside the
-    // image's own position, and both move with the finger.
+    // The neighbour starts one viewport off the SCREEN's edge, not the
+    // image's: a zoomed image panned to its edge has its centre far to one
+    // side, and a neighbour placed beside that centre showed up on screen the
+    // moment the swipe began. A swipe only starts once the image's edge is in
+    // view, so moving both by one viewport also carries the image fully off.
     const overlayX = $derived(
         overlay && overlay.phase !== "handoff"
-            ? overlay.side * neighbourGap() + swipeDx + tx
+            ? overlay.side * window.innerWidth + swipeDx
             : 0,
     );
     const overlayTransition = $derived(
@@ -674,7 +666,7 @@
         }
         const side: -1 | 1 = dx < 0 ? 1 : -1;
         // Where the image's own track ends: off-screen, or back at the centre.
-        const end = commit ? -side * neighbourGap() - tx : 0;
+        const end = commit ? -side * width : 0;
         const ms = swipeSettleMs(Math.abs(end - swipeDx), width);
         swipeAnimMs = ms;
         swipeDx = end;

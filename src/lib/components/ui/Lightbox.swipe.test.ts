@@ -252,6 +252,31 @@ describe("Lightbox swipe", () => {
         settle();
     });
 
+    it("brings the neighbour in from off-screen when zoomed and panned to an edge", () => {
+        const img = render({ neighbours: { next: NEXT } });
+        for (let i = 0; i < 2; i++)
+            window.dispatchEvent(new KeyboardEvent("keydown", { key: "+" }));
+        flushSync();
+        // Pan all the way to the image's right edge (slack included).
+        drag(img, 360, 400, 0, 400);
+        settle();
+        drag(img, 360, 400, 0, 400);
+        settle();
+        pointer(img, "pointerdown", 300, 400);
+        pointer(img, "pointermove", 240, 400);
+        const neighbour = host!.querySelector(
+            `img[src="${NEXT.src}"]`,
+        ) as HTMLImageElement;
+        expect(neighbour).not.toBeNull();
+        // One viewport off the screen's edge, whatever the image's pan: placed
+        // beside the zoomed image's centre, it showed up on screen at once.
+        expect(neighbour.parentElement!.style.transform).toContain(
+            "translateX(315px)",
+        );
+        pointer(img, "pointerup", 240, 400);
+        settle();
+    });
+
     it("removes the neighbour when the swipe is cancelled", () => {
         const img = render({ neighbours: { next: NEXT } });
         drag(img, 300, 400, 280, 400); // too short to step
