@@ -13,11 +13,23 @@ export type Range = [from: number, to: number];
 export const INDEX_SYNC_REQUEST = "moe.crafty.zam.index_sync.request";
 export const INDEX_SYNC_BLOCK = "moe.crafty.zam.index_sync.block";
 
-/** Asks a device for the entries it has in the given ranges, per room. */
+/** Asks a device for the entries it has in the given ranges, per room.
+ *
+ * `audit` carries how many entries the asker holds per UTC day, per room. A
+ * hole the asker's coverage wrongly claims is covered (an index from before
+ * coverage existed, a message it couldn't decrypt) never shows up in
+ * `missing`; the counts let the other side spot it: a day where it holds
+ * more entries is sent whole. Optional, so older senders still parse. */
 export interface IndexSyncRequest {
     id: string;
     rooms: { roomId: string; missing: Range[] }[];
+    audit?: { roomId: string; days: DayCount[] }[];
 }
+
+/** [UTC day number (ms / DAY_MS, floored), entries held that day]. */
+export type DayCount = [day: number, count: number];
+
+export const DAY_MS = 24 * 60 * 60_000;
 
 /** One chunk of an answer. `data` is base64 of a deflate-raw JSON array of
  *  IndexEntry, the same bytes encodeBlock produces. */
@@ -35,6 +47,8 @@ const MAX_TOTAL = 1000;
 const MAX_DATA = 100_000;
 const MAX_ROOMS = 200;
 const MAX_RANGES = 50;
+/** Day counts one request may carry, across all its rooms. */
+export const MAX_AUDIT_DAYS = 2500;
 
 /** Whether a range has finite ends in order. */
 function validRange(r: Range): boolean {
@@ -306,7 +320,70 @@ export function parseSyncRequest(content: unknown): IndexSyncRequest | null {
         }
         out.push({ roomId, missing: ranges });
     }
-    return { id, rooms: out };
+    if (c.audit === undefined) return { id, rooms: out };
+    const audit = parseAudit(c.audit);
+    if (!audit) return null;
+    return { id, rooms: out, audit };
+}
+
+function parseAudit(v: unknown): IndexSyncRequest["audit"] | null {
+    if (!Array.isArray(v) || v.length > MAX_ROOMS) return null;
+    const out: NonNullable<IndexSyncRequest["audit"]> = [];
+    let total = 0;
+    for (const room of v) {
+        if (!room || typeof room !== "object") return null;
+        const r = room as Record<string, unknown>;
+        if (!nonEmptyString(r.roomId) || !Array.isArray(r.days)) return null;
+        total += r.days.length;
+        if (total > MAX_AUDIT_DAYS) return null;
+        const days: DayCount[] = [];
+        for (const d of r.days) {
+            if (!Array.isArray(d) || d.length !== 2) return null;
+            const [day, count] = d;
+            if (!isInt(day) || !isInt(count) || day < 0 || count < 0)
+                return null;
+            days.push([day, count]);
+        }
+        out.push({ roomId: r.roomId, days });
+    }
+    return out;
+}
+
+/** Entries per UTC day, oldest day first, only days with entries. */
+export function dayCounts(entries: IndexEntry[]): DayCount[] {
+    const counts = new Map<number, number>();
+    for (const e of entries) {
+        const day = Math.floor(e.t / DAY_MS);
+        counts.set(day, (counts.get(day) ?? 0) + 1);
+    }
+    return [...counts].sort((a, b) => a[0] - b[0]);
+}
+
+/** Days on which `mine` holds more entries than `theirs` (a day they don't
+ *  list counts as zero), newest first: what the other side is missing. */
+export function daysTheyLack(mine: DayCount[], theirs: DayCount[]): number[] {
+    const have = new Map(theirs);
+    return mine
+        .filter(([day, count]) => count > (have.get(day) ?? 0))
+        .map(([day]) => day)
+        .sort((a, b) => b - a);
+}
+
+/** Fit per-room day counts into one request: rooms in the order given, each
+ *  keeping its newest days, until MAX_AUDIT_DAYS is used up. */
+export function capAudit(
+    rooms: { roomId: string; days: DayCount[] }[],
+    max = MAX_AUDIT_DAYS,
+): { roomId: string; days: DayCount[] }[] {
+    const out: { roomId: string; days: DayCount[] }[] = [];
+    let left = max;
+    for (const { roomId, days } of rooms) {
+        if (left <= 0) break;
+        const kept = days.slice(Math.max(0, days.length - left));
+        left -= kept.length;
+        out.push({ roomId, days: kept });
+    }
+    return out;
 }
 
 /**

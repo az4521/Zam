@@ -12,6 +12,10 @@ import {
     parseSyncRequest,
     peerRefusal,
     windowRanges,
+    DAY_MS,
+    capAudit,
+    dayCounts,
+    daysTheyLack,
     type IndexSyncBlock,
     type Range,
 } from "./eventIndexSync";
@@ -645,5 +649,122 @@ describe("peerRefusal", () => {
         [{ allowed: false }, "session excluded by our settings"],
     ])("refuses %j", (patch, why) => {
         expect(peerRefusal({ ...ok, ...patch })).toBe(why);
+    });
+});
+
+describe("dayCounts", () => {
+    it("counts entries per UTC day, oldest first, skipping empty days", () => {
+        const es = [
+            entry("a", 3 * DAY_MS + 5),
+            entry("b", DAY_MS),
+            entry("c", 3 * DAY_MS + DAY_MS - 1),
+            entry("d", DAY_MS + 10),
+        ];
+        expect(dayCounts(es)).toEqual([
+            [1, 2],
+            [3, 2],
+        ]);
+    });
+
+    it("returns nothing for no entries", () => {
+        expect(dayCounts([])).toEqual([]);
+    });
+});
+
+describe("daysTheyLack", () => {
+    it("lists days where we hold more, newest first", () => {
+        expect(
+            daysTheyLack(
+                [
+                    [1, 5],
+                    [2, 3],
+                    [4, 7],
+                ],
+                [
+                    [1, 5],
+                    [2, 1],
+                ],
+            ),
+        ).toEqual([4, 2]);
+    });
+
+    it("ignores days where they hold as many or more", () => {
+        expect(daysTheyLack([[1, 2]], [[1, 9]])).toEqual([]);
+    });
+
+    it("treats an empty list from them as holding nothing", () => {
+        expect(daysTheyLack([[1, 1]], [])).toEqual([1]);
+    });
+});
+
+describe("capAudit", () => {
+    it("keeps whole rooms while under the cap", () => {
+        const rooms = [{ roomId: "!a", days: [[1, 1] as [number, number]] }];
+        expect(capAudit(rooms, 5)).toEqual(rooms);
+    });
+
+    it("keeps a room's newest days and drops later rooms when full", () => {
+        const days = (n: number) =>
+            Array.from({ length: n }, (_, i): [number, number] => [i, 1]);
+        const out = capAudit(
+            [
+                { roomId: "!a", days: days(3) },
+                { roomId: "!b", days: days(4) },
+                { roomId: "!c", days: days(2) },
+            ],
+            5,
+        );
+        expect(out).toEqual([
+            { roomId: "!a", days: days(3) },
+            {
+                roomId: "!b",
+                days: [
+                    [2, 1],
+                    [3, 1],
+                ],
+            },
+        ]);
+    });
+
+    it("keeps rooms with no entries, so the peer knows they hold nothing", () => {
+        expect(capAudit([{ roomId: "!a", days: [] }], 5)).toEqual([
+            { roomId: "!a", days: [] },
+        ]);
+    });
+});
+
+describe("parseSyncRequest audit", () => {
+    const base = { id: "req1", rooms: [] };
+
+    it("accepts day counts", () => {
+        const req = {
+            ...base,
+            audit: [{ roomId: "!r:x", days: [[20000, 3]] }],
+        };
+        expect(parseSyncRequest(req)).toEqual(req);
+    });
+
+    it("rejects malformed day counts", () => {
+        for (const days of [[[1]], [[1.5, 2]], [[-1, 2]], [["1", 2]], "x"]) {
+            expect(
+                parseSyncRequest({
+                    ...base,
+                    audit: [{ roomId: "!r:x", days }],
+                }),
+            ).toBeNull();
+        }
+    });
+
+    it("rejects too many day counts in total", () => {
+        const days = Array.from({ length: 1300 }, (_, i) => [i, 1]);
+        expect(
+            parseSyncRequest({
+                ...base,
+                audit: [
+                    { roomId: "!a", days },
+                    { roomId: "!b", days },
+                ],
+            }),
+        ).toBeNull();
     });
 });

@@ -19,8 +19,12 @@
 import { ClientEvent } from "matrix-js-sdk";
 import type { MatrixClient } from "matrix-js-sdk";
 import {
+    DAY_MS,
     INDEX_SYNC_BLOCK,
     INDEX_SYNC_REQUEST,
+    capAudit,
+    dayCounts,
+    daysTheyLack,
     entriesInRange,
     intersectRanges,
     packEntries,
@@ -46,6 +50,7 @@ import {
     getMissingRanges,
     holdBackfill,
     importPeerEntries,
+    indexedRoomIds,
     readEntriesInRanges,
 } from "./eventIndex";
 
@@ -57,6 +62,8 @@ const HOLD_MS = 2 * 60_000;
 const FOLLOW_UP_MS = 90_000;
 /** How long an unanswered request is remembered. */
 const REQUEST_TTL_MS = 30 * 60_000;
+/** Coming back to the page asks again when the last ask is this old. */
+const REASK_ON_VISIBLE_MS = 30 * 60_000;
 /** Chunks one answer may carry, so a huge index can't flood the homeserver. */
 const MAX_CHUNKS_PER_ANSWER = 400;
 const CHUNK_PAUSE_MS = 120;
@@ -142,7 +149,13 @@ export function attachIndexSync(client: MatrixClient): () => void {
 
     const requests = new Map<
         string,
-        { missing: Map<string, Range[]>; at: number }
+        {
+            missing: Map<string, Range[]>;
+            /** Rooms whose day counts went out: any covered stretch up to
+             *  `at` may come back for them. */
+            audited: Set<string>;
+            at: number;
+        }
     >();
     const assemblies = new Map<string, Assembly>();
     const canAnswer = createRateLimit(10);
@@ -239,27 +252,51 @@ export function attachIndexSync(client: MatrixClient): () => void {
         }
         const all = await getMissingRanges();
         status.roomsMissing = all.length;
-        const missing = all.slice(0, 200);
-        if (missing.length === 0) {
-            log("not asking: no holes in the index");
+        const missing = all.slice(0, 200).map((m) => ({
+            roomId: m.roomId,
+            missing: m.missing.slice(0, 50),
+        }));
+        // Coverage can claim what this device doesn't hold, so the holes
+        // above aren't the whole story: say what we hold per day, and a
+        // session holding more for a day sends it.
+        const now = Date.now();
+        const audit = capAudit(
+            await Promise.all(
+                indexedRoomIds()
+                    .slice(0, 200)
+                    .map(async (roomId) => ({
+                        roomId,
+                        days: dayCounts(
+                            await readEntriesInRanges(roomId, [[0, now]]),
+                        ),
+                    })),
+            ),
+        );
+        if (missing.length === 0 && audit.length === 0) {
+            log("not asking: no encrypted rooms indexed");
             return;
         }
         status.asks++;
-        const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
-        const now = Date.now();
+        const id = `${now.toString(36)}${Math.random().toString(36).slice(2)}`;
         for (const [k, v] of requests)
             if (now - v.at > REQUEST_TTL_MS) requests.delete(k);
         requests.set(id, {
-            missing: new Map(
-                missing.map((m) => [m.roomId, m.missing.slice(0, 50)]),
-            ),
+            missing: new Map(missing.map((m) => [m.roomId, m.missing])),
+            audited: new Set(audit.map((a) => a.roomId)),
             at: now,
         });
         // The server crawl is the costly way: give the answers time to land.
         holdBackfill(now + HOLD_MS);
         importedSinceAsk = false;
-        log(`asking ${targets.length} sessions about ${missing.length} rooms`);
-        await send(INDEX_SYNC_REQUEST, targets, { id, rooms: missing });
+        const days = audit.reduce((n, a) => n + a.days.length, 0);
+        log(
+            `asking ${targets.length} sessions: holes in ${missing.length} rooms, day counts for ${audit.length} rooms (${days} days)`,
+        );
+        await send(INDEX_SYNC_REQUEST, targets, {
+            id,
+            rooms: missing,
+            audit,
+        });
         // A capped answer leaves some missing: ask again while answers help.
         later(() => {
             if (importedSinceAsk) void ask().catch(warn);
@@ -280,13 +317,14 @@ export function attachIndexSync(client: MatrixClient): () => void {
         log(`${peer.deviceId} asks about ${request.rooms.length} rooms`);
         const target = [{ userId: ownUserId!, deviceId: peer.deviceId }];
         let chunks = 0;
-        for (const { roomId, missing } of request.rooms) {
-            const room = client.getRoom(roomId);
-            if (!room || !isRoomEncrypted(room)) continue;
-            const give = intersectRanges(await getCoverage(roomId), missing);
-            if (give.length === 0) continue;
-            const entries = await readEntriesInRanges(roomId, give);
-            // Newest first, a window at a time: each is all or nothing.
+        /** Send what we hold in `give` (covered by us), newest window
+         *  first. False once the answer is full. */
+        const sendRanges = async (
+            roomId: string,
+            give: Range[],
+            entries: IndexEntry[],
+        ): Promise<boolean> => {
+            // A window at a time: each is all or nothing.
             const windows = give
                 .flatMap((r) =>
                     windowRanges(
@@ -297,14 +335,15 @@ export function attachIndexSync(client: MatrixClient): () => void {
                 )
                 .sort((a, b) => b[1] - a[1]);
             for (const range of windows) {
-                if (stopped) return;
+                if (stopped) return false;
                 const blocks = await packEntries(
                     roomId,
                     request.id,
                     range,
                     entriesInRange(entries, [range]),
                 );
-                if (chunks + blocks.length > MAX_CHUNKS_PER_ANSWER) return;
+                if (chunks + blocks.length > MAX_CHUNKS_PER_ANSWER)
+                    return false;
                 for (const block of blocks) {
                     await send(INDEX_SYNC_BLOCK, target, { ...block });
                     chunks++;
@@ -312,8 +351,47 @@ export function attachIndexSync(client: MatrixClient): () => void {
                     await new Promise((r) => setTimeout(r, CHUNK_PAUSE_MS));
                 }
             }
-        }
-        log(`answered ${peer.deviceId} with ${chunks} chunks`);
+            return true;
+        };
+        const encrypted = (roomId: string): boolean => {
+            const room = client.getRoom(roomId);
+            return !!room && isRoomEncrypted(room);
+        };
+        let auditDays = 0;
+        const done = async (): Promise<void> => {
+            for (const { roomId, missing } of request.rooms) {
+                if (!encrypted(roomId)) continue;
+                const give = intersectRanges(
+                    await getCoverage(roomId),
+                    missing,
+                );
+                if (give.length === 0) continue;
+                const entries = await readEntriesInRanges(roomId, give);
+                if (!(await sendRanges(roomId, give, entries))) return;
+            }
+            for (const { roomId, days } of request.audit ?? []) {
+                if (!encrypted(roomId)) continue;
+                const coverage = await getCoverage(roomId);
+                if (coverage.length === 0) continue;
+                const entries = await readEntriesInRanges(roomId, coverage);
+                const lacking = daysTheyLack(dayCounts(entries), days);
+                if (lacking.length === 0) continue;
+                auditDays += lacking.length;
+                // Only the parts of each day we have covered ourselves.
+                const give = intersectRanges(
+                    coverage,
+                    lacking.map((d): Range => [
+                        d * DAY_MS,
+                        (d + 1) * DAY_MS - 1,
+                    ]),
+                );
+                if (!(await sendRanges(roomId, give, entries))) return;
+            }
+        };
+        await done();
+        log(
+            `answered ${peer.deviceId} with ${chunks} chunks (${auditDays} days it holds fewer of)`,
+        );
     }
 
     async function receive(payload: ReceivedToDevice): Promise<void> {
@@ -321,8 +399,14 @@ export function attachIndexSync(client: MatrixClient): () => void {
         if (!block) return;
         const asked = requests.get(block.id);
         const wanted = asked?.missing.get(block.roomId);
-        // Only answers to a request we made, for a range we asked about.
-        if (!wanted || !rangesCover(wanted, block.range))
+        // Only answers to a request we made: a range we asked about, or any
+        // stretch before the ask of a room whose day counts we sent.
+        const ok =
+            !!asked &&
+            ((!!wanted && rangesCover(wanted, block.range)) ||
+                (asked.audited.has(block.roomId) &&
+                    block.range[1] <= asked.at));
+        if (!ok)
             return log(`dropped a chunk nobody asked for (${block.roomId})`);
         if (!(await check(payload))) return;
         const key = `${block.id}|${block.roomId}|${block.range[0]}-${block.range[1]}`;
@@ -351,7 +435,9 @@ export function attachIndexSync(client: MatrixClient): () => void {
             MAX_ENTRIES_PER_WINDOW,
         );
         const added = await importPeerEntries(asm.roomId, asm.range, inRange);
-        importedSinceAsk = true;
+        // Only new entries make another ask worth it; empty windows would
+        // otherwise keep the asking going every FOLLOW_UP_MS.
+        if (added > 0) importedSinceAsk = true;
         status.entriesMerged += added;
         status.lastMergeAt = Date.now();
         log(`merged ${added} new entries for ${asm.roomId}`);
@@ -368,6 +454,16 @@ export function attachIndexSync(client: MatrixClient): () => void {
         run?.(payload).catch(warn);
     };
 
+    // A phone app is resumed far more often than started: ask again when the
+    // page comes back, if the last ask is old.
+    const onVisible = (): void => {
+        if (document.hidden) return;
+        const last = status.lastAskAt ?? 0;
+        if (Date.now() - last < REASK_ON_VISIBLE_MS) return;
+        later(() => void ask().catch(warn), FIRST_ASK_DELAY_MS);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
     client.on(
         ClientEvent.ReceivedToDeviceMessage as never,
         onToDevice as never,
@@ -381,6 +477,7 @@ export function attachIndexSync(client: MatrixClient): () => void {
     return () => {
         stopped = true;
         askNow = null;
+        document.removeEventListener("visibilitychange", onVisible);
         status.attached = false;
         client.off(
             ClientEvent.ReceivedToDeviceMessage as never,
