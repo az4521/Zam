@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.62.0
+
+✨ **New**
+
+- **Spoilered images:** tap an image waiting to be sent and turn on **Mark as spoiler**. Its filename gets a `SPOILER_` prefix, and it shows in the chat as a blank cover marked "Spoiler" until someone clicks it. Spoilers from Discord bridges and other apps that use the same filename prefix are covered too.
+- **Richer X/Twitter previews:** tweet links now show the full post text with line breaks and links, quoted posts, what a post replies to, polls, community notes, GIFs and like/repost counts. Links through FxTwitter mirrors (fxtwitter, fixupx, vxtwitter, fixvx) get the same card.
+
 ## v1.61.4
 
 ✨ **New**
