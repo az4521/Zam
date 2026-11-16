@@ -45,6 +45,12 @@ android {
         }
     }
     buildTypes {
+        // Its own package, so a debug build installs next to the release app
+        // (signed with a different key) instead of failing to update it.
+        debug {
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
