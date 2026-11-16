@@ -22,6 +22,32 @@ describe("nativeBitrateTarget", () => {
     });
 });
 
+describe("nativeBitrateTarget with realistic links", () => {
+    it("never raises the target above the picked bitrate", () => {
+        for (const avail of [5e6, 20e6, 60e6, 500e6]) {
+            expect(nativeBitrateTarget(4_000_000, avail)).toBeLessThanOrEqual(
+                4_000_000,
+            );
+        }
+    });
+
+    it("keeps a 4 Mbps pick on a 9 Mbps uplink", () => {
+        expect(nativeBitrateTarget(4_000_000, 9_000_000)).toBe(4_000_000);
+    });
+
+    it("holds a 4 Mbps pick on a 4.5 Mbps uplink to 3.825 Mbps", () => {
+        expect(nativeBitrateTarget(4_000_000, 4_500_000)).toBe(3_825_000);
+    });
+
+    it("holds a 51.5 Mbps pick on a 57 Mbps uplink to 48.45 Mbps", () => {
+        expect(nativeBitrateTarget(51_500_000, 57_000_000)).toBe(48_450_000);
+    });
+
+    it("holds a 51.5 Mbps pick on a 30 Mbps uplink to 25.5 Mbps", () => {
+        expect(nativeBitrateTarget(51_500_000, 30_000_000)).toBe(25_500_000);
+    });
+});
+
 describe("nativeBitrateChanged", () => {
     it("always sends the first value", () => {
         expect(nativeBitrateChanged(null, 3_000_000)).toBe(true);

@@ -12,14 +12,20 @@
 // WebRTC send more than it currently estimates.
 
 import { bitrateCeiling } from "$lib/utils/screenShareBitrate";
+import { MAX_UPLOAD_SAMPLE_BPS } from "$lib/utils/uploadSample";
 import { settingsState } from "$lib/stores/settings.svelte";
 
 const PEAK_KEY = "uploadEstimate:peak";
 
+/** A stored peak, kept within the largest plausible sample: one stored from
+ *  an older build can be an implausible multi-Gbps estimate, which would
+ *  otherwise hold the slider's ceiling far above any share bitrate. */
 function readPeak(): number | null {
     try {
         const n = Number(localStorage.getItem(PEAK_KEY));
-        return Number.isFinite(n) && n > 0 ? n : null;
+        return Number.isFinite(n) && n > 0
+            ? Math.min(n, MAX_UPLOAD_SAMPLE_BPS)
+            : null;
     } catch {
         return null;
     }
@@ -32,8 +38,9 @@ export const uploadEstimate = $state<{
     peak: number | null;
 }>({ live: null, peak: readPeak() });
 
-export function noteUploadEstimate(bps: number): void {
-    if (!Number.isFinite(bps) || bps <= 0) return;
+export function noteUploadEstimate(raw: number): void {
+    if (!Number.isFinite(raw) || raw <= 0) return;
+    const bps = Math.min(raw, MAX_UPLOAD_SAMPLE_BPS);
     uploadEstimate.live = bps;
     if (uploadEstimate.peak !== null && bps <= uploadEstimate.peak) return;
     uploadEstimate.peak = bps;
