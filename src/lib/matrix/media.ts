@@ -328,6 +328,12 @@ export async function prepareFileContent(
         if (thumb) {
             info.w = thumb.w;
             info.h = thumb.h;
+            // MSC4230: lets receivers skip a server thumbnail that would
+            // freeze it. Only claimed for formats the sniff can read.
+            if (thumb.animated) {
+                info.is_animated = true;
+                info["org.matrix.msc4230.is_animated"] = true;
+            }
         }
         if (thumb?.blob) {
             ownedClientOrThrow(owner);

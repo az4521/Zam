@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { fitThumbnail, THUMBNAIL_TARGET_BYTES } from "./imageThumbnail";
+import {
+    fitThumbnail,
+    isAnimatedImageInfo,
+    THUMBNAIL_TARGET_BYTES,
+} from "./imageThumbnail";
 
 // Fake encoder: bytes scale with pixel count and quality.
 const encoderFor = (bytesPerPixelAtFull: number) =>
@@ -47,5 +51,26 @@ describe("fitThumbnail", () => {
 
     it("returns null when the encoder never produces anything", async () => {
         expect(await fitThumbnail(800, 600, async () => null)).toBeNull();
+    });
+});
+
+describe("isAnimatedImageInfo", () => {
+    it("reads MSC4230 is_animated, stable and unstable", () => {
+        expect(isAnimatedImageInfo({ is_animated: true })).toBe(true);
+        expect(
+            isAnimatedImageInfo({ "org.matrix.msc4230.is_animated": true }),
+        ).toBe(true);
+        expect(isAnimatedImageInfo({ is_animated: false })).toBe(false);
+    });
+
+    it("treats an APNG mimetype as animated", () => {
+        expect(isAnimatedImageInfo({ mimetype: " image/APNG " })).toBe(true);
+        expect(isAnimatedImageInfo({ mimetype: "image/png" })).toBe(false);
+    });
+
+    it("ignores missing or malformed info", () => {
+        expect(isAnimatedImageInfo(undefined)).toBe(false);
+        expect(isAnimatedImageInfo(null)).toBe(false);
+        expect(isAnimatedImageInfo({ is_animated: "true" })).toBe(false);
     });
 });

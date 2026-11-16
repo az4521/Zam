@@ -12,7 +12,14 @@
  * Chromium (web, Electron, Android WebView) and Firefox. Safari's canvas does
  * not and hands back PNG instead, so that case drops to JPEG. AVIF would be
  * smaller still, but no browser canvas can encode it.
+ *
+ * An animation (GIF, APNG, animated WebP/AVIF) gets an animated WebP
+ * thumbnail instead, so a client that shows the thumbnail inline (any client
+ * in an encrypted room) shows it moving. It is not held to the still budget,
+ * only to being smaller than the original; a still is the fallback.
  */
+import { shrinkAnimatedImage } from "./gifToWebp";
+import { animatedMime, fitSize, isAnimatedImage } from "./tileImage";
 
 /** Size budget for a thumbnail. */
 export const THUMBNAIL_TARGET_BYTES = 10 * 1024;
@@ -39,6 +46,43 @@ export interface ImageThumbnail {
     h: number;
     thumbW: number;
     thumbH: number;
+    /** Whether the source animates (MSC4230 `is_animated`). */
+    animated?: boolean;
+}
+
+/** Longest edge of an animated thumbnail: the tile is 512×384 CSS px. */
+export const ANIMATED_THUMBNAIL_EDGE = 640;
+
+// How much of the file the animation sniff looks at (see tileImage).
+const SNIFF_BYTES = 256 * 1024;
+
+/**
+ * Whether an `m.image`'s `info` says it animates, so the receiver should not
+ * show a server thumbnail (which drops the animation): MSC4230 `is_animated`
+ * (stable or unstable) or an explicit APNG type. GIFs are checked separately.
+ */
+export function isAnimatedImageInfo(info: unknown): boolean {
+    if (typeof info !== "object" || info === null) return false;
+    const i = info as Record<string, unknown>;
+    if (i.is_animated === true) return true;
+    if (i["org.matrix.msc4230.is_animated"] === true) return true;
+    const mime = typeof i.mimetype === "string" ? i.mimetype : "";
+    return mime.trim().toLowerCase() === "image/apng";
+}
+
+/**
+ * The animation MIME type of `file` when it animates, else null. Errs as
+ * isAnimatedImage does for formats it cannot walk; the transcode settles it.
+ */
+async function sniffAnimation(file: Blob): Promise<string | null> {
+    try {
+        const head = new Uint8Array(
+            await file.slice(0, SNIFF_BYTES).arrayBuffer(),
+        );
+        return isAnimatedImage(head) ? animatedMime(head) : null;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -89,7 +133,11 @@ function canvasToBlob(
  */
 export async function createImageThumbnail(
     file: Blob,
-): Promise<ImageThumbnail | { blob: null; w: number; h: number } | null> {
+): Promise<
+    | ImageThumbnail
+    | { blob: null; w: number; h: number; animated?: boolean }
+    | null
+> {
     // An SVG decodes through createImageBitmap in some engines only, and is
     // usually tiny anyway.
     if (file.type === "image/svg+xml") return null;
@@ -106,11 +154,42 @@ export async function createImageThumbnail(
         const w = bitmap.width;
         const h = bitmap.height;
         if (!w || !h) return null;
-        if (file.size < THUMBNAIL_MIN_SOURCE_BYTES) return { blob: null, w, h };
+        const animType = await sniffAnimation(file);
+        let animated = animType !== null;
+        if (file.size < THUMBNAIL_MIN_SOURCE_BYTES) {
+            return { blob: null, w, h, animated };
+        }
+        if (animType) {
+            const out = await shrinkAnimatedImage(file, animType, (sw, sh) =>
+                fitSize(
+                    sw,
+                    sh,
+                    ANIMATED_THUMBNAIL_EDGE,
+                    ANIMATED_THUMBNAIL_EDGE,
+                ),
+            );
+            if (out === "still") animated = false;
+            else if (out && out.size < file.size) {
+                const size = fitSize(
+                    w,
+                    h,
+                    ANIMATED_THUMBNAIL_EDGE,
+                    ANIMATED_THUMBNAIL_EDGE,
+                ) ?? { w, h };
+                return {
+                    blob: out,
+                    w,
+                    h,
+                    thumbW: size.w,
+                    thumbH: size.h,
+                    animated: true,
+                };
+            }
+        }
 
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
-        if (!ctx) return { blob: null, w, h };
+        if (!ctx) return { blob: null, w, h, animated };
         let type = "image/webp";
         const draw = (tw: number, th: number) => {
             canvas.width = tw;
@@ -137,8 +216,10 @@ export async function createImageThumbnail(
         };
         const fit = await fitThumbnail(w, h, encode);
         // Not worth sending one that saves nothing over the original.
-        if (!fit || fit.blob.size >= file.size) return { blob: null, w, h };
-        return { ...fit, w, h };
+        if (!fit || fit.blob.size >= file.size) {
+            return { blob: null, w, h, animated };
+        }
+        return { ...fit, w, h, animated };
     } catch {
         return null;
     } finally {

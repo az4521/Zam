@@ -32,6 +32,7 @@
     } from "$lib/matrix/progressiveImage";
     import { createFrameRelay, frameSink } from "$lib/utils/frameRelay";
     import { createTileImage } from "$lib/utils/tileImage";
+    import { isAnimatedImageInfo } from "$lib/utils/imageThumbnail";
     import {
         cacheDecryptedImage,
         cachedDecryptedImage,
@@ -759,7 +760,8 @@
             info?: { w?: unknown; h?: unknown; mimetype?: string };
         };
         const sender = videoPoster(c as Record<string, unknown>);
-        const isGifUpload = c.info?.mimetype === "image/gif";
+        const isGifUpload =
+            c.info?.mimetype === "image/gif" || isAnimatedImageInfo(c.info);
         // An SVG is a vector: the server's raster thumbnail would be small and
         // soft, so the viewer's stand-ins come from the full file instead.
         const isVectorUpload = isSvg(
@@ -1531,9 +1533,11 @@
     });
     const imageThumbUrl = $derived(() => {
         if (msgtype !== "m.image") return null;
-        // GIFs are served full-res in chat so they keep animating; the server
-        // thumbnail would (depending on homeserver) drop the animation.
-        if (isGif) return mxcToHttp(content?.url as string);
+        // GIFs, and anything flagged animated (MSC4230 / APNG), are served
+        // full-res in chat so they keep animating; the server thumbnail would
+        // (depending on homeserver) drop the animation.
+        if (isGif || isAnimatedImageInfo(content?.info))
+            return mxcToHttp(content?.url as string);
         // Homeservers generally can't thumbnail JPEG XL, so ask for the
         // original; utils/jxl transcodes it where the engine can't decode it.
         if (
