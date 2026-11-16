@@ -1,5 +1,6 @@
 import type { Track } from "livekit-client";
 import { runWithMediaTitle } from "$lib/utils/mediaTitle";
+import { nativeSharePreview } from "$lib/matrix/call/nativeShare";
 
 /**
  * Svelte action: attach a LiveKit video track to a <video> element for the
@@ -12,7 +13,19 @@ import { runWithMediaTitle } from "$lib/utils/mediaTitle";
 export function videoTrack(node: HTMLVideoElement, track: Track) {
     let current = track;
     let alive = true;
+    // A local native share shows its decoded preview (what is sent), not the
+    // placeholder the track publishes.
+    const detach = (t: Track) => {
+        if (nativeSharePreview(t)) node.srcObject = null;
+        else t.detach(node);
+    };
     const attach = (t: Track) => {
+        const preview = nativeSharePreview(t);
+        if (preview) {
+            node.srcObject = new MediaStream([preview]);
+            void node.play().catch(() => {});
+            return;
+        }
         const title = node.dataset.mediaTitle;
         // Attaching can wait its turn behind other players being named, so
         // it checks the track is still wanted when it gets there.
@@ -26,13 +39,13 @@ export function videoTrack(node: HTMLVideoElement, track: Track) {
     return {
         update(next: Track) {
             if (next === current) return;
-            current.detach(node);
+            detach(current);
             current = next;
             attach(current);
         },
         destroy() {
             alive = false;
-            current.detach(node);
+            detach(current);
         },
     };
 }

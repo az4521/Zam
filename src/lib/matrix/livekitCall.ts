@@ -22,6 +22,24 @@ import {
     SHARE_CROP_PROCESSOR,
     type ShareCropProcessor,
 } from "./call/shareCrop";
+import {
+    attachToE2EEWorker,
+    createNativeShareProcessor,
+    createSubstitutionWorker,
+    dropQueuedTransform,
+    NATIVE_SHARE_PROCESSOR,
+    nativeShareSupported,
+    publisherConnection,
+    queueSenderTransform,
+    senderHasTransform,
+    type NativeShareInfo,
+    type NativeShareProcessor,
+} from "./call/nativeShare";
+import {
+    nativeBitrateChanged,
+    nativeBitrateTarget,
+    nativeSenderBitrate,
+} from "$lib/utils/nativeShareBitrate";
 import { shareEncoderSteps } from "$lib/utils/shareCrop";
 import { matrixClient } from "./runtime";
 import { getDirectRoomIds, getRoomCallMemberships } from "./client";
@@ -168,6 +186,10 @@ import {
 import { matrixErrorMessage } from "$lib/utils/knock";
 import { shouldRingPeers } from "$lib/utils/callNotify";
 import {
+    configureNativeShare,
+    discardNativeSharePort,
+    nativeShareAvailable,
+    takeNativeSharePort,
     pickerOffersShareAudio,
     takeShareAudio,
     cancelShareAudioWait,
@@ -1882,6 +1904,8 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
               ...SEPARATE_PEER_CONNECTIONS,
           })
         : null;
+    // The worker that encodes this room's media, for a native screen share.
+    if (lkRoom && e2eeOptions) roomWorkers.set(lkRoom, e2eeOptions.worker);
     const local = lkRoom
         ? livekitLocalPublisher(lk, lkRoom)
         : standaloneLocalPublisher(lk, audioCaptureDefaults);
@@ -2335,6 +2359,9 @@ async function leaveVoiceCallInternal(): Promise<void> {
         // The room disconnect below unpublishes it; this stops the capture.
         stopShareAudio();
         cancelShareAudioWait();
+        // The native helper must not outlive the call.
+        discardNativeSharePort();
+        if (nativeShare?.call === call) void nativeShare.processor.destroy();
         // These only ever hold the call they belong to; dropping them here
         // keeps a finished call's LiveKit Room and audio elements collectable.
         audioInputGoneNotified = null;
@@ -2584,6 +2611,234 @@ function isUserCancel(err: unknown): boolean {
     );
 }
 
+/** A native screen share in progress (matrix/call/nativeShare.ts). */
+interface NativeShareState {
+    call: ActiveVoiceCall;
+    processor: NativeShareProcessor;
+    /** The track the helper's placeholder frames are sent on. */
+    track: MediaStreamTrack;
+    /** A plain call's substitution worker (its sender transform). */
+    worker: Worker | null;
+    /** The bitrate last sent to the helper. */
+    bitrate: number | null;
+    timer: ReturnType<typeof setInterval>;
+    /** What the helper reported it started with (encoder, size). */
+    helper: { info: NativeShareInfo | null };
+}
+let nativeShare: NativeShareState | null = null;
+/** Whether the share being started asked for the native helper. */
+let nativeRequested = false;
+/** Set once a native share failed here: later shares use the browser's
+ *  capture for the rest of the page session. */
+let nativeDisabled = false;
+/** Each SFU room's E2EE worker (the encoder of an encrypted room). */
+const roomWorkers = new WeakMap<LivekitRoom, Worker>();
+const NATIVE_PORT_WAIT_MS = 1500;
+const NATIVE_TUNE_MS = 2000;
+
+/** Whether the share being picked will use the native helper: the setting,
+ *  the Windows bridge, an SFU to publish to, and a way to substitute frames
+ *  in this room (the E2EE worker, or RTCRtpScriptTransform when plain). */
+function nativeWanted(call: ActiveVoiceCall): boolean {
+    return (
+        settingsState.nativeScreenShare &&
+        !nativeDisabled &&
+        !!call.lkRoom &&
+        nativeShareAvailable() &&
+        nativeShareSupported() &&
+        (call.e2ee !== null || typeof RTCRtpScriptTransform === "function")
+    );
+}
+
+/** Publish options of a native share: H.264 (the helper's codec), one layer,
+ *  and a frame-rate cap of twice the helper's, so the encoder never drops a
+ *  placeholder frame (each one carries an AU). */
+function nativeSharePublishOptions() {
+    const fps = Number(settingsState.screenShareFps);
+    return {
+        screenShareEncoding: {
+            maxBitrate: nativeSenderBitrate(screenShareBitrateNow()),
+            maxFramerate: fps * 2,
+        },
+        degradationPreference: "maintain-resolution" as const,
+        videoCodec: "h264" as const,
+        backupCodec: false as const,
+        simulcast: false,
+    };
+}
+
+/** Take the helper's port for the share just picked and wire its frames in:
+ *  into the E2EE worker, or as the sender's transform in a plain call. False
+ *  (the browser's capture is used) when any part is missing. */
+async function startNativeShare(
+    call: ActiveVoiceCall,
+    track: LivekitClient.LocalTrack,
+): Promise<boolean> {
+    const picked = await takeNativeSharePort(NATIVE_PORT_WAIT_MS);
+    if (!picked) {
+        console.warn(
+            "[native share] no helper port; using the browser's capture",
+        );
+        return false;
+    }
+    const giveUp = (why: string): boolean => {
+        console.warn(`[native share] ${why}; using the browser's capture`);
+        picked.port.postMessage({ cmd: "stop" });
+        picked.port.close();
+        return false;
+    };
+    const lkRoom = call.lkRoom;
+    if (!lkRoom || activeVoice !== call)
+        return giveUp("the call isn't publishing to an SFU");
+    const worker = call.e2ee ? roomWorkers.get(lkRoom) : undefined;
+    const pc = call.e2ee ? null : publisherConnection(lkRoom);
+    if (call.e2ee ? !worker : !pc)
+        return giveUp("this room has no way to substitute frames");
+
+    let processor: NativeShareProcessor | null = null;
+    const helper: { info: NativeShareInfo | null } = { info: null };
+    const helperCounts = { encoded: 0 };
+    processor = createNativeShareProcessor(picked.port, {
+        fps: Number(settingsState.screenShareFps),
+        onInfo: (info) => {
+            if (info.event === "started") helper.info = info;
+            else if (info.event === "stats") {
+                const enc = info.encoded ?? 0;
+                const perS = enc - helperCounts.encoded;
+                helperCounts.encoded = enc;
+                console.info(
+                    `[native share] helper: ${info.captureFps ?? "?"} captured/s, ${perS / 1} encoded/s, encode ${info.encodeMsAvg ?? "?"} ms avg`,
+                );
+            } else if (info.event === "preview")
+                console.info(`[native share] preview: ${info.message ?? ""}`);
+            else if (info.event === "writer")
+                console.info(
+                    `[native share] capture worker: ${info.aus ?? 0} AUs in, ${info.writes ?? 0} placeholders written (2 s)`,
+                );
+            else if (info.event === "error")
+                console.warn(
+                    `[native share] helper error: ${info.message ?? ""}`,
+                );
+        },
+        onEnded: (reason) => {
+            if (!processor || nativeShare?.processor !== processor) return;
+            console.warn(
+                `[native share] stopped: the helper ended (${reason}); the share is over`,
+            );
+            void setScreenShareEnabled(false);
+        },
+        onDestroy: () => {
+            if (processor) endNativeShare(processor);
+        },
+    });
+    // From here the port is ours to hand to a worker; no more messages to it.
+    if (!processor) {
+        picked.port.close();
+        return false;
+    }
+    try {
+        await (track as LivekitClient.LocalVideoTrack).setProcessor(processor);
+    } catch (err) {
+        console.error("Native share processor failed:", err);
+        await processor.destroy();
+        console.warn(
+            "[native share] the track wouldn't take the helper; using the browser's capture",
+        );
+        return false;
+    }
+    const sub = processor.takeSubstitutionPort();
+    const processed = processor.processedTrack;
+    if (!sub || !processed) {
+        await processor.destroy();
+        return false;
+    }
+    let transformWorker: Worker | null = null;
+    if (call.e2ee && worker) attachToE2EEWorker(worker, sub);
+    else if (pc) {
+        transformWorker = createSubstitutionWorker(sub);
+        queueSenderTransform(pc, processed, transformWorker);
+    }
+    const state: NativeShareState = {
+        call,
+        processor,
+        track: processed,
+        worker: transformWorker,
+        bitrate: null,
+        timer: setInterval(() => void tuneNativeBitrate(state), NATIVE_TUNE_MS),
+        helper,
+    };
+    nativeShare = state;
+    return true;
+}
+
+/** Log the confirmed start once the helper's started info is in (up to 3 s),
+ *  so the line carries the encoder and size. Skipped if the share ended. */
+async function logNativeShareStartedOnceInfo(
+    n: NativeShareState,
+): Promise<void> {
+    const end = Date.now() + 3000;
+    while (!n.helper.info && Date.now() < end && nativeShare === n)
+        await new Promise((resolve) => setTimeout(resolve, 50));
+    if (nativeShare === n) logNativeShareStarted(n);
+}
+
+/** The confirmed-start log line: the room kind and what the helper reported
+ *  (encoder and size). Called once the share is published and its sender
+ *  took the substitution. */
+function logNativeShareStarted(n: NativeShareState): void {
+    const info = n.helper.info;
+    const what = info
+        ? `${info.encoder ?? "encoder"} ${info.width}x${info.height}${info.hardware ? " (hardware)" : " (software)"}`
+        : "helper info not received yet";
+    console.info(
+        `[native share] started (${n.call.e2ee ? "encrypted room" : "plain room"}): ${what}`,
+    );
+}
+
+/** Forget a native share once its processor is gone. */
+function endNativeShare(processor: NativeShareProcessor): void {
+    const n = nativeShare;
+    if (!n || n.processor !== processor) return;
+    nativeShare = null;
+    clearInterval(n.timer);
+    dropQueuedTransform(n.track);
+    n.worker?.terminate();
+}
+
+/** Send the helper the bitrate its uplink allows, when that changed. */
+async function tuneNativeBitrate(n: NativeShareState): Promise<void> {
+    if (nativeShare !== n || activeVoice !== n.call) return;
+    const lkRoom = n.call.lkRoom;
+    const pcm = lkRoom
+        ? (
+              lkRoom.engine as unknown as {
+                  pcManager?: {
+                      publisher?: { getStats?: () => Promise<RTCStatsReport> };
+                  };
+              }
+          ).pcManager
+        : undefined;
+    const report = await pcm?.publisher?.getStats?.().catch(() => null);
+    let available: number | null = null;
+    if (report)
+        for (const s of Array.from(report.values())) {
+            const pair = s as RTCStats & {
+                nominated?: boolean;
+                availableOutgoingBitrate?: number;
+            };
+            if (
+                pair.type === "candidate-pair" &&
+                pair.nominated &&
+                typeof pair.availableOutgoingBitrate === "number"
+            )
+                available = pair.availableOutgoingBitrate;
+        }
+    const target = nativeBitrateTarget(screenShareBitrateNow(), available);
+    if (!nativeBitrateChanged(n.bitrate, target)) return;
+    n.bitrate = target;
+    n.processor.send({ cmd: "bitrate", bps: target });
+}
+
 /** The screen-share quality settings, to notice a change mid-picker. */
 function screenShareQualityKey(): string {
     return `${settingsState.screenShareResolution}|${settingsState.screenShareFps}|${screenShareBitrateNow()}`;
@@ -2599,6 +2854,24 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
     // (which offers the quality settings too) answers later: a change made
     // there is applied once the share is up.
     const startedWith = screenShareQualityKey();
+    if (!on && nativeShare?.call === call)
+        console.info("[native share] stopping: the share was turned off");
+    nativeRequested = on && nativeWanted(call);
+    if (on) {
+        const res = screenShareCaptureResolution(
+            settingsState.screenShareResolution,
+            Number(settingsState.screenShareFps),
+        );
+        configureNativeShare({
+            enabled: nativeRequested,
+            fps: res.frameRate,
+            bitrate: screenShareBitrateNow(),
+            maxWidth: res.width,
+            maxHeight: res.height,
+        });
+    } else {
+        discardNativeSharePort();
+    }
     try {
         await call.local.setScreenShareEnabled(
             on,
@@ -2619,6 +2892,10 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
                 contentHint: "detail",
             },
             async (track) => {
+                if (track.kind === "video" && nativeRequested) {
+                    if (await startNativeShare(call, track))
+                        return nativeSharePublishOptions();
+                }
                 if (track.kind === "video") await trimShareForGpu(track);
                 return {
                     screenShareEncoding: screenShareEncodingFor(
@@ -2632,6 +2909,23 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
                 };
             },
         );
+        if (on && nativeShare?.call === call && !call.e2ee && call.lkRoom) {
+            // A plain call's share is only substituted if its sender took the
+            // transform. If not, the placeholder would go out: stop and say so.
+            const n = nativeShare;
+            const pc = publisherConnection(call.lkRoom);
+            if (pc && !senderHasTransform(pc, n.track)) {
+                console.error(
+                    "[native share] the sender didn't take the substitution transform; using the browser's capture from now on",
+                );
+                nativeDisabled = true;
+                await setScreenShareEnabled(false);
+                notifyVoiceNotice(t("client.couldNotStartScreenShare"));
+                return false;
+            }
+        }
+        if (on && nativeShare?.call === call)
+            void logNativeShareStartedOnceInfo(nativeShare);
         if (on) void superviseShareEncoder(call);
         else shareSupervision++;
         if (on) void publishShareAudio(call);
@@ -2644,6 +2938,12 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
         return on;
     } catch (err) {
         if (on) cancelShareAudioWait();
+        if (nativeShare?.call === call) {
+            console.warn(
+                "[native share] stopped: the share failed to publish; using the browser's capture next time",
+            );
+            void nativeShare.processor.destroy();
+        }
         if (isUserCancel(err)) return false;
         console.error("Screen share failed:", err);
         // Left the call while the picker was open: LiveKit already dropped
@@ -2733,6 +3033,33 @@ async function applyScreenShareQualityNow(
     if (!call) return;
     const track = call.local.getTrack(call.lk.Track.Source.ScreenShare);
     if (!track) return;
+    const native = nativeShare;
+    if (native?.call === call && native.processor === track.getProcessor()) {
+        // The helper holds its capture size from the share's start, so only
+        // frame rate and bitrate move here (a new resolution applies to the
+        // next share).
+        const fps = Number(settingsState.screenShareFps);
+        try {
+            native.processor.send({ cmd: "fps", fps });
+            const params = track.sender?.getParameters();
+            if (
+                track.sender &&
+                params &&
+                applyScreenShareEncoding(params, {
+                    maxBitrate: nativeSenderBitrate(screenShareBitrateNow()),
+                    maxFramerate: fps * 2,
+                })
+            ) {
+                params.degradationPreference = "maintain-resolution";
+                await track.sender.setParameters(params);
+            }
+            native.bitrate = null;
+            await tuneNativeBitrate(native);
+        } catch (err) {
+            console.error("Native share quality change failed:", err);
+        }
+        return;
+    }
     // None on the mesh: there each connection has its own (connection.ts).
     const sender = track.sender;
     try {
@@ -3414,6 +3741,13 @@ function shareCodecOptions(
     call: ActiveVoiceCall,
     track: LivekitClient.LocalTrack,
 ) {
+    // The helper's frames are H.264 whatever the picks say.
+    if (track.getProcessor()?.name === NATIVE_SHARE_PROCESSOR)
+        return {
+            videoCodec: "h264" as const,
+            backupCodec: false as const,
+            simulcast: false,
+        };
     const options = shareCodecPick(call, track);
     return { ...options, simulcast: shareSimulcast(options.videoCodec) };
 }
@@ -3533,6 +3867,8 @@ async function superviseShareEncoder(call: ActiveVoiceCall): Promise<void> {
     const track = pub?.videoTrack;
     const first = pub?.options?.videoCodec as VideoCodec | undefined;
     if (!pub || !track || !first) return;
+    // A native share is H.264 with a fixed encoder: no ladder to walk.
+    if (track.getProcessor()?.name === NATIVE_SHARE_PROCESSOR) return;
     const live = () =>
         activeVoice === call &&
         generation === shareSupervision &&
@@ -3996,6 +4332,9 @@ async function republishVideo(
     const pub = lp.getTrackPublication(source);
     const track = pub?.videoTrack;
     if (!pub || !track) return;
+    // A native share's sender can't be rebuilt here (its transform would be
+    // lost), and it is H.264 already.
+    if (track.getProcessor()?.name === NATIVE_SHARE_PROCESSOR) return;
     const codecOptions =
         source === call.lk.Track.Source.ScreenShare
             ? shareCodecOptions(call, track)

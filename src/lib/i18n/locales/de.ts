@@ -2238,6 +2238,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Dein Upload liegt bei {upload}, daher geht dies bis {max}.",
     "screenShareQualityChips.bitrateUnmeasured":
         "Dein Upload wurde noch nicht gemessen. Er wird gemessen, während du Video sendest, daher geht dies vorerst bis {max}.",
+    "screenShareQualityChips.nativeCapture": "Windows-Aufnahmehilfe",
+    "screenShareQualityChips.nativeCaptureHint":
+        "Erfasst und kodiert die Freigabe außerhalb des Browsers, damit ein stark belastetes Spiel sie nicht ruckeln lässt. Gilt für die nächste Freigabe.",
     "screenShareQualityChips.shareSystemAudio": "Systemaudio teilen",
     "screenShareQualityChips.appliesToNextShare":
         "Gilt für die nächste Freigabe",

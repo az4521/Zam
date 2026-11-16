@@ -2378,6 +2378,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Ваша скорость отдачи измерена как {upload}, поэтому предел поднимается до {max}.",
     "screenShareQualityChips.bitrateUnmeasured":
         "Скорость вашей отдачи ещё не измерена. Она измеряется, пока вы отправляете видео, поэтому пока предел поднимается до {max}.",
+    "screenShareQualityChips.nativeCapture": "Помощник захвата Windows",
+    "screenShareQualityChips.nativeCaptureHint":
+        "Захватывает и кодирует трансляцию вне браузера, поэтому тяжелая игра её не подтормаживает. Применяется к следующей трансляции.",
     "screenShareQualityChips.shareSystemAudio": "Передавать системный звук",
     "screenShareQualityChips.appliesToNextShare":
         "Применится к следующей демонстрации",

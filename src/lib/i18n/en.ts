@@ -2297,6 +2297,9 @@ export const en = {
         "Your upload measures {upload}, so this goes up to {max}.",
     "screenShareQualityChips.bitrateUnmeasured":
         "Your upload hasn't been measured yet. It's measured while you send video, so this goes up to {max} for now.",
+    "screenShareQualityChips.nativeCapture": "Windows capture helper",
+    "screenShareQualityChips.nativeCaptureHint":
+        "Captures and encodes the share outside the browser, so a busy game doesn't stutter it. Applies to the next share.",
     "screenShareQualityChips.shareSystemAudio": "Share system audio",
     "screenShareQualityChips.appliesToNextShare": "Applies to next share",
     "screenShareQualityChips.shareSystemAudioAppliesToNext":

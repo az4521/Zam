@@ -6,9 +6,11 @@
         setScreenShareResolution,
         setScreenShareFps,
         setShareSystemAudio,
+        setNativeScreenShare,
         setScreenShareBitrate,
         setUploadSpeedOverride,
     } from "$lib/stores/settings.svelte";
+    import { nativeShareAvailable } from "$lib/desktopScreenShare";
     import {
         measuredUpload,
         screenShareBitrateCeiling,
@@ -40,6 +42,8 @@
     // Live mode = a share is currently running and onQualityChange adjusts it.
     // Setup mode = pre-share settings, onQualityChange is undefined.
     const isLive = $derived(onQualityChange !== undefined);
+    // The Windows desktop app's capture helper (matrix/call/nativeShare).
+    const nativeOffered = nativeShareAvailable();
 
     function pickRes(key: string): void {
         setScreenShareResolution(key);
@@ -298,4 +302,21 @@
                 : t("screenShareQualityChips.shareSystemAudio")}
         />
     </div>
+    {#if nativeOffered}
+        <div class="flex items-center justify-between gap-3">
+            <div>
+                <div class="text-sm text-discord-textPrimary">
+                    {t("screenShareQualityChips.nativeCapture")}
+                </div>
+                <div class="text-xs text-discord-textMuted mt-0.5">
+                    {t("screenShareQualityChips.nativeCaptureHint")}
+                </div>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.nativeScreenShare}
+                onChange={(v) => setNativeScreenShare(v)}
+                label={t("screenShareQualityChips.nativeCapture")}
+            />
+        </div>
+    {/if}
 </div>

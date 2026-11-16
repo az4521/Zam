@@ -48,6 +48,25 @@ ipcRenderer.on("share-audio:ready", (e, meta) => {
     for (const cb of shareAudioListeners) cb(info);
 });
 
+// Native window share (nativeShare.cjs). The helper's frames come over a
+// MessagePort posted to the page, tagged with the grant's request info;
+// src/lib/desktopScreenShare.ts takes it from there.
+ipcRenderer.on("native-share:port", (e, meta) => {
+    if (!meta || typeof meta !== "object" || !e.ports[0]) return;
+    const info = {
+        requestId: Number(meta.requestId),
+        width: Number(meta.width),
+        height: Number(meta.height),
+        encoder: typeof meta.encoder === "string" ? meta.encoder : "",
+        hardware: meta.hardware === true,
+    };
+    window.postMessage(
+        { tag: "zam:native-share-port", info },
+        window.location.origin,
+        [e.ports[0]],
+    );
+});
+
 contextBridge.exposeInMainWorld("desktop", {
     showWindow: () => ipcRenderer.send("show-window"),
     pluginNative: {
@@ -115,6 +134,10 @@ contextBridge.exposeInMainWorld("desktop", {
             return () => shareAudioListeners.delete(cb);
         },
         stopAudio: () => ipcRenderer.send("share-audio:stop"),
+        // Settings for the native window capture (nativeShare.cjs), sent
+        // before a share; main validates and applies them at the next grant.
+        configureNative: (cfg) =>
+            ipcRenderer.send("native-share:configure", cfg),
     },
     notify: {
         flash: () => ipcRenderer.send("notify:flash"),

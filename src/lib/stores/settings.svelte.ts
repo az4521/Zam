@@ -565,6 +565,10 @@ export const settingsState = $state({
     pushToTalk: readAccountBool("pushToTalk", true),
     /** Include system/tab audio when screen sharing. */
     shareSystemAudio: readAccountBool("shareSystemAudio", true),
+    /** Windows desktop: capture and encode a shared window or screen in the
+     *  native helper, not in Chromium (matrix/call/nativeShare). Only the
+     *  Windows desktop app offers it. */
+    nativeScreenShare: readAccountBool("nativeScreenShare", true),
     /** Screen-share capture target, applied when a share starts (a mid-share
      *  change would re-prompt the OS picker). Stored as strings for the
      *  <select>s; fps is parsed to a number at the call site. */
@@ -919,6 +923,10 @@ export function reloadAccountSettings(): void {
     settingsState.h264ProfileFix = readAccountBool("h264ProfileFix", true);
     settingsState.pushToTalk = readAccountBool("pushToTalk", true);
     settingsState.shareSystemAudio = readAccountBool("shareSystemAudio", true);
+    settingsState.nativeScreenShare = readAccountBool(
+        "nativeScreenShare",
+        true,
+    );
     settingsState.screenShareResolution =
         readAccountString("screenShareResolution") ?? "1080";
     settingsState.screenShareFps = readAccountString("screenShareFps") ?? "30";
@@ -1497,6 +1505,11 @@ export function setPushToTalk(value: boolean): void {
 export function setShareSystemAudio(value: boolean): void {
     settingsState.shareSystemAudio = value;
     writeAccountBool("shareSystemAudio", value);
+}
+
+export function setNativeScreenShare(value: boolean): void {
+    settingsState.nativeScreenShare = value;
+    writeAccountBool("nativeScreenShare", value);
 }
 
 export function setScreenShareResolution(value: string): void {

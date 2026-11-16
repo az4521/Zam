@@ -13,7 +13,48 @@ import {
     type AudioFrameLike,
     type RedundancyConfig,
 } from "./stages";
-import { ZAM_REDUNDANCY } from "./protocol";
+import { ZAM_NATIVE_SHARE, ZAM_REDUNDANCY } from "./protocol";
+import {
+    isNativePlaceholder,
+    NativeSubstitute,
+    type EncodedFrameLike,
+} from "$lib/utils/nativeShareSubstitute";
+
+/** The native screen share's substitution, once a port is attached
+ *  (matrix/call/nativeShare.ts). Null otherwise: frames pass untouched. */
+let nativeShare: NativeSubstitute | null = null;
+
+/** Replaces each native-share placeholder frame's data with the helper's next
+ *  access unit (utils/nativeShareSubstitute). Frames that are not
+ *  placeholders, audio included, go through unchanged. */
+function nativeShareStage(): TransformStream<
+    EncodedFrameLike & AudioFrameLike,
+    EncodedFrameLike & AudioFrameLike
+> {
+    return new TransformStream({
+        transform(frame, controller) {
+            const sub = nativeShare;
+            if (!sub || !isNativePlaceholder(frame)) {
+                controller.enqueue(frame);
+                return;
+            }
+            if (sub.substitute(frame)) controller.enqueue(frame);
+            // Otherwise dropped: no AU was ready for this placeholder.
+        },
+    });
+}
+
+function attachNativeShare(port: MessagePort): void {
+    const sub = new NativeSubstitute({
+        requestKey: () => port.postMessage({ req: "key" }),
+    });
+    nativeShare = sub;
+    port.onmessage = (ev: MessageEvent<{ au?: unknown } | null>) => {
+        const au = ev.data?.au as
+            { key: boolean; data: ArrayBuffer; ts?: number } | undefined;
+        if (au && nativeShare === sub) sub.push(au);
+    };
+}
 
 interface FrameCtor {
     new (
@@ -54,6 +95,8 @@ interface StreamMessage {
         codec?: string;
         readableStream?: ReadableStream<AudioFrameLike>;
         writableStream?: WritableStream<AudioFrameLike>;
+        /** Set with ZAM_NATIVE_SHARE. */
+        port?: MessagePort;
     };
 }
 
@@ -64,10 +107,20 @@ self.addEventListener("message", (ev) => {
     if (msg.kind === ZAM_REDUNDANCY) {
         const depth = Number(data.depth);
         config.depth = Number.isFinite(depth) ? Math.max(0, depth | 0) : 0;
+    } else if (msg.kind === ZAM_NATIVE_SHARE) {
+        if (data.port) attachNativeShare(data.port);
     } else if (msg.kind === "encode" && data.readableStream) {
-        data.readableStream = data.readableStream.pipeThrough(
-            senderStage(config),
-        );
+        // Every outgoing stream goes through the native-share stage first
+        // (a pass-through unless a share's port is attached), then the
+        // redundancy stage (video frames pass through that one untouched).
+        data.readableStream = data.readableStream
+            .pipeThrough(
+                nativeShareStage() as TransformStream<
+                    AudioFrameLike,
+                    AudioFrameLike
+                >,
+            )
+            .pipeThrough(senderStage(config));
     } else if (
         msg.kind === "decode" &&
         data.writableStream &&

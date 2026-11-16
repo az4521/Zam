@@ -2061,6 +2061,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "アップロードの実測値は {upload} なので、最大 {max} まで上がります。",
     "screenShareQualityChips.bitrateUnmeasured":
         "アップロードはまだ測定されていません。ビデオ送信中に測定されるため、当面は最大 {max} までです。",
+    "screenShareQualityChips.nativeCapture": "Windows キャプチャヘルパー",
+    "screenShareQualityChips.nativeCaptureHint":
+        "ブラウザの外で共有をキャプチャしてエンコードするため、負荷の高いゲーム中も映像がかくつきません。次の共有から適用されます。",
     "screenShareQualityChips.shareSystemAudio": "システム音声を共有",
     "screenShareQualityChips.appliesToNextShare": "次回の共有に適用",
     "screenShareQualityChips.shareSystemAudioAppliesToNext":

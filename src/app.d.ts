@@ -309,6 +309,16 @@ declare global {
                 ) => () => void;
                 /** Stop the share-audio capture. */
                 stopAudio?: () => void;
+                /** Native Windows capture helper, set up before each share
+                 *  (electron/ native-share). Its port comes separately, posted
+                 *  to the window as "zam:native-share-port". */
+                configureNative?: (cfg: {
+                    enabled: boolean;
+                    fps: number;
+                    bitrate: number;
+                    maxWidth: number;
+                    maxHeight: number;
+                }) => void;
             };
             notify?: {
                 flash: () => void;

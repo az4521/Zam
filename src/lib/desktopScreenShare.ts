@@ -191,3 +191,110 @@ export function releaseShareAudio(result: ShareAudioResult): void {
 export function stopShareAudioCapture(): void {
     bridge()?.stopAudio?.();
 }
+
+/** What the native capture helper is set up with, before each share. */
+export interface NativeShareSetup {
+    enabled: boolean;
+    fps: number;
+    bitrate: number;
+    maxWidth: number;
+    maxHeight: number;
+}
+
+/** What the helper reported when it started (its info JSON, see
+ *  electron/ native-share). */
+export interface NativeShareStart {
+    requestId?: number;
+    width?: number;
+    height?: number;
+    encoder?: string;
+    hardware?: boolean;
+}
+
+/** A helper started for the picked share: the port to its AUs. */
+export interface NativeSharePort {
+    info: NativeShareStart;
+    port: MessagePort;
+}
+
+const NATIVE_PORT_TAG = "zam:native-share-port";
+/** Main posts the helper's port to the window with this tag. */
+let nativePort: NativeSharePort | null = null;
+let nativeWaiter: ((p: NativeSharePort | null) => void) | null = null;
+let nativeListening = false;
+
+function listenNative(): void {
+    if (nativeListening || typeof window === "undefined") return;
+    nativeListening = true;
+    window.addEventListener("message", (e: MessageEvent) => {
+        if (e.source !== window || !e.data || typeof e.data !== "object")
+            return;
+        const data = e.data as { tag?: unknown; info?: unknown };
+        if (data.tag !== NATIVE_PORT_TAG || !e.ports[0]) return;
+        const next: NativeSharePort = {
+            info: (data.info as NativeShareStart) ?? {},
+            port: e.ports[0],
+        };
+        const waiter = nativeWaiter;
+        if (waiter) {
+            nativeWaiter = null;
+            waiter(next);
+        } else {
+            // Kept for takeNativeSharePort; a newer one replaces it.
+            nativePort?.port.close();
+            nativePort = next;
+        }
+    });
+}
+
+/** Whether this is the Windows desktop app and its bridge can run the native
+ *  capture helper (the main process decides whether the helper exists). */
+export function nativeShareAvailable(): boolean {
+    const platform =
+        typeof window !== "undefined"
+            ? (window.desktop?.pluginNative?.platform ?? "")
+            : "";
+    return !!bridge()?.configureNative && platform.startsWith("win32");
+}
+
+/** Set up the native capture helper for the next share. Any port from an
+ *  earlier share that nobody took is stopped. No-op without the bridge. */
+export function configureNativeShare(cfg: NativeShareSetup): void {
+    discardNativeSharePort();
+    listenNative();
+    bridge()?.configureNative?.(cfg);
+}
+
+/** The helper port for the share just picked: the most recent one received
+ *  since the last configureNativeShare, waiting up to timeoutMs for it. Null
+ *  when none came (the share then runs on Chromium's capture). */
+export function takeNativeSharePort(
+    timeoutMs = 1500,
+): Promise<NativeSharePort | null> {
+    if (nativePort) {
+        const p = nativePort;
+        nativePort = null;
+        return Promise.resolve(p);
+    }
+    if (!nativeListening) return Promise.resolve(null);
+    return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+            if (nativeWaiter === done) nativeWaiter = null;
+            resolve(null);
+        }, timeoutMs);
+        const done = (p: NativeSharePort | null) => {
+            clearTimeout(timer);
+            resolve(p);
+        };
+        nativeWaiter = done;
+    });
+}
+
+/** Stop a helper whose port nobody took (its share never started). */
+export function discardNativeSharePort(): void {
+    const p = nativePort;
+    nativePort = null;
+    if (!p) return;
+    p.port.postMessage({ cmd: "stop" });
+    p.port.close();
+}

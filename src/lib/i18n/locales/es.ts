@@ -2252,6 +2252,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Tu subida mide {upload}, así que esto llega hasta {max}.",
     "screenShareQualityChips.bitrateUnmeasured":
         "Tu subida aún no se ha medido. Se mide mientras envías vídeo, así que por ahora esto llega hasta {max}.",
+    "screenShareQualityChips.nativeCapture": "Asistente de captura de Windows",
+    "screenShareQualityChips.nativeCaptureHint":
+        "Captura y codifica la pantalla compartida fuera del navegador, para que un juego exigente no la entrecorte. Se aplica al próximo uso compartido.",
     "screenShareQualityChips.shareSystemAudio":
         "Compartir el audio del sistema",
     "screenShareQualityChips.appliesToNextShare":

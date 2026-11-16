@@ -49,6 +49,7 @@ const { createRichPresence } = require("./richPresence.cjs");
 const { createPresenceImages } = require("./presenceImages.cjs");
 const { linuxExeIconAsync, windowsSteamIcon } = require("./exeIcon.cjs");
 const { createAppAudio } = require("./appAudio.cjs");
+const { createNativeShare } = require("./nativeShare.cjs");
 const { resolveShareAudio } = require("./shareAudio.cjs");
 const { createFileLog } = require("./fileLog.cjs");
 const { createUpdateGuard } = require("./updateGuard.cjs");
@@ -1814,10 +1815,22 @@ const pendingShareRequests = new Map();
 const appAudio = createAppAudio(app);
 app.on("will-quit", () => appAudio.stop());
 ipcMain.on("share-audio:stop", () => appAudio.stop());
+// Native Windows window share (nativeShare.cjs): the page sends its settings
+// before each share; nativeShare sanitises them and applies them at the next
+// grant.
+const nativeShare = createNativeShare(app);
+app.on("will-quit", () => nativeShare.stop());
+ipcMain.on("native-share:configure", (e, cfg) => {
+    if (!mainWindow || e.sender !== mainWindow.webContents) return;
+    nativeShare.configure(cfg);
+});
 // A reload or a crashed page can't stop its share any more.
 app.on("web-contents-created", (_e, contents) => {
     const end = () => {
-        if (mainWindow && contents === mainWindow.webContents) appAudio.stop();
+        if (mainWindow && contents === mainWindow.webContents) {
+            appAudio.stop();
+            nativeShare.stop();
+        }
     };
     contents.on("render-process-gone", end);
     contents.on("did-navigate", end);
@@ -1890,6 +1903,19 @@ function resolveShareRequest(requestId, sourceId, sourceName, audioChoice) {
     if (plan.kind === "loopback") streams.audio = "loopback";
     try {
         pending.callback(streams);
+        // Fire and forget: maybeStart resolves false (never throws) when
+        // native share does not apply, and the page keeps Chromium's capture.
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            nativeShare
+                .maybeStart({
+                    requestId,
+                    sourceId,
+                    webContents: mainWindow.webContents,
+                })
+                .catch((err) =>
+                    console.error("native share start failed:", err),
+                );
+        }
     } catch (err) {
         console.error("screen-share grant failed:", err);
     }
