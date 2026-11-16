@@ -58,6 +58,20 @@ export function getCachedProfile(userId: string): ExtendedProfile | undefined {
 export function nameColourFor(userId: string): string | undefined {
     if (!userId || !settingsState.showNameColours) return undefined;
     requestProfile(userId);
+    return resolveNameColour(userId);
+}
+
+/**
+ * Like `nameColourFor`, but only from profiles some other view already
+ * loaded: never fetches. For long lists (the member list) where asking for
+ * every row would flood the homeserver. Reactive.
+ */
+export function cachedNameColourFor(userId: string): string | undefined {
+    if (!userId || !settingsState.showNameColours) return undefined;
+    return resolveNameColour(userId);
+}
+
+function resolveNameColour(userId: string): string | undefined {
     const preference = parseColourPreference(
         readField(getCachedProfile(userId), PROFILE_FIELDS.usernameColour),
     );

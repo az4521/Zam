@@ -15,6 +15,7 @@
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { openProfileCard } from "$lib/stores/profileCard.svelte";
     import { presenceFor } from "$lib/stores/presence.svelte";
+    import { cachedNameColourFor } from "$lib/stores/profileFields.svelte";
     import {
         presenceDot,
         presenceDotClass,
@@ -290,6 +291,7 @@
 )}
     {@const presence = presenceOf(member.userId)}
     {@const deco = decorationsOf(member.userId)}
+    {@const nameColour = cachedNameColourFor(member.userId)}
     {@const secondLine = [roleLabel, deco?.subtitle]
         .filter(Boolean)
         .join(" · ")}
@@ -315,9 +317,12 @@
         <div class="min-w-0 flex-1">
             <p class="flex items-center gap-1 min-w-0 text-sm leading-5">
                 <span
+                    style:color={nameColour}
                     class="font-medium truncate group-hover:text-discord-textPrimary transition-colors {muted
                         ? 'text-discord-textMuted'
-                        : 'text-discord-textPrimary'}"
+                        : 'text-discord-textPrimary'} {muted && nameColour
+                        ? 'opacity-60 group-hover:opacity-100'
+                        : ''}"
                 >
                     {memberDisplayName(member)}
                 </span>
