@@ -2675,6 +2675,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "threadPanel.loadOlderReplies": "Carregar respostas mais antigas",
 
     // src/lib/components/layout/ThreadsListPanel.svelte
+    "bridgedThreads.joinFailed": "Não foi possível entrar no tópico.",
+    "bridgedThreads.joinThread": "Entrar no tópico",
+    "bridgedThreads.threadRooms": "Salas de tópicos",
+    "bridgedThreads.thread": "Tópico",
+    "bridgedThreads.goToParent": "Ir para {name}",
+    "bridgedThreads.memberCount":
+        "{count, plural, one {# membro} other {# membros}}",
     "threadsListPanel.threads": "Tópicos",
     "threadsListPanel.closeThreadsPanel": "Fechar painel de tópicos",
     "threadsListPanel.noThreadsInThisRoomYet":

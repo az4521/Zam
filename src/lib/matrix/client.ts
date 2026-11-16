@@ -143,6 +143,15 @@ import {
 import { resolveDisplayName } from "$lib/utils/displayName";
 import { nestedSpaceIds, topLevelSpaceOf } from "$lib/utils/spaceTree";
 import {
+    THREAD_PARENT_TYPE,
+    buildBridgedThreadIndex,
+    parseSpaceChildThreadParent,
+    parseThreadParent,
+    stripThreadNamePrefix,
+    type BridgedThreadIndex,
+    type BridgedThreadParent,
+} from "$lib/utils/bridgedThreads";
+import {
     buildSnapshot,
     deleteSnapshot,
     deleteHierarchies,
@@ -2523,6 +2532,48 @@ export function getRoomsInSpace(spaceId: string): Room[] {
                 r.getMyMembership() === "join" &&
                 !pendingLeaves.has(r.roomId),
         );
+}
+
+// ── Bridged Discord threads (ZDMB; rules in utils/bridgedThreads.ts) ─────
+
+/**
+ * Every thread room known locally: joined thread rooms by their own
+ * `moe.crafty.zdmb.thread_parent` state, unjoined ones from the copy on their
+ * m.space.child event in a joined space. Callers cache it (stores/
+ * bridgedThreads.svelte.ts), since it walks every room and space.
+ */
+export function readBridgedThreadIndex(): BridgedThreadIndex {
+    const sources: { threadRoomId: string; parent: BridgedThreadParent }[] = [];
+    const fromSpaces: typeof sources = [];
+    for (const room of getRooms()) {
+        const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+        if (room.isSpaceRoom()) {
+            if (room.getMyMembership() !== "join") continue;
+            for (const ev of spaceChildEvents(room.roomId) ?? []) {
+                const childId = ev.getStateKey();
+                const parent = parseSpaceChildThreadParent(ev.getContent());
+                if (childId && parent)
+                    fromSpaces.push({ threadRoomId: childId, parent });
+            }
+            continue;
+        }
+        const ev = state?.getStateEvents(THREAD_PARENT_TYPE, "");
+        const parent = ev ? parseThreadParent(ev.getContent()) : null;
+        if (parent) sources.push({ threadRoomId: room.roomId, parent });
+    }
+    return buildBridgedThreadIndex([...sources, ...fromSpaces]);
+}
+
+/** A /hierarchy entry for `roomId` from any cached space listing (name,
+ *  member count and via for a room we have not joined). */
+export function findCachedHierarchyEntry(
+    roomId: string,
+): SpaceChildInfo | undefined {
+    for (const list of hierarchyCache.values()) {
+        const hit = list.find((r) => r.roomId === roomId);
+        if (hit) return hit;
+    }
+    return undefined;
 }
 
 export function getDirectRoomIds(): Set<string> {
@@ -5038,6 +5089,9 @@ export function getRoomDisplayName(room: Room): string {
         const inviter = getInviteSender(room);
         if (inviter) return room.getMember(inviter)?.name ?? inviter;
     }
+    // A Discord thread bridged by ZDMB: drop the bridge's "[⛓️] " name tag.
+    if (room.name && room.currentState.getStateEvents(THREAD_PARENT_TYPE, ""))
+        return stripThreadNamePrefix(room.name);
     return room.name || room.roomId;
 }
 

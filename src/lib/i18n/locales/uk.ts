@@ -2673,6 +2673,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "threadPanel.loadOlderReplies": "Завантажити старіші відповіді",
 
     // src/lib/components/layout/ThreadsListPanel.svelte
+    "bridgedThreads.joinFailed": "Не вдалося приєднатися до гілки.",
+    "bridgedThreads.joinThread": "Приєднатися до гілки",
+    "bridgedThreads.threadRooms": "Кімнати гілок",
+    "bridgedThreads.thread": "Гілка",
+    "bridgedThreads.goToParent": "Перейти до {name}",
+    "bridgedThreads.memberCount":
+        "{count, plural, one {# учасник} few {# учасники} many {# учасників} other {# учасника}}",
     "threadsListPanel.threads": "Гілки",
     "threadsListPanel.closeThreadsPanel": "Закрити панель гілок",
     "threadsListPanel.noThreadsInThisRoomYet": "У цій кімнаті ще немає гілок.",

@@ -2606,6 +2606,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "threadPanel.loadOlderReplies": "Charger les réponses plus anciennes",
 
     // src/lib/components/layout/ThreadsListPanel.svelte
+    "bridgedThreads.joinFailed": "Impossible de rejoindre le fil.",
+    "bridgedThreads.joinThread": "Rejoindre le fil",
+    "bridgedThreads.threadRooms": "Salons de fils",
+    "bridgedThreads.thread": "Fil",
+    "bridgedThreads.goToParent": "Aller à {name}",
+    "bridgedThreads.memberCount":
+        "{count, plural, one {# membre} other {# membres}}",
     "threadsListPanel.threads": "Fils",
     "threadsListPanel.closeThreadsPanel": "Fermer le panneau des fils",
     "threadsListPanel.noThreadsInThisRoomYet":

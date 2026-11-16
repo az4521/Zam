@@ -160,7 +160,11 @@
         Image,
         MoreHorizontal,
         X,
+        MessagesSquare,
+        ChevronRight,
     } from "lucide-svelte";
+    import { bridgedThreadParent } from "$lib/stores/bridgedThreads.svelte";
+    import { navigateToRoom } from "$lib/stores/rooms.svelte";
     import RoomHeaderOverflowMenu from "$lib/components/layout/RoomHeaderOverflowMenu.svelte";
     import RoomTopicSheet from "$lib/components/layout/RoomTopicSheet.svelte";
     import {
@@ -998,6 +1002,20 @@
     // (late-seeded federated joins, renames) — same reference, new name.
     const roomName = $derived(
         (void roomsState.roomsTick, getRoomDisplayName(room)),
+    );
+    // A Discord thread bridged by ZDMB: the header leads with its channel,
+    // like Discord's "#channel > thread". Only a joined channel (not a forum,
+    // which is a space) gets the link.
+    const threadParentRoom = $derived.by(() => {
+        void roomsState.roomsTick;
+        const parent = bridgedThreadParent(room.roomId);
+        const r = parent ? getRoom(parent.roomId) : null;
+        return r && !r.isSpaceRoom() && r.getMyMembership() === "join"
+            ? { roomId: r.roomId, name: getRoomDisplayName(r) }
+            : null;
+    });
+    const isBridgedThread = $derived(
+        (void roomsState.roomsTick, bridgedThreadParent(room.roomId) !== null),
     );
     // Re-reads the live Room's state; depends on roomsTick to refresh when the
     // m.room.encryption state event lands (the Room mutates in place).
@@ -2994,7 +3012,34 @@
                     {/if}
                 </button>
             {/if}
-            <Hash size={20} class="text-discord-textMuted flex-shrink-0" />
+            {#if threadParentRoom}
+                {@const parent = threadParentRoom}
+                <button
+                    onclick={() => navigateToRoom(parent.roomId)}
+                    class="hidden sm:flex items-center gap-1 min-w-0 max-w-[30%] text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                    title={t("bridgedThreads.goToParent", {
+                        name: parent.name,
+                    })}
+                >
+                    <Hash size={20} class="flex-shrink-0" />
+                    <span class="font-semibold truncate"
+                        >{@html renderPlainTextWithTwemoji(parent.name)}</span
+                    >
+                </button>
+                <ChevronRight
+                    size={16}
+                    class="hidden sm:block text-discord-textMuted flex-shrink-0 rtl:-scale-x-100"
+                />
+            {/if}
+            {#if isBridgedThread}
+                <MessagesSquare
+                    size={20}
+                    class="text-discord-textMuted flex-shrink-0"
+                    aria-label={t("bridgedThreads.thread")}
+                />
+            {:else}
+                <Hash size={20} class="text-discord-textMuted flex-shrink-0" />
+            {/if}
             <!-- 5rem floor below md only: the header's buttons cannot shrink, so
                  without a floor the name and topic each get a proportional share of
                  the deficit at 412px and neither renders even an ellipsis. Above md

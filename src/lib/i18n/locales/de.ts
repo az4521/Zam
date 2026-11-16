@@ -2633,6 +2633,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "threadPanel.loadOlderReplies": "Ältere Antworten laden",
 
     // src/lib/components/layout/ThreadsListPanel.svelte
+    "bridgedThreads.joinFailed": "Dem Thread konnte nicht beigetreten werden.",
+    "bridgedThreads.joinThread": "Thread beitreten",
+    "bridgedThreads.threadRooms": "Thread-Räume",
+    "bridgedThreads.thread": "Thread",
+    "bridgedThreads.goToParent": "Zu {name} wechseln",
+    "bridgedThreads.memberCount":
+        "{count, plural, one {# Mitglied} other {# Mitglieder}}",
     "threadsListPanel.threads": "Threads",
     "threadsListPanel.closeThreadsPanel": "Threadbereich schließen",
     "threadsListPanel.noThreadsInThisRoomYet":

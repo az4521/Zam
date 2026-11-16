@@ -70,6 +70,9 @@ const SLIDING_LIST_STATE: string[][] = [
     // Sound packs, likewise: a call offers its spaces' packs and those the
     // user enabled for every call (soundboard_rooms), wherever they live.
     ["moe.crafty.room_soundboard", "*"],
+    // ZDMB marks rooms bridged from Discord threads with their parent channel,
+    // which the room list needs to nest them (utils/bridgedThreads.ts).
+    ["moe.crafty.zdmb.thread_parent", ""],
     ["m.room.member", MSC3575_STATE_KEY_ME],
     // Calls: who is in each room's call (room-list rosters, DM ringing) and
     // the member events of whoever just sent something (the caller's join or

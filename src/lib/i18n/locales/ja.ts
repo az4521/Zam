@@ -2322,6 +2322,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "threadPanel.noRepliesYetStartTheThread":
         "まだ返信はありません。下からスレッドを始めてください。",
     "threadPanel.loadOlderReplies": "古い返信を読み込む",
+    "bridgedThreads.joinFailed": "スレッドに参加できませんでした。",
+    "bridgedThreads.joinThread": "スレッドに参加",
+    "bridgedThreads.threadRooms": "スレッドルーム",
+    "bridgedThreads.thread": "スレッド",
+    "bridgedThreads.goToParent": "{name} に移動",
+    "bridgedThreads.memberCount": "{count, plural, other {# 人のメンバー}}",
     "threadsListPanel.threads": "スレッド",
     "threadsListPanel.closeThreadsPanel": "スレッドパネルを閉じる",
     "threadsListPanel.noThreadsInThisRoomYet":

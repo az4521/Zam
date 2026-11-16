@@ -2583,6 +2583,14 @@ export const en = {
     "threadPanel.loadOlderReplies": "Load older replies",
 
     // src/lib/components/layout/ThreadsListPanel.svelte
+    // src/lib/stores/bridgedThreads.svelte.ts (ZDMB Discord threads)
+    "bridgedThreads.joinFailed": "Couldn't join the thread.",
+    "bridgedThreads.joinThread": "Join thread",
+    "bridgedThreads.threadRooms": "Thread rooms",
+    "bridgedThreads.thread": "Thread",
+    "bridgedThreads.goToParent": "Go to {name}",
+    "bridgedThreads.memberCount":
+        "{count, plural, one {# member} other {# members}}",
     "threadsListPanel.threads": "Threads",
     "threadsListPanel.closeThreadsPanel": "Close threads panel",
     "threadsListPanel.noThreadsInThisRoomYet": "No threads in this room yet.",

@@ -64,7 +64,13 @@
         Lock,
         Reply,
         Pencil,
+        ChevronRight,
+        MessagesSquare,
     } from "lucide-svelte";
+    import {
+        bridgedThreadForEvent,
+        openBridgedThread,
+    } from "$lib/stores/bridgedThreads.svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
     import ReactorPopover from "./ReactorPopover.svelte";
     import LinkPreview from "$lib/components/messages/LinkPreview.svelte";
@@ -103,6 +109,7 @@
         seedRoomStateIfMissing,
         getRoomIdForAlias,
         getThreadSummary,
+        getRoomUnreadInfo,
         getThreadName,
         getHomeserverBaseUrl,
         EventStatus,
@@ -2196,6 +2203,47 @@
         return getThreadName(room, eventId);
     });
 
+    // A Discord thread bridged by ZDMB that was started from this message
+    // (stores/bridgedThreads.svelte.ts). Memoised like threadSummary: one per
+    // row, and the lookup mints a fresh object on every roomsTick.
+    type BridgedChip = {
+        roomId: string;
+        name: string;
+        joined: boolean;
+        numMembers: number | null;
+        unread: boolean;
+        highlight: number;
+    };
+    let lastBridgedChip: BridgedChip | null = null;
+    const bridgedChip = $derived.by((): BridgedChip | null => {
+        void roomsState.roomsTick;
+        void roomsState.unreadTick;
+        const info = isThreadReply
+            ? null
+            : bridgedThreadForEvent(room.roomId, eventId);
+        if (!info) return (lastBridgedChip = null);
+        const counts = info.room
+            ? getRoomUnreadInfo(info.room)
+            : { unread: false, highlight: 0 };
+        const next: BridgedChip = {
+            roomId: info.roomId,
+            name: info.name,
+            joined: info.joined,
+            numMembers: info.numMembers,
+            unread: counts.unread,
+            highlight: counts.highlight,
+        };
+        const prev = lastBridgedChip;
+        if (
+            prev &&
+            (Object.keys(next) as (keyof BridgedChip)[]).every(
+                (k) => prev[k] === next[k],
+            )
+        )
+            return prev;
+        return (lastBridgedChip = next);
+    });
+
     // Links to other messages render as an embed of that message instead of
     // a homeserver URL preview (which would only show matrix.to's own page).
     const eventLinks = $derived.by(() => {
@@ -3625,6 +3673,51 @@
                             >&middot; {timeOnly(threadSummary.latestTs)}</span
                         >
                     {/if}
+                </button>
+            {/if}
+
+            <!-- Discord thread bridged by ZDMB from this message: opens (or
+                 joins, then opens) the thread's own room. -->
+            {#if bridgedChip}
+                {@const chip = bridgedChip}
+                <button
+                    onclick={() => void openBridgedThread(chip.roomId)}
+                    class="flex items-center gap-1.5 mt-0.5 max-w-full w-fit px-1.5 py-0.5 rounded text-xs text-discord-textMuted bg-discord-backgroundSecondary border border-discord-divider hover:text-discord-textPrimary hover:border-discord-accent/50 transition-colors"
+                    title={chip.joined
+                        ? t("messageItem.openThread")
+                        : t("bridgedThreads.joinThread")}
+                >
+                    <MessagesSquare size={12} class="flex-shrink-0" />
+                    <span
+                        class="font-semibold text-discord-textPrimary truncate max-w-48"
+                        >{chip.name}</span
+                    >
+                    {#if chip.numMembers !== null}
+                        <span class="flex-shrink-0">&middot;</span>
+                        <span class="flex-shrink-0"
+                            >{t("bridgedThreads.memberCount", {
+                                count: chip.numMembers,
+                            })}</span
+                        >
+                    {/if}
+                    {#if !chip.joined}
+                        <span class="flex-shrink-0">&middot;</span>
+                        <span class="flex-shrink-0 text-discord-accent"
+                            >{t("bridgedThreads.joinThread")}</span
+                        >
+                    {:else if chip.highlight > 0}
+                        <span
+                            class="flex-shrink-0 bg-discord-danger text-white font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
+                            >{chip.highlight > 99
+                                ? "99+"
+                                : chip.highlight}</span
+                        >
+                    {:else if chip.unread}
+                        <span
+                            class="flex-shrink-0 w-2 h-2 rounded-full bg-discord-textPrimary"
+                        ></span>
+                    {/if}
+                    <ChevronRight size={12} class="flex-shrink-0" />
                 </button>
             {/if}
 

@@ -19,7 +19,12 @@
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { pinnedDate } from "$lib/utils/timeFormat";
-    import { Circle } from "lucide-svelte";
+    import { ChevronRight, Circle, MessagesSquare } from "lucide-svelte";
+    import { getRoomUnreadInfo } from "$lib/matrix/client";
+    import {
+        bridgedThreadsOf,
+        openBridgedThread,
+    } from "$lib/stores/bridgedThreads.svelte";
 
     interface Props {
         room: Room;
@@ -70,6 +75,22 @@
         return buildThreadListItems(getRoomThreads(room));
     });
     const items = $derived(filterThreadListItems(allItems, filter));
+
+    // Discord threads bridged by ZDMB live in rooms of their own; "My
+    // threads" keeps the ones we have joined.
+    const bridged = $derived.by(() => {
+        void roomsState.roomsTick;
+        void roomsState.unreadTick;
+        return bridgedThreadsOf(room.roomId).map((info) => ({
+            ...info,
+            counts: info.room
+                ? getRoomUnreadInfo(info.room)
+                : { unread: false, highlight: 0 },
+        }));
+    });
+    const bridgedShown = $derived(
+        filter === "mine" ? bridged.filter((b) => b.joined) : bridged,
+    );
 </script>
 
 <div
@@ -118,13 +139,79 @@
     </div>
 
     <div class="flex-1 overflow-y-auto">
-        {#if loading && allItems.length === 0}
+        {#if bridgedShown.length > 0}
+            <div class="p-2 space-y-1 border-b border-discord-divider">
+                {#if items.length > 0}
+                    <p
+                        class="px-2 pt-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                    >
+                        {t("bridgedThreads.threadRooms")}
+                    </p>
+                {/if}
+                {#each bridgedShown as thread (thread.roomId)}
+                    <button
+                        onclick={() => {
+                            void openBridgedThread(thread.roomId);
+                            onClose();
+                        }}
+                        class="w-full text-start p-2 rounded-lg hover:bg-discord-messageHover transition-colors flex items-center gap-2"
+                        title={thread.joined
+                            ? t("messageItem.openThread")
+                            : t("bridgedThreads.joinThread")}
+                    >
+                        <MessagesSquare
+                            size={16}
+                            class="flex-shrink-0 text-discord-textMuted"
+                        />
+                        <div class="flex-1 min-w-0">
+                            <p
+                                class="text-sm truncate {thread.counts.unread
+                                    ? 'font-semibold text-discord-textPrimary'
+                                    : 'text-discord-textSecondary'}"
+                            >
+                                {thread.name}
+                            </p>
+                            <p class="text-xs text-discord-textMuted truncate">
+                                {#if thread.numMembers !== null}{t(
+                                        "bridgedThreads.memberCount",
+                                        { count: thread.numMembers },
+                                    )}{/if}{#if !thread.joined}{thread.numMembers !==
+                                    null
+                                        ? " · "
+                                        : ""}<span class="text-discord-accent"
+                                        >{t("bridgedThreads.joinThread")}</span
+                                    >{/if}
+                            </p>
+                        </div>
+                        {#if thread.counts.highlight > 0}
+                            <span
+                                class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
+                                title={t("threadsListPanel.unreadMentions")}
+                                >{thread.counts.highlight > 99
+                                    ? "99+"
+                                    : thread.counts.highlight}</span
+                            >
+                        {:else if thread.counts.unread}
+                            <span
+                                class="flex-shrink-0 w-2 h-2 rounded-full bg-discord-accent"
+                                title={t("threadsListPanel.unreadReplies")}
+                            ></span>
+                        {/if}
+                        <ChevronRight
+                            size={14}
+                            class="flex-shrink-0 text-discord-textMuted"
+                        />
+                    </button>
+                {/each}
+            </div>
+        {/if}
+        {#if loading && allItems.length === 0 && bridgedShown.length === 0}
             <div class="flex justify-center mt-8">
                 <div
                     class="w-5 h-5 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
                 ></div>
             </div>
-        {:else if items.length === 0}
+        {:else if items.length === 0 && bridgedShown.length === 0}
             <p class="text-sm text-discord-textMuted text-center mt-8 px-4">
                 {filter === "mine" && allItems.length > 0
                     ? t("threadsListPanel.noThreadsYouParticipatedIn")

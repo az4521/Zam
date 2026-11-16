@@ -2471,6 +2471,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "threadPanel.loadOlderReplies": "加载更早的回复",
 
     // src/lib/components/layout/ThreadsListPanel.svelte
+    "bridgedThreads.joinFailed": "无法加入消息列。",
+    "bridgedThreads.joinThread": "加入消息列",
+    "bridgedThreads.threadRooms": "消息列房间",
+    "bridgedThreads.thread": "消息列",
+    "bridgedThreads.goToParent": "前往 {name}",
+    "bridgedThreads.memberCount": "{count, plural, other {# 位成员}}",
     "threadsListPanel.threads": "消息列",
     "threadsListPanel.closeThreadsPanel": "关闭消息列面板",
     "threadsListPanel.noThreadsInThisRoomYet": "此房间中还没有消息列。",
