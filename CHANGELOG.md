@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.64.1
+
+✨ **New**
+
+- **Plugin debug tools:** plugins can add their own section to Settings → Debug, below Zam's debug tools (`zam.ui.addDebugSection`).
+
+🐛 **Fixed**
+
+- **Soundboard and other call data on desktop:** after the graphics process restarted, the desktop app ignored everything other people sent in a call besides audio and video, such as soundboard sounds. It now receives them again.
+- **Rich presence left behind on your profile:** what you're playing or listening to is now cleared when you close the app or sign out, and leftovers from a session that quit or crashed are cleared the next time you start.
+
 ## v1.64.0
 
 ✨ **New**
