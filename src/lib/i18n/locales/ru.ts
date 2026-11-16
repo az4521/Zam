@@ -1422,6 +1422,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.originalMessageDeleted": "Исходное сообщение удалено",
     "messageItem.originalMessageUnavailable": "Исходное сообщение недоступно",
     "messageItem.replyPreviewSticker": "Стикер",
+    "messageItem.forwarded": "Переслано",
+    "messageItem.forwardedFrom": "Переслано от {name}",
+    "messageItem.forwardedEmoteActor": "Отправитель",
     "messageItem.requestKeys": "Запросить ключи",
     "messageItem.keysRequested": "Ключи запрошены",
     "messageItem.requestKeysHelp":

@@ -318,7 +318,8 @@ import {
     buildPollEnd,
     affectsPollView,
 } from "$lib/utils/pollContent";
-import { buildForwardContent } from "$lib/utils/forwardContent";
+import { buildForwardContent, readForward } from "$lib/utils/forwarded";
+import { displayContent } from "$lib/utils/displayContent";
 import { buildCallNotifyPushRules } from "$lib/utils/callPushRule";
 import { buildLocationContent } from "$lib/utils/location";
 import { shouldWriteStopBeacon } from "$lib/utils/liveLocation";
@@ -4296,11 +4297,43 @@ export async function forwardMessage(
     if (eventType !== "m.room.message" && eventType !== "m.sticker") {
         throw new Error(t("client.thisEventTypeCannotBeForwarded"));
     }
-    await matrixClient.sendEvent(
-        roomId,
-        eventType as never,
-        buildForwardContent(event.getContent()) as never,
+    // MSC4553: attribution plus a copy of the original. Forwards are never
+    // edited, so a forward's own pre-edit content is the one to copy.
+    const original = event.getOriginalContent();
+    const isForward = readForward(original, eventType) !== null;
+    const sourceRoomId = event.getRoomId();
+    const sourceRoom = sourceRoomId ? matrixClient.getRoom(sourceRoomId) : null;
+    // A DM's name is the other person's; it should not travel with the
+    // message, and neither should its avatar.
+    const shareRoomName =
+        !!sourceRoom && !getDirectRoomIds().has(sourceRoom.roomId);
+    const content = buildForwardContent(
+        {
+            type: eventType,
+            content: isForward ? original : displayContent(event),
+            originalContent: original,
+            eventId: event.getId()?.startsWith("$") ? event.getId() : undefined,
+            roomId: sourceRoomId,
+            roomName: shareRoomName
+                ? getRoomDisplayName(sourceRoom!)
+                : undefined,
+            roomAvatarUrl: shareRoomName
+                ? (sourceRoom!.getMxcAvatarUrl() ?? undefined)
+                : undefined,
+            sender: event.getSender(),
+            ts: event.getTs() || undefined,
+        },
+        {
+            displayName: (userId) =>
+                sourceRoom ? getMemberName(sourceRoom, userId) : undefined,
+            via: (id) => {
+                const servers = roomViaServers(matrixClient?.getRoom(id));
+                const own = id.split(":").slice(1).join(":");
+                return own ? [...servers, own] : servers;
+            },
+        },
     );
+    await matrixClient.sendEvent(roomId, eventType as never, content as never);
 }
 
 /**

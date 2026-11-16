@@ -1418,6 +1418,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.originalMessageUnavailable":
         "Початкове повідомлення недоступне",
     "messageItem.replyPreviewSticker": "Стікер",
+    "messageItem.forwarded": "Переслано",
+    "messageItem.forwardedFrom": "Переслано від {name}",
+    "messageItem.forwardedEmoteActor": "Відправник",
     "messageItem.requestKeys": "Запитати ключі",
     "messageItem.keysRequested": "Ключі запитано",
     "messageItem.requestKeysHelp":

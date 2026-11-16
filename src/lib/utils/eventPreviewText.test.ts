@@ -5,6 +5,8 @@ import { eventPreviewText } from "./eventPreviewText";
 const ev = (content: Record<string, unknown>, type = "m.room.message") =>
     ({
         getContent: () => content,
+        getOriginalContent: () => content,
+        isRedacted: () => false,
         getType: () => type,
     }) as unknown as MatrixEvent;
 

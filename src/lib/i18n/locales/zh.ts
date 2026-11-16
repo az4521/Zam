@@ -1321,6 +1321,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.originalMessageDeleted": "原消息已删除",
     "messageItem.originalMessageUnavailable": "原消息不可用",
     "messageItem.replyPreviewSticker": "贴纸",
+    "messageItem.forwarded": "已转发",
+    "messageItem.forwardedFrom": "转发自 {name}",
+    "messageItem.forwardedEmoteActor": "发送者",
     "messageItem.requestKeys": "请求密钥",
     "messageItem.keysRequested": "已请求密钥",
     "messageItem.requestKeysHelp":

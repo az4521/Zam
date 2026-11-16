@@ -1188,6 +1188,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.originalMessageDeleted": "元のメッセージは削除されました",
     "messageItem.originalMessageUnavailable": "元のメッセージは利用できません",
     "messageItem.replyPreviewSticker": "ステッカー",
+    "messageItem.forwarded": "転送済み",
+    "messageItem.forwardedFrom": "{name} から転送",
+    "messageItem.forwardedEmoteActor": "送信者",
     "messageItem.requestKeys": "鍵をリクエスト",
     "messageItem.keysRequested": "鍵をリクエストしました",
     "messageItem.requestKeysHelp":

@@ -1284,6 +1284,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.originalMessageUnavailable":
         "Ursprüngliche Nachricht nicht verfügbar",
     "messageItem.replyPreviewSticker": "Sticker",
+    "messageItem.forwarded": "Weitergeleitet",
+    "messageItem.forwardedFrom": "Weitergeleitet von {name}",
+    "messageItem.forwardedEmoteActor": "Absender",
     "messageItem.requestKeys": "Schlüssel anfordern",
     "messageItem.keysRequested": "Schlüssel angefordert",
     "messageItem.requestKeysHelp":

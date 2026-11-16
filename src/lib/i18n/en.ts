@@ -1368,6 +1368,9 @@ export const en = {
     "messageItem.originalMessageDeleted": "Original message deleted",
     "messageItem.originalMessageUnavailable": "Original message unavailable",
     "messageItem.replyPreviewSticker": "Sticker",
+    "messageItem.forwarded": "Forwarded",
+    "messageItem.forwardedFrom": "Forwarded from {name}",
+    "messageItem.forwardedEmoteActor": "Sender",
     "messageItem.requestKeys": "Request keys",
     "messageItem.keysRequested": "Keys requested",
     "messageItem.requestKeysHelp":

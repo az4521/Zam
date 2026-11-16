@@ -1408,6 +1408,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.originalMessageDeleted": "Mensagem original excluída",
     "messageItem.originalMessageUnavailable": "Mensagem original indisponível",
     "messageItem.replyPreviewSticker": "Figurinha",
+    "messageItem.forwarded": "Encaminhada",
+    "messageItem.forwardedFrom": "Encaminhada de {name}",
+    "messageItem.forwardedEmoteActor": "Remetente",
     "messageItem.requestKeys": "Solicitar chaves",
     "messageItem.keysRequested": "Chaves solicitadas",
     "messageItem.requestKeysHelp":
