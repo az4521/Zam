@@ -2656,7 +2656,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "themeColorEditor.messageDisplay": "Отображение сообщений",
     "themeColorEditor.savedOnThisDeviceOnlyNot":
         "Сохраняется только на этом устройстве. Не синхронизируется с вашей учётной записью.",
-    "themeColorEditor.appTextSize": "Размер текста в приложении: {round}%",
+    "themeColorEditor.interfaceScale": "Масштаб интерфейса: {percent}%",
+    "themeColorEditor.messageTextScale": "Размер текста сообщений: {percent}%",
+    "themeColorEditor.messageTextScaleHint":
+        "Меняет только сообщения в чате и поле ввода.",
     "themeColorEditor.scalesAllTextAndSpacingAcross":
         "Масштабирует весь текст и отступы в приложении.",
     "themeColorEditor.font": "Шрифт",

@@ -2313,7 +2313,6 @@ const messages: Partial<Record<MessageKey, string>> = {
     "themeColorEditor.messageDisplay": "ܚܘܝܐ ܕܐܓܪ̈ܬܐ",
     "themeColorEditor.savedOnThisDeviceOnlyNot":
         "ܢܛܝܪܐ ܒܣ ܥܠ ܗܢܐ ܡܐܢܐ. ܠܐ ܐܚܝܕܐ ܝܠܗ ܥܡ ܚܘܫܒܢܐ ܕܝܘܟ.",
-    "themeColorEditor.appTextSize": "ܡܫܘܚܬܐ ܕܟܬܒܐ ܕܬܘܟܢܝܬܐ: {round}%",
     "themeColorEditor.scalesAllTextAndSpacingAcross":
         "ܡܫܚܠܦ ܡܫܘܚܬܐ ܕܟܠ ܟܬܒܐ ܘܦܘܪܫܐ ܒܟܠܗ̇ ܬܘܟܢܝܬܐ.",
     "themeColorEditor.font": "ܛܘܦܣܐ ܕܐܬ̈ܘܬܐ",

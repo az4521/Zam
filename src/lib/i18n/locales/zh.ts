@@ -2447,7 +2447,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "themeColorEditor.messageDisplay": "消息显示",
     "themeColorEditor.savedOnThisDeviceOnlyNot":
         "仅保存在此设备上，不会在你的账户间同步。",
-    "themeColorEditor.appTextSize": "应用文字大小：{round}%",
+    "themeColorEditor.interfaceScale": "界面缩放：{percent}%",
+    "themeColorEditor.messageTextScale": "消息文字大小：{percent}%",
+    "themeColorEditor.messageTextScaleHint": "仅缩放聊天消息和消息输入框。",
     "themeColorEditor.scalesAllTextAndSpacingAcross":
         "缩放整个应用的所有文字和间距。",
     "themeColorEditor.font": "字体",

@@ -2302,7 +2302,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "themeColorEditor.messageDisplay": "メッセージ表示",
     "themeColorEditor.savedOnThisDeviceOnlyNot":
         "このデバイスにのみ保存されます。アカウント間では同期されません。",
-    "themeColorEditor.appTextSize": "アプリの文字サイズ: {round}%",
+    "themeColorEditor.interfaceScale": "インターフェースの倍率: {percent}%",
+    "themeColorEditor.messageTextScale": "メッセージの文字サイズ: {percent}%",
+    "themeColorEditor.messageTextScaleHint":
+        "チャットのメッセージと入力欄だけを拡大縮小します。",
     "themeColorEditor.scalesAllTextAndSpacingAcross":
         "アプリ全体の文字と余白を拡大縮小します。",
     "themeColorEditor.font": "フォント",

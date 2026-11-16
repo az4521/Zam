@@ -74,9 +74,12 @@ import {
     type ThemeBase,
 } from "$lib/utils/themePreset";
 import {
-    resolveMessageFontSize,
     resolveMessageFont,
-    applyAppTextScale,
+    resolveStoredInterfaceScale,
+    resolveInterfaceScale,
+    resolveMessageTextScale,
+    applyInterfaceScale,
+    applyMessageTextScale,
     applyMessageFont,
     type MessageFontKey,
 } from "$lib/utils/messageDisplay";
@@ -388,8 +391,16 @@ export const settingsState = $state({
      *  theme. Empty by default; the switch lets it be paused without losing it. */
     customCss: readString("customCss") ?? "",
     customCssEnabled: readBool("customCssEnabled", true),
-    /** Device-local app-wide text scale, stored as px (12-24, default 16 = 100%). Drives the root font-size so all text + spacing scale. NOT synced. */
-    messageFontSize: resolveMessageFontSize(readString("messageFontSize")),
+    /** Device-local whole-UI scale in percent (75-150, step 5, default 100).
+     *  Drives the root font-size. Falls back to migrating the legacy
+     *  `messageFontSize` px key when `interfaceScale` was never written. NOT synced. */
+    interfaceScale: resolveStoredInterfaceScale(
+        readString("interfaceScale"),
+        readString("messageFontSize"),
+    ),
+    /** Device-local chat message + composer text scale in percent (80-200,
+     *  step 10, default 100). Drives --message-text-scale. NOT synced. */
+    messageTextScale: resolveMessageTextScale(readString("messageTextScale")),
     /** Device-local message font family key ("system" | "inter" | "atkinson").
      *  NOT synced: a bundled font binary cannot ride the JSON theme sync. */
     messageFont: resolveMessageFont(readString("messageFont")),
@@ -644,9 +655,10 @@ applyCustomCss();
 // their own attribute. The message editors set theirs explicitly.
 applySpellCheck(settingsState.spellCheckEnabled);
 
-// Boot apply: reflect the stored message text size + font onto the root so
-// the timeline is sized/styled before first paint, mirroring applyReduceMotion.
-applyAppTextScale(settingsState.messageFontSize);
+// Boot apply: reflect the stored interface + message text scales and font onto
+// the root so the UI is sized/styled before first paint, mirroring applyReduceMotion.
+applyInterfaceScale(settingsState.interfaceScale);
+applyMessageTextScale(settingsState.messageTextScale);
 applyMessageFont(settingsState.messageFont);
 
 // Boot apply: register the uploaded custom font (if any) from IndexedDB, then
@@ -1180,11 +1192,18 @@ export function setReduceMotion(value: boolean): void {
     applyReduceMotion(value);
 }
 
-export function setMessageFontSize(px: number): void {
-    const size = resolveMessageFontSize(px);
-    settingsState.messageFontSize = size;
-    writeString("messageFontSize", String(size));
-    applyAppTextScale(size);
+export function setInterfaceScale(percent: number): void {
+    const size = resolveInterfaceScale(percent);
+    settingsState.interfaceScale = size;
+    writeString("interfaceScale", String(size));
+    applyInterfaceScale(size);
+}
+
+export function setMessageTextScale(percent: number): void {
+    const size = resolveMessageTextScale(percent);
+    settingsState.messageTextScale = size;
+    writeString("messageTextScale", String(size));
+    applyMessageTextScale(size);
 }
 
 export function setMessageFont(key: MessageFontKey): void {

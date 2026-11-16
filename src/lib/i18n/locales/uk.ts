@@ -2649,7 +2649,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "themeColorEditor.messageDisplay": "Показ повідомлень",
     "themeColorEditor.savedOnThisDeviceOnlyNot":
         "Зберігається лише на цьому пристрої. Не синхронізується між вашими пристроями.",
-    "themeColorEditor.appTextSize": "Розмір тексту застосунку: {round}%",
+    "themeColorEditor.interfaceScale": "Масштаб інтерфейсу: {percent}%",
+    "themeColorEditor.messageTextScale":
+        "Розмір тексту повідомлень: {percent}%",
+    "themeColorEditor.messageTextScaleHint":
+        "Змінює лише повідомлення в чаті та поле введення.",
     "themeColorEditor.scalesAllTextAndSpacingAcross":
         "Масштабує весь текст і відступи в застосунку.",
     "themeColorEditor.font": "Шрифт",

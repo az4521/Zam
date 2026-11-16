@@ -11,7 +11,8 @@
         activeBase,
         getPresetColors,
         renameCustomPreset,
-        setMessageFontSize,
+        setInterfaceScale,
+        setMessageTextScale,
         setMessageFont,
         uploadCustomFont,
         removeCustomFont,
@@ -28,8 +29,14 @@
         MESSAGE_FONTS,
         messageFontFamily,
         type MessageFontKey,
-        appTextScalePercent,
-        MSG_FONT_SIZE_DEFAULT,
+        INTERFACE_SCALE_MIN,
+        INTERFACE_SCALE_MAX,
+        INTERFACE_SCALE_STEP,
+        INTERFACE_SCALE_DEFAULT,
+        MESSAGE_TEXT_SCALE_MIN,
+        MESSAGE_TEXT_SCALE_MAX,
+        MESSAGE_TEXT_SCALE_STEP,
+        MESSAGE_TEXT_SCALE_DEFAULT,
     } from "$lib/utils/messageDisplay";
     import {
         encodeThemePreset,
@@ -700,34 +707,63 @@
         <div class="flex items-center justify-between mb-1">
             <label
                 class="block text-sm text-discord-textPrimary"
-                for="msg-size-range"
+                for="interface-scale-range"
             >
-                {t("themeColorEditor.appTextSize", {
-                    round: Math.round(
-                        appTextScalePercent(settingsState.messageFontSize),
-                    ),
+                {t("themeColorEditor.interfaceScale", {
+                    percent: settingsState.interfaceScale,
                 })}
             </label>
             <button
                 type="button"
                 class="px-2 py-0.5 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
-                onclick={() => setMessageFontSize(MSG_FONT_SIZE_DEFAULT)}
+                onclick={() => setInterfaceScale(INTERFACE_SCALE_DEFAULT)}
             >
                 {t("themeColorEditor.resetToDefault")}
             </button>
         </div>
         <input
-            id="msg-size-range"
+            id="interface-scale-range"
             type="range"
-            min="12"
-            max="24"
-            step="1"
+            min={INTERFACE_SCALE_MIN}
+            max={INTERFACE_SCALE_MAX}
+            step={INTERFACE_SCALE_STEP}
             class="w-full accent-discord-accent"
-            value={settingsState.messageFontSize}
-            oninput={(e) => setMessageFontSize(Number(e.currentTarget.value))}
+            value={settingsState.interfaceScale}
+            oninput={(e) => setInterfaceScale(Number(e.currentTarget.value))}
         />
         <p class="mt-1 text-xs text-discord-textMuted">
             {t("themeColorEditor.scalesAllTextAndSpacingAcross")}
+        </p>
+
+        <div class="flex items-center justify-between mt-4 mb-1">
+            <label
+                class="block text-sm text-discord-textPrimary"
+                for="message-text-scale-range"
+            >
+                {t("themeColorEditor.messageTextScale", {
+                    percent: settingsState.messageTextScale,
+                })}
+            </label>
+            <button
+                type="button"
+                class="px-2 py-0.5 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                onclick={() => setMessageTextScale(MESSAGE_TEXT_SCALE_DEFAULT)}
+            >
+                {t("themeColorEditor.resetToDefault")}
+            </button>
+        </div>
+        <input
+            id="message-text-scale-range"
+            type="range"
+            min={MESSAGE_TEXT_SCALE_MIN}
+            max={MESSAGE_TEXT_SCALE_MAX}
+            step={MESSAGE_TEXT_SCALE_STEP}
+            class="w-full accent-discord-accent"
+            value={settingsState.messageTextScale}
+            oninput={(e) => setMessageTextScale(Number(e.currentTarget.value))}
+        />
+        <p class="mt-1 text-xs text-discord-textMuted">
+            {t("themeColorEditor.messageTextScaleHint")}
         </p>
 
         <label

@@ -2681,7 +2681,7 @@
                     ? {}
                     : { autocorrect: "off" }}
                 tabindex={disabled ? -1 : 0}
-                class="composer-editor flex-1 min-w-0 self-center bg-transparent text-discord-textPrimary outline-none focus-visible:outline-none text-[16px] leading-relaxed py-[3px] !min-h-[32px] max-h-48 overflow-y-auto disabled:cursor-not-allowed"
+                class="composer-editor flex-1 min-w-0 self-center bg-transparent text-discord-textPrimary outline-none focus-visible:outline-none composer-text leading-relaxed py-[3px] !min-h-[32px] max-h-48 overflow-y-auto disabled:cursor-not-allowed"
             ></div>
 
             <!-- GIF picker button -->

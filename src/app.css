@@ -383,18 +383,25 @@ body {
     animation: fadeIn 0.2s ease-out;
 }
 
-/* Adjustable message text size (device-local, item 1).
+/* Adjustable message text size (device-local).
    Unlayered so it beats Tailwind's `text-sm` utility (in @layer utilities)
-   with no markup change. The root font-size is scaled by applyAppTextScale
-   (utils/messageDisplay, sets document.documentElement.style.fontSize as a %
-   of the browser base). .message-body uses a plain rem so it follows the
-   scaled root instead of scaling twice. The picked FONT is app-wide since
+   with no markup change. Two independent scales: the whole UI follows the root
+   font-size (applyInterfaceScale, a % of the browser base), and chat text only
+   multiplies by --message-text-scale (applyMessageTextScale, a unitless
+   multiplier on documentElement). The rem part already follows the root, so
+   the UI scale is never applied twice. The picked FONT is app-wide since
    v1.6.1 (inherited from body — see the html,body rule), so no family here.
-   Code keeps its own monospace family + fixed size (see MessageItem.svelte
+   Code keeps its own monospace family (see MessageItem.svelte
    `.message-body pre code`) because a directly-set font-family beats an
    inherited one. */
 .message-body {
-    font-size: 0.875rem;
+    font-size: calc(0.875rem * var(--message-text-scale, 1));
+}
+
+/* Composer text (MessageInput + DraftDmView). Never below 16px, so iOS does not
+   auto-zoom on focus; the touch guard below exempts this class for that reason. */
+.composer-text {
+    font-size: max(16px, calc(0.875rem * var(--message-text-scale, 1)));
 }
 
 /* Links inside message content.
@@ -571,12 +578,14 @@ body {
    focused field's text is under 16px, and never zooms back out. Enforce the
    floor on touch devices, where our text-xs/text-sm fields would otherwise
    trip it. `!important` is required: these are element selectors and would
-   lose to Tailwind's class-based text-* utilities on specificity alone. */
+   lose to Tailwind's class-based text-* utilities on specificity alone.
+   The composer (.composer-text) is exempt: its own rule already floors at 16px
+   and must still follow the message text scale. */
 @media (pointer: coarse) {
-    input,
-    textarea,
+    input:not(.composer-text),
+    textarea:not(.composer-text),
     select,
-    [contenteditable]:not([contenteditable="false"]) {
+    [contenteditable]:not([contenteditable="false"]):not(.composer-text) {
         font-size: 16px !important;
     }
 }

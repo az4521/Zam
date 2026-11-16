@@ -253,7 +253,7 @@
                 placeholder={t("draftDm.placeholder", { name })}
                 aria-label={t("draftDm.placeholder", { name })}
                 style="field-sizing: content;"
-                class="flex-1 min-w-0 resize-none bg-transparent text-discord-textPrimary outline-none text-[16px] leading-relaxed py-[3px] max-h-48 placeholder:text-discord-textMuted disabled:opacity-60"
+                class="flex-1 min-w-0 resize-none bg-transparent text-discord-textPrimary outline-none composer-text leading-relaxed py-[3px] max-h-48 placeholder:text-discord-textMuted disabled:opacity-60"
             ></textarea>
             <button
                 onclick={() => void send()}

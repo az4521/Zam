@@ -4578,7 +4578,7 @@
     }
     :global(.message-body pre code) {
         font-family: "Roboto Mono", Consolas, "Liberation Mono", monospace;
-        font-size: 0.8125rem;
+        font-size: calc(0.8125rem * var(--message-text-scale, 1));
         line-height: 1.5;
     }
     :global(.message-body .hljs-keyword),

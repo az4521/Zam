@@ -2628,8 +2628,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "themeColorEditor.messageDisplay": "Visualización de mensajes",
     "themeColorEditor.savedOnThisDeviceOnlyNot":
         "Guardado solo en este dispositivo. No se sincroniza con tu cuenta.",
-    "themeColorEditor.appTextSize":
-        "Tamaño del texto de la aplicación: {round}%",
+    "themeColorEditor.interfaceScale": "Escala de la interfaz: {percent}%",
+    "themeColorEditor.messageTextScale":
+        "Tamaño del texto de los mensajes: {percent}%",
+    "themeColorEditor.messageTextScaleHint":
+        "Escala solo los mensajes del chat y el campo de redacción.",
     "themeColorEditor.scalesAllTextAndSpacingAcross":
         "Escala todo el texto y los espacios de la aplicación.",
     "themeColorEditor.font": "Fuente",

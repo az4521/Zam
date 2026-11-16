@@ -5,9 +5,12 @@ import {
     messageFontFamily,
     MESSAGE_FONTS,
     MSG_FONT_SIZE_DEFAULT,
-    appTextScalePercent,
-    appTextScaleCss,
-    applyAppTextScale,
+    resolveInterfaceScale,
+    resolveMessageTextScale,
+    migrateLegacyInterfaceScale,
+    resolveStoredInterfaceScale,
+    applyInterfaceScale,
+    applyMessageTextScale,
     applyMessageFont,
     CUSTOM_FONT_FAMILY,
 } from "./messageDisplay";
@@ -37,22 +40,79 @@ describe("resolveMessageFontSize", () => {
     });
 });
 
-describe("appTextScalePercent / appTextScaleCss", () => {
-    it("maps px to a percentage of 16", () => {
-        expect(appTextScalePercent(16)).toBe(100);
-        expect(appTextScalePercent(12)).toBe(75);
-        expect(appTextScalePercent(24)).toBe(150);
-        expect(appTextScalePercent(14)).toBe(87.5);
+describe("resolveInterfaceScale", () => {
+    it("snaps to steps of 5 within 75..150", () => {
+        expect(resolveInterfaceScale(113)).toBe(115);
+        expect(resolveInterfaceScale(117)).toBe(115);
+        expect(resolveInterfaceScale("132")).toBe(130);
+        expect(resolveInterfaceScale(75)).toBe(75);
+        expect(resolveInterfaceScale(150)).toBe(150);
     });
-    it("clamps out-of-range and defaults garbage before mapping", () => {
-        expect(appTextScalePercent(999)).toBe(150); // clamps to 24 -> 150
-        expect(appTextScalePercent(4)).toBe(75); // clamps to 12 -> 75
-        expect(appTextScalePercent(NaN)).toBe(100); // default 16 -> 100
+    it("clamps out-of-range values", () => {
+        expect(resolveInterfaceScale(10)).toBe(75);
+        expect(resolveInterfaceScale(999)).toBe(150);
+        expect(resolveInterfaceScale("-5")).toBe(75);
     });
-    it("appTextScaleCss appends a percent sign", () => {
-        expect(appTextScaleCss(16)).toBe("100%");
-        expect(appTextScaleCss(12)).toBe("75%");
-        expect(appTextScaleCss(14)).toBe("87.5%");
+    it("defaults garbage to 100", () => {
+        expect(resolveInterfaceScale(null)).toBe(100);
+        expect(resolveInterfaceScale(undefined)).toBe(100);
+        expect(resolveInterfaceScale("")).toBe(100);
+        expect(resolveInterfaceScale("abc")).toBe(100);
+        expect(resolveInterfaceScale(NaN)).toBe(100);
+    });
+    it("every value in range is a multiple of 5 (exact labels)", () => {
+        for (let p = 75; p <= 150; p += 5) {
+            expect(resolveInterfaceScale(p) % 5).toBe(0);
+        }
+    });
+});
+
+describe("resolveMessageTextScale", () => {
+    it("snaps to steps of 10 within 80..200", () => {
+        expect(resolveMessageTextScale(125)).toBe(130); // halfway rounds up
+        expect(resolveMessageTextScale(124)).toBe(120);
+        expect(resolveMessageTextScale(135)).toBe(140);
+        expect(resolveMessageTextScale("180")).toBe(180);
+    });
+    it("clamps out-of-range values", () => {
+        expect(resolveMessageTextScale(10)).toBe(80);
+        expect(resolveMessageTextScale(999)).toBe(200);
+    });
+    it("defaults garbage to 100", () => {
+        expect(resolveMessageTextScale(null)).toBe(100);
+        expect(resolveMessageTextScale("nope")).toBe(100);
+        expect(resolveMessageTextScale(Infinity)).toBe(100);
+    });
+    it("every value in range is a multiple of 10", () => {
+        for (let p = 80; p <= 200; p += 10) {
+            expect(resolveMessageTextScale(p) % 10).toBe(0);
+        }
+    });
+});
+
+describe("legacy messageFontSize migration", () => {
+    it("maps px to a nearest-5 interface percent", () => {
+        expect(migrateLegacyInterfaceScale("16")).toBe(100);
+        expect(migrateLegacyInterfaceScale(19)).toBe(120); // 118.75 -> 120
+        expect(migrateLegacyInterfaceScale(21)).toBe(130); // 131.25 -> 130
+        expect(migrateLegacyInterfaceScale(12)).toBe(75);
+        expect(migrateLegacyInterfaceScale(24)).toBe(150);
+    });
+    it("clamps legacy px before mapping", () => {
+        expect(migrateLegacyInterfaceScale(4)).toBe(75);
+        expect(migrateLegacyInterfaceScale(999)).toBe(150);
+        expect(migrateLegacyInterfaceScale("junk")).toBe(100);
+    });
+    it("new key wins over legacy when both exist", () => {
+        expect(resolveStoredInterfaceScale("110", "24")).toBe(110);
+    });
+    it("migrates legacy when the new key is absent", () => {
+        expect(resolveStoredInterfaceScale(null, "19")).toBe(120);
+        expect(resolveStoredInterfaceScale("", "21")).toBe(130);
+    });
+    it("defaults to 100 when neither key exists", () => {
+        expect(resolveStoredInterfaceScale(null, null)).toBe(100);
+        expect(resolveStoredInterfaceScale(null, "")).toBe(100);
     });
 });
 
@@ -92,12 +152,35 @@ describe("messageFontFamily / MESSAGE_FONTS", () => {
     });
 });
 
-describe("applyAppTextScale (jsdom)", () => {
+describe("applyInterfaceScale / applyMessageTextScale (jsdom)", () => {
     it("sets the root font-size as a percentage", () => {
-        applyAppTextScale(24);
+        applyInterfaceScale(150);
         expect(document.documentElement.style.fontSize).toBe("150%");
-        applyAppTextScale(16);
+        applyInterfaceScale(100);
         expect(document.documentElement.style.fontSize).toBe("100%");
+    });
+    it("snaps before applying the root font-size", () => {
+        applyInterfaceScale(118);
+        expect(document.documentElement.style.fontSize).toBe("120%");
+    });
+    it("sets the message text multiplier var", () => {
+        applyMessageTextScale(120);
+        expect(
+            document.documentElement.style.getPropertyValue(
+                "--message-text-scale",
+            ),
+        ).toBe("1.2");
+        applyMessageTextScale(100);
+        expect(
+            document.documentElement.style.getPropertyValue(
+                "--message-text-scale",
+            ),
+        ).toBe("1");
+    });
+    it("message scale does not touch the root font-size", () => {
+        applyInterfaceScale(110);
+        applyMessageTextScale(200);
+        expect(document.documentElement.style.fontSize).toBe("110%");
     });
 });
 

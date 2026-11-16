@@ -2559,7 +2559,10 @@ export const en = {
     "themeColorEditor.messageDisplay": "Message display",
     "themeColorEditor.savedOnThisDeviceOnlyNot":
         "Saved on this device only. Not synced across your account.",
-    "themeColorEditor.appTextSize": "App text size: {round}%",
+    "themeColorEditor.interfaceScale": "Interface scale: {percent}%",
+    "themeColorEditor.messageTextScale": "Message text size: {percent}%",
+    "themeColorEditor.messageTextScaleHint":
+        "Scales chat messages and the message composer only.",
     "themeColorEditor.scalesAllTextAndSpacingAcross":
         "Scales all text and spacing across the app.",
     "themeColorEditor.font": "Font",
