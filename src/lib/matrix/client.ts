@@ -143,6 +143,10 @@ import {
 import { resolveDisplayName } from "$lib/utils/displayName";
 import { nestedSpaceIds, topLevelSpaceOf } from "$lib/utils/spaceTree";
 import {
+    parseSpaceChildCategory,
+    type BridgedCategory,
+} from "$lib/utils/bridgedCategories";
+import {
     THREAD_PARENT_TYPE,
     buildBridgedThreadIndex,
     parseSpaceChildThreadParent,
@@ -2562,6 +2566,20 @@ export function readBridgedThreadIndex(): BridgedThreadIndex {
         if (parent) sources.push({ threadRoomId: room.roomId, parent });
     }
     return buildBridgedThreadIndex([...sources, ...fromSpaces]);
+}
+
+/** The Discord category (ZDMB) of each child of a joined space, from the
+ *  `moe.crafty.zdmb.category` key on its m.space.child event. */
+export function readSpaceChildCategories(
+    spaceId: string,
+): Map<string, BridgedCategory> {
+    const out = new Map<string, BridgedCategory>();
+    for (const ev of spaceChildEvents(spaceId) ?? []) {
+        const childId = ev.getStateKey();
+        const cat = parseSpaceChildCategory(ev.getContent());
+        if (childId && cat) out.set(childId, cat);
+    }
+    return out;
 }
 
 /** A /hierarchy entry for `roomId` from any cached space listing (name,
