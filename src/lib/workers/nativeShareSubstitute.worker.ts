@@ -12,6 +12,7 @@ import {
     NativeSubstitute,
     type EncodedFrameLike,
 } from "$lib/utils/nativeShareSubstitute";
+import { SCRIPT_TRANSFORM_TAG } from "$lib/polyfills/rtcScriptTransform";
 
 let policy: NativeSubstitute | null = null;
 
@@ -56,7 +57,24 @@ setInterval(() => {
     });
 }, 2000);
 
-self.onmessage = (e: MessageEvent<{ port?: MessagePort } | null>) => {
+self.onmessage = (
+    e: MessageEvent<{
+        port?: MessagePort;
+        tag?: string;
+        readable?: ReadableStream;
+        writable?: WritableStream;
+    } | null>,
+) => {
+    // The RTCRtpScriptTransform shim (polyfills/rtcScriptTransform.ts): the
+    // streams of a sender that has no real script transform.
+    if (
+        e.data?.tag === SCRIPT_TRANSFORM_TAG &&
+        e.data.readable &&
+        e.data.writable
+    ) {
+        runStage(e.data.readable, e.data.writable);
+        return;
+    }
     const port = e.data?.port;
     if (!port) return;
     const sub = new NativeSubstitute({
@@ -76,14 +94,10 @@ self.onmessage = (e: MessageEvent<{ port?: MessagePort } | null>) => {
     };
 };
 
-// Chromium's encoded-transform entry point (RTCRtpScriptTransform).
-(
-    self as unknown as {
-        onrtctransform: ((ev: { transformer: RtcTransformer }) => void) | null;
-    }
-).onrtctransform = (ev) => {
-    const t = ev.transformer;
-    t.readable
+// The substitution stage: placeholders get the helper's next AU, every other
+// frame passes through.
+function runStage(readable: ReadableStream, writable: WritableStream): void {
+    readable
         .pipeThrough(
             new TransformStream<EncodedFrameLike, EncodedFrameLike>({
                 transform(frame, controller) {
@@ -96,11 +110,19 @@ self.onmessage = (e: MessageEvent<{ port?: MessagePort } | null>) => {
                 },
             }) as unknown as TransformStream<unknown, unknown>,
         )
-        .pipeTo(t.writable as WritableStream<unknown>)
+        .pipeTo(writable as WritableStream<unknown>)
         .catch(() => {
             // The sender ended: nothing to clean up.
         });
-};
+}
+
+// Chromium's encoded-transform entry point (RTCRtpScriptTransform).
+(
+    self as unknown as {
+        onrtctransform: ((ev: { transformer: RtcTransformer }) => void) | null;
+    }
+).onrtctransform = (ev) =>
+    runStage(ev.transformer.readable, ev.transformer.writable);
 
 interface RtcTransformer {
     readable: ReadableStream;

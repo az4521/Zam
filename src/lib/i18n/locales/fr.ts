@@ -3294,6 +3294,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "client.encryptedCallsUnsupported":
         "Cet appel est chiffré de bout en bout, et ce navigateur ne peut pas chiffrer les médias d'appel. Essayez une version récente de Chrome, Firefox ou Safari, ou l'application de bureau.",
     "client.couldNotSwitchVideoCodec": "Impossible de changer le codec vidéo",
+    "client.androidShareNeedsWebView":
+        "Le partage d'écran dans ce salon nécessite une version plus récente d'Android System WebView.",
+    "client.screenShareStopped": "Le partage d'écran s'est arrêté.",
     "client.couldNotStartScreenShare":
         "Impossible de démarrer le partage d'écran",
     "client.couldNotShareScreenAudio": "Partage d'écran lancé sans le son",

@@ -38,7 +38,22 @@ export interface EncodedFrameLike {
     /** "key" or "delta" on video frames; undefined on audio. */
     type?: string;
     data: ArrayBuffer;
-    getMetadata?(): { width?: number; height?: number };
+    getMetadata?(): { width?: number; height?: number; mimeType?: string };
+}
+
+/** Whether a codec is H.264. No codec given is H.264 too: the native share
+ *  publishes H.264 (livekitCall nativeSharePublishOptions). */
+export function isH264(codec?: string): boolean {
+    return codec === undefined || /h264/i.test(codec);
+}
+
+/** Whether a placeholder with no AU queued is dropped (true) or passed on as
+ *  it is (false). Only H.264 drops: its encoder output is a sequence the
+ *  receiver decodes in order, and a dropped frame stalls it (the picture-ID
+ *  gap in VP8, measured on loopback, is the same failure). Other codecs keep
+ *  every placeholder so the sequence stays whole. */
+export function dropsEmptyPlaceholder(frame: EncodedFrameLike): boolean {
+    return isH264(frame.getMetadata?.().mimeType);
 }
 
 /** Whether an encoded frame is one of the share's placeholders. Audio and
@@ -70,7 +85,8 @@ export interface NativeSubstituteOptions {
 
 export interface NativeSubstituteStats {
     substituted: number;
-    /** Placeholder frames with no AU queued: dropped. */
+    /** Placeholder frames with no AU queued: dropped (H.264), or passed on
+     *  unchanged (other codecs, see dropsEmptyPlaceholder). */
     fifoEmpty: number;
     /** A keyframe placeholder met a delta AU: waited for a key. */
     keyMismatch: number;
@@ -98,7 +114,8 @@ export interface NativeSubstituteStats {
  *   would be out of step at a point where the receiver needs a keyframe:
  *   the policy waits for a keyframe AU, drops delta AUs and placeholders
  *   until one comes, and asks the helper for a key (once per gap).
- * - No AU queued: the placeholder is dropped (never sent with its 64x64 data).
+ * - No AU queued: H.264 placeholders are dropped (never sent with their
+ *   64x64 data); other codecs pass the frame on unchanged (dropsEmptyPlaceholder).
  */
 export class NativeSubstitute {
     private queue: NativeAu[] = [];
@@ -157,12 +174,12 @@ export class NativeSubstitute {
 
     /** Give a placeholder frame the next AU's data. Returns true when the
      *  frame should go on to the encoder's output, false when it is dropped. */
-    substitute(frame: { type?: string; data: ArrayBuffer }): boolean {
+    substitute(frame: EncodedFrameLike): boolean {
         this.stats.placeholders++;
         const au = this.queue.shift();
         if (!au) {
             this.stats.fifoEmpty++;
-            return false;
+            return !dropsEmptyPlaceholder(frame);
         }
         if (frame.type === "key" && !au.key) {
             this.stats.keyMismatch++;

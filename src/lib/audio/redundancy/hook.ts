@@ -49,10 +49,19 @@ function attachNativeShare(port: MessagePort): void {
         requestKey: () => port.postMessage({ req: "key" }),
     });
     nativeShare = sub;
-    port.onmessage = (ev: MessageEvent<{ au?: unknown } | null>) => {
-        const au = ev.data?.au as
-            { key: boolean; data: ArrayBuffer; ts?: number } | undefined;
-        if (au && nativeShare === sub) sub.push(au);
+    // The helper's AUs arrive flat, as `{ key, ts, data }` (the same shape the
+    // plain-call substitution worker takes, see nativeShare.worker.ts). A
+    // wrapped `{ au }` matched nothing, so every placeholder was dropped.
+    port.onmessage = (
+        ev: MessageEvent<{
+            key?: boolean;
+            data?: ArrayBuffer;
+            ts?: number;
+        } | null>,
+    ) => {
+        const au = ev.data;
+        if (au?.data && typeof au.key === "boolean" && nativeShare === sub)
+            sub.push({ key: au.key, data: au.data, ts: au.ts });
     };
 }
 

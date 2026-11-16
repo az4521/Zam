@@ -41,7 +41,7 @@
     let { room }: Props = $props();
 
     // Fixed for the session, same as CallView and VoiceCallPanel.
-    const screenShareSupported = screenShareSupportedHere();
+    const screenShareSupported = $derived(screenShareSupportedHere());
 
     const participants = $derived(
         (void voiceCallState.voiceTick,

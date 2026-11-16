@@ -123,6 +123,13 @@
             android:exported="false"
             android:foregroundServiceType="phoneCall|microphone|camera" />
 
+        <!-- Screen share (ScreenShareService): a MediaProjection capture held in
+             the foreground for the whole share. Not exported. -->
+        <service
+            android:name=".ScreenShareService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
         <!-- Self-managed ConnectionService: registers our calls with the
              system call stack (Telecom) so they behave like phone calls —
              Bluetooth / car answer and hang-up, cellular calls hold them,
@@ -162,6 +169,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.CAMERA" />

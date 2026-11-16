@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+    dropsEmptyPlaceholder,
+    isH264,
     isNativePlaceholder,
     NATIVE_PLACEHOLDER_FILL,
     NativeSubstitute,
@@ -148,5 +150,45 @@ describe("NATIVE_PLACEHOLDER_FILL", () => {
         expect(NATIVE_PLACEHOLDER_FILL).toMatch(
             /^rgb\(\d{1,3},\d{1,3},\d{1,3}\)$/,
         );
+    });
+});
+
+describe("H.264-only drop of empty placeholders", () => {
+    function codecFrame(mimeType: string | undefined, tag = 9) {
+        return {
+            type: "delta",
+            data: new Uint8Array([tag]).buffer as ArrayBuffer,
+            getMetadata: () => ({ width: 64, height: 64, mimeType }),
+        };
+    }
+
+    it("treats H.264 and an unknown codec as H.264", () => {
+        expect(isH264("video/H264")).toBe(true);
+        expect(isH264("video/h264")).toBe(true);
+        expect(isH264(undefined)).toBe(true);
+        expect(isH264("video/VP8")).toBe(false);
+        expect(isH264("video/AV1")).toBe(false);
+        expect(isH264("video/VP9")).toBe(false);
+    });
+
+    it("drops an empty H.264 placeholder, keeps an empty VP8 one", () => {
+        expect(dropsEmptyPlaceholder(codecFrame("video/H264"))).toBe(true);
+        expect(dropsEmptyPlaceholder(codecFrame("video/VP8"))).toBe(false);
+        expect(dropsEmptyPlaceholder(codecFrame(undefined))).toBe(true);
+    });
+
+    it("passes an empty VP8 placeholder on unchanged", () => {
+        const { sub } = make();
+        const f = codecFrame("video/VP8", 9);
+        expect(sub.substitute(f)).toBe(true);
+        expect(new Uint8Array(f.data)[0]).toBe(9);
+        expect(sub.stats.fifoEmpty).toBe(1);
+        expect(sub.stats.substituted).toBe(0);
+    });
+
+    it("still drops an empty H.264 placeholder through substitute", () => {
+        const { sub } = make();
+        expect(sub.substitute(codecFrame("video/H264"))).toBe(false);
+        expect(sub.stats.fifoEmpty).toBe(1);
     });
 });

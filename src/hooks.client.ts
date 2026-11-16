@@ -1,5 +1,8 @@
 // Before anything else: some Android WebViews lack APIs the SDK calls.
 import "$lib/polyfills";
+// Android WebViews without RTCRtpScriptTransform (see the module).
+import { installAndroidScriptTransform } from "$lib/polyfills/androidScriptTransform";
+installAndroidScriptTransform();
 // First, so everything logged from here on (crypto init included) is kept
 // for Settings > Debug Info > Client logs.
 import { installLogCapture } from "$lib/logCapture";

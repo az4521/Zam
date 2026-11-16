@@ -4,6 +4,11 @@
  * of any LiveKit import so it stays unit-testable; the track object is carried
  * through opaquely as `unknown`.
  */
+import { androidShare } from "$lib/stores/androidScreenShare.svelte";
+import {
+    androidShareEnv,
+    androidWebViewCanShare,
+} from "$lib/utils/androidScreenShare";
 
 export type VideoSource = "camera" | "screenshare";
 
@@ -165,10 +170,17 @@ export function canScreenShare(env: { getDisplayMedia?: unknown }): boolean {
     return typeof env.getDisplayMedia === "function";
 }
 
-/** The impure adapter for the above — the one line of `navigator` poking that
- *  every call surface would otherwise copy. Support is fixed for the session,
- *  so callers may hold the result in a plain const. */
+/** Whether this app can share its screen here. Web and desktop feature-detect
+ *  getDisplayMedia. Android has no getDisplayMedia: it shares through the
+ *  native plugin, once the plugin says it can and the WebView has the frame
+ *  APIs. The Android answer arrives asynchronously, so callers read this in a
+ *  $derived (Svelte re-runs it when the answer lands). */
 export function screenShareSupportedHere(): boolean {
+    if (androidShare.native)
+        return (
+            androidShare.available === true &&
+            androidWebViewCanShare(androidShareEnv())
+        );
     return canScreenShare({
         getDisplayMedia:
             typeof navigator !== "undefined"

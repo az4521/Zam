@@ -231,6 +231,12 @@ function listenNative(): void {
             return;
         const data = e.data as { tag?: unknown; info?: unknown };
         if (data.tag !== NATIVE_PORT_TAG || !e.ports[0]) return;
+        // Android's share has its own port (lib/androidScreenShare.ts).
+        if (
+            (data.info as { platform?: unknown } | undefined)?.platform ===
+            "android"
+        )
+            return;
         const next: NativeSharePort = {
             info: (data.info as NativeShareStart) ?? {},
             port: e.ports[0],

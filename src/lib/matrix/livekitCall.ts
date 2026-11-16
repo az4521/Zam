@@ -25,16 +25,29 @@ import {
 import {
     attachToE2EEWorker,
     createNativeShareProcessor,
+    createNativeShareSource,
     createSubstitutionWorker,
     dropQueuedTransform,
     NATIVE_SHARE_PROCESSOR,
     nativeShareSupported,
     publisherConnection,
     queueSenderTransform,
+    registerNativePreview,
     senderHasTransform,
+    type NativeShareCommand,
     type NativeShareInfo,
     type NativeShareProcessor,
+    type NativeShareSource,
 } from "./call/nativeShare";
+import {
+    startAndroidScreenShare,
+    stopAndroidScreenShare,
+} from "$lib/androidScreenShare";
+import { androidShare } from "$lib/stores/androidScreenShare.svelte";
+import {
+    androidRoomCanShare,
+    androidShareEnv,
+} from "$lib/utils/androidScreenShare";
 import {
     nativeBitrateChanged,
     nativeBitrateTarget,
@@ -141,6 +154,7 @@ import {
     type VideoTrackDebug,
 } from "$lib/utils/callStats";
 import { clampBitrate } from "$lib/utils/screenShareBitrate";
+import { uploadSampleBps } from "$lib/utils/uploadSample";
 import {
     codecsFromMimeTypes,
     codecFromMime,
@@ -2361,7 +2375,7 @@ async function leaveVoiceCallInternal(): Promise<void> {
         cancelShareAudioWait();
         // The native helper must not outlive the call.
         discardNativeSharePort();
-        if (nativeShare?.call === call) void nativeShare.processor.destroy();
+        if (nativeShare?.call === call) void nativeShare.handle.destroy();
         // These only ever hold the call they belong to; dropping them here
         // keeps a finished call's LiveKit Room and audio elements collectable.
         audioInputGoneNotified = null;
@@ -2611,21 +2625,33 @@ function isUserCancel(err: unknown): boolean {
     );
 }
 
+/** What ends and steers a native share: the Windows processor, or the
+ *  Android source (which also stops the native plugin). */
+interface NativeShareHandle {
+    send(command: NativeShareCommand): void;
+    destroy(): unknown;
+}
+
 /** A native screen share in progress (matrix/call/nativeShare.ts). */
 interface NativeShareState {
     call: ActiveVoiceCall;
-    processor: NativeShareProcessor;
+    handle: NativeShareHandle;
     /** The track the helper's placeholder frames are sent on. */
     track: MediaStreamTrack;
+    /** The Android share's published track (null on Windows, where the
+     *  capture's processor owns the publication). */
+    published: LivekitClient.LocalTrack | null;
     /** A plain call's substitution worker (its sender transform). */
     worker: Worker | null;
     /** The bitrate last sent to the helper. */
     bitrate: number | null;
-    timer: ReturnType<typeof setInterval>;
+    timer: ReturnType<typeof setInterval> | null;
     /** What the helper reported it started with (encoder, size). */
     helper: { info: NativeShareInfo | null };
 }
 let nativeShare: NativeShareState | null = null;
+/** An Android share is being started (its consent prompt is up). */
+let androidStarting = false;
 /** Whether the share being started asked for the native helper. */
 let nativeRequested = false;
 /** Set once a native share failed here: later shares use the browser's
@@ -2697,31 +2723,11 @@ async function startNativeShare(
 
     let processor: NativeShareProcessor | null = null;
     const helper: { info: NativeShareInfo | null } = { info: null };
-    const helperCounts = { encoded: 0 };
     processor = createNativeShareProcessor(picked.port, {
         fps: Number(settingsState.screenShareFps),
-        onInfo: (info) => {
-            if (info.event === "started") helper.info = info;
-            else if (info.event === "stats") {
-                const enc = info.encoded ?? 0;
-                const perS = enc - helperCounts.encoded;
-                helperCounts.encoded = enc;
-                console.info(
-                    `[native share] helper: ${info.captureFps ?? "?"} captured/s, ${perS / 1} encoded/s, encode ${info.encodeMsAvg ?? "?"} ms avg`,
-                );
-            } else if (info.event === "preview")
-                console.info(`[native share] preview: ${info.message ?? ""}`);
-            else if (info.event === "writer")
-                console.info(
-                    `[native share] capture worker: ${info.aus ?? 0} AUs in, ${info.writes ?? 0} placeholders written (2 s)`,
-                );
-            else if (info.event === "error")
-                console.warn(
-                    `[native share] helper error: ${info.message ?? ""}`,
-                );
-        },
+        onInfo: nativeShareLogger(helper),
         onEnded: (reason) => {
-            if (!processor || nativeShare?.processor !== processor) return;
+            if (!processor || nativeShare?.handle !== processor) return;
             console.warn(
                 `[native share] stopped: the helper ended (${reason}); the share is over`,
             );
@@ -2760,8 +2766,9 @@ async function startNativeShare(
     }
     const state: NativeShareState = {
         call,
-        processor,
+        handle: processor,
         track: processed,
+        published: null,
         worker: transformWorker,
         bitrate: null,
         timer: setInterval(() => void tuneNativeBitrate(state), NATIVE_TUNE_MS),
@@ -2769,6 +2776,31 @@ async function startNativeShare(
     };
     nativeShare = state;
     return true;
+}
+
+/** The helper's info messages, logged (started, stats, writer, error). */
+function nativeShareLogger(helper: {
+    info: NativeShareInfo | null;
+}): (info: NativeShareInfo) => void {
+    const counts = { encoded: 0 };
+    return (info) => {
+        if (info.event === "started") helper.info = info;
+        else if (info.event === "stats") {
+            const enc = info.encoded ?? 0;
+            const perS = enc - counts.encoded;
+            counts.encoded = enc;
+            console.info(
+                `[native share] helper: ${info.captureFps ?? "?"} captured/s, ${perS / 1} encoded/s, encode ${info.encodeMsAvg ?? "?"} ms avg`,
+            );
+        } else if (info.event === "preview")
+            console.info(`[native share] preview: ${info.message ?? ""}`);
+        else if (info.event === "writer")
+            console.info(
+                `[native share] capture worker: ${info.aus ?? 0} AUs in, ${info.writes ?? 0} placeholders written (2 s)`,
+            );
+        else if (info.event === "error")
+            console.warn(`[native share] helper error: ${info.message ?? ""}`);
+    };
 }
 
 /** Log the confirmed start once the helper's started info is in (up to 3 s),
@@ -2796,13 +2828,22 @@ function logNativeShareStarted(n: NativeShareState): void {
 }
 
 /** Forget a native share once its processor is gone. */
-function endNativeShare(processor: NativeShareProcessor): void {
+function endNativeShare(handle: NativeShareHandle): void {
     const n = nativeShare;
-    if (!n || n.processor !== processor) return;
+    if (!n || n.handle !== handle) return;
     nativeShare = null;
-    clearInterval(n.timer);
+    if (n.timer) clearInterval(n.timer);
     dropQueuedTransform(n.track);
     n.worker?.terminate();
+}
+
+/** Whether a published local video track is a native share's (Windows or
+ *  Android), whose encoder is fixed: no codec ladder to walk. */
+function isNativeShareTrack(track: LivekitClient.LocalTrack): boolean {
+    return (
+        track.getProcessor()?.name === NATIVE_SHARE_PROCESSOR ||
+        (!!nativeShare && nativeShare.track === track.mediaStreamTrack)
+    );
 }
 
 /** Send the helper the bitrate its uplink allows, when that changed. */
@@ -2836,7 +2877,7 @@ async function tuneNativeBitrate(n: NativeShareState): Promise<void> {
     const target = nativeBitrateTarget(screenShareBitrateNow(), available);
     if (!nativeBitrateChanged(n.bitrate, target)) return;
     n.bitrate = target;
-    n.processor.send({ cmd: "bitrate", bps: target });
+    n.handle.send({ cmd: "bitrate", bps: target });
 }
 
 /** The screen-share quality settings, to notice a change mid-picker. */
@@ -2850,6 +2891,7 @@ function screenShareQualityKey(): string {
 export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
     const call = activeVoice;
     if (!call) return false;
+    if (androidShare.native) return setAndroidScreenShare(call, on);
     // The capture and encoding below are read now, but the desktop picker
     // (which offers the quality settings too) answers later: a change made
     // there is applied once the share is up.
@@ -2942,7 +2984,7 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
             console.warn(
                 "[native share] stopped: the share failed to publish; using the browser's capture next time",
             );
-            void nativeShare.processor.destroy();
+            void nativeShare.handle.destroy();
         }
         if (isUserCancel(err)) return false;
         console.error("Screen share failed:", err);
@@ -2952,6 +2994,172 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
         notifyVoiceNotice(t("client.couldNotStartScreenShare"));
         return false;
     }
+}
+
+/** Android's share: no getDisplayMedia exists in the WebView, so the native
+ *  plugin captures and encodes the screen, and the placeholder track it
+ *  feeds is published here (the same substitution as Windows). */
+async function setAndroidScreenShare(
+    call: ActiveVoiceCall,
+    on: boolean,
+): Promise<boolean> {
+    if (!on) {
+        if (nativeShare?.call === call) await stopAndroidShare();
+        return false;
+    }
+    if (nativeShare?.call === call) return true;
+    if (androidStarting) return false;
+    androidStarting = true;
+    try {
+        return await startAndroidShare(call);
+    } catch (err) {
+        console.error("Android screen share failed:", err);
+        if (activeVoice === call)
+            notifyVoiceNotice(t("client.couldNotStartScreenShare"));
+        return false;
+    } finally {
+        androidStarting = false;
+    }
+}
+
+async function startAndroidShare(call: ActiveVoiceCall): Promise<boolean> {
+    const lkRoom = call.lkRoom;
+    if (!lkRoom) {
+        notifyVoiceNotice(t("client.couldNotStartScreenShare"));
+        return false;
+    }
+    const encrypted = !!call.e2ee;
+    // Checked before the plugin asks for consent: a room that can't be served
+    // shouldn't prompt for a capture that would go nowhere.
+    if (!androidRoomCanShare(androidShareEnv(), encrypted)) {
+        notifyVoiceNotice(t("client.androidShareNeedsWebView"));
+        return false;
+    }
+    const worker = call.e2ee ? roomWorkers.get(lkRoom) : undefined;
+    const pc = call.e2ee ? null : publisherConnection(lkRoom);
+    if (call.e2ee ? !worker : !pc) {
+        notifyVoiceNotice(t("client.couldNotStartScreenShare"));
+        return false;
+    }
+    const res = screenShareCaptureResolution(
+        settingsState.screenShareResolution,
+        Number(settingsState.screenShareFps),
+    );
+    const started = await startAndroidScreenShare({
+        fps: res.frameRate,
+        bitrate: screenShareBitrateNow(),
+        maxWidth: res.width,
+        maxHeight: res.height,
+    });
+    // The user declined the system's capture consent: quietly nothing.
+    if (!started) return false;
+
+    const helper: { info: NativeShareInfo | null } = { info: null };
+    // Set once the source exists; the handle is what the state and the
+    // plugin's stop go through.
+    let source: NativeShareSource | null = null;
+    const handle: NativeShareHandle = {
+        send: (command) => source?.send(command),
+        destroy: () => {
+            source?.destroy();
+            void stopAndroidScreenShare();
+        },
+    };
+    const abandon = (why: string): false => {
+        console.warn(`[native share] ${why}; the share is stopped`);
+        handle.destroy();
+        if (activeVoice === call)
+            notifyVoiceNotice(t("client.couldNotStartScreenShare"));
+        return false;
+    };
+    if (activeVoice !== call) {
+        handle.destroy();
+        return false;
+    }
+    source = createNativeShareSource(started.helper, {
+        fps: res.frameRate,
+        onInfo: nativeShareLogger(helper),
+        onEnded: (reason) => {
+            if (!source || nativeShare?.handle !== handle) return;
+            console.warn(
+                `[native share] stopped: the helper ended (${reason}); the share is over`,
+            );
+            notifyVoiceNotice(t("client.screenShareStopped"));
+            void setScreenShareEnabled(false);
+        },
+    });
+    if (!source) return abandon("the WebView can't hand frames to script");
+    const sub = source.takeSubstitutionPort();
+    if (!sub) return abandon("no substitution port");
+    let transformWorker: Worker | null = null;
+    if (call.e2ee && worker) attachToE2EEWorker(worker, sub);
+    else if (pc) {
+        transformWorker = createSubstitutionWorker(sub);
+        queueSenderTransform(pc, source.track, transformWorker);
+    }
+    const track = new call.lk.LocalVideoTrack(source.track, undefined, false);
+    const state: NativeShareState = {
+        call,
+        handle,
+        track: source.track,
+        published: track,
+        worker: transformWorker,
+        bitrate: null,
+        timer: null,
+        helper,
+    };
+    nativeShare = state;
+    // The local tile shows the decoded preview, from the first frame on.
+    registerNativePreview(source.track, source.previewTrack);
+    try {
+        await call.local.publishTrack(track, {
+            source: call.lk.Track.Source.ScreenShare,
+            // Same encoding as the Windows share (see nativeSharePublishOptions).
+            screenShareEncoding: {
+                maxBitrate: nativeSenderBitrate(screenShareBitrateNow()),
+                maxFramerate: res.frameRate * 2,
+            },
+            degradationPreference: "maintain-resolution",
+            videoCodec: "h264",
+            backupCodec: false,
+            simulcast: false,
+        });
+    } catch (err) {
+        console.error("Android screen share publish failed:", err);
+        await stopAndroidShare();
+        if (activeVoice === call)
+            notifyVoiceNotice(t("client.couldNotStartScreenShare"));
+        return false;
+    }
+    if (!call.e2ee && pc && !senderHasTransform(pc, source.track)) {
+        console.error(
+            "[native share] the sender didn't take the substitution transform; the share is stopped",
+        );
+        await stopAndroidShare();
+        notifyVoiceNotice(t("client.couldNotStartScreenShare"));
+        return false;
+    }
+    if (nativeShare !== state) return false;
+    state.timer = setInterval(
+        () => void tuneNativeBitrate(state),
+        NATIVE_TUNE_MS,
+    );
+    void logNativeShareStartedOnceInfo(state);
+    return true;
+}
+
+/** Stop an Android share: unpublish its track (the UI follows the event),
+ *  stop the placeholders, and stop the native capture. */
+async function stopAndroidShare(): Promise<void> {
+    const n = nativeShare;
+    if (!n) return;
+    nativeShare = null;
+    if (n.timer) clearInterval(n.timer);
+    dropQueuedTransform(n.track);
+    n.worker?.terminate();
+    if (n.published && activeVoice === n.call)
+        await n.call.local.unpublishTrack(n.published).catch(() => {});
+    n.handle.destroy();
 }
 
 /** Publish the audio the desktop picker set up for the share just started,
@@ -3034,13 +3242,13 @@ async function applyScreenShareQualityNow(
     const track = call.local.getTrack(call.lk.Track.Source.ScreenShare);
     if (!track) return;
     const native = nativeShare;
-    if (native?.call === call && native.processor === track.getProcessor()) {
+    if (native?.call === call && isNativeShareTrack(track)) {
         // The helper holds its capture size from the share's start, so only
         // frame rate and bitrate move here (a new resolution applies to the
         // next share).
         const fps = Number(settingsState.screenShareFps);
         try {
-            native.processor.send({ cmd: "fps", fps });
+            native.handle.send({ cmd: "fps", fps });
             const params = track.sender?.getParameters();
             if (
                 track.sender &&
@@ -3868,7 +4076,7 @@ async function superviseShareEncoder(call: ActiveVoiceCall): Promise<void> {
     const first = pub?.options?.videoCodec as VideoCodec | undefined;
     if (!pub || !track || !first) return;
     // A native share is H.264 with a fixed encoder: no ladder to walk.
-    if (track.getProcessor()?.name === NATIVE_SHARE_PROCESSOR) return;
+    if (isNativeShareTrack(track)) return;
     const live = () =>
         activeVoice === call &&
         generation === shareSupervision &&
@@ -4592,17 +4800,21 @@ async function sampleUpload(call: ActiveVoiceCall): Promise<void> {
     const stats = await reportValues(pcm?.publisher?.getStats());
     if (!stats) return;
     // WebRTC's estimate only climbs as far as the sender gives it reason to,
-    // so it can sit well under the line's speed. What actually went out
-    // proves at least that much fits, so the larger of the two counts.
+    // so it can sit well under the line's speed. What went out proves at
+    // least that much fits, unless our own share cap bounded it (see
+    // utils/uploadSample).
     const summary = summarizeTransport(
         stats,
         Date.now(),
         lastPublisherSample.get(call) ?? null,
     );
     lastPublisherSample.set(call, summary);
-    const bps = Math.max(
-        availableOutgoingBitrate(stats) ?? 0,
-        (summary.sendKbps ?? 0) * 1000,
+    const sharing = !!lp.getTrackPublication(call.lk.Track.Source.ScreenShare)
+        ?.track;
+    const bps = uploadSampleBps(
+        availableOutgoingBitrate(stats),
+        summary.sendKbps === null ? null : summary.sendKbps * 1000,
+        sharing ? screenShareBitrateNow() : null,
     );
     if (bps > 0 && activeVoice === call) noteUploadEstimate(bps);
 }

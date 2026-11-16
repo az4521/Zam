@@ -39,8 +39,8 @@
     import CallEncryptionBadge from "./CallEncryptionBadge.svelte";
     import CallStatsPanel from "./CallStatsPanel.svelte";
 
-    // Fixed for the session, same as CallView — hides share where unsupported.
-    const screenShareSupported = screenShareSupportedHere();
+    // Hides share where unsupported; reactive, as Android's answer comes late.
+    const screenShareSupported = $derived(screenShareSupportedHere());
 
     // Ticks only while the panel is on screen; the anchor itself lives in the
     // store so a reconnect doesn't restart the clock.

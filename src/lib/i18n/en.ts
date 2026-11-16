@@ -3213,6 +3213,9 @@ export const en = {
     "client.codecCouldNotBeDecoded":
         "This device can't decode {codec} video. Asking for H.264 instead.",
     "client.couldNotSwitchVideoCodec": "Couldn't switch the video codec",
+    "client.androidShareNeedsWebView":
+        "Screen sharing in this room needs a newer Android System WebView.",
+    "client.screenShareStopped": "Screen sharing stopped.",
     "client.couldNotStartScreenShare": "Could not start screen share",
     "client.couldNotShareScreenAudio": "Screen share started without its audio",
     "client.couldnTChangeScreenShareQuality":

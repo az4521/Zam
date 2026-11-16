@@ -3330,6 +3330,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Este dispositivo não consegue decodificar vídeo {codec}. Pedindo H.264 no lugar.",
     "client.couldNotSwitchVideoCodec":
         "Não foi possível trocar o codec de vídeo",
+    "client.androidShareNeedsWebView":
+        "Compartilhar a tela nesta sala exige um Android System WebView mais recente.",
+    "client.screenShareStopped": "O compartilhamento de tela foi interrompido.",
     "client.couldNotStartScreenShare":
         "Não foi possível iniciar o compartilhamento de tela",
     "client.couldNotShareScreenAudio":

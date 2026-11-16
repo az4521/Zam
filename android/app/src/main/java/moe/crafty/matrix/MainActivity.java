@@ -106,6 +106,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(DebugToolsPlugin.class);
         registerPlugin(ProxyPlugin.class);
         registerPlugin(HistoryPrefetchPlugin.class);
+        registerPlugin(ScreenSharePlugin.class);
         bridgeStarted = true;
         super.onCreate(savedInstanceState);
         // After the bridge, which sets debugging from the build type.

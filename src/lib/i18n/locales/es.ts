@@ -3336,6 +3336,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "client.encryptedCallsUnsupported":
         "Esta llamada está cifrada de extremo a extremo y este navegador no puede cifrar el audio y el vídeo. Prueba con un Chrome, Firefox o Safari reciente, o con la aplicación de escritorio.",
     "client.couldNotSwitchVideoCodec": "No se pudo cambiar el códec de vídeo",
+    "client.androidShareNeedsWebView":
+        "Compartir pantalla en esta sala requiere una versión más reciente de Android System WebView.",
+    "client.screenShareStopped": "Se detuvo la compartición de pantalla.",
     "client.couldNotStartScreenShare":
         "No se pudo empezar a compartir la pantalla",
     "client.couldNotShareScreenAudio": "La pantalla se comparte sin audio",

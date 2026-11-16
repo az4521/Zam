@@ -3320,6 +3320,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Dieser Anruf ist Ende-zu-Ende-verschlüsselt, und dieser Browser kann Anrufmedien nicht verschlüsseln. Versuche ein aktuelles Chrome, Firefox oder Safari oder die Desktop-App.",
     "client.couldNotSwitchVideoCodec":
         "Der Videocodec konnte nicht gewechselt werden",
+    "client.androidShareNeedsWebView":
+        "Bildschirmfreigabe in diesem Raum benötigt eine neuere Android System WebView.",
+    "client.screenShareStopped": "Bildschirmfreigabe beendet.",
     "client.couldNotStartScreenShare":
         "Bildschirmfreigabe konnte nicht gestartet werden",
     "client.couldNotShareScreenAudio": "Bildschirmfreigabe läuft ohne Ton",

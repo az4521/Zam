@@ -2915,6 +2915,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "このデバイスは {codec} 映像をデコードできません。代わりにH.264を要求します。",
     "client.couldNotSwitchVideoCodec":
         "映像コーデックを切り替えられませんでした",
+    "client.androidShareNeedsWebView":
+        "このルームで画面共有するには、新しいAndroid System WebViewが必要です。",
+    "client.screenShareStopped": "画面共有が停止しました。",
     "client.couldNotStartScreenShare": "画面共有を開始できませんでした",
     "client.couldNotShareScreenAudio": "画面共有を音声なしで開始しました",
     "client.couldnTChangeScreenShareQuality":

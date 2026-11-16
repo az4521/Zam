@@ -110,7 +110,7 @@
 
     // Capture support is fixed for the session (no runtime change), so a plain
     // const is enough — used to hide the share-screen button where unsupported.
-    const screenShareSupported = screenShareSupportedHere();
+    const screenShareSupported = $derived(screenShareSupportedHere());
 
     // Live SDK objects mutate in place, so every read of call/room state hangs
     // off a tick: voiceTick for the roster, roomsTick for names and avatars.

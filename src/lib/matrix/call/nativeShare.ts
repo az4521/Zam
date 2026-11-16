@@ -1,15 +1,19 @@
 /**
- * The native Windows screen share's track processor (see
- * native/share-capture and electron/ native-share). The helper process captures
- * and encodes the picked window or screen; the track LiveKit publishes is a
- * 64x64 placeholder, whose encoded frames the substitution stage replaces with
- * the helper's access units (utils/nativeShareSubstitute).
+ * The native screen share's placeholder track (see native/share-capture and
+ * electron/ native-share for Windows, lib/androidScreenShare.ts for Android).
+ * The helper process captures and encodes the picked screen; the track LiveKit
+ * publishes is a 64x64 placeholder, whose encoded frames the substitution
+ * stage replaces with the helper's access units (utils/nativeShareSubstitute).
  *
  * The placeholder track comes from workers/nativeShare.worker.ts. The
  * substitution stage is the E2EE worker's (audio/redundancy/hook.ts) in an
  * encrypted room, and workers/nativeShareSubstitute.worker.ts's
  * RTCRtpScriptTransform in a plain one. Each stage gets the substitution port
- * from this processor, once.
+ * from the source, once.
+ *
+ * Windows wraps the source in a processor for its capture track
+ * (createNativeShareProcessor). Android publishes the source's track directly
+ * (createNativeShareSource), since its share has no capture track.
  */
 import type * as LivekitClient from "livekit-client";
 import { ZAM_NATIVE_SHARE } from "$lib/audio/redundancy/protocol";
@@ -58,6 +62,22 @@ export type NativeShareProcessor =
         send(command: NativeShareCommand): void;
     };
 
+/** The placeholder side of a native share, without a capture track to
+ *  process. The Android share publishes `track` directly; the Windows share
+ *  wraps it in a processor (createNativeShareProcessor). */
+export interface NativeShareSource {
+    /** The placeholder track LiveKit publishes. */
+    readonly track: MediaStreamTrack;
+    /** The decoded helper stream, for the sender's own tile. */
+    readonly previewTrack: MediaStreamTrack;
+    /** The substitution end of the port, once. Null after the first call. */
+    takeSubstitutionPort(): MessagePort | null;
+    /** Change the helper's frame rate or bitrate while it runs. */
+    send(command: NativeShareCommand): void;
+    /** Stop the placeholders and the helper. Idempotent. */
+    destroy(): void;
+}
+
 export interface NativeShareOptions {
     /** The share's frame rate (the placeholders run at twice it). */
     fps: number;
@@ -65,7 +85,7 @@ export interface NativeShareOptions {
     onEnded: (reason: string) => void;
     /** The helper reported what it started with. */
     onInfo?: (info: NativeShareInfo) => void;
-    /** The processor was destroyed (the share stopped). */
+    /** The source was destroyed (the share stopped). */
     onDestroy?: () => void;
 }
 
@@ -77,21 +97,89 @@ export function nativeShareSupported(): boolean {
     );
 }
 
-/** Build the processor for a helper port (the one the page received from
- *  main). Null where the browser can't hand frames to script. */
-export function createNativeShareProcessor(
+/** Start the placeholder side for a helper port: the placeholder and preview
+ *  generators, and the worker that feeds them. Null where the browser can't
+ *  hand frames to script. */
+export function createNativeShareSource(
     helper: MessagePort,
     opts: NativeShareOptions,
-): NativeShareProcessor | null {
+): NativeShareSource | null {
     const g = globalThis as unknown as Partial<FrameStreams>;
     if (!g.MediaStreamTrackGenerator || typeof Worker === "undefined")
         return null;
     const Generator = g.MediaStreamTrackGenerator;
     const channel = new MessageChannel();
     let substitution: MessagePort | null = channel.port2;
-    let worker: Worker | null = null;
     let destroyed = false;
+    const generator = new Generator({ kind: "video" });
+    const preview = new Generator({ kind: "video" });
+    preview.contentHint = "detail";
+    generator.contentHint = "detail";
+    const worker = new Worker(
+        new URL("../../workers/nativeShare.worker.ts", import.meta.url),
+        { type: "module" },
+    );
+    worker.onmessage = (
+        e: MessageEvent<{
+            type: string;
+            reason?: string;
+            info?: NativeShareInfo;
+        }>,
+    ) => {
+        if (destroyed) return;
+        if (e.data.type === "info" && e.data.info) opts.onInfo?.(e.data.info);
+        else if (e.data.type === "ended") opts.onEnded(e.data.reason ?? "");
+    };
+    worker.postMessage(
+        {
+            writable: generator.writable,
+            preview: preview.writable,
+            helper,
+            sub: channel.port1,
+            fps: opts.fps,
+        },
+        [
+            generator.writable as unknown as Transferable,
+            preview.writable as unknown as Transferable,
+            helper as unknown as Transferable,
+            channel.port1 as unknown as Transferable,
+        ],
+    );
+    return {
+        track: generator,
+        previewTrack: preview,
+        takeSubstitutionPort() {
+            const port = substitution;
+            substitution = null;
+            return port;
+        },
+        send(command) {
+            if (!destroyed) worker.postMessage(command);
+        },
+        destroy() {
+            if (destroyed) return;
+            destroyed = true;
+            generator.stop();
+            // The worker tells the helper to stop; terminating it closes the
+            // port too, which stops the helper all the same.
+            worker.postMessage({ cmd: "stop" });
+            worker.terminate();
+            substitution?.close();
+            substitution = null;
+            opts.onDestroy?.();
+        },
+    };
+}
 
+/** Build the processor for a helper port (the one the page received from
+ *  main), for the Windows share's capture track. Null where the browser can't
+ *  hand frames to script. */
+export function createNativeShareProcessor(
+    helper: MessagePort,
+    opts: NativeShareOptions,
+): NativeShareProcessor | null {
+    if (!nativeShareSupported()) return null;
+    let source: NativeShareSource | null = null;
     const processor: NativeShareProcessor = {
         name: NATIVE_SHARE_PROCESSOR,
         previewTrack: null,
@@ -105,70 +193,27 @@ export function createNativeShareProcessor(
                     frameRate: { ideal: 1 },
                 })
                 .catch(() => {});
-            const generator = new Generator({ kind: "video" });
-            const preview = new Generator({ kind: "video" });
-            preview.contentHint = "detail";
-            processor.previewTrack = preview;
-            generator.contentHint = "detail";
-            worker = new Worker(
-                new URL("../../workers/nativeShare.worker.ts", import.meta.url),
-                { type: "module" },
-            );
-            worker.onmessage = (
-                e: MessageEvent<{
-                    type: string;
-                    reason?: string;
-                    info?: NativeShareInfo;
-                }>,
-            ) => {
-                if (destroyed) return;
-                if (e.data.type === "info" && e.data.info)
-                    opts.onInfo?.(e.data.info);
-                else if (e.data.type === "ended")
-                    opts.onEnded(e.data.reason ?? "");
-            };
-            worker.postMessage(
-                {
-                    writable: generator.writable,
-                    preview: preview.writable,
-                    helper,
-                    sub: channel.port1,
-                    fps: opts.fps,
-                },
-                [
-                    generator.writable as unknown as Transferable,
-                    preview.writable as unknown as Transferable,
-                    helper as unknown as Transferable,
-                    channel.port1 as unknown as Transferable,
-                ],
-            );
-            processor.processedTrack = generator;
+            source = createNativeShareSource(helper, opts);
+            if (!source)
+                throw new Error("native share needs a track generator");
+            processor.previewTrack = source.previewTrack;
+            processor.processedTrack = source.track;
         },
         async restart(opts) {
             await processor.destroy();
             await processor.init(opts);
         },
         takeSubstitutionPort() {
-            const port = substitution;
-            substitution = null;
-            return port;
+            return source?.takeSubstitutionPort() ?? null;
         },
         send(command) {
-            worker?.postMessage(command);
+            source?.send(command);
         },
         async destroy() {
-            if (destroyed) return;
-            destroyed = true;
-            processor.processedTrack?.stop();
+            const s = source;
+            source = null;
             processor.processedTrack = undefined;
-            // The worker tells the helper to stop; terminating it closes the
-            // port too, which stops the helper all the same.
-            worker?.postMessage({ cmd: "stop" });
-            worker?.terminate();
-            worker = null;
-            substitution?.close();
-            substitution = null;
-            opts.onDestroy?.();
+            s?.destroy();
         },
     };
     return processor;
@@ -257,16 +302,30 @@ export function createSubstitutionWorker(port: MessagePort): Worker {
     return worker;
 }
 
+/** Preview tracks of native shares that publish their placeholder directly
+ *  (the Android share), keyed by the placeholder track. */
+const directPreviews = new WeakMap<MediaStreamTrack, MediaStreamTrack>();
+
+/** Register the preview of a placeholder that is published directly. */
+export function registerNativePreview(
+    placeholder: MediaStreamTrack,
+    preview: MediaStreamTrack,
+): void {
+    directPreviews.set(placeholder, preview);
+}
+
 /** The local preview of a native share (the decoded helper stream), when the
  *  track is one: the tile shows this instead of the placeholder. Null for any
  *  other track. */
 export function nativeSharePreview(track: unknown): MediaStreamTrack | null {
-    const p = (
-        track as {
-            getProcessor?: () =>
-                | { name?: string; previewTrack?: MediaStreamTrack | null }
-                | undefined;
-        }
-    ).getProcessor?.();
-    return p?.name === NATIVE_SHARE_PROCESSOR ? (p.previewTrack ?? null) : null;
+    const t = track as {
+        getProcessor?: () =>
+            | { name?: string; previewTrack?: MediaStreamTrack | null }
+            | undefined;
+        mediaStreamTrack?: MediaStreamTrack;
+    };
+    const p = t.getProcessor?.();
+    if (p?.name === NATIVE_SHARE_PROCESSOR) return p.previewTrack ?? null;
+    const placeholder = t.mediaStreamTrack;
+    return placeholder ? (directPreviews.get(placeholder) ?? null) : null;
 }

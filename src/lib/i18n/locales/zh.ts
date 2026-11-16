@@ -3058,6 +3058,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "client.codecCouldNotBeDecoded":
         "此设备无法解码 {codec} 视频。改为请求 H.264。",
     "client.couldNotSwitchVideoCodec": "无法切换视频编解码器",
+    "client.androidShareNeedsWebView":
+        "在此房间共享屏幕需要更新版本的 Android System WebView。",
+    "client.screenShareStopped": "屏幕共享已停止。",
     "client.couldNotStartScreenShare": "无法开始屏幕共享",
     "client.couldNotShareScreenAudio": "屏幕共享已开始，但没有音频",
     "client.couldnTChangeScreenShareQuality": "无法更改屏幕共享画质",
