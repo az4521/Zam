@@ -412,6 +412,8 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                 track(addEntry(registry, "overlays", pluginId, o)),
             addSettingsPage: (page) =>
                 track(addEntry(registry, "settingsPages", pluginId, page)),
+            addDebugSection: (section) =>
+                track(addEntry(registry, "debugSections", pluginId, section)),
             addStyles: (css) => {
                 const id = `plugin:${pluginId}:${++styleCount}`;
                 setStyleSheet(id, String(css));

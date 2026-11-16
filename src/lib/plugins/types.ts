@@ -179,6 +179,15 @@ export interface SettingsPageRegistration {
     render(el: HTMLElement): void | (() => void);
 }
 
+/** A section of the Debug settings page, below Zam's own debug tools. For
+ *  developer tooling (inspecting or writing raw data), not user settings. */
+export interface DebugSectionRegistration {
+    id: string;
+    /** Heading shown above the section. */
+    title: string;
+    render(el: HTMLElement): void | (() => void);
+}
+
 /** What a member list row shows beside a user. `subtitle` is the second
  *  line (a status, say); `badge` a short tag after the name. */
 export interface MemberDecoration {
@@ -824,6 +833,9 @@ export interface ZamPluginApi {
         /** A page of the app settings, for more than a `settings` schema
          *  can express. */
         addSettingsPage(page: SettingsPageRegistration): Disposable;
+        /** A section on the Debug settings page, for developer tools. Runs
+         *  each time the page is shown; the cleanup when it is left. */
+        addDebugSection(section: DebugSectionRegistration): Disposable;
         notify(opts: { title?: string; body: string }): void;
         /** Add CSS to the app (a theme, a tweak), after Zam's own styles and
          *  before the user's custom CSS. Removed when the returned handle is

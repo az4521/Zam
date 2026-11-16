@@ -566,6 +566,11 @@ describe("buildHostApi — UI and message extension points", () => {
                 h.zam.ui.addSettingsPage({ id: "p", label: "P", render() {} }),
         ],
         [
+            "debugSections",
+            (h: ReturnType<typeof buildHostApi>) =>
+                h.zam.ui.addDebugSection({ id: "d", title: "D", render() {} }),
+        ],
+        [
             "memberDecorators",
             (h: ReturnType<typeof buildHostApi>) =>
                 h.zam.members.decorate(() => null),

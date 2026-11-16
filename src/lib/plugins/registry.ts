@@ -30,6 +30,7 @@ import type {
     MessageRenderer,
     RoomSettingsTabRegistration,
     SettingsPageRegistration,
+    DebugSectionRegistration,
     MemberDecorator,
     UserActionItem,
     ProfileSectionRegistration,
@@ -69,6 +70,7 @@ export interface PluginRegistryData {
     messageRenderers: RegistryEntry<MessageRenderer>[];
     roomSettingsTabs: RegistryEntry<RoomSettingsTabRegistration>[];
     settingsPages: RegistryEntry<SettingsPageRegistration>[];
+    debugSections: RegistryEntry<DebugSectionRegistration>[];
     memberDecorators: RegistryEntry<MemberDecorator>[];
     userActions: RegistryEntry<UserActionItem>[];
     profileSections: RegistryEntry<ProfileSectionRegistration>[];
@@ -109,6 +111,7 @@ export const EXTENSION_KINDS: ExtensionKind[] = [
     "messageRenderers",
     "roomSettingsTabs",
     "settingsPages",
+    "debugSections",
     "memberDecorators",
     "userActions",
     "profileSections",
@@ -143,6 +146,7 @@ export function createRegistryData(): PluginRegistryData {
         messageRenderers: [],
         roomSettingsTabs: [],
         settingsPages: [],
+        debugSections: [],
         memberDecorators: [],
         userActions: [],
         profileSections: [],

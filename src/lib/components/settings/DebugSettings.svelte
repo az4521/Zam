@@ -3,6 +3,8 @@
     import ExtendedProfileDebug from "$lib/components/settings/ExtendedProfileDebug.svelte";
     import GpuDebug from "$lib/components/settings/GpuDebug.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
+    import { pluginRegistry } from "$lib/stores/plugins.svelte";
+    import { pluginMount } from "$lib/plugins/pluginMount";
     import { auth } from "$lib/stores/auth.svelte";
     import {
         isSlidingSyncEnabled,
@@ -732,6 +734,21 @@
     <GpuDebug />
 
     <ExtendedProfileDebug />
+
+    <!-- Plugin debug tools (zam.ui.addDebugSection). -->
+    {#each (void pluginRegistry.tick, pluginRegistry.debugSections) as entry (entry.entryId)}
+        <section>
+            <p
+                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+            >
+                {String(entry.value.title)}
+            </p>
+            <div
+                data-zam-plugin={entry.pluginId}
+                use:pluginMount={(el) => entry.value.render(el)}
+            ></div>
+        </section>
+    {/each}
 
     <section>
         <p
