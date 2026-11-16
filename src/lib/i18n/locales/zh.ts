@@ -599,6 +599,33 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.indexSyncOff": "索引同步未运行：需要开启加密房间索引。",
     "debugSettings.indexSyncNow": "立即同步",
     "debugSettings.indexSyncNever": "从未",
+    "debugSettings.searchIndex": "搜索索引",
+    "debugSettings.searchIndexHint":
+        "立即索引此设备上每个加密房间的完整历史记录，而不是在后台慢慢进行。运行期间会占用网络和存储。",
+    "debugSettings.searchIndexBuild": "立即构建完整索引",
+    "debugSettings.searchIndexCancel": "取消",
+    "debugSettings.searchIndexBar": "完整索引进度",
+    "debugSettings.searchIndexProgress":
+        "{done} / {total} 个房间，{messages} 条消息",
+    "debugSettings.searchIndexComplete": "完成：所有加密房间都已建立索引。",
+    "debugSettings.searchIndexPartial":
+        "已完成，但仍有 {failed} 个房间未完成，后台会重试。",
+    "debugSettings.searchIndexStorage": "已停止：存储空间快满了。",
+    "debugSettings.prefetchTitle": "后台下载（Android）",
+    "debugSettings.prefetchHint":
+        "应用不在前台时，在后台下载加密的历史消息页。索引读取之前，它们保持加密。",
+    "debugSettings.prefetchPages": "等待中的页面",
+    "debugSettings.prefetchSize": "大小",
+    "debugSettings.prefetchRooms": "房间",
+    "debugSettings.prefetchLastRun": "上次运行",
+    "debugSettings.prefetchLastResult": "上次结果",
+    "debugSettings.prefetchLastError": "上次错误",
+    "debugSettings.prefetchRefresh": "刷新",
+    "debugSettings.searchIndexAborted": "已取消。",
+    "debugSettings.searchIndexUnavailable": "已停止：索引在此设备上未运行。",
+    "debugSettings.searchIndexDisabled": "请先在隐私设置中开启加密房间索引。",
+    "debugSettings.searchIndexNotRunning":
+        "索引目前未运行，应用加载完成后会自动开始。",
     "debugSettings.indexSyncSessions": "会话",
     "debugSettings.indexSyncAsked": "已询问",
     "debugSettings.indexSyncRoomsMissing": "有缺口的房间",

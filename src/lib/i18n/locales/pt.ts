@@ -623,6 +623,37 @@ const messages: Partial<Record<MessageKey, string>> = {
         "A sincronização do índice não está ativa: é preciso ativar a indexação de salas criptografadas.",
     "debugSettings.indexSyncNow": "Sincronizar agora",
     "debugSettings.indexSyncNever": "nunca",
+    "debugSettings.searchIndex": "Índice de pesquisa",
+    "debugSettings.searchIndexHint":
+        "Indexa agora todo o histórico de cada sala criptografada deste dispositivo, em vez de fazer isso devagar em segundo plano. Usa rede e armazenamento enquanto roda.",
+    "debugSettings.searchIndexBuild": "Criar índice completo agora",
+    "debugSettings.searchIndexCancel": "Cancelar",
+    "debugSettings.searchIndexBar": "Progresso do índice completo",
+    "debugSettings.searchIndexProgress":
+        "{done} / {total} salas, {messages} mensagens",
+    "debugSettings.searchIndexComplete":
+        "Concluído: todas as salas criptografadas estão indexadas.",
+    "debugSettings.searchIndexPartial":
+        "Concluído, mas {failed} salas ainda não foram concluídas. O rastreador em segundo plano vai tentar de novo.",
+    "debugSettings.searchIndexStorage":
+        "Interrompido: o armazenamento está quase cheio.",
+    "debugSettings.prefetchTitle": "Download em segundo plano (Android)",
+    "debugSettings.prefetchHint":
+        "Baixa páginas criptografadas do histórico em segundo plano quando o app não está em primeiro plano. Continuam criptografadas até o índice lê-las.",
+    "debugSettings.prefetchPages": "Páginas aguardando",
+    "debugSettings.prefetchSize": "Tamanho",
+    "debugSettings.prefetchRooms": "Salas",
+    "debugSettings.prefetchLastRun": "Última execução",
+    "debugSettings.prefetchLastResult": "Último resultado",
+    "debugSettings.prefetchLastError": "Último erro",
+    "debugSettings.prefetchRefresh": "Atualizar",
+    "debugSettings.searchIndexAborted": "Cancelado.",
+    "debugSettings.searchIndexUnavailable":
+        "Interrompido: o índice não está em execução neste dispositivo.",
+    "debugSettings.searchIndexDisabled":
+        "Ative primeiro a indexação de salas criptografadas nas configurações de privacidade.",
+    "debugSettings.searchIndexNotRunning":
+        "O índice não está em execução agora. Ele começa quando o app terminar de carregar.",
     "debugSettings.indexSyncSessions": "Sessões",
     "debugSettings.indexSyncAsked": "Consultado",
     "debugSettings.indexSyncRoomsMissing": "Salas com lacunas",

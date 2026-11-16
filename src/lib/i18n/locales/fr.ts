@@ -603,6 +603,37 @@ const messages: Partial<Record<MessageKey, string>> = {
         "La synchronisation de l'index est inactive : l'indexation des salons chiffrés doit être activée.",
     "debugSettings.indexSyncNow": "Synchroniser maintenant",
     "debugSettings.indexSyncNever": "jamais",
+    "debugSettings.searchIndex": "Index de recherche",
+    "debugSettings.searchIndexHint":
+        "Indexe maintenant tout l'historique de chaque salle chiffrée de cet appareil, au lieu de le faire lentement en arrière-plan. Utilise le réseau et le stockage pendant l'exécution.",
+    "debugSettings.searchIndexBuild": "Construire l'index complet maintenant",
+    "debugSettings.searchIndexCancel": "Annuler",
+    "debugSettings.searchIndexBar": "Progression de l'index complet",
+    "debugSettings.searchIndexProgress":
+        "{done} / {total} salles, {messages} messages",
+    "debugSettings.searchIndexComplete":
+        "Terminé : toutes les salles chiffrées sont indexées.",
+    "debugSettings.searchIndexPartial":
+        "Terminé, mais {failed} salles ne sont pas encore prêtes. Le robot d'arrière-plan réessaiera.",
+    "debugSettings.searchIndexStorage":
+        "Arrêté : le stockage est presque plein.",
+    "debugSettings.prefetchTitle": "Téléchargement en arrière-plan (Android)",
+    "debugSettings.prefetchHint":
+        "Télécharge des pages d'historique chiffrées en arrière-plan lorsque l'application n'est pas au premier plan. Elles restent chiffrées jusqu'à leur lecture par l'index.",
+    "debugSettings.prefetchPages": "Pages en attente",
+    "debugSettings.prefetchSize": "Taille",
+    "debugSettings.prefetchRooms": "Salons",
+    "debugSettings.prefetchLastRun": "Dernière exécution",
+    "debugSettings.prefetchLastResult": "Dernier résultat",
+    "debugSettings.prefetchLastError": "Dernière erreur",
+    "debugSettings.prefetchRefresh": "Actualiser",
+    "debugSettings.searchIndexAborted": "Annulé.",
+    "debugSettings.searchIndexUnavailable":
+        "Arrêté : l'index ne fonctionne pas sur cet appareil.",
+    "debugSettings.searchIndexDisabled":
+        "Activez d'abord l'indexation des salles chiffrées dans les paramètres de confidentialité.",
+    "debugSettings.searchIndexNotRunning":
+        "L'index ne fonctionne pas pour le moment. Il démarre une fois l'app chargée.",
     "debugSettings.indexSyncSessions": "Sessions",
     "debugSettings.indexSyncAsked": "Demandé",
     "debugSettings.indexSyncRoomsMissing": "Salons avec des trous",

@@ -610,6 +610,36 @@ export const en = {
         "Index sync isn't running: it needs encrypted-room indexing turned on.",
     "debugSettings.indexSyncNow": "Sync now",
     "debugSettings.indexSyncNever": "never",
+    "debugSettings.searchIndex": "Search index",
+    "debugSettings.searchIndexHint":
+        "Index the full history of every encrypted room on this device now, instead of slowly in the background. Uses network and storage while it runs.",
+    "debugSettings.searchIndexBuild": "Build full index now",
+    "debugSettings.searchIndexCancel": "Cancel",
+    "debugSettings.searchIndexBar": "Full index progress",
+    "debugSettings.searchIndexProgress":
+        "{done} / {total} rooms, {messages} messages",
+    "debugSettings.searchIndexComplete":
+        "Finished: every encrypted room is indexed.",
+    "debugSettings.searchIndexPartial":
+        "Finished, but {failed} rooms are not done yet. The background crawler will retry them.",
+    "debugSettings.searchIndexStorage": "Stopped: storage is nearly full.",
+    "debugSettings.prefetchTitle": "Background download (Android)",
+    "debugSettings.prefetchHint":
+        "Downloads encrypted history pages in the background while the app is not in front. They stay encrypted until the index reads them.",
+    "debugSettings.prefetchPages": "Pages waiting",
+    "debugSettings.prefetchSize": "Size",
+    "debugSettings.prefetchRooms": "Rooms",
+    "debugSettings.prefetchLastRun": "Last run",
+    "debugSettings.prefetchLastResult": "Last result",
+    "debugSettings.prefetchLastError": "Last error",
+    "debugSettings.prefetchRefresh": "Refresh",
+    "debugSettings.searchIndexAborted": "Cancelled.",
+    "debugSettings.searchIndexUnavailable":
+        "Stopped: the index isn't running on this device.",
+    "debugSettings.searchIndexDisabled":
+        "Turn on indexing for encrypted rooms in privacy settings first.",
+    "debugSettings.searchIndexNotRunning":
+        "The index isn't running right now. It starts once the app has finished loading.",
     "debugSettings.indexSyncSessions": "Sessions",
     "debugSettings.indexSyncAsked": "Asked",
     "debugSettings.indexSyncRoomsMissing": "Rooms with holes",

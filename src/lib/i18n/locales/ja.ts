@@ -556,6 +556,37 @@ const messages: Partial<Record<MessageKey, string>> = {
         "インデックス同期は動作していません。暗号化ルームのインデックス作成を有効にしてください。",
     "debugSettings.indexSyncNow": "今すぐ同期",
     "debugSettings.indexSyncNever": "なし",
+    "debugSettings.searchIndex": "検索インデックス",
+    "debugSettings.searchIndexHint":
+        "このデバイス上の暗号化ルームすべての履歴を、バックグラウンドでゆっくり進めるのではなく今すぐインデックス化します。実行中はネットワークとストレージを使います。",
+    "debugSettings.searchIndexBuild": "今すぐ完全なインデックスを作成",
+    "debugSettings.searchIndexCancel": "キャンセル",
+    "debugSettings.searchIndexBar": "完全なインデックスの進捗",
+    "debugSettings.searchIndexProgress":
+        "{done} / {total} ルーム、{messages} 件のメッセージ",
+    "debugSettings.searchIndexComplete":
+        "完了: すべての暗号化ルームがインデックス化されました。",
+    "debugSettings.searchIndexPartial":
+        "完了しましたが、{failed} 件のルームはまだ完了していません。バックグラウンドで再試行されます。",
+    "debugSettings.searchIndexStorage":
+        "停止: ストレージの空きがほとんどありません。",
+    "debugSettings.prefetchTitle": "バックグラウンドダウンロード (Android)",
+    "debugSettings.prefetchHint":
+        "アプリが前面にないとき、暗号化された履歴ページをバックグラウンドで取得します。インデックスが読むまで暗号化されたままです。",
+    "debugSettings.prefetchPages": "待機中のページ",
+    "debugSettings.prefetchSize": "サイズ",
+    "debugSettings.prefetchRooms": "ルーム",
+    "debugSettings.prefetchLastRun": "最終実行",
+    "debugSettings.prefetchLastResult": "前回の結果",
+    "debugSettings.prefetchLastError": "前回のエラー",
+    "debugSettings.prefetchRefresh": "更新",
+    "debugSettings.searchIndexAborted": "キャンセルしました。",
+    "debugSettings.searchIndexUnavailable":
+        "停止: このデバイスではインデックスが動作していません。",
+    "debugSettings.searchIndexDisabled":
+        "先にプライバシー設定で暗号化ルームのインデックスを有効にしてください。",
+    "debugSettings.searchIndexNotRunning":
+        "インデックスは現在動作していません。アプリの読み込みが終わると開始します。",
     "debugSettings.indexSyncSessions": "セッション",
     "debugSettings.indexSyncAsked": "問い合わせ",
     "debugSettings.indexSyncRoomsMissing": "欠けがあるルーム",

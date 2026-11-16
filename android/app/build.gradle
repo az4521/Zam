@@ -74,6 +74,9 @@ dependencies {
     // UnifiedPush: FCM-free push through the user's own distributor
     // (UnifiedPushService / UnifiedPushPlugin).
     implementation "org.unifiedpush.android:connector:3.3.5"
+    // Background history prefetch (HistoryPrefetchWorker): periodic and one-time
+    // WorkManager jobs that fetch encrypted /messages pages while the app is closed.
+    implementation "androidx.work:work-runtime:$androidxWorkVersion"
     // Plugins' native code (PluginNativePlugin): binary WebMessagePorts
     // between the page and a plugin's host.
     implementation "androidx.webkit:webkit:$androidxWebkitVersion"

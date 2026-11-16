@@ -58,6 +58,21 @@
         MIN_ATTENUATION_DB,
     } from "$lib/utils/micProcessing";
     import { getSyncLog } from "$lib/matrix/syncLog";
+    import {
+        eventIndexPrefetchStatus,
+        isEventIndexActive,
+    } from "$lib/matrix/eventIndex";
+    import { historyPrefetchAvailable } from "$lib/matrix/historyPrefetch";
+    import type { PrefetchStatus } from "$lib/utils/historyPrefetchPlan";
+    import {
+        cancelFullIndexBuild,
+        indexBuild,
+        startFullIndexBuild,
+    } from "$lib/stores/indexBuild.svelte";
+    import {
+        fullIndexPercent,
+        groupThousands,
+    } from "$lib/utils/fullIndexProgress";
     import { buildLogExport, saveLogExport } from "$lib/logExport";
     import {
         canToggleWebViewDebugging,
@@ -133,12 +148,102 @@
 
     // Search index sync with our other sessions: polled while the panel is open.
     let indexSync = $state(getIndexSyncStatus());
+    // Whether the local index is running (not reactive, so polled with the sync status).
+    let indexActive = $state(isEventIndexActive());
     onMount(() => {
-        const timer = setInterval(
-            () => (indexSync = getIndexSyncStatus()),
-            1_000,
-        );
+        const timer = setInterval(() => {
+            indexSync = getIndexSyncStatus();
+            indexActive = isEventIndexActive();
+        }, 1_000);
         return () => clearInterval(timer);
+    });
+    onMount(() => {
+        if (prefetchOn) void refreshPrefetch();
+    });
+
+    // Android background download of raw history pages. Read on demand (Refresh).
+    const prefetchOn = historyPrefetchAvailable();
+    let prefetch = $state<PrefetchStatus | null>(null);
+    let prefetchBusy = $state(false);
+    async function refreshPrefetch(): Promise<void> {
+        if (prefetchBusy) return;
+        prefetchBusy = true;
+        try {
+            prefetch = await eventIndexPrefetchStatus();
+        } finally {
+            prefetchBusy = false;
+        }
+    }
+    const prefetchRows = $derived(
+        prefetch
+            ? [
+                  [
+                      t("debugSettings.prefetchPages"),
+                      groupThousands(prefetch.pages),
+                  ],
+                  [
+                      t("debugSettings.prefetchSize"),
+                      `${(prefetch.bytes / (1024 * 1024)).toFixed(1)} MB`,
+                  ],
+                  [
+                      t("debugSettings.prefetchRooms"),
+                      groupThousands(prefetch.rooms),
+                  ],
+                  [
+                      t("debugSettings.prefetchLastRun"),
+                      prefetch.lastRunAt
+                          ? new Date(prefetch.lastRunAt).toLocaleString()
+                          : t("debugSettings.indexSyncNever"),
+                  ],
+                  [
+                      t("debugSettings.prefetchLastResult"),
+                      prefetch.lastResult ?? "-",
+                  ],
+                  [
+                      t("debugSettings.prefetchLastError"),
+                      prefetch.lastError ?? "-",
+                  ],
+              ]
+            : [],
+    );
+
+    // Full index build: the run lives in indexBuild, so it survives closing this panel.
+    const buildState = $derived(indexBuild.value);
+    const buildAllowed = $derived(
+        settingsState.indexEncryptedRooms && indexActive,
+    );
+    const buildHint = $derived(
+        !settingsState.indexEncryptedRooms
+            ? t("debugSettings.searchIndexDisabled")
+            : !indexActive
+              ? t("debugSettings.searchIndexNotRunning")
+              : t("debugSettings.searchIndexHint"),
+    );
+    const buildPercent = $derived(
+        buildState.status === "running"
+            ? fullIndexPercent(
+                  buildState.progress.roomsDone,
+                  buildState.progress.roomsTotal,
+              )
+            : 0,
+    );
+    const buildResult = $derived.by(() => {
+        if (buildState.status !== "finished") return null;
+        const r = buildState.result;
+        switch (r.reason) {
+            case "complete":
+                return t("debugSettings.searchIndexComplete");
+            case "partial":
+                return t("debugSettings.searchIndexPartial", {
+                    failed: r.failedRooms,
+                });
+            case "storage":
+                return t("debugSettings.searchIndexStorage");
+            case "aborted":
+                return t("debugSettings.searchIndexAborted");
+            case "unavailable":
+                return t("debugSettings.searchIndexUnavailable");
+        }
     });
     const ago = (at: number | null) => {
         if (!at) return t("debugSettings.indexSyncNever");
@@ -728,6 +833,100 @@
                 class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-discord-backgroundTertiary p-2 text-xs font-mono text-discord-textPrimary select-text">{indexSync.log.join(
                     "\n",
                 )}</pre>
+        {/if}
+    </section>
+
+    <section>
+        <div class="mb-2 flex items-center gap-2">
+            <p
+                class="flex-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+            >
+                {t("debugSettings.searchIndex")}
+            </p>
+            {#if buildState.status === "running"}
+                <button
+                    onclick={cancelFullIndexBuild}
+                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary"
+                    >{t("debugSettings.searchIndexCancel")}</button
+                >
+            {:else}
+                <button
+                    onclick={startFullIndexBuild}
+                    disabled={!buildAllowed}
+                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
+                    >{t("debugSettings.searchIndexBuild")}</button
+                >
+            {/if}
+        </div>
+        <p class="mb-2 text-xs text-discord-textMuted">{buildHint}</p>
+        {#if buildState.status === "running"}
+            <div
+                role="progressbar"
+                aria-label={t("debugSettings.searchIndexBar")}
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow={buildPercent}
+                class="h-2 w-full overflow-hidden rounded bg-discord-backgroundTertiary"
+            >
+                <div
+                    class="h-full bg-discord-accent transition-[width] duration-300"
+                    style:width="{buildPercent}%"
+                ></div>
+            </div>
+            <p class="mt-1 text-xs font-mono text-discord-textPrimary">
+                {t("debugSettings.searchIndexProgress", {
+                    done: buildState.progress.roomsDone,
+                    total: buildState.progress.roomsTotal,
+                    messages: groupThousands(
+                        buildState.progress.messagesIndexed,
+                    ),
+                })}
+            </p>
+        {/if}
+        {#if buildResult}
+            <p class="text-sm text-discord-textPrimary" aria-live="polite">
+                {buildResult}
+            </p>
+        {/if}
+        {#if prefetchOn}
+            <div class="mt-4 border-t border-discord-divider pt-3">
+                <div class="mb-1 flex items-center gap-2">
+                    <p
+                        class="flex-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                    >
+                        {t("debugSettings.prefetchTitle")}
+                    </p>
+                    <button
+                        onclick={refreshPrefetch}
+                        disabled={prefetchBusy}
+                        class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
+                        >{t("debugSettings.prefetchRefresh")}</button
+                    >
+                </div>
+                <p class="mb-2 text-xs text-discord-textMuted">
+                    {t("debugSettings.prefetchHint")}
+                </p>
+                {#if prefetch}
+                    {#each prefetchRows as [label, value]}
+                        <div
+                            class="flex items-start gap-3 text-sm py-1 border-b border-discord-divider"
+                        >
+                            <span
+                                class="text-discord-textMuted flex-shrink-0 w-44"
+                                >{label}</span
+                            >
+                            <span
+                                class="text-discord-textPrimary break-all font-mono text-xs"
+                                >{value}</span
+                            >
+                        </div>
+                    {/each}
+                {:else}
+                    <p class="text-xs text-discord-textMuted">
+                        {t("debugSettings.searchIndexNotRunning")}
+                    </p>
+                {/if}
+            </div>
         {/if}
     </section>
 

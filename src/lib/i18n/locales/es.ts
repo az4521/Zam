@@ -602,6 +602,37 @@ const messages: Partial<Record<MessageKey, string>> = {
         "La sincronización del índice no está activa: requiere activar la indexación de salas cifradas.",
     "debugSettings.indexSyncNow": "Sincronizar ahora",
     "debugSettings.indexSyncNever": "nunca",
+    "debugSettings.searchIndex": "Índice de búsqueda",
+    "debugSettings.searchIndexHint":
+        "Indexa ahora todo el historial de cada sala cifrada de este dispositivo, en lugar de hacerlo lentamente en segundo plano. Usa red y almacenamiento mientras se ejecuta.",
+    "debugSettings.searchIndexBuild": "Crear índice completo ahora",
+    "debugSettings.searchIndexCancel": "Cancelar",
+    "debugSettings.searchIndexBar": "Progreso del índice completo",
+    "debugSettings.searchIndexProgress":
+        "{done} / {total} salas, {messages} mensajes",
+    "debugSettings.searchIndexComplete":
+        "Terminado: todas las salas cifradas están indexadas.",
+    "debugSettings.searchIndexPartial":
+        "Terminado, pero {failed} salas aún no están listas. El rastreador en segundo plano las reintentará.",
+    "debugSettings.searchIndexStorage":
+        "Detenido: el almacenamiento está casi lleno.",
+    "debugSettings.prefetchTitle": "Descarga en segundo plano (Android)",
+    "debugSettings.prefetchHint":
+        "Descarga páginas cifradas del historial en segundo plano mientras la app no está en primer plano. Siguen cifradas hasta que el índice las lee.",
+    "debugSettings.prefetchPages": "Páginas en espera",
+    "debugSettings.prefetchSize": "Tamaño",
+    "debugSettings.prefetchRooms": "Salas",
+    "debugSettings.prefetchLastRun": "Última ejecución",
+    "debugSettings.prefetchLastResult": "Último resultado",
+    "debugSettings.prefetchLastError": "Último error",
+    "debugSettings.prefetchRefresh": "Actualizar",
+    "debugSettings.searchIndexAborted": "Cancelado.",
+    "debugSettings.searchIndexUnavailable":
+        "Detenido: el índice no se ejecuta en este dispositivo.",
+    "debugSettings.searchIndexDisabled":
+        "Activa primero la indexación de salas cifradas en los ajustes de privacidad.",
+    "debugSettings.searchIndexNotRunning":
+        "El índice no se está ejecutando ahora. Empieza cuando la app termine de cargar.",
     "debugSettings.indexSyncSessions": "Sesiones",
     "debugSettings.indexSyncAsked": "Consultado",
     "debugSettings.indexSyncRoomsMissing": "Salas con huecos",

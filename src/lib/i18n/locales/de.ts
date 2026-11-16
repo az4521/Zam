@@ -611,6 +611,37 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Index-Sync läuft nicht: Die Indizierung verschlüsselter Räume muss aktiviert sein.",
     "debugSettings.indexSyncNow": "Jetzt synchronisieren",
     "debugSettings.indexSyncNever": "nie",
+    "debugSettings.searchIndex": "Suchindex",
+    "debugSettings.searchIndexHint":
+        "Indiziert jetzt den gesamten Verlauf aller verschlüsselten Räume auf diesem Gerät, statt langsam im Hintergrund. Das nutzt während des Laufs Netzwerk und Speicher.",
+    "debugSettings.searchIndexBuild": "Vollständigen Index jetzt erstellen",
+    "debugSettings.searchIndexCancel": "Abbrechen",
+    "debugSettings.searchIndexBar": "Fortschritt des vollständigen Index",
+    "debugSettings.searchIndexProgress":
+        "{done} / {total} Räume, {messages} Nachrichten",
+    "debugSettings.searchIndexComplete":
+        "Fertig: Alle verschlüsselten Räume sind indiziert.",
+    "debugSettings.searchIndexPartial":
+        "Fertig, aber {failed} Räume sind noch nicht fertig. Der Hintergrunddienst versucht es erneut.",
+    "debugSettings.searchIndexStorage":
+        "Angehalten: Der Speicher ist fast voll.",
+    "debugSettings.prefetchTitle": "Hintergrund-Download (Android)",
+    "debugSettings.prefetchHint":
+        "Lädt verschlüsselte Verlaufsseiten im Hintergrund, solange die App nicht im Vordergrund ist. Sie bleiben verschlüsselt, bis der Index sie liest.",
+    "debugSettings.prefetchPages": "Wartende Seiten",
+    "debugSettings.prefetchSize": "Größe",
+    "debugSettings.prefetchRooms": "Räume",
+    "debugSettings.prefetchLastRun": "Letzter Lauf",
+    "debugSettings.prefetchLastResult": "Letztes Ergebnis",
+    "debugSettings.prefetchLastError": "Letzter Fehler",
+    "debugSettings.prefetchRefresh": "Aktualisieren",
+    "debugSettings.searchIndexAborted": "Abgebrochen.",
+    "debugSettings.searchIndexUnavailable":
+        "Angehalten: Der Index läuft auf diesem Gerät nicht.",
+    "debugSettings.searchIndexDisabled":
+        "Aktiviere zuerst die Indizierung verschlüsselter Räume in den Datenschutzeinstellungen.",
+    "debugSettings.searchIndexNotRunning":
+        "Der Index läuft gerade nicht. Er startet, sobald die App vollständig geladen ist.",
     "debugSettings.indexSyncSessions": "Sitzungen",
     "debugSettings.indexSyncAsked": "Angefragt",
     "debugSettings.indexSyncRoomsMissing": "Räume mit Lücken",

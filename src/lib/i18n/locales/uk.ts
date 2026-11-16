@@ -624,6 +624,36 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Синхронізація індексу не працює: потрібно ввімкнути індексацію зашифрованих кімнат.",
     "debugSettings.indexSyncNow": "Синхронізувати зараз",
     "debugSettings.indexSyncNever": "ніколи",
+    "debugSettings.searchIndex": "Пошуковий індекс",
+    "debugSettings.searchIndexHint":
+        "Проіндексувати зараз усю історію кожної зашифрованої кімнати на цьому пристрої, а не повільно у фоновому режимі. Під час роботи використовує мережу та сховище.",
+    "debugSettings.searchIndexBuild": "Побудувати повний індекс зараз",
+    "debugSettings.searchIndexCancel": "Скасувати",
+    "debugSettings.searchIndexBar": "Прогрес повного індексу",
+    "debugSettings.searchIndexProgress":
+        "{done} / {total} кімнат, {messages} повідомлень",
+    "debugSettings.searchIndexComplete":
+        "Готово: усі зашифровані кімнати проіндексовано.",
+    "debugSettings.searchIndexPartial":
+        "Готово, але {failed} кімнат ще не оброблено. Фоновий процес повторить спробу.",
+    "debugSettings.searchIndexStorage": "Зупинено: сховище майже заповнене.",
+    "debugSettings.prefetchTitle": "Фонове завантаження (Android)",
+    "debugSettings.prefetchHint":
+        "Завантажує зашифровані сторінки історії у фоні, коли застосунок не на передньому плані. Вони залишаються зашифрованими, доки індекс їх не прочитає.",
+    "debugSettings.prefetchPages": "Сторінок в очікуванні",
+    "debugSettings.prefetchSize": "Розмір",
+    "debugSettings.prefetchRooms": "Кімнати",
+    "debugSettings.prefetchLastRun": "Останній запуск",
+    "debugSettings.prefetchLastResult": "Останній результат",
+    "debugSettings.prefetchLastError": "Остання помилка",
+    "debugSettings.prefetchRefresh": "Оновити",
+    "debugSettings.searchIndexAborted": "Скасовано.",
+    "debugSettings.searchIndexUnavailable":
+        "Зупинено: індекс не працює на цьому пристрої.",
+    "debugSettings.searchIndexDisabled":
+        "Спочатку увімкніть індексацію зашифрованих кімнат у налаштуваннях приватності.",
+    "debugSettings.searchIndexNotRunning":
+        "Індекс зараз не працює. Він запуститься, коли застосунок завантажиться.",
     "debugSettings.indexSyncSessions": "Сеанси",
     "debugSettings.indexSyncAsked": "Запитано",
     "debugSettings.indexSyncRoomsMissing": "Кімнати з прогалинами",
