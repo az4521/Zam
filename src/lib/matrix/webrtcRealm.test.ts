@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { runInNewContext } from "node:vm";
 
 type Realm = typeof import("./webrtcRealm");
 
@@ -83,5 +84,78 @@ describe("ensureFreshWebrtcRealm", () => {
         expect(realm.ensureFreshWebrtcRealm()).toBe(false);
         expect(window.RTCPeerConnection).toBe(MainPc);
         expect(document.querySelector("iframe")).toBeNull();
+    });
+});
+
+describe("adoptMessageData", () => {
+    // A second realm, as a GPU-exit iframe is: its own ArrayBuffer and a
+    // MessageEvent whose data getter hands those out.
+    function foreignRealm() {
+        const ForeignArrayBuffer = runInNewContext(
+            "ArrayBuffer",
+        ) as ArrayBufferConstructor;
+        class ForeignBlob {}
+        class ForeignMessageEvent {
+            constructor(readonly payload: unknown) {}
+        }
+        Object.defineProperty(ForeignMessageEvent.prototype, "data", {
+            configurable: true,
+            enumerable: true,
+            get(this: ForeignMessageEvent) {
+                return this.payload;
+            },
+        });
+        const win = {
+            ArrayBuffer: ForeignArrayBuffer,
+            Blob: ForeignBlob,
+            MessageEvent: ForeignMessageEvent,
+        };
+        return { win, ForeignArrayBuffer, ForeignMessageEvent };
+    }
+
+    it("returns the frame's binary message data as this window's ArrayBuffer", async () => {
+        const realm = await load();
+        const { win, ForeignArrayBuffer, ForeignMessageEvent } = foreignRealm();
+        const foreign = new ForeignArrayBuffer(3);
+        new Uint8Array(foreign).set([1, 2, 3]);
+        expect(foreign instanceof ArrayBuffer).toBe(false);
+
+        realm.adoptMessageData(win as unknown as Window & typeof globalThis);
+        const event = new ForeignMessageEvent(foreign) as unknown as {
+            data: unknown;
+        };
+        const data = event.data;
+        expect(data instanceof ArrayBuffer).toBe(true);
+        expect([...new Uint8Array(data as ArrayBuffer)]).toEqual([1, 2, 3]);
+        expect(event.data).toBe(data);
+    });
+
+    it("leaves strings and this window's objects alone", async () => {
+        const realm = await load();
+        const { win, ForeignMessageEvent } = foreignRealm();
+        realm.adoptMessageData(win as unknown as Window & typeof globalThis);
+        const local = new ArrayBuffer(1);
+        expect(
+            (new ForeignMessageEvent("hi") as unknown as { data: unknown })
+                .data,
+        ).toBe("hi");
+        expect(
+            (new ForeignMessageEvent(local) as unknown as { data: unknown })
+                .data,
+        ).toBe(local);
+    });
+
+    it("patches each fresh frame", async () => {
+        (globalThis as { RTCPeerConnection?: unknown }).RTCPeerConnection =
+            MainPc;
+        const realm = await load();
+        const { win, ForeignArrayBuffer, ForeignMessageEvent } = foreignRealm();
+        stubFrameWindow({ ...win, RTCPeerConnection: FramePc });
+        realm.markWebrtcRealmStale();
+        expect(realm.ensureFreshWebrtcRealm()).toBe(true);
+        const event = new ForeignMessageEvent(
+            new ForeignArrayBuffer(2),
+        ) as unknown as { data: unknown };
+        expect(event.data instanceof ArrayBuffer).toBe(true);
     });
 });

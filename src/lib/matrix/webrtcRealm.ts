@@ -56,6 +56,7 @@ export function ensureFreshWebrtcRealm(): boolean {
         next.remove();
         return false;
     }
+    adoptMessageData(win);
     const previous = frame;
     frame = next;
     stale = false;
@@ -65,4 +66,41 @@ export function ensureFreshWebrtcRealm(): boolean {
     // replacing them now, so give that time to finish first.
     if (previous) setTimeout(() => previous.remove(), 60_000);
     return true;
+}
+
+/** Make `MessageEvent.data` from `win` (data-channel messages of peer
+ *  connections built from its classes) come back as this window's objects.
+ *  livekit-client's decodeDataMessage and the mesh transport test
+ *  `data instanceof ArrayBuffer` / `Blob`, which fails for the frame's own
+ *  ArrayBuffer, so every incoming data message (soundboard, chat, ...) was
+ *  dropped as "unsupported data type" after a GPU exit. */
+export function adoptMessageData(win: RealmWindow): void {
+    if (win === (window as RealmWindow)) return;
+    const proto = win.MessageEvent?.prototype;
+    const desc = proto && Object.getOwnPropertyDescriptor(proto, "data");
+    const getData = desc?.get;
+    if (!getData) return;
+    // Keep repeated reads of one event's data identical.
+    const copies = new WeakMap<object, unknown>();
+    Object.defineProperty(proto, "data", {
+        configurable: true,
+        enumerable: desc.enumerable,
+        get(this: MessageEvent) {
+            const data: unknown = getData.call(this);
+            if (data === null || typeof data !== "object") return data;
+            if (data instanceof ArrayBuffer || data instanceof Blob)
+                return data;
+            let copy = copies.get(this);
+            if (copy !== undefined) return copy;
+            if (win.ArrayBuffer && data instanceof win.ArrayBuffer) {
+                copy = new Uint8Array(data).slice().buffer;
+            } else if (win.Blob && data instanceof win.Blob) {
+                copy = new Blob([data as Blob], { type: (data as Blob).type });
+            } else {
+                return data;
+            }
+            copies.set(this, copy);
+            return copy;
+        },
+    });
 }
