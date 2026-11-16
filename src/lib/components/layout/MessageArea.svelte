@@ -160,10 +160,12 @@
         Image,
         MoreHorizontal,
         X,
-        MessagesSquare,
         ChevronRight,
     } from "lucide-svelte";
     import { bridgedThreadParent } from "$lib/stores/bridgedThreads.svelte";
+    import { bridgedChannel } from "$lib/stores/bridgedChannels.svelte";
+    import { channelIconKind } from "$lib/utils/bridgedChannels";
+    import ChannelTypeIcon from "$lib/components/ui/ChannelTypeIcon.svelte";
     import { navigateToRoom } from "$lib/stores/rooms.svelte";
     import RoomHeaderOverflowMenu from "$lib/components/layout/RoomHeaderOverflowMenu.svelte";
     import RoomTopicSheet from "$lib/components/layout/RoomTopicSheet.svelte";
@@ -1014,9 +1016,13 @@
             ? { roomId: r.roomId, name: getRoomDisplayName(r) }
             : null;
     });
-    const isBridgedThread = $derived(
-        (void roomsState.roomsTick, bridgedThreadParent(room.roomId) !== null),
-    );
+    // Discord-style channel icon from ZDMB's channel tag; other rooms keep #.
+    const headerIconKind = $derived.by(() => {
+        void roomsState.roomsTick;
+        return channelIconKind(bridgedChannel(room.roomId)?.type, {
+            isThread: bridgedThreadParent(room.roomId) !== null,
+        });
+    });
     // Re-reads the live Room's state; depends on roomsTick to refresh when the
     // m.room.encryption state event lands (the Room mutates in place).
     const roomEncrypted = $derived(
@@ -3021,7 +3027,14 @@
                         name: parent.name,
                     })}
                 >
-                    <Hash size={20} class="flex-shrink-0" />
+                    <ChannelTypeIcon
+                        kind={channelIconKind(
+                            (void roomsState.roomsTick,
+                            bridgedChannel(parent.roomId))?.type,
+                        )}
+                        size={20}
+                        class="flex-shrink-0"
+                    />
                     <span class="font-semibold truncate"
                         >{@html renderPlainTextWithTwemoji(parent.name)}</span
                     >
@@ -3031,15 +3044,11 @@
                     class="hidden sm:block text-discord-textMuted flex-shrink-0 rtl:-scale-x-100"
                 />
             {/if}
-            {#if isBridgedThread}
-                <MessagesSquare
-                    size={20}
-                    class="text-discord-textMuted flex-shrink-0"
-                    aria-label={t("bridgedThreads.thread")}
-                />
-            {:else}
-                <Hash size={20} class="text-discord-textMuted flex-shrink-0" />
-            {/if}
+            <ChannelTypeIcon
+                kind={headerIconKind}
+                size={20}
+                class="text-discord-textMuted flex-shrink-0"
+            />
             <!-- 5rem floor below md only: the header's buttons cannot shrink, so
                  without a floor the name and topic each get a proportional share of
                  the deficit at 412px and neither renders even an ellipsis. Above md

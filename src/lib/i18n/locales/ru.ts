@@ -2683,6 +2683,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "threadPanel.loadOlderReplies": "Загрузить более старые ответы",
 
     // src/lib/components/layout/ThreadsListPanel.svelte
+    "bridgedChannels.voice": "Голосовой канал",
+    "bridgedChannels.stage": "Трибуна",
+    "bridgedChannels.announcement": "Канал объявлений",
+    "bridgedChannels.forum": "Форум",
+    "bridgedChannels.media": "Медиаканал",
+    "bridgedChannels.privateThread": "Приватное обсуждение",
     "bridgedThreads.joinFailed": "Не удалось присоединиться к обсуждению.",
     "bridgedThreads.joinThread": "Присоединиться к обсуждению",
     "bridgedThreads.threadRooms": "Комнаты обсуждений",

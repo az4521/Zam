@@ -2676,6 +2676,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "threadPanel.loadOlderReplies": "Завантажити старіші відповіді",
 
     // src/lib/components/layout/ThreadsListPanel.svelte
+    "bridgedChannels.voice": "Голосовий канал",
+    "bridgedChannels.stage": "Сцена",
+    "bridgedChannels.announcement": "Канал оголошень",
+    "bridgedChannels.forum": "Форум",
+    "bridgedChannels.media": "Медіаканал",
+    "bridgedChannels.privateThread": "Приватна гілка",
     "bridgedThreads.joinFailed": "Не вдалося приєднатися до гілки.",
     "bridgedThreads.joinThread": "Приєднатися до гілки",
     "bridgedThreads.threadRooms": "Кімнати гілок",

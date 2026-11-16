@@ -2636,6 +2636,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "threadPanel.loadOlderReplies": "Ältere Antworten laden",
 
     // src/lib/components/layout/ThreadsListPanel.svelte
+    "bridgedChannels.voice": "Sprachkanal",
+    "bridgedChannels.stage": "Bühnenkanal",
+    "bridgedChannels.announcement": "Ankündigungskanal",
+    "bridgedChannels.forum": "Forum",
+    "bridgedChannels.media": "Medienkanal",
+    "bridgedChannels.privateThread": "Privater Thread",
     "bridgedThreads.joinFailed": "Dem Thread konnte nicht beigetreten werden.",
     "bridgedThreads.joinThread": "Thread beitreten",
     "bridgedThreads.threadRooms": "Thread-Räume",

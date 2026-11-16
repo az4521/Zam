@@ -143,6 +143,12 @@ import {
 import { resolveDisplayName } from "$lib/utils/displayName";
 import { nestedSpaceIds, topLevelSpaceOf } from "$lib/utils/spaceTree";
 import {
+    CHANNEL_KEY,
+    parseBridgedChannel,
+    parseSpaceChildChannel,
+    type BridgedChannel,
+} from "$lib/utils/bridgedChannels";
+import {
     parseSpaceChildCategory,
     type BridgedCategory,
 } from "$lib/utils/bridgedCategories";
@@ -2567,6 +2573,33 @@ export function readBridgedThreadIndex(): BridgedThreadIndex {
         if (parent) sources.push({ threadRoomId: room.roomId, parent });
     }
     return buildBridgedThreadIndex([...sources, ...fromSpaces]);
+}
+
+/**
+ * The ZDMB channel tag of every room known locally: a joined room's own
+ * `moe.crafty.zdmb.channel` state, else the copy on its m.space.child event in
+ * a joined space (rooms we have not joined). Cached per roomsTick by
+ * stores/bridgedChannels.svelte.ts.
+ */
+export function readBridgedChannelIndex(): Map<string, BridgedChannel> {
+    const own = new Map<string, BridgedChannel>();
+    const fromSpaces = new Map<string, BridgedChannel>();
+    for (const room of getRooms()) {
+        if (room.isSpaceRoom() && room.getMyMembership() === "join") {
+            for (const ev of spaceChildEvents(room.roomId) ?? []) {
+                const childId = ev.getStateKey();
+                const tag = parseSpaceChildChannel(ev.getContent());
+                if (childId && tag && !fromSpaces.has(childId))
+                    fromSpaces.set(childId, tag);
+            }
+        }
+        const tag = parseBridgedChannel(
+            room.currentState.getStateEvents(CHANNEL_KEY, "")?.getContent(),
+        );
+        if (tag) own.set(room.roomId, tag);
+    }
+    for (const [id, tag] of fromSpaces) if (!own.has(id)) own.set(id, tag);
+    return own;
 }
 
 /** The Discord category (ZDMB) of each child of a joined space, from the
@@ -5140,7 +5173,12 @@ export function getRoomDisplayName(room: Room): string {
         const inviter = getInviteSender(room);
         if (inviter) return room.getMember(inviter)?.name ?? inviter;
     }
-    // A Discord thread bridged by ZDMB: drop the bridge's "[⛓️] " name tag.
+    // A room bridged by ZDMB names itself without the bridge's "[🔊] " /
+    // "[⛓️] " prefix. Older bridges only tag threads, so strip that one.
+    const tag = parseBridgedChannel(
+        room.currentState.getStateEvents(CHANNEL_KEY, "")?.getContent(),
+    );
+    if (tag?.name) return tag.name;
     if (room.name && room.currentState.getStateEvents(THREAD_PARENT_TYPE, ""))
         return stripThreadNamePrefix(room.name);
     return room.name || room.roomId;

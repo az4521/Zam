@@ -2678,6 +2678,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "threadPanel.loadOlderReplies": "Carregar respostas mais antigas",
 
     // src/lib/components/layout/ThreadsListPanel.svelte
+    "bridgedChannels.voice": "Canal de voz",
+    "bridgedChannels.stage": "Canal de palco",
+    "bridgedChannels.announcement": "Canal de anúncios",
+    "bridgedChannels.forum": "Fórum",
+    "bridgedChannels.media": "Canal de mídia",
+    "bridgedChannels.privateThread": "Tópico privado",
     "bridgedThreads.joinFailed": "Não foi possível entrar no tópico.",
     "bridgedThreads.joinThread": "Entrar no tópico",
     "bridgedThreads.threadRooms": "Salas de tópicos",

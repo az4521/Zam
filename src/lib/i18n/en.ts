@@ -2586,6 +2586,13 @@ export const en = {
     "threadPanel.loadOlderReplies": "Load older replies",
 
     // src/lib/components/layout/ThreadsListPanel.svelte
+    // src/lib/components/ui/ChannelTypeIcon.svelte (ZDMB channel types)
+    "bridgedChannels.voice": "Voice channel",
+    "bridgedChannels.stage": "Stage channel",
+    "bridgedChannels.announcement": "Announcement channel",
+    "bridgedChannels.forum": "Forum",
+    "bridgedChannels.media": "Media channel",
+    "bridgedChannels.privateThread": "Private thread",
     // src/lib/stores/bridgedThreads.svelte.ts (ZDMB Discord threads)
     "bridgedThreads.joinFailed": "Couldn't join the thread.",
     "bridgedThreads.joinThread": "Join thread",

@@ -19,6 +19,7 @@ import {
     type BridgedThreadParent,
 } from "$lib/utils/bridgedThreads";
 import { auth } from "$lib/stores/auth.svelte";
+import { bridgedChannelName } from "$lib/stores/bridgedChannels.svelte";
 import { navigateToRoom, roomsState } from "$lib/stores/rooms.svelte";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 
@@ -80,9 +81,8 @@ export function bridgedThreadInfo(roomId: string): BridgedThreadInfo | null {
         name:
             room && joined
                 ? getRoomDisplayName(room)
-                : listed?.name
-                  ? stripThreadNamePrefix(listed.name)
-                  : roomId,
+                : (bridgedChannelName(roomId) ??
+                  (listed?.name ? stripThreadNamePrefix(listed.name) : roomId)),
         joined,
         room: joined ? room : null,
         via,

@@ -2474,6 +2474,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "threadPanel.loadOlderReplies": "加载更早的回复",
 
     // src/lib/components/layout/ThreadsListPanel.svelte
+    "bridgedChannels.voice": "语音频道",
+    "bridgedChannels.stage": "舞台频道",
+    "bridgedChannels.announcement": "公告频道",
+    "bridgedChannels.forum": "论坛",
+    "bridgedChannels.media": "媒体频道",
+    "bridgedChannels.privateThread": "私密消息列",
     "bridgedThreads.joinFailed": "无法加入消息列。",
     "bridgedThreads.joinThread": "加入消息列",
     "bridgedThreads.threadRooms": "消息列房间",

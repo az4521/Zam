@@ -2656,6 +2656,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "threadPanel.loadOlderReplies": "Cargar respuestas anteriores",
 
     // src/lib/components/layout/ThreadsListPanel.svelte
+    "bridgedChannels.voice": "Canal de voz",
+    "bridgedChannels.stage": "Canal de escenario",
+    "bridgedChannels.announcement": "Canal de anuncios",
+    "bridgedChannels.forum": "Foro",
+    "bridgedChannels.media": "Canal multimedia",
+    "bridgedChannels.privateThread": "Hilo privado",
     "bridgedThreads.joinFailed": "No se pudo unir al hilo.",
     "bridgedThreads.joinThread": "Unirse al hilo",
     "bridgedThreads.threadRooms": "Salas de hilos",

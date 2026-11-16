@@ -60,9 +60,6 @@
         MicOff,
         HeadphoneOff,
         GripVertical,
-        MessagesSquare,
-        Video,
-        Hash,
         Circle,
         Check,
     } from "lucide-svelte";
@@ -86,6 +83,9 @@
     } from "$lib/utils/roomOrdering";
     import { shouldOfferKnock, matrixErrorMessage } from "$lib/utils/knock";
     import { nestThreadRows } from "$lib/utils/bridgedThreads";
+    import { channelIconKind } from "$lib/utils/bridgedChannels";
+    import { bridgedChannel } from "$lib/stores/bridgedChannels.svelte";
+    import ChannelTypeIcon from "$lib/components/ui/ChannelTypeIcon.svelte";
     import {
         groupByCategory,
         type BridgedCategory,
@@ -1456,27 +1456,15 @@
                                     ? 'bg-discord-danger'
                                     : 'bg-discord-textPrimary'} flex-shrink-0"
                             ></span>
-                        {:else if isVideo}
-                            <span
-                                class="opacity-70 flex items-center justify-center"
-                                aria-label={t("common.videoRoom")}
-                            >
-                                <Video size={14} />
-                            </span>
-                        {:else if isThread}
-                            <span
-                                class="w-5 h-5 opacity-70 flex items-center justify-center"
-                                role="img"
-                                aria-label={t("bridgedThreads.thread")}
-                            >
-                                <MessagesSquare size={14} />
-                            </span>
                         {:else}
-                            <span
-                                class="w-5 h-5 opacity-70 flex items-center justify-center"
-                            >
-                                <Hash size={14} />
-                            </span>
+                            <ChannelTypeIcon
+                                kind={channelIconKind(
+                                    (void roomsState.roomsTick,
+                                    bridgedChannel(room.roomId))?.type,
+                                    { isThread, isVideo },
+                                )}
+                                class="w-5 h-5 opacity-70"
+                            />
                         {/if}
                     </div>
                     <!-- Tick dependency: names change by in-place Room
@@ -1656,6 +1644,8 @@
         <!-- A space child we haven't joined: join / knock in place -->
         {#snippet unjoinedRow(room: SpaceChildInfo)}
             {@const isJoining = joiningIds.has(room.roomId)}
+            {@const tag =
+                (void roomsState.roomsTick, bridgedChannel(room.roomId))}
             <!-- Same row geometry as channelRow (flex, py-1.5, 0.5rem inset,
                  w-5 icon slot, single-line name) so joined and unjoined rows
                  share height, hover and spacing. The member count lives in
@@ -1675,16 +1665,15 @@
                     <div
                         class="w-5 flex-shrink-0 flex items-center justify-center"
                     >
-                        <span
-                            class="w-5 h-5 opacity-70 flex items-center justify-center"
-                        >
-                            <Hash size={14} />
-                        </span>
+                        <ChannelTypeIcon
+                            kind={channelIconKind(tag?.type)}
+                            class="w-5 h-5 opacity-70"
+                        />
                     </div>
                     <span
                         class="flex-1 text-sm text-discord-textSecondary group-hover:text-discord-textPrimary truncate transition-colors"
                         >{@html renderPlainTextWithTwemoji(
-                            room.name ?? "",
+                            tag?.name || room.name || "",
                         )}</span
                     >
                 </div>
