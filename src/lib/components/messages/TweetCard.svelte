@@ -57,6 +57,16 @@
 
     const photos = $derived(tweet.media.filter((m) => m.kind === "photo"));
 
+    /** A photo as the viewer wants it: the original, the grid's thumb as its
+     *  stand-in, and its size so the box is laid out before either loads. */
+    function viewerItem(p: (typeof photos)[number]) {
+        return {
+            src: p.url,
+            placeholders: [tweetPhotoThumb(p.url)],
+            dims: p.width && p.height ? { w: p.width, h: p.height } : null,
+        };
+    }
+
     const pollEnded = $derived(
         tweet.poll?.endsAt != null && tweet.poll.endsAt <= Date.now(),
     );
@@ -448,15 +458,21 @@
     {@const prev = nav.prevIndex}
     {@const next = nav.nextIndex}
     {#if photo}
+        <!-- The grid's medium thumb (already loaded) stands in, in a box
+             sized from the media dims, until the original arrives; the
+             neighbours carry the same so a step or swipe lands on a sized,
+             painted image instead of an empty 0x0 one. -->
         <Lightbox
             src={photo.url}
             alt={photo.alt ?? ""}
+            placeholders={viewerItem(photo).placeholders}
+            dims={viewerItem(photo).dims}
             onClose={() => (lightboxIndex = null)}
             onPrev={prev !== null ? () => (lightboxIndex = prev) : undefined}
             onNext={next !== null ? () => (lightboxIndex = next) : undefined}
             neighbours={{
-                prev: prev !== null ? { src: photos[prev].url } : null,
-                next: next !== null ? { src: photos[next].url } : null,
+                prev: prev !== null ? viewerItem(photos[prev]) : null,
+                next: next !== null ? viewerItem(photos[next]) : null,
             }}
             position={galleryPositionLabel(photos.length, lightboxIndex)}
         />
