@@ -1,5 +1,10 @@
 import { t } from "$lib/i18n";
-import { setOwnProfileField, uploadContent } from "$lib/matrix/client";
+import {
+    fetchOwnExtendedProfile,
+    prepareOwnProfileFieldDeleteOnUnload,
+    setOwnProfileField,
+    uploadContent,
+} from "$lib/matrix/client";
 import { auth } from "$lib/stores/auth.svelte";
 import { requestProfile } from "$lib/stores/profileFields.svelte";
 import {
@@ -25,6 +30,7 @@ import {
     parseRpcEntry,
     pickPublishable,
     serializeRpcEntry,
+    staleRpcAction,
     withIcons,
     type DiscordImages,
     type RpcEntry,
@@ -209,6 +215,13 @@ let renewTimer: ReturnType<typeof setInterval> | null = null;
 // Writes are strictly one at a time: a new PUT waits for the previous one.
 let chain: Promise<void> = Promise.resolve();
 let published = false;
+/** Sends the field's DELETE as the page goes away (see onPageHide). */
+let deleteOnUnload: (() => void) | null = null;
+let deleteOnUnloadJob: Promise<void> | null = null;
+let staleTimer: ReturnType<typeof setTimeout> | null = null;
+/** Let the client sync, and this computer's apps report, before the sweep. */
+const STALE_SWEEP_DELAY_MS = 15_000;
+const STALE_RECHECK_MIN_MS = 60_000;
 
 const bridge = () =>
     typeof window !== "undefined" ? window.desktop?.richPresence : undefined;
@@ -228,7 +241,76 @@ export function pluginPresenceKnown(): boolean {
 /** Start listening, if the settings say so. Returns a stop function. */
 export function startRichPresence(): () => void {
     void syncRichPresence();
-    return () => stopRichPresence();
+    if (typeof window !== "undefined")
+        window.addEventListener("pagehide", onPageHide);
+    scheduleStaleSweep(STALE_SWEEP_DELAY_MS);
+    return () => {
+        if (typeof window !== "undefined")
+            window.removeEventListener("pagehide", onPageHide);
+        stopRichPresence();
+    };
+}
+
+/** The page is going away (quit, reload, account switch) with presence on
+ *  the profile: the debounced clear would be cut off, so send the DELETE as a
+ *  keepalive request now. Whatever this misses, the next start's sweep
+ *  clears once it has run out. */
+function onPageHide(): void {
+    if (published) deleteOnUnload?.();
+}
+
+function prepareUnloadDelete(): void {
+    if (deleteOnUnload || deleteOnUnloadJob) return;
+    deleteOnUnloadJob = prepareOwnProfileFieldDeleteOnUnload(
+        PROFILE_FIELDS.rpc.unstable,
+    )
+        .then((send) => {
+            deleteOnUnload = send;
+        })
+        .catch(() => {})
+        .finally(() => {
+            deleteOnUnloadJob = null;
+        });
+}
+
+function scheduleStaleSweep(delay: number): void {
+    if (staleTimer) clearTimeout(staleTimer);
+    staleTimer = setTimeout(() => {
+        staleTimer = null;
+        chain = chain.then(sweepStale, sweepStale);
+    }, delay);
+}
+
+/**
+ * An earlier session that quit or crashed never took its presence off the
+ * profile, and nothing else would: with nothing to publish, publish() leaves
+ * the field alone. Clear it once every entry in it has run out. Runs on the
+ * write chain, so it can never delete something publish() just wrote.
+ */
+async function sweepStale(): Promise<void> {
+    // Publishing replaces the whole field, stale entries included.
+    if (published || held.size > 0) return;
+    let profile: Record<string, unknown> | null;
+    try {
+        profile = await fetchOwnExtendedProfile();
+    } catch {
+        return;
+    }
+    if (!profile || published || held.size > 0) return;
+    const now = Date.now();
+    const action = staleRpcAction(profile[PROFILE_FIELDS.rpc.unstable], now);
+    if (action.clear) {
+        try {
+            await writeField(null);
+            if (auth.userId) requestProfile(auth.userId, 0);
+        } catch {
+            // Best effort; the next start tries again.
+        }
+    } else if (action.recheckAt !== null) {
+        scheduleStaleSweep(
+            Math.max(STALE_RECHECK_MIN_MS, action.recheckAt - now + 5000),
+        );
+    }
 }
 
 /** Re-apply the settings: start or stop the local listeners to match. */
@@ -389,6 +471,8 @@ function watchListDownload(tries = 0): void {
 export function stopRichPresence(): void {
     unsubscribe?.();
     unsubscribe = null;
+    if (staleTimer) clearTimeout(staleTimer);
+    staleTimer = null;
     void bridge()?.configure({
         local: false,
         arrpc: false,
@@ -401,6 +485,26 @@ export function stopRichPresence(): void {
         games: [],
     });
     clearHeld();
+}
+
+/**
+ * Signing out: take our presence off the profile now, while the token still
+ * works (afterwards nothing can, and no later start of this account on this
+ * device may come to sweep it). Bounded, so a slow server cannot hold up the
+ * sign-out.
+ */
+export async function clearRichPresenceForSignOut(
+    timeoutMs = 1500,
+): Promise<void> {
+    stopRichPresence();
+    if (publishTimer) clearTimeout(publishTimer);
+    publishTimer = null;
+    if (!published) return;
+    const write = (chain = chain.then(publish, publish));
+    await Promise.race([
+        write,
+        new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+    ]);
 }
 
 function clearHeld(): void {
@@ -909,6 +1013,7 @@ async function publish(): Promise<void> {
             entries.length > 0 ? entries.map(serializeRpcEntry) : null,
         );
         published = entries.length > 0;
+        if (published) prepareUnloadDelete();
         richPresenceState.error = null;
         if (auth.userId) requestProfile(auth.userId, 0);
     } catch (e) {
@@ -970,11 +1075,15 @@ export function resetRichPresenceForTests(): void {
     pluginWanted.clear();
     dropInvites(() => true);
     published = false;
+    deleteOnUnload = null;
+    deleteOnUnloadJob = null;
     chain = Promise.resolve();
-    for (const timer of [publishTimer, expiryTimer])
+    for (const timer of [publishTimer, expiryTimer, staleTimer])
         if (timer) clearTimeout(timer);
     if (renewTimer) clearInterval(renewTimer);
-    publishTimer = expiryTimer = renewTimer = null;
+    publishTimer = expiryTimer = renewTimer = staleTimer = null;
+    if (typeof window !== "undefined")
+        window.removeEventListener("pagehide", onPageHide);
     unsubscribe = null;
     richPresenceState.active = [];
 }

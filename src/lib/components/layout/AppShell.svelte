@@ -159,7 +159,10 @@
     import { APP_VERSION } from "$lib/update";
     import { webBundleReady, webBundleSetAuto } from "$lib/androidWebBundle";
     import { isDesktopTray, setMinimizeToTray } from "$lib/desktopTray";
-    import { startRichPresence } from "$lib/stores/richPresence.svelte";
+    import {
+        clearRichPresenceForSignOut,
+        startRichPresence,
+    } from "$lib/stores/richPresence.svelte";
     import { installDesktopSaveImage } from "$lib/desktopContextMenu";
     import { installDesktopMessageMenu } from "$lib/desktopMessageMenu";
     import { mirrorReceiptPrivacy } from "$lib/receiptPrivacySync";
@@ -2766,6 +2769,8 @@
         if (client) teardownWebPush(client).catch(() => {});
         clearNativeSession().catch(() => {});
         clearServiceWorkerAuth();
+        // Rich presence must come off the profile before the token dies.
+        await clearRichPresenceForSignOut();
         // Give the server-side token invalidation and the local store wipe a
         // bounded window to finish, then leave via a full reload so no store
         // state survives into the successor account's boot.

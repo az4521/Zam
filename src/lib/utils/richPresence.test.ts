@@ -7,6 +7,7 @@ import {
     parseRpcField,
     pickPublishable,
     serializeRpcEntry,
+    staleRpcAction,
     type RpcEntry,
 } from "./richPresence";
 
@@ -276,5 +277,40 @@ describe("fillOpenidPlaceholder", () => {
         expect(url).toBe(
             `https://x.example/?t=${encodeURIComponent('{"access_token":"a b"}')}`,
         );
+    });
+});
+
+describe("staleRpcAction", () => {
+    it("does nothing without the field", () => {
+        expect(staleRpcAction(undefined, NOW)).toEqual({
+            clear: false,
+            recheckAt: null,
+        });
+    });
+
+    it("clears a field whose entries have all run out", () => {
+        expect(staleRpcAction([activity({ expiry: NOW - 1 })], NOW)).toEqual({
+            clear: true,
+            recheckAt: null,
+        });
+    });
+
+    it("clears an empty or unreadable field", () => {
+        expect(staleRpcAction([], NOW).clear).toBe(true);
+        expect(staleRpcAction("junk", NOW).clear).toBe(true);
+        expect(staleRpcAction([{ nope: 1 }], NOW).clear).toBe(true);
+    });
+
+    it("keeps a current entry and looks again when the last one runs out", () => {
+        expect(
+            staleRpcAction(
+                [
+                    activity({ expiry: NOW + 1000 }),
+                    activity({ id: "b", expiry: NOW + 9000 }),
+                    activity({ id: "c", expiry: NOW - 5 }),
+                ],
+                NOW,
+            ),
+        ).toEqual({ clear: false, recheckAt: NOW + 9000 });
     });
 });

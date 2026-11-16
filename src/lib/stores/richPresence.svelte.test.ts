@@ -1,8 +1,28 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+    describe,
+    it,
+    expect,
+    vi,
+    beforeAll,
+    beforeEach,
+    afterEach,
+} from "vitest";
 
 const setOwnProfileField = vi.fn(async (..._a: unknown[]) => {});
 const uploadContent = vi.fn(async (..._a: unknown[]) => "mxc://srv/uploaded");
-vi.mock("$lib/matrix/client", () => ({ setOwnProfileField, uploadContent }));
+const fetchOwnExtendedProfile = vi.fn(
+    async (): Promise<Record<string, unknown> | null> => null,
+);
+const sendUnloadDelete = vi.fn();
+const prepareOwnProfileFieldDeleteOnUnload = vi.fn(
+    async (..._a: unknown[]) => sendUnloadDelete,
+);
+vi.mock("$lib/matrix/client", () => ({
+    setOwnProfileField,
+    uploadContent,
+    fetchOwnExtendedProfile,
+    prepareOwnProfileFieldDeleteOnUnload,
+}));
 vi.mock("$lib/stores/profileFields.svelte", () => ({
     requestProfile: vi.fn(),
 }));
@@ -47,10 +67,19 @@ const ev = (
     ...over,
 });
 
+// The first import transforms the whole store graph, which can outlast a test
+// timeout on a busy machine; do it once up front.
+beforeAll(async () => {
+    await import("./richPresence.svelte");
+}, 30_000);
+
 beforeEach(() => {
     vi.useFakeTimers();
     localStorage.clear();
     setOwnProfileField.mockClear();
+    fetchOwnExtendedProfile.mockReset();
+    fetchOwnExtendedProfile.mockImplementation(async () => null);
+    sendUnloadDelete.mockClear();
     configure.mockClear();
     image.mockClear();
     uploadContent.mockClear();
@@ -762,6 +791,126 @@ describe("rich presence store", () => {
             await rp.syncRichPresence();
             await vi.advanceTimersByTimeAsync(2000);
             expect(lastValue()).toHaveLength(1);
+        });
+    });
+
+    describe("clearing what an earlier session left", () => {
+        const KEY = "xyz.extera.msc4544.rpc";
+        const left = (expiry: number) => ({
+            [KEY]: [
+                {
+                    id: "old",
+                    type: "xyz.extera.msc4544.rpc.activity",
+                    name: "Old game",
+                    expiry,
+                },
+            ],
+        });
+
+        it("clears a field whose entries have all run out", async () => {
+            const { rp } = await load();
+            fetchOwnExtendedProfile.mockResolvedValue(left(Date.now() - 1000));
+            const stop = rp.startRichPresence();
+            await vi.advanceTimersByTimeAsync(16_000);
+            expect(setOwnProfileField).toHaveBeenCalledWith(KEY, null);
+            stop();
+            rp.resetRichPresenceForTests();
+        });
+
+        it("leaves a current entry alone, then clears it once it runs out", async () => {
+            const { rp } = await load();
+            const expiry = Date.now() + 5 * 60_000;
+            fetchOwnExtendedProfile.mockResolvedValue(left(expiry));
+            const stop = rp.startRichPresence();
+            await vi.advanceTimersByTimeAsync(16_000);
+            expect(setOwnProfileField).not.toHaveBeenCalled();
+            await vi.advanceTimersByTimeAsync(5 * 60_000);
+            expect(setOwnProfileField).toHaveBeenCalledWith(KEY, null);
+            stop();
+            rp.resetRichPresenceForTests();
+        });
+
+        it("does not touch a profile without the field", async () => {
+            const { rp } = await load();
+            fetchOwnExtendedProfile.mockResolvedValue({ displayname: "x" });
+            const stop = rp.startRichPresence();
+            await vi.advanceTimersByTimeAsync(16_000);
+            expect(setOwnProfileField).not.toHaveBeenCalled();
+            stop();
+            rp.resetRichPresenceForTests();
+        });
+
+        it("does not sweep while this client is publishing", async () => {
+            const { rp } = await load();
+            fetchOwnExtendedProfile.mockResolvedValue(left(Date.now() - 1000));
+            const stop = rp.startRichPresence();
+            rp.setPluginPresence(
+                "com.x",
+                "X",
+                {
+                    kind: "activity",
+                    id: "e1",
+                    expiry: Date.now() + 60_000,
+                    buttons: [],
+                    name: "Now",
+                },
+                false,
+            );
+            await vi.advanceTimersByTimeAsync(16_000);
+            expect(setOwnProfileField).not.toHaveBeenCalledWith(KEY, null);
+            stop();
+            rp.resetRichPresenceForTests();
+        });
+    });
+
+    describe("leaving", () => {
+        const KEY = "xyz.extera.msc4544.rpc";
+        const publishOne = async (
+            rp: typeof import("./richPresence.svelte"),
+        ) => {
+            rp.setPluginPresence(
+                "com.x",
+                "X",
+                {
+                    kind: "activity",
+                    id: "e1",
+                    expiry: Date.now() + 60_000,
+                    buttons: [],
+                    name: "Now",
+                },
+                false,
+            );
+            await vi.advanceTimersByTimeAsync(2000);
+        };
+
+        it("sends the delete as the page goes away while presence is up", async () => {
+            const { rp } = await load();
+            const stop = rp.startRichPresence();
+            await publishOne(rp);
+            window.dispatchEvent(new Event("pagehide"));
+            expect(sendUnloadDelete).toHaveBeenCalledTimes(1);
+            stop();
+            rp.resetRichPresenceForTests();
+        });
+
+        it("sends nothing as the page goes away with nothing up", async () => {
+            const { rp } = await load();
+            const stop = rp.startRichPresence();
+            window.dispatchEvent(new Event("pagehide"));
+            expect(sendUnloadDelete).not.toHaveBeenCalled();
+            stop();
+            rp.resetRichPresenceForTests();
+        });
+
+        it("clears at once on sign-out, without the debounce", async () => {
+            const { rp } = await load();
+            const stop = rp.startRichPresence();
+            await publishOne(rp);
+            setOwnProfileField.mockClear();
+            await rp.clearRichPresenceForSignOut();
+            expect(setOwnProfileField).toHaveBeenCalledWith(KEY, null);
+            stop();
+            rp.resetRichPresenceForTests();
         });
     });
 

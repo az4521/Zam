@@ -177,6 +177,31 @@ export function parseRpcField(value: unknown, now: number): RpcEntry[] {
     return out;
 }
 
+/**
+ * What to do with an `m.rpc` value found on our own profile while this
+ * client is publishing nothing: an earlier session that quit or crashed left
+ * it there. Every entry run out (or nothing readable): clear it. Something
+ * still current may be another device of ours, so leave it and look again
+ * once the last of it has run out.
+ */
+export function staleRpcAction(
+    value: unknown,
+    now: number,
+): { clear: boolean; recheckAt: number | null } {
+    if (value === undefined) return { clear: false, recheckAt: null };
+    let latest: number | null = null;
+    if (Array.isArray(value)) {
+        for (const raw of value) {
+            const entry = parseRpcEntry(raw);
+            if (entry && entry.expiry > now)
+                latest = Math.max(latest ?? 0, entry.expiry);
+        }
+    }
+    return latest === null
+        ? { clear: true, recheckAt: null }
+        : { clear: false, recheckAt: latest };
+}
+
 /** The soonest expiry among `entries`, or null if there are none. */
 export function nextRpcExpiry(entries: readonly RpcEntry[]): number | null {
     let soonest: number | null = null;

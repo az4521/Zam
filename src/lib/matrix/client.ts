@@ -4851,6 +4851,47 @@ export async function setOwnProfileField(
     else await matrixClient.setExtendedProfileProperty(key, value);
 }
 
+/**
+ * A DELETE of one of our extended profile fields that can be sent while the
+ * page is going away: the URL is worked out now (that needs awaits), and the
+ * returned function sends it with no await as a keepalive fetch, which
+ * outlives the page. Null when the server has no extended profiles. The send
+ * does nothing once this client is gone (signed out, account switched).
+ */
+export async function prepareOwnProfileFieldDeleteOnUnload(
+    key: string,
+): Promise<(() => void) | null> {
+    const client = matrixClient;
+    const userId = client?.getUserId();
+    if (!client || !userId) return null;
+    if (!(await client.doesServerSupportExtendedProfiles())) return null;
+    // Mirrors the SDK's own (private) choice of prefix.
+    const prefix =
+        (await client.isVersionSupported("v1.16")) ||
+        (await client.doesServerSupportUnstableFeature(
+            "uk.tcpip.msc4133.stable",
+        ))
+            ? "/_matrix/client/v3"
+            : "/_matrix/client/unstable/uk.tcpip.msc4133";
+    const url =
+        `${client.getHomeserverUrl().replace(/\/+$/, "")}${prefix}/profile/` +
+        `${encodeURIComponent(userId)}/${encodeURIComponent(key)}`;
+    return () => {
+        if (matrixClient !== client) return;
+        const token = client.getAccessToken();
+        if (!token) return;
+        try {
+            void fetch(url, {
+                method: "DELETE",
+                keepalive: true,
+                headers: { Authorization: `Bearer ${token}` },
+            }).catch(() => {});
+        } catch {
+            // Best effort: the next start's sweep clears what this misses.
+        }
+    };
+}
+
 // ── Server capabilities ────────────────────────────────────────────────────
 
 export async function getServerVersions(): Promise<{
