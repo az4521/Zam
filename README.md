@@ -90,6 +90,19 @@ npm run dev
 
 useful scripts: `npm run check` (svelte-check), `npm run test` (vitest, run-once), `npm run build`, `npm run format` (prettier), `npm run electron:build`, `npm run lint` (`prettier --check .`). CI runs check, test and lint before any release build.
 
+## bridging Discord
+
+[ZDMB](https://github.com/az4521/ZDMB) (Zam Discord-Matrix Bridge) is a fork of [Out Of Your Element](https://gitdab.com/cadence/out-of-your-element) that bridges Discord servers to Matrix spaces, made to go with Zam. it's a drop-in replacement for OOYE, and it bridges extra stuff Zam knows how to show: role colours as username colours, rich presence, custom statuses, "in a call", profile banners, voice messages and media galleries.
+
+in a bridged space, Zam lays things out like Discord does:
+
+- channels are grouped under their Discord categories, which you can collapse
+- each channel gets Discord's icon for its type (text, voice, stage, announcement, forum, media, thread), and its name without the bridge's `[🔊]` / `[⛓️]` prefix
+- threads you've joined sit under their channel; the message a thread started from gets a chip that opens (or joins) it, and the channel's threads panel lists them all
+- inside a thread, the header leads with `# channel ›` to get back
+
+other clients still work with ZDMB, they just see plain rooms.
+
 ## serving it
 
 run `npm run build` and copy the files in `build/` into a web directory. it's all static — there is no backend to serve. point your SPA fallback at `index.html` (e.g. nginx `try_files $uri $uri/ /index.html;`).

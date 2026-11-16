@@ -4,6 +4,22 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.64.0
+
+✨ **New**
+
+- **Discord servers bridged with ZDMB look like Discord:** [ZDMB](https://github.com/az4521/ZDMB) (Zam Discord-Matrix Bridge) is a new fork of the Out Of Your Element bridge that tells Zam how a Discord server is laid out. The next three points are what Zam does with it.
+- **Discord categories:** in a ZDMB space, channels are grouped under their Discord categories, which you can collapse. A collapsed category keeps the channel you're in visible and shows a dot when a hidden channel has unread messages.
+- **Discord channel icons and names:** each bridged channel shows Discord's icon for its type (text, voice, stage, announcement, forum, media, thread, private thread) and its name without the bridge's `[🔊]` / `[⛓️]` prefix, including channels you haven't joined yet.
+- **Discord threads:** threads you've joined sit under their channel. The message a thread was started from gets a chip with the thread's name, member count and unread badge that opens it, joining it first if needed. The channel's Threads panel lists its threads, and inside a thread the header shows `# channel ›` to get back.
+- **Forwarded messages say where they're from:** forwarding a message now records who sent it, where and when (MSC4553). Forwards show the original under a "Forwarded from" label with a footer that opens the original, and notifications and previews show the original too. Apps without support see a "Forwarded from" line with a link and the original quoted.
+- **Animated thumbnails:** GIF, APNG and animated WebP/AVIF uploads get an animated thumbnail instead of a still one, so they keep moving in apps that show the thumbnail inline (any app in an encrypted room). Images marked as animated now load at full size so they don't freeze.
+- **Name colours in the member list:** members show their name colour once another part of the app has loaded it. Offline members' colours are dimmed.
+
+🐛 **Fixed**
+
+- **Swiping photos in X/Twitter previews:** stepping to the next photo in the viewer shows its thumbnail at the right size right away, instead of an empty box until the full photo loads.
+
 ## v1.63.2
 
 ✨ **New**
