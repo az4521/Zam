@@ -1,6 +1,6 @@
 {
     "name": "zam",
-    "version": "1.64.1",
+    "version": "1.65.0",
     "private": true,
     "main": "electron/main.cjs",
     "scripts": {

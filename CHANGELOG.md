@@ -4,6 +4,20 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.65.0
+
+✨ **New**
+
+- **Smooth window sharing on Windows:** sharing a window from the Windows app now captures and encodes it outside the browser engine, on every frame the window draws, with your graphics card's encoder. Sharing a game no longer stutters while the game keeps the GPU busy. Your own preview shows exactly what others see. The "Windows capture helper" switch in the screen share quality options turns it off.
+- **Screen sharing from Android:** the Android app can now share your screen in calls, including on older Android System WebViews. A notification shows while you share, with a "Stop sharing" button.
+- **Separate interface scale and message text size:** the text-size setting is now two: interface scale (75-150%) for the whole app, and message text size (80-200%) for messages and the composer. Your old setting carries over to the interface scale.
+- **Build the full search index:** Settings → Debug has "Build full index now", with progress and a cancel button. On Android, the app fetches encrypted history in the background (on Wi-Fi, when the battery isn't low) so indexing has less to download when you open it.
+
+🐛 **Fixed**
+
+- **Search missing older messages on mobile:** history whose keys arrived later from key backup was never indexed, so search only found what you had scrolled through. Existing installs re-index their history once.
+- **Screen share bitrate slider:** a bad upload-speed estimate could let the slider go far above what your connection can carry. Unrealistic readings are now ignored, and a bad stored value is corrected.
+
 ## v1.64.1
 
 ✨ **New**
