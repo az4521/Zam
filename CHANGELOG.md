@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.65.5
+
+🐛 **Fixed**
+
+- **Screen share size:** native screen shares (Windows window shares and Android) now tell the call server and other clients their real picture size. They used to report a tiny 64x64 size, which every viewer, including Element Call, was given.
+
 ## v1.65.4
 
 🐛 **Fixed**
