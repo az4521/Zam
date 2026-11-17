@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
     AUTO_AWAY_MS,
+    activityHidden,
     advertisedPresence,
+    presenceProbeVerdict,
     isPresenceState,
     normalizePresence,
     presenceDot,
@@ -126,5 +128,37 @@ describe("busy presence", () => {
 
     it("is not turned into away by idleness", () => {
         expect(advertisedPresence("busy", AUTO_AWAY_MS * 10)).toBe("busy");
+    });
+});
+
+describe("activityHidden", () => {
+    it("hides activity only while invisible on a server with presence", () => {
+        expect(activityHidden("offline", false)).toBe(true);
+        expect(activityHidden("online", false)).toBe(false);
+        expect(activityHidden("unavailable", false)).toBe(false);
+    });
+
+    it("ignores a leftover invisible choice where presence is unsupported", () => {
+        expect(activityHidden("offline", true)).toBe(false);
+    });
+});
+
+describe("presenceProbeVerdict", () => {
+    it("reads offline after advertising online as unsupported", () => {
+        expect(presenceProbeVerdict("online", "offline")).toBe(false);
+        expect(presenceProbeVerdict("unavailable", "offline")).toBe(false);
+    });
+
+    it("reads any live state as supported", () => {
+        expect(presenceProbeVerdict("online", "online")).toBe(true);
+        expect(presenceProbeVerdict("unavailable", "unavailable")).toBe(true);
+        expect(presenceProbeVerdict("busy", "org.matrix.msc3026.busy")).toBe(
+            true,
+        );
+    });
+
+    it("learns nothing when we advertised offline or the request failed", () => {
+        expect(presenceProbeVerdict("offline", "offline")).toBeNull();
+        expect(presenceProbeVerdict("online", null)).toBeNull();
     });
 });

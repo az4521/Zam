@@ -1438,6 +1438,8 @@
         void roomsState.roomsTick;
         void settingsState.receiptOverrides;
         void settingsState.privateReadReceipts;
+        void settingsState.ownPresence;
+        void settingsState.presenceUnsupported;
         receiptMirrorTimer ??= setTimeout(() => {
             receiptMirrorTimer = undefined;
             mirrorReceiptPrivacy();

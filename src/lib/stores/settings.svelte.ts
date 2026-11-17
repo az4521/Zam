@@ -510,6 +510,10 @@ export const settingsState = $state({
     excludeInsecureDevices: readAccountBool("excludeInsecureDevices", false),
     /** Presence advertised to the homeserver (Settings → Account). */
     ownPresence: readPresence("ownPresence", "online"),
+    /** The homeserver has presence off (matrix.org), found by probing after
+     *  login. Not persisted: the presence options hide and invisible stops
+     *  hiding receipts and typing. False until the probe says otherwise. */
+    presenceUnsupported: false,
     /** Do Not Disturb: silences notifications and ringing on every device
      *  (the account's master push rule) and shows as idle to others. */
     doNotDisturb: readAccountBool("doNotDisturb", false),
@@ -885,6 +889,7 @@ export function reloadAccountSettings(): void {
         false,
     );
     settingsState.ownPresence = readPresence("ownPresence", "online");
+    settingsState.presenceUnsupported = false;
     settingsState.doNotDisturb = readAccountBool("doNotDisturb", false);
     settingsState.dmSortOrder = readDmSortOrder();
     settingsState.ownStatusMessage =

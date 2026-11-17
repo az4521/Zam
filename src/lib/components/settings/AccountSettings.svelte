@@ -456,17 +456,28 @@
         >
             {t("accountSettings.presence")}
         </p>
-        <div class="flex items-center gap-3">
-            <OptionSelector
-                value={settingsState.ownPresence}
-                options={OWN_PRESENCE_OPTIONS}
-                onChange={setPresence}
-                ariaLabel={t("accountSettings.presence")}
-            />
+        {#if !settingsState.presenceUnsupported}
+            <div class="flex items-center gap-3">
+                <OptionSelector
+                    value={settingsState.ownPresence}
+                    options={OWN_PRESENCE_OPTIONS}
+                    onChange={setPresence}
+                    ariaLabel={t("accountSettings.presence")}
+                />
+                <p class="text-xs text-zam-textMuted">
+                    {selectedPresence?.description}
+                </p>
+            </div>
+            {#if settingsState.ownPresence === "offline"}
+                <p class="mt-2 text-xs text-zam-textMuted">
+                    {t("presence.invisibleHidesActivity")}
+                </p>
+            {/if}
+        {:else}
             <p class="text-xs text-zam-textMuted">
-                {selectedPresence?.description}
+                {t("presence.unsupportedByServer")}
             </p>
-        </div>
+        {/if}
         <label class="mt-3 flex items-start gap-3 cursor-pointer">
             <input
                 type="checkbox"

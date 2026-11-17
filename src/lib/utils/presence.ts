@@ -69,6 +69,34 @@ export function advertisedPresence(
     return idleMs >= AUTO_AWAY_MS ? "unavailable" : "online";
 }
 
+/**
+ * Whether the user's invisible choice should also hide read receipts and
+ * typing. Invisible only means something where the server has presence: on one
+ * without (the options are hidden there), a leftover choice must not silently
+ * change what is sent.
+ */
+export function activityHidden(
+    chosen: PresenceState,
+    presenceUnsupported: boolean,
+): boolean {
+    return chosen === "offline" && !presenceUnsupported;
+}
+
+/**
+ * Reads the server's answer to "what is my presence" after we advertised
+ * `advertised`. A server with presence off (matrix.org) answers offline to
+ * everything, so offline after a non-offline advertisement means unsupported;
+ * any other answer means supported. Null (unknown): we advertised offline
+ * ourselves, or the request failed.
+ */
+export function presenceProbeVerdict(
+    advertised: SeenPresence,
+    seen: string | null,
+): boolean | null {
+    if (advertised === "offline" || seen === null) return null;
+    return normalizePresence(seen) !== "offline";
+}
+
 /** Matrix "unavailable" renders as Discord-style idle (orange), busy as
  *  Do Not Disturb (red). */
 export function presenceDot(state: SeenPresence): PresenceDot {

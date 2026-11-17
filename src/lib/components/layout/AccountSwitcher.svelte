@@ -200,7 +200,7 @@
 </script>
 
 {#snippet presenceMenu()}
-    {#each OWN_PRESENCE_OPTIONS as option (option.value)}
+    {#each settingsState.presenceUnsupported ? [] : OWN_PRESENCE_OPTIONS as option (option.value)}
         <button
             type="button"
             onclick={() => setPresence(option.value)}

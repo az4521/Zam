@@ -210,10 +210,12 @@
                 id={auth.userId}
                 size={32}
             />
-            <div
-                title={ownPresence.label}
-                class="absolute bottom-0 end-0 w-3 h-3 {ownPresence.dotClass} rounded-full border-2 border-zam-backgroundTertiary"
-            ></div>
+            {#if !settingsState.presenceUnsupported || settingsState.doNotDisturb}
+                <div
+                    title={ownPresence.label}
+                    class="absolute bottom-0 end-0 w-3 h-3 {ownPresence.dotClass} rounded-full border-2 border-zam-backgroundTertiary"
+                ></div>
+            {/if}
         </button>
         <button
             onclick={openAccountSwitcher}

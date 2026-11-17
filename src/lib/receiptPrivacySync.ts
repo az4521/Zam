@@ -4,6 +4,7 @@
 import { auth } from "$lib/stores/auth.svelte";
 import { settingsState } from "$lib/stores/settings.svelte";
 import {
+    isActivityHidden,
     receiptPrivacyRoomExceptions,
     updateServiceWorkerReceiptPrivacy,
 } from "$lib/matrix/client";
@@ -16,8 +17,10 @@ let lastSent = "";
 export function mirrorReceiptPrivacy(): void {
     const userId = auth.userId;
     if (!userId) return;
-    const isPrivate = settingsState.privateReadReceipts;
-    const rooms = receiptPrivacyRoomExceptions();
+    // Invisible makes every receipt private, overriding the room exceptions.
+    const hidden = isActivityHidden();
+    const isPrivate = hidden || settingsState.privateReadReceipts;
+    const rooms = hidden ? {} : receiptPrivacyRoomExceptions();
     const key = JSON.stringify([userId, isPrivate, rooms]);
     if (key === lastSent) return;
     lastSent = key;

@@ -1,6 +1,8 @@
 import { createSubscriber } from "svelte/reactivity";
+import { auth } from "$lib/stores/auth.svelte";
 import {
     fetchOwnExtendedProfile,
+    getPresence,
     getUserPresence,
     isUsingSlidingSync,
     onPresenceEvent,
@@ -19,6 +21,7 @@ import {
 import {
     advertisedPresence,
     normalizePresence,
+    presenceProbeVerdict,
     type PresenceState,
     type SeenPresence,
 } from "$lib/utils/presence";
@@ -195,6 +198,7 @@ async function reconcileStatusMessage(): Promise<void> {
 }
 
 const SLIDING_PRESENCE_HEARTBEAT_MS = 25_000;
+const PRESENCE_PROBE_MS = 4_000;
 
 /** Call once on app mount (after login). Returns a cleanup function. */
 export function initPresence(): () => void {
@@ -230,6 +234,28 @@ export function initPresence(): () => void {
     reconcileStatusMessage().catch((err) => {
         console.warn("[presence] could not reconcile status message", err);
     });
+
+    // Find out whether the server has presence at all (matrix.org turns it
+    // off), so the options that would do nothing can hide. Re-assert our state
+    // first: over sliding sync nothing has marked us online yet, and a plain
+    // offline answer would then read as "unsupported".
+    const probeTimer = setTimeout(() => {
+        const ownId = auth.userId;
+        if (disposed || !ownId || advertised === "offline") return;
+        const sent = advertised;
+        setOwnPresence(sent, settingsState.ownStatusMessage || undefined)
+            .then(() => getPresence(ownId))
+            .then((seen) => {
+                if (disposed) return;
+                const supported = presenceProbeVerdict(
+                    sent,
+                    seen?.presence ?? null,
+                );
+                if (supported !== null)
+                    settingsState.presenceUnsupported = !supported;
+            })
+            .catch(() => {});
+    }, PRESENCE_PROBE_MS);
 
     // Sliding sync never marks us as syncing, so the server times an online or
     // away presence out to offline about 30s after the last PUT (Synapse's
@@ -283,6 +309,7 @@ export function initPresence(): () => void {
 
     return () => {
         disposed = true;
+        clearTimeout(probeTimer);
         unsubSliding();
         clearInterval(heartbeat);
         clearInterval(idleCheck);
