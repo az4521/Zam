@@ -88,7 +88,9 @@
     import {
         fetchAttachmentBlob,
         fetchDecryptedAttachmentBlob,
+        getHomeserverBaseUrl,
     } from "$lib/matrix/client";
+    import { isSameOrigin } from "$lib/utils/mxcUri";
     import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
     import { rememberVolume } from "$lib/actions/rememberVolume";
     import { authedMediaBlobUrl } from "$lib/stores/mediaAuth.svelte";
@@ -270,10 +272,20 @@
     // A stream that broke retries once as a full, verified download.
     let videoStreamBroke = $state(false);
 
-    // The URL the action streams, or null when the element has a blob / is
-    // not a video / has given up.
+    // Third-party video (e.g. a tweet's GIF mp4 on video.twimg.com) needs no
+    // token, and the authed streamer refuses to fetch it (and CORS would block
+    // it anyway), so the element loads it directly, like the inline player.
+    function isDirectVideo(url: string): boolean {
+        if (url.startsWith("blob:")) return true;
+        if (encryptedFile) return false;
+        const hs = getHomeserverBaseUrl();
+        return !!hs && /^https?:/i.test(url) && !isSameOrigin(url, hs);
+    }
+
+    // The URL the action streams, or null when the element has a direct src /
+    // is not a video / has given up.
     const videoStreamUrl = $derived(
-        isVideo && !videoFailed && !src.startsWith("blob:") ? src : null,
+        isVideo && !videoFailed && !isDirectVideo(src) ? src : null,
     );
     // Encrypted files too small to be worth playing on unverified bytes (see
     // STREAM_ENCRYPTED_MIN_BYTES), or a browser with no MediaSource, take the
@@ -287,7 +299,14 @@
     );
 
     function onVideoBroke() {
-        if (!videoStreamUrl) return;
+        if (!videoStreamUrl) {
+            // A directly loaded third-party video has no fallback.
+            if (videoBlobUrl && !videoBlobUrl.startsWith("blob:")) {
+                console.error("Failed to load video");
+                videoFailed = true;
+            }
+            return;
+        }
         if (!videoStreamBroke && !videoForceBlob) {
             videoStreamBroke = true;
             videoReady = false;
@@ -318,8 +337,8 @@
             videoStreamBroke = false;
         });
         // A `blob:` src is already local bytes. The caller owns it, so play it
-        // as is and never revoke it here.
-        if (target?.startsWith("blob:")) {
+        // as is and never revoke it here. A third-party URL is played as is too.
+        if (target && untrack(() => isDirectVideo(target))) {
             untrack(() => (videoBlobUrl = target));
             return () => {
                 if (videoEl) videoEl.pause();
