@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.65.2
+
+🐛 **Fixed**
+
+- **Replies now ping the author:** a reply used to leave the author of the message out of the mention list, so they were never notified. The reply bar has a new `@ ON / @ OFF` toggle, like Discord, and Settings → Messages and media has a "Ping on reply" option for the default (on).
+
 ## v1.65.1
 
 🐛 **Fixed**
