@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.65.1
+
+🐛 **Fixed**
+
+- **Theme variable names:** the theme CSS variables are now `--zam-*` instead of `--discord-*`. If you use custom CSS or a plugin that references the old names, update them (the Example Theme and Emoji Stealer plugins have new versions).
+
 ## v1.65.0
 
 ✨ **New**
