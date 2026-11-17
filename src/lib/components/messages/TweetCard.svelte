@@ -54,6 +54,9 @@
     let playing = $state<Set<string>>(new Set());
     const resumeAt = new Map<string, number>();
     let lightboxIndex = $state<number | null>(null);
+    // A GIF opened full size. It is a looping mp4 here, so the viewer plays it
+    // as a video; one at a time, with no gallery to step through.
+    let gifViewer = $state<TweetEmbed["media"][number] | null>(null);
 
     const photos = $derived(tweet.media.filter((m) => m.kind === "photo"));
 
@@ -241,21 +244,28 @@
                          GIFs plus four in its quote, and holding a hardware
                          decoder for each corrupts frames (green/purple bands)
                          once the pool runs out. width/height keep the box. -->
-                    <!-- svelte-ignore a11y_media_has_caption -->
-                    <video
-                        use:gifTileVideo={item.url}
-                        poster={item.thumbnail}
-                        width={box?.width}
-                        height={box?.height}
-                        aria-label={item.alt}
-                        class="w-full h-auto max-h-72 min-w-0 max-w-full object-contain rounded bg-black/10"
-                        autoplay
-                        muted
-                        loop
-                        playsinline
-                        disablepictureinpicture
-                        preload="metadata"
-                    ></video>
+                    <button
+                        type="button"
+                        class="block w-full min-w-0 p-0 border-0 bg-transparent cursor-pointer"
+                        aria-label={item.alt || t("linkPreview.playVideo")}
+                        onclick={() => (gifViewer = item)}
+                    >
+                        <!-- svelte-ignore a11y_media_has_caption -->
+                        <video
+                            use:gifTileVideo={item.url}
+                            poster={item.thumbnail}
+                            width={box?.width}
+                            height={box?.height}
+                            aria-label={item.alt}
+                            class="w-full h-auto max-h-72 min-w-0 max-w-full object-contain rounded bg-black/10"
+                            autoplay
+                            muted
+                            loop
+                            playsinline
+                            disablepictureinpicture
+                            preload="metadata"
+                        ></video>
+                    </button>
                 {:else if item.kind === "video" && !playing.has(item.url)}
                     <button
                         type="button"
@@ -450,6 +460,16 @@
             {@render body()}
         </div>
     </div>
+{/if}
+
+{#if gifViewer}
+    <Lightbox
+        src={gifViewer.url}
+        kind="video"
+        poster={gifViewer.thumbnail}
+        alt={gifViewer.alt ?? ""}
+        onClose={() => (gifViewer = null)}
+    />
 {/if}
 
 {#if lightboxIndex !== null}
