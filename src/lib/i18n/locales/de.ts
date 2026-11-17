@@ -1922,6 +1922,15 @@ const messages: Partial<Record<MessageKey, string>> = {
     "quickActions.couldNotSendTheJoinRequest":
         "Beitrittsanfrage konnte nicht gesendet werden",
 
+    // src/lib/components/messages/ReactionsViewer.svelte
+    "reactionsViewer.title": "Reaktionen",
+    "reactionsViewer.count":
+        "{count, plural, one {# Reaktion} other {# Reaktionen}}",
+    "reactionsViewer.empty": "Keine Reaktionen auf diese Nachricht.",
+    "reactionsViewer.removeYours": "Deine Reaktion entfernen",
+    "reactionsViewer.sending": "wird gesendet…",
+    "reactionsViewer.couldNotRemove":
+        "Deine Reaktion konnte nicht entfernt werden.",
     // src/lib/components/messages/ReactorPopover.svelte
     "reactorPopover.more": "+{overflow} weitere",
     "reactorPopover.reactedWith": "Reagiert mit {label}",
@@ -3855,6 +3864,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageActionsMenu.unpin": "Lösen",
     "messageActionsMenu.pin": "Anheften",
     "messageActionsMenu.copyLink": "Link kopieren",
+    "messageActionsMenu.viewReactions": "Reaktionen ansehen",
     "messageActionsMenu.markUnread": "Als ungelesen markieren",
     "messageActionsMenu.couldNotMarkUnread":
         "Konnte nicht als ungelesen markiert werden",
@@ -3919,6 +3929,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "presence.doNotDisturbDescription":
         "Schaltet Benachrichtigungen und Anrufe auf allen deinen Geräten stumm",
     "presence.invisible": "Unsichtbar",
+    "presence.invisibleHidesActivity":
+        "Unsichtbar verbirgt auch deine Lesebestätigungen und dein Tippen vor anderen.",
+    "presence.unsupportedByServer":
+        "Dieser Homeserver unterstützt keine Anwesenheit, daher gibt es keinen Status zum Einstellen.",
     "presence.appearOfflineToOtherUsers":
         "Für andere Benutzer offline erscheinen",
 

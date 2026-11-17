@@ -47,6 +47,8 @@ export type ModalId =
     | "forward-message"
     // The message "View source" dialog (ViewSourceDialog, MessageItem).
     | "view-source"
+    // Who reacted to a message, by reaction (ReactionsViewer, MessageItem).
+    | "reactions-viewer"
     | "share-target"
     | "composer-picker"
     | "composer-actions"

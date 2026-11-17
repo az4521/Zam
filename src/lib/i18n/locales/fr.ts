@@ -1899,6 +1899,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "quickActions.couldNotSendTheJoinRequest":
         "Impossible d'envoyer la demande d'accès",
 
+    // src/lib/components/messages/ReactionsViewer.svelte
+    "reactionsViewer.title": "Réactions",
+    "reactionsViewer.count":
+        "{count, plural, one {# réaction} other {# réactions}}",
+    "reactionsViewer.empty": "Aucune réaction sur ce message.",
+    "reactionsViewer.removeYours": "Retirer votre réaction",
+    "reactionsViewer.sending": "envoi…",
+    "reactionsViewer.couldNotRemove": "Impossible de retirer votre réaction.",
     // src/lib/components/messages/ReactorPopover.svelte
     "reactorPopover.more": "+{overflow} autres",
     "reactorPopover.reactedWith": "A réagi avec {label}",
@@ -3822,6 +3830,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageActionsMenu.unpin": "Désépingler",
     "messageActionsMenu.pin": "Épingler",
     "messageActionsMenu.copyLink": "Copier le lien",
+    "messageActionsMenu.viewReactions": "Voir les réactions",
     "messageActionsMenu.markUnread": "Marquer comme non lu",
     "messageActionsMenu.couldNotMarkUnread":
         "Impossible de marquer comme non lu",
@@ -3886,6 +3895,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "presence.doNotDisturbDescription":
         "Coupe les notifications et les appels sur tous vos appareils",
     "presence.invisible": "Invisible",
+    "presence.invisibleHidesActivity":
+        "Invisible masque aussi vos accusés de lecture et votre saisie aux autres.",
+    "presence.unsupportedByServer":
+        "Ce serveur ne prend pas en charge la présence, il n'y a donc aucun statut à définir.",
     "presence.appearOfflineToOtherUsers":
         "Apparaître hors ligne aux autres utilisateurs",
 

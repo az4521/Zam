@@ -1944,6 +1944,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "quickActions.couldNotSendTheJoinRequest":
         "No se pudo enviar la solicitud de acceso",
 
+    // src/lib/components/messages/ReactionsViewer.svelte
+    "reactionsViewer.title": "Reacciones",
+    "reactionsViewer.count":
+        "{count, plural, one {# reacción} other {# reacciones}}",
+    "reactionsViewer.empty": "Este mensaje no tiene reacciones.",
+    "reactionsViewer.removeYours": "Quitar tu reacción",
+    "reactionsViewer.sending": "enviando…",
+    "reactionsViewer.couldNotRemove": "No se pudo quitar tu reacción.",
     // src/lib/components/messages/ReactorPopover.svelte
     "reactorPopover.more": "+{overflow} más",
     "reactorPopover.reactedWith": "Reaccionaron con {label}",
@@ -3862,6 +3870,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageActionsMenu.unpin": "Desfijar",
     "messageActionsMenu.pin": "Fijar",
     "messageActionsMenu.copyLink": "Copiar el enlace",
+    "messageActionsMenu.viewReactions": "Ver reacciones",
     "messageActionsMenu.markUnread": "Marcar como no leído",
     "messageActionsMenu.couldNotMarkUnread": "No se pudo marcar como no leído",
     "messageActionsMenu.report": "Denunciar",
@@ -3925,6 +3934,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "presence.doNotDisturbDescription":
         "Silencia las notificaciones y las llamadas en todos tus dispositivos",
     "presence.invisible": "Invisible",
+    "presence.invisibleHidesActivity":
+        "Invisible también oculta tus confirmaciones de lectura y que estás escribiendo.",
+    "presence.unsupportedByServer":
+        "Este servidor no admite presencia, así que no hay estado que configurar.",
     "presence.appearOfflineToOtherUsers":
         "Aparecer desconectado para otros usuarios",
 

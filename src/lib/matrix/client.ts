@@ -1,4 +1,8 @@
 import { t } from "$lib/i18n";
+import {
+    groupReactionDetails,
+    type ReactionDetailGroup,
+} from "$lib/utils/reactionDetails";
 import type { SoundPackContent } from "$lib/utils/soundboard";
 import {
     createClient,
@@ -76,6 +80,7 @@ import { pickViaServers } from "$lib/utils/roomVia";
 import {
     BUSY_PRESENCE_FEATURE,
     BUSY_PRESENCE_VALUES,
+    activityHidden,
     type PresenceState,
     type SeenPresence,
 } from "$lib/utils/presence";
@@ -6610,11 +6615,22 @@ export async function searchRoomMessagesMore(
     return matrixClient.backPaginateRoomEventsSearch(results);
 }
 
+/** Invisible presence on a server that has presence: no receipts or typing
+ *  reach other users. Private receipts still clear our own unread state. */
+export function isActivityHidden(): boolean {
+    return activityHidden(
+        settingsState.ownPresence,
+        settingsState.presenceUnsupported,
+    );
+}
+
 /**
  * Whether read receipts for this room are private: the room's own override,
  * else its spaces', else the account default (see utils/receiptPrivacy.ts).
  */
 export function receiptsPrivateFor(roomId: string): boolean {
+    // Invisible hides the receipt too, whatever the room overrides say.
+    if (isActivityHidden()) return true;
     const overrides = settingsState.receiptOverrides;
     return isRoomReceiptPrivate(
         roomId,
@@ -6890,6 +6906,9 @@ export async function sendTyping(
     if (!matrixClient) return;
     // Opted out: send no typing notification at all.
     if (!settingsState.sendTypingIndicators) return;
+    // Invisible: no typing either. A stop still goes out, so switching to
+    // invisible mid-sentence clears an indicator already showing.
+    if (isActivityHidden() && isTyping) return;
     try {
         await matrixClient.sendTyping(roomId, isTyping, timeout);
     } catch {
@@ -8266,6 +8285,35 @@ export function getReactions(room: Room, eventId: string): ReactionGroup[] {
             ...g,
             shortcode: shortcodeByKey.get(g.key) ?? null,
         }));
+    } catch {
+        return [];
+    }
+}
+
+/** Everyone who reacted to a message, by key, with when and which event to
+ *  redact: the data behind the reactions viewer. */
+export function getReactionDetails(
+    room: Room,
+    eventId: string,
+): ReactionDetailGroup[] {
+    if (!matrixClient) return [];
+    try {
+        const relations = room.relations.getChildEventsForEvent(
+            eventId,
+            "m.annotation",
+            "m.reaction",
+        );
+        if (!relations) return [];
+        return groupReactionDetails(
+            relations.getRelations().map((e) => ({
+                sender: e.getSender() ?? null,
+                key: e.getContent()?.["m.relates_to"]?.key ?? "",
+                ts: e.getTs(),
+                id: e.getId() ?? null,
+                status: e.status,
+                isRedacted: e.isRedacted(),
+            })),
+        );
     } catch {
         return [];
     }

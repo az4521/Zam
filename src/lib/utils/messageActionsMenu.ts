@@ -17,6 +17,7 @@ export type MessageActionKey =
     | "copy-text"
     | "pin"
     | "copy-link"
+    | "view-reactions"
     | "mark-unread"
     | "view-source"
     | "report"
@@ -45,6 +46,8 @@ export interface MessageActionContext {
     isPinned: boolean;
     /** A sent event with a shareable permalink (a real `$`-id, not a failure). */
     hasLink: boolean;
+    /** The message has reactions to look through. */
+    canViewReactions?: boolean;
     /** A sent main-timeline message the room can be marked unread from. */
     canMarkUnread?: boolean;
     /** The event's JSON can be inspected (every message the menu is shown on). */
@@ -112,6 +115,11 @@ export function messageActionsMenu(
         rows.push({
             key: "copy-link",
             label: t("messageActionsMenu.copyLink"),
+        });
+    if (ctx.canViewReactions)
+        rows.push({
+            key: "view-reactions",
+            label: t("messageActionsMenu.viewReactions"),
         });
     if (ctx.canMarkUnread)
         rows.push({

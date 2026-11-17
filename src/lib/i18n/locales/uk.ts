@@ -2055,6 +2055,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "quickActions.couldNotSendTheJoinRequest":
         "Не вдалося надіслати запит на приєднання",
 
+    // src/lib/components/messages/ReactionsViewer.svelte
+    "reactionsViewer.title": "Реакції",
+    "reactionsViewer.count":
+        "{count, plural, one {# реакція} few {# реакції} many {# реакцій} other {# реакції}}",
+    "reactionsViewer.empty": "Це повідомлення не має реакцій.",
+    "reactionsViewer.removeYours": "Прибрати вашу реакцію",
+    "reactionsViewer.sending": "надсилання…",
+    "reactionsViewer.couldNotRemove": "Не вдалося прибрати вашу реакцію.",
     // src/lib/components/messages/ReactorPopover.svelte
     "reactorPopover.more": "ще +{overflow}",
     "reactorPopover.reactedWith": "Відреагували з {label}",
@@ -3835,6 +3843,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageActionsMenu.unpin": "Відкріпити",
     "messageActionsMenu.pin": "Закріпити",
     "messageActionsMenu.copyLink": "Копіювати посилання",
+    "messageActionsMenu.viewReactions": "Переглянути реакції",
     "messageActionsMenu.markUnread": "Позначити як непрочитане",
     "messageActionsMenu.couldNotMarkUnread":
         "Не вдалося позначити як непрочитане",
@@ -3900,6 +3909,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "presence.doNotDisturbDescription":
         "Вимикає сповіщення та дзвінки на всіх ваших пристроях",
     "presence.invisible": "Невидимий",
+    "presence.invisibleHidesActivity":
+        "Невидимий також приховує від інших ваші підтвердження прочитання і набір тексту.",
+    "presence.unsupportedByServer":
+        "Цей сервер не підтримує присутність, тому встановити статус неможливо.",
     "presence.appearOfflineToOtherUsers":
         "Показуватися іншим користувачам поза мережею",
 

@@ -2061,6 +2061,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "quickActions.couldNotSendTheJoinRequest":
         "Не удалось отправить запрос на вступление",
 
+    // src/lib/components/messages/ReactionsViewer.svelte
+    "reactionsViewer.title": "Реакции",
+    "reactionsViewer.count":
+        "{count, plural, one {# реакция} few {# реакции} many {# реакций} other {# реакции}}",
+    "reactionsViewer.empty": "У этого сообщения нет реакций.",
+    "reactionsViewer.removeYours": "Убрать вашу реакцию",
+    "reactionsViewer.sending": "отправка…",
+    "reactionsViewer.couldNotRemove": "Не удалось убрать вашу реакцию.",
     // src/lib/components/messages/ReactorPopover.svelte
     "reactorPopover.more": "ещё +{overflow}",
     "reactorPopover.reactedWith": "Отреагировали: {label}",
@@ -3843,6 +3851,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageActionsMenu.unpin": "Открепить",
     "messageActionsMenu.pin": "Закрепить",
     "messageActionsMenu.copyLink": "Копировать ссылку",
+    "messageActionsMenu.viewReactions": "Посмотреть реакции",
     "messageActionsMenu.markUnread": "Отметить как непрочитанное",
     "messageActionsMenu.couldNotMarkUnread":
         "Не удалось отметить как непрочитанное",
@@ -3909,6 +3918,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "presence.doNotDisturbDescription":
         "Отключает уведомления и звонки на всех ваших устройствах",
     "presence.invisible": "Невидимка",
+    "presence.invisibleHidesActivity":
+        "Невидимка также скрывает от других ваши отметки о прочтении и набор текста.",
+    "presence.unsupportedByServer":
+        "Этот сервер не поддерживает присутствие, поэтому статус задать нельзя.",
     "presence.appearOfflineToOtherUsers":
         "Выглядеть «не в сети» для других пользователей",
 

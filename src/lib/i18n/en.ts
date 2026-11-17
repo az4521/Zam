@@ -1985,6 +1985,14 @@ export const en = {
     "quickActions.couldNotSendTheJoinRequest":
         "Could not send the join request",
 
+    // src/lib/components/messages/ReactionsViewer.svelte
+    "reactionsViewer.title": "Reactions",
+    "reactionsViewer.count":
+        "{count, plural, one {# reaction} other {# reactions}}",
+    "reactionsViewer.empty": "No reactions on this message.",
+    "reactionsViewer.removeYours": "Remove your reaction",
+    "reactionsViewer.sending": "sending…",
+    "reactionsViewer.couldNotRemove": "Could not remove your reaction.",
     // src/lib/components/messages/ReactorPopover.svelte
     "reactorPopover.more": "+{overflow} more",
     "reactorPopover.reactedWith": "Reacted with {label}",
@@ -3710,6 +3718,7 @@ export const en = {
     "messageActionsMenu.unpin": "Unpin",
     "messageActionsMenu.pin": "Pin",
     "messageActionsMenu.copyLink": "Copy link",
+    "messageActionsMenu.viewReactions": "View reactions",
     "messageActionsMenu.markUnread": "Mark as unread",
     "messageActionsMenu.couldNotMarkUnread": "Couldn't mark as unread",
     "messageActionsMenu.report": "Report",
@@ -3794,6 +3803,10 @@ export const en = {
     "presence.doNotDisturbDescription":
         "Silences notifications and calls on all your devices",
     "presence.invisible": "Invisible",
+    "presence.invisibleHidesActivity":
+        "Invisible also hides your read receipts and typing from other users.",
+    "presence.unsupportedByServer":
+        "This homeserver does not support presence, so there is no status to set.",
     "presence.appearOfflineToOtherUsers": "Appear offline to other users",
 
     // src/lib/utils/pushRuleWrite.ts

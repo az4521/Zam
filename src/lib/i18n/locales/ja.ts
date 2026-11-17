@@ -1768,6 +1768,13 @@ const messages: Partial<Record<MessageKey, string>> = {
         "ルームのアドレス（#room:server.com）またはルームID（!id:server.com）を入力してください",
     "quickActions.couldNotSendTheJoinRequest":
         "参加リクエストを送信できませんでした",
+    // src/lib/components/messages/ReactionsViewer.svelte
+    "reactionsViewer.title": "リアクション",
+    "reactionsViewer.count": "{count, plural, other {#件のリアクション}}",
+    "reactionsViewer.empty": "このメッセージにリアクションはありません。",
+    "reactionsViewer.removeYours": "自分のリアクションを削除",
+    "reactionsViewer.sending": "送信中…",
+    "reactionsViewer.couldNotRemove": "リアクションを削除できませんでした。",
     "reactorPopover.more": "他{overflow}件",
     "reactorPopover.reactedWith": "{label}でリアクション",
     "reactorPopover.userList": "ユーザー一覧",
@@ -3339,6 +3346,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageActionsMenu.unpin": "ピン留めを解除",
     "messageActionsMenu.pin": "ピン留め",
     "messageActionsMenu.copyLink": "リンクをコピー",
+    "messageActionsMenu.viewReactions": "リアクションを表示",
     "messageActionsMenu.markUnread": "未読にする",
     "messageActionsMenu.couldNotMarkUnread": "未読にできませんでした",
     "messageActionsMenu.report": "通報",
@@ -3384,6 +3392,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "presence.doNotDisturbDescription":
         "すべての端末で通知と着信を鳴らしません",
     "presence.invisible": "オフライン表示",
+    "presence.invisibleHidesActivity":
+        "オフライン表示にすると、既読通知と入力中の表示も他のユーザーに見えなくなります。",
+    "presence.unsupportedByServer":
+        "このホームサーバーはプレゼンスに対応していないため、設定できるステータスはありません。",
     "presence.appearOfflineToOtherUsers": "他のユーザーにオフラインとして表示",
     "pushRuleWrite.yourHomeserverHasNoNotificationRule":
         "ホームサーバーに「{label}」の通知ルールがないため、変更できませんでした。",

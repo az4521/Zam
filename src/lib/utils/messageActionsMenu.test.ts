@@ -126,6 +126,13 @@ describe("messageActionsMenu", () => {
         );
     });
 
+    it("view reactions is offered only when there are reactions", () => {
+        expect(messageActionsMenu({ ...NONE, canViewReactions: true })).toEqual(
+            [{ key: "view-reactions", label: "View reactions" }],
+        );
+        expect(messageActionsMenu({ ...NONE })).toEqual([]);
+    });
+
     it("view source is offered on any message, with its own label", () => {
         expect(messageActionsMenu({ ...NONE, canViewSource: true })).toEqual([
             { key: "view-source", label: "View source" },

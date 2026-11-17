@@ -1898,6 +1898,13 @@ const messages: Partial<Record<MessageKey, string>> = {
         "请输入房间地址（#room:server.com）或房间 ID（!id:server.com）",
     "quickActions.couldNotSendTheJoinRequest": "无法发送加入申请",
 
+    // src/lib/components/messages/ReactionsViewer.svelte
+    "reactionsViewer.title": "回应",
+    "reactionsViewer.count": "{count, plural, other {# 个回应}}",
+    "reactionsViewer.empty": "此消息没有回应。",
+    "reactionsViewer.removeYours": "移除你的回应",
+    "reactionsViewer.sending": "发送中…",
+    "reactionsViewer.couldNotRemove": "无法移除你的回应。",
     // src/lib/components/messages/ReactorPopover.svelte
     "reactorPopover.more": "另有 {overflow} 人",
     "reactorPopover.reactedWith": "回应了 {label}",
@@ -3509,6 +3516,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageActionsMenu.unpin": "取消置顶",
     "messageActionsMenu.pin": "置顶",
     "messageActionsMenu.copyLink": "复制链接",
+    "messageActionsMenu.viewReactions": "查看回应",
     "messageActionsMenu.markUnread": "标为未读",
     "messageActionsMenu.couldNotMarkUnread": "无法标为未读",
     "messageActionsMenu.report": "举报",
@@ -3567,6 +3575,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "presence.doNotDisturb": "请勿打扰",
     "presence.doNotDisturbDescription": "在你的所有设备上静音通知和来电",
     "presence.invisible": "隐身",
+    "presence.invisibleHidesActivity":
+        "隐身还会向其他用户隐藏你的已读回执和输入状态。",
+    "presence.unsupportedByServer":
+        "此服务器不支持在线状态，因此无法设置状态。",
     "presence.appearOfflineToOtherUsers": "向其他用户显示为离线",
 
     // src/lib/utils/pushRuleWrite.ts

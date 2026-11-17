@@ -74,6 +74,7 @@
     } from "$lib/stores/bridgedThreads.svelte";
     import Reactions from "$lib/components/messages/Reactions.svelte";
     import ReactorPopover from "./ReactorPopover.svelte";
+    import ReactionsViewer from "./ReactionsViewer.svelte";
     import LinkPreview from "$lib/components/messages/LinkPreview.svelte";
     import MessageEmbed from "$lib/components/messages/MessageEmbed.svelte";
     import { orderReadReceipts } from "$lib/utils/readReceipts";
@@ -110,6 +111,7 @@
         seedRoomStateIfMissing,
         getRoomIdForAlias,
         getThreadSummary,
+        getReactions,
         getRoomUnreadInfo,
         getThreadName,
         getHomeserverBaseUrl,
@@ -403,6 +405,7 @@
     let pinning = $state(false);
     let showForwardDialog = $state(false);
     let showViewSourceDialog = $state(false);
+    let showReactionsViewer = $state(false);
 
     // Elements that own their own tap/gesture — a row tap/hold must defer to
     // them (links, buttons, media, reaction pills, the composer, etc.).
@@ -1235,6 +1238,13 @@
         showViewSourceDialog = true;
     }
 
+    function openReactionsViewer() {
+        slotToken = openModal("reactions-viewer", () => {
+            showReactionsViewer = false;
+        });
+        showReactionsViewer = true;
+    }
+
     async function copyMessageText() {
         try {
             await navigator.clipboard.writeText(copyableText);
@@ -1273,6 +1283,9 @@
                 break;
             case "view-source":
                 openViewSourceDialog();
+                break;
+            case "view-reactions":
+                openReactionsViewer();
                 break;
             case "thread":
                 onOpenThread?.(threadRootId);
@@ -2210,6 +2223,12 @@
     // Every action this message offers, with full names. Drives the mobile ⋯
     // / long-press sheet and the desktop right-click menu; the hover bar keeps
     // its icon buttons for the everyday ones.
+    const hasReactions = $derived.by(() => {
+        reactionTick;
+        return (
+            eventId.startsWith("$") && getReactions(room, eventId).length > 0
+        );
+    });
     const overflowRows = $derived(
         messageActionsMenu({
             canReact: eventId.startsWith("$") && !isFailed,
@@ -2226,6 +2245,7 @@
             canMarkUnread:
                 eventId.startsWith("$") && !isFailed && !isThreadReply,
             canViewSource: true,
+            canViewReactions: hasReactions,
             canReport: !isOwnMessage && !isFailed,
             canRedact: !isOwnMessage && !isFailed && canRedact,
             canDelete: isOwnMessage,
@@ -4484,6 +4504,10 @@
 
 {#if showForwardDialog}
     <ForwardMessageDialog {event} />
+{/if}
+
+{#if showReactionsViewer}
+    <ReactionsViewer {room} {eventId} onClose={closeModal} />
 {/if}
 
 {#if showViewSourceDialog}
