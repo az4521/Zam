@@ -30,4 +30,25 @@ describe("computeEditMentions — v1.7 mentions through m.replace edits", () => 
             resolved: {},
         });
     });
+    it("unions extra userIds, deduped, without dropping originals", () => {
+        const r = computeEditMentions(
+            { user_ids: ["@a:hs"] },
+            "hi @Alice and @Bob",
+            { userIds: ["@b:hs", "@b:hs", "@a:hs"] },
+        );
+        expect(r.resolved.user_ids).toEqual(["@a:hs", "@b:hs"]);
+        expect(r.topLevel.user_ids).toEqual(["@b:hs"]);
+    });
+    it("adds a room mention to both halves when newly introduced", () => {
+        const r = computeEditMentions(undefined, "@room hi", { room: true });
+        expect(r.resolved.room).toBe(true);
+        expect(r.topLevel.room).toBe(true);
+    });
+    it("does not repeat room on topLevel when the original already had it", () => {
+        const r = computeEditMentions({ room: true }, "@room hi", {
+            room: true,
+        });
+        expect(r.resolved.room).toBe(true);
+        expect(r.topLevel.room).toBeUndefined();
+    });
 });

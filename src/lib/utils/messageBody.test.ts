@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { buildFormattedBody, emoticonsFromHtml } from "./messageBody";
+import {
+    buildFormattedBody,
+    emoticonsFromHtml,
+    mentionsFromHtml,
+} from "./messageBody";
 
 const empty = { mentions: new Map<string, string>(), customEmojis: [] };
 
@@ -194,5 +198,64 @@ describe("emoticonsFromHtml", () => {
         });
         expect(html).toContain('src="mxc://hs/a"');
         expect(html).not.toContain(":blob:");
+    });
+});
+
+describe("mentionsFromHtml", () => {
+    it("reads a plain pill into token → userId", () => {
+        expect(
+            mentionsFromHtml(
+                'hi <a href="https://matrix.to/#/@alice:hs">@Alice</a>',
+            ),
+        ).toEqual(new Map([["@Alice", "@alice:hs"]]));
+    });
+
+    it("decodes an encoded @ in the id", () => {
+        expect(
+            mentionsFromHtml(
+                '<a href="https://matrix.to/#/%40bob:hs.org">@Bob</a>',
+            ),
+        ).toEqual(new Map([["@Bob", "@bob:hs.org"]]));
+    });
+
+    it("cuts the id at a query string or path suffix", () => {
+        expect(
+            mentionsFromHtml(
+                '<a href="https://matrix.to/#/@carol:hs?via=hs.org">@Carol</a>' +
+                    '<a href="https://matrix.to/#/@dan:hs/extra">@Dan</a>',
+            ),
+        ).toEqual(
+            new Map([
+                ["@Carol", "@carol:hs"],
+                ["@Dan", "@dan:hs"],
+            ]),
+        );
+    });
+
+    it("decodes entities in the display name", () => {
+        expect(
+            mentionsFromHtml(
+                '<a href="https://matrix.to/#/@e:hs">@Tom &amp; Jerry &lt;3 &quot;x&quot; &#39;y&#39;</a>',
+            ),
+        ).toEqual(new Map([["@Tom & Jerry <3 \"x\" 'y'", "@e:hs"]]));
+    });
+
+    it("ignores room, event and non-user links", () => {
+        expect(
+            mentionsFromHtml(
+                '<a href="https://matrix.to/#/#general:hs">#general</a>' +
+                    '<a href="https://matrix.to/#/!room:hs">room</a>' +
+                    '<a href="https://matrix.to/#/!room:hs/$evt">evt</a>' +
+                    '<a href="https://example.com/#/@x:hs">@X</a>',
+            ),
+        ).toEqual(new Map());
+    });
+
+    it("skips empty link text and handles absent html", () => {
+        expect(
+            mentionsFromHtml('<a href="https://matrix.to/#/@a:hs"> </a>'),
+        ).toEqual(new Map());
+        expect(mentionsFromHtml(undefined)).toEqual(new Map());
+        expect(mentionsFromHtml(null)).toEqual(new Map());
     });
 });

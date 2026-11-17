@@ -120,7 +120,10 @@
     } from "$lib/matrix/client";
     import { forwardEventPermalink, readForward } from "$lib/utils/forwarded";
     import MessageEditBox from "$lib/components/messages/MessageEditBox.svelte";
-    import { emoticonsFromHtml } from "$lib/utils/messageBody";
+    import {
+        emoticonsFromHtml,
+        mentionsFromHtml,
+    } from "$lib/utils/messageBody";
     import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
     import {
         editableBody,
@@ -821,6 +824,9 @@
     let isEditing = $state(false);
     let editFromKeyboard = false;
     let editText = $state("");
+    // Mention pills of the message being edited (token → userId), so they are
+    // rebuilt when the edit is saved.
+    let editMentions = $state(new Map<string, string>());
     let isSavingEdit = $state(false);
     let rootEl: HTMLElement | undefined = $state();
     let editBoxEl: HTMLDivElement | undefined = $state();
@@ -2387,6 +2393,9 @@
 
     function startEdit() {
         editText = body();
+        editMentions = mentionsFromHtml(
+            event.getContent().formatted_body as string | undefined,
+        );
         isEditing = true;
         tick().then(() => {
             // `scrollBehavior()` rather than a hardcoded "smooth": item 18 made
@@ -2410,6 +2419,7 @@
     function cancelEdit() {
         isEditing = false;
         editText = "";
+        editMentions = new Map();
         if (editFromKeyboard) {
             editFromKeyboard = false;
             onEditDone?.();
@@ -2424,6 +2434,7 @@
             // Empty edit — cancel without returning focus, then prompt to delete
             isEditing = false;
             editText = "";
+            editMentions = new Map();
             deleteRefocus = editFromKeyboard;
             editFromKeyboard = false;
             confirmingDelete = true;
@@ -2431,9 +2442,10 @@
         }
         isSavingEdit = true;
         try {
-            await sendMessageEdit(room, event, editText);
+            await sendMessageEdit(room, event, editText, editMentions);
             isEditing = false;
             editText = "";
+            editMentions = new Map();
             if (editFromKeyboard) {
                 editFromKeyboard = false;
                 onEditDone?.();
@@ -2917,6 +2929,7 @@
                 <div class="mt-1">
                     <MessageEditBox
                         bind:text={editText}
+                        bind:mentions={editMentions}
                         bind:editorEl={editBoxEl}
                         {room}
                         messageEmotes={emoticonsFromHtml(

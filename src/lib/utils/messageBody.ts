@@ -68,6 +68,49 @@ export function emoticonsFromHtml(
 }
 
 /**
+ * The @mention pills already in a message's formatted_body, as token → userId
+ * (the same shape as the composer's pending-mention map, keys include the
+ * leading "@"). An edit re-renders the plain text, so these let the pills the
+ * message already had be rebuilt. Only matrix.to user links count; room and
+ * event links are ignored. Regex only, no DOM.
+ */
+export function mentionsFromHtml(
+    html: string | undefined | null,
+): Map<string, string> {
+    const out = new Map<string, string>();
+    if (!html) return out;
+    const entities: Record<string, string> = {
+        "&amp;": "&",
+        "&lt;": "<",
+        "&gt;": ">",
+        "&quot;": '"',
+        "&#39;": "'",
+        "&#x27;": "'",
+    };
+    for (const [, href, inner] of html.matchAll(
+        /<a\b[^>]*?\bhref\s*=\s*"https:\/\/matrix\.to\/#\/([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi,
+    )) {
+        // The id ends at the first "?" (query) or "/" (event/room suffix).
+        // Decode after cutting so an encoded "%40" becomes "@".
+        const rawId = href.split(/[?/]/)[0];
+        let id: string;
+        try {
+            id = decodeURIComponent(rawId);
+        } catch {
+            continue;
+        }
+        if (!id.startsWith("@") || !id.includes(":")) continue;
+        const text = inner
+            .replace(/<[^>]*>/g, "")
+            .replace(/&(?:amp|lt|gt|quot|#39|#x27);/g, (e) => entities[e] ?? e)
+            .trim();
+        if (!text) continue;
+        out.set(text, id);
+    }
+    return out;
+}
+
+/**
  * Build a message's outgoing rich body: markdown → HTML, custom-emoji shortcode
  * substitution, and @mention tokens → matrix.to links, collecting mentioned userIds.
  * Pure — no SDK, no DOM. Callers supply the mention map and emoji list.

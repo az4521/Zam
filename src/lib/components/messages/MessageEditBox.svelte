@@ -5,10 +5,18 @@
     import { onMount, tick, untrack } from "svelte";
     import type { Room } from "matrix-js-sdk";
     import { t } from "$lib/i18n";
-    import { getCustomEmojis, mxcToHttp } from "$lib/matrix/client";
+    import {
+        getCustomEmojis,
+        getOwnUserId,
+        getRoomMembers,
+        loadRoomMembersIfNeeded,
+        mxcToHttp,
+    } from "$lib/matrix/client";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import type { EmojiSubstitution } from "$lib/utils/messageBody";
+    import { insertMention } from "$lib/utils/mentionInsert";
+    import { suppressNextClick } from "$lib/utils/suppressNextClick";
     import { convertTrailingShortcode } from "$lib/data/emojiShortcodes";
     import {
         caretOffset,
@@ -31,6 +39,7 @@
     let {
         text = $bindable(""),
         editorEl = $bindable(),
+        mentions = $bindable(new Map<string, string>()),
         room,
         messageEmotes = [],
         onSave,
@@ -38,6 +47,8 @@
     }: {
         text?: string;
         editorEl?: HTMLDivElement;
+        /** Mention tokens in `text` (leading "@" included) → userId. */
+        mentions?: Map<string, string>;
         room: Room;
         /** The edited message's own emotes, which survive a removed pack. */
         messageEmotes?: EmojiSubstitution[];
@@ -67,6 +78,7 @@
                 const mxc = emoteMxc.get(shortcode);
                 return mxc ? mxcToHttp(mxc) : null;
             },
+            isMention: isMentionToken,
         });
         setCaretOffset(editorEl, caret);
     }
@@ -78,7 +90,7 @@
     function setText(next: string, nextCaret: number) {
         text = next;
         render(nextCaret);
-        detectEmojiQuery();
+        detectSuggestions();
     }
 
     onMount(() => {
@@ -102,6 +114,99 @@
         const to = undo.step(delta);
         if (to === null) return;
         setText(to, diffCaret(text, to));
+    }
+
+    // `@` mention suggestions, as in the composer. Only one list is open at a
+    // time: an active mention query closes the emoji list (detectSuggestions).
+    let mentionQuery = $state<string | null>(null); // null = list closed
+    let mentionStart = $state(0); // index of the @ in `text`
+    let mentionIdx = $state(0);
+    // Bumped once the room's full member list is loaded (lazy-loaded members).
+    let memberTick = $state(0);
+    $effect(() => {
+        if (mentionQuery === null || !room) return;
+        const r = room;
+        loadRoomMembersIfNeeded(r)
+            .then(() => untrack(() => memberTick++))
+            .catch(() => {});
+    });
+    const mentionCandidates = $derived.by(() => {
+        void memberTick;
+        if (mentionQuery === null || !room) return [];
+        const q = mentionQuery.toLowerCase();
+        const ownId = getOwnUserId();
+        return getRoomMembers(room)
+            .filter((m) => m.userId !== ownId)
+            .filter(
+                (m) =>
+                    m.userId.toLowerCase().includes(q) ||
+                    (m.rawDisplayName ?? "").toLowerCase().includes(q),
+            )
+            .slice(0, 8);
+    });
+    $effect(() => {
+        if (mentionIdx >= mentionCandidates.length) mentionIdx = 0;
+    });
+
+    /** Whether a "@..." run in the text is a mention (styled as a pill). */
+    function isMentionToken(token: string): boolean {
+        if (!token.startsWith("@") || token.length < 2) return false;
+        if (mentions.has(token)) return true;
+        const name = token.slice(1).replace(/[.,!?;:]$/, "");
+        if (!room) return false;
+        return getRoomMembers(room).some(
+            (m) =>
+                m.userId === token ||
+                m.userId.toLowerCase().includes(name.toLowerCase()) ||
+                (m.rawDisplayName ?? "").toLowerCase() === name.toLowerCase(),
+        );
+    }
+
+    function detectMentionQuery() {
+        const pos = caret();
+        const match = text.slice(0, pos).match(/@(\S*)$/);
+        if (match) {
+            mentionQuery = match[1];
+            mentionStart = pos - match[0].length;
+        } else {
+            mentionQuery = null;
+        }
+    }
+
+    // Display name when unambiguous in the room, else the MXID (without "@").
+    function mentionLabelFor(member: {
+        userId: string;
+        rawDisplayName?: string;
+    }): string {
+        const name = member.rawDisplayName?.trim();
+        if (name && room) {
+            const sharing = getRoomMembers(room).filter(
+                (m) =>
+                    (m.rawDisplayName ?? "").trim().toLowerCase() ===
+                    name.toLowerCase(),
+            );
+            if (sharing.length <= 1) return name;
+        } else if (name) {
+            return name;
+        }
+        return member.userId.replace(/^@/, "");
+    }
+
+    function commitMention(member: {
+        userId: string;
+        rawDisplayName?: string;
+    }) {
+        const label = mentionLabelFor(member);
+        const inserted = insertMention({
+            text,
+            mentionStart,
+            queryLength: mentionQuery?.length ?? 0,
+            label,
+        });
+        mentions = new Map([...mentions, ["@" + label, member.userId]]);
+        mentionQuery = null;
+        editorEl?.focus();
+        setText(inserted.text, inserted.caret);
     }
 
     // `:shortcode` suggestions.
@@ -143,6 +248,18 @@
         const wasOpen = emojiQuery !== null;
         emojiQuery = findEmojiQuery(text, caret());
         if (emojiQuery && !wasOpen) placeEmojiList(8);
+    }
+
+    /** Re-derive the open suggestion list from the caret; mentions win over emoji. */
+    function detectSuggestions() {
+        const wasMentionOpen = mentionQuery !== null;
+        detectMentionQuery();
+        if (mentionQuery !== null) {
+            emojiQuery = null;
+            if (!wasMentionOpen) placeEmojiList(8);
+            return;
+        }
+        detectEmojiQuery();
     }
 
     function commitEmoji(candidate: EmojiCandidate) {
@@ -202,7 +319,7 @@
             }
             render(pos);
         }
-        detectEmojiQuery();
+        detectSuggestions();
     }
 
     function onBeforeInput(e: InputEvent) {
@@ -241,6 +358,28 @@
             }
         }
         if (e.isComposing) return;
+        // An open mention list takes the keys first, as the emoji list does.
+        if (mentionQuery !== null && mentionCandidates.length > 0) {
+            if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                e.preventDefault();
+                const step = e.key === "ArrowUp" ? -1 : 1;
+                mentionIdx =
+                    (mentionIdx + step + mentionCandidates.length) %
+                    mentionCandidates.length;
+                return;
+            }
+            if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+                e.preventDefault();
+                const member = mentionCandidates[mentionIdx];
+                if (member) commitMention(member);
+                return;
+            }
+            if (e.key === "Escape") {
+                e.preventDefault();
+                mentionQuery = null;
+                return;
+            }
+        }
         // An open suggestion list takes the keys first: Enter/Tab pick and
         // Escape closes it before a second Escape cancels the edit.
         if (emojiQuery && emojiCandidates.length > 0) {
@@ -311,8 +450,11 @@
         onkeydown={onKeydown}
         onpaste={onPaste}
         onfocus={onFocus}
-        onclick={detectEmojiQuery}
-        onblur={() => (emojiQuery = null)}
+        onclick={detectSuggestions}
+        onblur={() => {
+            emojiQuery = null;
+            mentionQuery = null;
+        }}
         class="composer-editor w-full bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-zam-accent/50 max-h-[200px] overflow-y-auto"
     ></div>
     {#if emojiQuery && emojiCandidates.length > 0}
@@ -324,5 +466,37 @@
             bind:selectedIdx={emojiIdx}
             onPick={commitEmoji}
         />
+    {/if}
+    {#if mentionQuery !== null && mentionCandidates.length > 0}
+        <div
+            class="absolute inset-x-0 z-20 bg-zam-backgroundSecondary border border-zam-divider rounded-lg overflow-hidden shadow-lg {emojiBelow
+                ? 'top-full mt-1'
+                : 'bottom-full mb-1'}"
+        >
+            {#each mentionCandidates as member, i (member.userId)}
+                <button
+                    type="button"
+                    onpointerdown={(e) => {
+                        e.preventDefault();
+                        // Swallow the trailing click so it can't open a link
+                        // behind the unmounted list.
+                        suppressNextClick();
+                        commitMention(member);
+                    }}
+                    onpointerenter={() => (mentionIdx = i)}
+                    class="w-full flex items-center gap-2.5 px-3 py-1.5 text-start transition-colors"
+                    class:bg-zam-messageHover={i === mentionIdx}
+                >
+                    <span
+                        class="text-sm text-zam-textPrimary font-medium truncate"
+                    >
+                        {member.rawDisplayName || member.userId}
+                    </span>
+                    <span class="text-xs text-zam-textMuted truncate">
+                        {member.userId}
+                    </span>
+                </button>
+            {/each}
+        </div>
     {/if}
 </div>

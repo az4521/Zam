@@ -6362,19 +6362,18 @@ export async function sendEdit(
     // Media fields (see mediaEditBase) when editing a media caption; the
     // replacement must restate the whole media content, not just the text.
     mediaBase?: Record<string, unknown>,
+    // Mentions the editor resolved from the new body (pills and typed MXIDs).
+    newMentions?: { userIds?: string[]; room?: boolean },
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     // v1.7 mentions module: split m.mentions across the replacement halves —
     // top-level carries only the mentions NEWLY introduced by this revision;
     // m.new_content carries the resolved final set. Conservative: original
     // mentions are never dropped (see computeEditMentions).
-    // ⚑ deferred: pill anchors in the ORIGINAL formatted_body are lost on edit
-    // because the edit UI is a plain-text box — so a mention that existed only
-    // as a formatted_body pill (no bare mxid retyped) survives as an
-    // m.mentions user_id but loses its inline highlight in the new body.
     const { topLevel, resolved } = computeEditMentions(
         originalMentions,
         newText,
+        newMentions,
     );
     const newContent: Record<string, unknown> = {
         ...(mediaBase ?? { msgtype: "m.text" }),
