@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.1
+
+🐛 **Fixed**
+
+- **Flatpak restart after an update:** "Restart to apply" could close Zam without starting the new version, mostly on Wayland desktops such as sway and Hyprland. Zam now starts the update on your desktop with your display settings, and if that still doesn't work it stays open and asks you to quit and reopen it. This takes effect from the update after this one.
+
 ## v1.66.0
 
 ✨ **New**
