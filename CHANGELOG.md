@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.65.8
+
+✨ **New**
+
+- **YouTube video titles:** YouTube link previews now show the video's title and channel under the thumbnail.
+
+🐛 **Fixed**
+
+- **YouTube Shorts and youtu.be links:** Shorts links now get the YouTube player, in a vertical layout, instead of a plain link card. A timestamp in a youtu.be or YouTube link (`?t=1m30s`) now starts the video there.
+
+- **Rooms unread after a reload:** an encrypted room you had already read could show as unread again every time Zam started, and reading it again didn't clear it. It now stays read.
+
 ## v1.65.6
 
 🐛 **Fixed**
