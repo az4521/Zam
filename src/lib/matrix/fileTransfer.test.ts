@@ -1,13 +1,23 @@
+import type { MatrixEvent } from "matrix-js-sdk";
 import { ClientEvent, RoomEvent } from "matrix-js-sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+    FILE_ACCEPT_TYPE,
+    FILE_ACCEPTED_TYPE,
+    FILE_ANSWER_TYPE,
+    FILE_CANCEL_TYPE,
+    FILE_CANDIDATES_TYPE,
+    FILE_DONE_TYPE,
     FILE_OFFER_EVENT,
+    FILE_PREPARING_TYPE,
     FILE_REFUSE_TYPE,
+    FILE_REQUEST_TYPE,
     parseFileOffer,
 } from "$lib/utils/fileTransfer";
 
 // Two sessions need two copies of the module: it holds one client at a time.
-// These stand in for the homeserver's to-device relay and the SFU.
+// These stand in for the homeserver's to-device relay, the SFU and the
+// WebRTC data channel between two devices.
 type ToDeviceListener = (payload: unknown) => void;
 
 interface FakeDevice {
@@ -16,35 +26,73 @@ interface FakeDevice {
     listener: ToDeviceListener | null;
 }
 
+const SENDER = "@alice:x:A";
+const RECEIVER = "@bob:x:B";
+
 const devices = new Map<string, FakeDevice>();
+/** The devices each user has, for the crypto API's device list. */
+const accounts = new Map<string, string[]>();
+/** Devices of this user that are cross-signed. */
+const crossSigned = new Set<string>();
 const rooms = new Map<string, Map<string, FakeRoom>>();
 /** Who made each room: the only one the SFU lets publish in it (MSC4576). */
 const owners = new Map<string, string>();
 const joined: { identity: string; alias: string }[] = [];
 /** Publishes the SFU dropped: someone else's room. */
 let foreignPublishes = 0;
-const sent: { type: string; to: string }[] = [];
+/** Every to-device message sent, as the sending client saw it. */
+const sent: {
+    type: string;
+    from: string;
+    to: string;
+    content: Record<string, unknown>;
+    /** The receiver's count of finished files when this was sent. */
+    finished: number;
+}[] = [];
 let dropTo: ((type: string) => boolean) | null = null;
-let memberships: Record<string, string> = {};
+/** Changes a message on its way to the device that receives it. */
+let tamper:
+    | ((
+          type: string,
+          content: Record<string, unknown>,
+      ) => Record<string, unknown>)
+    | null = null;
 /** Identities whose homeserver has no SFU. */
 const sfuless = new Set<string>();
 /** Users whose named SFU their homeserver doesn't advertise. */
 const rogueSfu = new Set<string>();
-/** What the user answers when asked to connect directly. */
-/** Identities that say no. */
+/** Identities that say no when asked to connect directly. */
 const declines = new Set<string>();
 const consentAsked: { identity: string; fileTransfer: boolean }[] = [];
-/** The direct links, by "transfer|identity", and what happened to them. */
-interface FakeMeshLink {
+/** Direct data channels, by side and identity, and their relay setting. */
+const directLog: { side: string; identity: string; relayOnly: boolean }[] = [];
+/** The SDP of each end, so the other can find it. */
+const directEnds = new Map<string, FakeDirectEnd>();
+/** Candidates each end was handed, with the identity of that end. */
+const directCandidates: { at: string; value: unknown }[] = [];
+let directSeq = 0;
+/** The real timers, kept for waits that must not follow the fake clock. */
+const realSetTimeout = globalThis.setTimeout;
+/** Each client's teardown, run after its test. */
+const detachers: (() => void)[] = [];
+/** The identity of every LiveKit publish, as the publisher saw it. */
+const publishers: string[] = [];
+/** Rooms whose events are encrypted. */
+const encryptedRooms = new Set<string>();
+/** Delay of each direct-link packet, in fake time. Zero: next tick. */
+const directLink = { delayMs: 0 };
+/** Packets each direct link sent, by the sending identity. */
+const directPackets: { from: string; packet: Uint8Array }[] = [];
+/** Delay of each to-device message type, in fake time. */
+let deliveryDelay: ((type: string) => number) | null = null;
+
+interface FakeDirectEnd {
     identity: string;
     handler: (packet: Uint8Array) => void;
-    subscribed: boolean;
+    onFailed: () => void;
+    peer: FakeDirectEnd | null;
     closed: boolean;
 }
-const meshLinks = new Map<string, FakeMeshLink>();
-const meshLog: string[] = [];
-const SENDER = "@alice:x:A";
-const RECEIVER = "@bob:x:B";
 
 class FakeRoom {
     private handlers = new Map<string, ((...args: unknown[]) => void)[]>();
@@ -63,6 +111,7 @@ class FakeRoom {
             data: Uint8Array,
             options: { topic: string; destinationIdentities: string[] },
         ) => {
+            publishers.push(this.identity);
             if (owners.get(this.alias) !== this.identity) {
                 foreignPublishes++;
                 return;
@@ -119,6 +168,136 @@ function fakeLivekit(identity: string) {
     };
 }
 
+/** One session's data channels, as `identity`. Both ends link as they open. */
+function fakeDirect(identity: string) {
+    const linkOf = (end: FakeDirectEnd) => ({
+        send: async (packet: Uint8Array) => {
+            const peer = end.peer;
+            if (end.closed || !peer || peer.closed)
+                throw new Error("link down");
+            directPackets.push({ from: identity, packet });
+            const deliver = () => peer.handler(packet);
+            if (directLink.delayMs > 0) setTimeout(deliver, directLink.delayMs);
+            else queueMicrotask(deliver);
+        },
+        onPacket: (h: (packet: Uint8Array) => void) => {
+            end.handler = h;
+        },
+        close: () => {
+            if (end.closed) return;
+            end.closed = true;
+            // The other end learns of it, as a channel closing tells it.
+            const peer = end.peer;
+            if (peer && !peer.closed) setTimeout(() => peer.onFailed(), 0);
+        },
+    });
+    return {
+        openSenderDirect: async (opts: {
+            relayOnly: boolean;
+            sendCandidates: (list: unknown[]) => void;
+            onFailed: () => void;
+        }) => {
+            const id = ++directSeq;
+            const offerSdp = `v=0\r\no=sender-${id}\r\n`;
+            const end: FakeDirectEnd = {
+                identity,
+                handler: () => {},
+                onFailed: opts.onFailed,
+                peer: null,
+                closed: false,
+            };
+            directEnds.set(offerSdp, end);
+            directLog.push({
+                side: "sender",
+                identity,
+                relayOnly: opts.relayOnly,
+            });
+            // Found before the other end has anything: held until the accept is out.
+            opts.sendCandidates([
+                {
+                    candidate: `candidate:sender-${id}`,
+                    sdpMid: "0",
+                    sdpMLineIndex: 0,
+                },
+            ]);
+            return {
+                link: linkOf(end),
+                offerSdp,
+                acceptAnswer: async (sdp: string) => {
+                    const other = directEnds.get(sdp);
+                    if (!other) throw new Error("no such answer");
+                    end.peer = other;
+                },
+                addCandidates: async (value: unknown) => {
+                    directCandidates.push({ at: identity, value });
+                },
+            };
+        },
+        openReceiverDirect: async (opts: {
+            relayOnly: boolean;
+            offerSdp: string;
+            sendCandidates: (list: unknown[]) => void;
+            onFailed: () => void;
+        }) => {
+            const offerEnd = directEnds.get(opts.offerSdp);
+            if (!offerEnd) throw new Error("no such offer");
+            const id = ++directSeq;
+            const answerSdp = `v=0\r\no=receiver-${id}\r\n`;
+            const end: FakeDirectEnd = {
+                identity,
+                handler: () => {},
+                onFailed: opts.onFailed,
+                peer: offerEnd,
+                closed: false,
+            };
+            offerEnd.peer = end;
+            directEnds.set(answerSdp, end);
+            directLog.push({
+                side: "receiver",
+                identity,
+                relayOnly: opts.relayOnly,
+            });
+            opts.sendCandidates([
+                {
+                    candidate: `candidate:receiver-${id}`,
+                    sdpMid: "0",
+                    sdpMLineIndex: 0,
+                },
+            ]);
+            return {
+                link: linkOf(end),
+                answerSdp,
+                addCandidates: async (value: unknown) => {
+                    directCandidates.push({ at: identity, value });
+                },
+            };
+        },
+    };
+}
+
+/** Hashing can be held open by a test, and a root can be spoiled. */
+const hashGate = vi.hoisted(() => ({
+    wait: null as Promise<void> | null,
+    corruptRoot: false,
+}));
+
+vi.mock("$lib/utils/fileTransferHash", async (importOriginal) => {
+    const actual =
+        await importOriginal<typeof import("$lib/utils/fileTransferHash")>();
+    return {
+        ...actual,
+        hashFile: async (
+            file: Blob,
+            opts?: Parameters<typeof actual.hashFile>[1],
+        ) => {
+            if (hashGate.wait) await hashGate.wait;
+            const out = await actual.hashFile(file, opts);
+            if (hashGate.corruptRoot) out.root[0] ^= 1;
+            return out;
+        },
+    };
+});
+
 const sink = vi.hoisted(() => ({
     written: new Map<number, Uint8Array>(),
     finished: 0,
@@ -155,6 +334,7 @@ vi.mock("$lib/stores/ignoredUsers.svelte", () => ({
 function fakeClient(userId: string, deviceId: string) {
     const device: FakeDevice = { userId, deviceId, listener: null };
     devices.set(`${userId}|${deviceId}`, device);
+    accounts.set(userId, [...(accounts.get(userId) ?? []), deviceId]);
     const events: { type: string; content: unknown; roomId: string }[] = [];
     const redacted: string[] = [];
     let redactionListener: ToDeviceListener = () => {};
@@ -163,10 +343,11 @@ function fakeClient(userId: string, deviceId: string) {
         redacted,
         getUserId: () => userId,
         getDeviceId: () => deviceId,
-        getRoom: () => ({
+        getRoom: (roomId: string) => ({
             getMember: (id: string) => ({
                 membership: memberships[id] ?? "join",
             }),
+            hasEncryptionStateEvent: () => encryptedRooms.has(roomId),
         }),
         on(name: string, listener: ToDeviceListener) {
             if (name === ClientEvent.ReceivedToDeviceMessage)
@@ -196,18 +377,29 @@ function fakeClient(userId: string, deviceId: string) {
             }[];
         }) {
             for (const { userId: to, deviceId: dev, payload } of batch.batch) {
-                sent.push({ type: batch.eventType, to });
+                sent.push({
+                    type: batch.eventType,
+                    from: `${userId}:${deviceId}`,
+                    to: `${to}|${dev}`,
+                    content: payload,
+                    finished: sink.finished,
+                });
                 if (dropTo?.(batch.eventType)) continue;
-                queueMicrotask(() =>
+                const delivered = tamper
+                    ? tamper(batch.eventType, payload)
+                    : payload;
+                const deliver = () =>
                     devices.get(`${to}|${dev}`)?.listener?.({
-                        message: { type: batch.eventType, content: payload },
+                        message: { type: batch.eventType, content: delivered },
                         encryptionInfo: {
                             sender: userId,
                             senderDevice: deviceId,
                             senderCurve25519KeyBase64: "k",
                         },
-                    }),
-                );
+                    });
+                const later = deliveryDelay?.(batch.eventType) ?? 0;
+                if (later > 0) setTimeout(deliver, later);
+                else queueMicrotask(deliver);
             }
         },
         getCrypto: () => ({
@@ -219,55 +411,33 @@ function fakeClient(userId: string, deviceId: string) {
                 eventType,
                 batch: targets.map((t) => ({ ...t, payload })),
             }),
-            getDeviceVerificationStatus: async () => ({}),
+            getDeviceVerificationStatus: async (
+                _userId: string,
+                id: string,
+            ) => ({ crossSigningVerified: crossSigned.has(id) }),
+            getUserDeviceInfo: async (userIds: string[]) =>
+                new Map(
+                    userIds.map((id) => [
+                        id,
+                        new Map(
+                            (accounts.get(id) ?? []).map((d) => [
+                                d,
+                                { getIdentityKey: () => `key-${d}` },
+                            ]),
+                        ),
+                    ]),
+                ),
         }),
     };
 }
+
+const memberships: Record<string, string> = {};
 
 async function session(userId: string, deviceId: string) {
     vi.resetModules();
     const identity = `${userId}:${deviceId}`;
     vi.doMock("./livekitCall", () => fakeLivekit(identity));
-    vi.doMock("./fileTransferMesh", () => ({
-        openMeshLink: (opts: {
-            client: { getUserId(): string; getDeviceId(): string };
-            transferId: string;
-            peer: { userId: string; deviceId: string };
-        }) => {
-            // The module is loaded on demand, so by then the mock of the
-            // session made last is the one in place: the client says who.
-            const identity = `${opts.client.getUserId()}:${opts.client.getDeviceId()}`;
-            const link: FakeMeshLink = {
-                identity,
-                handler: () => {},
-                subscribed: false,
-                closed: false,
-            };
-            meshLinks.set(`${opts.transferId}|${identity}`, link);
-            meshLog.push(`open ${identity}`);
-            const peerIdentity = `${opts.peer.userId}:${opts.peer.deviceId}`;
-            return {
-                subscribe: () => {
-                    link.subscribed = true;
-                    meshLog.push(`subscribe ${identity}`);
-                },
-                send: async (packet: Uint8Array) => {
-                    // Reaches the peer once the peer subscribed to us.
-                    const peer = meshLinks.get(
-                        `${opts.transferId}|${peerIdentity}`,
-                    );
-                    if (!peer?.subscribed || peer.closed)
-                        throw new Error("link down");
-                    queueMicrotask(() => peer.handler(packet));
-                },
-                onPacket: (h: (packet: Uint8Array) => void) =>
-                    (link.handler = h),
-                close: () => {
-                    link.closed = true;
-                },
-            };
-        },
-    }));
+    vi.doMock("./fileTransferDirect", () => fakeDirect(identity));
     vi.doMock("$lib/stores/meshConsent.svelte", () => ({
         requestMeshConsent: async (request: { fileTransfer?: boolean }) => {
             consentAsked.push({
@@ -280,14 +450,28 @@ async function session(userId: string, deviceId: string) {
     const transfer = await import("./fileTransfer");
     const store = await import("$lib/stores/fileTransfers.svelte");
     const client = fakeClient(userId, deviceId);
-    transfer.attachFileTransfer(client as never);
+    // Torn down after the test, so nothing it started sends into the next one.
+    detachers.push(transfer.attachFileTransfer(client as never));
     return { transfer, store, client };
 }
 
-function offerIn(alice: Awaited<ReturnType<typeof session>>) {
+type Session = Awaited<ReturnType<typeof session>>;
+
+/** The offer `alice` posted, as a receiver reads it. */
+function offerIn(alice: Session) {
     const offer = parseFileOffer(alice.client.events[0].content);
     if (!offer) throw new Error("no offer");
     return offer;
+}
+
+/** `bob` accepts the offer `alice` posted. */
+function acceptIn(bob: Session, alice: Session) {
+    return bob.transfer.acceptOffer(
+        "!r:x",
+        "$offer",
+        "@alice:x",
+        offerIn(alice),
+    );
 }
 
 async function until(check: () => boolean) {
@@ -313,15 +497,73 @@ async function untilTransferring() {
 }
 
 /** Runs fake time until `p` settles. Stepped: under load the setup can
- *  outlast one big advance, and then only real time is left. */
+ *  outlast one big advance, and then only real time is left. Each step also
+ *  gives the real crypto in the transfer some real time to finish, so a
+ *  step can't run out a deadline the transfer hasn't reached yet. */
 async function settleWithTimers<T>(p: Promise<T>): Promise<T> {
     let settled = false;
     void p.then(
         () => (settled = true),
         () => (settled = true),
     );
-    while (!settled) await vi.advanceTimersByTimeAsync(1_000);
+    while (!settled) {
+        await vi.advanceTimersByTimeAsync(1_000);
+        await new Promise((r) => realSetTimeout(r, 20));
+    }
     return p;
+}
+
+/** Waits in real time, for something the transfer does with real crypto. */
+async function untilReal(check: () => boolean) {
+    for (let i = 0; i < 1_000 && !check(); i++)
+        await new Promise((r) => realSetTimeout(r, 10));
+    if (!check()) throw new Error("never happened");
+}
+
+/** Moves fake time on, a step at a time, until `check` holds. */
+async function advanceUntil(check: () => boolean) {
+    for (let i = 0; i < 2_000 && !check(); i++) {
+        await vi.advanceTimersByTimeAsync(500);
+        await new Promise((r) => realSetTimeout(r, 20));
+    }
+    if (!check()) throw new Error("never happened");
+}
+
+/** The phase of `who`'s transfer view in one direction, if there is one. */
+function phaseOf(who: Session, direction: "send" | "receive") {
+    return who.store.fileTransfersState.views.find(
+        (v) => v.direction === direction,
+    )?.phase;
+}
+
+/** A request from `bob`'s device, as Olm would deliver it to `alice`'s. */
+function requestToAlice(transferId: string, roomId = "!r:x") {
+    devices.get("@alice:x|A")!.listener!({
+        message: {
+            type: FILE_REQUEST_TYPE,
+            content: {
+                transfer_id: transferId,
+                event_id: "$offer",
+                room_id: roomId,
+            },
+        },
+        encryptionInfo: { sender: "@bob:x", senderDevice: "B" },
+    });
+}
+
+/** A cancel from `alice`'s device, as Olm would deliver it to `bob`'s. */
+function cancelToBob(transferId: string, reason: string) {
+    devices.get("@bob:x|B")!.listener!({
+        message: {
+            type: FILE_CANCEL_TYPE,
+            content: {
+                transfer_id: transferId,
+                event_id: "$offer",
+                reason,
+            },
+        },
+        encryptionInfo: { sender: "@alice:x", senderDevice: "A" },
+    });
 }
 
 function fileOf(size: number): File {
@@ -330,28 +572,46 @@ function fileOf(size: number): File {
     return new File([bytes], "movie.mkv", { type: "video/x-matroska" });
 }
 
+/** The first message of `type` that `from` sent. */
+function sentBy(from: string, type: string) {
+    return sent.find((m) => m.from === from && m.type === type);
+}
+
 beforeEach(() => {
     devices.clear();
+    accounts.clear();
+    crossSigned.clear();
     rooms.clear();
     owners.clear();
     sfuless.clear();
     rogueSfu.clear();
     declines.clear();
     consentAsked.length = 0;
-    meshLinks.clear();
-    meshLog.length = 0;
+    directLog.length = 0;
+    directEnds.clear();
+    directCandidates.length = 0;
     joined.length = 0;
     foreignPublishes = 0;
     sent.length = 0;
     dropTo = null;
-    memberships = {};
+    tamper = null;
+    for (const key of Object.keys(memberships)) delete memberships[key];
+    hashGate.wait = null;
+    hashGate.corruptRoot = false;
     sink.written.clear();
     sink.finished = 0;
     sink.aborted = 0;
     sink.backedOut = false;
+    publishers.length = 0;
+    encryptedRooms.clear();
+    directLink.delayMs = 0;
+    directPackets.length = 0;
+    deliveryDelay = null;
 });
 
 afterEach(() => {
+    vi.useRealTimers();
+    for (const detach of detachers.splice(0)) detach();
     vi.restoreAllMocks();
 });
 
@@ -374,7 +634,7 @@ describe("a direct transfer", () => {
         const bob = await session("@bob:x", "B");
         const size = 2 * 1024 * 1024 + 5;
         await alice.transfer.offerFile("!r:x", fileOf(size));
-        await bob.transfer.acceptOffer("!r:x", "@alice:x", offerIn(alice));
+        await acceptIn(bob, alice);
         expect(sink.finished).toBe(1);
         expect(sink.aborted).toBe(0);
         expect(sink.written.size).toBe(3);
@@ -391,7 +651,7 @@ describe("a direct transfer", () => {
         });
         // Each end publishes in its own room only, and listens in the other's.
         const [own, peer] = joinedBy(RECEIVER);
-        expect(own).toMatch(/^!r:x\|zam-transfer-/);
+        expect(own).toMatch(/^zam-transfer-/);
         expect(owners.get(own)).toBe(RECEIVER);
         expect(owners.get(peer)).toBe(SENDER);
         expect(joinedBy(SENDER)).toEqual([peer, own]);
@@ -404,14 +664,12 @@ describe("a direct transfer", () => {
         const bob = await session("@bob:x", "B");
         await alice.transfer.offerFile("!r:x", fileOf(1000));
         vi.useFakeTimers({ shouldAdvanceTime: true });
-        const accepting = bob.transfer.acceptOffer(
-            "!r:x",
-            "@alice:x",
-            offerIn(alice),
-        );
+        const accepting = acceptIn(bob, alice);
         await settleWithTimers(accepting);
         vi.useRealTimers();
         expect(joinedBy(RECEIVER)).toEqual(joinedBy(SENDER));
+        // Its acknowledgements go as to-device messages, never into the sender's room.
+        expect(publishers).not.toContain(RECEIVER);
         expect(sent.some((m) => m.type.endsWith(".ack"))).toBe(true);
         expect(sink.finished).toBe(1);
     });
@@ -422,11 +680,7 @@ describe("a direct transfer", () => {
         rogueSfu.add("@bob:x");
         await alice.transfer.offerFile("!r:x", fileOf(1000));
         vi.useFakeTimers({ shouldAdvanceTime: true });
-        const accepting = bob.transfer.acceptOffer(
-            "!r:x",
-            "@alice:x",
-            offerIn(alice),
-        );
+        const accepting = acceptIn(bob, alice);
         await settleWithTimers(accepting);
         vi.useRealTimers();
         const [bobsRoom, alicesRoom] = joinedBy(RECEIVER);
@@ -441,7 +695,7 @@ describe("a direct transfer", () => {
         const bob = await session("@bob:x", "B");
         rogueSfu.add("@alice:x");
         await alice.transfer.offerFile("!r:x", fileOf(1000));
-        await bob.transfer.acceptOffer("!r:x", "@alice:x", offerIn(alice));
+        await acceptIn(bob, alice);
         await until(() =>
             bob.store.fileTransfersState.views.some(
                 (v) => v.phase === "failed",
@@ -463,7 +717,7 @@ describe("a direct transfer", () => {
         const bob = await session("@bob:x", "B");
         const size = 2 * 1024 * 1024 + 5;
         await alice.transfer.offerFile("!r:x", fileOf(size));
-        await bob.transfer.acceptOffer("!r:x", "@alice:x", offerIn(alice));
+        await acceptIn(bob, alice);
         expect(sink.finished).toBe(1);
         expect(sink.written.size).toBe(3);
         await until(() =>
@@ -476,18 +730,10 @@ describe("a direct transfer", () => {
             { identity: SENDER, fileTransfer: true },
             { identity: RECEIVER, fileTransfer: true },
         ]);
-        // The sender listens before the receiver asks it for anything, and
-        // only subscribes once the receiver is listening.
-        expect(meshLog).toEqual([
-            `open ${SENDER}`,
-            `open ${RECEIVER}`,
-            `subscribe ${RECEIVER}`,
-            `subscribe ${SENDER}`,
-        ]);
-        expect(sent.some((m) => m.type.endsWith(".ready"))).toBe(true);
+        expect(directLog.map((d) => d.side)).toEqual(["sender", "receiver"]);
+        expect(directLog.every((d) => !d.relayOnly)).toBe(true);
         // No room anywhere: not even the receiver's.
         expect(joinedBy(SENDER)).toEqual([]);
-        expect([...meshLinks.values()].every((l) => l.closed)).toBe(true);
     });
 
     it("sends nothing when the sender won't connect directly", async () => {
@@ -496,14 +742,19 @@ describe("a direct transfer", () => {
         const alice = await session("@alice:x", "A");
         const bob = await session("@bob:x", "B");
         await alice.transfer.offerFile("!r:x", fileOf(1000));
-        await bob.transfer.acceptOffer("!r:x", "@alice:x", offerIn(alice));
+        await acceptIn(bob, alice);
         expect(sink.finished).toBe(0);
         expect(sink.aborted).toBe(1);
         expect(bob.store.fileTransfersState.views[0]).toMatchObject({
             phase: "failed",
             failure: "refused",
         });
-        expect(meshLinks.size).toBe(0);
+        // The request was taken on, so it ends with a cancel, not a refuse.
+        expect(sentBy(SENDER, FILE_CANCEL_TYPE)?.content.reason).toBe(
+            "declined",
+        );
+        expect(sentBy(SENDER, FILE_REFUSE_TYPE)).toBeUndefined();
+        expect(directLog).toEqual([]);
     });
 
     it("sends nothing when the receiver won't connect directly", async () => {
@@ -513,7 +764,7 @@ describe("a direct transfer", () => {
         await alice.transfer.offerFile("!r:x", fileOf(1000));
         // Only the sender agrees.
         declines.add(RECEIVER);
-        await bob.transfer.acceptOffer("!r:x", "@alice:x", offerIn(alice));
+        await acceptIn(bob, alice);
         expect(sink.finished).toBe(0);
         expect(bob.store.fileTransfersState.views[0]).toMatchObject({
             phase: "cancelled",
@@ -528,25 +779,19 @@ describe("a direct transfer", () => {
     it("discards the file when the final hash doesn't match", async () => {
         const alice = await session("@alice:x", "A");
         const bob = await session("@bob:x", "B");
+        // The sender's root is wrong, so the leaves can't rebuild it.
+        hashGate.corruptRoot = true;
         await alice.transfer.offerFile("!r:x", fileOf(1000));
-        // The sender hashes first, so the two ends part ways here.
-        let calls = 0;
-        const digest = crypto.subtle.digest.bind(crypto.subtle);
-        vi.spyOn(crypto.subtle, "digest").mockImplementation(
-            async (algorithm, data) => {
-                calls++;
-                const out = await digest(algorithm, data as BufferSource);
-                if (calls === 1) new Uint8Array(out)[0] ^= 1;
-                return out;
-            },
-        );
-        await bob.transfer.acceptOffer("!r:x", "@alice:x", offerIn(alice));
+        await acceptIn(bob, alice);
         expect(sink.finished).toBe(0);
         expect(sink.aborted).toBe(1);
         expect(bob.store.fileTransfersState.views[0]).toMatchObject({
             phase: "failed",
             failure: "hash-mismatch",
         });
+        expect(sentBy(RECEIVER, FILE_CANCEL_TYPE)?.content.reason).toBe(
+            "hash-mismatch",
+        );
     });
 
     it("refuses someone who has left the room", async () => {
@@ -554,7 +799,7 @@ describe("a direct transfer", () => {
         const bob = await session("@bob:x", "B");
         await alice.transfer.offerFile("!r:x", fileOf(10));
         memberships["@bob:x"] = "leave";
-        await bob.transfer.acceptOffer("!r:x", "@alice:x", offerIn(alice));
+        await acceptIn(bob, alice);
         expect(sent.some((m) => m.type === FILE_REFUSE_TYPE)).toBe(true);
         expect(joinedBy(SENDER)).toEqual([]);
         expect(sink.aborted).toBe(1);
@@ -566,7 +811,7 @@ describe("a direct transfer", () => {
         const bob = await session("@bob:x", "B");
         await alice.transfer.offerFile("!r:x", fileOf(10));
         sink.backedOut = true;
-        await bob.transfer.acceptOffer("!r:x", "@alice:x", offerIn(alice));
+        await acceptIn(bob, alice);
         expect(sent).toEqual([]);
         expect(bob.store.fileTransfersState.views).toEqual([]);
     });
@@ -574,13 +819,32 @@ describe("a direct transfer", () => {
     it("refuses a request for an offer it never made", async () => {
         await session("@alice:x", "A");
         const bob = await session("@bob:x", "B");
-        await bob.transfer.acceptOffer("!r:x", "@alice:x", {
+        await bob.transfer.acceptOffer("!r:x", "$made-up", "@alice:x", {
             transferId: "made-up",
             name: "x",
             size: 1,
             mimetype: "text/plain",
             senderDevice: "A",
             expiresTs: Date.now() + 1000,
+            relayOnly: false,
+        });
+        expect(joinedBy(SENDER)).toEqual([]);
+        expect(bob.store.fileTransfersState.views[0].failure).toBe("refused");
+    });
+
+    it("refuses a request that names another event for the same transfer", async () => {
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        await alice.transfer.offerFile("!r:x", fileOf(10));
+        await bob.transfer.acceptOffer(
+            "!r:x",
+            "$other",
+            "@alice:x",
+            offerIn(alice),
+        );
+        expect(sentBy(SENDER, FILE_REFUSE_TYPE)?.content).toMatchObject({
+            reason: "unknown-offer",
+            event_id: "$other",
         });
         expect(joinedBy(SENDER)).toEqual([]);
         expect(bob.store.fileTransfersState.views[0].failure).toBe("refused");
@@ -593,7 +857,12 @@ describe("a direct transfer", () => {
         const offer = { ...offerIn(alice), senderDevice: "OTHER" };
         dropTo = (type) => type.endsWith(".request");
         vi.useFakeTimers({ shouldAdvanceTime: true });
-        const accepting = bob.transfer.acceptOffer("!r:x", "@alice:x", offer);
+        const accepting = bob.transfer.acceptOffer(
+            "!r:x",
+            "$offer",
+            "@alice:x",
+            offer,
+        );
         await vi.advanceTimersByTimeAsync(31_000);
         await accepting;
         vi.useRealTimers();
@@ -601,15 +870,168 @@ describe("a direct transfer", () => {
         expect(joinedBy(SENDER)).toEqual([]);
     });
 
+    it("keeps the receiver waiting while the sender hashes the file", async () => {
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        let release!: () => void;
+        hashGate.wait = new Promise<void>((resolve) => (release = resolve));
+        await alice.transfer.offerFile("!r:x", fileOf(10));
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        const accepting = acceptIn(bob, alice);
+        // The preparing has to arrive before the first 30 seconds run out.
+        await untilReal(() => !!sentBy(SENDER, FILE_PREPARING_TYPE));
+        // Past the 30 seconds an answer is normally given.
+        await vi.advanceTimersByTimeAsync(31_000);
+        expect(sentBy(SENDER, FILE_PREPARING_TYPE)).toBeDefined();
+        expect(sentBy(SENDER, FILE_PREPARING_TYPE)?.content).toMatchObject({
+            event_id: "$offer",
+        });
+        expect(bob.store.fileTransfersState.views[0]).toMatchObject({
+            phase: "preparing",
+            failure: null,
+        });
+        hashGate.wait = null;
+        release();
+        await settleWithTimers(accepting);
+        vi.useRealTimers();
+        expect(sink.finished).toBe(1);
+        expect(bob.store.fileTransfersState.views[0].phase).toBe("done");
+    });
+
+    it("sends the root with done, once the file has its name", async () => {
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        await alice.transfer.offerFile("!r:x", fileOf(1000));
+        await acceptIn(bob, alice);
+        const accept = sentBy(SENDER, FILE_ACCEPT_TYPE)!;
+        const done = sentBy(RECEIVER, FILE_DONE_TYPE)!;
+        expect(done.content).toMatchObject({ event_id: "$offer" });
+        expect(done.content.root).toBe(accept.content.root);
+        expect(done.finished).toBe(1);
+    });
+
+    it("cancels when the sender answers without relaying a relay-only request", async () => {
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        tamper = (type, content) =>
+            type === FILE_ACCEPT_TYPE
+                ? { ...content, relay_only: false }
+                : content;
+        await alice.transfer.offerFile("!r:x", fileOf(1000));
+        await bob.transfer.acceptOffer("!r:x", "$offer", "@alice:x", {
+            ...offerIn(alice),
+            relayOnly: true,
+        });
+        expect(sentBy(RECEIVER, FILE_CANCEL_TYPE)?.content.reason).toBe(
+            "failed",
+        );
+        expect(bob.store.fileTransfersState.views[0]).toMatchObject({
+            phase: "failed",
+            failure: "connection",
+        });
+        expect(sink.finished).toBe(0);
+        await until(() =>
+            alice.store.fileTransfersState.views.some(
+                (v) => v.phase === "cancelled",
+            ),
+        );
+    });
+
+    it("answers a direct request, and holds candidates until the accept", async () => {
+        sfuless.add(SENDER);
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        await alice.transfer.offerFile("!r:x", fileOf(1000));
+        await acceptIn(bob, alice);
+        const accept = sentBy(SENDER, FILE_ACCEPT_TYPE)!;
+        expect(accept.content.sdp).toEqual(expect.stringMatching(/^v=0/));
+        expect(accept.content.alias).toBeUndefined();
+        const answer = sentBy(RECEIVER, FILE_ANSWER_TYPE)!;
+        expect(answer.content.sdp).toEqual(expect.stringMatching(/^v=0/));
+        const fromAlice = sent.filter(
+            (m) => m.from === SENDER && m.type === FILE_CANDIDATES_TYPE,
+        );
+        expect(fromAlice.length).toBeGreaterThan(0);
+        for (const candidates of fromAlice)
+            expect(sent.indexOf(candidates)).toBeGreaterThan(
+                sent.indexOf(accept),
+            );
+        // Each end took the other's candidates.
+        expect(
+            directCandidates.some(
+                (c) =>
+                    c.at === SENDER &&
+                    JSON.stringify(c.value).includes("receiver-"),
+            ),
+        ).toBe(true);
+        expect(
+            directCandidates.some(
+                (c) =>
+                    c.at === RECEIVER &&
+                    JSON.stringify(c.value).includes("sender-"),
+            ),
+        ).toBe(true);
+        expect(sink.finished).toBe(1);
+    });
+
+    it("tells our other cross-signed devices which one accepted", async () => {
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        const bobOther = await session("@bob:x", "B2");
+        crossSigned.add("B2");
+        await alice.transfer.offerFile("!r:x", fileOf(10));
+        await acceptIn(bob, alice);
+        await until(() => bobOther.store.acceptedOnDevice("$offer") === "B");
+        const accepted = sentBy(RECEIVER, FILE_ACCEPTED_TYPE);
+        expect(accepted?.to).toBe("@bob:x|B2");
+        expect(accepted?.content).toMatchObject({
+            event_id: "$offer",
+            device_id: "B",
+        });
+        expect(bob.store.acceptedOnDevice("$offer")).toBeNull();
+    });
+
+    it("trusts an unencrypted offer and one from its named device only", async () => {
+        const alice = await session("@alice:x", "A");
+        const plain = {
+            isEncrypted: () => false,
+            getRoomId: () => "!r:x",
+        } as unknown as MatrixEvent;
+        expect(await alice.transfer.offerFromSenderDevice(plain)).toBe(true);
+        const encrypted = (device: string) =>
+            ({
+                isEncrypted: () => true,
+                getSender: () => "@alice:x",
+                getSenderKey: () => "key-A",
+                getContent: () => ({ sender_device: device }),
+            }) as unknown as MatrixEvent;
+        expect(await alice.transfer.offerFromSenderDevice(encrypted("A"))).toBe(
+            true,
+        );
+        expect(await alice.transfer.offerFromSenderDevice(encrypted("Z"))).toBe(
+            false,
+        );
+    });
+
+    it("ignores an offer of another version", () => {
+        expect(
+            parseFileOffer({
+                version: 1,
+                transfer_id: "t",
+                name: "x.txt",
+                size: 1,
+                mimetype: "text/plain",
+                sender_device: "A",
+                expires_ts: Date.now() + 1000,
+            }),
+        ).toBeNull();
+    });
+
     it("stops both ends when the sender withdraws", async () => {
         const alice = await session("@alice:x", "A");
         const bob = await session("@bob:x", "B");
         await alice.transfer.offerFile("!r:x", fileOf(40 * 1024 * 1024));
-        const accepting = bob.transfer.acceptOffer(
-            "!r:x",
-            "@alice:x",
-            offerIn(alice),
-        );
+        const accepting = acceptIn(bob, alice);
         await untilTransferring();
         await alice.transfer.withdrawOffer(offerIn(alice).transferId);
         await accepting;
@@ -624,11 +1046,7 @@ describe("a direct transfer", () => {
         const alice = await session("@alice:x", "A");
         const bob = await session("@bob:x", "B");
         await alice.transfer.offerFile("!r:x", fileOf(40 * 1024 * 1024));
-        const accepting = bob.transfer.acceptOffer(
-            "!r:x",
-            "@alice:x",
-            offerIn(alice),
-        );
+        const accepting = acceptIn(bob, alice);
         await untilTransferring();
         alice.client.redact("$offer");
         await accepting;
@@ -651,7 +1069,7 @@ describe("a direct transfer", () => {
         const bob = await session("@bob:x", "B");
         await alice.transfer.offerFile("!r:x", fileOf(10));
         alice.client.redact("$offer");
-        await bob.transfer.acceptOffer("!r:x", "@alice:x", offerIn(alice));
+        await acceptIn(bob, alice);
         expect(joinedBy(SENDER)).toEqual([]);
         expect(bob.store.fileTransfersState.views[0].failure).toBe("refused");
     });
@@ -667,11 +1085,7 @@ describe("a direct transfer", () => {
         const alice = await session("@alice:x", "A");
         const bob = await session("@bob:x", "B");
         await alice.transfer.offerFile("!r:x", fileOf(40 * 1024 * 1024));
-        const accepting = bob.transfer.acceptOffer(
-            "!r:x",
-            "@alice:x",
-            offerIn(alice),
-        );
+        const accepting = acceptIn(bob, alice);
         await untilTransferring();
         const view = bob.store.fileTransfersState.views[0];
         bob.transfer.cancelTransfer(view.id, view.transferId);
@@ -698,5 +1112,218 @@ describe("a direct transfer", () => {
         await alice.transfer.offerFile("!r:x", fileOf(10));
         alice.transfer.attachFileTransfer(fakeClient("@carol:x", "C") as never);
         expect(alice.store.fileTransfersState.offered).toEqual([]);
+    });
+
+    it("gives the receiver's done two minutes from the end of the run, not its start", async () => {
+        sfuless.add(SENDER);
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        // Acknowledgements take 50 s each way, so the run outlasts two minutes.
+        directLink.delayMs = 50_000;
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        await alice.transfer.offerFile("!r:x", fileOf(4 * 1024 * 1024 + 5));
+        const accepting = acceptIn(bob, alice);
+        await advanceUntil(() =>
+            ["done", "failed"].includes(phaseOf(alice, "send") ?? ""),
+        );
+        await accepting;
+        vi.useRealTimers();
+        directLink.delayMs = 0;
+        expect(phaseOf(alice, "send")).toBe("done");
+        expect(sink.finished).toBe(1);
+    }, 60_000);
+
+    it("resends direct blocks only after a long silence", async () => {
+        sfuless.add(SENDER);
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        directLink.delayMs = 50_000;
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        await alice.transfer.offerFile("!r:x", fileOf(4 * 1024 * 1024 + 5));
+        const accepting = acceptIn(bob, alice);
+        await advanceUntil(() =>
+            ["done", "failed"].includes(phaseOf(alice, "send") ?? ""),
+        );
+        await accepting;
+        vi.useRealTimers();
+        directLink.delayMs = 0;
+        expect(sink.finished).toBe(1);
+        // Data packets are type 1; a packet is named by its block and part.
+        const data = directPackets.filter(
+            (p) => p.from === SENDER && p.packet[0] === 1,
+        );
+        const unique = new Set(
+            data.map((p) => Array.from(p.packet.slice(1, 7)).join(",")),
+        );
+        expect(unique.size).toBeGreaterThan(0);
+        // With the default three-second resend, the same blocks went out many
+        // times over; here only a few are resent at all.
+        expect(data.length).toBeLessThan(2 * unique.size);
+    }, 60_000);
+
+    it("doesn't end the transfer when the receiver's direct link closes after the data has landed", async () => {
+        sfuless.add(SENDER);
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        // The receiver closes its link when it sends done, which arrives later.
+        deliveryDelay = (type) => (type === FILE_DONE_TYPE ? 1_000 : 0);
+        await alice.transfer.offerFile("!r:x", fileOf(1000));
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        const accepting = acceptIn(bob, alice);
+        await advanceUntil(() =>
+            ["done", "failed"].includes(phaseOf(alice, "send") ?? ""),
+        );
+        await accepting;
+        vi.useRealTimers();
+        deliveryDelay = null;
+        expect(sentBy(RECEIVER, FILE_DONE_TYPE)).toBeDefined();
+        expect(phaseOf(alice, "send")).toBe("done");
+    });
+
+    it("serves one request from a device at a time", async () => {
+        const alice = await session("@alice:x", "A");
+        await alice.transfer.offerFile("!r:x", fileOf(1000));
+        const transferId = offerIn(alice).transferId;
+        // Two requests from the same device, before the first is checked.
+        requestToAlice(transferId);
+        requestToAlice(transferId);
+        await until(() => !!sentBy(SENDER, FILE_ACCEPT_TYPE));
+        await alice.transfer.withdrawOffer(transferId);
+        expect(
+            sent.filter(
+                (m) => m.from === SENDER && m.type === FILE_ACCEPT_TYPE,
+            ),
+        ).toHaveLength(1);
+    });
+
+    it("doesn't serve a request whose offer is withdrawn while it waits", async () => {
+        const alice = await session("@alice:x", "A");
+        await alice.transfer.offerFile("!r:x", fileOf(1000));
+        const transferId = offerIn(alice).transferId;
+        requestToAlice(transferId);
+        await alice.transfer.withdrawOffer(transferId);
+        await until(() => !!sentBy(SENDER, FILE_REFUSE_TYPE));
+        expect(sentBy(SENDER, FILE_REFUSE_TYPE)?.content.reason).toBe(
+            "expired",
+        );
+        expect(sentBy(SENDER, FILE_ACCEPT_TYPE)).toBeUndefined();
+        expect(sink.finished).toBe(0);
+    });
+
+    it("sends one request for a double accept", async () => {
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        await alice.transfer.offerFile("!r:x", fileOf(1000));
+        const offer = offerIn(alice);
+        await Promise.all([
+            bob.transfer.acceptOffer("!r:x", "$offer", "@alice:x", offer),
+            bob.transfer.acceptOffer("!r:x", "$offer", "@alice:x", offer),
+        ]);
+        expect(
+            sent.filter(
+                (m) => m.from === RECEIVER && m.type === FILE_REQUEST_TYPE,
+            ),
+        ).toHaveLength(1);
+        expect(sink.finished).toBe(1);
+    });
+
+    it("refuses an unencrypted offer in an encrypted room", async () => {
+        const alice = await session("@alice:x", "A");
+        encryptedRooms.add("!enc:x");
+        const plain = (roomId: string) =>
+            ({
+                isEncrypted: () => false,
+                getRoomId: () => roomId,
+            }) as unknown as MatrixEvent;
+        expect(
+            await alice.transfer.offerFromSenderDevice(plain("!enc:x")),
+        ).toBe(false);
+        expect(await alice.transfer.offerFromSenderDevice(plain("!r:x"))).toBe(
+            true,
+        );
+    });
+
+    it("uses the direct link when the accept names an SFU the sender's homeserver doesn't advertise", async () => {
+        sfuless.add(SENDER);
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        // Named by user id, as the homeserver's advertisement is.
+        rogueSfu.add("@alice:x");
+        // The accept also names a room, on a server nobody advertises.
+        tamper = (type, content) =>
+            type === FILE_ACCEPT_TYPE
+                ? {
+                      ...content,
+                      alias: "zam-transfer-rogue",
+                      service_url: "https://evil.example",
+                  }
+                : content;
+        await alice.transfer.offerFile("!r:x", fileOf(1000));
+        await acceptIn(bob, alice);
+        expect(sink.finished).toBe(1);
+        expect(directLog.map((d) => d.side)).toEqual(["sender", "receiver"]);
+    });
+
+    it("ends a relayed request that the sender cancels as failed with no-relay", async () => {
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        await alice.transfer.offerFile("!r:x", fileOf(1000));
+        const transferId = offerIn(alice).transferId;
+        // The request goes nowhere, so the sender's cancel is what answers it.
+        dropTo = (type) => type === FILE_REQUEST_TYPE;
+        const accepting = bob.transfer.acceptOffer(
+            "!r:x",
+            "$offer",
+            "@alice:x",
+            { ...offerIn(alice), relayOnly: true },
+        );
+        await until(() => !!sentBy(RECEIVER, FILE_REQUEST_TYPE));
+        cancelToBob(transferId, "failed");
+        await accepting;
+        expect(bob.store.fileTransfersState.views[0]).toMatchObject({
+            phase: "failed",
+            failure: "no-relay",
+        });
+        expect(sentBy(RECEIVER, FILE_CANCEL_TYPE)).toBeUndefined();
+        expect(sink.aborted).toBe(1);
+    });
+
+    it("shows a sender's failed cancel as a connection failure without relay", async () => {
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        await alice.transfer.offerFile("!r:x", fileOf(1000));
+        const transferId = offerIn(alice).transferId;
+        dropTo = (type) => type === FILE_REQUEST_TYPE;
+        const accepting = bob.transfer.acceptOffer(
+            "!r:x",
+            "$offer",
+            "@alice:x",
+            offerIn(alice),
+        );
+        await until(() => !!sentBy(RECEIVER, FILE_REQUEST_TYPE));
+        cancelToBob(transferId, "failed");
+        await accepting;
+        expect(bob.store.fileTransfersState.views[0]).toMatchObject({
+            phase: "failed",
+            failure: "connection",
+        });
+    });
+
+    it("refuses a request for a room other than the offer's", async () => {
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        await alice.transfer.offerFile("!r:x", fileOf(10));
+        await bob.transfer.acceptOffer(
+            "!other:x",
+            "$offer",
+            "@alice:x",
+            offerIn(alice),
+        );
+        expect(sentBy(SENDER, FILE_REFUSE_TYPE)?.content).toMatchObject({
+            reason: "unknown-offer",
+            event_id: "$offer",
+        });
+        expect(joinedBy(SENDER)).toEqual([]);
+        expect(bob.store.fileTransfersState.views[0].failure).toBe("refused");
     });
 });

@@ -1,14 +1,17 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
     import { Send } from "lucide-svelte";
+    import { untrack } from "svelte";
     import type { MatrixEvent } from "matrix-js-sdk";
     import {
         acceptOffer,
         cancelTransfer,
+        offerFromSenderDevice,
         withdrawOffer,
     } from "$lib/matrix/fileTransfer";
     import { getClient } from "$lib/matrix/runtime";
     import {
+        acceptedOnDevice,
         isOffered,
         transfersFor,
         type TransferFailure,
@@ -17,6 +20,7 @@
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import {
         formatTransferBytes,
+        offerExpiresAt,
         parseFileOffer,
     } from "$lib/utils/fileTransfer";
     import type { MessageKey } from "$lib/i18n/en";
@@ -55,10 +59,40 @@
     const incoming = $derived(views.find((v) => v.direction === "receive"));
     const outgoing = $derived(views.filter((v) => v.direction === "send"));
     const stillOffered = $derived(!!offer && isOffered(offer.transferId));
-    const expired = $derived(!!offer && offer.expiresTs < Date.now());
+    const expired = $derived(
+        !!offer && offerExpiresAt(offer, event.getTs()) < Date.now(),
+    );
+    const acceptedElsewhere = $derived(
+        event.getId() ? acceptedOnDevice(event.getId() ?? "") : null,
+    );
+    // null while the check runs; false when the device proof fails or throws.
+    let fromNamedDevice = $state<boolean | null>(null);
+    $effect(() => {
+        const current = event;
+        fromNamedDevice = null;
+        let stale = false;
+        untrack(() =>
+            offerFromSenderDevice(current)
+                .then((ok) => {
+                    if (!stale) fromNamedDevice = ok;
+                })
+                .catch((err) => {
+                    // Not proven is not trusted: a failed check counts as false.
+                    console.warn("[file-transfer] offer check", err);
+                    if (!stale) fromNamedDevice = false;
+                }),
+        );
+        return () => {
+            stale = true;
+        };
+    });
+    const untrusted = $derived(fromNamedDevice === false && !fromThisDevice);
+    // Accept needs the device proof itself: while the check runs it is disabled.
+    const verified = $derived(fromThisDevice || fromNamedDevice === true);
     const canAccept = $derived(
         !fromThisDevice &&
             !expired &&
+            !untrusted &&
             (!incoming ||
                 incoming.phase === "failed" ||
                 incoming.phase === "cancelled"),
@@ -76,6 +110,7 @@
     function isActive(view: TransferView): boolean {
         return (
             view.phase === "connecting" ||
+            view.phase === "preparing" ||
             view.phase === "transferring" ||
             view.phase === "verifying"
         );
@@ -83,6 +118,10 @@
 
     function statusText(view: TransferView): string {
         switch (view.phase) {
+            case "preparing":
+                return view.direction === "receive"
+                    ? t("fileOffer.preparingReceive")
+                    : t("fileOffer.preparingSend");
             case "connecting":
                 return t("fileOffer.connecting");
             case "verifying":
@@ -107,8 +146,13 @@
     }
 
     function accept() {
-        if (!offer) return;
-        acceptOffer(event.getRoomId() ?? "", sender, offer).catch((err) => {
+        if (!offer || !verified) return;
+        acceptOffer(
+            event.getRoomId() ?? "",
+            event.getId() ?? "",
+            sender,
+            offer,
+        ).catch((err) => {
             console.error("Failed to accept file:", err);
             showErrorToast(t("fileOffer.failedConnection"));
         });
@@ -219,13 +263,25 @@
                     {t("fileOffer.expired")}
                 </p>
             {/if}
+            {#if acceptedElsewhere && views.length === 0 && !untrusted}
+                <p class="mt-2 text-xs text-zam-textMuted">
+                    {t("fileOffer.acceptedElsewhere", {
+                        device: acceptedElsewhere,
+                    })}
+                </p>
+            {/if}
             {#if canAccept}
                 <button
-                    class="mt-2 px-3 py-1.5 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-xs font-semibold transition-colors"
+                    class="mt-2 px-3 py-1.5 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!verified}
                     onclick={accept}
                 >
                     {incoming ? t("fileOffer.retry") : t("fileOffer.accept")}
                 </button>
+            {:else if untrusted}
+                <p class="mt-2 text-xs text-zam-danger">
+                    {t("fileOffer.untrusted")}
+                </p>
             {/if}
         {/if}
     {/if}

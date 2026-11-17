@@ -3,19 +3,22 @@
 // away for a while; both ends carry on from what the receiver has on disk.
 import {
     BLOCK_SIZE,
-    BlockHashes,
     MAX_ACK_BLOCKS,
     blockCount,
+    blockLeaf,
     blockLength,
     decodePacket,
     encodeAckPacket,
-    isStorageFullError,
     encodeDataPackets,
+    encodeLeavesPackets,
+    isStorageFullError,
+    leafListMatches,
     openBlock,
     sealBlock,
     sealedLength,
     type AckPacket,
     type DataPacket,
+    type LeavesPacket,
 } from "$lib/utils/fileTransfer";
 
 export interface TransferLink {
@@ -68,6 +71,51 @@ export class TransferError extends Error {
     }
 }
 
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+    if (a.length !== b.length) return false;
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+    return diff === 0;
+}
+
+/**
+ * When the sender sends the leaf list.
+ *
+ * The receiver checks no block until it holds the whole leaf list, and it
+ * acknowledges nothing it cannot check. So when data goes unacknowledged the
+ * sender cannot tell a lost data packet from a lost leaf list, and the
+ * resend timer alone would never repair the second. The rule: until a block
+ * sent as data has been acknowledged, every resend-timer timeout (the moment
+ * the timer would resend data) sends the whole leaf list first. Once an
+ * acknowledgement covers such a block, the receiver provably holds the leaf
+ * list, and it is never sent again.
+ */
+class LeafListGate {
+    private pending = true;
+    private confirmed = false;
+
+    /** The leaf list should go out before anything else. */
+    get due(): boolean {
+        return this.pending;
+    }
+
+    /** The leaf list is going out. A timeout meanwhile asks for it again. */
+    beginSend(): void {
+        this.pending = false;
+    }
+
+    /** The resend timer would resend data: send the leaf list first. */
+    request(): void {
+        if (!this.confirmed) this.pending = true;
+    }
+
+    /** An acknowledgement covers a block that was sent as data. */
+    confirm(): void {
+        this.confirmed = true;
+        this.pending = false;
+    }
+}
+
 interface InFlight {
     packets: Uint8Array<ArrayBuffer>[];
     sentAt: number;
@@ -75,9 +123,14 @@ interface InFlight {
 
 export class BlockSender {
     private readonly blocks: number;
-    private readonly hashes: BlockHashes;
+    private readonly leafPackets: Uint8Array<ArrayBuffer>[];
+    private readonly leafGate = new LeafListGate();
     private readonly inFlight = new Map<number, InFlight>();
     private readonly resend = new Set<number>();
+    /** Blocks the receiver holds, as its acknowledgements have said so: all
+     *  below `heldBelow`, and those in `heldAhead` (not yet reached). */
+    private heldBelow = 0;
+    private readonly heldAhead = new Set<number>();
     private nextBlock = 0;
     private acked = 0;
     private window = INITIAL_WINDOW;
@@ -97,24 +150,30 @@ export class BlockSender {
         private readonly transferId: string,
         private readonly link: TransferLink,
         private readonly onProgress: (bytes: number) => void,
+        // Computed before the transfer, from the file and the hash key.
+        leaves: Uint8Array[],
         private readonly timing = DEFAULT_TIMING,
     ) {
         this.blocks = blockCount(file.size);
-        this.hashes = new BlockHashes(this.blocks);
+        if (leaves.length !== this.blocks)
+            throw new Error("leaf count does not match the file");
+        this.leafPackets = encodeLeavesPackets(leaves);
         link.onPacket((packet) => {
             const decoded = decodePacket(packet);
             if (decoded?.kind === "ack") this.handleAck(decoded.ack);
         });
     }
 
-    /** Sends everything. Resolves with the file's hash once all of it is on
-     *  the receiver's disk. Nothing moves until the receiver says it's there. */
-    async run(): Promise<string> {
+    /** Sends everything. Resolves once all of it is on the receiver's disk.
+     *  Nothing moves until the receiver says it's there. */
+    async run(): Promise<void> {
+        // The stall clock starts now: the receiver may take a long time to
+        // arrive, and nothing is owed to it before this.
+        this.lastProgress = Date.now();
         await new Promise<void>((resolve, reject) => {
             this.settle = { resolve, reject };
             this.timer = setInterval(() => this.tick(), this.timing.tickMs);
         }).finally(() => this.stop());
-        return this.hashes.root();
     }
 
     stop(): void {
@@ -133,6 +192,7 @@ export class BlockSender {
         if (this.stopped) return;
         const now = Date.now();
         this.receiverReady = true;
+        this.noteHeld(ack);
         const have = new Set(ack.have);
         let progressed = false;
         for (const block of [...this.inFlight.keys()]) {
@@ -141,7 +201,9 @@ export class BlockSender {
             this.resend.delete(block);
             this.acked++;
             progressed = true;
+            this.leafGate.confirm();
         }
+        if (this.skipHeld() > 0) progressed = true;
         // Anything older than a block the receiver has, and not just sent, was
         // lost on the way: the SFU drops data rather than queue it forever.
         const newest = Math.max(ack.contiguous - 1, ...ack.have);
@@ -169,6 +231,29 @@ export class BlockSender {
             return;
         }
         void this.pump();
+    }
+
+    private noteHeld(ack: AckPacket): void {
+        this.heldBelow = Math.max(this.heldBelow, ack.contiguous);
+        for (const block of ack.have)
+            if (block >= this.nextBlock) this.heldAhead.add(block);
+    }
+
+    /** Steps past blocks the receiver already holds (a resume): they are
+     *  never sent. Returns how many were skipped. */
+    private skipHeld(): number {
+        let skipped = 0;
+        while (
+            this.nextBlock < this.blocks &&
+            (this.nextBlock < this.heldBelow ||
+                this.heldAhead.has(this.nextBlock))
+        ) {
+            this.heldAhead.delete(this.nextBlock);
+            this.nextBlock++;
+            this.acked++;
+            skipped++;
+        }
+        return skipped;
     }
 
     private resendDelay(): number {
@@ -199,6 +284,7 @@ export class BlockSender {
             now - this.lastProgress >= delay &&
             now - oldest[1].sentAt >= delay
         ) {
+            this.leafGate.request();
             this.resend.add(oldest[0]);
             this.cutWindow(now);
         }
@@ -212,7 +298,6 @@ export class BlockSender {
                 .slice(start, start + blockLength(this.file.size, block))
                 .arrayBuffer(),
         );
-        await this.hashes.add(block, plain);
         const sealed = await sealBlock(
             this.key,
             this.transferId,
@@ -231,6 +316,19 @@ export class BlockSender {
         flight.sentAt = Date.now();
     }
 
+    private async transmitLeaves(): Promise<void> {
+        this.leafGate.beginSend();
+        try {
+            for (const packet of this.leafPackets) {
+                if (this.stopped) return;
+                await this.link.send(packet);
+            }
+        } catch (err) {
+            this.leafGate.request();
+            throw err;
+        }
+    }
+
     // One at a time, so packets of two blocks never interleave and a slow link
     // holds everything up rather than filling memory.
     private async pump(): Promise<void> {
@@ -238,6 +336,10 @@ export class BlockSender {
         this.pumping = true;
         try {
             while (!this.stopped) {
+                if (this.leafGate.due) {
+                    await this.transmitLeaves();
+                    continue;
+                }
                 const lost = this.resend.values().next().value;
                 if (lost !== undefined) {
                     const flight = this.inFlight.get(lost);
@@ -269,18 +371,25 @@ export class BlockSender {
 
 export class BlockReceiver {
     private readonly blocks: number;
-    private readonly hashes: BlockHashes;
     private readonly partial = new Map<number, (DataPacket | undefined)[]>();
     private readonly stored = new Set<number>();
     private readonly working = new Set<number>();
+    /** The leaf list as collected so far; whole once it has `blocks` leaves. */
+    private leaves: Uint8Array[] = [];
+    private leavesChecking = false;
+    private leavesVerified = false;
     private contiguous = 0;
     private storedBytes = 0;
     private badBlocks = 0;
     private lastData = Date.now();
     private stopped = false;
+    /** The run has resolved or rejected: nothing more is written. */
+    private settled = false;
+    /** The run has failed: nothing more is acked either. */
+    private failed = false;
     private timer: ReturnType<typeof setInterval> | null = null;
     private settle: {
-        resolve: (root: string) => void;
+        resolve: () => void;
         reject: (e: Error) => void;
     } | null = null;
 
@@ -294,25 +403,31 @@ export class BlockReceiver {
         // Told what we hold when the link has gone quiet: acknowledgements may
         // not be getting through it, if the SFU won't let us publish there.
         private readonly slowAck: (ack: AckPacket) => void,
+        private readonly hashKey: CryptoKey,
+        // From the accept: the leaf list must rebuild this.
+        private readonly root: Uint8Array,
         private readonly timing = DEFAULT_TIMING,
     ) {
         this.blocks = blockCount(size);
-        this.hashes = new BlockHashes(this.blocks);
         link.onPacket((packet) => {
             const decoded = decodePacket(packet);
             if (decoded?.kind === "data") this.handleData(decoded.data);
+            else if (decoded?.kind === "leaves")
+                void this.handleLeaves(decoded.leaves);
         });
     }
 
-    /** Resolves with the file's hash once every block is on disk. Keeps
-     *  answering until stopped, in case the last acknowledgement was lost. */
-    run(): Promise<string> {
+    /** Resolves once every block is on disk. Keeps answering until stopped,
+     *  in case the last acknowledgement was lost. */
+    run(): Promise<void> {
+        // The stall clock starts now, not when the object was built.
+        this.lastData = Date.now();
         let lastSlowAck = 0;
         this.timer = setInterval(
             () => {
                 const now = Date.now();
                 if (now - this.lastData >= this.timing.stallMs) {
-                    this.settle?.reject(new TransferError("stalled"));
+                    this.rejectRun(new TransferError("stalled"));
                     return;
                 }
                 this.sendAck();
@@ -327,7 +442,7 @@ export class BlockReceiver {
             Math.min(this.timing.tickMs * 2, ACK_HEARTBEAT_MS),
         );
         this.sendAck();
-        return new Promise<string>((resolve, reject) => {
+        return new Promise<void>((resolve, reject) => {
             this.settle = { resolve, reject };
         });
     }
@@ -336,6 +451,24 @@ export class BlockReceiver {
         this.stopped = true;
         if (this.timer) clearInterval(this.timer);
         this.timer = null;
+    }
+
+    /** Past stop() or a settled run, the receiver writes and acks nothing. */
+    private closed(): boolean {
+        return this.stopped || this.settled;
+    }
+
+    private resolveRun(): void {
+        if (this.settled) return;
+        this.settled = true;
+        this.settle?.resolve();
+    }
+
+    private rejectRun(err: TransferError): void {
+        if (this.settled) return;
+        this.settled = true;
+        this.failed = true;
+        this.settle?.reject(err);
     }
 
     private currentAck(): AckPacket {
@@ -347,14 +480,44 @@ export class BlockReceiver {
         };
     }
 
+    /** After a successful finish the receiver keeps acknowledging until it is
+     *  stopped: the sender learns the last block arrived only from an ack. */
     private sendAck(): void {
+        if (this.stopped || this.failed) return;
         this.link.send(encodeAckPacket(this.currentAck())).catch(() => {
             /* the heartbeat repeats it */
         });
     }
 
+    /** Collects the leaf list in order, and checks it against the root once it
+     *  is whole. A packet out of step is dropped: the sender resends from 0. */
+    private async handleLeaves(packet: LeavesPacket): Promise<void> {
+        if (this.stopped || this.leavesVerified || this.leavesChecking) return;
+        if (packet.first === 0) this.leaves = [];
+        else if (packet.first !== this.leaves.length) return;
+        if (this.leaves.length + packet.leaves.length > this.blocks) {
+            // More leaves than this file has: start over from 0 later.
+            this.leaves = [];
+            return;
+        }
+        this.leaves.push(...packet.leaves);
+        if (this.leaves.length < this.blocks) return;
+        this.leavesChecking = true;
+        const ok = await leafListMatches(this.leaves, this.size, this.root);
+        if (this.stopped) return;
+        if (!ok) {
+            this.rejectRun(new TransferError("corrupt"));
+            return;
+        }
+        this.leavesVerified = true;
+        this.leavesChecking = false;
+    }
+
     private handleData(data: DataPacket): void {
-        if (this.stopped || data.block >= this.blocks) return;
+        // Nothing can be checked before the leaf list, so nothing is taken:
+        // not assembled, not acknowledged, not counted as a bad block.
+        if (this.closed() || !this.leavesVerified || data.block >= this.blocks)
+            return;
         this.lastData = Date.now();
         if (data.block < this.contiguous || this.stored.has(data.block)) {
             this.sendAck();
@@ -393,18 +556,26 @@ export class BlockReceiver {
                 block,
                 sealed,
             );
-            await this.hashes.add(block, plain);
+            const leaf = this.leaves[block];
+            const computed = await blockLeaf(this.hashKey, block, plain);
+            if (!leaf || !sameBytes(computed, leaf)) throw new Error();
+            // Stopped or settled while the block was being opened: no write.
+            if (this.closed()) {
+                this.working.delete(block);
+                return;
+            }
             await this.write(block, plain);
         } catch (err) {
             this.working.delete(block);
             if (err instanceof TransferError) {
-                this.settle?.reject(err);
+                this.rejectRun(err);
             } else if (++this.badBlocks >= MAX_BAD_BLOCKS) {
-                this.settle?.reject(new TransferError("corrupt"));
+                this.rejectRun(new TransferError("corrupt"));
             }
             return;
         }
         this.working.delete(block);
+        if (this.closed()) return;
         this.stored.add(block);
         this.storedBytes += blockLength(this.size, block);
         while (this.stored.has(this.contiguous)) this.contiguous++;
@@ -412,8 +583,7 @@ export class BlockReceiver {
             if (held < this.contiguous) this.stored.delete(held);
         this.onProgress(this.storedBytes);
         this.sendAck();
-        if (this.contiguous === this.blocks)
-            this.settle?.resolve(await this.hashes.root());
+        if (this.contiguous === this.blocks) this.resolveRun();
     }
 
     private async write(

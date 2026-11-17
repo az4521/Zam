@@ -3,6 +3,7 @@
 
 export type TransferPhase =
     | "connecting"
+    | "preparing"
     | "transferring"
     | "verifying"
     | "done"
@@ -39,6 +40,8 @@ class FileTransfersState {
     views = $state<TransferView[]>([]);
     /** Transfers this session offered and can still serve. */
     offered = $state<string[]>([]);
+    /** Offer event id -> the device of this user that accepted it. */
+    acceptedOn = $state<Record<string, string>>({});
 }
 
 export const fileTransfersState = new FileTransfersState();
@@ -83,7 +86,20 @@ export function isOffered(transferId: string): boolean {
     return fileTransfersState.offered.includes(transferId);
 }
 
+/** Another device of this user accepted the offer with this event id. */
+export function markAcceptedOn(eventId: string, deviceId: string): void {
+    fileTransfersState.acceptedOn = {
+        ...fileTransfersState.acceptedOn,
+        [eventId]: deviceId,
+    };
+}
+
+export function acceptedOnDevice(eventId: string): string | null {
+    return fileTransfersState.acceptedOn[eventId] ?? null;
+}
+
 export function resetFileTransfers(): void {
     fileTransfersState.views = [];
     fileTransfersState.offered = [];
+    fileTransfersState.acceptedOn = {};
 }

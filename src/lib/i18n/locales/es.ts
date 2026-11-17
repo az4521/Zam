@@ -3194,6 +3194,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "fileOffer.cancel": "Cancelar",
     "fileOffer.withdraw": "Retirar",
     "fileOffer.connecting": "Conectando con el remitente...",
+    "fileOffer.preparingReceive":
+        "Esperando a que el remitente prepare el archivo",
+    "fileOffer.preparingSend": "Preparando el archivo",
+    "fileOffer.acceptedElsewhere":
+        "Aceptado en otro de tus dispositivos ({device})",
+    "fileOffer.untrusted":
+        "No se puede confiar en esta oferta: no llegó desde el dispositivo que indica.",
     "fileOffer.progress": "{done} de {total}, {rate}/s",
     "fileOffer.verifying": "Verificando el archivo...",
     "fileOffer.savedDone": "Archivo guardado y verificado.",

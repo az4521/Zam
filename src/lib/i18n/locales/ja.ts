@@ -3743,6 +3743,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "fileOffer.cancel": "キャンセル",
     "fileOffer.withdraw": "取り消す",
     "fileOffer.connecting": "送信者に接続中…",
+    "fileOffer.preparingReceive": "送信者がファイルを準備するのを待っています",
+    "fileOffer.preparingSend": "ファイルを準備しています",
+    "fileOffer.acceptedElsewhere": "別の端末で承認されました（{device}）",
+    "fileOffer.untrusted":
+        "この依頼は信頼できません。指定された端末から送られたものではありません。",
     "fileOffer.progress": "{done} / {total}、{rate}/秒",
     "fileOffer.verifying": "ファイルを検証中…",
     "fileOffer.savedDone": "ファイルを保存し、検証しました。",

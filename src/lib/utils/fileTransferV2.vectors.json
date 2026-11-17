@@ -1,0 +1,185 @@
+{
+    "note": "Test vectors for the direct file transfer v2 draft (Vommet issue 1474, with Zam).\n\nDeterministic inputs; run with Python 3 and the `cryptography` package:\n    python3 generate.py > vectors.json\nByte strings are lowercase hex. Blocks are 1 MiB, so files are described by a\ngenerator rule, not inlined: byte j of the file is (j * 7 + 3) % 251.",
+    "key": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "hash_key": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+    "transfer_id": "dGVzdC10cmFuc2Zlci1pZA",
+    "aad_prefix": "m.file_transfer.v2",
+    "files": [
+        {
+            "size": 0,
+            "block_count": 1,
+            "file_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "leaves": [
+                "2b3ad6f5da6624cd55fe1de0fc5803acc72f1804df3493bce845ff9b2b006930"
+            ],
+            "root": "2b3ad6f5da6624cd55fe1de0fc5803acc72f1804df3493bce845ff9b2b006930",
+            "sealed": [
+                {
+                    "index": 0,
+                    "iv": "000000000000000000000000",
+                    "aad": "m.file_transfer.v2|dGVzdC10cmFuc2Zlci1pZA|0|0",
+                    "plaintext_len": 0,
+                    "sealed_len": 28,
+                    "sealed_sha256": "1445737b0ad639e6297a4f83d700dd24be6aced84235ad05efd084e671f40b28",
+                    "sealed_head": "000000000000000000000000509ce9640199b3fea2469c118ebcc2c7",
+                    "sealed_tail": "000000000000000000000000509ce9640199b3fea2469c118ebcc2c7"
+                }
+            ]
+        },
+        {
+            "size": 5,
+            "block_count": 1,
+            "file_sha256": "c0a7188b4e87d64b5ff6dbedc69629b41ded38b08f0f79b85c5b63ed4a6b4646",
+            "leaves": [
+                "6adadf7b939f0931c5f4a97f55273f9f622385992f54a0a1c1c1c63d5dee5f73"
+            ],
+            "root": "6adadf7b939f0931c5f4a97f55273f9f622385992f54a0a1c1c1c63d5dee5f73",
+            "sealed": [
+                {
+                    "index": 0,
+                    "iv": "000000000000000000000000",
+                    "aad": "m.file_transfer.v2|dGVzdC10cmFuc2Zlci1pZA|0|5",
+                    "plaintext_len": 5,
+                    "sealed_len": 33,
+                    "sealed_sha256": "f58cd06e784de1cbffeaaa481e0bc1f0fed941b0c7f75514e1561baedf116dc3",
+                    "sealed_head": "0000000000000000000000000db6a4c6aaf7490c008fadaa6229df7d8d430e2945",
+                    "sealed_tail": "00000000000000000000000db6a4c6aaf7490c008fadaa6229df7d8d430e2945"
+                }
+            ]
+        },
+        {
+            "size": 1048576,
+            "block_count": 1,
+            "file_sha256": "1ac437f476c488acba4000af7ae89ef53f7ffbeef2e937850985f5ceb8b5ae6f",
+            "leaves": [
+                "e1250eb4f68bd052bdedf279a3ce19af8f7c6cd3edba8305a3715744d0e2bac0"
+            ],
+            "root": "e1250eb4f68bd052bdedf279a3ce19af8f7c6cd3edba8305a3715744d0e2bac0",
+            "sealed": [
+                {
+                    "index": 0,
+                    "iv": "000000000000000000000000",
+                    "aad": "m.file_transfer.v2|dGVzdC10cmFuc2Zlci1pZA|0|1048576",
+                    "plaintext_len": 1048576,
+                    "sealed_len": 1048604,
+                    "sealed_sha256": "ad053e4e1a259f711157ba8a63b4b0e5159ce9e58910d924bf4885850d5e3b09",
+                    "sealed_head": "0000000000000000000000000db6a4c6aa0aae8933eae0654f72f4f5a139d7dba717fd8b2b2c0a430231888aadb51744",
+                    "sealed_tail": "d5090e48495cca2062048c2fce20c97feb0823d05ce958dd1e8558a492fb3e91"
+                }
+            ]
+        },
+        {
+            "size": 1048577,
+            "block_count": 2,
+            "file_sha256": "e42cda7f3d5f4472e6a826c1ae97c1d3933ba23ef486e8df5814889b7af6f7c4",
+            "leaves": [
+                "e1250eb4f68bd052bdedf279a3ce19af8f7c6cd3edba8305a3715744d0e2bac0",
+                "54eb07ac5ec59a118f0bb6f1b7fcb0310a78378be1d857d22e23fbfd6f1d98ed"
+            ],
+            "root": "31bab04d80cac0475ae6ea1adcb9ad2646d6d201a7482955c9ebc92bd7786337",
+            "sealed": [
+                {
+                    "index": 0,
+                    "iv": "000000000000000000000000",
+                    "aad": "m.file_transfer.v2|dGVzdC10cmFuc2Zlci1pZA|0|1048577",
+                    "plaintext_len": 1048576,
+                    "sealed_len": 1048604,
+                    "sealed_sha256": "636889c56470d887af2979af4246fbd6642030f6fb55c62d46fe88137cf3c4b9",
+                    "sealed_head": "0000000000000000000000000db6a4c6aa0aae8933eae0654f72f4f5a139d7dba717fd8b2b2c0a430231888aadb51744",
+                    "sealed_tail": "d5090e48495cca2062048c2fce20c97f6af9eca3858564cd90fce7eea4fe73f6"
+                },
+                {
+                    "index": 1,
+                    "iv": "010101010101010101010101",
+                    "aad": "m.file_transfer.v2|dGVzdC10cmFuc2Zlci1pZA|1|1048577",
+                    "plaintext_len": 1,
+                    "sealed_len": 29,
+                    "sealed_sha256": "f19aa6ad6430c6c820c1260f2a5659d01eb4defe1e81234b2ddc153da3891a66",
+                    "sealed_head": "0101010101010101010101015d14a140efacb22c2ebdda05d22e196739",
+                    "sealed_tail": "0101010101010101010101015d14a140efacb22c2ebdda05d22e196739"
+                }
+            ]
+        },
+        {
+            "size": 5255225,
+            "block_count": 6,
+            "file_sha256": "0a189dabae76d64336c849e8643951098061bf285e3909bbe7888c93bc38c02e",
+            "leaves": [
+                "e1250eb4f68bd052bdedf279a3ce19af8f7c6cd3edba8305a3715744d0e2bac0",
+                "0ab22a05104ffad2531362a25040a09251dea094c18d83311e7f401cb5cb378b",
+                "42734f97855d0f0506f2f9a6ea72fd1cd84cc1ce3fda93c2b030ee491f6215e7",
+                "7bb1e8184468459ab13f0cd560ea6becdae064855278b6c246f09aff0cba178e",
+                "60821f2adc5d397586f697b6957034c2dad199d47698dd622cd125a17696eec9",
+                "c66ba8090a253243e27a40a5905fcddac2540dca9e75f4aefd50808a0400981e"
+            ],
+            "root": "594c3b3d18ed88bb8cbcf7b9a9836a0a5e7c6025c2dfd097e6c976f1ceaa5a77",
+            "sealed": [
+                {
+                    "index": 0,
+                    "iv": "000000000000000000000000",
+                    "aad": "m.file_transfer.v2|dGVzdC10cmFuc2Zlci1pZA|0|5255225",
+                    "plaintext_len": 1048576,
+                    "sealed_len": 1048604,
+                    "sealed_sha256": "db232e0ca2383065bbc54f43c6d9b56c8245b774269d82ff05177e3df544d76e",
+                    "sealed_head": "0000000000000000000000000db6a4c6aa0aae8933eae0654f72f4f5a139d7dba717fd8b2b2c0a430231888aadb51744",
+                    "sealed_tail": "d5090e48495cca2062048c2fce20c97fe36e56758670429dbc60ad1e9aa6e44c"
+                },
+                {
+                    "index": 5,
+                    "iv": "050505050505050505050505",
+                    "aad": "m.file_transfer.v2|dGVzdC10cmFuc2Zlci1pZA|5|5255225",
+                    "plaintext_len": 12345,
+                    "sealed_len": 12373,
+                    "sealed_sha256": "406fcb42ccfc3c35d70b62f61f45f5456bf378b1baf1757e27c3faf2e6daf07f",
+                    "sealed_head": "0505050505050505050505058afb0caa42d46a1d3c841af816352be16e35dd8fb384f0e7415b53ab51a98df984f1ecc1",
+                    "sealed_tail": "4e79ecbc9b2c04405b50c50bc64ac34152600446e97fdb581a8f034ba4e01ac2"
+                }
+            ]
+        }
+    ],
+    "tamper_short_leaf_list": {
+        "blocks": "block i is 10 bytes of value i, for i = 0, 1, 2",
+        "leaves": [
+            "4f433d2068b0ca9298687f092bde541e508a6294adaa4f36b1786d02ff3d6396",
+            "c497e6edef7b0ce4d7672137fb13c40fbe1d9b58b3bbc3367a9db4df5643c098",
+            "f428c5fb9991a74f23e41093b1037615bd1a096e51448ad5e6a0a3cfe18e2f88"
+        ],
+        "root": "ff54b867c267157fce38da721a2b2b992cccf25c8ac9249174a5016930a5dcb5",
+        "bad_leaf_list": [
+            "934f4d9d1556eecf7a0bab89735583fd40157f0784503aa37ece8ae52c24b7bd",
+            "f428c5fb9991a74f23e41093b1037615bd1a096e51448ad5e6a0a3cfe18e2f88"
+        ],
+        "expect": "reject: 2 leaves where 3 are required, although they rebuild the root"
+    },
+    "tamper_aad": {
+        "size": 2097152,
+        "sealed_for_index": 1,
+        "iv": "070707070707070707070707",
+        "sealed_sha256": "0cc96cbdfac4c32908665c9d5c4eaaced93149c0652ec55cac80665d96857a40",
+        "expect": "opening it as index 0, or with size 2097153, fails authentication"
+    },
+    "packet_mac": {
+        "hkdf_info": "m.file_transfer.v2 mac",
+        "mac_key": "57c5cdb03a3c7f1afed422ad6143ac0c61b4e6136c6b70a68f19d092cd2ec97b",
+        "packets": [
+            {
+                "direction": 1,
+                "sequence": 0,
+                "packet": "01000000000000000170617274",
+                "on_wire": "0100000000000000017061727400000000000000003e6609525e246b33606787cc476ce531"
+            },
+            {
+                "direction": 2,
+                "sequence": 0,
+                "packet": "020000000300020000000500000009",
+                "on_wire": "0200000003000200000005000000090000000000000000f5a38e0013fccde44d1635f54a9bdc01"
+            },
+            {
+                "direction": 2,
+                "sequence": 7,
+                "packet": "020000000300020000000500000009",
+                "on_wire": "0200000003000200000005000000090000000000000007c3a30b00e9d15ed71075d497a4f74982"
+            }
+        ]
+    }
+}

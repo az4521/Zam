@@ -4220,6 +4220,13 @@ export const en = {
     "fileOffer.cancel": "Cancel",
     "fileOffer.withdraw": "Withdraw",
     "fileOffer.connecting": "Connecting to the sender...",
+    "fileOffer.preparingReceive":
+        "Waiting for the sender to get the file ready",
+    "fileOffer.preparingSend": "Getting the file ready",
+    "fileOffer.acceptedElsewhere":
+        "Accepted on another of your devices ({device})",
+    "fileOffer.untrusted":
+        "This offer can't be trusted: it didn't come from the device it names.",
     "fileOffer.progress": "{done} of {total}, {rate}/s",
     "fileOffer.verifying": "Verifying the file...",
     "fileOffer.savedDone": "File saved and verified.",
