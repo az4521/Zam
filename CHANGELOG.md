@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.65.4
+
+🐛 **Fixed**
+
+- **Screen share stutter:** native screen shares (Windows window shares and Android) no longer judder for viewers. Frames were being shown at uneven intervals even when they all arrived; they now play back at the pace they were captured.
+
 ## v1.65.3
 
 ✨ **New**
