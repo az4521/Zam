@@ -81,6 +81,8 @@ import {
     memberPublishTransport,
     mutedIdentities,
     type LivekitTarget,
+    isAdvertisedServiceUrl,
+    livekitServiceUrls,
     sfuJwtUrl,
     screenShareCaptureResolution,
 } from "$lib/utils/voiceCall";
@@ -265,6 +267,7 @@ import {
 } from "./call/fullMesh/meshPolicy";
 import { advertiseMeshSubscribe } from "./call/fullMesh/sdkMembership";
 import { proxyBridge } from "$lib/proxyBridge";
+import { serverName } from "$lib/utils/joinConsent";
 
 type LivekitModule = typeof import("livekit-client");
 type LivekitRoom = LivekitClient.Room;
@@ -1055,6 +1058,56 @@ export async function configuredRtcFoci(): Promise<unknown[]> {
         );
     }
     return [];
+}
+
+const ADVERTISED_SFU_TTL_MS = 10 * 60_000;
+const WELL_KNOWN_TIMEOUT_MS = 8_000;
+const advertisedSfus = new Map<string, { urls: string[]; at: number }>();
+
+/** The LiveKit service URLs another homeserver's .well-known advertises.
+ *  Cached a while; a failed fetch is not cached and reads as none. */
+async function remoteAdvertisedSfus(server: string): Promise<string[]> {
+    const cached = advertisedSfus.get(server);
+    if (cached && Date.now() - cached.at < ADVERTISED_SFU_TTL_MS)
+        return cached.urls;
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), WELL_KNOWN_TIMEOUT_MS);
+    try {
+        const res = await fetch(`https://${server}/.well-known/matrix/client`, {
+            signal: abort.signal,
+            credentials: "omit",
+        });
+        if (!res.ok) return [];
+        const wk = (await res.json()) as Record<string, unknown> | null;
+        const urls = livekitServiceUrls(wk?.["org.matrix.msc4143.rtc_foci"]);
+        advertisedSfus.set(server, { urls, at: Date.now() });
+        return urls;
+    } catch (err) {
+        console.warn(`[call] couldn't read ${server}'s advertised SFUs`, err);
+        return [];
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+/**
+ * Whether `userId`'s homeserver advertises `serviceUrl` as its SFU. A file
+ * transfer peer names its SFU in a to-device message, and connecting to it
+ * sends our OpenID token there and shows it our address, so a peer may only
+ * name the one its homeserver stands behind, not any server it likes.
+ */
+export async function sfuAdvertisedBy(
+    userId: string,
+    serviceUrl: string,
+): Promise<boolean> {
+    const server = serverName(userId);
+    if (!server) return false;
+    const own = matrixClient?.getUserId();
+    const urls =
+        own && serverName(own) === server
+            ? livekitServiceUrls(await configuredRtcFoci())
+            : await remoteAdvertisedSfus(server);
+    return isAdvertisedServiceUrl(serviceUrl, urls);
 }
 
 /** Ask an SFU's lk-jwt-service for a LiveKit token (legacy /sfu/get). On our

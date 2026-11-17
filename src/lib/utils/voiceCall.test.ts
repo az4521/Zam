@@ -7,6 +7,8 @@ import {
     sfuJwtUrl,
     pickLivekitTransport,
     pickOwnLivekitTransport,
+    livekitServiceUrls,
+    isAdvertisedServiceUrl,
     remoteLivekitTargets,
     livekitTargetKey,
     screenShareCaptureResolution,
@@ -552,5 +554,61 @@ describe("audibleSpeakerIds", () => {
 
     it("keeps everything when our user id is unknown", () => {
         expect(audibleSpeakerIds(ids, null, true)).toEqual(ids);
+    });
+});
+
+describe("livekitServiceUrls", () => {
+    it("keeps only LiveKit foci with a string URL", () => {
+        expect(
+            livekitServiceUrls([
+                { type: "livekit", livekit_service_url: "https://a.example" },
+                { type: "other", livekit_service_url: "https://b.example" },
+                { type: "livekit", livekit_service_url: 3 },
+                null,
+            ]),
+        ).toEqual(["https://a.example"]);
+    });
+
+    it("reads nothing from a non-array", () => {
+        expect(livekitServiceUrls({ type: "livekit" })).toEqual([]);
+        expect(livekitServiceUrls(undefined)).toEqual([]);
+    });
+});
+
+describe("isAdvertisedServiceUrl", () => {
+    const advertised = ["https://LK.example/jwt/"];
+
+    it("matches ignoring a trailing slash and host case", () => {
+        expect(
+            isAdvertisedServiceUrl("https://lk.example/jwt", advertised),
+        ).toBe(true);
+    });
+
+    it("refuses another host, path or port", () => {
+        for (const url of [
+            "https://evil.example/jwt",
+            "https://lk.example/other",
+            "https://lk.example:8443/jwt",
+            "https://lk.example.evil.example/jwt",
+        ])
+            expect(isAdvertisedServiceUrl(url, advertised)).toBe(false);
+    });
+
+    it("refuses plain http and credentials", () => {
+        expect(
+            isAdvertisedServiceUrl("http://lk.example/jwt", [
+                "http://lk.example/jwt",
+            ]),
+        ).toBe(false);
+        expect(
+            isAdvertisedServiceUrl("https://u:p@lk.example/jwt", advertised),
+        ).toBe(false);
+    });
+
+    it("refuses garbage and an empty list", () => {
+        expect(isAdvertisedServiceUrl("not a url", advertised)).toBe(false);
+        expect(isAdvertisedServiceUrl("https://lk.example/jwt", [])).toBe(
+            false,
+        );
     });
 });

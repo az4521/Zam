@@ -28,6 +28,8 @@ let dropTo: ((type: string) => boolean) | null = null;
 let memberships: Record<string, string> = {};
 /** Identities whose homeserver has no SFU. */
 const sfuless = new Set<string>();
+/** Users whose named SFU their homeserver doesn't advertise. */
+const rogueSfu = new Set<string>();
 /** What the user answers when asked to connect directly. */
 /** Identities that say no. */
 const declines = new Set<string>();
@@ -91,6 +93,7 @@ function fakeLivekit(identity: string) {
     return {
         callIceConfig: async () => ({ iceServers: [] }),
         homeserverTurn: async () => null,
+        sfuAdvertisedBy: async (userId: string) => !rogueSfu.has(userId),
         ownSfuTarget: async (alias: string) =>
             sfuless.has(identity)
                 ? null
@@ -309,6 +312,18 @@ async function untilTransferring() {
     await until(() => sink.written.size > 0);
 }
 
+/** Runs fake time until `p` settles. Stepped: under load the setup can
+ *  outlast one big advance, and then only real time is left. */
+async function settleWithTimers<T>(p: Promise<T>): Promise<T> {
+    let settled = false;
+    void p.then(
+        () => (settled = true),
+        () => (settled = true),
+    );
+    while (!settled) await vi.advanceTimersByTimeAsync(1_000);
+    return p;
+}
+
 function fileOf(size: number): File {
     const bytes = new Uint8Array(size);
     for (let i = 0; i < size; i += 509) bytes[i] = i & 0xff;
@@ -320,6 +335,7 @@ beforeEach(() => {
     rooms.clear();
     owners.clear();
     sfuless.clear();
+    rogueSfu.clear();
     declines.clear();
     consentAsked.length = 0;
     meshLinks.clear();
@@ -350,7 +366,8 @@ describe("a direct transfer", () => {
             senderDevice: "A",
         });
         expect(joined).toEqual([]);
-    });
+        // The first test pays for loading the modules.
+    }, 20_000);
 
     it("moves a file and checks it, with nothing posted but the offer", async () => {
         const alice = await session("@alice:x", "A");
@@ -392,12 +409,52 @@ describe("a direct transfer", () => {
             "@alice:x",
             offerIn(alice),
         );
-        await vi.advanceTimersByTimeAsync(10_000);
-        await accepting;
+        await settleWithTimers(accepting);
         vi.useRealTimers();
         expect(joinedBy(RECEIVER)).toEqual(joinedBy(SENDER));
         expect(sent.some((m) => m.type.endsWith(".ack"))).toBe(true);
         expect(sink.finished).toBe(1);
+    });
+
+    it("won't join a receiver's SFU their homeserver doesn't advertise", async () => {
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        rogueSfu.add("@bob:x");
+        await alice.transfer.offerFile("!r:x", fileOf(1000));
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        const accepting = bob.transfer.acceptOffer(
+            "!r:x",
+            "@alice:x",
+            offerIn(alice),
+        );
+        await settleWithTimers(accepting);
+        vi.useRealTimers();
+        const [bobsRoom, alicesRoom] = joinedBy(RECEIVER);
+        expect(joinedBy(SENDER)).toEqual([alicesRoom]);
+        expect(joinedBy(SENDER)).not.toContain(bobsRoom);
+        expect(sent.some((m) => m.type.endsWith(".ack"))).toBe(true);
+        expect(sink.finished).toBe(1);
+    });
+
+    it("won't join a sender's SFU their homeserver doesn't advertise", async () => {
+        const alice = await session("@alice:x", "A");
+        const bob = await session("@bob:x", "B");
+        rogueSfu.add("@alice:x");
+        await alice.transfer.offerFile("!r:x", fileOf(1000));
+        await bob.transfer.acceptOffer("!r:x", "@alice:x", offerIn(alice));
+        await until(() =>
+            bob.store.fileTransfersState.views.some(
+                (v) => v.phase === "failed",
+            ),
+        );
+        expect(bob.store.fileTransfersState.views[0]).toMatchObject({
+            phase: "failed",
+            failure: "connection",
+        });
+        expect(joinedBy(RECEIVER).some((a) => owners.get(a) === SENDER)).toBe(
+            false,
+        );
+        expect(sink.finished).toBe(0);
     });
 
     it("connects the two devices when the sender has no SFU", async () => {

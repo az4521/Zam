@@ -87,6 +87,7 @@ import {
     homeserverTurn,
     joinHiddenSfuRoom,
     ownSfuTarget,
+    sfuAdvertisedBy,
 } from "./livekitCall";
 import type { MeshTransferLink, openMeshLink } from "./fileTransferMesh";
 import { meshConsentServers } from "./call/fullMesh/meshPolicy";
@@ -319,7 +320,7 @@ function openLink(peerIdentity: string, session: Session): TransferRooms {
     };
 }
 
-/** The room a to-device message names, if it names one we'd connect to. */
+/** The room a to-device message names, if it names one at all. */
 function namedRoom(content: Record<string, unknown>): SfuRoomTarget | null {
     const { service_url: serviceUrl, alias } = content;
     if (
@@ -329,6 +330,24 @@ function namedRoom(content: Record<string, unknown>): SfuRoomTarget | null {
     )
         return null;
     return { serviceUrl, alias };
+}
+
+/**
+ * The peer's room, if it's on an SFU their homeserver advertises. Joining
+ * hands that server our OpenID token and our address, so a peer can't send
+ * us to any server they like.
+ */
+async function trustedPeerRoom(
+    peerUserId: string,
+    content: Record<string, unknown>,
+): Promise<SfuRoomTarget | null> {
+    const room = namedRoom(content);
+    if (!room) return null;
+    if (await sfuAdvertisedBy(peerUserId, room.serviceUrl)) return room;
+    console.warn(
+        `[file-transfer] ${peerUserId} named an SFU their homeserver doesn't advertise`,
+    );
+    return null;
 }
 
 /**
@@ -408,10 +427,13 @@ async function serveRequest(
     transferId: string,
     offered: Outgoing,
     session: Session,
-    receiverRoom: SfuRoomTarget | null,
+    requestContent: Record<string, unknown>,
 ): Promise<void> {
     const { peer } = session;
     const release = holdWhileTransferring();
+    const receiverRoom = trustedPeerRoom(peer.userId, requestContent).catch(
+        () => null,
+    );
     let link: TransferRooms | null = null;
     let direct: MeshTransferLink | null = null;
     let sender: BlockSender | null = null;
@@ -430,9 +452,10 @@ async function serveRequest(
             );
             await link.joinOwn(target);
             // Without it, acknowledgements still come over to-device messages.
-            if (receiverRoom)
+            const peerRoom = await receiverRoom;
+            if (peerRoom)
                 await link
-                    .joinPeer(receiverRoom)
+                    .joinPeer(peerRoom)
                     .catch((err) =>
                         console.warn("[file-transfer] receiver's room", err),
                     );
@@ -559,7 +582,7 @@ async function handleRequest(
         transferId,
         offered!,
         startSession(viewId, transferId, peer),
-        namedRoom(payload.message.content),
+        payload.message.content,
     );
 }
 
@@ -780,7 +803,10 @@ async function receiveFile(
                 transfer_id: transferId,
             });
         } else {
-            const senderRoom = namedRoom(answer);
+            const senderRoom = await untilAborted(
+                session,
+                trustedPeerRoom(peer.userId, answer),
+            );
             if (!senderRoom) throw new TransferFailed("connection");
             await link.joinPeer(senderRoom);
         }
