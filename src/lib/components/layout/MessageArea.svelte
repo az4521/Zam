@@ -55,8 +55,10 @@
         getCallSummaries,
         getContextCallSummaries,
         getOwnUserId,
+        getDirectRoomIds,
         type ReadReceiptInfo,
     } from "$lib/matrix/client";
+    import Avatar from "$lib/components/ui/Avatar.svelte";
     import { logSync } from "$lib/matrix/syncLog";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
     import {
@@ -1004,6 +1006,10 @@
     // (late-seeded federated joins, renames) — same reference, new name.
     const roomName = $derived(
         (void roomsState.roomsTick, getRoomDisplayName(room)),
+    );
+    // DMs get their own chat-start wording: users don't know a DM is a room.
+    const isDirectRoom = $derived(
+        (void roomsState.roomsTick, getDirectRoomIds().has(room.roomId)),
     );
     // A Discord thread bridged by ZDMB: the header leads with its channel,
     // like Discord's "#channel > thread". Only a joined channel (not a forum,
@@ -3319,7 +3325,24 @@
             {/if}
 
             <!-- Chat start, shown only once the room's m.room.create is loaded -->
-            {#if historyEdgeState === "start"}
+            {#if historyEdgeState === "start" && isDirectRoom}
+                <div class="px-4 pb-4">
+                    <div class="mb-4">
+                        <Avatar
+                            src={getRoomAvatar(room)}
+                            name={roomName}
+                            id={room.roomId}
+                            size={64}
+                        />
+                    </div>
+                    <h3 class="text-2xl font-bold text-zam-textPrimary mb-1">
+                        {@html renderPlainTextWithTwemoji(roomName)}
+                    </h3>
+                    <p class="text-zam-textMuted">
+                        {t("messageArea.dmStart", { name: roomName })}
+                    </p>
+                </div>
+            {:else if historyEdgeState === "start"}
                 <div class="px-4 pb-4">
                     <div
                         class="w-16 h-16 rounded-full bg-zam-accent flex items-center justify-center mb-4"

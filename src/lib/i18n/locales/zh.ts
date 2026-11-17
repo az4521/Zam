@@ -1285,6 +1285,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.thisIsTheBeginningOfThe": "这是 # 的开头",
     "messageArea.loadingHistory": "正在加载更早的消息",
     "messageArea.room": "房间。",
+    "messageArea.dmStart": "这是你与 {name} 私信记录的开头。",
     "messageArea.newMessages": "新消息",
     "messageArea.unreadSince":
         "{count, plural, other {自 {since} 以来有 # 条新消息}}",

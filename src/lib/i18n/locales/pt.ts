@@ -1370,6 +1370,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.thisIsTheBeginningOfThe": "Este é o início da sala #",
     "messageArea.loadingHistory": "Carregando mensagens mais antigas",
     "messageArea.room": ".",
+    "messageArea.dmStart":
+        "Este é o início do seu histórico de mensagens diretas com {name}.",
     "messageArea.newMessages": "Novas mensagens",
     "messageArea.unreadSince":
         "{count, plural, one {# nova mensagem desde {since}} other {# novas mensagens desde {since}}}",

@@ -1384,6 +1384,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.thisIsTheBeginningOfThe": "Это начало комнаты #",
     "messageArea.loadingHistory": "Загрузка более старых сообщений",
     "messageArea.room": ".",
+    "messageArea.dmStart": "Это начало вашей личной переписки с {name}.",
     "messageArea.newMessages": "Новые сообщения",
     "messageArea.unreadSince":
         "{count, plural, one {# новое сообщение с {since}} few {# новых сообщения с {since}} many {# новых сообщений с {since}} other {# новых сообщения с {since}}}",

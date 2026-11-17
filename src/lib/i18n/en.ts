@@ -1332,6 +1332,8 @@ export const en = {
     "messageArea.thisIsTheBeginningOfThe": "This is the beginning of the #",
     "messageArea.loadingHistory": "Loading older messages",
     "messageArea.room": "room.",
+    "messageArea.dmStart":
+        "This is the beginning of your direct message history with {name}.",
     "messageArea.newMessages": "New Messages",
     "messageArea.unreadSince":
         "{count, plural, one {# new message since {since}} other {# new messages since {since}}}",

@@ -1154,6 +1154,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.thisIsTheBeginningOfThe": "ここが #",
     "messageArea.loadingHistory": "過去のメッセージを読み込み中",
     "messageArea.room": "ルームの始まりです。",
+    "messageArea.dmStart": "{name} とのダイレクトメッセージの始まりです。",
     "messageArea.newMessages": "新着メッセージ",
     "messageArea.unreadSince":
         "{count, plural, other {{since}以降の新着メッセージ#件}}",
