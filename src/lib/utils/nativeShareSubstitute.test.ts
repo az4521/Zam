@@ -5,6 +5,7 @@ import {
     isNativePlaceholder,
     NATIVE_PLACEHOLDER_FILL,
     NativeSubstitute,
+    PlaceholderClock,
     type NativeAu,
 } from "./nativeShareSubstitute";
 
@@ -190,5 +191,66 @@ describe("H.264-only drop of empty placeholders", () => {
         const { sub } = make();
         expect(sub.substitute(codecFrame("video/H264"))).toBe(false);
         expect(sub.stats.fifoEmpty).toBe(1);
+    });
+});
+
+describe("PlaceholderClock", () => {
+    it("stamps placeholders with the AU capture times, keeping their spacing", () => {
+        const clock = new PlaceholderClock();
+        // Capture every 16 667 µs; the AUs arrive with uneven delays.
+        const stamps = [0, 1, 2, 3].map((i) =>
+            clock.stamp(
+                9e9 + i * 16667,
+                5e6 + i * 16667 + [0, 9000, 1000, 7000][i],
+            ),
+        );
+        expect(stamps.map((s, i) => (i ? s - stamps[i - 1] : 0))).toEqual([
+            0, 16667, 16667, 16667,
+        ]);
+    });
+
+    it("estimates now in the capture clock for an AU without a newer capture time", () => {
+        const clock = new PlaceholderClock();
+        expect(clock.stamp(9e9, 5e6)).toBe(9e9);
+        // Keep-alive re-encode of the same frame one second later.
+        expect(clock.stamp(9e9, 6e6)).toBe(9e9 + 1e6);
+    });
+
+    it("stays strictly increasing, by at least 1 ms", () => {
+        const clock = new PlaceholderClock();
+        const a = clock.stamp(9e9, 5e6);
+        const b = clock.stamp(undefined, 5e6); // catch-up, same instant
+        const c = clock.stamp(9e9 - 5000, 5e6); // stale capture time
+        expect(b).toBe(a + 1000);
+        expect(c).toBe(b + 1000);
+    });
+});
+
+describe("NativeSubstitute catch-up", () => {
+    it("asks for an extra placeholder when AUs queue up behind them, rate-limited", () => {
+        const now = { t: 0 };
+        let catchUps = 0;
+        const sub = new NativeSubstitute({
+            requestKey: () => {},
+            requestCatchUp: () => catchUps++,
+            now: () => now.t,
+        });
+        sub.push(au(1, true));
+        sub.substitute(frame("key"));
+        expect(catchUps).toBe(0); // in step
+        sub.push(au(2, false));
+        sub.push(au(3, false));
+        sub.push(au(4, false));
+        sub.substitute(frame("delta")); // two still queued: behind
+        expect(catchUps).toBe(1);
+        sub.substitute(frame("delta"));
+        sub.push(au(5, false));
+        sub.push(au(6, false));
+        sub.substitute(frame("delta"));
+        expect(catchUps).toBe(1); // within the gap
+        now.t = 300;
+        sub.push(au(7, false));
+        sub.substitute(frame("delta"));
+        expect(catchUps).toBe(2);
     });
 });

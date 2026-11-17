@@ -47,6 +47,7 @@ function nativeShareStage(): TransformStream<
 function attachNativeShare(port: MessagePort): void {
     const sub = new NativeSubstitute({
         requestKey: () => port.postMessage({ req: "key" }),
+        requestCatchUp: () => port.postMessage({ req: "catchup" }),
     });
     nativeShare = sub;
     // The helper's AUs arrive flat, as `{ key, ts, data }` (the same shape the

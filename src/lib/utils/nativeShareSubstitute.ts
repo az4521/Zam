@@ -67,8 +67,56 @@ export function isNativePlaceholder(frame: EncodedFrameLike): boolean {
     );
 }
 
+/**
+ * Timestamps for the placeholder frames, one per helper AU.
+ *
+ * The receiver schedules each frame for display by its RTP timestamp, and
+ * Chromium derives that from the VideoFrame timestamp the placeholder is
+ * written with (its TimestampAligner keeps the spacing of those timestamps,
+ * whatever moment the frame was written). So a placeholder carries its AU's
+ * own capture time: the viewer then shows frames at the pace they were
+ * captured. Placeholders on a timer, stamped with the time they were written,
+ * gave AUs gaps of 8, 25 and 33 ms instead of 16.7 at 60 fps (about one frame
+ * in five, measured in loopback), which the viewer showed as judder.
+ *
+ * The helper's capture times are QPC microseconds, a different origin from
+ * the page's clock; only their spacing matters. An AU without a newer capture
+ * time (the helper's keep-alive or key re-encode of an old frame) and the
+ * catch-up placeholder get "now" in the helper's clock, estimated from the
+ * last AU, and every stamp is at least 1 ms after the one before.
+ */
+export class PlaceholderClock {
+    private last = Number.NEGATIVE_INFINITY;
+    /** Helper capture clock minus the local clock, from the last fresh AU. */
+    private offset: number | null = null;
+
+    /** The timestamp (µs) for the next placeholder. `captureUs` is the AU's
+     *  capture time, if it has one; `nowUs` is the local clock. */
+    stamp(captureUs: number | undefined, nowUs: number): number {
+        let ts: number;
+        if (
+            captureUs !== undefined &&
+            Number.isFinite(captureUs) &&
+            captureUs > this.last
+        ) {
+            this.offset = captureUs - nowUs;
+            ts = captureUs;
+        } else {
+            ts = Math.max(nowUs + (this.offset ?? 0), this.last + 1000);
+        }
+        ts = Math.round(ts);
+        this.last = ts;
+        return ts;
+    }
+}
+
 /** Seconds (in ms) before a repeated key request is sent again. */
 const KEY_REQUEST_GAP_MS = 1000;
+/** AUs still queued after a substitution that mean the placeholders fell
+ *  behind (one is a placeholder still in the encoder; normal is none). */
+const CATCH_UP_DEPTH = 2;
+/** Gap (ms) between catch-up requests. */
+const CATCH_UP_GAP_MS = 250;
 /** AUs held before the oldest are dropped (the encoder has stalled). */
 const MAX_QUEUED_AUS = 60;
 /** A queue deeper than this is latency, not buffering: a keyframe AU then
@@ -79,6 +127,9 @@ const MAX_BACKLOG_AUS = 8;
 export interface NativeSubstituteOptions {
     /** Ask the helper for a keyframe. */
     requestKey: () => void;
+    /** Ask for one extra placeholder: AUs are queuing up behind the
+     *  placeholders (one went missing), so the share lags by a frame each. */
+    requestCatchUp?: () => void;
     /** Clock in ms, for the key request gap (tests inject one). */
     now?: () => number;
 }
@@ -121,7 +172,9 @@ export class NativeSubstitute {
     private queue: NativeAu[] = [];
     private waitingForKey = false;
     private lastKeyRequest = Number.NEGATIVE_INFINITY;
+    private lastCatchUp = Number.NEGATIVE_INFINITY;
     private readonly requestKey: () => void;
+    private readonly requestCatchUp?: () => void;
     private readonly now: () => number;
     readonly stats: NativeSubstituteStats = {
         substituted: 0,
@@ -138,6 +191,7 @@ export class NativeSubstitute {
 
     constructor(opts: NativeSubstituteOptions) {
         this.requestKey = opts.requestKey;
+        this.requestCatchUp = opts.requestCatchUp;
         this.now = opts.now ?? (() => Date.now());
     }
 
@@ -211,6 +265,13 @@ export class NativeSubstitute {
             const wait = this.now() - au.at;
             this.stats.waitMsSum += wait;
             if (wait > this.stats.waitMsMax) this.stats.waitMsMax = wait;
+        }
+        if (this.requestCatchUp && this.queue.length >= CATCH_UP_DEPTH) {
+            const t = this.now();
+            if (t - this.lastCatchUp >= CATCH_UP_GAP_MS) {
+                this.lastCatchUp = t;
+                this.requestCatchUp();
+            }
         }
         return true;
     }

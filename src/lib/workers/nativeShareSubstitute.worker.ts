@@ -79,6 +79,7 @@ self.onmessage = (
     if (!port) return;
     const sub = new NativeSubstitute({
         requestKey: () => port.postMessage({ req: "key" }),
+        requestCatchUp: () => port.postMessage({ req: "catchup" }),
     });
     policy = sub;
     port.onmessage = (

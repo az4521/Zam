@@ -4,23 +4,22 @@
  * thread so a busy page never stalls the helper's frames.
  *
  * Two jobs:
- * - Placeholders. For H.264 a 64x64 placeholder is written on a fixed timer
- *   at twice the share's frame rate, stamped with real time. Each access unit
- *   (AU) the helper makes goes to the substitution stage
- *   (utils/nativeShareSubstitute), which gives it to the next placeholder the
- *   encoder outputs. An H.264 placeholder with no AU waiting is dropped there,
- *   so the AU queue can't back up behind the encoder: placeholders follow
- *   time, AUs follow the helper. Other codecs get one placeholder per AU
- *   instead (written right after the AU is queued), because their encoders
- *   stall the receiver on any dropped frame (VP8 picture-ID gaps).
+ * - Placeholders. Each access unit (AU) the helper makes goes to the
+ *   substitution stage (utils/nativeShareSubstitute), and one 64x64
+ *   placeholder is written right after it, stamped with the AU's capture time
+ *   (PlaceholderClock), so the RTP timestamps the viewer paces playback by
+ *   are the capture's own. The stage gives each AU to the next placeholder
+ *   the encoder outputs. If a placeholder goes missing (the generator was
+ *   full, the encoder dropped one) AUs queue up behind them, and the stage
+ *   asks for one extra placeholder to catch up.
  * - Local preview. Every AU is also decoded (WebCodecs, H.264) into a second
  *   generator that only the sender's own tile shows, so the tile matches what
  *   is sent. Nothing published changes.
  */
 import {
-    isH264,
     NATIVE_PLACEHOLDER_FILL,
     NATIVE_PLACEHOLDER_SIZE,
+    PlaceholderClock,
 } from "$lib/utils/nativeShareSubstitute";
 
 interface StartMessage {
@@ -31,10 +30,8 @@ interface StartMessage {
     helper: MessagePort;
     /** The substitution end: AUs go out here, key requests come back. */
     sub: MessagePort;
-    /** The share's frame rate; H.264 placeholders run at twice it. */
+    /** The share's frame rate (the placeholders' nominal duration). */
     fps: number;
-    /** The codec the share is published with (default H.264). */
-    codec?: string;
 }
 
 type ToMain =
@@ -50,9 +47,7 @@ let previewWriter: WritableStreamDefaultWriter<VideoFrame> | null = null;
 let helper: MessagePort | null = null;
 let sub: MessagePort | null = null;
 let fps = 60;
-/** Timer-paced placeholders (H.264). Otherwise one placeholder per AU. */
-let paced = true;
-let placeholderTimer: ReturnType<typeof setInterval> | null = null;
+const clock = new PlaceholderClock();
 
 /** Diagnostic: AUs received, placeholders written, per 2 s window. */
 let aus = 0;
@@ -77,27 +72,22 @@ function draw(): void {
     ctx.fillRect(0, 0, NATIVE_PLACEHOLDER_SIZE, NATIVE_PLACEHOLDER_SIZE);
 }
 
-/** Write one placeholder, stamped with real time (µs). Skipped (not queued)
- *  when the generator can't take it now: a placeholder is only a carrier. */
-function tick(): void {
+/** Write one placeholder, stamped with `captureUs` (the AU's capture time;
+ *  none for a catch-up placeholder, see PlaceholderClock). Skipped (not
+ *  queued) when the generator can't take it now: the substitution stage asks
+ *  for a catch-up once AUs queue up. */
+function tick(captureUs?: number): void {
     if (!writer) return;
     if ((writer.desiredSize ?? 1) <= 0) {
         skippedNotReady++;
         return;
     }
     const frame = new VideoFrame(canvas, {
-        timestamp: Math.round(performance.now() * 1000),
+        timestamp: clock.stamp(captureUs, performance.now() * 1000),
         duration: Math.round(1e6 / fps),
     });
     writes++;
     writer.write(frame).catch(() => {});
-}
-
-function startPlaceholders(): void {
-    if (placeholderTimer) clearInterval(placeholderTimer);
-    placeholderTimer = null;
-    if (!paced) return;
-    placeholderTimer = setInterval(tick, Math.max(1, 500 / fps));
 }
 
 // ---------------------------------------------------------------- preview
@@ -219,16 +209,13 @@ function onAu(au: {
     // so the preview never configured a decoder).
     aus++;
     decodeAu(au);
-    // The AU goes to the substitution stage (the next placeholder carries it).
+    // The AU goes to the substitution stage, then the placeholder that
+    // carries it (the AU is queued first), stamped with its capture time.
     sub.postMessage({ key: au.key, ts: au.ts, data: au.data }, [au.data]);
-    // One-to-one codecs: the placeholder that carries this AU follows it (the
-    // AU is queued first). Paced codecs get their placeholders from the timer.
-    if (!paced) tick();
+    tick(au.ts);
 }
 
 function stop(reason: string): void {
-    if (placeholderTimer) clearInterval(placeholderTimer);
-    placeholderTimer = null;
     clearInterval(statsTimer);
     resetDecoder();
     helper?.postMessage({ cmd: "stop" });
@@ -256,10 +243,7 @@ self.onmessage = (
         // stop ends the helper; fps and bitrate are passed on to it.
         if (msg.cmd === "stop") stop("stop");
         else {
-            if (msg.cmd === "fps") {
-                fps = msg.fps;
-                startPlaceholders();
-            }
+            if (msg.cmd === "fps") fps = msg.fps;
             helper?.postMessage(msg);
         }
         return;
@@ -269,11 +253,10 @@ self.onmessage = (
     helper = msg.helper;
     sub = msg.sub;
     fps = msg.fps;
-    paced = isH264(msg.codec);
     draw();
-    startPlaceholders();
     sub.onmessage = (ev: MessageEvent<{ req?: string } | null>) => {
         if (ev.data?.req === "key") helper?.postMessage({ cmd: "key" });
+        else if (ev.data?.req === "catchup") tick();
     };
     helper.onmessage = (ev: MessageEvent<unknown>) => {
         const m = ev.data as
