@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.65.3
+
+✨ **New**
+
+- **View reactions:** "View reactions" in a message's menu (right-click, or ⋯ / long-press on mobile) shows who reacted with what. Each reaction has its own tab, every reactor appears with the time they reacted, and your own reaction has a remove button. It is a dialog on desktop and a bottom sheet on mobile.
+- **Invisible is properly invisible:** while your status is Invisible, read receipts are sent as private and typing notifications are not sent.
+
+🐛 **Fixed**
+
+- **X/Twitter GIFs:** clicking a GIF in a post embed now opens it in the viewer, like photos do.
+- **Servers without presence:** on a server that has presence turned off (such as matrix.org), the status picker is hidden instead of offering choices that do nothing.
+
 ## v1.65.2
 
 🐛 **Fixed**
