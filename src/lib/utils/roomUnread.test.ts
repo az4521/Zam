@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { hasUnreadMessages, type UnreadEventView } from "./roomUnread";
+import {
+    hasUnreadMessages,
+    isStaleLocalUnread,
+    type UnreadEventView,
+} from "./roomUnread";
 
 const msg = (id: string, ts: number, fromMe = false): UnreadEventView => ({
     id,
@@ -119,5 +123,46 @@ describe("hasUnreadMessages", () => {
                 }),
             ).toBe(false);
         });
+    });
+});
+
+describe("isStaleLocalUnread", () => {
+    const stale = {
+        encrypted: true,
+        total: 1,
+        highlight: 0,
+        newestNotificationRead: true,
+    };
+
+    it("is stale when our receipt covers the newest message but counts remain", () => {
+        expect(isStaleLocalUnread(stale)).toBe(true);
+    });
+
+    it("is not stale in an unencrypted room", () => {
+        expect(isStaleLocalUnread({ ...stale, encrypted: false })).toBe(false);
+    });
+
+    it("is not stale when both counts are zero", () => {
+        expect(isStaleLocalUnread({ ...stale, total: 0, highlight: 0 })).toBe(
+            false,
+        );
+    });
+
+    it("is not stale when the newest message is still unread", () => {
+        expect(
+            isStaleLocalUnread({ ...stale, newestNotificationRead: false }),
+        ).toBe(false);
+    });
+
+    it("is not stale when no notification is loaded", () => {
+        expect(
+            isStaleLocalUnread({ ...stale, newestNotificationRead: null }),
+        ).toBe(false);
+    });
+
+    it("is stale for a highlight-only count", () => {
+        expect(isStaleLocalUnread({ ...stale, total: 0, highlight: 1 })).toBe(
+            true,
+        );
     });
 });

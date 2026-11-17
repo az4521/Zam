@@ -48,3 +48,26 @@ export function hasUnreadMessages(input: {
     }
     return false;
 }
+
+/**
+ * Whether an encrypted room's own (main-timeline) unread counts are stale: the
+ * newest notification is one our receipt already covers, yet the counts are
+ * still non-zero. The SDK races here: when the newest event decrypts before
+ * our receipt is applied, it counts that event as unread, and nothing lowers
+ * the count when the receipt lands (the server's zero only arrives on a later
+ * room update). Callers zero the counts when this returns true.
+ */
+export function isStaleLocalUnread(input: {
+    encrypted: boolean;
+    total: number;
+    highlight: number;
+    /** Whether our receipt covers the newest loaded main-timeline notification event; null when none is loaded. */
+    newestNotificationRead: boolean | null;
+}): boolean {
+    const { encrypted, total, highlight, newestNotificationRead } = input;
+    return (
+        encrypted &&
+        (total > 0 || highlight > 0) &&
+        newestNotificationRead === true
+    );
+}
