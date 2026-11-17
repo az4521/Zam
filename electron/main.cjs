@@ -58,6 +58,7 @@ const {
     createFlatpakShellUpdate,
     AFTER_UPDATE_FLAG,
 } = require("./flatpakShellUpdate.cjs");
+const { launchOnHost } = require("./flatpakHostLaunch.cjs");
 const { createFlatpakUpdateMonitor } = require("./portalFlatpakUpdate.cjs");
 
 // userData/main.log: what a packaged app would otherwise lose (crashes, renderer
@@ -642,6 +643,7 @@ function setupFlatpakUpdater() {
                 runningVersion: app.getVersion(),
                 sendStatus: sendUpdateStatus,
                 isFailed: (v) => updateGuard.isFailed(v),
+                hostLaunch: launchOnHost,
                 repoVersion: async () => {
                     const res = await net.fetch(FLATPAK_REPO_VERSION_URL, {
                         cache: "no-store",
