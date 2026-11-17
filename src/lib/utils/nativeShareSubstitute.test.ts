@@ -5,6 +5,7 @@ import {
     isNativePlaceholder,
     NATIVE_PLACEHOLDER_FILL,
     NativeSubstitute,
+    nativeShareSize,
     PlaceholderClock,
     type NativeAu,
 } from "./nativeShareSubstitute";
@@ -252,5 +253,26 @@ describe("NativeSubstitute catch-up", () => {
         sub.push(au(7, false));
         sub.substitute(frame("delta"));
         expect(catchUps).toBe(2);
+    });
+});
+
+describe("nativeShareSize", () => {
+    it("reads the size from the helper's started and size messages", () => {
+        expect(
+            nativeShareSize({ event: "started", width: 1920, height: 1080 }),
+        ).toEqual({ width: 1920, height: 1080 });
+        expect(
+            nativeShareSize({ event: "size", width: 1080, height: 2400 }),
+        ).toEqual({ width: 1080, height: 2400 });
+    });
+
+    it("ignores other messages and missing or zero sizes", () => {
+        expect(
+            nativeShareSize({ event: "stats", width: 1920, height: 1080 }),
+        ).toBeNull();
+        expect(nativeShareSize({ event: "started" })).toBeNull();
+        expect(
+            nativeShareSize({ event: "started", width: 0, height: 1080 }),
+        ).toBeNull();
     });
 });

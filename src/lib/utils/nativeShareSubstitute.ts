@@ -23,6 +23,28 @@ export const NATIVE_PLACEHOLDER_SIZE = 64;
  *  deltas, which the substitution then has to hold back. */
 export const NATIVE_PLACEHOLDER_FILL = "rgb(90,90,90)";
 
+/** The size of the helper's picture, from one of its info messages: "started"
+ *  (Windows, and again whenever the encoder reopens at a new size) or "size"
+ *  (Android, on rotation). Null for any other message. The share's track is
+ *  the 64x64 placeholder, so this is the size to tell the call server and
+ *  other clients (LiveKit would report the placeholder's otherwise). */
+export function nativeShareSize(info: {
+    event?: string;
+    width?: number;
+    height?: number;
+}): { width: number; height: number } | null {
+    if (info.event !== "started" && info.event !== "size") return null;
+    const { width, height } = info;
+    if (
+        typeof width !== "number" ||
+        typeof height !== "number" ||
+        !(width > 0) ||
+        !(height > 0)
+    )
+        return null;
+    return { width: Math.round(width), height: Math.round(height) };
+}
+
 /** One access unit from the helper, as the worker forwards it. */
 export interface NativeAu {
     key: boolean;

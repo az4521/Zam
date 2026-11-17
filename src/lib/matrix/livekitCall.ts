@@ -33,12 +33,15 @@ import {
     publisherConnection,
     queueSenderTransform,
     registerNativePreview,
+    reportSizeFrom,
     senderHasTransform,
+    sendTrackSize,
     type NativeShareCommand,
     type NativeShareInfo,
     type NativeShareProcessor,
     type NativeShareSource,
 } from "./call/nativeShare";
+import { nativeShareSize } from "$lib/utils/nativeShareSubstitute";
 import {
     startAndroidScreenShare,
     stopAndroidScreenShare,
@@ -2647,7 +2650,16 @@ interface NativeShareState {
     bitrate: number | null;
     timer: ReturnType<typeof setInterval> | null;
     /** What the helper reported it started with (encoder, size). */
-    helper: { info: NativeShareInfo | null };
+    helper: NativeShareHelperInfo;
+    /** The size last sent to the call server ("WxH"), so a repeat is skipped. */
+    reportedSize: string | null;
+}
+
+/** What the helper has said: its start info, and its picture's size (the
+ *  share's real size; its track is a 64x64 placeholder). */
+interface NativeShareHelperInfo {
+    info: NativeShareInfo | null;
+    size: { width: number; height: number } | null;
 }
 let nativeShare: NativeShareState | null = null;
 /** An Android share is being started (its consent prompt is up). */
@@ -2661,6 +2673,8 @@ let nativeDisabled = false;
 const roomWorkers = new WeakMap<LivekitRoom, Worker>();
 const NATIVE_PORT_WAIT_MS = 1500;
 const NATIVE_TUNE_MS = 2000;
+/** How long a native share's publish waits for the helper's picture size. */
+const NATIVE_SIZE_WAIT_MS = 1500;
 
 /** Whether the share being picked will use the native helper: the setting,
  *  the Windows bridge, an SFU to publish to, and a way to substitute frames
@@ -2722,7 +2736,7 @@ async function startNativeShare(
         return giveUp("this room has no way to substitute frames");
 
     let processor: NativeShareProcessor | null = null;
-    const helper: { info: NativeShareInfo | null } = { info: null };
+    const helper: NativeShareHelperInfo = { info: null, size: null };
     processor = createNativeShareProcessor(picked.port, {
         fps: Number(settingsState.screenShareFps),
         onInfo: nativeShareLogger(helper),
@@ -2758,6 +2772,13 @@ async function startNativeShare(
         await processor.destroy();
         return false;
     }
+    // LiveKit publishes with the track's size: give it the helper's picture
+    // size, not the placeholder's, once the helper has said (it usually has
+    // within a few hundred ms; a later size goes out as an update).
+    reportSizeFrom(track, () => helper.size);
+    const sizeBy = Date.now() + NATIVE_SIZE_WAIT_MS;
+    while (!helper.size && Date.now() < sizeBy && activeVoice === call)
+        await new Promise((resolve) => setTimeout(resolve, 50));
     let transformWorker: Worker | null = null;
     if (call.e2ee && worker) attachToE2EEWorker(worker, sub);
     else if (pc) {
@@ -2773,17 +2794,25 @@ async function startNativeShare(
         bitrate: null,
         timer: setInterval(() => void tuneNativeBitrate(state), NATIVE_TUNE_MS),
         helper,
+        reportedSize: null,
     };
     nativeShare = state;
     return true;
 }
 
 /** The helper's info messages, logged (started, stats, writer, error). */
-function nativeShareLogger(helper: {
-    info: NativeShareInfo | null;
-}): (info: NativeShareInfo) => void {
+function nativeShareLogger(
+    helper: NativeShareHelperInfo,
+): (info: NativeShareInfo) => void {
     const counts = { encoded: 0 };
     return (info) => {
+        const size = nativeShareSize(info);
+        if (size) {
+            helper.size = size;
+            // A new size mid-share (a resized window, a rotated phone).
+            if (nativeShare?.helper === helper)
+                void reportNativeShareSize(nativeShare);
+        }
         if (info.event === "started") helper.info = info;
         else if (info.event === "stats") {
             const enc = info.encoded ?? 0;
@@ -2825,6 +2854,35 @@ function logNativeShareStarted(n: NativeShareState): void {
     console.info(
         `[native share] started (${n.call.e2ee ? "encrypted room" : "plain room"}): ${what}`,
     );
+}
+
+/** Tell the call server the native share's real size (see reportSizeFrom),
+ *  once it is published, and again whenever the helper's size changes. */
+async function reportNativeShareSize(n: NativeShareState): Promise<void> {
+    const size = n.helper.size;
+    const room = n.call.lkRoom;
+    if (!size || !room) return;
+    const pub = room.localParticipant.getTrackPublication(
+        n.call.lk.Track.Source.ScreenShare,
+    );
+    const sid = pub?.trackSid;
+    // Android publishes its own track; on Windows the share's capture track
+    // carries the helper as its processor.
+    const ours = n.published
+        ? pub?.track === n.published
+        : (
+              pub?.track as LivekitClient.LocalVideoTrack | undefined
+          )?.getProcessor?.() === (n.handle as unknown);
+    if (!sid || !ours) return;
+    const key = `${size.width}x${size.height}`;
+    if (n.reportedSize === key) return;
+    n.reportedSize = key;
+    try {
+        await sendTrackSize(room, sid, size.width, size.height);
+    } catch (err) {
+        n.reportedSize = null;
+        console.warn("[native share] couldn't send the share's size", err);
+    }
 }
 
 /** Forget a native share once its processor is gone. */
@@ -2966,8 +3024,10 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
                 return false;
             }
         }
-        if (on && nativeShare?.call === call)
+        if (on && nativeShare?.call === call) {
             void logNativeShareStartedOnceInfo(nativeShare);
+            void reportNativeShareSize(nativeShare);
+        }
         if (on) void superviseShareEncoder(call);
         else shareSupervision++;
         if (on) void publishShareAudio(call);
@@ -3054,7 +3114,7 @@ async function startAndroidShare(call: ActiveVoiceCall): Promise<boolean> {
     // The user declined the system's capture consent: quietly nothing.
     if (!started) return false;
 
-    const helper: { info: NativeShareInfo | null } = { info: null };
+    const helper: NativeShareHelperInfo = { info: null, size: null };
     // Set once the source exists; the handle is what the state and the
     // plugin's stop go through.
     let source: NativeShareSource | null = null;
@@ -3098,6 +3158,13 @@ async function startAndroidShare(call: ActiveVoiceCall): Promise<boolean> {
         queueSenderTransform(pc, source.track, transformWorker);
     }
     const track = new call.lk.LocalVideoTrack(source.track, undefined, false);
+    if (started.info.width && started.info.height)
+        helper.size = nativeShareSize({
+            event: "size",
+            width: started.info.width,
+            height: started.info.height,
+        });
+    reportSizeFrom(track, () => helper.size);
     const state: NativeShareState = {
         call,
         handle,
@@ -3107,6 +3174,7 @@ async function startAndroidShare(call: ActiveVoiceCall): Promise<boolean> {
         bitrate: null,
         timer: null,
         helper,
+        reportedSize: null,
     };
     nativeShare = state;
     // The local tile shows the decoded preview, from the first frame on.
@@ -3145,6 +3213,7 @@ async function startAndroidShare(call: ActiveVoiceCall): Promise<boolean> {
         NATIVE_TUNE_MS,
     );
     void logNativeShareStartedOnceInfo(state);
+    void reportNativeShareSize(state);
     return true;
 }
 

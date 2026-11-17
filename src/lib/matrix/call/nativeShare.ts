@@ -230,6 +230,51 @@ export function publisherConnection(
     return engine.pcManager?.publisher?.pc ?? null;
 }
 
+/** Make a native share's track report the helper's picture size instead of
+ *  its 64x64 placeholder's. LiveKit reads `dimensions` when it publishes (the
+ *  size the server and every other client are told, and the size its layers
+ *  are built for); `size` returns null until the helper has said. */
+export function reportSizeFrom(
+    track: LivekitClient.LocalTrack,
+    size: () => { width: number; height: number } | null,
+): void {
+    const proto = Object.getPrototypeOf(track) as object;
+    let desc: PropertyDescriptor | undefined;
+    for (let o: object | null = proto; o && !desc; o = Object.getPrototypeOf(o))
+        desc = Object.getOwnPropertyDescriptor(o, "dimensions");
+    const original = desc?.get;
+    Object.defineProperty(track, "dimensions", {
+        configurable: true,
+        get() {
+            return size() ?? original?.call(track);
+        },
+    });
+}
+
+/** Tell the call server a published video track's size (LiveKit's
+ *  UpdateLocalVideoTrack signal, which the server passes on to subscribers
+ *  in the track's info). LiveKit only sends this from its own resize
+ *  handling, which never sees a native share's real size. */
+export async function sendTrackSize(
+    room: LivekitClient.Room,
+    trackSid: string,
+    width: number,
+    height: number,
+): Promise<void> {
+    const engine = room.engine as unknown as {
+        client?: {
+            sendRequest?: (message: {
+                case: "updateVideoTrack";
+                value: { trackSid: string; width: number; height: number };
+            }) => Promise<void>;
+        };
+    };
+    await engine.client?.sendRequest?.({
+        case: "updateVideoTrack",
+        value: { trackSid, width, height },
+    });
+}
+
 /** Sender transforms queued for a plain call. Chromium only applies an
  *  RTCRtpScriptTransform set before the sender's negotiation: one set after
  *  the connection is up is ignored (measured in a loopback harness, while one
