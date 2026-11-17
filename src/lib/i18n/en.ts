@@ -4135,6 +4135,8 @@ export const en = {
     "updateStatus.updateReadyRestartToApply":
         "Update ready{versionSuffix} - restart to apply",
     "updateStatus.restartToApply": "Restart to apply",
+    "updateStatus.reopenToApply":
+        "Update installed{versionSuffix}. Quit Zam and open it again to finish",
     "updateStatus.updateReadyReloadToApply":
         "Update ready{versionSuffix} - reload to apply",
     "updateStatus.reloadToApply": "Reload to apply",

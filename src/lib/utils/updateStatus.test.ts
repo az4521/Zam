@@ -148,6 +148,18 @@ describe("updateStatusView — fold updater phase + toggle into a view model", (
         });
     });
 
+    it("downloaded + reopenToApply asks for a manual reopen, no button", () => {
+        const v = updateStatusView({
+            phase: "downloaded",
+            autoEnabled: true,
+            version: "1.67.0",
+            reopenToApply: true,
+        });
+        expect(v.action).toBe("none");
+        expect(v.label).toContain("Quit Zam and open it again");
+        expect(v.label).toContain("v1.67.0");
+    });
+
     it("downloaded surfaces the target version in the label", () => {
         expect(
             updateStatusView({

@@ -4276,6 +4276,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "updateStatus.updateReadyRestartToApply":
         "Atualização pronta{versionSuffix} - reinicie para aplicar",
     "updateStatus.restartToApply": "Reiniciar para aplicar",
+    "updateStatus.reopenToApply":
+        "Atualização instalada{versionSuffix}. Feche o Zam e abra-o novamente para concluir",
     "updateStatus.updateReadyReloadToApply":
         "Atualização pronta{versionSuffix} - recarregue para aplicar",
     "updateStatus.reloadToApply": "Recarregar para aplicar",

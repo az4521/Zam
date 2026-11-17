@@ -3667,6 +3667,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "updateStatus.updateReadyRestartToApply":
         "アップデートの準備ができました{versionSuffix} - 再起動して適用",
     "updateStatus.restartToApply": "再起動して適用",
+    "updateStatus.reopenToApply":
+        "アップデートをインストールしました{versionSuffix}。完了するには Zam を終了してもう一度開いてください",
     "updateStatus.updateReadyReloadToApply":
         "アップデートの準備ができました{versionSuffix} - 再読み込みして適用",
     "updateStatus.reloadToApply": "再読み込みして適用",

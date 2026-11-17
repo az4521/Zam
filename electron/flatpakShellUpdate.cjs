@@ -18,6 +18,10 @@ const { compareVersions } = require("./bundleUpdater.cjs");
  *  profile instead of handing its arguments over and quitting. */
 const AFTER_UPDATE_FLAG = "--zam-after-update";
 
+/** How long the new version has to show it started before this one gives up
+ *  on restarting and asks the user to reopen Zam instead. */
+const NEW_VERSION_START_MS = 30 * 1000;
+
 /**
  * @param {{
  *   monitor: {
@@ -28,6 +32,7 @@ const AFTER_UPDATE_FLAG = "--zam-after-update";
  *   sendStatus: (status: object) => void,
  *   isFailed: (version: string) => boolean,
  *   repoVersion: () => Promise<string | null>,
+ *   startTimeoutMs?: number,
  *   log?: (...a: unknown[]) => void,
  * }} deps
  */
@@ -38,6 +43,10 @@ function createFlatpakShellUpdate(deps) {
     let installing = false;
     // The release the last offer was for.
     let version = null;
+    // A restart in flight, waiting for the new version to show up.
+    let waiting = null;
+    // The portal started the new version but it never showed up.
+    let restartFailed = false;
 
     const status = (s) => deps.sendStatus({ kind: "shell", version, ...s });
 
@@ -118,12 +127,58 @@ function createFlatpakShellUpdate(deps) {
 
         isInstalled: () => installed,
 
-        /** Start the installed update; the caller quits once this resolves. */
+        /**
+         * Start the installed update. Resolves true once the new version has
+         * started (newVersionStarted), and the caller quits; false when it
+         * never did, and this one has to stay.
+         *
+         * The portal starts the new version with its own environment on
+         * flatpak before 1.16 (and with ours only from 1.16). On many Wayland
+         * desktops that environment has no WAYLAND_DISPLAY or DISPLAY, so the
+         * new version starts with no display and exits at once; quitting
+         * without waiting left the user with no Zam at all.
+         */
         async restart() {
             if (!installed) throw new Error("No Flatpak update is installed");
-            await deps.monitor.spawnLatest(["zam", AFTER_UPDATE_FLAG]);
+            if (waiting) return waiting.promise;
+            let resolve;
+            const promise = new Promise((r) => (resolve = r));
+            const timer = setTimeout(
+                () => resolve(false),
+                deps.startTimeoutMs ?? NEW_VERSION_START_MS,
+            );
+            waiting = { resolve, promise };
+            try {
+                await deps.monitor.spawnLatest(["zam", AFTER_UPDATE_FLAG]);
+            } catch (err) {
+                clearTimeout(timer);
+                waiting = null;
+                throw err;
+            }
+            const started = await promise;
+            clearTimeout(timer);
+            waiting = null;
+            if (!started) {
+                restartFailed = true;
+                log("the new version did not start");
+            }
+            return started;
         },
+
+        /** The new version asked for the single-instance lock, which it does
+         *  only once it is up (main.cjs). */
+        newVersionStarted() {
+            waiting?.resolve(true);
+        },
+
+        /** A restart was tried and the new version never started: only
+         *  quitting and reopening Zam by hand will run it. */
+        restartFailed: () => restartFailed,
     };
 }
 
-module.exports = { createFlatpakShellUpdate, AFTER_UPDATE_FLAG };
+module.exports = {
+    createFlatpakShellUpdate,
+    AFTER_UPDATE_FLAG,
+    NEW_VERSION_START_MS,
+};

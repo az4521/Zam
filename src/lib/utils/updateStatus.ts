@@ -25,6 +25,10 @@ export interface UpdateStatusInput {
     /** A downloaded installer must not be applied on the renderer's say-so: it
      *  failed to install before, or was already started for this version. */
     autoApplyBlocked?: boolean;
+    /** With "downloaded": the app could not restart into the update (a
+     *  Flatpak whose new version would not start), so the user has to quit
+     *  and reopen it. */
+    reopenToApply?: boolean;
     /** The offered version already failed to install on an earlier launch. */
     installFailed?: boolean;
     /** With "unsupported": the app cannot install it, the system can (a
@@ -58,6 +62,7 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
         platform,
         kind,
         installFailed,
+        reopenToApply,
         manual,
         manager,
     } = input;
@@ -141,6 +146,15 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
                     }),
                     action: "restart",
                     actionLabel: t("updateStatus.reloadToApply"),
+                    busy: false,
+                    percent: null,
+                };
+            }
+            if (reopenToApply) {
+                return {
+                    label: t("updateStatus.reopenToApply", { versionSuffix }),
+                    action: "none",
+                    actionLabel: "",
                     busy: false,
                     percent: null,
                 };

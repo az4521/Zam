@@ -3893,6 +3893,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "updateStatus.updateReadyRestartToApply":
         "更新已就绪{versionSuffix} - 重启以应用",
     "updateStatus.restartToApply": "重启以应用",
+    "updateStatus.reopenToApply":
+        "更新已安装{versionSuffix}。退出 Zam 并重新打开以完成更新",
     "updateStatus.updateReadyReloadToApply":
         "更新已就绪{versionSuffix} - 重新加载以应用",
     "updateStatus.reloadToApply": "重新加载以应用",

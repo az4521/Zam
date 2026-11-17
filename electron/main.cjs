@@ -363,6 +363,12 @@ function sendUpdateStatus(payload) {
     // is not applied again on the renderer's say-so (updateGuard.cjs).
     if (payload.phase === "downloaded" && payload.kind !== "bundle") {
         payload.autoApplyBlocked = updateGuard.isBlocked(payload.version);
+        // The new version could not be started from here: only a reopen by
+        // hand runs it, and trying again would only fail again.
+        if (IN_FLATPAK && flatpakShell?.restartFailed()) {
+            payload.reopenToApply = true;
+            payload.autoApplyBlocked = true;
+        }
     }
     lastUpdateStatus = payload;
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -657,14 +663,25 @@ function setupFlatpakUpdater() {
 }
 
 // The portal starts the installed version in a sandbox of its own; this one
-// quits, and the new one waits for it to let go (AFTER_UPDATE_FLAG).
+// quits once that one is up, and the new one waits for it to let go
+// (AFTER_UPDATE_FLAG). A new version that never comes up (flatpakShellUpdate
+// restart) leaves this one running, asking the user to reopen Zam.
 async function restartIntoFlatpakUpdate() {
     if (!flatpakShell?.isInstalled()) return;
+    let started;
     try {
-        await flatpakShell.restart();
+        started = await flatpakShell.restart();
     } catch (err) {
         updaterLog.error("[flatpak] could not start the update:", err);
         sendUpdateStatus(mapUpdateError(err));
+        return;
+    }
+    if (!started) {
+        updaterLog.error(
+            "[flatpak] the new version did not start; asking for a manual reopen",
+        );
+        if (lastUpdateStatus?.phase === "downloaded")
+            sendUpdateStatus(lastUpdateStatus);
         return;
     }
     if (lastUpdateStatus?.version) {
@@ -2730,21 +2747,29 @@ app.commandLine.appendSwitch(
 const AFTER_UPDATE_WAIT_MS = 30 * 1000;
 const AFTER_UPDATE_RETRY_MS = 250;
 
-if (app.requestSingleInstanceLock()) startApp();
-else if (process.argv.includes(AFTER_UPDATE_FLAG)) {
-    const deadline = Date.now() + AFTER_UPDATE_WAIT_MS;
-    const retry = () => {
-        if (app.requestSingleInstanceLock()) startApp();
-        else if (Date.now() > deadline) app.quit();
-        else setTimeout(retry, AFTER_UPDATE_RETRY_MS);
-    };
-    setTimeout(retry, AFTER_UPDATE_RETRY_MS);
-} else app.quit();
+//
+// Asking for the lock is also how the old version learns this one started
+// (its second-instance handler), so ask only once ready: a start without a
+// display (flatpakShellUpdate restart) exits before that, and the old version
+// then stays instead of leaving the user with no Zam.
+if (process.argv.includes(AFTER_UPDATE_FLAG)) {
+    app.whenReady().then(() => {
+        const deadline = Date.now() + AFTER_UPDATE_WAIT_MS;
+        const retry = () => {
+            if (app.requestSingleInstanceLock()) startApp();
+            else if (Date.now() > deadline) app.quit();
+            else setTimeout(retry, AFTER_UPDATE_RETRY_MS);
+        };
+        retry();
+    });
+} else if (app.requestSingleInstanceLock()) startApp();
+else app.quit();
 
 function startApp() {
     app.on("second-instance", (_e, argv) => {
-        // The update we just started, waiting for this process to quit.
-        if (!argv.includes(AFTER_UPDATE_FLAG)) showWindow();
+        // The update we just started, up and waiting for this process to quit.
+        if (argv.includes(AFTER_UPDATE_FLAG)) flatpakShell?.newVersionStarted();
+        else showWindow();
     });
 
     app.whenReady().then(() => {
