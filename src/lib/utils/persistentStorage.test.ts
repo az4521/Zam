@@ -1,40 +1,43 @@
-import { describe, it, expect } from "vitest";
-import { shouldRequestPersistence } from "./persistentStorage";
+import { describe, expect, it, vi } from "vitest";
+import { requestPersistentStorage } from "./persistentStorage";
 
-describe("shouldRequestPersistence", () => {
-    it("requests when the API is available and not already persisted", () => {
-        expect(
-            shouldRequestPersistence({
-                apiAvailable: true,
-                alreadyPersisted: false,
-            }),
-        ).toBe(true);
+describe("requestPersistentStorage", () => {
+    it("reports unsupported without a StorageManager", async () => {
+        expect(await requestPersistentStorage({})).toBe("unsupported");
     });
 
-    it("short-circuits (no request) when already persisted", () => {
-        expect(
-            shouldRequestPersistence({
-                apiAvailable: true,
-                alreadyPersisted: true,
-            }),
-        ).toBe(false);
+    it("does not ask again when already persisted", async () => {
+        const persist = vi.fn(async () => true);
+        const outcome = await requestPersistentStorage({
+            persisted: async () => true,
+            persist,
+        });
+        expect(outcome).toBe("already");
+        expect(persist).not.toHaveBeenCalled();
     });
 
-    it("does not request when the API is unavailable", () => {
+    it("asks and reports the answer", async () => {
         expect(
-            shouldRequestPersistence({
-                apiAvailable: false,
-                alreadyPersisted: false,
+            await requestPersistentStorage({
+                persisted: async () => false,
+                persist: async () => true,
             }),
-        ).toBe(false);
+        ).toBe("granted");
+        expect(
+            await requestPersistentStorage({
+                persisted: async () => false,
+                persist: async () => false,
+            }),
+        ).toBe("denied");
     });
 
-    it("API-unavailable gate dominates even if flagged persisted", () => {
+    it("never throws", async () => {
         expect(
-            shouldRequestPersistence({
-                apiAvailable: false,
-                alreadyPersisted: true,
+            await requestPersistentStorage({
+                persist: async () => {
+                    throw new Error("nope");
+                },
             }),
-        ).toBe(false);
+        ).toBe("unsupported");
     });
 });

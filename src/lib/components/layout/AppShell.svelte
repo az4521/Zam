@@ -32,6 +32,7 @@
     import WhatsNewModal from "$lib/components/layout/WhatsNewModal.svelte";
     import VerificationRequestCard from "$lib/components/layout/VerificationRequestCard.svelte";
     import ErrorToasts from "$lib/components/ui/ErrorToasts.svelte";
+    import { requestPersistentStorage } from "$lib/utils/persistentStorage";
     import ScreenSharePicker from "$lib/components/layout/ScreenSharePicker.svelte";
     import JoinConsentDialog from "$lib/components/layout/JoinConsentDialog.svelte";
     import MeshConsentDialog from "$lib/components/layout/MeshConsentDialog.svelte";
@@ -1682,6 +1683,11 @@
     // Electron right-click "Save image as" (fetches with auth; see module).
     onMount(installDesktopSaveImage);
     onMount(installDesktopMessageMenu);
+    // Keep the browser from evicting this origin's storage (crypto store,
+    // account backup) when the disk runs low. See persistentStorage.ts.
+    onMount(() => {
+        void requestPersistentStorage();
+    });
 
     // Tell the main process when video plays (it weighs GPU crashes by it).
     onMount(() => {
