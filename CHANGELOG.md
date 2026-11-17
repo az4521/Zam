@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.65.6
+
+🐛 **Fixed**
+
+- **Tweet GIFs in the viewer:** opening a GIF from an embedded tweet no longer shows "Could not load this video". It now plays in the viewer and loops like it does on Twitter.
+
 ## v1.65.5
 
 🐛 **Fixed**
