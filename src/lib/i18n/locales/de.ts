@@ -4609,6 +4609,24 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.connectDirectly": "Direkt verbinden",
     "meshConsent.joinWithoutThem": "Ohne sie beitreten",
     "meshConsent.notNow": "Nicht jetzt",
+    "meshConsent.titlePluginPublish": "Diesem Anruf über {label} beitreten?",
+    "meshConsent.titlePluginReceive": "Jemand in diesem Anruf nutzt {label}",
+    "meshConsent.pluginPublish":
+        "Dein Audio, Video und deine Bildschirmübertragung laufen über {label}, eine Übertragungsart, die ein Plugin hinzufügt. Nur Personen, deren Zam dasselbe Plugin hat, können dich hören und sehen.",
+    "meshConsent.pluginReceive":
+        "Jemand in diesem Anruf sendet Audio und Video über {label}, das ein Plugin hinzufügt. Um diese Person zu hören und zu sehen, nutzt Zam es ebenfalls.",
+    "meshConsent.pluginIpVisible":
+        "Personen, die du über {label} erreichst, können deine IP-Adresse sehen, die ungefähr verraten kann, wo du bist.",
+    "meshConsent.pluginIpHidden":
+        "{label} zeigt den Personen am anderen Ende deine IP-Adresse nicht.",
+    "meshConsent.pluginThirdParty":
+        "Deine Anrufmedien laufen außerdem über {thirdParty}.",
+    "meshConsent.pluginJoinWithout": "Ohne beitreten",
+    "meshConsent.usePlugin": "{label} verwenden",
+    "voiceCall.pluginTransportGone":
+        "{label} wurde beendet, daher hört und sieht dich in diesem Anruf niemand, bis du erneut beitrittst.",
+    "voiceCall.pluginTransportFailed":
+        "{label} konnte für diesen Anruf nicht starten.",
     "voiceCall.meshNeedsTurn":
         "„Relay-Server für Peer-to-Peer-Anrufe verlangen“ ist aktiviert, aber dein Homeserver hat keinen Relay-Server (TURN). Schalte es in den Einstellungen unter Sprache und Video aus, um beizutreten.",
     "voiceAudioSettings.meshRelayOnly":

@@ -461,3 +461,61 @@ describe("parseManifest assets and native", () => {
         expect(KNOWN_CAPABILITIES).toContain("native");
     });
 });
+
+describe("parseManifest sockets", () => {
+    const base = {
+        id: "com.example.net",
+        name: "Net",
+        version: "1.0.0",
+        description: "Raw sockets",
+        author: "a",
+        entry: "main.js",
+    };
+
+    it("keeps a list of valid endpoint strings", () => {
+        const sockets = [
+            "tcp:127.0.0.1:7656",
+            "udp:*:*",
+            "tcp:[::1]:443",
+            "udp:example.org:*",
+        ];
+        const m = parseManifest({ ...base, sockets });
+        expect(m.sockets).toEqual(sockets);
+    });
+
+    it("accepts an empty sockets array", () => {
+        expect(parseManifest({ ...base, sockets: [] }).sockets).toEqual([]);
+    });
+
+    it("throws when sockets is not an array", () => {
+        expect(() =>
+            parseManifest({ ...base, sockets: "tcp:127.0.0.1:80" }),
+        ).toThrow(/sockets/);
+        expect(() =>
+            parseManifest({ ...base, sockets: { tcp: "127.0.0.1:80" } }),
+        ).toThrow(/must be an array/);
+    });
+
+    it("throws on an invalid entry, naming the field", () => {
+        expect(() =>
+            parseManifest({ ...base, sockets: ["tcp:127.0.0.1:0"] }),
+        ).toThrow(/sockets/);
+        expect(() =>
+            parseManifest({ ...base, sockets: ["http:example.org:80"] }),
+        ).toThrow(/sockets/);
+        expect(() =>
+            parseManifest({ ...base, sockets: ["tcp:127.0.0.1:80", 443] }),
+        ).toThrow(/sockets/);
+    });
+
+    it("leaves sockets undefined when absent", () => {
+        const m = parseManifest(base);
+        expect(m.sockets).toBeUndefined();
+        expect(m).not.toHaveProperty("sockets");
+    });
+
+    it("leaves sockets undefined when explicitly undefined", () => {
+        const m = parseManifest({ ...base, sockets: undefined });
+        expect(m.sockets).toBeUndefined();
+    });
+});

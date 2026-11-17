@@ -631,6 +631,169 @@ export interface PluginRemoteDataTrack {
     onEnded(cb: () => void): Disposable;
 }
 
+/** What a track carries in the call. */
+export type PluginCallSource =
+    "microphone" | "camera" | "screen_share" | "screen_share_audio";
+
+/** One of our own published tracks, as a plugin transport sends it. */
+export interface PluginLocalPublication {
+    /** Stable for the track's life. */
+    readonly id: string;
+    readonly kind: "audio" | "video";
+    readonly source: PluginCallSource;
+    /** What to send now (with Zam's audio processing applied); null sends
+     *  nothing. */
+    readonly track: MediaStreamTrack | null;
+    readonly muted: boolean;
+}
+
+/** Someone else in the call, as a plugin transport sees them. */
+export interface PluginCallPeer {
+    /** "@user:server:DEVICE", the identity every call transport uses. */
+    readonly identity: string;
+    readonly userId: string;
+    readonly deviceId: string;
+    /** They publish their media on this transport (it is the transport
+     *  their membership picks), so we receive them through it. */
+    readonly publishes: boolean;
+    /** Their membership's `data` for this transport (what their `describe`
+     *  returned: an address, say), when they publish on it. */
+    readonly data: Record<string, unknown> | null;
+}
+
+/** A remote track a plugin transport hands to Zam (ctx.remote.addTrack). */
+export interface PluginRemoteTrackHandle {
+    /** Whether Zam wants it: false while the user hides that video, so the
+     *  transport can stop asking for it. Always true for audio. */
+    readonly enabled: boolean;
+    onEnabledChange(cb: (enabled: boolean) => void): Disposable;
+    /** The publisher muted it on purpose. */
+    setMuted(muted: boolean): void;
+    /** Take it out of the call (the peer stopped it, or left). */
+    end(): void;
+}
+
+/** What Zam gives a plugin transport for one call. */
+export interface PluginCallTransportContext {
+    readonly roomId: string;
+    readonly slotId: string;
+    readonly own: { userId: string; deviceId: string; identity: string };
+    /** We publish our own media on this transport in this call. */
+    readonly publishing: boolean;
+    /** Our microphone, camera and screen share, captured and processed as
+     *  for any other transport. Empty unless `publishing`. */
+    readonly local: {
+        publications(): readonly PluginLocalPublication[];
+        /** Tracks came or went, were muted, or their track changed. */
+        onChange(cb: () => void): Disposable;
+    };
+    /** Media received over the transport, shown and played like any other
+     *  participant's: tiles, volume, mute, speaking indicators. */
+    readonly remote: {
+        /** `track` is any live MediaStreamTrack (a
+         *  MediaStreamTrackGenerator fed decoded frames, say). One per
+         *  source per peer; adding the same source again replaces it. */
+        addTrack(
+            identity: string,
+            opts: { source: PluginCallSource; track: MediaStreamTrack },
+        ): PluginRemoteTrackHandle;
+        /** Who speaks now, among the peers received over this transport. */
+        setSpeakers(identities: readonly string[]): void;
+        /** A frame a peer's `sendData` produced (see PluginCallTransport).
+         *  Ignored unless the sender is a current member. */
+        deliverData(identity: string, frame: Uint8Array): void;
+    };
+    /** Olm-encrypted to-device messages to and from the same transport on
+     *  other members' devices, scoped to this call. Content is JSON. */
+    readonly signalling: {
+        send(
+            peer: { userId: string; deviceId: string },
+            content: Record<string, unknown>,
+        ): Promise<void>;
+        onMessage(
+            handler: (
+                from: { userId: string; deviceId: string; identity: string },
+                content: Record<string, unknown>,
+            ) => void,
+        ): Disposable;
+    };
+}
+
+/** One call's instance of a plugin transport. */
+export interface PluginCallTransport {
+    /** Everyone else in the call, now and on every change. */
+    setMembers(peers: readonly PluginCallPeer[]): void;
+    /** Sends one opaque frame, which Zam encodes (call data: the soundboard,
+     *  plugin topics), to the identities in `to`, or to everyone the
+     *  transport reaches when `to` is null. The plugin carries the frame
+     *  unchanged, reliably and in order when `reliable`. Optional: without
+     *  it the transport carries no call data, only media. Data tracks
+     *  (publishDataTrack) do not travel over plugin transports. */
+    sendData?(
+        to: readonly string[] | null,
+        frame: Uint8Array,
+        opts: { reliable: boolean },
+    ): void | Promise<void>;
+    /** Identities (members' `memberId`s) this transport currently delivers
+     *  our data to. Optional, with `sendData`; absent means none. */
+    reachable?(): readonly string[];
+    /** The call ended or the plugin unloaded. */
+    close(): void | Promise<void>;
+}
+
+/** A way to carry call media that is not WebRTC through an SFU or the full
+ *  mesh (an overlay network, say) (zam.call.registerTransport). */
+export interface PluginCallTransportFactory {
+    /** Stable within the plugin (letters, digits, `.`, `_`, `-`; max 64). */
+    id: string;
+    /** Shown to the user ("I2P"). */
+    label: string;
+    /** For the consent dialog: whether people at the other end can see
+     *  the user's IP address, and the third party the media passes
+     *  through, if any. */
+    privacy: { exposesIp: boolean; thirdParty: string | null };
+    /** Whether to publish our own media on this transport in `roomId`
+     *  instead of the homeserver's SFU (the plugin's own setting, say).
+     *  Asked when joining; false (or absent) publishes as usual and only
+     *  receives over this transport from members who publish on it. Only
+     *  members whose client has the same plugin hear someone who publishes
+     *  on it. */
+    use?(ctx: { roomId: string }): boolean | Promise<boolean>;
+    /** Published in our call membership when we publish on this
+     *  transport, as `data`: what others need to reach us (an address).
+     *  Keep it small and JSON. */
+    describe?(ctx: {
+        roomId: string;
+    }): Record<string, unknown> | Promise<Record<string, unknown>>;
+    /** One instance per call. Zam asks the user before the first one in a
+     *  call (with `privacy`); declined, no instance is made. */
+    create(ctx: PluginCallTransportContext): PluginCallTransport;
+}
+
+/** A TCP connection (zam.network.connectTcp). */
+export interface PluginTcpSocket {
+    readonly remoteHost: string;
+    readonly remotePort: number;
+    /** Resolves once handed to the OS. */
+    write(data: Uint8Array | string): Promise<void>;
+    onData(cb: (data: Uint8Array) => void): Disposable;
+    /** The connection closed (`error` set when it failed). Runs once. */
+    onClose(cb: (error: string | null) => void): Disposable;
+    close(): void;
+}
+
+/** A UDP socket (zam.network.openUdp). */
+export interface PluginUdpSocket {
+    /** The local port it is bound to. */
+    readonly localPort: number;
+    send(host: string, port: number, data: Uint8Array): Promise<void>;
+    onMessage(
+        cb: (msg: { host: string; port: number; data: Uint8Array }) => void,
+    ): Disposable;
+    onClose(cb: (error: string | null) => void): Disposable;
+    close(): void;
+}
+
 /** The live synth (zam.midi.openSynth). Channels are 0-15, the rest 0-127
  *  unless stated. */
 export interface PluginMidiSynth {
@@ -1106,6 +1269,27 @@ export interface ZamPluginApi {
         onDataTrack(
             handler: (track: PluginRemoteDataTrack) => void,
         ): Disposable;
+        /** Carry call media over the plugin's own network, beside the
+         *  SFU and the full mesh. Needs the "call:transport" capability.
+         *  Applies from the next call joined (or the current one's next
+         *  membership change). Throws on a duplicate or invalid id. */
+        registerTransport(factory: PluginCallTransportFactory): Disposable;
+    };
+
+    /** Raw sockets, in the desktop and Android apps. Needs the "sockets"
+     *  capability, and the manifest's `sockets` must list every endpoint
+     *  ("tcp:127.0.0.1:7656", "udp:*:*"; `*` matches any host or port): a
+     *  connection or datagram anywhere else throws. Sockets close when the
+     *  plugin unloads. */
+    network: {
+        available(): boolean;
+        connectTcp(host: string, port: number): Promise<PluginTcpSocket>;
+        /** Bind a UDP socket (`localHost` defaults to 127.0.0.1, port 0
+         *  picks a free one). */
+        openUdp(opts?: {
+            localHost?: string;
+            localPort?: number;
+        }): Promise<PluginUdpSocket>;
     };
 
     /** Zam's MIDI synth: the sound bank behind MIDI messages in the

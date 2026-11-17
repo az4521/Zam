@@ -4373,6 +4373,23 @@ export const en = {
     "meshConsent.connectDirectly": "Connect directly",
     "meshConsent.joinWithoutThem": "Join without them",
     "meshConsent.notNow": "Not now",
+    "meshConsent.titlePluginPublish": "Join this call over {label}?",
+    "meshConsent.titlePluginReceive": "Someone in this call uses {label}",
+    "meshConsent.pluginPublish":
+        "Your audio, video and screen share go over {label}, a way of carrying calls that a plugin adds. Only people whose Zam has the same plugin can hear and see you.",
+    "meshConsent.pluginReceive":
+        "Someone in this call sends their audio and video over {label}, which a plugin adds. To hear and see them, Zam uses it too.",
+    "meshConsent.pluginIpVisible":
+        "People you reach over {label} can see your IP address, which can reveal roughly where you are.",
+    "meshConsent.pluginIpHidden":
+        "{label} doesn't show your IP address to the people at the other end.",
+    "meshConsent.pluginThirdParty":
+        "Your call media also passes through {thirdParty}.",
+    "meshConsent.pluginJoinWithout": "Join without it",
+    "meshConsent.usePlugin": "Use {label}",
+    "voiceCall.pluginTransportGone":
+        "{label} stopped, so nobody in this call hears or sees you until you rejoin.",
+    "voiceCall.pluginTransportFailed": "{label} couldn't start for this call.",
     "voiceCall.meshNeedsTurn":
         '"Require a relay server for peer-to-peer calls" is on, but your homeserver has no relay (TURN) server. Turn it off in Voice & Video settings to join.',
     "voiceAudioSettings.meshRelayOnly":

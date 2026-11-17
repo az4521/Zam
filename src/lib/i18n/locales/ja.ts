@@ -4044,6 +4044,24 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.connectDirectly": "直接接続",
     "meshConsent.joinWithoutThem": "その人を除いて参加",
     "meshConsent.notNow": "今はしない",
+    "meshConsent.titlePluginPublish": "{label} 経由でこの通話に参加しますか？",
+    "meshConsent.titlePluginReceive": "この通話の誰かが {label} を使っています",
+    "meshConsent.pluginPublish":
+        "あなたの音声、映像、画面共有は、プラグインが追加する通話の伝送方式 {label} を通ります。同じプラグインを入れた Zam の人だけがあなたの声や映像を受け取れます。",
+    "meshConsent.pluginReceive":
+        "この通話の誰かがプラグインの追加した {label} で音声と映像を送っています。その人の声や映像を受け取るため、Zam も {label} を使います。",
+    "meshConsent.pluginIpVisible":
+        "{label} でつながる相手にはあなたの IP アドレスが見え、おおよその居場所がわかる場合があります。",
+    "meshConsent.pluginIpHidden":
+        "{label} は相手にあなたの IP アドレスを見せません。",
+    "meshConsent.pluginThirdParty":
+        "通話のメディアは {thirdParty} も経由します。",
+    "meshConsent.pluginJoinWithout": "使わずに参加",
+    "meshConsent.usePlugin": "{label} を使う",
+    "voiceCall.pluginTransportGone":
+        "{label} が停止したため、再参加するまで通話の誰にもあなたの声や映像は届きません。",
+    "voiceCall.pluginTransportFailed":
+        "この通話で {label} を開始できませんでした。",
     "voiceCall.meshNeedsTurn":
         "「ピアツーピア通話に中継サーバーを必須にする」がオンですが、ホームサーバーに中継（TURN）サーバーがありません。参加するには、音声とビデオの設定でオフにしてください。",
     "voiceAudioSettings.meshRelayOnly":

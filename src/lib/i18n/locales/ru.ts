@@ -4530,6 +4530,24 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.connectDirectly": "Подключиться напрямую",
     "meshConsent.joinWithoutThem": "Присоединиться без них",
     "meshConsent.notNow": "Не сейчас",
+    "meshConsent.titlePluginPublish": "Подключиться к звонку через {label}?",
+    "meshConsent.titlePluginReceive": "Кто-то в этом звонке использует {label}",
+    "meshConsent.pluginPublish":
+        "Ваш звук, видео и демонстрация экрана идут через {label}: способ передачи звонков, который добавляет плагин. Слышать и видеть вас смогут только те, у кого в Zam есть этот же плагин.",
+    "meshConsent.pluginReceive":
+        "Кто-то в этом звонке передаёт звук и видео через {label}, который добавляет плагин. Чтобы слышать и видеть его, Zam тоже использует {label}.",
+    "meshConsent.pluginIpVisible":
+        "Те, с кем вы связываетесь через {label}, видят ваш IP-адрес, по которому можно примерно определить, где вы находитесь.",
+    "meshConsent.pluginIpHidden":
+        "{label} не показывает ваш IP-адрес собеседникам.",
+    "meshConsent.pluginThirdParty":
+        "Медиа звонка также проходят через {thirdParty}.",
+    "meshConsent.pluginJoinWithout": "Подключиться без него",
+    "meshConsent.usePlugin": "Использовать {label}",
+    "voiceCall.pluginTransportGone":
+        "{label} остановлен, поэтому никто в звонке не слышит и не видит вас, пока вы не переподключитесь.",
+    "voiceCall.pluginTransportFailed":
+        "Не удалось запустить {label} для этого звонка.",
     "voiceCall.meshNeedsTurn":
         "«Требовать ретранслятор для одноранговых звонков» включено, но у вашего домашнего сервера нет ретранслятора (TURN). Выключите это в настройках голоса и видео, чтобы присоединиться.",
     "voiceAudioSettings.meshRelayOnly":

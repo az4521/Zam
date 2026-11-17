@@ -8,6 +8,7 @@
 import { isValidSemver } from "./semver";
 import { isSafeRelPath } from "./repo";
 import type { SettingsSchema } from "./settingsSchema";
+import { parseSocketRule } from "./socketRules";
 
 export const KNOWN_CAPABILITIES = [
     "commands",
@@ -31,6 +32,12 @@ export const KNOWN_CAPABILITIES = [
     "presence",
     /** zam.call: data packets and data tracks in the voice call you are in. */
     "call",
+    /** zam.call.registerTransport: carry call media over the plugin's own
+     *  network. */
+    "call:transport",
+    /** zam.network: raw TCP/UDP sockets to the endpoints the manifest's
+     *  `sockets` lists (desktop only). */
+    "sockets",
     /** zam.midi: Zam's MIDI synth (the sound bank), for playing songs and
      *  live notes. */
     "midi",
@@ -82,6 +89,8 @@ export interface Manifest {
     settings?: SettingsSchema;
     assets?: ManifestFile[];
     native?: ManifestNative;
+    /** Endpoints zam.network may reach ("tcp:127.0.0.1:7656"; socketRules.ts). */
+    sockets?: string[];
 }
 
 /** Largest single file a plugin may ship (GitHub's own limit is 100 MB). */
@@ -292,6 +301,17 @@ export function parseManifest(input: unknown): Manifest {
         result.assets = parseFiles(raw.assets, "assets");
     if ("native" in raw && raw.native !== undefined)
         result.native = parseNative(raw.native);
+    if ("sockets" in raw && raw.sockets !== undefined) {
+        const sockets = raw.sockets;
+        if (!Array.isArray(sockets))
+            throw new Error(`Manifest field "sockets" must be an array`);
+        for (const s of sockets)
+            if (typeof s !== "string" || !parseSocketRule(s))
+                throw new Error(
+                    `Manifest field "sockets" has an invalid endpoint (got: ${JSON.stringify(s)}); use "tcp:HOST:PORT" or "udp:HOST:PORT", * for any`,
+                );
+        result.sockets = sockets as string[];
+    }
 
     return result;
 }

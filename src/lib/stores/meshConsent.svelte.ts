@@ -29,6 +29,9 @@ export interface MeshConsentRequest {
      *  nobody sees our IP address unless the relay fails and we fall back
      *  to connecting directly. */
     relayed?: boolean;
+    /** A plugin's call transport (zam.call.registerTransport), not the
+     *  mesh: allow uses it, deny joins (or stays) without it. */
+    plugin?: { label: string; exposesIp: boolean; thirdParty: string | null };
 }
 
 interface Pending extends MeshConsentRequest {
@@ -51,7 +54,7 @@ export const meshConsentState = new MeshConsentState();
 export function requestMeshConsent(
     request: MeshConsentRequest,
 ): Promise<MeshConsentAnswer> {
-    if (request.relayed && settingsState.meshRelayOnly)
+    if (!request.plugin && request.relayed && settingsState.meshRelayOnly)
         return Promise.resolve("allow");
     return new Promise((resolve) => {
         const old = meshConsentState.pending;
@@ -62,6 +65,7 @@ export function requestMeshConsent(
             fileTransfer: request.fileTransfer ?? false,
             offerPublicStun: request.offerPublicStun ?? false,
             relayed: request.relayed ?? false,
+            plugin: request.plugin,
             resolve,
         };
     });

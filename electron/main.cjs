@@ -38,6 +38,7 @@ const { BUNDLE_PUBLIC_KEY } = require("./bundleKey.cjs");
 const { parseWindowState, fitToDisplays } = require("./windowState.cjs");
 const { registerPluginNative } = require("./pluginNative.cjs");
 const { registerPluginFrames } = require("./pluginFrames.cjs");
+const { registerPluginSockets } = require("./pluginSockets.cjs");
 const { registerGlobalHotkeys } = require("./globalHotkeys.cjs");
 const { createUpdateSchedule } = require("./updateSchedule.cjs");
 const { createCallPriority } = require("./callPriority.cjs");
@@ -295,6 +296,9 @@ registerPluginNative(ipcMain, () => mainWindow);
 
 // Plugins' scripts for the pages embedded in the window (zam.frames).
 registerPluginFrames(app, ipcMain, () => mainWindow);
+
+// Plugins' raw TCP/UDP sockets (zam.network).
+registerPluginSockets(ipcMain);
 
 // --- Auto-updater (packaged desktop app only) -----------------------------
 //

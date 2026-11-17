@@ -75,6 +75,23 @@ contextBridge.exposeInMainWorld("desktop", {
         remove: (pluginId) =>
             ipcRenderer.invoke("plugin-native:remove", String(pluginId)),
     },
+    // Plugins' raw sockets (pluginSockets.cjs, zam.network).
+    pluginSockets: {
+        tcp: (req) => ipcRenderer.invoke("plugin-sockets:tcp", req),
+        udp: (req) => ipcRenderer.invoke("plugin-sockets:udp", req),
+        write: (id, data) =>
+            ipcRenderer.invoke("plugin-sockets:write", id, data),
+        send: (id, host, port, data) =>
+            ipcRenderer.invoke("plugin-sockets:send", id, host, port, data),
+        close: (id) => ipcRenderer.invoke("plugin-sockets:close", id),
+        closePlugin: (pluginId) =>
+            ipcRenderer.invoke("plugin-sockets:close-plugin", String(pluginId)),
+        onEvent: (cb) => {
+            const h = (_e, msg) => cb(msg);
+            ipcRenderer.on("plugin-sockets:event", h);
+            return () => ipcRenderer.removeListener("plugin-sockets:event", h);
+        },
+    },
     // Plugins' rules for embedded pages (pluginFrames.cjs, zam.frames).
     pluginFrames: {
         add: (rule) => ipcRenderer.invoke("plugin-frames:add", rule),

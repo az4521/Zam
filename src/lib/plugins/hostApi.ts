@@ -82,6 +82,8 @@ import {
     refreshCallUi,
 } from "./pluginCall.svelte";
 import { midiAvailable, openSynth, playSong } from "./pluginMidiApi";
+import { registerPluginCallTransport } from "../matrix/call/pluginTransport";
+import { createPluginSockets, socketsAvailable } from "./pluginSockets";
 import {
     ringtoneProblem,
     stopPluginRingtonesOf,
@@ -119,6 +121,7 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
     // removal.
     const disposables = new Set<Disposable>();
     let styleCount = 0;
+    const sockets = createPluginSockets(pluginId, manifest.sockets);
     const needCapability = (cap: string, what: string): void => {
         if (!manifest.capabilities?.includes(cap))
             throw new Error(
@@ -600,6 +603,24 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
                     ),
                 });
             },
+            registerTransport: (factory) => {
+                needCapability("call:transport", "call.registerTransport");
+                return track({
+                    dispose: registerPluginCallTransport(pluginId, factory),
+                });
+            },
+        },
+
+        network: {
+            available: () => socketsAvailable(),
+            connectTcp: async (host, port) => {
+                needCapability("sockets", "network.connectTcp");
+                return sockets.connectTcp(host, port);
+            },
+            openUdp: async (opts) => {
+                needCapability("sockets", "network.openUdp");
+                return sockets.openUdp(opts);
+            },
         },
 
         midi: {
@@ -676,6 +697,7 @@ export function buildHostApi(opts: BuildHostApiOptions): PluginHost {
         // Entries set without keeping the handle go too.
         clearPluginPresence(pluginId);
         clearPluginCallData(pluginId);
+        sockets.closeAll();
         closeCallPanel(pluginId);
         closePluginPanelOf(pluginId);
         // A ring this plugin is playing falls back to the built-in tone.

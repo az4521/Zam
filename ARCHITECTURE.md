@@ -46,6 +46,8 @@ src/
       runtime.ts                     -- the client slot + generation counter
       media.ts                       -- upload/send/fetch/decrypt media
       livekitCall.ts                 -- the LiveKit call engine (join/leave, tracks, devices)
+      call/                          -- call transports: livekitTransport.ts, transport.ts (CallTransport),
+                                        fullMesh/, pluginTransport.ts (see "Plugin system")
       slidingSync.ts                 -- sliding sync connection, lists, room subscriptions
       roomHealing.ts                 -- stub-room state seeding, joined-rooms reconcile
       pluginHost.ts                  -- the plugin host bridge + core composer send
@@ -66,7 +68,7 @@ src/
                                         built-in plugins (see "Plugin system")
 static/                              -- sw.js, manifest.webmanifest, icons, ruffle/, sounds/,
                                         twemoji/
-electron/                            -- main.cjs, preload.cjs
+electron/                            -- main.cjs, preload.cjs, pluginSockets.cjs
 android/                             -- Capacitor shell + 3 custom Java classes
 scripts/                             -- gen-vapid.mjs (VAPID private key -> PKCS#8 PEM for Sygnal)
 svelte.config.js                     -- adapter-static, fallback index.html, prod-only CSP
@@ -297,12 +299,21 @@ Real MSC4143 MatrixRTC, not legacy 1:1 WebRTC and not an Element Call widget. Me
 published as room state through the SDK's `matrixRTC` room session; media rides a
 **LiveKit SFU** discovered from an existing member's advertised service URL or the homeserver's
 `.well-known` (`org.matrix.msc4143.rtc_foci`), with a JWT obtained from an **lk-jwt-service** via
-an OpenID exchange. With no focus configured, joining throws — there is no fallback path.
+an OpenID exchange. With no focus configured, we publish on the full mesh instead (see Transports).
 
 UI: `CallView`, `VoiceCallPanel`, `VideoTile`, `ActiveCallBanner`, `IncomingCallCard`,
 `CallParticipantMenu`, `ScreenSharePicker`. State: `stores/voiceCall.svelte.ts` and
 `stores/incomingCalls.svelte.ts`. Device handling lives in `lib/audio/`, track attachment in
 `actions/videoTrack.ts`.
+
+**Transports.** Each member publishes on one transport, the first of its membership's `transports`:
+the LiveKit SFU (`livekitTransport.ts`), the full mesh (MSC4575, `call/fullMesh/`, behind the
+`CallTransport` interface in `call/transport.ts`), or a plugin transport (`call/pluginTransport.ts`,
+see "Plugin system"). A member is received over the transport its membership picks, so a member on a
+plugin transport is heard only by clients that have that plugin. Publishing on a plugin transport
+replaces our SFU publish but not listening: we still receive from everyone else's SFU. The mesh and
+plugin transports ask first (`meshConsent.svelte.ts`): the mesh before opening direct connections, a
+plugin transport before the first receive over it in a call.
 
 ### Threads
 
@@ -486,7 +497,7 @@ port** — localStorage is origin-keyed and the session lives there, so a changi
 user out. Single window plus tray with close-to-tray, a single-instance lock, `electron-updater`
 with `autoDownload` off behind `updates:*` IPC, and screen-share via `setDisplayMediaRequestHandler`
 round-tripped to an in-app picker. `preload.cjs` exposes exactly `window.desktop = { showWindow,
-updates, screenShare }`.
+updates, screenShare }`. Plugins' raw sockets run in main through `pluginSockets.cjs` (see "Plugin system").
 
 ### Android native
 
@@ -536,7 +547,8 @@ types), `sendMedia` (encrypts in encrypted rooms), `sendImage` (plaintext only),
 crypto own), profiles, presence, and plain room/member/event summaries, never live SDK objects),
 `ringtones` (incoming-call ringtones: a looping audio `src` or `start`/`stop` callbacks, shown in
 the Ringing picker and falling back to the built-in tone on failure; `audio/ringtoneChoice.ts`),
-`storage` (per-plugin namespaced key/value), `settings` (schema-driven — see
+`call` (`registerTransport`: a call transport beside the SFU and the mesh, see "Call transports"),
+`network` (raw sockets, desktop and Android, see "Raw sockets"), `storage` (per-plugin namespaced key/value), `settings` (schema-driven, see
 below), and `unsafe` (`getClient()` — the escape hatch). The curated `matrix` API is a
 stability/ergonomics layer and a seam for a future sandbox, not a security cage.
 **`zam.unsafe.getClient()`** hands a plugin the live matrix-js-sdk client instance for anything the
@@ -606,6 +618,55 @@ a repo plugin that isn't already installed on this device.
 `toggle`, `text`, `number`, `select`, and a **`list`** of records — and the Manager renders a
 consistent form (`PluginSettingsForm.svelte`, reached from the gear button). Labels and values render
 as escaped text.
+
+**Call transports** (`call/pluginTransport.ts`, `zam.call.registerTransport`, capability
+`call:transport`). A plugin carries call media over its own network (I2P, Tor, an overlay) beside the
+SFU and the mesh. Zam keeps capture, playback, the call screen, mutes and speaking indicators; the
+plugin moves the media. A factory (`PluginCallTransportFactory`: `id`, `label`,
+`privacy: { exposesIp, thirdParty }`, optional `use(ctx)` and `describe(ctx)`, and `create(ctx)`) is
+registered once. Registering throws on a duplicate or invalid id, and applies from the next call
+joined (or the current call's next membership change).
+
+- **Publishing.** When joining, Zam asks `use({ roomId })` of each registered factory in order. The
+  first that answers `true` gets the consent dialog, which shows its label and `privacy`. Allow: we
+  publish on it and not on the SFU, and our membership names it with
+  `type: "moe.crafty.zam.plugin_transport"`, `plugin`, `transport`, `device_id`, and `data` (what
+  `describe()` returned, at most 2 KiB as JSON). Our microphone, camera and screen share are passed
+  in through `ctx.local.publications()`. Deny: we join on the SFU as usual. Cancel: we don't join.
+- **Receiving.** Members whose membership picks the transport are passed to the instance with
+  `setMembers`. The first time a call needs one of them over a plugin transport, Zam asks once per
+  call. Allow: the plugin's instance is made with `create(ctx)`, lazily, after that answer. Deny: no
+  instance, and that member is not heard.
+- **Media in.** `ctx.remote.addTrack(identity, { source, track })` takes any live `MediaStreamTrack`,
+  one per source per peer (adding the same source again replaces it). It is shown and played like any
+  other participant's track: tiles, volume, mute and speaking indicators. The returned handle's
+  `enabled` says whether the user wants that video, so the plugin can stop asking for it.
+- **Signalling.** `ctx.signalling.send(peer, content)` and `onMessage` carry JSON content as
+  Olm-encrypted to-device messages of type `moe.crafty.zam.plugin_transport.signal`, capped at 32 KiB.
+  The envelope carries the room, call slot, plugin and transport, and the receiver drops anything
+  whose sender device is not the member's claimed device.
+- **Call data.** Call data goes where our media goes: when we publish on a plugin transport that
+  implements `sendData`, our data packets (the soundboard and other core topics, and
+  `zam.call.sendData`) go over it as opaque frames (`encodePluginTransportData`: version, topic,
+  payload), and frames a peer's plugin hands to `ctx.remote.deliverData` reach the call like LiveKit or
+  mesh data. Data tracks (`publishDataTrack`) do not travel over plugin transports.
+- **Lifetime.** An instance lives for one call. It closes when the call ends, when its factory is
+  unregistered (`onPluginTransportsChange` re-syncs the call), or when the plugin unloads. A `create`
+  that throws shows a notice, and the call goes on without it.
+
+**Raw sockets** (`pluginSockets.ts`, `socketRules.ts`, `electron/pluginSockets.cjs`, `zam.network`,
+capability `sockets`). Desktop and Android only (Android: `PluginSocketsPlugin.java`, bytes as base64,
+events as `socketEvent`, sockets closed when a page starts or the activity is destroyed): on the web
+`zam.network.available()` is false, and `connectTcp` and `openUdp` throw. The manifest's `sockets` lists the endpoints a plugin may reach, as `tcp:HOST:PORT` or
+`udp:HOST:PORT`, with `*` for any host or port (for example `tcp:127.0.0.1:7656`, `udp:*:*`,
+`tcp:[::1]:443`). The manifest parser rejects malformed entries. The page checks every connect, send
+and inbound datagram against those rules (`socketAllowed`) before it reaches the bridge, and datagrams
+from unlisted endpoints never reach the plugin. Main (`electron/pluginSockets.cjs`, IPC
+`plugin-sockets:*`) opens the connection or socket, checks only that the request is well formed, limits
+a plugin to 64 sockets, and ties each socket to the page that opened it. Sockets close when the plugin
+unloads (`closeAll`), and main closes a page's sockets on navigation, renderer crash or window close.
+The rules are disclosure, not a sandbox: plugins are full-trust page code and can call the bridge
+without the check.
 
 **Host-rendered plugin HTML is sanitized.** A plugin builds its own DOM inside `ui`, panel and
 popover mounts — that is the plugin's own responsibility under the full-trust model — but anywhere

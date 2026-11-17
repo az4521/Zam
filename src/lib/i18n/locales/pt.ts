@@ -4547,6 +4547,25 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.connectDirectly": "Conectar diretamente",
     "meshConsent.joinWithoutThem": "Entrar sem eles",
     "meshConsent.notNow": "Agora não",
+    "meshConsent.titlePluginPublish":
+        "Entrar nesta chamada através de {label}?",
+    "meshConsent.titlePluginReceive": "Alguém nesta chamada usa {label}",
+    "meshConsent.pluginPublish":
+        "Seu áudio, vídeo e compartilhamento de tela passam por {label}, uma forma de transportar chamadas adicionada por um plugin. Só pessoas cujo Zam tem o mesmo plugin podem ouvir e ver você.",
+    "meshConsent.pluginReceive":
+        "Alguém nesta chamada envia áudio e vídeo por {label}, adicionado por um plugin. Para ouvir e ver essa pessoa, o Zam também o usa.",
+    "meshConsent.pluginIpVisible":
+        "As pessoas que você alcança por {label} podem ver seu endereço IP, que pode revelar aproximadamente onde você está.",
+    "meshConsent.pluginIpHidden":
+        "{label} não mostra seu endereço IP às pessoas do outro lado.",
+    "meshConsent.pluginThirdParty":
+        "A mídia da sua chamada também passa por {thirdParty}.",
+    "meshConsent.pluginJoinWithout": "Entrar sem ele",
+    "meshConsent.usePlugin": "Usar {label}",
+    "voiceCall.pluginTransportGone":
+        "{label} parou, então ninguém nesta chamada ouve ou vê você até você entrar de novo.",
+    "voiceCall.pluginTransportFailed":
+        "{label} não conseguiu iniciar para esta chamada.",
     "voiceCall.meshNeedsTurn":
         "“Exigir servidor de retransmissão para chamadas ponto a ponto” está ativado, mas seu servidor doméstico não tem servidor de retransmissão (TURN). Desative isso nas configurações de Voz e vídeo para entrar.",
     "voiceAudioSettings.meshRelayOnly":

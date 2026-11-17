@@ -266,6 +266,16 @@ import {
     type TurnCredentials,
 } from "./call/fullMesh/meshPolicy";
 import { advertiseMeshSubscribe } from "./call/fullMesh/sdkMembership";
+import {
+    onPluginTransportsChange,
+    ownPluginTransport,
+    pickedPluginTransport,
+    registeredPluginTransports,
+    PluginTransportInstance,
+    type PluginTransportMember,
+    type RegisteredTransport,
+} from "./call/pluginTransport";
+import type { MeshLocalMedia } from "./call/fullMesh/connection";
 import { proxyBridge } from "$lib/proxyBridge";
 import { serverName } from "$lib/utils/joinConsent";
 
@@ -304,6 +314,17 @@ interface ActiveVoiceCall {
     meshAsked: Set<string>;
     /** Each LiveKit connection as a CallTransport. */
     lkTransports: Map<LivekitRoom, LivekitCallTransport>;
+    /** Plugin transports in use (zam.call.registerTransport), by
+     *  registry key. */
+    pluginTransports: Map<string, PluginTransportInstance>;
+    /** The plugin transport we publish on, instead of an SFU or the mesh. */
+    pluginPublish: RegisteredTransport | null;
+    /** Our media as the plugin transport we publish on sends it. */
+    pluginLocal: MeshLocalMedia | null;
+    /** Plugin transports the user agreed to for this call, and those
+     *  already asked about. */
+    pluginAllowed: Set<string>;
+    pluginAsked: Set<string>;
     publishKey: string;
     /** Multi-SFU: listen-only connections to the SFUs other members publish
      *  on, keyed by livekitTargetKey. lk-jwt-service only lets a homeserver's
@@ -362,6 +383,7 @@ function callTransports(call: ActiveVoiceCall): CallTransport[] {
         if (t) out.push(t);
     }
     out.push(call.mesh);
+    out.push(...call.pluginTransports.values());
     return out;
 }
 
@@ -1566,10 +1588,19 @@ async function publishCallData(
     if (call.lkRoom)
         await call.lkRoom.localParticipant.publishData(payload, opts);
     if (call.mesh.publishing) await call.mesh.publishData(payload, opts);
+    // Call data goes where our media goes: over the plugin transport we
+    // publish on, when it can carry data.
+    const plugin = call.pluginPublish
+        ? call.pluginTransports.get(call.pluginPublish.key)
+        : undefined;
+    if (plugin?.carriesData) await plugin.publishData(payload, opts);
 }
 
 /** Who receives what we publish, over any transport. */
 function callSubscriberIdentities(call: ActiveVoiceCall): string[] {
+    const plugin = call.pluginPublish
+        ? call.pluginTransports.get(call.pluginPublish.key)
+        : undefined;
     return [
         ...(call.lkRoom
             ? [...call.lkRoom.remoteParticipants.values()].map(
@@ -1577,6 +1608,7 @@ function callSubscriberIdentities(call: ActiveVoiceCall): string[] {
               )
             : []),
         ...call.mesh.subscriberIdentities(),
+        ...(plugin?.carriesData ? plugin.subscriberIdentities() : []),
     ];
 }
 
@@ -1762,6 +1794,15 @@ async function syncRemoteSfus(call: ActiveVoiceCall): Promise<void> {
                 receivesOverMesh(transport, m.transports, m.deviceId),
         })),
     );
+    syncPluginTransports(
+        call,
+        others.map(({ m, transport }) => ({
+            userId: m.userId,
+            deviceId: m.deviceId,
+            memberId: m.memberId,
+            picked: transport,
+        })),
+    );
     notifyCallMutes(call);
     notifyCallVideo(call);
     notifyCallSpeakers(call);
@@ -1820,6 +1861,200 @@ function syncMesh(
             notifyVoiceNotice(t("voiceCall.meshPeerUnreachable"));
         });
 }
+
+/** Plugin transports (call/pluginTransport.ts): one instance per
+ *  registered transport that we publish on or someone else does, made once
+ *  the user agreed to it for this call. Instances of unregistered
+ *  transports close. */
+function syncPluginTransports(
+    call: ActiveVoiceCall,
+    others: {
+        userId: string;
+        deviceId: string;
+        memberId: string;
+        picked: unknown;
+    }[],
+): void {
+    if (!matrixClient) return;
+    const entries = registeredPluginTransports();
+    for (const [key, inst] of call.pluginTransports) {
+        if (entries.includes(inst.entry)) continue;
+        call.pluginTransports.delete(key);
+        call.speakersByRoom.delete(inst);
+        void inst.close();
+        if (inst.publishing)
+            notifyVoiceNotice(
+                t("voiceCall.pluginTransportGone", {
+                    label: inst.entry.factory.label,
+                }),
+            );
+    }
+    const userId = matrixClient.getUserId()!;
+    const deviceId = matrixClient.getDeviceId()!;
+    for (const entry of entries) {
+        const members: PluginTransportMember[] = others.map((o) => {
+            const p = pickedPluginTransport(o.picked, o.deviceId);
+            const on = p?.key === entry.key;
+            return {
+                userId: o.userId,
+                deviceId: o.deviceId,
+                memberId: o.memberId,
+                publishes: on,
+                data: on ? (p?.data ?? null) : null,
+            };
+        });
+        const ours = call.pluginPublish === entry;
+        const existing = call.pluginTransports.get(entry.key);
+        if (existing) {
+            existing.setMembers(members);
+            continue;
+        }
+        if (!ours && !members.some((m) => m.publishes)) continue;
+        if (!call.pluginAllowed.has(entry.key)) {
+            askPluginTransport(call, entry);
+            continue;
+        }
+        const inst: PluginTransportInstance = new PluginTransportInstance(
+            entry,
+            {
+                client: matrixClient,
+                roomId: call.roomId,
+                slotId: call.session.slotId,
+                own: { userId, deviceId, memberId: `${userId}:${deviceId}` },
+                local: ours ? call.pluginLocal : null,
+                listener: callListener(call, () => inst),
+            },
+        );
+        call.pluginTransports.set(entry.key, inst);
+        inst.setMembers(members);
+        try {
+            inst.start();
+        } catch (err) {
+            console.error(
+                `[plugin ${entry.pluginId}] transport "${entry.factory.id}" create threw`,
+                err,
+            );
+            call.pluginTransports.delete(entry.key);
+            void inst.close();
+            notifyVoiceNotice(
+                t("voiceCall.pluginTransportFailed", {
+                    label: entry.factory.label,
+                }),
+            );
+        }
+    }
+}
+
+/** Ask, once per call, before receiving someone over a plugin transport. */
+function askPluginTransport(
+    call: ActiveVoiceCall,
+    entry: RegisteredTransport,
+): void {
+    if (call.pluginAsked.has(entry.key)) return;
+    call.pluginAsked.add(entry.key);
+    void requestMeshConsent({
+        joining: false,
+        publishing: false,
+        plugin: pluginConsentInfo(entry),
+    }).then((answer) => {
+        if (answer !== "allow" || activeVoice !== call) return;
+        call.pluginAllowed.add(entry.key);
+        void syncRemoteSfus(call);
+    });
+}
+
+function pluginConsentInfo(entry: RegisteredTransport): {
+    label: string;
+    exposesIp: boolean;
+    thirdParty: string | null;
+} {
+    return {
+        label: entry.factory.label,
+        exposesIp: entry.factory.privacy.exposesIp,
+        thirdParty: entry.factory.privacy.thirdParty,
+    };
+}
+
+/** A plugin's answer; one that takes longer than `ms` counts as none. */
+function pluginAnswer<T>(
+    fn: () => T | Promise<T>,
+    ms: number,
+): Promise<T | undefined> {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => resolve(undefined), ms);
+        Promise.resolve()
+            .then(fn)
+            .then(
+                (v) => {
+                    clearTimeout(timer);
+                    resolve(v);
+                },
+                (err: unknown) => {
+                    clearTimeout(timer);
+                    reject(err);
+                },
+            );
+    });
+}
+
+/**
+ * Whether we publish on a plugin transport in `roomId`: the first one whose
+ * `use` says so, once the user agrees. "cancel": the user didn't join.
+ */
+async function choosePluginPublish(
+    roomId: string,
+): Promise<{ entry: RegisteredTransport; data: unknown } | null | "cancel"> {
+    for (const entry of registeredPluginTransports()) {
+        const { factory } = entry;
+        const use = factory.use;
+        if (!use) continue;
+        let wants: unknown = false;
+        try {
+            wants = await pluginAnswer(
+                () => use.call(factory, { roomId }),
+                3000,
+            );
+        } catch (err) {
+            console.error(
+                `[plugin ${entry.pluginId}] transport use threw`,
+                err,
+            );
+        }
+        if (wants !== true) continue;
+        const answer = await requestMeshConsent({
+            joining: true,
+            publishing: true,
+            plugin: pluginConsentInfo(entry),
+        });
+        if (answer === "cancel") return "cancel";
+        if (answer !== "allow") return null;
+        const describe = factory.describe;
+        let data: unknown = null;
+        try {
+            if (describe)
+                data = await pluginAnswer(
+                    () => describe.call(factory, { roomId }),
+                    10_000,
+                );
+        } catch (err) {
+            console.error(
+                `[plugin ${entry.pluginId}] transport describe threw`,
+                err,
+            );
+            notifyVoiceNotice(
+                t("voiceCall.pluginTransportFailed", { label: factory.label }),
+            );
+            return null;
+        }
+        return { entry, data };
+    }
+    return null;
+}
+
+// A plugin transport registered or unregistered mid-call: apply it now.
+onPluginTransportsChange(() => {
+    if (activeVoice) void syncRemoteSfus(activeVoice);
+});
 
 async function connectRemoteSfu(
     call: ActiveVoiceCall,
@@ -1947,7 +2182,12 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     // lk-jwt-service lets us publish) and listen on everyone else's. A
     // homeserver without one publishes on full mesh instead (MSC4575):
     // another homeserver's SFU only gives us a listen-only token.
-    const target = pickOwnLivekitTransport(foci, roomId);
+    const sfuTarget = pickOwnLivekitTransport(foci, roomId);
+    // A plugin transport (zam.call.registerTransport) the plugin wants us
+    // to publish on here, if the user agrees: then not on the SFU.
+    const viaPlugin = await choosePluginPublish(roomId);
+    if (seq !== voiceJoinSeq || viaPlugin === "cancel") return;
+    const target = viaPlugin ? null : sfuTarget;
 
     const userId = matrixClient.getUserId()!;
     const deviceId = matrixClient.getDeviceId()!;
@@ -1967,10 +2207,10 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
                 receivesOverMesh(transport, m.transports, m.deviceId),
         );
     let meshConsent = false;
-    if (joinUsesMesh({ ownHasSfu: !!target, othersOverMesh })) {
+    if (joinUsesMesh({ ownHasSfu: !!target || !!viaPlugin, othersOverMesh })) {
         const answer = await requestMeshConsent({
             joining: true,
-            publishing: !target,
+            publishing: !target && !viaPlugin,
             ...meshConsentServers(await homeserverTurn()),
         });
         if (seq !== voiceJoinSeq || answer === "cancel") return;
@@ -1978,7 +2218,8 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     }
     const iceConfig = await callIceConfig();
     if (seq !== voiceJoinSeq) return;
-    if (!target && !iceConfig) throw new Error(t("voiceCall.meshNeedsTurn"));
+    if (!target && !viaPlugin && !iceConfig)
+        throw new Error(t("voiceCall.meshNeedsTurn"));
 
     // Snapshot the call's non-self peers BEFORE our own membership publishes,
     // so we can tell "starting a call" (ring the peer) from "answering one"
@@ -2125,9 +2366,14 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         lkRoom,
         local,
         mesh,
-        meshConsent: meshConsent || !target,
+        meshConsent: meshConsent || (!target && !viaPlugin),
         meshAsked: new Set(),
         lkTransports: new Map(),
+        pluginTransports: new Map(),
+        pluginPublish: viaPlugin?.entry ?? null,
+        pluginLocal: viaPlugin ? meshLocal : null,
+        pluginAllowed: new Set(viaPlugin ? [viaPlugin.entry.key] : []),
+        pluginAsked: new Set(viaPlugin ? [viaPlugin.entry.key] : []),
         publishKey: target ? livekitTargetKey(target) : "",
         remotes: new Map(),
         remotesConnecting: new Set(),
@@ -2192,7 +2438,14 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
                   livekit_service_url: target.serviceUrl,
                   livekit_alias: target.alias,
               }
-            : ownMeshTransport(deviceId);
+            : viaPlugin
+              ? ownPluginTransport(
+                    viaPlugin.entry.pluginId,
+                    viaPlugin.entry.factory.id,
+                    deviceId,
+                    viaPlugin.data,
+                )
+              : ownMeshTransport(deviceId);
         // Advertises the SFU we publish on, as multi_sfu (or the mesh). A
         // client that reads multi_sfu takes foci_preferred[0], the same one.
         // We can receive over the mesh: say so in can_subscribe (MSC4575).
@@ -2501,6 +2754,7 @@ function leaveCallOnPageHide(): void {
     }
     for (const r of callLkRooms(call)) void r.disconnect().catch(() => {});
     void call.mesh.close();
+    for (const p of call.pluginTransports.values()) void p.close();
 }
 if (typeof window !== "undefined")
     window.addEventListener("pagehide", leaveCallOnPageHide);
@@ -2561,6 +2815,7 @@ async function leaveVoiceCallInternal(): Promise<void> {
         await Promise.allSettled([
             ...callLkRooms(call).map((r) => r.disconnect()),
             call.mesh.close(),
+            ...[...call.pluginTransports.values()].map((p) => p.close()),
             call.session.leave(10_000),
         ]);
         // After the SFU disconnect, which stops the tracks it owns.

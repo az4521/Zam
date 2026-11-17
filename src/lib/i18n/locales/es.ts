@@ -4562,6 +4562,25 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.connectDirectly": "Conectar directamente",
     "meshConsent.joinWithoutThem": "Unirse sin ellos",
     "meshConsent.notNow": "Ahora no",
+    "meshConsent.titlePluginPublish":
+        "¿Unirte a esta llamada a través de {label}?",
+    "meshConsent.titlePluginReceive": "Alguien en esta llamada usa {label}",
+    "meshConsent.pluginPublish":
+        "Tu audio, vídeo y pantalla compartida van por {label}, una forma de transportar llamadas que añade un plugin. Solo las personas cuyo Zam tenga el mismo plugin pueden oírte y verte.",
+    "meshConsent.pluginReceive":
+        "Alguien en esta llamada envía su audio y vídeo por {label}, que añade un plugin. Para oírle y verle, Zam también lo usa.",
+    "meshConsent.pluginIpVisible":
+        "Las personas a las que llegas por {label} pueden ver tu dirección IP, que puede revelar aproximadamente dónde estás.",
+    "meshConsent.pluginIpHidden":
+        "{label} no muestra tu dirección IP a las personas del otro lado.",
+    "meshConsent.pluginThirdParty":
+        "Los medios de tu llamada también pasan por {thirdParty}.",
+    "meshConsent.pluginJoinWithout": "Unirme sin él",
+    "meshConsent.usePlugin": "Usar {label}",
+    "voiceCall.pluginTransportGone":
+        "{label} se detuvo, así que nadie en esta llamada te oye ni te ve hasta que vuelvas a unirte.",
+    "voiceCall.pluginTransportFailed":
+        "{label} no pudo iniciarse para esta llamada.",
     "voiceCall.meshNeedsTurn":
         "«Exigir un servidor de retransmisión para llamadas entre pares» está activado, pero tu servidor doméstico no tiene servidor de retransmisión (TURN). Desactívalo en los ajustes de Voz y vídeo para unirte.",
     "voiceAudioSettings.meshRelayOnly":

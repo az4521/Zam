@@ -4127,6 +4127,21 @@ const messages: Partial<Record<MessageKey, string>> = {
     "meshConsent.connectDirectly": "直接连接",
     "meshConsent.joinWithoutThem": "不与其连接并加入",
     "meshConsent.notNow": "暂不",
+    "meshConsent.titlePluginPublish": "通过 {label} 加入此通话？",
+    "meshConsent.titlePluginReceive": "此通话中有人使用 {label}",
+    "meshConsent.pluginPublish":
+        "你的音频、视频和屏幕共享将通过 {label} 传输，这是插件添加的一种通话传输方式。只有 Zam 装有同一插件的人才能听到和看到你。",
+    "meshConsent.pluginReceive":
+        "此通话中有人通过插件添加的 {label} 发送音频和视频。为了听到和看到对方，Zam 也会使用它。",
+    "meshConsent.pluginIpVisible":
+        "通过 {label} 连接的人可以看到你的 IP 地址，可能大致暴露你的位置。",
+    "meshConsent.pluginIpHidden": "{label} 不会向对方显示你的 IP 地址。",
+    "meshConsent.pluginThirdParty": "你的通话媒体还会经过 {thirdParty}。",
+    "meshConsent.pluginJoinWithout": "不使用它加入",
+    "meshConsent.usePlugin": "使用 {label}",
+    "voiceCall.pluginTransportGone":
+        "{label} 已停止，在你重新加入之前，通话中没有人能听到或看到你。",
+    "voiceCall.pluginTransportFailed": "无法为此通话启动 {label}。",
     "voiceCall.meshNeedsTurn":
         "“点对点通话必须使用中继服务器”已开启，但您的主服务器没有中继（TURN）服务器。在语音和视频设置中关闭它即可加入。",
     "voiceAudioSettings.meshRelayOnly": "点对点通话必须使用中继服务器",

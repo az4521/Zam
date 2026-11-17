@@ -79,7 +79,7 @@ export interface CallTransportListener {
 }
 
 export interface CallTransport {
-    readonly kind: "livekit" | "full_mesh";
+    readonly kind: "livekit" | "full_mesh" | "plugin";
     /** Plugin data tracks are registered per room. */
     readonly pluginRoom: PluginRoomLike;
     participants(): RemoteParticipantView[];

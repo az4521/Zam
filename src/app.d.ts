@@ -484,6 +484,46 @@ declare global {
                 }) => Promise<boolean>;
                 remove: (id: string) => Promise<void>;
             };
+            /** zam.network (electron/pluginSockets.cjs): raw sockets. */
+            pluginSockets?: {
+                tcp: (req: {
+                    pluginId: string;
+                    host: string;
+                    port: number;
+                }) => Promise<{ ok: boolean; id?: number; error?: string }>;
+                udp: (req: {
+                    pluginId: string;
+                    localHost?: string;
+                    localPort?: number;
+                }) => Promise<{
+                    ok: boolean;
+                    id?: number;
+                    localPort?: number;
+                    error?: string;
+                }>;
+                write: (
+                    id: number,
+                    data: Uint8Array,
+                ) => Promise<{ ok: boolean; error?: string }>;
+                send: (
+                    id: number,
+                    host: string,
+                    port: number,
+                    data: Uint8Array,
+                ) => Promise<{ ok: boolean; error?: string }>;
+                close: (id: number) => Promise<void>;
+                closePlugin: (pluginId: string) => Promise<void>;
+                onEvent: (
+                    cb: (msg: {
+                        id: number;
+                        type: "data" | "message" | "close";
+                        data?: Uint8Array;
+                        host?: string;
+                        port?: number;
+                        error?: string | null;
+                    }) => void,
+                ) => () => void;
+            };
         };
     }
 }

@@ -40,7 +40,70 @@
     });
 </script>
 
-{#if pending}
+{#if pending?.plugin}
+    {@const plugin = pending.plugin}
+    <ModalDialog
+        onClose={dismiss}
+        labelledBy="mesh-consent-title"
+        panelClass="relative z-10 w-[min(30rem,calc(100vw-2rem))] rounded-lg bg-zam-backgroundSecondary p-5 shadow-xl"
+    >
+        <h2
+            id="mesh-consent-title"
+            class="mb-2 text-lg font-semibold text-zam-textPrimary"
+        >
+            {pending.publishing
+                ? t("meshConsent.titlePluginPublish", { label: plugin.label })
+                : t("meshConsent.titlePluginReceive", { label: plugin.label })}
+        </h2>
+        <p class="mb-3 text-sm text-zam-textMuted">
+            {pending.publishing
+                ? t("meshConsent.pluginPublish", { label: plugin.label })
+                : t("meshConsent.pluginReceive", { label: plugin.label })}
+        </p>
+        <p
+            class={plugin.exposesIp
+                ? "mb-3 rounded border border-zam-danger/40 bg-zam-danger/10 px-3 py-2 text-sm text-zam-danger"
+                : "mb-3 rounded border border-zam-divider px-3 py-2 text-sm text-zam-textMuted"}
+            role={plugin.exposesIp ? "alert" : undefined}
+        >
+            {plugin.exposesIp
+                ? t("meshConsent.pluginIpVisible", { label: plugin.label })
+                : t("meshConsent.pluginIpHidden", { label: plugin.label })}
+            {#if plugin.thirdParty}
+                {t("meshConsent.pluginThirdParty", {
+                    thirdParty: plugin.thirdParty,
+                })}
+            {/if}
+        </p>
+        <div class="mt-4 flex flex-wrap justify-end gap-2">
+            {#if pending.joining}
+                <button
+                    type="button"
+                    onclick={() => resolveMeshConsent("cancel")}
+                    class="rounded px-4 py-2 text-sm font-medium text-zam-textSecondary hover:text-zam-textPrimary hover:underline transition-colors"
+                >
+                    {t("common.cancel")}
+                </button>
+            {/if}
+            <button
+                type="button"
+                onclick={() => resolveMeshConsent("deny")}
+                class="rounded px-4 py-2 text-sm font-medium text-zam-textSecondary hover:text-zam-textPrimary hover:underline transition-colors"
+            >
+                {pending.joining
+                    ? t("meshConsent.pluginJoinWithout")
+                    : t("meshConsent.notNow")}
+            </button>
+            <button
+                type="button"
+                onclick={() => resolveMeshConsent("allow")}
+                class="rounded bg-zam-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+            >
+                {t("meshConsent.usePlugin", { label: plugin.label })}
+            </button>
+        </div>
+    </ModalDialog>
+{:else if pending}
     <ModalDialog
         onClose={dismiss}
         labelledBy="mesh-consent-title"
