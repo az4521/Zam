@@ -466,6 +466,7 @@
     <Lightbox
         src={gifViewer.url}
         kind="video"
+        loop
         poster={gifViewer.thumbnail}
         alt={gifViewer.alt ?? ""}
         onClose={() => (gifViewer = null)}

@@ -9,6 +9,9 @@
         /** Still shown behind a video until its data arrives. Ignored for
          *  images, which are their own poster. */
         poster?: string | null;
+        /** Loop the video: for GIF-style media (a tweet's GIF mp4), never for
+         *  a real video. */
+        loop?: boolean;
         /** Name to save as. Falls back to the last path segment of `src`, which
          *  is a bare media id (no extension) on Matrix download URLs. */
         filename?: string;
@@ -120,6 +123,7 @@
         alt = "",
         kind = "image",
         poster = null,
+        loop = false,
         filename,
         onClose,
         favourite,
@@ -318,9 +322,11 @@
 
     // ⚠ Exactly ONE video element is ever live (this viewer is a singleton in
     // the modal slot) and it is only ever created after the user clicked a
-    // tile. It carries no `loop`, and above all NO onpause handler that calls
-    // play() — that pattern fights the browser's own load-shedding forever and
-    // pegged the main thread when it lived in LinkPreview. Do not add one back.
+    // tile. It must have NO onpause handler that calls play(): that pattern
+    // fights the browser's own load-shedding forever and pegged the main
+    // thread when it lived in LinkPreview. Do not add one back. (`loop` is a
+    // different thing and is fine: the browser just seeks to 0 at the end and
+    // can still pause it. Only GIF-style media sets it.)
     //
     // `src` and `kind` are this effect's only dependencies; the state writes
     // are untracked so they cannot re-enter it (effect_update_depth_exceeded).
@@ -1348,6 +1354,7 @@
                                 poster={poster ?? undefined}
                                 use:rememberVolume
                                 controls
+                                {loop}
                                 autoplay
                                 preload="metadata"
                                 playsinline
