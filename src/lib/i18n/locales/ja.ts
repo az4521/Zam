@@ -3687,6 +3687,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "rootLayout.linkCopied": "リンクをコピーしました",
     "rootPage.failedToReconnectPleaseLogIn":
         "再接続に失敗しました。もう一度ログインしてください。",
+    "rootPage.storageWipedSessionRecovered":
+        "ディスクがいっぱいになったため、ブラウザーが Zam のストレージをリセットした可能性があります。サインインは復元されましたが、一部の設定が既定値に戻っている場合があります。",
     "rootPage.sessionOpenInAnotherTab":
         "このセッションは別のタブで開かれています。そのタブを閉じると、このタブで続行します。",
     "rootPage.signedInButSyncingCouldNot":

@@ -4161,6 +4161,8 @@ export const en = {
     // src/routes/+page.svelte
     "rootPage.failedToReconnectPleaseLogIn":
         "Failed to reconnect. Please log in again.",
+    "rootPage.storageWipedSessionRecovered":
+        "Your browser reset Zam's storage, probably because the disk was full. Your sign-in was recovered, but some settings may be back to their defaults.",
     "rootPage.sessionOpenInAnotherTab":
         "This session is open in another tab. This tab will continue once that one closes.",
     "rootPage.signedInButSyncingCouldNot":

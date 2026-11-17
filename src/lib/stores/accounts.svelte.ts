@@ -17,6 +17,11 @@ import {
 
 import { syncNativeAccounts } from "$lib/nativeSession";
 import { syncServiceWorkerAccounts } from "$lib/swAccounts";
+import {
+    pickRecoveredRegistry,
+    readRegistryBackup,
+    writeRegistryBackup,
+} from "$lib/utils/registryBackup";
 
 const REGISTRY_KEY = "matrix_accounts";
 const LEGACY_KEY = "matrix_session";
@@ -40,18 +45,41 @@ function loadRegistry(): AccountRegistry {
 export const accountsState = $state({ registry: loadRegistry() });
 
 function persist(): void {
+    const raw = JSON.stringify(accountsState.registry);
     try {
-        localStorage.setItem(
-            REGISTRY_KEY,
-            JSON.stringify(accountsState.registry),
-        );
+        localStorage.setItem(REGISTRY_KEY, raw);
     } catch {
         // ignore (private mode / storage full)
     }
+    // The IndexedDB copy survives Chromium wiping localStorage (registryBackup.ts).
+    writeRegistryBackup(raw);
     // Every account's credentials, for pushes to non-active accounts: the
     // Android push service and the web service worker.
     void syncNativeAccounts(accountsState.registry.accounts);
     syncServiceWorkerAccounts(accountsState.registry.accounts);
+}
+
+/**
+ * Boot step, before session restore: when the registry is empty but the
+ * IndexedDB copy has accounts, localStorage was wiped under us (Chromium does
+ * that after failed writes on a full disk), so put the accounts back. When the
+ * registry is not empty, refresh the copy instead (covers installs from before
+ * the copy existed). Resolves true when accounts were restored.
+ */
+export async function recoverRegistryFromBackup(): Promise<boolean> {
+    if (accountsState.registry.accounts.length > 0) {
+        writeRegistryBackup(JSON.stringify(accountsState.registry));
+        return false;
+    }
+    const recovered = pickRecoveredRegistry(
+        accountsState.registry,
+        await readRegistryBackup(),
+    );
+    // Something may have signed in while the read was in flight.
+    if (!recovered || accountsState.registry.accounts.length > 0) return false;
+    accountsState.registry = recovered;
+    persist();
+    return true;
 }
 
 export function upsertAndActivate(account: StoredAccount): void {

@@ -4302,6 +4302,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "rootLayout.linkCopied": "Link kopiert",
 
     // src/routes/+page.svelte
+    "rootPage.storageWipedSessionRecovered":
+        "Dein Browser hat den Speicher von Zam zurückgesetzt, vermutlich weil der Datenträger voll war. Deine Anmeldung wurde wiederhergestellt, aber einige Einstellungen sind eventuell wieder auf den Standardwerten.",
     "rootPage.sessionOpenInAnotherTab":
         "Diese Sitzung ist in einem anderen Tab geöffnet. Dieser Tab macht weiter, sobald der andere geschlossen wird.",
     "rootPage.failedToReconnectPleaseLogIn":

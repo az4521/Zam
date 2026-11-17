@@ -4304,6 +4304,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     // src/routes/+page.svelte
     "rootPage.failedToReconnectPleaseLogIn":
         "Falha ao reconectar. Entre novamente.",
+    "rootPage.storageWipedSessionRecovered":
+        "O navegador redefiniu o armazenamento do Zam, provavelmente porque o disco estava cheio. Sua sessão foi recuperada, mas algumas configurações podem ter voltado ao padrão.",
     "rootPage.sessionOpenInAnotherTab":
         "Esta sessão está aberta em outra aba. Esta aba continuará quando aquela for fechada.",
     "rootPage.signedInButSyncingCouldNot":

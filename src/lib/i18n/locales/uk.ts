@@ -4278,6 +4278,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     // src/routes/+page.svelte
     "rootPage.failedToReconnectPleaseLogIn":
         "Не вдалося перепідключитися. Увійдіть знову.",
+    "rootPage.storageWipedSessionRecovered":
+        "Браузер скинув сховище Zam, імовірно, через заповнений диск. Вхід відновлено, але деякі налаштування могли повернутися до типових значень.",
     "rootPage.sessionOpenInAnotherTab":
         "Цей сеанс відкрито в іншій вкладці. Ця вкладка продовжить роботу, щойно та закриється.",
     "rootPage.signedInButSyncingCouldNot":

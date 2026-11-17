@@ -3916,6 +3916,8 @@ const messages: Partial<Record<MessageKey, string>> = {
 
     // src/routes/+page.svelte
     "rootPage.failedToReconnectPleaseLogIn": "重新连接失败。请重新登录。",
+    "rootPage.storageWipedSessionRecovered":
+        "浏览器重置了 Zam 的存储，可能是因为磁盘已满。你的登录已恢复，但部分设置可能已恢复为默认值。",
     "rootPage.sessionOpenInAnotherTab":
         "此会话在另一个标签页中打开。待那个标签页关闭后，此标签页将继续。",
     "rootPage.signedInButSyncingCouldNot": "已登录，但无法开始同步。请重试。",

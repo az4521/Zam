@@ -4273,6 +4273,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "rootLayout.linkCopied": "Lien copié",
 
     // src/routes/+page.svelte
+    "rootPage.storageWipedSessionRecovered":
+        "Votre navigateur a réinitialisé le stockage de Zam, probablement parce que le disque était plein. Votre connexion a été récupérée, mais certains réglages ont pu revenir à leurs valeurs par défaut.",
     "rootPage.sessionOpenInAnotherTab":
         "Cette session est ouverte dans un autre onglet. Cet onglet continuera une fois l'autre fermé.",
     "rootPage.failedToReconnectPleaseLogIn":
