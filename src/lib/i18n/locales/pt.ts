@@ -1340,6 +1340,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "memberList.admins": "Administradores: {length}",
     "memberList.admin": "Administrador",
     "memberList.moderators": "Moderadores: {length}",
+    "memberList.defaultRoleMember": "Membro",
+    "memberList.roleSection": "{name}: {length}",
 
     // src/lib/components/messages/MessageActionsSheet.svelte
     "messageActionsSheet.thisMessage": "{label} esta mensagem?",
@@ -2280,6 +2282,31 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.admin100": "Administrador (100)",
     "roomSettings.moderator50": "Moderador (50)",
     "roomSettings.member0": "Membro (0)",
+    "roomSettings.roleTags": "Tags de função",
+    "roomSettings.roleTagsHint":
+        "Nome, cor e ícone exibidos para cada nível de permissão (MSC3949). Níveis sem tag usam o inferior mais próximo.",
+    "roomSettings.roleTagLevel": "Nível de permissão",
+    "roomSettings.roleTagName": "Nome",
+    "roomSettings.roleTagColor": "Cor",
+    "roomSettings.roleTagIcon": "Ícone (emoji)",
+    "roomSettings.roleTagPickEmoji": "Escolher emoji",
+    "roomSettings.roleTagUploadIcon": "Enviar imagem",
+    "roomSettings.roleTagRemoveIcon": "Remover ícone",
+    "roomSettings.addRoleTag": "Adicionar tag",
+    "roomSettings.removeRoleTag": "Remover tag",
+    "roomSettings.saveRoleTags": "Salvar tags",
+    "roomSettings.roleTagsSaved": "Tags de função salvas",
+    "roomSettings.roleTagsSaveFailed":
+        "Não foi possível salvar as tags de função: {error}",
+    "roomSettings.roleTagDuplicateLevel":
+        "Duas tags usam o nível de permissão {level}",
+    "roomSettings.roleTagNameRequired": "Cada tag precisa de um nome",
+    "roomSettings.roleTagLevelInvalid":
+        "O nível de permissão deve ser um número inteiro",
+    "roomSettings.roleTagClearColor": "Limpar cor",
+    "roomSettings.customLevel": "Personalizado ({level})",
+    "roomSettings.roleTagsUsingDefaults":
+        "Esta sala ainda não tem tags; mostrando as padrão.",
     "roomSettings.muted1": "Silenciado (-1)",
     "roomSettings.kick": "Expulsar",
     "roomSettings.ban": "Banir",

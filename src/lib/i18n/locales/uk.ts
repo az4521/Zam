@@ -1343,6 +1343,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "memberList.admins": "Адміністраторів: {length}",
     "memberList.admin": "Адміністратор",
     "memberList.moderators": "Модераторів: {length}",
+    "memberList.defaultRoleMember": "Учасник",
+    "memberList.roleSection": "{name}: {length}",
 
     // src/lib/components/messages/MessageActionsSheet.svelte
     "messageActionsSheet.thisMessage": "{label} це повідомлення?",
@@ -2285,6 +2287,30 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.admin100": "Адміністратор (100)",
     "roomSettings.moderator50": "Модератор (50)",
     "roomSettings.member0": "Учасник (0)",
+    "roomSettings.roleTags": "Теги ролей",
+    "roomSettings.roleTagsHint":
+        "Назва, колір і значок для кожного рівня прав (MSC3949). Рівні без тега використовують найближчий нижчий.",
+    "roomSettings.roleTagLevel": "Рівень прав",
+    "roomSettings.roleTagName": "Назва",
+    "roomSettings.roleTagColor": "Колір",
+    "roomSettings.roleTagIcon": "Значок (емодзі)",
+    "roomSettings.roleTagPickEmoji": "Вибрати емодзі",
+    "roomSettings.roleTagUploadIcon": "Завантажити зображення",
+    "roomSettings.roleTagRemoveIcon": "Видалити значок",
+    "roomSettings.addRoleTag": "Додати тег",
+    "roomSettings.removeRoleTag": "Видалити тег",
+    "roomSettings.saveRoleTags": "Зберегти теги",
+    "roomSettings.roleTagsSaved": "Теги ролей збережено",
+    "roomSettings.roleTagsSaveFailed":
+        "Не вдалося зберегти теги ролей: {error}",
+    "roomSettings.roleTagDuplicateLevel":
+        "Два теги використовують рівень прав {level}",
+    "roomSettings.roleTagNameRequired": "Кожен тег потребує назви",
+    "roomSettings.roleTagLevelInvalid": "Рівень прав має бути цілим числом",
+    "roomSettings.roleTagClearColor": "Прибрати колір",
+    "roomSettings.customLevel": "Власний ({level})",
+    "roomSettings.roleTagsUsingDefaults":
+        "У цій кімнаті ще немає тегів; показано стандартні.",
     "roomSettings.muted1": "Заглушений (-1)",
     "roomSettings.kick": "Виключити",
     "roomSettings.ban": "Заблокувати",

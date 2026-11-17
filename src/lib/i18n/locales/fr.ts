@@ -1198,6 +1198,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "memberList.admins": "Administrateurs : {length}",
     "memberList.admin": "Administrateur",
     "memberList.moderators": "Modérateurs : {length}",
+    "memberList.defaultRoleMember": "Membre",
+    "memberList.roleSection": "{name}: {length}",
 
     // src/lib/components/messages/MessageActionsSheet.svelte
     "messageActionsSheet.thisMessage": "{label} ce message ?",
@@ -2125,6 +2127,31 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.admin100": "Administrateur (100)",
     "roomSettings.moderator50": "Modérateur (50)",
     "roomSettings.member0": "Membre (0)",
+    "roomSettings.roleTags": "Étiquettes de rôle",
+    "roomSettings.roleTagsHint":
+        "Nom, couleur et icône affichés pour chaque niveau de pouvoir (MSC3949). Les niveaux sans étiquette utilisent le plus proche inférieur.",
+    "roomSettings.roleTagLevel": "Niveau de pouvoir",
+    "roomSettings.roleTagName": "Nom",
+    "roomSettings.roleTagColor": "Couleur",
+    "roomSettings.roleTagIcon": "Icône (emoji)",
+    "roomSettings.roleTagPickEmoji": "Choisir un emoji",
+    "roomSettings.roleTagUploadIcon": "Importer une image",
+    "roomSettings.roleTagRemoveIcon": "Supprimer l'icône",
+    "roomSettings.addRoleTag": "Ajouter une étiquette",
+    "roomSettings.removeRoleTag": "Supprimer l'étiquette",
+    "roomSettings.saveRoleTags": "Enregistrer les étiquettes",
+    "roomSettings.roleTagsSaved": "Étiquettes de rôle enregistrées",
+    "roomSettings.roleTagsSaveFailed":
+        "Impossible d'enregistrer les étiquettes de rôle : {error}",
+    "roomSettings.roleTagDuplicateLevel":
+        "Deux étiquettes utilisent le niveau de pouvoir {level}",
+    "roomSettings.roleTagNameRequired": "Chaque étiquette a besoin d'un nom",
+    "roomSettings.roleTagLevelInvalid":
+        "Le niveau de pouvoir doit être un nombre entier",
+    "roomSettings.roleTagClearColor": "Effacer la couleur",
+    "roomSettings.customLevel": "Personnalisé ({level})",
+    "roomSettings.roleTagsUsingDefaults":
+        "Ce salon n'a pas encore d'étiquettes ; les étiquettes par défaut sont affichées.",
     "roomSettings.muted1": "Muet (-1)",
     "roomSettings.kick": "Expulser",
     "roomSettings.ban": "Bannir",

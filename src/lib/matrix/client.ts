@@ -135,6 +135,13 @@ import {
 } from "$lib/utils/emotePacks";
 import { isMxcPreviewMedia } from "$lib/utils/linkPreviewPolicy";
 import { serializeServerAcl, type ServerAcl } from "$lib/utils/serverAcl";
+import {
+    POWER_LEVEL_TAGS_EVENT_TYPE,
+    UNSTABLE_POWER_LEVEL_TAGS_EVENT_TYPE,
+    parsePowerLevelTags,
+    serializePowerLevelTags,
+    type PowerLevelTags,
+} from "$lib/utils/powerLevelTags";
 import { requestPersistentStorage } from "$lib/utils/persistentStorage";
 import { reportStorageError } from "$lib/stores/storageHealth.svelte";
 import { parseLoginFlows, type LoginOptions } from "$lib/utils/loginFlows";
@@ -10073,6 +10080,84 @@ export async function setServerAcl(room: Room, acl: ServerAcl): Promise<void> {
         serializeServerAcl(acl),
         "",
     );
+}
+
+const parsedPowerLevelTags = new WeakMap<MatrixEvent, PowerLevelTags>();
+
+/**
+ * The room's MSC3949 power level tags, or null when the room has neither the
+ * stable nor the unstable event (the UI then shows the defaults). The unstable
+ * event wins when both are present, since that is what implementations
+ * (Cinny, this client) write today.
+ */
+export function getRoomPowerLevelTags(roomId: string): PowerLevelTags | null {
+    const state = matrixClient
+        ?.getRoom(roomId)
+        ?.getLiveTimeline()
+        .getState(EventTimeline.FORWARDS);
+    if (!state) return null;
+    const event =
+        state.getStateEvents(UNSTABLE_POWER_LEVEL_TAGS_EVENT_TYPE, "") ??
+        state.getStateEvents(POWER_LEVEL_TAGS_EVENT_TYPE, "");
+    if (!event) return null;
+    // Parsed once per state event object: callers (every timeline row) read
+    // this on each tick, and a replaced event is a new object, so the memo can
+    // never serve stale tags.
+    let tags = parsedPowerLevelTags.get(event);
+    if (!tags) {
+        tags = parsePowerLevelTags(event.getContent());
+        parsedPowerLevelTags.set(event, tags);
+    }
+    return tags;
+}
+
+/** Whether the user's power level lets them write the room's power level tags. */
+export function canEditPowerLevelTags(roomId: string): boolean {
+    const room = matrixClient?.getRoom(roomId);
+    if (!room) return false;
+    return maySendPackEvent(room, UNSTABLE_POWER_LEVEL_TAGS_EVENT_TYPE);
+}
+
+/** Write the room's power level tags with the unstable type (MSC3949). */
+export async function setRoomPowerLevelTags(
+    roomId: string,
+    tags: PowerLevelTags,
+): Promise<void> {
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    await (matrixClient as any).sendStateEvent(
+        roomId,
+        UNSTABLE_POWER_LEVEL_TAGS_EVENT_TYPE,
+        serializePowerLevelTags(tags),
+        "",
+    );
+}
+
+/**
+ * Calls `callback` whenever either power level tags event changes in the
+ * room. Ordinary state events do not bump roomsTick, so UI that shows tags
+ * must subscribe here. Returns the unsubscribe function.
+ */
+export function onPowerLevelTagsChanged(
+    roomId: string,
+    callback: () => void,
+): () => void {
+    if (!matrixClient) return () => {};
+    const client = matrixClient;
+    const onEvents = (event: MatrixEvent, state: RoomState) => {
+        if (state.roomId !== roomId) return;
+        const type = event.getType();
+        if (
+            event.getStateKey() === "" &&
+            (type === POWER_LEVEL_TAGS_EVENT_TYPE ||
+                type === UNSTABLE_POWER_LEVEL_TAGS_EVENT_TYPE)
+        ) {
+            callback();
+        }
+    };
+    client.on(RoomStateEvent.Events as never, onEvents as never);
+    return () => {
+        client.off(RoomStateEvent.Events as never, onEvents as never);
+    };
 }
 
 export async function setUserPowerLevel(

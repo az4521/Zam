@@ -5,6 +5,12 @@
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import Portal from "$lib/components/ui/Portal.svelte";
     import RichPresenceCard from "$lib/components/ui/RichPresenceCard.svelte";
+    import PowerLevelTagBadge from "$lib/components/ui/PowerLevelTagBadge.svelte";
+    import { effectiveRoomTags } from "$lib/stores/powerLevelTags.svelte";
+    import {
+        tagForPowerLevel,
+        type PowerLevelTag,
+    } from "$lib/utils/powerLevelTags";
     import { nextRpcExpiry, parseRpcField } from "$lib/utils/richPresence";
     import BottomSheet from "$lib/components/ui/BottomSheet.svelte";
     import { auth } from "$lib/stores/auth.svelte";
@@ -143,6 +149,19 @@
     const member = $derived(
         (void roomsState.roomsTick, userId ? room.getMember(userId) : null),
     );
+    // The room's tag for this member's power level (creators have their own
+    // label, so no badge there).
+    const memberTag = $derived.by((): PowerLevelTag | null => {
+        void roomsState.roomsTick;
+        if (!member || hasImmutableCreatorPower(room, member.userId)) {
+            return null;
+        }
+        const info = effectiveRoomTags(room.roomId);
+        return (
+            tagForPowerLevel(info.tags, getUserPowerLevel(room, member.userId))
+                ?.tag ?? null
+        );
+    });
     const displayName = $derived(
         (void roomsState.roomsTick,
         member ? memberDisplayName(member) : userId),
@@ -672,13 +691,20 @@
             </ul>
         {/if}
         {#if member}
-            <p class="mt-1 text-xs text-zam-textMuted">
-                {(void roomsState.roomsTick,
-                hasImmutableCreatorPower(room, member.userId))
-                    ? t("userProfileCard.powerLevelCreator")
-                    : t("userProfileCard.powerLevel", {
-                          level: getUserPowerLevel(room, member.userId),
-                      })}
+            <p
+                class="mt-1 text-xs text-zam-textMuted flex flex-wrap items-center gap-1"
+            >
+                <span>
+                    {(void roomsState.roomsTick,
+                    hasImmutableCreatorPower(room, member.userId))
+                        ? t("userProfileCard.powerLevelCreator")
+                        : t("userProfileCard.powerLevel", {
+                              level: getUserPowerLevel(room, member.userId),
+                          })}
+                </span>
+                {#if memberTag}
+                    <PowerLevelTagBadge tag={memberTag} />
+                {/if}
             </p>
         {/if}
         {#if !member && !isSelf}

@@ -1237,6 +1237,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "memberList.admins": "Administradores: {length}",
     "memberList.admin": "Administrador",
     "memberList.moderators": "Moderadores: {length}",
+    "memberList.defaultRoleMember": "Miembro",
+    "memberList.roleSection": "{name}: {length}",
 
     // src/lib/components/messages/MessageActionsSheet.svelte
     "messageActionsSheet.thisMessage": "¿{label} este mensaje?",
@@ -2170,6 +2172,31 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.admin100": "Administrador (100)",
     "roomSettings.moderator50": "Moderador (50)",
     "roomSettings.member0": "Miembro (0)",
+    "roomSettings.roleTags": "Etiquetas de rol",
+    "roomSettings.roleTagsHint":
+        "Nombre, color e icono mostrados para cada nivel de poder (MSC3949). Los niveles sin etiqueta usan el inferior más cercano.",
+    "roomSettings.roleTagLevel": "Nivel de poder",
+    "roomSettings.roleTagName": "Nombre",
+    "roomSettings.roleTagColor": "Color",
+    "roomSettings.roleTagIcon": "Icono (emoji)",
+    "roomSettings.roleTagPickEmoji": "Elegir emoji",
+    "roomSettings.roleTagUploadIcon": "Subir imagen",
+    "roomSettings.roleTagRemoveIcon": "Quitar icono",
+    "roomSettings.addRoleTag": "Añadir etiqueta",
+    "roomSettings.removeRoleTag": "Quitar etiqueta",
+    "roomSettings.saveRoleTags": "Guardar etiquetas",
+    "roomSettings.roleTagsSaved": "Etiquetas de rol guardadas",
+    "roomSettings.roleTagsSaveFailed":
+        "No se pudieron guardar las etiquetas de rol: {error}",
+    "roomSettings.roleTagDuplicateLevel":
+        "Dos etiquetas usan el nivel de poder {level}",
+    "roomSettings.roleTagNameRequired": "Cada etiqueta necesita un nombre",
+    "roomSettings.roleTagLevelInvalid":
+        "El nivel de poder debe ser un número entero",
+    "roomSettings.roleTagClearColor": "Quitar color",
+    "roomSettings.customLevel": "Personalizado ({level})",
+    "roomSettings.roleTagsUsingDefaults":
+        "Esta sala aún no tiene etiquetas; se muestran las predeterminadas.",
     "roomSettings.muted1": "Silenciado (-1)",
     "roomSettings.kick": "Expulsar",
     "roomSettings.ban": "Vetar",

@@ -23,6 +23,16 @@
     } from "$lib/utils/presence";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import { collectMemberDecorations } from "$lib/plugins/pluginMembers";
+    import PowerLevelTagBadge from "$lib/components/ui/PowerLevelTagBadge.svelte";
+    import {
+        acquirePowerLevelTags,
+        effectiveRoomTags,
+    } from "$lib/stores/powerLevelTags.svelte";
+    import {
+        sortedTagLevels,
+        tagForPowerLevel,
+        type PowerLevelTag,
+    } from "$lib/utils/powerLevelTags";
 
     interface Props {
         room: Room;
@@ -57,9 +67,13 @@
         // Member and power-level changes arrive through onRoomMembersChanged
         // (it bumps memberTick), not through the sync-wide rooms tick.
         const off = onRoomMembersChanged(r, () => memberTick++);
+        // Power level tag edits are ordinary state events, so they arrive
+        // through the tags subscription instead.
+        const releaseTags = acquirePowerLevelTags(r.roomId);
         return () => {
             live = false;
             off();
+            releaseTags();
         };
     });
 
@@ -74,11 +88,16 @@
     // up every member's power level) plus three localeCompare sorts were tens
     // of ms per run.
     const collator = new Intl.Collator();
+    // Members are bucketed by the tag that applies to their power level, one
+    // bucket per defined tag level (highest first). Creators sit above all
+    // tags. Members below every tag land in the untitled bucket.
     const groups = $derived.by(() => {
+        const info = effectiveRoomTags(room.roomId);
+        const levels = sortedTagLevels(info.tags);
         const creators: RoomMember[] = [];
-        const admins: RoomMember[] = [];
-        const moderators: RoomMember[] = [];
-        const regular: RoomMember[] = [];
+        const byLevel = new Map<number, RoomMember[]>();
+        for (const level of levels) byLevel.set(level, []);
+        const untitled: RoomMember[] = [];
         for (const m of members) {
             // Immutable creators sit above admins even though their written
             // level is lifted to 100 for gate purposes.
@@ -86,16 +105,28 @@
                 creators.push(m);
                 continue;
             }
-            const l = getUserPowerLevel(room, m.userId);
-            (l >= 100 ? admins : l >= 50 ? moderators : regular).push(m);
+            const resolved = tagForPowerLevel(
+                info.tags,
+                getUserPowerLevel(room, m.userId),
+            );
+            if (resolved) byLevel.get(resolved.level)?.push(m);
+            else untitled.push(m);
         }
         const byName = (a: RoomMember, b: RoomMember) =>
             collator.compare(a.name, b.name);
         creators.sort(byName);
-        admins.sort(byName);
-        moderators.sort(byName);
-        regular.sort(byName);
-        return { creators, admins, moderators, regular };
+        untitled.sort(byName);
+        const tagged = levels.map((level) => {
+            const list = byLevel.get(level) ?? [];
+            list.sort(byName);
+            return { level, tag: info.tags[level], members: list };
+        });
+        return {
+            creators,
+            tagged,
+            untitled,
+            lowestLevel: levels.length > 0 ? levels[levels.length - 1] : null,
+        };
     });
 
     function getAvatarSrc(member: RoomMember): string | null {
@@ -155,6 +186,7 @@
               key: string;
               member: RoomMember;
               roleLabel: string | null;
+              roleTag: PowerLevelTag | null;
               muted: boolean;
               top: number;
               height: number;
@@ -162,12 +194,13 @@
 
     // Flat, sorted row list: header then members for each non-empty group.
     const rows = $derived.by((): Row[] => {
-        const { creators, admins, moderators, regular } = groups;
+        const { creators, tagged, untitled, lowestLevel } = groups;
         const sections: {
             key: string;
             label: string;
             members: RoomMember[];
             roleLabel: string | null;
+            roleTag: PowerLevelTag | null;
             muted: boolean;
         }[] = [];
         if (creators.length > 0)
@@ -176,32 +209,33 @@
                 label: t("memberList.creators", { length: creators.length }),
                 members: creators,
                 roleLabel: t("roomSettings.creatorLabel"),
+                roleTag: null,
                 muted: false,
             });
-        if (admins.length > 0)
+        for (const { level, tag, members: list } of tagged) {
+            if (list.length === 0) continue;
+            // The lowest tag is the baseline: its rows stay unlabelled and
+            // muted, as regular members were before tags.
+            const isLowest = level === lowestLevel;
             sections.push({
-                key: "admins",
-                label: t("memberList.admins", { length: admins.length }),
-                members: admins,
-                roleLabel: t("memberList.admin"),
-                muted: false,
-            });
-        if (moderators.length > 0)
-            sections.push({
-                key: "moderators",
-                label: t("memberList.moderators", {
-                    length: moderators.length,
+                key: `tag:${level}`,
+                label: t("memberList.roleSection", {
+                    name: tag.name,
+                    length: list.length,
                 }),
-                members: moderators,
+                members: list,
                 roleLabel: null,
-                muted: false,
+                roleTag: isLowest ? null : tag,
+                muted: isLowest && level <= 0,
             });
-        if (regular.length > 0)
+        }
+        if (untitled.length > 0)
             sections.push({
-                key: "regular",
-                label: t("memberList.members", { length: regular.length }),
-                members: regular,
+                key: "untitled",
+                label: t("memberList.members", { length: untitled.length }),
+                members: untitled,
                 roleLabel: null,
+                roleTag: null,
                 muted: true,
             });
 
@@ -223,6 +257,7 @@
                     key: `m:${m.userId}`,
                     member: m,
                     roleLabel: s.roleLabel,
+                    roleTag: s.roleTag,
                     muted: s.muted,
                     top,
                     height: MEMBER_H,
@@ -287,6 +322,7 @@
 {#snippet memberRow(
     member: RoomMember,
     roleLabel: string | null,
+    roleTag: PowerLevelTag | null,
     muted: boolean,
 )}
     {@const presence = presenceOf(member.userId)}
@@ -333,7 +369,17 @@
                     >
                 {/each}
             </p>
-            {#if secondLine}
+            {#if roleTag}
+                <p
+                    class="text-xs leading-4 text-zam-textMuted truncate flex items-center gap-1 min-w-0"
+                >
+                    <PowerLevelTagBadge tag={roleTag} />
+                    {#if deco?.subtitle}
+                        <span class="text-zam-textMuted">· {deco.subtitle}</span
+                        >
+                    {/if}
+                </p>
+            {:else if secondLine}
                 <p class="text-xs leading-4 text-zam-textMuted truncate">
                     {secondLine}
                 </p>
@@ -379,6 +425,7 @@
                         {@render memberRow(
                             row.member,
                             row.roleLabel,
+                            row.roleTag,
                             row.muted,
                         )}
                     {/if}

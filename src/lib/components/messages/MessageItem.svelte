@@ -98,6 +98,7 @@
         deleteMessage,
         getMyPowerLevel,
         getRoomPowerLevels,
+        getUserPowerLevel,
         getPinnedEventIds,
         pinMessage,
         unpinMessage,
@@ -237,6 +238,15 @@
     } from "$lib/stores/interface.svelte";
     import { openProfileCard } from "$lib/stores/profileCard.svelte";
     import { nameColourFor } from "$lib/stores/profileFields.svelte";
+    import {
+        acquirePowerLevelTags,
+        effectiveRoomTags,
+    } from "$lib/stores/powerLevelTags.svelte";
+    import PowerLevelTagBadge from "$lib/components/ui/PowerLevelTagBadge.svelte";
+    import {
+        tagForPowerLevel,
+        type PowerLevelTag,
+    } from "$lib/utils/powerLevelTags";
     import { showErrorToast, showToast } from "$lib/stores/toasts.svelte";
     import {
         publishMessageMenu,
@@ -927,6 +937,21 @@
         (void roomsState.roomsTick, getMemberAvatar(room, senderId)),
     );
     const nameColour = $derived(nameColourFor(senderId));
+    // Keep this room's tags live for every message in it; the subscription is
+    // shared (ref-counted) so this does not add a listener per message.
+    $effect(() => acquirePowerLevelTags(room.roomId));
+    // The sender's tag icon, shown only when the room defines its own tags
+    // (the defaults carry no icons anyway). Cached per room by the store.
+    const senderTagIcon = $derived.by((): PowerLevelTag | null => {
+        void roomsState.roomsTick;
+        const info = effectiveRoomTags(room.roomId);
+        if (!info.custom) return null;
+        const resolved = tagForPowerLevel(
+            info.tags,
+            getUserPowerLevel(room, senderId),
+        );
+        return resolved?.tag.icon ? resolved.tag : null;
+    });
     const timestamp = $derived(event.getTs());
     const content = $derived.by(() => {
         reactionTick;
@@ -2690,6 +2715,12 @@
                     >
                         {displayName}
                     </button>
+                    {#if senderTagIcon}
+                        <PowerLevelTagBadge
+                            tag={senderTagIcon}
+                            showName={false}
+                        />
+                    {/if}
                     <span
                         class="text-xs text-zam-textMuted whitespace-nowrap flex-shrink-0"
                         title={fullTimestamp(timestamp)}

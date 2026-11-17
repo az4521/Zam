@@ -1353,6 +1353,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "memberList.admins": "Администраторы: {length}",
     "memberList.admin": "Администратор",
     "memberList.moderators": "Модераторы: {length}",
+    "memberList.defaultRoleMember": "Участник",
+    "memberList.roleSection": "{name}: {length}",
 
     // src/lib/components/messages/MessageActionsSheet.svelte
     "messageActionsSheet.thisMessage": "{label} это сообщение?",
@@ -2290,6 +2292,30 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.admin100": "Администратор (100)",
     "roomSettings.moderator50": "Модератор (50)",
     "roomSettings.member0": "Участник (0)",
+    "roomSettings.roleTags": "Теги ролей",
+    "roomSettings.roleTagsHint":
+        "Название, цвет и значок для каждого уровня прав (MSC3949). Уровни без тега используют ближайший меньший.",
+    "roomSettings.roleTagLevel": "Уровень прав",
+    "roomSettings.roleTagName": "Название",
+    "roomSettings.roleTagColor": "Цвет",
+    "roomSettings.roleTagIcon": "Значок (эмодзи)",
+    "roomSettings.roleTagPickEmoji": "Выбрать эмодзи",
+    "roomSettings.roleTagUploadIcon": "Загрузить изображение",
+    "roomSettings.roleTagRemoveIcon": "Удалить значок",
+    "roomSettings.addRoleTag": "Добавить тег",
+    "roomSettings.removeRoleTag": "Удалить тег",
+    "roomSettings.saveRoleTags": "Сохранить теги",
+    "roomSettings.roleTagsSaved": "Теги ролей сохранены",
+    "roomSettings.roleTagsSaveFailed":
+        "Не удалось сохранить теги ролей: {error}",
+    "roomSettings.roleTagDuplicateLevel":
+        "Два тега используют уровень прав {level}",
+    "roomSettings.roleTagNameRequired": "Каждому тегу нужно название",
+    "roomSettings.roleTagLevelInvalid": "Уровень прав должен быть целым числом",
+    "roomSettings.roleTagClearColor": "Убрать цвет",
+    "roomSettings.customLevel": "Особый ({level})",
+    "roomSettings.roleTagsUsingDefaults":
+        "В этой комнате пока нет тегов; показаны стандартные.",
     "roomSettings.muted1": "Без права писать (-1)",
     "roomSettings.kick": "Исключить",
     "roomSettings.ban": "Заблокировать",

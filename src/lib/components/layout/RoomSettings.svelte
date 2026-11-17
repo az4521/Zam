@@ -33,6 +33,8 @@
         setRoomTopic,
         setRoomAvatar,
         uploadContent,
+        canEditPowerLevelTags,
+        setRoomPowerLevelTags,
         getJoinRule,
         setJoinRule,
         getDirectParentSpaceIds,
@@ -73,6 +75,7 @@
         getRoomsInSpace,
         getSpaceChildIds,
         type RoomNotificationSetting,
+        type CustomEmoji,
     } from "$lib/matrix/client";
     import {
         getRestrictedJoinState,
@@ -118,6 +121,7 @@
         ArrowLeft,
         Circle,
         TriangleAlert,
+        Smile,
     } from "lucide-svelte";
 
     import { discardRoomSession, isRoomEncrypted } from "$lib/matrix/crypto";
@@ -150,7 +154,21 @@
     import { mapWithConcurrency } from "$lib/utils/async";
     import { collectSpaceAndDescendantRoomIds } from "$lib/utils/spaceNotifications";
     import { nextActiveIndex } from "$lib/utils/listboxNavigation";
-    import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import { showErrorToast, showToast } from "$lib/stores/toasts.svelte";
+    import PowerLevelTagBadge from "$lib/components/ui/PowerLevelTagBadge.svelte";
+    import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
+    import Portal from "$lib/components/ui/Portal.svelte";
+    import {
+        acquirePowerLevelTags,
+        effectiveRoomTags,
+    } from "$lib/stores/powerLevelTags.svelte";
+    import {
+        safeTagColor,
+        sortedTagLevels,
+        tagForPowerLevel,
+        type PowerLevelTag,
+        type PowerLevelTags,
+    } from "$lib/utils/powerLevelTags";
 
     interface Props {
         room: Room;
@@ -1268,11 +1286,278 @@
         }
     }
 
+    // The name of the room's tag covering `level` (its own tags, or the
+    // defaults when the room has none). Levels no tag covers fall back to
+    // Muted for negatives and Member otherwise.
     function plLabel(level: number): string {
+        const resolved = tagForPowerLevel(
+            effectiveRoomTags(room.roomId).tags,
+            level,
+        );
+        if (resolved) return resolved.tag.name;
         if (level < 0) return t("roomSettings.muted");
-        if (level >= 100) return t("roomSettings.admin");
-        if (level >= 50) return t("roomSettings.moderator");
         return t("roomSettings.member");
+    }
+
+    // ── Role tags editor (MSC3949) ─────────────────────────────────────────────
+    interface RoleTagRow {
+        key: number;
+        level: string;
+        name: string;
+        color: string;
+        icon: string;
+        iconInfo?: Record<string, unknown>;
+    }
+    let roleTagSeq = 0;
+    let roleTagRows = $state<RoleTagRow[]>([]);
+    let roleTagsDirty = $state(false);
+    let roleTagsSaving = $state(false);
+    let roleTagsUsingDefaults = $state(false);
+    let roleTagIconBusy = $state<number | null>(null);
+    const canEditTags = $derived(
+        (void roomsState.roomsTick, canEditPowerLevelTags(room.roomId)),
+    );
+
+    function roleTagRowFromTag(level: number, tag: PowerLevelTag): RoleTagRow {
+        return {
+            key: ++roleTagSeq,
+            level: String(level),
+            name: tag.name,
+            color: tag.color ?? "",
+            icon: tag.icon?.key ?? "",
+            iconInfo: tag.icon?.info,
+        };
+    }
+
+    // Replace the editor rows with the room's current tags (or the defaults).
+    function seedRoleTagRows(): void {
+        const info = effectiveRoomTags(room.roomId);
+        roleTagRows = sortedTagLevels(info.tags).map((level) =>
+            roleTagRowFromTag(level, info.tags[level]),
+        );
+        roleTagsUsingDefaults = !info.custom;
+        roleTagsDirty = false;
+    }
+
+    // Reseed on room switch; reseed on tag changes only while the editor has
+    // no unsaved edits, so an incoming change never discards typing.
+    $effect(() => {
+        void room.roomId;
+        untrack(() => seedRoleTagRows());
+    });
+    $effect(() => {
+        const release = acquirePowerLevelTags(room.roomId);
+        return release;
+    });
+    $effect(() => {
+        void effectiveRoomTags(room.roomId);
+        untrack(() => {
+            if (!roleTagsDirty) seedRoleTagRows();
+        });
+    });
+
+    // Options for a member's role select: the room's tag levels the actor may
+    // grant (at or below their own level), plus Muted (-1). A current level
+    // no tag covers is still listed, so the select never shows a wrong value.
+    function roleSelectOptions(
+        myLevel: number,
+        currentLevel: number,
+    ): { level: number; label: string }[] {
+        const tags = effectiveRoomTags(room.roomId).tags;
+        const levels = new Set<number>();
+        for (const level of sortedTagLevels(tags)) {
+            if (level <= myLevel) levels.add(level);
+        }
+        levels.add(-1);
+        levels.add(currentLevel);
+        return [...levels]
+            .sort((a, b) => b - a)
+            .map((level) => {
+                const tag = tags[level];
+                if (tag) {
+                    return { level, label: `${tag.name} (${level})` };
+                }
+                if (level === -1) {
+                    return { level, label: t("roomSettings.muted1") };
+                }
+                return {
+                    level,
+                    label: t("roomSettings.customLevel", { level }),
+                };
+            });
+    }
+
+    function updateRoleTag(key: number, patch: Partial<RoleTagRow>): void {
+        roleTagRows = roleTagRows.map((r) =>
+            r.key === key ? { ...r, ...patch } : r,
+        );
+        roleTagsDirty = true;
+    }
+
+    function addRoleTag(): void {
+        const used = new Set(roleTagRows.map((r) => Number(r.level)));
+        let level = 0;
+        while (used.has(level)) level++;
+        roleTagRows = [
+            ...roleTagRows,
+            {
+                key: ++roleTagSeq,
+                level: String(level),
+                name: "",
+                color: "",
+                icon: "",
+            },
+        ];
+        roleTagsDirty = true;
+    }
+
+    function removeRoleTag(key: number): void {
+        roleTagRows = roleTagRows.filter((r) => r.key !== key);
+        roleTagsDirty = true;
+    }
+
+    // Emoji picker for a row's icon. One open at a time: `roleTagPickerKey` is
+    // the row it is showing under, or null. It is a local popover rather than
+    // an interfaceState modal, because the settings dialog already holds the
+    // modal slot and opening another modal would close it. It is portalled to
+    // <body> with fixed positioning, since the settings pane scrolls and would
+    // clip it.
+    const ROLE_TAG_PICKER_HEIGHT = 480; // px, picker height for placement
+    const ROLE_TAG_PICKER_WIDTH = 416;
+    let roleTagPickerKey = $state<number | null>(null);
+    let roleTagPickerPos = $state({ left: 0, top: 0 });
+
+    function toggleRoleTagPicker(row: RoleTagRow, e: MouseEvent): void {
+        if (roleTagPickerKey === row.key) {
+            roleTagPickerKey = null;
+            return;
+        }
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const below =
+            window.innerHeight - rect.bottom >= ROLE_TAG_PICKER_HEIGHT + 8;
+        const top = below
+            ? rect.bottom + 4
+            : Math.max(8, rect.top - 4 - ROLE_TAG_PICKER_HEIGHT);
+        const left = Math.max(
+            8,
+            Math.min(rect.left, window.innerWidth - ROLE_TAG_PICKER_WIDTH - 8),
+        );
+        roleTagPickerPos = { left, top };
+        roleTagPickerKey = row.key;
+    }
+
+    function pickRoleTagEmoji(key: number, emoji: string): void {
+        updateRoleTag(key, { icon: emoji, iconInfo: undefined });
+        roleTagPickerKey = null;
+    }
+
+    function pickRoleTagCustomEmoji(key: number, emoji: CustomEmoji): void {
+        updateRoleTag(key, { icon: emoji.mxcUrl, iconInfo: emoji.info });
+        roleTagPickerKey = null;
+    }
+
+    // Outside click closes the picker. The button wrapper (and the picker it
+    // holds) carries data-role-tag-emoji, so its own clicks are not "outside".
+    $effect(() => {
+        if (roleTagPickerKey === null) return;
+        const onDown = (e: PointerEvent) => {
+            if (
+                e.target instanceof Element &&
+                e.target.closest("[data-role-tag-emoji]")
+            )
+                return;
+            roleTagPickerKey = null;
+        };
+        // The popover is fixed, so scrolling the pane under it or resizing
+        // would leave it detached from its button: close it instead.
+        const onScroll = (e: Event) => {
+            if (
+                e.target instanceof Element &&
+                e.target.closest("[data-role-tag-emoji]")
+            )
+                return;
+            roleTagPickerKey = null;
+        };
+        const onResize = () => (roleTagPickerKey = null);
+        document.addEventListener("pointerdown", onDown);
+        document.addEventListener("scroll", onScroll, true);
+        window.addEventListener("resize", onResize);
+        return () => {
+            document.removeEventListener("pointerdown", onDown);
+            document.removeEventListener("scroll", onScroll, true);
+            window.removeEventListener("resize", onResize);
+        };
+    });
+
+    async function handleRoleTagIconUpload(
+        row: RoleTagRow,
+        e: Event,
+    ): Promise<void> {
+        const input = e.target as HTMLInputElement;
+        const file = input.files?.[0];
+        input.value = "";
+        if (!file) return;
+        roleTagIconBusy = row.key;
+        try {
+            const mxcUrl = await uploadContent(file);
+            updateRoleTag(row.key, {
+                icon: mxcUrl,
+                iconInfo: file.type
+                    ? { mimetype: file.type, size: file.size }
+                    : { size: file.size },
+            });
+        } catch (err: any) {
+            showErrorToast(err?.message ?? t("roomSettings.uploadFailed"));
+        } finally {
+            roleTagIconBusy = null;
+        }
+    }
+
+    async function saveRoleTags(): Promise<void> {
+        const tags: PowerLevelTags = {};
+        for (const row of roleTagRows) {
+            const levelText = row.level.trim();
+            const level = Number(levelText);
+            if (levelText === "" || !Number.isSafeInteger(level)) {
+                showErrorToast(t("roomSettings.roleTagLevelInvalid"));
+                return;
+            }
+            const name = row.name.trim();
+            if (name === "") {
+                showErrorToast(t("roomSettings.roleTagNameRequired"));
+                return;
+            }
+            if (Object.prototype.hasOwnProperty.call(tags, level)) {
+                showErrorToast(
+                    t("roomSettings.roleTagDuplicateLevel", { level }),
+                );
+                return;
+            }
+            const tag: PowerLevelTag = { name };
+            const color = safeTagColor(row.color);
+            if (color !== undefined) tag.color = color;
+            const iconKey = row.icon.trim();
+            if (iconKey !== "") {
+                tag.icon = row.iconInfo
+                    ? { key: iconKey, info: row.iconInfo }
+                    : { key: iconKey };
+            }
+            tags[level] = tag;
+        }
+        roleTagsSaving = true;
+        try {
+            await setRoomPowerLevelTags(room.roomId, tags);
+            roleTagsDirty = false;
+            showToast(t("roomSettings.roleTagsSaved"));
+        } catch (err: any) {
+            showErrorToast(
+                t("roomSettings.roleTagsSaveFailed", {
+                    error: err?.message ?? String(err),
+                }),
+            );
+        } finally {
+            roleTagsSaving = false;
+        }
     }
 
     // ── Rooms tab (spaces only) ────────────────────────────────────────────────
@@ -2638,6 +2923,289 @@
                             {/if}
                         </div>
 
+                        <!-- ── Role tags (MSC3949) ─────────────────────────────── -->
+                        <div
+                            class="space-y-3 mt-6 pt-6 border-t border-zam-divider"
+                        >
+                            <div class="space-y-1">
+                                <h4
+                                    class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
+                                >
+                                    {t("roomSettings.roleTags")}
+                                </h4>
+                                <p class="text-xs text-zam-textMuted">
+                                    {t("roomSettings.roleTagsHint")}
+                                </p>
+                                {#if roleTagsUsingDefaults}
+                                    <p
+                                        class="text-xs text-zam-textMuted italic"
+                                    >
+                                        {t(
+                                            "roomSettings.roleTagsUsingDefaults",
+                                        )}
+                                    </p>
+                                {/if}
+                            </div>
+
+                            {#each roleTagRows as row (row.key)}
+                                {@const imageIcon =
+                                    row.icon.startsWith("mxc://")}
+                                <div
+                                    class="flex flex-wrap items-center gap-2 p-2 rounded bg-zam-backgroundTertiary"
+                                >
+                                    <input
+                                        type="number"
+                                        step="1"
+                                        aria-label={t(
+                                            "roomSettings.roleTagLevel",
+                                        )}
+                                        title={t("roomSettings.roleTagLevel")}
+                                        value={row.level}
+                                        oninput={(e) =>
+                                            updateRoleTag(row.key, {
+                                                level: (
+                                                    e.currentTarget as HTMLInputElement
+                                                ).value,
+                                            })}
+                                        disabled={!canEditTags ||
+                                            roleTagsSaving}
+                                        class="w-16 bg-zam-backgroundSecondary text-zam-textPrimary text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-zam-accent/50 text-center disabled:opacity-50"
+                                    />
+                                    <input
+                                        type="text"
+                                        maxlength="64"
+                                        placeholder={t(
+                                            "roomSettings.roleTagName",
+                                        )}
+                                        aria-label={t(
+                                            "roomSettings.roleTagName",
+                                        )}
+                                        value={row.name}
+                                        oninput={(e) =>
+                                            updateRoleTag(row.key, {
+                                                name: (
+                                                    e.currentTarget as HTMLInputElement
+                                                ).value,
+                                            })}
+                                        disabled={!canEditTags ||
+                                            roleTagsSaving}
+                                        class="flex-1 min-w-[8rem] bg-zam-backgroundSecondary text-zam-textPrimary text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-zam-accent/50 disabled:opacity-50"
+                                    />
+                                    <div class="flex items-center gap-1">
+                                        <input
+                                            type="color"
+                                            aria-label={t(
+                                                "roomSettings.roleTagColor",
+                                            )}
+                                            title={t(
+                                                "roomSettings.roleTagColor",
+                                            )}
+                                            value={row.color || "#808080"}
+                                            oninput={(e) =>
+                                                updateRoleTag(row.key, {
+                                                    color: (
+                                                        e.currentTarget as HTMLInputElement
+                                                    ).value,
+                                                })}
+                                            disabled={!canEditTags ||
+                                                roleTagsSaving}
+                                            class="w-9 h-8 rounded cursor-pointer bg-transparent border border-zam-divider disabled:opacity-50"
+                                        />
+                                        <button
+                                            type="button"
+                                            onclick={() =>
+                                                updateRoleTag(row.key, {
+                                                    color: "",
+                                                })}
+                                            disabled={!canEditTags ||
+                                                !row.color ||
+                                                roleTagsSaving}
+                                            class="px-2 py-1 rounded text-xs text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-40"
+                                            >{t(
+                                                "roomSettings.roleTagClearColor",
+                                            )}</button
+                                        >
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        {#if row.icon}
+                                            <PowerLevelTagBadge
+                                                tag={{
+                                                    name: row.name || "?",
+                                                    icon: {
+                                                        key: row.icon,
+                                                        info: row.iconInfo,
+                                                    },
+                                                }}
+                                                showName={false}
+                                                size="md"
+                                            />
+                                        {/if}
+                                        <div
+                                            class="relative"
+                                            data-role-tag-emoji
+                                        >
+                                            <button
+                                                type="button"
+                                                onclick={(e) =>
+                                                    toggleRoleTagPicker(row, e)}
+                                                disabled={!canEditTags ||
+                                                    roleTagsSaving}
+                                                aria-label={t(
+                                                    "roomSettings.roleTagPickEmoji",
+                                                )}
+                                                title={t(
+                                                    "roomSettings.roleTagPickEmoji",
+                                                )}
+                                                aria-expanded={roleTagPickerKey ===
+                                                    row.key}
+                                                class="px-2 py-1 rounded text-xs bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary transition-colors disabled:opacity-50"
+                                            >
+                                                <Smile size={16} />
+                                            </button>
+                                            {#if roleTagPickerKey === row.key}
+                                                <Portal>
+                                                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                                                    <div
+                                                        class="fixed z-[1000]"
+                                                        data-role-tag-emoji
+                                                        style:left="{roleTagPickerPos.left}px"
+                                                        style:top="{roleTagPickerPos.top}px"
+                                                        onkeydown={(e) => {
+                                                            // Escape closes just
+                                                            // this picker, not the
+                                                            // settings dialog.
+                                                            if (
+                                                                e.key ===
+                                                                "Escape"
+                                                            )
+                                                                e.stopPropagation();
+                                                        }}
+                                                    >
+                                                        <EmojiPicker
+                                                            {room}
+                                                            onSelect={(emoji) =>
+                                                                pickRoleTagEmoji(
+                                                                    row.key,
+                                                                    emoji,
+                                                                )}
+                                                            onSelectCustom={(
+                                                                emoji,
+                                                            ) =>
+                                                                pickRoleTagCustomEmoji(
+                                                                    row.key,
+                                                                    emoji,
+                                                                )}
+                                                            onClose={() =>
+                                                                (roleTagPickerKey =
+                                                                    null)}
+                                                        />
+                                                    </div>
+                                                </Portal>
+                                            {/if}
+                                        </div>
+                                        <input
+                                            type="text"
+                                            maxlength="256"
+                                            placeholder={t(
+                                                "roomSettings.roleTagIcon",
+                                            )}
+                                            aria-label={t(
+                                                "roomSettings.roleTagIcon",
+                                            )}
+                                            value={imageIcon ? "" : row.icon}
+                                            oninput={(e) =>
+                                                updateRoleTag(row.key, {
+                                                    icon: (
+                                                        e.currentTarget as HTMLInputElement
+                                                    ).value,
+                                                    iconInfo: undefined,
+                                                })}
+                                            disabled={!canEditTags ||
+                                                roleTagsSaving ||
+                                                imageIcon}
+                                            class="w-28 bg-zam-backgroundSecondary text-zam-textPrimary text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-zam-accent/50 disabled:opacity-50"
+                                        />
+                                        <label
+                                            class="px-2 py-1 rounded text-xs bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary cursor-pointer transition-colors {!canEditTags ||
+                                            roleTagsSaving ||
+                                            roleTagIconBusy !== null
+                                                ? 'opacity-50 pointer-events-none'
+                                                : ''}"
+                                            >{roleTagIconBusy === row.key
+                                                ? t("common.uploading")
+                                                : t(
+                                                      "roomSettings.roleTagUploadIcon",
+                                                  )}
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                class="hidden"
+                                                onchange={(e) =>
+                                                    handleRoleTagIconUpload(
+                                                        row,
+                                                        e,
+                                                    )}
+                                                disabled={!canEditTags ||
+                                                    roleTagsSaving ||
+                                                    roleTagIconBusy !== null}
+                                            />
+                                        </label>
+                                        {#if row.icon}
+                                            <button
+                                                type="button"
+                                                onclick={() =>
+                                                    updateRoleTag(row.key, {
+                                                        icon: "",
+                                                        iconInfo: undefined,
+                                                    })}
+                                                disabled={!canEditTags ||
+                                                    roleTagsSaving}
+                                                class="px-2 py-1 rounded text-xs text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-40"
+                                                >{t(
+                                                    "roomSettings.roleTagRemoveIcon",
+                                                )}</button
+                                            >
+                                        {/if}
+                                    </div>
+                                    {#if canEditTags}
+                                        <button
+                                            type="button"
+                                            onclick={() =>
+                                                removeRoleTag(row.key)}
+                                            disabled={roleTagsSaving}
+                                            class="ms-auto px-2 py-1 rounded text-xs text-zam-danger hover:bg-zam-messageHover transition-colors disabled:opacity-40"
+                                            >{t(
+                                                "roomSettings.removeRoleTag",
+                                            )}</button
+                                        >
+                                    {/if}
+                                </div>
+                            {/each}
+
+                            {#if canEditTags}
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onclick={addRoleTag}
+                                        disabled={roleTagsSaving}
+                                        class="px-3 py-1.5 rounded text-sm font-medium bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary transition-colors disabled:opacity-50"
+                                        >{t("roomSettings.addRoleTag")}</button
+                                    >
+                                    <button
+                                        type="button"
+                                        onclick={saveRoleTags}
+                                        disabled={roleTagsSaving}
+                                        class="px-4 py-2 bg-zam-accent hover:bg-zam-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                        >{roleTagsSaving
+                                            ? t("common.saving")
+                                            : t(
+                                                  "roomSettings.saveRoleTags",
+                                              )}</button
+                                    >
+                                </div>
+                            {/if}
+                        </div>
+
                         <!-- ── Members ─────────────────────────────────────────── -->
                     {:else if activeTab === "members"}
                         {#if showInvite}
@@ -2954,6 +3522,12 @@
                                                         >
                                                             {#if !isCreatorMember && (myPowerLevel >= 100 || myPowerRank > memberRank)}
                                                                 <select
+                                                                    aria-label={t(
+                                                                        "roomSettings.setRole",
+                                                                    )}
+                                                                    value={String(
+                                                                        memberPl,
+                                                                    )}
                                                                     onchange={(
                                                                         e,
                                                                     ) =>
@@ -2970,36 +3544,14 @@
                                                                         member.userId}
                                                                     class="px-2 py-1 rounded text-xs bg-zam-backgroundSecondary text-zam-textPrimary border border-zam-divider disabled:opacity-50"
                                                                 >
-                                                                    <option
-                                                                        value=""
-                                                                        >{t(
-                                                                            "roomSettings.setRole",
-                                                                        )}</option
-                                                                    >
-                                                                    {#if myPowerLevel >= 100}<option
-                                                                            value="100"
-                                                                            >{t(
-                                                                                "roomSettings.admin100",
-                                                                            )}</option
-                                                                        >{/if}
-                                                                    {#if myPowerLevel >= 50}<option
-                                                                            value="50"
-                                                                            >{t(
-                                                                                "roomSettings.moderator50",
-                                                                            )}</option
-                                                                        >{/if}
-                                                                    <option
-                                                                        value="0"
-                                                                        >{t(
-                                                                            "roomSettings.member0",
-                                                                        )}</option
-                                                                    >
-                                                                    <option
-                                                                        value="-1"
-                                                                        >{t(
-                                                                            "roomSettings.muted1",
-                                                                        )}</option
-                                                                    >
+                                                                    {#each roleSelectOptions(myPowerLevel, memberPl) as opt (opt.level)}
+                                                                        <option
+                                                                            value={String(
+                                                                                opt.level,
+                                                                            )}
+                                                                            >{opt.label}</option
+                                                                        >
+                                                                    {/each}
                                                                 </select>
                                                                 <input
                                                                     type="number"
