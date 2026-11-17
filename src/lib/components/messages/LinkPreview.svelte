@@ -17,6 +17,18 @@
         }
         resolvedPreviews.set(key, r);
     }
+
+    // YouTube oEmbed titles per video id, null for a failed lookup so a broken
+    // link is not asked for again on every mount.
+    const YOUTUBE_OEMBED_MAX = 1000;
+    const youtubeOembeds = new Map<string, YoutubeOembedMeta | null>();
+    function rememberYoutubeOembed(id: string, meta: YoutubeOembedMeta | null) {
+        youtubeOembeds.delete(id);
+        if (youtubeOembeds.size >= YOUTUBE_OEMBED_MAX) {
+            youtubeOembeds.delete(youtubeOembeds.keys().next().value!);
+        }
+        youtubeOembeds.set(id, meta);
+    }
 </script>
 
 <script lang="ts">
@@ -71,6 +83,13 @@
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import { resolveEmbed, mountEmbed } from "$lib/plugins/embeds";
     import { applyPreviewUrlTransforms } from "$lib/plugins/outgoingTransforms";
+    import {
+        parseYoutubeUrl,
+        youtubeWatchUrl,
+        youtubeOembedUrl,
+        parseOembedTitle,
+        type YoutubeOembedMeta,
+    } from "$lib/utils/youtube";
 
     interface Props {
         url: string;
@@ -125,10 +144,19 @@
     let videoThumbError = $state(false);
 
     type DirectEmbed =
-        | { type: "youtube"; embedUrl: string }
+        | {
+              type: "youtube";
+              embedUrl: string;
+              watchUrl: string;
+              short: boolean;
+              start: number;
+          }
         | { type: "video"; videoUrl: string };
 
     let directEmbed = $state<DirectEmbed | null>(null);
+    // Title and channel of the YouTube video, from oEmbed. Null until known
+    // (and for good when the lookup fails): the preview works without it.
+    let youtubeTitle = $state<YoutubeOembedMeta | null>(null);
 
     // A YouTube embed shows its thumbnail until played: each player is a
     // whole YouTube page in its own frame (tens of MB before it plays, plus a
@@ -170,21 +198,8 @@
     }
 
     function getYoutubeEmbedUrl(rawUrl: string): string | null {
-        try {
-            const u = new URL(rawUrl);
-            const h = u.hostname.replace(/^www\./, "");
-            if (h === "youtube.com" || h === "m.youtube.com") {
-                const id = u.searchParams.get("v");
-                if (id) return `https://www.youtube.com/embed/${id}`;
-            }
-            if (h === "youtu.be") {
-                const id = u.pathname.slice(1).split("?")[0];
-                if (id) return `https://www.youtube.com/embed/${id}`;
-            }
-        } catch {
-            /* */
-        }
-        return null;
+        const yt = parseYoutubeUrl(rawUrl);
+        return yt ? `https://www.youtube.com/embed/${yt.id}` : null;
     }
 
     $effect(() => {
@@ -201,17 +216,48 @@
         videoThumbError = false;
         youtubePlaying = false;
         youtubeResumeAt = 0;
+        youtubeTitle = null;
 
         // A response that lands after the URL or the policy moved on must not
         // write itself back into state — otherwise flipping the setting to a
         // stricter value could be undone by the request it just cancelled.
         let cancelled = false;
 
-        const ytUrl = allowEmbeds ? getYoutubeEmbedUrl(currentUrl) : null;
-        if (ytUrl) {
-            directEmbed = { type: "youtube", embedUrl: ytUrl };
+        const yt = allowEmbeds ? parseYoutubeUrl(currentUrl) : null;
+        if (yt) {
+            const watchUrl = youtubeWatchUrl(yt.id);
+            // The first play starts at the link's own offset (?t= / ?start=).
+            youtubeResumeAt = yt.start;
+            directEmbed = {
+                type: "youtube",
+                embedUrl: `https://www.youtube.com/embed/${yt.id}`,
+                watchUrl,
+                short: yt.short,
+                start: yt.start,
+            };
             pending = false;
-            return;
+
+            // Title via oEmbed, behind the same consent as the embed above.
+            // Cached per id, failures included.
+            if (youtubeOembeds.has(yt.id)) {
+                youtubeTitle = youtubeOembeds.get(yt.id) ?? null;
+            } else {
+                const id = yt.id;
+                fetch(youtubeOembedUrl(watchUrl), {
+                    referrerPolicy: "no-referrer",
+                })
+                    .then(async (r) =>
+                        r.ok ? parseOembedTitle(await r.json()) : null,
+                    )
+                    .catch(() => null)
+                    .then((meta) => {
+                        rememberYoutubeOembed(id, meta);
+                        if (!cancelled) youtubeTitle = meta;
+                    });
+            }
+            return () => {
+                cancelled = true;
+            };
         }
 
         // Twitter/X: built from FxTwitter's status API (it sends CORS
@@ -462,50 +508,81 @@
     );
 </script>
 
-{#if directEmbed?.type === "youtube" && youtubePlaying}
-    <iframe
-        src={youtubePlayerUrl(directEmbed.embedUrl)}
-        class="mt-1 w-full max-w-lg aspect-video rounded-lg block"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowfullscreen
-        title={t("linkPreview.youtubeVideo")}
-        use:parkYoutubeOffscreen={{
-            pause: settingsState.pauseVideoOnScrollOff,
-            onPark: (at) => {
-                youtubeResumeAt = at;
-                youtubePlaying = false;
-            },
-        }}
-    ></iframe>
-{:else if directEmbed?.type === "youtube"}
-    <button
-        type="button"
-        aria-label={t("linkPreview.playVideo")}
-        title={t("linkPreview.youtubeVideo")}
-        class="group/media mt-1 relative w-full max-w-lg aspect-video rounded-lg overflow-hidden cursor-pointer bg-black block p-0 border-0"
-        onclick={() => (youtubePlaying = true)}
+{#if directEmbed?.type === "youtube"}
+    <!-- Shorts are vertical, so they get a narrow 9:16 column. The title sits
+         under the player or thumbnail and stays put while it plays. -->
+    <div
+        class="mt-1 w-full {directEmbed.short
+            ? 'max-w-[min(100%,18rem)]'
+            : 'max-w-lg'}"
     >
-        <img
-            src={youtubeThumbnail(directEmbed.embedUrl)}
-            alt=""
-            class="w-full h-full object-cover"
-            loading="lazy"
-            referrerpolicy="no-referrer"
-        />
-        <div
-            class="absolute inset-0 flex items-center justify-center bg-black/30 group-hover/media:bg-black/40 transition-colors"
-        >
-            <div
-                class="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center"
+        {#if youtubePlaying}
+            <iframe
+                src={youtubePlayerUrl(directEmbed.embedUrl)}
+                class="w-full {directEmbed.short
+                    ? 'max-w-[min(100%,18rem)] aspect-[9/16]'
+                    : 'max-w-lg aspect-video'} rounded-lg block"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen
+                title={youtubeTitle?.title ?? t("linkPreview.youtubeVideo")}
+                use:parkYoutubeOffscreen={{
+                    pause: settingsState.pauseVideoOnScrollOff,
+                    onPark: (at) => {
+                        youtubeResumeAt = at;
+                        youtubePlaying = false;
+                    },
+                }}
+            ></iframe>
+        {:else}
+            <button
+                type="button"
+                aria-label={t("linkPreview.playVideo")}
+                title={youtubeTitle?.title ?? t("linkPreview.youtubeVideo")}
+                class="group/media relative w-full {directEmbed.short
+                    ? 'max-w-[min(100%,18rem)] aspect-[9/16]'
+                    : 'max-w-lg aspect-video'} rounded-lg overflow-hidden cursor-pointer bg-black block p-0 border-0"
+                onclick={() => (youtubePlaying = true)}
             >
-                <svg
-                    class="w-7 h-7 text-white ms-1"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg
+                <img
+                    src={youtubeThumbnail(directEmbed.embedUrl)}
+                    alt=""
+                    class="w-full h-full object-cover"
+                    loading="lazy"
+                    referrerpolicy="no-referrer"
+                />
+                <div
+                    class="absolute inset-0 flex items-center justify-center bg-black/30 group-hover/media:bg-black/40 transition-colors"
                 >
+                    <div
+                        class="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center"
+                    >
+                        <svg
+                            class="w-7 h-7 text-white ms-1"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg
+                        >
+                    </div>
+                </div>
+            </button>
+        {/if}
+        {#if youtubeTitle}
+            <div class="mt-1.5 min-w-0">
+                <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="block text-sm font-semibold text-zam-accent leading-snug line-clamp-2 no-underline hover:underline"
+                >
+                    {youtubeTitle.title}
+                </a>
+                {#if youtubeTitle.author}
+                    <p class="text-xs text-zam-textMuted mt-0.5 truncate">
+                        {youtubeTitle.author}
+                    </p>
+                {/if}
             </div>
-        </div>
-    </button>
+        {/if}
+    </div>
 {:else if directEmbed?.type === "video"}
     <!-- svelte-ignore a11y_media_has_caption -->
     <video

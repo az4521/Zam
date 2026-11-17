@@ -25,6 +25,11 @@ class FakeObserver {
 describe("LinkPreview embeds", () => {
     beforeEach(() => {
         vi.stubGlobal("IntersectionObserver", FakeObserver);
+        // oEmbed lookups: no network in tests, and a failed lookup shows no title.
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => ({ ok: false, json: async () => ({}) })),
+        );
         settingsState.linkPreviewMedia = "all";
     });
     afterEach(() => {
@@ -76,6 +81,42 @@ describe("LinkPreview embeds", () => {
                 "start",
             ),
         ).toBe("13");
+    });
+
+    it("shows the oEmbed title and starts a played link at its offset", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async () => ({
+                ok: true,
+                json: async () => ({
+                    title: "Big Buck Bunny",
+                    author_name: "Blender",
+                }),
+            })),
+        );
+        host = document.createElement("div");
+        document.body.appendChild(host);
+        instance = mount(LinkPreview, {
+            target: host,
+            props: { url: "https://youtu.be/aqz-KE-bpKQ?t=1m30s" },
+        });
+        await vi.waitFor(() => {
+            flushSync();
+            expect(host!.textContent).toContain("Big Buck Bunny");
+        });
+        expect(host.textContent).toContain("Blender");
+        const link = host.querySelector<HTMLAnchorElement>("a")!;
+        expect(link.getAttribute("href")).toBe(
+            "https://youtu.be/aqz-KE-bpKQ?t=1m30s",
+        );
+        expect(link.getAttribute("target")).toBe("_blank");
+        expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+
+        host.querySelector<HTMLButtonElement>("button")!.click();
+        flushSync();
+        const frame = host.querySelector("iframe")!;
+        expect(frame.title).toBe("Big Buck Bunny");
+        expect(new URL(frame.src).searchParams.get("start")).toBe("90");
     });
 
     it("mounts a tweet video only once played", async () => {
