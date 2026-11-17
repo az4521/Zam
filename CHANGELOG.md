@@ -4,6 +4,21 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.0
+
+✨ **New**
+
+- **Edit in the main composer:** editing a message now opens it in the main message box under an "Editing message" bar, with mentions, emoji, autocomplete and markdown. Your unsent draft comes back when you save or press Esc. Works in rooms and threads.
+- **DMs look like DMs:** a direct message now starts with the other person's avatar and name and "This is the beginning of your direct message history", instead of a room's welcome header.
+- **Direct file transfer, version 2:** the protocol now matches the shared draft written with the Vommet project. Every 1 MiB block is checked as it arrives, so a damaged block is resent instead of failing the whole file at the end. LiveKit packets are signed. When the sender has no voice server, the two devices connect over a direct WebRTC channel, which goes only through TURN if you have relay-only on. Your other devices see "Accepted on another of your devices", and an offer that didn't come from the device it names can't be accepted. Older Zam versions can't send files to this one or receive from it, so update both sides.
+- **Plugins:** plugins can carry call audio and video over their own network (for example I2P or Tor), and can open raw TCP and UDP sockets to the servers their manifest lists, on desktop and Android.
+
+🐛 **Fixed**
+
+- **Mentions survive edits:** editing a message no longer turns its mentions into plain text.
+- **File transfers and other servers:** a file transfer only connects to the voice server the other person's homeserver advertises. Before, anyone in the room could point your device at a server of their choosing.
+- **Received file names:** file names are cleaned more strictly before saving, and an offer can stay open for at most a day after it was posted.
+
 ## v1.65.9
 
 ✨ **New**
