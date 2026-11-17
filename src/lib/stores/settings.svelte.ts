@@ -375,6 +375,10 @@ export const settingsState = $state({
      *  screen enlarged to fill it, instead of at their own size. The viewer's
      *  fit button flips it for the image being viewed. Default ON. */
     lightboxFitToScreen: readBool("lightboxFitToScreen", true),
+    /** Device-global: whether a new reply pings the author of the message
+     *  it answers (adds them to `m.mentions`). The reply bar's toggle
+     *  overrides it per reply. Default ON, like Discord. */
+    replyPingDefault: readBool("replyPingDefault", true),
     /** Device-global: which sound bank plays MIDI attachments (see
      *  utils/midiSoundBank). Default "bundled", the SoundFont Zam ships, so
      *  MIDI sounds the same everywhere. Local-only: a custom bank lives in
@@ -1187,6 +1191,11 @@ export function setGifsAsWebp(value: boolean): void {
 export function setLightboxFitToScreen(value: boolean): void {
     settingsState.lightboxFitToScreen = value;
     writeBool("lightboxFitToScreen", value);
+}
+
+export function setReplyPingDefault(value: boolean): void {
+    settingsState.replyPingDefault = value;
+    writeBool("replyPingDefault", value);
 }
 
 export function setMidiSoundBank(value: MidiSoundBankChoice): void {

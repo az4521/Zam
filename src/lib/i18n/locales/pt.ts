@@ -1388,6 +1388,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.pinnedMessagesCount": "Mensagens fixadas ({count})",
 
     // src/lib/components/messages/MessageInput.svelte
+    "messagesMediaSettings.pingOnReply": "Avisar ao responder",
+    "messagesMediaSettings.pingOnReplyDescription":
+        "As novas respostas avisam o autor da mensagem a que você responde, como uma menção @. Você pode desativar isso em cada resposta pela barra de resposta.",
+    "messageInput.pingOn": "@ LIGADO",
+    "messageInput.pingOff": "@ DESLIGADO",
+    "messageInput.pingOnTitle": "Avisar o autor",
+    "messageInput.pingOffTitle": "Não avisar o autor",
     "messageInput.replyingTo": "Respondendo a {replyTargetName}",
     "messageInput.cancelReplyEsc": "Cancelar resposta (Esc)",
     "messageInput.editAttachment": "Editar anexo",

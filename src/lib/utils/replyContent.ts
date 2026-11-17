@@ -42,3 +42,21 @@ export function buildReplyContent(params: ReplyContentParams): ReplyContent {
     content["m.mentions"] = mentions ?? {};
     return content;
 }
+
+/**
+ * Add the replied-to author to an outgoing reply's `m.mentions` (the "ping"
+ * toggle on the reply bar). Matrix does not do this on its own: without the
+ * author in `user_ids` the reply never notifies them. Replying to yourself
+ * never pings.
+ */
+export function withReplyMention(
+    mentions: { user_ids?: string[]; room?: boolean } | undefined,
+    senderId: string | null | undefined,
+    ping: boolean,
+    ownUserId?: string | null,
+): { user_ids?: string[]; room?: boolean } | undefined {
+    if (!ping || !senderId || senderId === ownUserId) return mentions;
+    const ids = mentions?.user_ids ?? [];
+    if (ids.includes(senderId)) return mentions;
+    return { ...mentions, user_ids: [...ids, senderId] };
+}

@@ -45,7 +45,10 @@
         buildFormattedBody as buildBody,
         mentionsFromFormatted,
     } from "$lib/utils/messageBody";
-    import { buildReplyContent } from "$lib/utils/replyContent";
+    import {
+        buildReplyContent,
+        withReplyMention,
+    } from "$lib/utils/replyContent";
     import {
         buildTextContent,
         buildFormattedContent,
@@ -812,6 +815,14 @@
                   : t("messageInput.message", { roomName }),
     );
 
+    // Whether this reply pings the author. Starts from the setting each time a
+    // different message is picked to reply to; the reply bar toggles it.
+    let replyPing = $state(true);
+    $effect(() => {
+        void replyToEvent?.getId();
+        replyPing = untrack(() => settingsState.replyPingDefault);
+    });
+
     // Focus textarea when reply is set
     $effect(() => {
         if (replyToEvent) {
@@ -1148,9 +1159,18 @@
         renderComposer(0);
 
         try {
-            const mentions = formatted
+            const baseMentions = formatted
                 ? mentionsFromFormatted(formatted)
                 : undefined;
+            const mentions =
+                command.kind === "emote"
+                    ? baseMentions
+                    : withReplyMention(
+                          baseMentions,
+                          replyTarget?.getSender(),
+                          replyPing,
+                          auth.userId,
+                      );
             if (command.kind === "emote") {
                 await sendEmote(
                     roomId,
@@ -1461,6 +1481,14 @@
             (useCaption || !trimmed)
                 ? (replyTarget.getId() ?? undefined)
                 : undefined;
+        const captionMentions = formatted
+            ? withReplyMention(
+                  mentionsFromFormatted(formatted),
+                  fileReplyToId ? replyTarget?.getSender() : undefined,
+                  replyPing,
+                  auth.userId,
+              )
+            : undefined;
         const fileRelation = (i: number) =>
             isThread || (i === 0 && fileReplyToId)
                 ? {
@@ -1522,7 +1550,12 @@
             })
         ) {
             const { html } = formatted;
-            const mentions = mentionsFromFormatted(formatted);
+            const mentions = withReplyMention(
+                mentionsFromFormatted(formatted),
+                replyToEvent?.getSender(),
+                replyPing,
+                auth.userId,
+            );
             const baseContent: Record<string, unknown> = replyToEvent
                 ? (buildReplyContent({
                       replyEventId: replyToEvent.getId()!,
@@ -1550,7 +1583,12 @@
         // blocked the next message behind a spinner. Reported in issue #40.
         if (trimmed && formatted && !useCaption) {
             const { html } = formatted;
-            const mentions = mentionsFromFormatted(formatted);
+            const mentions = withReplyMention(
+                mentionsFromFormatted(formatted),
+                replyToEvent?.getSender(),
+                replyPing,
+                auth.userId,
+            );
             const replyId = replyToEvent?.getId() ?? undefined;
             const threadArmed = createThreadArmed;
             createThreadArmed = false;
@@ -1633,8 +1671,7 @@
                                           body: trimmed,
                                           formattedBody:
                                               formatted.html ?? undefined,
-                                          mentions:
-                                              mentionsFromFormatted(formatted),
+                                          mentions: captionMentions,
                                       }
                                     : undefined,
                                 i === 0 ? fileRelation(0) : threadOnlyRelation,
@@ -1681,7 +1718,7 @@
                                 {
                                     body: trimmed,
                                     formattedBody: html ?? undefined,
-                                    mentions: mentionsFromFormatted(formatted),
+                                    mentions: captionMentions,
                                 },
                                 fileRelation(i),
                                 transformOutgoingContent,
@@ -2235,6 +2272,21 @@
                     >{getReplyPreview()}</span
                 >
             </div>
+            <button
+                type="button"
+                onclick={() => (replyPing = !replyPing)}
+                class="flex-shrink-0 px-1 text-xs font-bold rounded transition-colors {replyPing
+                    ? 'text-zam-accent'
+                    : 'text-zam-textMuted hover:text-zam-textPrimary'}"
+                title={replyPing
+                    ? t("messageInput.pingOffTitle")
+                    : t("messageInput.pingOnTitle")}
+                aria-pressed={replyPing}
+            >
+                {replyPing
+                    ? t("messageInput.pingOn")
+                    : t("messageInput.pingOff")}
+            </button>
             <button
                 onclick={onCancelReply}
                 class="flex-shrink-0 p-0.5 rounded text-zam-textMuted hover:text-zam-textPrimary transition-colors"

@@ -1172,6 +1172,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.closePanel": "パネルを閉じる",
     "messageArea.someone": "誰か",
     "messageArea.pinnedMessagesCount": "ピン留めしたメッセージ（{count}）",
+    "messagesMediaSettings.pingOnReply": "返信時に通知",
+    "messagesMediaSettings.pingOnReplyDescription":
+        "新しい返信は、返信先のメッセージの投稿者に@メンションのように通知されます。返信バーから返信ごとにオフにできます。",
+    "messageInput.pingOn": "@ オン",
+    "messageInput.pingOff": "@ オフ",
+    "messageInput.pingOnTitle": "投稿者に通知する",
+    "messageInput.pingOffTitle": "投稿者に通知しない",
     "messageInput.replyingTo": "{replyTargetName}に返信",
     "messageInput.cancelReplyEsc": "返信をキャンセル（Esc）",
     "messageInput.editAttachment": "添付ファイルを編集",

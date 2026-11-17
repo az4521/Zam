@@ -1303,6 +1303,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.pinnedMessagesCount": "置顶消息（{count}）",
 
     // src/lib/components/messages/MessageInput.svelte
+    "messagesMediaSettings.pingOnReply": "回复时提醒",
+    "messagesMediaSettings.pingOnReplyDescription":
+        "新的回复会像 @ 提及一样提醒你所回复消息的作者。你仍可在回复栏中为每条回复单独关闭。",
+    "messageInput.pingOn": "@ 开",
+    "messageInput.pingOff": "@ 关",
+    "messageInput.pingOnTitle": "提醒作者",
+    "messageInput.pingOffTitle": "不提醒作者",
     "messageInput.replyingTo": "回复 {replyTargetName}",
     "messageInput.cancelReplyEsc": "取消回复（Esc）",
     "messageInput.editAttachment": "编辑附件",

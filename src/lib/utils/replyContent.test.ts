@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildReplyContent } from "./replyContent";
+import { buildReplyContent, withReplyMention } from "./replyContent";
 
 const base = {
     replyEventId: "$evt",
@@ -68,5 +68,27 @@ describe("buildReplyContent — v1.13 fallback-free replies", () => {
         });
         expect(c.format).toBe("org.matrix.custom.html");
         expect(c.formatted_body).toBe("<strong>hi</strong>");
+    });
+});
+
+describe("withReplyMention", () => {
+    it("adds the author when pinging", () => {
+        expect(withReplyMention(undefined, "@a:x", true)).toEqual({
+            user_ids: ["@a:x"],
+        });
+    });
+    it("keeps existing mentions and does not duplicate", () => {
+        expect(
+            withReplyMention({ user_ids: ["@b:x"], room: true }, "@a:x", true),
+        ).toEqual({ user_ids: ["@b:x", "@a:x"], room: true });
+        expect(withReplyMention({ user_ids: ["@a:x"] }, "@a:x", true)).toEqual({
+            user_ids: ["@a:x"],
+        });
+    });
+    it("does nothing when off, or when replying to yourself", () => {
+        expect(withReplyMention(undefined, "@a:x", false)).toBeUndefined();
+        expect(
+            withReplyMention(undefined, "@a:x", true, "@a:x"),
+        ).toBeUndefined();
     });
 });

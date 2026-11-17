@@ -1350,6 +1350,13 @@ export const en = {
     "messageArea.pinnedMessagesCount": "Pinned messages ({count})",
 
     // src/lib/components/messages/MessageInput.svelte
+    "messagesMediaSettings.pingOnReply": "Ping on reply",
+    "messagesMediaSettings.pingOnReplyDescription":
+        "New replies ping the author of the message you reply to, like an @mention. You can still turn it off per reply from the reply bar.",
+    "messageInput.pingOn": "@ ON",
+    "messageInput.pingOff": "@ OFF",
+    "messageInput.pingOnTitle": "Ping the author",
+    "messageInput.pingOffTitle": "Don't ping the author",
     "messageInput.replyingTo": "Replying to {replyTargetName}",
     "messageInput.cancelReplyEsc": "Cancel reply (Esc)",
     "messageInput.editAttachment": "Edit attachment",

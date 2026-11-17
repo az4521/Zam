@@ -1261,6 +1261,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.pinnedMessagesCount": "Angeheftete Nachrichten ({count})",
 
     // src/lib/components/messages/MessageInput.svelte
+    "messagesMediaSettings.pingOnReply": "Beim Antworten benachrichtigen",
+    "messagesMediaSettings.pingOnReplyDescription":
+        "Neue Antworten benachrichtigen den Autor der Nachricht, auf die du antwortest, wie eine @-Erwähnung. In der Antwortleiste lässt sich das pro Antwort ausschalten.",
+    "messageInput.pingOn": "@ AN",
+    "messageInput.pingOff": "@ AUS",
+    "messageInput.pingOnTitle": "Autor benachrichtigen",
+    "messageInput.pingOffTitle": "Autor nicht benachrichtigen",
     "messageInput.replyingTo": "Antwort an {replyTargetName}",
     "messageInput.cancelReplyEsc": "Antwort abbrechen (Esc)",
     "messageInput.editAttachment": "Anhang bearbeiten",

@@ -1392,6 +1392,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.pinnedMessagesCount": "Закріплені повідомлення ({count})",
 
     // src/lib/components/messages/MessageInput.svelte
+    "messagesMediaSettings.pingOnReply": "Сповіщати при відповіді",
+    "messagesMediaSettings.pingOnReplyDescription":
+        "Нові відповіді сповіщають автора повідомлення, на яке ви відповідаєте, як @-згадка. У панелі відповіді це можна вимкнути для кожної відповіді.",
+    "messageInput.pingOn": "@ УВІМК",
+    "messageInput.pingOff": "@ ВИМК",
+    "messageInput.pingOnTitle": "Сповістити автора",
+    "messageInput.pingOffTitle": "Не сповіщати автора",
     "messageInput.replyingTo": "Відповідь для {replyTargetName}",
     "messageInput.cancelReplyEsc": "Скасувати відповідь (Esc)",
     "messageInput.editAttachment": "Редагувати вкладення",

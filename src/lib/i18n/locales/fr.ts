@@ -1246,6 +1246,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.pinnedMessagesCount": "Messages épinglés ({count})",
 
     // src/lib/components/messages/MessageInput.svelte
+    "messagesMediaSettings.pingOnReply": "Notifier en répondant",
+    "messagesMediaSettings.pingOnReplyDescription":
+        "Les nouvelles réponses notifient l'auteur du message auquel vous répondez, comme une mention @. Vous pouvez le désactiver pour chaque réponse depuis la barre de réponse.",
+    "messageInput.pingOn": "@ OUI",
+    "messageInput.pingOff": "@ NON",
+    "messageInput.pingOnTitle": "Notifier l'auteur",
+    "messageInput.pingOffTitle": "Ne pas notifier l'auteur",
     "messageInput.replyingTo": "En réponse à {replyTargetName}",
     "messageInput.cancelReplyEsc": "Annuler la réponse (Échap)",
     "messageInput.editAttachment": "Modifier la pièce jointe",

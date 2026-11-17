@@ -1403,6 +1403,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageArea.pinnedMessagesCount": "Закреплённые сообщения ({count})",
 
     // src/lib/components/messages/MessageInput.svelte
+    "messagesMediaSettings.pingOnReply": "Уведомлять при ответе",
+    "messagesMediaSettings.pingOnReplyDescription":
+        "Новые ответы уведомляют автора сообщения, на которое вы отвечаете, как @-упоминание. В панели ответа это можно отключить для каждого ответа.",
+    "messageInput.pingOn": "@ ВКЛ",
+    "messageInput.pingOff": "@ ВЫКЛ",
+    "messageInput.pingOnTitle": "Уведомить автора",
+    "messageInput.pingOffTitle": "Не уведомлять автора",
     "messageInput.replyingTo": "Ответ для {replyTargetName}",
     "messageInput.cancelReplyEsc": "Отменить ответ (Esc)",
     "messageInput.editAttachment": "Изменить вложение",
