@@ -111,6 +111,14 @@ describe("nextFocus", () => {
         expect(nextFocus([], own, null)).toBeNull();
     });
 
+    it("does not auto-focus a remote screenshare the user has not started watching", () => {
+        const unwatched = tiles(["@a:x:D:screenshare"]).map((t) => ({
+            ...t,
+            unwatched: true,
+        }));
+        expect(nextFocus([], unwatched, null)).toBeNull();
+    });
+
     it("does not auto-focus a screenshare that was already present", () => {
         expect(
             nextFocus(

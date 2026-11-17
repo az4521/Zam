@@ -295,6 +295,8 @@ export const en = {
     "callView.deafen": "Deafen",
     "callView.disconnect": "Disconnect",
     "callView.joinCall": "Join Call",
+    "callView.muteShareAudio": "Mute share audio",
+    "callView.unmuteShareAudio": "Unmute share audio",
     "callView.you": "You",
     "callView.sScreen": "{name}'s screen",
     "callView.exitSpotlightFor": "Exit spotlight for {label}",
@@ -2783,6 +2785,11 @@ export const en = {
     "verificationModal.session": "session",
 
     // src/lib/components/layout/VideoTile.svelte
+    "videoTile.watchingCount": "{count} watching",
+    "videoTile.watchers": "Watching",
+    "videoTile.noWatchers": "Nobody is watching",
+    "videoTile.muteShareAudio": "Mute screen share audio",
+    "videoTile.unmuteShareAudio": "Unmute screen share audio",
     "videoTile.fullscreen": "Fullscreen",
     "videoTile.pictureInPicture": "Picture in picture",
     "videoTile.exitPictureInPicture": "Exit picture in picture",

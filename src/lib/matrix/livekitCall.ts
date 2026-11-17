@@ -175,6 +175,12 @@ import {
     type VideoCodec,
 } from "$lib/utils/videoCodecs";
 import {
+    WATCHING_ATTRIBUTE,
+    encodeWatchingAttribute,
+    parseWatchingAttribute,
+    type WatchingMap,
+} from "$lib/utils/shareWatchers";
+import {
     clearLiveUploadEstimate,
     noteUploadEstimate,
     screenShareBitrateCeiling,
@@ -514,12 +520,17 @@ export function setParticipantShareMute(
     applyVolumeForUser(userId);
 }
 
-// Screen shares the user stopped watching, by identity. Per call and never
-// saved: like leaving a stream in Discord, the next call starts watching.
-const unwatchedShares = new WeakMap<ActiveVoiceCall, Set<string>>();
+// Screen shares the user chose to watch, by identity. Opt-in: a remote share
+// starts unwatched (paused and silent) until Watch is clicked. Per call and
+// never saved: the next call starts with nothing watched.
+const watchedShares = new WeakMap<ActiveVoiceCall, Set<string>>();
 
 function isShareUnwatched(call: ActiveVoiceCall, identity: string): boolean {
-    return unwatchedShares.get(call)?.has(identity) === true;
+    return watchedShares.get(call)?.has(identity) !== true;
+}
+
+function watchedShareIds(call: ActiveVoiceCall): string[] {
+    return [...(watchedShares.get(call) ?? [])];
 }
 
 /** Stop or start watching someone's screen share: stops its video arriving
@@ -527,10 +538,10 @@ function isShareUnwatched(call: ActiveVoiceCall, identity: string): boolean {
 export function setShareWatched(identity: string, watched: boolean): void {
     const call = activeVoice;
     if (!call) return;
-    let set = unwatchedShares.get(call);
-    if (!set) unwatchedShares.set(call, (set = new Set()));
-    if (watched) set.delete(identity);
-    else set.add(identity);
+    let set = watchedShares.get(call);
+    if (!set) watchedShares.set(call, (set = new Set()));
+    if (watched) set.add(identity);
+    else set.delete(identity);
     for (const p of callParticipants(call)) {
         if (p.identity !== identity) continue;
         for (const track of p.tracks)
@@ -539,6 +550,72 @@ export function setShareWatched(identity: string, watched: boolean): void {
     for (const el of call.elsByIdentity.get(identity) ?? [])
         applyElementVolume(el, identity);
     notifyCallVideo(call);
+    announceWatching(call);
+    notifyCallWatchers(call);
+}
+
+// The last `zam.watching` value we set on the call's room, so an unchanged
+// list is never sent again.
+const watchingSent = new WeakMap<ActiveVoiceCall, string>();
+
+/** Tell the room which shares we watch (SFU only: mesh viewers are not
+ *  reported). Sends only when the value changes. */
+function announceWatching(call: ActiveVoiceCall): void {
+    const room = call.lkRoom;
+    if (activeVoice !== call || !room) return;
+    const value = encodeWatchingAttribute(watchedShareIds(call));
+    if (watchingSent.get(call) === value) return;
+    watchingSent.set(call, value);
+    void room.localParticipant
+        .setAttributes({ [WATCHING_ATTRIBUTE]: value })
+        .catch((err: unknown) => {
+            watchingSent.delete(call);
+            console.warn("Couldn't announce watched screen shares:", err);
+        });
+}
+
+const watchersSubscribers = new Set<(watching: WatchingMap) => void>();
+
+/** Fires with the current watching map whenever it may have changed. */
+export function onShareWatchersChanged(
+    cb: (watching: WatchingMap) => void,
+): () => void {
+    watchersSubscribers.add(cb);
+    return () => watchersSubscribers.delete(cb);
+}
+
+function notifyCallWatchers(call: ActiveVoiceCall): void {
+    if (activeVoice !== call) return;
+    const watching: WatchingMap = {};
+    for (const p of call.lkRoom?.remoteParticipants.values() ?? [])
+        watching[p.identity] = parseWatchingAttribute(
+            p.attributes[WATCHING_ATTRIBUTE],
+        );
+    const me = matrixClient?.getUserId();
+    const myDevice = matrixClient?.getDeviceId();
+    const ownIdentity =
+        call.lkRoom?.localParticipant.identity ||
+        (me && myDevice ? `${me}:${myDevice}` : "");
+    if (ownIdentity) watching[ownIdentity] = watchedShareIds(call).sort();
+    for (const cb of watchersSubscribers) cb(watching);
+}
+
+/** Whether our own screen share has system audio published (SFU or mesh). */
+export function hasOwnShareAudio(): boolean {
+    const call = activeVoice;
+    if (!call) return false;
+    return !!call.local.getTrack(call.lk.Track.Source.ScreenShareAudio);
+}
+
+/** Mute or unmute the sound of our own screen share, without ending it. */
+export function setShareAudioMuted(muted: boolean): void {
+    const call = activeVoice;
+    if (!call) return;
+    const track = call.local.getTrack(call.lk.Track.Source.ScreenShareAudio);
+    if (!track) return;
+    void (muted ? track.mute() : track.unmute()).catch((err: unknown) =>
+        console.warn("Couldn't change the share audio:", err),
+    );
 }
 
 export function setParticipantVideoHidden(
@@ -1256,8 +1333,19 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
             lk.RoomEvent.ParticipantAttributesChanged,
             (changed: Record<string, string>) => {
                 if (DECODE_ATTRIBUTE in changed) codecsChanged();
+                if (WATCHING_ATTRIBUTE in changed) notifyCallWatchers(call);
             },
         );
+        const watchersChanged = () => notifyCallWatchers(call);
+        lkRoom.on(lk.RoomEvent.ParticipantConnected, watchersChanged);
+        lkRoom.on(lk.RoomEvent.ParticipantDisconnected, watchersChanged);
+        // Our share's sound comes and goes with the share (SFU publishes it).
+        const shareAudioChanged = (pub: { source: unknown }) => {
+            if (pub.source === lk.Track.Source.ScreenShareAudio)
+                notifyCallVideo(call);
+        };
+        lkRoom.on(lk.RoomEvent.LocalTrackPublished, shareAudioChanged);
+        lkRoom.on(lk.RoomEvent.LocalTrackUnpublished, shareAudioChanged);
     }
     lkRoom.on(lk.RoomEvent.AudioPlaybackStatusChanged, () =>
         refreshPlaybackBlocked(call),
@@ -2194,7 +2282,9 @@ async function connectPublishingRoom(
     notifyCallMutes(call);
     // The server's enabled codecs are known now.
     announceCodecs(call, lkRoom);
+    announceWatching(call);
     notifyCallCodecs(call);
+    notifyCallWatchers(call);
     notifyCallEncryption(call);
     if (seq !== voiceJoinSeq) await lkRoom.disconnect().catch(() => {});
 }
@@ -2435,6 +2525,20 @@ async function leaveVoiceCallInternal(): Promise<void> {
 // two microphones.
 let micCreation: Promise<unknown> | null = null;
 
+/** LiveKit mutes a mic by disabling its raw track only. A mic with Zam's chain
+ *  sends `processedTrack` instead, so that is disabled too (and must start
+ *  disabled when the chain is attached or swapped while muted). */
+function syncMicSending(
+    track: LivekitClient.LocalTrack | undefined,
+    sending: boolean,
+): void {
+    const processed = (
+        track as
+            { processor?: { processedTrack?: MediaStreamTrack } } | undefined
+    )?.processor?.processedTrack;
+    if (processed) processed.enabled = sending;
+}
+
 /** Turn the call's mic on or off. Once a mic track exists this is LiveKit's
  *  own mute/unmute. Creating the FIRST one with Zam's mic chain on is done
  *  here instead: LiveKit applies an `audioCaptureDefaults.processor` inside
@@ -2458,6 +2562,7 @@ async function setCallMicEnabled(
     ).chain;
     if (!enabled || !chain || local.getTrack(source)) {
         await local.setMicrophoneEnabled(enabled);
+        syncMicSending(local.getTrack(source), enabled);
         return;
     }
     const run = (async () => {
@@ -2478,6 +2583,7 @@ async function setCallMicEnabled(
             );
         }
         await local.publishTrack(track, { source });
+        syncMicSending(track, !desiredMicMuted);
     })();
     micCreation = run;
     try {
@@ -3276,6 +3382,7 @@ async function publishShareAudio(call: ActiveVoiceCall): Promise<void> {
     }
     // The share may have ended while this published.
     if (!sharing() && shareAudio?.track === track) stopShareAudio();
+    notifyCallVideo(call);
 }
 
 /** Stop and unpublish the share's own audio track, if there is one. */
@@ -3287,6 +3394,7 @@ function stopShareAudio(): void {
     stopShareAudioCapture();
     if (activeVoice === s.call) {
         void s.call.local.unpublishTrack(s.track).catch(() => {});
+        notifyCallVideo(s.call);
     }
 }
 
@@ -3520,6 +3628,9 @@ export async function setVoiceCaptureConstraints(opts: {
             failure = err;
         }
     }
+    // A restart or a new processor brings a new processed track: keep it
+    // silent while the mic is closed.
+    syncMicSending(track, !desiredMicMuted);
     if (failure) {
         console.error("Voice capture constraints change failed:", failure);
         if (activeVoice === call)

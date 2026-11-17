@@ -303,6 +303,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callView.deafen": "Ensurdecer",
     "callView.disconnect": "Desconectar",
     "callView.joinCall": "Entrar na chamada",
+    "callView.muteShareAudio": "Silenciar áudio compartilhado",
+    "callView.unmuteShareAudio": "Reativar áudio compartilhado",
     "callView.you": "Você",
     "callView.sScreen": "Tela de {name}",
     "callView.exitSpotlightFor": "Sair do destaque de {label}",
@@ -2888,6 +2890,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "verificationModal.session": "sessão",
 
     // src/lib/components/layout/VideoTile.svelte
+    "videoTile.watchingCount": "{count} assistindo",
+    "videoTile.watchers": "Assistindo",
+    "videoTile.noWatchers": "Ninguém está assistindo",
+    "videoTile.muteShareAudio": "Silenciar áudio do compartilhamento de tela",
+    "videoTile.unmuteShareAudio": "Reativar áudio do compartilhamento de tela",
     "videoTile.fullscreen": "Tela cheia",
     "videoTile.pictureInPicture": "Picture-in-picture (janela flutuante)",
     "videoTile.exitPictureInPicture": "Sair do picture in picture",

@@ -18,6 +18,7 @@ import {
     isRecentlyLeftHere,
     mutedIdentities,
     memberPublishTransport,
+    audibleSpeakerIds,
 } from "./voiceCall";
 
 describe("mutedIdentities", () => {
@@ -535,5 +536,21 @@ describe("memberPublishTransport", () => {
         const members = [{ transports: [a], focusSelection: "elsewhere" }];
         expect(memberPublishTransport(members, 0)).toBeUndefined();
         expect(memberPublishTransport(members, 1)).toBeUndefined();
+    });
+});
+
+describe("audibleSpeakerIds", () => {
+    const ids = ["@me:x:D1", "@bob:x:B1"];
+
+    it("keeps our own identity while our mic is open", () => {
+        expect(audibleSpeakerIds(ids, "@me:x", false)).toEqual(ids);
+    });
+
+    it("drops our own identity when our mic is closed", () => {
+        expect(audibleSpeakerIds(ids, "@me:x", true)).toEqual(["@bob:x:B1"]);
+    });
+
+    it("keeps everything when our user id is unknown", () => {
+        expect(audibleSpeakerIds(ids, null, true)).toEqual(ids);
     });
 });

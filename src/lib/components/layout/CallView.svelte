@@ -57,6 +57,7 @@
         toggleCallDeafen,
         toggleCamera,
         toggleScreenShare,
+        toggleShareAudioMute,
         focusTile,
         clearFocus,
         participantAudioFor,
@@ -1002,6 +1003,24 @@
                             : t("common.shareYourScreen")}
                     >
                         <MonitorUp size={20} />
+                    </button>
+                {/if}
+                {#if voiceCallState.screenSharing && voiceCallState.ownShareAudio}
+                    <button
+                        onclick={() => toggleShareAudioMute()}
+                        class="p-3 rounded-full hover:bg-zam-messageHover {voiceCallState.shareAudioMuted
+                            ? 'text-zam-textMuted'
+                            : 'text-zam-textPrimary'}"
+                        title={voiceCallState.shareAudioMuted
+                            ? t("callView.unmuteShareAudio")
+                            : t("callView.muteShareAudio")}
+                        aria-label={voiceCallState.shareAudioMuted
+                            ? t("callView.unmuteShareAudio")
+                            : t("callView.muteShareAudio")}
+                    >
+                        {#if voiceCallState.shareAudioMuted}<VolumeX
+                                size={20}
+                            />{:else}<Volume2 size={20} />{/if}
                     </button>
                 {/if}
                 <SoundboardButton

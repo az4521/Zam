@@ -12,6 +12,8 @@
         Signal,
         Maximize2,
         Settings2,
+        Volume2,
+        VolumeX,
     } from "lucide-svelte";
     import {
         voiceCallState,
@@ -21,6 +23,7 @@
         toggleCallDeafen,
         toggleCamera,
         toggleScreenShare,
+        toggleShareAudioMute,
     } from "$lib/stores/voiceCall.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import { connStateLabel } from "$lib/utils/voiceCall";
@@ -185,6 +188,22 @@
                 >
                     <Settings2 size={14} />
                 </button>
+                {#if voiceCallState.ownShareAudio}
+                    <button
+                        onclick={() => toggleShareAudioMute()}
+                        class="p-0.5 rounded text-zam-textMuted hover:text-zam-textPrimary"
+                        title={voiceCallState.shareAudioMuted
+                            ? t("callView.unmuteShareAudio")
+                            : t("callView.muteShareAudio")}
+                        aria-label={voiceCallState.shareAudioMuted
+                            ? t("callView.unmuteShareAudio")
+                            : t("callView.muteShareAudio")}
+                    >
+                        {#if voiceCallState.shareAudioMuted}<VolumeX
+                                size={14}
+                            />{:else}<Volume2 size={14} />{/if}
+                    </button>
+                {/if}
                 <button
                     onclick={() => void toggleScreenShare()}
                     class="px-1.5 py-0.5 rounded bg-zam-danger hover:bg-zam-dangerHover text-white font-medium"

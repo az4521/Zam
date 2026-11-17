@@ -309,6 +309,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callView.deafen": "Отключить звук",
     "callView.disconnect": "Отключиться",
     "callView.joinCall": "Присоединиться к звонку",
+    "callView.muteShareAudio": "Выключить звук демонстрации",
+    "callView.unmuteShareAudio": "Включить звук демонстрации",
     "callView.you": "Вы",
     "callView.sScreen": "Экран пользователя {name}",
     "callView.exitSpotlightFor": "Выйти из режима «в центре внимания»: {label}",
@@ -2887,6 +2889,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "verificationModal.session": "сеансе",
 
     // src/lib/components/layout/VideoTile.svelte
+    "videoTile.watchingCount": "смотрят: {count}",
+    "videoTile.watchers": "Смотрят",
+    "videoTile.noWatchers": "Никто не смотрит",
+    "videoTile.muteShareAudio": "Выключить звук демонстрации экрана",
+    "videoTile.unmuteShareAudio": "Включить звук демонстрации экрана",
     "videoTile.fullscreen": "На весь экран",
     "videoTile.pictureInPicture": "Картинка в картинке",
     "videoTile.exitPictureInPicture": "Выйти из режима «картинка в картинке»",

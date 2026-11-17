@@ -302,6 +302,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callView.deafen": "Ton ausschalten",
     "callView.disconnect": "Trennen",
     "callView.joinCall": "Anruf beitreten",
+    "callView.muteShareAudio": "Freigabe-Ton stummschalten",
+    "callView.unmuteShareAudio": "Freigabe-Ton aktivieren",
     "callView.you": "Du",
     "callView.sScreen": "Bildschirm von {name}",
     "callView.exitSpotlightFor": "Hervorhebung von {label} beenden",
@@ -2842,6 +2844,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "verificationModal.session": "deiner anderen Sitzung",
 
     // src/lib/components/layout/VideoTile.svelte
+    "videoTile.watchingCount": "{count} schauen zu",
+    "videoTile.watchers": "Schauen zu",
+    "videoTile.noWatchers": "Niemand schaut zu",
+    "videoTile.muteShareAudio": "Bildschirmfreigabe-Ton stummschalten",
+    "videoTile.unmuteShareAudio": "Bildschirmfreigabe-Ton aktivieren",
     "videoTile.fullscreen": "Vollbild",
     "videoTile.pictureInPicture": "Bild im Bild",
     "videoTile.exitPictureInPicture": "Bild im Bild beenden",

@@ -377,3 +377,15 @@ export function mutedIdentities(
     const everyone = new Set(peers.map((p) => p.identity));
     return [...everyone].filter((id) => !heard.has(id));
 }
+
+/** Speaking identities as the call shows them. Our own mic closed (muted or
+ *  deafened) means we are not sending anything, so our own identity is
+ *  dropped: a closed mic must never light our own tile. */
+export function audibleSpeakerIds(
+    identities: string[],
+    ownUserId: string | null,
+    micClosed: boolean,
+): string[] {
+    if (!micClosed || !ownUserId) return identities;
+    return identities.filter((id) => identityToUserId(id) !== ownUserId);
+}

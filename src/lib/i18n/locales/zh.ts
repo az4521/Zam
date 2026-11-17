@@ -290,6 +290,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callView.deafen": "拒听",
     "callView.disconnect": "断开连接",
     "callView.joinCall": "加入通话",
+    "callView.muteShareAudio": "静音共享声音",
+    "callView.unmuteShareAudio": "取消静音共享声音",
     "callView.you": "你",
     "callView.sScreen": "{name} 的屏幕",
     "callView.exitSpotlightFor": "退出对 {label} 的聚焦",
@@ -2653,6 +2655,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "verificationModal.session": "你的另一个会话",
 
     // src/lib/components/layout/VideoTile.svelte
+    "videoTile.watchingCount": "{count} 人正在观看",
+    "videoTile.watchers": "正在观看",
+    "videoTile.noWatchers": "没有人在观看",
+    "videoTile.muteShareAudio": "静音屏幕共享声音",
+    "videoTile.unmuteShareAudio": "取消静音屏幕共享声音",
     "videoTile.fullscreen": "全屏",
     "videoTile.pictureInPicture": "画中画",
     "videoTile.exitPictureInPicture": "退出画中画",
