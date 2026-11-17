@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.65.9
+
+✨ **New**
+
+- **Screen shares are opt-in:** someone else's screen share no longer opens by itself. Click Watch on its tile to see it.
+- **See who's watching:** screen share tiles show how many people are watching, and hovering lists their names.
+- **Mute a screen share's sound:** remote share tiles have a mute button for the share's audio. While you share with system audio, you can mute your share's sound without stopping the share.
+
+🐛 **Fixed**
+
+- **Mute and deafen:** muting or deafening now really stops sending your microphone. Before, with Zam's audio processing on, others could still hear you and see your speaking ring light up.
+
 ## v1.65.8
 
 ✨ **New**
