@@ -226,11 +226,11 @@
     {#if canAdd}
         <section class="space-y-2">
             <h3
-                class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                class="block text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
             >
                 {t("soundboard.add")}
             </h3>
-            <p class="text-xs text-discord-textMuted">
+            <p class="text-xs text-zam-textMuted">
                 {t("soundboard.limits", {
                     seconds: MAX_SOUND_SECONDS,
                     kb: Math.round(MAX_SOUND_BYTES / 1024),
@@ -243,7 +243,7 @@
                             bind:value={selectedKey}
                             disabled={uploading}
                             aria-label={t("soundboard.pack")}
-                            class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                            class="w-full bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
                         >
                             {#each editablePacks as pack (pack.id)}
                                 <option value={pack.stateKey}
@@ -261,7 +261,7 @@
                                 bind:value={newPackName}
                                 disabled={uploading}
                                 placeholder={t("soundboard.packName")}
-                                class="min-w-0 bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                                class="min-w-0 bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
                             />
                         {/if}
                     {/if}
@@ -270,11 +270,11 @@
                         disabled={uploading}
                         placeholder={t("soundboard.name")}
                         aria-label={t("soundboard.name")}
-                        class="min-w-0 bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                        class="min-w-0 bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
                     />
                 </div>
                 <label
-                    class="cursor-pointer px-3 py-2 rounded bg-discord-accent text-white text-sm font-semibold text-center self-start {uploading ||
+                    class="cursor-pointer px-3 py-2 rounded bg-zam-accent text-white text-sm font-semibold text-center self-start {uploading ||
                     (room && editablePacks.length === 0 && !canCreate)
                         ? 'opacity-50 pointer-events-none'
                         : ''}"
@@ -292,23 +292,23 @@
         </section>
     {/if}
 
-    {#if error}<p class="text-sm text-discord-danger">{error}</p>{/if}
-    {#if notice}<p class="text-sm text-discord-textMuted">{notice}</p>{/if}
+    {#if error}<p class="text-sm text-zam-danger">{error}</p>{/if}
+    {#if notice}<p class="text-sm text-zam-textMuted">{notice}</p>{/if}
 
     <div class="space-y-3">
         {#each packs as pack (pack.id)}
-            <div class="rounded bg-discord-backgroundTertiary overflow-hidden">
+            <div class="rounded bg-zam-backgroundTertiary overflow-hidden">
                 <div
-                    class="flex items-center gap-2 px-3 py-2 border-b border-discord-divider"
+                    class="flex items-center gap-2 px-3 py-2 border-b border-zam-divider"
                 >
                     <div class="min-w-0 flex-1">
                         <p
-                            class="text-sm font-semibold text-discord-textPrimary truncate"
+                            class="text-sm font-semibold text-zam-textPrimary truncate"
                         >
                             {pack.name}
                         </p>
                         {#if pack.sourceName}
-                            <p class="text-xs text-discord-textMuted truncate">
+                            <p class="text-xs text-zam-textMuted truncate">
                                 {pack.inherited
                                     ? t("soundboard.inheritedFrom", {
                                           sourceName: pack.sourceName,
@@ -323,9 +323,9 @@
                             disabled={pending === `${pack.id}:global`}
                             aria-pressed={!!pack.global}
                             title={t("soundboard.useEverywhereHint")}
-                            class="px-2 py-1 rounded text-xs hover:bg-discord-messageHover disabled:opacity-50 {pack.global
-                                ? 'text-discord-accent font-semibold'
-                                : 'text-discord-textPrimary'}"
+                            class="px-2 py-1 rounded text-xs hover:bg-zam-messageHover disabled:opacity-50 {pack.global
+                                ? 'text-zam-accent font-semibold'
+                                : 'text-zam-textPrimary'}"
                         >
                             {pack.global
                                 ? t("soundboard.usedEverywhere")
@@ -333,7 +333,7 @@
                         </button>
                         <button
                             onclick={() => addToMine(pack.sounds)}
-                            class="px-2 py-1 rounded text-xs text-discord-textPrimary hover:bg-discord-messageHover"
+                            class="px-2 py-1 rounded text-xs text-zam-textPrimary hover:bg-zam-messageHover"
                         >
                             {t("soundboard.addToMine")}
                         </button>
@@ -341,7 +341,7 @@
                             <button
                                 onclick={() => deletePack(pack)}
                                 disabled={pending === `${pack.id}:pack`}
-                                class="px-2 py-1 rounded text-xs text-discord-danger hover:bg-discord-messageHover disabled:opacity-50"
+                                class="px-2 py-1 rounded text-xs text-zam-danger hover:bg-zam-messageHover disabled:opacity-50"
                             >
                                 {t("soundboard.deletePack")}
                             </button>
@@ -351,11 +351,11 @@
                 <div class="space-y-1 p-2">
                     {#each pack.sounds as sound (sound.name)}
                         <div
-                            class="flex items-center gap-3 p-2 rounded bg-discord-backgroundSecondary"
+                            class="flex items-center gap-3 p-2 rounded bg-zam-backgroundSecondary"
                         >
                             <button
                                 onclick={() => previewSound(sound)}
-                                class="p-2 rounded-full text-discord-textPrimary hover:bg-discord-messageHover"
+                                class="p-2 rounded-full text-zam-textPrimary hover:bg-zam-messageHover"
                                 title={t("soundboard.preview")}
                                 aria-label={t("soundboard.preview")}
                             >
@@ -363,13 +363,13 @@
                             </button>
                             <div class="flex-1 min-w-0">
                                 <p
-                                    class="text-sm font-medium text-discord-textPrimary truncate"
+                                    class="text-sm font-medium text-zam-textPrimary truncate"
                                     title={sound.body}
                                 >
                                     {sound.name}
                                 </p>
                                 {#if sound.info?.duration !== undefined}
-                                    <p class="text-xs text-discord-textMuted">
+                                    <p class="text-xs text-zam-textMuted">
                                         {formatDuration(sound.info.duration)}
                                     </p>
                                 {/if}
@@ -377,7 +377,7 @@
                             {#if room}
                                 <button
                                     onclick={() => addToMine([sound])}
-                                    class="px-2 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
+                                    class="px-2 py-1 rounded text-xs text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover"
                                 >
                                     {t("soundboard.addToMine")}
                                 </button>
@@ -387,7 +387,7 @@
                                     onclick={() => remove(pack, sound)}
                                     disabled={pending ===
                                         `${pack.id}:${sound.name}`}
-                                    class="p-1 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover disabled:opacity-50"
+                                    class="p-1 rounded text-zam-textMuted hover:text-zam-danger hover:bg-zam-messageHover disabled:opacity-50"
                                     title={t("soundboard.remove")}
                                     aria-label={t("soundboard.remove")}
                                 >
@@ -397,9 +397,7 @@
                         </div>
                     {/each}
                     {#if pack.sounds.length === 0}
-                        <p
-                            class="text-sm text-discord-textMuted text-center py-2"
-                        >
+                        <p class="text-sm text-zam-textMuted text-center py-2">
                             {t("soundboard.noSounds")}
                         </p>
                     {/if}

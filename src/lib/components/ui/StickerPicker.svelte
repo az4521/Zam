@@ -372,7 +372,7 @@
 <div
     class="{interfaceState.isTouchscreen
         ? 'w-full rounded-t-xl'
-        : 'rounded-xl'} relative bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
+        : 'rounded-xl'} relative bg-zam-backgroundSecondary border border-zam-divider shadow-2xl flex flex-col"
     style={interfaceState.isTouchscreen
         ? "height: 50vh; height: 50dvh;"
         : undefined}
@@ -382,7 +382,7 @@
         <button
             type="button"
             use:resizeHandle={COMPOSER_PICKER_SIZE}
-            class="absolute top-0 start-0 z-20 w-4 h-4 cursor-nwse-resize mirror:cursor-nesw-resize text-discord-textMuted opacity-40 hover:opacity-100 focus-visible:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
+            class="absolute top-0 start-0 z-20 w-4 h-4 cursor-nwse-resize mirror:cursor-nesw-resize text-zam-textMuted opacity-40 hover:opacity-100 focus-visible:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-zam-accent"
             title={t("common.dragOrUseArrowKeysTo")}
             aria-label={t("common.resizePicker")}
         >
@@ -396,19 +396,19 @@
         </button>
     {/if}
     {#if interfaceState.isTouchscreen && (onSwitchToEmoji || onSwitchToGif)}
-        <div class="flex border-b border-discord-divider flex-shrink-0">
+        <div class="flex border-b border-zam-divider flex-shrink-0">
             {#if onSwitchToEmoji}<button
                     onclick={onSwitchToEmoji}
-                    class="flex-1 py-2 text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                    class="flex-1 py-2 text-sm font-medium text-zam-textMuted hover:text-zam-textPrimary transition-colors"
                     >{t("common.emoji")}</button
                 >{/if}
             <button
-                class="flex-1 py-2 text-sm font-semibold text-discord-textPrimary border-b-2 border-discord-accent"
+                class="flex-1 py-2 text-sm font-semibold text-zam-textPrimary border-b-2 border-zam-accent"
                 >{t("common.stickers")}</button
             >
             {#if onSwitchToGif}<button
                     onclick={onSwitchToGif}
-                    class="flex-1 py-2 text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                    class="flex-1 py-2 text-sm font-medium text-zam-textMuted hover:text-zam-textPrimary transition-colors"
                     >{t("common.gifs")}</button
                 >{/if}
         </div>
@@ -427,7 +427,7 @@
             aria-controls={hasOptions ? `${listId}-listbox` : undefined}
             aria-autocomplete="list"
             aria-activedescendant={activeOptionId}
-            class="search-input w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded-lg px-3 py-1.5 outline-none border border-transparent"
+            class="search-input w-full bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded-lg px-3 py-1.5 outline-none border border-transparent"
         />
     </div>
 
@@ -435,7 +435,7 @@
         <!-- flex-1 so the empty state centres in the now fixed-height touch
              drawer instead of hugging the top of a half-empty box. -->
         <p
-            class="flex-1 flex items-center justify-center text-center text-discord-textMuted text-sm py-8 px-4"
+            class="flex-1 flex items-center justify-center text-center text-zam-textMuted text-sm py-8 px-4"
         >
             {t("stickerPicker.noStickerPacksAvailable")}
         </p>
@@ -453,7 +453,7 @@
                         onclick={() => scrollToSection(pack.id)}
                         title={pack.name}
                         class="flex-shrink-0 p-1.5 rounded transition-colors"
-                        class:bg-discord-messageHover={activeTab === pack.id}
+                        class:bg-zam-messageHover={activeTab === pack.id}
                         class:opacity-40={activeTab !== pack.id}
                     >
                         {#if pack.id === "user" && ownAvatarUrl}
@@ -464,7 +464,7 @@
                             />
                         {:else if pack.id === "user"}
                             <svg
-                                class="w-5 h-5 text-discord-textPrimary"
+                                class="w-5 h-5 text-zam-textPrimary"
                                 fill="currentColor"
                                 viewBox="0 0 24 24"
                             >
@@ -480,7 +480,7 @@
                             />
                         {:else}
                             <span
-                                class="w-5 h-5 rounded-full bg-discord-accent flex items-center justify-center text-white text-xs font-bold"
+                                class="w-5 h-5 rounded-full bg-zam-accent flex items-center justify-center text-white text-xs font-bold"
                             >
                                 {pack.name[0]?.toUpperCase() ?? "?"}
                             </span>
@@ -509,7 +509,7 @@
             class="relative flex-1 overflow-y-auto min-h-0 px-2 pb-2"
         >
             {#if search && !hasOptions}
-                <p class="text-center text-discord-textMuted text-sm py-8">
+                <p class="text-center text-zam-textMuted text-sm py-8">
                     {t("common.noResults")}
                 </p>
             {/if}
@@ -518,7 +518,7 @@
                     {#if row.kind === "header"}
                         <p
                             data-section={row.sectionId}
-                            class="absolute inset-x-0 overflow-hidden whitespace-nowrap text-ellipsis text-xs font-semibold text-discord-textMuted uppercase tracking-wide px-1 pt-2 pb-1"
+                            class="absolute inset-x-0 overflow-hidden whitespace-nowrap text-ellipsis text-xs font-semibold text-zam-textMuted uppercase tracking-wide px-1 pt-2 pb-1"
                             style="top: {row.top}px; height: {HEADER_H}px"
                         >
                             {row.label}
@@ -541,11 +541,10 @@
                                     aria-setsize={flatItems.length}
                                     aria-posinset={idx + 1}
                                     tabindex="-1"
-                                    class="p-1 rounded hover:bg-discord-messageHover transition-colors flex items-center justify-center"
+                                    class="p-1 rounded hover:bg-zam-messageHover transition-colors flex items-center justify-center"
                                     style="height: {cellSize}px"
                                     class:ring-2={activeIndex === idx}
-                                    class:ring-discord-accent={activeIndex ===
-                                        idx}
+                                    class:ring-zam-accent={activeIndex === idx}
                                 >
                                     <img
                                         src={pickerThumbUrl(
@@ -569,6 +568,6 @@
 <style>
     .search-input:focus {
         outline: none;
-        border-color: rgb(var(--discord-accent-rgb) / 0.3);
+        border-color: rgb(var(--zam-accent-rgb) / 0.3);
     }
 </style>

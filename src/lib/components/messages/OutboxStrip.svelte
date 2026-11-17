@@ -21,7 +21,7 @@
     <div class="flex flex-col gap-1 mb-2">
         {#each items as item (item.id)}
             <div
-                class="flex items-center gap-2 px-2 py-1.5 rounded bg-discord-backgroundSecondary text-xs text-discord-textMuted"
+                class="flex items-center gap-2 px-2 py-1.5 rounded bg-zam-backgroundSecondary text-xs text-zam-textMuted"
             >
                 <!-- Status icon/label -->
                 {#if item.status === "queued"}
@@ -50,14 +50,14 @@
                     <button
                         type="button"
                         onclick={() => retryOutboxItem(roomId, item.id)}
-                        class="px-2 py-0.5 rounded bg-discord-backgroundTertiary hover:bg-discord-backgroundModifierHover text-discord-text text-xs font-medium transition-colors flex-shrink-0"
+                        class="px-2 py-0.5 rounded bg-zam-backgroundTertiary hover:bg-zam-backgroundModifierHover text-zam-text text-xs font-medium transition-colors flex-shrink-0"
                     >
                         {t("common.retry")}
                     </button>
                     <button
                         type="button"
                         onclick={() => removeOutboxItem(roomId, item.id)}
-                        class="px-2 py-0.5 rounded bg-discord-backgroundTertiary hover:bg-discord-backgroundModifierHover text-discord-textMuted text-xs font-medium transition-colors flex-shrink-0"
+                        class="px-2 py-0.5 rounded bg-zam-backgroundTertiary hover:bg-zam-backgroundModifierHover text-zam-textMuted text-xs font-medium transition-colors flex-shrink-0"
                     >
                         {t("common.cancel")}
                     </button>

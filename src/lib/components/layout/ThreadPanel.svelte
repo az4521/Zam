@@ -225,14 +225,14 @@
 <div
     class="{fullscreen
         ? 'w-full'
-        : 'w-80 border-l'} h-full flex-shrink-0 flex flex-col border-discord-divider bg-discord-background overflow-hidden"
+        : 'w-80 border-l'} h-full flex-shrink-0 flex flex-col border-zam-divider bg-zam-background overflow-hidden"
 >
     <!-- Header -->
     <div
-        class="h-12 px-4 flex items-center justify-between border-b border-discord-divider flex-shrink-0"
+        class="h-12 px-4 flex items-center justify-between border-b border-zam-divider flex-shrink-0"
     >
         <span
-            class="font-semibold text-discord-textPrimary text-sm truncate min-w-0"
+            class="font-semibold text-zam-textPrimary text-sm truncate min-w-0"
             title={threadName ?? undefined}
             >{threadName ?? t("threadPanel.thread")}</span
         >
@@ -240,7 +240,7 @@
             {#if mayName}
                 <button
                     onclick={openRename}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                     title={threadName
                         ? t("renameThreadDialog.renameThread")
                         : t("renameThreadDialog.nameThread")}
@@ -262,7 +262,7 @@
             {#if onToggleFullscreen}
                 <button
                     onclick={onToggleFullscreen}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                     title={fullscreen
                         ? t("threadPanel.collapseThread")
                         : t("threadPanel.expandThread")}
@@ -292,7 +292,7 @@
             {/if}
             <button
                 onclick={onClose}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                 title={t("threadPanel.closeThread")}
             >
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -309,7 +309,7 @@
          replies off screen. -->
     {#if rootEvent}
         <div
-            class="py-1 border-b border-discord-divider flex-shrink-0 bg-discord-backgroundSecondary max-h-60 overflow-y-auto"
+            class="py-1 border-b border-zam-divider flex-shrink-0 bg-zam-backgroundSecondary max-h-60 overflow-y-auto"
         >
             <MessageItem
                 event={rootEvent}
@@ -331,7 +331,7 @@
         class="flex-1 overflow-y-auto py-2"
     >
         {#if messages.length === 0}
-            <p class="text-xs text-discord-textMuted text-center mt-4 px-4">
+            <p class="text-xs text-zam-textMuted text-center mt-4 px-4">
                 {t("threadPanel.noRepliesYetStartTheThread")}
             </p>
         {/if}
@@ -340,7 +340,7 @@
                 <button
                     onclick={loadOlder}
                     disabled={loadingOlder}
-                    class="text-xs text-discord-textMuted hover:text-discord-textPrimary disabled:opacity-40 transition-colors"
+                    class="text-xs text-zam-textMuted hover:text-zam-textPrimary disabled:opacity-40 transition-colors"
                 >
                     {loadingOlder
                         ? t("common.loading")

@@ -112,7 +112,7 @@
     <BottomSheet {onClose}>
         {#if pending}
             <div class="px-4 py-3">
-                <p class="text-sm text-discord-textPrimary mb-3">
+                <p class="text-sm text-zam-textPrimary mb-3">
                     {t("messageActionsSheet.thisMessage", {
                         label: pending.label,
                     })}
@@ -120,12 +120,12 @@
                 <div class="flex justify-end gap-2">
                     <button
                         onclick={() => (pending = null)}
-                        class="px-4 min-h-11 rounded text-sm font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                        class="px-4 min-h-11 rounded text-sm font-semibold text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                         >{t("common.cancel")}</button
                     >
                     <button
                         onclick={() => run(pending!.key)}
-                        class="px-4 min-h-11 rounded text-sm font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors"
+                        class="px-4 min-h-11 rounded text-sm font-semibold text-white bg-zam-danger hover:bg-zam-dangerHover transition-colors"
                         >{pending.label}</button
                     >
                 </div>
@@ -141,7 +141,7 @@
                 -->
                 <div class="px-4 pb-3" data-sheet-no-drag>
                     <div
-                        class="max-h-[28vh] overflow-y-auto rounded-lg bg-discord-backgroundSecondary px-3 py-3 flex gap-3 min-w-0"
+                        class="max-h-[28vh] overflow-y-auto rounded-lg bg-zam-backgroundSecondary px-3 py-3 flex gap-3 min-w-0"
                     >
                         {#if sender}
                             <div class="w-10 flex-shrink-0 mt-0.5">
@@ -159,12 +159,12 @@
                                     class="flex items-baseline gap-2 mb-0.5 min-w-0"
                                 >
                                     <span
-                                        class="min-w-0 truncate font-semibold text-sm text-discord-textPrimary"
+                                        class="min-w-0 truncate font-semibold text-sm text-zam-textPrimary"
                                         style:color={sender.colour}
                                         >{sender.name}</span
                                     >
                                     <span
-                                        class="text-xs text-discord-textMuted whitespace-nowrap flex-shrink-0"
+                                        class="text-xs text-zam-textMuted whitespace-nowrap flex-shrink-0"
                                         title={sender.fullTime}
                                         >{sender.time}</span
                                     >
@@ -176,7 +176,7 @@
                                 </div>
                             {:else if preview}
                                 <p
-                                    class="text-sm leading-relaxed text-discord-textPrimary whitespace-pre-wrap break-words select-text"
+                                    class="text-sm leading-relaxed text-zam-textPrimary whitespace-pre-wrap break-words select-text"
                                 >
                                     {preview}
                                 </p>
@@ -184,7 +184,7 @@
                         </div>
                     </div>
                     {#if preview}
-                        <p class="mt-1.5 text-xs text-discord-textMuted">
+                        <p class="mt-1.5 text-xs text-zam-textMuted">
                             {t("messageActionsMenu.selectHint")}
                         </p>
                     {/if}
@@ -199,14 +199,14 @@
                     <button
                         role="menuitem"
                         onclick={() => pick(row)}
-                        class="w-full flex items-center gap-3 px-4 py-3 text-start text-sm transition-colors hover:bg-discord-messageHover {row.danger
-                            ? 'text-discord-danger'
-                            : 'text-discord-textPrimary'}"
+                        class="w-full flex items-center gap-3 px-4 py-3 text-start text-sm transition-colors hover:bg-zam-messageHover {row.danger
+                            ? 'text-zam-danger'
+                            : 'text-zam-textPrimary'}"
                     >
                         <svg
                             class="w-5 h-5 flex-shrink-0 {row.danger
-                                ? 'text-discord-danger'
-                                : 'text-discord-textMuted'}"
+                                ? 'text-zam-danger'
+                                : 'text-zam-textMuted'}"
                             fill="currentColor"
                             viewBox="0 0 24 24"><path d={ICONS[row.key]} /></svg
                         >
@@ -217,17 +217,17 @@
                     <button
                         role="menuitem"
                         onclick={() => runPlugin(row.key)}
-                        class="w-full flex items-center gap-3 px-4 py-3 text-start text-sm transition-colors hover:bg-discord-messageHover text-discord-textPrimary"
+                        class="w-full flex items-center gap-3 px-4 py-3 text-start text-sm transition-colors hover:bg-zam-messageHover text-zam-textPrimary"
                     >
                         {#if row.icon}
                             <svg
-                                class="w-5 h-5 flex-shrink-0 text-discord-textMuted"
+                                class="w-5 h-5 flex-shrink-0 text-zam-textMuted"
                                 fill="currentColor"
                                 viewBox="0 0 24 24"><path d={row.icon} /></svg
                             >
                         {:else}
                             <span
-                                class="w-5 h-5 flex-shrink-0 grid place-items-center text-xs font-semibold text-discord-textMuted"
+                                class="w-5 h-5 flex-shrink-0 grid place-items-center text-xs font-semibold text-zam-textMuted"
                                 >{row.label.slice(0, 1)}</span
                             >
                         {/if}

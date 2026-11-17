@@ -1201,7 +1201,7 @@
                 >
                     {#if favourited}
                         <svg
-                            class="w-5 h-5 text-discord-warning"
+                            class="w-5 h-5 text-zam-warning"
                             fill="currentColor"
                             viewBox="0 0 24 24"
                         >

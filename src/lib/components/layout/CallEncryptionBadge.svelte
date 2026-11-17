@@ -28,7 +28,7 @@
         if (!encryption.encrypted) {
             return {
                 icon: LockOpen,
-                tone: "text-discord-textMuted",
+                tone: "text-zam-textMuted",
                 short: "",
                 text: t("callEncryption.notEncrypted"),
             };
@@ -36,7 +36,7 @@
         if (encryption.unencrypted.length > 0) {
             return {
                 icon: ShieldAlert,
-                tone: "text-discord-warning",
+                tone: "text-zam-warning",
                 short: t("callEncryption.partialShort"),
                 text: t("callEncryption.partial", {
                     names: names(encryption.unencrypted),
@@ -45,7 +45,7 @@
         }
         return {
             icon: Lock,
-            tone: "text-discord-textPositive",
+            tone: "text-zam-textPositive",
             short: t("callEncryption.encryptedShort"),
             text: t("callEncryption.encrypted"),
         };

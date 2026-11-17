@@ -206,12 +206,12 @@
         <div class="flex flex-wrap gap-1.5">
             {#each selected as userId (userId)}
                 <span
-                    class="flex items-center gap-1 bg-discord-backgroundTertiary text-discord-textPrimary text-xs rounded px-2 py-1"
+                    class="flex items-center gap-1 bg-zam-backgroundTertiary text-zam-textPrimary text-xs rounded px-2 py-1"
                 >
                     {userId}
                     <button
                         onclick={() => remove(userId)}
-                        class="text-discord-textMuted hover:text-discord-textPrimary flex items-center"
+                        class="text-zam-textMuted hover:text-zam-textPrimary flex items-center"
                         aria-label={t("userPicker.remove", { userId })}
                     >
                         <X size={14} />
@@ -236,7 +236,7 @@
         aria-activedescendant={activeIndex >= 0
             ? optionId(listId, activeIndex)
             : undefined}
-        class="w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+        class="w-full bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
     />
 
     <div class="sr-only" role="status" aria-live="polite" aria-atomic="true">
@@ -250,7 +250,7 @@
     </div>
 
     {#if searchError}
-        <p role="alert" class="text-xs text-discord-textMuted">{searchError}</p>
+        <p role="alert" class="text-xs text-zam-textMuted">{searchError}</p>
     {/if}
 
     <!-- One listbox owns every option. The candidate row sits outside the
@@ -273,23 +273,21 @@
                     aria-selected={activeIndex === 0}
                     tabindex="-1"
                     class:opacity-50={disabled || candidateExcluded}
-                    class="w-full flex items-center gap-2.5 px-2.5 py-2 text-start rounded bg-discord-backgroundSecondary hover:bg-discord-messageHover transition-colors {activeIndex ===
+                    class="w-full flex items-center gap-2.5 px-2.5 py-2 text-start rounded bg-zam-backgroundSecondary hover:bg-zam-messageHover transition-colors {activeIndex ===
                     0
-                        ? 'ring-1 ring-inset ring-discord-accent'
+                        ? 'ring-1 ring-inset ring-zam-accent'
                         : ''}"
                 >
                     <span
-                        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-discord-backgroundTertiary text-discord-textMuted text-sm"
+                        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zam-backgroundTertiary text-zam-textMuted text-sm"
                         >@</span
                     >
                     <span class="min-w-0">
                         <span
-                            class="block text-sm text-discord-textPrimary truncate"
+                            class="block text-sm text-zam-textPrimary truncate"
                             >{t("userPicker.invite", { candidateShown })}</span
                         >
-                        <span
-                            class="block text-xs text-discord-textMuted truncate"
-                        >
+                        <span class="block text-xs text-zam-textMuted truncate">
                             {#if candidateExcluded}
                                 {selected.includes(candidateShown)
                                     ? t("userPicker.alreadyAdded")
@@ -307,7 +305,7 @@
                      accessibility tree between the listbox and its options. -->
                 <div
                     role="presentation"
-                    class="max-h-56 overflow-y-auto rounded bg-discord-backgroundSecondary divide-y divide-discord-divider"
+                    class="max-h-56 overflow-y-auto rounded bg-zam-backgroundSecondary divide-y divide-zam-divider"
                 >
                     {#each visibleResults as user, i (user.userId)}
                         {@const flatIndex = i + resultOffset}
@@ -319,9 +317,9 @@
                             aria-selected={flatIndex === activeIndex}
                             tabindex="-1"
                             class:opacity-50={disabled}
-                            class="w-full flex items-center gap-2.5 px-2.5 py-2 text-start hover:bg-discord-messageHover transition-colors {flatIndex ===
+                            class="w-full flex items-center gap-2.5 px-2.5 py-2 text-start hover:bg-zam-messageHover transition-colors {flatIndex ===
                             activeIndex
-                                ? 'ring-1 ring-inset ring-discord-accent'
+                                ? 'ring-1 ring-inset ring-zam-accent'
                                 : ''}"
                         >
                             <Avatar
@@ -332,12 +330,12 @@
                             />
                             <span class="min-w-0">
                                 <span
-                                    class="block text-sm text-discord-textPrimary truncate"
+                                    class="block text-sm text-zam-textPrimary truncate"
                                     >{user.displayName ?? user.userId}</span
                                 >
                                 {#if user.displayName}
                                     <span
-                                        class="block text-xs text-discord-textMuted truncate"
+                                        class="block text-xs text-zam-textMuted truncate"
                                         >{user.userId}</span
                                     >
                                 {/if}
@@ -350,9 +348,9 @@
     {/if}
 
     {#if optionCount === 0 && searched && !searching && input.trim().length >= 2}
-        <p class="text-xs text-discord-textMuted">
+        <p class="text-xs text-zam-textMuted">
             {t("userPicker.noMatchesTypeAFullUser")}
-            <span class="text-discord-textSecondary"
+            <span class="text-zam-textSecondary"
                 >{t("userPicker.userServer")}</span
             >
             {t("userPicker.toInviteSomeoneTheDirectoryDoesn")}

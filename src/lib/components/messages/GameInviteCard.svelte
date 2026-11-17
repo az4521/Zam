@@ -75,7 +75,7 @@
 </script>
 
 <div
-    class="mt-1 max-w-md rounded-lg border border-discord-divider bg-discord-backgroundSecondary px-3 py-2.5"
+    class="mt-1 max-w-md rounded-lg border border-zam-divider bg-zam-backgroundSecondary px-3 py-2.5"
 >
     <div class="flex items-center gap-2.5">
         {#if iconUrl}
@@ -88,14 +88,14 @@
                 onerror={() => (iconFailed = true)}
             />
         {:else}
-            <Gamepad2 size={20} class="flex-shrink-0 text-discord-textMuted" />
+            <Gamepad2 size={20} class="flex-shrink-0 text-zam-textMuted" />
         {/if}
         <div class="min-w-0">
-            <p class="text-xs text-discord-textMuted">
+            <p class="text-xs text-zam-textMuted">
                 {t("gameInvite.cardTitle")} · {t("gameInvite.sourceSteam")}
             </p>
             <p
-                class="truncate text-sm font-semibold text-discord-textPrimary"
+                class="truncate text-sm font-semibold text-zam-textPrimary"
                 title={invite.name}
             >
                 {invite.name}
@@ -106,17 +106,17 @@
     {#if invite.details || invite.state || invite.partySize}
         <div class="mt-2 flex flex-col gap-0.5">
             {#if invite.details}
-                <p class="text-xs text-discord-textPrimary break-words">
+                <p class="text-xs text-zam-textPrimary break-words">
                     {invite.details}
                 </p>
             {/if}
             {#if invite.state}
-                <p class="text-xs text-discord-textMuted break-words">
+                <p class="text-xs text-zam-textMuted break-words">
                     {invite.state}
                 </p>
             {/if}
             {#if invite.partySize}
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("gameInvite.partySize", {
                         current: invite.partySize[0],
                         max: invite.partySize[1],
@@ -128,34 +128,34 @@
 
     {#if invite.note}
         <p
-            class="mt-2 text-sm text-discord-textPrimary whitespace-pre-wrap break-words"
+            class="mt-2 text-sm text-zam-textPrimary whitespace-pre-wrap break-words"
         >
             {invite.note}
         </p>
     {/if}
 
     {#if joined}
-        <p class="mt-2 text-xs text-discord-textMuted">
+        <p class="mt-2 text-xs text-zam-textMuted">
             {t("gameInvite.joinSent")}
         </p>
     {:else if !canJoin}
-        <p class="mt-2 text-xs text-discord-textMuted">
+        <p class="mt-2 text-xs text-zam-textMuted">
             {t("gameInvite.openInDesktop")}
         </p>
     {:else if confirming}
-        <p class="mt-2 text-xs text-discord-textPrimary break-all">
+        <p class="mt-2 text-xs text-zam-textPrimary break-all">
             {confirmText}
         </p>
         <div class="mt-2 flex items-center gap-2">
             <button
-                class="px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover disabled:opacity-50 text-white text-xs font-semibold transition-colors"
+                class="px-3 py-1.5 rounded bg-zam-accent hover:bg-zam-accentHover disabled:opacity-50 text-white text-xs font-semibold transition-colors"
                 disabled={joining}
                 onclick={join}
             >
                 {joining ? t("common.joining") : t("gameInvite.joinGame")}
             </button>
             <button
-                class="px-3 py-1.5 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                class="px-3 py-1.5 rounded text-xs text-zam-textMuted hover:text-zam-textPrimary transition-colors"
                 disabled={joining}
                 onclick={() => (confirming = false)}
             >
@@ -164,7 +164,7 @@
         </div>
     {:else}
         <button
-            class="mt-2 px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-xs font-semibold transition-colors"
+            class="mt-2 px-3 py-1.5 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-xs font-semibold transition-colors"
             onclick={() => {
                 joinError = null;
                 confirming = true;
@@ -175,7 +175,7 @@
     {/if}
 
     {#if joinError}
-        <p class="mt-2 text-xs text-discord-danger" role="alert">
+        <p class="mt-2 text-xs text-zam-danger" role="alert">
             {t(joinError)}
         </p>
     {/if}

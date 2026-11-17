@@ -29,31 +29,31 @@
     <ModalDialog
         onClose={() => resolveJoinConsent(false)}
         labelledBy="join-consent-title"
-        panelClass="relative z-10 w-[min(28rem,calc(100vw-2rem))] rounded-lg bg-discord-backgroundSecondary p-5 shadow-xl"
+        panelClass="relative z-10 w-[min(28rem,calc(100vw-2rem))] rounded-lg bg-zam-backgroundSecondary p-5 shadow-xl"
     >
         <h2
             id="join-consent-title"
-            class="mb-2 text-lg font-semibold text-discord-textPrimary"
+            class="mb-2 text-lg font-semibold text-zam-textPrimary"
         >
             {t("joinConsentDialog.joinThisRoom")}
         </h2>
-        <p class="mb-3 text-sm text-discord-textMuted">
+        <p class="mb-3 text-sm text-zam-textMuted">
             {t("joinConsentDialog.youClickedALinkTo")}
-            <span class="break-all font-medium text-discord-textPrimary"
+            <span class="break-all font-medium text-zam-textPrimary"
                 >{pending.display}</span
             >{t("joinConsentDialog.joiningSharesYourMatrixIdWith")}
         </p>
         {#if showResolved}
-            <p class="mb-3 text-sm text-discord-textMuted">
+            <p class="mb-3 text-sm text-zam-textMuted">
                 {t("joinConsentDialog.thisOpensRoom")}
-                <span class="break-all font-medium text-discord-textPrimary"
+                <span class="break-all font-medium text-zam-textPrimary"
                     >{pending.resolvedRoomId}</span
                 >.
             </p>
         {/if}
         {#if pending.serverMismatch}
             <p
-                class="mb-3 rounded border border-discord-danger/40 bg-discord-danger/10 px-3 py-2 text-sm text-discord-danger"
+                class="mb-3 rounded border border-zam-danger/40 bg-zam-danger/10 px-3 py-2 text-sm text-zam-danger"
                 role="alert"
             >
                 {t("joinConsentDialog.warningThisLinkPointsAtA")}
@@ -63,14 +63,14 @@
             <button
                 type="button"
                 onclick={() => resolveJoinConsent(false)}
-                class="rounded px-4 py-2 text-sm font-medium text-discord-textSecondary hover:text-discord-textPrimary hover:underline transition-colors"
+                class="rounded px-4 py-2 text-sm font-medium text-zam-textSecondary hover:text-zam-textPrimary hover:underline transition-colors"
             >
                 {t("common.cancel")}
             </button>
             <button
                 type="button"
                 onclick={() => resolveJoinConsent(true)}
-                class="rounded bg-discord-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                class="rounded bg-zam-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
             >
                 {t("joinConsentDialog.joinRoom")}
             </button>

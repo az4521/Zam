@@ -240,27 +240,27 @@
         role="dialog"
         aria-modal="true"
         aria-labelledby="app-settings-title"
-        class="relative z-10 bg-discord-backgroundSecondary rounded-none md:rounded-xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden h-[100dvh] md:h-[85dvh]"
+        class="relative z-10 bg-zam-backgroundSecondary rounded-none md:rounded-xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden h-[100dvh] md:h-[85dvh]"
         use:focusTrap
     >
         <!-- Header. On a mobile sub-page the close button is replaced by a back
              arrow and the title names the category. -->
         <div
-            class="flex items-center gap-2 px-6 py-4 border-b border-discord-divider flex-shrink-0"
+            class="flex items-center gap-2 px-6 py-4 border-b border-zam-divider flex-shrink-0"
         >
             {#if view.mode === "detail"}
                 <button
                     bind:this={backButtonEl}
                     onclick={goBackToList}
                     aria-label={t("appSettings.backToSettings")}
-                    class="-ms-2 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                    class="-ms-2 p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors flex-shrink-0"
                 >
                     <ArrowLeft class="mirror:-scale-x-100" size={20} />
                 </button>
             {/if}
             <h2
                 id="app-settings-title"
-                class="text-lg font-bold text-discord-textPrimary min-w-0 truncate flex-1"
+                class="text-lg font-bold text-zam-textPrimary min-w-0 truncate flex-1"
             >
                 {view.mode === "detail"
                     ? tabLabel(view.tab)
@@ -269,7 +269,7 @@
             <button
                 onclick={onClose}
                 aria-label={t("appSettings.closeSettings")}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors flex-shrink-0"
             >
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                     <path
@@ -280,16 +280,14 @@
         </div>
 
         {#if view.mode !== "detail"}
-            <div
-                class="px-6 py-3 border-b border-discord-divider flex-shrink-0"
-            >
+            <div class="px-6 py-3 border-b border-zam-divider flex-shrink-0">
                 <input
                     type="search"
                     bind:value={searchQuery}
                     onkeydown={onSearchKeydown}
                     placeholder={t("appSettings.searchSettings")}
                     aria-label={t("appSettings.searchSettings2")}
-                    class="w-full px-3 py-2 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:ring-2 focus:ring-discord-accent"
+                    class="w-full px-3 py-2 rounded bg-zam-backgroundTertiary text-sm text-zam-textPrimary placeholder:text-zam-textMuted focus:outline-none focus:ring-2 focus:ring-zam-accent"
                 />
             </div>
         {/if}
@@ -312,9 +310,7 @@
                 aria-label={t("common.searchResults")}
             >
                 {#if searchResults.length === 0}
-                    <p
-                        class="px-6 py-8 text-sm text-discord-textMuted text-center"
-                    >
+                    <p class="px-6 py-8 text-sm text-zam-textMuted text-center">
                         {t("appSettings.noSettingsMatch2", { searchQuery })}
                     </p>
                 {:else}
@@ -322,14 +318,14 @@
                         <button
                             type="button"
                             onclick={() => selectResult(result)}
-                            class="w-full flex items-center justify-between gap-3 px-6 py-3 text-start hover:bg-discord-messageHover transition-colors"
+                            class="w-full flex items-center justify-between gap-3 px-6 py-3 text-start hover:bg-zam-messageHover transition-colors"
                         >
                             <span
-                                class="min-w-0 truncate text-sm text-discord-textPrimary"
+                                class="min-w-0 truncate text-sm text-zam-textPrimary"
                                 >{result.label}</span
                             >
                             <span
-                                class="flex-shrink-0 text-xs text-discord-textMuted"
+                                class="flex-shrink-0 text-xs text-zam-textMuted"
                                 >{settingsTabLabel(result.tab)}</span
                             >
                         </button>
@@ -341,7 +337,7 @@
             <nav class="flex-1 overflow-y-auto py-2">
                 {#each settingsGroups as group (group.title)}
                     <div
-                        class="px-6 pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
+                        class="px-6 pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-zam-textMuted"
                     >
                         {group.title}
                     </div>
@@ -349,13 +345,13 @@
                         <button
                             bind:this={categoryEls[tab.id]}
                             onclick={() => selectTab(tab.id)}
-                            class="w-full flex items-center justify-between gap-3 px-6 py-3.5 text-start text-base font-medium text-discord-textPrimary hover:bg-discord-messageHover active:bg-discord-messageHover transition-colors"
+                            class="w-full flex items-center justify-between gap-3 px-6 py-3.5 text-start text-base font-medium text-zam-textPrimary hover:bg-zam-messageHover active:bg-zam-messageHover transition-colors"
                         >
                             <span class="min-w-0 truncate">{tab.label}</span>
                             <ChevronRight
                                 size={20}
                                 aria-hidden="true"
-                                class="mirror:-scale-x-100 flex-shrink-0 text-discord-textMuted"
+                                class="mirror:-scale-x-100 flex-shrink-0 text-zam-textMuted"
                             />
                         </button>
                     {/each}
@@ -377,11 +373,11 @@
             <!-- Desktop: category sidebar beside the active panel. -->
             <div class="flex flex-row flex-1 min-h-0">
                 <nav
-                    class="flex flex-col flex-shrink-0 w-40 gap-0.5 border-e border-discord-divider px-2 py-3 min-h-0 overflow-y-auto overscroll-contain"
+                    class="flex flex-col flex-shrink-0 w-40 gap-0.5 border-e border-zam-divider px-2 py-3 min-h-0 overflow-y-auto overscroll-contain"
                 >
                     {#each settingsGroups as group (group.title)}
                         <div
-                            class="px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
+                            class="px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-zam-textMuted"
                         >
                             {group.title}
                         </div>
@@ -390,12 +386,10 @@
                                 bind:this={sidebarEls[tab.id]}
                                 onclick={() => selectTab(tab.id)}
                                 class="flex-shrink-0 w-full whitespace-nowrap text-start px-3 py-2 rounded text-sm font-medium transition-colors"
-                                class:bg-discord-messageHover={view.tab ===
-                                    tab.id}
-                                class:text-discord-textPrimary={view.tab ===
-                                    tab.id}
-                                class:text-discord-textMuted={view.tab !==
-                                    tab.id}>{tab.label}</button
+                                class:bg-zam-messageHover={view.tab === tab.id}
+                                class:text-zam-textPrimary={view.tab === tab.id}
+                                class:text-zam-textMuted={view.tab !== tab.id}
+                                >{tab.label}</button
                             >
                         {/each}
                     {/each}
@@ -442,7 +436,7 @@
         <CustomPackSettings kind="emotes" />
         <SharedPackSettings />
         <section class="mt-8 space-y-3">
-            <h2 class="text-lg font-semibold text-discord-textPrimary">
+            <h2 class="text-lg font-semibold text-zam-textPrimary">
                 {t("soundboard.title")}
             </h2>
             <SoundPackEditor />

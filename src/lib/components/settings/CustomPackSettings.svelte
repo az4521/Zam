@@ -183,7 +183,7 @@
 <div class="space-y-4">
     <section class="space-y-2">
         <label
-            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+            class="block text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
             for={`user-${kind}-shortcode`}
         >
             {t("customPackSettings.add", { singular })}
@@ -194,24 +194,24 @@
                 : 'sm:grid-cols-[1fr_auto]'}"
         >
             <div
-                class="flex items-center bg-discord-backgroundTertiary rounded border border-transparent focus-within:border-discord-accent/50"
+                class="flex items-center bg-zam-backgroundTertiary rounded border border-transparent focus-within:border-zam-accent/50"
             >
-                <span class="ps-3 text-sm text-discord-textMuted">:</span>
+                <span class="ps-3 text-sm text-zam-textMuted">:</span>
                 <input
                     id={`user-${kind}-shortcode`}
                     bind:value={shortcode}
                     disabled={uploading}
                     placeholder={t("customPackSettings.shortcode")}
-                    class="min-w-0 flex-1 bg-transparent text-discord-textPrimary text-sm py-2 outline-none"
+                    class="min-w-0 flex-1 bg-transparent text-zam-textPrimary text-sm py-2 outline-none"
                 />
-                <span class="pe-3 text-sm text-discord-textMuted">:</span>
+                <span class="pe-3 text-sm text-zam-textMuted">:</span>
             </div>
             {#if kind === "emotes"}
                 <div
-                    class="flex items-center gap-3 px-3 py-2 rounded bg-discord-backgroundTertiary"
+                    class="flex items-center gap-3 px-3 py-2 rounded bg-zam-backgroundTertiary"
                 >
                     <label
-                        class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
+                        class="flex items-center gap-1.5 text-xs text-zam-textPrimary"
                         ><input
                             type="checkbox"
                             bind:checked={asEmoji}
@@ -220,7 +220,7 @@
                         {t("common.emoji")}</label
                     >
                     <label
-                        class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
+                        class="flex items-center gap-1.5 text-xs text-zam-textPrimary"
                         ><input
                             type="checkbox"
                             bind:checked={asSticker}
@@ -231,7 +231,7 @@
                 </div>
             {/if}
             <label
-                class="cursor-pointer px-3 py-2 rounded bg-discord-accent text-white text-sm font-semibold text-center {uploading
+                class="cursor-pointer px-3 py-2 rounded bg-zam-accent text-white text-sm font-semibold text-center {uploading
                     ? 'opacity-50 pointer-events-none'
                     : ''}"
             >
@@ -247,14 +247,14 @@
         </div>
     </section>
 
-    {#if error}<p class="text-sm text-discord-danger">{error}</p>{/if}
+    {#if error}<p class="text-sm text-zam-danger">{error}</p>{/if}
     <div class="space-y-1.5">
         {#each items as item (item.shortcode)}
             <div
-                class="flex items-center gap-3 p-2 rounded bg-discord-backgroundTertiary"
+                class="flex items-center gap-3 p-2 rounded bg-zam-backgroundTertiary"
             >
                 <div
-                    class="w-12 h-12 rounded bg-discord-backgroundSecondary flex-shrink-0 overflow-hidden flex items-center justify-center"
+                    class="w-12 h-12 rounded bg-zam-backgroundSecondary flex-shrink-0 overflow-hidden flex items-center justify-center"
                 >
                     <img
                         src={item.url}
@@ -264,17 +264,17 @@
                 </div>
                 <div class="flex-1 min-w-0">
                     <p
-                        class="text-sm font-medium text-discord-textPrimary truncate"
+                        class="text-sm font-medium text-zam-textPrimary truncate"
                     >
                         :{item.shortcode}:
                     </p>
-                    <p class="text-xs text-discord-textMuted truncate">
+                    <p class="text-xs text-zam-textMuted truncate">
                         {item.mxcUrl}
                     </p>
                 </div>
                 {#if kind === "emotes"}
                     <label
-                        class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
+                        class="flex items-center gap-1.5 text-xs text-zam-textPrimary"
                         ><input
                             type="checkbox"
                             checked={item.canEmoji}
@@ -290,7 +290,7 @@
                         {t("common.emoji")}</label
                     >
                     <label
-                        class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
+                        class="flex items-center gap-1.5 text-xs text-zam-textPrimary"
                         ><input
                             type="checkbox"
                             checked={item.canSticker}
@@ -309,7 +309,7 @@
                 <button
                     onclick={() => remove(item)}
                     disabled={pending === `${item.shortcode}:remove`}
-                    class="p-1 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover disabled:opacity-50"
+                    class="p-1 rounded text-zam-textMuted hover:text-zam-danger hover:bg-zam-messageHover disabled:opacity-50"
                     title={t("customPackSettings.remove", {
                         toLowerCase: singular.toLowerCase(),
                     })}
@@ -319,7 +319,7 @@
             </div>
         {/each}
         {#if items.length === 0}
-            <p class="text-sm text-discord-textMuted text-center py-4">
+            <p class="text-sm text-zam-textMuted text-center py-4">
                 {kind === "emotes"
                     ? t("customPackSettings.noCustomImages")
                     : kind === "emojis"

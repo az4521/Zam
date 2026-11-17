@@ -119,13 +119,13 @@
 <div
     class="{interfaceState.isMobile
         ? ''
-        : 'w-72'} h-full flex flex-col bg-discord-backgroundSecondary border-l border-discord-divider"
+        : 'w-72'} h-full flex flex-col bg-zam-backgroundSecondary border-l border-zam-divider"
 >
     <div
-        class="h-12 flex items-center gap-2 px-4 py-3 border-b border-discord-divider flex-shrink-0"
+        class="h-12 flex items-center gap-2 px-4 py-3 border-b border-zam-divider flex-shrink-0"
     >
         <h3
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide flex-1"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide flex-1"
         >
             {t("pinnedMessagesPanel.pinnedMessages")}
         </h3>
@@ -135,11 +135,11 @@
         {#if loading}
             <div class="flex justify-center mt-8">
                 <div
-                    class="w-5 h-5 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
+                    class="w-5 h-5 border-2 border-zam-accent border-t-transparent rounded-full animate-spin"
                 ></div>
             </div>
         {:else if pinnedEvents.length === 0}
-            <p class="text-sm text-discord-textMuted text-center mt-8 px-4">
+            <p class="text-sm text-zam-textMuted text-center mt-8 px-4">
                 {t("pinnedMessagesPanel.noPinnedMessages")}
             </p>
         {:else}
@@ -149,7 +149,7 @@
                     {@const avatarUrl = getMemberAvatar(room, sender)}
                     {@const name = getMemberName(room, sender)}
                     <div
-                        class="p-2 rounded-lg hover:bg-discord-messageHover transition-colors group"
+                        class="p-2 rounded-lg hover:bg-zam-messageHover transition-colors group"
                     >
                         <div class="flex items-center gap-2 mb-1">
                             <Avatar
@@ -159,16 +159,16 @@
                                 size={18}
                             />
                             <span
-                                class="text-xs font-semibold text-discord-textPrimary truncate"
+                                class="text-xs font-semibold text-zam-textPrimary truncate"
                                 >{name}</span
                             >
                             <span
-                                class="text-xs text-discord-textMuted ms-auto flex-shrink-0"
+                                class="text-xs text-zam-textMuted ms-auto flex-shrink-0"
                                 >{pinnedDate(event.getTs())}</span
                             >
                         </div>
                         <p
-                            class="text-xs text-discord-textMuted line-clamp-3 break-words"
+                            class="text-xs text-zam-textMuted line-clamp-3 break-words"
                         >
                             {excerpt(event)}
                         </p>
@@ -180,12 +180,11 @@
                                     onJumpTo(event.getId()!);
                                     onClose();
                                 }}
-                                class="text-xs text-discord-accent hover:underline"
+                                class="text-xs text-zam-accent hover:underline"
                                 >{t("pinnedMessagesPanel.jump")}</button
                             >
                             {#if canPin}
-                                <span class="text-discord-textMuted text-xs"
-                                    >·</span
+                                <span class="text-zam-textMuted text-xs">·</span
                                 >
                                 <button
                                     onclick={async () => {
@@ -213,7 +212,7 @@
                                         }
                                     }}
                                     disabled={pendingUnpin.has(event.getId()!)}
-                                    class="text-xs text-discord-textMuted hover:text-discord-danger transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    class="text-xs text-zam-textMuted hover:text-zam-danger transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     >{t("pinnedMessagesPanel.unpin")}</button
                                 >
                             {/if}

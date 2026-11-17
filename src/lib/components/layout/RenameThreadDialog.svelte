@@ -65,7 +65,7 @@
         role="dialog"
         aria-modal="true"
         aria-labelledby="rename-thread-title"
-        class="relative z-10 bg-discord-backgroundSecondary rounded-lg shadow-xl w-full max-w-md"
+        class="relative z-10 bg-zam-backgroundSecondary rounded-lg shadow-xl w-full max-w-md"
         use:focusTrap={{ onEscape: onClose }}
     >
         <form
@@ -77,15 +77,14 @@
         >
             <h2
                 id="rename-thread-title"
-                class="text-lg font-bold text-discord-textPrimary"
+                class="text-lg font-bold text-zam-textPrimary"
             >
                 {name
                     ? t("renameThreadDialog.renameThread")
                     : t("renameThreadDialog.nameThread")}
             </h2>
             <label class="flex flex-col gap-1.5">
-                <span
-                    class="text-xs font-bold uppercase text-discord-textSecondary"
+                <span class="text-xs font-bold uppercase text-zam-textSecondary"
                     >{t("renameThreadDialog.threadName")}</span
                 >
                 <input
@@ -94,14 +93,14 @@
                     type="text"
                     maxlength={MAX_THREAD_NAME_LENGTH}
                     autocomplete="off"
-                    class="rounded bg-discord-backgroundTertiary px-3 py-2 text-sm text-discord-textPrimary outline-none focus:ring-2 focus:ring-discord-accent"
+                    class="rounded bg-zam-backgroundTertiary px-3 py-2 text-sm text-zam-textPrimary outline-none focus:ring-2 focus:ring-zam-accent"
                 />
             </label>
-            <p class="text-xs text-discord-textMuted">
+            <p class="text-xs text-zam-textMuted">
                 {t("renameThreadDialog.everyoneInTheRoomSeesIt")}
             </p>
             {#if error}
-                <p class="text-sm text-discord-danger" role="alert">
+                <p class="text-sm text-zam-danger" role="alert">
                     {error}
                 </p>
             {/if}
@@ -111,7 +110,7 @@
                         type="button"
                         disabled={saving}
                         onclick={() => save("")}
-                        class="rounded px-3 py-2 text-sm font-medium text-discord-danger hover:underline disabled:opacity-50"
+                        class="rounded px-3 py-2 text-sm font-medium text-zam-danger hover:underline disabled:opacity-50"
                     >
                         {t("renameThreadDialog.removeName")}
                     </button>
@@ -120,14 +119,14 @@
                 <button
                     type="button"
                     onclick={onClose}
-                    class="rounded px-4 py-2 text-sm font-medium text-discord-textPrimary hover:underline"
+                    class="rounded px-4 py-2 text-sm font-medium text-zam-textPrimary hover:underline"
                 >
                     {t("common.cancel")}
                 </button>
                 <button
                     type="submit"
                     disabled={!cleaned || saving}
-                    class="rounded bg-discord-accent px-4 py-2 text-sm font-medium text-white hover:bg-discord-accentHover disabled:opacity-50"
+                    class="rounded bg-zam-accent px-4 py-2 text-sm font-medium text-white hover:bg-zam-accentHover disabled:opacity-50"
                 >
                     {saving ? t("common.saving") : t("common.save")}
                 </button>

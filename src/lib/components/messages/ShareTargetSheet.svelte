@@ -113,7 +113,7 @@
 {#snippet fileList()}
     {#if previews.length > 0}
         <div
-            class="flex max-h-40 flex-col gap-2 overflow-y-auto border-b border-discord-divider px-4 py-3"
+            class="flex max-h-40 flex-col gap-2 overflow-y-auto border-b border-zam-divider px-4 py-3"
         >
             {#each previews as row, i (i)}
                 <div class="flex items-center gap-3">
@@ -125,7 +125,7 @@
                         />
                     {:else}
                         <div
-                            class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded bg-discord-backgroundTertiary text-discord-textMuted"
+                            class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded bg-zam-backgroundTertiary text-zam-textMuted"
                         >
                             {#if row.isImage}<ImageIcon
                                     size={18}
@@ -134,13 +134,13 @@
                     {/if}
                     <div class="min-w-0 flex-1">
                         <p
-                            class="truncate text-sm text-discord-textPrimary"
+                            class="truncate text-sm text-zam-textPrimary"
                             title={row.name}
                         >
                             {row.name}
                         </p>
                         {#if row.sizeLabel}
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {row.sizeLabel}
                             </p>
                         {/if}
@@ -152,7 +152,7 @@
     {#if payload?.droppedFiles && payload.droppedFiles > 0}
         <div
             role="status"
-            class="border-b border-discord-divider px-4 py-3 text-sm text-discord-textMuted"
+            class="border-b border-zam-divider px-4 py-3 text-sm text-zam-textMuted"
         >
             {t("shareTargetSheet.fileSWerenTAddedShares", {
                 droppedFiles: payload.droppedFiles,
@@ -165,12 +165,12 @@
 {/snippet}
 
 {#snippet captionField()}
-    <div class="border-b border-discord-divider px-4 py-3">
+    <div class="border-b border-zam-divider px-4 py-3">
         <textarea
             bind:value={caption}
             rows="2"
             placeholder={t("shareTargetSheet.addAMessage")}
-            class="w-full resize-none rounded bg-discord-backgroundTertiary px-3 py-2 text-sm text-discord-textPrimary outline-none placeholder:text-discord-textMuted focus:ring-1 focus:ring-discord-accent"
+            class="w-full resize-none rounded bg-zam-backgroundTertiary px-3 py-2 text-sm text-zam-textPrimary outline-none placeholder:text-zam-textMuted focus:ring-1 focus:ring-zam-accent"
         ></textarea>
     </div>
 {/snippet}
@@ -180,13 +180,13 @@
         <label class="relative block">
             <Search
                 size={16}
-                class="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-discord-textMuted"
+                class="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-zam-textMuted"
             />
             <input
                 data-autofocus
                 bind:value={query}
                 placeholder={t("shareTargetSheet.searchRooms")}
-                class="w-full rounded bg-discord-backgroundTertiary py-2 ps-9 pe-3 text-sm text-discord-textPrimary outline-none placeholder:text-discord-textMuted focus:ring-1 focus:ring-discord-accent"
+                class="w-full rounded bg-zam-backgroundTertiary py-2 ps-9 pe-3 text-sm text-zam-textPrimary outline-none placeholder:text-zam-textMuted focus:ring-1 focus:ring-zam-accent"
             />
         </label>
     </div>
@@ -199,9 +199,9 @@
                 type="button"
                 onclick={() => (selectedRoomId = room.roomId)}
                 aria-pressed={selectedRoomId === room.roomId}
-                class="flex w-full items-center gap-3 rounded px-2 py-2 text-start transition-colors hover:bg-discord-messageHover {selectedRoomId ===
+                class="flex w-full items-center gap-3 rounded px-2 py-2 text-start transition-colors hover:bg-zam-messageHover {selectedRoomId ===
                 room.roomId
-                    ? 'bg-discord-messageHover ring-1 ring-discord-accent'
+                    ? 'bg-zam-messageHover ring-1 ring-zam-accent'
                     : ''}"
             >
                 <Avatar
@@ -211,13 +211,13 @@
                     size={36}
                 />
                 <span
-                    class="min-w-0 truncate text-sm font-medium text-discord-textPrimary"
+                    class="min-w-0 truncate text-sm font-medium text-zam-textPrimary"
                 >
                     {getRoomDisplayName(room)}
                 </span>
             </button>
         {:else}
-            <p class="px-3 py-8 text-center text-sm text-discord-textMuted">
+            <p class="px-3 py-8 text-center text-sm text-zam-textMuted">
                 {t("shareTargetSheet.noJoinedRoomsFound")}
             </p>
         {/each}
@@ -225,18 +225,18 @@
 {/snippet}
 
 {#snippet footer()}
-    <div class="flex justify-end gap-2 border-t border-discord-divider p-3">
+    <div class="flex justify-end gap-2 border-t border-zam-divider p-3">
         <button
             type="button"
             onclick={clearShare}
-            class="px-3 py-2 text-sm font-semibold text-discord-textMuted hover:text-discord-textPrimary"
+            class="px-3 py-2 text-sm font-semibold text-zam-textMuted hover:text-zam-textPrimary"
             >{t("common.cancel")}</button
         >
         <button
             type="button"
             onclick={submit}
             disabled={!selectedRoomId || empty}
-            class="rounded bg-discord-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-discord-accentHover disabled:cursor-not-allowed disabled:opacity-50"
+            class="rounded bg-zam-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zam-accentHover disabled:cursor-not-allowed disabled:opacity-50"
             >{t("shareTargetSheet.send")}</button
         >
     </div>
@@ -246,19 +246,19 @@
     {#if interfaceState.isTouchscreen}
         <Portal>
             <div
-                class="fixed inset-0 z-[90] flex flex-col bg-discord-background"
+                class="fixed inset-0 z-[90] flex flex-col bg-zam-background"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="share-target-title"
                 use:focusTrap={{ onEscape: clearShare }}
             >
                 <div
-                    class="flex items-center gap-2 border-b border-discord-divider px-2 py-3"
+                    class="flex items-center gap-2 border-b border-zam-divider px-2 py-3"
                 >
                     <button
                         type="button"
                         onclick={clearShare}
-                        class="rounded p-1.5 text-discord-textMuted hover:bg-discord-messageHover hover:text-discord-textPrimary"
+                        class="rounded p-1.5 text-zam-textMuted hover:bg-zam-messageHover hover:text-zam-textPrimary"
                         aria-label={t("common.close")}
                         title={t("common.close")}
                         ><ArrowLeft
@@ -268,7 +268,7 @@
                     >
                     <h2
                         id="share-target-title"
-                        class="text-base font-semibold text-discord-textPrimary"
+                        class="text-base font-semibold text-zam-textPrimary"
                     >
                         {t("shareTargetSheet.shareToARoom")}
                     </h2>
@@ -286,21 +286,21 @@
                 onClose={clearShare}
                 labelledBy="share-target-title"
                 layerClass="z-[90] flex items-center justify-center p-3"
-                panelClass="relative flex max-h-[min(680px,90dvh)] w-full max-w-md flex-col overflow-hidden rounded-lg border border-discord-divider bg-discord-backgroundSecondary shadow-2xl"
+                panelClass="relative flex max-h-[min(680px,90dvh)] w-full max-w-md flex-col overflow-hidden rounded-lg border border-zam-divider bg-zam-backgroundSecondary shadow-2xl"
             >
                 <div
-                    class="flex items-center justify-between border-b border-discord-divider px-4 py-3"
+                    class="flex items-center justify-between border-b border-zam-divider px-4 py-3"
                 >
                     <h2
                         id="share-target-title"
-                        class="text-base font-semibold text-discord-textPrimary"
+                        class="text-base font-semibold text-zam-textPrimary"
                     >
                         {t("shareTargetSheet.shareToARoom")}
                     </h2>
                     <button
                         type="button"
                         onclick={clearShare}
-                        class="ms-2 rounded p-1.5 text-discord-textMuted hover:bg-discord-messageHover hover:text-discord-textPrimary"
+                        class="ms-2 rounded p-1.5 text-zam-textMuted hover:bg-zam-messageHover hover:text-zam-textPrimary"
                         aria-label={t("common.close")}
                         title={t("common.close")}><X size={20} /></button
                     >

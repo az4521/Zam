@@ -123,13 +123,13 @@
 </script>
 
 <div
-    class="flex items-center gap-3 p-3 bg-discord-backgroundTertiary rounded-lg mt-1 max-w-sm w-full"
+    class="flex items-center gap-3 p-3 bg-zam-backgroundTertiary rounded-lg mt-1 max-w-sm w-full"
 >
     <!-- svelte-ignore a11y_consider_explicit_label -->
     <button
         onclick={toggle}
         disabled={loading}
-        class="w-8 h-8 rounded-full bg-discord-accent flex-shrink-0 flex items-center justify-center disabled:opacity-50"
+        class="w-8 h-8 rounded-full bg-zam-accent flex-shrink-0 flex items-center justify-center disabled:opacity-50"
     >
         {#if loading}
             <div
@@ -181,7 +181,7 @@
                 >
                     {#each waveform as bar}
                         <div
-                            class="flex-1 min-w-[2px] rounded-full bg-discord-divider"
+                            class="flex-1 min-w-[2px] rounded-full bg-zam-divider"
                             style="height: {Math.max(8, (bar / 1024) * 100)}%"
                         ></div>
                     {/each}
@@ -194,21 +194,21 @@
                 >
                     {#each waveform as bar}
                         <div
-                            class="flex-1 min-w-[2px] rounded-full bg-discord-accent"
+                            class="flex-1 min-w-[2px] rounded-full bg-zam-accent"
                             style="height: {Math.max(8, (bar / 1024) * 100)}%"
                         ></div>
                     {/each}
                 </div>
             </div>
         {:else}
-            <p class="text-discord-textPrimary text-xs font-medium truncate">
+            <p class="text-zam-textPrimary text-xs font-medium truncate">
                 {t("voiceMessagePlayer.voiceMessage")}
             </p>
         {/if}
     </div>
 
     <span
-        class="text-discord-textMuted text-xs tabular-nums flex-shrink-0 w-9 text-end"
+        class="text-zam-textMuted text-xs tabular-nums flex-shrink-0 w-9 text-end"
     >
         {timeLabel}
     </span>

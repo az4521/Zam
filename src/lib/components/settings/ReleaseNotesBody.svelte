@@ -12,7 +12,7 @@
     );
 </script>
 
-<div class="whats-new-prose text-sm leading-relaxed text-discord-textPrimary">
+<div class="whats-new-prose text-sm leading-relaxed text-zam-textPrimary">
     {@html html}
 </div>
 
@@ -30,7 +30,7 @@
         list-style: revert;
     }
     .whats-new-prose :global(a) {
-        color: var(--discord-accent-text, #8fa1e2);
+        color: var(--zam-accent-text, #8fa1e2);
         text-decoration: underline;
     }
     .whats-new-prose :global(code) {

@@ -86,9 +86,9 @@ describe("presenceDot", () => {
 
 describe("presenceDotClass", () => {
     it("returns the themed Tailwind class per dot", () => {
-        expect(presenceDotClass("online")).toBe("bg-discord-online");
-        expect(presenceDotClass("idle")).toBe("bg-discord-idle");
-        expect(presenceDotClass("offline")).toBe("bg-discord-offline");
+        expect(presenceDotClass("online")).toBe("bg-zam-online");
+        expect(presenceDotClass("idle")).toBe("bg-zam-idle");
+        expect(presenceDotClass("offline")).toBe("bg-zam-offline");
     });
 });
 
@@ -119,7 +119,7 @@ describe("OWN_PRESENCE_OPTIONS", () => {
 describe("busy presence", () => {
     it("renders as a red Do Not Disturb dot", () => {
         expect(presenceDot("busy")).toBe("dnd");
-        expect(presenceDotClass("dnd")).toBe("bg-discord-dnd");
+        expect(presenceDotClass("dnd")).toBe("bg-zam-dnd");
         expect(presenceLabel("busy")).toBe(presenceLabel("busy"));
         expect(presenceLabel("busy")).not.toBe(presenceLabel("unavailable"));
     });

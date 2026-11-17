@@ -38,7 +38,7 @@
 
 <button
     onclick={toggle}
-    class="{buttonClass} {anchor ? 'text-discord-accent' : idleClass}"
+    class="{buttonClass} {anchor ? 'text-zam-accent' : idleClass}"
     title={t("soundboard.title")}
     aria-label={t("soundboard.title")}
     aria-haspopup="dialog"

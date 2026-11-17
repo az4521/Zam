@@ -260,7 +260,7 @@
                   ownDevice: true,
               })
         : null}
-    <div class="rounded bg-discord-backgroundTertiary px-4 py-3 space-y-3">
+    <div class="rounded bg-zam-backgroundTertiary px-4 py-3 space-y-3">
         <div class="flex items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
                 {#if renamingId === device.deviceId}
@@ -271,58 +271,58 @@
                             placeholder={t("sessionSettings.sessionName")}
                             onkeydown={(event) =>
                                 event.key === "Enter" && saveRename()}
-                            class="flex-1 bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-2 py-1 outline-none"
+                            class="flex-1 bg-zam-backgroundDark text-zam-textPrimary text-sm rounded px-2 py-1 outline-none"
                         />
                         <button
                             onclick={saveRename}
                             disabled={renameSaving}
-                            class="px-2.5 py-1 bg-discord-accent text-white rounded text-xs"
+                            class="px-2.5 py-1 bg-zam-accent text-white rounded text-xs"
                             >{renameSaving
                                 ? t("common.saving")
                                 : t("common.save")}</button
                         >
                         <button
                             onclick={() => (renamingId = null)}
-                            class="px-2.5 py-1 bg-discord-messageHover text-discord-textPrimary rounded text-xs"
+                            class="px-2.5 py-1 bg-zam-messageHover text-zam-textPrimary rounded text-xs"
                             >{t("common.cancel")}</button
                         >
                     </div>
                 {:else}
                     <p
-                        class="text-sm font-medium text-discord-textPrimary truncate"
+                        class="text-sm font-medium text-zam-textPrimary truncate"
                     >
                         {device.displayName || device.deviceId}
                         {#if isCurrent}<span
-                                class="ms-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase bg-discord-accent/20 text-discord-accent"
+                                class="ms-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase bg-zam-accent/20 text-zam-accent"
                                 >{t("sessionSettings.current")}</span
                             >{/if}
                         {#if isCurrent && cryptoActive}
                             <span
                                 class="ms-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {badge?.tone ===
                                 'verified'
-                                    ? 'bg-discord-online/20 text-discord-online'
+                                    ? 'bg-zam-online/20 text-zam-online'
                                     : badge?.tone === 'warning'
-                                      ? 'bg-discord-warning/20 text-discord-warning'
-                                      : 'bg-discord-messageHover text-discord-textMuted'}"
+                                      ? 'bg-zam-warning/20 text-zam-warning'
+                                      : 'bg-zam-messageHover text-zam-textMuted'}"
                                 >{badge?.label ?? t("common.checking")}</span
                             >
                         {:else if !isCurrent && badge}
                             <span
                                 class="ms-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {badge.tone ===
                                 'verified'
-                                    ? 'bg-discord-online/20 text-discord-online'
+                                    ? 'bg-zam-online/20 text-zam-online'
                                     : badge.tone === 'warning'
-                                      ? 'bg-discord-warning/20 text-discord-warning'
-                                      : 'bg-discord-messageHover text-discord-textMuted'}"
+                                      ? 'bg-zam-warning/20 text-zam-warning'
+                                      : 'bg-zam-messageHover text-zam-textMuted'}"
                                 >{badge.label}</span
                             >
                         {/if}
                     </p>
                 {/if}
-                <p class="text-xs text-discord-textMuted font-mono mt-0.5">
+                <p class="text-xs text-zam-textMuted font-mono mt-0.5">
                     {device.deviceId}
                 </p>
-                <p class="text-xs text-discord-textMuted mt-1">{details}</p>
+                <p class="text-xs text-zam-textMuted mt-1">{details}</p>
             </div>
             <div class="flex gap-2 flex-shrink-0">
                 <!-- This session is unverified: ask the others to verify it.
@@ -331,21 +331,21 @@
                 {#if isCurrent && cryptoActive && verificationStatusState.view?.kind === "unverified" && others.length > 0}
                     <button
                         onclick={startVerifyWithAnotherDevice}
-                        class="px-2.5 py-1 bg-discord-accent/20 text-discord-accent rounded text-xs"
+                        class="px-2.5 py-1 bg-zam-accent/20 text-zam-accent rounded text-xs"
                         >{t("verification.verifyWithAnotherDevice")}</button
                     >
                 {/if}
                 {#if !isCurrent && badge && badge.tone !== "verified"}
                     <button
                         onclick={() => startVerify(device.deviceId)}
-                        class="px-2.5 py-1 bg-discord-accent/20 text-discord-accent rounded text-xs"
+                        class="px-2.5 py-1 bg-zam-accent/20 text-zam-accent rounded text-xs"
                         >{t("common.verify")}</button
                     >
                 {/if}
                 {#if renamingId !== device.deviceId}
                     <button
                         onclick={() => startRename(device)}
-                        class="px-2.5 py-1 bg-discord-messageHover text-discord-textPrimary rounded text-xs"
+                        class="px-2.5 py-1 bg-zam-messageHover text-zam-textPrimary rounded text-xs"
                         >{t("sessionSettings.rename")}</button
                     >
                 {/if}
@@ -355,7 +355,7 @@
                             href={sessionsUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="px-2.5 py-1 bg-discord-messageHover text-discord-textPrimary rounded text-xs"
+                            class="px-2.5 py-1 bg-zam-messageHover text-zam-textPrimary rounded text-xs"
                             >{t("sessionSettings.manageAtProvider")}</a
                         >
                     {/if}
@@ -365,8 +365,8 @@
                         disabled={signOutBusy}
                         class="px-2.5 py-1 rounded text-xs {confirmId ===
                         device.deviceId
-                            ? 'bg-discord-danger text-white'
-                            : 'bg-discord-messageHover text-discord-danger'}"
+                            ? 'bg-zam-danger text-white'
+                            : 'bg-zam-messageHover text-zam-danger'}"
                         >{confirmId === device.deviceId
                             ? t("sessionSettings.signOut")
                             : t("sessionSettings.signOut2")}</button
@@ -375,8 +375,8 @@
             </div>
         </div>
         {#if passwordId === device.deviceId}
-            <div class="pt-3 border-t border-discord-divider space-y-2">
-                <p class="text-xs text-discord-textMuted">
+            <div class="pt-3 border-t border-zam-divider space-y-2">
+                <p class="text-xs text-zam-textMuted">
                     {t("sessionSettings.confirmYourAccountPasswordToSign")}
                 </p>
                 <div class="flex gap-2">
@@ -388,20 +388,20 @@
                             event.key === "Enter" &&
                             password &&
                             performSignOut(device.deviceId, password)}
-                        class="flex-1 bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none"
+                        class="flex-1 bg-zam-backgroundDark text-zam-textPrimary text-sm rounded px-3 py-1.5 outline-none"
                     />
                     <button
                         onclick={() =>
                             performSignOut(device.deviceId, password)}
                         disabled={signOutBusy || !password}
-                        class="px-3 py-1.5 bg-discord-danger text-white rounded text-xs disabled:opacity-50"
+                        class="px-3 py-1.5 bg-zam-danger text-white rounded text-xs disabled:opacity-50"
                         >{signOutBusy
                             ? t("sessionSettings.signingOut")
                             : t("sessionSettings.signOut2")}</button
                     >
                     <button
                         onclick={cancelSignOut}
-                        class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-xs"
+                        class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-xs"
                         >{t("common.cancel")}</button
                     >
                 </div>
@@ -411,49 +411,47 @@
 {/snippet}
 
 <div class="space-y-6">
-    <section
-        class="rounded bg-discord-backgroundTertiary px-4 py-3 space-y-1.5"
-    >
+    <section class="rounded bg-zam-backgroundTertiary px-4 py-3 space-y-1.5">
         <div class="flex items-center gap-2">
             <span
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                 >{t("sessionSettings.encryption")}</span
             >
             <span
                 class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {cryptoActive
-                    ? 'bg-discord-accent/20 text-discord-accent'
-                    : 'bg-discord-messageHover text-discord-textMuted'}"
+                    ? 'bg-zam-accent/20 text-zam-accent'
+                    : 'bg-zam-messageHover text-zam-textMuted'}"
                 >{cryptoActive
                     ? t("sessionSettings.active")
                     : t("sessionSettings.unavailable")}</span
             >
         </div>
         {#if deviceEd25519}
-            <p class="text-xs text-discord-textMuted">
+            <p class="text-xs text-zam-textMuted">
                 {t("sessionSettings.thisDeviceSKey")}
                 <span
-                    class="font-mono text-discord-textPrimary break-all select-all"
+                    class="font-mono text-zam-textPrimary break-all select-all"
                     >{deviceEd25519}</span
                 >
             </p>
         {:else if cryptoActive}
-            <p class="text-xs text-discord-textMuted">
+            <p class="text-xs text-zam-textMuted">
                 {t("sessionSettings.loadingDeviceKey")}
             </p>
         {:else}
-            <p class="text-xs text-discord-textMuted">
+            <p class="text-xs text-zam-textMuted">
                 {t("sessionSettings.endToEndEncryptionCouldNot")}
             </p>
         {/if}
         {#if cryptoActive}
             <div
-                class="flex items-center gap-3 pt-2 mt-1 border-t border-discord-divider"
+                class="flex items-center gap-3 pt-2 mt-1 border-t border-zam-divider"
             >
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm text-discord-textPrimary">
+                    <p class="text-sm text-zam-textPrimary">
                         {t("sessionSettings.encryptNewDirectMessages")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("sessionSettings.newDmsYouStartAreEncrypted")}
                     </p>
                 </div>
@@ -464,13 +462,13 @@
                 />
             </div>
             <div
-                class="flex items-center gap-3 pt-2 mt-1 border-t border-discord-divider"
+                class="flex items-center gap-3 pt-2 mt-1 border-t border-zam-divider"
             >
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm text-discord-textPrimary">
+                    <p class="text-sm text-zam-textPrimary">
                         {t("sessionSettings.excludeInsecureDevices")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("sessionSettings.excludeInsecureDevicesHelp")}
                     </p>
                 </div>
@@ -481,13 +479,13 @@
                 />
             </div>
             <div
-                class="flex items-center gap-3 pt-2 mt-1 border-t border-discord-divider"
+                class="flex items-center gap-3 pt-2 mt-1 border-t border-zam-divider"
             >
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm text-discord-textPrimary">
+                    <p class="text-sm text-zam-textPrimary">
                         {t("sessionSettings.onlySendToVerifiedDevices")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t(
                             "sessionSettings.refuseToEncryptMessagesForSessions",
                         )}
@@ -502,39 +500,39 @@
         {/if}
     </section>
     <div class="flex items-center justify-between gap-3">
-        <p class="text-xs text-discord-textMuted">
+        <p class="text-xs text-zam-textMuted">
             {t("sessionSettings.devicesCurrentlySignedInToThis")}
         </p>
         <button
             onclick={load}
             disabled={loading}
-            class="px-3 py-1.5 rounded text-xs bg-discord-backgroundTertiary text-discord-textPrimary disabled:opacity-50"
+            class="px-3 py-1.5 rounded text-xs bg-zam-backgroundTertiary text-zam-textPrimary disabled:opacity-50"
             >{loading
                 ? t("sessionSettings.refreshing")
                 : t("sessionSettings.refresh")}</button
         >
     </div>
-    {#if error}<p class="text-sm text-discord-danger">{error}</p>{/if}
-    {#if verifyError}<p class="text-sm text-discord-danger">
+    {#if error}<p class="text-sm text-zam-danger">{error}</p>{/if}
+    {#if verifyError}<p class="text-sm text-zam-danger">
             {verifyError}
         </p>{/if}
     {#if current}
         {@render deviceRow(current, true)}
     {:else if loading}
-        <p class="text-sm text-discord-textMuted">
+        <p class="text-sm text-zam-textMuted">
             {t("sessionSettings.loadingSessions")}
         </p>
     {/if}
     <section>
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
         >
             {t("sessionSettings.otherSessions", {
                 value: loaded ? `(${others.length})` : "",
             })}
         </p>
         {#if loaded && others.length === 0}
-            <p class="text-sm text-discord-textMuted">
+            <p class="text-sm text-zam-textMuted">
                 {t("sessionSettings.noOtherSessionsYouReOnly")}
             </p>
         {:else}

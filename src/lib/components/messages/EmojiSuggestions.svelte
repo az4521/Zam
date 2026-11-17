@@ -20,7 +20,7 @@
 </script>
 
 <div
-    class="bg-discord-backgroundSecondary border border-discord-divider rounded-lg overflow-hidden shadow-lg {className}"
+    class="bg-zam-backgroundSecondary border border-zam-divider rounded-lg overflow-hidden shadow-lg {className}"
 >
     {#each candidates as candidate, i}
         <button
@@ -33,17 +33,16 @@
             }}
             onpointerenter={() => (selectedIdx = i)}
             class="w-full flex items-center gap-2.5 px-3 py-1.5 text-start transition-colors"
-            class:bg-discord-messageHover={i === selectedIdx}
+            class:bg-zam-messageHover={i === selectedIdx}
         >
             {#if candidate.kind === "unicode"}
                 <span class="text-xl w-6 text-center flex-shrink-0"
                     >{candidate.emoji}</span
                 >
-                <span class="text-sm text-discord-textPrimary truncate"
+                <span class="text-sm text-zam-textPrimary truncate"
                     >:{candidate.name}:</span
                 >
-                <span class="text-xs text-discord-textMuted"
-                    >{candidate.emoji}</span
+                <span class="text-xs text-zam-textMuted">{candidate.emoji}</span
                 >
             {:else}
                 <img
@@ -51,11 +50,11 @@
                     alt={candidate.shortcode}
                     class="w-6 h-6 object-contain flex-shrink-0"
                 />
-                <span class="text-sm text-discord-textPrimary truncate"
+                <span class="text-sm text-zam-textPrimary truncate"
                     >:{candidate.shortcode}:</span
                 >
                 <span
-                    class="ms-auto ps-2 text-xs text-discord-textMuted truncate max-w-[50%]"
+                    class="ms-auto ps-2 text-xs text-zam-textMuted truncate max-w-[50%]"
                     >{candidate.source === USER_EMOJI_SOURCE
                         ? t("messageInput.yourEmotes")
                         : (candidate.source ?? t("messageInput.custom"))}</span

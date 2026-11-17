@@ -36,33 +36,30 @@
 </script>
 
 <details
-    class="mx-4 my-0.5 rounded bg-discord-backgroundTertiary/40 border border-discord-divider font-mono text-xs"
+    class="mx-4 my-0.5 rounded bg-zam-backgroundTertiary/40 border border-zam-divider font-mono text-xs"
 >
     <summary
-        class="px-2 py-1 cursor-pointer select-none flex flex-wrap items-center gap-2 text-discord-textMuted"
+        class="px-2 py-1 cursor-pointer select-none flex flex-wrap items-center gap-2 text-zam-textMuted"
     >
-        <span class="text-discord-warning/80">{time}</span>
-        <span class="text-discord-accent">{type}</span>
+        <span class="text-zam-warning/80">{time}</span>
+        <span class="text-zam-accent">{type}</span>
         {#if stateKey !== undefined && stateKey !== null}
-            <span
-                class="text-discord-warning"
-                title={t("debugEventItem.stateKey")}
+            <span class="text-zam-warning" title={t("debugEventItem.stateKey")}
                 >⊞ {stateKey || t("debugEventItem.empty")}</span
             >
         {/if}
-        <span class="text-discord-textSecondary break-all">{sender}</span>
-        {#if redacted}<span class="text-discord-danger"
+        <span class="text-zam-textSecondary break-all">{sender}</span>
+        {#if redacted}<span class="text-zam-danger"
                 >{t("debugEventItem.redacted")}</span
             >{/if}
-        {#if failureReason}<span class="text-discord-danger"
-                >{failureReason}</span
+        {#if failureReason}<span class="text-zam-danger">{failureReason}</span
             >{/if}
     </summary>
-    <div class="px-2 pb-2 pt-1 border-t border-discord-divider space-y-1">
-        <div class="text-discord-textMuted break-all">
+    <div class="px-2 pb-2 pt-1 border-t border-zam-divider space-y-1">
+        <div class="text-zam-textMuted break-all">
             {t("debugEventItem.id", { eventId })}
         </div>
         <pre
-            class="whitespace-pre-wrap break-all text-discord-textPrimary">{contentJson}</pre>
+            class="whitespace-pre-wrap break-all text-zam-textPrimary">{contentJson}</pre>
     </div>
 </details>

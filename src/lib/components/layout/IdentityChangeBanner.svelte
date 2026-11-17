@@ -27,9 +27,9 @@
         {#each visible as alert (alert.userId)}
             <div
                 role="alert"
-                class="flex items-center gap-3 rounded-lg border border-discord-danger/50 bg-discord-backgroundSecondary px-4 py-2.5 shadow-lg"
+                class="flex items-center gap-3 rounded-lg border border-zam-danger/50 bg-zam-backgroundSecondary px-4 py-2.5 shadow-lg"
             >
-                <span class="min-w-0 text-sm text-discord-textPrimary">
+                <span class="min-w-0 text-sm text-zam-textPrimary">
                     {alert.own
                         ? t("identityChange.own")
                         : t("identityChange.other", { user: alert.userId })}
@@ -37,7 +37,7 @@
                 {#if !alert.own}
                     <button
                         onclick={() => acceptIdentityChange(alert.userId)}
-                        class="flex-shrink-0 rounded bg-discord-accent px-3 py-1 text-sm font-medium text-white hover:opacity-90"
+                        class="flex-shrink-0 rounded bg-zam-accent px-3 py-1 text-sm font-medium text-white hover:opacity-90"
                     >
                         {t("identityChange.accept")}
                     </button>
@@ -45,7 +45,7 @@
                         <button
                             onclick={() =>
                                 withdrawVerificationRequirement(alert.userId)}
-                            class="flex-shrink-0 rounded bg-discord-backgroundTertiary px-3 py-1 text-sm text-discord-textPrimary"
+                            class="flex-shrink-0 rounded bg-zam-backgroundTertiary px-3 py-1 text-sm text-zam-textPrimary"
                         >
                             {t("identityChange.withdraw")}
                         </button>
@@ -54,7 +54,7 @@
                 <button
                     onclick={() => dismiss(alert.userId)}
                     aria-label={t("identityChange.dismiss")}
-                    class="flex-shrink-0 text-discord-textMuted hover:text-discord-textPrimary"
+                    class="flex-shrink-0 text-zam-textMuted hover:text-zam-textPrimary"
                 >
                     <X size={14} />
                 </button>

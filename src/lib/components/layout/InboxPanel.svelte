@@ -63,12 +63,12 @@
 
 <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
     <div
-        class="h-12 px-4 flex items-center gap-3 border-b border-discord-divider shadow-sm flex-shrink-0"
+        class="h-12 px-4 flex items-center gap-3 border-b border-zam-divider shadow-sm flex-shrink-0"
     >
         {#if isMobile}
             <button
                 onclick={onMenuOpen}
-                class="p-1.5 -ms-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                class="p-1.5 -ms-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors flex-shrink-0"
                 title={t("common.openRoomList")}
             >
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -76,7 +76,7 @@
                 </svg>
             </button>
         {/if}
-        <h2 class="font-semibold text-discord-textPrimary">
+        <h2 class="font-semibold text-zam-textPrimary">
             {t("inboxPanel.inbox")}
         </h2>
     </div>
@@ -87,10 +87,10 @@
                 class="flex flex-col items-center justify-center h-full text-center py-16"
             >
                 <div
-                    class="w-16 h-16 rounded-full bg-discord-backgroundSecondary flex items-center justify-center mb-4"
+                    class="w-16 h-16 rounded-full bg-zam-backgroundSecondary flex items-center justify-center mb-4"
                 >
                     <svg
-                        class="w-8 h-8 text-discord-textMuted"
+                        class="w-8 h-8 text-zam-textMuted"
                         fill="currentColor"
                         viewBox="0 0 24 24"
                         ><path
@@ -98,10 +98,10 @@
                         /></svg
                     >
                 </div>
-                <p class="text-discord-textPrimary font-semibold mb-1">
+                <p class="text-zam-textPrimary font-semibold mb-1">
                     {t("inboxPanel.noPendingInvites")}
                 </p>
-                <p class="text-discord-textMuted text-sm">
+                <p class="text-zam-textMuted text-sm">
                     {t("inboxPanel.roomInvitesWillAppearHere")}
                 </p>
             </div>
@@ -109,7 +109,7 @@
             <div class="max-w-lg mx-auto flex flex-col gap-3">
                 {#if roomsState.invitedRooms.length > 0}
                     <p
-                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
+                        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-1"
                     >
                         {t("inboxPanel.pendingInvites", {
                             length: roomsState.invitedRooms.length,
@@ -121,7 +121,7 @@
                     {@const sender = getInviteSender(room)}
                     {@const topic = getRoomTopic(room)}
                     <div
-                        class="flex items-center gap-4 p-4 rounded-lg bg-discord-backgroundSecondary border border-discord-divider"
+                        class="flex items-center gap-4 p-4 rounded-lg bg-zam-backgroundSecondary border border-zam-divider"
                     >
                         <Avatar
                             src={getRoomAvatar(room)}
@@ -130,20 +130,20 @@
                         />
                         <div class="flex-1 min-w-0">
                             <p
-                                class="font-semibold text-discord-textPrimary truncate"
+                                class="font-semibold text-zam-textPrimary truncate"
                             >
                                 {@html renderPlainTextWithTwemoji(
                                     getRoomDisplayName(room),
                                 )}
                             </p>
                             {#if sender}
-                                <p class="text-xs text-discord-textMuted">
+                                <p class="text-xs text-zam-textMuted">
                                     {t("inboxPanel.invitedBy", { sender })}
                                 </p>
                             {/if}
                             {#if topic}
                                 <p
-                                    class="text-sm text-discord-textMuted mt-0.5 line-clamp-2"
+                                    class="text-sm text-zam-textMuted mt-0.5 line-clamp-2"
                                 >
                                     {topic}
                                 </p>
@@ -153,13 +153,13 @@
                             <button
                                 onclick={() => reject(room.roomId)}
                                 disabled={busy}
-                                class="px-3 py-1.5 rounded text-sm font-semibold text-discord-textMuted hover:text-white hover:bg-discord-danger border border-discord-divider hover:border-discord-danger transition-colors disabled:opacity-50"
+                                class="px-3 py-1.5 rounded text-sm font-semibold text-zam-textMuted hover:text-white hover:bg-zam-danger border border-zam-divider hover:border-zam-danger transition-colors disabled:opacity-50"
                                 >{t("inboxPanel.ignore")}</button
                             >
                             <button
                                 onclick={() => accept(room.roomId)}
                                 disabled={busy}
-                                class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                                class="px-3 py-1.5 rounded text-sm font-semibold bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
                             >
                                 {#if busy}
                                     <div
@@ -173,7 +173,7 @@
                 {/each}
                 {#if roomsState.knockedRooms.length > 0}
                     <p
-                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1 {roomsState
+                        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-1 {roomsState
                             .invitedRooms.length > 0
                             ? 'mt-3'
                             : ''}"
@@ -185,7 +185,7 @@
                     {#each roomsState.knockedRooms as room (room.roomId)}
                         {@const busy = busyIds.has(room.roomId)}
                         <div
-                            class="flex items-center gap-4 p-4 rounded-lg bg-discord-backgroundSecondary border border-discord-divider"
+                            class="flex items-center gap-4 p-4 rounded-lg bg-zam-backgroundSecondary border border-zam-divider"
                         >
                             <Avatar
                                 src={getRoomAvatar(room)}
@@ -194,13 +194,13 @@
                             />
                             <div class="flex-1 min-w-0">
                                 <p
-                                    class="font-semibold text-discord-textPrimary truncate"
+                                    class="font-semibold text-zam-textPrimary truncate"
                                 >
                                     {@html renderPlainTextWithTwemoji(
                                         getRoomDisplayName(room),
                                     )}
                                 </p>
-                                <p class="text-xs text-discord-textMuted">
+                                <p class="text-xs text-zam-textMuted">
                                     {t("inboxPanel.youAskedToJoinWaitingFor")}
                                 </p>
                             </div>
@@ -208,7 +208,7 @@
                                 <button
                                     onclick={() => cancelRequest(room.roomId)}
                                     disabled={busy}
-                                    class="px-3 py-1.5 rounded text-sm font-semibold text-discord-textMuted hover:text-white hover:bg-discord-danger border border-discord-divider hover:border-discord-danger transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                                    class="px-3 py-1.5 rounded text-sm font-semibold text-zam-textMuted hover:text-white hover:bg-zam-danger border border-zam-divider hover:border-zam-danger transition-colors disabled:opacity-50 flex items-center gap-1.5"
                                 >
                                     {#if busy}
                                         <div

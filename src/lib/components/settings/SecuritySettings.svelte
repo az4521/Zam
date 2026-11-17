@@ -539,17 +539,17 @@
 {#snippet approvalPrompt()}
     {#if approval}
         <div
-            class="space-y-2 rounded border border-discord-divider p-3"
+            class="space-y-2 rounded border border-zam-divider p-3"
             role="group"
             aria-label={t("securitySettings.approveOnAccountPage")}
         >
-            <p class="text-sm font-medium text-discord-textPrimary">
+            <p class="text-sm font-medium text-zam-textPrimary">
                 {t("securitySettings.approveOnAccountPage")}
             </p>
             <p
                 class="text-xs {approval.retry
-                    ? 'text-discord-warning'
-                    : 'text-discord-textMuted'}"
+                    ? 'text-zam-warning'
+                    : 'text-zam-textMuted'}"
             >
                 {approval.retry
                     ? t("securitySettings.approveOnAccountPageRetry")
@@ -563,17 +563,17 @@
                     target="_blank"
                     data-in-app
                     rel="noopener noreferrer"
-                    class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm"
+                    class="px-3 py-1.5 bg-zam-accent text-white rounded text-sm"
                     >{t("securitySettings.openAccountPage")}</a
                 >
                 <button
                     onclick={() => answerApproval(true)}
-                    class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm"
+                    class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-sm"
                     >{t("securitySettings.iVeApprovedIt")}</button
                 >
                 <button
                     onclick={() => answerApproval(false)}
-                    class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm"
+                    class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-sm"
                     >{t("common.cancel")}</button
                 >
             </div>
@@ -585,7 +585,7 @@
      `status`/`backup` after a read stopped landing is a past reading, not a
      current claim about the account (audit CRYPTO-02). -->
 {#snippet staleMarker()}
-    <p class="text-xs text-discord-textMuted py-1.5">
+    <p class="text-xs text-zam-textMuted py-1.5">
         {t("securitySettings.showingTheLastReadingThatLoaded")}
     </p>
 {/snippet}
@@ -597,11 +597,11 @@
     offText: string,
 )}
     <div class="flex items-center justify-between gap-3 py-1.5">
-        <span class="text-sm text-discord-textPrimary">{label}</span>
+        <span class="text-sm text-zam-textPrimary">{label}</span>
         <span
             class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {ok
-                ? 'bg-discord-online/20 text-discord-online'
-                : 'bg-discord-messageHover text-discord-textMuted'}"
+                ? 'bg-zam-online/20 text-zam-online'
+                : 'bg-zam-messageHover text-zam-textMuted'}"
             >{ok ? okText : offText}</span
         >
     </div>
@@ -609,10 +609,10 @@
 
 <div class="space-y-6">
     <div>
-        <h3 class="text-sm font-semibold text-discord-textPrimary mb-1">
+        <h3 class="text-sm font-semibold text-zam-textPrimary mb-1">
             {t("securitySettings.securityEncryption")}
         </h3>
-        <p class="text-xs text-discord-textMuted">
+        <p class="text-xs text-zam-textMuted">
             {t("securitySettings.setUpRecoverySoYourCross")}
         </p>
     </div>
@@ -620,24 +620,24 @@
     <!-- Status rows. Rendered only from a reading that actually landed: a
          failed read shows the notice below instead, because the all-false
          placeholder underneath it is indistinguishable from a fresh account. -->
-    <section class="rounded bg-discord-backgroundTertiary px-4 py-2">
+    <section class="rounded bg-zam-backgroundTertiary px-4 py-2">
         {#if status && showRows}
             {#if panel.stale}
                 {@render staleMarker()}
             {/if}
             <div class="flex items-center justify-between gap-3 py-1.5">
-                <span class="text-sm text-discord-textPrimary"
+                <span class="text-sm text-zam-textPrimary"
                     >{t("securitySettings.verification")}</span
                 >
                 <span
                     class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {verificationStatusState
                         .view?.tone === 'verified'
-                        ? 'bg-discord-online/20 text-discord-online'
+                        ? 'bg-zam-online/20 text-zam-online'
                         : verificationStatusState.view?.tone === 'warning'
-                          ? 'bg-discord-warning/20 text-discord-warning'
+                          ? 'bg-zam-warning/20 text-zam-warning'
                           : verificationStatusState.view?.tone === 'unverified'
-                            ? 'bg-discord-messageHover text-discord-textMuted'
-                            : 'bg-discord-messageHover text-discord-textMuted'}"
+                            ? 'bg-zam-messageHover text-zam-textMuted'
+                            : 'bg-zam-messageHover text-zam-textMuted'}"
                     >{verificationStatusState.view?.label ??
                         t("common.checking")}</span
                 >
@@ -679,18 +679,18 @@
                 "Unverified",
             )}
         {:else if panel.state === "loading"}
-            <p class="text-xs text-discord-textMuted py-1.5">
+            <p class="text-xs text-zam-textMuted py-1.5">
                 {t("securitySettings.loadingEncryptionStatus")}
             </p>
         {:else}
             <!-- Deliberately NOT the rows above: we don't know this account's
                  posture, and "Not set up" would claim we do. -->
-            <p class="text-xs text-discord-textMuted py-1.5">
+            <p class="text-xs text-zam-textMuted py-1.5">
                 {t("securitySettings.encryptionStatusUnknownOnThisSession")}
             </p>
         {/if}
         {#if status && showRows}
-            <p class="text-[11px] text-discord-textMuted pt-1 pb-1.5">
+            <p class="text-[11px] text-zam-textMuted pt-1 pb-1.5">
                 {t("securitySettings.recoveryKeyId")}
                 <span class="font-mono"
                     >{secretStorageKeyLabel(status.defaultKeyId)}</span
@@ -700,7 +700,7 @@
     </section>
 
     {#if panel.notice}
-        <p class="text-xs text-discord-textMuted">{panel.notice}</p>
+        <p class="text-xs text-zam-textMuted">{panel.notice}</p>
     {/if}
 
     <!-- Set-up-recovery wizard -->
@@ -715,15 +715,13 @@
          the Set-up wizard — non-destructive, but its Cancel walks away from an
          account with nothing to recover with, and the explanation is gone. -->
     {#if (canSetUp || step === "show") && !resetView.blocking}
-        <section
-            class="rounded bg-discord-backgroundTertiary px-4 py-4 space-y-3"
-        >
+        <section class="rounded bg-zam-backgroundTertiary px-4 py-4 space-y-3">
             {#if step === "idle" || step === "password" || step === "working"}
                 <div class="space-y-1">
-                    <p class="text-sm font-medium text-discord-textPrimary">
+                    <p class="text-sm font-medium text-zam-textPrimary">
                         {t("securitySettings.setUpRecovery")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("securitySettings.weLlCreateA")}
                         <strong>{t("securitySettings.recoveryKey")}</strong>
                         {t("securitySettings.aOneTimeCodeThatUnlocks")}
@@ -734,17 +732,17 @@
             {#if step === "idle"}
                 <button
                     onclick={beginSetup}
-                    class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm font-medium"
+                    class="px-3 py-1.5 bg-zam-accent text-white rounded text-sm font-medium"
                     >{t("securitySettings.setUpRecovery")}</button
                 >
             {:else if step === "password" || step === "working"}
                 <div class="space-y-2">
                     {#if oauthSession}
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("securitySettings.approveOnAccountPageHint")}
                         </p>
                     {:else}
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t(
                                 "securitySettings.confirmYourAccountPasswordToCreate",
                             )}
@@ -756,11 +754,11 @@
                             disabled={step === "working"}
                             onkeydown={(e) =>
                                 e.key === "Enter" && password && runSetup()}
-                            class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                            class="w-full bg-zam-backgroundDark text-zam-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
                         />
                     {/if}
                     <label
-                        class="flex items-start gap-2 text-xs text-discord-textMuted cursor-pointer"
+                        class="flex items-start gap-2 text-xs text-zam-textMuted cursor-pointer"
                     >
                         <input
                             type="checkbox"
@@ -780,14 +778,14 @@
                             )}
                             autocomplete="new-password"
                             disabled={step === "working"}
-                            class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                            class="w-full bg-zam-backgroundDark text-zam-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
                         />
                         {#if passphraseError}
-                            <p class="text-xs text-discord-danger">
+                            <p class="text-xs text-zam-danger">
                                 {passphraseError}
                             </p>
                         {:else}
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {t("securitySettings.atLeastCharactersWeCanT", {
                                     MIN_PASSPHRASE_LENGTH,
                                 })}
@@ -798,7 +796,7 @@
                         <button
                             onclick={runSetup}
                             disabled={step === "working" || setupBlocked}
-                            class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
+                            class="px-3 py-1.5 bg-zam-accent text-white rounded text-sm disabled:opacity-50"
                             >{step === "working"
                                 ? t("securitySettings.settingUp")
                                 : t("securitySettings.continue")}</button
@@ -806,30 +804,30 @@
                         <button
                             onclick={cancel}
                             disabled={step === "working"}
-                            class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm disabled:opacity-50"
+                            class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-sm disabled:opacity-50"
                             >{t("common.cancel")}</button
                         >
                     </div>
                 </div>
             {:else if step === "show"}
                 <div class="space-y-3">
-                    <p class="text-sm font-medium text-discord-textPrimary">
+                    <p class="text-sm font-medium text-zam-textPrimary">
                         {t("securitySettings.saveYourRecoveryKey")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("securitySettings.thisIsShown")}
                         <strong>{t("securitySettings.onlyOnce")}</strong>{t(
                             "securitySettings.storeItNowWithoutItYou",
                         )}
                     </p>
                     <div
-                        class="font-mono text-sm text-discord-textPrimary bg-discord-backgroundDark rounded px-3 py-2 break-all select-all streamer-hide"
+                        class="font-mono text-sm text-zam-textPrimary bg-zam-backgroundDark rounded px-3 py-2 break-all select-all streamer-hide"
                     >
                         {formatRecoveryKey(recoveryKey)}
                     </div>
                     <button
                         onclick={copyKey}
-                        class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-xs"
+                        class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-xs"
                         >{#if copied}<Check size={14} />{t(
                                 "securitySettings.copied",
                             )}{:else}{t(
@@ -837,12 +835,12 @@
                             )}{/if}</button
                     >
                     {#if keyHasPassphrase}
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("securitySettings.youCanAlsoUnlockWithThe")}
                         </p>
                     {/if}
                     <label
-                        class="flex items-start gap-2 text-xs text-discord-textMuted cursor-pointer"
+                        class="flex items-start gap-2 text-xs text-zam-textMuted cursor-pointer"
                     >
                         <input
                             type="checkbox"
@@ -856,7 +854,7 @@
                     <button
                         onclick={finishSetup}
                         disabled={!saved}
-                        class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
+                        class="px-3 py-1.5 bg-zam-accent text-white rounded text-sm disabled:opacity-50"
                         >{t("securitySettings.done")}</button
                     >
                 </div>
@@ -865,13 +863,11 @@
             {@render approvalPrompt()}
 
             {#if error}
-                <p class="text-sm text-discord-danger">{error}</p>
+                <p class="text-sm text-zam-danger">{error}</p>
             {/if}
         </section>
     {:else if step === "done" || recoveryDone || resetView.blocking}
-        <section
-            class="rounded bg-discord-backgroundTertiary px-4 py-4 space-y-3"
-        >
+        <section class="rounded bg-zam-backgroundTertiary px-4 py-4 space-y-3">
             <!-- The repair branch below lives in this same section, so this
                  header cannot be unconditional: "Recovery is set up" directly
                  above "the new recovery wasn't created" (and a status row
@@ -880,10 +876,10 @@
                  the false one. -->
             {#if !resetView.blocking}
                 <div class="space-y-1">
-                    <p class="text-sm font-medium text-discord-textPrimary">
+                    <p class="text-sm font-medium text-zam-textPrimary">
                         {t("securitySettings.recoveryIsSetUp")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("securitySettings.yourCrossSigningKeysAndA")}
                     </p>
                     <!-- This panel renders from the RETAINED payload, so when the
@@ -897,25 +893,25 @@
                 <!-- No stale marker here: this state is asserted from what the
                      reset itself did on this session, not from a read. -->
                 <div class="space-y-1">
-                    <p class="text-sm font-medium text-discord-textPrimary">
+                    <p class="text-sm font-medium text-zam-textPrimary">
                         {t("securitySettings.recoveryIsNotSetUp")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("securitySettings.thisAccountHasNoRecoveryKey")}
                     </p>
                 </div>
             {/if}
 
             {#if resetStep === "idle" && status?.crossSigningUnpublished && panel.authoritative}
-                <div class="space-y-2 pt-3 border-t border-discord-divider">
-                    <p class="text-sm font-medium text-discord-warning">
+                <div class="space-y-2 pt-3 border-t border-zam-divider">
+                    <p class="text-sm font-medium text-zam-warning">
                         {t("securitySettings.keysNotOnServer")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("securitySettings.keysNotOnServerHint")}
                     </p>
                     {#if oauthSession}
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("securitySettings.approveOnAccountPageHint")}
                         </p>
                     {:else}
@@ -926,13 +922,13 @@
                             disabled={publishBusy}
                             onkeydown={(e) =>
                                 e.key === "Enter" && password && runPublish()}
-                            class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                            class="w-full bg-zam-backgroundDark text-zam-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
                         />
                     {/if}
                     <button
                         onclick={runPublish}
                         disabled={publishBusy || publishBlocked}
-                        class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
+                        class="px-3 py-1.5 bg-zam-accent text-white rounded text-sm disabled:opacity-50"
                         >{publishBusy
                             ? t("securitySettings.working")
                             : t("securitySettings.uploadKeys")}</button
@@ -948,14 +944,14 @@
                 <button
                     onclick={beginReset}
                     disabled={!panel.allowDestructive}
-                    class="text-xs text-discord-textMuted underline hover:text-discord-textPrimary disabled:opacity-50 disabled:no-underline"
+                    class="text-xs text-zam-textMuted underline hover:text-zam-textPrimary disabled:opacity-50 disabled:no-underline"
                     >{t(
                         "securitySettings.lostYourRecoveryKeyResetRecovery",
                     )}</button
                 >
             {:else if resetStep === "confirm"}
-                <div class="space-y-2 pt-3 border-t border-discord-divider">
-                    <p class="text-xs text-discord-warning">
+                <div class="space-y-2 pt-3 border-t border-zam-divider">
+                    <p class="text-xs text-zam-warning">
                         {t("securitySettings.resettingCreatesA")}
                         <strong>{t("securitySettings.new")}</strong>
                         {t(
@@ -965,12 +961,12 @@
                     <div class="flex gap-2">
                         <button
                             onclick={() => advanceReset({ type: "confirmed" })}
-                            class="px-3 py-1.5 bg-discord-danger text-white rounded text-sm"
+                            class="px-3 py-1.5 bg-zam-danger text-white rounded text-sm"
                             >{t("securitySettings.continue")}</button
                         >
                         <button
                             onclick={cancelReset}
-                            class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm"
+                            class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-sm"
                             >{t("common.cancel")}</button
                         >
                     </div>
@@ -982,8 +978,8 @@
                      its own submit — `runRepair` runs the SETUP half alone — and
                      no cancel: re-running the reset from here would wipe a second
                      time, and leaving quietly strands the account (CRYPTO-01). -->
-                <div class="space-y-2 pt-3 border-t border-discord-divider">
-                    <p class="text-xs text-discord-warning">
+                <div class="space-y-2 pt-3 border-t border-zam-divider">
+                    <p class="text-xs text-zam-warning">
                         {t("securitySettings.yourOldRecoveryKeyAndBackup")}
                     </p>
                     {#if !oauthSession}
@@ -994,11 +990,11 @@
                             disabled={resetView.busy}
                             onkeydown={(e) =>
                                 e.key === "Enter" && password && runRepair()}
-                            class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                            class="w-full bg-zam-backgroundDark text-zam-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
                         />
                     {/if}
                     <label
-                        class="flex items-start gap-2 text-xs text-discord-textMuted cursor-pointer"
+                        class="flex items-start gap-2 text-xs text-zam-textMuted cursor-pointer"
                     >
                         <input
                             type="checkbox"
@@ -1018,14 +1014,14 @@
                             )}
                             autocomplete="new-password"
                             disabled={resetView.busy}
-                            class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                            class="w-full bg-zam-backgroundDark text-zam-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
                         />
                         {#if passphraseError}
-                            <p class="text-xs text-discord-danger">
+                            <p class="text-xs text-zam-danger">
                                 {passphraseError}
                             </p>
                         {:else}
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {t("securitySettings.atLeastCharactersWeCanT", {
                                     MIN_PASSPHRASE_LENGTH,
                                 })}
@@ -1035,7 +1031,7 @@
                     <button
                         onclick={runRepair}
                         disabled={resetView.busy || setupBlocked}
-                        class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
+                        class="px-3 py-1.5 bg-zam-accent text-white rounded text-sm disabled:opacity-50"
                         >{resetView.busy
                             ? t("securitySettings.working")
                             : t(
@@ -1044,13 +1040,13 @@
                     >
                 </div>
             {:else if resetStep === "password" || resetStep === "destroying"}
-                <div class="space-y-2 pt-3 border-t border-discord-divider">
+                <div class="space-y-2 pt-3 border-t border-zam-divider">
                     {#if oauthSession}
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("securitySettings.approveOnAccountPageHint")}
                         </p>
                     {:else}
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t(
                                 "securitySettings.confirmYourAccountPasswordToReset",
                             )}
@@ -1062,11 +1058,11 @@
                             disabled={resetView.busy}
                             onkeydown={(e) =>
                                 e.key === "Enter" && password && runReset()}
-                            class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                            class="w-full bg-zam-backgroundDark text-zam-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
                         />
                     {/if}
                     <label
-                        class="flex items-start gap-2 text-xs text-discord-textMuted cursor-pointer"
+                        class="flex items-start gap-2 text-xs text-zam-textMuted cursor-pointer"
                     >
                         <input
                             type="checkbox"
@@ -1086,14 +1082,14 @@
                             )}
                             autocomplete="new-password"
                             disabled={resetView.busy}
-                            class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
+                            class="w-full bg-zam-backgroundDark text-zam-textPrimary text-sm rounded px-3 py-1.5 outline-none disabled:opacity-50"
                         />
                         {#if passphraseError}
-                            <p class="text-xs text-discord-danger">
+                            <p class="text-xs text-zam-danger">
                                 {passphraseError}
                             </p>
                         {:else}
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {t("securitySettings.atLeastCharactersWeCanT", {
                                     MIN_PASSPHRASE_LENGTH,
                                 })}
@@ -1104,7 +1100,7 @@
                         <button
                             onclick={runReset}
                             disabled={resetView.busy || setupBlocked}
-                            class="px-3 py-1.5 bg-discord-danger text-white rounded text-sm disabled:opacity-50"
+                            class="px-3 py-1.5 bg-zam-danger text-white rounded text-sm disabled:opacity-50"
                             >{resetView.busy
                                 ? t("securitySettings.resetting")
                                 : t(
@@ -1114,7 +1110,7 @@
                         <button
                             onclick={cancelReset}
                             disabled={resetView.busy}
-                            class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm disabled:opacity-50"
+                            class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-sm disabled:opacity-50"
                             >{t("common.cancel")}</button
                         >
                     </div>
@@ -1124,7 +1120,7 @@
             {@render approvalPrompt()}
 
             {#if error}
-                <p class="text-sm text-discord-danger">{error}</p>
+                <p class="text-sm text-zam-danger">{error}</p>
             {/if}
         </section>
     {/if}
@@ -1135,30 +1131,28 @@
          means "we don't know" — and that line is what talks users into resetting
          recovery they still have (audit CRYPTO-02). The notice above covers it. -->
     {#if panel.authoritative && backup}
-        <section
-            class="rounded bg-discord-backgroundTertiary px-4 py-4 space-y-3"
-        >
+        <section class="rounded bg-zam-backgroundTertiary px-4 py-4 space-y-3">
             <div class="flex items-center justify-between gap-3">
-                <p class="text-sm font-medium text-discord-textPrimary">
+                <p class="text-sm font-medium text-zam-textPrimary">
                     {t("securitySettings.messageHistoryBackup")}
                 </p>
                 {#if badge}
                     <span
                         class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {badge.tone ===
                         'active'
-                            ? 'bg-discord-online/20 text-discord-online'
+                            ? 'bg-zam-online/20 text-zam-online'
                             : badge.tone === 'warning'
-                              ? 'bg-discord-warning/20 text-discord-warning'
-                              : 'bg-discord-messageHover text-discord-textMuted'}"
+                              ? 'bg-zam-warning/20 text-zam-warning'
+                              : 'bg-zam-messageHover text-zam-textMuted'}"
                         >{badge.label}</span
                     >
                 {/if}
             </div>
             {#if summary}
-                <p class="text-xs text-discord-textMuted">{summary}</p>
+                <p class="text-xs text-zam-textMuted">{summary}</p>
             {/if}
             {#if detailLines.length > 0}
-                <ul class="text-xs text-discord-textMuted space-y-0.5">
+                <ul class="text-xs text-zam-textMuted space-y-0.5">
                     {#each detailLines as line (line)}
                         <li>{line}</li>
                     {/each}
@@ -1183,7 +1177,7 @@
                     <div class="flex flex-wrap gap-2">
                         <button
                             onclick={beginUnlock}
-                            class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm font-medium"
+                            class="px-3 py-1.5 bg-zam-accent text-white rounded text-sm font-medium"
                             >{t(
                                 "securitySettings.verifyThisSessionRestoreHistory",
                             )}</button
@@ -1191,7 +1185,7 @@
                         {#if canVerifyWithDevice}
                             <button
                                 onclick={startVerifyWithAnotherDevice}
-                                class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm font-medium"
+                                class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-sm font-medium"
                                 >{t(
                                     "verification.verifyWithAnotherDevice",
                                 )}</button
@@ -1206,8 +1200,8 @@
                                     onclick={() => (unlockMode = "key")}
                                     class="px-2 py-1 rounded {unlockMode ===
                                     'key'
-                                        ? 'bg-discord-accent text-white'
-                                        : 'bg-discord-messageHover text-discord-textPrimary'}"
+                                        ? 'bg-zam-accent text-white'
+                                        : 'bg-zam-messageHover text-zam-textPrimary'}"
                                     >{t(
                                         "securitySettings.recoveryKey2",
                                     )}</button
@@ -1216,13 +1210,13 @@
                                     onclick={() => (unlockMode = "passphrase")}
                                     class="px-2 py-1 rounded {unlockMode ===
                                     'passphrase'
-                                        ? 'bg-discord-accent text-white'
-                                        : 'bg-discord-messageHover text-discord-textPrimary'}"
+                                        ? 'bg-zam-accent text-white'
+                                        : 'bg-zam-messageHover text-zam-textPrimary'}"
                                     >{t("securitySettings.passphrase")}</button
                                 >
                             </div>
                         {/if}
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("securitySettings.enterYour")}
                             <strong
                                 >{effectiveUnlockMode === "key"
@@ -1247,7 +1241,7 @@
                                     e.key === "Enter" &&
                                     unlockReady &&
                                     runUnlock()}
-                                class="w-full bg-discord-backgroundDark text-discord-textPrimary font-mono text-sm rounded px-3 py-1.5 outline-none"
+                                class="w-full bg-zam-backgroundDark text-zam-textPrimary font-mono text-sm rounded px-3 py-1.5 outline-none"
                             />
                         {:else}
                             <input
@@ -1261,33 +1255,33 @@
                                     e.key === "Enter" &&
                                     unlockReady &&
                                     runUnlock()}
-                                class="w-full bg-discord-backgroundDark text-discord-textPrimary text-sm rounded px-3 py-1.5 outline-none"
+                                class="w-full bg-zam-backgroundDark text-zam-textPrimary text-sm rounded px-3 py-1.5 outline-none"
                             />
                         {/if}
                         <div class="flex gap-2">
                             <button
                                 onclick={runUnlock}
                                 disabled={!unlockReady}
-                                class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
+                                class="px-3 py-1.5 bg-zam-accent text-white rounded text-sm disabled:opacity-50"
                                 >{t("securitySettings.continue")}</button
                             >
                             <button
                                 onclick={cancelUnlock}
-                                class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm"
+                                class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-sm"
                                 >{t("common.cancel")}</button
                             >
                         </div>
                     </div>
                 {:else if unlockStep === "working"}
                     <div class="space-y-2">
-                        <p class="text-sm text-discord-textPrimary">
+                        <p class="text-sm text-zam-textPrimary">
                             {progressView.label}
                         </p>
                         <div
-                            class="h-1.5 w-full rounded bg-discord-backgroundDark overflow-hidden"
+                            class="h-1.5 w-full rounded bg-zam-backgroundDark overflow-hidden"
                         >
                             <div
-                                class="h-full bg-discord-accent transition-all"
+                                class="h-full bg-zam-accent transition-all"
                                 style="width: {progressView.percent ?? 15}%"
                             ></div>
                         </div>
@@ -1296,31 +1290,31 @@
             {:else if canVerifyWithDevice}
                 <button
                     onclick={startVerifyWithAnotherDevice}
-                    class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm font-medium"
+                    class="px-3 py-1.5 bg-zam-accent text-white rounded text-sm font-medium"
                     >{t("verification.verifyWithAnotherDevice")}</button
                 >
             {/if}
 
             {#if unlockStep === "done" && unlockResult}
                 <div class="space-y-2">
-                    <p class="text-sm font-medium text-discord-online">
+                    <p class="text-sm font-medium text-zam-online">
                         {unlockResult.sessionVerified
                             ? t("securitySettings.thisSessionIsNowVerified")
                             : t("securitySettings.encryptedHistoryRestored")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {restoreResultLabel(unlockResult)}.
                     </p>
                     <button
                         onclick={finishUnlock}
-                        class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm"
+                        class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-sm"
                         >{t("securitySettings.done")}</button
                     >
                 </div>
             {/if}
 
             {#if unlockError}
-                <p class="text-sm text-discord-danger">{unlockError}</p>
+                <p class="text-sm text-zam-danger">{unlockError}</p>
             {/if}
         </section>
     {/if}

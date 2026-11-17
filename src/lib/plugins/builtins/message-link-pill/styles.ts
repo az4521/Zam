@@ -5,10 +5,10 @@ export const MESSAGE_LINK_PILL_CSS = `
     gap: 4px;
     max-width: min(100%, 280px);
     padding: 1px 8px;
-    border: 1px solid var(--discord-divider, #3f4147);
+    border: 1px solid var(--zam-divider, #3f4147);
     border-radius: 9999px;
-    background: var(--discord-background-secondary, #2b2d31);
-    color: var(--discord-text-primary, #f2f3f5);
+    background: var(--zam-background-secondary, #2b2d31);
+    color: var(--zam-text-primary, #f2f3f5);
     font-size: 12px;
     font-weight: 600;
     line-height: 1.5;
@@ -18,11 +18,11 @@ export const MESSAGE_LINK_PILL_CSS = `
     cursor: pointer;
 }
 .zam-linkpill:hover {
-    background: var(--discord-message-hover, #35373c);
+    background: var(--zam-message-hover, #35373c);
     text-decoration: none;
 }
 .zam-linkpill:focus-visible {
-    outline: 2px solid var(--discord-accent, #5865f2);
+    outline: 2px solid var(--zam-accent, #5865f2);
     outline-offset: 2px;
 }
 .zam-linkpill-text {
@@ -54,7 +54,7 @@ export const MESSAGE_LINK_PILL_CSS = `
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: var(--discord-accent, #5865f2);
+    background: var(--zam-accent, #5865f2);
     color: #ffffff;
     font-size: 9px;
     line-height: 1;
@@ -62,13 +62,13 @@ export const MESSAGE_LINK_PILL_CSS = `
 /* A pill whose preview card is hovered or focused. Doubled class beats the
  * :hover rule above so the pair stays lit together. */
 .zam-linkpill.zam-linkpill-hot {
-    background: var(--discord-accent, #5865f2);
-    border-color: var(--discord-accent, #5865f2);
+    background: var(--zam-accent, #5865f2);
+    border-color: var(--zam-accent, #5865f2);
     color: #ffffff;
 }
 /* A preview card whose pill is hovered or focused. */
 .zam-linkpill-target-hot {
-    outline: 2px solid var(--discord-accent, #5865f2);
+    outline: 2px solid var(--zam-accent, #5865f2);
     outline-offset: 2px;
 }
 `;

@@ -131,11 +131,11 @@
 
 {#if view}
     <div
-        class="mt-1 max-w-md rounded-lg border border-discord-divider bg-discord-backgroundSecondary px-3 py-2.5"
+        class="mt-1 max-w-md rounded-lg border border-zam-divider bg-zam-backgroundSecondary px-3 py-2.5"
     >
         <div class="flex items-start gap-2">
             <svg
-                class="w-4 h-4 mt-0.5 text-discord-textMuted flex-shrink-0"
+                class="w-4 h-4 mt-0.5 text-zam-textMuted flex-shrink-0"
                 fill="currentColor"
                 viewBox="0 0 24 24"
             >
@@ -145,11 +145,11 @@
             </svg>
             <div class="min-w-0">
                 <p
-                    class="text-sm font-semibold text-discord-textPrimary break-words"
+                    class="text-sm font-semibold text-zam-textPrimary break-words"
                 >
                     {view.poll.question}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {#if view.ended}
                         {t("pollBody.finalResults")}
                     {:else if view.showResults}
@@ -178,19 +178,19 @@
                     disabled={view.ended || isVoting}
                     aria-pressed={isMine}
                     class="rounded border px-2.5 py-1.5 {isWinner
-                        ? 'border-discord-accent bg-discord-accent/10'
+                        ? 'border-zam-accent bg-zam-accent/10'
                         : isMine
-                          ? 'border-discord-accent bg-discord-accent/10'
-                          : 'border-discord-divider bg-discord-backgroundTertiary'} text-start transition-colors disabled:cursor-default enabled:hover:border-discord-accent/60"
+                          ? 'border-zam-accent bg-zam-accent/10'
+                          : 'border-zam-divider bg-zam-backgroundTertiary'} text-start transition-colors disabled:cursor-default enabled:hover:border-zam-accent/60"
                 >
                     <div class="flex items-center justify-between gap-2">
                         <span
-                            class="text-sm text-discord-textPrimary break-words min-w-0"
+                            class="text-sm text-zam-textPrimary break-words min-w-0"
                         >
                             {answer.text}
                             {#if isMine}
                                 <span
-                                    class="inline-flex items-center gap-1 text-xs text-discord-accent font-semibold whitespace-nowrap"
+                                    class="inline-flex items-center gap-1 text-xs text-zam-accent font-semibold whitespace-nowrap"
                                     ><Check size={12} />{t(
                                         "pollBody.selected",
                                     )}</span
@@ -199,7 +199,7 @@
                         </span>
                         {#if view.showResults}
                             <span
-                                class="text-xs text-discord-textMuted whitespace-nowrap flex-shrink-0"
+                                class="text-xs text-zam-textMuted whitespace-nowrap flex-shrink-0"
                             >
                                 {count} · {pct(count, view.totalVotes)}%
                             </span>
@@ -207,12 +207,12 @@
                     </div>
                     {#if view.showResults}
                         <div
-                            class="mt-1 h-1 rounded-full bg-discord-background overflow-hidden"
+                            class="mt-1 h-1 rounded-full bg-zam-background overflow-hidden"
                         >
                             <div
                                 class="h-full rounded-full {isWinner
-                                    ? 'bg-discord-accent'
-                                    : 'bg-discord-divider'}"
+                                    ? 'bg-zam-accent'
+                                    : 'bg-zam-divider'}"
                                 style="width: {pct(count, view.totalVotes)}%"
                             ></div>
                         </div>
@@ -226,13 +226,13 @@
                 type="button"
                 onclick={() => submitVote()}
                 disabled={isVoting || draftAnswers === null}
-                class="mt-2 px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="mt-2 px-3 py-1.5 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 {isVoting ? t("pollBody.submitting") : t("pollBody.submitVote")}
             </button>
         {/if}
 
-        <p class="mt-2 text-xs text-discord-textMuted">
+        <p class="mt-2 text-xs text-zam-textMuted">
             {#if view.showResults}
                 {t("pollBody.voteCount", { count: view.totalVotes })}
             {:else}
@@ -245,14 +245,14 @@
         {#if view.canEnd}
             {#if confirmingEnd}
                 <div class="mt-2 flex items-center gap-2">
-                    <span class="text-xs text-discord-textMuted"
+                    <span class="text-xs text-zam-textMuted"
                         >{t("pollBody.closeThisPoll")}</span
                     >
                     <button
                         type="button"
                         onclick={endPoll}
                         disabled={endingPoll}
-                        class="px-2.5 py-1 rounded bg-discord-danger hover:bg-discord-dangerHover text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                        class="px-2.5 py-1 rounded bg-zam-danger hover:bg-zam-dangerHover text-white text-xs font-semibold transition-colors disabled:opacity-50"
                         >{endingPoll
                             ? t("pollBody.closing")
                             : t("pollBody.closePoll")}</button
@@ -260,7 +260,7 @@
                     <button
                         type="button"
                         onclick={() => (confirmingEnd = false)}
-                        class="px-2.5 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary"
+                        class="px-2.5 py-1 rounded text-xs text-zam-textMuted hover:text-zam-textPrimary"
                         >{t("common.cancel")}</button
                     >
                 </div>
@@ -268,14 +268,14 @@
                 <button
                     type="button"
                     onclick={() => (confirmingEnd = true)}
-                    class="mt-2 text-xs text-discord-textMuted hover:text-discord-textPrimary underline"
+                    class="mt-2 text-xs text-zam-textMuted hover:text-zam-textPrimary underline"
                     >{t("pollBody.closePoll")}</button
                 >
             {/if}
         {/if}
     </div>
 {:else}
-    <p class="text-xs text-discord-textMuted italic">
+    <p class="text-xs text-zam-textMuted italic">
         {t("pollBody.pollUnsupportedFormat")}
     </p>
 {/if}

@@ -49,21 +49,21 @@
 </script>
 
 <div
-    class="flex items-center gap-3 w-80 px-4 py-3 rounded-lg shadow-lg bg-discord-background border border-discord-divider"
+    class="flex items-center gap-3 w-80 px-4 py-3 rounded-lg shadow-lg bg-zam-background border border-zam-divider"
 >
     <div
-        class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-discord-accent/20"
+        class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-zam-accent/20"
     >
-        <ShieldQuestion size={20} class="text-discord-accent" />
+        <ShieldQuestion size={20} class="text-zam-accent" />
     </div>
     <div class="flex-1 min-w-0">
-        <p class="text-sm font-semibold text-discord-textPrimary truncate">
+        <p class="text-sm font-semibold text-zam-textPrimary truncate">
             {heading}
         </p>
         {#if acceptError}
-            <p class="text-xs text-discord-danger">{acceptError}</p>
+            <p class="text-xs text-zam-danger">{acceptError}</p>
         {:else}
-            <p class="text-xs text-discord-textMuted truncate">{subtitle}</p>
+            <p class="text-xs text-zam-textMuted truncate">{subtitle}</p>
         {/if}
     </div>
     <!-- Never disabled while an accept is in flight: nothing bounds accept()
@@ -72,14 +72,14 @@
          reload. -->
     <button
         type="button"
-        class="px-2.5 py-1 rounded text-xs bg-discord-messageHover text-discord-textPrimary hover:bg-discord-danger/20 hover:text-discord-danger transition-colors disabled:opacity-60"
+        class="px-2.5 py-1 rounded text-xs bg-zam-messageHover text-zam-textPrimary hover:bg-zam-danger/20 hover:text-zam-danger transition-colors disabled:opacity-60"
         onclick={() => declineIncoming(controller)}
     >
         {t("common.decline")}
     </button>
     <button
         type="button"
-        class="px-2.5 py-1 rounded text-xs bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-60"
+        class="px-2.5 py-1 rounded text-xs bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-60"
         disabled={busy}
         onclick={accept}
     >

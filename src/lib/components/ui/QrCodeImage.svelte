@@ -47,7 +47,7 @@
         <path d={symbol.path} fill="#000000" />
     </svg>
 {:else}
-    <p class="text-xs text-discord-danger" role="alert">
+    <p class="text-xs text-zam-danger" role="alert">
         {t("qrCodeImage.couldNotRenderTheVerificationCode")}
     </p>
 {/if}

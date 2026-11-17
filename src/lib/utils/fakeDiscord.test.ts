@@ -12,7 +12,7 @@ const {
 } = require("../../../electron/fakeDiscord.cjs");
 
 function rig(over: Record<string, unknown> = {}) {
-    const dir = mkdtempSync(join(tmpdir(), "fake-discord-"));
+    const dir = mkdtempSync(join(tmpdir(), "fake-zam-"));
     const spawned: string[][] = [];
     const fake = createFakeDiscord({
         userDataDir: dir,

@@ -188,28 +188,28 @@
             role="dialog"
             aria-modal="true"
             aria-labelledby="verification-modal-title"
-            class="relative z-10 w-full max-w-sm rounded-lg bg-discord-backgroundSecondary border border-discord-divider shadow-xl p-5"
+            class="relative z-10 w-full max-w-sm rounded-lg bg-zam-backgroundSecondary border border-zam-divider shadow-xl p-5"
             use:focusTrap={{ onEscape: closeActive }}
         >
             <h2
                 id="verification-modal-title"
-                class="text-base font-semibold text-discord-textPrimary"
+                class="text-base font-semibold text-zam-textPrimary"
             >
                 {title}
             </h2>
             {#if view.otherDeviceId}
-                <p class="mt-0.5 text-xs text-discord-textMuted font-mono">
+                <p class="mt-0.5 text-xs text-zam-textMuted font-mono">
                     {view.otherDeviceId}
                 </p>
             {/if}
 
             {#if kind === "success"}
                 <div class="mt-5 flex flex-col items-center text-center gap-2">
-                    <ShieldCheck size={40} class="text-discord-online" />
-                    <p class="text-sm font-medium text-discord-textPrimary">
+                    <ShieldCheck size={40} class="text-zam-online" />
+                    <p class="text-sm font-medium text-zam-textPrimary">
                         {statusLabel}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {isSelf
                             ? t("verificationModal.thisSessionIsNowTrusted")
                             : t("verificationModal.theirIdentityIsNowVerified")}
@@ -217,11 +217,11 @@
                 </div>
             {:else if kind === "cancelled"}
                 <div class="mt-5 flex flex-col items-center text-center gap-2">
-                    <ShieldAlert size={40} class="text-discord-danger" />
-                    <p class="text-sm font-medium text-discord-textPrimary">
+                    <ShieldAlert size={40} class="text-zam-danger" />
+                    <p class="text-sm font-medium text-zam-textPrimary">
                         {statusLabel}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("verificationModal.noTrustWasEstablishedYouCan")}
                     </p>
                 </div>
@@ -232,22 +232,19 @@
                      "your other device" when ANOTHER USER scanned invites the
                      worst possible reasoning ("I don't have one, so… yes?"). -->
                 <div class="mt-5 flex flex-col items-center text-center gap-3">
-                    <QrCode size={32} class="text-discord-accent" />
+                    <QrCode size={32} class="text-zam-accent" />
                     <!-- The prompt arrives asynchronously and the branch swap
                          drops focus, so announce it rather than leaving a
                          screen-reader user showing a code in silence. Neither
                          button is autofocused: this answer must be deliberate. -->
-                    <p
-                        class="text-sm text-discord-textPrimary"
-                        aria-live="polite"
-                    >
+                    <p class="text-sm text-zam-textPrimary" aria-live="polite">
                         {isSelf
                             ? t("verificationModal.didYourOtherSessionJustScan")
                             : t("verificationModal.didJustScanThisCode", {
                                   otherUserId: view.otherUserId,
                               })}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {isSelf
                             ? t("verificationModal.onlyConfirmIfYouScannedIt")
                             : t(
@@ -263,19 +260,19 @@
                 <div class="mt-5 flex gap-2">
                     <button
                         onclick={denyScanned}
-                        class="flex-1 px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-danger/20 text-discord-danger text-sm font-semibold transition-colors"
+                        class="flex-1 px-3 py-2 rounded bg-zam-backgroundTertiary hover:bg-zam-danger/20 text-zam-danger text-sm font-semibold transition-colors"
                     >
                         {t("verificationModal.no")}
                     </button>
                     <button
                         onclick={confirmScanned}
-                        class="flex-1 px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors"
+                        class="flex-1 px-3 py-2 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-sm font-semibold transition-colors"
                     >
                         {t("verificationModal.yesIScannedIt")}
                     </button>
                 </div>
             {:else if emojiRows.length > 0 && !confirmed}
-                <p class="mt-4 text-xs text-discord-textMuted">
+                <p class="mt-4 text-xs text-zam-textMuted">
                     {t("verificationModal.confirmTheSameEmojiAppearIn", {
                         value: isSelf
                             ? t("verificationModal.session")
@@ -289,13 +286,13 @@
                                  independently, so one can appear twice. -->
                             {#each row as emoji, i (i)}
                                 <div
-                                    class="flex w-16 flex-col items-center gap-1 rounded bg-discord-backgroundTertiary px-1 py-2"
+                                    class="flex w-16 flex-col items-center gap-1 rounded bg-zam-backgroundTertiary px-1 py-2"
                                 >
                                     <span class="text-2xl leading-none"
                                         >{emoji.symbol}</span
                                     >
                                     <span
-                                        class="text-[10px] capitalize text-discord-textMuted truncate max-w-full"
+                                        class="text-[10px] capitalize text-zam-textMuted truncate max-w-full"
                                         >{emoji.name}</span
                                     >
                                 </div>
@@ -307,14 +304,14 @@
                     <button
                         onclick={noMatch}
                         disabled={busy}
-                        class="flex-1 px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-danger/20 text-discord-danger text-sm font-semibold transition-colors disabled:opacity-50"
+                        class="flex-1 px-3 py-2 rounded bg-zam-backgroundTertiary hover:bg-zam-danger/20 text-zam-danger text-sm font-semibold transition-colors disabled:opacity-50"
                     >
                         {t("verificationModal.theyDonTMatch")}
                     </button>
                     <button
                         onclick={match}
                         disabled={busy}
-                        class="flex-1 px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                        class="flex-1 px-3 py-2 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50"
                     >
                         {busy
                             ? t("verificationModal.confirming")
@@ -338,7 +335,7 @@
                                           { otherUserId: view.otherUserId },
                                       )}
                             />
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {isSelf
                                     ? t(
                                           "verificationModal.scanThisWithYourOtherSession",
@@ -350,13 +347,13 @@
                         {:else if view.qrError}
                             <!-- The reason itself renders in the shared alert
                                  below; this only fills the empty pane. -->
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {t("verificationModal.noCodeToShowRightNow")}
                             </p>
                         {:else}
                             <Loader2
                                 size={28}
-                                class="animate-spin text-discord-accent"
+                                class="animate-spin text-zam-accent"
                             />
                         {/if}
                     </div>
@@ -374,10 +371,7 @@
                                     onError={onScanError}
                                 />
                             {:else if scannerLoadFailed}
-                                <p
-                                    class="text-xs text-discord-danger"
-                                    role="alert"
-                                >
+                                <p class="text-xs text-zam-danger" role="alert">
                                     {t(
                                         "verificationModal.couldNotLoadTheScanner",
                                     )}
@@ -385,7 +379,7 @@
                             {:else}
                                 <Loader2
                                     size={28}
-                                    class="animate-spin text-discord-accent"
+                                    class="animate-spin text-zam-accent"
                                 />
                             {/if}
                         {/key}
@@ -397,14 +391,14 @@
                                  link would send the user the long way round. -->
                             <button
                                 onclick={() => attempt++}
-                                class="px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-xs transition-colors"
+                                class="px-3 py-1.5 rounded bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary text-xs transition-colors"
                             >
                                 {t("verificationModal.scanAgain")}
                             </button>
                         {/if}
                     </div>
                 {:else}
-                    <p class="mt-4 text-xs text-discord-textMuted">
+                    <p class="mt-4 text-xs text-zam-textMuted">
                         {startPending
                             ? t("common.starting")
                             : t("verificationModal.compareAShortListOfEmoji")}
@@ -417,7 +411,7 @@
                             <button
                                 onclick={chooseSas}
                                 disabled={busy || startPending}
-                                class="flex items-center gap-3 px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold text-start transition-colors disabled:opacity-50"
+                                class="flex items-center gap-3 px-3 py-2 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-sm font-semibold text-start transition-colors disabled:opacity-50"
                             >
                                 <ShieldCheck
                                     size={18}
@@ -430,11 +424,11 @@
                             <button
                                 onclick={openShowQr}
                                 disabled={busy || startPending}
-                                class="flex items-center gap-3 px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm text-start transition-colors disabled:opacity-50"
+                                class="flex items-center gap-3 px-3 py-2 rounded bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary text-sm text-start transition-colors disabled:opacity-50"
                             >
                                 <QrCode
                                     size={18}
-                                    class="text-discord-textMuted shrink-0"
+                                    class="text-zam-textMuted shrink-0"
                                 />
                                 {t("verificationModal.showACodeForTheOther")}
                             </button>
@@ -443,11 +437,11 @@
                             <button
                                 onclick={openScanQr}
                                 disabled={busy || startPending}
-                                class="flex items-center gap-3 px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm text-start transition-colors disabled:opacity-50"
+                                class="flex items-center gap-3 px-3 py-2 rounded bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary text-sm text-start transition-colors disabled:opacity-50"
                             >
                                 <Camera
                                     size={18}
-                                    class="text-discord-textMuted shrink-0"
+                                    class="text-zam-textMuted shrink-0"
                                 />
                                 {t(
                                     "verificationModal.scanTheirCodeWithTheCamera",
@@ -459,7 +453,7 @@
                 {#if pane !== "choose"}
                     <button
                         onclick={() => (pane = "choose")}
-                        class="mt-4 flex items-center gap-1.5 text-xs text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                        class="mt-4 flex items-center gap-1.5 text-xs text-zam-textMuted hover:text-zam-textPrimary transition-colors"
                     >
                         <ArrowLeft class="mirror:-scale-x-100" size={14} />
                         {t("verificationModal.chooseADifferentMethod")}
@@ -467,11 +461,8 @@
                 {/if}
             {:else}
                 <div class="mt-6 flex flex-col items-center text-center gap-3">
-                    <Loader2
-                        size={32}
-                        class="animate-spin text-discord-accent"
-                    />
-                    <p class="text-sm text-discord-textSecondary">
+                    <Loader2 size={32} class="animate-spin text-zam-accent" />
+                    <p class="text-sm text-zam-textSecondary">
                         {confirmed
                             ? t("verificationModal.waitingForTheOtherSideTo")
                             : statusLabel}
@@ -480,14 +471,14 @@
             {/if}
 
             {#if alertMsg}
-                <p class="mt-3 text-xs text-discord-danger" role="alert">
+                <p class="mt-3 text-xs text-zam-danger" role="alert">
                     {alertMsg}
                 </p>
             {/if}
 
             <button
                 onclick={closeActive}
-                class="mt-5 w-full px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm transition-colors"
+                class="mt-5 w-full px-3 py-1.5 rounded bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary text-sm transition-colors"
             >
                 {kind === "success" || kind === "cancelled"
                     ? t("common.close")

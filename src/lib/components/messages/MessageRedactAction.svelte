@@ -101,7 +101,7 @@
             data-message-action
             bind:this={buttonEl}
             onclick={() => (open ? closeModal() : show())}
-            class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
+            class="p-1.5 rounded text-zam-textMuted hover:text-zam-danger hover:bg-zam-messageHover transition-colors"
             title={t("messageRedactAction.removeMessage")}
             aria-label={t("messageRedactAction.removeMessage")}
             aria-expanded={open}
@@ -126,14 +126,12 @@
                 ? 'fixed start-2 end-2 z-50'
                 : below
                   ? 'absolute top-full end-0 mt-1 z-50 w-72'
-                  : 'absolute bottom-full end-0 mb-1 z-50 w-72'} bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl p-3 text-start"
+                  : 'absolute bottom-full end-0 mb-1 z-50 w-72'} bg-zam-backgroundTertiary border border-zam-divider rounded-lg shadow-xl p-3 text-start"
             style={interfaceState.isTouchscreen
                 ? `bottom: ${keyboardOffset + 8}px;`
                 : ""}
         >
-            <p
-                class="text-xs font-semibold uppercase text-discord-textMuted mb-2"
-            >
+            <p class="text-xs font-semibold uppercase text-zam-textMuted mb-2">
                 {t("messageRedactAction.removeThisMessage")}
             </p>
             <textarea
@@ -142,21 +140,21 @@
                 rows="2"
                 placeholder={t("common.reasonOptional")}
                 disabled={status === "sending"}
-                class="w-full resize-none rounded bg-discord-backgroundSecondary border border-discord-divider p-2 text-sm text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:border-discord-accent"
+                class="w-full resize-none rounded bg-zam-backgroundSecondary border border-zam-divider p-2 text-sm text-zam-textPrimary placeholder:text-zam-textMuted focus:outline-none focus:border-zam-accent"
             ></textarea>
             {#if status === "error"}
-                <p class="text-xs text-discord-danger mt-2">{error}</p>
+                <p class="text-xs text-zam-danger mt-2">{error}</p>
             {/if}
             <div class="flex justify-end gap-2 mt-2">
                 <button
                     onclick={closeModal}
-                    class="px-2 py-1 rounded text-xs font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    class="px-2 py-1 rounded text-xs font-semibold text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                     >{t("common.cancel")}</button
                 >
                 <button
                     onclick={submit}
                     disabled={status === "sending"}
-                    class="px-2 py-1 rounded text-xs font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="px-2 py-1 rounded text-xs font-semibold text-white bg-zam-danger hover:bg-zam-dangerHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >{status === "sending"
                         ? t("messageRedactAction.removing")
                         : t("common.remove")}</button

@@ -57,7 +57,7 @@ export function applyTheme(theme: Theme): void {
 
 /**
  * Serialize a ThemeColors map to inline CSS custom property declarations.
- * Returns a string like "--discord-bg:#000000;--discord-bg-rgb:0 0 0;..."
+ * Returns a string like "--zam-bg:#000000;--zam-bg-rgb:0 0 0;..."
  * with the SAME set of vars that applyThemeColors would set on the root element.
  * Empty/null colors → returns "".
  */

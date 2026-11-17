@@ -114,7 +114,7 @@
     }
 
     const inputClass =
-        "w-full px-2.5 py-1.5 rounded bg-discord-backgroundSecondary text-sm text-discord-textPrimary border border-discord-divider focus:border-discord-accent outline-none";
+        "w-full px-2.5 py-1.5 rounded bg-zam-backgroundSecondary text-sm text-zam-textPrimary border border-zam-divider focus:border-zam-accent outline-none";
     const selectClass = inputClass;
 </script>
 
@@ -124,19 +124,17 @@
             type="button"
             onclick={onBack}
             aria-label={t("pluginSettingsForm.backToPlugins")}
-            class="-ms-2 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+            class="-ms-2 p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors flex-shrink-0"
         >
             <ArrowLeft class="mirror:-scale-x-100" size={20} />
         </button>
-        <h3
-            class="text-base font-bold text-discord-textPrimary min-w-0 truncate"
-        >
+        <h3 class="text-base font-bold text-zam-textPrimary min-w-0 truncate">
             {t("pluginSettingsForm.settings", { pluginName })}
         </h3>
     </div>
 
     {#if schema.length === 0}
-        <p class="text-sm text-discord-textMuted">
+        <p class="text-sm text-zam-textMuted">
             {t("pluginSettingsForm.thisPluginHasNoSettings")}
         </p>
     {:else}
@@ -145,11 +143,11 @@
                 {#if field.type === "toggle"}
                     <div class="flex items-center gap-3">
                         <div class="flex-1 min-w-0">
-                            <p class="text-sm text-discord-textPrimary">
+                            <p class="text-sm text-zam-textPrimary">
                                 {field.label}
                             </p>
                             {#if field.description}
-                                <p class="text-xs text-discord-textMuted">
+                                <p class="text-xs text-zam-textMuted">
                                     {field.description}
                                 </p>
                             {/if}
@@ -163,11 +161,11 @@
                 {:else if field.type === "text"}
                     <div>
                         <label
-                            class="block text-sm text-discord-textPrimary mb-1"
+                            class="block text-sm text-zam-textPrimary mb-1"
                             for="pf-{field.key}">{field.label}</label
                         >
                         {#if field.description}
-                            <p class="text-xs text-discord-textMuted mb-1">
+                            <p class="text-xs text-zam-textMuted mb-1">
                                 {field.description}
                             </p>
                         {/if}
@@ -184,11 +182,11 @@
                 {:else if field.type === "number"}
                     <div>
                         <label
-                            class="block text-sm text-discord-textPrimary mb-1"
+                            class="block text-sm text-zam-textPrimary mb-1"
                             for="pf-{field.key}">{field.label}</label
                         >
                         {#if field.description}
-                            <p class="text-xs text-discord-textMuted mb-1">
+                            <p class="text-xs text-zam-textMuted mb-1">
                                 {field.description}
                             </p>
                         {/if}
@@ -212,11 +210,11 @@
                 {:else if field.type === "select"}
                     <div>
                         <label
-                            class="block text-sm text-discord-textPrimary mb-1"
+                            class="block text-sm text-zam-textPrimary mb-1"
                             for="pf-{field.key}">{field.label}</label
                         >
                         {#if field.description}
-                            <p class="text-xs text-discord-textMuted mb-1">
+                            <p class="text-xs text-zam-textMuted mb-1">
                                 {field.description}
                             </p>
                         {/if}
@@ -234,18 +232,18 @@
                     </div>
                 {:else if field.type === "list"}
                     <div>
-                        <p class="text-sm text-discord-textPrimary mb-1">
+                        <p class="text-sm text-zam-textPrimary mb-1">
                             {field.label}
                         </p>
                         {#if field.description}
-                            <p class="text-xs text-discord-textMuted mb-2">
+                            <p class="text-xs text-zam-textMuted mb-2">
                                 {field.description}
                             </p>
                         {/if}
                         <div class="space-y-2">
                             {#each rowsOf(field.key) as row, i (i)}
                                 <div
-                                    class="flex items-start gap-2 p-2 rounded bg-discord-backgroundTertiary"
+                                    class="flex items-start gap-2 p-2 rounded bg-zam-backgroundTertiary"
                                 >
                                     <div class="flex-1 min-w-0 space-y-2">
                                         {#each field.fields as sub (sub.key)}
@@ -254,7 +252,7 @@
                                                     class="flex items-center gap-2"
                                                 >
                                                     <span
-                                                        class="flex-1 text-xs text-discord-textMuted"
+                                                        class="flex-1 text-xs text-zam-textMuted"
                                                         >{sub.label}</span
                                                     >
                                                     <ToggleSwitch
@@ -366,7 +364,7 @@
                                             aria-label={t(
                                                 "pluginSettingsForm.moveUp",
                                             )}
-                                            class="p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+                                            class="p-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
                                         >
                                             <ChevronUp size={14} />
                                         </button>
@@ -379,7 +377,7 @@
                                             aria-label={t(
                                                 "pluginSettingsForm.moveDown",
                                             )}
-                                            class="p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+                                            class="p-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
                                         >
                                             <ChevronDown size={14} />
                                         </button>
@@ -389,7 +387,7 @@
                                             aria-label={t(
                                                 "pluginSettingsForm.removeRow",
                                             )}
-                                            class="p-1 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
+                                            class="p-1 rounded text-zam-textMuted hover:text-zam-danger hover:bg-zam-messageHover transition-colors"
                                         >
                                             <Trash2 size={14} />
                                         </button>
@@ -400,7 +398,7 @@
                         <button
                             type="button"
                             onclick={() => addRow(field)}
-                            class="mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-semibold bg-discord-backgroundTertiary text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                            class="mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-semibold bg-zam-backgroundTertiary text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                         >
                             <Plus size={14} />
                             {t("common.add")}

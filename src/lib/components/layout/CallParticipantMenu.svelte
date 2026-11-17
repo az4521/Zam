@@ -390,11 +390,11 @@
 {#snippet menuItems()}
     <button
         onclick={onProfile}
-        class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+        class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors"
         >{t("callParticipantMenu.profile")}</button
     >
     {#if isSelf}
-        <div class="w-full h-px bg-discord-divider my-1"></div>
+        <div class="w-full h-px bg-zam-divider my-1"></div>
 
         <!-- Input (Microphone) accordion -->
         <button
@@ -403,7 +403,7 @@
             onkeydown={(e) => handleParentKeydown(e, "input")}
             aria-expanded={openSection === "input"}
             data-submenu-parent="input"
-            class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+            class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors flex items-center gap-2"
         >
             <ChevronRight
                 size={14}
@@ -413,7 +413,7 @@
                     : 'mirror:-scale-x-100'}"
             />
             <span class="flex-shrink-0">{t("callParticipantMenu.input")}</span>
-            <span class="text-xs text-discord-textMuted truncate ms-auto">
+            <span class="text-xs text-zam-textMuted truncate ms-auto">
                 {activeDeviceLabel(mics, settingsState.audioInputDeviceId)}
             </span>
         </button>
@@ -423,7 +423,7 @@
                 onkeydown={(e) => handleDeviceKeydown(e, "input")}
                 aria-pressed={!settingsState.audioInputDeviceId}
                 data-submenu-device="input"
-                class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2 ps-6"
+                class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors flex items-center gap-2 ps-6"
             >
                 <span class="w-3 flex items-center justify-center">
                     {#if !settingsState.audioInputDeviceId}<Circle
@@ -439,7 +439,7 @@
                     onkeydown={(e) => handleDeviceKeydown(e, "input")}
                     aria-pressed={settingsState.audioInputDeviceId === m.id}
                     data-submenu-device="input"
-                    class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2 ps-6"
+                    class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors flex items-center gap-2 ps-6"
                 >
                     <span class="w-3 flex items-center justify-center">
                         {#if settingsState.audioInputDeviceId === m.id}<Circle
@@ -452,7 +452,7 @@
             {/each}
         {/if}
 
-        <div class="w-full h-px bg-discord-divider my-1"></div>
+        <div class="w-full h-px bg-zam-divider my-1"></div>
 
         <!-- Output (Speaker) accordion -->
         <button
@@ -461,7 +461,7 @@
             onkeydown={(e) => handleParentKeydown(e, "output")}
             aria-expanded={openSection === "output"}
             data-submenu-parent="output"
-            class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+            class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors flex items-center gap-2"
         >
             <ChevronRight
                 size={14}
@@ -471,7 +471,7 @@
                     : 'mirror:-scale-x-100'}"
             />
             <span class="flex-shrink-0">{t("callParticipantMenu.output")}</span>
-            <span class="text-xs text-discord-textMuted truncate ms-auto">
+            <span class="text-xs text-zam-textMuted truncate ms-auto">
                 {activeDeviceLabel(speakers, settingsState.audioOutputDeviceId)}
             </span>
         </button>
@@ -481,7 +481,7 @@
                 onkeydown={(e) => handleDeviceKeydown(e, "output")}
                 aria-pressed={!settingsState.audioOutputDeviceId}
                 data-submenu-device="output"
-                class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2 ps-6"
+                class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors flex items-center gap-2 ps-6"
             >
                 <span class="w-3 flex items-center justify-center">
                     {#if !settingsState.audioOutputDeviceId}<Circle
@@ -497,7 +497,7 @@
                     onkeydown={(e) => handleDeviceKeydown(e, "output")}
                     aria-pressed={settingsState.audioOutputDeviceId === s.id}
                     data-submenu-device="output"
-                    class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2 ps-6"
+                    class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors flex items-center gap-2 ps-6"
                 >
                     <span class="w-3 flex items-center justify-center">
                         {#if settingsState.audioOutputDeviceId === s.id}<Circle
@@ -514,29 +514,29 @@
         <button
             onclick={onMessage}
             disabled={pending !== null}
-            class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors disabled:opacity-50"
+            class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors disabled:opacity-50"
             >{pending === "message"
                 ? t("callParticipantMenu.opening")
                 : t("callParticipantMenu.message")}</button
         >
         <button
             onclick={onMention}
-            class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+            class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors"
             >{t("callParticipantMenu.mention")}</button
         >
 
-        <div class="w-full h-px bg-discord-divider my-1"></div>
+        <div class="w-full h-px bg-zam-divider my-1"></div>
 
         <div class="px-3 py-1.5">
             <div class="flex items-center justify-between gap-2">
                 <label
                     for="user-volume-{userId}"
-                    class="text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
+                    class="text-xs text-zam-textMuted uppercase font-semibold tracking-wide"
                 >
                     {t("callParticipantMenu.userVolume")}
                 </label>
                 <span
-                    class="text-xs text-discord-textMuted tabular-nums flex-shrink-0"
+                    class="text-xs text-zam-textMuted tabular-nums flex-shrink-0"
                 >
                     {Math.round(audio.volume * 100)}%
                 </span>
@@ -551,7 +551,7 @@
                 value={Math.round(audio.volume * 100)}
                 oninput={(e) =>
                     setUserVolume(userId, e.currentTarget.valueAsNumber / 100)}
-                class="w-full mt-1.5 accent-discord-accent"
+                class="w-full mt-1.5 accent-zam-accent"
             />
             <datalist id="user-volume-ticks-{userId}">
                 <option value="100"></option>
@@ -561,12 +561,12 @@
             <div class="flex items-center justify-between gap-2">
                 <label
                     for="user-sound-volume-{userId}"
-                    class="text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
+                    class="text-xs text-zam-textMuted uppercase font-semibold tracking-wide"
                 >
                     {t("callParticipantMenu.soundboardVolume")}
                 </label>
                 <span
-                    class="text-xs text-discord-textMuted tabular-nums flex-shrink-0"
+                    class="text-xs text-zam-textMuted tabular-nums flex-shrink-0"
                 >
                     {Math.round(audio.soundVolume * 100)}%
                 </span>
@@ -584,7 +584,7 @@
                         userId,
                         e.currentTarget.valueAsNumber / 100,
                     )}
-                class="w-full mt-1.5 accent-discord-accent"
+                class="w-full mt-1.5 accent-zam-accent"
             />
         </div>
         {#if sharesAudio}
@@ -592,12 +592,12 @@
                 <div class="flex items-center justify-between gap-2">
                     <label
                         for="user-share-volume-{userId}"
-                        class="text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
+                        class="text-xs text-zam-textMuted uppercase font-semibold tracking-wide"
                     >
                         {t("callParticipantMenu.shareVolume")}
                     </label>
                     <span
-                        class="text-xs text-discord-textMuted tabular-nums flex-shrink-0"
+                        class="text-xs text-zam-textMuted tabular-nums flex-shrink-0"
                     >
                         {Math.round(audio.shareVolume * 100)}%
                     </span>
@@ -615,14 +615,14 @@
                             userId,
                             e.currentTarget.valueAsNumber / 100,
                         )}
-                    class="w-full mt-1.5 accent-discord-accent"
+                    class="w-full mt-1.5 accent-zam-accent"
                 />
             </div>
         {/if}
         <button
             onclick={() => setUserLocalMute(userId, !audio.muted)}
             aria-pressed={audio.muted}
-            class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+            class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors flex items-center gap-2"
         >
             <span class="w-3 flex items-center justify-center">
                 {#if audio.muted}<Circle size={8} fill="currentColor" />{/if}
@@ -633,7 +633,7 @@
             <button
                 onclick={() => setUserShareMute(userId, !audio.shareMuted)}
                 aria-pressed={audio.shareMuted}
-                class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+                class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors flex items-center gap-2"
             >
                 <span class="w-3 flex items-center justify-center">
                     {#if audio.shareMuted}<Circle
@@ -647,7 +647,7 @@
         <button
             onclick={() => setUserVideoHidden(userId, !audio.videoHidden)}
             aria-pressed={audio.videoHidden}
-            class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors flex items-center gap-2"
+            class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors flex items-center gap-2"
         >
             <span class="w-3 flex items-center justify-center">
                 {#if audio.videoHidden}<Circle
@@ -658,12 +658,12 @@
             {t("callParticipantMenu.hideVideo")}
         </button>
 
-        <div class="w-full h-px bg-discord-divider my-1"></div>
+        <div class="w-full h-px bg-zam-divider my-1"></div>
 
         <button
             onclick={onToggleBlock}
             disabled={pending !== null}
-            class="w-full text-start px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors disabled:opacity-50"
+            class="w-full text-start px-3 py-1.5 text-sm text-zam-danger hover:bg-zam-danger hover:text-white transition-colors disabled:opacity-50"
             >{pending === "block"
                 ? t("common.saving")
                 : blocked
@@ -672,13 +672,13 @@
         >
 
         {#if gates.canKick || gates.canBan}
-            <div class="w-full h-px bg-discord-divider my-1"></div>
+            <div class="w-full h-px bg-zam-divider my-1"></div>
         {/if}
         {#if gates.canKick}
             <button
                 onclick={onKick}
                 disabled={pending !== null}
-                class="w-full text-start px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors truncate disabled:opacity-50"
+                class="w-full text-start px-3 py-1.5 text-sm text-zam-danger hover:bg-zam-danger hover:text-white transition-colors truncate disabled:opacity-50"
                 >{pending === "kick"
                     ? t("callParticipantMenu.kicking")
                     : confirming === "kick"
@@ -690,7 +690,7 @@
             <button
                 onclick={onBan}
                 disabled={pending !== null}
-                class="w-full text-start px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors truncate disabled:opacity-50"
+                class="w-full text-start px-3 py-1.5 text-sm text-zam-danger hover:bg-zam-danger hover:text-white transition-colors truncate disabled:opacity-50"
                 >{pending === "ban"
                     ? t("callParticipantMenu.banning")
                     : confirming === "ban"
@@ -712,7 +712,7 @@
             use:focusTrap={{ onEscape: onClose }}
             use:dismissOnOutsidePointer={{ onDismiss: onClose }}
             data-call-menu-root
-            class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-44 max-w-56 overflow-y-auto"
+            class="fixed z-50 bg-zam-backgroundTertiary border border-zam-divider rounded-lg shadow-xl py-1 min-w-44 max-w-56 overflow-y-auto"
         >
             {@render menuItems()}
         </div>

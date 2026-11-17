@@ -68,14 +68,14 @@
 <div bind:this={containerEl} class="group relative w-full h-full bg-black">
     {#if tile.unwatched}
         <div
-            class="absolute inset-0 flex flex-col items-center justify-center gap-2 p-2 text-discord-textMuted"
+            class="absolute inset-0 flex flex-col items-center justify-center gap-2 p-2 text-zam-textMuted"
         >
             <EyeOff size={compact ? 16 : 28} />
             {#if !compact}
                 <span class="text-sm text-white text-center">{label}</span>
                 <button
                     onclick={watch}
-                    class="relative z-20 flex items-center gap-1.5 px-3 py-1.5 rounded bg-discord-accent text-white text-sm hover:opacity-90"
+                    class="relative z-20 flex items-center gap-1.5 px-3 py-1.5 rounded bg-zam-accent text-white text-sm hover:opacity-90"
                 >
                     <Eye size={16} />
                     {t("videoTile.watchStream")}
@@ -113,7 +113,7 @@
                 <button
                     onclick={togglePip}
                     class="p-1.5 rounded bg-black/60 opacity-70 hover:opacity-100 focus-visible:opacity-100 transition-opacity {inPip
-                        ? 'text-discord-accent'
+                        ? 'text-zam-accent'
                         : 'text-white'}"
                     title={inPip
                         ? t("videoTile.exitPictureInPicture")

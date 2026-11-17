@@ -436,7 +436,7 @@
     class="mt-1 max-w-full space-y-1"
 >
     {#if entries.length === 0}
-        <p class="text-sm text-discord-textMuted">
+        <p class="text-sm text-zam-textMuted">
             {t("messageItem.galleryEmpty")}
         </p>
     {/if}
@@ -464,7 +464,7 @@
                                 name: media.name,
                             })}
                             title={media.name}
-                            class="relative block shrink-0 overflow-hidden rounded-lg bg-discord-background hover:opacity-80 transition-opacity"
+                            class="relative block shrink-0 overflow-hidden rounded-lg bg-zam-background hover:opacity-80 transition-opacity"
                             style:width="{tile.width}px"
                             style:height="{tile.height}px"
                         >
@@ -474,7 +474,7 @@
                                     alt=""
                                     loading="lazy"
                                     use:fullImage={() => tileOriginal(entry)}
-                                    class="w-full h-full object-contain bg-discord-backgroundTertiary"
+                                    class="w-full h-full object-contain bg-zam-backgroundTertiary"
                                     onload={(e) =>
                                         learnAspect(
                                             entry.key,
@@ -485,7 +485,7 @@
                                 />
                             {:else}
                                 <span
-                                    class="absolute inset-0 flex items-center justify-center bg-discord-backgroundTertiary text-discord-textMuted"
+                                    class="absolute inset-0 flex items-center justify-center bg-zam-backgroundTertiary text-zam-textMuted"
                                 >
                                     {#if media.kind === "video"}
                                         <Film class="w-6 h-6" />
@@ -527,23 +527,19 @@
                 {@const media = entry.media}
                 {@const sizeLabel = formatMediaSize(media.size)}
                 <li
-                    class="flex items-center gap-2 p-2 rounded-lg bg-discord-backgroundSecondary max-w-sm min-w-0"
+                    class="flex items-center gap-2 p-2 rounded-lg bg-zam-backgroundSecondary max-w-sm min-w-0"
                 >
                     {#if media.kind === "audio"}
-                        <Music
-                            class="w-5 h-5 shrink-0 text-discord-textMuted"
-                        />
+                        <Music class="w-5 h-5 shrink-0 text-zam-textMuted" />
                     {:else}
-                        <FileIcon
-                            class="w-5 h-5 shrink-0 text-discord-textMuted"
-                        />
+                        <FileIcon class="w-5 h-5 shrink-0 text-zam-textMuted" />
                     {/if}
                     <div class="min-w-0 flex-1">
-                        <p class="text-sm text-discord-textPrimary truncate">
+                        <p class="text-sm text-zam-textPrimary truncate">
                             {media.name}
                         </p>
                         {#if sizeLabel}
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {sizeLabel}
                             </p>
                         {/if}
@@ -554,7 +550,7 @@
                         aria-label={t("messageItem.galleryDownload", {
                             name: media.name,
                         })}
-                        class="shrink-0 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                        class="shrink-0 p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                     >
                         <Download class="w-4 h-4" />
                     </button>

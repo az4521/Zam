@@ -89,10 +89,9 @@
 
 {#if ownShare}
     <div
-        class="flex items-center gap-2 border-b border-discord-divider bg-discord-danger/10 px-4 py-2 text-sm"
+        class="flex items-center gap-2 border-b border-zam-divider bg-zam-danger/10 px-4 py-2 text-sm"
     >
-        <span class="h-2 w-2 flex-shrink-0 rounded-full bg-discord-danger"
-        ></span>
+        <span class="h-2 w-2 flex-shrink-0 rounded-full bg-zam-danger"></span>
         <!-- A stop that is in flight or was rejected must say so: the beacon is
              still live on the server until it acks, and a failed stop reads as
              an error, not as a healthy share. -->
@@ -100,8 +99,8 @@
             type="button"
             onclick={() => openLiveLocationMap(room.roomId)}
             class="text-start hover:underline {ownStop?.phase === 'failed'
-                ? 'font-semibold text-discord-danger'
-                : 'text-discord-textPrimary'}"
+                ? 'font-semibold text-zam-danger'
+                : 'text-zam-textPrimary'}"
             title={t("liveLocationBanner.openMap")}
             >{stopStatusLabel(ownStop) ??
                 t("liveLocationBanner.sharingLiveLocation")} · {remainingLabel(
@@ -120,7 +119,7 @@
         <button
             type="button"
             onclick={() => openLiveLocationMap(room.roomId)}
-            class="ms-auto rounded bg-discord-backgroundSecondary px-3 py-1 text-xs font-semibold text-discord-textPrimary transition-colors hover:bg-discord-messageHover"
+            class="ms-auto rounded bg-zam-backgroundSecondary px-3 py-1 text-xs font-semibold text-zam-textPrimary transition-colors hover:bg-zam-messageHover"
         >
             {t("liveLocationBanner.map")}
         </button>
@@ -132,19 +131,19 @@
             type="button"
             disabled={ownStop?.phase === "stopping"}
             onclick={() => stopShare(room.roomId)}
-            class="rounded bg-discord-danger px-3 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            class="rounded bg-zam-danger px-3 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
             {stopButtonLabel(ownStop)}
         </button>
     </div>
 {:else if others.length > 0}
-    <div class="border-b border-discord-divider bg-discord-backgroundSecondary">
+    <div class="border-b border-zam-divider bg-zam-backgroundSecondary">
         <button
             type="button"
             onclick={() => openLiveLocationMap(room.roomId)}
-            class="flex w-full items-center gap-2 px-4 py-2 text-sm text-discord-textPrimary transition-colors hover:bg-discord-messageHover"
+            class="flex w-full items-center gap-2 px-4 py-2 text-sm text-zam-textPrimary transition-colors hover:bg-zam-messageHover"
         >
-            <LocateFixed size={16} class="text-discord-accent flex-shrink-0" />
+            <LocateFixed size={16} class="text-zam-accent flex-shrink-0" />
             {#if others.length === 1}
                 <span
                     >{t("liveLocationBanner.isSharingLiveLocation", {
@@ -162,7 +161,7 @@
                 >
             {/if}
             <span
-                class="ms-auto text-xs text-discord-accent flex items-center gap-0.5"
+                class="ms-auto text-xs text-zam-accent flex items-center gap-0.5"
             >
                 {t("liveLocationBanner.viewMap")}
                 <ChevronRight class="mirror:-scale-x-100" size={14} />

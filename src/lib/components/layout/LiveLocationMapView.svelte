@@ -73,14 +73,14 @@
 <!-- Escape and the mobile back button are handled centrally by AppShell's
      dismissTopmost(): this view occupies the shared modal slot (see
      $lib/stores/liveMap.svelte). Do not add a local keydown handler. -->
-<div class="fixed inset-0 z-[70] flex flex-col bg-discord-background">
+<div class="fixed inset-0 z-[70] flex flex-col bg-zam-background">
     <!-- Header -->
     <div
-        class="h-12 px-2 flex items-center gap-2 border-b border-discord-divider flex-shrink-0"
+        class="h-12 px-2 flex items-center gap-2 border-b border-zam-divider flex-shrink-0"
     >
         <button
             onclick={onClose}
-            class="p-2 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+            class="p-2 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
             title={t("liveLocationMapView.back")}
         >
             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -89,12 +89,12 @@
                 />
             </svg>
         </button>
-        <span class="font-semibold text-discord-textPrimary">
+        <span class="font-semibold text-zam-textPrimary">
             {t("liveLocationMapView.liveLocation")}
         </span>
         <button
             onclick={() => mapEl?.recenter()}
-            class="ms-auto p-2 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+            class="ms-auto p-2 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
             title={t("liveLocationMapView.recenter")}
         >
             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -113,7 +113,7 @@
                 class="absolute inset-0 z-[401] flex items-center justify-center pointer-events-none"
             >
                 <p
-                    class="rounded bg-discord-backgroundSecondary/90 px-4 py-2 text-sm text-discord-textMuted"
+                    class="rounded bg-zam-backgroundSecondary/90 px-4 py-2 text-sm text-zam-textMuted"
                 >
                     {t("liveLocationMapView.waitingForALocationFix")}
                 </p>
@@ -123,20 +123,20 @@
 
     <!-- Footer: own-share controls + sharer freshness -->
     <div
-        class="flex-shrink-0 border-t border-discord-divider bg-discord-backgroundSecondary px-4 py-3 flex flex-col gap-2"
+        class="flex-shrink-0 border-t border-zam-divider bg-zam-backgroundSecondary px-4 py-3 flex flex-col gap-2"
     >
         {#if ownShare}
             <div class="flex items-center gap-2 text-sm">
                 <span
-                    class="h-2 w-2 flex-shrink-0 rounded-full bg-discord-danger animate-pulse"
+                    class="h-2 w-2 flex-shrink-0 rounded-full bg-zam-danger animate-pulse"
                 ></span>
                 <!-- Same three states as the banner: stopping / stop-failed /
                      sharing. A failed stop reads as an error because the
                      beacon really is still broadcasting. -->
                 <span
                     class={ownStop?.phase === "failed"
-                        ? "font-semibold text-discord-danger"
-                        : "text-discord-textPrimary"}
+                        ? "font-semibold text-zam-danger"
+                        : "text-zam-textPrimary"}
                 >
                     {stopStatusLabel(ownStop) ??
                         t("liveLocationMapView.sharingLiveLocation")} · {remainingLabel(
@@ -145,7 +145,7 @@
                     )}
                 </span>
                 {#if ownShare.lastSentTs}
-                    <span class="text-xs text-discord-textMuted">
+                    <span class="text-xs text-zam-textMuted">
                         {t("liveLocationMapView.lastUpdatedAt", {
                             timeOnly: timeOnly(ownShare.lastSentTs),
                             updatedAgoLabel: updatedAgoLabel(
@@ -162,7 +162,7 @@
                     type="button"
                     disabled={ownStop?.phase === "stopping"}
                     onclick={() => stopShare(room.roomId)}
-                    class="ms-auto rounded bg-discord-danger px-3 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                    class="ms-auto rounded bg-zam-danger px-3 py-1 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     {ownStop
                         ? stopButtonLabel(ownStop)
@@ -171,8 +171,8 @@
             </div>
         {/if}
         {#each sharers.filter((s) => !s.isSelf) as s (s.id)}
-            <div class="flex items-center gap-2 text-xs text-discord-textMuted">
-                <span class="font-medium text-discord-textSecondary">
+            <div class="flex items-center gap-2 text-xs text-zam-textMuted">
+                <span class="font-medium text-zam-textSecondary">
                     {getMemberName(room, s.owner)}
                 </span>
                 {#if s.description}
@@ -185,14 +185,14 @@
                     href={mapLinkFor(s.lat, s.lon)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="ms-auto text-discord-accent hover:underline flex-shrink-0 inline-flex items-center gap-1"
+                    class="ms-auto text-zam-accent hover:underline flex-shrink-0 inline-flex items-center gap-1"
                     >{t("liveLocationMapView.osm")}
                     <ExternalLink size={14} /></a
                 >
             </div>
         {/each}
         {#if !ownShare && sharers.filter((s) => !s.isSelf).length === 0}
-            <p class="text-xs text-discord-textMuted">
+            <p class="text-xs text-zam-textMuted">
                 {t("liveLocationMapView.noActiveLiveSharesInThis")}
             </p>
         {/if}

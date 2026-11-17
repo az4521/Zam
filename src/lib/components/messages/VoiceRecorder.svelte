@@ -304,14 +304,14 @@
 </script>
 
 <div
-    class="input-box relative flex items-center gap-3 bg-discord-backgroundSecondary rounded-lg px-3 py-2.5 border border-transparent"
+    class="input-box relative flex items-center gap-3 bg-zam-backgroundSecondary rounded-lg px-3 py-2.5 border border-transparent"
 >
     {#if phase === "recording"}
         <!-- Cancel -->
         <button
             type="button"
             onclick={discard}
-            class="flex-shrink-0 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+            class="flex-shrink-0 p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary transition-colors"
             title={t("common.cancel")}
             aria-label={t("voiceRecorder.cancelRecording")}
         >
@@ -324,24 +324,24 @@
 
         <!-- Red pulsing dot -->
         <span
-            class="voice-rec-dot flex-shrink-0 bg-discord-danger"
+            class="voice-rec-dot flex-shrink-0 bg-zam-danger"
             aria-hidden="true"
         ></span>
 
         <!-- Elapsed time -->
         <span
-            class="flex-shrink-0 text-sm font-mono tabular-nums text-discord-textPrimary"
+            class="flex-shrink-0 text-sm font-mono tabular-nums text-zam-textPrimary"
         >
             {formatCallDuration(elapsedMs)}
         </span>
 
         <!-- Live level meter -->
         <div
-            class="flex-1 min-w-0 h-2 rounded-full bg-discord-backgroundTertiary overflow-hidden"
+            class="flex-1 min-w-0 h-2 rounded-full bg-zam-backgroundTertiary overflow-hidden"
             role="presentation"
         >
             <div
-                class="h-full rounded-full bg-discord-accent"
+                class="h-full rounded-full bg-zam-accent"
                 style="width: {level * 100}%"
             ></div>
         </div>
@@ -350,7 +350,7 @@
         <button
             type="button"
             onclick={stop}
-            class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded bg-discord-accent text-white text-sm font-medium hover:opacity-90 transition-opacity"
+            class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded bg-zam-accent text-white text-sm font-medium hover:opacity-90 transition-opacity"
         >
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <rect x="6" y="6" width="12" height="12" rx="1.5" />
@@ -363,7 +363,7 @@
             type="button"
             onclick={discard}
             disabled={phase === "sending"}
-            class="flex-shrink-0 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            class="flex-shrink-0 p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title={t("voiceRecorder.discard")}
             aria-label={t("voiceRecorder.discardRecording")}
         >
@@ -382,12 +382,12 @@
             {#if waveform.length > 0}
                 {#each waveform as bar, i (i)}
                     <div
-                        class="flex-1 min-w-[2px] rounded-full bg-discord-accent/80"
+                        class="flex-1 min-w-[2px] rounded-full bg-zam-accent/80"
                         style="height: {Math.max(8, (bar / 1024) * 100)}%"
                     ></div>
                 {/each}
             {:else}
-                <span class="text-xs text-discord-textMuted"
+                <span class="text-xs text-zam-textMuted"
                     >{t("voiceRecorder.voiceMessage")}</span
                 >
             {/if}
@@ -395,7 +395,7 @@
 
         <!-- Duration -->
         <span
-            class="flex-shrink-0 text-sm font-mono tabular-nums text-discord-textMuted"
+            class="flex-shrink-0 text-sm font-mono tabular-nums text-zam-textMuted"
         >
             {formatCallDuration(previewDurationMs)}
         </span>
@@ -414,7 +414,7 @@
             type="button"
             onclick={send}
             disabled={phase === "sending"}
-            class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded bg-discord-accent text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
+            class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded bg-zam-accent text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
         >
             {#if phase === "sending"}
                 <div

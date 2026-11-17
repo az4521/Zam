@@ -83,18 +83,16 @@
 <div class="space-y-6">
     <section data-setting-anchor="notif-privacy">
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
         >
             {t("privacySafetySettings.privacy")}
         </p>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("privacySafetySettings.streamerMode")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("privacySafetySettings.streamerModeHint")}
                 </p>
             </div>
@@ -104,14 +102,12 @@
                 label={t("privacySafetySettings.streamerMode")}
             />
         </div>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("privacySafetySettings.privateReadReceipts")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("privacySafetySettings.hideYourReadReceiptsFromOther")}
                     {t("privacySafetySettings.receiptsOverrideHint")}
                 </p>
@@ -122,14 +118,12 @@
                 label={t("privacySafetySettings.privateReadReceipts")}
             />
         </div>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("privacySafetySettings.sendTypingIndicators")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("privacySafetySettings.letOthersInARoomSee")}
                 </p>
             </div>
@@ -139,14 +133,12 @@
                 label={t("privacySafetySettings.sendTypingIndicators")}
             />
         </div>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("privacySafetySettings.indexEncryptedRooms")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("privacySafetySettings.indexEncryptedRoomsHint")}
                 </p>
             </div>
@@ -156,14 +148,12 @@
                 label={t("privacySafetySettings.indexEncryptedRooms")}
             />
         </div>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("privacySafetySettings.hideMessageTextInNotifications")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("privacySafetySettings.notificationsOnThisDeviceSayWho")}
                 </p>
             </div>
@@ -179,10 +169,10 @@
             class="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
         >
             <div class="flex-1 min-w-0">
-                <span class="text-sm text-discord-textPrimary"
+                <span class="text-sm text-zam-textPrimary"
                     >{t("privacySafetySettings.linkPreviewMedia")}</span
                 >
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t(
                         "privacySafetySettings.previewImagesAndVideosUsuallyCome",
                     )}
@@ -198,7 +188,7 @@
     </section>
 
     <h3
-        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
     >
         {t("privacySafetySettings.blockedUsers")}
     </h3>

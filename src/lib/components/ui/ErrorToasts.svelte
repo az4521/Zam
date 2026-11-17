@@ -20,15 +20,15 @@
                 role={toast.tone === "accent" ? "status" : "alert"}
                 class="pointer-events-auto w-[90vw] sm:w-auto sm:max-w-md rounded-lg border-s-4 {toast.tone ===
                 'accent'
-                    ? 'border-discord-accent'
-                    : 'border-discord-danger'} bg-discord-backgroundTertiary text-discord-textPrimary text-sm shadow-lg px-4 py-2.5"
+                    ? 'border-zam-accent'
+                    : 'border-zam-danger'} bg-zam-backgroundTertiary text-zam-textPrimary text-sm shadow-lg px-4 py-2.5"
             >
                 <div class="flex items-start gap-3">
                     <span class="min-w-0 flex-1 break-words">
                         {toast.message}
                     </span>
                     <button
-                        class="-me-1 shrink-0 text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                        class="-me-1 shrink-0 text-zam-textMuted hover:text-zam-textPrimary transition-colors"
                         onclick={() => dismissToast(toast.id)}
                         aria-label={t("errorToasts.dismiss")}
                     >
@@ -39,7 +39,7 @@
                     <div class="mt-2 flex justify-end">
                         <button
                             type="button"
-                            class="shrink-0 px-2 py-1 rounded bg-discord-messageHover text-discord-textPrimary text-xs hover:bg-discord-accent hover:text-white transition-colors"
+                            class="shrink-0 px-2 py-1 rounded bg-zam-messageHover text-zam-textPrimary text-xs hover:bg-zam-accent hover:text-white transition-colors"
                             onclick={() => {
                                 const action = toast.action;
                                 dismissToast(toast.id);

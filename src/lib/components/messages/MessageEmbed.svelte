@@ -87,14 +87,14 @@
 {#if target && text}
     <button
         type="button"
-        class="mt-2 flex w-full max-w-lg text-start rounded overflow-hidden border border-discord-divider bg-discord-backgroundSecondary hover:bg-discord-messageHover transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-discord-accent"
+        class="mt-2 flex w-full max-w-lg text-start rounded overflow-hidden border border-zam-divider bg-zam-backgroundSecondary hover:bg-zam-messageHover transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zam-accent"
         onclick={(e) => {
             e.preventDefault();
             onOpen();
         }}
     >
         <span class="sr-only">{t("messageEmbed.jumpToMessage")}</span>
-        <div class="w-1 flex-shrink-0 bg-discord-accent"></div>
+        <div class="w-1 flex-shrink-0 bg-zam-accent"></div>
         <div class="flex flex-1 min-w-0 flex-col p-2.5 gap-1">
             <div class="flex items-center gap-1.5 min-w-0">
                 <Avatar
@@ -104,23 +104,23 @@
                     size={18}
                 />
                 <span
-                    class="text-xs font-semibold text-discord-textPrimary truncate"
+                    class="text-xs font-semibold text-zam-textPrimary truncate"
                     >{senderName}</span
                 >
                 {#if roomLabel}
-                    <span class="text-xs text-discord-textMuted truncate"
+                    <span class="text-xs text-zam-textMuted truncate"
                         >{t("messageEmbed.inRoom", { room: roomLabel })}</span
                     >
                 {/if}
                 <span
-                    class="text-xs text-discord-textMuted flex-shrink-0 ms-auto"
+                    class="text-xs text-zam-textMuted flex-shrink-0 ms-auto"
                     title={fullTimestamp(target.getTs())}
                     >{messageTimestamp(target.getTs())}</span
                 >
             </div>
             <p
                 dir="auto"
-                class="text-sm text-discord-textSecondary leading-snug line-clamp-4 whitespace-pre-wrap break-words"
+                class="text-sm text-zam-textSecondary leading-snug line-clamp-4 whitespace-pre-wrap break-words"
                 class:italic={target.isRedacted()}
             >
                 {text}

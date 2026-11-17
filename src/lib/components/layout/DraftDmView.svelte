@@ -171,12 +171,12 @@
 
 <div class="flex-1 flex flex-col min-w-0 overflow-hidden" data-chat-area>
     <div
-        class="h-12 px-4 flex items-center gap-3 border-b border-discord-divider shadow-sm flex-shrink-0"
+        class="h-12 px-4 flex items-center gap-3 border-b border-zam-divider shadow-sm flex-shrink-0"
     >
         {#if isMobile}
             <button
                 onclick={onMenuOpen}
-                class="p-1.5 -ms-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                class="p-1.5 -ms-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors flex-shrink-0"
                 title={t("common.openRoomList")}
                 aria-label={t("common.openRoomList")}
             >
@@ -186,15 +186,12 @@
             </button>
         {/if}
         <Avatar src={profile.avatarUrl} {name} id={userId} size={24} />
-        <h2
-            class="font-semibold text-discord-textPrimary truncate"
-            title={name}
-        >
+        <h2 class="font-semibold text-zam-textPrimary truncate" title={name}>
             {@html renderPlainTextWithTwemoji(name)}
         </h2>
         {#if encrypt}
             <span
-                class="text-discord-textMuted flex-shrink-0"
+                class="text-zam-textMuted flex-shrink-0"
                 title={t("draftDm.encrypted")}
                 aria-label={t("draftDm.encrypted")}
             >
@@ -203,7 +200,7 @@
         {/if}
         <button
             onclick={closeDraftDm}
-            class="ms-auto p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+            class="ms-auto p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors flex-shrink-0"
             title={t("draftDm.discard")}
             aria-label={t("draftDm.discard")}
         >
@@ -215,17 +212,17 @@
         <div class="max-w-xl">
             <Avatar src={profile.avatarUrl} {name} id={userId} size={80} />
             <h3
-                class="mt-3 text-2xl font-bold text-discord-textPrimary break-words"
+                class="mt-3 text-2xl font-bold text-zam-textPrimary break-words"
             >
                 {@html renderPlainTextWithTwemoji(name)}
             </h3>
             {#if profile.displayName}
-                <p class="text-discord-textMuted text-sm break-all">{userId}</p>
+                <p class="text-zam-textMuted text-sm break-all">{userId}</p>
             {/if}
-            <p class="mt-3 text-discord-textSecondary">
+            <p class="mt-3 text-zam-textSecondary">
                 {t("draftDm.intro", { name })}
             </p>
-            <p class="mt-1 text-sm text-discord-textMuted">
+            <p class="mt-1 text-sm text-zam-textMuted">
                 {t("draftDm.lazyNote", { name })}
             </p>
         </div>
@@ -233,10 +230,10 @@
 
     <div class="px-4 pb-4 flex-shrink-0">
         {#if error}
-            <p role="alert" class="mb-2 text-sm text-discord-danger">{error}</p>
+            <p role="alert" class="mb-2 text-sm text-zam-danger">{error}</p>
         {/if}
         <div
-            class="flex items-end gap-2 bg-discord-backgroundSecondary rounded-lg px-2.5 py-2.5"
+            class="flex items-end gap-2 bg-zam-backgroundSecondary rounded-lg px-2.5 py-2.5"
         >
             <textarea
                 bind:this={textareaEl}
@@ -253,12 +250,12 @@
                 placeholder={t("draftDm.placeholder", { name })}
                 aria-label={t("draftDm.placeholder", { name })}
                 style="field-sizing: content;"
-                class="flex-1 min-w-0 resize-none bg-transparent text-discord-textPrimary outline-none composer-text leading-relaxed py-[3px] max-h-48 placeholder:text-discord-textMuted disabled:opacity-60"
+                class="flex-1 min-w-0 resize-none bg-transparent text-zam-textPrimary outline-none composer-text leading-relaxed py-[3px] max-h-48 placeholder:text-zam-textMuted disabled:opacity-60"
             ></textarea>
             <button
                 onclick={() => void send()}
                 disabled={sending || !text.trim()}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary disabled:opacity-40 disabled:hover:text-discord-textMuted transition-colors flex-shrink-0"
+                class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary disabled:opacity-40 disabled:hover:text-zam-textMuted transition-colors flex-shrink-0"
                 title={sending ? t("draftDm.starting") : t("draftDm.send")}
                 aria-label={sending ? t("draftDm.starting") : t("draftDm.send")}
             >

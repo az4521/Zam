@@ -441,11 +441,11 @@
         <button
             type="button"
             onclick={closeSync}
-            class="text-sm text-discord-textMuted hover:text-discord-textPrimary"
+            class="text-sm text-zam-textMuted hover:text-zam-textPrimary"
         >
             {t("pluginsSettings.back")}
         </button>
-        <p class="text-xs text-discord-textMuted">
+        <p class="text-xs text-zam-textMuted">
             {t("pluginsSettings.syncYourEnabledPluginsSettingsTo")}
         </p>
         <div class="flex gap-2">
@@ -453,7 +453,7 @@
                 type="button"
                 onclick={doPush}
                 disabled={syncBusy}
-                class="flex-1 px-3 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50"
+                class="flex-1 px-3 py-2 rounded text-sm font-semibold bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-50"
             >
                 {t("pluginsSettings.pushToAccount")}
             </button>
@@ -461,33 +461,33 @@
                 type="button"
                 onclick={doPullPreview}
                 disabled={syncBusy}
-                class="flex-1 px-3 py-2 rounded text-sm font-semibold bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
+                class="flex-1 px-3 py-2 rounded text-sm font-semibold bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary transition-colors disabled:opacity-50"
             >
                 {t("pluginsSettings.pullFromAccount")}
             </button>
         </div>
         {#if syncMessage}
-            <p class="text-sm text-discord-textSecondary">{syncMessage}</p>
+            <p class="text-sm text-zam-textSecondary">{syncMessage}</p>
         {/if}
         {#if syncError}
-            <p class="text-sm text-discord-danger">{syncError}</p>
+            <p class="text-sm text-zam-danger">{syncError}</p>
         {/if}
         {#if pullSummary}
             <div
-                class="p-3 rounded bg-discord-backgroundTertiary space-y-2 text-sm"
+                class="p-3 rounded bg-zam-backgroundTertiary space-y-2 text-sm"
             >
-                <p class="font-semibold text-discord-textPrimary">
+                <p class="font-semibold text-zam-textPrimary">
                     {t("pluginsSettings.thisPullWill")}
                 </p>
                 {#if pullSummary.reposToAdd.length}
-                    <p class="text-discord-textSecondary">
+                    <p class="text-zam-textSecondary">
                         {t("pluginsSettings.addRepos", {
                             join: pullSummary.reposToAdd.join(", "),
                         })}
                     </p>
                 {/if}
                 {#if pullSummary.toInstall.length}
-                    <p class="text-discord-textSecondary">
+                    <p class="text-zam-textSecondary">
                         {t("pluginsSettings.installFromRepos", {
                             join: pullSummary.toInstall
                                 .map((p) => `${p.id} (${p.repoRef})`)
@@ -496,35 +496,35 @@
                     </p>
                 {/if}
                 {#if pullSummary.toEnable.length}
-                    <p class="text-discord-textSecondary">
+                    <p class="text-zam-textSecondary">
                         {t("pluginsSettings.enable", {
                             join: pullSummary.toEnable.join(", "),
                         })}
                     </p>
                 {/if}
                 {#if pullSummary.toDisable.length}
-                    <p class="text-discord-textSecondary">
+                    <p class="text-zam-textSecondary">
                         {t("pluginsSettings.disable", {
                             join: pullSummary.toDisable.join(", "),
                         })}
                     </p>
                 {/if}
                 {#if pullSummary.settingsChanges.length}
-                    <p class="text-discord-textSecondary">
+                    <p class="text-zam-textSecondary">
                         {t("pluginsSettings.updateSettingsFor", {
                             join: pullSummary.settingsChanges.join(", "),
                         })}
                     </p>
                 {/if}
                 {#if pullSummary.autoUpdateChange !== null}
-                    <p class="text-discord-textSecondary">
+                    <p class="text-zam-textSecondary">
                         {t("pluginsSettings.setAutoUpdate", {
                             value: pullSummary.autoUpdateChange ? "on" : "off",
                         })}
                     </p>
                 {/if}
                 {#if pullSummary.autoUpdateOverrides.length}
-                    <p class="text-discord-textSecondary">
+                    <p class="text-zam-textSecondary">
                         {t("pluginsSettings.setPerPluginAutoUpdate", {
                             join: pullSummary.autoUpdateOverrides
                                 .map((o) => `${o.id}=${o.value ? "on" : "off"}`)
@@ -533,7 +533,7 @@
                     </p>
                 {/if}
                 {#if pullSummary.notInstalledHere.length}
-                    <p class="text-discord-textMuted text-xs">
+                    <p class="text-zam-textMuted text-xs">
                         {t("pluginsSettings.notInstalledOnThisDeviceInstall", {
                             join: pullSummary.notInstalledHere
                                 .map((n) => n.id)
@@ -542,7 +542,7 @@
                     </p>
                 {/if}
                 {#if pullSummary.reposToAdd.length === 0 && pullSummary.toInstall.length === 0 && pullSummary.toEnable.length === 0 && pullSummary.toDisable.length === 0 && pullSummary.settingsChanges.length === 0 && pullSummary.autoUpdateChange === null && pullSummary.autoUpdateOverrides.length === 0}
-                    <p class="text-discord-textSecondary">
+                    <p class="text-zam-textSecondary">
                         {t("pluginsSettings.nothingToChangeAlreadyInSync")}
                     </p>
                 {/if}
@@ -551,7 +551,7 @@
                         type="button"
                         onclick={doApplyPull}
                         disabled={syncBusy}
-                        class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50"
+                        class="px-3 py-1.5 rounded text-sm font-semibold bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-50"
                     >
                         {t("pluginsSettings.apply")}
                     </button>
@@ -561,7 +561,7 @@
                             pullSummary = null;
                             pullPayload = null;
                         }}
-                        class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors"
+                        class="px-3 py-1.5 rounded text-sm font-semibold bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary transition-colors"
                     >
                         {t("common.cancel")}
                     </button>
@@ -574,12 +574,12 @@
         <!-- Installed -->
         <section>
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
             >
                 {t("pluginsSettings.installed")}
             </p>
             {#if installedList.length === 0}
-                <p class="text-sm text-discord-textMuted text-center py-8">
+                <p class="text-sm text-zam-textMuted text-center py-8">
                     {t("pluginsSettings.noPluginsInstalled")}
                 </p>
             {:else}
@@ -589,15 +589,15 @@
                             (installedPlugins[p.id]?.manifest.settings
                                 ?.length ?? 0) > 0}
                         <div
-                            class="flex items-start gap-3 p-3 rounded bg-discord-backgroundTertiary"
+                            class="flex items-start gap-3 p-3 rounded bg-zam-backgroundTertiary"
                         >
                             <div class="flex-1 min-w-0">
                                 <p
-                                    class="text-sm font-medium text-discord-textPrimary"
+                                    class="text-sm font-medium text-zam-textPrimary"
                                 >
                                     {p.name}
                                 </p>
-                                <p class="text-xs text-discord-textMuted">
+                                <p class="text-xs text-zam-textMuted">
                                     v{p.version} · {p.author}
                                     {#if p.source === "repo" && p.repoRef}
                                         · {repoLabel(
@@ -611,9 +611,9 @@
                                     <div class="flex items-center gap-1.5 mt-1">
                                         <TriangleAlert
                                             size={14}
-                                            class="text-discord-danger flex-shrink-0"
+                                            class="text-zam-danger flex-shrink-0"
                                         />
-                                        <p class="text-xs text-discord-danger">
+                                        <p class="text-xs text-zam-danger">
                                             {p.error}
                                         </p>
                                     </div>
@@ -622,7 +622,7 @@
                                     <div class="flex items-center gap-2 mt-1">
                                         {#if pluginNeedsUpdate[p.id]}
                                             <span
-                                                class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-discord-danger/20 text-discord-danger"
+                                                class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-zam-danger/20 text-zam-danger"
                                             >
                                                 {t(
                                                     "pluginsSettings.needsUpdate",
@@ -630,7 +630,7 @@
                                             </span>
                                         {:else if pluginUpdates.available[p.id]}
                                             <span
-                                                class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-discord-accent/20 text-discord-accent"
+                                                class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-zam-accent/20 text-zam-accent"
                                             >
                                                 {t(
                                                     "pluginsSettings.updateToV",
@@ -645,7 +645,7 @@
                                             type="button"
                                             onclick={() => doUpdate(p.id)}
                                             disabled={updateBusy[p.id]}
-                                            class="text-xs text-discord-accent hover:underline disabled:opacity-50"
+                                            class="text-xs text-zam-accent hover:underline disabled:opacity-50"
                                         >
                                             {updateBusy[p.id]
                                                 ? t("pluginsSettings.updating")
@@ -655,7 +655,7 @@
                                 {/if}
                                 {#if updateError[p.id]}
                                     <p
-                                        class="text-xs text-discord-danger mt-1"
+                                        class="text-xs text-zam-danger mt-1"
                                         role="alert"
                                     >
                                         {updateError[p.id]}
@@ -663,7 +663,7 @@
                                 {/if}
                                 {#if removeError[p.id]}
                                     <p
-                                        class="text-xs text-discord-danger mt-1"
+                                        class="text-xs text-zam-danger mt-1"
                                         role="alert"
                                     >
                                         {removeError[p.id]}
@@ -679,7 +679,7 @@
                                         title={t(
                                             "pluginsSettings.pluginSettings",
                                         )}
-                                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                                        class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                                     >
                                         <Settings size={16} />
                                     </button>
@@ -702,7 +702,7 @@
                                         title={t(
                                             "pluginsSettings.reloadFromFolder",
                                         )}
-                                        class="px-2 py-1 rounded text-xs font-semibold text-discord-accent hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                        class="px-2 py-1 rounded text-xs font-semibold text-zam-accent hover:bg-zam-messageHover transition-colors disabled:opacity-50"
                                     >
                                         {localBusy === p.id
                                             ? t("pluginsSettings.reloading")
@@ -720,7 +720,7 @@
                                         title={t(
                                             "pluginsSettings.autoUpdateThisPlugin",
                                         )}
-                                        class="text-xs rounded bg-discord-backgroundSecondary text-discord-textMuted border border-discord-divider px-1 py-0.5"
+                                        class="text-xs rounded bg-zam-backgroundSecondary text-zam-textMuted border border-zam-divider px-1 py-0.5"
                                     >
                                         <option value="default"
                                             >{t(
@@ -745,7 +745,7 @@
                                             type="button"
                                             onclick={() =>
                                                 (removePending = null)}
-                                            class="px-2 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                                            class="px-2 py-1 rounded text-xs text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                                         >
                                             {t("common.cancel")}
                                         </button>
@@ -756,7 +756,7 @@
                                                 "pluginsSettings.confirmRemove",
                                                 { name: p.name },
                                             )}
-                                            class="px-2 py-1 rounded text-xs text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors"
+                                            class="px-2 py-1 rounded text-xs text-white bg-zam-danger hover:bg-zam-dangerHover transition-colors"
                                         >
                                             {t("common.remove")}
                                         </button>
@@ -773,7 +773,7 @@
                                                 "pluginsSettings.remove",
                                                 { name: p.name },
                                             )}
-                                            class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                            class="p-1.5 rounded text-zam-textMuted hover:text-zam-danger hover:bg-zam-messageHover transition-colors disabled:opacity-50"
                                         >
                                             <Trash2 size={16} />
                                         </button>
@@ -789,31 +789,31 @@
         <!-- Browse -->
         <section>
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
             >
                 {t("pluginsSettings.browse")}
             </p>
             {#if installError}
-                <p class="text-sm text-discord-danger mb-2">{installError}</p>
+                <p class="text-sm text-zam-danger mb-2">{installError}</p>
             {/if}
             <div class="space-y-4">
                 {#each repoList as repo (repo.ref)}
                     <div>
                         <p
-                            class="text-sm font-semibold text-discord-textPrimary mb-2"
+                            class="text-sm font-semibold text-zam-textPrimary mb-2"
                         >
                             {repo.ref}
                         </p>
                         {#if browse[repo.ref]?.loading}
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {t("pluginsSettings.loading")}
                             </p>
                         {:else if browse[repo.ref]?.error}
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {browse[repo.ref].error}
                             </p>
                         {:else if !browse[repo.ref]?.entries.length}
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {t("pluginsSettings.noPluginsInThisRepoYet")}
                             </p>
                         {:else}
@@ -822,28 +822,28 @@
                                     {@const alreadyInstalled =
                                         entry.id in installedPlugins}
                                     <div
-                                        class="flex items-start gap-3 p-2 rounded bg-discord-backgroundSecondary"
+                                        class="flex items-start gap-3 p-2 rounded bg-zam-backgroundSecondary"
                                     >
                                         <div class="flex-1 min-w-0">
                                             <p
-                                                class="text-sm font-medium text-discord-textPrimary"
+                                                class="text-sm font-medium text-zam-textPrimary"
                                             >
                                                 {entry.name}
                                             </p>
                                             <p
-                                                class="text-xs text-discord-textMuted"
+                                                class="text-xs text-zam-textMuted"
                                             >
                                                 v{entry.version} · {entry.author}
                                             </p>
                                             <p
-                                                class="text-xs text-discord-textSecondary mt-0.5"
+                                                class="text-xs text-zam-textSecondary mt-0.5"
                                             >
                                                 {entry.description}
                                             </p>
                                         </div>
                                         {#if alreadyInstalled}
                                             <span
-                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundTertiary text-discord-textMuted"
+                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundTertiary text-zam-textMuted"
                                                 >{t(
                                                     "pluginsSettings.installed",
                                                 )}</span
@@ -853,7 +853,7 @@
                                                 type="button"
                                                 onclick={() =>
                                                     install(repo.ref, entry)}
-                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors"
+                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-accent hover:bg-zam-accentHover text-white transition-colors"
                                                 >{t(
                                                     "pluginsSettings.install",
                                                 )}</button
@@ -871,15 +871,15 @@
         <!-- Local folder (plugin development) -->
         <section>
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
             >
                 {t("pluginsSettings.localFolder")}
             </p>
-            <div class="p-3 rounded bg-discord-backgroundTertiary space-y-3">
-                <p class="text-xs text-discord-textPrimary font-medium">
+            <div class="p-3 rounded bg-zam-backgroundTertiary space-y-3">
+                <p class="text-xs text-zam-textPrimary font-medium">
                     {t("pluginsSettings.loadFromFolder")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("pluginsSettings.loadFromFolderHint")}
                 </p>
                 <input
@@ -894,11 +894,11 @@
                     type="button"
                     onclick={() => chooseFolder()}
                     disabled={localBusy !== null}
-                    class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50"
+                    class="px-3 py-1.5 rounded text-sm font-semibold bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-50"
                     >{t("pluginsSettings.chooseFolder")}</button
                 >
                 {#if localError}
-                    <p class="text-xs text-discord-danger" role="alert">
+                    <p class="text-xs text-zam-danger" role="alert">
                         {localError}
                     </p>
                 {/if}
@@ -908,23 +908,21 @@
         <!-- Repos -->
         <section>
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
             >
                 {t("pluginsSettings.repos")}
             </p>
             <div class="space-y-2 mb-4">
                 {#each repoList as repo (repo.ref)}
                     <div
-                        class="flex items-center gap-3 p-2 rounded bg-discord-backgroundTertiary"
+                        class="flex items-center gap-3 p-2 rounded bg-zam-backgroundTertiary"
                     >
                         <div class="flex-1 min-w-0">
-                            <p
-                                class="text-sm text-discord-textPrimary truncate"
-                            >
+                            <p class="text-sm text-zam-textPrimary truncate">
                                 {repo.ref}
                             </p>
                             {#if repo.official}
-                                <p class="text-xs text-discord-textMuted">
+                                <p class="text-xs text-zam-textMuted">
                                     {t("pluginsSettings.official")}
                                 </p>
                             {/if}
@@ -934,7 +932,7 @@
                                 type="button"
                                 onclick={() => removeRepo(repo.ref)}
                                 title={t("pluginsSettings.removeRepo")}
-                                class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
+                                class="p-1.5 rounded text-zam-textMuted hover:text-zam-danger hover:bg-zam-messageHover transition-colors"
                             >
                                 <Trash2 size={16} />
                             </button>
@@ -943,11 +941,11 @@
                 {/each}
             </div>
 
-            <div class="p-3 rounded bg-discord-backgroundTertiary space-y-3">
-                <p class="text-xs text-discord-textPrimary font-medium">
+            <div class="p-3 rounded bg-zam-backgroundTertiary space-y-3">
+                <p class="text-xs text-zam-textPrimary font-medium">
                     {t("pluginsSettings.addARepo")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("pluginsSettings.thirdPartyReposRunFullTrust")}
                 </p>
                 <div class="flex gap-2">
@@ -955,7 +953,7 @@
                         type="text"
                         bind:value={repoInput}
                         placeholder={t("pluginsSettings.ownerRepoOrGithubUrl")}
-                        class="flex-1 px-2.5 py-1.5 rounded bg-discord-backgroundSecondary text-sm text-discord-textPrimary border border-discord-divider focus:border-discord-accent outline-none"
+                        class="flex-1 px-2.5 py-1.5 rounded bg-zam-backgroundSecondary text-sm text-zam-textPrimary border border-zam-divider focus:border-zam-accent outline-none"
                         onkeydown={(e) => {
                             if (e.key === "Enter") submitAddRepo();
                         }}
@@ -963,12 +961,12 @@
                     <button
                         type="button"
                         onclick={submitAddRepo}
-                        class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors"
+                        class="px-3 py-1.5 rounded text-sm font-semibold bg-zam-accent hover:bg-zam-accentHover text-white transition-colors"
                         >{t("pluginsSettings.addRepo")}</button
                     >
                 </div>
                 {#if repoError}
-                    <p class="text-xs text-discord-danger">{repoError}</p>
+                    <p class="text-xs text-zam-danger">{repoError}</p>
                 {/if}
             </div>
         </section>
@@ -976,7 +974,7 @@
         <!-- Actions -->
         <section>
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
             >
                 {t("common.actions")}
             </p>
@@ -984,7 +982,7 @@
                 <button
                     type="button"
                     onclick={openSync}
-                    class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded bg-discord-backgroundTertiary text-sm font-semibold text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded bg-zam-backgroundTertiary text-sm font-semibold text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                 >
                     <RefreshCw size={16} />
                     {t("pluginsSettings.syncPlugins")}
@@ -993,20 +991,20 @@
                 <button
                     type="button"
                     onclick={disableAll}
-                    class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded bg-discord-backgroundTertiary text-sm font-semibold text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    class="w-full flex items-center justify-center gap-2 px-4 py-2 rounded bg-zam-backgroundTertiary text-sm font-semibold text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                 >
                     <Power size={16} />
                     {t("pluginsSettings.disableAllPlugins")}
                 </button>
 
                 <div
-                    class="flex items-center gap-3 py-2 border-t border-discord-divider pt-3"
+                    class="flex items-center gap-3 py-2 border-t border-zam-divider pt-3"
                 >
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm text-discord-textPrimary">
+                        <p class="text-sm text-zam-textPrimary">
                             {t("pluginsSettings.autoUpdatePlugins")}
                         </p>
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t(
                                 "pluginsSettings.automaticallyPullNewerVersionsOfRepo",
                             )}

@@ -92,9 +92,7 @@
 </script>
 
 {#snippet packRow(pack: CustomImagePack, enabled: boolean)}
-    <div
-        class="flex items-center gap-3 p-2 rounded bg-discord-backgroundTertiary"
-    >
+    <div class="flex items-center gap-3 p-2 rounded bg-zam-backgroundTertiary">
         {#if pack.avatarUrl}
             <img
                 src={pack.avatarUrl}
@@ -103,17 +101,17 @@
             />
         {/if}
         <div class="flex-1 min-w-0">
-            <p class="text-sm text-discord-textPrimary truncate">
+            <p class="text-sm text-zam-textPrimary truncate">
                 {pack.name}
             </p>
-            <p class="text-xs text-discord-textMuted truncate">
+            <p class="text-xs text-zam-textMuted truncate">
                 {t("sharedPackSettings.packSummary", {
                     room: pack.sourceName ?? "",
                     count: pack.images.length,
                 })}
             </p>
             {#if pack.attribution}
-                <p class="text-xs text-discord-textMuted truncate">
+                <p class="text-xs text-zam-textMuted truncate">
                     {t("imagePackEditor.attribution", {
                         value: pack.attribution,
                     })}
@@ -124,8 +122,8 @@
             onclick={() => toggle(pack.roomId ?? "", packKey(pack), !enabled)}
             disabled={busy === `${pack.roomId}:${packKey(pack)}`}
             class="px-3 py-1.5 rounded text-xs font-semibold disabled:opacity-50 {enabled
-                ? 'bg-discord-backgroundSecondary text-discord-textPrimary hover:bg-discord-messageHover'
-                : 'bg-discord-accent hover:bg-discord-accentHover text-white'}"
+                ? 'bg-zam-backgroundSecondary text-zam-textPrimary hover:bg-zam-messageHover'
+                : 'bg-zam-accent hover:bg-zam-accentHover text-white'}"
         >
             {enabled
                 ? t("sharedPackSettings.disable")
@@ -137,7 +135,7 @@
 <div class="space-y-6 mt-6">
     <section class="space-y-2">
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
         >
             {t("sharedPackSettings.yourPackDetails")}
         </p>
@@ -146,13 +144,13 @@
                 value={nameDraft ?? view.mine.name}
                 oninput={(e) => (nameDraft = e.currentTarget.value)}
                 placeholder={t("imagePackEditor.packName")}
-                class="min-w-0 bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                class="min-w-0 bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
             />
             <input
                 value={attributionDraft ?? view.mine.attribution ?? ""}
                 oninput={(e) => (attributionDraft = e.currentTarget.value)}
                 placeholder={t("imagePackEditor.attributionPlaceholder")}
-                class="min-w-0 bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                class="min-w-0 bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
             />
         </div>
         <div class="flex items-center gap-2">
@@ -164,7 +162,7 @@
                 />
             {/if}
             <label
-                class="cursor-pointer px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-xs text-discord-textPrimary {avatarUploading
+                class="cursor-pointer px-3 py-1.5 rounded bg-zam-backgroundTertiary hover:bg-zam-messageHover text-xs text-zam-textPrimary {avatarUploading
                     ? 'opacity-50 pointer-events-none'
                     : ''}"
             >
@@ -179,7 +177,7 @@
             {#if view.mine.avatarUrl}
                 <button
                     onclick={() => saveMine({ avatarMxc: null })}
-                    class="text-xs text-discord-textMuted hover:text-discord-textPrimary"
+                    class="text-xs text-zam-textMuted hover:text-zam-textPrimary"
                 >
                     {t("imagePackEditor.removePackAvatar")}
                 </button>
@@ -194,22 +192,22 @@
                     })}
                 disabled={busy === "mine" ||
                     (nameDraft === null && attributionDraft === null)}
-                class="px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-xs font-semibold disabled:opacity-50"
+                class="px-3 py-1.5 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-xs font-semibold disabled:opacity-50"
             >
                 {t("common.save")}
             </button>
         </div>
     </section>
 
-    {#if error}<p class="text-sm text-discord-danger">{error}</p>{/if}
+    {#if error}<p class="text-sm text-zam-danger">{error}</p>{/if}
 
     <section class="space-y-2">
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
         >
             {t("sharedPackSettings.enabledEverywhere")}
         </p>
-        <p class="text-xs text-discord-textMuted">
+        <p class="text-xs text-zam-textMuted">
             {t("sharedPackSettings.enabledEverywhereHint")}
         </p>
         {#each view.enabled as pack (pack.id)}
@@ -217,13 +215,13 @@
         {/each}
         {#each view.stale as ref (ref.roomId + ref.stateKey)}
             <div
-                class="flex items-center gap-3 p-2 rounded bg-discord-backgroundTertiary"
+                class="flex items-center gap-3 p-2 rounded bg-zam-backgroundTertiary"
             >
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm text-discord-textPrimary truncate">
+                    <p class="text-sm text-zam-textPrimary truncate">
                         {ref.stateKey || ref.roomId}
                     </p>
-                    <p class="text-xs text-discord-textMuted truncate">
+                    <p class="text-xs text-zam-textMuted truncate">
                         {t("sharedPackSettings.unavailable", {
                             room: ref.roomId,
                         })}
@@ -232,14 +230,14 @@
                 <button
                     onclick={() => toggle(ref.roomId, ref.stateKey, false)}
                     disabled={busy === `${ref.roomId}:${ref.stateKey}`}
-                    class="px-3 py-1.5 rounded text-xs font-semibold bg-discord-backgroundSecondary text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-50"
+                    class="px-3 py-1.5 rounded text-xs font-semibold bg-zam-backgroundSecondary text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-50"
                 >
                     {t("sharedPackSettings.remove")}
                 </button>
             </div>
         {/each}
         {#if view.enabled.length === 0 && view.stale.length === 0}
-            <p class="text-sm text-discord-textMuted text-center py-2">
+            <p class="text-sm text-zam-textMuted text-center py-2">
                 {t("sharedPackSettings.noneEnabled")}
             </p>
         {/if}
@@ -247,20 +245,20 @@
 
     <section class="space-y-2">
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
         >
             {t("sharedPackSettings.availableInYourRooms")}
         </p>
         <input
             bind:value={query}
             placeholder={t("sharedPackSettings.searchPacks")}
-            class="w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+            class="w-full bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
         />
         {#each filtered as pack (pack.id)}
             {@render packRow(pack, false)}
         {/each}
         {#if filtered.length === 0}
-            <p class="text-sm text-discord-textMuted text-center py-2">
+            <p class="text-sm text-zam-textMuted text-center py-2">
                 {t("sharedPackSettings.noPacksFound")}
             </p>
         {/if}

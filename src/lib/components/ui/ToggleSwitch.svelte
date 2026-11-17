@@ -16,8 +16,8 @@
     aria-checked={checked}
     onclick={() => onChange(!checked)}
     class="relative flex-shrink-0 w-10 h-5 rounded-full transition-colors {checked
-        ? 'bg-discord-accent'
-        : 'bg-discord-backgroundTertiary'}"
+        ? 'bg-zam-accent'
+        : 'bg-zam-backgroundTertiary'}"
     {title}
 >
     <!-- The knob is placed with a logical inset (not translate-x) so it slides
@@ -27,6 +27,6 @@
     <span
         class="absolute top-0.5 w-4 h-4 rounded-full shadow transition-[inset-inline-start,background-color] {checked
             ? 'start-[1.375rem] bg-white'
-            : 'start-0.5 bg-discord-textPrimary'}"
+            : 'start-0.5 bg-zam-textPrimary'}"
     ></span>
 </button>

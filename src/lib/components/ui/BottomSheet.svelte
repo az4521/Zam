@@ -72,10 +72,10 @@
     }}
     in:fly|global={{ y: "100%", duration: duration(260), easing: cubicOut }}
     out:fly|global={{ y: "100%", duration: duration(200), easing: cubicIn }}
-    class="fixed bottom-0 start-0 end-0 z-50 bg-discord-backgroundTertiary border-t border-discord-divider rounded-t-2xl shadow-2xl pb-safe pt-2 max-h-[70vh] overflow-y-auto overscroll-contain"
+    class="fixed bottom-0 start-0 end-0 z-50 bg-zam-backgroundTertiary border-t border-zam-divider rounded-t-2xl shadow-2xl pb-safe pt-2 max-h-[70vh] overflow-y-auto overscroll-contain"
 >
     <div
-        class="relative z-10 w-10 h-1 bg-discord-divider rounded-full mx-auto mb-2"
+        class="relative z-10 w-10 h-1 bg-zam-divider rounded-full mx-auto mb-2"
     ></div>
     {@render children()}
 </div>

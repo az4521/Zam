@@ -64,12 +64,12 @@
     label={t("whatsNewModal.whatSNew")}
     layerClass="z-[60] flex items-center justify-center p-4"
     backdropClass="bg-black/50"
-    panelClass="relative w-full max-w-lg rounded-lg bg-discord-backgroundSecondary shadow-xl flex flex-col max-h-[80vh]"
+    panelClass="relative w-full max-w-lg rounded-lg bg-zam-backgroundSecondary shadow-xl flex flex-col max-h-[80vh]"
 >
     <header
-        class="flex items-center justify-between border-b border-discord-divider px-4 py-3 flex-shrink-0"
+        class="flex items-center justify-between border-b border-zam-divider px-4 py-3 flex-shrink-0"
     >
-        <h2 class="text-base font-semibold text-discord-textPrimary">
+        <h2 class="text-base font-semibold text-zam-textPrimary">
             {sections.length > 1 && lastSeen
                 ? t("whatsNewModal.whatSNewSince", {
                       from: normalizeVersion(lastSeen),
@@ -81,16 +81,16 @@
             type="button"
             onclick={onClose}
             aria-label={t("common.close")}
-            class="text-discord-textMuted hover:text-discord-textPrimary text-lg leading-none px-1"
+            class="text-zam-textMuted hover:text-zam-textPrimary text-lg leading-none px-1"
         >
             <X size={16} />
         </button>
     </header>
     <div class="overflow-y-auto px-4 py-3 flex-1 min-h-0">
         {#if loading}
-            <p class="text-sm text-discord-textMuted">{t("common.loading")}</p>
+            <p class="text-sm text-zam-textMuted">{t("common.loading")}</p>
         {:else if failed}
-            <p class="text-sm text-discord-textMuted">
+            <p class="text-sm text-zam-textMuted">
                 {t("whatsNewModal.releaseNotesUnavailable")}
                 <button
                     type="button"
@@ -107,7 +107,7 @@
             {#each sections as section (section.version)}
                 {#if sections.length > 1}
                     <h3
-                        class="text-sm font-semibold text-discord-textPrimary mt-3 first:mt-0 mb-1"
+                        class="text-sm font-semibold text-zam-textPrimary mt-3 first:mt-0 mb-1"
                     >
                         v{section.version}
                     </h3>
@@ -119,12 +119,12 @@
         {/if}
     </div>
     <footer
-        class="flex justify-end border-t border-discord-divider px-4 py-3 flex-shrink-0"
+        class="flex justify-end border-t border-zam-divider px-4 py-3 flex-shrink-0"
     >
         <button
             type="button"
             onclick={onClose}
-            class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors"
+            class="px-4 py-2 rounded text-sm font-semibold bg-zam-accent hover:bg-zam-accentHover text-white transition-colors"
         >
             {t("whatsNewModal.gotIt")}
         </button>

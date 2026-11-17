@@ -84,13 +84,13 @@ export function presenceDot(state: SeenPresence): PresenceDot {
 export function presenceDotClass(dot: PresenceDot): string {
     switch (dot) {
         case "online":
-            return "bg-discord-online";
+            return "bg-zam-online";
         case "idle":
-            return "bg-discord-idle";
+            return "bg-zam-idle";
         case "dnd":
-            return "bg-discord-dnd";
+            return "bg-zam-dnd";
         case "offline":
-            return "bg-discord-offline";
+            return "bg-zam-offline";
     }
 }
 

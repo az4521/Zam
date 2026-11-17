@@ -76,7 +76,7 @@
             onclick={() => (pickerOpen = !pickerOpen)}
             aria-label={t("ownStatusEditor.pickAStatusEmoji")}
             aria-expanded={pickerOpen}
-            class="w-9 flex-shrink-0 flex items-center justify-center rounded bg-discord-backgroundTertiary text-discord-textMuted hover:text-discord-textPrimary"
+            class="w-9 flex-shrink-0 flex items-center justify-center rounded bg-zam-backgroundTertiary text-zam-textMuted hover:text-zam-textPrimary"
         >
             {#if emoji}<span class="text-base"
                     >{@html renderPlainTextWithTwemoji(emoji)}</span
@@ -90,7 +90,7 @@
             onkeydown={(e) => {
                 if (e.key === "Enter") void save();
             }}
-            class="flex-1 min-w-0 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2.5 py-1.5 outline-none"
+            class="flex-1 min-w-0 bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-2.5 py-1.5 outline-none"
         />
     </div>
     <div class="flex gap-1.5">
@@ -98,7 +98,7 @@
             type="button"
             onclick={() => save()}
             disabled={busy || !dirty || !!problem}
-            class="px-3 py-1 bg-discord-accent text-white rounded text-xs font-medium disabled:opacity-50"
+            class="px-3 py-1 bg-zam-accent text-white rounded text-xs font-medium disabled:opacity-50"
             >{busy ? t("common.saving") : t("common.save")}</button
         >
         {#if hasStatus}
@@ -106,15 +106,15 @@
                 type="button"
                 onclick={() => save(true)}
                 disabled={busy}
-                class="px-3 py-1 bg-discord-backgroundTertiary text-discord-textPrimary rounded text-xs font-medium disabled:opacity-50"
+                class="px-3 py-1 bg-zam-backgroundTertiary text-zam-textPrimary rounded text-xs font-medium disabled:opacity-50"
                 >{t("ownStatusEditor.clearStatus")}</button
             >
         {/if}
     </div>
-    {#if problem && dirty}<p class="text-xs text-discord-textMuted">
+    {#if problem && dirty}<p class="text-xs text-zam-textMuted">
             {problem}
         </p>{/if}
-    {#if error}<p class="text-xs text-discord-danger">{error}</p>{/if}
+    {#if error}<p class="text-xs text-zam-danger">{error}</p>{/if}
 
     {#if pickerOpen}
         <!-- Beside the popover on desktop (it is the positioned ancestor); a

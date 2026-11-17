@@ -2,7 +2,7 @@
 
 This file provides guidance to coding agents working with code in this repository.
 
-**Zam** is a Discord-styled Matrix client: SvelteKit (adapter-static, no SSR) + Svelte 5 runes +
+**Zam** is a Discord-like Matrix client: SvelteKit (adapter-static, no SSR) + Svelte 5 runes +
 TypeScript + Tailwind, built on matrix-js-sdk (rust-crypto) and livekit-client. One static build
 ships to the web/PWA, Electron (`electron/`), and Android via Capacitor (`android/`).
 

@@ -38,14 +38,14 @@
 {#if storageHealthState.full || showLow}
     <div
         role="alert"
-        class="flex max-w-full items-center gap-3 rounded-lg border bg-discord-backgroundSecondary px-4 py-2.5 shadow-lg {storageHealthState.full
-            ? 'border-discord-danger/50'
-            : 'border-discord-warning/50'}"
+        class="flex max-w-full items-center gap-3 rounded-lg border bg-zam-backgroundSecondary px-4 py-2.5 shadow-lg {storageHealthState.full
+            ? 'border-zam-danger/50'
+            : 'border-zam-warning/50'}"
     >
         <svg
             class="h-5 w-5 flex-shrink-0 {storageHealthState.full
-                ? 'text-discord-danger'
-                : 'text-discord-warning'}"
+                ? 'text-zam-danger'
+                : 'text-zam-warning'}"
             fill="currentColor"
             viewBox="0 0 24 24"
             aria-hidden="true"
@@ -54,7 +54,7 @@
                 d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 15h-2v-2h2zm0-4h-2V7h2z"
             />
         </svg>
-        <span class="min-w-0 text-sm text-discord-textPrimary">
+        <span class="min-w-0 text-sm text-zam-textPrimary">
             {storageHealthState.full
                 ? t("storageBanner.outOfStorage")
                 : t("storageBanner.lowStorage", { free: freeText })}
@@ -63,7 +63,7 @@
             <button
                 onclick={checkAgain}
                 disabled={checking}
-                class="flex-shrink-0 rounded bg-discord-accent px-3 py-1 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                class="flex-shrink-0 rounded bg-zam-accent px-3 py-1 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
                 {t("storageBanner.checkAgain")}
             </button>
@@ -71,7 +71,7 @@
             <button
                 onclick={() => (lowDismissed = true)}
                 aria-label={t("storageBanner.dismissLowStorageWarning")}
-                class="flex-shrink-0 text-discord-textMuted hover:text-discord-textPrimary"
+                class="flex-shrink-0 text-zam-textMuted hover:text-zam-textPrimary"
             >
                 <svg
                     class="h-4 w-4"

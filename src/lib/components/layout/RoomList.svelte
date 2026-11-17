@@ -1081,27 +1081,27 @@
 
 <div
     data-zam-region="room-list"
-    class="flex-1 min-w-0 bg-discord-backgroundSecondary flex flex-col"
+    class="flex-1 min-w-0 bg-zam-backgroundSecondary flex flex-col"
 >
     <!-- Header -->
     <div
-        class="h-12 px-4 flex items-center border-b border-discord-divider shadow-sm flex-shrink-0 gap-2"
+        class="h-12 px-4 flex items-center border-b border-zam-divider shadow-sm flex-shrink-0 gap-2"
     >
-        <h2 class="font-semibold text-discord-textPrimary truncate flex-1">
+        <h2 class="font-semibold text-zam-textPrimary truncate flex-1">
             {title}
         </h2>
         {#if roomsState.hierarchyLoading}
             <div
-                class="w-3.5 h-3.5 border-2 border-discord-textMuted border-t-transparent rounded-full animate-spin flex-shrink-0"
+                class="w-3.5 h-3.5 border-2 border-zam-textMuted border-t-transparent rounded-full animate-spin flex-shrink-0"
             ></div>
         {/if}
         <!-- Reorder-mode toggle -->
         {#if canReorderAnything}
             <button
                 onclick={toggleReorderMode}
-                class="p-1 rounded transition-colors flex-shrink-0 hover:bg-discord-messageHover {reorderMode
-                    ? 'text-discord-accent'
-                    : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                class="p-1 rounded transition-colors flex-shrink-0 hover:bg-zam-messageHover {reorderMode
+                    ? 'text-zam-accent'
+                    : 'text-zam-textMuted hover:text-zam-textPrimary'}"
                 title={reorderMode
                     ? t("roomList.doneReordering")
                     : t("roomList.reorderRooms")}
@@ -1141,7 +1141,7 @@
                         interfaceState.modal === "room-header-menu"
                             ? closeModal()
                             : openModal("room-header-menu", () => {})}
-                    class="p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    class="p-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                     title={t("common.actions")}
                 >
                     <svg
@@ -1163,7 +1163,7 @@
                     ></button>
                 {/if}
                 <div
-                    class="absolute end-0 top-full mt-1 z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-44 {interfaceState.modal ===
+                    class="absolute end-0 top-full mt-1 z-50 bg-zam-backgroundTertiary border border-zam-divider rounded-lg shadow-xl py-1 min-w-44 {interfaceState.modal ===
                     'room-header-menu'
                         ? ''
                         : 'hidden'}"
@@ -1172,9 +1172,9 @@
                         spaceId={roomsState.activeSpaceId ?? undefined}
                     />
                     {#if !roomsState.activeSpaceId}
-                        <div class="w-full h-px bg-discord-divider my-1"></div>
+                        <div class="w-full h-px bg-zam-divider my-1"></div>
                         <p
-                            class="px-2 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
+                            class="px-2 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-zam-textMuted"
                         >
                             {t("roomList.sortDmsBy")}
                         </p>
@@ -1189,9 +1189,9 @@
                                     role="radio"
                                     aria-checked={selected}
                                     onclick={() => setDmSortOrder(order)}
-                                    class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors {selected
-                                        ? 'text-discord-textPrimary'
-                                        : 'text-discord-textMuted'}"
+                                    class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors {selected
+                                        ? 'text-zam-textPrimary'
+                                        : 'text-zam-textMuted'}"
                                     style="padding-inline-start: 0.5rem;"
                                 >
                                     <span
@@ -1207,12 +1207,12 @@
                         </div>
                     {/if}
                     {#if canAccessSpaceSettings}
-                        <div class="w-full h-px bg-discord-divider my-1"></div>
+                        <div class="w-full h-px bg-zam-divider my-1"></div>
                         <button
                             onclick={() =>
                                 activeSpaceRoom &&
                                 onOpenSpaceSettings?.(activeSpaceRoom)}
-                            class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                            class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                             style="padding-inline-start: 0.5rem;"
                         >
                             <svg
@@ -1248,12 +1248,12 @@
                         interfaceState.leftOpen = false;
                 }}
                 class="mb-2 w-full flex items-center gap-2 pe-2 py-1.5 transition-colors text-start"
-                class:text-discord-textPrimary={roomsState.showInbox}
-                class:text-discord-textSecondary={!roomsState.showInbox}
-                class:hover:bg-discord-messageHover={!roomsState.showInbox}
-                class:hover:text-discord-textPrimary={!roomsState.showInbox}
+                class:text-zam-textPrimary={roomsState.showInbox}
+                class:text-zam-textSecondary={!roomsState.showInbox}
+                class:hover:bg-zam-messageHover={!roomsState.showInbox}
+                class:hover:text-zam-textPrimary={!roomsState.showInbox}
                 style={roomsState.showInbox
-                    ? "border-inline-start: 3px solid var(--discord-accent); background: linear-gradient(to var(--end-side), var(--discord-bg-selected) 85%, var(--discord-bg-secondary)); padding-inline-start: calc(0.5rem - 3px);"
+                    ? "border-inline-start: 3px solid var(--zam-accent); background: linear-gradient(to var(--end-side), var(--zam-bg-selected) 85%, var(--zam-bg-secondary)); padding-inline-start: calc(0.5rem - 3px);"
                     : "padding-inline-start: 0.5rem;"}
             >
                 <svg
@@ -1269,7 +1269,7 @@
                 >
                 {#if roomsState.invitedRooms.length + roomsState.knockedRooms.length > 0}
                     <span
-                        class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
+                        class="flex-shrink-0 bg-zam-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
                     >
                         {roomsState.invitedRooms.length +
                             roomsState.knockedRooms.length}
@@ -1307,7 +1307,7 @@
                             selfDeafened: voiceCallState.deafened,
                         })}
                         <button
-                            class="w-full flex items-center gap-2 ps-8 pe-2 py-0.5 text-start rounded hover:bg-discord-messageHover"
+                            class="w-full flex items-center gap-2 ps-8 pe-2 py-0.5 text-start rounded hover:bg-zam-messageHover"
                             onclick={() => {
                                 setActiveRoom(room.roomId);
                                 showCallView(room.roomId);
@@ -1339,7 +1339,7 @@
                                 class="rounded-full flex-shrink-0 ring-2 {speaking.has(
                                     p.userId,
                                 )
-                                    ? 'ring-discord-accent'
+                                    ? 'ring-zam-accent'
                                     : 'ring-transparent'}"
                             >
                                 <Avatar
@@ -1350,20 +1350,20 @@
                                 />
                             </div>
                             <span
-                                class="flex-1 text-xs text-discord-textSecondary truncate"
+                                class="flex-1 text-xs text-zam-textSecondary truncate"
                             >
                                 {name}
                             </span>
                             {#if status.micOff}
                                 <MicOff
                                     size={14}
-                                    class="flex-shrink-0 text-discord-danger"
+                                    class="flex-shrink-0 text-zam-danger"
                                 />
                             {/if}
                             {#if status.deafened}
                                 <HeadphoneOff
                                     size={14}
-                                    class="flex-shrink-0 text-discord-danger"
+                                    class="flex-shrink-0 text-zam-danger"
                                 />
                             {/if}
                         </button>
@@ -1391,16 +1391,16 @@
                 section !== null &&
                 (section !== "channels" || canReorderChannels)}
             {#if draggable && drag?.overId === room.roomId && drag.before}
-                <div class="h-0.5 mx-2 rounded bg-discord-accent"></div>
+                <div class="h-0.5 mx-2 rounded bg-zam-accent"></div>
             {/if}
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
                 class="group/room flex items-center transition-colors"
-                class:hover:bg-discord-messageHover={!isActive}
+                class:hover:bg-zam-messageHover={!isActive}
                 class:touch-none={draggable}
                 class:cursor-grab={draggable}
                 style={isActive
-                    ? "border-inline-start: 3px solid var(--discord-accent); background: linear-gradient(to var(--end-side), var(--discord-bg-selected) 85%, var(--discord-bg-secondary));"
+                    ? "border-inline-start: 3px solid var(--zam-accent); background: linear-gradient(to var(--end-side), var(--zam-bg-selected) 85%, var(--zam-bg-secondary));"
                     : ""}
                 data-room-id={room.roomId}
                 data-section={draggable ? section : undefined}
@@ -1428,7 +1428,7 @@
             >
                 {#if draggable}
                     <span
-                        class="flex-shrink-0 ps-1 text-discord-textMuted cursor-grab"
+                        class="flex-shrink-0 ps-1 text-zam-textMuted cursor-grab"
                     >
                         <GripVertical size={14} />
                     </span>
@@ -1439,9 +1439,9 @@
                         setActiveRoom(room.roomId);
                     }}
                     class="flex-1 flex items-center gap-2 py-1.5 min-w-0 text-start transition-colors"
-                    class:text-discord-textPrimary={isActive || unread}
-                    class:text-discord-textSecondary={!isActive && !unread}
-                    class:hover:text-discord-textPrimary={!isActive}
+                    class:text-zam-textPrimary={isActive || unread}
+                    class:text-zam-textSecondary={!isActive && !unread}
+                    class:hover:text-zam-textPrimary={!isActive}
                     class:font-semibold={unread}
                     style="padding-inline-start: calc({depth > 0
                         ? '1.75rem'
@@ -1453,8 +1453,8 @@
                         {#if unread && !isActive}
                             <span
                                 class="w-2 h-2 rounded-full {loud || highlight
-                                    ? 'bg-discord-danger'
-                                    : 'bg-discord-textPrimary'} flex-shrink-0"
+                                    ? 'bg-zam-danger'
+                                    : 'bg-zam-textPrimary'} flex-shrink-0"
                             ></span>
                         {:else}
                             <ChannelTypeIcon
@@ -1474,7 +1474,7 @@
                     >
                     {#if highlight && !isActive}
                         <span
-                            class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
+                            class="flex-shrink-0 bg-zam-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
                         >
                             {highlight > 99 ? "99+" : highlight}
                         </span>
@@ -1486,7 +1486,7 @@
                     <input
                         value={rawOrder}
                         title={t("roomList.orderValue")}
-                        class="w-16 me-1 flex-shrink-0 rounded bg-discord-backgroundTertiary px-1 text-xs text-discord-textSecondary"
+                        class="w-16 me-1 flex-shrink-0 rounded bg-zam-backgroundTertiary px-1 text-xs text-zam-textSecondary"
                         onpointerdown={(e) => e.stopPropagation()}
                         onclick={(e) => e.stopPropagation()}
                         onkeydown={(e) => {
@@ -1506,7 +1506,7 @@
                         e.stopPropagation();
                         onOpenRoomSettings?.(room);
                     }}
-                    class="flex-shrink-0 p-1 me-1 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors opacity-0 group-hover/room:opacity-100"
+                    class="flex-shrink-0 p-1 me-1 rounded text-zam-textMuted hover:text-zam-textPrimary transition-colors opacity-0 group-hover/room:opacity-100"
                     title={t("roomList.roomSettings")}
                 >
                     <svg
@@ -1521,7 +1521,7 @@
                 </button>
             </div>
             {#if draggable && drag?.overId === room.roomId && !drag.before}
-                <div class="h-0.5 mx-2 rounded bg-discord-accent"></div>
+                <div class="h-0.5 mx-2 rounded bg-zam-accent"></div>
             {/if}
             {@render callRoster(room)}
         {/snippet}
@@ -1535,7 +1535,7 @@
                          inset tracks the rows it labels, so don't collapse the
                          three panels onto one number. -->
                     <p
-                        class="px-2 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                        class="px-2 py-1 text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                     >
                         {t("roomList.favourites")}
                     </p>
@@ -1571,8 +1571,8 @@
                                 aria-expanded={expanded}
                                 title={cat.name}
                                 class="w-full flex items-center gap-1 px-2 pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-start transition-colors {hiddenUnread
-                                    ? 'text-discord-textPrimary'
-                                    : 'text-discord-textMuted hover:text-discord-textSecondary'}"
+                                    ? 'text-zam-textPrimary'
+                                    : 'text-zam-textMuted hover:text-zam-textSecondary'}"
                             >
                                 <svg
                                     class="w-3 h-3 flex-shrink-0 transition-transform {expanded
@@ -1591,7 +1591,7 @@
                                 >
                                 {#if hiddenUnread}
                                     <span
-                                        class="w-2 h-2 flex-shrink-0 rounded-full bg-discord-textPrimary"
+                                        class="w-2 h-2 flex-shrink-0 rounded-full bg-zam-textPrimary"
                                     ></span>
                                 {/if}
                             </button>
@@ -1614,7 +1614,7 @@
                     {/each}
                 {:else if roomGroups.normal.length > 0}
                     <p
-                        class="px-2 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                        class="px-2 py-1 text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                     >
                         {roomsState.activeSpaceId
                             ? t("roomList.channels")
@@ -1630,7 +1630,7 @@
                 {/if}
                 {#if roomGroups.lowPriority.length > 0}
                     <p
-                        class="px-2 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                        class="px-2 py-1 text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                     >
                         {t("roomList.lowPriority")}
                     </p>
@@ -1651,7 +1651,7 @@
                  share height, hover and spacing. The member count lives in
                  the tooltip rather than a second line. -->
             <div
-                class="group flex items-center transition-colors hover:bg-discord-messageHover"
+                class="group flex items-center transition-colors hover:bg-zam-messageHover"
             >
                 <div
                     class="flex-1 flex items-center gap-2 py-1.5 min-w-0"
@@ -1671,7 +1671,7 @@
                         />
                     </div>
                     <span
-                        class="flex-1 text-sm text-discord-textSecondary group-hover:text-discord-textPrimary truncate transition-colors"
+                        class="flex-1 text-sm text-zam-textSecondary group-hover:text-zam-textPrimary truncate transition-colors"
                         >{@html renderPlainTextWithTwemoji(
                             tag?.name || room.name || "",
                         )}</span
@@ -1681,13 +1681,13 @@
                 {#if room.isKnocked}
                     <!-- Pending knock: state chip + cancel on hover -->
                     <span
-                        class="flex-shrink-0 me-2 text-xs font-semibold text-discord-textMuted group-hover:hidden"
+                        class="flex-shrink-0 me-2 text-xs font-semibold text-zam-textMuted group-hover:hidden"
                         >{t("roomList.requested")}</span
                     >
                     <button
                         onclick={() => handleCancelKnock(room.roomId)}
                         disabled={isJoining}
-                        class="flex-shrink-0 me-1 px-2 py-0.5 text-xs font-semibold rounded border border-discord-divider text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-60 disabled:cursor-not-allowed hidden group-hover:block"
+                        class="flex-shrink-0 me-1 px-2 py-0.5 text-xs font-semibold rounded border border-zam-divider text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-60 disabled:cursor-not-allowed hidden group-hover:block"
                     >
                         {t("roomList.cancelRequest")}
                     </button>
@@ -1696,7 +1696,7 @@
                     <button
                         onclick={() => handleJoin(room)}
                         disabled={isJoining}
-                        class="flex-shrink-0 me-1 px-2 py-0.5 text-xs font-semibold rounded bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100"
+                        class="flex-shrink-0 me-1 px-2 py-0.5 text-xs font-semibold rounded bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100"
                     >
                         {#if isJoining}
                             <span class="flex items-center gap-1">
@@ -1712,31 +1712,31 @@
             </div>
             {#if knockPromptId === room.roomId && !room.isKnocked}
                 <div
-                    class="mx-2 mb-1.5 p-2 rounded bg-discord-backgroundTertiary flex flex-col gap-1.5"
+                    class="mx-2 mb-1.5 p-2 rounded bg-zam-backgroundTertiary flex flex-col gap-1.5"
                 >
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("roomList.youCanTJoinThisRoom")}
                     </p>
                     <input
                         bind:value={knockReason}
                         placeholder={t("common.reasonOptional")}
-                        class="w-full px-2 py-1 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-xs"
+                        class="w-full px-2 py-1 bg-zam-backgroundSecondary text-zam-textPrimary placeholder-zam-textMuted rounded border border-zam-divider focus:border-zam-accent focus:outline-none text-xs"
                     />
                     {#if knockError}
-                        <p class="text-xs text-discord-danger">
+                        <p class="text-xs text-zam-danger">
                             {knockError}
                         </p>
                     {/if}
                     <div class="flex justify-end gap-1.5">
                         <button
                             onclick={() => (knockPromptId = null)}
-                            class="px-2 py-0.5 text-xs font-medium rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                            class="px-2 py-0.5 text-xs font-medium rounded text-zam-textMuted hover:text-zam-textPrimary transition-colors"
                             >{t("roomList.notNow")}</button
                         >
                         <button
                             onclick={() => handleKnock(room)}
                             disabled={isJoining}
-                            class="px-2 py-0.5 text-xs font-semibold rounded bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-60"
+                            class="px-2 py-0.5 text-xs font-semibold rounded bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-60"
                             >{t("roomList.requestToJoin")}</button
                         >
                     </div>
@@ -1771,8 +1771,8 @@
                     title={node.name}
                     class="w-full flex items-center gap-1 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-start transition-colors {sub?.hasActive ||
                     sub?.unread
-                        ? 'text-discord-textPrimary'
-                        : 'text-discord-textMuted hover:text-discord-textSecondary'}"
+                        ? 'text-zam-textPrimary'
+                        : 'text-zam-textMuted hover:text-zam-textSecondary'}"
                 >
                     <svg
                         class="w-3 h-3 flex-shrink-0 transition-transform {expanded
@@ -1789,18 +1789,18 @@
                     >
                     {#if loading}
                         <span
-                            class="w-3 h-3 flex-shrink-0 border-2 border-discord-textMuted border-t-transparent rounded-full animate-spin"
+                            class="w-3 h-3 flex-shrink-0 border-2 border-zam-textMuted border-t-transparent rounded-full animate-spin"
                         ></span>
                     {:else if sub?.unread}
                         <span
                             class="w-2 h-2 flex-shrink-0 rounded-full {sub.alert
-                                ? 'bg-discord-danger'
-                                : 'bg-discord-textPrimary'}"
+                                ? 'bg-zam-danger'
+                                : 'bg-zam-textPrimary'}"
                         ></span>
                     {/if}
                 </button>
                 {#if expanded}
-                    <div class="ms-3 border-s border-discord-divider">
+                    <div class="ms-3 border-s border-zam-divider">
                         {#each nestRooms(kids.rooms) as row (row.item.roomId)}
                             {@render channelRow(row.item, null, row.depth)}
                         {/each}
@@ -1815,7 +1815,7 @@
                         {/each}
                         {#if !loading && kids.rooms.length === 0 && kids.unjoined.length === 0 && nestedSpaces.length === 0}
                             <p
-                                class="px-2 py-1 text-xs italic text-discord-textMuted"
+                                class="px-2 py-1 text-xs italic text-zam-textMuted"
                             >
                                 {t("roomList.emptyCategory")}
                             </p>
@@ -1837,7 +1837,7 @@
                     type="button"
                     onclick={toggleBrowseCollapsed}
                     aria-expanded={!browseCollapsed}
-                    class="w-full flex items-center gap-1 px-2 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide hover:text-discord-textSecondary transition-colors"
+                    class="w-full flex items-center gap-1 px-2 py-1 text-xs font-semibold text-zam-textMuted uppercase tracking-wide hover:text-zam-textSecondary transition-colors"
                 >
                     <span class="truncate">{t("roomList.browseRooms")}</span>
                     <svg
@@ -1863,7 +1863,7 @@
         {#if showDMs}
             <div class="mb-2">
                 <p
-                    class="px-2 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                    class="px-2 py-1 text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                 >
                     {t("roomList.directMessages")}
                 </p>
@@ -1910,14 +1910,12 @@
                             : undefined}
                     >
                         {#if dmDraggable && drag?.overId === room.roomId && drag.before}
-                            <div
-                                class="h-0.5 mx-2 rounded bg-discord-accent"
-                            ></div>
+                            <div class="h-0.5 mx-2 rounded bg-zam-accent"></div>
                         {/if}
                         <div class="flex items-center">
                             {#if dmDraggable}
                                 <span
-                                    class="flex-shrink-0 ps-1 text-discord-textMuted cursor-grab"
+                                    class="flex-shrink-0 ps-1 text-zam-textMuted cursor-grab"
                                 >
                                     <GripVertical size={14} />
                                 </span>
@@ -1949,15 +1947,14 @@
                                     },
                                 }}
                                 class="flex-1 min-w-0 flex items-center gap-2 pe-2 py-1.5 transition-colors text-start"
-                                class:text-discord-textPrimary={isActive ||
-                                    unread}
-                                class:text-discord-textSecondary={!isActive &&
+                                class:text-zam-textPrimary={isActive || unread}
+                                class:text-zam-textSecondary={!isActive &&
                                     !unread}
                                 class:font-semibold={unread}
-                                class:hover:bg-discord-messageHover={!isActive}
-                                class:hover:text-discord-textPrimary={!isActive}
+                                class:hover:bg-zam-messageHover={!isActive}
+                                class:hover:text-zam-textPrimary={!isActive}
                                 style={isActive
-                                    ? "border-inline-start: 3px solid var(--discord-accent); background: linear-gradient(to var(--end-side), var(--discord-bg-selected) 85%, var(--discord-bg-secondary)); padding-inline-start: calc(0.5rem - 3px);"
+                                    ? "border-inline-start: 3px solid var(--zam-accent); background: linear-gradient(to var(--end-side), var(--zam-bg-selected) 85%, var(--zam-bg-secondary)); padding-inline-start: calc(0.5rem - 3px);"
                                     : "padding-inline-start: 0.5rem;"}
                             >
                                 <div class="relative flex-shrink-0">
@@ -1971,8 +1968,8 @@
                                          the row's end instead. -->
                                     <span
                                         title={dmPresenceView?.label}
-                                        class="absolute -bottom-0.5 -end-0.5 w-3 h-3 rounded-full border-2 border-discord-backgroundSecondary {dmPresenceView?.dotClass ??
-                                            'bg-discord-offline'}"
+                                        class="absolute -bottom-0.5 -end-0.5 w-3 h-3 rounded-full border-2 border-zam-backgroundSecondary {dmPresenceView?.dotClass ??
+                                            'bg-zam-offline'}"
                                     ></span>
                                 </div>
                                 <span class="flex-1 min-w-0 flex flex-col">
@@ -1985,8 +1982,8 @@
                                         <span
                                             class="text-xs truncate font-normal {unread &&
                                             !isActive
-                                                ? 'text-discord-textSecondary'
-                                                : 'text-discord-textMuted'}"
+                                                ? 'text-zam-textSecondary'
+                                                : 'text-zam-textMuted'}"
                                             >{@html renderPlainTextWithTwemoji(
                                                 preview,
                                             )}</span
@@ -1995,15 +1992,15 @@
                                 </span>
                                 {#if highlight && !isActive}
                                     <span
-                                        class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
+                                        class="flex-shrink-0 bg-zam-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
                                     >
                                         {highlight > 99 ? "99+" : highlight}
                                     </span>
                                 {:else if unread && !isActive}
                                     <span
                                         class="flex-shrink-0 w-2 h-2 me-1 rounded-full {loud
-                                            ? 'bg-discord-danger'
-                                            : 'bg-discord-textPrimary'}"
+                                            ? 'bg-zam-danger'
+                                            : 'bg-zam-textPrimary'}"
                                         aria-label={t(
                                             "messageArea.unreadNotifications",
                                         )}
@@ -2017,7 +2014,7 @@
                                 <input
                                     value={dmRawOrder}
                                     title={t("roomList.orderValue")}
-                                    class="w-16 me-1 flex-shrink-0 rounded bg-discord-backgroundTertiary px-1 text-xs text-discord-textSecondary"
+                                    class="w-16 me-1 flex-shrink-0 rounded bg-zam-backgroundTertiary px-1 text-xs text-zam-textSecondary"
                                     onpointerdown={(e) => e.stopPropagation()}
                                     onclick={(e) => e.stopPropagation()}
                                     onkeydown={(e) => {
@@ -2033,9 +2030,7 @@
                             {/if}
                         </div>
                         {#if dmDraggable && drag?.overId === room.roomId && !drag.before}
-                            <div
-                                class="h-0.5 mx-2 rounded bg-discord-accent"
-                            ></div>
+                            <div class="h-0.5 mx-2 rounded bg-zam-accent"></div>
                         {/if}
                         {@render callRoster(room)}
                     </div>
@@ -2044,7 +2039,7 @@
         {/if}
 
         {#if visibleRooms.length === 0 && unjoinedRooms.length === 0 && childSpaces.length === 0 && !roomsState.hierarchyLoading && !showDMs}
-            <p class="px-4 py-8 text-sm text-discord-textMuted text-center">
+            <p class="px-4 py-8 text-sm text-zam-textMuted text-center">
                 {t("roomList.noRoomsYet")}
             </p>
         {/if}
@@ -2061,35 +2056,35 @@
         {#snippet menuItems()}
             <button
                 onclick={() => handleOpenSettings(cm.roomId)}
-                class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+                class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors"
                 >{t("common.settings")}</button
             >
             {#if (void roomsState.roomsTick, canInviteToRoom(cm.roomId))}
                 <button
                     onclick={() => handleInvite(cm.roomId)}
-                    class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+                    class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors"
                     >{t("common.invitePeople")}</button
                 >
             {/if}
             <button
                 onclick={() => handleCopyLink(cm.roomId)}
-                class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+                class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors"
                 >{t("roomList.copyRoomLink")}</button
             >
             <button
                 onclick={() => handleMarkRead(cm.roomId)}
-                class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+                class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors"
                 >{t("roomList.markAsRead")}</button
             >
             <button
                 onclick={() => handleMarkUnread(cm.roomId)}
-                class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+                class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors"
                 >{t("roomList.markAsUnread")}</button
             >
-            <div class="w-full h-px bg-discord-divider my-1"></div>
+            <div class="w-full h-px bg-zam-divider my-1"></div>
             <!-- px-3 matches this menu's buttons, not the sidebar's list headings. -->
             <p
-                class="px-3 py-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                class="px-3 py-1 text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
             >
                 {t("common.notifications")}
             </p>
@@ -2098,9 +2093,9 @@
                     onclick={() => handleSetNotification(cm.roomId, val)}
                     aria-pressed={currentSetting === val}
                     class="w-full text-start px-3 py-1.5 text-sm transition-colors flex items-center gap-2"
-                    class:text-discord-textPrimary={currentSetting === val}
-                    class:text-discord-textSecondary={currentSetting !== val}
-                    class:hover:bg-discord-messageHover={true}
+                    class:text-zam-textPrimary={currentSetting === val}
+                    class:text-zam-textSecondary={currentSetting !== val}
+                    class:hover:bg-zam-messageHover={true}
                 >
                     <span class="w-3 flex items-center justify-center">
                         {#if currentSetting === val}<Circle
@@ -2111,7 +2106,7 @@
                     {label}
                 </button>
             {/each}
-            <div class="w-full h-px bg-discord-divider my-1"></div>
+            <div class="w-full h-px bg-zam-divider my-1"></div>
             {@const activeTagKind =
                 (void roomsState.roomsTick,
                 roomTagKind(getRoomTags(cm.roomId)))}
@@ -2120,9 +2115,9 @@
                     onclick={() => handleToggleTag(cm.roomId, kind)}
                     aria-pressed={activeTagKind === kind}
                     class="w-full text-start px-3 py-1.5 text-sm transition-colors flex items-center gap-2"
-                    class:text-discord-textPrimary={activeTagKind === kind}
-                    class:text-discord-textSecondary={activeTagKind !== kind}
-                    class:hover:bg-discord-messageHover={true}
+                    class:text-zam-textPrimary={activeTagKind === kind}
+                    class:text-zam-textSecondary={activeTagKind !== kind}
+                    class:hover:bg-zam-messageHover={true}
                 >
                     <span class="w-3 flex items-center justify-center">
                         {#if activeTagKind === kind}<Circle
@@ -2137,9 +2132,9 @@
                 {@const eligibleSpaces = getSpaces().filter((s) =>
                     canAddRoomToSpace(s.roomId),
                 )}
-                <div class="w-full h-px bg-discord-divider my-1"></div>
+                <div class="w-full h-px bg-zam-divider my-1"></div>
                 <p
-                    class="px-3 py-1 text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
+                    class="px-3 py-1 text-xs text-zam-textMuted uppercase font-semibold tracking-wide"
                 >
                     {t("roomList.addToSpace")}
                 </p>
@@ -2147,18 +2142,18 @@
                     <button
                         onclick={() =>
                             handleAddToSpace(cm.roomId, space.roomId)}
-                        class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors truncate"
+                        class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors truncate"
                         >{@html renderPlainTextWithTwemoji(
                             getSpaceName(space),
                         )}</button
                     >
                 {/each}
             {/if}
-            <div class="w-full h-px bg-discord-divider my-1"></div>
+            <div class="w-full h-px bg-zam-divider my-1"></div>
             {#if leaveConfirmId === cm.roomId}
                 <button
                     onclick={() => handleLeave(cm.roomId)}
-                    class="w-full text-start px-3 py-1.5 text-sm bg-discord-danger text-white font-medium transition-colors"
+                    class="w-full text-start px-3 py-1.5 text-sm bg-zam-danger text-white font-medium transition-colors"
                     >{isLastJoinedMember(cm.roomId)
                         ? t("roomList.clickAgainToLeaveLastMember")
                         : t("roomList.clickAgainToLeave")}</button
@@ -2166,17 +2161,17 @@
             {:else}
                 <button
                     onclick={() => (leaveConfirmId = cm.roomId)}
-                    class="w-full text-start px-3 py-1.5 text-sm text-discord-danger hover:bg-discord-danger hover:text-white transition-colors"
+                    class="w-full text-start px-3 py-1.5 text-sm text-zam-danger hover:bg-zam-danger hover:text-white transition-colors"
                     >{t("roomList.leaveRoom")}</button
                 >
             {/if}
             {#if menuPluginActions.length > 0}
-                <div class="w-full h-px bg-discord-divider my-1"></div>
+                <div class="w-full h-px bg-zam-divider my-1"></div>
                 {#each menuPluginActions as entry (entry.key)}
                     <button
                         onclick={() => runPluginRoomAction(entry.run)}
                         data-zam-plugin={entry.pluginId}
-                        class="w-full text-start px-3 py-1.5 text-sm text-discord-textSecondary hover:bg-discord-messageHover hover:text-discord-textPrimary transition-colors"
+                        class="w-full text-start px-3 py-1.5 text-sm text-zam-textSecondary hover:bg-zam-messageHover hover:text-zam-textPrimary transition-colors"
                         >{entry.label}</button
                     >
                 {/each}
@@ -2192,7 +2187,7 @@
                 use:positionMenu={{ x: cm.x, y: cm.y }}
                 use:focusTrap={{ onEscape: closeModal }}
                 use:dismissOnOutsidePointer={{ onDismiss: closeModal }}
-                class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-44 max-w-52 overflow-y-auto"
+                class="fixed z-50 bg-zam-backgroundTertiary border border-zam-divider rounded-lg shadow-xl py-1 min-w-44 max-w-52 overflow-y-auto"
             >
                 {@render menuItems()}
             </div>

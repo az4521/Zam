@@ -67,7 +67,7 @@
 {#if coords}
     <div
         bind:this={el}
-        class="mt-1 max-w-sm rounded-lg border border-discord-divider bg-discord-backgroundSecondary px-3 py-2.5"
+        class="mt-1 max-w-sm rounded-lg border border-zam-divider bg-zam-backgroundSecondary px-3 py-2.5"
     >
         {#if mapVisible}
             {@const markers = [
@@ -86,7 +86,7 @@
         {/if}
         <div class="flex items-start gap-2">
             <svg
-                class="w-5 h-5 mt-0.5 text-discord-accent flex-shrink-0"
+                class="w-5 h-5 mt-0.5 text-zam-accent flex-shrink-0"
                 fill="currentColor"
                 viewBox="0 0 24 24"
             >
@@ -96,11 +96,11 @@
             </svg>
             <div class="min-w-0">
                 {#if description}
-                    <p class="text-sm text-discord-textPrimary break-words">
+                    <p class="text-sm text-zam-textPrimary break-words">
                         {description}
                     </p>
                 {/if}
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {formatCoords(coords.lat, coords.lon)}
                 </p>
                 <div class="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
@@ -108,7 +108,7 @@
                         href={mapLinkFor(coords.lat, coords.lon)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-xs text-discord-accent hover:underline inline-flex items-center gap-1"
+                        class="text-xs text-zam-accent hover:underline inline-flex items-center gap-1"
                         >{t("locationBody.openstreetmap")}
                         <ExternalLink size={14} /></a
                     >
@@ -116,7 +116,7 @@
                         href={googleMapsLinkFor(coords.lat, coords.lon)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-xs text-discord-accent hover:underline inline-flex items-center gap-1"
+                        class="text-xs text-zam-accent hover:underline inline-flex items-center gap-1"
                         >{t("locationBody.googleMaps")}
                         <ExternalLink size={14} /></a
                     >
@@ -125,5 +125,5 @@
         </div>
     </div>
 {:else if typeof content.body === "string"}
-    <p class="text-sm text-discord-textPrimary break-words">{content.body}</p>
+    <p class="text-sm text-zam-textPrimary break-words">{content.body}</p>
 {/if}

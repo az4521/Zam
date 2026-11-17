@@ -449,19 +449,19 @@
 <div
     class="{interfaceState.isMobile
         ? ''
-        : 'w-72'} h-full flex flex-col bg-discord-backgroundSecondary border-l border-discord-divider"
+        : 'w-72'} h-full flex flex-col bg-zam-backgroundSecondary border-l border-zam-divider"
 >
     <div
-        class="h-12 flex items-center gap-2 px-4 py-3 border-b border-discord-divider flex-shrink-0"
+        class="h-12 flex items-center gap-2 px-4 py-3 border-b border-zam-divider flex-shrink-0"
     >
         <h3
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide flex-1"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide flex-1"
         >
             {t("roomMediaPanel.media")}
         </h3>
         <button
             onclick={onClose}
-            class="text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+            class="text-zam-textMuted hover:text-zam-textPrimary transition-colors"
             title={t("common.close")}
             aria-label={t("roomMediaPanel.closeMediaPanel")}
         >
@@ -474,7 +474,7 @@
     </div>
 
     <div
-        class="flex items-center gap-1 px-2 py-2 border-b border-discord-divider flex-shrink-0"
+        class="flex items-center gap-1 px-2 py-2 border-b border-zam-divider flex-shrink-0"
         role="tablist"
     >
         <button
@@ -485,8 +485,8 @@
             onclick={() => (tab = "media")}
             class="flex-1 py-1 text-xs rounded transition-colors {tab ===
             'media'
-                ? 'bg-discord-messageHover text-discord-textPrimary'
-                : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                ? 'bg-zam-messageHover text-zam-textPrimary'
+                : 'text-zam-textMuted hover:text-zam-textPrimary'}"
         >
             {t("roomMediaPanel.media2", {
                 length: split.visual.length,
@@ -501,8 +501,8 @@
             onclick={() => (tab = "files")}
             class="flex-1 py-1 text-xs rounded transition-colors {tab ===
             'files'
-                ? 'bg-discord-messageHover text-discord-textPrimary'
-                : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                ? 'bg-zam-messageHover text-zam-textPrimary'
+                : 'text-zam-textMuted hover:text-zam-textPrimary'}"
         >
             {t("roomMediaPanel.files", {
                 length: split.files.length,
@@ -522,23 +522,23 @@
         {#if loading}
             <div class="flex justify-center mt-8">
                 <div
-                    class="w-5 h-5 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
+                    class="w-5 h-5 border-2 border-zam-accent border-t-transparent rounded-full animate-spin"
                 ></div>
             </div>
         {:else if error}
-            <p class="text-sm text-discord-danger text-center mt-8 px-4">
+            <p class="text-sm text-zam-danger text-center mt-8 px-4">
                 {error}
             </p>
             <div class="px-2 pt-2">
                 <button
                     onclick={() => pull(true)}
-                    class="w-full py-1.5 text-xs text-discord-accent hover:underline disabled:opacity-50"
+                    class="w-full py-1.5 text-xs text-zam-accent hover:underline disabled:opacity-50"
                 >
                     {t("roomMediaPanel.tryAgain")}
                 </button>
             </div>
         {:else if visible.length === 0}
-            <p class="text-sm text-discord-textMuted text-center mt-8 px-4">
+            <p class="text-sm text-zam-textMuted text-center mt-8 px-4">
                 {emptyMessage}
             </p>
         {:else if tab === "media"}
@@ -553,7 +553,7 @@
                     {@const duration = formatMediaDuration(media.durationMs)}
                     <button
                         onclick={() => openViewer(media)}
-                        class="relative aspect-square rounded overflow-hidden bg-discord-background hover:opacity-80 transition-opacity"
+                        class="relative aspect-square rounded overflow-hidden bg-zam-background hover:opacity-80 transition-opacity"
                         title={media.kind === "video"
                             ? t("roomMediaPanel.play", { name: media.name })
                             : media.name}
@@ -572,7 +572,7 @@
                             <!-- Nothing to show: a flat tile that lets the play
                                  badge below carry the meaning on its own. -->
                             <div
-                                class="w-full h-full bg-discord-backgroundTertiary"
+                                class="w-full h-full bg-zam-backgroundTertiary"
                             ></div>
                         {/if}
                         {#if media.kind === "video"}
@@ -605,14 +605,14 @@
                 {#each split.files as file (mediaItemKey(file))}
                     <button
                         onclick={(e) => download(file, e.shiftKey)}
-                        class="w-full text-start p-2 rounded-lg hover:bg-discord-messageHover transition-colors"
+                        class="w-full text-start p-2 rounded-lg hover:bg-zam-messageHover transition-colors"
                     >
                         <p
-                            class="text-xs font-semibold text-discord-textPrimary truncate"
+                            class="text-xs font-semibold text-zam-textPrimary truncate"
                         >
                             {file.name}
                         </p>
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {formatMediaSize(file.size) ||
                                 (file.kind === "audio"
                                     ? t("roomMediaPanel.audio")
@@ -626,7 +626,7 @@
         {#if loadMoreError}
             <!-- Inline, not the full-panel error branch: whatever already
                  loaded stays on screen and "Load more" can simply be retried. -->
-            <p class="text-xs text-discord-danger text-center px-2 pb-1">
+            <p class="text-xs text-zam-danger text-center px-2 pb-1">
                 {loadMoreError}
             </p>
         {/if}
@@ -636,7 +636,7 @@
                 <button
                     onclick={() => pull(false)}
                     disabled={loadingMore}
-                    class="w-full py-1.5 text-xs text-discord-accent hover:underline disabled:opacity-50"
+                    class="w-full py-1.5 text-xs text-zam-accent hover:underline disabled:opacity-50"
                 >
                     {loadingMore ? t("common.loading") : t("common.loadMore")}
                 </button>
@@ -718,14 +718,14 @@
             aria-label={t("roomMediaPanel.mediaCouldNotBeLoaded")}
         >
             <div
-                class="bg-discord-backgroundSecondary rounded-lg p-6 max-w-sm text-center shadow-lg"
+                class="bg-zam-backgroundSecondary rounded-lg p-6 max-w-sm text-center shadow-lg"
             >
-                <p class="text-sm text-discord-textPrimary mb-4">
+                <p class="text-sm text-zam-textPrimary mb-4">
                     {t("roomMediaPanel.couldNotLoadThisMedia")}
                 </p>
                 <button
                     onclick={() => (viewerIndex = null)}
-                    class="px-4 py-1.5 text-sm rounded bg-discord-accent text-white hover:opacity-90 transition-opacity"
+                    class="px-4 py-1.5 text-sm rounded bg-zam-accent text-white hover:opacity-90 transition-opacity"
                 >
                     {t("common.close")}
                 </button>

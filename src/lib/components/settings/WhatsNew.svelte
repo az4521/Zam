@@ -43,21 +43,21 @@
 
 <section>
     <p
-        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
     >
         {t("whatsNew.whatSNew")}
     </p>
 
     {#if loading}
-        <p class="text-sm text-discord-textMuted">
+        <p class="text-sm text-zam-textMuted">
             {t("whatsNew.loadingReleaseNotes")}
         </p>
     {:else if failed || releases.length === 0}
-        <p class="text-sm text-discord-textMuted">
+        <p class="text-sm text-zam-textMuted">
             {t("whatsNew.releaseNotesUnavailable")}
             <button
                 type="button"
-                class="underline text-discord-accent hover:text-discord-textPrimary"
+                class="underline text-zam-accent hover:text-zam-textPrimary"
                 onclick={() =>
                     openReleasePage(
                         `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`,
@@ -68,13 +68,11 @@
         </p>
     {:else}
         {#if current}
-            <div class="py-2 border-b border-discord-divider">
-                <p class="text-sm font-semibold text-discord-textPrimary mb-1">
+            <div class="py-2 border-b border-zam-divider">
+                <p class="text-sm font-semibold text-zam-textPrimary mb-1">
                     {current.name}
                     {#if formatDate(current.published_at)}
-                        <span
-                            class="text-xs text-discord-textMuted font-normal"
-                        >
+                        <span class="text-xs text-zam-textMuted font-normal">
                             · {formatDate(current.published_at)}
                         </span>
                     {/if}
@@ -83,13 +81,13 @@
             </div>
         {/if}
         {#each older as r (r.tag_name)}
-            <details class="py-2 border-b border-discord-divider">
+            <details class="py-2 border-b border-zam-divider">
                 <summary
-                    class="text-sm text-discord-textPrimary cursor-pointer select-none"
+                    class="text-sm text-zam-textPrimary cursor-pointer select-none"
                 >
                     {r.name}
                     {#if formatDate(r.published_at)}
-                        <span class="text-xs text-discord-textMuted">
+                        <span class="text-xs text-zam-textMuted">
                             · {formatDate(r.published_at)}
                         </span>
                     {/if}

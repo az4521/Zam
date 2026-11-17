@@ -330,7 +330,7 @@
         type="button"
         {onclick}
         {disabled}
-        class="w-full py-2.5 bg-discord-accent hover:bg-discord-accentHover text-white font-semibold rounded text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+        class="w-full py-2.5 bg-zam-accent hover:bg-zam-accentHover text-white font-semibold rounded text-sm disabled:opacity-60 disabled:cursor-not-allowed"
         >{label}</button
     >
 {/snippet}
@@ -340,21 +340,21 @@
         type="button"
         {onclick}
         {disabled}
-        class="w-full py-2.5 bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary font-semibold rounded border border-discord-divider text-sm disabled:opacity-60"
+        class="w-full py-2.5 bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary font-semibold rounded border border-zam-divider text-sm disabled:opacity-60"
         >{label}</button
     >
 {/snippet}
 
 {#snippet approvalPrompt()}
     {#if approval}
-        <div class="space-y-2 rounded border border-discord-divider p-3">
-            <p class="text-sm font-medium text-discord-textPrimary">
+        <div class="space-y-2 rounded border border-zam-divider p-3">
+            <p class="text-sm font-medium text-zam-textPrimary">
                 {t("securitySettings.approveOnAccountPage")}
             </p>
             <p
                 class="text-xs {approval.retry
-                    ? 'text-discord-warning'
-                    : 'text-discord-textMuted'}"
+                    ? 'text-zam-warning'
+                    : 'text-zam-textMuted'}"
             >
                 {approval.retry
                     ? t("securitySettings.approveOnAccountPageRetry")
@@ -365,19 +365,19 @@
                     href={approval.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm"
+                    class="px-3 py-1.5 bg-zam-accent text-white rounded text-sm"
                     >{t("securitySettings.openAccountPage")}</a
                 >
                 <button
                     type="button"
                     onclick={() => answerApproval(true)}
-                    class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm"
+                    class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-sm"
                     >{t("securitySettings.iVeApprovedIt")}</button
                 >
                 <button
                     type="button"
                     onclick={() => answerApproval(false)}
-                    class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-sm"
+                    class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-sm"
                     >{t("common.cancel")}</button
                 >
             </div>
@@ -389,12 +389,12 @@
     <ModalDialog
         onClose={() => closable && close()}
         labelledBy="encryption-setup-title"
-        panelClass="relative w-full max-w-md mx-4 max-h-[90dvh] overflow-y-auto bg-discord-background rounded-lg shadow-2xl p-6 space-y-4"
+        panelClass="relative w-full max-w-md mx-4 max-h-[90dvh] overflow-y-auto bg-zam-background rounded-lg shadow-2xl p-6 space-y-4"
     >
         <div class="flex items-start gap-3">
             <div
                 aria-hidden="true"
-                class="flex-shrink-0 w-10 h-10 rounded-full bg-discord-accent/15 text-discord-accent flex items-center justify-center text-xl"
+                class="flex-shrink-0 w-10 h-10 rounded-full bg-zam-accent/15 text-zam-accent flex items-center justify-center text-xl"
             >
                 {#if flow === "finished" || plan.kind === "done"}
                     <Check size={22} />
@@ -405,7 +405,7 @@
             <div class="min-w-0">
                 <h2
                     id="encryption-setup-title"
-                    class="text-lg font-bold text-discord-textPrimary"
+                    class="text-lg font-bold text-zam-textPrimary"
                 >
                     {#if flow === "show-key"}
                         {t("encryptionSetup.saveKeyTitle")}
@@ -425,11 +425,11 @@
         </div>
 
         {#if flow === "show-key"}
-            <p class="text-sm text-discord-textSecondary">
+            <p class="text-sm text-zam-textSecondary">
                 {t("encryptionSetup.saveKeyBody")}
             </p>
             <div
-                class="font-mono text-sm text-discord-textPrimary bg-discord-backgroundTertiary rounded px-3 py-2.5 break-all select-all"
+                class="font-mono text-sm text-zam-textPrimary bg-zam-backgroundTertiary rounded px-3 py-2.5 break-all select-all"
             >
                 {formatRecoveryKey(recoveryKey)}
             </div>
@@ -437,7 +437,7 @@
                 <button
                     type="button"
                     onclick={copyKey}
-                    class="flex-1 py-2 bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary rounded border border-discord-divider text-sm"
+                    class="flex-1 py-2 bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary rounded border border-zam-divider text-sm"
                     >{#if copied}<Check
                             size={14}
                             class="inline-block align-[-2px]"
@@ -449,23 +449,23 @@
                 <button
                     type="button"
                     onclick={downloadKey}
-                    class="flex-1 py-2 bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary rounded border border-discord-divider text-sm"
+                    class="flex-1 py-2 bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary rounded border border-zam-divider text-sm"
                     >{t("encryptionSetup.downloadKey")}</button
                 >
             </div>
             <label
-                class="flex items-start gap-2 text-sm text-discord-textSecondary cursor-pointer"
+                class="flex items-start gap-2 text-sm text-zam-textSecondary cursor-pointer"
             >
                 <input
                     type="checkbox"
                     bind:checked={saved}
-                    class="mt-0.5 w-4 h-4 accent-discord-accent"
+                    class="mt-0.5 w-4 h-4 accent-zam-accent"
                 />
                 <span>{t("securitySettings.iVeSavedMyRecoveryKey")}</span>
             </label>
             {@render primary(t("securitySettings.done"), finishSetup, !saved)}
         {:else if flow === "finished" || plan.kind === "done"}
-            <p class="text-sm text-discord-textSecondary">
+            <p class="text-sm text-zam-textSecondary">
                 {t("encryptionSetup.doneBody")}
             </p>
             {@render primary(t("common.close"), close)}
@@ -477,8 +477,8 @@
                         onclick={() => (unlockMode = "key")}
                         disabled={flow === "unlock-working"}
                         class="px-2 py-1 rounded {effectiveMode === 'key'
-                            ? 'bg-discord-accent text-white'
-                            : 'bg-discord-messageHover text-discord-textPrimary'}"
+                            ? 'bg-zam-accent text-white'
+                            : 'bg-zam-messageHover text-zam-textPrimary'}"
                         >{t("securitySettings.recoveryKey2")}</button
                     >
                     <button
@@ -486,13 +486,13 @@
                         onclick={() => (unlockMode = "passphrase")}
                         disabled={flow === "unlock-working"}
                         class="px-2 py-1 rounded {effectiveMode === 'passphrase'
-                            ? 'bg-discord-accent text-white'
-                            : 'bg-discord-messageHover text-discord-textPrimary'}"
+                            ? 'bg-zam-accent text-white'
+                            : 'bg-zam-messageHover text-zam-textPrimary'}"
                         >{t("securitySettings.passphrase")}</button
                     >
                 </div>
             {/if}
-            <p class="text-sm text-discord-textSecondary">
+            <p class="text-sm text-zam-textSecondary">
                 {effectiveMode === "key"
                     ? t("encryptionSetup.enterKeyBody")
                     : t("encryptionSetup.enterPassphraseBody")}
@@ -508,7 +508,7 @@
                     disabled={flow === "unlock-working"}
                     onkeydown={(e) =>
                         e.key === "Enter" && unlockReady && runUnlock()}
-                    class="w-full px-3 py-2.5 bg-discord-backgroundSecondary text-discord-textPrimary font-mono placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm disabled:opacity-60"
+                    class="w-full px-3 py-2.5 bg-zam-backgroundSecondary text-zam-textPrimary font-mono placeholder-zam-textMuted rounded border border-zam-divider focus:border-zam-accent focus:outline-none text-sm disabled:opacity-60"
                 />
             {:else}
                 <input
@@ -519,19 +519,19 @@
                     disabled={flow === "unlock-working"}
                     onkeydown={(e) =>
                         e.key === "Enter" && unlockReady && runUnlock()}
-                    class="w-full px-3 py-2.5 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm disabled:opacity-60"
+                    class="w-full px-3 py-2.5 bg-zam-backgroundSecondary text-zam-textPrimary placeholder-zam-textMuted rounded border border-zam-divider focus:border-zam-accent focus:outline-none text-sm disabled:opacity-60"
                 />
             {/if}
             {#if flow === "unlock-working"}
                 <div class="space-y-1.5">
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {progressView.label}
                     </p>
                     <div
-                        class="h-1.5 w-full rounded bg-discord-backgroundTertiary overflow-hidden"
+                        class="h-1.5 w-full rounded bg-zam-backgroundTertiary overflow-hidden"
                     >
                         <div
-                            class="h-full bg-discord-accent transition-all"
+                            class="h-full bg-zam-accent transition-all"
                             style="width: {progressView.percent ?? 15}%"
                         ></div>
                     </div>
@@ -549,17 +549,17 @@
             {/if}
         {:else if plan.kind === "checking" || cryptoStarting}
             <p
-                class="text-sm text-discord-textMuted flex items-center gap-2"
+                class="text-sm text-zam-textMuted flex items-center gap-2"
                 role="status"
             >
                 <span
                     aria-hidden="true"
-                    class="w-4 h-4 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
+                    class="w-4 h-4 border-2 border-zam-accent border-t-transparent rounded-full animate-spin"
                 ></span>
                 {t("encryptionSetup.checking")}
             </p>
         {:else if plan.kind === "unavailable" || plan.kind === "error"}
-            <p class="text-sm text-discord-textSecondary">
+            <p class="text-sm text-zam-textSecondary">
                 {plan.kind === "unavailable"
                     ? (getCryptoInitError() ??
                       t("verificationStatus.encryptionUnavailable"))
@@ -568,7 +568,7 @@
             {@render primary(t("encryptionSetup.tryAgain"), () => void read())}
             {@render secondary(t("encryptionSetup.later"), close)}
         {:else if plan.kind === "advanced"}
-            <p class="text-sm text-discord-textSecondary">
+            <p class="text-sm text-zam-textSecondary">
                 {t("securitySettings.keysNotOnServerHint")}
             </p>
             {@render primary(
@@ -576,7 +576,7 @@
                 openSecuritySettings,
             )}
         {:else if plan.kind === "confirm"}
-            <p class="text-sm text-discord-textSecondary">
+            <p class="text-sm text-zam-textSecondary">
                 {t("encryptionSetup.confirmBody")}
             </p>
             <div class="space-y-2">
@@ -593,7 +593,7 @@
                     )}
                 {/if}
             </div>
-            <p class="text-xs text-discord-textMuted">
+            <p class="text-xs text-zam-textMuted">
                 {plan.withDevice
                     ? t("encryptionSetup.anotherDeviceHint")
                     : t("encryptionSetup.recoveryKeyHint")}
@@ -602,35 +602,35 @@
                 <button
                     type="button"
                     onclick={openSecuritySettings}
-                    class="text-xs text-discord-textMuted underline hover:text-discord-textPrimary text-start"
+                    class="text-xs text-zam-textMuted underline hover:text-zam-textPrimary text-start"
                     >{t("encryptionSetup.cantConfirm")}</button
                 >
                 <button
                     type="button"
                     onclick={close}
-                    class="text-sm text-discord-textMuted hover:text-discord-textPrimary"
+                    class="text-sm text-zam-textMuted hover:text-zam-textPrimary"
                     >{t("encryptionSetup.later")}</button
                 >
             </div>
         {:else if plan.kind === "connect-backup"}
-            <p class="text-sm text-discord-textSecondary">
+            <p class="text-sm text-zam-textSecondary">
                 {t("encryptionSetup.connectBackupBody")}
             </p>
             {@render primary(t("encryptionSetup.useRecoveryKey"), startUnlock)}
             {@render secondary(t("encryptionSetup.later"), close)}
         {:else}
             <!-- setup -->
-            <p class="text-sm text-discord-textSecondary">
+            <p class="text-sm text-zam-textSecondary">
                 {t("encryptionSetup.setupBody")}
             </p>
             {#if flow === "setup-password" || (flow === "setup-working" && !oauthSession && password)}
                 <div class="space-y-1.5">
                     <label
                         for="setup-password"
-                        class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                        class="block text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                         >{t("securitySettings.accountPassword")}</label
                     >
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("encryptionSetup.passwordBody")}
                     </p>
                     <input
@@ -641,7 +641,7 @@
                         disabled={flow === "setup-working"}
                         onkeydown={(e) =>
                             e.key === "Enter" && password && runSetup(password)}
-                        class="w-full px-3 py-2.5 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm disabled:opacity-60"
+                        class="w-full px-3 py-2.5 bg-zam-backgroundSecondary text-zam-textPrimary placeholder-zam-textMuted rounded border border-zam-divider focus:border-zam-accent focus:outline-none text-sm disabled:opacity-60"
                     />
                 </div>
             {/if}
@@ -665,7 +665,7 @@
         {/if}
 
         {#if error}
-            <p class="text-sm text-discord-danger" role="alert">{error}</p>
+            <p class="text-sm text-zam-danger" role="alert">{error}</p>
         {/if}
     </ModalDialog>
 {/if}

@@ -211,5 +211,5 @@
         aria-hidden="true"
         class="h-48 w-48 rounded bg-black object-cover"
     ></video>
-    <p class="text-xs text-discord-textMuted" aria-live="polite">{status}</p>
+    <p class="text-xs text-zam-textMuted" aria-live="polite">{status}</p>
 </div>

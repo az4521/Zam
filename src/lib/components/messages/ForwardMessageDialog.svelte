@@ -62,21 +62,21 @@
         onClose={closeModal}
         labelledBy="forward-title"
         layerClass="z-[90] flex items-center justify-center p-3"
-        panelClass="relative flex max-h-[min(620px,90dvh)] w-full max-w-md flex-col overflow-hidden rounded-lg border border-discord-divider bg-discord-backgroundSecondary shadow-2xl"
+        panelClass="relative flex max-h-[min(620px,90dvh)] w-full max-w-md flex-col overflow-hidden rounded-lg border border-zam-divider bg-zam-backgroundSecondary shadow-2xl"
     >
         <div
-            class="flex items-center justify-between border-b border-discord-divider px-4 py-3"
+            class="flex items-center justify-between border-b border-zam-divider px-4 py-3"
         >
             <h2
                 id="forward-title"
-                class="text-base font-semibold text-discord-textPrimary"
+                class="text-base font-semibold text-zam-textPrimary"
             >
                 {t("forwardMessageDialog.forwardMessage")}
             </h2>
             <button
                 type="button"
                 onclick={closeModal}
-                class="p-1.5 rounded text-discord-textMuted hover:bg-discord-messageHover hover:text-discord-textPrimary"
+                class="p-1.5 rounded text-zam-textMuted hover:bg-zam-messageHover hover:text-zam-textPrimary"
                 aria-label={t("common.close")}
                 title={t("common.close")}><X size={20} /></button
             >
@@ -86,13 +86,13 @@
             <label class="relative block">
                 <Search
                     size={16}
-                    class="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-discord-textMuted"
+                    class="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-zam-textMuted"
                 />
                 <input
                     data-autofocus
                     bind:value={query}
                     placeholder={t("forwardMessageDialog.searchRooms")}
-                    class="w-full rounded bg-discord-backgroundTertiary py-2 ps-9 pe-3 text-sm text-discord-textPrimary outline-none placeholder:text-discord-textMuted focus:ring-1 focus:ring-discord-accent"
+                    class="w-full rounded bg-zam-backgroundTertiary py-2 ps-9 pe-3 text-sm text-zam-textPrimary outline-none placeholder:text-zam-textMuted focus:ring-1 focus:ring-zam-accent"
                 />
             </label>
         </div>
@@ -106,8 +106,8 @@
                     aria-pressed={selectedRoomId === room.roomId}
                     class="flex w-full items-center gap-3 rounded px-2 py-2 text-start transition-colors {selectedRoomId ===
                     room.roomId
-                        ? 'bg-discord-accent/20'
-                        : 'hover:bg-discord-messageHover'}"
+                        ? 'bg-zam-accent/20'
+                        : 'hover:bg-zam-messageHover'}"
                 >
                     <Avatar
                         src={getRoomAvatar(room)}
@@ -116,30 +116,30 @@
                         size={36}
                     />
                     <span
-                        class="min-w-0 truncate text-sm font-medium text-discord-textPrimary"
+                        class="min-w-0 truncate text-sm font-medium text-zam-textPrimary"
                     >
                         {getRoomDisplayName(room)}
                     </span>
                 </button>
             {:else}
-                <p class="px-3 py-8 text-center text-sm text-discord-textMuted">
+                <p class="px-3 py-8 text-center text-sm text-zam-textMuted">
                     {t("forwardMessageDialog.noJoinedRoomsFound")}
                 </p>
             {/each}
         </div>
 
-        <div class="flex justify-end gap-2 border-t border-discord-divider p-3">
+        <div class="flex justify-end gap-2 border-t border-zam-divider p-3">
             <button
                 type="button"
                 onclick={closeModal}
-                class="px-3 py-2 text-sm font-semibold text-discord-textMuted hover:text-discord-textPrimary"
+                class="px-3 py-2 text-sm font-semibold text-zam-textMuted hover:text-zam-textPrimary"
                 >{t("common.cancel")}</button
             >
             <button
                 type="button"
                 onclick={submit}
                 disabled={!selectedRoomId || isSending}
-                class="rounded bg-discord-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-discord-accentHover disabled:cursor-not-allowed disabled:opacity-50"
+                class="rounded bg-zam-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zam-accentHover disabled:cursor-not-allowed disabled:opacity-50"
                 >{isSending
                     ? t("forwardMessageDialog.forwarding")
                     : t("forwardMessageDialog.forward")}</button

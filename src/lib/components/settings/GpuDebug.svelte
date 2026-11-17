@@ -514,33 +514,31 @@
 <section>
     <div class="mb-2 flex items-center gap-2">
         <p
-            class="flex-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+            class="flex-1 text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
         >
             {t("gpuDebug.title")}
         </p>
         <button
             onclick={load}
             disabled={loading}
-            class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
+            class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary disabled:opacity-50"
             >{t("debugSettings.refresh")}</button
         >
         <button
             onclick={copy}
             disabled={!reportJson}
-            class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
+            class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary disabled:opacity-50"
             >{copied ? t("debugSettings.copied") : t("common.copy")}</button
         >
     </div>
 
     {#if desktop}
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("gpuDebug.hardwareAcceleration")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("gpuDebug.hardwareAccelerationHint")}
                 </p>
             </div>
@@ -553,14 +551,12 @@
     {/if}
     {#if report?.gameAuto}
         {@const ga = report.gameAuto}
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("gpuDebug.gameAuto")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("gpuDebug.gameAutoHint")}
                     {#if ga.pausedAtLaunch}{t("gpuDebug.gameAutoActive")}{/if}
                 </p>
@@ -574,23 +570,21 @@
     {/if}
     {#if report?.skiaGraphite}
         {@const sg = report.skiaGraphite}
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("gpuDebug.skiaGraphite")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("gpuDebug.skiaGraphiteHint")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {report.featureStatus?.skia_graphite?.startsWith("enabled")
                         ? t("gpuDebug.nvidiaVideoActive")
                         : t("gpuDebug.nvidiaVideoInactive")}
                 </p>
                 {#if sg.failedAt && !sg.enabled}
-                    <p class="text-xs text-discord-warning">
+                    <p class="text-xs text-zam-warning">
                         {t("gpuDebug.skiaGraphiteFailed")}
                     </p>
                 {/if}
@@ -604,17 +598,15 @@
     {/if}
     {#if report?.videoEncode}
         {@const ve = report.videoEncode}
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("gpuDebug.videoEncode")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("gpuDebug.videoEncodeHint")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {ve.activeAtLaunch
                         ? t("gpuDebug.nvidiaVideoActive")
                         : t("gpuDebug.nvidiaVideoInactive")}
@@ -629,29 +621,27 @@
     {/if}
     {#if report?.nvidiaVideo}
         {@const nv = report.nvidiaVideo}
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("gpuDebug.nvidiaVideo")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("gpuDebug.nvidiaVideoHint")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {nv.activeAtLaunch
                         ? t("gpuDebug.nvidiaVideoActive")
                         : t("gpuDebug.nvidiaVideoInactive")}
                 </p>
                 {#if nv.failedAt && nv.mode === "auto"}
-                    <p class="text-xs text-discord-warning">
+                    <p class="text-xs text-zam-warning">
                         {t("gpuDebug.nvidiaVideoFailed")}
                     </p>
                 {/if}
             </div>
             <select
-                class="bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1.5 border border-discord-divider focus:outline-none focus:ring-2 focus:ring-discord-accent sm:max-w-[16rem]"
+                class="bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-2 py-1.5 border border-zam-divider focus:outline-none focus:ring-2 focus:ring-zam-accent sm:max-w-[16rem]"
                 value={nv.mode}
                 onchange={(e) =>
                     setNvidiaVideo(e.currentTarget.value as NvidiaMode)}
@@ -666,17 +656,15 @@
     {/if}
     {#if report?.nvidiaEncode}
         {@const ne = report.nvidiaEncode}
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("gpuDebug.nvidiaEncode")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("gpuDebug.nvidiaEncodeHint")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {ne.activeAtLaunch
                         ? t("gpuDebug.nvidiaVideoActive")
                         : t("gpuDebug.nvidiaVideoInactive")}
@@ -690,55 +678,51 @@
         </div>
     {/if}
     {#if report && (nvidiaChanged || report.hardwareAcceleration !== report.hardwareAccelerationAtLaunch || encodeChanged || graphiteChanged || nvidiaEncodeChanged)}
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
-            <p class="flex-1 text-xs text-discord-warning">
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
+            <p class="flex-1 text-xs text-zam-warning">
                 {t("gpuDebug.restartToApply")}
             </p>
             <button
                 onclick={() => window.desktop?.gpu?.relaunch()}
-                class="px-3 py-1.5 rounded text-sm font-medium bg-discord-accent hover:bg-discord-accentHover text-white"
+                class="px-3 py-1.5 rounded text-sm font-medium bg-zam-accent hover:bg-zam-accentHover text-white"
                 >{t("gpuDebug.restart")}</button
             >
         </div>
     {/if}
 
     {#if window.desktop?.gpu?.repaint}
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("gpuDebug.repaint")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("gpuDebug.repaintHint")}
                 </p>
             </div>
             <button
                 onclick={() => void window.desktop?.gpu?.repaint?.()}
-                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary"
+                class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary"
                 >{t("gpuDebug.repaint")}</button
             >
         </div>
     {/if}
 
     {#if canMeasureMemory}
-        <div class="py-2 border-b border-discord-divider">
+        <div class="py-2 border-b border-zam-divider">
             <div class="flex items-center gap-3">
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm text-discord-textPrimary">
+                    <p class="text-sm text-zam-textPrimary">
                         {t("gpuDebug.memoryReport")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("gpuDebug.memoryReportHint")}
                     </p>
                 </div>
                 {#if memoryText}
                     <button
                         onclick={copyMemory}
-                        class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary"
+                        class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary"
                         >{memoryCopied
                             ? t("debugSettings.copied")
                             : t("common.copy")}</button
@@ -747,27 +731,27 @@
                 <button
                     onclick={measureMemory}
                     disabled={measuringMemory}
-                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
+                    class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary disabled:opacity-50"
                     >{measuringMemory
                         ? t("gpuDebug.memoryMeasuring")
                         : t("gpuDebug.memoryMeasure")}</button
                 >
             </div>
             {#if memory && "error" in memory}
-                <p class="mt-2 text-xs text-discord-danger break-all">
+                <p class="mt-2 text-xs text-zam-danger break-all">
                     {memory.error}
                 </p>
             {:else if memoryText}
                 <pre
-                    class="mt-2 max-h-80 overflow-auto whitespace-pre rounded bg-discord-backgroundTertiary p-2 text-xs font-mono text-discord-textPrimary select-text">{memoryText}</pre>
+                    class="mt-2 max-h-80 overflow-auto whitespace-pre rounded bg-zam-backgroundTertiary p-2 text-xs font-mono text-zam-textPrimary select-text">{memoryText}</pre>
             {/if}
             {#if memoryRecord}
                 <div class="mt-3 flex items-center gap-3">
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm text-discord-textPrimary">
+                        <p class="text-sm text-zam-textPrimary">
                             {t("gpuDebug.memoryRecord")}
                         </p>
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("gpuDebug.memoryRecordHint")}
                         </p>
                     </div>
@@ -775,7 +759,7 @@
                         bind:value={recordInterval}
                         disabled={recording}
                         aria-label={t("gpuDebug.memoryRecordInterval")}
-                        class="rounded bg-discord-backgroundSecondary px-1.5 py-1 text-xs text-discord-textPrimary disabled:opacity-50"
+                        class="rounded bg-zam-backgroundSecondary px-1.5 py-1 text-xs text-zam-textPrimary disabled:opacity-50"
                     >
                         {#each [5, 10, 30, 60] as s}
                             <option value={s * 1000}
@@ -788,8 +772,8 @@
                     <button
                         onclick={toggleRecording}
                         class="px-2.5 py-1 rounded text-xs font-semibold {recording
-                            ? 'bg-discord-danger text-white'
-                            : 'bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary'}"
+                            ? 'bg-zam-danger text-white'
+                            : 'bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary'}"
                         >{recording
                             ? t("gpuDebug.memoryRecordStop")
                             : t("gpuDebug.memoryRecordStart")}</button
@@ -797,7 +781,7 @@
                 </div>
                 {#if samples.length || recording}
                     <div class="mt-2 flex items-center gap-2">
-                        <span class="flex-1 text-xs text-discord-textMuted"
+                        <span class="flex-1 text-xs text-zam-textMuted"
                             >{t("gpuDebug.memoryRecordStatus", {
                                 count: samples.length,
                                 elapsed: elapsed(
@@ -811,21 +795,21 @@
                         {#if seriesText}
                             <button
                                 onclick={copySeries}
-                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary"
+                                class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary"
                                 >{seriesCopied
                                     ? t("debugSettings.copied")
                                     : t("common.copy")}</button
                             >
                             <button
                                 onclick={saveSeriesCsv}
-                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary"
+                                class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary"
                                 >{t("gpuDebug.memoryRecordCsv")}</button
                             >
                         {/if}
                     </div>
                     {#if seriesText}
                         <pre
-                            class="mt-2 max-h-80 overflow-auto whitespace-pre rounded bg-discord-backgroundTertiary p-2 text-xs font-mono text-discord-textPrimary select-text">{seriesText}</pre>
+                            class="mt-2 max-h-80 overflow-auto whitespace-pre rounded bg-zam-backgroundTertiary p-2 text-xs font-mono text-zam-textPrimary select-text">{seriesText}</pre>
                     {/if}
                 {/if}
             {/if}
@@ -833,57 +817,56 @@
     {/if}
 
     {#if error}
-        <p class="mt-2 text-xs text-discord-danger break-all">{error}</p>
+        <p class="mt-2 text-xs text-zam-danger break-all">{error}</p>
     {:else if desktop ? !report : loading && !decode.length}
-        <p class="mt-2 text-xs text-discord-textMuted">
+        <p class="mt-2 text-xs text-zam-textMuted">
             {t("common.loading")}
         </p>
     {:else}
         <p
-            class="mt-3 mb-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+            class="mt-3 mb-1 text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
         >
             {t("gpuDebug.videoDecoding")}
         </p>
         {#each decode as [name, d]}
             <div
-                class="flex items-start gap-3 text-sm py-1 border-b border-discord-divider"
+                class="flex items-start gap-3 text-sm py-1 border-b border-zam-divider"
             >
-                <span class="text-discord-textMuted flex-shrink-0 w-44"
-                    >{name}</span
+                <span class="text-zam-textMuted flex-shrink-0 w-44">{name}</span
                 >
                 <span
                     class="font-mono text-xs {d === 'hardware'
-                        ? 'text-discord-textPositive'
+                        ? 'text-zam-textPositive'
                         : d === 'software'
-                          ? 'text-discord-warning'
-                          : 'text-discord-danger'}">{decodeLabel(d)}</span
+                          ? 'text-zam-warning'
+                          : 'text-zam-danger'}">{decodeLabel(d)}</span
                 >
             </div>
         {/each}
 
         {#if encode.length}
             <p
-                class="mt-3 mb-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                class="mt-3 mb-1 text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
             >
                 {t("gpuDebug.videoEncoding")}
             </p>
             {#each encode as [name, d]}
                 <div
-                    class="flex items-start gap-3 text-sm py-1 border-b border-discord-divider"
+                    class="flex items-start gap-3 text-sm py-1 border-b border-zam-divider"
                 >
-                    <span class="text-discord-textMuted flex-shrink-0 w-44"
+                    <span class="text-zam-textMuted flex-shrink-0 w-44"
                         >{name}</span
                     >
                     <span
                         class="font-mono text-xs {d === 'hardware'
-                            ? 'text-discord-textPositive'
+                            ? 'text-zam-textPositive'
                             : d === 'software'
-                              ? 'text-discord-warning'
-                              : 'text-discord-danger'}">{decodeLabel(d)}</span
+                              ? 'text-zam-warning'
+                              : 'text-zam-danger'}">{decodeLabel(d)}</span
                     >
                 </div>
             {/each}
-            <p class="mt-1 text-xs text-discord-textMuted">
+            <p class="mt-1 text-xs text-zam-textMuted">
                 {t("gpuDebug.videoEncodingHint")}
             </p>
             {#if canRunEncodeTest}
@@ -891,22 +874,22 @@
                     <button
                         onclick={runEncodeTest}
                         disabled={encodeTesting}
-                        class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
+                        class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary disabled:opacity-50"
                         >{t("gpuDebug.encodeTest")}</button
                     >
-                    <span class="text-xs text-discord-textMuted"
+                    <span class="text-xs text-zam-textMuted"
                         >{t("gpuDebug.encodeTestHint")}</span
                     >
                 </div>
                 {#each encodeTest as [label, result]}
                     <div
-                        class="flex items-start gap-3 text-sm py-1 border-b border-discord-divider"
+                        class="flex items-start gap-3 text-sm py-1 border-b border-zam-divider"
                     >
-                        <span class="text-discord-textMuted flex-shrink-0 w-44"
+                        <span class="text-zam-textMuted flex-shrink-0 w-44"
                             >{label}</span
                         >
                         <span
-                            class="font-mono text-xs text-discord-textPrimary break-all"
+                            class="font-mono text-xs text-zam-textPrimary break-all"
                             >{result}</span
                         >
                     </div>
@@ -916,20 +899,20 @@
 
         {#if report}
             <p
-                class="mt-3 mb-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                class="mt-3 mb-1 text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
             >
                 {t("gpuDebug.featureStatus")}
             </p>
             {#each Object.entries(report.featureStatus) as [feature, status]}
                 <div
-                    class="flex items-start gap-3 text-sm py-1 border-b border-discord-divider"
+                    class="flex items-start gap-3 text-sm py-1 border-b border-zam-divider"
                 >
                     <span
-                        class="text-discord-textMuted flex-shrink-0 w-44 break-all font-mono text-xs"
+                        class="text-zam-textMuted flex-shrink-0 w-44 break-all font-mono text-xs"
                         >{feature}</span
                     >
                     <span
-                        class="text-discord-textPrimary break-all font-mono text-xs"
+                        class="text-zam-textPrimary break-all font-mono text-xs"
                         >{status}</span
                     >
                 </div>
@@ -937,11 +920,11 @@
 
             <details class="mt-3">
                 <summary
-                    class="cursor-pointer text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                    class="cursor-pointer text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                     >{t("gpuDebug.details")}</summary
                 >
                 <pre
-                    class="mt-1 max-h-80 overflow-auto whitespace-pre-wrap break-all rounded bg-discord-backgroundTertiary p-2 text-xs font-mono text-discord-textPrimary select-text">{reportJson}</pre>
+                    class="mt-1 max-h-80 overflow-auto whitespace-pre-wrap break-all rounded bg-zam-backgroundTertiary p-2 text-xs font-mono text-zam-textPrimary select-text">{reportJson}</pre>
             </details>
         {/if}
     {/if}

@@ -50,20 +50,20 @@
 </script>
 
 <div
-    class="flex items-center gap-3 w-80 px-4 py-3 rounded-lg shadow-lg bg-discord-background border border-discord-divider"
+    class="flex items-center gap-3 w-80 px-4 py-3 rounded-lg shadow-lg bg-zam-background border border-zam-divider"
 >
     <Avatar src={avatar} {name} id={partnerId} size={40} />
     <div class="flex-1 min-w-0">
-        <p class="text-sm font-semibold text-discord-textPrimary truncate">
+        <p class="text-sm font-semibold text-zam-textPrimary truncate">
             {name}
         </p>
-        <p class="text-xs text-discord-textMuted">
+        <p class="text-xs text-zam-textMuted">
             {t("incomingCallCard.incomingCall")}
         </p>
     </div>
     <button
         type="button"
-        class="p-2 rounded-full bg-discord-danger hover:bg-discord-dangerHover transition-colors"
+        class="p-2 rounded-full bg-zam-danger hover:bg-zam-dangerHover transition-colors"
         title={t("common.decline")}
         aria-label={t("incomingCallCard.declineCallFrom", { name })}
         onclick={() => onDecline(roomId)}
@@ -72,7 +72,7 @@
     </button>
     <button
         type="button"
-        class="p-2 rounded-full bg-discord-accent hover:bg-discord-accentHover transition-colors disabled:opacity-60"
+        class="p-2 rounded-full bg-zam-accent hover:bg-zam-accentHover transition-colors disabled:opacity-60"
         title={t("incomingCallCard.accept")}
         aria-label={t("incomingCallCard.acceptCallFrom", { name })}
         disabled={busy}

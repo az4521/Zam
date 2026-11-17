@@ -80,18 +80,18 @@
         });
     }
 
-    // The threads pill keeps `bg-discord-danger` because it counts unread
+    // The threads pill keeps `bg-zam-danger` because it counts unread
     // *mentions* — the same thing the desktop threads badge paints red. Every
     // other row's badge is a neutral total (pinned messages are not urgent), so
     // it gets a plain chip: `divider` reads as a raised surface against the
     // sheet's `backgroundTertiary` in both themes, and `textPrimary` on it
     // clears WCAG AA in both without depending on how bright `textMuted` is.
     const BADGE_CLASSES: Record<RoomHeaderMenuKey, string> = {
-        threads: "bg-discord-danger text-white",
-        pinned: "bg-discord-divider text-discord-textPrimary",
-        notifications: "bg-discord-divider text-discord-textPrimary",
-        media: "bg-discord-divider text-discord-textPrimary",
-        members: "bg-discord-divider text-discord-textPrimary",
+        threads: "bg-zam-danger text-white",
+        pinned: "bg-zam-divider text-zam-textPrimary",
+        notifications: "bg-zam-divider text-zam-textPrimary",
+        media: "bg-zam-divider text-zam-textPrimary",
+        members: "bg-zam-divider text-zam-textPrimary",
     };
 
     function choose(key: RoomHeaderMenuKey) {
@@ -127,14 +127,14 @@
                     role="menuitemcheckbox"
                     aria-checked={row.active}
                     onclick={() => choose(row.key)}
-                    class="w-full flex items-center gap-3 px-4 py-3 text-start text-sm transition-colors hover:bg-discord-messageHover {row.active
-                        ? 'text-discord-accent'
-                        : 'text-discord-textPrimary'}"
+                    class="w-full flex items-center gap-3 px-4 py-3 text-start text-sm transition-colors hover:bg-zam-messageHover {row.active
+                        ? 'text-zam-accent'
+                        : 'text-zam-textPrimary'}"
                 >
                     <svg
                         class="w-5 h-5 flex-shrink-0 {row.active
-                            ? 'text-discord-accent'
-                            : 'text-discord-textMuted'}"
+                            ? 'text-zam-accent'
+                            : 'text-zam-textMuted'}"
                         fill="currentColor"
                         viewBox="0 0 24 24"><path d={ICONS[row.key]} /></svg
                     >
@@ -160,7 +160,7 @@
                     {:else if row.dot}
                         <span
                             aria-hidden="true"
-                            class="flex-shrink-0 w-2 h-2 rounded-full bg-discord-accent"
+                            class="flex-shrink-0 w-2 h-2 rounded-full bg-zam-accent"
                         ></span>
                         <span class="sr-only"
                             >{t("roomHeaderOverflowMenu.unread")}</span
@@ -173,14 +173,14 @@
                     role="menuitemcheckbox"
                     aria-checked={row.active}
                     onclick={() => choosePlugin(row.key)}
-                    class="w-full flex items-center gap-3 px-4 py-3 text-start text-sm transition-colors hover:bg-discord-messageHover {row.active
-                        ? 'text-discord-accent'
-                        : 'text-discord-textPrimary'}"
+                    class="w-full flex items-center gap-3 px-4 py-3 text-start text-sm transition-colors hover:bg-zam-messageHover {row.active
+                        ? 'text-zam-accent'
+                        : 'text-zam-textPrimary'}"
                 >
                     <svg
                         class="w-5 h-5 flex-shrink-0 {row.active
-                            ? 'text-discord-accent'
-                            : 'text-discord-textMuted'}"
+                            ? 'text-zam-accent'
+                            : 'text-zam-textMuted'}"
                         fill="currentColor"
                         viewBox="0 0 24 24"
                         ><path

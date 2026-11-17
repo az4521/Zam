@@ -96,11 +96,11 @@
             <div class="flex items-center justify-between gap-2">
                 <label
                     for="soundboard-own-volume"
-                    class="text-xs text-discord-textMuted uppercase font-semibold tracking-wide"
+                    class="text-xs text-zam-textMuted uppercase font-semibold tracking-wide"
                 >
                     {t("soundboard.yourVolume")}
                 </label>
-                <span class="text-xs text-discord-textMuted tabular-nums">
+                <span class="text-xs text-zam-textMuted tabular-nums">
                     {Math.round(myLevel * 100)}%
                 </span>
             </div>
@@ -116,18 +116,18 @@
                         myId,
                         e.currentTarget.valueAsNumber / 100,
                     )}
-                class="w-full mt-1.5 accent-discord-accent"
+                class="w-full mt-1.5 accent-zam-accent"
             />
         </div>
         {#if failed}
-            <p class="text-xs text-discord-danger">
+            <p class="text-xs text-zam-danger">
                 {t("soundboard.sendFailed")}
             </p>
         {/if}
         {#each packs as pack (pack.id)}
             <section class="space-y-1.5">
                 <h3
-                    class="text-xs text-discord-textMuted uppercase font-semibold tracking-wide truncate"
+                    class="text-xs text-zam-textMuted uppercase font-semibold tracking-wide truncate"
                 >
                     {pack.name}
                 </h3>
@@ -137,7 +137,7 @@
                             type="button"
                             onclick={() => play(sound)}
                             title={sound.body ?? sound.name}
-                            class="max-w-full truncate px-3 py-1.5 rounded bg-discord-backgroundSecondary hover:bg-discord-accent hover:text-white text-sm text-discord-textPrimary transition-colors"
+                            class="max-w-full truncate px-3 py-1.5 rounded bg-zam-backgroundSecondary hover:bg-zam-accent hover:text-white text-sm text-zam-textPrimary transition-colors"
                         >
                             {sound.name}
                         </button>
@@ -146,7 +146,7 @@
             </section>
         {/each}
         {#if packs.length === 0}
-            <p class="text-sm text-discord-textMuted">
+            <p class="text-sm text-zam-textMuted">
                 {t("soundboard.empty")}
             </p>
         {/if}
@@ -168,7 +168,7 @@
                 opacity: 0,
                 duration: motionOK() ? 120 : 0,
             }}
-            class="fixed z-50 w-80 rounded-lg bg-discord-backgroundTertiary border border-discord-divider shadow-xl p-3 overflow-y-auto"
+            class="fixed z-50 w-80 rounded-lg bg-zam-backgroundTertiary border border-zam-divider shadow-xl p-3 overflow-y-auto"
             role="dialog"
             aria-label={t("soundboard.title")}
         >

@@ -49,127 +49,127 @@ export const THEME_TOKENS: readonly ThemeToken[] = [
         key: "accent",
         label: t("themePalette.accent"),
         hexVars: [
-            "--discord-accent",
-            "--discord-accent-hover",
-            "--discord-accent-fill",
-            "--discord-accent-fill-hover",
+            "--zam-accent",
+            "--zam-accent-hover",
+            "--zam-accent-fill",
+            "--zam-accent-fill-hover",
         ],
-        rgbVars: ["--discord-accent-rgb", "--discord-accent-fill-rgb"],
+        rgbVars: ["--zam-accent-rgb", "--zam-accent-fill-rgb"],
     },
     {
         key: "background",
         label: t("themePalette.background"),
-        hexVars: ["--discord-bg"],
-        rgbVars: ["--discord-bg-rgb"],
+        hexVars: ["--zam-bg"],
+        rgbVars: ["--zam-bg-rgb"],
     },
     {
         key: "backgroundSecondary",
         label: t("themePalette.secondaryBackground"),
-        hexVars: ["--discord-bg-secondary"],
-        rgbVars: ["--discord-bg-secondary-rgb"],
+        hexVars: ["--zam-bg-secondary"],
+        rgbVars: ["--zam-bg-secondary-rgb"],
     },
     {
         key: "backgroundTertiary",
         label: t("themePalette.tertiaryBackground"),
-        hexVars: ["--discord-bg-tertiary"],
+        hexVars: ["--zam-bg-tertiary"],
         rgbVars: [],
     },
     {
         key: "textPrimary",
         label: t("themePalette.primaryText"),
-        hexVars: ["--discord-text-primary"],
+        hexVars: ["--zam-text-primary"],
         rgbVars: [],
     },
     {
         key: "textSecondary",
         label: t("themePalette.secondaryText"),
-        hexVars: ["--discord-text-secondary"],
+        hexVars: ["--zam-text-secondary"],
         rgbVars: [],
     },
     {
         key: "textMuted",
         label: t("themePalette.mutedText"),
-        hexVars: ["--discord-text-muted"],
+        hexVars: ["--zam-text-muted"],
         rgbVars: [],
     },
     {
         key: "danger",
         label: t("themePalette.danger"),
-        hexVars: ["--discord-danger", "--discord-danger-fill"],
-        rgbVars: ["--discord-danger-rgb", "--discord-danger-fill-rgb"],
+        hexVars: ["--zam-danger", "--zam-danger-fill"],
+        rgbVars: ["--zam-danger-rgb", "--zam-danger-fill-rgb"],
     },
     {
         key: "positive",
         label: t("themePalette.positive"),
-        hexVars: ["--discord-positive"],
+        hexVars: ["--zam-positive"],
         rgbVars: [],
     },
     {
         key: "mention",
         label: t("themePalette.mentionHighlight"),
         hexVars: [],
-        rgbVars: ["--discord-mention-highlight-rgb"],
+        rgbVars: ["--zam-mention-highlight-rgb"],
     },
     {
         key: "link",
         label: t("themePalette.link"),
-        hexVars: ["--discord-link"],
-        rgbVars: ["--discord-link-rgb"],
+        hexVars: ["--zam-link"],
+        rgbVars: ["--zam-link-rgb"],
     },
     {
         key: "warning",
         label: t("themePalette.warning"),
-        hexVars: ["--discord-warning"],
-        rgbVars: ["--discord-warning-rgb"],
+        hexVars: ["--zam-warning"],
+        rgbVars: ["--zam-warning-rgb"],
     },
     {
         key: "online",
         label: t("themePalette.onlineStatus"),
-        hexVars: ["--discord-online"],
+        hexVars: ["--zam-online"],
         rgbVars: [],
     },
     {
         key: "idle",
         label: t("themePalette.idleStatus"),
-        hexVars: ["--discord-idle"],
+        hexVars: ["--zam-idle"],
         rgbVars: [],
     },
     {
         key: "dnd",
         label: t("themePalette.doNotDisturbStatus"),
-        hexVars: ["--discord-dnd"],
+        hexVars: ["--zam-dnd"],
         rgbVars: [],
     },
     {
         key: "offline",
         label: t("themePalette.offlineStatus"),
-        hexVars: ["--discord-offline"],
+        hexVars: ["--zam-offline"],
         rgbVars: [],
     },
     {
         key: "divider",
         label: t("themePalette.divider"),
-        hexVars: ["--discord-divider"],
+        hexVars: ["--zam-divider"],
         rgbVars: [],
     },
     {
         key: "spoilerBackground",
         label: t("themePalette.spoilerBackground"),
-        hexVars: ["--discord-spoiler-bg"],
+        hexVars: ["--zam-spoiler-bg"],
         rgbVars: [],
     },
     {
         key: "ownBubbleBackground",
         label: t("themePalette.ownMessageBubble"),
-        hexVars: ["--discord-own-bubble"],
+        hexVars: ["--zam-own-bubble"],
         rgbVars: [],
     },
 ];
 
 /**
  * Seed values shown in the editor for each token, per base theme. Accent and
- * danger use the app's AA-safe *fill* tokens (--discord-accent-fill /
- * --discord-danger-fill), NOT the brand accent/danger (#7289da / #ed4245):
+ * danger use the app's AA-safe *fill* tokens (--zam-accent-fill /
+ * --zam-danger-fill), NOT the brand accent/danger (#7289da / #ed4245):
  * the accent/danger editable token drives the filled-button vars, and white
  * text on the brand hues is only ~3.3:1. Do NOT change these to the brand
  * values — paletteContrastWarnings would then flag the default palette.

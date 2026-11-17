@@ -442,10 +442,10 @@
     />
 {:else if videoDecryptFailed}
     <div
-        class="flex items-center gap-3 px-4 py-3 mt-1 max-w-sm w-full bg-discord-backgroundTertiary rounded-lg"
+        class="flex items-center gap-3 px-4 py-3 mt-1 max-w-sm w-full bg-zam-backgroundTertiary rounded-lg"
     >
         <svg
-            class="w-4 h-4 text-discord-danger"
+            class="w-4 h-4 text-zam-danger"
             fill="currentColor"
             viewBox="0 0 24 24"
         >
@@ -454,12 +454,12 @@
             />
         </svg>
         <div class="flex-1 min-w-0">
-            <span class="text-xs text-discord-danger"
+            <span class="text-xs text-zam-danger"
                 >{t("messageItem.couldnTDecryptVideo")}</span
             >
         </div>
         <button
-            class="px-2 py-1 text-xs font-medium text-discord-textPrimary bg-discord-backgroundSecondary hover:bg-discord-messageHover rounded transition-colors"
+            class="px-2 py-1 text-xs font-medium text-zam-textPrimary bg-zam-backgroundSecondary hover:bg-zam-messageHover rounded transition-colors"
             onclick={retryVideoDecrypt}
         >
             {t("common.retry")}
@@ -471,22 +471,22 @@
      source is a dead click, which is exactly how this gets
      reported as "videos cannot be played at all". -->
     <div
-        class="flex items-center gap-3 px-4 py-3 mt-1 max-w-sm w-full bg-discord-backgroundTertiary rounded-lg"
+        class="flex items-center gap-3 px-4 py-3 mt-1 max-w-sm w-full bg-zam-backgroundTertiary rounded-lg"
     >
         <div
-            class="w-10 h-10 rounded-full bg-discord-backgroundSecondary flex items-center justify-center flex-shrink-0"
+            class="w-10 h-10 rounded-full bg-zam-backgroundSecondary flex items-center justify-center flex-shrink-0"
         >
             <svg
-                class="w-5 h-5 text-discord-textMuted"
+                class="w-5 h-5 text-zam-textMuted"
                 fill="currentColor"
                 viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg
             >
         </div>
         <div class="min-w-0">
-            <p class="text-sm font-medium text-discord-textPrimary truncate">
+            <p class="text-sm font-medium text-zam-textPrimary truncate">
                 {filename || t("messageItem.video")}
             </p>
-            <p class="text-xs text-discord-textMuted">
+            <p class="text-xs text-zam-textMuted">
                 {t("messageItem.canTBePlayedHere")}
             </p>
         </div>
@@ -591,12 +591,12 @@
              asking /media/thumbnail for the video itself would
              download the whole file (see videoThumbnailUrl). -->
             <div
-                class="flex items-center gap-3 px-4 py-3 bg-discord-backgroundTertiary group-hover:bg-discord-messageHover transition-colors rounded-lg"
+                class="flex items-center gap-3 px-4 py-3 bg-zam-backgroundTertiary group-hover:bg-zam-messageHover transition-colors rounded-lg"
             >
                 <div
                     class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 {videoFailed
-                        ? 'bg-discord-danger'
-                        : 'bg-discord-accent'}"
+                        ? 'bg-zam-danger'
+                        : 'bg-zam-accent'}"
                 >
                     <svg
                         class="w-5 h-5 text-white ms-0.5"
@@ -606,7 +606,7 @@
                 </div>
                 <div class="min-w-0">
                     <p
-                        class="text-sm font-medium text-discord-textPrimary truncate"
+                        class="text-sm font-medium text-zam-textPrimary truncate"
                     >
                         {filename || t("messageItem.video")}
                     </p>
@@ -616,8 +616,8 @@
                      done nothing at all. -->
                     <p
                         class="text-xs {videoFailed
-                            ? 'text-discord-danger'
-                            : 'text-discord-textMuted'}"
+                            ? 'text-zam-danger'
+                            : 'text-zam-textMuted'}"
                     >
                         {videoFailed
                             ? t("messageItem.playbackFailedClickToRetry")

@@ -338,13 +338,13 @@
 <div
     class="{interfaceState.isMobile
         ? ''
-        : 'w-72'} h-full flex flex-col bg-discord-backgroundSecondary border-l border-discord-divider"
+        : 'w-72'} h-full flex flex-col bg-zam-backgroundSecondary border-l border-zam-divider"
 >
     <div
-        class="h-12 flex items-center gap-2 px-4 py-3 border-b border-discord-divider flex-shrink-0"
+        class="h-12 flex items-center gap-2 px-4 py-3 border-b border-zam-divider flex-shrink-0"
     >
         <h3
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide flex-1"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide flex-1"
         >
             {t("messageSearchPanel.searchMessages")}
         </h3>
@@ -355,14 +355,14 @@
             e.preventDefault();
             runSearch();
         }}
-        class="p-2 border-b border-discord-divider flex-shrink-0"
+        class="p-2 border-b border-zam-divider flex-shrink-0"
     >
         <input
             bind:this={inputEl}
             bind:value={term}
             type="text"
             placeholder={t("messageSearchPanel.searchTryFromOrHasImage")}
-            class="w-full px-2 py-1.5 text-sm rounded bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted outline-none focus:ring-1 focus:ring-discord-accent"
+            class="w-full px-2 py-1.5 text-sm rounded bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted outline-none focus:ring-1 focus:ring-zam-accent"
             oninput={() => {
                 updateActiveToken();
             }}
@@ -391,13 +391,13 @@
         />
         {#if activeToken && suggestions.length > 0}
             <div
-                class="mt-1 max-h-64 overflow-y-auto bg-discord-backgroundSecondary border border-discord-divider rounded-lg"
+                class="mt-1 max-h-64 overflow-y-auto bg-zam-backgroundSecondary border border-zam-divider rounded-lg"
             >
                 {#each suggestions as s, i}
                     <button
                         type="button"
                         class="w-full text-start px-3 py-2 text-sm transition-colors"
-                        class:bg-discord-messageHover={i === selectedIdx}
+                        class:bg-zam-messageHover={i === selectedIdx}
                         onpointerdown={(e) => {
                             e.preventDefault();
                             commit(s);
@@ -406,9 +406,9 @@
                             selectedIdx = i;
                         }}
                     >
-                        <div class="text-discord-textPrimary">{s.label}</div>
+                        <div class="text-zam-textPrimary">{s.label}</div>
                         {#if s.sub}
-                            <div class="text-xs text-discord-textMuted">
+                            <div class="text-xs text-zam-textMuted">
                                 {s.sub}
                             </div>
                         {/if}
@@ -422,19 +422,19 @@
         {#if searching && rows.length === 0}
             <div class="flex justify-center mt-8">
                 <div
-                    class="w-5 h-5 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
+                    class="w-5 h-5 border-2 border-zam-accent border-t-transparent rounded-full animate-spin"
                 ></div>
             </div>
         {:else if error}
-            <p class="text-sm text-discord-danger text-center mt-8 px-4">
+            <p class="text-sm text-zam-danger text-center mt-8 px-4">
                 {error}
             </p>
         {:else if searched === null}
-            <p class="text-sm text-discord-textMuted text-center mt-8 px-4">
+            <p class="text-sm text-zam-textMuted text-center mt-8 px-4">
                 {t("messageSearchPanel.searchForMessagesInThisRoom")}
             </p>
         {:else if rows.length === 0}
-            <p class="text-sm text-discord-textMuted text-center mt-8 px-4">
+            <p class="text-sm text-zam-textMuted text-center mt-8 px-4">
                 {hasMore
                     ? t("messageSearchPanel.noMatchesInTheResultsLoaded")
                     : t("messageSearchPanel.noResultsFor", { searched })}
@@ -444,7 +444,7 @@
                     <button
                         onclick={loadMore}
                         disabled={loadingMore}
-                        class="w-full py-1.5 text-xs text-discord-accent hover:underline disabled:opacity-50"
+                        class="w-full py-1.5 text-xs text-zam-accent hover:underline disabled:opacity-50"
                     >
                         {loadingMore
                             ? t("common.loading")
@@ -453,7 +453,7 @@
                 </div>
             {/if}
         {:else}
-            <p class="text-xs text-discord-textMuted px-4 mt-2">
+            <p class="text-xs text-zam-textMuted px-4 mt-2">
                 {t("messageSearchPanel.resultCount", { count: resultCount })}
             </p>
             <div class="p-2 space-y-1">
@@ -463,7 +463,7 @@
                     {@const name = getMemberName(room, sender)}
                     <button
                         onclick={() => jumpTo(event.getId()!)}
-                        class="w-full text-start p-2 rounded-lg hover:bg-discord-messageHover transition-colors"
+                        class="w-full text-start p-2 rounded-lg hover:bg-zam-messageHover transition-colors"
                     >
                         <div class="flex items-center gap-2 mb-1">
                             <Avatar
@@ -473,20 +473,20 @@
                                 size={18}
                             />
                             <span
-                                class="text-xs font-semibold text-discord-textPrimary truncate"
+                                class="text-xs font-semibold text-zam-textPrimary truncate"
                                 >{name}</span
                             >
                             <span
-                                class="text-xs text-discord-textMuted ms-auto flex-shrink-0"
+                                class="text-xs text-zam-textMuted ms-auto flex-shrink-0"
                                 >{compactDateTime(event.getTs())}</span
                             >
                         </div>
                         <p
-                            class="text-xs text-discord-textMuted line-clamp-3 break-words"
+                            class="text-xs text-zam-textMuted line-clamp-3 break-words"
                         >
                             {#each buildSnippetSegments(event.getContent().body, highlights) as segment, i (i)}
                                 {#if segment.highlight}<mark
-                                        class="bg-discord-accent/40 text-discord-textPrimary rounded-sm px-px"
+                                        class="bg-zam-accent/40 text-zam-textPrimary rounded-sm px-px"
                                         >{segment.text}</mark
                                     >{:else}{segment.text}{/if}
                             {/each}
@@ -497,7 +497,7 @@
                     <button
                         onclick={loadMore}
                         disabled={loadingMore}
-                        class="w-full py-1.5 text-xs text-discord-accent hover:underline disabled:opacity-50"
+                        class="w-full py-1.5 text-xs text-zam-accent hover:underline disabled:opacity-50"
                     >
                         {loadingMore
                             ? t("common.loading")

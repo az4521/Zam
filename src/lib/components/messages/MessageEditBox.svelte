@@ -313,7 +313,7 @@
         onfocus={onFocus}
         onclick={detectEmojiQuery}
         onblur={() => (emojiQuery = null)}
-        class="composer-editor w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-discord-accent/50 max-h-[200px] overflow-y-auto"
+        class="composer-editor w-full bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-2 py-1.5 outline-none focus:ring-1 focus:ring-zam-accent/50 max-h-[200px] overflow-y-auto"
     ></div>
     {#if emojiQuery && emojiCandidates.length > 0}
         <EmojiSuggestions

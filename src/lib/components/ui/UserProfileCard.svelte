@@ -283,10 +283,10 @@
 
     const toneClass = (tone: TrustTone) =>
         tone === "verified"
-            ? "bg-discord-online/20 text-discord-online"
+            ? "bg-zam-online/20 text-zam-online"
             : tone === "warning"
-              ? "bg-discord-warning/20 text-discord-warning"
-              : "bg-discord-messageHover text-discord-textMuted";
+              ? "bg-zam-warning/20 text-zam-warning"
+              : "bg-zam-messageHover text-zam-textMuted";
 
     async function loadTrust() {
         userTrust = null;
@@ -369,8 +369,8 @@
     const bannerPull = $derived(asSheet ? "-mt-5" : "");
     const ringColor = $derived(
         asSheet
-            ? "border-discord-backgroundTertiary"
-            : "border-discord-backgroundSecondary",
+            ? "border-zam-backgroundTertiary"
+            : "border-zam-backgroundSecondary",
     );
 
     function editOwnProfile() {
@@ -543,10 +543,10 @@
         <img
             src={bannerSrc}
             alt=""
-            class="h-16 w-full object-cover bg-discord-accent {bannerPull}"
+            class="h-16 w-full object-cover bg-zam-accent {bannerPull}"
         />
     {:else}
-        <div class="h-16 bg-discord-accent {bannerPull}"></div>
+        <div class="h-16 bg-zam-accent {bannerPull}"></div>
     {/if}
 
     <div class="px-4 pb-4">
@@ -570,7 +570,7 @@
 
         <div class="flex items-center gap-1.5 min-w-0">
             <p
-                class="font-bold text-discord-textPrimary truncate"
+                class="font-bold text-zam-textPrimary truncate"
                 style:color={nameColour}
             >
                 {displayName}
@@ -579,23 +579,23 @@
                 <span
                     class="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {trustBadge.tone ===
                     'verified'
-                        ? 'bg-discord-online/20 text-discord-online'
+                        ? 'bg-zam-online/20 text-zam-online'
                         : trustBadge.tone === 'warning'
-                          ? 'bg-discord-warning/20 text-discord-warning'
-                          : 'bg-discord-messageHover text-discord-textMuted'}"
+                          ? 'bg-zam-warning/20 text-zam-warning'
+                          : 'bg-zam-messageHover text-zam-textMuted'}"
                     >{trustBadge.label}</span
                 >
             {/if}
         </div>
         <div class="flex items-center gap-1 min-w-0">
-            <p class="text-xs text-discord-textMuted truncate">{userId}</p>
+            <p class="text-xs text-zam-textMuted truncate">{userId}</p>
             <button
                 onclick={copyUserId}
-                class="flex-shrink-0 p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                class="flex-shrink-0 p-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                 title={t("userProfileCard.copyUserId")}
             >
                 {#if copied}
-                    <span class="text-xs text-discord-online"
+                    <span class="text-xs text-zam-online"
                         >{t("userProfileCard.copied")}</span
                     >
                 {:else}
@@ -611,22 +611,22 @@
             </button>
         </div>
         {#if pronouns}
-            <p class="text-xs text-discord-textSecondary truncate">
+            <p class="text-xs text-zam-textSecondary truncate">
                 {@html renderPlainTextWithTwemoji(pronouns)}
             </p>
         {/if}
         {#if status}
-            <p class="mt-1 text-xs text-discord-textSecondary truncate">
+            <p class="mt-1 text-xs text-zam-textSecondary truncate">
                 {@html renderPlainTextWithTwemoji(formatStatusMessage(status))}
             </p>
         {/if}
         {#if !status && callText}
-            <p class="mt-1 text-xs text-discord-textSecondary truncate">
+            <p class="mt-1 text-xs text-zam-textSecondary truncate">
                 {callText}
             </p>
         {/if}
         {#if presence?.statusMsg && !isSameStatus(presence.statusMsg, status)}
-            <p class="mt-1 text-xs text-discord-textSecondary truncate">
+            <p class="mt-1 text-xs text-zam-textSecondary truncate">
                 {@html renderPlainTextWithTwemoji(presence.statusMsg)}
             </p>
         {/if}
@@ -635,7 +635,7 @@
         {/if}
         {#if bio}
             <p
-                class="mt-2 text-xs text-discord-textSecondary whitespace-pre-wrap break-words max-h-24 overflow-y-auto"
+                class="mt-2 text-xs text-zam-textSecondary whitespace-pre-wrap break-words max-h-24 overflow-y-auto"
             >
                 {@html renderPlainTextWithTwemoji(bio)}
             </p>
@@ -651,7 +651,7 @@
             {/key}
         {/each}
         {#if localTime}
-            <p class="mt-2 text-xs text-discord-textMuted">
+            <p class="mt-2 text-xs text-zam-textMuted">
                 {t("userProfileCard.localTime", { localTime, timezone })}
             </p>
         {/if}
@@ -663,7 +663,7 @@
                             href={link.uri}
                             target="_blank"
                             rel="noopener noreferrer nofollow"
-                            style="color: var(--discord-link, var(--discord-accent-text))"
+                            style="color: var(--zam-link, var(--zam-accent-text))"
                             class="hover:underline"
                             >{link.description || link.uri}</a
                         >
@@ -672,7 +672,7 @@
             </ul>
         {/if}
         {#if member}
-            <p class="mt-1 text-xs text-discord-textMuted">
+            <p class="mt-1 text-xs text-zam-textMuted">
                 {(void roomsState.roomsTick,
                 hasImmutableCreatorPower(room, member.userId))
                     ? t("userProfileCard.powerLevelCreator")
@@ -682,27 +682,27 @@
             </p>
         {/if}
         {#if !member && !isSelf}
-            <p class="mt-1 text-xs text-discord-textMuted">
+            <p class="mt-1 text-xs text-zam-textMuted">
                 {t("userProfileCard.notAMemberOfThisRoom")}
             </p>
         {/if}
 
         {#if !isSelf && mutual.total > 0}
-            <div class="mt-3 pt-3 border-t border-discord-divider">
+            <div class="mt-3 pt-3 border-t border-zam-divider">
                 <p
-                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
+                    class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-1"
                 >
                     {t("userProfileCard.mutualRooms", {
                         total: mutual.total,
                     })}
                 </p>
                 {#each mutual.shown as name (name)}
-                    <p class="text-xs text-discord-textSecondary truncate">
+                    <p class="text-xs text-zam-textSecondary truncate">
                         #{name}
                     </p>
                 {/each}
                 {#if mutual.moreCount > 0}
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("userProfileCard.more", {
                             moreCount: mutual.moreCount,
                         })}
@@ -712,12 +712,12 @@
         {/if}
 
         {#if isCryptoAvailable()}
-            <div class="mt-3 pt-3 border-t border-discord-divider">
+            <div class="mt-3 pt-3 border-t border-zam-divider">
                 <div class="flex items-center gap-1">
                     <button
                         onclick={toggleSessions}
                         aria-expanded={sessionsOpen}
-                        class="flex-1 flex items-center gap-1 min-w-0 text-start text-xs font-semibold text-discord-textMuted uppercase tracking-wide hover:text-discord-textPrimary transition-colors"
+                        class="flex-1 flex items-center gap-1 min-w-0 text-start text-xs font-semibold text-zam-textMuted uppercase tracking-wide hover:text-zam-textPrimary transition-colors"
                     >
                         <svg
                             class="w-3 h-3 flex-shrink-0 transition-transform {sessionsOpen
@@ -747,7 +747,7 @@
                             disabled={devicesLoading}
                             title={t("userProfileCard.refreshSessions")}
                             aria-label={t("userProfileCard.refreshSessions")}
-                            class="flex-shrink-0 p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                            class="flex-shrink-0 p-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-50"
                         >
                             <svg
                                 class="w-3.5 h-3.5 {devicesLoading
@@ -768,15 +768,15 @@
                 </div>
                 {#if sessionsOpen}
                     {#if devices === null && devicesLoading}
-                        <p class="mt-1 text-xs text-discord-textMuted">
+                        <p class="mt-1 text-xs text-zam-textMuted">
                             {t("common.loading")}
                         </p>
                     {:else if devicesError && devices === null}
-                        <p class="mt-1 text-xs text-discord-danger">
+                        <p class="mt-1 text-xs text-zam-danger">
                             {t("userProfileCard.couldNotLoadSessions")}
                         </p>
                     {:else if devices && devices.length === 0}
-                        <p class="mt-1 text-xs text-discord-warning">
+                        <p class="mt-1 text-xs text-zam-warning">
                             {t("userProfileCard.noKnownSessions")}
                         </p>
                     {:else if devices}
@@ -795,14 +795,14 @@
                                 <li class="flex items-center gap-2 min-w-0">
                                     <div class="flex-1 min-w-0">
                                         <p
-                                            class="text-xs text-discord-textSecondary truncate"
+                                            class="text-xs text-zam-textSecondary truncate"
                                         >
                                             {device.displayName ||
                                                 device.deviceId}
                                         </p>
                                         {#if device.displayName}
                                             <p
-                                                class="text-[10px] font-mono text-discord-textMuted truncate"
+                                                class="text-[10px] font-mono text-zam-textMuted truncate"
                                             >
                                                 {device.deviceId}
                                             </p>
@@ -817,12 +817,12 @@
                             {/each}
                         </ul>
                         {#if devices.some((d) => d.keysChanged)}
-                            <p class="mt-1 text-xs text-discord-warning">
+                            <p class="mt-1 text-xs text-zam-warning">
                                 {t("userProfileCard.keysChangedHint")}
                             </p>
                         {/if}
                         {#if devicesError}
-                            <p class="mt-1 text-xs text-discord-danger">
+                            <p class="mt-1 text-xs text-zam-danger">
                                 {t("userProfileCard.couldNotLoadSessions")}
                             </p>
                         {/if}
@@ -832,11 +832,11 @@
         {/if}
 
         {#if !isSelf}
-            <div class="mt-3 pt-3 border-t border-discord-divider space-y-1.5">
+            <div class="mt-3 pt-3 border-t border-zam-divider space-y-1.5">
                 <button
                     onclick={openDM}
                     disabled={pending !== null}
-                    class="w-full px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                    class="w-full px-3 py-1.5 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50"
                 >
                     {pending === "message"
                         ? t("userProfileCard.opening")
@@ -846,7 +846,7 @@
                     <button
                         onclick={startVerifyUser}
                         disabled={pending !== null}
-                        class="w-full px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm font-semibold transition-colors disabled:opacity-50"
+                        class="w-full px-3 py-1.5 rounded bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary text-sm font-semibold transition-colors disabled:opacity-50"
                     >
                         {pending === "verify"
                             ? t("common.starting")
@@ -856,9 +856,9 @@
                 <button
                     onclick={toggleBlock}
                     disabled={pending !== null}
-                    class="w-full px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-sm font-semibold transition-colors disabled:opacity-50 {blocked
-                        ? 'text-discord-textPrimary'
-                        : 'text-discord-danger'}"
+                    class="w-full px-3 py-1.5 rounded bg-zam-backgroundTertiary hover:bg-zam-messageHover text-sm font-semibold transition-colors disabled:opacity-50 {blocked
+                        ? 'text-zam-textPrimary'
+                        : 'text-zam-danger'}"
                 >
                     {pending === "block"
                         ? t("common.saving")
@@ -872,7 +872,7 @@
                             <button
                                 onclick={() => doModeration("kick")}
                                 disabled={pending !== null}
-                                class="flex-1 px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-warning/20 text-discord-warning text-sm font-semibold transition-colors disabled:opacity-50"
+                                class="flex-1 px-3 py-1.5 rounded bg-zam-backgroundTertiary hover:bg-zam-warning/20 text-zam-warning text-sm font-semibold transition-colors disabled:opacity-50"
                             >
                                 {pending === "kick"
                                     ? t("userProfileCard.kicking")
@@ -885,7 +885,7 @@
                             <button
                                 onclick={() => doModeration("ban")}
                                 disabled={pending !== null}
-                                class="flex-1 px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-danger/20 text-discord-danger text-sm font-semibold transition-colors disabled:opacity-50"
+                                class="flex-1 px-3 py-1.5 rounded bg-zam-backgroundTertiary hover:bg-zam-danger/20 text-zam-danger text-sm font-semibold transition-colors disabled:opacity-50"
                             >
                                 {pending === "ban"
                                     ? t("userProfileCard.banning")
@@ -901,10 +901,10 @@
 
         {#if isSelf}
             <!-- Same card others see, plus what only the owner can do. -->
-            <div class="mt-3 pt-3 border-t border-discord-divider space-y-1.5">
+            <div class="mt-3 pt-3 border-t border-zam-divider space-y-1.5">
                 <button
                     onclick={editOwnProfile}
-                    class="w-full px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors"
+                    class="w-full px-3 py-1.5 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-sm font-semibold transition-colors"
                 >
                     {t("userProfileCard.editProfile")}
                 </button>
@@ -912,12 +912,12 @@
         {/if}
 
         {#if pluginActions.length > 0}
-            <div class="mt-3 pt-3 border-t border-discord-divider space-y-1.5">
+            <div class="mt-3 pt-3 border-t border-zam-divider space-y-1.5">
                 {#each pluginActions as entry (entry.entryId)}
                     <button
                         onclick={() => runPluginAction(entry.value)}
                         data-zam-plugin={entry.pluginId}
-                        class="w-full px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm font-semibold transition-colors"
+                        class="w-full px-3 py-1.5 rounded bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary text-sm font-semibold transition-colors"
                     >
                         {String(entry.value.label)}
                     </button>
@@ -926,7 +926,7 @@
         {/if}
 
         {#if errorMsg}
-            <p class="mt-2 text-xs text-discord-danger">{errorMsg}</p>
+            <p class="mt-2 text-xs text-zam-danger">{errorMsg}</p>
         {/if}
     </div>
 {/snippet}
@@ -944,7 +944,7 @@
         <div
             bind:clientWidth={cardW}
             bind:clientHeight={cardH}
-            class="z-50 bg-discord-backgroundSecondary border border-discord-divider shadow-xl overflow-hidden fixed w-72 rounded-lg"
+            class="z-50 bg-zam-backgroundSecondary border border-zam-divider shadow-xl overflow-hidden fixed w-72 rounded-lg"
             style="left: {position.left}px; top: {position.top}px;"
         >
             {@render cardBody()}

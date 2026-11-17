@@ -46,8 +46,7 @@
             setCustomDatePattern(customDraft);
     }
 
-    const CSS_PLACEHOLDER =
-        ":root {\n    --discord-accent: #e91e63 !important;\n}";
+    const CSS_PLACEHOLDER = ":root {\n    --zam-accent: #e91e63 !important;\n}";
 
     const currentLocale = getLocale();
 
@@ -59,23 +58,23 @@
 <div class="space-y-6">
     <section data-setting-anchor="appearance-language">
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
         >
             {t("appearanceSettings.language")}
         </p>
         <div
-            class="flex flex-col gap-2 py-2 border-b border-discord-divider sm:flex-row sm:items-center sm:justify-between"
+            class="flex flex-col gap-2 py-2 border-b border-zam-divider sm:flex-row sm:items-center sm:justify-between"
         >
             <div class="min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("appearanceSettings.displayLanguage")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("appearanceSettings.displayLanguageHint")}
                 </p>
             </div>
             <select
-                class="bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1.5 border border-discord-divider focus:outline-none focus:ring-2 focus:ring-discord-accent sm:max-w-[16rem]"
+                class="bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-2 py-1.5 border border-zam-divider focus:outline-none focus:ring-2 focus:ring-zam-accent sm:max-w-[16rem]"
                 value={currentLocale}
                 onchange={onLocaleChange}
                 aria-label={t("appearanceSettings.displayLanguage")}
@@ -94,19 +93,19 @@
     </section>
     <section data-setting-anchor="appearance-layout">
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
         >
             {t("appearanceSettings.layout")}
         </p>
         <div
             data-setting-anchor="theme-rightalign"
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+            class="flex items-center gap-3 py-2 border-b border-zam-divider"
         >
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("appearanceSettings.rightAlignMyMessagesBubbleLayout")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("appearanceSettings.displayYourOwnMessagesOnThe")}
                 </p>
             </div>
@@ -118,13 +117,13 @@
         </div>
         <div
             data-setting-anchor="appearance-namecolours"
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+            class="flex items-center gap-3 py-2 border-b border-zam-divider"
         >
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("appearanceSettings.showNameColours")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("appearanceSettings.drawPeopleSNamesInThe")}
                 </p>
             </div>
@@ -136,13 +135,13 @@
         </div>
         <div
             data-setting-anchor="appearance-keepsidebar"
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
+            class="flex items-center gap-3 py-2 border-b border-zam-divider"
         >
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("appearanceSettings.keepRoomListOpen")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("appearanceSettings.donTAutoCloseTheRoom")}
                 </p>
             </div>
@@ -157,18 +156,18 @@
 
     <section data-setting-anchor="appearance-custom-css">
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
         >
             {t("appearanceSettings.customCss")}
         </p>
         <div
-            class="flex items-center justify-between gap-3 py-2 border-b border-discord-divider"
+            class="flex items-center justify-between gap-3 py-2 border-b border-zam-divider"
         >
             <div class="min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("appearanceSettings.customCssEnable")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("appearanceSettings.customCssHint")}
                 </p>
             </div>
@@ -179,7 +178,7 @@
             />
         </div>
         <textarea
-            class="mt-3 w-full min-h-40 rounded border border-discord-divider bg-discord-backgroundTertiary p-2 font-mono text-xs text-discord-textPrimary focus:outline-none focus:ring-2 focus:ring-discord-accent"
+            class="mt-3 w-full min-h-40 rounded border border-zam-divider bg-zam-backgroundTertiary p-2 font-mono text-xs text-zam-textPrimary focus:outline-none focus:ring-2 focus:ring-zam-accent"
             spellcheck="false"
             autocapitalize="off"
             autocomplete="off"
@@ -189,22 +188,22 @@
             value={settingsState.customCss}
             oninput={(e) => setCustomCss(e.currentTarget.value)}
         ></textarea>
-        <p class="mt-1 text-xs text-discord-textMuted">
+        <p class="mt-1 text-xs text-zam-textMuted">
             {t("appearanceSettings.customCssRecovery")}
         </p>
     </section>
 
     <section data-setting-anchor="cust-timestamps">
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
         >
             {t("appearanceSettings.timestamps")}
         </p>
 
         <div
-            class="flex flex-col gap-2 py-2 border-b border-discord-divider sm:flex-row sm:items-center sm:justify-between"
+            class="flex flex-col gap-2 py-2 border-b border-zam-divider sm:flex-row sm:items-center sm:justify-between"
         >
-            <span class="text-sm text-discord-textPrimary"
+            <span class="text-sm text-zam-textPrimary"
                 >{t("appearanceSettings.timeFormat")}</span
             >
             <OptionSelector
@@ -216,9 +215,9 @@
         </div>
 
         <div
-            class="flex flex-col gap-2 py-2 border-b border-discord-divider sm:flex-row sm:items-center sm:justify-between"
+            class="flex flex-col gap-2 py-2 border-b border-zam-divider sm:flex-row sm:items-center sm:justify-between"
         >
-            <span class="text-sm text-discord-textPrimary"
+            <span class="text-sm text-zam-textPrimary"
                 >{t("appearanceSettings.dateFormat")}</span
             >
             <OptionSelector
@@ -230,9 +229,9 @@
         </div>
 
         {#if settingsState.dateStyle === "custom"}
-            <div class="py-3 border-b border-discord-divider">
+            <div class="py-3 border-b border-zam-divider">
                 <label
-                    class="text-sm text-discord-textPrimary"
+                    class="text-sm text-zam-textPrimary"
                     for="custom-date-pattern"
                     >{t("appearanceSettings.customDatePattern")}</label
                 >
@@ -245,21 +244,20 @@
                     autocomplete="off"
                     autocapitalize="off"
                     placeholder={t("appearanceSettings.yyyyMmDd")}
-                    class="mt-2 w-full px-2.5 py-1.5 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary border {customPreview ===
+                    class="mt-2 w-full px-2.5 py-1.5 rounded bg-zam-backgroundTertiary text-sm text-zam-textPrimary border {customPreview ===
                     null
-                        ? 'border-discord-danger'
-                        : 'border-discord-divider focus:border-discord-accent'} outline-none"
+                        ? 'border-zam-danger'
+                        : 'border-zam-divider focus:border-zam-accent'} outline-none"
                 />
                 {#if customPreview !== null}
-                    <p class="mt-1.5 text-xs text-discord-textMuted">
+                    <p class="mt-1.5 text-xs text-zam-textMuted">
                         {t("appearanceSettings.preview")}
-                        <span class="text-discord-textPrimary"
-                            >{customPreview}</span
+                        <span class="text-zam-textPrimary">{customPreview}</span
                         >
                         {t("appearanceSettings.dateFnsTokensEGYyyy")}
                     </p>
                 {:else}
-                    <p class="mt-1.5 text-xs text-discord-danger">
+                    <p class="mt-1.5 text-xs text-zam-danger">
                         {t(
                             "appearanceSettings.invalidFormatUseLowercaseDateFns",
                         )}
@@ -270,10 +268,10 @@
 
         <div class="flex items-center gap-3 py-2">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("appearanceSettings.alwaysShowAbsoluteDates")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("appearanceSettings.replaceTodayAndYesterdayWithThe")}
                 </p>
             </div>
@@ -286,14 +284,12 @@
     </section>
 
     <section data-setting-anchor="appearance-reducemotion">
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("appearanceSettings.reduceMotion")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t(
                         "appearanceSettings.minimizeAnimationsAndTransitionsYourDevice",
                     )}

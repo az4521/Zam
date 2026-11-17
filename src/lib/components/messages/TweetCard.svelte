@@ -103,7 +103,7 @@
                 href={seg.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                class="text-discord-accent hover:underline">{seg.text}</a
+                class="text-zam-accent hover:underline">{seg.text}</a
             >{:else}{seg.text}{/if}{/each}
 {/snippet}
 
@@ -130,21 +130,21 @@
         {/if}
         <span class="min-w-0 truncate text-sm leading-snug">
             <span
-                class="font-semibold text-discord-textPrimary group-hover/author:underline"
+                class="font-semibold text-zam-textPrimary group-hover/author:underline"
                 >{tweet.authorName}</span
             >
-            <span class="text-discord-textMuted">@{tweet.authorHandle}</span>
+            <span class="text-zam-textMuted">@{tweet.authorHandle}</span>
         </span>
     </a>
 
     {#if tweet.replyingTo}
-        <p class="text-xs text-discord-textMuted -mt-1">
+        <p class="text-xs text-zam-textMuted -mt-1">
             ↩ {t("linkPreview.replyingTo")}
             <a
                 href={tweet.replyingTo.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                class="text-discord-accent hover:underline"
+                class="text-zam-accent hover:underline"
                 >@{tweet.replyingTo.handle}</a
             >
         </p>
@@ -154,7 +154,7 @@
         <div>
             <p
                 use:measureClamp
-                class="text-sm text-discord-textPrimary leading-relaxed whitespace-pre-wrap break-words {expanded
+                class="text-sm text-zam-textPrimary leading-relaxed whitespace-pre-wrap break-words {expanded
                     ? ''
                     : nested
                       ? 'line-clamp-6'
@@ -165,7 +165,7 @@
             {#if clamped || expanded}
                 <button
                     type="button"
-                    class="text-xs text-discord-accent hover:underline mt-0.5"
+                    class="text-xs text-zam-accent hover:underline mt-0.5"
                     onclick={() => (expanded = !expanded)}
                 >
                     {expanded
@@ -180,13 +180,13 @@
         <div class="flex flex-col gap-1 max-w-sm">
             {#each tweet.poll.choices as choice}
                 <div
-                    class="relative overflow-hidden rounded bg-discord-backgroundTertiary px-2 py-1 text-sm text-discord-textPrimary"
+                    class="relative overflow-hidden rounded bg-zam-backgroundTertiary px-2 py-1 text-sm text-zam-textPrimary"
                 >
                     <div
                         class="absolute inset-y-0 start-0 {choice.percentage ===
                             pollLeader && pollEnded
-                            ? 'bg-discord-accent/40'
-                            : 'bg-discord-accent/20'}"
+                            ? 'bg-zam-accent/40'
+                            : 'bg-zam-accent/20'}"
                         style="width: {choice.percentage}%"
                     ></div>
                     <div class="relative flex justify-between gap-3">
@@ -200,7 +200,7 @@
                     </div>
                 </div>
             {/each}
-            <p class="text-xs text-discord-textMuted">
+            <p class="text-xs text-zam-textMuted">
                 {t("linkPreview.pollVotes", {
                     count: tweet.poll.totalVotes,
                     votes: tweet.poll.totalVotes.toLocaleString(intlLocale()),
@@ -347,7 +347,7 @@
 
     {#if tweet.quote && isQuoteTombstone(tweet.quote)}
         <p
-            class="rounded border border-discord-divider px-3 py-2 text-xs italic text-discord-textMuted"
+            class="rounded border border-zam-divider px-3 py-2 text-xs italic text-zam-textMuted"
         >
             {tweet.quote.tombstone || t("linkPreview.quoteUnavailable")}
         </p>
@@ -357,13 +357,13 @@
 
     {#if tweet.communityNote}
         <div
-            class="rounded border border-discord-divider bg-discord-backgroundTertiary px-3 py-2"
+            class="rounded border border-zam-divider bg-zam-backgroundTertiary px-3 py-2"
         >
-            <p class="text-xs font-semibold text-discord-textPrimary mb-0.5">
+            <p class="text-xs font-semibold text-zam-textPrimary mb-0.5">
                 {t("linkPreview.communityNote")}
             </p>
             <p
-                class="text-xs text-discord-textSecondary leading-relaxed whitespace-pre-wrap break-words"
+                class="text-xs text-zam-textSecondary leading-relaxed whitespace-pre-wrap break-words"
             >
                 {@render segments(tweet.communityNote)}
             </p>
@@ -375,7 +375,7 @@
         href={tweet.url}
         target="_blank"
         rel="noopener noreferrer"
-        class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-discord-textMuted no-underline hover:text-discord-textSecondary"
+        class="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-zam-textMuted no-underline hover:text-zam-textSecondary"
     >
         {#each stats as stat}
             <span
@@ -436,16 +436,16 @@
 
 {#if nested}
     <div
-        class="flex flex-col gap-2 rounded border border-discord-divider p-2.5 min-w-0"
+        class="flex flex-col gap-2 rounded border border-zam-divider p-2.5 min-w-0"
     >
         {@render body()}
     </div>
 {:else}
     <div
-        class="mt-2 flex max-w-lg rounded overflow-hidden border border-discord-divider bg-discord-backgroundSecondary"
+        class="mt-2 flex max-w-lg rounded overflow-hidden border border-zam-divider bg-zam-backgroundSecondary"
     >
         <!-- Left accent bar -->
-        <div class="w-1 flex-shrink-0 bg-discord-accent"></div>
+        <div class="w-1 flex-shrink-0 bg-zam-accent"></div>
         <div class="flex flex-1 min-w-0 flex-col p-3 gap-2">
             {@render body()}
         </div>

@@ -95,16 +95,16 @@
             }}
         >
             <div
-                class="flex max-h-[80vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-discord-backgroundSecondary shadow-xl"
+                class="flex max-h-[80vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-zam-backgroundSecondary shadow-xl"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="screenshare-picker-title"
                 use:focusTrap={{ onEscape: cancel }}
             >
-                <div class="border-b border-discord-divider px-4 py-3">
+                <div class="border-b border-zam-divider px-4 py-3">
                     <h2
                         id="screenshare-picker-title"
-                        class="text-base font-semibold text-discord-textPrimary"
+                        class="text-base font-semibold text-zam-textPrimary"
                     >
                         {t("screenSharePicker.chooseWhatToShare")}
                     </h2>
@@ -114,7 +114,7 @@
                     {#each [{ label: t("screenSharePicker.screens"), items: groups.screens }, { label: t("screenSharePicker.windows"), items: groups.windows }] as group (group.label)}
                         {#if group.items.length}
                             <h3
-                                class="mb-2 mt-1 text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
+                                class="mb-2 mt-1 text-xs font-semibold uppercase tracking-wide text-zam-textMuted"
                             >
                                 {group.label}
                             </h3>
@@ -124,7 +124,7 @@
                                 {#each group.items as source (source.id)}
                                     <button
                                         type="button"
-                                        class="group flex flex-col overflow-hidden rounded border border-transparent bg-discord-background text-start hover:border-discord-accent focus-visible:border-discord-accent"
+                                        class="group flex flex-col overflow-hidden rounded border border-transparent bg-zam-background text-start hover:border-zam-accent focus-visible:border-zam-accent"
                                         onclick={() => pick(source)}
                                     >
                                         <div
@@ -138,7 +138,7 @@
                                                 />
                                             {:else}
                                                 <span
-                                                    class="text-xs text-discord-textMuted"
+                                                    class="text-xs text-zam-textMuted"
                                                     >{t(
                                                         "screenSharePicker.noPreview",
                                                     )}</span
@@ -146,7 +146,7 @@
                                             {/if}
                                         </div>
                                         <span
-                                            class="truncate px-2 py-1.5 text-xs text-discord-textSecondary group-hover:text-discord-textPrimary"
+                                            class="truncate px-2 py-1.5 text-xs text-zam-textSecondary group-hover:text-zam-textPrimary"
                                             title={source.name}
                                         >
                                             {source.name}
@@ -161,20 +161,20 @@
                 {#if showQuality}
                     <div
                         id="screenshare-picker-quality"
-                        class="border-t border-discord-divider px-4 py-3 space-y-3 max-h-[40vh] overflow-y-auto"
+                        class="border-t border-zam-divider px-4 py-3 space-y-3 max-h-[40vh] overflow-y-auto"
                     >
                         <ScreenShareQualityChips />
                     </div>
                 {/if}
                 <div
-                    class="flex flex-wrap items-center justify-end gap-2 border-t border-discord-divider px-4 py-3"
+                    class="flex flex-wrap items-center justify-end gap-2 border-t border-zam-divider px-4 py-3"
                 >
                     <button
                         type="button"
                         onclick={() => (showQuality = !showQuality)}
                         aria-expanded={showQuality}
                         aria-controls="screenshare-picker-quality"
-                        class="me-auto rounded px-3 py-2 text-sm text-discord-textSecondary hover:text-discord-textPrimary hover:bg-discord-messageHover"
+                        class="me-auto rounded px-3 py-2 text-sm text-zam-textSecondary hover:text-zam-textPrimary hover:bg-zam-messageHover"
                         >{#if showQuality}<ChevronDown
                                 size={12}
                                 class="inline-block align-[-2px]"
@@ -188,12 +188,12 @@
                     >
                     {#if audioOptions.length}
                         <label
-                            class="flex min-w-0 max-w-full items-center gap-2 text-sm text-discord-textSecondary"
+                            class="flex min-w-0 max-w-full items-center gap-2 text-sm text-zam-textSecondary"
                         >
                             {t("screenSharePicker.audio")}
                             <select
                                 bind:value={audioChoice}
-                                class="min-w-0 max-w-[20rem] rounded bg-discord-backgroundTertiary px-3 py-2 text-sm text-discord-textPrimary focus:outline-none focus:ring-2 focus:ring-discord-accent"
+                                class="min-w-0 max-w-[20rem] rounded bg-zam-backgroundTertiary px-3 py-2 text-sm text-zam-textPrimary focus:outline-none focus:ring-2 focus:ring-zam-accent"
                             >
                                 {#each generalAudio as option (option.value)}
                                     <option value={option.value}
@@ -216,7 +216,7 @@
                     {/if}
                     <button
                         type="button"
-                        class="rounded px-4 py-2 text-sm text-discord-textSecondary hover:text-discord-textPrimary"
+                        class="rounded px-4 py-2 text-sm text-zam-textSecondary hover:text-zam-textPrimary"
                         onclick={cancel}
                     >
                         {t("common.cancel")}

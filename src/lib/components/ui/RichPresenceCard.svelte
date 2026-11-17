@@ -91,7 +91,7 @@
     {@const span = bounds(entry)}
     {@const art =
         entry.kind === "activity" ? entry.largeIconUrl : entry.coverUrl}
-    <div class="mt-2 flex gap-2 rounded bg-discord-backgroundTertiary p-2">
+    <div class="mt-2 flex gap-2 rounded bg-zam-backgroundTertiary p-2">
         {#if art}
             <div class="relative h-12 w-12 flex-shrink-0">
                 <img
@@ -104,7 +104,7 @@
                 />
                 {#if entry.kind === "activity" && entry.smallIconUrl}
                     <img
-                        class="absolute -bottom-1 -end-1 h-5 w-5 rounded-full border-2 border-discord-backgroundTertiary object-cover"
+                        class="absolute -bottom-1 -end-1 h-5 w-5 rounded-full border-2 border-zam-backgroundTertiary object-cover"
                         src={mxcToHttp(entry.smallIconUrl, 40, 40, "crop")}
                         alt=""
                         title={entry.smallIconTooltip}
@@ -112,21 +112,21 @@
                 {/if}
             </div>
         {/if}
-        <div class="min-w-0 flex-1 text-xs text-discord-textSecondary">
+        <div class="min-w-0 flex-1 text-xs text-zam-textSecondary">
             {#if entry.kind === "activity"}
-                <p class="truncate font-semibold text-discord-textPrimary">
+                <p class="truncate font-semibold text-zam-textPrimary">
                     {t("richPresenceCard.playing", { name: entry.name })}
                 </p>
                 {#if entry.details}<p class="truncate">{entry.details}</p>{/if}
                 {#if entry.state}<p class="truncate">{entry.state}</p>{/if}
             {:else}
-                <p class="truncate font-semibold text-discord-textPrimary">
+                <p class="truncate font-semibold text-zam-textPrimary">
                     {entry.track}
                 </p>
                 {#if entry.artist}<p class="truncate">{entry.artist}</p>{/if}
                 {#if entry.album}<p class="truncate">{entry.album}</p>{/if}
                 {#if entry.playerName}
-                    <p class="truncate text-discord-textMuted">
+                    <p class="truncate text-zam-textMuted">
                         {t("richPresenceCard.listening", {
                             name: entry.playerName,
                         })}
@@ -136,7 +136,7 @@
 
             {#if span?.since !== undefined && span?.until !== undefined}
                 <div
-                    class="mt-1 h-1 overflow-hidden rounded bg-discord-backgroundSecondary"
+                    class="mt-1 h-1 overflow-hidden rounded bg-zam-backgroundSecondary"
                     role="progressbar"
                     aria-valuemin="0"
                     aria-valuemax="100"
@@ -145,18 +145,18 @@
                     )}
                 >
                     <div
-                        class="h-full bg-discord-accent"
+                        class="h-full bg-zam-accent"
                         style:width="{fraction(span.since, span.until) * 100}%"
                     ></div>
                 </div>
             {:else if span?.since !== undefined}
-                <p class="text-discord-textMuted">
+                <p class="text-zam-textMuted">
                     {t("richPresenceCard.elapsed", {
                         time: clock(now - span.since),
                     })}
                 </p>
             {:else if span?.until !== undefined}
-                <p class="text-discord-textMuted">
+                <p class="text-zam-textMuted">
                     {t("richPresenceCard.remaining", {
                         time: clock(span.until - now),
                     })}
@@ -168,7 +168,7 @@
                     {#each entry.buttons as button (button.label + button.url)}
                         <button
                             type="button"
-                            class="rounded bg-discord-backgroundSecondary px-2 py-0.5 text-discord-textPrimary hover:bg-discord-backgroundSecondaryAlt"
+                            class="rounded bg-zam-backgroundSecondary px-2 py-0.5 text-zam-textPrimary hover:bg-zam-backgroundSecondaryAlt"
                             onclick={() => onButton(entry, button)}
                         >
                             {button.label}
@@ -181,7 +181,7 @@
 {/each}
 
 {#if failed}
-    <p class="mt-1 text-xs text-discord-danger">
+    <p class="mt-1 text-xs text-zam-danger">
         {t("richPresenceCard.openFailed")}
     </p>
 {/if}
@@ -190,38 +190,38 @@
     <ModalDialog
         onClose={() => (pending = null)}
         labelledBy="rpc-open-title"
-        panelClass="relative w-full max-w-sm rounded-lg bg-discord-backgroundSecondary p-4 shadow-xl"
+        panelClass="relative w-full max-w-sm rounded-lg bg-zam-backgroundSecondary p-4 shadow-xl"
     >
         <h2
             id="rpc-open-title"
-            class="mb-2 text-base font-semibold text-discord-textPrimary"
+            class="mb-2 text-base font-semibold text-zam-textPrimary"
         >
             {t("richPresenceCard.openLinkTitle")}
         </h2>
-        <p class="text-sm text-discord-textSecondary">
+        <p class="text-sm text-zam-textSecondary">
             {t("richPresenceCard.openLinkBody", { name: pending.appName })}
         </p>
         <p
-            class="my-2 max-h-32 overflow-y-auto break-all rounded bg-discord-backgroundTertiary p-2 text-xs text-discord-textPrimary"
+            class="my-2 max-h-32 overflow-y-auto break-all rounded bg-zam-backgroundTertiary p-2 text-xs text-zam-textPrimary"
         >
             {pending.url}
         </p>
         {#if pending.openid}
-            <p class="mb-2 text-xs text-discord-danger">
+            <p class="mb-2 text-xs text-zam-danger">
                 {t("richPresenceCard.openidWarning")}
             </p>
         {/if}
         <div class="flex justify-end gap-2">
             <button
                 type="button"
-                class="px-3 py-1 text-sm text-discord-textMuted hover:text-discord-textPrimary"
+                class="px-3 py-1 text-sm text-zam-textMuted hover:text-zam-textPrimary"
                 onclick={() => (pending = null)}
             >
                 {t("common.cancel")}
             </button>
             <button
                 type="button"
-                class="rounded bg-discord-accent px-3 py-1 text-sm text-white"
+                class="rounded bg-zam-accent px-3 py-1 text-sm text-white"
                 onclick={confirmOpen}
             >
                 {t("richPresenceCard.open")}

@@ -46,23 +46,23 @@
     {#if isDesktopTray()}
         <section data-setting-anchor="cust-behavior">
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
             >
                 {t("generalSettings.desktop")}
             </p>
             {#if autostartInfo?.available}
                 <div
-                    class="flex items-center gap-3 py-2 border-b border-discord-divider"
+                    class="flex items-center gap-3 py-2 border-b border-zam-divider"
                 >
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm text-discord-textPrimary">
+                        <p class="text-sm text-zam-textPrimary">
                             {t("generalSettings.runAtStartup")}
                         </p>
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("generalSettings.startZamWhenYouLogIn")}
                         </p>
                         {#if autostartFailed}
-                            <p class="text-xs text-discord-danger">
+                            <p class="text-xs text-zam-danger">
                                 {t("generalSettings.runAtStartupFailed")}
                             </p>
                         {/if}
@@ -75,13 +75,13 @@
                 </div>
             {/if}
             <div
-                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+                class="flex items-center gap-3 py-2 border-b border-zam-divider"
             >
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm text-discord-textPrimary">
+                    <p class="text-sm text-zam-textPrimary">
                         {t("generalSettings.minimiseToTrayOnClose")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("generalSettings.keepZamRunningInTheSystem")}
                     </p>
                 </div>
@@ -96,7 +96,7 @@
     {#if proxyBridge()}
         <ProxySettings />
     {:else if !isDesktopTray()}
-        <p class="text-sm text-discord-textMuted">
+        <p class="text-sm text-zam-textMuted">
             {t("generalSettings.noGeneralSettingsAreAvailableOn")}
         </p>
     {/if}

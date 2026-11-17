@@ -25,11 +25,11 @@
             title={option.title}
             disabled={option.disabled}
             class="px-2.5 py-1 rounded text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            class:bg-discord-accent={value === option.value}
+            class:bg-zam-accent={value === option.value}
             class:text-white={value === option.value}
-            class:bg-discord-backgroundTertiary={value !== option.value}
-            class:text-discord-textMuted={value !== option.value}
-            class:hover:bg-discord-messageHover={value !== option.value &&
+            class:bg-zam-backgroundTertiary={value !== option.value}
+            class:text-zam-textMuted={value !== option.value}
+            class:hover:bg-zam-messageHover={value !== option.value &&
                 !option.disabled}
         >
             {option.label}

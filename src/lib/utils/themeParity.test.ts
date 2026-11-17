@@ -17,26 +17,26 @@ const FIXTURE = `
 
 :root {
     color-scheme: dark;
-    /* a comment: --discord-ignored: #000; */
+    /* a comment: --zam-ignored: #000; */
     --brand-500: #7289da;
-    --discord-bg: #36393f;
-    --discord-accent: var(--brand-500);
-    --discord-danger-rgb: 237 66 69;
+    --zam-bg: #36393f;
+    --zam-accent: var(--brand-500);
+    --zam-danger-rgb: 237 66 69;
     --avatar-color-0: var(--brand-500);
 }
 
 :root[data-theme="light"] {
     color-scheme: light;
-    --discord-bg: #f2f3f5;
-    --discord-accent: #5865c7;
+    --zam-bg: #f2f3f5;
+    --zam-accent: #5865c7;
 }
 `;
 
 describe("parseCssVariableBlock", () => {
     it("returns the custom properties declared in the named block", () => {
         const dark = parseCssVariableBlock(FIXTURE, ":root");
-        expect(dark.get("--discord-bg")).toBe("#36393f");
-        expect(dark.get("--discord-accent")).toBe("var(--brand-500)");
+        expect(dark.get("--zam-bg")).toBe("#36393f");
+        expect(dark.get("--zam-accent")).toBe("var(--brand-500)");
         expect(dark.size).toBe(5);
     });
 
@@ -45,15 +45,12 @@ describe("parseCssVariableBlock", () => {
             FIXTURE,
             ':root[data-theme="light"]',
         );
-        expect([...light.keys()].sort()).toEqual([
-            "--discord-accent",
-            "--discord-bg",
-        ]);
+        expect([...light.keys()].sort()).toEqual(["--zam-accent", "--zam-bg"]);
     });
 
     it("ignores declarations inside comments", () => {
         const dark = parseCssVariableBlock(FIXTURE, ":root");
-        expect(dark.has("--discord-ignored")).toBe(false);
+        expect(dark.has("--zam-ignored")).toBe(false);
     });
 
     it("returns an empty map for a selector that is not present", () => {
@@ -69,7 +66,7 @@ describe("parseCssVariableBlock", () => {
         // is precisely what makes the app.css guard below pass vacuously.
         const dark = parseCssVariableBlock(FIXTURE, ":root");
         expect(dark.size).toBe(5);
-        expect(dark.get("--discord-bg")).toBe("#36393f");
+        expect(dark.get("--zam-bg")).toBe("#36393f");
         // The sub-block's own custom property must not leak in. It has to be
         // a `--` name to be a real canary: the parser drops every non-`--`
         // declaration unconditionally, so asserting on `opacity` could never
@@ -82,17 +79,17 @@ describe("missingLightOverrides", () => {
     it("reports a themed token the light block never overrides", () => {
         expect(
             missingLightOverrides(FIXTURE, {
-                prefixes: ["--discord-"],
+                prefixes: ["--zam-"],
                 allowMissing: [],
             }),
-        ).toEqual(["--discord-danger-rgb"]);
+        ).toEqual(["--zam-danger-rgb"]);
     });
 
     it("honours the allow-list", () => {
         expect(
             missingLightOverrides(FIXTURE, {
-                prefixes: ["--discord-"],
-                allowMissing: ["--discord-danger-rgb"],
+                prefixes: ["--zam-"],
+                allowMissing: ["--zam-danger-rgb"],
             }),
         ).toEqual([]);
     });
@@ -120,13 +117,13 @@ describe("src/app.css light theme parity (regression guard)", () => {
 
     // Tokens the light theme deliberately does NOT override.
     //  - --avatar-color-*: identity colours, not chrome. Intentional.
-    //  - --discord-danger-rgb / --discord-warning-rgb: a real gap, fixed on
+    //  - --zam-danger-rgb / --zam-warning-rgb: a real gap, fixed on
     //    branch fix/contrast-and-colour-bugs (queue item 7). Listed here so
     //    this branch stays green on master; the entries are harmless once
     //    that branch merges (the check is "may be missing", not "must be").
     const ALLOW_MISSING = [
-        "--discord-danger-rgb",
-        "--discord-warning-rgb",
+        "--zam-danger-rgb",
+        "--zam-warning-rgb",
         "--avatar-color-0",
         "--avatar-color-1",
         "--avatar-color-2",
@@ -167,7 +164,7 @@ describe("src/app.css light theme parity (regression guard)", () => {
         expect(
             missingLightOverrides(css, {
                 selectorDark: SELECTOR_DARK,
-                prefixes: ["--discord-", "--syntax-", "--avatar-color-"],
+                prefixes: ["--zam-", "--syntax-", "--avatar-color-"],
                 allowMissing: ALLOW_MISSING,
             }),
         ).toEqual([]);

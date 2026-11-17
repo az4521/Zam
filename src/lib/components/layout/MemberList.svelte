@@ -300,7 +300,7 @@
         data-user-id={member.userId}
         title={deco?.tooltip ?? undefined}
         style="height: {MEMBER_H}px"
-        class="w-[calc(100%-1rem)] text-start flex items-center gap-2 px-2 mx-2 rounded overflow-hidden hover:bg-discord-messageHover transition-colors cursor-pointer group"
+        class="w-[calc(100%-1rem)] text-start flex items-center gap-2 px-2 mx-2 rounded overflow-hidden hover:bg-zam-messageHover transition-colors cursor-pointer group"
     >
         <div class="relative flex-shrink-0">
             <Avatar
@@ -311,16 +311,16 @@
             />
             <div
                 title={presence.label}
-                class="absolute bottom-0 end-0 w-2.5 h-2.5 {presence.dotClass} rounded-full border-2 border-discord-backgroundSecondary"
+                class="absolute bottom-0 end-0 w-2.5 h-2.5 {presence.dotClass} rounded-full border-2 border-zam-backgroundSecondary"
             ></div>
         </div>
         <div class="min-w-0 flex-1">
             <p class="flex items-center gap-1 min-w-0 text-sm leading-5">
                 <span
                     style:color={nameColour}
-                    class="font-medium truncate group-hover:text-discord-textPrimary transition-colors {muted
-                        ? 'text-discord-textMuted'
-                        : 'text-discord-textPrimary'} {muted && nameColour
+                    class="font-medium truncate group-hover:text-zam-textPrimary transition-colors {muted
+                        ? 'text-zam-textMuted'
+                        : 'text-zam-textPrimary'} {muted && nameColour
                         ? 'opacity-60 group-hover:opacity-100'
                         : ''}"
                 >
@@ -328,13 +328,13 @@
                 </span>
                 {#each deco?.badges ?? [] as badge, i (i)}
                     <span
-                        class="flex-shrink-0 px-1 rounded bg-discord-backgroundTertiary text-[10px] font-semibold uppercase text-discord-textMuted"
+                        class="flex-shrink-0 px-1 rounded bg-zam-backgroundTertiary text-[10px] font-semibold uppercase text-zam-textMuted"
                         >{badge}</span
                     >
                 {/each}
             </p>
             {#if secondLine}
-                <p class="text-xs leading-4 text-discord-textMuted truncate">
+                <p class="text-xs leading-4 text-zam-textMuted truncate">
                     {secondLine}
                 </p>
             {/if}
@@ -346,13 +346,13 @@
     data-zam-region="member-list"
     class="{interfaceState.isMobile
         ? ''
-        : 'w-72'} h-full bg-discord-backgroundSecondary flex flex-col flex-shrink-0 overflow-hidden border-l border-discord-divider"
+        : 'w-72'} h-full bg-zam-backgroundSecondary flex flex-col flex-shrink-0 overflow-hidden border-l border-zam-divider"
 >
     <div
-        class="h-12 px-4 flex items-center border-b border-discord-divider flex-shrink-0"
+        class="h-12 px-4 flex items-center border-b border-zam-divider flex-shrink-0"
     >
         <h3
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
         >
             {t("memberList.members", { length: members.length })}
         </h3>
@@ -371,7 +371,7 @@
                 >
                     {#if row.kind === "header"}
                         <div
-                            class="h-full px-4 flex items-center text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                            class="h-full px-4 flex items-center text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                         >
                             <span class="truncate">{row.label}</span>
                         </div>

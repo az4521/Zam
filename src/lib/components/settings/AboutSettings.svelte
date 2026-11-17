@@ -319,7 +319,7 @@
         <button
             onclick={run}
             disabled={v.busy}
-            class="px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50 flex-shrink-0"
+            class="px-3 py-1.5 rounded text-sm font-medium bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary transition-colors disabled:opacity-50 flex-shrink-0"
         >
             {v.actionLabel}
         </button>
@@ -327,14 +327,14 @@
 {/snippet}
 
 {#snippet updaterStatus(v: UpdateStatusView, autoDesc: string)}
-    <div class="py-2 border-b border-discord-divider space-y-2">
-        <p class="text-sm text-discord-textMuted">{v.label}</p>
+    <div class="py-2 border-b border-zam-divider space-y-2">
+        <p class="text-sm text-zam-textMuted">{v.label}</p>
         {#if v.percent !== null}
             <div
-                class="h-1.5 w-full overflow-hidden rounded-full bg-discord-backgroundTertiary"
+                class="h-1.5 w-full overflow-hidden rounded-full bg-zam-backgroundTertiary"
             >
                 <div
-                    class="h-full rounded-full bg-discord-accent transition-all"
+                    class="h-full rounded-full bg-zam-accent transition-all"
                     style="width: {v.percent}%"
                 ></div>
             </div>
@@ -342,10 +342,10 @@
     </div>
     <div class="flex items-center gap-3 py-2">
         <div class="flex-1 min-w-0">
-            <p class="text-sm text-discord-textPrimary">
+            <p class="text-sm text-zam-textPrimary">
                 {t("aboutSettings.automaticUpdates")}
             </p>
-            <p class="text-xs text-discord-textMuted">{autoDesc}</p>
+            <p class="text-xs text-zam-textMuted">{autoDesc}</p>
         </div>
         <ToggleSwitch
             checked={settingsState.autoUpdateEnabled}
@@ -358,16 +358,14 @@
 <div class="space-y-6">
     <section>
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
         >
             {t("aboutSettings.version")}
         </p>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">Zam</p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-sm text-zam-textPrimary">Zam</p>
+                <p class="text-xs text-zam-textMuted">
                     {t("aboutSettings.currentVersionV", { APP_VERSION })}
                 </p>
                 <div class="flex flex-wrap gap-x-3 gap-y-1">
@@ -375,7 +373,7 @@
                         href={GITHUB_URL}
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-xs text-discord-accent hover:underline"
+                        class="text-xs text-zam-accent hover:underline"
                         >{t("aboutSettings.sourceCodeOnGitHub")}</a
                     >
                     {#if !CAN_INSTALL_UPDATE}
@@ -383,14 +381,14 @@
                             href={WEBSITE_URL}
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="text-xs text-discord-accent hover:underline"
+                            class="text-xs text-zam-accent hover:underline"
                             >{t("links.website")}</a
                         >
                         <a
                             href={DOWNLOAD_URL}
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="text-xs text-discord-accent hover:underline"
+                            class="text-xs text-zam-accent hover:underline"
                             >{t("links.downloadApps")}</a
                         >
                     {/if}
@@ -404,7 +402,7 @@
                 <button
                     onclick={check}
                     disabled={checking}
-                    class="px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50 flex-shrink-0"
+                    class="px-3 py-1.5 rounded text-sm font-medium bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary transition-colors disabled:opacity-50 flex-shrink-0"
                 >
                     {checking
                         ? t("common.checking")
@@ -428,23 +426,23 @@
 
     {#if !isDesktopUpdater() && !isAndroidUpdater()}
         {#if error}
-            <p class="text-sm text-discord-textMuted">{error}</p>
+            <p class="text-sm text-zam-textMuted">{error}</p>
         {:else if info?.updateAvailable}
             <div
-                class="rounded-lg border border-discord-accent bg-discord-accent/10 p-4 flex items-center gap-4"
+                class="rounded-lg border border-zam-accent bg-zam-accent/10 p-4 flex items-center gap-4"
             >
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm font-semibold text-discord-textPrimary">
+                    <p class="text-sm font-semibold text-zam-textPrimary">
                         {t("aboutSettings.updateAvailable")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         v{info.current} → v{info.latest}
                     </p>
                 </div>
                 <button
                     onclick={() => apply(info!)}
                     disabled={reloading}
-                    class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors flex-shrink-0 disabled:opacity-50"
+                    class="px-4 py-2 rounded text-sm font-semibold bg-zam-accent hover:bg-zam-accentHover text-white transition-colors flex-shrink-0 disabled:opacity-50"
                 >
                     {reloading
                         ? t("aboutSettings.reloading")
@@ -454,7 +452,7 @@
                 </button>
             </div>
         {:else if info}
-            <p class="text-sm text-discord-textMuted">
+            <p class="text-sm text-zam-textMuted">
                 {t("aboutSettings.youReOnTheLatestVersion")}
             </p>
         {/if}
@@ -464,25 +462,23 @@
 
     <section>
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
         >
             {t("aboutSettings.troubleshooting")}
         </p>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("aboutSettings.clearCacheAndResync")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("aboutSettings.reDownloadsYourRoomsFromThe")}
                 </p>
             </div>
             <button
                 onclick={clearCache}
                 disabled={clearingCache}
-                class="px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50 flex-shrink-0"
+                class="px-3 py-1.5 rounded text-sm font-medium bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary transition-colors disabled:opacity-50 flex-shrink-0"
             >
                 {clearingCache
                     ? t("aboutSettings.resyncing")
@@ -495,27 +491,27 @@
          for the record, not something anyone needs to see day to day. -->
     <details class="group">
         <summary
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide cursor-pointer select-none hover:text-discord-textPrimary"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide cursor-pointer select-none hover:text-zam-textPrimary"
         >
             {t("aboutSettings.credits")}
         </summary>
         <div class="py-2 space-y-1">
-            <p class="text-sm text-discord-textPrimary">
+            <p class="text-sm text-zam-textPrimary">
                 {t("aboutSettings.creditsMidiInstruments")}:
                 <a
                     href="https://musical-artifacts.com/artifacts/1481"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="text-discord-accent hover:underline">Phoenix MT-32</a
+                    class="text-zam-accent hover:underline">Phoenix MT-32</a
                 >
             </p>
-            <p class="text-xs text-discord-textMuted">
+            <p class="text-xs text-zam-textMuted">
                 {t("aboutSettings.creditsSoundFont", {
                     author: "W.D. Tharinda Perera",
                     original: "Jexu",
                 })}
             </p>
-            <p class="text-xs text-discord-textMuted">
+            <p class="text-xs text-zam-textMuted">
                 {t("aboutSettings.creditsSoundFontGaps", {
                     microgm: "microgm",
                     microgmAuthor: "michael",
@@ -526,7 +522,7 @@
                     href="https://github.com/mrbumpy409/GeneralUser-GS"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="text-discord-accent hover:underline"
+                    class="text-zam-accent hover:underline"
                     >github.com/mrbumpy409/GeneralUser-GS</a
                 >
             </p>

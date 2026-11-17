@@ -28,19 +28,19 @@
 </script>
 
 <div class="space-y-4">
-    <p class="text-xs text-discord-textMuted">
+    <p class="text-xs text-zam-textMuted">
         {t("blockedUsersSettings.messagesFromBlockedUsersAreHidden")}
     </p>
-    {#if error}<p class="text-sm text-discord-danger">{error}</p>{/if}
+    {#if error}<p class="text-sm text-zam-danger">{error}</p>{/if}
     {#if userIds.length === 0}
-        <p class="text-sm text-discord-textMuted text-center py-8">
+        <p class="text-sm text-zam-textMuted text-center py-8">
             {t("blockedUsersSettings.youHavenTBlockedAnyone")}
         </p>
     {:else}
         <div class="space-y-1">
             {#each userIds as userId (userId)}
                 <div
-                    class="flex items-center gap-3 p-2 rounded bg-discord-backgroundTertiary"
+                    class="flex items-center gap-3 p-2 rounded bg-zam-backgroundTertiary"
                 >
                     <Avatar
                         src={null}
@@ -49,14 +49,14 @@
                         size={28}
                     />
                     <p
-                        class="flex-1 min-w-0 text-sm text-discord-textPrimary font-mono truncate"
+                        class="flex-1 min-w-0 text-sm text-zam-textPrimary font-mono truncate"
                     >
                         {userId}
                     </p>
                     <button
                         onclick={() => unblock(userId)}
                         disabled={pending === userId}
-                        class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
+                        class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary transition-colors disabled:opacity-50"
                         >{t("common.unblock")}</button
                     >
                 </div>

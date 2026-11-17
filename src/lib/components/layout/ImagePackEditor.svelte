@@ -441,7 +441,7 @@
     {#if canAdd}
         <div class="space-y-2">
             <label
-                class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                class="block text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                 for="room-emote-shortcode"
             >
                 {t("imagePackEditor.addImage")}
@@ -451,7 +451,7 @@
                     <select
                         bind:value={selectedEmotePackKey}
                         disabled={!canAdd || emoteUploading}
-                        class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50"
+                        class="w-full bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50 disabled:opacity-50"
                     >
                         {#each editableEmotePacks() as pack (pack.id)}
                             <option value={packKey(pack)}>{pack.name}</option>
@@ -467,30 +467,26 @@
                             bind:value={newEmotePackName}
                             disabled={!canAdd || emoteUploading}
                             placeholder={t("imagePackEditor.packName")}
-                            class="w-full min-w-0 text-ellipsis bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50"
+                            class="w-full min-w-0 text-ellipsis bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50 disabled:opacity-50"
                         />
                     {/if}
                     <div
-                        class="flex items-center bg-discord-backgroundTertiary rounded border border-transparent focus-within:border-discord-accent/50"
+                        class="flex items-center bg-zam-backgroundTertiary rounded border border-transparent focus-within:border-zam-accent/50"
                     >
-                        <span class="ps-3 text-sm text-discord-textMuted"
-                            >:</span
-                        >
+                        <span class="ps-3 text-sm text-zam-textMuted">:</span>
                         <input
                             id="room-emote-shortcode"
                             bind:value={emoteShortcode}
                             disabled={!canAdd || emoteUploading}
                             placeholder={t("imagePackEditor.shortcode")}
-                            class="min-w-0 flex-1 bg-transparent text-discord-textPrimary placeholder-discord-textMuted text-sm py-2 outline-none disabled:opacity-50"
+                            class="min-w-0 flex-1 bg-transparent text-zam-textPrimary placeholder-zam-textMuted text-sm py-2 outline-none disabled:opacity-50"
                         />
-                        <span class="pe-3 text-sm text-discord-textMuted"
-                            >:</span
-                        >
+                        <span class="pe-3 text-sm text-zam-textMuted">:</span>
                     </div>
                 </div>
                 {#if canAdd}
                     <label
-                        class="shrink-0 self-start cursor-pointer px-3 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors text-center {emoteUploading
+                        class="shrink-0 self-start cursor-pointer px-3 py-2 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-sm font-semibold transition-colors text-center {emoteUploading
                             ? 'opacity-50 pointer-events-none'
                             : ''}"
                     >
@@ -508,27 +504,27 @@
                 {/if}
             </div>
             <div
-                class="flex items-center gap-3 px-3 py-2 rounded bg-discord-backgroundTertiary"
+                class="flex items-center gap-3 px-3 py-2 rounded bg-zam-backgroundTertiary"
             >
                 <label
-                    class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
+                    class="flex items-center gap-1.5 text-xs text-zam-textPrimary"
                 >
                     <input
                         type="checkbox"
                         bind:checked={newEmoteAsEmoji}
                         disabled={!canAdd || emoteUploading}
-                        class="accent-discord-accent"
+                        class="accent-zam-accent"
                     />
                     {t("imagePackEditor.useAsEmoji")}
                 </label>
                 <label
-                    class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
+                    class="flex items-center gap-1.5 text-xs text-zam-textPrimary"
                 >
                     <input
                         type="checkbox"
                         bind:checked={newEmoteAsSticker}
                         disabled={!canAdd || emoteUploading}
-                        class="accent-discord-accent"
+                        class="accent-zam-accent"
                     />
                     {t("imagePackEditor.useAsSticker")}
                 </label>
@@ -536,16 +532,16 @@
         </div>
     {/if}
 
-    {#if emoteError}<p class="text-sm text-discord-danger">
+    {#if emoteError}<p class="text-sm text-zam-danger">
             {emoteError}
         </p>{/if}
-    {#if notice}<p class="text-sm text-discord-textMuted">{notice}</p>{/if}
+    {#if notice}<p class="text-sm text-zam-textMuted">{notice}</p>{/if}
 
     <div class="space-y-3">
         {#each emotePacks as pack (pack.id)}
-            <div class="rounded bg-discord-backgroundTertiary overflow-hidden">
+            <div class="rounded bg-zam-backgroundTertiary overflow-hidden">
                 <div
-                    class="flex items-center gap-2 px-3 py-2 border-b border-discord-divider"
+                    class="flex items-center gap-2 px-3 py-2 border-b border-zam-divider"
                 >
                     {#if pack.avatarUrl}
                         <img
@@ -556,11 +552,11 @@
                     {/if}
                     <div class="min-w-0 flex-1">
                         <p
-                            class="text-sm font-semibold text-discord-textPrimary truncate"
+                            class="text-sm font-semibold text-zam-textPrimary truncate"
                         >
                             {pack.name}
                         </p>
-                        <p class="text-xs text-discord-textMuted truncate">
+                        <p class="text-xs text-zam-textMuted truncate">
                             {pack.inherited
                                 ? t("imagePackEditor.inheritedFrom", {
                                       sourceName: pack.sourceName,
@@ -569,7 +565,7 @@
                         </p>
                         {#if pack.attribution}
                             <p
-                                class="text-xs text-discord-textMuted truncate"
+                                class="text-xs text-zam-textMuted truncate"
                                 title={pack.attribution}
                             >
                                 {t("imagePackEditor.attribution", {
@@ -582,7 +578,7 @@
                         <button
                             onclick={() => addToMine(pack)}
                             disabled={packBusy === packBusyKey(pack, "mine")}
-                            class="px-2 py-1 rounded text-xs text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-50"
+                            class="px-2 py-1 rounded text-xs text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-50"
                             title={t("imagePackEditor.addAllToMyPack")}
                         >
                             {t("imagePackEditor.addToMine")}
@@ -593,7 +589,7 @@
                                     editingKey === pack.id
                                         ? (editingKey = null)
                                         : startEdit(pack)}
-                                class="px-2 py-1 rounded text-xs text-discord-textPrimary hover:bg-discord-messageHover"
+                                class="px-2 py-1 rounded text-xs text-zam-textPrimary hover:bg-zam-messageHover"
                             >
                                 {t("imagePackEditor.editDetails")}
                             </button>
@@ -601,7 +597,7 @@
                                 onclick={() => doDeletePack(pack)}
                                 disabled={packBusy ===
                                     packBusyKey(pack, "delete")}
-                                class="px-2 py-1 rounded text-xs text-discord-danger hover:bg-discord-messageHover disabled:opacity-50"
+                                class="px-2 py-1 rounded text-xs text-zam-danger hover:bg-zam-messageHover disabled:opacity-50"
                             >
                                 {t("imagePackEditor.deletePack")}
                             </button>
@@ -609,7 +605,7 @@
                     </div>
                 </div>
                 <label
-                    class="flex items-center gap-2 px-3 py-2 border-b border-discord-divider text-xs text-discord-textPrimary"
+                    class="flex items-center gap-2 px-3 py-2 border-b border-zam-divider text-xs text-zam-textPrimary"
                 >
                     <input
                         type="checkbox"
@@ -620,34 +616,34 @@
                                 (e.target as HTMLInputElement).checked,
                             )}
                         disabled={packBusy === packBusyKey(pack, "global")}
-                        class="accent-discord-accent"
+                        class="accent-zam-accent"
                     />
                     <span class="flex-1 min-w-0">
                         {t("imagePackEditor.useInAllRooms")}
-                        <span class="text-discord-textMuted">
+                        <span class="text-zam-textMuted">
                             {t("imagePackEditor.useInAllRoomsHint")}
                         </span>
                     </span>
                 </label>
                 {#if editingKey === pack.id}
                     <div
-                        class="grid gap-2 px-3 py-2 border-b border-discord-divider sm:grid-cols-2"
+                        class="grid gap-2 px-3 py-2 border-b border-zam-divider sm:grid-cols-2"
                     >
                         <input
                             bind:value={editName}
                             placeholder={t("imagePackEditor.packName")}
-                            class="min-w-0 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                            class="min-w-0 bg-zam-backgroundSecondary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
                         />
                         <input
                             bind:value={editAttribution}
                             placeholder={t(
                                 "imagePackEditor.attributionPlaceholder",
                             )}
-                            class="min-w-0 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                            class="min-w-0 bg-zam-backgroundSecondary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
                         />
                         <div class="flex items-center gap-2 sm:col-span-2">
                             <label
-                                class="cursor-pointer px-3 py-1.5 rounded bg-discord-backgroundSecondary hover:bg-discord-messageHover text-xs text-discord-textPrimary"
+                                class="cursor-pointer px-3 py-1.5 rounded bg-zam-backgroundSecondary hover:bg-zam-messageHover text-xs text-zam-textPrimary"
                             >
                                 {t("imagePackEditor.uploadPackAvatar")}
                                 <input
@@ -658,14 +654,14 @@
                                 />
                             </label>
                             {#if editAvatarMxc}
-                                <span class="text-xs text-discord-textMuted"
+                                <span class="text-xs text-zam-textMuted"
                                     >{t("imagePackEditor.avatarReady")}</span
                                 >
                             {/if}
                             {#if pack.avatarUrl || editAvatarMxc}
                                 <button
                                     onclick={() => (editAvatarMxc = null)}
-                                    class="text-xs text-discord-textMuted hover:text-discord-textPrimary"
+                                    class="text-xs text-zam-textMuted hover:text-zam-textPrimary"
                                 >
                                     {t("imagePackEditor.removePackAvatar")}
                                 </button>
@@ -675,7 +671,7 @@
                                 onclick={() => saveEdit(pack)}
                                 disabled={packBusy ===
                                     packBusyKey(pack, "edit")}
-                                class="px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-xs font-semibold disabled:opacity-50"
+                                class="px-3 py-1.5 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-xs font-semibold disabled:opacity-50"
                             >
                                 {t("common.save")}
                             </button>
@@ -685,10 +681,10 @@
                 <div class="space-y-1 p-2">
                     {#each pack.images as item (pack.id + ":" + item.shortcode)}
                         <div
-                            class="flex items-center gap-3 p-2 rounded bg-discord-backgroundSecondary"
+                            class="flex items-center gap-3 p-2 rounded bg-zam-backgroundSecondary"
                         >
                             <div
-                                class="w-12 h-12 rounded bg-discord-backgroundTertiary flex-shrink-0 overflow-hidden flex items-center justify-center"
+                                class="w-12 h-12 rounded bg-zam-backgroundTertiary flex-shrink-0 overflow-hidden flex items-center justify-center"
                             >
                                 <img
                                     src={item.url}
@@ -698,20 +694,18 @@
                             </div>
                             <div class="flex-1 min-w-0">
                                 <p
-                                    class="text-sm font-medium text-discord-textPrimary truncate"
+                                    class="text-sm font-medium text-zam-textPrimary truncate"
                                 >
                                     :{item.shortcode}:
                                 </p>
-                                <p
-                                    class="text-xs text-discord-textMuted truncate"
-                                >
+                                <p class="text-xs text-zam-textMuted truncate">
                                     {item.mxcUrl}
                                 </p>
                             </div>
                             <div class="flex items-center gap-3">
                                 {#if canEditPack(pack)}
                                     <label
-                                        class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
+                                        class="flex items-center gap-1.5 text-xs text-zam-textPrimary"
                                     >
                                         <input
                                             type="checkbox"
@@ -728,19 +722,19 @@
                                             disabled={!canEditPack(pack) ||
                                                 emoteActionPending ===
                                                     `${packKey(pack)}:${item.shortcode}:emoticon`}
-                                            class="accent-discord-accent"
+                                            class="accent-zam-accent"
                                         />
                                         {t("common.emoji")}
                                     </label>
                                 {:else if item.canEmoji}
                                     <span
-                                        class="px-1.5 py-0.5 rounded bg-discord-backgroundTertiary text-xs text-discord-textMuted"
+                                        class="px-1.5 py-0.5 rounded bg-zam-backgroundTertiary text-xs text-zam-textMuted"
                                         >{t("common.emoji")}</span
                                     >
                                 {/if}
                                 {#if canEditPack(pack)}
                                     <label
-                                        class="flex items-center gap-1.5 text-xs text-discord-textPrimary"
+                                        class="flex items-center gap-1.5 text-xs text-zam-textPrimary"
                                     >
                                         <input
                                             type="checkbox"
@@ -757,13 +751,13 @@
                                             disabled={!canEditPack(pack) ||
                                                 emoteActionPending ===
                                                     `${packKey(pack)}:${item.shortcode}:sticker`}
-                                            class="accent-discord-accent"
+                                            class="accent-zam-accent"
                                         />
                                         {t("imagePackEditor.sticker")}
                                     </label>
                                 {:else if item.canSticker}
                                     <span
-                                        class="px-1.5 py-0.5 rounded bg-discord-backgroundTertiary text-xs text-discord-textMuted"
+                                        class="px-1.5 py-0.5 rounded bg-zam-backgroundTertiary text-xs text-zam-textMuted"
                                         >{t("imagePackEditor.sticker")}</span
                                     >
                                 {/if}
@@ -772,7 +766,7 @@
                                 onclick={() => addToMine(pack, item)}
                                 disabled={packBusy ===
                                     packBusyKey(pack, `mine:${item.shortcode}`)}
-                                class="px-2 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-50"
+                                class="px-2 py-1 rounded text-xs text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-50"
                                 title={t("imagePackEditor.addImageToMyPack")}
                             >
                                 {t("imagePackEditor.addToMine")}
@@ -783,7 +777,7 @@
                                         doRemoveEmote(pack, item.shortcode)}
                                     disabled={emoteActionPending ===
                                         `${packKey(pack)}:${item.shortcode}:remove`}
-                                    class="p-1 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                    class="p-1 rounded text-zam-textMuted hover:text-zam-danger hover:bg-zam-messageHover transition-colors disabled:opacity-50"
                                     title={t("imagePackEditor.removeImage")}
                                 >
                                     <svg
@@ -802,7 +796,7 @@
             </div>
         {/each}
         {#if emotePacks.length === 0}<p
-                class="text-sm text-discord-textMuted text-center py-4"
+                class="text-sm text-zam-textMuted text-center py-4"
             >
                 {t("imagePackEditor.noCustomImages")}
             </p>{/if}

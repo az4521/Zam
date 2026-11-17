@@ -2957,10 +2957,10 @@
             class="absolute inset-0 z-50 pointer-events-none flex items-center justify-center"
         >
             <div
-                class="absolute inset-2 rounded-xl border-2 border-dashed border-discord-accent bg-discord-accent/10"
+                class="absolute inset-2 rounded-xl border-2 border-dashed border-zam-accent bg-zam-accent/10"
             ></div>
             <div
-                class="relative flex flex-col items-center gap-2 text-discord-accent"
+                class="relative flex flex-col items-center gap-2 text-zam-accent"
             >
                 <svg
                     class="w-12 h-12"
@@ -2993,12 +2993,12 @@
         <!-- Room header -->
         <div
             data-zam-region="room-header"
-            class="h-12 px-4 flex items-center gap-3 border-b border-discord-divider shadow-sm flex-shrink-0"
+            class="h-12 px-4 flex items-center gap-3 border-b border-zam-divider shadow-sm flex-shrink-0"
         >
             {#if isMobile}
                 <button
                     onclick={onMenuOpen}
-                    class="relative p-1.5 -ms-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                    class="relative p-1.5 -ms-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors flex-shrink-0"
                     title={t("common.openRoomList")}
                 >
                     <svg
@@ -3012,7 +3012,7 @@
                     </svg>
                     {#if hasAnyLoud}
                         <span
-                            class="absolute top-0.5 end-0.5 w-2 h-2 rounded-full bg-discord-danger border border-discord-background"
+                            class="absolute top-0.5 end-0.5 w-2 h-2 rounded-full bg-zam-danger border border-zam-background"
                             aria-label={t("messageArea.unreadNotifications")}
                         ></span>
                     {/if}
@@ -3022,7 +3022,7 @@
                 {@const parent = threadParentRoom}
                 <button
                     onclick={() => navigateToRoom(parent.roomId)}
-                    class="hidden sm:flex items-center gap-1 min-w-0 max-w-[30%] text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                    class="hidden sm:flex items-center gap-1 min-w-0 max-w-[30%] text-zam-textMuted hover:text-zam-textPrimary transition-colors"
                     title={t("bridgedThreads.goToParent", {
                         name: parent.name,
                     })}
@@ -3041,13 +3041,13 @@
                 </button>
                 <ChevronRight
                     size={16}
-                    class="hidden sm:block text-discord-textMuted flex-shrink-0 rtl:-scale-x-100"
+                    class="hidden sm:block text-zam-textMuted flex-shrink-0 rtl:-scale-x-100"
                 />
             {/if}
             <ChannelTypeIcon
                 kind={headerIconKind}
                 size={20}
-                class="text-discord-textMuted flex-shrink-0"
+                class="text-zam-textMuted flex-shrink-0"
             />
             <!-- 5rem floor below md only: the header's buttons cannot shrink, so
                  without a floor the name and topic each get a proportional share of
@@ -3055,14 +3055,14 @@
                  there is ample width, so drop the floor rather than strand short
                  names (a DM titled "Zam" would sit 50px from the lock icon). -->
             <h2
-                class="font-semibold text-discord-textPrimary min-w-[5rem] md:min-w-0 truncate"
+                class="font-semibold text-zam-textPrimary min-w-[5rem] md:min-w-0 truncate"
                 title={roomName}
             >
                 {@html renderPlainTextWithTwemoji(roomName)}
             </h2>
             {#if roomEncrypted}
                 <span
-                    class="flex-shrink-0 text-discord-textMuted"
+                    class="flex-shrink-0 text-zam-textMuted"
                     title={t("messageArea.encryptionEnabled")}
                     aria-label={t("messageArea.encryptionEnabled")}
                 >
@@ -3070,19 +3070,19 @@
                 </span>
             {/if}
             {#if topic}
-                <div class="w-px h-5 bg-discord-divider"></div>
+                <div class="w-px h-5 bg-zam-divider"></div>
                 {#if isMobile}
                     <button
                         type="button"
                         onclick={openTopicSheet}
                         aria-label={t("roomTopicSheet.open")}
-                        class="text-sm text-discord-textMuted truncate flex-auto min-w-0 text-start"
+                        class="text-sm text-zam-textMuted truncate flex-auto min-w-0 text-start"
                     >
                         {topic}
                     </button>
                 {:else}
                     <p
-                        class="text-sm text-discord-textMuted truncate flex-auto min-w-0"
+                        class="text-sm text-zam-textMuted truncate flex-auto min-w-0"
                         title={topic}
                     >
                         {topic}
@@ -3097,7 +3097,7 @@
                 <button
                     onclick={() => joinCall(room.roomId)}
                     disabled={voiceCallState.joinPendingRoomId !== null}
-                    class="p-1.5 rounded transition-colors text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-50 {joining
+                    class="p-1.5 rounded transition-colors text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-50 {joining
                         ? 'animate-pulse'
                         : ''}"
                     title={joining
@@ -3114,7 +3114,7 @@
             {#if callCount > 0 || isVideoRoomView}
                 <button
                     onclick={() => showCallView(room.roomId)}
-                    class="p-1.5 rounded transition-colors text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
+                    class="p-1.5 rounded transition-colors text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover"
                     title={t("messageArea.showCall")}
                     aria-label={t("messageArea.showCall")}
                 >
@@ -3126,8 +3126,8 @@
                 <button
                     onclick={() => toggleSidebar("search")}
                     class="p-1.5 rounded transition-colors {showSearchPanel
-                        ? 'text-discord-accent bg-discord-messageHover'
-                        : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                        ? 'text-zam-accent bg-zam-messageHover'
+                        : 'text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover'}"
                     title={t("messageArea.searchMessages")}
                 >
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
@@ -3145,8 +3145,8 @@
                 <button
                     onclick={() => toggleSidebar("threads")}
                     class="relative p-1.5 rounded transition-colors {showThreadsPanel
-                        ? 'text-discord-accent bg-discord-messageHover'
-                        : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                        ? 'text-zam-accent bg-zam-messageHover'
+                        : 'text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover'}"
                     title={t("messageArea.threads")}
                     aria-label={t("messageArea.toggleThreadsList")}
                 >
@@ -3157,7 +3157,7 @@
                     >
                     {#if threadRollup.mentions > 0}
                         <span
-                            class="absolute -top-1 -end-1 flex-shrink-0 bg-discord-danger text-white text-[10px] leading-none font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center ring-2 ring-discord-backgroundSecondary"
+                            class="absolute -top-1 -end-1 flex-shrink-0 bg-zam-danger text-white text-[10px] leading-none font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center ring-2 ring-zam-backgroundSecondary"
                             title={t("messageArea.unreadThreadMentions")}
                             >{threadRollup.mentions > 99
                                 ? "99+"
@@ -3165,7 +3165,7 @@
                         >
                     {:else if threadRollup.anyUnread}
                         <span
-                            class="absolute top-0.5 end-0.5 w-2 h-2 rounded-full bg-discord-accent ring-2 ring-discord-backgroundSecondary"
+                            class="absolute top-0.5 end-0.5 w-2 h-2 rounded-full bg-zam-accent ring-2 ring-zam-backgroundSecondary"
                             title={t("messageArea.unreadThreads")}
                         ></span>
                     {/if}
@@ -3174,8 +3174,8 @@
                 <button
                     onclick={() => toggleSidebar("pinned")}
                     class="p-1.5 rounded transition-colors {showPinnedPanel
-                        ? 'text-discord-accent bg-discord-messageHover'
-                        : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                        ? 'text-zam-accent bg-zam-messageHover'
+                        : 'text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover'}"
                     title={pinnedCount > 0
                         ? t("messageArea.pinnedMessagesCount", {
                               count: pinnedCount,
@@ -3192,8 +3192,8 @@
                 <button
                     onclick={() => toggleSidebar("notifications")}
                     class="p-1.5 rounded transition-colors {showNotificationsPanel
-                        ? 'text-discord-accent bg-discord-messageHover'
-                        : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                        ? 'text-zam-accent bg-zam-messageHover'
+                        : 'text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover'}"
                     title={t("messageArea.notificationsInbox")}
                 >
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
@@ -3206,8 +3206,8 @@
                 <button
                     onclick={() => toggleSidebar("media")}
                     class="p-1.5 rounded transition-colors {showMediaPanel
-                        ? 'text-discord-accent bg-discord-messageHover'
-                        : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                        ? 'text-zam-accent bg-zam-messageHover'
+                        : 'text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover'}"
                     title={t("messageArea.mediaAndFiles")}
                     aria-label={t("messageArea.mediaAndFiles")}
                 >
@@ -3217,8 +3217,8 @@
                 <button
                     onclick={() => toggleSidebar("members")}
                     class="p-1.5 rounded transition-colors {showMemberList
-                        ? 'text-discord-accent bg-discord-messageHover'
-                        : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                        ? 'text-zam-accent bg-zam-messageHover'
+                        : 'text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover'}"
                     title={t("messageArea.toggleMemberList")}
                 >
                     <Users size={20} />
@@ -3228,8 +3228,8 @@
                         onclick={() => openPluginHeaderPanel(btn)}
                         class="p-1.5 rounded transition-colors {activePluginPanelKey ===
                         btn.key
-                            ? 'text-discord-accent bg-discord-messageHover'
-                            : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                            ? 'text-zam-accent bg-zam-messageHover'
+                            : 'text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover'}"
                         title={btn.label}
                         aria-label={btn.label}
                     >
@@ -3250,8 +3250,8 @@
                 <button
                     onclick={toggleOverflowMenu}
                     class="relative p-1.5 rounded transition-colors flex-shrink-0 {overflowActive
-                        ? 'text-discord-accent bg-discord-messageHover'
-                        : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                        ? 'text-zam-accent bg-zam-messageHover'
+                        : 'text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover'}"
                     title={t("messageArea.more")}
                     aria-label={t("messageArea.moreRoomOptions")}
                     aria-haspopup="menu"
@@ -3260,7 +3260,7 @@
                     <MoreHorizontal size={20} />
                     {#if threadRollup.mentions > 0}
                         <span
-                            class="absolute -top-1 -end-1 flex-shrink-0 bg-discord-danger text-white text-[10px] leading-none font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center ring-2 ring-discord-backgroundSecondary"
+                            class="absolute -top-1 -end-1 flex-shrink-0 bg-zam-danger text-white text-[10px] leading-none font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center ring-2 ring-zam-backgroundSecondary"
                             title={t("messageArea.unreadThreadMentions")}
                             >{threadRollup.mentions > 99
                                 ? "99+"
@@ -3268,7 +3268,7 @@
                         >
                     {:else if threadRollup.anyUnread}
                         <span
-                            class="absolute top-0.5 end-0.5 w-2 h-2 rounded-full bg-discord-accent ring-2 ring-discord-backgroundSecondary"
+                            class="absolute top-0.5 end-0.5 w-2 h-2 rounded-full bg-zam-accent ring-2 ring-zam-backgroundSecondary"
                             title={t("messageArea.unreadThreads")}
                         ></span>
                     {/if}
@@ -3311,7 +3311,7 @@
             {#if historyEdgeState === "loading"}
                 <div class="flex justify-center py-4">
                     <div
-                        class="w-6 h-6 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
+                        class="w-6 h-6 border-2 border-zam-accent border-t-transparent rounded-full animate-spin"
                         role="status"
                         aria-label={t("messageArea.loadingHistory")}
                     ></div>
@@ -3322,18 +3322,16 @@
             {#if historyEdgeState === "start"}
                 <div class="px-4 pb-4">
                     <div
-                        class="w-16 h-16 rounded-full bg-discord-accent flex items-center justify-center mb-4"
+                        class="w-16 h-16 rounded-full bg-zam-accent flex items-center justify-center mb-4"
                     >
                         <span class="text-3xl font-bold text-white">#</span>
                     </div>
-                    <h3
-                        class="text-2xl font-bold text-discord-textPrimary mb-1"
-                    >
+                    <h3 class="text-2xl font-bold text-zam-textPrimary mb-1">
                         {t(
                             "messageArea.welcomeTo",
                         )}{@html renderPlainTextWithTwemoji(roomName)}!
                     </h3>
-                    <p class="text-discord-textMuted">
+                    <p class="text-zam-textMuted">
                         {t(
                             "messageArea.thisIsTheBeginningOfThe",
                         )}{@html renderPlainTextWithTwemoji(roomName)}
@@ -3369,12 +3367,12 @@
                 >
                     {#if sepTs !== null}
                         <div class="flex items-center gap-4 px-4 my-4">
-                            <div class="flex-1 h-px bg-discord-divider"></div>
+                            <div class="flex-1 h-px bg-zam-divider"></div>
                             <span
-                                class="text-xs font-semibold text-discord-textMuted"
+                                class="text-xs font-semibold text-zam-textMuted"
                                 >{daySeparator(sepTs)}</span
                             >
-                            <div class="flex-1 h-px bg-discord-divider"></div>
+                            <div class="flex-1 h-px bg-zam-divider"></div>
                         </div>
                     {/if}
                     {#if unreadHere}
@@ -3384,19 +3382,19 @@
                                 ? ' ![overflow-anchor:auto]'
                                 : ''}"
                         >
-                            <div class="flex-1 h-px bg-discord-danger/60"></div>
+                            <div class="flex-1 h-px bg-zam-danger/60"></div>
                             <span
-                                class="text-xs font-semibold text-discord-danger uppercase tracking-wide"
+                                class="text-xs font-semibold text-zam-danger uppercase tracking-wide"
                                 >{t("messageArea.newMessages")}</span
                             >
-                            <div class="flex-1 h-px bg-discord-danger/60"></div>
+                            <div class="flex-1 h-px bg-zam-danger/60"></div>
                         </div>
                     {/if}
                     {#if isRawDebugEvent(event)}
                         <DebugEventItem {event} />
                     {:else if shouldHideMessage(event.getSender(), ignoredUsersState.userIds, auth.userId) && !revealedBlockedIds[event.getId() ?? ""]}
                         <div
-                            class="px-4 py-1.5 flex items-center gap-2 text-xs text-discord-textMuted"
+                            class="px-4 py-1.5 flex items-center gap-2 text-xs text-zam-textMuted"
                         >
                             <svg
                                 class="w-3.5 h-3.5 flex-shrink-0"
@@ -3415,7 +3413,7 @@
                                 onclick={() =>
                                     (revealedBlockedIds[event.getId() ?? ""] =
                                         true)}
-                                class="text-discord-accent hover:underline font-medium"
+                                class="text-zam-accent hover:underline font-medium"
                                 >{t("messageArea.showBlockedMessage")}</button
                             >
                         </div>
@@ -3452,10 +3450,10 @@
             <!-- Room upgrade tombstone banner -->
             {#if tombstone}
                 <div
-                    class="mx-4 mt-2 mb-4 p-3 rounded-lg bg-discord-backgroundTertiary border border-discord-warning flex items-center gap-3"
+                    class="mx-4 mt-2 mb-4 p-3 rounded-lg bg-zam-backgroundTertiary border border-zam-warning flex items-center gap-3"
                 >
                     <svg
-                        class="w-5 h-5 text-discord-warning flex-shrink-0"
+                        class="w-5 h-5 text-zam-warning flex-shrink-0"
                         fill="currentColor"
                         viewBox="0 0 24 24"
                         ><path
@@ -3463,19 +3461,17 @@
                         /></svg
                     >
                     <div class="flex-1 min-w-0">
-                        <p
-                            class="text-sm font-semibold text-discord-textPrimary"
-                        >
+                        <p class="text-sm font-semibold text-zam-textPrimary">
                             {t("messageArea.thisRoomHasBeenUpgraded")}
                         </p>
-                        <p class="text-xs text-discord-textMuted truncate">
+                        <p class="text-xs text-zam-textMuted truncate">
                             {tombstone.body}
                         </p>
                     </div>
                     <button
                         onclick={joinUpgrade}
                         disabled={joiningUpgrade}
-                        class="flex-shrink-0 px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                        class="flex-shrink-0 px-3 py-1.5 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50"
                     >
                         {replacementAlreadyJoined
                             ? t("messageArea.goToNewRoom")
@@ -3521,7 +3517,7 @@
                         isContextView
                             ? void rejoinLive()
                             : scrollToBottom(false)}
-                    class="pointer-events-auto bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary px-3 py-1.5 rounded-full shadow-lg text-sm font-medium border border-discord-divider transition-colors flex items-center gap-1.5"
+                    class="pointer-events-auto bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary px-3 py-1.5 rounded-full shadow-lg text-sm font-medium border border-zam-divider transition-colors flex items-center gap-1.5"
                 >
                     <svg
                         class="w-4 h-4"
@@ -3544,10 +3540,10 @@
                 style="bottom: {composerHeight + 12}px;"
             >
                 <div
-                    class="bg-discord-backgroundSecondary text-discord-textMuted px-3 py-1.5 rounded-full shadow-lg text-sm border border-discord-divider flex items-center gap-2"
+                    class="bg-zam-backgroundSecondary text-zam-textMuted px-3 py-1.5 rounded-full shadow-lg text-sm border border-zam-divider flex items-center gap-2"
                 >
                     <div
-                        class="w-3.5 h-3.5 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
+                        class="w-3.5 h-3.5 border-2 border-zam-accent border-t-transparent rounded-full animate-spin"
                     ></div>
                     {t("messageArea.searchingForMessage")}
                 </div>
@@ -3558,7 +3554,7 @@
              the divider and a way to dismiss it without scrolling down. -->
         {#if unreadSummary}
             <div
-                class="absolute top-12 start-0 end-0 mx-4 z-10 flex items-stretch rounded-b-lg overflow-hidden shadow-lg bg-discord-accent text-white text-sm font-semibold"
+                class="absolute top-12 start-0 end-0 mx-4 z-10 flex items-stretch rounded-b-lg overflow-hidden shadow-lg bg-zam-accent text-white text-sm font-semibold"
             >
                 <button
                     onpointerdown={(e) => e.preventDefault()}
@@ -3588,7 +3584,7 @@
                 class="absolute top-12 start-0 end-0 flex justify-center z-10 pointer-events-none"
             >
                 <div
-                    class="pointer-events-auto bg-discord-warning/20 text-discord-warning px-3 py-1.5 rounded-full shadow-lg text-sm border border-discord-warning/40 flex items-center gap-2"
+                    class="pointer-events-auto bg-zam-warning/20 text-zam-warning px-3 py-1.5 rounded-full shadow-lg text-sm border border-zam-warning/40 flex items-center gap-2"
                 >
                     <svg
                         class="w-3.5 h-3.5 flex-shrink-0"
@@ -3616,10 +3612,10 @@
              connection. -->
         {#if cachedOnly}
             <div
-                class="flex-shrink-0 mx-4 mb-4 rounded-lg border border-discord-backgroundModifier bg-discord-backgroundSecondary px-4 py-3"
+                class="flex-shrink-0 mx-4 mb-4 rounded-lg border border-zam-backgroundModifier bg-zam-backgroundSecondary px-4 py-3"
                 dir={uiDir}
             >
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("messageArea.cachedRoomHint")}
                 </p>
             </div>
@@ -3770,18 +3766,18 @@
             {@const panel = pluginPanel.current}
             {#if isMobile}
                 <div
-                    class="absolute inset-0 z-40 flex flex-col bg-discord-backgroundPrimary"
+                    class="absolute inset-0 z-40 flex flex-col bg-zam-backgroundPrimary"
                 >
                     <div
-                        class="flex items-center justify-between px-4 h-12 flex-shrink-0 border-b border-discord-divider"
+                        class="flex items-center justify-between px-4 h-12 flex-shrink-0 border-b border-zam-divider"
                     >
                         <span
-                            class="font-semibold text-discord-textPrimary truncate"
+                            class="font-semibold text-zam-textPrimary truncate"
                             >{panel.title}</span
                         >
                         <button
                             onclick={closeSidebar}
-                            class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
+                            class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover"
                             aria-label={t("messageArea.closePanel")}
                         >
                             <X size={20} />
@@ -3796,18 +3792,18 @@
                 </div>
             {:else}
                 <div
-                    class="w-80 flex-shrink-0 flex flex-col border-l border-discord-divider bg-discord-backgroundSecondary"
+                    class="w-80 flex-shrink-0 flex flex-col border-l border-zam-divider bg-zam-backgroundSecondary"
                 >
                     <div
-                        class="flex items-center justify-between px-4 h-12 flex-shrink-0 border-b border-discord-divider"
+                        class="flex items-center justify-between px-4 h-12 flex-shrink-0 border-b border-zam-divider"
                     >
                         <span
-                            class="font-semibold text-discord-textPrimary truncate"
+                            class="font-semibold text-zam-textPrimary truncate"
                             >{panel.title}</span
                         >
                         <button
                             onclick={closeSidebar}
-                            class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
+                            class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover"
                             aria-label={t("messageArea.closePanel")}
                         >
                             <X size={20} />

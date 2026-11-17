@@ -56,25 +56,25 @@ describe("applyThemeColors", () => {
     it("sets inline custom properties for a preset", () => {
         applyThemeColors({ background: "#010203", mention: "#0a0b0c" });
         const s = document.documentElement.style;
-        expect(s.getPropertyValue("--discord-bg").trim()).toBe("#010203");
-        expect(s.getPropertyValue("--discord-bg-rgb").trim()).toBe("1 2 3");
-        expect(
-            s.getPropertyValue("--discord-mention-highlight-rgb").trim(),
-        ).toBe("10 11 12");
+        expect(s.getPropertyValue("--zam-bg").trim()).toBe("#010203");
+        expect(s.getPropertyValue("--zam-bg-rgb").trim()).toBe("1 2 3");
+        expect(s.getPropertyValue("--zam-mention-highlight-rgb").trim()).toBe(
+            "10 11 12",
+        );
     });
     it("clears all managed vars when passed null", () => {
         applyThemeColors({ background: "#010203" });
         applyThemeColors(null);
         expect(
-            document.documentElement.style.getPropertyValue("--discord-bg"),
+            document.documentElement.style.getPropertyValue("--zam-bg"),
         ).toBe("");
     });
     it("removes a stale override when switching presets", () => {
         applyThemeColors({ background: "#010203" });
         applyThemeColors({ accent: "#040506" });
         const s = document.documentElement.style;
-        expect(s.getPropertyValue("--discord-bg")).toBe("");
-        expect(s.getPropertyValue("--discord-accent").trim()).toBe("#040506");
+        expect(s.getPropertyValue("--zam-bg")).toBe("");
+        expect(s.getPropertyValue("--zam-accent").trim()).toBe("#040506");
     });
 });
 
@@ -89,7 +89,7 @@ describe("applyPreset", () => {
         ).toBe("#000000");
         expect(
             document.documentElement.style
-                .getPropertyValue("--discord-accent")
+                .getPropertyValue("--zam-accent")
                 .trim(),
         ).toBe("#123456");
     });
@@ -106,7 +106,7 @@ describe("applyPreset", () => {
                 ?.content,
         ).toBe("#f2f3f5");
         expect(
-            document.documentElement.style.getPropertyValue("--discord-bg"),
+            document.documentElement.style.getPropertyValue("--zam-bg"),
         ).toBe("");
     });
 });
@@ -118,24 +118,24 @@ describe("themeColorsToCssText", () => {
 
     it("returns CSS text with hex and rgb vars for background", () => {
         const result = themeColorsToCssText({ background: "#010203" });
-        expect(result).toContain("--discord-bg:#010203;");
-        expect(result).toContain("--discord-bg-rgb:1 2 3;");
+        expect(result).toContain("--zam-bg:#010203;");
+        expect(result).toContain("--zam-bg-rgb:1 2 3;");
     });
 
     it("returns CSS text for mention (rgb-only token)", () => {
         const result = themeColorsToCssText({ mention: "#0a0b0c" });
-        expect(result).toContain("--discord-mention-highlight-rgb:10 11 12;");
-        expect(result).not.toContain("--discord-mention:");
+        expect(result).toContain("--zam-mention-highlight-rgb:10 11 12;");
+        expect(result).not.toContain("--zam-mention:");
     });
 
     it("returns CSS text for accent (multiple hex + rgb vars)", () => {
         const result = themeColorsToCssText({ accent: "#5865f2" });
-        expect(result).toContain("--discord-accent:#5865f2;");
-        expect(result).toContain("--discord-accent-hover:#5865f2;");
-        expect(result).toContain("--discord-accent-fill:#5865f2;");
-        expect(result).toContain("--discord-accent-fill-hover:#5865f2;");
-        expect(result).toContain("--discord-accent-rgb:88 101 242;");
-        expect(result).toContain("--discord-accent-fill-rgb:88 101 242;");
+        expect(result).toContain("--zam-accent:#5865f2;");
+        expect(result).toContain("--zam-accent-hover:#5865f2;");
+        expect(result).toContain("--zam-accent-fill:#5865f2;");
+        expect(result).toContain("--zam-accent-fill-hover:#5865f2;");
+        expect(result).toContain("--zam-accent-rgb:88 101 242;");
+        expect(result).toContain("--zam-accent-fill-rgb:88 101 242;");
     });
 
     it("parity: emits the same vars that applyThemeColors sets", () => {
@@ -153,14 +153,14 @@ describe("themeColorsToCssText", () => {
 
         // Parse cssText to extract all var names
         const textVars = new Set(
-            Array.from(cssText.matchAll(/--discord-[^:]+/g)).map((m) => m[0]),
+            Array.from(cssText.matchAll(/--zam-[^:]+/g)).map((m) => m[0]),
         );
 
         // Collect all vars that applyThemeColors actually set
         const appliedVars = new Set<string>();
         for (let i = 0; i < style.length; i++) {
             const prop = style.item(i);
-            if (prop.startsWith("--discord-")) {
+            if (prop.startsWith("--zam-")) {
                 appliedVars.add(prop);
             }
         }

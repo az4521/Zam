@@ -99,9 +99,9 @@
 </script>
 
 <div class="space-y-3">
-    <p class="text-sm text-discord-textSecondary">
+    <p class="text-sm text-zam-textSecondary">
         {t("invitePanel.invitePeopleTo")}
-        <span class="text-discord-textPrimary font-medium"
+        <span class="text-zam-textPrimary font-medium"
             >{room?.name ??
                 (isSpace
                     ? t("invitePanel.thisSpace")
@@ -121,16 +121,16 @@
                             ? t("invitePanel.invited")
                             : t("invitePanel.failed")}
                         class="flex items-center {o.ok
-                            ? 'text-discord-textPositive'
-                            : 'text-discord-danger'}"
+                            ? 'text-zam-textPositive'
+                            : 'text-zam-danger'}"
                     >
                         {#if o.ok}<Check size={14} />{:else}<X size={14} />{/if}
                     </span>
-                    <span class="text-discord-textSecondary truncate"
+                    <span class="text-zam-textSecondary truncate"
                         >{o.userId}</span
                     >
                     {#if !o.ok && o.error}
-                        <span class="text-discord-textMuted truncate"
+                        <span class="text-zam-textMuted truncate"
                             >- {o.error}</span
                         >
                     {/if}
@@ -139,8 +139,8 @@
         </ul>
     {/if}
 
-    <div class="border-t border-discord-backgroundTertiary pt-3 space-y-2">
-        <p class="text-xs font-semibold uppercase text-discord-textMuted">
+    <div class="border-t border-zam-backgroundTertiary pt-3 space-y-2">
+        <p class="text-xs font-semibold uppercase text-zam-textMuted">
             {t("invitePanel.inviteByEmail")}
         </p>
         {#if emailState.available}
@@ -152,19 +152,19 @@
                     onkeydown={(e) => {
                         if (e.key === "Enter") doEmailInvite();
                     }}
-                    class="flex-1 bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                    class="flex-1 bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
                 />
                 <button
                     onclick={doEmailInvite}
                     disabled={!emailAddress.trim() || emailInviting}
-                    class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                    class="px-4 py-2 bg-zam-accent hover:bg-zam-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
                     >{emailInviting
                         ? t("invitePanel.inviting")
                         : t("invitePanel.invite")}</button
                 >
             </div>
             {#if emailError}
-                <p class="text-xs text-discord-danger">{emailError}</p>
+                <p class="text-xs text-zam-danger">{emailError}</p>
             {/if}
             {#if emailOutcome}
                 <p class="flex items-center gap-2 text-sm">
@@ -174,25 +174,25 @@
                             ? t("invitePanel.invited")
                             : t("invitePanel.failed")}
                         class="flex items-center {emailOutcome.ok
-                            ? 'text-discord-textPositive'
-                            : 'text-discord-danger'}"
+                            ? 'text-zam-textPositive'
+                            : 'text-zam-danger'}"
                     >
                         {#if emailOutcome.ok}<Check size={14} />{:else}<X
                                 size={14}
                             />{/if}
                     </span>
-                    <span class="text-discord-textSecondary truncate"
+                    <span class="text-zam-textSecondary truncate"
                         >{emailOutcome.address}</span
                     >
                     {#if !emailOutcome.ok && emailOutcome.error}
-                        <span class="text-discord-textMuted truncate"
+                        <span class="text-zam-textMuted truncate"
                             >- {emailOutcome.error}</span
                         >
                     {/if}
                 </p>
             {/if}
         {:else}
-            <p class="text-sm text-discord-textMuted">{emailState.reason}</p>
+            <p class="text-sm text-zam-textMuted">{emailState.reason}</p>
         {/if}
     </div>
 
@@ -200,14 +200,14 @@
         {#if onClose}
             <button
                 onclick={onClose}
-                class="px-4 py-2 text-sm text-discord-textSecondary hover:text-discord-textPrimary transition-colors"
+                class="px-4 py-2 text-sm text-zam-textSecondary hover:text-zam-textPrimary transition-colors"
                 >{t("common.close")}</button
             >
         {/if}
         <button
             onclick={doInvite}
             disabled={!selected.length || inviting}
-            class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+            class="px-4 py-2 bg-zam-accent hover:bg-zam-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
             >{inviting
                 ? t("invitePanel.inviting")
                 : selected.length > 1

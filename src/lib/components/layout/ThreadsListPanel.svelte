@@ -96,19 +96,19 @@
 <div
     class="{interfaceState.isMobile
         ? ''
-        : 'w-72'} h-full flex flex-col bg-discord-backgroundSecondary border-l border-discord-divider"
+        : 'w-72'} h-full flex flex-col bg-zam-backgroundSecondary border-l border-zam-divider"
 >
     <div
-        class="h-12 flex items-center gap-2 px-4 py-3 border-b border-discord-divider flex-shrink-0"
+        class="h-12 flex items-center gap-2 px-4 py-3 border-b border-zam-divider flex-shrink-0"
     >
         <h3
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide flex-1"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide flex-1"
         >
             {t("threadsListPanel.threads")}
         </h3>
         <button
             onclick={onClose}
-            class="text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+            class="text-zam-textMuted hover:text-zam-textPrimary transition-colors"
             title={t("common.close")}
             aria-label={t("threadsListPanel.closeThreadsPanel")}
         >
@@ -121,7 +121,7 @@
     </div>
 
     <div
-        class="flex gap-1 px-2 py-2 border-b border-discord-divider flex-shrink-0"
+        class="flex gap-1 px-2 py-2 border-b border-zam-divider flex-shrink-0"
         role="group"
         aria-label={t("threadsListPanel.filterThreads")}
     >
@@ -131,8 +131,8 @@
                 aria-pressed={filter === opt.value}
                 class="flex-1 px-2 py-1 rounded text-xs font-medium transition-colors {filter ===
                 opt.value
-                    ? 'bg-discord-messageHover text-discord-textPrimary'
-                    : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                    ? 'bg-zam-messageHover text-zam-textPrimary'
+                    : 'text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover'}"
                 >{opt.label}</button
             >
         {/each}
@@ -140,10 +140,10 @@
 
     <div class="flex-1 overflow-y-auto">
         {#if bridgedShown.length > 0}
-            <div class="p-2 space-y-1 border-b border-discord-divider">
+            <div class="p-2 space-y-1 border-b border-zam-divider">
                 {#if items.length > 0}
                     <p
-                        class="px-2 pt-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                        class="px-2 pt-1 text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                     >
                         {t("bridgedThreads.threadRooms")}
                     </p>
@@ -154,38 +154,38 @@
                             void openBridgedThread(thread.roomId);
                             onClose();
                         }}
-                        class="w-full text-start p-2 rounded-lg hover:bg-discord-messageHover transition-colors flex items-center gap-2"
+                        class="w-full text-start p-2 rounded-lg hover:bg-zam-messageHover transition-colors flex items-center gap-2"
                         title={thread.joined
                             ? t("messageItem.openThread")
                             : t("bridgedThreads.joinThread")}
                     >
                         <MessagesSquare
                             size={16}
-                            class="flex-shrink-0 text-discord-textMuted"
+                            class="flex-shrink-0 text-zam-textMuted"
                         />
                         <div class="flex-1 min-w-0">
                             <p
                                 class="text-sm truncate {thread.counts.unread
-                                    ? 'font-semibold text-discord-textPrimary'
-                                    : 'text-discord-textSecondary'}"
+                                    ? 'font-semibold text-zam-textPrimary'
+                                    : 'text-zam-textSecondary'}"
                             >
                                 {thread.name}
                             </p>
-                            <p class="text-xs text-discord-textMuted truncate">
+                            <p class="text-xs text-zam-textMuted truncate">
                                 {#if thread.numMembers !== null}{t(
                                         "bridgedThreads.memberCount",
                                         { count: thread.numMembers },
                                     )}{/if}{#if !thread.joined}{thread.numMembers !==
                                     null
                                         ? " · "
-                                        : ""}<span class="text-discord-accent"
+                                        : ""}<span class="text-zam-accent"
                                         >{t("bridgedThreads.joinThread")}</span
                                     >{/if}
                             </p>
                         </div>
                         {#if thread.counts.highlight > 0}
                             <span
-                                class="flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
+                                class="flex-shrink-0 bg-zam-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
                                 title={t("threadsListPanel.unreadMentions")}
                                 >{thread.counts.highlight > 99
                                     ? "99+"
@@ -193,13 +193,13 @@
                             >
                         {:else if thread.counts.unread}
                             <span
-                                class="flex-shrink-0 w-2 h-2 rounded-full bg-discord-accent"
+                                class="flex-shrink-0 w-2 h-2 rounded-full bg-zam-accent"
                                 title={t("threadsListPanel.unreadReplies")}
                             ></span>
                         {/if}
                         <ChevronRight
                             size={14}
-                            class="flex-shrink-0 text-discord-textMuted"
+                            class="flex-shrink-0 text-zam-textMuted"
                         />
                     </button>
                 {/each}
@@ -208,11 +208,11 @@
         {#if loading && allItems.length === 0 && bridgedShown.length === 0}
             <div class="flex justify-center mt-8">
                 <div
-                    class="w-5 h-5 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
+                    class="w-5 h-5 border-2 border-zam-accent border-t-transparent rounded-full animate-spin"
                 ></div>
             </div>
         {:else if items.length === 0 && bridgedShown.length === 0}
-            <p class="text-sm text-discord-textMuted text-center mt-8 px-4">
+            <p class="text-sm text-zam-textMuted text-center mt-8 px-4">
                 {filter === "mine" && allItems.length > 0
                     ? t("threadsListPanel.noThreadsYouParticipatedIn")
                     : t("threadsListPanel.noThreadsInThisRoomYet")}
@@ -235,7 +235,7 @@
                             onOpenThread(item.rootId);
                             onClose();
                         }}
-                        class="w-full text-start p-2 rounded-lg hover:bg-discord-messageHover transition-colors"
+                        class="w-full text-start p-2 rounded-lg hover:bg-zam-messageHover transition-colors"
                     >
                         <div class="flex items-center gap-2 mb-1">
                             <Avatar
@@ -245,7 +245,7 @@
                                 size={18}
                             />
                             <span
-                                class="text-xs font-semibold text-discord-textPrimary truncate"
+                                class="text-xs font-semibold text-zam-textPrimary truncate"
                                 >{senderName}</span
                             >
                             {#if item.participated}
@@ -254,7 +254,7 @@
                                     aria-label={t(
                                         "threadsListPanel.youParticipated",
                                     )}
-                                    class="text-discord-accent flex-shrink-0 flex items-center"
+                                    class="text-zam-accent flex-shrink-0 flex items-center"
                                     title={t(
                                         "threadsListPanel.youParticipated",
                                     )}
@@ -264,7 +264,7 @@
                             {/if}
                             {#if badge === "mention"}
                                 <span
-                                    class="ms-auto flex-shrink-0 bg-discord-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
+                                    class="ms-auto flex-shrink-0 bg-zam-danger text-white text-xs font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
                                     title={t("threadsListPanel.unreadMentions")}
                                     >{item.unreadHighlight > 99
                                         ? "99+"
@@ -272,12 +272,12 @@
                                 >
                             {:else if badge === "unread"}
                                 <span
-                                    class="ms-auto flex-shrink-0 w-2 h-2 rounded-full bg-discord-accent"
+                                    class="ms-auto flex-shrink-0 w-2 h-2 rounded-full bg-zam-accent"
                                     title={t("threadsListPanel.unreadReplies")}
                                 ></span>
                             {/if}
                             <span
-                                class="text-xs text-discord-textMuted {badge ===
+                                class="text-xs text-zam-textMuted {badge ===
                                 'none'
                                     ? 'ms-auto'
                                     : 'ms-2'} flex-shrink-0"
@@ -286,22 +286,22 @@
                         </div>
                         {#if item.name}
                             <p
-                                class="text-sm font-semibold text-discord-textPrimary truncate"
+                                class="text-sm font-semibold text-zam-textPrimary truncate"
                             >
                                 {item.name}
                             </p>
                         {/if}
                         <p
-                            class="text-xs text-discord-textMuted break-words {item.name
+                            class="text-xs text-zam-textMuted break-words {item.name
                                 ? 'line-clamp-1'
                                 : 'line-clamp-2'}"
                         >
                             {item.rootPreview}
                         </p>
                         <div
-                            class="flex items-center gap-1 mt-1 text-xs text-discord-textMuted"
+                            class="flex items-center gap-1 mt-1 text-xs text-zam-textMuted"
                         >
-                            <span class="text-discord-accent"
+                            <span class="text-zam-accent"
                                 >{t("common.replyCount", {
                                     count: item.replyCount,
                                 })}</span

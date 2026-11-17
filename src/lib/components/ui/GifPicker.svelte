@@ -448,7 +448,7 @@
 <div
     class="{interfaceState.isTouchscreen
         ? 'w-full rounded-t-xl'
-        : 'rounded-xl'} relative bg-discord-backgroundSecondary border border-discord-divider shadow-2xl flex flex-col"
+        : 'rounded-xl'} relative bg-zam-backgroundSecondary border border-zam-divider shadow-2xl flex flex-col"
     style={interfaceState.isTouchscreen
         ? "height: 50vh; height: 50dvh;"
         : undefined}
@@ -459,7 +459,7 @@
         <button
             type="button"
             use:resizeHandle={COMPOSER_PICKER_SIZE}
-            class="absolute top-0 start-0 z-20 w-4 h-4 cursor-nwse-resize mirror:cursor-nesw-resize text-discord-textMuted opacity-40 hover:opacity-100 focus-visible:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
+            class="absolute top-0 start-0 z-20 w-4 h-4 cursor-nwse-resize mirror:cursor-nesw-resize text-zam-textMuted opacity-40 hover:opacity-100 focus-visible:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-zam-accent"
             title={t("common.dragOrUseArrowKeysTo")}
             aria-label={t("common.resizePicker")}
         >
@@ -474,19 +474,19 @@
     {/if}
     {#if interfaceState.isTouchscreen}
         <!-- Outer picker tabs (Emoji / Stickers / GIFs) -->
-        <div class="flex border-b border-discord-divider flex-shrink-0">
+        <div class="flex border-b border-zam-divider flex-shrink-0">
             {#if onSwitchToEmoji}<button
                     onclick={onSwitchToEmoji}
-                    class="flex-1 py-2 text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                    class="flex-1 py-2 text-sm font-medium text-zam-textMuted hover:text-zam-textPrimary transition-colors"
                     >{t("common.emoji")}</button
                 >{/if}
             {#if onSwitchToSticker}<button
                     onclick={onSwitchToSticker}
-                    class="flex-1 py-2 text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                    class="flex-1 py-2 text-sm font-medium text-zam-textMuted hover:text-zam-textPrimary transition-colors"
                     >{t("common.stickers")}</button
                 >{/if}
             <button
-                class="flex-1 py-2 text-sm font-semibold text-discord-textPrimary border-b-2 border-discord-accent"
+                class="flex-1 py-2 text-sm font-semibold text-zam-textPrimary border-b-2 border-zam-accent"
                 >{t("common.gifs")}</button
             >
         </div>
@@ -499,8 +499,8 @@
                 onclick={() => selectTab(value as Tab)}
                 class="flex-1 py-1.5 text-xs font-semibold rounded transition-colors {tab ===
                 value
-                    ? 'bg-discord-backgroundTertiary text-discord-textPrimary'
-                    : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                    ? 'bg-zam-backgroundTertiary text-zam-textPrimary'
+                    : 'text-zam-textMuted hover:text-zam-textPrimary'}"
             >
                 <span class="flex items-center justify-center gap-1">
                     {#if value === "favourites"}<Star size={14} />{/if}
@@ -529,7 +529,7 @@
             aria-controls={hasOptions ? `${listId}-listbox` : undefined}
             aria-autocomplete="list"
             aria-activedescendant={activeOptionId}
-            class="search-input w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded-lg px-3 py-1.5 outline-none border border-transparent"
+            class="search-input w-full bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded-lg px-3 py-1.5 outline-none border border-transparent"
         />
     </div>
 
@@ -588,7 +588,7 @@
     >
         {#if tab === "favourites"}
             {#if visibleFavourites.length === 0}
-                <p class="text-center text-discord-textMuted text-sm py-8 px-4">
+                <p class="text-center text-zam-textMuted text-sm py-8 px-4">
                     {favourites.length === 0
                         ? t("gifPicker.noFavouriteGifsYetStarA")
                         : t("common.noResults")}
@@ -631,7 +631,7 @@
                                         tabindex="-1"
                                         class:ring-2={activeIndex === idx}
                                         class:ring-inset={activeIndex === idx}
-                                        class:ring-discord-accent={activeIndex ===
+                                        class:ring-zam-accent={activeIndex ===
                                             idx}
                                         class="relative block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
                                     >
@@ -641,7 +641,7 @@
                                                     gif.source,
                                                 )!}
                                                 video={!!gif.video}
-                                                class="w-full h-auto block rounded bg-discord-backgroundTertiary pointer-events-none"
+                                                class="w-full h-auto block rounded bg-zam-backgroundTertiary pointer-events-none"
                                                 style={favouriteAspectStyle(
                                                     gif,
                                                 )}
@@ -658,7 +658,7 @@
                                                 }}
                                                 poster={gif.previewUrl ||
                                                     undefined}
-                                                class="w-full h-auto block rounded bg-discord-backgroundTertiary pointer-events-none"
+                                                class="w-full h-auto block rounded bg-zam-backgroundTertiary pointer-events-none"
                                                 style={favouriteAspectStyle(
                                                     gif,
                                                 )}
@@ -676,7 +676,7 @@
                                                 gif.previewVideoUrl
                                                     ? gif.previewUrl
                                                     : undefined}
-                                                class="w-full h-auto block rounded bg-discord-backgroundTertiary pointer-events-none"
+                                                class="w-full h-auto block rounded bg-zam-backgroundTertiary pointer-events-none"
                                                 style={favouriteAspectStyle(
                                                     gif,
                                                 )}
@@ -691,7 +691,7 @@
                                             <img
                                                 src={gif.previewUrl}
                                                 alt=""
-                                                class="w-full h-auto block rounded bg-discord-backgroundTertiary"
+                                                class="w-full h-auto block rounded bg-zam-backgroundTertiary"
                                                 loading="lazy"
                                                 decoding="async"
                                                 style={favouriteAspectStyle(
@@ -760,7 +760,7 @@
                                             title={t(
                                                 "common.removeFromFavourites",
                                             )}
-                                            class="text-discord-warning {favBtnClass}"
+                                            class="text-zam-warning {favBtnClass}"
                                         >
                                             <svg
                                                 class="w-3.5 h-3.5"
@@ -794,10 +794,10 @@
                                                 placeholder={t(
                                                     "gifPicker.catFunny",
                                                 )}
-                                                class="search-input w-full bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-xs rounded px-1.5 py-1 outline-none border border-transparent"
+                                                class="search-input w-full bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted text-xs rounded px-1.5 py-1 outline-none border border-transparent"
                                             />
                                             <p
-                                                class="text-[10px] text-discord-textMuted"
+                                                class="text-[10px] text-zam-textMuted"
                                             >
                                                 {t(
                                                     "gifPicker.commaSeparatedEnterToSave",
@@ -816,12 +816,12 @@
             {#if gifSearchState.error && gifSearchState.items.length === 0}
                 <button
                     onclick={() => loadGifs("gifs", search, gifSource)}
-                    class="w-full text-center text-discord-textMuted text-sm py-8 px-4 hover:text-discord-textPrimary transition-colors"
+                    class="w-full text-center text-zam-textMuted text-sm py-8 px-4 hover:text-zam-textPrimary transition-colors"
                 >
                     {gifSearchState.error}
                 </button>
             {:else if gifSearchState.items.length === 0 && !gifSearchState.loading}
-                <p class="text-center text-discord-textMuted text-sm py-8 px-4">
+                <p class="text-center text-zam-textMuted text-sm py-8 px-4">
                     {t("common.noResults")}
                 </p>
             {:else}
@@ -856,7 +856,7 @@
                                         tabindex="-1"
                                         class:ring-2={activeIndex === idx}
                                         class:ring-inset={activeIndex === idx}
-                                        class:ring-discord-accent={activeIndex ===
+                                        class:ring-zam-accent={activeIndex ===
                                             idx}
                                         class="block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
                                     >
@@ -866,7 +866,7 @@
                                          mp4 plays while it streams. -->
                                             <video
                                                 use:gifTileVideo={r.previewVideoUrl}
-                                                class="w-full h-auto block rounded bg-discord-backgroundTertiary pointer-events-none"
+                                                class="w-full h-auto block rounded bg-zam-backgroundTertiary pointer-events-none"
                                                 style={gifAspectRatioStyle(
                                                     r.width,
                                                     r.height,
@@ -882,7 +882,7 @@
                                             <img
                                                 src={r.previewUrl}
                                                 alt=""
-                                                class="w-full h-auto block rounded bg-discord-backgroundTertiary"
+                                                class="w-full h-auto block rounded bg-zam-backgroundTertiary"
                                                 loading="lazy"
                                                 decoding="async"
                                                 style={gifAspectRatioStyle(
@@ -907,7 +907,7 @@
                                         class="absolute top-1 end-1 transition-opacity {favBtnClass} {isFavouriteGif(
                                             gifSendUrl(r),
                                         )
-                                            ? 'text-discord-warning opacity-100'
+                                            ? 'text-zam-warning opacity-100'
                                             : activeIndex === idx
                                               ? 'text-white opacity-100'
                                               : 'text-white opacity-0 group-hover/gif:opacity-100 group-focus-within/gif:opacity-100'}"
@@ -928,14 +928,14 @@
                     {/each}
                 </div>
                 {#if gifSearchState.loading}
-                    <p class="text-center text-discord-textMuted text-xs py-3">
+                    <p class="text-center text-zam-textMuted text-xs py-3">
                         {t("common.loading")}
                     </p>
                 {/if}
                 {#if gifSearchState.error}
                     <button
                         onclick={() => loadMore()}
-                        class="w-full text-center text-discord-textMuted text-xs py-3 hover:text-discord-textPrimary transition-colors"
+                        class="w-full text-center text-zam-textMuted text-xs py-3 hover:text-zam-textPrimary transition-colors"
                     >
                         {gifSearchState.error}
                     </button>
@@ -946,7 +946,7 @@
 
     {#if tab !== "favourites"}
         <div
-            class="px-3 py-1.5 flex-shrink-0 border-t border-discord-divider text-[10px] text-discord-textMuted text-end"
+            class="px-3 py-1.5 flex-shrink-0 border-t border-zam-divider text-[10px] text-zam-textMuted text-end"
         >
             {t("gifPicker.poweredByKlipy")}
         </div>
@@ -956,6 +956,6 @@
 <style>
     .search-input:focus {
         outline: none;
-        border-color: rgb(var(--discord-accent-rgb) / 0.3);
+        border-color: rgb(var(--zam-accent-rgb) / 0.3);
     }
 </style>

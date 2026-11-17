@@ -132,13 +132,13 @@
     {onClose}
     labelledBy="quick-switcher-title"
     layerClass="z-50 flex items-start justify-center pt-[15vh] px-4"
-    panelClass="relative w-full max-w-xl bg-discord-backgroundSecondary rounded-lg shadow-xl overflow-hidden"
+    panelClass="relative w-full max-w-xl bg-zam-backgroundSecondary rounded-lg shadow-xl overflow-hidden"
     {onKeydown}
 >
     <div class="p-4 flex flex-col gap-3">
         <h2
             id="quick-switcher-title"
-            class="text-sm font-semibold text-discord-textPrimary"
+            class="text-sm font-semibold text-zam-textPrimary"
         >
             {t("quickSwitcher.title")}
         </h2>
@@ -154,11 +154,11 @@
                 : undefined}
             aria-label={t("quickSwitcher.placeholder")}
             placeholder={t("quickSwitcher.placeholder")}
-            class="w-full px-3 py-2.5 rounded bg-discord-backgroundTertiary text-discord-textPrimary text-base placeholder-discord-textMuted outline-none focus:ring-2 focus:ring-discord-accent"
+            class="w-full px-3 py-2.5 rounded bg-zam-backgroundTertiary text-zam-textPrimary text-base placeholder-zam-textMuted outline-none focus:ring-2 focus:ring-zam-accent"
         />
         {#if !query.trim() && results.length > 0}
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
             >
                 {t("quickSwitcher.recentAndUnread")}
             </p>
@@ -177,7 +177,7 @@
                     data-index={i}
                     class="flex items-center gap-3 px-2 py-1.5 mx-1 rounded cursor-pointer {i ===
                     selected
-                        ? 'bg-discord-messageHover'
+                        ? 'bg-zam-messageHover'
                         : ''}"
                     onclick={() => choose(e)}
                     onkeydown={() => {}}
@@ -192,29 +192,29 @@
                     />
                     <span
                         class="flex-1 min-w-0 truncate text-sm {e.unread
-                            ? 'text-discord-textPrimary font-semibold'
-                            : 'text-discord-textSecondary'}">{e.name}</span
+                            ? 'text-zam-textPrimary font-semibold'
+                            : 'text-zam-textSecondary'}">{e.name}</span
                     >
                     {#if e.mention}
                         <span
-                            class="w-2 h-2 rounded-full bg-discord-danger flex-shrink-0"
+                            class="w-2 h-2 rounded-full bg-zam-danger flex-shrink-0"
                             aria-label={t("quickSwitcher.mentioned")}
                         ></span>
                     {/if}
                     <span
-                        class="text-xs text-discord-textMuted truncate max-w-[40%]"
+                        class="text-xs text-zam-textMuted truncate max-w-[40%]"
                         >{e.space
                             ? t("quickSwitcher.space")
                             : (e.where ?? t("quickSwitcher.home"))}</span
                     >
                 </li>
             {:else}
-                <li class="px-2 py-3 text-sm text-discord-textMuted">
+                <li class="px-2 py-3 text-sm text-zam-textMuted">
                     {t("quickSwitcher.noResults")}
                 </li>
             {/each}
         </ul>
-        <p class="text-xs text-discord-textMuted">
+        <p class="text-xs text-zam-textMuted">
             {t("quickSwitcher.hint")}
         </p>
     </div>

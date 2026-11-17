@@ -45,18 +45,16 @@
             <div class="flex items-center gap-3 mb-3">
                 <Avatar src={avatarSrc} name={roomName} id={roomId} size={40} />
                 <h2
-                    class="font-semibold text-discord-textPrimary break-words min-w-0"
+                    class="font-semibold text-zam-textPrimary break-words min-w-0"
                 >
                     {@html renderPlainTextWithTwemoji(roomName)}
                 </h2>
             </div>
-            <p
-                class="text-xs font-semibold uppercase text-discord-textMuted mb-1"
-            >
+            <p class="text-xs font-semibold uppercase text-zam-textMuted mb-1">
                 {t("roomTopicSheet.description")}
             </p>
             <div
-                class="text-sm text-discord-textPrimary whitespace-pre-wrap break-words [&_a]:text-discord-accent [&_a]:underline"
+                class="text-sm text-zam-textPrimary whitespace-pre-wrap break-words [&_a]:text-zam-accent [&_a]:underline"
             >
                 {@html topicHtml}
             </div>

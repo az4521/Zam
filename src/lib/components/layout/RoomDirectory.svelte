@@ -134,17 +134,17 @@
 <ModalDialog
     onClose={closeModal}
     labelledBy="room-directory-title"
-    panelClass="relative bg-discord-background rounded-lg shadow-xl w-full max-w-2xl mx-4 p-6 flex flex-col gap-4 max-h-[85vh]"
+    panelClass="relative bg-zam-background rounded-lg shadow-xl w-full max-w-2xl mx-4 p-6 flex flex-col gap-4 max-h-[85vh]"
 >
     <div class="flex items-start justify-between">
         <div>
             <h2
                 id="room-directory-title"
-                class="text-lg font-bold text-discord-textPrimary"
+                class="text-lg font-bold text-zam-textPrimary"
             >
                 {t("roomDirectory.exploreRooms")}
             </h2>
-            <p class="text-sm text-discord-textMuted">
+            <p class="text-sm text-zam-textMuted">
                 {t("roomDirectory.publicRooms", {
                     value: serverInput.trim()
                         ? `on ${normalizeServerInput(serverInput)}`
@@ -158,7 +158,7 @@
         <!-- svelte-ignore a11y_consider_explicit_label -->
         <button
             onclick={closeModal}
-            class="text-discord-textMuted hover:text-discord-textPrimary transition-colors p-1"
+            class="text-zam-textMuted hover:text-zam-textPrimary transition-colors p-1"
             title={t("common.close")}
         >
             <svg
@@ -191,40 +191,40 @@
             data-autofocus
             bind:value={searchInput}
             placeholder={t("roomDirectory.searchRooms")}
-            class="flex-1 px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
+            class="flex-1 px-3 py-2 bg-zam-backgroundSecondary text-zam-textPrimary placeholder-zam-textMuted rounded border border-zam-divider focus:border-zam-accent focus:outline-none text-sm"
         />
         <input
             bind:value={serverInput}
             placeholder={t("roomDirectory.serverOptional")}
-            class="w-44 px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
+            class="w-44 px-3 py-2 bg-zam-backgroundSecondary text-zam-textPrimary placeholder-zam-textMuted rounded border border-zam-divider focus:border-zam-accent focus:outline-none text-sm"
         />
         <button
             onclick={search}
             disabled={loading}
-            class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50"
+            class="px-4 py-2 rounded text-sm font-semibold bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-50"
             >{t("roomDirectory.search")}</button
         >
     </div>
 
     {#if error}
-        <p class="text-sm text-discord-danger">{error}</p>
+        <p class="text-sm text-zam-danger">{error}</p>
     {/if}
 
     <div class="flex-1 overflow-y-auto flex flex-col gap-1 min-h-32">
         {#if loading}
             <div class="flex items-center justify-center py-10">
                 <div
-                    class="w-6 h-6 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
+                    class="w-6 h-6 border-2 border-zam-accent border-t-transparent rounded-full animate-spin"
                 ></div>
             </div>
         {:else if rooms.length === 0 && searched && !error}
-            <p class="text-sm text-discord-textMuted text-center py-10">
+            <p class="text-sm text-zam-textMuted text-center py-10">
                 {t("roomDirectory.noRoomsFound")}
             </p>
         {:else}
             {#each rooms as entry (entry.roomId)}
                 <div
-                    class="flex items-center gap-3 px-3 py-2 rounded hover:bg-discord-messageHover transition-colors"
+                    class="flex items-center gap-3 px-3 py-2 rounded hover:bg-zam-messageHover transition-colors"
                 >
                     <Avatar
                         src={mxcToHttp(entry.avatarMxc, 64)}
@@ -236,17 +236,17 @@
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2">
                             <span
-                                class="text-sm font-semibold text-discord-textPrimary truncate"
+                                class="text-sm font-semibold text-zam-textPrimary truncate"
                                 >{entry.name}</span
                             >
                             {#if entry.isSpace}
                                 <span
-                                    class="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-discord-backgroundSecondary text-discord-textMuted flex-shrink-0"
+                                    class="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-zam-backgroundSecondary text-zam-textMuted flex-shrink-0"
                                     >{t("roomDirectory.space")}</span
                                 >
                             {/if}
                         </div>
-                        <p class="text-xs text-discord-textMuted truncate">
+                        <p class="text-xs text-zam-textMuted truncate">
                             {#if entry.alias}{entry.alias} ·
                             {/if}{t("common.memberCount", {
                                 count: entry.memberCount,
@@ -255,7 +255,7 @@
                                 · {entry.topic}{/if}
                         </p>
                         {#if joinError?.roomId === entry.roomId}
-                            <p class="text-xs text-discord-danger truncate">
+                            <p class="text-xs text-zam-danger truncate">
                                 {joinError.message}
                             </p>
                         {/if}
@@ -263,13 +263,13 @@
                     {#if isJoined(entry.roomId)}
                         <button
                             onclick={() => openJoined(entry)}
-                            class="px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors flex-shrink-0"
+                            class="px-3 py-1.5 rounded text-sm font-medium bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary transition-colors flex-shrink-0"
                             >{t("roomDirectory.open")}</button
                         >
                     {:else if entry.joinRule === "knock" && isKnocked(entry.roomId)}
                         <button
                             disabled
-                            class="px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundSecondary text-discord-textMuted opacity-60 cursor-not-allowed flex-shrink-0"
+                            class="px-3 py-1.5 rounded text-sm font-medium bg-zam-backgroundSecondary text-zam-textMuted opacity-60 cursor-not-allowed flex-shrink-0"
                             >{t("roomDirectory.requested")}</button
                         >
                     {:else if entry.joinRule === "knock"}
@@ -277,14 +277,14 @@
                             onclick={() => knock(entry)}
                             disabled={joiningId !== null}
                             title={t("roomDirectory.knockOnly")}
-                            class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 flex-shrink-0"
+                            class="px-3 py-1.5 rounded text-sm font-semibold bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-50 flex-shrink-0"
                             >{t("roomDirectory.requestToJoin")}</button
                         >
                     {:else}
                         <button
                             onclick={() => join(entry)}
                             disabled={joiningId !== null}
-                            class="px-3 py-1.5 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
+                            class="px-3 py-1.5 rounded text-sm font-semibold bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-50 flex items-center gap-2 flex-shrink-0"
                         >
                             {#if joiningId === entry.roomId}
                                 <div
@@ -300,11 +300,11 @@
                 <button
                     onclick={loadMore}
                     disabled={loadingMore}
-                    class="mt-1 py-2 rounded text-sm font-medium text-discord-textSecondary hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    class="mt-1 py-2 rounded text-sm font-medium text-zam-textSecondary hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                     {#if loadingMore}
                         <div
-                            class="w-4 h-4 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
+                            class="w-4 h-4 border-2 border-zam-accent border-t-transparent rounded-full animate-spin"
                         ></div>
                     {/if}
                     {t("common.loadMore")}

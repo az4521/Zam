@@ -52,19 +52,19 @@ describe("sanitizeThemeColors", () => {
 describe("themeColorsToCssVars", () => {
     it("expands a token to all its hex vars and rgb triples", () => {
         const pairs = themeColorsToCssVars({ background: "#010203" });
-        expect(pairs).toContainEqual(["--discord-bg", "#010203"]);
-        expect(pairs).toContainEqual(["--discord-bg-rgb", "1 2 3"]);
+        expect(pairs).toContainEqual(["--zam-bg", "#010203"]);
+        expect(pairs).toContainEqual(["--zam-bg-rgb", "1 2 3"]);
     });
     it("emits accent fill vars and the accent rgb twin", () => {
         const pairs = themeColorsToCssVars({ accent: "#5865f2" });
         const vars = Object.fromEntries(pairs);
-        expect(vars["--discord-accent"]).toBe("#5865f2");
-        expect(vars["--discord-accent-fill"]).toBe("#5865f2");
-        expect(vars["--discord-accent-rgb"]).toBe("88 101 242");
+        expect(vars["--zam-accent"]).toBe("#5865f2");
+        expect(vars["--zam-accent-fill"]).toBe("#5865f2");
+        expect(vars["--zam-accent-rgb"]).toBe("88 101 242");
     });
     it("maps mention to only the mention-highlight rgb var", () => {
         expect(themeColorsToCssVars({ mention: "#010203" })).toEqual([
-            ["--discord-mention-highlight-rgb", "1 2 3"],
+            ["--zam-mention-highlight-rgb", "1 2 3"],
         ]);
     });
     it("skips invalid hex", () => {
@@ -74,10 +74,8 @@ describe("themeColorsToCssVars", () => {
 
 describe("ALL_MANAGED_CSS_VARS", () => {
     it("contains every managed var and is deduped", () => {
-        expect(ALL_MANAGED_CSS_VARS).toContain("--discord-bg");
-        expect(ALL_MANAGED_CSS_VARS).toContain(
-            "--discord-mention-highlight-rgb",
-        );
+        expect(ALL_MANAGED_CSS_VARS).toContain("--zam-bg");
+        expect(ALL_MANAGED_CSS_VARS).toContain("--zam-mention-highlight-rgb");
         expect(new Set(ALL_MANAGED_CSS_VARS).size).toBe(
             ALL_MANAGED_CSS_VARS.length,
         );
@@ -143,46 +141,46 @@ describe("18-token expansion", () => {
 
     it("link token expands to both hex and rgb vars", () => {
         const pairs = themeColorsToCssVars({ link: "#8fa1e2" });
-        expect(pairs).toContainEqual(["--discord-link", "#8fa1e2"]);
-        expect(pairs).toContainEqual(["--discord-link-rgb", "143 161 226"]);
+        expect(pairs).toContainEqual(["--zam-link", "#8fa1e2"]);
+        expect(pairs).toContainEqual(["--zam-link-rgb", "143 161 226"]);
     });
 
     it("warning token expands to both hex and rgb vars", () => {
         const pairs = themeColorsToCssVars({ warning: "#faa61a" });
-        expect(pairs).toContainEqual(["--discord-warning", "#faa61a"]);
-        expect(pairs).toContainEqual(["--discord-warning-rgb", "250 166 26"]);
+        expect(pairs).toContainEqual(["--zam-warning", "#faa61a"]);
+        expect(pairs).toContainEqual(["--zam-warning-rgb", "250 166 26"]);
     });
 
     it("online token expands to hex var only", () => {
         const pairs = themeColorsToCssVars({ online: "#3ba55c" });
-        expect(pairs).toEqual([["--discord-online", "#3ba55c"]]);
+        expect(pairs).toEqual([["--zam-online", "#3ba55c"]]);
     });
 
     it("idle token expands to hex var only", () => {
         const pairs = themeColorsToCssVars({ idle: "#faa61a" });
-        expect(pairs).toEqual([["--discord-idle", "#faa61a"]]);
+        expect(pairs).toEqual([["--zam-idle", "#faa61a"]]);
     });
 
     it("dnd token expands to hex var only", () => {
         const pairs = themeColorsToCssVars({ dnd: "#ed4245" });
-        expect(pairs).toEqual([["--discord-dnd", "#ed4245"]]);
+        expect(pairs).toEqual([["--zam-dnd", "#ed4245"]]);
     });
 
     it("offline token expands to hex var only", () => {
         const pairs = themeColorsToCssVars({ offline: "#747f8d" });
-        expect(pairs).toEqual([["--discord-offline", "#747f8d"]]);
+        expect(pairs).toEqual([["--zam-offline", "#747f8d"]]);
     });
 
     it("divider token expands to hex var only", () => {
         const pairs = themeColorsToCssVars({ divider: "#41444e" });
-        expect(pairs).toEqual([["--discord-divider", "#41444e"]]);
+        expect(pairs).toEqual([["--zam-divider", "#41444e"]]);
     });
 
     it("spoilerBackground token expands to hex var only", () => {
         const pairs = themeColorsToCssVars({
             spoilerBackground: "#1e1f22",
         });
-        expect(pairs).toEqual([["--discord-spoiler-bg", "#1e1f22"]]);
+        expect(pairs).toEqual([["--zam-spoiler-bg", "#1e1f22"]]);
     });
 
     it("DEFAULT_THEME_COLORS.dark has all 19 tokens", () => {
@@ -225,16 +223,16 @@ describe("18-token expansion", () => {
     });
 
     it("ALL_MANAGED_CSS_VARS includes all new vars", () => {
-        expect(ALL_MANAGED_CSS_VARS).toContain("--discord-link");
-        expect(ALL_MANAGED_CSS_VARS).toContain("--discord-link-rgb");
-        expect(ALL_MANAGED_CSS_VARS).toContain("--discord-warning");
-        expect(ALL_MANAGED_CSS_VARS).toContain("--discord-warning-rgb");
-        expect(ALL_MANAGED_CSS_VARS).toContain("--discord-online");
-        expect(ALL_MANAGED_CSS_VARS).toContain("--discord-idle");
-        expect(ALL_MANAGED_CSS_VARS).toContain("--discord-dnd");
-        expect(ALL_MANAGED_CSS_VARS).toContain("--discord-offline");
-        expect(ALL_MANAGED_CSS_VARS).toContain("--discord-divider");
-        expect(ALL_MANAGED_CSS_VARS).toContain("--discord-spoiler-bg");
+        expect(ALL_MANAGED_CSS_VARS).toContain("--zam-link");
+        expect(ALL_MANAGED_CSS_VARS).toContain("--zam-link-rgb");
+        expect(ALL_MANAGED_CSS_VARS).toContain("--zam-warning");
+        expect(ALL_MANAGED_CSS_VARS).toContain("--zam-warning-rgb");
+        expect(ALL_MANAGED_CSS_VARS).toContain("--zam-online");
+        expect(ALL_MANAGED_CSS_VARS).toContain("--zam-idle");
+        expect(ALL_MANAGED_CSS_VARS).toContain("--zam-dnd");
+        expect(ALL_MANAGED_CSS_VARS).toContain("--zam-offline");
+        expect(ALL_MANAGED_CSS_VARS).toContain("--zam-divider");
+        expect(ALL_MANAGED_CSS_VARS).toContain("--zam-spoiler-bg");
     });
 
     it("sanitizeThemeColors keeps valid new-token hexes", () => {

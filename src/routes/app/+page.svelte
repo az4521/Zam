@@ -13,10 +13,10 @@
 </script>
 
 <div
-    class="flex items-center justify-center bg-discord-backgroundTertiary"
+    class="flex items-center justify-center bg-zam-backgroundTertiary"
     style="min-height: 100vh; min-height: 100dvh;"
 >
-    <div class="flex items-center gap-3 text-discord-textMuted">
+    <div class="flex items-center gap-3 text-zam-textMuted">
         <div
             class="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin"
         ></div>

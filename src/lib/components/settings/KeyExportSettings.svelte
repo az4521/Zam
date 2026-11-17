@@ -17,9 +17,9 @@
     import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
 
     const inputClass =
-        "w-full rounded bg-discord-backgroundSecondary px-3 py-2 text-sm text-discord-textPrimary outline-none focus:ring-2 focus:ring-discord-accent";
+        "w-full rounded bg-zam-backgroundSecondary px-3 py-2 text-sm text-zam-textPrimary outline-none focus:ring-2 focus:ring-zam-accent";
     const buttonClass =
-        "px-3 py-1.5 rounded text-sm font-medium bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50";
+        "px-3 py-1.5 rounded text-sm font-medium bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-50";
 
     // ── Export ──
     let exportPass = $state("");
@@ -107,12 +107,12 @@
     }
 </script>
 
-<section class="rounded bg-discord-backgroundTertiary px-4 py-4 space-y-4">
+<section class="rounded bg-zam-backgroundTertiary px-4 py-4 space-y-4">
     <div>
-        <p class="text-sm font-medium text-discord-textPrimary">
+        <p class="text-sm font-medium text-zam-textPrimary">
             {t("keyExportSettings.exportOrImportRoomKeys")}
         </p>
-        <p class="text-xs text-discord-textMuted mt-1">
+        <p class="text-xs text-zam-textMuted mt-1">
             {t("keyExportSettings.aKeyFileLetsAnotherApp")}
         </p>
     </div>
@@ -125,7 +125,7 @@
         }}
     >
         <p
-            class="text-xs font-bold uppercase text-discord-textSecondary tracking-wide"
+            class="text-xs font-bold uppercase text-zam-textSecondary tracking-wide"
         >
             {t("keyExportSettings.export")}
         </p>
@@ -146,7 +146,7 @@
             class={inputClass}
         />
         {#if mismatch}
-            <p class="text-xs text-discord-danger">
+            <p class="text-xs text-zam-danger">
                 {t("keyExportSettings.passphrasesDontMatch")}
             </p>
         {/if}
@@ -160,12 +160,12 @@
                 : t("keyExportSettings.exportKeys")}
         </button>
         {#if exportDone}
-            <p class="text-sm text-discord-online" role="status">
+            <p class="text-sm text-zam-online" role="status">
                 {exportDone}
             </p>
         {/if}
         {#if exportError}
-            <p class="text-sm text-discord-danger" role="alert">
+            <p class="text-sm text-zam-danger" role="alert">
                 {exportError}
             </p>
         {/if}
@@ -179,7 +179,7 @@
         }}
     >
         <p
-            class="text-xs font-bold uppercase text-discord-textSecondary tracking-wide"
+            class="text-xs font-bold uppercase text-zam-textSecondary tracking-wide"
         >
             {t("keyExportSettings.import")}
         </p>
@@ -192,7 +192,7 @@
                 importError = "";
                 importDone = "";
             }}
-            class="block w-full text-sm text-discord-textMuted file:me-3 file:rounded file:border-0 file:bg-discord-messageHover file:px-3 file:py-1.5 file:text-sm file:text-discord-textPrimary"
+            class="block w-full text-sm text-zam-textMuted file:me-3 file:rounded file:border-0 file:bg-zam-messageHover file:px-3 file:py-1.5 file:text-sm file:text-zam-textPrimary"
         />
         <input
             type="password"
@@ -211,21 +211,21 @@
         </button>
         {#if importing && progressView.percent !== null}
             <div
-                class="h-1.5 w-full rounded bg-discord-backgroundSecondary overflow-hidden"
+                class="h-1.5 w-full rounded bg-zam-backgroundSecondary overflow-hidden"
             >
                 <div
-                    class="h-full bg-discord-accent transition-[width]"
+                    class="h-full bg-zam-accent transition-[width]"
                     style="width: {progressView.percent}%"
                 ></div>
             </div>
         {/if}
         {#if importDone}
-            <p class="text-sm text-discord-online" role="status">
+            <p class="text-sm text-zam-online" role="status">
                 {importDone}
             </p>
         {/if}
         {#if importError}
-            <p class="text-sm text-discord-danger" role="alert">
+            <p class="text-sm text-zam-danger" role="alert">
                 {importError}
             </p>
         {/if}

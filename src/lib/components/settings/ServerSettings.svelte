@@ -31,18 +31,18 @@
         if (support === "yes") {
             return {
                 text: t("serverSettings.supported"),
-                cls: "text-discord-textPositive",
+                cls: "text-zam-textPositive",
             };
         }
         if (support === "no") {
             return {
                 text: t("serverSettings.notSupported"),
-                cls: "text-discord-danger",
+                cls: "text-zam-danger",
             };
         }
         return {
             text: t("serverSettings.unknown"),
-            cls: "text-discord-textMuted",
+            cls: "text-zam-textMuted",
         };
     }
 
@@ -124,40 +124,38 @@
 
 <div class="space-y-6">
     {#if loading}
-        <p class="text-sm text-discord-textMuted">
+        <p class="text-sm text-zam-textMuted">
             {t("serverSettings.scanningServer")}
         </p>
     {:else if error}
         <div class="space-y-2">
-            <p class="text-sm text-discord-danger">{error}</p>
+            <p class="text-sm text-zam-danger">{error}</p>
             <button
                 type="button"
                 onclick={load}
-                class="px-3 py-1.5 rounded text-sm bg-discord-backgroundTertiary text-discord-textPrimary hover:bg-discord-messageHover"
+                class="px-3 py-1.5 rounded text-sm bg-zam-backgroundTertiary text-zam-textPrimary hover:bg-zam-messageHover"
                 >{t("common.retry")}</button
             >
         </div>
     {:else}
-        <p class="text-xs text-discord-textMuted">
+        <p class="text-xs text-zam-textMuted">
             {t("serverSettings.what")}
-            <span class="text-discord-textSecondary">{auth.homeserverUrl}</span>
+            <span class="text-zam-textSecondary">{auth.homeserverUrl}</span>
             {t("serverSettings.advertisesItemsMarkedUnknownArenT")}
         </p>
 
         <section>
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
             >
                 {t("serverSettings.accountMessaging")}
             </p>
             {#each features as feature}
                 {@const status = badge(feature.support)}
                 <div
-                    class="flex justify-between items-center py-2 border-b border-discord-divider text-sm"
+                    class="flex justify-between items-center py-2 border-b border-zam-divider text-sm"
                 >
-                    <span class="text-discord-textSecondary"
-                        >{feature.label}</span
-                    >
+                    <span class="text-zam-textSecondary">{feature.label}</span>
                     <span class="text-xs {status.cls}">{status.text}</span>
                 </div>
             {/each}
@@ -165,18 +163,16 @@
 
         <section>
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
             >
                 {t("serverSettings.voiceVideoCallingMatrixrtc")}
             </p>
             {#each callingFeatures as feature}
                 {@const status = badge(feature.support)}
                 <div
-                    class="flex justify-between items-center py-2 border-b border-discord-divider text-sm"
+                    class="flex justify-between items-center py-2 border-b border-zam-divider text-sm"
                 >
-                    <span class="text-discord-textSecondary"
-                        >{feature.label}</span
-                    >
+                    <span class="text-zam-textSecondary">{feature.label}</span>
                     <span class="text-xs {status.cls}">{status.text}</span>
                 </div>
             {/each}
@@ -184,28 +180,28 @@
 
         <section>
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
             >
                 {t("serverSettings.server")}
             </p>
             <div
-                class="flex justify-between items-center py-2 border-b border-discord-divider text-sm"
+                class="flex justify-between items-center py-2 border-b border-zam-divider text-sm"
             >
-                <span class="text-discord-textMuted"
+                <span class="text-zam-textMuted"
                     >{t("serverSettings.latestSpecVersion")}</span
                 >
-                <span class="text-discord-textPrimary text-xs font-mono"
+                <span class="text-zam-textPrimary text-xs font-mono"
                     >{specVersions.at(-1) ?? "-"}</span
                 >
             </div>
             {#if roomVersion}
                 <div
-                    class="flex justify-between items-center py-2 border-b border-discord-divider text-sm"
+                    class="flex justify-between items-center py-2 border-b border-zam-divider text-sm"
                 >
-                    <span class="text-discord-textMuted"
+                    <span class="text-zam-textMuted"
                         >{t("serverSettings.defaultRoomVersion")}</span
                     >
-                    <span class="text-discord-textPrimary text-xs font-mono"
+                    <span class="text-zam-textPrimary text-xs font-mono"
                         >{roomVersion}</span
                     >
                 </div>
@@ -215,7 +211,7 @@
         {#if unstableLabels.length > 0}
             <section>
                 <p
-                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+                    class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
                 >
                     {t("serverSettings.advertisedFeatures", {
                         length: unstableLabels.length,
@@ -224,7 +220,7 @@
                 <div class="flex flex-wrap gap-1.5">
                     {#each unstableLabels as feature}
                         <span
-                            class="px-2 py-0.5 rounded text-xs bg-discord-backgroundTertiary text-discord-textSecondary border border-discord-divider"
+                            class="px-2 py-0.5 rounded text-xs bg-zam-backgroundTertiary text-zam-textSecondary border border-zam-divider"
                             >{feature}</span
                         >
                     {/each}

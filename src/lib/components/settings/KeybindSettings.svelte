@@ -194,18 +194,18 @@
 <div class="flex flex-col gap-6">
     <section>
         <div class="flex items-start gap-3">
-            <p class="flex-1 text-sm text-discord-textMuted">
+            <p class="flex-1 text-sm text-zam-textMuted">
                 {t("keybinds.intro")}
             </p>
             <button
                 type="button"
                 onclick={resetAll}
-                class="flex-shrink-0 px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary"
+                class="flex-shrink-0 px-3 py-1.5 rounded text-sm font-medium bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary"
                 >{t("keybinds.resetAll")}</button
             >
         </div>
         {#if notice}
-            <p class="mt-2 text-xs text-discord-warning" role="status">
+            <p class="mt-2 text-xs text-zam-warning" role="status">
                 {notice}
             </p>
         {/if}
@@ -214,27 +214,27 @@
     {#each groups as g (g.category)}
         <section data-setting-anchor="keybinds-{g.category}">
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
             >
                 {keybindCategoryLabel(g.category)}
             </p>
             {#if g.category === "voice" && globalHotkeysState.status}
                 {@const status = globalHotkeysState.status}
-                <div class="py-2 border-b border-discord-divider">
+                <div class="py-2 border-b border-zam-divider">
                     {#if status.state === "wayland"}
-                        <p class="text-sm text-discord-textPrimary">
+                        <p class="text-sm text-zam-textPrimary">
                             {t("keybinds.globalVoice")}
                         </p>
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("keybinds.globalWayland")}
                         </p>
                     {:else}
                         <div class="flex items-center gap-3">
                             <div class="flex-1">
-                                <p class="text-sm text-discord-textPrimary">
+                                <p class="text-sm text-zam-textPrimary">
                                     {t("keybinds.globalVoice")}
                                 </p>
-                                <p class="text-xs text-discord-textMuted">
+                                <p class="text-xs text-zam-textMuted">
                                     {status.backend === "portal"
                                         ? t("keybinds.globalPortalHint")
                                         : t("keybinds.globalVoiceHint")}
@@ -252,7 +252,7 @@
                                 role="status"
                             >
                                 <p
-                                    class="flex-1 min-w-[12rem] text-xs text-discord-warning"
+                                    class="flex-1 min-w-[12rem] text-xs text-zam-warning"
                                 >
                                     {t("keybinds.globalPermission")}
                                 </p>
@@ -260,13 +260,13 @@
                                     type="button"
                                     onclick={() =>
                                         void requestGlobalHotkeyPermission()}
-                                    class="px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary"
+                                    class="px-3 py-1.5 rounded text-sm font-medium bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary"
                                     >{t("keybinds.globalOpenSettings")}</button
                                 >
                             </div>
                         {:else if keybindsState.globalVoice && status.state === "error"}
                             <p
-                                class="mt-2 text-xs text-discord-warning"
+                                class="mt-2 text-xs text-zam-warning"
                                 role="status"
                             >
                                 {t(
@@ -278,25 +278,25 @@
                             </p>
                         {:else if keybindsState.globalVoice && status.state === "active" && status.backend === "portal"}
                             <div class="mt-2 flex flex-col gap-1" role="status">
-                                <p class="text-xs text-discord-textMuted">
+                                <p class="text-xs text-zam-textMuted">
                                     {t("keybinds.globalPortalAssigned")}
                                 </p>
                                 {#each status.shortcuts ?? [] as s (s.id)}
-                                    <p class="text-xs text-discord-textPrimary">
+                                    <p class="text-xs text-zam-textPrimary">
                                         {isKeybindAction(s.id)
                                             ? keybindLabel(s.id)
                                             : s.id}:
                                         <span
                                             class={s.trigger
                                                 ? "font-medium"
-                                                : "text-discord-textMuted"}
+                                                : "text-zam-textMuted"}
                                             >{s.trigger ||
                                                 t("keybinds.notSet")}</span
                                         >
                                     </p>
                                 {/each}
                                 {#if hasMouseVoiceBinding}
-                                    <p class="text-xs text-discord-warning">
+                                    <p class="text-xs text-zam-warning">
                                         {t("keybinds.globalPortalMouse")}
                                     </p>
                                 {/if}
@@ -304,7 +304,7 @@
                                     <button
                                         type="button"
                                         onclick={configureGlobalShortcuts}
-                                        class="self-start mt-1 px-3 py-1.5 rounded text-sm font-medium bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary"
+                                        class="self-start mt-1 px-3 py-1.5 rounded text-sm font-medium bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary"
                                         >{t(
                                             "keybinds.globalPortalConfigure",
                                         )}</button
@@ -319,14 +319,14 @@
                 {@const id = row.def.id}
                 {@const recording = recordingId === id}
                 <div
-                    class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 border-b border-discord-divider"
+                    class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 border-b border-zam-divider"
                 >
                     <div class="flex-1 min-w-[10rem]">
-                        <p class="text-sm text-discord-textPrimary">
+                        <p class="text-sm text-zam-textPrimary">
                             {keybindLabel(id)}
                         </p>
                         {#if hint(id)}
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {hint(id)}
                             </p>
                         {/if}
@@ -340,11 +340,11 @@
                         })}
                         aria-pressed={recording}
                         class="min-w-[9rem] px-2 py-1 rounded border text-start {recording
-                            ? 'border-discord-accent bg-discord-backgroundTertiary'
-                            : 'border-transparent bg-discord-backgroundTertiary hover:border-discord-divider'}"
+                            ? 'border-zam-accent bg-zam-backgroundTertiary'
+                            : 'border-transparent bg-zam-backgroundTertiary hover:border-zam-divider'}"
                     >
                         {#if recording}
-                            <span class="text-xs text-discord-accent"
+                            <span class="text-xs text-zam-accent"
                                 >{isHold(id)
                                     ? t("keybinds.pressKeyOrButton")
                                     : t("keybinds.pressKey")}</span
@@ -352,7 +352,7 @@
                         {:else if row.binding}
                             <KeyCaps binding={row.binding} />
                         {:else}
-                            <span class="text-xs text-discord-textMuted"
+                            <span class="text-xs text-zam-textMuted"
                                 >{t("keybinds.notSet")}</span
                             >
                         {/if}
@@ -366,7 +366,7 @@
                                 aria-label={t("keybinds.clearFor", {
                                     action: keybindLabel(id),
                                 })}
-                                class="p-1 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover"
+                                class="p-1 rounded text-zam-textMuted hover:text-zam-danger hover:bg-zam-messageHover"
                             >
                                 <svg
                                     class="w-4 h-4"
@@ -387,7 +387,7 @@
                                 aria-label={t("keybinds.resetFor", {
                                     action: keybindLabel(id),
                                 })}
-                                class="p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
+                                class="p-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover"
                             >
                                 <svg
                                     class="w-4 h-4"

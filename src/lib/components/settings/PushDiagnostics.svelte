@@ -22,36 +22,36 @@
 
 <section data-setting-anchor="debug-push">
     <p
-        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
     >
         {t("pushDiagnostics.pushGateway")}
     </p>
-    <div class="py-2 border-b border-discord-divider">
-        <p class="text-sm text-discord-textPrimary">
+    <div class="py-2 border-b border-zam-divider">
+        <p class="text-sm text-zam-textPrimary">
             {t("pushDiagnostics.notificationRelay")}
         </p>
-        <p class="text-xs text-discord-textMuted mb-1">
+        <p class="text-xs text-zam-textMuted mb-1">
             {t("pushDiagnostics.pushNotificationsAreRelayedThroughThis")}
         </p>
-        <p class="text-xs font-mono text-discord-textMuted break-all">
+        <p class="text-xs font-mono text-zam-textMuted break-all">
             {pushDebug.provider === "unifiedpush" && pushDebug.upGateway
                 ? pushDebug.upGateway
                 : PUSH_GATEWAY_NOTIFY_URL}
         </p>
         {#if gatewayStatus?.status === "mismatch"}
-            <p class="text-xs text-discord-danger mt-1">
+            <p class="text-xs text-zam-danger mt-1">
                 {t("pushDiagnostics.warningYourHomeserverIsRoutingThis", {
                     join: gatewayStatus.mismatchedUrls.join(", "),
                 })}
             </p>
         {:else if gatewayStatus?.status === "verified"}
-            <p class="text-xs text-discord-textPositive mt-1">
+            <p class="text-xs text-zam-textPositive mt-1">
                 {t(
                     "pushDiagnostics.verifiedYourHomeserverRoutesNotificationsTo",
                 )}
             </p>
         {:else if gatewayStatus?.status === "none"}
-            <p class="text-xs text-discord-textMuted mt-1 italic">
+            <p class="text-xs text-zam-textMuted mt-1 italic">
                 {t("pushDiagnostics.noPushNotificationsAreRegisteredOn")}
             </p>
         {/if}

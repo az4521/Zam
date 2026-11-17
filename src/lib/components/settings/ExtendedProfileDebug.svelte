@@ -54,7 +54,7 @@
 
 <section>
     <p
-        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
     >
         {t("extendedProfileDebug.extendedProfile")}
     </p>
@@ -63,7 +63,7 @@
             type="button"
             onclick={load}
             disabled={loading}
-            class="px-3 py-1.5 bg-discord-accent text-white rounded text-sm disabled:opacity-50"
+            class="px-3 py-1.5 bg-zam-accent text-white rounded text-sm disabled:opacity-50"
             >{loading
                 ? t("common.loading")
                 : t("extendedProfileDebug.fetchFromServer")}</button
@@ -72,27 +72,27 @@
             <button
                 type="button"
                 onclick={copy}
-                class="px-3 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary rounded text-sm"
+                class="px-3 py-1.5 bg-zam-backgroundTertiary text-zam-textPrimary rounded text-sm"
                 >{t("common.copy")}</button
             >
         {/if}
     </div>
-    {#if error}<p class="text-xs text-discord-danger">{error}</p>{/if}
+    {#if error}<p class="text-xs text-zam-danger">{error}</p>{/if}
     {#if profile === null}
-        <p class="text-xs text-discord-textMuted">
+        <p class="text-xs text-zam-textMuted">
             {t("extendedProfileDebug.thisServerDoesNotSupportExtended")}
         </p>
     {:else if profile}
         <pre
-            class="text-xs font-mono text-discord-textSecondary bg-discord-backgroundTertiary rounded p-3 overflow-auto max-h-96 whitespace-pre-wrap break-all">{profileJson}</pre>
-        <p class="mt-2 text-xs text-discord-textMuted">
+            class="text-xs font-mono text-zam-textSecondary bg-zam-backgroundTertiary rounded p-3 overflow-auto max-h-96 whitespace-pre-wrap break-all">{profileJson}</pre>
+        <p class="mt-2 text-xs text-zam-textMuted">
             {t("extendedProfileDebug.presenceGetPresenceStraightFromThe", {
                 value: presence
                     ? JSON.stringify(presence)
                     : t("extendedProfileDebug.noneOrTheServerRefused"),
             })}
         </p>
-        <p class="mt-1 text-xs text-discord-textMuted">
+        <p class="mt-1 text-xs text-zam-textMuted">
             {t("extendedProfileDebug.serverRulesForFieldsMProfile", {
                 value:
                     profileFields === undefined

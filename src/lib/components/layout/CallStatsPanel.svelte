@@ -466,9 +466,9 @@
     );
 
     const TONE_CLASS: Record<StatTone, string> = {
-        ok: "text-discord-textPrimary",
-        warn: "text-discord-warning",
-        bad: "text-discord-danger",
+        ok: "text-zam-textPrimary",
+        warn: "text-zam-warning",
+        bad: "text-zam-danger",
     };
 
     const anyTcp = $derived(
@@ -535,7 +535,7 @@
     secret = false,
 )}
     <div class="flex justify-between gap-3 py-0.5">
-        <dt class="text-discord-textMuted">{label}</dt>
+        <dt class="text-zam-textMuted">{label}</dt>
         <dd
             class="font-mono text-end {TONE_CLASS[tone]} {secret
                 ? 'streamer-hide'
@@ -549,12 +549,12 @@
 {#snippet transport(title: string, s: TransportSummary | null)}
     <div class="min-w-0">
         <h4
-            class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted mb-1"
+            class="text-xs font-semibold uppercase tracking-wide text-zam-textMuted mb-1"
         >
             {title}
         </h4>
         {#if !s}
-            <p class="text-discord-textMuted">{t("callStats.noTransport")}</p>
+            <p class="text-zam-textMuted">{t("callStats.noTransport")}</p>
         {:else}
             <dl>
                 {@render row(
@@ -616,12 +616,12 @@
 {/snippet}
 
 {#snippet stream(s: RtpStreamSummary)}
-    <div class="min-w-0 rounded bg-discord-backgroundSecondary px-3 py-2">
+    <div class="min-w-0 rounded bg-zam-backgroundSecondary px-3 py-2">
         <h4 class="flex flex-wrap items-baseline gap-x-2 mb-1">
-            <span class="font-medium text-discord-textPrimary"
+            <span class="font-medium text-zam-textPrimary"
                 >{streamTitle(s)}</span
             >
-            <span class="text-xs text-discord-textMuted">
+            <span class="text-xs text-zam-textMuted">
                 {s.direction === "send"
                     ? t("callStats.sent")
                     : t("callStats.received")}
@@ -701,8 +701,8 @@
 {#snippet video(v: VideoView)}
     {@const tr = v.track}
     {@const s = v.stream}
-    <div class="min-w-0 rounded bg-discord-backgroundSecondary px-3 py-2">
-        <h4 class="font-medium text-discord-textPrimary mb-1">
+    <div class="min-w-0 rounded bg-zam-backgroundSecondary px-3 py-2">
+        <h4 class="font-medium text-zam-textPrimary mb-1">
             {videoTitle(v)}
         </h4>
         <p class="text-xs mb-1 {TONE_CLASS[v.tone]}">
@@ -779,27 +779,27 @@
     <ModalDialog
         {onClose}
         labelledBy="call-stats-title"
-        panelClass="relative bg-discord-background rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90dvh] flex flex-col"
+        panelClass="relative bg-zam-background rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90dvh] flex flex-col"
     >
         <div
-            class="flex items-center gap-2 px-5 py-3 border-b border-discord-divider flex-shrink-0"
+            class="flex items-center gap-2 px-5 py-3 border-b border-zam-divider flex-shrink-0"
         >
             <h2
                 id="call-stats-title"
-                class="text-lg font-bold text-discord-textPrimary"
+                class="text-lg font-bold text-zam-textPrimary"
             >
                 {t("callStats.title")}
             </h2>
             <button
                 onclick={() => void copyJson()}
                 disabled={!connections?.length}
-                class="ms-auto px-2.5 py-1 rounded text-sm bg-discord-backgroundSecondary text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-50"
+                class="ms-auto px-2.5 py-1 rounded text-sm bg-zam-backgroundSecondary text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-50"
             >
                 {t("callStats.copyJson")}
             </button>
             <button
                 onclick={onClose}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
+                class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover"
                 title={t("common.closeDialog")}
                 aria-label={t("common.closeDialog")}
             >
@@ -809,21 +809,21 @@
 
         <div class="overflow-y-auto px-5 py-4 space-y-4 text-sm">
             {#if connections === null}
-                <p class="text-discord-textMuted">{t("callStats.loading")}</p>
+                <p class="text-zam-textMuted">{t("callStats.loading")}</p>
             {:else if connections.length === 0}
-                <p class="text-discord-textMuted">{t("callStats.notInCall")}</p>
+                <p class="text-zam-textMuted">{t("callStats.notInCall")}</p>
             {:else}
                 {#if serverSwitchedTcp}
                     <p
                         role="status"
-                        class="rounded px-3 py-2 bg-discord-danger/15 text-discord-textPrimary"
+                        class="rounded px-3 py-2 bg-zam-danger/15 text-zam-textPrimary"
                     >
                         {t("callStats.serverSwitchedTcp")}
                     </p>
                 {:else if anyTcp}
                     <p
                         role="status"
-                        class="rounded px-3 py-2 bg-discord-danger/15 text-discord-textPrimary"
+                        class="rounded px-3 py-2 bg-zam-danger/15 text-zam-textPrimary"
                     >
                         {t("callStats.tcpWarning")}
                     </p>
@@ -831,7 +831,7 @@
                 {#if cpuLimited}
                     <p
                         role="status"
-                        class="rounded px-3 py-2 bg-discord-danger/15 text-discord-textPrimary"
+                        class="rounded px-3 py-2 bg-zam-danger/15 text-zam-textPrimary"
                     >
                         {t("callStats.cpuLimitHint")}
                     </p>
@@ -839,20 +839,20 @@
                 {#if softwareEncode}
                     <p
                         role="status"
-                        class="rounded px-3 py-2 bg-discord-warning/15 text-discord-textPrimary"
+                        class="rounded px-3 py-2 bg-zam-warning/15 text-zam-textPrimary"
                     >
                         {t("callStats.softwareEncodeHint")}
                     </p>
                 {/if}
                 {#each connections as c (c.raw.key)}
                     <section
-                        class="rounded-lg border border-discord-divider p-3 space-y-3"
+                        class="rounded-lg border border-zam-divider p-3 space-y-3"
                     >
                         <div class="flex flex-wrap items-baseline gap-x-2">
-                            <h3 class="font-semibold text-discord-textPrimary">
+                            <h3 class="font-semibold text-zam-textPrimary">
                                 {c.raw.server}
                             </h3>
-                            <span class="text-xs text-discord-textMuted">
+                            <span class="text-xs text-zam-textMuted">
                                 {c.raw.publishing
                                     ? t("callStats.publishing")
                                     : t("callStats.listening")}
@@ -887,7 +887,7 @@
                         {#if c.routes}
                             <div>
                                 <h4
-                                    class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted mb-1"
+                                    class="text-xs font-semibold uppercase tracking-wide text-zam-textMuted mb-1"
                                 >
                                     {t("callStats.proxyRoute")}
                                 </h4>
@@ -913,7 +913,7 @@
                         {#if c.videos.length > 0}
                             <div>
                                 <h4
-                                    class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted mb-1"
+                                    class="text-xs font-semibold uppercase tracking-wide text-zam-textMuted mb-1"
                                 >
                                     {t("callStats.video")}
                                 </h4>
@@ -929,7 +929,7 @@
                                 <table class="w-full text-xs">
                                     <thead>
                                         <tr
-                                            class="text-start text-discord-textMuted"
+                                            class="text-start text-zam-textMuted"
                                         >
                                             <th
                                                 class="text-start font-medium py-1 pe-2"
@@ -960,10 +960,10 @@
                                     <tbody class="font-mono">
                                         {#each c.participants as p (p.identity)}
                                             <tr
-                                                class="border-t border-discord-divider"
+                                                class="border-t border-zam-divider"
                                             >
                                                 <td
-                                                    class="py-1 pe-2 font-sans text-discord-textPrimary truncate max-w-[12rem]"
+                                                    class="py-1 pe-2 font-sans text-zam-textPrimary truncate max-w-[12rem]"
                                                     title={p.identity}
                                                     >{p.name}</td
                                                 >
@@ -1003,7 +1003,7 @@
                                                     )}</td
                                                 >
                                                 <td
-                                                    class="py-1 text-end text-discord-textPrimary"
+                                                    class="py-1 text-end text-zam-textPrimary"
                                                     >{ms(
                                                         p.audio?.audioIn
                                                             .jitterBufferMs ??
@@ -1019,7 +1019,7 @@
                         {#if c.streams.length > 0}
                             <div>
                                 <h4
-                                    class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted mb-1"
+                                    class="text-xs font-semibold uppercase tracking-wide text-zam-textMuted mb-1"
                                 >
                                     {t("callStats.streams")}
                                 </h4>
@@ -1032,7 +1032,7 @@
                         {/if}
                     </section>
                 {/each}
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("callStats.legend")}
                 </p>
             {/if}

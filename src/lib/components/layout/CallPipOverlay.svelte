@@ -211,7 +211,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div
-        class="fixed z-40 aspect-video max-w-[calc(100vw-2rem)] rounded-lg overflow-hidden bg-black shadow-2xl border border-discord-divider touch-none select-none {dragPos
+        class="fixed z-40 aspect-video max-w-[calc(100vw-2rem)] rounded-lg overflow-hidden bg-black shadow-2xl border border-zam-divider touch-none select-none {dragPos
             ? 'cursor-grabbing'
             : 'cursor-pointer'} {!dragPos && motionOK()
             ? 'transition-[left,top] duration-150 ease-out'

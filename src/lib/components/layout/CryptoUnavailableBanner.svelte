@@ -38,10 +38,10 @@
 {#if visible}
     <div
         role="alert"
-        class="flex max-w-full items-center gap-3 rounded-lg border border-discord-danger/50 bg-discord-backgroundSecondary px-4 py-2.5 shadow-lg"
+        class="flex max-w-full items-center gap-3 rounded-lg border border-zam-danger/50 bg-zam-backgroundSecondary px-4 py-2.5 shadow-lg"
     >
         <svg
-            class="h-5 w-5 flex-shrink-0 text-discord-danger"
+            class="h-5 w-5 flex-shrink-0 text-zam-danger"
             fill="currentColor"
             viewBox="0 0 24 24"
             aria-hidden="true"
@@ -51,14 +51,14 @@
             />
         </svg>
         <span class="flex min-w-0 flex-col gap-0.5 text-sm">
-            <span class="text-discord-textPrimary">{message}</span>
+            <span class="text-zam-textPrimary">{message}</span>
             {#if sessionHealthState.syncHeldForCrypto}
-                <span class="text-discord-textPrimary">
+                <span class="text-zam-textPrimary">
                     {t("cryptoUnavailableBanner.syncPaused")}
                 </span>
             {/if}
             {#if sessionHealthState.cryptoFailureKind === "other" && sessionHealthState.cryptoFailureDetail}
-                <span class="break-words text-xs text-discord-textMuted">
+                <span class="break-words text-xs text-zam-textMuted">
                     {sessionHealthState.cryptoFailureDetail}
                 </span>
             {/if}
@@ -69,7 +69,7 @@
             title={waitingForSpace
                 ? t("cryptoUnavailableBanner.freeUpSpaceFirst")
                 : undefined}
-            class="flex-shrink-0 rounded bg-discord-accent px-3 py-1 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            class="flex-shrink-0 rounded bg-zam-accent px-3 py-1 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
             {t("cryptoUnavailableBanner.tryAgain")}
         </button>
@@ -79,7 +79,7 @@
                 aria-label={t(
                     "cryptoUnavailableBanner.dismissEncryptionWarning",
                 )}
-                class="flex-shrink-0 text-discord-textMuted hover:text-discord-textPrimary"
+                class="flex-shrink-0 text-zam-textMuted hover:text-zam-textPrimary"
             >
                 <svg
                     class="h-4 w-4"

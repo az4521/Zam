@@ -10,9 +10,7 @@
 
     // Grey shields are advisory, red ones are a security warning.
     const toneClass = $derived(
-        shield.tone === "danger"
-            ? "text-discord-danger"
-            : "text-discord-textMuted",
+        shield.tone === "danger" ? "text-zam-danger" : "text-zam-textMuted",
     );
 </script>
 

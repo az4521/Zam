@@ -29,28 +29,28 @@
     {onClose}
     labelledBy="keyboard-shortcuts-title"
     layerClass="z-50 flex items-center justify-center p-4"
-    panelClass="relative w-full max-w-3xl max-h-[85vh] flex flex-col bg-discord-backgroundSecondary rounded-lg shadow-xl"
+    panelClass="relative w-full max-w-3xl max-h-[85vh] flex flex-col bg-zam-backgroundSecondary rounded-lg shadow-xl"
 >
     <div
-        class="flex items-center gap-3 px-6 pt-5 pb-3 border-b border-discord-divider"
+        class="flex items-center gap-3 px-6 pt-5 pb-3 border-b border-zam-divider"
     >
         <h2
             id="keyboard-shortcuts-title"
-            class="flex-1 text-lg font-bold text-discord-textPrimary"
+            class="flex-1 text-lg font-bold text-zam-textPrimary"
         >
             {t("keybinds.helpTitle")}
         </h2>
         <button
             type="button"
             onclick={onCustomize}
-            class="px-3 py-1.5 rounded text-sm font-medium bg-discord-accent hover:bg-discord-accentHover text-white"
+            class="px-3 py-1.5 rounded text-sm font-medium bg-zam-accent hover:bg-zam-accentHover text-white"
             >{t("keybinds.customize")}</button
         >
         <button
             type="button"
             onclick={onClose}
             aria-label={t("common.closeDialog")}
-            class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover"
+            class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover"
         >
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"
                 ><path
@@ -63,15 +63,15 @@
         {#each groups as g (g.category)}
             <section>
                 <h3
-                    class="mb-2 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                    class="mb-2 text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                 >
                     {keybindCategoryLabel(g.category)}
                 </h3>
                 {#each g.rows as row (row.id)}
                     <div
-                        class="flex items-center gap-3 py-1.5 border-b border-discord-divider"
+                        class="flex items-center gap-3 py-1.5 border-b border-zam-divider"
                     >
-                        <span class="flex-1 text-sm text-discord-textPrimary"
+                        <span class="flex-1 text-sm text-zam-textPrimary"
                             >{keybindLabel(row.id)}</span
                         >
                         <KeyCaps binding={row.binding!} />

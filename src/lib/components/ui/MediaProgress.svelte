@@ -38,24 +38,24 @@
 </script>
 
 <div
-    class="flex items-center gap-2 p-3 bg-discord-backgroundSecondary rounded-lg mt-1 max-w-sm w-full"
+    class="flex items-center gap-2 p-3 bg-zam-backgroundSecondary rounded-lg mt-1 max-w-sm w-full"
 >
     <div
-        class="w-4 h-4 border-2 border-discord-accent border-t-transparent rounded-full animate-spin flex-shrink-0"
+        class="w-4 h-4 border-2 border-zam-accent border-t-transparent rounded-full animate-spin flex-shrink-0"
     ></div>
     <div class="min-w-0 flex-1">
         <div class="flex items-baseline justify-between gap-2">
-            <span class="text-xs text-discord-textMuted truncate">{label}</span>
+            <span class="text-xs text-zam-textMuted truncate">{label}</span>
             {#if detail}
                 <span
-                    class="text-[11px] text-discord-textMuted tabular-nums flex-shrink-0"
+                    class="text-[11px] text-zam-textMuted tabular-nums flex-shrink-0"
                     >{detail}</span
                 >
             {/if}
         </div>
         {#if fraction !== null}
             <div
-                class="mt-1.5 h-1 rounded-full bg-discord-backgroundTertiary overflow-hidden"
+                class="mt-1.5 h-1 rounded-full bg-zam-backgroundTertiary overflow-hidden"
                 role="progressbar"
                 aria-label={label}
                 aria-valuemin="0"
@@ -63,7 +63,7 @@
                 aria-valuenow={Math.round(fraction * 100)}
             >
                 <div
-                    class="h-full bg-discord-accent transition-[width] duration-150"
+                    class="h-full bg-zam-accent transition-[width] duration-150"
                     style="width: {Math.round(fraction * 100)}%"
                 ></div>
             </div>

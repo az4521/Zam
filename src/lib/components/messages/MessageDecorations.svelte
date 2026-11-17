@@ -11,12 +11,12 @@
 {#each decorations as d (d.key)}
     {#if d.badge}
         <span
-            class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold leading-none bg-discord-backgroundSecondary text-discord-textMuted border border-discord-divider"
+            class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold leading-none bg-zam-backgroundSecondary text-zam-textMuted border border-zam-divider"
             title={d.tooltip}>{d.badge}</span
         >
     {:else if d.tooltip}
         <span
-            class="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] font-semibold bg-discord-backgroundSecondary text-discord-textMuted border border-discord-divider"
+            class="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] font-semibold bg-zam-backgroundSecondary text-zam-textMuted border border-zam-divider"
             title={d.tooltip}
             aria-label={d.tooltip}>i</span
         >

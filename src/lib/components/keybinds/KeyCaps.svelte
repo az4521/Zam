@@ -13,7 +13,7 @@
 <span class="inline-flex items-center gap-1 flex-wrap" dir="ltr">
     {#each parts as part, i (i)}
         <kbd
-            class="min-w-[1.5rem] px-1.5 py-0.5 rounded border border-discord-divider bg-discord-backgroundTertiary text-xs font-mono text-discord-textPrimary text-center shadow-[0_1px_0_var(--discord-divider)]"
+            class="min-w-[1.5rem] px-1.5 py-0.5 rounded border border-zam-divider bg-zam-backgroundTertiary text-xs font-mono text-zam-textPrimary text-center shadow-[0_1px_0_var(--zam-divider)]"
             >{part}</kbd
         >
     {/each}

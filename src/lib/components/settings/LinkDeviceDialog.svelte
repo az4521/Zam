@@ -180,12 +180,9 @@
 <ModalDialog
     onClose={close}
     labelledBy="qr-link-title"
-    panelClass="relative z-10 w-[min(92vw,26rem)] rounded-lg bg-discord-backgroundSecondary border border-discord-divider p-5 shadow-xl"
+    panelClass="relative z-10 w-[min(92vw,26rem)] rounded-lg bg-zam-backgroundSecondary border border-zam-divider p-5 shadow-xl"
 >
-    <h2
-        id="qr-link-title"
-        class="text-lg font-semibold text-discord-textPrimary"
-    >
+    <h2 id="qr-link-title" class="text-lg font-semibold text-zam-textPrimary">
         {mode === "code"
             ? t("qrLogin.codeTitle")
             : mode === "show"
@@ -194,10 +191,10 @@
     </h2>
 
     {#if step === "show"}
-        <p class="mt-3 text-sm text-discord-textSecondary">
+        <p class="mt-3 text-sm text-zam-textSecondary">
             {t("qrLogin.showIntro")}
         </p>
-        <p class="mt-2 text-xs text-discord-textMuted">
+        <p class="mt-2 text-xs text-zam-textMuted">
             {t("qrLogin.linkWarning")}
         </p>
         <div class="mt-4 flex justify-center">
@@ -212,20 +209,20 @@
                 <button
                     type="button"
                     onclick={startShowing}
-                    class="px-3 py-2 bg-discord-accent hover:bg-discord-accentHover text-white font-semibold rounded text-sm"
+                    class="px-3 py-2 bg-zam-accent hover:bg-zam-accentHover text-white font-semibold rounded text-sm"
                 >
                     {t("qrLogin.showRetry")}
                 </button>
             {:else}
-                <Loader2 size={28} class="animate-spin text-discord-accent" />
+                <Loader2 size={28} class="animate-spin text-zam-accent" />
             {/if}
         </div>
     {:else if step === "number"}
         <form onsubmit={submitNumber} class="mt-3 flex flex-col gap-3">
-            <p class="text-sm text-discord-textSecondary">
+            <p class="text-sm text-zam-textSecondary">
                 {t("qrLogin.showEnterNumber")}
             </p>
-            <label class="text-xs text-discord-textMuted" for="show-number">
+            <label class="text-xs text-zam-textMuted" for="show-number">
                 {t("qrLogin.numberLabel")}
             </label>
             <!-- svelte-ignore a11y_autofocus -->
@@ -236,12 +233,12 @@
                 autocomplete="off"
                 maxlength="2"
                 autofocus
-                class="w-24 px-3 py-2 text-lg tracking-widest text-center bg-discord-backgroundTertiary text-discord-textPrimary rounded border border-discord-divider focus:border-discord-accent focus:outline-none"
+                class="w-24 px-3 py-2 text-lg tracking-widest text-center bg-zam-backgroundTertiary text-zam-textPrimary rounded border border-zam-divider focus:border-zam-accent focus:outline-none"
             />
             <button
                 type="submit"
                 disabled={typedNumber.trim().length === 0}
-                class="py-2 bg-discord-accent hover:bg-discord-accentHover text-white font-semibold rounded text-sm disabled:opacity-60"
+                class="py-2 bg-zam-accent hover:bg-zam-accentHover text-white font-semibold rounded text-sm disabled:opacity-60"
             >
                 {t("qrLogin.confirm")}
             </button>
@@ -249,7 +246,7 @@
     {/if}
 
     {#if step === "choose"}
-        <p class="mt-3 text-sm text-discord-textSecondary">
+        <p class="mt-3 text-sm text-zam-textSecondary">
             {t("qrLogin.chooseIntro")}
         </p>
         <ul class="mt-3 space-y-2">
@@ -262,12 +259,12 @@
                             pickDevice = null;
                             step = "approve";
                         }}
-                        class="w-full text-start px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-sm text-discord-textPrimary"
+                        class="w-full text-start px-3 py-2 rounded bg-zam-backgroundTertiary hover:bg-zam-messageHover text-sm text-zam-textPrimary"
                     >
                         <span class="block font-medium"
                             >{device.displayName || device.deviceId}</span
                         >
-                        <span class="block text-xs text-discord-textMuted"
+                        <span class="block text-xs text-zam-textMuted"
                             >{device.deviceId}{device.lastSeenIp
                                 ? ` · ${device.lastSeenIp}`
                                 : ""}</span
@@ -280,13 +277,13 @@
         <!-- shown above -->
     {:else if step === "scan" && mode === "code"}
         <form onsubmit={onSubmitCode} class="mt-3 flex flex-col gap-3">
-            <p class="text-sm text-discord-textSecondary">
+            <p class="text-sm text-zam-textSecondary">
                 {t("qrLogin.codeIntro")}
             </p>
-            <p class="text-xs text-discord-textMuted">
+            <p class="text-xs text-zam-textMuted">
                 {t("qrLogin.linkWarning")}
             </p>
-            <label class="text-xs text-discord-textMuted" for="link-user-code">
+            <label class="text-xs text-zam-textMuted" for="link-user-code">
                 {t("qrLogin.codeLabel")}
             </label>
             <!-- svelte-ignore a11y_autofocus -->
@@ -297,21 +294,21 @@
                 autocomplete="off"
                 autocapitalize="characters"
                 spellcheck="false"
-                class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-center text-xl tracking-widest uppercase rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                class="w-full bg-zam-backgroundTertiary text-zam-textPrimary text-center text-xl tracking-widest uppercase rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
             />
             <button
                 type="submit"
                 disabled={!typedCode.trim()}
-                class="w-full py-2 bg-discord-accent hover:bg-discord-accentHover text-white font-semibold rounded text-sm disabled:opacity-50"
+                class="w-full py-2 bg-zam-accent hover:bg-zam-accentHover text-white font-semibold rounded text-sm disabled:opacity-50"
             >
                 {t("qrLogin.codeContinue")}
             </button>
         </form>
     {:else if step === "scan"}
-        <p class="mt-3 text-sm text-discord-textSecondary">
+        <p class="mt-3 text-sm text-zam-textSecondary">
             {t("qrLogin.linkIntro")}
         </p>
-        <p class="mt-2 text-xs text-discord-textMuted">
+        <p class="mt-2 text-xs text-zam-textMuted">
             {t("qrLogin.linkWarning")}
         </p>
         <div class="mt-4 flex flex-col items-center gap-2">
@@ -323,26 +320,23 @@
                         onError={(message) => (error = message)}
                     />
                 {:else if !error}
-                    <Loader2
-                        size={28}
-                        class="animate-spin text-discord-accent"
-                    />
+                    <Loader2 size={28} class="animate-spin text-zam-accent" />
                 {/if}
             {/key}
         </div>
     {:else if step === "approve"}
         {#if checkCode}
-            <p class="mt-3 text-sm text-discord-textSecondary">
+            <p class="mt-3 text-sm text-zam-textSecondary">
                 {t("qrLogin.linkShowNumber")}
             </p>
             <p
-                class="mt-2 text-center text-4xl font-semibold tracking-widest text-discord-textPrimary"
+                class="mt-2 text-center text-4xl font-semibold tracking-widest text-zam-textPrimary"
                 aria-live="polite"
             >
                 {checkCode}
             </p>
         {/if}
-        <p class="mt-3 text-sm text-discord-textSecondary">
+        <p class="mt-3 text-sm text-zam-textSecondary">
             {t("qrLogin.linkApprove", { host: approvalHost })}
         </p>
         {#if approvalUrl}
@@ -351,25 +345,25 @@
                 target="_blank"
                 data-in-app
                 rel="noopener noreferrer"
-                class="mt-3 block w-full py-2 text-center bg-discord-accent hover:bg-discord-accentHover text-white font-semibold rounded text-sm"
+                class="mt-3 block w-full py-2 text-center bg-zam-accent hover:bg-zam-accentHover text-white font-semibold rounded text-sm"
             >
                 {t("qrLogin.linkApproveButton", { host: approvalHost })}
             </a>
             <div
-                class="mt-4 flex items-center justify-center gap-2 text-xs text-discord-textMuted"
+                class="mt-4 flex items-center justify-center gap-2 text-xs text-zam-textMuted"
             >
-                <Loader2 size={16} class="animate-spin text-discord-accent" />
+                <Loader2 size={16} class="animate-spin text-zam-accent" />
                 {t("qrLogin.linkWaiting")}
             </div>
         {:else}
             <div class="mt-4 flex justify-center">
-                <Loader2 size={24} class="animate-spin text-discord-accent" />
+                <Loader2 size={24} class="animate-spin text-zam-accent" />
             </div>
         {/if}
     {:else}
         <div class="mt-5 flex flex-col items-center gap-2 text-center">
-            <CheckCircle2 size={40} class="text-discord-accent" />
-            <p class="text-sm text-discord-textPrimary">
+            <CheckCircle2 size={40} class="text-zam-accent" />
+            <p class="text-sm text-zam-textPrimary">
                 {checkCode
                     ? t("qrLogin.linkDoneVerified")
                     : verifying
@@ -380,13 +374,13 @@
     {/if}
 
     {#if error}
-        <p class="mt-3 text-sm text-discord-danger" role="alert">{error}</p>
+        <p class="mt-3 text-sm text-zam-danger" role="alert">{error}</p>
     {/if}
 
     <button
         type="button"
         onclick={close}
-        class="mt-5 w-full py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm"
+        class="mt-5 w-full py-2 rounded bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary text-sm"
     >
         {step === "done" ? t("qrLogin.linkClose") : t("qrLogin.cancel")}
     </button>

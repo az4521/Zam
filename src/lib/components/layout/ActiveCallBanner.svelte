@@ -90,7 +90,7 @@
 
 {#if decision.visible}
     <div
-        class="flex items-center gap-3 px-4 py-2 bg-discord-backgroundSecondary border-b border-discord-divider"
+        class="flex items-center gap-3 px-4 py-2 bg-zam-backgroundSecondary border-b border-zam-divider"
     >
         <!-- Body opens the call view (peek without joining); Leave/Join stays
              a separate action on the right. Same target as the roster rows and
@@ -98,14 +98,14 @@
              room, so showCallView alone suffices (no navigateToRoom). -->
         <button
             onclick={() => showCallView(room.roomId)}
-            class="flex items-center gap-3 min-w-0 flex-1 overflow-hidden text-start -mx-1 px-1 py-1 rounded hover:bg-discord-messageHover transition-colors"
+            class="flex items-center gap-3 min-w-0 flex-1 overflow-hidden text-start -mx-1 px-1 py-1 rounded hover:bg-zam-messageHover transition-colors"
             title={t("activeCallBanner.openCall")}
         >
             <div class="flex -space-x-1.5 mirror:space-x-reverse">
                 {#each participants as p (p.userId)}
                     <div
                         class="rounded-full ring-2 {speaking.has(p.userId)
-                            ? 'ring-discord-accent'
+                            ? 'ring-zam-accent'
                             : 'ring-transparent'}"
                         title={getMemberName(room, p.userId)}
                     >
@@ -118,7 +118,7 @@
                     </div>
                 {/each}
             </div>
-            <span class="text-sm text-discord-textSecondary min-w-0 truncate">
+            <span class="text-sm text-zam-textSecondary min-w-0 truncate">
                 {#if ringingOut}
                     {t("activeCallBanner.ringing")}
                 {:else}
@@ -136,9 +136,9 @@
                 {#if !settingsState.cameraDisabled}
                     <button
                         onclick={() => void toggleCamera()}
-                        class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.cameraOn
-                            ? 'text-discord-accent'
-                            : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                        class="p-1.5 rounded hover:bg-zam-messageHover {voiceCallState.cameraOn
+                            ? 'text-zam-accent'
+                            : 'text-zam-textMuted hover:text-zam-textPrimary'}"
                         title={voiceCallState.cameraOn
                             ? t("common.turnOffCamera")
                             : t("common.turnOnCamera")}
@@ -154,9 +154,9 @@
                 {#if screenShareSupported}
                     <button
                         onclick={() => void toggleScreenShare()}
-                        class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.screenSharing
-                            ? 'text-discord-accent'
-                            : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                        class="p-1.5 rounded hover:bg-zam-messageHover {voiceCallState.screenSharing
+                            ? 'text-zam-accent'
+                            : 'text-zam-textMuted hover:text-zam-textPrimary'}"
                         title={voiceCallState.screenSharing
                             ? t("common.stopSharing")
                             : t("common.shareYourScreen")}
@@ -170,15 +170,15 @@
                 <SoundboardButton
                     {room}
                     size={16}
-                    buttonClass="p-1.5 rounded hover:bg-discord-messageHover"
-                    idleClass="text-discord-textMuted hover:text-discord-textPrimary"
+                    buttonClass="p-1.5 rounded hover:bg-zam-messageHover"
+                    idleClass="text-zam-textMuted hover:text-zam-textPrimary"
                 />
             </div>
             <!-- The body above opens the call too, but nothing said so: users
              couldn't find the call view. -->
             <button
                 onclick={() => showCallView(room.roomId)}
-                class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm font-medium transition-colors flex-shrink-0"
+                class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary text-sm font-medium transition-colors flex-shrink-0"
                 title={t("activeCallBanner.openCall")}
             >
                 <Maximize2 size={14} />
@@ -188,7 +188,7 @@
             </button>
             <button
                 onclick={leaveCall}
-                class="flex items-center gap-1.5 px-3 py-1 rounded bg-discord-danger hover:bg-discord-dangerHover text-white text-sm font-medium transition-colors flex-shrink-0"
+                class="flex items-center gap-1.5 px-3 py-1 rounded bg-zam-danger hover:bg-zam-dangerHover text-white text-sm font-medium transition-colors flex-shrink-0"
             >
                 <PhoneOff size={14} />
                 {t("activeCallBanner.leave")}
@@ -199,7 +199,7 @@
              couldn't find the call view. -->
             <button
                 onclick={() => showCallView(room.roomId)}
-                class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm font-medium transition-colors flex-shrink-0"
+                class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary text-sm font-medium transition-colors flex-shrink-0"
                 title={t("activeCallBanner.openCall")}
             >
                 <Maximize2 size={14} />
@@ -210,7 +210,7 @@
             <button
                 onclick={() => joinCall(room.roomId)}
                 disabled={voiceCallState.joinPendingRoomId !== null}
-                class="flex items-center gap-1.5 px-3 py-1 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-medium transition-colors disabled:opacity-60"
+                class="flex items-center gap-1.5 px-3 py-1 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-sm font-medium transition-colors disabled:opacity-60"
             >
                 <Phone size={14} />
                 {joining ? t("common.joining") : t("common.join")}

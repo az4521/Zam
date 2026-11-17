@@ -115,15 +115,15 @@
 
     const chipBase =
         "px-2.5 py-1 rounded text-xs font-medium border transition-colors";
-    const chipOn = "bg-discord-accent text-white border-discord-accent";
+    const chipOn = "bg-zam-accent text-white border-zam-accent";
     const chipOff =
-        "bg-discord-backgroundTertiary text-discord-textMuted border-transparent hover:bg-discord-messageHover";
+        "bg-zam-backgroundTertiary text-zam-textMuted border-transparent hover:bg-zam-messageHover";
 </script>
 
 <div class="space-y-3">
     <div>
         <div
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-1.5"
         >
             {t("screenShareQualityChips.resolution")}
         </div>
@@ -145,7 +145,7 @@
     </div>
     <div>
         <div
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-1.5"
         >
             {t("screenShareQualityChips.frameRate")}
         </div>
@@ -168,7 +168,7 @@
     {#if codecs && codecChoices.length > 0}
         <div>
             <div
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-1.5"
             >
                 {t("screenShareQualityChips.videoCodec")}
             </div>
@@ -194,7 +194,7 @@
                     </button>
                 {/each}
             </div>
-            <div class="text-xs text-discord-textMuted mt-0.5">
+            <div class="text-xs text-zam-textMuted mt-0.5">
                 {codecs.picked !== codecs.current
                     ? t("screenShareQualityChips.codecEncryptedFallbackHint", {
                           picked: VIDEO_CODEC_LABELS[codecs.picked],
@@ -211,11 +211,11 @@
     <div>
         <div class="flex items-baseline justify-between gap-2 mb-1.5">
             <div
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
             >
                 {t("screenShareQualityChips.bitrate")}
             </div>
-            <div class="text-xs text-discord-textPrimary tabular-nums">
+            <div class="text-xs text-zam-textPrimary tabular-nums">
                 {t("screenShareQualityChips.bitrateUpTo")}
                 {bitrateLabel(shownBitrate)}
             </div>
@@ -225,7 +225,7 @@
             min="0"
             max={BITRATE_SLIDER_STEPS}
             step="1"
-            class="w-full accent-discord-accent"
+            class="w-full accent-zam-accent"
             value={sliderFromBitrate(shownBitrate, ceiling)}
             aria-label={t("screenShareQualityChips.bitrate")}
             aria-valuetext={bitrateLabel(shownBitrate)}
@@ -236,10 +236,10 @@
                 ))}
             onchange={(e) => commitBitrate(Number(e.currentTarget.value))}
         />
-        <div class="text-xs text-discord-textMuted mt-0.5">
+        <div class="text-xs text-zam-textMuted mt-0.5">
             {t("screenShareQualityChips.bitrateCapHint")}
         </div>
-        <div class="text-xs text-discord-textMuted mt-0.5">
+        <div class="text-xs text-zam-textMuted mt-0.5">
             {overridden && measured !== null
                 ? t("screenShareQualityChips.bitrateOverridden", {
                       upload: bitrateLabel(measured),
@@ -257,7 +257,7 @@
         <div class="flex items-center justify-between gap-2 mt-1.5">
             <label
                 for="upload-speed-override"
-                class="text-xs text-discord-textMuted"
+                class="text-xs text-zam-textMuted"
             >
                 {t("screenShareQualityChips.uploadOverride")}
             </label>
@@ -266,7 +266,7 @@
                 type="text"
                 inputmode="decimal"
                 autocomplete="off"
-                class="w-24 px-2 py-1 rounded text-xs bg-discord-backgroundTertiary text-discord-textPrimary border border-transparent focus:border-discord-accent outline-none text-end"
+                class="w-24 px-2 py-1 rounded text-xs bg-zam-backgroundTertiary text-zam-textPrimary border border-transparent focus:border-zam-accent outline-none text-end"
                 placeholder={t("screenShareQualityChips.uploadOverrideAuto")}
                 value={settingsState.uploadSpeedOverride > 0
                     ? String(
@@ -279,17 +279,17 @@
                 onchange={(e) => commitUploadOverride(e.currentTarget.value)}
             />
         </div>
-        <div class="text-xs text-discord-textMuted mt-0.5">
+        <div class="text-xs text-zam-textMuted mt-0.5">
             {t("screenShareQualityChips.uploadOverrideHint")}
         </div>
     </div>
     <div class="flex items-center justify-between gap-3">
         <div>
-            <div class="text-sm text-discord-textPrimary">
+            <div class="text-sm text-zam-textPrimary">
                 {t("screenShareQualityChips.shareSystemAudio")}
             </div>
             {#if isLive}
-                <div class="text-xs text-discord-textMuted mt-0.5">
+                <div class="text-xs text-zam-textMuted mt-0.5">
                     {t("screenShareQualityChips.appliesToNextShare")}
                 </div>
             {/if}
@@ -305,10 +305,10 @@
     {#if nativeOffered}
         <div class="flex items-center justify-between gap-3">
             <div>
-                <div class="text-sm text-discord-textPrimary">
+                <div class="text-sm text-zam-textPrimary">
                     {t("screenShareQualityChips.nativeCapture")}
                 </div>
-                <div class="text-xs text-discord-textMuted mt-0.5">
+                <div class="text-xs text-zam-textMuted mt-0.5">
                     {t("screenShareQualityChips.nativeCaptureHint")}
                 </div>
             </div>

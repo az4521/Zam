@@ -18,12 +18,12 @@
         role="dialog"
         aria-modal="true"
         aria-labelledby="invite-modal-title"
-        class="relative z-10 bg-discord-background rounded-lg shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-4"
+        class="relative z-10 bg-zam-background rounded-lg shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-4"
         use:focusTrap={{ onEscape: closeModal }}
     >
         <h2
             id="invite-modal-title"
-            class="text-lg font-bold text-discord-textPrimary"
+            class="text-lg font-bold text-zam-textPrimary"
         >
             {t("common.invitePeople")}
         </h2>

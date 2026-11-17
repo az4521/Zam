@@ -103,12 +103,12 @@
 
 {#if voiceCallState.roomId}
     <div
-        class="px-2 py-2 border-t border-discord-divider bg-discord-backgroundSecondary"
+        class="px-2 py-2 border-t border-zam-divider bg-zam-backgroundSecondary"
     >
         {#if voiceCallState.playbackBlocked}
             <button
                 onclick={() => void resumeVoicePlayback()}
-                class="w-full mb-1.5 px-2 py-1.5 rounded bg-discord-warning text-black text-xs font-semibold"
+                class="w-full mb-1.5 px-2 py-1.5 rounded bg-zam-warning text-black text-xs font-semibold"
             >
                 {t("voiceCallPanel.enableAudio")}
             </button>
@@ -123,8 +123,8 @@
                 <span
                     class="block text-xs font-semibold {voiceCallState.connState ===
                     'connected'
-                        ? 'text-discord-accent'
-                        : 'text-discord-warning'}"
+                        ? 'text-zam-accent'
+                        : 'text-zam-warning'}"
                 >
                     {connStateLabel(voiceCallState.connState)}
                     {#if voiceCallState.roomId}
@@ -134,18 +134,18 @@
                         />
                     {/if}
                     {#if elapsed}
-                        <span class="ms-1 font-normal text-discord-textMuted"
+                        <span class="ms-1 font-normal text-zam-textMuted"
                             >{elapsed}</span
                         >
                     {/if}
                 </span>
-                <span class="block text-xs text-discord-textMuted truncate">
+                <span class="block text-xs text-zam-textMuted truncate">
                     {locationLabel}
                 </span>
             </button>
             <button
                 onclick={() => (statsOpen = true)}
-                class="p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover flex-shrink-0"
+                class="p-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover flex-shrink-0"
                 title={t("voiceCallPanel.connectionStats")}
                 aria-label={t("voiceCallPanel.connectionStats")}
             >
@@ -157,7 +157,7 @@
         {#if !callViewShowing}
             <button
                 onclick={openCallView}
-                class="mt-1.5 w-full flex items-center justify-center gap-1.5 px-2 py-1 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-xs font-medium text-discord-textPrimary"
+                class="mt-1.5 w-full flex items-center justify-center gap-1.5 px-2 py-1 rounded bg-zam-backgroundTertiary hover:bg-zam-messageHover text-xs font-medium text-zam-textPrimary"
             >
                 <Maximize2 size={14} />
                 {voiceCallState.videoTiles.some((t) => !t.isLocal)
@@ -170,19 +170,16 @@
         {/if}
         {#if voiceCallState.screenSharing}
             <div
-                class="mt-1.5 flex items-center gap-1 px-2 py-1 rounded bg-discord-accent/15 text-xs"
+                class="mt-1.5 flex items-center gap-1 px-2 py-1 rounded bg-zam-accent/15 text-xs"
                 role="status"
             >
-                <MonitorUp
-                    size={14}
-                    class="text-discord-accent flex-shrink-0"
-                />
-                <span class="flex-1 min-w-0 truncate text-discord-textPrimary"
+                <MonitorUp size={14} class="text-zam-accent flex-shrink-0" />
+                <span class="flex-1 min-w-0 truncate text-zam-textPrimary"
                     >{t("voiceCallPanel.sharingYourScreen")}</span
                 >
                 <button
                     onclick={openShareQuality}
-                    class="p-0.5 rounded text-discord-textMuted hover:text-discord-textPrimary"
+                    class="p-0.5 rounded text-zam-textMuted hover:text-zam-textPrimary"
                     title={t("voiceCallPanel.shareQuality")}
                     aria-label={t("voiceCallPanel.shareQuality")}
                 >
@@ -190,7 +187,7 @@
                 </button>
                 <button
                     onclick={() => void toggleScreenShare()}
-                    class="px-1.5 py-0.5 rounded bg-discord-danger hover:bg-discord-dangerHover text-white font-medium"
+                    class="px-1.5 py-0.5 rounded bg-zam-danger hover:bg-zam-dangerHover text-white font-medium"
                     >{t("voiceCallPanel.stop")}</button
                 >
             </div>
@@ -201,9 +198,9 @@
         <div class="mt-1.5 flex items-center gap-1">
             <button
                 onclick={toggleCallMute}
-                class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.micMuted
-                    ? 'text-discord-danger'
-                    : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                class="p-1.5 rounded hover:bg-zam-messageHover {voiceCallState.micMuted
+                    ? 'text-zam-danger'
+                    : 'text-zam-textMuted hover:text-zam-textPrimary'}"
                 title={voiceCallState.micMuted
                     ? t("voiceCallPanel.unmute")
                     : t("common.mute")}
@@ -217,9 +214,9 @@
             </button>
             <button
                 onclick={toggleCallDeafen}
-                class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.deafened
-                    ? 'text-discord-danger'
-                    : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                class="p-1.5 rounded hover:bg-zam-messageHover {voiceCallState.deafened
+                    ? 'text-zam-danger'
+                    : 'text-zam-textMuted hover:text-zam-textPrimary'}"
                 title={voiceCallState.deafened
                     ? t("voiceCallPanel.undeafen")
                     : t("voiceCallPanel.deafen")}
@@ -234,9 +231,9 @@
             {#if !settingsState.cameraDisabled}
                 <button
                     onclick={() => void toggleCamera()}
-                    class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.cameraOn
-                        ? 'text-discord-accent'
-                        : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                    class="p-1.5 rounded hover:bg-zam-messageHover {voiceCallState.cameraOn
+                        ? 'text-zam-accent'
+                        : 'text-zam-textMuted hover:text-zam-textPrimary'}"
                     title={voiceCallState.cameraOn
                         ? t("common.turnOffCamera")
                         : t("common.turnOnCamera")}
@@ -252,9 +249,9 @@
             {#if screenShareSupported}
                 <button
                     onclick={() => void toggleScreenShare()}
-                    class="p-1.5 rounded hover:bg-discord-messageHover {voiceCallState.screenSharing
-                        ? 'text-discord-accent'
-                        : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                    class="p-1.5 rounded hover:bg-zam-messageHover {voiceCallState.screenSharing
+                        ? 'text-zam-accent'
+                        : 'text-zam-textMuted hover:text-zam-textPrimary'}"
                     title={voiceCallState.screenSharing
                         ? t("common.stopSharing")
                         : t("common.shareYourScreen")}
@@ -268,13 +265,13 @@
             {#if soundboardRoom}
                 <SoundboardButton
                     room={soundboardRoom}
-                    buttonClass="p-1.5 rounded hover:bg-discord-messageHover"
-                    idleClass="text-discord-textMuted hover:text-discord-textPrimary"
+                    buttonClass="p-1.5 rounded hover:bg-zam-messageHover"
+                    idleClass="text-zam-textMuted hover:text-zam-textPrimary"
                 />
             {/if}
             <button
                 onclick={leaveCall}
-                class="ms-auto p-1.5 rounded hover:bg-discord-messageHover text-discord-danger"
+                class="ms-auto p-1.5 rounded hover:bg-zam-messageHover text-zam-danger"
                 title={t("voiceCallPanel.disconnect")}
                 aria-label={t("voiceCallPanel.disconnect")}
             >

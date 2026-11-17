@@ -195,13 +195,13 @@
                 onpointerleave={() => closeHover(group.key)}
                 use:longPress={{ onTrigger: () => openSheet(group.key) }}
                 class="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border transition-colors"
-                class:bg-discord-accent={group.isMine}
-                class:border-discord-accent={group.isMine}
+                class:bg-zam-accent={group.isMine}
+                class:border-zam-accent={group.isMine}
                 class:text-white={group.isMine}
-                class:bg-discord-backgroundTertiary={!group.isMine}
-                class:border-discord-divider={!group.isMine}
-                class:text-discord-textSecondary={!group.isMine}
-                class:hover:border-discord-accent={!group.isMine}
+                class:bg-zam-backgroundTertiary={!group.isMine}
+                class:border-zam-divider={!group.isMine}
+                class:text-zam-textSecondary={!group.isMine}
+                class:hover:border-zam-accent={!group.isMine}
                 title={name}
             >
                 {#if imgSrc}

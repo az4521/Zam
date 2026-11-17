@@ -85,7 +85,7 @@
                 opacity: 0,
                 duration: motionOK() ? 120 : 0,
             }}
-            class="fixed z-50 w-64 rounded-lg bg-discord-backgroundTertiary border border-discord-divider shadow-xl p-3 space-y-3 overflow-y-auto"
+            class="fixed z-50 w-64 rounded-lg bg-zam-backgroundTertiary border border-zam-divider shadow-xl p-3 space-y-3 overflow-y-auto"
             role="dialog"
             aria-label={t("screenShareQualityPopover.screenShareQuality")}
         >

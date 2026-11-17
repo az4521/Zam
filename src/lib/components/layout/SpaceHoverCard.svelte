@@ -75,7 +75,7 @@
     <p class="text-sm font-semibold truncate">{name}</p>
 
     {#if voice.active}
-        <p class="text-xs text-discord-textMuted mt-0.5">
+        <p class="text-xs text-zam-textMuted mt-0.5">
             {t("spaceSidebar.inVoiceCount", { count })}
         </p>
 
@@ -89,7 +89,7 @@
                 <div class="flex items-center gap-1.5 min-w-0">
                     <Volume2
                         size={12}
-                        class="flex-shrink-0 text-discord-textMuted"
+                        class="flex-shrink-0 text-zam-textMuted"
                     />
                     <span class="text-xs font-medium truncate">{room.name}</span
                     >
@@ -104,13 +104,13 @@
                                 size={20}
                             />
                             <span
-                                class="text-xs text-discord-textSecondary truncate min-w-0"
+                                class="text-xs text-zam-textSecondary truncate min-w-0"
                             >
                                 {p.name}
                             </span>
                             {#if p.live}
                                 <span
-                                    class="ms-auto flex-shrink-0 h-3.5 px-1 rounded-sm bg-discord-danger text-white text-[9px] font-bold leading-[14px] tracking-wide"
+                                    class="ms-auto flex-shrink-0 h-3.5 px-1 rounded-sm bg-zam-danger text-white text-[9px] font-bold leading-[14px] tracking-wide"
                                 >
                                     {t("spaceSidebar.liveBadge")}
                                 </span>
@@ -118,7 +118,7 @@
                         </li>
                     {/each}
                     {#if extra > 0}
-                        <li class="text-xs text-discord-textMuted ps-7">
+                        <li class="text-xs text-zam-textMuted ps-7">
                             {t("spaceSidebar.moreParticipants", {
                                 count: extra,
                             })}

@@ -2626,11 +2626,11 @@
     bind:this={rootEl}
     class="group {interfaceState.isTouchscreen
         ? 'select-none [-webkit-touch-callout:none]'
-        : 'hover:bg-discord-messageHover'} relative px-4 py-0.5 rounded transition-colors touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent {mentionHighlight
-        ? 'bg-discord-warning/10 border-s-2 border-discord-warning'
+        : 'hover:bg-zam-messageHover'} relative px-4 py-0.5 rounded transition-colors touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-zam-accent {mentionHighlight
+        ? 'bg-zam-warning/10 border-s-2 border-zam-warning'
         : ''}"
     class:pt-3={showHeader}
-    class:bg-discord-messageHover={mobileSelected}
+    class:bg-zam-messageHover={mobileSelected}
     tabindex="0"
     onmouseenter={() => {
         if (!interfaceState.isTouchscreen) rowHovered = true;
@@ -2745,12 +2745,12 @@
                         }}
                         title={displayName}
                         style:color={nameColour}
-                        class="min-w-0 truncate font-semibold text-sm text-discord-textPrimary hover:underline cursor-pointer"
+                        class="min-w-0 truncate font-semibold text-sm text-zam-textPrimary hover:underline cursor-pointer"
                     >
                         {displayName}
                     </button>
                     <span
-                        class="text-xs text-discord-textMuted whitespace-nowrap flex-shrink-0"
+                        class="text-xs text-zam-textMuted whitespace-nowrap flex-shrink-0"
                         title={fullTimestamp(timestamp)}
                         >{messageTimestamp(timestamp)}</span
                     >
@@ -2762,7 +2762,7 @@
             {:else if bubble.showTimeOnlyHeader}
                 <div class="flex items-baseline gap-2 mb-0.5 justify-end">
                     <span
-                        class="text-xs text-discord-textMuted whitespace-nowrap flex-shrink-0"
+                        class="text-xs text-zam-textMuted whitespace-nowrap flex-shrink-0"
                         title={fullTimestamp(timestamp)}
                         >{messageTimestamp(timestamp)}</span
                     >
@@ -2803,7 +2803,7 @@
             -->
                 <button
                     type="button"
-                    class="flex w-full text-start items-start gap-1 mb-1 rounded cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
+                    class="flex w-full text-start items-start gap-1 mb-1 rounded cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-zam-accent"
                     onclick={(e) => {
                         e.preventDefault();
                         jumpToReply(replyTarget.getId()!);
@@ -2813,19 +2813,19 @@
                         >{t("messageItem.jumpToTheRepliedToMessage")}</span
                     >
                     <Reply
-                        class="w-3.5 h-3.5 text-discord-textMuted flex-shrink-0 self-center"
+                        class="w-3.5 h-3.5 text-zam-textMuted flex-shrink-0 self-center"
                     />
                     <div
-                        class="w-0.5 bg-discord-textMuted rounded-full self-stretch flex-shrink-0 opacity-60"
+                        class="w-0.5 bg-zam-textMuted rounded-full self-stretch flex-shrink-0 opacity-60"
                     ></div>
                     <div class="flex items-center gap-1.5 min-w-0">
                         <span
-                            class="text-xs font-semibold text-discord-textSecondary flex-shrink-0"
+                            class="text-xs font-semibold text-zam-textSecondary flex-shrink-0"
                         >
                             {replyTargetSender}
                         </span>
                         <span
-                            class="text-xs text-discord-textSecondary truncate opacity-80"
+                            class="text-xs text-zam-textSecondary truncate opacity-80"
                         >
                             {replyTargetBody}
                         </span>
@@ -2846,7 +2846,7 @@
                  from the keyboard and read identically to assistive tech. -->
                 <button
                     type="button"
-                    class="flex w-full text-start items-start gap-1 mb-1 rounded cursor-pointer opacity-60 hover:opacity-80 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent"
+                    class="flex w-full text-start items-start gap-1 mb-1 rounded cursor-pointer opacity-60 hover:opacity-80 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-zam-accent"
                     onclick={(e) => {
                         e.preventDefault();
                         jumpToReply(inReplyToId);
@@ -2856,16 +2856,15 @@
                         >{t("messageItem.jumpToTheRepliedToMessage")}</span
                     >
                     <div
-                        class="w-0.5 bg-discord-textMuted rounded-full self-stretch flex-shrink-0"
+                        class="w-0.5 bg-zam-textMuted rounded-full self-stretch flex-shrink-0"
                     ></div>
                     <div class="flex items-center gap-1.5 min-w-0">
                         {#if fallbackLine}
                             <span
-                                class="text-xs font-semibold text-discord-textSecondary flex-shrink-0"
+                                class="text-xs font-semibold text-zam-textSecondary flex-shrink-0"
                                 >{fallbackLine.sender}</span
                             >
-                            <span
-                                class="text-xs text-discord-textMuted truncate"
+                            <span class="text-xs text-zam-textMuted truncate"
                                 >{fallbackLine.text || "…"}</span
                             >
                         {:else}
@@ -2875,7 +2874,7 @@
                                  or a non-message type (sticker/poll) — call that
                                  "unavailable", not "deleted", so a decrypting
                                  target is not mislabelled. No parent = not loaded. -->
-                            <span class="text-xs text-discord-textMuted italic"
+                            <span class="text-xs text-zam-textMuted italic"
                                 >{!replyTarget
                                     ? t("messageItem.originalMessageNotLoaded")
                                     : replyTarget.isRedacted()
@@ -2907,7 +2906,7 @@
                         onSave={saveEdit}
                         onCancel={cancelEdit}
                     />
-                    <p class="text-xs text-discord-textMuted mt-1">
+                    <p class="text-xs text-zam-textMuted mt-1">
                         <kbd class="font-mono">Enter</kbd>
                         {t("messageItem.toSave")}
                         <kbd class="font-mono">Esc</kbd>
@@ -2918,12 +2917,12 @@
                             onclick={saveEdit}
                             disabled={isSavingEdit ||
                                 (!editText.trim() && !hasCaption())}
-                            class="px-3 py-1 text-xs font-semibold bg-discord-accent hover:bg-discord-accentHover text-white rounded transition-colors disabled:opacity-50"
+                            class="px-3 py-1 text-xs font-semibold bg-zam-accent hover:bg-zam-accentHover text-white rounded transition-colors disabled:opacity-50"
                             >{t("common.save")}</button
                         >
                         <button
                             onclick={cancelEdit}
-                            class="px-3 py-1 text-xs font-semibold bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary rounded transition-colors"
+                            class="px-3 py-1 text-xs font-semibold bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary rounded transition-colors"
                             >{t("common.cancel")}</button
                         >
                     </div>
@@ -2934,7 +2933,7 @@
              modules sent as m.file. -->
             {#snippet audioCard()}
                 <div
-                    class="flex items-center gap-3 p-3 bg-discord-backgroundTertiary rounded-lg mt-1 max-w-sm w-full"
+                    class="flex items-center gap-3 p-3 bg-zam-backgroundTertiary rounded-lg mt-1 max-w-sm w-full"
                 >
                     <!-- MIDI's own player below takes over the play button. -->
                     {#if !(audioIsMidi && audioBlobUrl)}
@@ -2949,7 +2948,7 @@
                                     audioClicked = true;
                                 }
                             }}
-                            class="w-8 h-8 rounded-full bg-discord-accent flex-shrink-0 flex items-center justify-center disabled:opacity-50"
+                            class="w-8 h-8 rounded-full bg-zam-accent flex-shrink-0 flex items-center justify-center disabled:opacity-50"
                             disabled={audioLoading}
                         >
                             {#if audioLoading || (audioStreamUrl && !audioStreamReady)}
@@ -2977,14 +2976,14 @@
                     {/if}
                     <div class="flex-1 min-w-0">
                         <p
-                            class="text-discord-textPrimary text-xs font-medium truncate mb-1"
+                            class="text-zam-textPrimary text-xs font-medium truncate mb-1"
                         >
                             {mediaFilename || t("messageItem.audio")}
                         </p>
                         {#snippet audioBar()}
                             {#if audioProgress?.total}
                                 <div
-                                    class="mt-1 h-1 rounded-full bg-discord-backgroundSecondary overflow-hidden"
+                                    class="mt-1 h-1 rounded-full bg-zam-backgroundSecondary overflow-hidden"
                                     role="progressbar"
                                     aria-label={t("common.loading")}
                                     aria-valuemin="0"
@@ -2996,7 +2995,7 @@
                                     )}
                                 >
                                     <div
-                                        class="h-full bg-discord-accent transition-[width] duration-150"
+                                        class="h-full bg-zam-accent transition-[width] duration-150"
                                         style="width: {Math.round(
                                             (audioProgress.loaded /
                                                 audioProgress.total) *
@@ -3057,8 +3056,8 @@
                         {:else}
                             <p
                                 class="text-xs {audioMode === 'failed'
-                                    ? 'text-discord-danger'
-                                    : 'text-discord-textMuted'}"
+                                    ? 'text-zam-danger'
+                                    : 'text-zam-textMuted'}"
                             >
                                 {audioStatusLabel(audioMode)}
                             </p>
@@ -3070,7 +3069,7 @@
                     {#if msgtype !== "m.file" && (content?.file || content?.url)}
                         <button
                             onclick={downloadAttachment}
-                            class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                            class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors flex-shrink-0"
                             title={t("messageItem.download")}
                             aria-label={t("messageItem.download")}
                         >
@@ -3097,7 +3096,7 @@
                         use:matrixLinks
                         use:bodyImageGallery={{ onOpen: openBodyGallery }}
                         dir="auto"
-                        class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
+                        class="message-body text-sm text-zam-textPrimary leading-relaxed break-words"
                     >
                         {#if formattedBody()}
                             {@html withTwemoji(sanitize(formattedBody()!))}
@@ -3105,7 +3104,7 @@
                             {@html withTwemoji(plainToHtml(body()))}
                         {/if}
                         {#if isEdited}
-                            <span class="text-xs text-discord-textMuted ms-1"
+                            <span class="text-xs text-zam-textMuted ms-1"
                                 >{t("messageItem.edited")}</span
                             >
                         {/if}
@@ -3123,7 +3122,7 @@
              untouched. -->
             {#if forward}
                 <div
-                    class="forward-label flex min-w-0 items-center gap-1 text-xs italic text-discord-textMuted"
+                    class="forward-label flex min-w-0 items-center gap-1 text-xs italic text-zam-textMuted"
                 >
                     <CornerUpRight size={12} class="flex-shrink-0" />
                     <span class="truncate"
@@ -3137,7 +3136,7 @@
             {/if}
             <div
                 class={forward
-                    ? "forward-block mt-0.5 border-s-[3px] border-discord-divider ps-3 min-w-0"
+                    ? "forward-block mt-0.5 border-s-[3px] border-zam-divider ps-3 min-w-0"
                     : "contents"}
             >
                 <!-- Message body -->
@@ -3176,7 +3175,7 @@
                  decryption tick re-runs this derived timeline and the row
                  swaps to real content (or to the UTD branch below). -->
                     <div
-                        class="message-body flex items-center gap-1.5 text-sm italic text-discord-textMuted leading-relaxed animate-pulse"
+                        class="message-body flex items-center gap-1.5 text-sm italic text-zam-textMuted leading-relaxed animate-pulse"
                     >
                         <Lock size={14} class="flex-shrink-0" />
                         <span>{DECRYPTING_MESSAGE_TEXT}</span>
@@ -3188,14 +3187,14 @@
                  re-runs this derived timeline and the row swaps to real
                  content automatically. -->
                     <div
-                        class="message-body flex items-center gap-1.5 text-sm italic text-discord-textMuted leading-relaxed"
+                        class="message-body flex items-center gap-1.5 text-sm italic text-zam-textMuted leading-relaxed"
                     >
                         <Lock size={14} class="flex-shrink-0" />
                         <span>{utdText}</span>
                         {#if utdRequestable}
                             <button
                                 type="button"
-                                class="not-italic text-xs font-medium text-discord-accent hover:underline disabled:opacity-60 disabled:no-underline"
+                                class="not-italic text-xs font-medium text-zam-accent hover:underline disabled:opacity-60 disabled:no-underline"
                                 title={t("messageItem.requestKeysHelp")}
                                 disabled={keyRequest !== "idle"}
                                 onclick={onRequestKeys}
@@ -3257,7 +3256,7 @@
                         {#if spoilerHidden}
                             <button
                                 type="button"
-                                class="absolute inset-x-0 bottom-0 top-1 z-10 flex items-center justify-center rounded-lg bg-discord-backgroundDark text-sm font-bold uppercase tracking-wide text-discord-textPrimary hover:bg-discord-backgroundTertiary"
+                                class="absolute inset-x-0 bottom-0 top-1 z-10 flex items-center justify-center rounded-lg bg-zam-backgroundDark text-sm font-bold uppercase tracking-wide text-zam-textPrimary hover:bg-zam-backgroundTertiary"
                                 aria-label={t("messageItem.revealSpoiler")}
                                 onclick={() => (spoilerRevealed = true)}
                             >
@@ -3324,10 +3323,10 @@
                                 {/if}
                             {:else if file && imageDecryptFailed}
                                 <div
-                                    class="flex items-center gap-2 p-3 bg-discord-backgroundSecondary rounded-lg mt-1 max-w-sm"
+                                    class="flex items-center gap-2 p-3 bg-zam-backgroundSecondary rounded-lg mt-1 max-w-sm"
                                 >
                                     <svg
-                                        class="w-4 h-4 text-discord-danger"
+                                        class="w-4 h-4 text-zam-danger"
                                         fill="currentColor"
                                         viewBox="0 0 24 24"
                                     >
@@ -3335,7 +3334,7 @@
                                             d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
                                         />
                                     </svg>
-                                    <span class="text-xs text-discord-danger"
+                                    <span class="text-xs text-zam-danger"
                                         >{t(
                                             "messageItem.couldnTDecryptImage",
                                         )}</span
@@ -3455,8 +3454,7 @@
                                     {/if}
                                 {/if}
                             {:else}
-                                <span
-                                    class="text-xs text-discord-textMuted italic"
+                                <span class="text-xs text-zam-textMuted italic"
                                     >{t("messageItem.imageUnavailable")}</span
                                 >
                             {/if}
@@ -3582,10 +3580,10 @@
                     {/if}
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <div
-                        class="flex items-center gap-2 p-3 bg-discord-backgroundSecondary rounded-lg mt-1 max-w-sm w-full"
+                        class="flex items-center gap-2 p-3 bg-zam-backgroundSecondary rounded-lg mt-1 max-w-sm w-full"
                     >
                         <svg
-                            class="w-8 h-8 text-discord-accent flex-shrink-0"
+                            class="w-8 h-8 text-zam-accent flex-shrink-0"
                             fill="currentColor"
                             viewBox="0 0 24 24"
                         >
@@ -3595,11 +3593,11 @@
                         </svg>
                         <div class="min-w-0 flex-1">
                             <p
-                                class="text-discord-textPrimary text-sm font-medium truncate"
+                                class="text-zam-textPrimary text-sm font-medium truncate"
                             >
                                 {fileName}
                             </p>
-                            <p class="text-discord-textMuted text-xs">
+                            <p class="text-zam-textMuted text-xs">
                                 {#if fileSize}{fileSize / 1024 < 1024
                                         ? t("messageItem.kb", {
                                               toFixed: (
@@ -3618,7 +3616,7 @@
                         {#if fileUrl || file}
                             <button
                                 onclick={downloadAttachment}
-                                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                                class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors flex-shrink-0"
                                 title={t("messageItem.download")}
                             >
                                 <svg
@@ -3642,7 +3640,7 @@
                             use:matrixLinks
                             use:bodyImageGallery={{ onOpen: openBodyGallery }}
                             dir="auto"
-                            class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
+                            class="message-body text-sm text-zam-textPrimary leading-relaxed break-words"
                             class:emoji-only={emojiOnly}
                             class:italic={msgtype === "m.emote"}
                             class:opacity-70={msgtype === "m.notice"}
@@ -3662,8 +3660,7 @@
                                 {@html withTwemoji(plainToHtml(body()))}
                             {/if}
                             {#if isEdited}
-                                <span
-                                    class="text-xs text-discord-textMuted ms-1"
+                                <span class="text-xs text-zam-textMuted ms-1"
                                     >{t("messageItem.edited")}</span
                                 >
                             {/if}
@@ -3705,14 +3702,14 @@
                         {@const link = forwardLink}
                         <button
                             type="button"
-                            class="forward-source mt-1 block max-w-full truncate text-start text-xs text-discord-textMuted hover:text-discord-textPrimary hover:underline"
+                            class="forward-source mt-1 block max-w-full truncate text-start text-xs text-zam-textMuted hover:text-zam-textPrimary hover:underline"
                             title={fwdTs ? fullTimestamp(fwdTs) : undefined}
                             onclick={() => openMatrixTarget(link)}
                             >{footer}</button
                         >
                     {:else}
                         <p
-                            class="forward-source mt-1 truncate text-xs text-discord-textMuted"
+                            class="forward-source mt-1 truncate text-xs text-zam-textMuted"
                             title={fwdTs ? fullTimestamp(fwdTs) : undefined}
                         >
                             {footer}
@@ -3770,7 +3767,7 @@
             {#if isThreadRoot && onOpenThread}
                 <button
                     onclick={() => onOpenThread?.(eventId)}
-                    class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-xs text-discord-textMuted bg-discord-backgroundSecondary border border-discord-divider hover:text-discord-textPrimary hover:border-discord-accent/50 transition-colors"
+                    class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded text-xs text-zam-textMuted bg-zam-backgroundSecondary border border-zam-divider hover:text-zam-textPrimary hover:border-zam-accent/50 transition-colors"
                     title={t("messageItem.openThread")}
                 >
                     <svg
@@ -3784,14 +3781,14 @@
                     </svg>
                     {#if threadName}
                         <span
-                            class="font-semibold text-discord-textPrimary truncate max-w-48"
+                            class="font-semibold text-zam-textPrimary truncate max-w-48"
                             >{threadName}</span
                         >
                         <span>&middot;</span>
                     {/if}
                     {t("common.replyCount", { count: threadSummary.count })}
                     {#if threadSummary.latestTs > 0}
-                        <span class="text-discord-textMuted"
+                        <span class="text-zam-textMuted"
                             >&middot; {timeOnly(threadSummary.latestTs)}</span
                         >
                     {/if}
@@ -3804,14 +3801,14 @@
                 {@const chip = bridgedChip}
                 <button
                     onclick={() => void openBridgedThread(chip.roomId)}
-                    class="flex items-center gap-1.5 mt-0.5 max-w-full w-fit px-1.5 py-0.5 rounded text-xs text-discord-textMuted bg-discord-backgroundSecondary border border-discord-divider hover:text-discord-textPrimary hover:border-discord-accent/50 transition-colors"
+                    class="flex items-center gap-1.5 mt-0.5 max-w-full w-fit px-1.5 py-0.5 rounded text-xs text-zam-textMuted bg-zam-backgroundSecondary border border-zam-divider hover:text-zam-textPrimary hover:border-zam-accent/50 transition-colors"
                     title={chip.joined
                         ? t("messageItem.openThread")
                         : t("bridgedThreads.joinThread")}
                 >
                     <MessagesSquare size={12} class="flex-shrink-0" />
                     <span
-                        class="font-semibold text-discord-textPrimary truncate max-w-48"
+                        class="font-semibold text-zam-textPrimary truncate max-w-48"
                         >{chip.name}</span
                     >
                     {#if chip.numMembers !== null}
@@ -3824,19 +3821,19 @@
                     {/if}
                     {#if !chip.joined}
                         <span class="flex-shrink-0">&middot;</span>
-                        <span class="flex-shrink-0 text-discord-accent"
+                        <span class="flex-shrink-0 text-zam-accent"
                             >{t("bridgedThreads.joinThread")}</span
                         >
                     {:else if chip.highlight > 0}
                         <span
-                            class="flex-shrink-0 bg-discord-danger text-white font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
+                            class="flex-shrink-0 bg-zam-danger text-white font-bold rounded-full px-1.5 min-w-[1.2rem] text-center"
                             >{chip.highlight > 99
                                 ? "99+"
                                 : chip.highlight}</span
                         >
                     {:else if chip.unread}
                         <span
-                            class="flex-shrink-0 w-2 h-2 rounded-full bg-discord-textPrimary"
+                            class="flex-shrink-0 w-2 h-2 rounded-full bg-zam-textPrimary"
                         ></span>
                     {/if}
                     <ChevronRight size={12} class="flex-shrink-0" />
@@ -3859,7 +3856,7 @@
             <!-- Failed-send indicator: retry or delete a NOT_SENT local echo -->
             {#if isFailed}
                 <div
-                    class="flex items-center gap-2 px-4 py-0.5 text-xs text-discord-danger"
+                    class="flex items-center gap-2 px-4 py-0.5 text-xs text-zam-danger"
                 >
                     <svg
                         class="w-4 h-4 flex-shrink-0"
@@ -3884,7 +3881,7 @@
                             ? t("messageItem.retrying")
                             : t("common.retry")}
                     </button>
-                    <span class="text-discord-textMuted">·</span>
+                    <span class="text-zam-textMuted">·</span>
                     <button
                         class="font-semibold underline hover:no-underline"
                         onclick={() => deleteFailedMessage(event)}
@@ -3931,7 +3928,7 @@
                         </span>
                     {/each}
                     {#if receiptCluster.overflow > 0}
-                        <span class="text-[10px] text-discord-textMuted ms-1"
+                        <span class="text-[10px] text-zam-textMuted ms-1"
                             >+{receiptCluster.overflow}</span
                         >
                     {/if}
@@ -3961,7 +3958,7 @@
                  longer time spills toward the row edge, not the content. -->
             {#if bubble.showInlineHoverTime}
                 <span
-                    class="absolute start-0 w-[60px] flex justify-end whitespace-nowrap top-1/2 -translate-y-1/2 text-xs text-discord-textMuted opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none select-none"
+                    class="absolute start-0 w-[60px] flex justify-end whitespace-nowrap top-1/2 -translate-y-1/2 text-xs text-zam-textMuted opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none select-none"
                 >
                     {timeOnly(timestamp)}
                 </span>
@@ -3978,10 +3975,10 @@
             <div
                 class="flex items-center justify-center w-9 h-9 rounded-full transition-colors {swipeRevealIcon ===
                 'edit'
-                    ? 'bg-discord-backgroundTertiary text-discord-textPrimary'
+                    ? 'bg-zam-backgroundTertiary text-zam-textPrimary'
                     : swipeRevealIcon === 'reply'
-                      ? 'bg-discord-accent text-white'
-                      : 'bg-discord-backgroundTertiary text-discord-textSecondary'} {swipeRevealIcon !==
+                      ? 'bg-zam-accent text-white'
+                      : 'bg-zam-backgroundTertiary text-zam-textSecondary'} {swipeRevealIcon !==
                     'none' && motionOK()
                     ? 'swipe-armed-pop'
                     : ''}"
@@ -4046,13 +4043,13 @@
                       isEditing
                           ? ''
                           : 'group-focus-visible:flex group-has-[:focus-visible]:flex'
-                  }`} absolute end-4 top-0 -translate-y-1/2 items-center gap-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg px-1 py-0.5 shadow-md z-20"
+                  }`} absolute end-4 top-0 -translate-y-1/2 items-center gap-1 bg-zam-backgroundSecondary border border-zam-divider rounded-lg px-1 py-0.5 shadow-md z-20"
         >
             {#if !interfaceState.isTouchscreen && canEditMessage}
                 <button
                     data-message-action
                     onclick={startEdit}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                     title={t("messageItem.editMessage")}
                     aria-label={t("messageItem.editMessage")}
                 >
@@ -4072,9 +4069,9 @@
                     data-message-action
                     onclick={togglePin}
                     disabled={pinning}
-                    class="p-1.5 rounded hover:bg-discord-messageHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed {isPinned
-                        ? 'text-discord-accent'
-                        : 'text-discord-textMuted hover:text-discord-textPrimary'}"
+                    class="p-1.5 rounded hover:bg-zam-messageHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed {isPinned
+                        ? 'text-zam-accent'
+                        : 'text-zam-textMuted hover:text-zam-textPrimary'}"
                     title={isPinned
                         ? t("messageItem.unpinMessage")
                         : t("messageItem.pinMessage")}
@@ -4104,7 +4101,7 @@
                             openReactionPicker();
                         }
                     }}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                     title={t("messageItem.addReaction")}
                     aria-label={t("messageItem.addReaction")}
                     aria-expanded={showEmojiPicker}
@@ -4150,7 +4147,7 @@
             <button
                 data-message-action
                 onclick={() => onReply(event)}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                 title={t("messageItem.reply")}
                 aria-label={t("messageItem.reply")}
             >
@@ -4167,7 +4164,7 @@
                 <button
                     data-message-action
                     onclick={startEdit}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                     title={t("messageItem.editMessage")}
                     aria-label={t("messageItem.editMessage")}
                 >
@@ -4185,7 +4182,7 @@
                 <button
                     data-message-action
                     onclick={() => onOpenThread(threadRootId)}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                     title={isThreadReply
                         ? t("messageItem.openThread")
                         : t("messageItem.replyInThread")}
@@ -4208,7 +4205,7 @@
                 <button
                     data-message-action
                     onclick={openForwardDialog}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                     title={t("messageItem.forwardMessage")}
                     aria-label={t("messageItem.forwardMessage")}
                 >
@@ -4220,7 +4217,7 @@
                     <button
                         data-message-action
                         onclick={() => handlePluginAction(view.key)}
-                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                        class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                         title={view.label}
                         aria-label={view.label}
                     >
@@ -4242,7 +4239,7 @@
                 <button
                     data-message-action
                     onclick={openActionsSheet}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                     title={t("messageItem.moreActions")}
                     aria-label={t("messageItem.moreActions")}
                     aria-haspopup="menu"
@@ -4262,7 +4259,7 @@
                 <button
                     data-message-action
                     onclick={copyMessageLink}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                     title={linkCopied
                         ? t("messageItem.linkCopied")
                         : t("messageItem.copyMessageLink")}
@@ -4281,7 +4278,7 @@
                 <button
                     data-message-action
                     onclick={openViewSourceDialog}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                     title={t("messageItem.viewSource")}
                     aria-label={t("messageItem.viewSource")}
                 >
@@ -4310,7 +4307,7 @@
                  redact on others', so it sits in the same place on both. -->
             {#if !interfaceState.isTouchscreen && isOwnMessage}
                 {#if confirmingDelete}
-                    <span class="text-xs text-discord-textMuted px-1"
+                    <span class="text-xs text-zam-textMuted px-1"
                         >{t("messageItem.delete")}</span
                     >
                     <!--
@@ -4325,7 +4322,7 @@
                         bind:this={deleteYesEl}
                         onclick={() => resolveDelete(true)}
                         onkeydown={onDeleteKeydown}
-                        class="px-2 py-1 rounded text-xs font-semibold text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-danger"
+                        class="px-2 py-1 rounded text-xs font-semibold text-white bg-zam-danger hover:bg-zam-dangerHover transition-colors focus:outline-none focus:ring-2 focus:ring-zam-danger"
                         aria-label={t("messageItem.yesDeleteMessage")}
                         >{t("messageItem.yes")}</button
                     >
@@ -4333,7 +4330,7 @@
                         bind:this={deleteNoEl}
                         onclick={() => resolveDelete(false)}
                         onkeydown={onDeleteKeydown}
-                        class="px-2 py-1 rounded text-xs font-semibold text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors focus:outline-none focus:ring-2 focus:ring-discord-accent"
+                        class="px-2 py-1 rounded text-xs font-semibold text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors focus:outline-none focus:ring-2 focus:ring-zam-accent"
                         aria-label={t("messageItem.noKeepMessage")}
                         >{t("messageItem.no")}</button
                     >
@@ -4345,7 +4342,7 @@
                             if (e.shiftKey) resolveDelete(true);
                             else confirmingDelete = true;
                         }}
-                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors"
+                        class="p-1.5 rounded text-zam-textMuted hover:text-zam-danger hover:bg-zam-messageHover transition-colors"
                         title={t("messageItem.deleteMessage")}
                         aria-label={t("messageItem.deleteMessage")}
                     >
@@ -4411,7 +4408,7 @@
     >
         {#if active}
             <svg
-                class="w-4 h-4 text-discord-warning"
+                class="w-4 h-4 text-zam-warning"
                 fill="currentColor"
                 viewBox="0 0 24 24"
             >
@@ -4444,7 +4441,7 @@
     <div
         use:spoilers
         dir="auto"
-        class="message-body text-sm text-discord-textPrimary leading-relaxed break-words"
+        class="message-body text-sm text-zam-textPrimary leading-relaxed break-words"
         class:emoji-only={emojiOnly}
         class:italic={msgtype === "m.emote"}
         class:opacity-70={msgtype === "m.notice"}
@@ -4458,7 +4455,7 @@
             {@html withTwemoji(plainToHtml(body()))}
         {/if}
         {#if isEdited}
-            <span class="text-xs text-discord-textMuted ms-1"
+            <span class="text-xs text-zam-textMuted ms-1"
                 >{t("messageItem.edited")}</span
             >
         {/if}
@@ -4511,7 +4508,7 @@
     }
     /* Spoiler tags */
     :global([data-mx-spoiler]) {
-        background-color: var(--discord-spoiler-bg);
+        background-color: var(--zam-spoiler-bg);
         color: transparent;
         border-radius: 3px;
         padding: 0 3px;
@@ -4522,7 +4519,7 @@
             background-color 0.15s;
     }
     :global([data-mx-spoiler].revealed) {
-        background-color: var(--discord-spoiler-revealed-bg);
+        background-color: var(--zam-spoiler-revealed-bg);
         color: inherit;
         user-select: text;
     }
@@ -4571,9 +4568,9 @@
         overflow-x: auto;
         max-width: 100%;
         margin: 0.35rem 0;
-        border: 1px solid var(--discord-divider);
+        border: 1px solid var(--zam-divider);
         border-radius: 6px;
-        background: var(--discord-bg-tertiary);
+        background: var(--zam-bg-tertiary);
         padding: 0.75rem;
     }
     :global(.message-body pre code) {

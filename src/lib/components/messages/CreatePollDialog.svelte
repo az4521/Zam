@@ -69,12 +69,12 @@
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-poll-title"
-        class="relative z-10 bg-discord-backgroundSecondary rounded-lg shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto flex flex-col gap-4 p-6"
+        class="relative z-10 bg-zam-backgroundSecondary rounded-lg shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto flex flex-col gap-4 p-6"
         use:focusTrap={{ onEscape: closeCreatePollDialog }}
     >
         <h2
             id="create-poll-title"
-            class="text-lg font-bold text-discord-textPrimary"
+            class="text-lg font-bold text-zam-textPrimary"
         >
             {t("createPollDialog.createPoll")}
         </h2>
@@ -83,7 +83,7 @@
         <div class="flex flex-col gap-1.5">
             <label
                 for="poll-question"
-                class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
+                class="text-xs font-semibold uppercase tracking-wide text-zam-textMuted"
             >
                 {t("createPollDialog.question")}
             </label>
@@ -93,14 +93,14 @@
                 bind:value={question}
                 placeholder={t("createPollDialog.askSomething")}
                 maxlength="340"
-                class="w-full rounded bg-discord-backgroundTertiary px-3 py-2 text-sm text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:ring-2 focus:ring-discord-accent"
+                class="w-full rounded bg-zam-backgroundTertiary px-3 py-2 text-sm text-zam-textPrimary placeholder:text-zam-textMuted focus:outline-none focus:ring-2 focus:ring-zam-accent"
             />
         </div>
 
         <!-- Options -->
         <div class="flex flex-col gap-1.5">
             <span
-                class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
+                class="text-xs font-semibold uppercase tracking-wide text-zam-textMuted"
             >
                 {t("createPollDialog.options")}
             </span>
@@ -117,7 +117,7 @@
                                 value: i + 1,
                             })}
                             maxlength="340"
-                            class="flex-1 rounded bg-discord-backgroundTertiary px-3 py-2 text-sm text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:ring-2 focus:ring-discord-accent"
+                            class="flex-1 rounded bg-zam-backgroundTertiary px-3 py-2 text-sm text-zam-textPrimary placeholder:text-zam-textMuted focus:outline-none focus:ring-2 focus:ring-zam-accent"
                         />
                         <button
                             type="button"
@@ -125,7 +125,7 @@
                             disabled={answers.length <= 2}
                             aria-label={t("createPollDialog.removeOption")}
                             title={t("createPollDialog.removeOption")}
-                            class="flex-shrink-0 flex h-8 w-8 items-center justify-center rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                            class="flex-shrink-0 flex h-8 w-8 items-center justify-center rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                         >
                             <svg
                                 class="w-4 h-4"
@@ -144,7 +144,7 @@
                 <button
                     type="button"
                     onclick={addAnswer}
-                    class="self-start mt-1 text-sm font-medium text-discord-accent hover:text-discord-accentHover hover:underline transition-colors"
+                    class="self-start mt-1 text-sm font-medium text-zam-accent hover:text-zam-accentHover hover:underline transition-colors"
                 >
                     {t("createPollDialog.addOption")}
                 </button>
@@ -154,20 +154,20 @@
         <!-- Result visibility -->
         <div class="flex flex-col gap-1.5">
             <span
-                class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
+                class="text-xs font-semibold uppercase tracking-wide text-zam-textMuted"
             >
                 {t("createPollDialog.results")}
             </span>
             <div
-                class="flex gap-1 rounded bg-discord-backgroundTertiary p-1 text-sm"
+                class="flex gap-1 rounded bg-zam-backgroundTertiary p-1 text-sm"
             >
                 <button
                     type="button"
                     onclick={() => (kind = "disclosed")}
                     class="flex-1 rounded px-3 py-1.5 transition-colors {kind ===
                     'disclosed'
-                        ? 'bg-discord-accent text-white'
-                        : 'text-discord-textSecondary hover:text-discord-textPrimary'}"
+                        ? 'bg-zam-accent text-white'
+                        : 'text-zam-textSecondary hover:text-zam-textPrimary'}"
                 >
                     {t("createPollDialog.showAsPeopleVote")}
                 </button>
@@ -176,8 +176,8 @@
                     onclick={() => (kind = "undisclosed")}
                     class="flex-1 rounded px-3 py-1.5 transition-colors {kind ===
                     'undisclosed'
-                        ? 'bg-discord-accent text-white'
-                        : 'text-discord-textSecondary hover:text-discord-textPrimary'}"
+                        ? 'bg-zam-accent text-white'
+                        : 'text-zam-textSecondary hover:text-zam-textPrimary'}"
                 >
                     {t("createPollDialog.hideUntilClosed")}
                 </button>
@@ -189,9 +189,9 @@
             <input
                 type="checkbox"
                 bind:checked={allowMultiple}
-                class="h-4 w-4 rounded accent-discord-accent"
+                class="h-4 w-4 rounded accent-zam-accent"
             />
-            <span class="text-sm text-discord-textPrimary">
+            <span class="text-sm text-zam-textPrimary">
                 {t("createPollDialog.allowSelectingMultipleOptions")}
             </span>
         </label>
@@ -199,14 +199,14 @@
         <!-- Footer -->
         <div class="flex items-center justify-end gap-3 pt-1">
             {#if errorReason}
-                <span class="me-auto text-xs text-discord-textMuted"
+                <span class="me-auto text-xs text-zam-textMuted"
                     >{errorReason}</span
                 >
             {/if}
             <button
                 type="button"
                 onclick={closeCreatePollDialog}
-                class="px-4 py-2 rounded text-sm font-medium text-discord-textSecondary hover:text-discord-textPrimary hover:underline transition-colors"
+                class="px-4 py-2 rounded text-sm font-medium text-zam-textSecondary hover:text-zam-textPrimary hover:underline transition-colors"
             >
                 {t("common.cancel")}
             </button>
@@ -214,7 +214,7 @@
                 type="button"
                 onclick={create}
                 disabled={submitting || validation.ok !== true}
-                class="px-4 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="px-4 py-2 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 {submitting
                     ? t("createPollDialog.creating")

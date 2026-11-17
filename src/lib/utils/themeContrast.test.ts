@@ -45,64 +45,64 @@ const PAIRS: {
     bg: string;
 }[] = [
     // The two text tokens this item exists to fix.
-    { fg: "--discord-text-muted", bg: "--discord-bg" },
-    { fg: "--discord-text-muted", bg: "--discord-bg-secondary" },
-    { fg: "--discord-text-muted", bg: "--discord-bg-hover" },
-    { fg: "--discord-text-muted", bg: "--discord-bg-tertiary" },
-    { fg: "--discord-text-secondary", bg: "--discord-bg-secondary" },
-    { fg: "--discord-text-secondary", bg: "--discord-bg" },
+    { fg: "--zam-text-muted", bg: "--zam-bg" },
+    { fg: "--zam-text-muted", bg: "--zam-bg-secondary" },
+    { fg: "--zam-text-muted", bg: "--zam-bg-hover" },
+    { fg: "--zam-text-muted", bg: "--zam-bg-tertiary" },
+    { fg: "--zam-text-secondary", bg: "--zam-bg-secondary" },
+    { fg: "--zam-text-secondary", bg: "--zam-bg" },
     // Body text, already fine — pinned so a future palette edit cannot break it.
-    { fg: "--discord-text-primary", bg: "--discord-bg" },
-    { fg: "--discord-text-primary", bg: "--discord-bg-secondary" },
+    { fg: "--zam-text-primary", bg: "--zam-bg" },
+    { fg: "--zam-text-primary", bg: "--zam-bg-secondary" },
     // White label on a filled brand/danger surface (primary buttons, badges).
     // These render as `text-sm font-semibold` button captions, which WCAG
     // counts as normal text — 4.5:1, not 3:1. They point at the `*-fill`
-    // tokens, NOT at `--discord-accent` / `--discord-danger`: the brand values
+    // tokens, NOT at `--zam-accent` / `--zam-danger`: the brand values
     // stay put for borders, rings, focus outlines and alpha tints.
-    { fg: "#ffffff", bg: "--discord-accent-fill-rgb" },
-    { fg: "#ffffff", bg: "--discord-accent-fill-hover-rgb" },
-    { fg: "#ffffff", bg: "--discord-danger-fill-rgb" },
-    { fg: "#ffffff", bg: "--discord-danger-fill-hover-rgb" },
+    { fg: "#ffffff", bg: "--zam-accent-fill-rgb" },
+    { fg: "#ffffff", bg: "--zam-accent-fill-hover-rgb" },
+    { fg: "#ffffff", bg: "--zam-danger-fill-rgb" },
+    { fg: "#ffffff", bg: "--zam-danger-fill-hover-rgb" },
     // The same hues used as TEXT (destructive labels, error text, "Leave
     // room", failed-send notices; `.message-body a` links and active labels),
     // on every surface they can land on. This is the direction the suite never
     // tested, and the one the dark theme was failing silently — accent-as-text
-    // was 3.48:1 on --discord-bg and nothing asserted it.
+    // was 3.48:1 on --zam-bg and nothing asserted it.
     //
-    // --discord-bg-hover is in the list because a message row IS one of these
-    // surfaces: hovering a message swaps its background to --discord-bg-hover
+    // --zam-bg-hover is in the list because a message row IS one of these
+    // surfaces: hovering a message swaps its background to --zam-bg-hover
     // while the link inside keeps its colour. Without this pair the suite would
     // certify the resting link and say nothing about the hovered one.
     //
     // A single token cannot serve both directions: white-on-accent wants the
     // hue DARKER, accent-as-text wants it LIGHTER. Hence the split.
-    { fg: "--discord-accent-text", bg: "--discord-bg" },
-    { fg: "--discord-accent-text", bg: "--discord-bg-secondary" },
-    { fg: "--discord-accent-text", bg: "--discord-bg-tertiary" },
-    { fg: "--discord-accent-text", bg: "--discord-bg-hover" },
-    { fg: "--discord-danger-text", bg: "--discord-bg" },
-    { fg: "--discord-danger-text", bg: "--discord-bg-secondary" },
-    { fg: "--discord-danger-text", bg: "--discord-bg-tertiary" },
-    { fg: "--discord-danger-text", bg: "--discord-bg-hover" },
+    { fg: "--zam-accent-text", bg: "--zam-bg" },
+    { fg: "--zam-accent-text", bg: "--zam-bg-secondary" },
+    { fg: "--zam-accent-text", bg: "--zam-bg-tertiary" },
+    { fg: "--zam-accent-text", bg: "--zam-bg-hover" },
+    { fg: "--zam-danger-text", bg: "--zam-bg" },
+    { fg: "--zam-danger-text", bg: "--zam-bg-secondary" },
+    { fg: "--zam-danger-text", bg: "--zam-bg-tertiary" },
+    { fg: "--zam-danger-text", bg: "--zam-bg-hover" },
 ];
 
 /** Tokens that exist twice: a hex form and an `R G B` form for Tailwind. */
 const RGB_TWINS: [string, string][] = [
-    ["--discord-bg", "--discord-bg-rgb"],
-    ["--discord-bg-secondary", "--discord-bg-secondary-rgb"],
-    ["--discord-accent", "--discord-accent-rgb"],
-    ["--discord-accent-hover", "--discord-accent-hover-rgb"],
-    ["--discord-danger", "--discord-danger-rgb"],
-    ["--discord-warning", "--discord-warning-rgb"],
+    ["--zam-bg", "--zam-bg-rgb"],
+    ["--zam-bg-secondary", "--zam-bg-secondary-rgb"],
+    ["--zam-accent", "--zam-accent-rgb"],
+    ["--zam-accent-hover", "--zam-accent-hover-rgb"],
+    ["--zam-danger", "--zam-danger-rgb"],
+    ["--zam-warning", "--zam-warning-rgb"],
     // Contrast-split tokens (A11Y-10). The PAIRS entries above assert the
     // fills through their `-rgb` form and the text tokens through their hex
     // form, so without these twins a typo in one form would go unnoticed.
-    ["--discord-accent-fill", "--discord-accent-fill-rgb"],
-    ["--discord-accent-fill-hover", "--discord-accent-fill-hover-rgb"],
-    ["--discord-accent-text", "--discord-accent-text-rgb"],
-    ["--discord-danger-fill", "--discord-danger-fill-rgb"],
-    ["--discord-danger-fill-hover", "--discord-danger-fill-hover-rgb"],
-    ["--discord-danger-text", "--discord-danger-text-rgb"],
+    ["--zam-accent-fill", "--zam-accent-fill-rgb"],
+    ["--zam-accent-fill-hover", "--zam-accent-fill-hover-rgb"],
+    ["--zam-accent-text", "--zam-accent-text-rgb"],
+    ["--zam-danger-fill", "--zam-danger-fill-rgb"],
+    ["--zam-danger-fill-hover", "--zam-danger-fill-hover-rgb"],
+    ["--zam-danger-text", "--zam-danger-text-rgb"],
 ];
 
 function colourOf(vars: Record<string, string>, ref: string): string {
@@ -117,8 +117,8 @@ function colourOf(vars: Record<string, string>, ref: string): string {
  *
  * PAIRS pins what a *token* is worth. It cannot see which token a rule picks,
  * and that gap shipped: `.message-body a` — the app's most numerous
- * accent-as-text surface — declared `color: var(--discord-accent)` (3.48:1 in
- * the dark theme) while this suite certified `--discord-accent-text` at 4.61
+ * accent-as-text surface — declared `color: var(--zam-accent)` (3.48:1 in
+ * the dark theme) while this suite certified `--zam-accent-text` at 4.61
  * and its comment claimed to cover links. Asserting the rule, not just the
  * token, is what makes reverting that colour go red. Rules reached through a
  * Tailwind utility need no equivalent: the utility resolves to the token the
@@ -182,11 +182,7 @@ function refOf(value: string): string {
 }
 
 /** Surfaces a `.message-body` can sit on: timeline, panels, and row hover. */
-const MESSAGE_SURFACES = [
-    "--discord-bg",
-    "--discord-bg-secondary",
-    "--discord-bg-hover",
-];
+const MESSAGE_SURFACES = ["--zam-bg", "--zam-bg-secondary", "--zam-bg-hover"];
 
 describe("app.css palette", () => {
     it("parses tokens out of both theme blocks", () => {
@@ -195,8 +191,8 @@ describe("app.css palette", () => {
         // dead `--brand-*` ramp; 40 still catches a selector typo (which would
         // yield 0) without pinning the palette's exact size.
         expect(Object.keys(darkVars).length).toBeGreaterThan(40);
-        expect(resolveTokenToHex(darkVars, "--discord-bg")).toBe("#36393f");
-        expect(resolveTokenToHex(lightVars, "--discord-bg")).toBe("#f2f3f5");
+        expect(resolveTokenToHex(darkVars, "--zam-bg")).toBe("#36393f");
+        expect(resolveTokenToHex(lightVars, "--zam-bg")).toBe("#f2f3f5");
         // A mis-typed light selector would make {...dark, ...light} collapse to
         // dark, and every "light theme" assertion below would silently re-test
         // the dark one. Pin that the light block really parsed.
@@ -219,29 +215,26 @@ describe("app.css palette", () => {
             }
 
             // A ratio floor on its own cannot protect the design: setting
-            // --discord-text-muted to #ffffff would satisfy every PAIRS
+            // --zam-text-muted to #ffffff would satisfy every PAIRS
             // assertion above while flattening the three-step text ramp and
             // destroying de-emphasis. Pin the ordering itself, not just the
             // ratios — in the dark theme less important means darker, in the
             // light theme it means lighter.
             it("keeps the muted → secondary → primary brightness ramp", () => {
-                const mutedHex = colourOf(theme.vars, "--discord-text-muted");
+                const mutedHex = colourOf(theme.vars, "--zam-text-muted");
                 const secondaryHex = colourOf(
                     theme.vars,
-                    "--discord-text-secondary",
+                    "--zam-text-secondary",
                 );
-                const primaryHex = colourOf(
-                    theme.vars,
-                    "--discord-text-primary",
-                );
+                const primaryHex = colourOf(theme.vars, "--zam-text-primary");
                 const muted = relativeLuminance(mutedHex);
                 const secondary = relativeLuminance(secondaryHex);
                 const primary = relativeLuminance(primaryHex);
 
                 const ramp =
-                    `--discord-text-muted (${mutedHex}) L=${muted.toFixed(4)}, ` +
-                    `--discord-text-secondary (${secondaryHex}) L=${secondary.toFixed(4)}, ` +
-                    `--discord-text-primary (${primaryHex}) L=${primary.toFixed(4)}`;
+                    `--zam-text-muted (${mutedHex}) L=${muted.toFixed(4)}, ` +
+                    `--zam-text-secondary (${secondaryHex}) L=${secondary.toFixed(4)}, ` +
+                    `--zam-text-primary (${primaryHex}) L=${primary.toFixed(4)}`;
 
                 if (theme.name === "dark") {
                     expect(
@@ -296,7 +289,7 @@ describe("app.css palette", () => {
             // Same class of gap, same fix: ::selection paints its own
             // foreground AND background, so it is self-contained and neither
             // half is reached through a Tailwind utility. It shipped
-            // `background-color: var(--discord-accent)` under white text —
+            // `background-color: var(--zam-accent)` under white text —
             // 3.33:1 in the dark theme, i.e. selecting text made it HARDER to
             // read — while PAIRS certified the fill token it was not using.
             it("keeps ::selection readable", () => {
@@ -327,7 +320,7 @@ describe("app.css palette", () => {
             // surface, hand-written in app.css rather than reached through a
             // Tailwind utility. PAIRS certifies `#fff` on the `*-fill` tokens,
             // but nothing saw which token this rule picks — reverting it to
-            // `var(--discord-accent)` (3.33:1 under white in the dark theme)
+            // `var(--zam-accent)` (3.33:1 under white in the dark theme)
             // kept the whole suite green. Both the declared token and the
             // resolved ratio are pinned: the token name catches a silent
             // re-point even if someone later retunes the brand hue to pass,
@@ -352,11 +345,11 @@ describe("app.css palette", () => {
                 expect(
                     base[0].props["background-color"],
                     "`.btn-primary` must consume the contrast-split FILL token, not the brand hue",
-                ).toBe("var(--discord-accent-fill)");
+                ).toBe("var(--zam-accent-fill)");
                 expect(
                     hover[0].props["background-color"],
                     "`.btn-primary:hover` must consume the contrast-split FILL token, not the brand hue",
-                ).toBe("var(--discord-accent-fill-hover)");
+                ).toBe("var(--zam-accent-fill-hover)");
 
                 // `:hover` inherits the caption colour from the base rule.
                 const fg = colourOf(theme.vars, refOf(base[0].props.color));

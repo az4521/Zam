@@ -2208,7 +2208,7 @@
          message and never shifts the timeline when it appears or clears. -->
     <div class="h-4 mb-1 px-1">
         {#if typingUsers.length > 0}
-            <p class="truncate text-xs leading-4 text-discord-textMuted">
+            <p class="truncate text-xs leading-4 text-zam-textMuted">
                 {typingText()}
             </p>
         {/if}
@@ -2216,10 +2216,10 @@
     <!-- Reply preview bar -->
     {#if replyToEvent}
         <div
-            class="flex items-center gap-2 mb-1 px-3 py-1.5 bg-discord-backgroundTertiary rounded-t-lg border-s-2 border-discord-accent"
+            class="flex items-center gap-2 mb-1 px-3 py-1.5 bg-zam-backgroundTertiary rounded-t-lg border-s-2 border-zam-accent"
         >
             <svg
-                class="w-4 h-4 text-discord-accent flex-shrink-0"
+                class="w-4 h-4 text-zam-accent flex-shrink-0"
                 fill="currentColor"
                 viewBox="0 0 24 24"
             >
@@ -2228,16 +2228,16 @@
                 />
             </svg>
             <div class="flex-1 min-w-0 text-xs flex items-baseline gap-2">
-                <span class="text-discord-accent font-semibold flex-shrink-0">
+                <span class="text-zam-accent font-semibold flex-shrink-0">
                     {t("messageInput.replyingTo", { replyTargetName })}
                 </span>
-                <span class="text-discord-textMuted min-w-0 truncate"
+                <span class="text-zam-textMuted min-w-0 truncate"
                     >{getReplyPreview()}</span
                 >
             </div>
             <button
                 onclick={onCancelReply}
-                class="flex-shrink-0 p-0.5 rounded text-discord-textMuted hover:text-discord-textPrimary transition-colors"
+                class="flex-shrink-0 p-0.5 rounded text-zam-textMuted hover:text-zam-textPrimary transition-colors"
                 title={t("messageInput.cancelReplyEsc")}
             >
                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -2286,9 +2286,7 @@
 
     <!-- In-flight attachment send indicator (drawer was cleared optimistically) -->
     {#if sendingRoomId === roomId && sendingFileCount > 0}
-        <div
-            class="flex items-center gap-2 mb-2 text-xs text-discord-textMuted"
-        >
+        <div class="flex items-center gap-2 mb-2 text-xs text-zam-textMuted">
             <Loader2 class="w-3.5 h-3.5 animate-spin" />
             <span
                 >{t("messageInput.sendingAttachments", {
@@ -2317,7 +2315,7 @@
                         aria-label={t("messageInput.editAttachment2", {
                             name: item.name,
                         })}
-                        class="w-20 h-20 rounded-lg bg-discord-backgroundTertiary flex items-center justify-center overflow-hidden border border-discord-divider hover:border-discord-accent transition-colors"
+                        class="w-20 h-20 rounded-lg bg-zam-backgroundTertiary flex items-center justify-center overflow-hidden border border-zam-divider hover:border-zam-accent transition-colors"
                     >
                         {#if item.previewUrl && item.file.type.startsWith("video/")}
                             <!-- A file with no decodable picture (unsupported
@@ -2351,7 +2349,7 @@
                             />
                         {:else}
                             <svg
-                                class="w-8 h-8 text-discord-textMuted"
+                                class="w-8 h-8 text-zam-textMuted"
                                 fill="currentColor"
                                 viewBox="0 0 24 24"
                             >
@@ -2365,12 +2363,12 @@
                     <button
                         type="button"
                         onclick={() => openRename(item)}
-                        class="text-[10px] text-discord-textMuted hover:text-discord-textPrimary text-center leading-tight w-full truncate px-0.5"
+                        class="text-[10px] text-zam-textMuted hover:text-zam-textPrimary text-center leading-tight w-full truncate px-0.5"
                         title={item.name}>{item.name}</button
                     >
                     {#if item.direct}
                         <span
-                            class="text-[10px] font-semibold text-discord-accent"
+                            class="text-[10px] font-semibold text-zam-accent"
                             title={t("messageInput.directFileHint")}
                             >{t("messageInput.directFile")}</span
                         >
@@ -2378,7 +2376,7 @@
                     <!-- Remove button -->
                     <button
                         onclick={() => removeFromQueue(item.id)}
-                        class="absolute -top-0 -end-1.5 w-5 h-5 rounded-full bg-discord-backgroundSecondary border border-discord-divider text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover flex items-center justify-center transition-colors"
+                        class="absolute -top-0 -end-1.5 w-5 h-5 rounded-full bg-zam-backgroundSecondary border border-zam-divider text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover flex items-center justify-center transition-colors"
                         title={t("common.remove")}
                     >
                         <svg
@@ -2423,7 +2421,7 @@
     <!-- Mention autocomplete picker -->
     {#if mentionQuery !== null && mentionCandidates.length > 0}
         <div
-            class="mb-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg overflow-hidden shadow-lg"
+            class="mb-1 bg-zam-backgroundSecondary border border-zam-divider rounded-lg overflow-hidden shadow-lg"
         >
             {#each mentionCandidates as member, i}
                 <button
@@ -2436,7 +2434,7 @@
                         commitMention(member);
                     }}
                     class="w-full flex items-center gap-2.5 px-3 py-1.5 text-start transition-colors"
-                    class:bg-discord-messageHover={i === mentionSelectedIdx}
+                    class:bg-zam-messageHover={i === mentionSelectedIdx}
                     onpointerenter={() => (mentionSelectedIdx = i)}
                 >
                     <Avatar
@@ -2446,11 +2444,11 @@
                         size={24}
                     />
                     <span
-                        class="text-sm text-discord-textPrimary font-medium truncate"
+                        class="text-sm text-zam-textPrimary font-medium truncate"
                     >
                         {member.rawDisplayName || member.userId}
                     </span>
-                    <span class="text-xs text-discord-textMuted truncate">
+                    <span class="text-xs text-zam-textMuted truncate">
                         {member.userId}
                     </span>
                 </button>
@@ -2461,7 +2459,7 @@
     <!-- Slash-command autocomplete picker -->
     {#if slashQuery !== null && slashCandidates.length > 0}
         <div
-            class="mb-1 bg-discord-backgroundSecondary border border-discord-divider rounded-lg overflow-hidden shadow-lg"
+            class="mb-1 bg-zam-backgroundSecondary border border-zam-divider rounded-lg overflow-hidden shadow-lg"
         >
             {#each slashCandidates as command, i}
                 <button
@@ -2474,20 +2472,19 @@
                     }}
                     onpointerenter={() => (slashSelectedIdx = i)}
                     class="w-full flex items-center gap-2.5 px-3 py-1.5 text-start transition-colors"
-                    class:bg-discord-messageHover={i === slashSelectedIdx}
+                    class:bg-zam-messageHover={i === slashSelectedIdx}
                 >
                     <span
-                        class="text-sm font-mono text-discord-textPrimary flex-shrink-0"
+                        class="text-sm font-mono text-zam-textPrimary flex-shrink-0"
                         >/{command.name}</span
                     >
                     {#if command.argHint}
                         <span
-                            class="text-xs text-discord-textMuted font-mono flex-shrink-0"
+                            class="text-xs text-zam-textMuted font-mono flex-shrink-0"
                             >{command.argHint}</span
                         >
                     {/if}
-                    <span
-                        class="text-xs text-discord-textMuted truncate ms-auto"
+                    <span class="text-xs text-zam-textMuted truncate ms-auto"
                         >{command.description}</span
                     >
                 </button>
@@ -2498,7 +2495,7 @@
     <!-- Armed "create thread" banner: mirrors the reply banner pattern -->
     {#if createThreadArmed && !isThread}
         <div
-            class="flex items-center justify-between gap-2 px-3 py-1.5 bg-discord-backgroundSecondary rounded-t-lg text-xs text-discord-textMuted"
+            class="flex items-center justify-between gap-2 px-3 py-1.5 bg-zam-backgroundSecondary rounded-t-lg text-xs text-zam-textMuted"
         >
             <span
                 >{t("messageInput.yourNextMessageWillStartA")}
@@ -2506,7 +2503,7 @@
             >
             <button
                 onclick={() => (createThreadArmed = false)}
-                class="p-0.5 rounded hover:text-discord-textPrimary transition-colors"
+                class="p-0.5 rounded hover:text-zam-textPrimary transition-colors"
                 title={t("messageInput.cancelThreadCreation")}
             >
                 <svg
@@ -2543,7 +2540,7 @@
         />
     {:else}
         <div
-            class="input-box relative flex items-end gap-2 bg-discord-backgroundSecondary rounded-lg px-2.5 py-2.5 border border-transparent transition-colors"
+            class="input-box relative flex items-end gap-2 bg-zam-backgroundSecondary rounded-lg px-2.5 py-2.5 border border-transparent transition-colors"
             class:rounded-ss-none={!!replyToEvent}
         >
             <!-- "+" actions menu -->
@@ -2564,7 +2561,7 @@
                         }
                     }}
                     {disabled}
-                    class="relative p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    class="relative p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     class:z-50={showActionsMenu}
                     title={t("common.add")}
                 >
@@ -2681,7 +2678,7 @@
                     ? {}
                     : { autocorrect: "off" }}
                 tabindex={disabled ? -1 : 0}
-                class="composer-editor flex-1 min-w-0 self-center bg-transparent text-discord-textPrimary outline-none focus-visible:outline-none composer-text leading-relaxed py-[3px] !min-h-[32px] max-h-48 overflow-y-auto disabled:cursor-not-allowed"
+                class="composer-editor flex-1 min-w-0 self-center bg-transparent text-zam-textPrimary outline-none focus-visible:outline-none composer-text leading-relaxed py-[3px] !min-h-[32px] max-h-48 overflow-y-auto disabled:cursor-not-allowed"
             ></div>
 
             <!-- GIF picker button -->
@@ -2703,7 +2700,7 @@
                     {disabled}
                     class="{interfaceState.isTouchscreen
                         ? 'hidden'
-                        : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        : ''} p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     title={t("messageInput.favouriteGifs")}
                 >
                     <ImagePlay size={20} />
@@ -2751,7 +2748,7 @@
                     onclick={() => openPicker("sticker")}
                     class="{interfaceState.isTouchscreen
                         ? 'hidden'
-                        : ''} p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        : ''} p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     title={t("common.stickers")}
                     {disabled}
                 >
@@ -2792,7 +2789,7 @@
             <div class="flex-shrink-0">
                 <button
                     onclick={() => openPicker("emoji")}
-                    class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     title={t("common.emoji")}
                     {disabled}
                 >
@@ -2854,7 +2851,7 @@
                             }
                         }}
                         {disabled}
-                        class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         title={btn.label}
                         aria-label={btn.label}
                     >
@@ -2880,8 +2877,8 @@
                     isSending ||
                     disabled}
                 class="flex-shrink-0 p-1.5 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed {canSend
-                    ? 'text-discord-accent hover:text-discord-accentHover hover:bg-discord-messageHover'
-                    : 'text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover'}"
+                    ? 'text-zam-accent hover:text-zam-accentHover hover:bg-zam-messageHover'
+                    : 'text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover'}"
                 title={t("messageInput.sendMessage")}
             >
                 {#if isSending}
@@ -2902,6 +2899,6 @@
 <style>
     .input-box:focus-within {
         outline: none;
-        border-color: rgb(var(--discord-accent-rgb) / 0.3);
+        border-color: rgb(var(--zam-accent-rgb) / 0.3);
     }
 </style>

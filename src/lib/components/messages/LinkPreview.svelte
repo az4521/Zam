@@ -530,7 +530,7 @@
 {:else if pending && !preview}
     {#if likelyMedia}
         <div
-            class="skeleton-delay mt-1 w-full max-w-[min(100%,32rem)] aspect-video rounded-lg bg-discord-backgroundSecondary"
+            class="skeleton-delay mt-1 w-full max-w-[min(100%,32rem)] aspect-video rounded-lg bg-zam-backgroundSecondary"
             aria-hidden="true"
         ></div>
     {:else}
@@ -538,26 +538,26 @@
              the fixed image box. -->
         <div class="skeleton-delay mt-2" aria-hidden="true">
             <div
-                class="flex max-w-lg rounded overflow-hidden border border-discord-divider bg-discord-backgroundSecondary"
+                class="flex max-w-lg rounded overflow-hidden border border-zam-divider bg-zam-backgroundSecondary"
             >
-                <div class="w-1 flex-shrink-0 bg-discord-divider"></div>
+                <div class="w-1 flex-shrink-0 bg-zam-divider"></div>
                 <div class="flex flex-1 min-w-0 flex-col p-3 gap-3">
                     <div class="flex-1 min-w-0 animate-pulse">
                         <p class="text-xs mb-0.5">
                             <span
-                                class="inline-block w-24 h-2.5 rounded bg-discord-divider"
+                                class="inline-block w-24 h-2.5 rounded bg-zam-divider"
                             ></span>
                         </p>
                         <p class="text-sm leading-snug">
                             <span
-                                class="inline-block w-3/5 h-3 rounded bg-discord-divider"
+                                class="inline-block w-3/5 h-3 rounded bg-zam-divider"
                             ></span>
                         </p>
                         <p class="text-xs mt-1 leading-relaxed">
                             <span
-                                class="inline-block w-full h-2.5 rounded bg-discord-divider"
+                                class="inline-block w-full h-2.5 rounded bg-zam-divider"
                             ></span><br /><span
-                                class="inline-block w-4/5 h-2.5 rounded bg-discord-divider"
+                                class="inline-block w-4/5 h-2.5 rounded bg-zam-divider"
                             ></span>
                         </p>
                     </div>
@@ -577,13 +577,13 @@
              (e.g. an fxtwitter/fixvx preview that carries og:video + og:title). -->
         <div class="mt-2">
             <div
-                class="flex max-w-lg rounded overflow-hidden border border-discord-divider bg-discord-backgroundSecondary"
+                class="flex max-w-lg rounded overflow-hidden border border-zam-divider bg-zam-backgroundSecondary"
             >
                 <!-- Left accent bar -->
-                <div class="w-1 flex-shrink-0 bg-discord-accent"></div>
+                <div class="w-1 flex-shrink-0 bg-zam-accent"></div>
                 <div class="flex flex-1 min-w-0 flex-col p-3 gap-2">
                     {#if preview.siteName}
-                        <p class="text-xs text-discord-textMuted truncate">
+                        <p class="text-xs text-zam-textMuted truncate">
                             {preview.siteName}
                         </p>
                     {/if}
@@ -592,14 +592,14 @@
                             href={preview.canonicalUrl || url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="text-sm font-semibold text-discord-accent leading-snug line-clamp-2 no-underline hover:underline"
+                            class="text-sm font-semibold text-zam-accent leading-snug line-clamp-2 no-underline hover:underline"
                         >
                             {preview.title}
                         </a>
                     {/if}
                     {#if preview.description}
                         <p
-                            class="text-xs text-discord-textSecondary leading-relaxed line-clamp-4 whitespace-pre-wrap"
+                            class="text-xs text-zam-textSecondary leading-relaxed line-clamp-4 whitespace-pre-wrap"
                         >
                             {preview.description}
                         </p>
@@ -656,7 +656,7 @@
             >
                 {#if favourited}
                     <svg
-                        class="w-4 h-4 text-discord-warning"
+                        class="w-4 h-4 text-zam-warning"
                         fill="currentColor"
                         viewBox="0 0 24 24"
                     >
@@ -696,31 +696,31 @@
                 href={preview.canonicalUrl || url}
                 target="_blank"
                 rel="noopener noreferrer"
-                class="flex max-w-lg rounded overflow-hidden border border-discord-divider bg-discord-backgroundSecondary hover:bg-discord-messageHover transition-colors no-underline"
+                class="flex max-w-lg rounded overflow-hidden border border-zam-divider bg-zam-backgroundSecondary hover:bg-zam-messageHover transition-colors no-underline"
             >
                 <!-- Left accent bar -->
-                <div class="w-1 flex-shrink-0 bg-discord-accent"></div>
+                <div class="w-1 flex-shrink-0 bg-zam-accent"></div>
 
                 <div class="flex flex-1 min-w-0 flex-col p-3 gap-3">
                     <!-- Text content -->
                     <div class="flex-1 min-w-0">
                         {#if preview.siteName}
                             <p
-                                class="text-xs text-discord-textMuted mb-0.5 truncate"
+                                class="text-xs text-zam-textMuted mb-0.5 truncate"
                             >
                                 {preview.siteName}
                             </p>
                         {/if}
                         {#if preview.title}
                             <p
-                                class="text-sm font-semibold text-discord-accent leading-snug line-clamp-2"
+                                class="text-sm font-semibold text-zam-accent leading-snug line-clamp-2"
                             >
                                 {preview.title}
                             </p>
                         {/if}
                         {#if preview.description}
                             <p
-                                class="text-xs text-discord-textSecondary mt-1 leading-relaxed line-clamp-3"
+                                class="text-xs text-zam-textSecondary mt-1 leading-relaxed line-clamp-3"
                             >
                                 {preview.description}
                             </p>
@@ -803,7 +803,7 @@
     <button
         type="button"
         onclick={() => (revealedFor = url)}
-        class="mt-1 inline-flex items-center gap-1.5 rounded border border-discord-divider bg-discord-backgroundSecondary px-2 py-1 text-xs text-discord-textSecondary transition-colors hover:text-discord-textPrimary hover:border-discord-accent/50"
+        class="mt-1 inline-flex items-center gap-1.5 rounded border border-zam-divider bg-zam-backgroundSecondary px-2 py-1 text-xs text-zam-textSecondary transition-colors hover:text-zam-textPrimary hover:border-zam-accent/50"
         title={t("linkPreview.loadingItContactsTheSiteHosting")}
     >
         <svg
@@ -943,7 +943,7 @@
             >
                 {#if favourited}
                     <svg
-                        class="w-4 h-4 text-discord-warning"
+                        class="w-4 h-4 text-zam-warning"
                         fill="currentColor"
                         viewBox="0 0 24 24"
                     >

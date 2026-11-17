@@ -1388,16 +1388,16 @@
 
 {#snippet stateLoading()}
     {#if stateLoadError}
-        <p class="text-sm text-discord-danger">
+        <p class="text-sm text-zam-danger">
             {stateLoadError}
         </p>
         <button
             onclick={loadFullState}
-            class="mt-2 px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors"
+            class="mt-2 px-4 py-2 bg-zam-accent hover:bg-zam-accentHover text-white rounded font-medium text-sm transition-colors"
             >{t("common.retry")}</button
         >
     {:else}
-        <p class="text-sm text-discord-textMuted">
+        <p class="text-sm text-zam-textMuted">
             {t("common.loading")}
         </p>
     {/if}
@@ -1418,27 +1418,27 @@
         role="dialog"
         aria-modal="true"
         aria-labelledby="room-settings-title"
-        class="relative z-10 bg-discord-backgroundSecondary rounded-none md:rounded-xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden h-[100dvh] md:h-[85dvh]"
+        class="relative z-10 bg-zam-backgroundSecondary rounded-none md:rounded-xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden h-[100dvh] md:h-[85dvh]"
         use:focusTrap
     >
         <!-- Header. On a mobile sub-page the close button is replaced by a back
              arrow and the title names the category. -->
         <div
-            class="flex items-center gap-2 px-6 py-4 border-b border-discord-divider flex-shrink-0"
+            class="flex items-center gap-2 px-6 py-4 border-b border-zam-divider flex-shrink-0"
         >
             {#if view.mode === "detail"}
                 <button
                     bind:this={backButtonEl}
                     onclick={goBackToList}
                     aria-label={t("roomSettings.backToSettings")}
-                    class="-ms-2 p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                    class="-ms-2 p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors flex-shrink-0"
                 >
                     <ArrowLeft class="mirror:-scale-x-100" size={20} />
                 </button>
             {/if}
             <h2
                 id="room-settings-title"
-                class="text-lg font-bold text-discord-textPrimary min-w-0 truncate flex-1"
+                class="text-lg font-bold text-zam-textPrimary min-w-0 truncate flex-1"
             >
                 {#if view.mode === "detail"}
                     <!-- This heading IS the dialog's accessible name
@@ -1454,7 +1454,7 @@
             <button
                 onclick={onClose}
                 aria-label={t("roomSettings.closeSettings")}
-                class="p-1.5 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors flex-shrink-0"
+                class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors flex-shrink-0"
             >
                 <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
                     ><path
@@ -1474,13 +1474,13 @@
                             selectedTab = tab.id;
                             showInvite = false;
                         }}
-                        class="w-full flex items-center justify-between gap-3 px-6 py-3.5 text-start text-base font-medium text-discord-textPrimary hover:bg-discord-messageHover active:bg-discord-messageHover transition-colors"
+                        class="w-full flex items-center justify-between gap-3 px-6 py-3.5 text-start text-base font-medium text-zam-textPrimary hover:bg-zam-messageHover active:bg-zam-messageHover transition-colors"
                     >
                         <span class="min-w-0 truncate">{tab.label}</span>
                         <ChevronRight
                             size={20}
                             aria-hidden="true"
-                            class="mirror:-scale-x-100 flex-shrink-0 text-discord-textMuted"
+                            class="mirror:-scale-x-100 flex-shrink-0 text-zam-textMuted"
                         />
                     </button>
                 {/each}
@@ -1490,7 +1490,7 @@
                 {#if view.mode === "desktop"}
                     <!-- Desktop: category sidebar beside the active panel. -->
                     <nav
-                        class="flex flex-col flex-shrink-0 w-40 gap-0.5 border-e border-discord-divider px-2 py-3 min-h-0 overflow-y-auto overscroll-contain"
+                        class="flex flex-col flex-shrink-0 w-40 gap-0.5 border-e border-zam-divider px-2 py-3 min-h-0 overflow-y-auto overscroll-contain"
                     >
                         {#each tabs as tab (tab.id)}
                             <button
@@ -1500,12 +1500,11 @@
                                     showInvite = false;
                                 }}
                                 class="flex-shrink-0 w-full whitespace-nowrap text-start px-3 py-2 rounded text-sm font-medium transition-colors"
-                                class:bg-discord-messageHover={activeTab ===
+                                class:bg-zam-messageHover={activeTab === tab.id}
+                                class:text-zam-textPrimary={activeTab ===
                                     tab.id}
-                                class:text-discord-textPrimary={activeTab ===
-                                    tab.id}
-                                class:text-discord-textMuted={activeTab !==
-                                    tab.id}>{tab.label}</button
+                                class:text-zam-textMuted={activeTab !== tab.id}
+                                >{tab.label}</button
                             >
                         {/each}
                     </nav>
@@ -1515,14 +1514,14 @@
                 <div class="flex-1 overflow-y-auto p-4 md:p-6 min-w-0">
                     {#if stateTrust.unverified}
                         <div
-                            class="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-discord-textPrimary"
+                            class="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-zam-textPrimary"
                             role="note"
                             title={stateTrust.tooltip}
                         >
                             <p class="font-semibold text-amber-400">
                                 {stateTrust.label}
                             </p>
-                            <p class="mt-1 text-discord-textMuted">
+                            <p class="mt-1 text-zam-textMuted">
                                 {stateTrust.tooltip}
                             </p>
                         </div>
@@ -1547,13 +1546,13 @@
                             <!-- Avatar -->
                             <div>
                                 <p
-                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                    class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
                                 >
                                     {t("roomSettings.roomAvatar")}
                                 </p>
                                 <div class="flex items-center gap-4">
                                     <div
-                                        class="w-16 h-16 rounded-full bg-discord-backgroundTertiary overflow-hidden flex-shrink-0 flex items-center justify-center"
+                                        class="w-16 h-16 rounded-full bg-zam-backgroundTertiary overflow-hidden flex-shrink-0 flex items-center justify-center"
                                     >
                                         {#if currentAvatarUrl}
                                             <img
@@ -1563,7 +1562,7 @@
                                             />
                                         {:else}
                                             <span
-                                                class="text-2xl font-bold text-discord-textMuted"
+                                                class="text-2xl font-bold text-zam-textMuted"
                                                 >{room.name?.[0]?.toUpperCase() ??
                                                     "#"}</span
                                             >
@@ -1571,7 +1570,7 @@
                                     </div>
                                     {#if canEditState}
                                         <label
-                                            class="cursor-pointer px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm font-medium transition-colors {avatarUploading
+                                            class="cursor-pointer px-3 py-1.5 rounded bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary text-sm font-medium transition-colors {avatarUploading
                                                 ? 'opacity-50 pointer-events-none'
                                                 : ''}"
                                         >
@@ -1594,14 +1593,14 @@
                             <div>
                                 <label
                                     for="room-settings-name"
-                                    class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                                    class="block text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-1.5"
                                     >{t("roomSettings.roomName")}</label
                                 >
                                 <input
                                     id="room-settings-name"
                                     bind:value={nameInput}
                                     disabled={!canEditState}
-                                    class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50"
+                                    class="w-full bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50 disabled:opacity-50"
                                 />
                             </div>
 
@@ -1609,7 +1608,7 @@
                             <div>
                                 <label
                                     for="room-settings-topic"
-                                    class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                                    class="block text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-1.5"
                                     >{t("common.topic")}</label
                                 >
                                 <textarea
@@ -1617,12 +1616,12 @@
                                     bind:value={topicInput}
                                     disabled={!canEditState}
                                     rows="3"
-                                    class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 resize-none disabled:opacity-50"
+                                    class="w-full bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50 resize-none disabled:opacity-50"
                                 ></textarea>
                             </div>
 
                             {#if generalError}<p
-                                    class="text-sm text-discord-danger"
+                                    class="text-sm text-zam-danger"
                                 >
                                     {generalError}
                                 </p>{/if}
@@ -1630,7 +1629,7 @@
                                 <button
                                     onclick={saveGeneral}
                                     disabled={generalSaving}
-                                    class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                    class="px-4 py-2 bg-zam-accent hover:bg-zam-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
                                     >{generalSaving
                                         ? t("common.saving")
                                         : generalSuccess
@@ -1642,10 +1641,10 @@
                             {/if}
 
                             <div
-                                class="pt-4 mt-2 border-t border-discord-backgroundTertiary space-y-3"
+                                class="pt-4 mt-2 border-t border-zam-backgroundTertiary space-y-3"
                             >
                                 <p
-                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                                    class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                                 >
                                     {t("roomSettings.advanced")}
                                 </p>
@@ -1653,7 +1652,7 @@
                                 <!-- Room / Space ID (read-only, copyable) -->
                                 <div>
                                     <p
-                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                                        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-1.5"
                                     >
                                         {isSpace
                                             ? t("roomSettings.spaceId")
@@ -1661,13 +1660,13 @@
                                     </p>
                                     <div class="flex items-center gap-2">
                                         <code
-                                            class="flex-1 min-w-0 select-all truncate bg-discord-backgroundTertiary text-discord-textPrimary text-xs font-mono rounded px-3 py-2 streamer-hide"
+                                            class="flex-1 min-w-0 select-all truncate bg-zam-backgroundTertiary text-zam-textPrimary text-xs font-mono rounded px-3 py-2 streamer-hide"
                                             title={room.roomId}
                                             >{room.roomId}</code
                                         >
                                         <button
                                             onclick={copyRoomId}
-                                            class="flex-shrink-0 px-3 py-2 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary text-sm font-medium transition-colors"
+                                            class="flex-shrink-0 px-3 py-2 rounded bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary text-sm font-medium transition-colors"
                                             >{idCopied
                                                 ? t("roomSettings.copied")
                                                 : t("common.copy")}</button
@@ -1677,16 +1676,14 @@
 
                                 {#if !isSpace && roomVersionCap}
                                     <div class="space-y-2">
-                                        <p
-                                            class="text-xs text-discord-textMuted"
-                                        >
+                                        <p class="text-xs text-zam-textMuted">
                                             {t("roomSettings.roomVersionV", {
                                                 getVersion: room.getVersion(),
                                             })}
                                         </p>
                                         {#if upgradeState.isCurrentLatest || !upgradeState.available}
                                             <p
-                                                class="text-sm text-discord-textMuted"
+                                                class="text-sm text-zam-textMuted"
                                             >
                                                 {upgradeState.reason}
                                             </p>
@@ -1696,7 +1693,7 @@
                                                     upgradeShowConfirm = true;
                                                     upgradeError = "";
                                                 }}
-                                                class="px-4 py-2 bg-discord-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors"
+                                                class="px-4 py-2 bg-zam-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors"
                                                 >{t(
                                                     "roomSettings.upgradeRoom",
                                                 )}</button
@@ -1704,7 +1701,7 @@
                                         {:else}
                                             <div class="space-y-2">
                                                 <p
-                                                    class="text-sm text-discord-textPrimary"
+                                                    class="text-sm text-zam-textPrimary"
                                                 >
                                                     {t(
                                                         "roomSettings.thisCreatesANewRoomOn",
@@ -1716,15 +1713,15 @@
                                                 </p>
                                                 {#if roomVersionHasImmutableCreators(upgradeState.recommendedVersion)}
                                                     <details
-                                                        class="rounded border border-discord-divider px-3 py-2"
+                                                        class="rounded border border-zam-divider px-3 py-2"
                                                     >
                                                         <summary
-                                                            class="cursor-pointer select-none text-sm text-discord-textPrimary"
+                                                            class="cursor-pointer select-none text-sm text-zam-textPrimary"
                                                             >{t(
                                                                 "roomSettings.additionalCreators",
                                                             )}
                                                             <span
-                                                                class="text-xs text-discord-textMuted"
+                                                                class="text-xs text-zam-textMuted"
                                                                 >{t(
                                                                     "quickActions.optional",
                                                                 )}</span
@@ -1734,7 +1731,7 @@
                                                             class="mt-2 flex flex-col gap-2"
                                                         >
                                                             <p
-                                                                class="text-xs text-discord-textMuted"
+                                                                class="text-xs text-zam-textMuted"
                                                             >
                                                                 {t(
                                                                     "roomSettings.additionalCreatorsHint",
@@ -1755,7 +1752,7 @@
                                                     </details>
                                                 {/if}
                                                 {#if upgradeError}<p
-                                                        class="text-sm text-discord-danger"
+                                                        class="text-sm text-zam-danger"
                                                     >
                                                         {upgradeError}
                                                     </p>{/if}
@@ -1763,7 +1760,7 @@
                                                     <button
                                                         onclick={doUpgradeRoom}
                                                         disabled={upgrading}
-                                                        class="px-4 py-2 bg-discord-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                                        class="px-4 py-2 bg-zam-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
                                                         >{upgrading
                                                             ? t(
                                                                   "roomSettings.upgrading",
@@ -1780,7 +1777,7 @@
                                                                 [];
                                                         }}
                                                         disabled={upgrading}
-                                                        class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                                        class="px-4 py-2 rounded text-sm font-medium text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-50"
                                                         >{t(
                                                             "common.cancel",
                                                         )}</button
@@ -1801,7 +1798,7 @@
                             <div class="space-y-5">
                                 <div>
                                     <p
-                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
                                     >
                                         {t("roomSettings.whoCanJoin")}
                                     </p>
@@ -1816,10 +1813,10 @@
                                                     type="radio"
                                                     bind:group={joinRule}
                                                     {value}
-                                                    class="accent-discord-accent"
+                                                    class="accent-zam-accent"
                                                 />
                                                 <span
-                                                    class="text-sm text-discord-textPrimary"
+                                                    class="text-sm text-zam-textPrimary"
                                                     >{label}</span
                                                 >
                                             </label>
@@ -1834,10 +1831,10 @@
                                                 bind:group={joinRule}
                                                 value={RESTRICTED_JOIN_RULE}
                                                 disabled={!restrictedJoin.available}
-                                                class="accent-discord-accent"
+                                                class="accent-zam-accent"
                                             />
                                             <span
-                                                class="text-sm text-discord-textPrimary"
+                                                class="text-sm text-zam-textPrimary"
                                                 >{parentSpaceNames
                                                     ? t(
                                                           "roomSettings.spaceMembersAnyoneInCanJoin",
@@ -1850,7 +1847,7 @@
                                         </label>
                                         {#if restrictedJoin.reason}
                                             <p
-                                                class="text-xs text-discord-textMuted ms-6"
+                                                class="text-xs text-zam-textMuted ms-6"
                                             >
                                                 {restrictedJoin.reason}
                                             </p>
@@ -1860,7 +1857,7 @@
 
                                 <div>
                                     <p
-                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
                                     >
                                         {t("roomSettings.messageHistory")}
                                     </p>
@@ -1877,10 +1874,10 @@
                                                         historyVisibility
                                                     }
                                                     {value}
-                                                    class="accent-discord-accent"
+                                                    class="accent-zam-accent"
                                                 />
                                                 <span
-                                                    class="text-sm text-discord-textPrimary"
+                                                    class="text-sm text-zam-textPrimary"
                                                     >{label}</span
                                                 >
                                             </label>
@@ -1890,7 +1887,7 @@
 
                                 <div>
                                     <p
-                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
                                     >
                                         {t("roomSettings.guestAccess")}
                                     </p>
@@ -1903,18 +1900,16 @@
                                             type="checkbox"
                                             bind:checked={guestAccessAllowed}
                                             disabled={!canEditState}
-                                            class="accent-discord-accent"
+                                            class="accent-zam-accent"
                                         />
                                         <span
-                                            class="text-sm text-discord-textPrimary"
+                                            class="text-sm text-zam-textPrimary"
                                             >{t(
                                                 "roomSettings.allowGuestsToJoinWithoutAn",
                                             )}</span
                                         >
                                     </label>
-                                    <p
-                                        class="text-xs text-discord-textMuted mt-1"
-                                    >
+                                    <p class="text-xs text-zam-textMuted mt-1">
                                         {t(
                                             "roomSettings.guestsAreAnonymousAccountsTheHomeserver",
                                         )}
@@ -1923,7 +1918,7 @@
 
                                 <div>
                                     <p
-                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
                                     >
                                         {t("roomSettings.discoverability")}
                                     </p>
@@ -1945,10 +1940,10 @@
                                             disabled={!canEditState ||
                                                 dirSaving ||
                                                 !dirLoaded}
-                                            class="accent-discord-accent"
+                                            class="accent-zam-accent"
                                         />
                                         <span
-                                            class="text-sm text-discord-textPrimary"
+                                            class="text-sm text-zam-textPrimary"
                                             >{isSpace
                                                 ? t(
                                                       "roomSettings.listThisSpaceInTheServerDirectory",
@@ -1958,9 +1953,7 @@
                                                   )}</span
                                         >
                                     </label>
-                                    <p
-                                        class="text-xs text-discord-textMuted mt-1"
-                                    >
+                                    <p class="text-xs text-zam-textMuted mt-1">
                                         {isSpace
                                             ? t(
                                                   "roomSettings.listsTheSpaceByIdBeingFound",
@@ -1970,7 +1963,7 @@
                                               )}
                                     </p>
                                     {#if dirError}<p
-                                            class="text-sm text-discord-danger mt-1"
+                                            class="text-sm text-zam-danger mt-1"
                                         >
                                             {dirError}
                                         </p>{/if}
@@ -1978,13 +1971,11 @@
 
                                 <div>
                                     <p
-                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
                                     >
                                         {t("roomSettings.addresses")}
                                     </p>
-                                    <p
-                                        class="text-xs text-discord-textMuted mb-2"
-                                    >
+                                    <p class="text-xs text-zam-textMuted mb-2">
                                         {isSpace
                                             ? t(
                                                   "roomSettings.aPublishedAddressLetsPeopleFindSpace",
@@ -1994,16 +1985,14 @@
                                               )}
                                     </p>
                                     {#if !aliasesLoaded}
-                                        <p
-                                            class="text-xs text-discord-textMuted"
-                                        >
+                                        <p class="text-xs text-zam-textMuted">
                                             {t("roomSettings.loadingAddresses")}
                                         </p>
                                     {:else}
                                         {#if sortedAliases.length === 0}
                                             {#if !aliasError}
                                                 <p
-                                                    class="text-xs text-discord-textMuted"
+                                                    class="text-xs text-zam-textMuted"
                                                 >
                                                     {t(
                                                         "roomSettings.noAddressesYet",
@@ -2017,13 +2006,13 @@
                                                         class="flex items-center gap-2 min-w-0"
                                                     >
                                                         <span
-                                                            class="text-sm text-discord-textPrimary font-mono truncate"
+                                                            class="text-sm text-zam-textPrimary font-mono truncate"
                                                             title={alias}
                                                             >{alias}</span
                                                         >
                                                         {#if alias === canonicalAlias}
                                                             <span
-                                                                class="shrink-0 text-[10px] uppercase tracking-wide bg-discord-accent text-white rounded px-1.5 py-0.5"
+                                                                class="shrink-0 text-[10px] uppercase tracking-wide bg-zam-accent text-white rounded px-1.5 py-0.5"
                                                                 >{t(
                                                                     "roomSettings.main",
                                                                 )}</span
@@ -2039,7 +2028,7 @@
                                                                 "roomSettings.remove",
                                                                 { alias },
                                                             )}
-                                                            class="ms-auto shrink-0 text-xs text-discord-danger hover:underline disabled:opacity-50"
+                                                            class="ms-auto shrink-0 text-xs text-zam-danger hover:underline disabled:opacity-50"
                                                             >{t(
                                                                 "common.remove",
                                                             )}</button
@@ -2055,7 +2044,7 @@
                                             >
                                                 <label class="flex-1 min-w-0">
                                                     <span
-                                                        class="block text-xs text-discord-textMuted mb-1"
+                                                        class="block text-xs text-zam-textMuted mb-1"
                                                         >{t(
                                                             "roomSettings.mainAddress",
                                                         )}</span
@@ -2065,7 +2054,7 @@
                                                             mainAliasChoice
                                                         }
                                                         disabled={aliasBusy}
-                                                        class="w-full px-2 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded border border-discord-divider disabled:opacity-50"
+                                                        class="w-full px-2 py-1.5 bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded border border-zam-divider disabled:opacity-50"
                                                     >
                                                         <option value=""
                                                             >{t(
@@ -2084,7 +2073,7 @@
                                                     onclick={saveMainAlias}
                                                     disabled={aliasBusy ||
                                                         !mainAliasDirty}
-                                                    class="shrink-0 px-3 py-1.5 bg-discord-accent hover:bg-discord-accentHover text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                                                    class="shrink-0 px-3 py-1.5 bg-zam-accent hover:bg-zam-accentHover text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
                                                     >{t(
                                                         "roomSettings.set",
                                                     )}</button
@@ -2096,7 +2085,7 @@
                                             class="flex items-center gap-1.5 mt-3"
                                         >
                                             <span
-                                                class="text-sm text-discord-textMuted shrink-0"
+                                                class="text-sm text-zam-textMuted shrink-0"
                                                 >#</span
                                             >
                                             <input
@@ -2118,10 +2107,10 @@
                                                         addAlias();
                                                     }
                                                 }}
-                                                class="flex-1 min-w-0 px-2 py-1.5 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded border border-discord-divider disabled:opacity-50"
+                                                class="flex-1 min-w-0 px-2 py-1.5 bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded border border-zam-divider disabled:opacity-50"
                                             />
                                             <span
-                                                class="text-sm text-discord-textMuted shrink-0 max-w-[40%] truncate"
+                                                class="text-sm text-zam-textMuted shrink-0 max-w-[40%] truncate"
                                                 title={ownServer}
                                                 >:{ownServer}</span
                                             >
@@ -2130,27 +2119,27 @@
                                                 disabled={addAliasBusy ||
                                                     !ownServer ||
                                                     !newAliasCheck.valid}
-                                                class="shrink-0 px-3 py-1.5 bg-discord-accent hover:bg-discord-accentHover text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                                                class="shrink-0 px-3 py-1.5 bg-zam-accent hover:bg-zam-accentHover text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
                                                 >{t("common.add")}</button
                                             >
                                         </div>
                                         {#if newAliasLocalpart.trim() && newAliasCheck.reason}
                                             <p
-                                                class="text-xs text-discord-danger mt-1"
+                                                class="text-xs text-zam-danger mt-1"
                                             >
                                                 {newAliasCheck.reason}
                                             </p>
                                         {/if}
                                     {/if}
                                     {#if aliasError}<p
-                                            class="text-sm text-discord-danger mt-1"
+                                            class="text-sm text-zam-danger mt-1"
                                         >
                                             {aliasError}
                                         </p>{/if}
                                 </div>
 
                                 {#if accessError}<p
-                                        class="text-sm text-discord-danger"
+                                        class="text-sm text-zam-danger"
                                     >
                                         {accessError}
                                     </p>{/if}
@@ -2158,7 +2147,7 @@
                                     <button
                                         onclick={saveAccess}
                                         disabled={accessSaving}
-                                        class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                        class="px-4 py-2 bg-zam-accent hover:bg-zam-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
                                         >{accessSaving
                                             ? t("common.saving")
                                             : accessSuccess
@@ -2171,13 +2160,11 @@
 
                                 <div>
                                     <p
-                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
                                     >
                                         {t("roomSettings.serverAccessControl")}
                                     </p>
-                                    <p
-                                        class="text-xs text-discord-textMuted mb-3"
-                                    >
+                                    <p class="text-xs text-zam-textMuted mb-3">
                                         {t(
                                             "roomSettings.controlWhichHomeserversMayParticipateIn",
                                         )} <code>*</code>
@@ -2190,7 +2177,7 @@
 
                                     {#if !aclPresent}
                                         <p
-                                            class="text-xs text-discord-textMuted mb-3"
+                                            class="text-xs text-zam-textMuted mb-3"
                                         >
                                             {t(
                                                 "roomSettings.noServerAclIsSetAll",
@@ -2200,7 +2187,7 @@
 
                                     <label
                                         for="acl-allow"
-                                        class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1"
+                                        class="block text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-1"
                                         >{t(
                                             "roomSettings.allowedServersOnePerLine",
                                         )}</label
@@ -2211,12 +2198,12 @@
                                         rows="3"
                                         disabled={!canEditServerAcl}
                                         placeholder="*"
-                                        class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50 font-mono"
+                                        class="w-full bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50 disabled:opacity-50 font-mono"
                                     ></textarea>
 
                                     <label
                                         for="acl-deny"
-                                        class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1 mt-3"
+                                        class="block text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-1 mt-3"
                                         >{t(
                                             "roomSettings.deniedServersOnePerLine",
                                         )}</label
@@ -2226,17 +2213,17 @@
                                         bind:value={aclDenyText}
                                         rows="3"
                                         disabled={!canEditServerAcl}
-                                        class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50 disabled:opacity-50 font-mono"
+                                        class="w-full bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50 disabled:opacity-50 font-mono"
                                     ></textarea>
 
                                     <label
-                                        class="flex items-center gap-2 mt-3 text-sm text-discord-textPrimary"
+                                        class="flex items-center gap-2 mt-3 text-sm text-zam-textPrimary"
                                     >
                                         <input
                                             type="checkbox"
                                             bind:checked={aclAllowIp}
                                             disabled={!canEditServerAcl}
-                                            class="accent-discord-accent"
+                                            class="accent-zam-accent"
                                         />
                                         {t(
                                             "roomSettings.allowServersIdentifiedByARaw",
@@ -2247,7 +2234,7 @@
                                         <div class="mt-3 space-y-1">
                                             {#each aclWarnings as w}
                                                 <p
-                                                    class="text-sm text-discord-danger"
+                                                    class="text-sm text-zam-danger"
                                                 >
                                                     <TriangleAlert
                                                         size={14}
@@ -2259,7 +2246,7 @@
                                         </div>
                                     {/if}
                                     {#if aclError}<p
-                                            class="text-sm text-discord-danger mt-2"
+                                            class="text-sm text-zam-danger mt-2"
                                         >
                                             {aclError}
                                         </p>{/if}
@@ -2268,7 +2255,7 @@
                                         <button
                                             onclick={saveServerAcl}
                                             disabled={aclSaving}
-                                            class="mt-3 px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                            class="mt-3 px-4 py-2 bg-zam-accent hover:bg-zam-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
                                             >{aclSaving
                                                 ? t("common.saving")
                                                 : aclSuccess
@@ -2279,7 +2266,7 @@
                                         >
                                     {:else}
                                         <p
-                                            class="text-xs text-discord-textMuted mt-2"
+                                            class="text-xs text-zam-textMuted mt-2"
                                         >
                                             {t(
                                                 "roomSettings.youDoNotHavePermissionTo",
@@ -2295,11 +2282,11 @@
                         <div class="space-y-5">
                             <div>
                                 <p
-                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                    class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
                                 >
                                     {t("common.notifications")}
                                 </p>
-                                <p class="text-xs text-discord-textMuted mb-3">
+                                <p class="text-xs text-zam-textMuted mb-3">
                                     {isSpace
                                         ? t(
                                               "roomSettings.chooseHowThisSpaceNotifiesYou",
@@ -2331,12 +2318,12 @@
                                             disabled={notifSaving}
                                             onclick={() =>
                                                 applyNotification(val)}
-                                            class="w-full text-start px-3 py-2 rounded flex items-start gap-3 transition-colors hover:bg-discord-messageHover disabled:opacity-60"
-                                            class:bg-discord-messageHover={notifSetting ===
+                                            class="w-full text-start px-3 py-2 rounded flex items-start gap-3 transition-colors hover:bg-zam-messageHover disabled:opacity-60"
+                                            class:bg-zam-messageHover={notifSetting ===
                                                 val}
                                         >
                                             <span
-                                                class="mt-0.5 w-3 flex items-center justify-center flex-shrink-0 text-discord-accent"
+                                                class="mt-0.5 w-3 flex items-center justify-center flex-shrink-0 text-zam-accent"
                                             >
                                                 {#if notifSetting === val}<Circle
                                                         size={8}
@@ -2345,11 +2332,11 @@
                                             </span>
                                             <span class="min-w-0">
                                                 <span
-                                                    class="block text-sm font-medium text-discord-textPrimary"
+                                                    class="block text-sm font-medium text-zam-textPrimary"
                                                     >{label}</span
                                                 >
                                                 <span
-                                                    class="block text-xs text-discord-textMuted"
+                                                    class="block text-xs text-zam-textMuted"
                                                     >{desc}</span
                                                 >
                                             </span>
@@ -2359,11 +2346,11 @@
                             </div>
                             <div>
                                 <p
-                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                    class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
                                 >
                                     {t("roomSettings.readReceipts")}
                                 </p>
-                                <p class="text-xs text-discord-textMuted mb-3">
+                                <p class="text-xs text-zam-textMuted mb-3">
                                     {isSpace
                                         ? t(
                                               "roomSettings.readReceiptsSpaceHelp",
@@ -2387,12 +2374,12 @@
                                                     room.roomId,
                                                     val,
                                                 )}
-                                            class="w-full text-start px-3 py-2 rounded flex items-start gap-3 transition-colors hover:bg-discord-messageHover"
-                                            class:bg-discord-messageHover={receiptChoice ===
+                                            class="w-full text-start px-3 py-2 rounded flex items-start gap-3 transition-colors hover:bg-zam-messageHover"
+                                            class:bg-zam-messageHover={receiptChoice ===
                                                 val}
                                         >
                                             <span
-                                                class="mt-0.5 w-3 flex items-center justify-center flex-shrink-0 text-discord-accent"
+                                                class="mt-0.5 w-3 flex items-center justify-center flex-shrink-0 text-zam-accent"
                                             >
                                                 {#if receiptChoice === val}<Circle
                                                         size={8}
@@ -2401,11 +2388,11 @@
                                             </span>
                                             <span class="min-w-0">
                                                 <span
-                                                    class="block text-sm font-medium text-discord-textPrimary"
+                                                    class="block text-sm font-medium text-zam-textPrimary"
                                                     >{label}</span
                                                 >
                                                 <span
-                                                    class="block text-xs text-discord-textMuted"
+                                                    class="block text-xs text-zam-textMuted"
                                                     >{desc}</span
                                                 >
                                             </span>
@@ -2420,19 +2407,19 @@
                         <div class="space-y-5">
                             <div>
                                 <p
-                                    class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                    class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
                                 >
                                     {t("roomSettings.encryption")}
                                 </p>
                                 <span
                                     class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase {encrypted
-                                        ? 'bg-discord-accent/20 text-discord-accent'
-                                        : 'bg-discord-messageHover text-discord-textMuted'}"
+                                        ? 'bg-zam-accent/20 text-zam-accent'
+                                        : 'bg-zam-messageHover text-zam-textMuted'}"
                                     >{encrypted
                                         ? t("roomSettings.encrypted")
                                         : t("roomSettings.notEncrypted")}</span
                                 >
-                                <p class="text-xs text-discord-textMuted mt-2">
+                                <p class="text-xs text-zam-textMuted mt-2">
                                     {#if encrypted}
                                         {t(
                                             "roomSettings.messagesInThisRoomAreEnd",
@@ -2446,34 +2433,28 @@
                             {#if encrypted}
                                 <div>
                                     <p
-                                        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                                        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
                                     >
                                         {t("roomSettings.roomKey")}
                                     </p>
-                                    <p
-                                        class="text-xs text-discord-textMuted mb-2"
-                                    >
+                                    <p class="text-xs text-zam-textMuted mb-2">
                                         {t("roomSettings.resetRoomKeyHint")}
                                     </p>
                                     <button
                                         onclick={doResetRoomKey}
                                         disabled={roomKeyResetting}
-                                        class="px-4 py-2 bg-discord-backgroundTertiary hover:bg-discord-messageHover text-discord-textPrimary rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                        class="px-4 py-2 bg-zam-backgroundTertiary hover:bg-zam-messageHover text-zam-textPrimary rounded font-medium text-sm transition-colors disabled:opacity-50"
                                         >{t(
                                             "roomSettings.resetRoomKey",
                                         )}</button
                                     >
                                     {#if roomKeyResetDone}
-                                        <p
-                                            class="text-sm text-discord-online mt-2"
-                                        >
+                                        <p class="text-sm text-zam-online mt-2">
                                             {t("crypto.roomKeyDiscarded")}
                                         </p>
                                     {/if}
                                     {#if roomKeyResetError}
-                                        <p
-                                            class="text-sm text-discord-danger mt-2"
-                                        >
+                                        <p class="text-sm text-zam-danger mt-2">
                                             {roomKeyResetError}
                                         </p>
                                     {/if}
@@ -2482,7 +2463,7 @@
 
                             {#if !encrypted}
                                 {#if !encState.canEnable}
-                                    <p class="text-sm text-discord-textMuted">
+                                    <p class="text-sm text-zam-textMuted">
                                         {encState.reason}
                                     </p>
                                 {:else if !encShowConfirm}
@@ -2492,7 +2473,7 @@
                                             encConfirmInput = "";
                                             encError = "";
                                         }}
-                                        class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors"
+                                        class="px-4 py-2 bg-zam-accent hover:bg-zam-accentHover text-white rounded font-medium text-sm transition-colors"
                                         >{t(
                                             "roomSettings.enableEncryption",
                                         )}</button
@@ -2501,7 +2482,7 @@
                                     <div class="space-y-2">
                                         <label
                                             for="room-settings-enc-confirm"
-                                            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                                            class="block text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                                             >{t("roomSettings.typeToConfirm", {
                                                 ENABLE_ENCRYPTION_CONFIRM_PHRASE,
                                             })}</label
@@ -2510,10 +2491,10 @@
                                             id="room-settings-enc-confirm"
                                             bind:value={encConfirmInput}
                                             placeholder={ENABLE_ENCRYPTION_CONFIRM_PHRASE}
-                                            class="w-full bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-discord-accent/50"
+                                            class="w-full bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
                                         />
                                         {#if encError}<p
-                                                class="text-sm text-discord-danger"
+                                                class="text-sm text-zam-danger"
                                             >
                                                 {encError}
                                             </p>{/if}
@@ -2524,7 +2505,7 @@
                                                     !matchesEnableEncryptionConfirmation(
                                                         encConfirmInput,
                                                     )}
-                                                class="px-4 py-2 bg-discord-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                                class="px-4 py-2 bg-zam-danger hover:opacity-90 text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
                                                 >{encEnabling
                                                     ? t("roomSettings.enabling")
                                                     : t(
@@ -2538,7 +2519,7 @@
                                                     encError = "";
                                                 }}
                                                 disabled={encEnabling}
-                                                class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                                class="px-4 py-2 rounded text-sm font-medium text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-50"
                                                 >{t("common.cancel")}</button
                                             >
                                         </div>
@@ -2550,7 +2531,7 @@
                         <!-- ── Permissions ─────────────────────────────────────── -->
                     {:else if activeTab === "permissions"}
                         <div class="space-y-4">
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {t(
                                     "roomSettings.powerLevelRequiredForEachAction",
                                 )}
@@ -2574,7 +2555,7 @@
                                         class="flex items-center justify-between gap-4"
                                     >
                                         <span
-                                            class="text-sm text-discord-textPrimary"
+                                            class="text-sm text-zam-textPrimary"
                                             >{label}</span
                                         >
                                         <div class="flex items-center gap-2">
@@ -2592,10 +2573,10 @@
                                                         ),
                                                     )}
                                                 disabled={!canEditState}
-                                                class="w-16 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-discord-accent/50 text-center disabled:opacity-50"
+                                                class="w-16 bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-zam-accent/50 text-center disabled:opacity-50"
                                             />
                                             <span
-                                                class="text-xs text-discord-textMuted w-16"
+                                                class="text-xs text-zam-textMuted w-16"
                                                 >{plLabel(bindings[key])}</span
                                             >
                                         </div>
@@ -2608,8 +2589,7 @@
                                 <div
                                     class="flex items-center justify-between gap-4"
                                 >
-                                    <span
-                                        class="text-sm text-discord-textPrimary"
+                                    <span class="text-sm text-zam-textPrimary"
                                         >{t(
                                             "roomSettings.joinCallsVoiceVideo",
                                         )}</span
@@ -2627,17 +2607,17 @@
                                                     ).value,
                                                 ))}
                                             disabled={!canEditState}
-                                            class="w-16 bg-discord-backgroundTertiary text-discord-textPrimary text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-discord-accent/50 text-center disabled:opacity-50"
+                                            class="w-16 bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-zam-accent/50 text-center disabled:opacity-50"
                                         />
                                         <span
-                                            class="text-xs text-discord-textMuted w-16"
+                                            class="text-xs text-zam-textMuted w-16"
                                             >{plLabel(plCallJoin)}</span
                                         >
                                     </div>
                                 </div>
 
                                 {#if permError}<p
-                                        class="text-sm text-discord-danger"
+                                        class="text-sm text-zam-danger"
                                     >
                                         {permError}
                                     </p>{/if}
@@ -2645,7 +2625,7 @@
                                     <button
                                         onclick={savePermissions}
                                         disabled={permSaving}
-                                        class="px-4 py-2 bg-discord-accent hover:bg-discord-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
+                                        class="px-4 py-2 bg-zam-accent hover:bg-zam-accentHover text-white rounded font-medium text-sm transition-colors disabled:opacity-50"
                                         >{permSaving
                                             ? t("common.saving")
                                             : permSuccess
@@ -2673,7 +2653,7 @@
                                     {#if canInvite}
                                         <button
                                             onclick={() => (showInvite = true)}
-                                            class="px-3 py-1.5 rounded text-sm font-medium bg-discord-accent hover:bg-discord-accentHover text-white transition-colors"
+                                            class="px-3 py-1.5 rounded text-sm font-medium bg-zam-accent hover:bg-zam-accentHover text-white transition-colors"
                                             >{t("roomSettings.invite")}</button
                                         >
                                     {/if}
@@ -2682,15 +2662,15 @@
                                         placeholder={t(
                                             "roomSettings.searchMembers",
                                         )}
-                                        class="flex-1 bg-discord-backgroundTertiary text-discord-textPrimary placeholder-discord-textMuted text-sm rounded px-3 py-1.5 outline-none border border-transparent focus:border-discord-accent/50"
+                                        class="flex-1 bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded px-3 py-1.5 outline-none border border-transparent focus:border-zam-accent/50"
                                     />
                                     {#if canBan}
                                         <button
                                             onclick={() =>
                                                 (showBanned = !showBanned)}
                                             class="px-3 py-1.5 rounded text-sm font-medium transition-colors {showBanned
-                                                ? 'bg-discord-danger text-white'
-                                                : 'bg-discord-backgroundTertiary text-discord-textMuted hover:text-discord-textPrimary'}"
+                                                ? 'bg-zam-danger text-white'
+                                                : 'bg-zam-backgroundTertiary text-zam-textMuted hover:text-zam-textPrimary'}"
                                             >{t("roomSettings.banned", {
                                                 length: bannedMembers.length,
                                             })}</button
@@ -2699,7 +2679,7 @@
                                 </div>
 
                                 {#if memberError}<p
-                                        class="text-sm text-discord-danger"
+                                        class="text-sm text-zam-danger"
                                     >
                                         {memberError}
                                     </p>{/if}
@@ -2707,7 +2687,7 @@
                                 {#if canModerateKnocks && knockingMembers.length > 0}
                                     <div class="space-y-1">
                                         <p
-                                            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                                            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                                         >
                                             {t(
                                                 "roomSettings.pendingJoinRequests",
@@ -2720,7 +2700,7 @@
                                             {@const reason =
                                                 getMemberKnockReason(member)}
                                             <div
-                                                class="rounded bg-discord-backgroundTertiary overflow-hidden"
+                                                class="rounded bg-zam-backgroundTertiary overflow-hidden"
                                             >
                                                 <div
                                                     class="flex items-center gap-3 p-2"
@@ -2735,7 +2715,7 @@
                                                     />
                                                     <div class="flex-1 min-w-0">
                                                         <p
-                                                            class="text-sm font-medium text-discord-textPrimary truncate"
+                                                            class="text-sm font-medium text-zam-textPrimary truncate"
                                                         >
                                                             {memberDisplayName(
                                                                 member,
@@ -2743,7 +2723,7 @@
                                                         </p>
                                                         {#if settingsState.showMatrixIds}
                                                             <p
-                                                                class="text-xs text-discord-textMuted truncate"
+                                                                class="text-xs text-zam-textMuted truncate"
                                                             >
                                                                 {member.userId}
                                                             </p>
@@ -2760,7 +2740,7 @@
                                                                     )}
                                                                 disabled={memberActionPending ===
                                                                     member.userId}
-                                                                class="px-2.5 py-1 rounded text-xs font-semibold text-discord-textMuted hover:text-white hover:bg-discord-danger border border-discord-divider hover:border-discord-danger transition-colors disabled:opacity-50"
+                                                                class="px-2.5 py-1 rounded text-xs font-semibold text-zam-textMuted hover:text-white hover:bg-zam-danger border border-zam-divider hover:border-zam-danger transition-colors disabled:opacity-50"
                                                                 >{t(
                                                                     "roomSettings.deny",
                                                                 )}</button
@@ -2774,7 +2754,7 @@
                                                                     )}
                                                                 disabled={memberActionPending ===
                                                                     member.userId}
-                                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50"
+                                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-50"
                                                                 >{t(
                                                                     "roomSettings.approve",
                                                                 )}</button
@@ -2784,7 +2764,7 @@
                                                 </div>
                                                 {#if reason}
                                                     <div
-                                                        class="px-3 pb-2 -mt-1 text-xs text-discord-textMuted break-words"
+                                                        class="px-3 pb-2 -mt-1 text-xs text-zam-textMuted break-words"
                                                     >
                                                         "{reason}"
                                                     </div>
@@ -2799,7 +2779,7 @@
                                     <div class="space-y-1">
                                         {#each bannedMembers as member (member.userId)}
                                             <div
-                                                class="flex items-center gap-3 p-2 rounded bg-discord-backgroundTertiary"
+                                                class="flex items-center gap-3 p-2 rounded bg-zam-backgroundTertiary"
                                             >
                                                 <Avatar
                                                     src={mxcToHttp(
@@ -2811,7 +2791,7 @@
                                                 />
                                                 <div class="flex-1 min-w-0">
                                                     <p
-                                                        class="text-sm font-medium text-discord-textPrimary truncate"
+                                                        class="text-sm font-medium text-zam-textPrimary truncate"
                                                     >
                                                         {memberDisplayName(
                                                             member,
@@ -2819,7 +2799,7 @@
                                                     </p>
                                                     {#if settingsState.showMatrixIds}
                                                         <p
-                                                            class="text-xs text-discord-textMuted truncate"
+                                                            class="text-xs text-zam-textMuted truncate"
                                                         >
                                                             {member.userId}
                                                         </p>
@@ -2833,7 +2813,7 @@
                                                             )}
                                                         disabled={memberActionPending ===
                                                             member.userId}
-                                                        class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
+                                                        class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary transition-colors disabled:opacity-50"
                                                         >{t(
                                                             "roomSettings.unban",
                                                         )}</button
@@ -2842,7 +2822,7 @@
                                             </div>
                                         {/each}
                                         {#if bannedMembers.length === 0}<p
-                                                class="text-sm text-discord-textMuted text-center py-4"
+                                                class="text-sm text-zam-textMuted text-center py-4"
                                             >
                                                 {t(
                                                     "roomSettings.noBannedMembers",
@@ -2886,7 +2866,7 @@
                                                     myPowerLevel,
                                                 )}
                                             <div
-                                                class="rounded bg-discord-backgroundTertiary overflow-hidden"
+                                                class="rounded bg-zam-backgroundTertiary overflow-hidden"
                                             >
                                                 <div
                                                     class="flex items-center gap-3 p-2"
@@ -2901,7 +2881,7 @@
                                                     />
                                                     <div class="flex-1 min-w-0">
                                                         <p
-                                                            class="text-sm font-medium text-discord-textPrimary truncate"
+                                                            class="text-sm font-medium text-zam-textPrimary truncate"
                                                         >
                                                             {memberDisplayName(
                                                                 member,
@@ -2913,14 +2893,14 @@
                                                         </p>
                                                         {#if settingsState.showMatrixIds}
                                                             <p
-                                                                class="text-xs text-discord-textMuted truncate"
+                                                                class="text-xs text-zam-textMuted truncate"
                                                             >
                                                                 {member.userId}
                                                             </p>
                                                         {/if}
                                                     </div>
                                                     <span
-                                                        class="text-xs text-discord-textMuted flex-shrink-0"
+                                                        class="text-xs text-zam-textMuted flex-shrink-0"
                                                         >{isCreatorMember
                                                             ? t(
                                                                   "roomSettings.creatorLabel",
@@ -2935,7 +2915,7 @@
                                                                     member.userId
                                                                         ? null
                                                                         : member.userId)}
-                                                            class="p-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                                                            class="p-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                                                             title={t(
                                                                 "common.actions",
                                                             )}
@@ -2953,7 +2933,7 @@
                                                 </div>
                                                 {#if showReasonFor === member.userId && !isSelf}
                                                     <div
-                                                        class="px-3 pb-3 pt-1 border-t border-discord-divider space-y-2"
+                                                        class="px-3 pb-3 pt-1 border-t border-zam-divider space-y-2"
                                                     >
                                                         {#if canActOnMember && (canKick || canBan)}
                                                             <input
@@ -2966,7 +2946,7 @@
                                                                 placeholder={t(
                                                                     "common.reasonOptional",
                                                                 )}
-                                                                class="w-full bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted text-xs rounded px-2 py-1.5 outline-none border border-transparent focus:border-discord-accent/50"
+                                                                class="w-full bg-zam-backgroundSecondary text-zam-textPrimary placeholder-zam-textMuted text-xs rounded px-2 py-1.5 outline-none border border-transparent focus:border-zam-accent/50"
                                                             />
                                                         {/if}
                                                         <div
@@ -2988,7 +2968,7 @@
                                                                         )}
                                                                     disabled={memberActionPending ===
                                                                         member.userId}
-                                                                    class="px-2 py-1 rounded text-xs bg-discord-backgroundSecondary text-discord-textPrimary border border-discord-divider disabled:opacity-50"
+                                                                    class="px-2 py-1 rounded text-xs bg-zam-backgroundSecondary text-zam-textPrimary border border-zam-divider disabled:opacity-50"
                                                                 >
                                                                     <option
                                                                         value=""
@@ -3041,7 +3021,7 @@
                                                                             e.currentTarget.value)}
                                                                     disabled={memberActionPending ===
                                                                         member.userId}
-                                                                    class="w-16 px-2 py-1 rounded text-xs bg-discord-backgroundSecondary text-discord-textPrimary border border-discord-divider disabled:opacity-50"
+                                                                    class="w-16 px-2 py-1 rounded text-xs bg-zam-backgroundSecondary text-zam-textPrimary border border-zam-divider disabled:opacity-50"
                                                                 />
                                                                 <button
                                                                     onclick={() =>
@@ -3052,14 +3032,14 @@
                                                                     disabled={!plResult.ok ||
                                                                         memberActionPending ===
                                                                             member.userId}
-                                                                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
+                                                                    class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary transition-colors disabled:opacity-50"
                                                                     >{t(
                                                                         "roomSettings.set",
                                                                     )}</button
                                                                 >
                                                                 {#if !plResult.ok}
                                                                     <p
-                                                                        class="text-xs text-discord-danger w-full"
+                                                                        class="text-xs text-zam-danger w-full"
                                                                     >
                                                                         {plResult.error}
                                                                     </p>
@@ -3073,7 +3053,7 @@
                                                                         )}
                                                                     disabled={memberActionPending ===
                                                                         member.userId}
-                                                                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-warning/20 text-discord-warning transition-colors disabled:opacity-50"
+                                                                    class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-warning/20 text-zam-warning transition-colors disabled:opacity-50"
                                                                     >{t(
                                                                         "roomSettings.kick",
                                                                     )}</button
@@ -3087,7 +3067,7 @@
                                                                         )}
                                                                     disabled={memberActionPending ===
                                                                         member.userId}
-                                                                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-danger/20 text-discord-danger transition-colors disabled:opacity-50"
+                                                                    class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-danger/20 text-zam-danger transition-colors disabled:opacity-50"
                                                                     >{t(
                                                                         "roomSettings.ban",
                                                                     )}</button
@@ -3101,7 +3081,7 @@
                                                                         )}
                                                                     disabled={memberActionPending ===
                                                                         member.userId}
-                                                                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary transition-colors disabled:opacity-50"
+                                                                    class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary transition-colors disabled:opacity-50"
                                                                     >{t(
                                                                         "common.unblock",
                                                                     )}</button
@@ -3117,7 +3097,7 @@
                                                                     title={t(
                                                                         "roomSettings.hideThisUserSMessagesEverywhere",
                                                                     )}
-                                                                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-danger/20 text-discord-danger transition-colors disabled:opacity-50"
+                                                                    class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-danger/20 text-zam-danger transition-colors disabled:opacity-50"
                                                                     >{t(
                                                                         "common.block",
                                                                     )}</button
@@ -3136,26 +3116,24 @@
                         <!-- ── Rooms (space only) ──────────────────────────────── -->
                     {:else if activeTab === "rooms"}
                         <div class="space-y-3">
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {t("roomSettings.setThe")}
                                 <code
-                                    class="font-mono bg-discord-backgroundTertiary px-1 rounded"
+                                    class="font-mono bg-zam-backgroundTertiary px-1 rounded"
                                     >order</code
                                 >
                                 {t("roomSettings.fieldOnEachChildRoomTo")}
                             </p>
-                            {#if roomsError}<p
-                                    class="text-sm text-discord-danger"
-                                >
+                            {#if roomsError}<p class="text-sm text-zam-danger">
                                     {roomsError}
                                 </p>{/if}
                             <div class="space-y-1.5">
                                 {#each spaceChildren as child (child.roomId)}
                                     <div
-                                        class="flex items-center gap-3 p-2 rounded bg-discord-backgroundTertiary"
+                                        class="flex items-center gap-3 p-2 rounded bg-zam-backgroundTertiary"
                                     >
                                         <div
-                                            class="w-7 h-7 rounded-full bg-discord-backgroundSecondary flex-shrink-0 overflow-hidden flex items-center justify-center text-xs font-bold text-discord-textMuted"
+                                            class="w-7 h-7 rounded-full bg-zam-backgroundSecondary flex-shrink-0 overflow-hidden flex items-center justify-center text-xs font-bold text-zam-textMuted"
                                         >
                                             {#if child.avatarUrl}
                                                 <img
@@ -3170,19 +3148,19 @@
                                         </div>
                                         <div class="flex-1 min-w-0">
                                             <p
-                                                class="text-sm font-medium text-discord-textPrimary truncate"
+                                                class="text-sm font-medium text-zam-textPrimary truncate"
                                             >
                                                 {child.name}
                                             </p>
                                             <p
-                                                class="text-xs text-discord-textMuted truncate"
+                                                class="text-xs text-zam-textMuted truncate"
                                             >
                                                 {child.roomId}
                                             </p>
                                         </div>
                                         {#if child.suggested}
                                             <span
-                                                class="text-xs font-semibold text-discord-accent bg-discord-accent/10 rounded px-2 py-0.5 flex-shrink-0"
+                                                class="text-xs font-semibold text-zam-accent bg-zam-accent/10 rounded px-2 py-0.5 flex-shrink-0"
                                                 >{t(
                                                     "roomSettings.suggested",
                                                 )}</span
@@ -3196,8 +3174,8 @@
                                                 disabled={roomActionPending ===
                                                     child.roomId}
                                                 class="px-2.5 py-1 rounded text-xs font-semibold {child.suggested
-                                                    ? 'text-discord-textMuted hover:text-discord-textPrimary'
-                                                    : 'text-discord-accent hover:underline'} transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    ? 'text-zam-textMuted hover:text-zam-textPrimary'
+                                                    : 'text-zam-accent hover:underline'} transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                                 title={child.suggested
                                                     ? t(
                                                           "roomSettings.removeSuggestedHint",
@@ -3222,7 +3200,7 @@
                                                 placeholder={t(
                                                     "roomSettings.order",
                                                 )}
-                                                class="w-24 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted text-xs rounded px-2 py-1 outline-none border border-transparent focus:border-discord-accent/50 font-mono"
+                                                class="w-24 bg-zam-backgroundSecondary text-zam-textPrimary placeholder-zam-textMuted text-xs rounded px-2 py-1 outline-none border border-transparent focus:border-zam-accent/50 font-mono"
                                             />
                                             <button
                                                 onclick={() => saveOrder(child)}
@@ -3230,7 +3208,7 @@
                                                     child.roomId ||
                                                     (orderEdits[child.roomId] ??
                                                         "") === child.order}
-                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >{roomActionPending ===
                                                 child.roomId
                                                     ? "…"
@@ -3243,7 +3221,7 @@
                                                     doRemoveChild(child)}
                                                 disabled={roomActionPending ===
                                                     child.roomId}
-                                                class="p-1 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                                                class="p-1 rounded text-zam-textMuted hover:text-zam-danger hover:bg-zam-messageHover transition-colors disabled:opacity-50"
                                                 title={t(
                                                     "roomSettings.removeFromSpace",
                                                 )}
@@ -3261,7 +3239,7 @@
                                     </div>
                                 {/each}
                                 {#if spaceChildren.length === 0}<p
-                                        class="text-sm text-discord-textMuted text-center py-4"
+                                        class="text-sm text-zam-textMuted text-center py-4"
                                     >
                                         {t("roomSettings.noChildRooms")}
                                     </p>{/if}
@@ -3277,7 +3255,7 @@
                         />
                         <section class="mt-8 space-y-3">
                             <h2
-                                class="text-lg font-semibold text-discord-textPrimary"
+                                class="text-lg font-semibold text-zam-textPrimary"
                             >
                                 {t("soundboard.title")}
                             </h2>

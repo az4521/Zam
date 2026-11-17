@@ -473,21 +473,21 @@
 <div class="space-y-6">
     <section>
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
         >
             {t("debugSettings.clientLogs")}
         </p>
         <div
-            class="flex flex-wrap items-center gap-3 py-2 border-b border-discord-divider"
+            class="flex flex-wrap items-center gap-3 py-2 border-b border-zam-divider"
         >
-            <p class="flex-1 min-w-48 text-xs text-discord-textMuted">
+            <p class="flex-1 min-w-48 text-xs text-zam-textMuted">
                 {t("debugSettings.clientLogsHint")}
             </p>
             <div class="flex gap-2">
                 <button
                     onclick={copyLogs}
                     disabled={logsBusy}
-                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
+                    class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary disabled:opacity-50"
                     >{logsCopied
                         ? t("debugSettings.copied")
                         : t("debugSettings.copyLogs")}</button
@@ -495,20 +495,20 @@
                 <button
                     onclick={saveLogs}
                     disabled={logsBusy}
-                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
+                    class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary disabled:opacity-50"
                     >{t("debugSettings.saveLogs")}</button
                 >
             </div>
         </div>
         {#if webViewDebugAvailable}
             <div
-                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+                class="flex items-center gap-3 py-2 border-b border-zam-divider"
             >
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm text-discord-textPrimary">
+                    <p class="text-sm text-zam-textPrimary">
                         {t("debugSettings.webViewDebugging")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("debugSettings.webViewDebuggingHint")}
                     </p>
                 </div>
@@ -523,18 +523,16 @@
 
     <section>
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
         >
             {t("debugSettings.developer")}
         </p>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("debugSettings.showAllEvents")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("debugSettings.displayEveryMatrixTimelineEventIn")}
                 </p>
             </div>
@@ -544,14 +542,12 @@
                 label={t("debugSettings.showAllEvents")}
             />
         </div>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("debugSettings.orderHints")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("debugSettings.orderHintsHint")}
                 </p>
             </div>
@@ -561,14 +557,12 @@
                 label={t("debugSettings.orderHints")}
             />
         </div>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("debugSettings.disableGallerySend")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("debugSettings.disableGallerySendHint")}
                 </p>
             </div>
@@ -578,14 +572,12 @@
                 label={t("debugSettings.disableGallerySend")}
             />
         </div>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("debugSettings.stickyCallMembership")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("debugSettings.stickyCallMembershipHint")}
                 </p>
             </div>
@@ -595,14 +587,12 @@
                 label={t("debugSettings.stickyCallMembership")}
             />
         </div>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("debugSettings.ignoreCodecSupport")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("debugSettings.ignoreCodecSupportHint")}
                 </p>
             </div>
@@ -615,14 +605,12 @@
                 label={t("debugSettings.ignoreCodecSupport")}
             />
         </div>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("debugSettings.h264ProfileFix")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("debugSettings.h264ProfileFixHint")}
                 </p>
             </div>
@@ -639,18 +627,16 @@
 
     <section>
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
         >
             {t("debugSettings.voiceProcessing")}
         </p>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("debugSettings.pauseGate")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("debugSettings.pauseGateHint")}
                 </p>
             </div>
@@ -663,19 +649,17 @@
                 label={t("debugSettings.pauseGate")}
             />
         </div>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
                 <label
                     for="df-attenuation"
-                    class="text-sm text-discord-textPrimary"
+                    class="text-sm text-zam-textPrimary"
                 >
                     {t("debugSettings.noiseAttenuationLimit", {
                         value: settingsState.dfAttenuationDb,
                     })}
                 </label>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("debugSettings.noiseAttenuationLimitHint", {
                         value: DEFAULT_ATTENUATION_DB,
                     })}
@@ -694,19 +678,17 @@
                 onchange={applyMicTuning}
             />
         </div>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
                 <label
                     for="sound-interval"
-                    class="text-sm text-discord-textPrimary"
+                    class="text-sm text-zam-textPrimary"
                 >
                     {t("debugSettings.soundboardInterval", {
                         value: settingsState.soundIntervalMs,
                     })}
                 </label>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("debugSettings.soundboardIntervalHint")}
                 </p>
             </div>
@@ -726,18 +708,16 @@
 
     <section>
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
         >
             {t("debugSettings.syncStatus")}
         </p>
-        <div
-            class="flex items-center gap-3 py-2 border-b border-discord-divider"
-        >
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("debugSettings.useSlidingSync")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("debugSettings.experimentalLoadsRoomsInAGrowing")}
                 </p>
             </div>
@@ -751,43 +731,42 @@
         </div>
         {#each syncRows as [label, value]}
             <div
-                class="flex items-start gap-3 text-sm py-1 border-b border-discord-divider"
+                class="flex items-start gap-3 text-sm py-1 border-b border-zam-divider"
             >
-                <span class="text-discord-textMuted flex-shrink-0 w-44"
+                <span class="text-zam-textMuted flex-shrink-0 w-44"
                     >{label}</span
                 >
-                <span
-                    class="text-discord-textPrimary break-all font-mono text-xs"
+                <span class="text-zam-textPrimary break-all font-mono text-xs"
                     >{value}</span
                 >
             </div>
         {/each}
         <div class="mt-3 flex items-center gap-2">
             <p
-                class="flex-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                class="flex-1 text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
             >
                 {t("debugSettings.syncLog")}
             </p>
             <button
                 onclick={() => (syncLog = getSyncLog())}
-                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary"
+                class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary"
                 >{t("debugSettings.refresh")}</button
             >
             <button
                 onclick={copySyncLog}
-                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary"
+                class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary"
                 >{syncLogCopied
                     ? t("debugSettings.copied")
                     : t("common.copy")}</button
             >
         </div>
         {#if syncLog.length === 0}
-            <p class="mt-1 text-xs text-discord-textMuted">
+            <p class="mt-1 text-xs text-zam-textMuted">
                 {t("debugSettings.syncLogEmpty")}
             </p>
         {:else}
             <pre
-                class="mt-1 max-h-60 overflow-auto whitespace-pre-wrap break-all rounded bg-discord-backgroundTertiary p-2 text-xs font-mono text-discord-textPrimary select-text">{syncLog.join(
+                class="mt-1 max-h-60 overflow-auto whitespace-pre-wrap break-all rounded bg-zam-backgroundTertiary p-2 text-xs font-mono text-zam-textPrimary select-text">{syncLog.join(
                     "\n",
                 )}</pre>
         {/if}
@@ -796,7 +775,7 @@
     <section>
         <div class="mb-2 flex items-center gap-2">
             <p
-                class="flex-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                class="flex-1 text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
             >
                 {t("debugSettings.indexSync")}
             </p>
@@ -806,31 +785,30 @@
                     indexSync = getIndexSyncStatus();
                 }}
                 disabled={!indexSync.attached}
-                class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
+                class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary disabled:opacity-50"
                 >{t("debugSettings.indexSyncNow")}</button
             >
         </div>
-        <p class="mb-2 text-xs text-discord-textMuted">
+        <p class="mb-2 text-xs text-zam-textMuted">
             {indexSync.attached
                 ? t("debugSettings.indexSyncHint")
                 : t("debugSettings.indexSyncOff")}
         </p>
         {#each indexSyncRows as [label, value]}
             <div
-                class="flex items-start gap-3 text-sm py-1 border-b border-discord-divider"
+                class="flex items-start gap-3 text-sm py-1 border-b border-zam-divider"
             >
-                <span class="text-discord-textMuted flex-shrink-0 w-44"
+                <span class="text-zam-textMuted flex-shrink-0 w-44"
                     >{label}</span
                 >
-                <span
-                    class="text-discord-textPrimary break-all font-mono text-xs"
+                <span class="text-zam-textPrimary break-all font-mono text-xs"
                     >{value}</span
                 >
             </div>
         {/each}
         {#if indexSync.log.length > 0}
             <pre
-                class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-discord-backgroundTertiary p-2 text-xs font-mono text-discord-textPrimary select-text">{indexSync.log.join(
+                class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-zam-backgroundTertiary p-2 text-xs font-mono text-zam-textPrimary select-text">{indexSync.log.join(
                     "\n",
                 )}</pre>
         {/if}
@@ -839,26 +817,26 @@
     <section>
         <div class="mb-2 flex items-center gap-2">
             <p
-                class="flex-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                class="flex-1 text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
             >
                 {t("debugSettings.searchIndex")}
             </p>
             {#if buildState.status === "running"}
                 <button
                     onclick={cancelFullIndexBuild}
-                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary"
+                    class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary"
                     >{t("debugSettings.searchIndexCancel")}</button
                 >
             {:else}
                 <button
                     onclick={startFullIndexBuild}
                     disabled={!buildAllowed}
-                    class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
+                    class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary disabled:opacity-50"
                     >{t("debugSettings.searchIndexBuild")}</button
                 >
             {/if}
         </div>
-        <p class="mb-2 text-xs text-discord-textMuted">{buildHint}</p>
+        <p class="mb-2 text-xs text-zam-textMuted">{buildHint}</p>
         {#if buildState.status === "running"}
             <div
                 role="progressbar"
@@ -866,14 +844,14 @@
                 aria-valuemin="0"
                 aria-valuemax="100"
                 aria-valuenow={buildPercent}
-                class="h-2 w-full overflow-hidden rounded bg-discord-backgroundTertiary"
+                class="h-2 w-full overflow-hidden rounded bg-zam-backgroundTertiary"
             >
                 <div
-                    class="h-full bg-discord-accent transition-[width] duration-300"
+                    class="h-full bg-zam-accent transition-[width] duration-300"
                     style:width="{buildPercent}%"
                 ></div>
             </div>
-            <p class="mt-1 text-xs font-mono text-discord-textPrimary">
+            <p class="mt-1 text-xs font-mono text-zam-textPrimary">
                 {t("debugSettings.searchIndexProgress", {
                     done: buildState.progress.roomsDone,
                     total: buildState.progress.roomsTotal,
@@ -884,45 +862,44 @@
             </p>
         {/if}
         {#if buildResult}
-            <p class="text-sm text-discord-textPrimary" aria-live="polite">
+            <p class="text-sm text-zam-textPrimary" aria-live="polite">
                 {buildResult}
             </p>
         {/if}
         {#if prefetchOn}
-            <div class="mt-4 border-t border-discord-divider pt-3">
+            <div class="mt-4 border-t border-zam-divider pt-3">
                 <div class="mb-1 flex items-center gap-2">
                     <p
-                        class="flex-1 text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                        class="flex-1 text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                     >
                         {t("debugSettings.prefetchTitle")}
                     </p>
                     <button
                         onclick={refreshPrefetch}
                         disabled={prefetchBusy}
-                        class="px-2.5 py-1 rounded text-xs font-semibold bg-discord-backgroundSecondary hover:bg-discord-messageHover text-discord-textPrimary disabled:opacity-50"
+                        class="px-2.5 py-1 rounded text-xs font-semibold bg-zam-backgroundSecondary hover:bg-zam-messageHover text-zam-textPrimary disabled:opacity-50"
                         >{t("debugSettings.prefetchRefresh")}</button
                     >
                 </div>
-                <p class="mb-2 text-xs text-discord-textMuted">
+                <p class="mb-2 text-xs text-zam-textMuted">
                     {t("debugSettings.prefetchHint")}
                 </p>
                 {#if prefetch}
                     {#each prefetchRows as [label, value]}
                         <div
-                            class="flex items-start gap-3 text-sm py-1 border-b border-discord-divider"
+                            class="flex items-start gap-3 text-sm py-1 border-b border-zam-divider"
                         >
-                            <span
-                                class="text-discord-textMuted flex-shrink-0 w-44"
+                            <span class="text-zam-textMuted flex-shrink-0 w-44"
                                 >{label}</span
                             >
                             <span
-                                class="text-discord-textPrimary break-all font-mono text-xs"
+                                class="text-zam-textPrimary break-all font-mono text-xs"
                                 >{value}</span
                             >
                         </div>
                     {/each}
                 {:else}
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("debugSettings.searchIndexNotRunning")}
                     </p>
                 {/if}
@@ -938,7 +915,7 @@
     {#each (void pluginRegistry.tick, pluginRegistry.debugSections) as entry (entry.entryId)}
         <section>
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
             >
                 {String(entry.value.title)}
             </p>
@@ -951,25 +928,24 @@
 
     <section>
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
         >
             {t("debugSettings.pushStatus")}
         </p>
         {#each rows as [label, value]}
             <div
-                class="flex items-start gap-3 text-sm py-1 border-b border-discord-divider"
+                class="flex items-start gap-3 text-sm py-1 border-b border-zam-divider"
             >
-                <span class="text-discord-textMuted flex-shrink-0 w-44"
+                <span class="text-zam-textMuted flex-shrink-0 w-44"
                     >{label}</span
                 >
-                <span
-                    class="text-discord-textPrimary break-all font-mono text-xs"
+                <span class="text-zam-textPrimary break-all font-mono text-xs"
                     >{value}</span
                 >
             </div>
         {/each}
         {#if pushDebug.lastError}
-            <p class="mt-3 text-xs text-discord-danger break-all font-mono">
+            <p class="mt-3 text-xs text-zam-danger break-all font-mono">
                 {t("debugSettings.lastError", {
                     lastError: pushDebug.lastError,
                 })}
@@ -980,7 +956,7 @@
     <button
         onclick={diagnose}
         disabled={loading}
-        class="px-3 py-1.5 rounded text-sm font-medium bg-discord-accent hover:bg-discord-accentHover text-white disabled:opacity-50"
+        class="px-3 py-1.5 rounded text-sm font-medium bg-zam-accent hover:bg-zam-accentHover text-white disabled:opacity-50"
     >
         {loading ? t("common.checking") : t("debugSettings.runDiagnostics")}
     </button>
@@ -988,23 +964,23 @@
     {#if pushers !== null || pushersError}
         <section class="space-y-2">
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
             >
                 {t("debugSettings.homeserverPushers")}
             </p>
             {#if pushersError}
-                <p class="text-xs text-discord-danger break-all">
+                <p class="text-xs text-zam-danger break-all">
                     {pushersError}
                 </p>
             {:else if pushers?.length === 0}
-                <p class="text-sm text-discord-textMuted">
+                <p class="text-sm text-zam-textMuted">
                     {t("debugSettings.theHomeserverHasNoPushersRegistered")}
                 </p>
             {:else}
                 <p
                     class="text-sm {matchingPusher
-                        ? 'text-discord-textPositive'
-                        : 'text-discord-warning'}"
+                        ? 'text-zam-textPositive'
+                        : 'text-zam-warning'}"
                 >
                     {matchingPusher
                         ? t("debugSettings.aPusherMatchesTheConfiguredGateway")
@@ -1014,7 +990,7 @@
                 </p>
                 {#each pushers ?? [] as pusher}
                     <div
-                        class="text-xs font-mono bg-discord-backgroundTertiary rounded p-2 break-all"
+                        class="text-xs font-mono bg-zam-backgroundTertiary rounded p-2 break-all"
                     >
                         <div>
                             {t("debugSettings.appId", {
@@ -1038,10 +1014,8 @@
     {/if}
 
     {#if webPush?.supported}
-        <section class="space-y-1 text-xs font-mono text-discord-textMuted">
-            <p
-                class="font-semibold uppercase tracking-wide text-discord-textMuted"
-            >
+        <section class="space-y-1 text-xs font-mono text-zam-textMuted">
+            <p class="font-semibold uppercase tracking-wide text-zam-textMuted">
                 {t("debugSettings.webPushPwa")}
             </p>
             <div>
@@ -1072,7 +1046,7 @@
                         : t("debugSettings.notFound"),
                 })}
             </div>
-            {#if webPush.error}<div class="text-discord-danger">
+            {#if webPush.error}<div class="text-zam-danger">
                     {t("debugSettings.error", { error: webPush.error })}
                 </div>{/if}
         </section>
@@ -1081,32 +1055,32 @@
     {#if gateway}
         <section>
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
             >
                 {t("debugSettings.gatewaySygnalFirebase")}
             </p>
             <p
                 class="text-sm {gateway.reachable
-                    ? 'text-discord-textPositive'
-                    : 'text-discord-danger'}"
+                    ? 'text-zam-textPositive'
+                    : 'text-zam-danger'}"
             >
                 {gateway.reachable
                     ? t("debugSettings.gatewayReachable")
                     : t("debugSettings.gatewayNotReachable")}
             </p>
-            <p class="text-xs text-discord-textMuted break-all font-mono mt-1">
+            <p class="text-xs text-zam-textMuted break-all font-mono mt-1">
                 {gateway.detail}
             </p>
         </section>
     {/if}
 
     {#if nativeSession}
-        <section class="text-xs text-discord-textMuted space-y-1">
+        <section class="text-xs text-zam-textMuted space-y-1">
             <p class="font-semibold uppercase tracking-wide">
                 {t("debugSettings.nativeSessionPushEnrichment")}
             </p>
             {#if nativeSession.error}
-                <p class="text-discord-danger">{nativeSession.error}</p>
+                <p class="text-zam-danger">{nativeSession.error}</p>
             {:else}
                 <div>
                     {t("debugSettings.homeserver", {
@@ -1147,16 +1121,13 @@
     {#if rules}
         <section>
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
             >
                 {t("debugSettings.notificationRulesServer")}
             </p>
             <div class="flex justify-between gap-3 text-xs font-mono">
                 <span>{t("debugSettings.allNotificationsMasterRule")}</span
-                ><span
-                    class={accountNotificationsOff
-                        ? "text-discord-warning"
-                        : ""}
+                ><span class={accountNotificationsOff ? "text-zam-warning" : ""}
                     >{accountNotificationsOff === null
                         ? "?"
                         : accountNotificationsOff
@@ -1175,10 +1146,10 @@
     <section>
         <div class="flex items-center gap-3 py-2">
             <div class="flex-1 min-w-0">
-                <p class="text-sm text-discord-textPrimary">
+                <p class="text-sm text-zam-textPrimary">
                     {t("debugSettings.hideUpdatePrompts")}
                 </p>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("debugSettings.hideUpdatePromptsHint")}
                 </p>
             </div>

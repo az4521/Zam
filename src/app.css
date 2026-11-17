@@ -46,10 +46,10 @@ html,
 
 @keyframes message-highlight-fade {
     0% {
-        background-color: rgb(var(--discord-mention-highlight-rgb) / 0.35);
+        background-color: rgb(var(--zam-mention-highlight-rgb) / 0.35);
     }
     70% {
-        background-color: rgb(var(--discord-mention-highlight-rgb) / 0.35);
+        background-color: rgb(var(--zam-mention-highlight-rgb) / 0.35);
     }
     100% {
         background-color: transparent;
@@ -80,49 +80,49 @@ html,
     --brand-600-rgb: 78 93 148;
 
     /* ── Backgrounds ─────────────────────────────────── */
-    --discord-bg: #36393f;
-    --discord-bg-secondary: #2f3136;
-    --discord-bg-tertiary: #202225;
-    --discord-bg-dark: #202226;
-    --discord-bg-hover: #32353b;
-    --discord-bg-selected: #282b30;
+    --zam-bg: #36393f;
+    --zam-bg-secondary: #2f3136;
+    --zam-bg-tertiary: #202225;
+    --zam-bg-dark: #202226;
+    --zam-bg-hover: #32353b;
+    --zam-bg-selected: #282b30;
     /* RGB channels for opacity modifier support */
-    --discord-bg-rgb: 54 57 63;
-    --discord-bg-secondary-rgb: 47 49 54;
+    --zam-bg-rgb: 54 57 63;
+    --zam-bg-secondary-rgb: 47 49 54;
 
     /* ── Text ────────────────────────────────────────── */
-    --discord-text-primary: #dcddde;
+    --zam-text-primary: #dcddde;
     /* muted/secondary were #4f545c / #72767d — 1.5:1 and 2.9:1 against the
        app background, far below the 4.5:1 WCAG AA floor. Raised until every
        pair in themeContrast.test.ts clears AA; the three-step brightness
        ramp (muted < secondary < primary) is preserved. */
-    --discord-text-secondary: #babec4;
-    --discord-text-muted: #a4a7ae;
+    --zam-text-secondary: #babec4;
+    --zam-text-muted: #a4a7ae;
 
     /* ── Semantic accents ────────────────────────────── */
-    --discord-accent: var(--brand-500);
-    --discord-accent-hover: var(--brand-530);
-    /* RGB channels for opacity modifier support (e.g. bg-discord-accent/30) */
-    --discord-accent-rgb: var(--brand-500-rgb);
-    --discord-accent-hover-rgb: var(--brand-530-rgb);
-    --discord-mention-highlight-rgb: 114 137 218;
-    --discord-danger-rgb: 237 66 69;
-    --discord-warning-rgb: 250 166 26;
-    --discord-divider: #41444e;
+    --zam-accent: var(--brand-500);
+    --zam-accent-hover: var(--brand-530);
+    /* RGB channels for opacity modifier support (e.g. bg-zam-accent/30) */
+    --zam-accent-rgb: var(--brand-500-rgb);
+    --zam-accent-hover-rgb: var(--brand-530-rgb);
+    --zam-mention-highlight-rgb: 114 137 218;
+    --zam-danger-rgb: 237 66 69;
+    --zam-warning-rgb: 250 166 26;
+    --zam-divider: #41444e;
 
     /* ── Status / role colours ───────────────────────── */
-    --discord-online: #3ba55c;
-    --discord-idle: #faa61a;
-    --discord-dnd: #ed4245;
-    --discord-offline: #747f8d;
-    --discord-danger: #ed4245;
-    --discord-danger-hover: #c03537;
-    --discord-warning: #faa61a;
-    --discord-positive: #23a559;
-    --discord-star: #faa61a;
+    --zam-online: #3ba55c;
+    --zam-idle: #faa61a;
+    --zam-dnd: #ed4245;
+    --zam-offline: #747f8d;
+    --zam-danger: #ed4245;
+    --zam-danger-hover: #c03537;
+    --zam-warning: #faa61a;
+    --zam-positive: #23a559;
+    --zam-star: #faa61a;
 
     /* ── Contrast-split semantic tokens (A11Y-10) ─────────────────────
-       `--discord-accent` / `--discord-danger` stay the BRAND values and
+       `--zam-accent` / `--zam-danger` stay the BRAND values and
        keep serving borders, rings, focus outlines and alpha tints. They
        cannot also carry text: in the dark theme white-on-accent is 3.33
        and accent-as-text is 3.48, and the two fixes pull in opposite
@@ -131,30 +131,30 @@ html,
          *-text  → the hue used AS text on our surfaces   (>= 4.5 vs every bg)
        Ratios are enforced by src/lib/utils/themeContrast.test.ts — change a
        value there and the suite tells you which direction you broke.
-       accent-text is --discord-accent lightened in HSL (hue and saturation
+       accent-text is --zam-accent lightened in HSL (hue and saturation
        held: 226.7deg 58.4% 65.1% -> 227.0deg 58.9% 72.4%), giving
        4.61 / 5.18 / 6.35 on bg / bg-secondary / bg-tertiary. */
-    --discord-accent-fill: var(--brand-560);
-    --discord-accent-fill-hover: var(--brand-600);
-    --discord-accent-text: #8fa1e2;
-    --discord-accent-fill-rgb: var(--brand-560-rgb);
-    --discord-accent-fill-hover-rgb: var(--brand-600-rgb);
-    --discord-accent-text-rgb: 143 161 226;
-    --discord-danger-fill: #d83c3f;
-    --discord-danger-fill-hover: #c03537;
-    --discord-danger-text: #ff777c;
-    --discord-danger-fill-rgb: 216 60 63;
-    --discord-danger-fill-hover-rgb: 192 53 55;
-    --discord-danger-text-rgb: 255 119 124;
-    --discord-link: #8fa1e2;
-    --discord-link-rgb: 143 161 226;
+    --zam-accent-fill: var(--brand-560);
+    --zam-accent-fill-hover: var(--brand-600);
+    --zam-accent-text: #8fa1e2;
+    --zam-accent-fill-rgb: var(--brand-560-rgb);
+    --zam-accent-fill-hover-rgb: var(--brand-600-rgb);
+    --zam-accent-text-rgb: 143 161 226;
+    --zam-danger-fill: #d83c3f;
+    --zam-danger-fill-hover: #c03537;
+    --zam-danger-text: #ff777c;
+    --zam-danger-fill-rgb: 216 60 63;
+    --zam-danger-fill-hover-rgb: 192 53 55;
+    --zam-danger-text-rgb: 255 119 124;
+    --zam-link: #8fa1e2;
+    --zam-link-rgb: 143 161 226;
 
     /* ── Spoiler ─────────────────────────────────────── */
-    --discord-spoiler-bg: #1e1f22;
-    --discord-spoiler-revealed-bg: rgba(255, 255, 255, 0.1);
+    --zam-spoiler-bg: #1e1f22;
+    --zam-spoiler-revealed-bg: rgba(255, 255, 255, 0.1);
 
     /* ── Own message bubble ──────────────────────────── */
-    --discord-own-bubble: var(--discord-accent-fill);
+    --zam-own-bubble: var(--zam-accent-fill);
 
     /* ── Syntax highlighting ─────────────────────────── */
     --syntax-keyword: #ff7ab2;
@@ -178,68 +178,68 @@ html,
 :root[data-theme="light"] {
     color-scheme: light;
 
-    --discord-bg: #f2f3f5;
-    --discord-bg-secondary: #ffffff;
-    --discord-bg-tertiary: #e3e5e8;
-    --discord-bg-dark: #dfe1e5;
-    --discord-bg-hover: #e7e9ed;
-    --discord-bg-selected: #d8dbe0;
-    --discord-bg-rgb: 242 243 245;
-    --discord-bg-secondary-rgb: 255 255 255;
+    --zam-bg: #f2f3f5;
+    --zam-bg-secondary: #ffffff;
+    --zam-bg-tertiary: #e3e5e8;
+    --zam-bg-dark: #dfe1e5;
+    --zam-bg-hover: #e7e9ed;
+    --zam-bg-selected: #d8dbe0;
+    --zam-bg-rgb: 242 243 245;
+    --zam-bg-secondary-rgb: 255 255 255;
 
-    --discord-text-primary: #2e3338;
-    --discord-text-secondary: #4e5058;
-    /* was #6d6f78 — 4.0:1 on --discord-bg-tertiary, below AA. */
-    --discord-text-muted: #5f6169;
+    --zam-text-primary: #2e3338;
+    --zam-text-secondary: #4e5058;
+    /* was #6d6f78 — 4.0:1 on --zam-bg-tertiary, below AA. */
+    --zam-text-muted: #5f6169;
 
     /* The brand 500 step is too light to read on light surfaces, so the
        light theme's accent is the 560 step throughout. */
-    --discord-accent: var(--brand-560);
-    --discord-accent-hover: var(--brand-600);
-    --discord-accent-rgb: var(--brand-560-rgb);
-    --discord-accent-hover-rgb: var(--brand-600-rgb);
-    --discord-mention-highlight-rgb: var(--brand-560-rgb);
-    --discord-divider: #d4d7dc;
+    --zam-accent: var(--brand-560);
+    --zam-accent-hover: var(--brand-600);
+    --zam-accent-rgb: var(--brand-560-rgb);
+    --zam-accent-hover-rgb: var(--brand-600-rgb);
+    --zam-mention-highlight-rgb: var(--brand-560-rgb);
+    --zam-divider: #d4d7dc;
 
-    --discord-online: #248046;
-    --discord-idle: #b87900;
-    --discord-dnd: #d83c3e;
-    --discord-offline: #80848e;
-    --discord-danger: #d83c3e;
-    /* Tailwind resolves discord-danger/discord-warning through the -rgb form
+    --zam-online: #248046;
+    --zam-idle: #b87900;
+    --zam-dnd: #d83c3e;
+    --zam-offline: #80848e;
+    --zam-danger: #d83c3e;
+    /* Tailwind resolves zam-danger/zam-warning through the -rgb form
        (for <alpha-value> support). Light mode redeclared only the hex vars, so
        the Tailwind tokens kept the dark-theme red/orange. */
-    --discord-danger-rgb: 216 60 62;
-    --discord-danger-hover: #b92d30;
-    --discord-warning: #a86600;
-    --discord-warning-rgb: 168 102 0;
-    --discord-positive: #1f7a43;
-    --discord-star: #a86600;
+    --zam-danger-rgb: 216 60 62;
+    --zam-danger-hover: #b92d30;
+    --zam-warning: #a86600;
+    --zam-warning-rgb: 168 102 0;
+    --zam-positive: #1f7a43;
+    --zam-star: #a86600;
 
     /* Contrast-split semantic tokens (A11Y-10) — see the dark block. The
-       light theme needs the opposite move for accent-as-text: --discord-accent
-       is 3.81 on --discord-bg-tertiary, so accent-text is the next step
+       light theme needs the opposite move for accent-as-text: --zam-accent
+       is 3.81 on --zam-bg-tertiary, so accent-text is the next step
        darker (600), giving 5.70 / 6.33 / 5.02 on bg / bg-secondary /
        bg-tertiary. */
-    --discord-accent-fill: var(--brand-560);
-    --discord-accent-fill-hover: var(--brand-600);
-    --discord-accent-text: var(--brand-600);
-    --discord-accent-fill-rgb: var(--brand-560-rgb);
-    --discord-accent-fill-hover-rgb: var(--brand-600-rgb);
-    --discord-accent-text-rgb: var(--brand-600-rgb);
-    --discord-danger-fill: #d83c3e;
-    --discord-danger-fill-hover: #b92d30;
-    --discord-danger-text: #bc3436;
-    --discord-danger-fill-rgb: 216 60 62;
-    --discord-danger-fill-hover-rgb: 185 45 48;
-    --discord-danger-text-rgb: 188 52 54;
-    --discord-link: var(--brand-600);
-    --discord-link-rgb: var(--brand-600-rgb);
+    --zam-accent-fill: var(--brand-560);
+    --zam-accent-fill-hover: var(--brand-600);
+    --zam-accent-text: var(--brand-600);
+    --zam-accent-fill-rgb: var(--brand-560-rgb);
+    --zam-accent-fill-hover-rgb: var(--brand-600-rgb);
+    --zam-accent-text-rgb: var(--brand-600-rgb);
+    --zam-danger-fill: #d83c3e;
+    --zam-danger-fill-hover: #b92d30;
+    --zam-danger-text: #bc3436;
+    --zam-danger-fill-rgb: 216 60 62;
+    --zam-danger-fill-hover-rgb: 185 45 48;
+    --zam-danger-text-rgb: 188 52 54;
+    --zam-link: var(--brand-600);
+    --zam-link-rgb: var(--brand-600-rgb);
 
-    --discord-spoiler-bg: #c9ccd1;
-    --discord-spoiler-revealed-bg: rgba(0, 0, 0, 0.08);
+    --zam-spoiler-bg: #c9ccd1;
+    --zam-spoiler-revealed-bg: rgba(0, 0, 0, 0.08);
 
-    --discord-own-bubble: var(--discord-accent-fill);
+    --zam-own-bubble: var(--zam-accent-fill);
 
     --syntax-keyword: #a626a4;
     --syntax-string: #40781f;
@@ -253,24 +253,24 @@ html,
     color-scheme: dark;
 
     /* True-black base surfaces */
-    --discord-bg: #000000;
-    --discord-bg-secondary: #000000;
-    --discord-bg-tertiary: #000000;
-    --discord-bg-dark: #000000;
+    --zam-bg: #000000;
+    --zam-bg-secondary: #000000;
+    --zam-bg-tertiary: #000000;
+    --zam-bg-dark: #000000;
     /* Near-black interactive elevations (kept visibly distinct from #000) */
-    --discord-bg-hover: #17191d;
-    --discord-bg-selected: #202329;
+    --zam-bg-hover: #17191d;
+    --zam-bg-selected: #202329;
     /* RGB twins MUST match the hex above (Tailwind <alpha-value> support) */
-    --discord-bg-rgb: 0 0 0;
-    --discord-bg-secondary-rgb: 0 0 0;
+    --zam-bg-rgb: 0 0 0;
+    --zam-bg-secondary-rgb: 0 0 0;
 
     /* Divider visible against pure black */
-    --discord-divider: #23262c;
+    --zam-divider: #23262c;
 
     /* Spoiler cover on true black */
-    --discord-spoiler-bg: #000000;
+    --zam-spoiler-bg: #000000;
 
-    --discord-own-bubble: var(--discord-accent-fill);
+    --zam-own-bubble: var(--zam-accent-fill);
 }
 
 * {
@@ -282,8 +282,8 @@ body {
     height: 100%;
     margin: 0;
     padding: 0;
-    background-color: var(--discord-bg);
-    color: var(--discord-text-primary);
+    background-color: var(--zam-bg);
+    color: var(--zam-text-primary);
     /* The user-picked font (bundled or custom upload) applies APP-WIDE: the
        whole UI inherits from here (Tailwind preflight makes form controls
        inherit too). --zam-font-family is set/removed by applyMessageFont;
@@ -306,7 +306,7 @@ body {
 /* Custom scrollbar — Firefox */
 * {
     scrollbar-width: thin;
-    scrollbar-color: var(--discord-bg-tertiary) transparent;
+    scrollbar-color: var(--zam-bg-tertiary) transparent;
 }
 
 /* Custom scrollbar — Webkit */
@@ -320,23 +320,23 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background-color: var(--discord-bg-tertiary);
+    background-color: var(--zam-bg-tertiary);
     border-radius: 4px;
     border: 2px solid transparent;
     background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background-color: var(--discord-text-muted);
+    background-color: var(--zam-text-muted);
     background-clip: content-box;
 }
 
 /* Selection color.
    White-on-fill, exactly like .btn-primary below, so it uses the fill token:
-   the brand --discord-accent is only 3.33:1 against white in the dark theme,
+   the brand --zam-accent is only 3.33:1 against white in the dark theme,
    which would make selected text harder to read than unselected text. */
 ::selection {
-    background-color: var(--discord-accent-fill);
+    background-color: var(--zam-accent-fill);
     color: white;
 }
 
@@ -406,21 +406,21 @@ body {
 
 /* Links inside message content.
    The app's most numerous accent-as-TEXT surface, so it takes the text token,
-   not the brand one: --discord-accent as a link colour is 3.48 / 3.91 / 3.69
-   against --discord-bg / -bg-secondary / -bg-hover in the dark theme, and
-   4.06 / 4.21 on -bg-tertiary / -bg-hover in the light one. --discord-accent-text
+   not the brand one: --zam-accent as a link colour is 3.48 / 3.91 / 3.69
+   against --zam-bg / -bg-secondary / -bg-hover in the dark theme, and
+   4.06 / 4.21 on -bg-tertiary / -bg-hover in the light one. --zam-accent-text
    clears 4.5 on all of them (dark 4.61 / 5.18 / 6.35 / 4.90, light 5.28 / 5.86 /
    4.65 / 4.82 on bg / -secondary / -tertiary / -hover), pinned by
    src/lib/utils/themeContrast.test.ts.
-   :hover deliberately carries NO colour change: --discord-accent-hover is worse
+   :hover deliberately carries NO colour change: --zam-accent-hover is worse
    still (2.94 / 3.31 / 3.12 dark), and there is no AA-clearing "hover" step
    light enough to read as a distinct shade. The underline is the hover
    affordance on its own. */
 .message-body a {
-    color: var(--discord-link, var(--discord-accent-text));
+    color: var(--zam-link, var(--zam-accent-text));
 }
 .message-body .room-mention {
-    color: var(--discord-link, var(--discord-accent-text));
+    color: var(--zam-link, var(--zam-accent-text));
 }
 .message-body a:hover {
     text-decoration: underline;
@@ -428,10 +428,10 @@ body {
 
 /* Blockquotes */
 .message-body blockquote {
-    border-inline-start: 4px solid var(--discord-divider);
+    border-inline-start: 4px solid var(--zam-divider);
     padding-inline-start: 0.75rem;
     margin: 0.25rem 0;
-    color: var(--discord-text-secondary);
+    color: var(--zam-text-secondary);
 }
 
 /* Headings */
@@ -454,7 +454,7 @@ body {
 /* Subtext (-#) */
 .message-body small {
     font-size: 0.75rem;
-    color: var(--discord-text-secondary);
+    color: var(--zam-text-secondary);
 }
 
 /* Lists */
@@ -480,7 +480,7 @@ body {
     margin-inline-start: auto; /* end-align within the content column */
     padding: 0.5rem 0.75rem;
     border-radius: 1rem;
-    background: var(--discord-own-bubble, var(--discord-accent-fill));
+    background: var(--zam-own-bubble, var(--zam-accent-fill));
     color: #fff;
 }
 .own-bubble .message-body {
@@ -494,7 +494,7 @@ body {
 }
 /* Keep code/pre readable inside a coloured bubble (they carry their own bg). */
 .own-bubble :where(code, pre) {
-    color: var(--discord-text-primary);
+    color: var(--zam-text-primary);
 }
 /* Small tail pointing off the bottom-end corner (bottom-right in LTR). */
 .own-bubble::after {
@@ -507,16 +507,15 @@ body {
     border-style: solid;
     border-width: 6px 0 0 8px;
     border-color: transparent transparent transparent
-        var(--discord-own-bubble, var(--discord-accent-fill));
+        var(--zam-own-bubble, var(--zam-accent-fill));
 }
 /* RTL: the bubble sits on the left, so the tail mirrors to the bottom-left. */
 .own-bubble:dir(rtl)::after {
     right: auto;
     left: -5px;
     border-width: 6px 8px 0 0;
-    border-color: transparent
-        var(--discord-own-bubble, var(--discord-accent-fill)) transparent
-        transparent;
+    border-color: transparent var(--zam-own-bubble, var(--zam-accent-fill))
+        transparent transparent;
 }
 
 /* Twemoji images inside room/space names (sidebar rows, invite cards, room
@@ -533,39 +532,39 @@ body {
 
 /* Focus styles */
 :focus-visible {
-    outline: 2px solid var(--discord-accent);
+    outline: 2px solid var(--zam-accent);
     outline-offset: 2px;
 }
 
 /* Button hover effects. The canonical white-on-accent surface, so it takes
    the FILL token, not the brand one (A11Y-10). The :focus-visible outline
-   above deliberately stays on --discord-accent: it is a non-text UI component
+   above deliberately stays on --zam-accent: it is a non-text UI component
    boundary, where WCAG's bar is 3:1. */
 .btn-primary {
-    background-color: var(--discord-accent-fill);
+    background-color: var(--zam-accent-fill);
     color: white;
     transition: background-color 0.2s;
 }
 
 .btn-primary:hover {
-    background-color: var(--discord-accent-fill-hover);
+    background-color: var(--zam-accent-fill-hover);
 }
 
 /* Input styles */
 .input-dark {
-    background-color: var(--discord-bg-secondary);
+    background-color: var(--zam-bg-secondary);
     border: 1px solid transparent;
-    color: var(--discord-text-primary);
+    color: var(--zam-text-primary);
     transition: border-color 0.2s;
 }
 
 .input-dark:focus {
-    border-color: var(--discord-accent);
+    border-color: var(--zam-accent);
     outline: none;
 }
 
 .input-dark::placeholder {
-    color: var(--discord-text-muted);
+    color: var(--zam-text-muted);
 }
 
 /* On the native (Capacitor) app, suppress the WebView's long-press callout on
@@ -693,24 +692,24 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    color: var(--discord-text-muted);
+    color: var(--zam-text-muted);
     pointer-events: none;
 }
 
 .composer-editor .composer-mention {
     padding: 0 0.2rem;
     border-radius: 3px;
-    color: rgb(var(--discord-accent-rgb));
-    background-color: rgb(var(--discord-accent-rgb) / 0.18);
+    color: rgb(var(--zam-accent-rgb));
+    background-color: rgb(var(--zam-accent-rgb) / 0.18);
     font-weight: 500;
 }
 
 .composer-editor .composer-custom-emoji {
-    color: var(--discord-text-primary);
+    color: var(--zam-text-primary);
 }
 
 .composer-editor .composer-link {
-    color: rgb(var(--discord-accent-rgb));
+    color: rgb(var(--zam-accent-rgb));
     text-decoration: underline;
     text-underline-offset: 2px;
 }
@@ -728,21 +727,21 @@ body {
     padding: 0 3px;
     border-radius: 3px;
     color: transparent;
-    background-color: var(--discord-spoiler-bg);
+    background-color: var(--zam-spoiler-bg);
     text-shadow: none;
 }
 
 .composer-editor code {
     padding: 0.05rem 0.25rem;
     border-radius: 3px;
-    background-color: var(--discord-bg-tertiary);
+    background-color: var(--zam-bg-tertiary);
     font-family:
         ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
     font-size: 0.875em;
 }
 
 .composer-editor a {
-    color: rgb(var(--discord-accent-rgb));
+    color: rgb(var(--zam-accent-rgb));
     text-decoration: none;
 }
 

@@ -293,7 +293,7 @@
         {#if !spaceId && !compact}
             <button
                 onclick={() => open("create-dm")}
-                class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                 style="padding-inline-start: 0.5rem;"
             >
                 <svg
@@ -311,7 +311,7 @@
         {#if !compact && (!spaceId || canAddRoomToSpace(spaceId))}
             <button
                 onclick={() => open("create-room")}
-                class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                 style="padding-inline-start: 0.5rem;"
             >
                 <svg
@@ -334,7 +334,7 @@
             <button
                 onclick={() => open("create-space")}
                 role={compact ? "menuitem" : undefined}
-                class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                 style="padding-inline-start: 0.5rem;"
             >
                 <svg
@@ -353,7 +353,7 @@
             <button
                 onclick={() => open("join-room")}
                 role={compact ? "menuitem" : undefined}
-                class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                class="w-full flex items-center gap-2 pe-2 py-1.5 text-start text-sm text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                 style="padding-inline-start: 0.5rem;"
             >
                 <svg
@@ -379,12 +379,12 @@
         <ModalDialog
             onClose={close}
             labelledBy="quick-actions-title"
-            panelClass="relative bg-discord-background rounded-lg shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-4"
+            panelClass="relative bg-zam-background rounded-lg shadow-xl w-full max-w-md mx-4 p-6 flex flex-col gap-4"
             {onKeydown}
         >
             <h2
                 id="quick-actions-title"
-                class="text-lg font-bold text-discord-textPrimary"
+                class="text-lg font-bold text-zam-textPrimary"
             >
                 {#if mode === "create-room"}{spaceId
                         ? t("quickActions.createRoomInSpace")
@@ -404,7 +404,7 @@
                     <div>
                         <!-- svelte-ignore a11y_label_has_associated_control -->
                         <label
-                            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                            class="block text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-1.5"
                         >
                             {mode === "create-space"
                                 ? t("quickActions.spaceName")
@@ -415,13 +415,13 @@
                             placeholder={mode === "create-space"
                                 ? t("quickActions.mySpace")
                                 : "my-room"}
-                            class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
+                            class="w-full px-3 py-2 bg-zam-backgroundSecondary text-zam-textPrimary placeholder-zam-textMuted rounded border border-zam-divider focus:border-zam-accent focus:outline-none text-sm"
                         />
                     </div>
                     <div>
                         <!-- svelte-ignore a11y_label_has_associated_control -->
                         <label
-                            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                            class="block text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-1.5"
                         >
                             {t("common.topic")}
                             <span class="normal-case font-normal"
@@ -433,7 +433,7 @@
                             placeholder={mode === "create-space"
                                 ? t("quickActions.whatSThisSpaceAbout")
                                 : t("quickActions.whatSThisRoomAbout")}
-                            class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
+                            class="w-full px-3 py-2 bg-zam-backgroundSecondary text-zam-textPrimary placeholder-zam-textMuted rounded border border-zam-divider focus:border-zam-accent focus:outline-none text-sm"
                         />
                     </div>
                     {#if mode === "create-room"}
@@ -441,12 +441,11 @@
                             <input
                                 type="checkbox"
                                 bind:checked={videoRoom}
-                                class="mt-0.5 accent-discord-accent"
+                                class="mt-0.5 accent-zam-accent"
                             />
-                            <span class="text-sm text-discord-textPrimary"
+                            <span class="text-sm text-zam-textPrimary"
                                 >{t("common.videoRoom")}
-                                <span
-                                    class="block text-xs text-discord-textMuted"
+                                <span class="block text-xs text-zam-textMuted"
                                     >{t(
                                         "quickActions.opensStraightIntoACallMessages",
                                     )}</span
@@ -456,17 +455,17 @@
                     {/if}
                     {#if mode === "create-room"}
                         <details
-                            class="rounded border border-discord-divider px-3 py-2"
+                            class="rounded border border-zam-divider px-3 py-2"
                         >
                             <summary
-                                class="cursor-pointer select-none text-sm text-discord-textPrimary"
+                                class="cursor-pointer select-none text-sm text-zam-textPrimary"
                                 >{t("quickActions.additionalCreators")}
-                                <span class="text-xs text-discord-textMuted"
+                                <span class="text-xs text-zam-textMuted"
                                     >{t("quickActions.optional")}</span
                                 ></summary
                             >
                             <div class="mt-2 flex flex-col gap-2">
-                                <p class="text-xs text-discord-textMuted">
+                                <p class="text-xs text-zam-textMuted">
                                     {t("quickActions.additionalCreatorsHint")}
                                 </p>
                                 <UserPicker
@@ -483,12 +482,11 @@
                             <input
                                 type="checkbox"
                                 bind:checked={starterRooms}
-                                class="mt-0.5 accent-discord-accent"
+                                class="mt-0.5 accent-zam-accent"
                             />
-                            <span class="text-sm text-discord-textPrimary"
+                            <span class="text-sm text-zam-textPrimary"
                                 >{t("quickActions.starterRooms")}
-                                <span
-                                    class="block text-xs text-discord-textMuted"
+                                <span class="block text-xs text-zam-textMuted"
                                     >{t("quickActions.starterRoomsHint")}</span
                                 ></span
                             >
@@ -499,12 +497,11 @@
                             <input
                                 type="checkbox"
                                 bind:checked={encrypt}
-                                class="mt-0.5 accent-discord-accent"
+                                class="mt-0.5 accent-zam-accent"
                             />
-                            <span class="text-sm text-discord-textPrimary"
+                            <span class="text-sm text-zam-textPrimary"
                                 >{t("quickActions.enableEncryption")}
-                                <span
-                                    class="block text-xs text-discord-textMuted"
+                                <span class="block text-xs text-zam-textMuted"
                                     >{t(
                                         "quickActions.canTBeTurnedOffLater",
                                     )}</span
@@ -527,12 +524,11 @@
                             <input
                                 type="checkbox"
                                 bind:checked={encrypt}
-                                class="mt-0.5 accent-discord-accent"
+                                class="mt-0.5 accent-zam-accent"
                             />
-                            <span class="text-sm text-discord-textPrimary"
+                            <span class="text-sm text-zam-textPrimary"
                                 >{t("quickActions.encryptThisDm")}
-                                <span
-                                    class="block text-xs text-discord-textMuted"
+                                <span class="block text-xs text-zam-textMuted"
                                     >{t(
                                         "quickActions.canTBeTurnedOffLater",
                                     )}</span
@@ -542,14 +538,14 @@
                     {/if}
                     {#if notice}
                         <div
-                            class="rounded bg-discord-warning/10 border border-discord-warning/30 px-3 py-2 space-y-2"
+                            class="rounded bg-zam-warning/10 border border-zam-warning/30 px-3 py-2 space-y-2"
                         >
-                            <p class="text-xs text-discord-warning">
+                            <p class="text-xs text-zam-warning">
                                 {notice}
                             </p>
                             <button
                                 onclick={openNoticeRoom}
-                                class="px-3 py-1.5 bg-discord-messageHover text-discord-textPrimary rounded text-xs"
+                                class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-xs"
                                 >{t("quickActions.openTheDm")}</button
                             >
                         </div>
@@ -560,7 +556,7 @@
                     <div>
                         <!-- svelte-ignore a11y_label_has_associated_control -->
                         <label
-                            class="block text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-1.5"
+                            class="block text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-1.5"
                             >{t("quickActions.roomAddressOrId")}</label
                         >
                         <input
@@ -570,22 +566,22 @@
                                 error = "";
                             }}
                             placeholder={t("quickActions.roomServerCom")}
-                            class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
+                            class="w-full px-3 py-2 bg-zam-backgroundSecondary text-zam-textPrimary placeholder-zam-textMuted rounded border border-zam-divider focus:border-zam-accent focus:outline-none text-sm"
                         />
                     </div>
                     {#if knockSent}
-                        <p class="text-sm text-discord-textSecondary">
+                        <p class="text-sm text-zam-textSecondary">
                             {t("quickActions.requestSentYouLlBeAble")}
                         </p>
                     {:else if knockOffered}
                         <div>
-                            <p class="text-sm text-discord-textMuted mb-1.5">
+                            <p class="text-sm text-zam-textMuted mb-1.5">
                                 {t("quickActions.youCanTJoinThisRoom")}
                             </p>
                             <input
                                 bind:value={knockReason}
                                 placeholder={t("common.reasonOptional")}
-                                class="w-full px-3 py-2 bg-discord-backgroundSecondary text-discord-textPrimary placeholder-discord-textMuted rounded border border-discord-divider focus:border-discord-accent focus:outline-none text-sm"
+                                class="w-full px-3 py-2 bg-zam-backgroundSecondary text-zam-textPrimary placeholder-zam-textMuted rounded border border-zam-divider focus:border-zam-accent focus:outline-none text-sm"
                             />
                         </div>
                     {/if}
@@ -593,14 +589,14 @@
             {/if}
 
             {#if error}
-                <p class="text-sm text-discord-danger">{error}</p>
+                <p class="text-sm text-zam-danger">{error}</p>
             {/if}
 
             <div class="flex justify-end gap-2 mt-1">
                 <button
                     onclick={close}
                     disabled={loading}
-                    class="px-4 py-2 rounded text-sm font-medium text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50"
+                    class="px-4 py-2 rounded text-sm font-medium text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-50"
                     >{mode === "join-room" && knockSent
                         ? t("common.close")
                         : t("common.cancel")}</button
@@ -611,7 +607,7 @@
                     <button
                         onclick={submitKnock}
                         disabled={loading || !input1.trim()}
-                        class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 flex items-center gap-2"
+                        class="px-4 py-2 rounded text-sm font-semibold bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-50 flex items-center gap-2"
                     >
                         {#if loading}
                             <div
@@ -624,7 +620,7 @@
                     <button
                         onclick={submit}
                         disabled={loading || !input1.trim()}
-                        class="px-4 py-2 rounded text-sm font-semibold bg-discord-accent hover:bg-discord-accentHover text-white transition-colors disabled:opacity-50 flex items-center gap-2"
+                        class="px-4 py-2 rounded text-sm font-semibold bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-50 flex items-center gap-2"
                     >
                         {#if loading}
                             <div

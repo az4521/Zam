@@ -2,7 +2,7 @@
 
 ## What this is
 
-**Zam**, a Discord-styled Matrix chat client. It's **SvelteKit + Svelte 5**, builds to static
+**Zam**, a Discord-like Matrix chat client. It's **SvelteKit + Svelte 5**, builds to static
 files, and ships from that one build to four targets: the web, an installable PWA, an **Electron**
 desktop app, and an **Android** app via Capacitor.
 

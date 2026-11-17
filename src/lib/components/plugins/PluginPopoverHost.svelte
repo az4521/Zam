@@ -62,7 +62,7 @@
                 opacity: 0,
                 duration: motionOK() ? 120 : 0,
             }}
-            class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl overflow-hidden"
+            class="fixed z-50 bg-zam-backgroundTertiary border border-zam-divider rounded-lg shadow-xl overflow-hidden"
         >
             {#key current}
                 <div use:pluginMount={current.render}></div>

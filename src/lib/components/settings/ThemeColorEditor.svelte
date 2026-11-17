@@ -226,16 +226,16 @@
 
 <div>
     <p
-        class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
     >
         {t("themeColorEditor.themeColors")}
     </p>
 
     <!-- Top control row: Save | Import [Copy] -->
-    <div class="flex flex-col gap-3 mb-4 pb-4 border-b border-discord-divider">
+    <div class="flex flex-col gap-3 mb-4 pb-4 border-b border-zam-divider">
         <!-- Save section -->
         <div>
-            <span class="text-xs text-discord-textMuted mb-1 block"
+            <span class="text-xs text-zam-textMuted mb-1 block"
                 >{t("common.save")}</span
             >
             <div class="flex items-center gap-2">
@@ -243,11 +243,11 @@
                     type="text"
                     bind:value={saveNameInput}
                     placeholder={t("themeColorEditor.presetName")}
-                    class="flex-1 px-2.5 py-1.5 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary border border-discord-divider focus:border-discord-accent outline-none"
+                    class="flex-1 px-2.5 py-1.5 rounded bg-zam-backgroundTertiary text-sm text-zam-textPrimary border border-zam-divider focus:border-zam-accent outline-none"
                 />
                 <button
                     type="button"
-                    class="px-3 py-1.5 rounded bg-discord-accent text-sm text-white hover:bg-discord-accent/90 disabled:opacity-50 transition-colors"
+                    class="px-3 py-1.5 rounded bg-zam-accent text-sm text-white hover:bg-zam-accent/90 disabled:opacity-50 transition-colors"
                     disabled={saveNameInput.trim() === ""}
                     onclick={handleSave}
                 >
@@ -258,7 +258,7 @@
 
         <!-- Import + Copy section -->
         <div>
-            <span class="text-xs text-discord-textMuted mb-1 block"
+            <span class="text-xs text-zam-textMuted mb-1 block"
                 >{t("themeColorEditor.import")}</span
             >
             <div class="flex items-center gap-2">
@@ -266,13 +266,13 @@
                     type="text"
                     bind:value={importText}
                     placeholder={t("themeColorEditor.pasteThemeCode")}
-                    class="flex-1 px-2.5 py-1.5 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary border {importError
-                        ? 'border-discord-danger'
-                        : 'border-discord-divider focus:border-discord-accent'} outline-none"
+                    class="flex-1 px-2.5 py-1.5 rounded bg-zam-backgroundTertiary text-sm text-zam-textPrimary border {importError
+                        ? 'border-zam-danger'
+                        : 'border-zam-divider focus:border-zam-accent'} outline-none"
                 />
                 <button
                     type="button"
-                    class="px-3 py-1.5 rounded bg-discord-accent text-sm text-white hover:bg-discord-accent/90 disabled:opacity-50 transition-colors"
+                    class="px-3 py-1.5 rounded bg-zam-accent text-sm text-white hover:bg-zam-accent/90 disabled:opacity-50 transition-colors"
                     disabled={importText.trim() === ""}
                     onclick={handleImport}
                 >
@@ -280,7 +280,7 @@
                 </button>
                 <button
                     type="button"
-                    class="px-3 py-1.5 rounded bg-discord-backgroundSecondary text-sm text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                    class="px-3 py-1.5 rounded bg-zam-backgroundSecondary text-sm text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                     onclick={handleCopy}
                     title={t("themeColorEditor.copyCurrentPresetToClipboard")}
                 >
@@ -291,12 +291,12 @@
     </div>
 
     {#if importError}
-        <p class="text-xs text-discord-danger mb-3">{importError}</p>
+        <p class="text-xs text-zam-danger mb-3">{importError}</p>
     {/if}
 
     <!-- Presets list -->
     <div class="mb-4">
-        <p class="text-sm text-discord-textPrimary mb-2">
+        <p class="text-sm text-zam-textPrimary mb-2">
             {t("themeColorEditor.presets")}
         </p>
         <div class="flex flex-col gap-1">
@@ -306,8 +306,8 @@
                 {@const isRenaming = renamingName === name}
                 <div
                     class="flex items-center gap-2 px-3 py-2 rounded {isActive
-                        ? 'bg-discord-accent/20 border border-discord-accent'
-                        : 'border border-discord-divider hover:bg-discord-messageHover'} transition-colors {isRenaming
+                        ? 'bg-zam-accent/20 border border-zam-accent'
+                        : 'border border-zam-divider hover:bg-zam-messageHover'} transition-colors {isRenaming
                         ? ''
                         : 'cursor-pointer'}"
                     onclick={(e) => {
@@ -341,7 +341,7 @@
                         <input
                             type="text"
                             bind:value={renameValue}
-                            class="flex-1 px-2 py-1 rounded bg-discord-backgroundTertiary text-sm text-discord-textPrimary border border-discord-accent outline-none"
+                            class="flex-1 px-2 py-1 rounded bg-zam-backgroundTertiary text-sm text-zam-textPrimary border border-zam-accent outline-none"
                             onblur={commitRename}
                             onkeydown={(e) => {
                                 if (e.key === "Enter") {
@@ -356,7 +356,7 @@
                         />
                         <button
                             type="button"
-                            class="px-2 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                            class="px-2 py-1 rounded text-xs text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                             onpointerdown={(e) => {
                                 // pointerdown fires before the input's blur, and
                                 // preventDefault keeps focus so onblur→commitRename
@@ -369,21 +369,21 @@
                             {t("common.cancel")}
                         </button>
                     {:else}
-                        <span class="flex-1 text-sm text-discord-textPrimary"
+                        <span class="flex-1 text-sm text-zam-textPrimary"
                             >{name}</span
                         >
                         {#if isBuiltin}
                             <span
-                                class="px-2 py-0.5 rounded bg-discord-backgroundTertiary text-xs text-discord-textMuted"
+                                class="px-2 py-0.5 rounded bg-zam-backgroundTertiary text-xs text-zam-textMuted"
                                 >{t("common.default")}</span
                             >
                         {:else if deletePending === name}
-                            <span class="text-xs text-discord-textMuted"
+                            <span class="text-xs text-zam-textMuted"
                                 >{t("themeColorEditor.delete")}</span
                             >
                             <button
                                 type="button"
-                                class="px-2 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                                class="px-2 py-1 rounded text-xs text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                                 onclick={(e) => {
                                     e.stopPropagation();
                                     deletePending = null;
@@ -393,7 +393,7 @@
                             </button>
                             <button
                                 type="button"
-                                class="px-2 py-1 rounded text-xs text-white bg-discord-danger hover:bg-discord-dangerHover transition-colors"
+                                class="px-2 py-1 rounded text-xs text-white bg-zam-danger hover:bg-zam-dangerHover transition-colors"
                                 aria-label={t(
                                     "themeColorEditor.confirmDelete",
                                     { name },
@@ -408,7 +408,7 @@
                         {:else}
                             <button
                                 type="button"
-                                class="px-2 py-1 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                                class="px-2 py-1 rounded text-xs text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                                 onclick={(e) => {
                                     e.stopPropagation();
                                     startRename(name);
@@ -419,7 +419,7 @@
                             </button>
                             <button
                                 type="button"
-                                class="px-2 py-1 rounded text-xs text-discord-danger hover:bg-discord-danger hover:text-white transition-colors"
+                                class="px-2 py-1 rounded text-xs text-zam-danger hover:bg-zam-danger hover:text-white transition-colors"
                                 aria-label={t("themeColorEditor.delete2", {
                                     name,
                                 })}
@@ -439,14 +439,14 @@
 
     {#if activeIsBuiltin}
         <div
-            class="mb-4 p-3 rounded bg-discord-backgroundTertiary border border-discord-divider"
+            class="mb-4 p-3 rounded bg-zam-backgroundTertiary border border-zam-divider"
         >
-            <p class="text-sm text-discord-textPrimary mb-2">
+            <p class="text-sm text-zam-textPrimary mb-2">
                 {t("themeColorEditor.builtInPresetsAreReadOnly")}
             </p>
             <button
                 type="button"
-                class="px-3 py-1.5 rounded bg-discord-accent text-sm text-white hover:bg-discord-accent/90 transition-colors"
+                class="px-3 py-1.5 rounded bg-zam-accent text-sm text-white hover:bg-zam-accent/90 transition-colors"
                 onclick={handleDuplicate}
             >
                 {t("themeColorEditor.duplicateToCustomize")}
@@ -456,23 +456,23 @@
 
     <!-- Color pickers (grouped) -->
     <div class="mb-4">
-        <p class="text-sm text-discord-textPrimary mb-3">
+        <p class="text-sm text-zam-textPrimary mb-3">
             {t("themeColorEditor.colors")}
         </p>
 
         <!-- Backgrounds -->
         <div class="mb-4">
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
             >
                 {t("themeColorEditor.backgrounds")}
             </p>
             <div class="flex flex-col gap-2">
                 {#each THEME_TOKENS.filter( (t) => ["background", "backgroundSecondary", "backgroundTertiary"].includes(t.key) ) as token}
                     <div
-                        class="flex items-center gap-2 py-2 border-b border-discord-divider"
+                        class="flex items-center gap-2 py-2 border-b border-zam-divider"
                     >
-                        <span class="flex-1 text-sm text-discord-textPrimary"
+                        <span class="flex-1 text-sm text-zam-textPrimary"
                             >{token.label}</span
                         >
                         <input
@@ -485,13 +485,12 @@
                                 ? 'opacity-60 cursor-not-allowed'
                                 : 'cursor-pointer'}"
                         />
-                        <span
-                            class="text-xs text-discord-textMuted font-mono w-20"
+                        <span class="text-xs text-zam-textMuted font-mono w-20"
                             >{effective[token.key]}</span
                         >
                         <button
                             type="button"
-                            class="px-2 py-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 transition-colors"
+                            class="px-2 py-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-30 transition-colors"
                             onclick={() => resetColor(token.key)}
                             disabled={activeIsBuiltin}
                             title={t("themeColorEditor.resetToDefault")}
@@ -506,16 +505,16 @@
         <!-- Text -->
         <div class="mb-4">
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
             >
                 {t("themeColorEditor.text")}
             </p>
             <div class="flex flex-col gap-2">
                 {#each THEME_TOKENS.filter( (t) => ["textPrimary", "textSecondary", "textMuted"].includes(t.key) ) as token}
                     <div
-                        class="flex items-center gap-2 py-2 border-b border-discord-divider"
+                        class="flex items-center gap-2 py-2 border-b border-zam-divider"
                     >
-                        <span class="flex-1 text-sm text-discord-textPrimary"
+                        <span class="flex-1 text-sm text-zam-textPrimary"
                             >{token.label}</span
                         >
                         <input
@@ -528,13 +527,12 @@
                                 ? 'opacity-60 cursor-not-allowed'
                                 : 'cursor-pointer'}"
                         />
-                        <span
-                            class="text-xs text-discord-textMuted font-mono w-20"
+                        <span class="text-xs text-zam-textMuted font-mono w-20"
                             >{effective[token.key]}</span
                         >
                         <button
                             type="button"
-                            class="px-2 py-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 transition-colors"
+                            class="px-2 py-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-30 transition-colors"
                             onclick={() => resetColor(token.key)}
                             disabled={activeIsBuiltin}
                             title={t("themeColorEditor.resetToDefault")}
@@ -549,16 +547,16 @@
         <!-- Accents & semantics -->
         <div class="mb-4">
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
             >
                 {t("themeColorEditor.accentsSemantics")}
             </p>
             <div class="flex flex-col gap-2">
                 {#each THEME_TOKENS.filter( (t) => ["accent", "link", "danger", "positive", "warning"].includes(t.key) ) as token}
                     <div
-                        class="flex items-center gap-2 py-2 border-b border-discord-divider"
+                        class="flex items-center gap-2 py-2 border-b border-zam-divider"
                     >
-                        <span class="flex-1 text-sm text-discord-textPrimary"
+                        <span class="flex-1 text-sm text-zam-textPrimary"
                             >{token.label}</span
                         >
                         <input
@@ -571,13 +569,12 @@
                                 ? 'opacity-60 cursor-not-allowed'
                                 : 'cursor-pointer'}"
                         />
-                        <span
-                            class="text-xs text-discord-textMuted font-mono w-20"
+                        <span class="text-xs text-zam-textMuted font-mono w-20"
                             >{effective[token.key]}</span
                         >
                         <button
                             type="button"
-                            class="px-2 py-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 transition-colors"
+                            class="px-2 py-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-30 transition-colors"
                             onclick={() => resetColor(token.key)}
                             disabled={activeIsBuiltin}
                             title={t("themeColorEditor.resetToDefault")}
@@ -592,16 +589,16 @@
         <!-- Presence -->
         <div class="mb-4">
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
             >
                 {t("themeColorEditor.presence")}
             </p>
             <div class="flex flex-col gap-2">
                 {#each THEME_TOKENS.filter( (t) => ["online", "idle", "dnd", "offline"].includes(t.key) ) as token}
                     <div
-                        class="flex items-center gap-2 py-2 border-b border-discord-divider"
+                        class="flex items-center gap-2 py-2 border-b border-zam-divider"
                     >
-                        <span class="flex-1 text-sm text-discord-textPrimary"
+                        <span class="flex-1 text-sm text-zam-textPrimary"
                             >{token.label}</span
                         >
                         <input
@@ -614,13 +611,12 @@
                                 ? 'opacity-60 cursor-not-allowed'
                                 : 'cursor-pointer'}"
                         />
-                        <span
-                            class="text-xs text-discord-textMuted font-mono w-20"
+                        <span class="text-xs text-zam-textMuted font-mono w-20"
                             >{effective[token.key]}</span
                         >
                         <button
                             type="button"
-                            class="px-2 py-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 transition-colors"
+                            class="px-2 py-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-30 transition-colors"
                             onclick={() => resetColor(token.key)}
                             disabled={activeIsBuiltin}
                             title={t("themeColorEditor.resetToDefault")}
@@ -635,16 +631,16 @@
         <!-- Details -->
         <div class="mb-4">
             <p
-                class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-2"
+                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
             >
                 {t("themeColorEditor.details")}
             </p>
             <div class="flex flex-col gap-2">
                 {#each THEME_TOKENS.filter( (t) => ["divider", "mention", "spoilerBackground", "ownBubbleBackground"].includes(t.key) ) as token}
                     <div
-                        class="flex items-center gap-2 py-2 border-b border-discord-divider"
+                        class="flex items-center gap-2 py-2 border-b border-zam-divider"
                     >
-                        <span class="flex-1 text-sm text-discord-textPrimary"
+                        <span class="flex-1 text-sm text-zam-textPrimary"
                             >{token.label}</span
                         >
                         <input
@@ -657,13 +653,12 @@
                                 ? 'opacity-60 cursor-not-allowed'
                                 : 'cursor-pointer'}"
                         />
-                        <span
-                            class="text-xs text-discord-textMuted font-mono w-20"
+                        <span class="text-xs text-zam-textMuted font-mono w-20"
                             >{effective[token.key]}</span
                         >
                         <button
                             type="button"
-                            class="px-2 py-1 rounded text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-30 transition-colors"
+                            class="px-2 py-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-30 transition-colors"
                             onclick={() => resetColor(token.key)}
                             disabled={activeIsBuiltin}
                             title={t("themeColorEditor.resetToDefault")}
@@ -679,12 +674,12 @@
     <!-- Contrast warnings -->
     {#if warnings.length > 0}
         <div class="mb-4">
-            <p class="text-sm text-discord-textPrimary mb-2">
+            <p class="text-sm text-zam-textPrimary mb-2">
                 {t("themeColorEditor.contrastWarnings")}
             </p>
             <div class="flex flex-col gap-1">
                 {#each warnings as warning}
-                    <p class="text-xs text-discord-danger">
+                    <p class="text-xs text-zam-danger">
                         <TriangleAlert
                             size={12}
                             class="inline-block align-[-2px] mr-1"
@@ -696,17 +691,17 @@
     {/if}
 
     <!-- Message display -->
-    <div class="mt-6 pt-4 border-t border-discord-divider">
-        <p class="text-sm font-semibold text-discord-textPrimary">
+    <div class="mt-6 pt-4 border-t border-zam-divider">
+        <p class="text-sm font-semibold text-zam-textPrimary">
             {t("themeColorEditor.messageDisplay")}
         </p>
-        <p class="text-xs text-discord-textMuted mb-3">
+        <p class="text-xs text-zam-textMuted mb-3">
             {t("themeColorEditor.savedOnThisDeviceOnlyNot")}
         </p>
 
         <div class="flex items-center justify-between mb-1">
             <label
-                class="block text-sm text-discord-textPrimary"
+                class="block text-sm text-zam-textPrimary"
                 for="interface-scale-range"
             >
                 {t("themeColorEditor.interfaceScale", {
@@ -715,7 +710,7 @@
             </label>
             <button
                 type="button"
-                class="px-2 py-0.5 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                class="px-2 py-0.5 rounded text-xs text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                 onclick={() => setInterfaceScale(INTERFACE_SCALE_DEFAULT)}
             >
                 {t("themeColorEditor.resetToDefault")}
@@ -727,17 +722,17 @@
             min={INTERFACE_SCALE_MIN}
             max={INTERFACE_SCALE_MAX}
             step={INTERFACE_SCALE_STEP}
-            class="w-full accent-discord-accent"
+            class="w-full accent-zam-accent"
             value={settingsState.interfaceScale}
             oninput={(e) => setInterfaceScale(Number(e.currentTarget.value))}
         />
-        <p class="mt-1 text-xs text-discord-textMuted">
+        <p class="mt-1 text-xs text-zam-textMuted">
             {t("themeColorEditor.scalesAllTextAndSpacingAcross")}
         </p>
 
         <div class="flex items-center justify-between mt-4 mb-1">
             <label
-                class="block text-sm text-discord-textPrimary"
+                class="block text-sm text-zam-textPrimary"
                 for="message-text-scale-range"
             >
                 {t("themeColorEditor.messageTextScale", {
@@ -746,7 +741,7 @@
             </label>
             <button
                 type="button"
-                class="px-2 py-0.5 rounded text-xs text-discord-textMuted hover:text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+                class="px-2 py-0.5 rounded text-xs text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
                 onclick={() => setMessageTextScale(MESSAGE_TEXT_SCALE_DEFAULT)}
             >
                 {t("themeColorEditor.resetToDefault")}
@@ -758,16 +753,16 @@
             min={MESSAGE_TEXT_SCALE_MIN}
             max={MESSAGE_TEXT_SCALE_MAX}
             step={MESSAGE_TEXT_SCALE_STEP}
-            class="w-full accent-discord-accent"
+            class="w-full accent-zam-accent"
             value={settingsState.messageTextScale}
             oninput={(e) => setMessageTextScale(Number(e.currentTarget.value))}
         />
-        <p class="mt-1 text-xs text-discord-textMuted">
+        <p class="mt-1 text-xs text-zam-textMuted">
             {t("themeColorEditor.messageTextScaleHint")}
         </p>
 
         <label
-            class="block text-sm text-discord-textPrimary mt-4 mb-1"
+            class="block text-sm text-zam-textPrimary mt-4 mb-1"
             for="msg-font-select"
         >
             {t("themeColorEditor.font")}
@@ -800,7 +795,7 @@
         <div class="mt-2 flex flex-wrap items-center gap-2">
             <button
                 type="button"
-                class="px-3 py-1.5 rounded bg-discord-backgroundSecondary text-sm text-discord-textPrimary hover:bg-discord-messageHover disabled:opacity-50 transition-colors"
+                class="px-3 py-1.5 rounded bg-zam-backgroundSecondary text-sm text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-50 transition-colors"
                 onclick={() => fontFileInput?.click()}
                 disabled={fontUploadBusy}
             >
@@ -811,7 +806,7 @@
             {#if settingsState.customFontName}
                 <button
                     type="button"
-                    class="px-2 py-1 rounded text-xs text-discord-danger hover:bg-discord-danger hover:text-white disabled:opacity-50 transition-colors"
+                    class="px-2 py-1 rounded text-xs text-zam-danger hover:bg-zam-danger hover:text-white disabled:opacity-50 transition-colors"
                     onclick={handleRemoveFont}
                     disabled={fontUploadBusy}
                 >
@@ -820,14 +815,14 @@
             {/if}
         </div>
         {#if fontUploadError}
-            <p class="mt-1 text-xs text-discord-danger">{fontUploadError}</p>
+            <p class="mt-1 text-xs text-zam-danger">{fontUploadError}</p>
         {/if}
-        <p class="mt-1 text-xs text-discord-textMuted">
+        <p class="mt-1 text-xs text-zam-textMuted">
             {t("themeColorEditor.woff2TtfOrOtfUpTo")}
         </p>
 
         <p
-            class="mt-3 text-discord-textPrimary"
+            class="mt-3 text-zam-textPrimary"
             style="font-size: 0.875rem; font-family: {messageFontFamily(
                 settingsState.messageFont,
             ) ?? 'inherit'};"

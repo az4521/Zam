@@ -135,20 +135,20 @@
 <div
     class="{interfaceState.isMobile
         ? ''
-        : 'w-80'} h-full flex flex-col bg-discord-backgroundSecondary border-l border-discord-divider"
+        : 'w-80'} h-full flex flex-col bg-zam-backgroundSecondary border-l border-zam-divider"
 >
     <div
-        class="h-12 flex items-center gap-2 px-4 py-3 border-b border-discord-divider flex-shrink-0"
+        class="h-12 flex items-center gap-2 px-4 py-3 border-b border-zam-divider flex-shrink-0"
     >
         <h3
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide flex-1"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide flex-1"
         >
             {t("common.notifications")}
         </h3>
         {#if (serverSupport === "no" || serverSupport === "error") && items.length > 0}
             <button
                 onclick={clearLocal}
-                class="text-xs text-discord-textMuted hover:text-discord-textPrimary"
+                class="text-xs text-zam-textMuted hover:text-zam-textPrimary"
                 title={t("notificationsPanel.clearAll")}
             >
                 {t("notificationsPanel.clearAll")}
@@ -161,7 +161,7 @@
             <button
                 type="button"
                 onclick={refresh}
-                class="w-full px-4 py-2 text-start text-xs text-discord-textMuted bg-discord-backgroundTertiary hover:text-discord-textPrimary"
+                class="w-full px-4 py-2 text-start text-xs text-zam-textMuted bg-zam-backgroundTertiary hover:text-zam-textPrimary"
             >
                 {t("notificationsPanel.couldNotRefreshServerNotificationsTap")}
             </button>
@@ -169,11 +169,11 @@
         {#if loading && serverSupport === "unknown"}
             <div class="flex justify-center mt-8">
                 <div
-                    class="w-5 h-5 border-2 border-discord-accent border-t-transparent rounded-full animate-spin"
+                    class="w-5 h-5 border-2 border-zam-accent border-t-transparent rounded-full animate-spin"
                 ></div>
             </div>
         {:else if items.length === 0}
-            <p class="text-sm text-discord-textMuted text-center mt-8 px-4">
+            <p class="text-sm text-zam-textMuted text-center mt-8 px-4">
                 {t("notificationsPanel.noNotifications")}
             </p>
         {:else}
@@ -211,9 +211,9 @@
                     <button
                         type="button"
                         onclick={() => jump(n.roomId, n.eventId)}
-                        class="block w-full text-start p-2 rounded-lg hover:bg-discord-messageHover transition-colors cursor-pointer border-s-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-discord-accent {n.read
-                            ? 'border-discord-warning/30 opacity-60'
-                            : 'border-discord-warning/70'}"
+                        class="block w-full text-start p-2 rounded-lg hover:bg-zam-messageHover transition-colors cursor-pointer border-s-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-zam-accent {n.read
+                            ? 'border-zam-warning/30 opacity-60'
+                            : 'border-zam-warning/70'}"
                     >
                         <span class="sr-only"
                             >{t("notificationsPanel.jumpToMessage")}</span
@@ -226,19 +226,19 @@
                                 size={18}
                             />
                             <span
-                                class="text-xs font-semibold text-discord-textPrimary truncate"
+                                class="text-xs font-semibold text-zam-textPrimary truncate"
                                 >{name}</span
                             >
                             <span
-                                class="text-xs text-discord-textMuted ms-auto flex-shrink-0"
+                                class="text-xs text-zam-textMuted ms-auto flex-shrink-0"
                                 >{compactDateTime(n.ts)}</span
                             >
                         </div>
-                        <p class="text-xs text-discord-textMuted truncate mb-1">
+                        <p class="text-xs text-zam-textMuted truncate mb-1">
                             {t("notificationsPanel.in", { roomName })}
                         </p>
                         <p
-                            class="text-xs text-discord-textPrimary line-clamp-3 break-words"
+                            class="text-xs text-zam-textPrimary line-clamp-3 break-words"
                         >
                             {n.body || t("notificationsPanel.message")}
                         </p>

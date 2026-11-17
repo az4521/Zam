@@ -237,50 +237,50 @@
 {#if desktop || hasPlugins}
     <section data-setting-anchor="cust-rich-presence">
         <p
-            class="text-xs font-semibold text-discord-textMuted uppercase tracking-wide mb-3"
+            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
         >
             {t("richPresence.heading")}
         </p>
         {#if !desktop && richPresenceState.error}
-            <p class="text-xs text-discord-danger mb-2">
+            <p class="text-xs text-zam-danger mb-2">
                 {t("richPresence.publishFailed")}
                 {richPresenceState.error}
             </p>
         {/if}
         {#if desktop}
             <div
-                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+                class="flex items-center gap-3 py-2 border-b border-zam-divider"
             >
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm text-discord-textPrimary">
+                    <p class="text-sm text-zam-textPrimary">
                         {t("richPresence.share")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("richPresence.shareHint")}
                     </p>
                     {#if settingsState.richPresenceEnabled && status?.msc4544.listening}
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("richPresence.listening", {
                                 port: String(status.msc4544.port),
                             })}
                         </p>
                     {/if}
                     {#if settingsState.richPresenceEnabled && status?.msc4544.socket}
-                        <p class="text-xs text-discord-textMuted break-all">
+                        <p class="text-xs text-zam-textMuted break-all">
                             {t("richPresence.socket", {
                                 path: status.msc4544.socket,
                             })}
                         </p>
                     {/if}
                     {#if settingsState.richPresenceEnabled && status?.msc4544.error}
-                        <p class="text-xs text-discord-danger">
+                        <p class="text-xs text-zam-danger">
                             {t("richPresence.listenFailed", {
                                 error: status.msc4544.error,
                             })}
                         </p>
                     {/if}
                     {#if richPresenceState.error}
-                        <p class="text-xs text-discord-danger">
+                        <p class="text-xs text-zam-danger">
                             {t("richPresence.publishFailed")}
                             {richPresenceState.error}
                         </p>
@@ -293,53 +293,53 @@
                 />
             </div>
             <div
-                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+                class="flex items-center gap-3 py-2 border-b border-zam-divider"
             >
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm text-discord-textPrimary">
+                    <p class="text-sm text-zam-textPrimary">
                         {t("richPresence.arrpc")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("richPresence.arrpcHint")}
                     </p>
                     {#if !settingsState.richPresenceEnabled}
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("richPresence.arrpcNeedsShare")}
                         </p>
                     {/if}
                     {#if discordFirst}
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("richPresence.discordFirst")}
                         </p>
                         {#if status?.arrpc.canRestartDiscord}
                             <button
                                 type="button"
-                                class="mt-1 rounded bg-discord-backgroundSecondary px-2 py-1 text-xs text-discord-textPrimary hover:bg-discord-backgroundSecondaryAlt disabled:opacity-50"
+                                class="mt-1 rounded bg-zam-backgroundSecondary px-2 py-1 text-xs text-zam-textPrimary hover:bg-zam-backgroundSecondaryAlt disabled:opacity-50"
                                 disabled={restarting}
                                 onclick={() => (confirmingRestart = true)}
                             >
                                 {t("richPresence.restartDiscord")}
                             </button>
                         {:else if status?.arrpc.needsPermission}
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {t("richPresence.hostNeedsPermission")}
                             </p>
                             <code
-                                class="mt-1 block select-all break-all rounded bg-discord-backgroundTertiary p-2 text-xs text-discord-textPrimary"
+                                class="mt-1 block select-all break-all rounded bg-zam-backgroundTertiary p-2 text-xs text-zam-textPrimary"
                             >
                                 {t("richPresence.scanGrantCommand")}
                             </code>
                         {/if}
                     {/if}
                     {#if restartError !== null}
-                        <p class="text-xs text-discord-danger">
+                        <p class="text-xs text-zam-danger">
                             {t("richPresence.restartDiscordFailed", {
                                 error: restartError,
                             })}
                         </p>
                     {/if}
                     {#if settingsState.richPresenceEnabled && settingsState.richPresenceArrpc && status?.arrpc.error}
-                        <p class="text-xs text-discord-danger">
+                        <p class="text-xs text-zam-danger">
                             {t("richPresence.arrpcFailed", {
                                 error: status.arrpc.error,
                             })}
@@ -355,13 +355,13 @@
 
             {#if settingsState.richPresenceEnabled && settingsState.richPresenceArrpc && status?.arrpc.canRestartDiscord}
                 <div
-                    class="flex items-center gap-3 py-2 ps-4 border-b border-discord-divider"
+                    class="flex items-center gap-3 py-2 ps-4 border-b border-zam-divider"
                 >
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm text-discord-textPrimary">
+                        <p class="text-sm text-zam-textPrimary">
                             {t("richPresence.autoRestart")}
                         </p>
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("richPresence.autoRestartHint")}
                         </p>
                     </div>
@@ -375,27 +375,27 @@
 
             {#if settingsState.richPresenceEnabled && settingsState.richPresenceArrpc && status?.fake?.supported}
                 <div
-                    class="flex items-center gap-3 py-2 ps-4 border-b border-discord-divider"
+                    class="flex items-center gap-3 py-2 ps-4 border-b border-zam-divider"
                 >
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm text-discord-textPrimary">
+                        <p class="text-sm text-zam-textPrimary">
                             {t("richPresence.fake")}
                         </p>
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("richPresence.fakeHint")}
                         </p>
                         {#if status.fake.needsPermission}
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {t("richPresence.hostNeedsPermission")}
                             </p>
                             <code
-                                class="mt-1 block select-all break-all rounded bg-discord-backgroundTertiary p-2 text-xs text-discord-textPrimary"
+                                class="mt-1 block select-all break-all rounded bg-zam-backgroundTertiary p-2 text-xs text-zam-textPrimary"
                             >
                                 {t("richPresence.scanGrantCommand")}
                             </code>
                         {/if}
                         {#if settingsState.richPresenceFakeDiscord && status.fake.error}
-                            <p class="text-xs text-discord-danger">
+                            <p class="text-xs text-zam-danger">
                                 {t("richPresence.fakeFailed", {
                                     error: status.fake.error,
                                 })}
@@ -411,31 +411,31 @@
             {/if}
 
             <div
-                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+                class="flex items-center gap-3 py-2 border-b border-zam-divider"
             >
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm text-discord-textPrimary">
+                    <p class="text-sm text-zam-textPrimary">
                         {t("richPresence.scan")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("richPresence.scanHint")}
                     </p>
                     {#if settingsState.richPresenceEnabled && settingsState.richPresenceScan && status?.scan.needsPermission}
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("richPresence.scanNeedsPermission")}
                         </p>
                         <code
-                            class="mt-1 block select-all break-all rounded bg-discord-backgroundTertiary p-2 text-xs text-discord-textPrimary"
+                            class="mt-1 block select-all break-all rounded bg-zam-backgroundTertiary p-2 text-xs text-zam-textPrimary"
                         >
                             {t("richPresence.scanGrantCommand")}
                         </code>
                     {:else if !settingsState.richPresenceEnabled}
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("richPresence.arrpcNeedsShare")}
                         </p>
                     {/if}
                     {#if settingsState.richPresenceEnabled && settingsState.richPresenceScan && status?.scan.error}
-                        <p class="text-xs text-discord-danger">
+                        <p class="text-xs text-zam-danger">
                             {t("richPresence.scanFailed", {
                                 error: status.scan.error,
                             })}
@@ -443,11 +443,11 @@
                     {/if}
                     {#if settingsState.richPresenceEnabled && (settingsState.richPresenceScan || settingsState.richPresenceArrpc) && status?.games}
                         {#if status.games.downloading}
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {t("richPresence.gameListDownloading")}
                             </p>
                         {:else if status.games.updated !== null}
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {t("richPresence.gameList", {
                                     count: String(status.games.count),
                                     when: new Date(
@@ -457,7 +457,7 @@
                             </p>
                         {/if}
                         {#if status.games.error}
-                            <p class="text-xs text-discord-danger">
+                            <p class="text-xs text-zam-danger">
                                 {t("richPresence.gameListFailed", {
                                     error: status.games.error,
                                 })}
@@ -474,40 +474,40 @@
 
             {#if steamVisible}
                 <div
-                    class="flex items-center gap-3 py-2 border-b border-discord-divider {steamBusy
+                    class="flex items-center gap-3 py-2 border-b border-zam-divider {steamBusy
                         ? 'opacity-50 pointer-events-none'
                         : ''}"
                     aria-busy={steamBusy}
                 >
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm text-discord-textPrimary">
+                        <p class="text-sm text-zam-textPrimary">
                             {t("richPresence.steam")}
                         </p>
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("richPresence.steamHint")}
                         </p>
                         {#if !settingsState.richPresenceEnabled}
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {t("richPresence.arrpcNeedsShare")}
                             </p>
                         {/if}
                         {#if status?.steam?.needsPermission}
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {t("richPresence.hostNeedsPermission")}
                             </p>
                             <code
-                                class="mt-1 block select-all break-all rounded bg-discord-backgroundTertiary p-2 text-xs text-discord-textPrimary"
+                                class="mt-1 block select-all break-all rounded bg-zam-backgroundTertiary p-2 text-xs text-zam-textPrimary"
                             >
                                 {t("richPresence.scanGrantCommand")}
                             </code>
                         {/if}
                         {#if steamEnableError !== null}
-                            <p class="text-xs text-discord-danger">
+                            <p class="text-xs text-zam-danger">
                                 {steamEnableError}
                             </p>
                         {/if}
                         {#if steamFlagLeft && steamDisable}
-                            <p class="text-xs text-discord-danger">
+                            <p class="text-xs text-zam-danger">
                                 {steamDisable.cancelled
                                     ? t("richPresence.steamUacCancelled")
                                     : t("richPresence.steamDisableFailed", {
@@ -516,25 +516,25 @@
                             </p>
                         {/if}
                         {#if settingsState.richPresenceEnabled && settingsState.richPresenceSteam && status?.steam?.error}
-                            <p class="text-xs text-discord-danger">
+                            <p class="text-xs text-zam-danger">
                                 {t("richPresence.steamFailed", {
                                     error: status.steam.error,
                                 })}
                             </p>
                         {/if}
                         {#if settingsState.richPresenceEnabled && settingsState.richPresenceSteam && status?.steam?.connected}
-                            <p class="text-xs text-discord-textMuted">
+                            <p class="text-xs text-zam-textMuted">
                                 {t("richPresence.steamConnected")}
                             </p>
                         {/if}
                         {#if settingsState.richPresenceSteam && status?.steam && !status.steam.portOpen}
                             {#if status.steam.steamRunning}
-                                <p class="text-xs text-discord-textMuted">
+                                <p class="text-xs text-zam-textMuted">
                                     {t("richPresence.steamNeedsRestart")}
                                 </p>
                                 <button
                                     type="button"
-                                    class="mt-1 rounded bg-discord-backgroundSecondary px-2 py-1 text-xs text-discord-textPrimary hover:bg-discord-backgroundSecondaryAlt disabled:opacity-50"
+                                    class="mt-1 rounded bg-zam-backgroundSecondary px-2 py-1 text-xs text-zam-textPrimary hover:bg-zam-backgroundSecondaryAlt disabled:opacity-50"
                                     disabled={steamRestarting}
                                     onclick={() =>
                                         (confirmingSteamRestart = true)}
@@ -542,13 +542,13 @@
                                     {t("richPresence.restartSteam")}
                                 </button>
                             {:else}
-                                <p class="text-xs text-discord-textMuted">
+                                <p class="text-xs text-zam-textMuted">
                                     {t("richPresence.steamNotRunning")}
                                 </p>
                             {/if}
                         {/if}
                         {#if steamRestartError !== null}
-                            <p class="text-xs text-discord-danger">
+                            <p class="text-xs text-zam-danger">
                                 {t("richPresence.restartSteamFailed", {
                                     error: steamRestartError,
                                 })}
@@ -564,22 +564,22 @@
             {/if}
 
             <div
-                class="flex items-center gap-3 py-2 border-b border-discord-divider"
+                class="flex items-center gap-3 py-2 border-b border-zam-divider"
             >
                 <div class="flex-1 min-w-0">
-                    <p class="text-sm text-discord-textPrimary">
+                    <p class="text-sm text-zam-textPrimary">
                         {t("richPresence.media")}
                     </p>
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {t("richPresence.mediaHint")}
                     </p>
                     {#if !settingsState.richPresenceEnabled}
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {t("richPresence.arrpcNeedsShare")}
                         </p>
                     {/if}
                     {#if settingsState.richPresenceEnabled && settingsState.richPresenceMedia && status?.media?.error}
-                        <p class="text-xs text-discord-danger">
+                        <p class="text-xs text-zam-danger">
                             {t("richPresence.mediaFailed", {
                                 error: status.media.error,
                             })}
@@ -594,15 +594,15 @@
             </div>
         {/if}
         {#if desktop}
-            <p class="text-sm text-discord-textPrimary mt-4 mb-1">
+            <p class="text-sm text-zam-textPrimary mt-4 mb-1">
                 {t("richPresence.addedGames")}
             </p>
-            <p class="text-xs text-discord-textMuted mb-2">
+            <p class="text-xs text-zam-textMuted mb-2">
                 {t("richPresence.addedGamesHint")}
             </p>
         {/if}
         {#if apps.length === 0}
-            <p class="text-xs text-discord-textMuted">
+            <p class="text-xs text-zam-textMuted">
                 {t("richPresence.noApps")}
             </p>
         {:else}
@@ -612,23 +612,21 @@
                         (g) => `arrpc:${g.id}` === key,
                     )}
                     <li
-                        class="flex items-center gap-3 py-2 border-b border-discord-divider"
+                        class="flex items-center gap-3 py-2 border-b border-zam-divider"
                     >
                         <div class="flex-1 min-w-0">
-                            <p
-                                class="text-sm text-discord-textPrimary truncate"
-                            >
+                            <p class="text-sm text-zam-textPrimary truncate">
                                 {app.name}
                             </p>
                             {#if added}
                                 <p
-                                    class="text-xs text-discord-textMuted truncate"
+                                    class="text-xs text-zam-textMuted truncate"
                                     title={added.exe}
                                 >
                                     {added.exe}
                                 </p>
                             {:else}
-                                <p class="text-xs text-discord-textMuted">
+                                <p class="text-xs text-zam-textMuted">
                                     {app.source === "plugin"
                                         ? t("richPresence.viaPlugin")
                                         : app.source !== "arrpc"
@@ -661,7 +659,7 @@
                         </div>
                         <button
                             type="button"
-                            class="text-xs text-discord-textMuted hover:text-discord-textPrimary"
+                            class="text-xs text-zam-textMuted hover:text-zam-textPrimary"
                             aria-label={t("richPresence.forgetApp", {
                                 name: app.name,
                             })}
@@ -686,26 +684,24 @@
             </ul>
         {/if}
         {#if picking}
-            <div
-                class="mt-2 rounded bg-discord-backgroundTertiary p-3 space-y-2"
-            >
+            <div class="mt-2 rounded bg-zam-backgroundTertiary p-3 space-y-2">
                 {#if chosen}
-                    <p class="text-xs text-discord-textMuted break-all">
+                    <p class="text-xs text-zam-textMuted break-all">
                         {chosen.path}
                     </p>
-                    <label class="block text-xs text-discord-textMuted">
+                    <label class="block text-xs text-zam-textMuted">
                         {t("richPresence.gameName")}
                         <input
                             type="text"
                             maxlength="64"
                             bind:value={gameName}
-                            class="mt-1 w-full rounded bg-discord-background px-2 py-1.5 text-sm text-discord-textPrimary"
+                            class="mt-1 w-full rounded bg-zam-background px-2 py-1.5 text-sm text-zam-textPrimary"
                         />
                     </label>
                     <div class="flex gap-2">
                         <button
                             type="button"
-                            class="px-3 py-1.5 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold disabled:opacity-50"
+                            class="px-3 py-1.5 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-sm font-semibold disabled:opacity-50"
                             disabled={!gameName.trim()}
                             onclick={confirmAdd}
                         >
@@ -713,7 +709,7 @@
                         </button>
                         <button
                             type="button"
-                            class="px-3 py-1.5 rounded text-sm text-discord-textMuted hover:text-discord-textPrimary"
+                            class="px-3 py-1.5 rounded text-sm text-zam-textMuted hover:text-zam-textPrimary"
                             onclick={() => (chosen = null)}
                         >
                             {t("common.cancel")}
@@ -726,11 +722,11 @@
                             bind:value={query}
                             placeholder={t("richPresence.searchPrograms")}
                             aria-label={t("richPresence.searchPrograms")}
-                            class="flex-1 min-w-0 rounded bg-discord-background px-2 py-1.5 text-sm text-discord-textPrimary"
+                            class="flex-1 min-w-0 rounded bg-zam-background px-2 py-1.5 text-sm text-zam-textPrimary"
                         />
                         <button
                             type="button"
-                            class="text-xs text-discord-textMuted hover:text-discord-textPrimary"
+                            class="text-xs text-zam-textMuted hover:text-zam-textPrimary"
                             disabled={loadingPrograms}
                             onclick={loadPrograms}
                         >
@@ -738,14 +734,14 @@
                         </button>
                         <button
                             type="button"
-                            class="text-xs text-discord-textMuted hover:text-discord-textPrimary"
+                            class="text-xs text-zam-textMuted hover:text-zam-textPrimary"
                             onclick={() => (picking = false)}
                         >
                             {t("common.cancel")}
                         </button>
                     </div>
                     {#if shownPrograms.length === 0}
-                        <p class="text-xs text-discord-textMuted">
+                        <p class="text-xs text-zam-textMuted">
                             {loadingPrograms
                                 ? t("common.loading")
                                 : t("richPresence.noPrograms")}
@@ -756,15 +752,15 @@
                                 <li>
                                     <button
                                         type="button"
-                                        class="w-full text-start rounded px-2 py-1 hover:bg-discord-messageHover"
+                                        class="w-full text-start rounded px-2 py-1 hover:bg-zam-messageHover"
                                         onclick={() => choose(p)}
                                     >
                                         <span
-                                            class="block text-sm text-discord-textPrimary truncate"
+                                            class="block text-sm text-zam-textPrimary truncate"
                                             >{p.name}</span
                                         >
                                         <span
-                                            class="block text-xs text-discord-textMuted truncate"
+                                            class="block text-xs text-zam-textMuted truncate"
                                             >{p.path}</span
                                         >
                                     </button>
@@ -777,7 +773,7 @@
         {:else if desktop}
             <button
                 type="button"
-                class="mt-2 px-3 py-1.5 rounded bg-discord-backgroundTertiary hover:bg-discord-messageHover text-sm font-semibold text-discord-textPrimary"
+                class="mt-2 px-3 py-1.5 rounded bg-zam-backgroundTertiary hover:bg-zam-messageHover text-sm font-semibold text-zam-textPrimary"
                 onclick={startPicking}
             >
                 {t("richPresence.addGame")}
@@ -789,29 +785,29 @@
 {#if confirmingRestart}
     <ModalDialog
         onClose={() => (confirmingRestart = false)}
-        labelledBy="restart-discord-title"
-        panelClass="relative w-full max-w-sm rounded-lg bg-discord-backgroundSecondary p-4 shadow-xl"
+        labelledBy="restart-zam-title"
+        panelClass="relative w-full max-w-sm rounded-lg bg-zam-backgroundSecondary p-4 shadow-xl"
     >
         <h2
-            id="restart-discord-title"
-            class="mb-2 text-base font-semibold text-discord-textPrimary"
+            id="restart-zam-title"
+            class="mb-2 text-base font-semibold text-zam-textPrimary"
         >
             {t("richPresence.restartDiscordTitle")}
         </h2>
-        <p class="mb-3 text-sm text-discord-textSecondary">
+        <p class="mb-3 text-sm text-zam-textSecondary">
             {t("richPresence.restartDiscordBody")}
         </p>
         <div class="flex justify-end gap-2">
             <button
                 type="button"
-                class="px-3 py-1 text-sm text-discord-textMuted hover:text-discord-textPrimary"
+                class="px-3 py-1 text-sm text-zam-textMuted hover:text-zam-textPrimary"
                 onclick={() => (confirmingRestart = false)}
             >
                 {t("common.cancel")}
             </button>
             <button
                 type="button"
-                class="rounded bg-discord-accent px-3 py-1 text-sm text-white"
+                class="rounded bg-zam-accent px-3 py-1 text-sm text-white"
                 onclick={restartDiscord}
             >
                 {t("richPresence.restartDiscord")}
@@ -824,28 +820,28 @@
     <ModalDialog
         onClose={() => (confirmingSteamRestart = false)}
         labelledBy="restart-steam-title"
-        panelClass="relative w-full max-w-sm rounded-lg bg-discord-backgroundSecondary p-4 shadow-xl"
+        panelClass="relative w-full max-w-sm rounded-lg bg-zam-backgroundSecondary p-4 shadow-xl"
     >
         <h2
             id="restart-steam-title"
-            class="mb-2 text-base font-semibold text-discord-textPrimary"
+            class="mb-2 text-base font-semibold text-zam-textPrimary"
         >
             {t("richPresence.restartSteamTitle")}
         </h2>
-        <p class="mb-3 text-sm text-discord-textSecondary">
+        <p class="mb-3 text-sm text-zam-textSecondary">
             {t("richPresence.restartSteamBody")}
         </p>
         <div class="flex justify-end gap-2">
             <button
                 type="button"
-                class="px-3 py-1 text-sm text-discord-textMuted hover:text-discord-textPrimary"
+                class="px-3 py-1 text-sm text-zam-textMuted hover:text-zam-textPrimary"
                 onclick={() => (confirmingSteamRestart = false)}
             >
                 {t("common.cancel")}
             </button>
             <button
                 type="button"
-                class="rounded bg-discord-accent px-3 py-1 text-sm text-white"
+                class="rounded bg-zam-accent px-3 py-1 text-sm text-white"
                 onclick={restartSteam}
             >
                 {t("richPresence.restartSteam")}

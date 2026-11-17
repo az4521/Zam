@@ -103,12 +103,12 @@
         role="dialog"
         aria-modal="true"
         aria-labelledby="share-location-title"
-        class="relative z-10 bg-discord-backgroundSecondary rounded-lg shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto flex flex-col gap-4 p-6"
+        class="relative z-10 bg-zam-backgroundSecondary rounded-lg shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto flex flex-col gap-4 p-6"
         use:focusTrap={{ onEscape: closeShareLocationDialog }}
     >
         <h2
             id="share-location-title"
-            class="text-lg font-bold text-discord-textPrimary"
+            class="text-lg font-bold text-zam-textPrimary"
         >
             {t("shareLocationDialog.shareLocation")}
         </h2>
@@ -120,8 +120,8 @@
                     onclick={() => (mode = "once")}
                     class="flex-1 rounded px-3 py-2 text-sm font-medium transition-colors {mode ===
                     'once'
-                        ? 'bg-discord-accent text-white'
-                        : 'bg-discord-backgroundTertiary text-discord-textSecondary hover:text-discord-textPrimary'}"
+                        ? 'bg-zam-accent text-white'
+                        : 'bg-zam-backgroundTertiary text-zam-textSecondary hover:text-zam-textPrimary'}"
                 >
                     {t("shareLocationDialog.sendOnce")}
                 </button>
@@ -130,8 +130,8 @@
                     onclick={() => (mode = "live")}
                     class="flex-1 rounded px-3 py-2 text-sm font-medium transition-colors {mode ===
                     'live'
-                        ? 'bg-discord-accent text-white'
-                        : 'bg-discord-backgroundTertiary text-discord-textSecondary hover:text-discord-textPrimary'}"
+                        ? 'bg-zam-accent text-white'
+                        : 'bg-zam-backgroundTertiary text-zam-textSecondary hover:text-zam-textPrimary'}"
                 >
                     {t("shareLocationDialog.shareLive")}
                 </button>
@@ -145,10 +145,10 @@
                     type="button"
                     onclick={locate}
                     disabled={locating}
-                    class="self-start flex items-center gap-2 rounded bg-discord-backgroundTertiary px-3 py-2 text-sm font-medium text-discord-textPrimary hover:bg-discord-messageHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="self-start flex items-center gap-2 rounded bg-zam-backgroundTertiary px-3 py-2 text-sm font-medium text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <svg
-                        class="w-4 h-4 text-discord-accent flex-shrink-0"
+                        class="w-4 h-4 text-zam-accent flex-shrink-0"
                         fill="currentColor"
                         viewBox="0 0 24 24"
                     >
@@ -161,7 +161,7 @@
                         : t("shareLocationDialog.useMyCurrentLocation")}
                 </button>
                 {#if coords}
-                    <p class="text-xs text-discord-textMuted">
+                    <p class="text-xs text-zam-textMuted">
                         {formatCoords(coords.lat, coords.lon)}
                     </p>
                 {/if}
@@ -171,7 +171,7 @@
             <div class="flex flex-col gap-1.5">
                 <label
                     for="location-description"
-                    class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
+                    class="text-xs font-semibold uppercase tracking-wide text-zam-textMuted"
                 >
                     {t("shareLocationDialog.descriptionOptional")}
                 </label>
@@ -181,7 +181,7 @@
                     bind:value={description}
                     placeholder={t("shareLocationDialog.eGHomeTheCafOn")}
                     maxlength="340"
-                    class="w-full rounded bg-discord-backgroundTertiary px-3 py-2 text-sm text-discord-textPrimary placeholder:text-discord-textMuted focus:outline-none focus:ring-2 focus:ring-discord-accent"
+                    class="w-full rounded bg-zam-backgroundTertiary px-3 py-2 text-sm text-zam-textPrimary placeholder:text-zam-textMuted focus:outline-none focus:ring-2 focus:ring-zam-accent"
                 />
             </div>
         {:else}
@@ -189,20 +189,20 @@
             <div class="flex flex-col gap-1.5">
                 <label
                     for="live-duration"
-                    class="text-xs font-semibold uppercase tracking-wide text-discord-textMuted"
+                    class="text-xs font-semibold uppercase tracking-wide text-zam-textMuted"
                 >
                     {t("shareLocationDialog.duration")}
                 </label>
                 <select
                     id="live-duration"
                     bind:value={durationMs}
-                    class="w-full rounded bg-discord-backgroundTertiary px-3 py-2 text-sm text-discord-textPrimary focus:outline-none focus:ring-2 focus:ring-discord-accent"
+                    class="w-full rounded bg-zam-backgroundTertiary px-3 py-2 text-sm text-zam-textPrimary focus:outline-none focus:ring-2 focus:ring-zam-accent"
                 >
                     {#each LIVE_SHARE_DURATIONS as d}
                         <option value={d.ms}>{d.label}</option>
                     {/each}
                 </select>
-                <p class="text-xs text-discord-textMuted">
+                <p class="text-xs text-zam-textMuted">
                     {t("shareLocationDialog.yourLiveLocationIsSharedWith")}
                 </p>
             </div>
@@ -211,12 +211,12 @@
         <!-- Footer -->
         <div class="flex items-center justify-end gap-3 pt-1">
             {#if error}
-                <span class="me-auto text-xs text-discord-danger">{error}</span>
+                <span class="me-auto text-xs text-zam-danger">{error}</span>
             {/if}
             <button
                 type="button"
                 onclick={closeShareLocationDialog}
-                class="px-4 py-2 rounded text-sm font-medium text-discord-textSecondary hover:text-discord-textPrimary hover:underline transition-colors"
+                class="px-4 py-2 rounded text-sm font-medium text-zam-textSecondary hover:text-zam-textPrimary hover:underline transition-colors"
             >
                 {t("common.cancel")}
             </button>
@@ -224,7 +224,7 @@
                 type="button"
                 onclick={share}
                 disabled={sending || (mode === "once" && !coords)}
-                class="px-4 py-2 rounded bg-discord-accent hover:bg-discord-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="px-4 py-2 rounded bg-zam-accent hover:bg-zam-accentHover text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 {#if mode === "live"}
                     {sending

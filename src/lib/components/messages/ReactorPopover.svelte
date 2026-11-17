@@ -102,13 +102,13 @@
                     id={r.userId}
                     size={20}
                 />
-                <span class="text-sm text-discord-textPrimary truncate"
+                <span class="text-sm text-zam-textPrimary truncate"
                     >{r.name}</span
                 >
             </div>
         {/each}
         {#if overflow > 0}
-            <div class="px-3 py-1 text-xs text-discord-textMuted">
+            <div class="px-3 py-1 text-xs text-zam-textMuted">
                 {t("reactorPopover.more", { overflow })}
             </div>
         {/if}
@@ -120,13 +120,13 @@
         <BottomSheet onClose={() => onClose?.()}>
             {#if label}
                 <div
-                    class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-discord-textMuted border-b border-discord-divider"
+                    class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zam-textMuted border-b border-zam-divider"
                 >
                     {t("reactorPopover.reactedWith", { label })}
                 </div>
             {:else if dialogLabel && !label}
                 <div
-                    class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-discord-textMuted border-b border-discord-divider"
+                    class="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zam-textMuted border-b border-zam-divider"
                 >
                     {dialogLabel}
                 </div>
@@ -153,7 +153,7 @@
                     opacity: 0,
                     duration: motionOK() ? 120 : 0,
                 }}
-                class="fixed z-50 bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-40 max-w-64"
+                class="fixed z-50 bg-zam-backgroundTertiary border border-zam-divider rounded-lg shadow-xl py-1 min-w-40 max-w-64"
                 role="dialog"
                 aria-label={dialogLabel || t("reactorPopover.userList")}
             >
@@ -167,7 +167,7 @@
                     opacity: 0,
                     duration: motionOK() ? 120 : 0,
                 }}
-                class="fixed z-50 pointer-events-none bg-discord-backgroundTertiary border border-discord-divider rounded-lg shadow-xl py-1 min-w-40 max-w-64"
+                class="fixed z-50 pointer-events-none bg-zam-backgroundTertiary border border-zam-divider rounded-lg shadow-xl py-1 min-w-40 max-w-64"
             >
                 {@render rows()}
             </div>

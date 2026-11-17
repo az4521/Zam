@@ -146,17 +146,17 @@
 </script>
 
 <div
-    class="w-52 bg-discord-backgroundSecondary border border-discord-divider rounded-lg overflow-hidden shadow-lg py-1"
+    class="w-52 bg-zam-backgroundSecondary border border-zam-divider rounded-lg overflow-hidden shadow-lg py-1"
     role="menu"
 >
     {#each items as item ("entryId" in item ? item.entryId : item.key)}
         <button
             role="menuitem"
             onclick={() => choose(item.run)}
-            class="w-full flex items-center gap-2.5 px-3 py-2 text-start text-sm text-discord-textPrimary hover:bg-discord-messageHover transition-colors"
+            class="w-full flex items-center gap-2.5 px-3 py-2 text-start text-sm text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
         >
             <svg
-                class="w-5 h-5 text-discord-textMuted flex-shrink-0"
+                class="w-5 h-5 text-zam-textMuted flex-shrink-0"
                 fill="currentColor"
                 viewBox="0 0 24 24"><path d={item.icon} /></svg
             >

@@ -44,11 +44,11 @@
     <ModalDialog
         onClose={dismiss}
         labelledBy="mesh-consent-title"
-        panelClass="relative z-10 w-[min(30rem,calc(100vw-2rem))] rounded-lg bg-discord-backgroundSecondary p-5 shadow-xl"
+        panelClass="relative z-10 w-[min(30rem,calc(100vw-2rem))] rounded-lg bg-zam-backgroundSecondary p-5 shadow-xl"
     >
         <h2
             id="mesh-consent-title"
-            class="mb-2 text-lg font-semibold text-discord-textPrimary"
+            class="mb-2 text-lg font-semibold text-zam-textPrimary"
         >
             {pending.fileTransfer
                 ? t("meshConsent.titleFileTransfer")
@@ -56,7 +56,7 @@
                   ? t("meshConsent.titleJoining")
                   : t("meshConsent.titleNewcomer")}
         </h2>
-        <p class="mb-3 text-sm text-discord-textMuted">
+        <p class="mb-3 text-sm text-zam-textMuted">
             {pending.fileTransfer
                 ? t("meshConsent.fileTransferDirect")
                 : pending.publishing
@@ -65,7 +65,7 @@
         </p>
         {#if relayOnly}
             <p
-                class="mb-3 rounded border border-discord-divider px-3 py-2 text-sm text-discord-textMuted"
+                class="mb-3 rounded border border-zam-divider px-3 py-2 text-sm text-zam-textMuted"
             >
                 {pending.relayed
                     ? t("meshConsent.relayed")
@@ -73,7 +73,7 @@
             </p>
         {:else}
             <p
-                class="mb-3 rounded border border-discord-danger/40 bg-discord-danger/10 px-3 py-2 text-sm text-discord-danger"
+                class="mb-3 rounded border border-zam-danger/40 bg-zam-danger/10 px-3 py-2 text-sm text-zam-danger"
                 role="alert"
             >
                 {t("meshConsent.ipVisible")}
@@ -81,7 +81,7 @@
         {/if}
         {#if pending.offerPublicStun && !relayOnly}
             <label
-                class="mb-3 flex items-start gap-2 text-sm text-discord-textMuted"
+                class="mb-3 flex items-start gap-2 text-sm text-zam-textMuted"
             >
                 <input
                     type="checkbox"
@@ -89,7 +89,7 @@
                     bind:checked={publicStun}
                 />
                 <span>
-                    <span class="font-medium text-discord-textPrimary"
+                    <span class="font-medium text-zam-textPrimary"
                         >{t("meshConsent.usePublicStun")}</span
                     >
                     {t("meshConsent.usePublicStunHint")}
@@ -101,7 +101,7 @@
                 <button
                     type="button"
                     onclick={() => resolveMeshConsent("cancel")}
-                    class="rounded px-4 py-2 text-sm font-medium text-discord-textSecondary hover:text-discord-textPrimary hover:underline transition-colors"
+                    class="rounded px-4 py-2 text-sm font-medium text-zam-textSecondary hover:text-zam-textPrimary hover:underline transition-colors"
                 >
                     {t("common.cancel")}
                 </button>
@@ -110,7 +110,7 @@
                 <button
                     type="button"
                     onclick={() => resolveMeshConsent("deny")}
-                    class="rounded px-4 py-2 text-sm font-medium text-discord-textSecondary hover:text-discord-textPrimary hover:underline transition-colors"
+                    class="rounded px-4 py-2 text-sm font-medium text-zam-textSecondary hover:text-zam-textPrimary hover:underline transition-colors"
                 >
                     {pending.joining
                         ? t("meshConsent.joinWithoutThem")
@@ -120,7 +120,7 @@
             <button
                 type="button"
                 onclick={allow}
-                class="rounded bg-discord-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                class="rounded bg-zam-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
             >
                 {pending.joining && pending.publishing && !pending.fileTransfer
                     ? t("meshConsent.join")

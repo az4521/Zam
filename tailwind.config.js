@@ -1,7 +1,7 @@
 import plugin from "tailwindcss/plugin";
 
 /**
- * The BRAND palette. This is what `colors.discord` is, and therefore what
+ * The BRAND palette. This is what `colors.zam` is, and therefore what
  * `border-`, `ring-`, `divide-`, `outline-`, `placeholder-`, `accent-` and the
  * gradient utilities resolve through — all of them non-text surfaces, where
  * WCAG's bar is 3:1 and today's values are correct.
@@ -9,36 +9,36 @@ import plugin from "tailwindcss/plugin";
  * `backgroundColor` and `textColor` below spread this map and override only
  * the four keys that carry text contrast (A11Y-10). Spreading rather than
  * re-typing the list is deliberate: extending `backgroundColor`/`textColor`
- * with a `discord` key must restate EVERY key it is expected to serve, and a
+ * with a `zam` key must restate EVERY key it is expected to serve, and a
  * hand-copied list would silently drop whatever is added here later. Real
  * usages that prove the two blocks cannot be trimmed to the accent/danger
- * keys: `bg-discord-textPrimary` (14 sites) and `text-discord-backgroundTertiary`.
+ * keys: `bg-zam-textPrimary` (14 sites) and `text-zam-backgroundTertiary`.
  */
-const discordBrand = {
+const zamBrand = {
     // Backgrounds
-    background: "rgb(var(--discord-bg-rgb) / <alpha-value>)",
-    backgroundSecondary: "rgb(var(--discord-bg-secondary-rgb) / <alpha-value>)",
-    backgroundTertiary: "var(--discord-bg-tertiary)",
-    backgroundDark: "var(--discord-bg-dark)",
-    messageHover: "var(--discord-bg-hover)",
+    background: "rgb(var(--zam-bg-rgb) / <alpha-value>)",
+    backgroundSecondary: "rgb(var(--zam-bg-secondary-rgb) / <alpha-value>)",
+    backgroundTertiary: "var(--zam-bg-tertiary)",
+    backgroundDark: "var(--zam-bg-dark)",
+    messageHover: "var(--zam-bg-hover)",
     // Text
-    textPrimary: "var(--discord-text-primary)",
-    textSecondary: "var(--discord-text-secondary)",
-    textMuted: "var(--discord-text-muted)",
+    textPrimary: "var(--zam-text-primary)",
+    textSecondary: "var(--zam-text-secondary)",
+    textMuted: "var(--zam-text-muted)",
     // Accent
-    accent: "rgb(var(--discord-accent-rgb) / <alpha-value>)",
-    accentHover: "rgb(var(--discord-accent-hover-rgb) / <alpha-value>)",
+    accent: "rgb(var(--zam-accent-rgb) / <alpha-value>)",
+    accentHover: "rgb(var(--zam-accent-hover-rgb) / <alpha-value>)",
     // Semantic
-    divider: "var(--discord-divider)",
-    danger: "rgb(var(--discord-danger-rgb) / <alpha-value>)",
-    dangerHover: "var(--discord-danger-hover)",
-    warning: "rgb(var(--discord-warning-rgb) / <alpha-value>)",
-    textPositive: "var(--discord-positive)",
+    divider: "var(--zam-divider)",
+    danger: "rgb(var(--zam-danger-rgb) / <alpha-value>)",
+    dangerHover: "var(--zam-danger-hover)",
+    warning: "rgb(var(--zam-warning-rgb) / <alpha-value>)",
+    textPositive: "var(--zam-positive)",
     // Status
-    online: "var(--discord-online)",
-    idle: "var(--discord-idle)",
-    dnd: "var(--discord-dnd)",
-    offline: "var(--discord-offline)",
+    online: "var(--zam-online)",
+    idle: "var(--zam-idle)",
+    dnd: "var(--zam-dnd)",
+    offline: "var(--zam-offline)",
 };
 
 /** @type {import('tailwindcss').Config} */
@@ -47,38 +47,38 @@ export default {
     theme: {
         extend: {
             colors: {
-                discord: discordBrand,
+                zam: zamBrand,
             },
-            // Filled surfaces that carry white text. `--discord-accent` at
-            // 3.33:1 and `--discord-danger` at 3.84:1 under #fff were below AA
+            // Filled surfaces that carry white text. `--zam-accent` at
+            // 3.33:1 and `--zam-danger` at 3.84:1 under #fff were below AA
             // in the dark theme; the `*-fill` tokens are the same hues moved
             // far enough to clear 4.5:1 in BOTH themes. Every existing
-            // `bg-discord-accent` / `bg-discord-danger` site is fixed by this
+            // `bg-zam-accent` / `bg-zam-danger` site is fixed by this
             // one mapping, with no component edit. See A11Y-10.
             backgroundColor: {
-                discord: {
-                    ...discordBrand,
-                    accent: "rgb(var(--discord-accent-fill-rgb) / <alpha-value>)",
+                zam: {
+                    ...zamBrand,
+                    accent: "rgb(var(--zam-accent-fill-rgb) / <alpha-value>)",
                     accentHover:
-                        "rgb(var(--discord-accent-fill-hover-rgb) / <alpha-value>)",
-                    danger: "rgb(var(--discord-danger-fill-rgb) / <alpha-value>)",
-                    dangerHover: "var(--discord-danger-fill-hover)",
+                        "rgb(var(--zam-accent-fill-hover-rgb) / <alpha-value>)",
+                    danger: "rgb(var(--zam-danger-fill-rgb) / <alpha-value>)",
+                    dangerHover: "var(--zam-danger-fill-hover)",
                 },
             },
             // The same hues used AS text. This is the opposite direction from
             // the fills — the dark theme needs these LIGHTER, not darker — so
             // they get their own tokens. `accentHover`/`dangerHover` map to the
             // base text token on purpose: a hover step light enough to matter
-            // would fall back under AA, so the two `hover:text-discord-*Hover`
+            // would fall back under AA, so the two `hover:text-zam-*Hover`
             // sites keep their colour instead of dropping below the floor.
             textColor: {
-                discord: {
-                    ...discordBrand,
-                    accent: "rgb(var(--discord-accent-text-rgb) / <alpha-value>)",
+                zam: {
+                    ...zamBrand,
+                    accent: "rgb(var(--zam-accent-text-rgb) / <alpha-value>)",
                     accentHover:
-                        "rgb(var(--discord-accent-text-rgb) / <alpha-value>)",
-                    danger: "rgb(var(--discord-danger-text-rgb) / <alpha-value>)",
-                    dangerHover: "var(--discord-danger-text)",
+                        "rgb(var(--zam-accent-text-rgb) / <alpha-value>)",
+                    danger: "rgb(var(--zam-danger-text-rgb) / <alpha-value>)",
+                    dangerHover: "var(--zam-danger-text)",
                 },
             },
             fontFamily: {

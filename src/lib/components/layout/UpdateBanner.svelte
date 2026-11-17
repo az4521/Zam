@@ -35,11 +35,11 @@
     <div
         role="status"
         aria-live="polite"
-        class="mx-2 mb-2 rounded-lg border border-discord-divider bg-discord-backgroundSecondary px-3 py-2 shadow-sm"
+        class="mx-2 mb-2 rounded-lg border border-zam-divider bg-zam-backgroundSecondary px-3 py-2 shadow-sm"
     >
         <div class="flex items-start gap-2">
             <svg
-                class="mt-0.5 h-4 w-4 flex-shrink-0 text-discord-accent"
+                class="mt-0.5 h-4 w-4 flex-shrink-0 text-zam-accent"
                 fill="currentColor"
                 viewBox="0 0 24 24"
                 aria-hidden="true"
@@ -50,13 +50,13 @@
                 />
                 <path d="M12 16l4-5h-3V7h-2v4H8z" />
             </svg>
-            <span class="min-w-0 flex-1 text-sm text-discord-textPrimary">
+            <span class="min-w-0 flex-1 text-sm text-zam-textPrimary">
                 {view.label}
             </span>
             <button
                 onclick={dismissUpdateBanner}
                 aria-label={t("updateBanner.dismissUpdateNotification")}
-                class="-me-1 flex-shrink-0 text-discord-textMuted hover:text-discord-textPrimary"
+                class="-me-1 flex-shrink-0 text-zam-textMuted hover:text-zam-textPrimary"
             >
                 <svg
                     class="h-4 w-4"
@@ -79,7 +79,7 @@
                 <button
                     onclick={onAction}
                     disabled={acting || view.busy}
-                    class="rounded bg-discord-accent px-3 py-1 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+                    class="rounded bg-zam-accent px-3 py-1 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
                 >
                     {view.actionLabel}
                 </button>

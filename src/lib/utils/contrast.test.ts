@@ -58,7 +58,7 @@ describe("contrastRatio", () => {
     });
 
     it("scores the app's historic worst pair around 1.5:1", () => {
-        // The pre-fix --discord-text-muted on --discord-bg. Kept as literals so
+        // The pre-fix --zam-text-muted on --zam-bg. Kept as literals so
         // this stays true after the token values change.
         const ratio = contrastRatio("#4f545c", "#36393f");
         expect(ratio).toBeGreaterThan(1.4);
