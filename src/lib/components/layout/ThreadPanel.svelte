@@ -5,6 +5,7 @@
     import MessageItem from "$lib/components/messages/MessageItem.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import { sedEditLastMessage } from "$lib/matrix/editMessage";
+    import { lastEditableOwnMessage } from "$lib/utils/editableMessage";
     import {
         getThreadMessages,
         paginateThreadBack,
@@ -51,6 +52,8 @@
     let loadingOlder = $state(false);
     let noMoreOlder = $state(false);
     let replyToEvent = $state<MatrixEvent | null>(null);
+    // The message being edited in this thread's composer (edit mode).
+    let editEvent = $state<MatrixEvent | null>(null);
     let messageInputEl: { focus: () => void } | undefined = $state();
     // Plain (non-reactive) scroll bookkeeping for the auto-scroll effect below.
     let atBottom = true;
@@ -173,6 +176,7 @@
         noMoreOlder = false;
         loadingOlder = false;
         replyToEvent = null;
+        editEvent = null;
         atBottom = true;
         lastLatestId = null;
     });
@@ -315,6 +319,9 @@
                 event={rootEvent}
                 {room}
                 showHeader={true}
+                onStartEdit={(ev) => (editEvent = ev)}
+                isBeingEdited={!!editEvent &&
+                    editEvent.getId() === rootEvent.getId()}
                 onReply={(e) => {
                     replyToEvent = e;
                     messageInputEl?.focus();
@@ -355,6 +362,9 @@
                 showHeader={shouldShowHeader(messages, i)}
                 timelineEvents={messages}
                 timelineIndex={i}
+                onStartEdit={(ev) => (editEvent = ev)}
+                isBeingEdited={!!editEvent &&
+                    editEvent.getId() === event.getId()}
                 onReply={(e) => {
                     replyToEvent = e;
                     messageInputEl?.focus();
@@ -373,6 +383,14 @@
             {room}
             threadRootId={rootEventId}
             {replyToEvent}
+            {editEvent}
+            onCancelEdit={() => {
+                editEvent = null;
+            }}
+            onRequestEditLast={() => {
+                const last = lastEditableOwnMessage(messages, auth.userId);
+                if (last) editEvent = last;
+            }}
             onCancelReply={() => {
                 replyToEvent = null;
             }}

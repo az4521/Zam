@@ -253,15 +253,16 @@
             if (hostBridge.startReply === handler) hostBridge.startReply = null;
         };
     });
-    let editRequestedEventId = $state<string | null>(null);
-    // Plugin composer.startEdit → start inline edit of your own text message.
+    // The message being edited in the composer (edit mode). Set by a message's
+    // Edit action, ArrowUp in the composer, or a plugin's composer.startEdit.
+    // Cleared on room switch, and by the composer when the edit ends.
+    let editEvent = $state<MatrixEvent | null>(null);
+    // Plugin composer.startEdit → edit your own text message in the composer.
     // Single slot; the mounted room area owns it and only acts on its own room.
-    // Guards own + editable text (parity with requestEditLastMessage). The
-    // transient editRequestedEventId pulse is how the matching MessageItem
-    // enters edit mode (its editRequested prop → $effect → startEdit()).
+    // Guards own + editable text (parity with requestEditLastMessage).
     $effect(() => {
         const activeRoom = room;
-        const handler = async (ctx: { roomId: string; eventId: string }) => {
+        const handler = (ctx: { roomId: string; eventId: string }) => {
             if (ctx.roomId !== activeRoom.roomId) return;
             const ev = findEventById(activeRoom, ctx.eventId);
             if (
@@ -271,9 +272,7 @@
                 !isEditableContent(ev.getContent())
             )
                 return;
-            editRequestedEventId = ctx.eventId;
-            await tick();
-            editRequestedEventId = null;
+            editEvent = ev;
         };
         hostBridge.startEdit = handler;
         return () => {
@@ -385,12 +384,10 @@
         }
     }
 
-    async function requestEditLastMessage() {
+    function requestEditLastMessage() {
         const last = lastEditableOwnMessage(messages, auth.userId);
         if (!last) return;
-        editRequestedEventId = last.getId()!;
-        await tick();
-        editRequestedEventId = null;
+        editEvent = last;
     }
     // Right-side panels live in the shared interfaceState.sidebar slot, so only
     // one is ever open and the central Escape/back handler can dismiss them.
@@ -1157,17 +1154,6 @@
         }
         w ??= { start: Math.max(0, n - INITIAL_WINDOW_ROWS), end: n };
         if (isAtBottom && !isContextView) w.end = n;
-        // An edit request is a one-tick pulse its MessageItem has to see:
-        // mount that row now, not on the next scroll.
-        if (editRequestedEventId) {
-            const i = messages.findIndex(
-                (e) => e.getId() === editRequestedEventId,
-            );
-            if (i >= 0) {
-                w.start = Math.min(w.start, i);
-                w.end = Math.max(w.end, i + 1);
-            }
-        }
         return w;
     });
 
@@ -1609,6 +1595,7 @@
     $effect(() => {
         room.roomId; // track room changes
         replyToEvent = null;
+        editEvent = null;
         contextWindow = null;
         contextMessages = null;
         contextAtReadPosition = false;
@@ -3452,9 +3439,9 @@
                             }}
                             jumpToReply={scrollToMessage}
                             onOpenThread={openThread}
-                            editRequested={editRequestedEventId ===
-                                event.getId()}
-                            onEditDone={() => messageInputEl?.focus()}
+                            onStartEdit={(ev) => (editEvent = ev)}
+                            isBeingEdited={!!editEvent &&
+                                editEvent.getId() === event.getId()}
                             {receipts}
                             mentionHighlight={highlightedIds.has(event.getId())}
                             callSummary={callSummaries.get(
@@ -3651,6 +3638,10 @@
                     {roomName}
                     {room}
                     {replyToEvent}
+                    {editEvent}
+                    onCancelEdit={() => {
+                        editEvent = null;
+                    }}
                     {scrollEl}
                     keepScrollOnSend={isContextView}
                     onCancelReply={() => {

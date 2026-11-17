@@ -667,8 +667,8 @@ body {
     animation-iteration-count: infinite !important;
 }
 
-/* Rich contenteditable editors: the composer (MessageInput) and the inline
-   message editor (MessageEditBox). Decorations come from composerDecorate.ts. */
+/* Rich contenteditable editor: the composer (MessageInput), which also edits
+   messages. Decorations come from composerDecorate.ts. */
 .composer-editor {
     position: relative;
     min-height: 1.625rem;

@@ -1156,8 +1156,6 @@ const messages: Partial<Record<MessageKey, string>> = {
     "mediaProgress.ofTotal": "{loaded} ܡܢ {total}",
     "messageItem.fileAttachment": "ܐܣܝܪܬܐ ܕܦܐܝܠ",
     "messageItem.download": "ܐܚܬ",
-    "messageItem.toSave": "ܩܐ ܢܛܪܐ ·",
-    "messageItem.toCancel": "ܩܐ ܒܘܛܠܐ",
     "messageItem.openThread": "ܦܬܘܚ ܚܘܛܐ",
     "messageItem.failedToSend": "ܫܕܪܐ ܠܐ ܦܠܚܠܗ.",
     "messageItem.retrying": "ܒܢܣܝܐ ܡܢ ܕܪܝܫ…",

@@ -44,7 +44,13 @@
     import {
         buildFormattedBody as buildBody,
         mentionsFromFormatted,
+        mentionsFromHtml,
     } from "$lib/utils/messageBody";
+    import {
+        editableBody,
+        isEmptyEdit,
+        sendMessageEdit,
+    } from "$lib/matrix/editMessage";
     import {
         buildReplyContent,
         withReplyMention,
@@ -166,6 +172,7 @@
     import { suppressNextClick } from "$lib/utils/suppressNextClick";
     import {
         Loader2,
+        Pencil,
         Plus,
         ImagePlay,
         Sticker,
@@ -180,6 +187,10 @@
         disabled?: boolean;
         replyToEvent?: MatrixEvent | null;
         onCancelReply?: () => void;
+        /** The message being edited in this composer (edit mode). Its text
+         *  replaces the composer's until the edit is saved or cancelled. */
+        editEvent?: MatrixEvent | null;
+        onCancelEdit?: () => void;
         onRequestEditLast?: () => void;
         /** `s/old/new/`: apply it to the user's last message here (the
          *  caller knows which messages that means). */
@@ -207,6 +218,8 @@
         disabled: disabledProp = false,
         replyToEvent = null,
         onCancelReply,
+        editEvent = null,
+        onCancelEdit,
         onRequestEditLast,
         onSedEdit,
         onThreadCreated,
@@ -227,6 +240,27 @@
 
     let text = $state("");
     let isSending = $state(false);
+    // Edit mode. `activeEdit` is the edit target when it belongs to this room
+    // (a target from another room is ignored). While editing, the composer
+    // holds the edit text and the draft the user had typed waits in
+    // `editStash`. Not reactive: only the edit effect and draft saves read it.
+    const activeEdit = $derived(
+        editEvent && editEvent.getRoomId() === roomId ? editEvent : null,
+    );
+    let editStash: {
+        key: string;
+        text: string;
+        mentions: Map<string, string>;
+    } | null = null;
+    let isSavingEdit = $state(false);
+    // What to persist as this composer's draft: the stashed draft while
+    // editing, so an edit never overwrites the real draft.
+    function draftTextNow(): string {
+        return editStash ? editStash.text : text;
+    }
+    function draftMentionsNow(): Map<string, string> {
+        return editStash ? editStash.mentions : pendingMentions;
+    }
     // In-flight attachment send, scoped to the room the send targeted so a
     // room switch mid-upload doesn't show room A's "sending" note in room B.
     let sendingFileCount = $state(0);
@@ -294,7 +328,7 @@
     $effect(() => {
         const key = effComposerKey;
         return registerDraftFlusher(key, () =>
-            setDraft(key, text, pendingMentions),
+            setDraft(key, draftTextNow(), draftMentionsNow()),
         );
     });
 
@@ -742,10 +776,17 @@
 
     // Mirrors the send button's own disabled condition so the button can go
     // accent-coloured the moment the message becomes sendable.
+    // An edit can be saved once it has text (or a caption, for media) and no
+    // save is already in flight.
+    const editSaveBlocked = $derived(
+        !!activeEdit && (isSavingEdit || isEmptyEdit(activeEdit, text)),
+    );
     const canSend = $derived(
-        (text.trim().length > 0 || fileQueue.length > 0) &&
-            !isSending &&
-            !disabled,
+        activeEdit
+            ? !editSaveBlocked && !disabled
+            : (text.trim().length > 0 || fileQueue.length > 0) &&
+                  !isSending &&
+                  !disabled,
     );
     let textareaFocusedBeforePicker = false;
 
@@ -810,7 +851,7 @@
               ? t("messageInput.selectARoomToStartChatting")
               : isThread
                 ? t("messageInput.replyInThread")
-                : replyToEvent
+                : replyToEvent && !activeEdit
                   ? t("messageInput.replyTo", { replyTargetName })
                   : t("messageInput.message", { roomName }),
     );
@@ -946,7 +987,66 @@
             pendingMentions = new Map(draft?.mentions ?? []);
             tick().then(() => renderComposer(text.length));
         });
-        return () => setDraft(key, text, pendingMentions);
+        return () => {
+            setDraft(key, draftTextNow(), draftMentionsNow());
+            // The stash was saved as this room's draft just above. The next
+            // body run loads the incoming draft, so the edit session ends here.
+            editStash = null;
+        };
+    });
+
+    // Edit mode: entering an edit swaps the composer to that message's text
+    // (stashing the draft), and leaving it restores the draft. Tracks only the
+    // target id, so re-rendering the same target never resets the text.
+    $effect(() => {
+        const id = activeEdit?.getId() ?? null;
+        void id;
+        untrack(() => {
+            const ev = activeEdit;
+            if (ev) {
+                // Switching from one edit to another keeps the original draft.
+                if (!editStash)
+                    editStash = {
+                        key: effComposerKey,
+                        text,
+                        mentions: new Map(pendingMentions),
+                    };
+                text = editableBody(ev);
+                pendingMentions = mentionsFromHtml(
+                    ev.getContent().formatted_body as string | undefined,
+                );
+                mentionQuery = null;
+                emojiQuery = null;
+                slashQuery = null;
+                resetUndoHistory(text);
+                if (
+                    showActionsMenu ||
+                    showEmojiPicker ||
+                    showGifPicker ||
+                    showStickerPicker
+                )
+                    closeModal();
+                tick().then(() => {
+                    textareaEl?.focus();
+                    renderComposer(text.length);
+                });
+                return;
+            }
+            // Edit ended: saved, cancelled, or its room was left. A stash from
+            // another room is left for the draft effect to save.
+            const stash = editStash;
+            if (!stash || stash.key !== effComposerKey) return;
+            editStash = null;
+            text = stash.text;
+            pendingMentions = new Map(stash.mentions);
+            resetUndoHistory(text);
+            tick().then(() => {
+                renderComposer(text.length);
+                // Back to typing after a save or cancel. Not on touch, where
+                // focusing would open the keyboard unasked.
+                if (!interfaceState.isMobile) textareaEl?.focus();
+            });
+        });
     });
 
     function splitUserAndReason(arg: string): {
@@ -1336,7 +1436,36 @@
         );
     }
 
+    // Save the edit in progress: the composer's text becomes the message's new
+    // content. The caller's onCancelEdit ends edit mode (which restores the
+    // draft). On failure the text stays so the user can retry.
+    async function submitEdit(ev: MatrixEvent) {
+        if (isSavingEdit || !room || isEmptyEdit(ev, text)) return;
+        isSavingEdit = true;
+        try {
+            await sendMessageEdit(room, ev, text, pendingMentions);
+            if (editEvent === ev) onCancelEdit?.();
+        } catch (err) {
+            console.error("Failed to edit message:", err);
+            showErrorToast(t("messageInput.editFailed"));
+        } finally {
+            isSavingEdit = false;
+        }
+    }
+
+    function getEditPreview(): string {
+        if (!activeEdit) return "";
+        const body = editableBody(activeEdit);
+        return body.length > 80 ? body.slice(0, 80) + "…" : body;
+    }
+
     async function send() {
+        // Edit mode: Enter and the send button save the edit. Nothing else
+        // (commands, sed, attachments, replies, threads) applies to it.
+        if (activeEdit) {
+            await submitEdit(activeEdit);
+            return;
+        }
         // `s/old/new/` edits the last message instead of sending one. Not with
         // files queued: then the text is a caption.
         if (!isSending && !disabled && fileQueue.length === 0 && onSedEdit) {
@@ -1947,19 +2076,22 @@
             send();
         }
         // Picker dismissal is handled centrally (+page Escape/back). Here we
-        // only cancel an in-progress reply, and only when nothing else is open.
+        // only cancel an in-progress edit or reply, and only when nothing else
+        // is open. An edit is cancelled before a reply.
         if (
             e.key === "Escape" &&
             !interfaceState.modal &&
             !interfaceState.sidebar &&
-            replyToEvent
+            (activeEdit || replyToEvent)
         ) {
-            onCancelReply?.();
+            if (activeEdit) onCancelEdit?.();
+            else onCancelReply?.();
         }
         // Ctrl+E / Ctrl+S (open pickers) are global shortcuts handled
         // centrally in AppShell.
         if (
             e.key === "ArrowUp" &&
+            !activeEdit &&
             !text &&
             !e.altKey &&
             !e.ctrlKey &&
@@ -2011,6 +2143,8 @@
     }
 
     function enqueueFile(file: File, defaultName?: string, direct = false) {
+        // Attachments are not offered while editing a message.
+        if (activeEdit) return;
         const name = file.name || defaultName || "file";
         addQueuedFile(
             effComposerKey,
@@ -2250,8 +2384,37 @@
             </p>
         {/if}
     </div>
-    <!-- Reply preview bar -->
-    {#if replyToEvent}
+    <!-- Edit bar: replaces the reply bar while a message is being edited. The
+         reply target itself is kept and returns when the edit ends. -->
+    {#if activeEdit}
+        <div
+            class="flex items-center gap-2 mb-1 px-3 py-1.5 bg-zam-backgroundTertiary rounded-t-lg border-s-2 border-zam-accent"
+        >
+            <Pencil class="w-4 h-4 text-zam-accent flex-shrink-0" />
+            <div class="flex-1 min-w-0 text-xs flex items-baseline gap-2">
+                <span class="text-zam-accent font-semibold flex-shrink-0">
+                    {t("messageInput.editingMessage")}
+                </span>
+                <span class="text-zam-textMuted min-w-0 truncate"
+                    >{getEditPreview()}</span
+                >
+            </div>
+            <button
+                type="button"
+                onclick={() => onCancelEdit?.()}
+                class="flex-shrink-0 p-0.5 rounded text-zam-textMuted hover:text-zam-textPrimary transition-colors"
+                title={t("messageInput.cancelEditEsc")}
+                aria-label={t("messageInput.cancelEditEsc")}
+            >
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path
+                        d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                    />
+                </svg>
+            </button>
+        </div>
+    {:else if replyToEvent}
+        <!-- Reply preview bar -->
         <div
             class="flex items-center gap-2 mb-1 px-3 py-1.5 bg-zam-backgroundTertiary rounded-t-lg border-s-2 border-zam-accent"
         >
@@ -2593,7 +2756,7 @@
     {:else}
         <div
             class="input-box relative flex items-end gap-2 bg-zam-backgroundSecondary rounded-lg px-2.5 py-2.5 border border-transparent transition-colors"
-            class:rounded-ss-none={!!replyToEvent}
+            class:rounded-ss-none={!!replyToEvent || !!activeEdit}
         >
             <!-- "+" actions menu -->
             <div class="flex-shrink-0 relative">
@@ -2612,7 +2775,7 @@
                             openComposerActions(effComposerKey);
                         }
                     }}
-                    {disabled}
+                    disabled={disabled || !!activeEdit}
                     class="relative p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     class:z-50={showActionsMenu}
                     title={t("common.add")}
@@ -2749,7 +2912,7 @@
             >
                 <button
                     onclick={() => openPicker("gif")}
-                    {disabled}
+                    disabled={disabled || !!activeEdit}
                     class="{interfaceState.isTouchscreen
                         ? 'hidden'
                         : ''} p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -2802,7 +2965,7 @@
                         ? 'hidden'
                         : ''} p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     title={t("common.stickers")}
-                    {disabled}
+                    disabled={disabled || !!activeEdit}
                 >
                     <Sticker size={20} />
                 </button>
@@ -2902,7 +3065,7 @@
                                 );
                             }
                         }}
-                        {disabled}
+                        disabled={disabled || !!activeEdit}
                         class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         title={btn.label}
                         aria-label={btn.label}
@@ -2925,15 +3088,17 @@
             <button
                 onclick={sendFromButton}
                 onpointerdown={(e) => e.preventDefault()}
-                disabled={(!text.trim() && fileQueue.length === 0) ||
-                    isSending ||
-                    disabled}
+                disabled={activeEdit
+                    ? editSaveBlocked || disabled
+                    : (!text.trim() && fileQueue.length === 0) ||
+                      isSending ||
+                      disabled}
                 class="flex-shrink-0 p-1.5 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed {canSend
                     ? 'text-zam-accent hover:text-zam-accentHover hover:bg-zam-messageHover'
                     : 'text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover'}"
                 title={t("messageInput.sendMessage")}
             >
-                {#if isSending}
+                {#if isSending || isSavingEdit}
                     <div
                         class="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"
                     ></div>
