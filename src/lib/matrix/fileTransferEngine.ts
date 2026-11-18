@@ -378,6 +378,12 @@ export class BlockReceiver {
     private leaves: Uint8Array[] = [];
     private leavesChecking = false;
     private leavesVerified = false;
+    /** Data that came while the leaf list was being checked, taken once it
+     *  passes. The sender sends it right behind the list, and over a direct
+     *  link it resends only after a minute of silence, so dropping it stalled
+     *  every direct transfer whose list took a moment to check. */
+    private early: DataPacket[] = [];
+    private earlyBytes = 0;
     private contiguous = 0;
     private storedBytes = 0;
     private badBlocks = 0;
@@ -506,18 +512,35 @@ export class BlockReceiver {
         const ok = await leafListMatches(this.leaves, this.size, this.root);
         if (this.stopped) return;
         if (!ok) {
+            this.early = [];
             this.rejectRun(new TransferError("corrupt"));
             return;
         }
         this.leavesVerified = true;
         this.leavesChecking = false;
+        const early = this.early;
+        this.early = [];
+        this.earlyBytes = 0;
+        for (const data of early) this.handleData(data);
     }
 
     private handleData(data: DataPacket): void {
-        // Nothing can be checked before the leaf list, so nothing is taken:
-        // not assembled, not acknowledged, not counted as a bad block.
-        if (this.closed() || !this.leavesVerified || data.block >= this.blocks)
+        if (this.closed() || data.block >= this.blocks) return;
+        // Nothing can be checked before the leaf list, so nothing is taken
+        // before it: not assembled, not acknowledged, not counted as a bad
+        // block. While the whole list is being checked, data is kept for it,
+        // up to what assembling could hold anyway.
+        if (!this.leavesVerified) {
+            const limit = MAX_PARTIAL_BLOCKS * sealedLength(this.size, 0);
+            if (
+                this.leavesChecking &&
+                this.earlyBytes + data.payload.length <= limit
+            ) {
+                this.early.push(data);
+                this.earlyBytes += data.payload.length;
+            }
             return;
+        }
         this.lastData = Date.now();
         if (data.block < this.contiguous || this.stored.has(data.block)) {
             this.sendAck();

@@ -27,11 +27,17 @@ import {
     type TransferTiming,
 } from "./fileTransferEngine";
 
+// Real crypto on real timers: under load (CI, the full suite in parallel) a
+// step can take seconds, so nothing here may depend on how long one takes.
+// Waits are deadlines, generous ones, and the stall clock is long unless a
+// test is about stalling and sets its own.
+vi.setConfig({ testTimeout: 30_000 });
+
 const FAST: TransferTiming = {
     tickMs: 5,
     resendMs: 30,
     slowResendMs: 60,
-    stallMs: 1_500,
+    stallMs: 10_000,
 };
 
 type Tamper = (
@@ -85,7 +91,7 @@ function sleep(ms: number): Promise<void> {
     return new Promise((r) => setTimeout(r, ms));
 }
 
-async function until(cond: () => boolean, ms = 2_000): Promise<void> {
+async function until(cond: () => boolean, ms = 20_000): Promise<void> {
     const end = Date.now() + ms;
     while (!cond()) {
         if (Date.now() > end) throw new Error("timed out");
@@ -134,7 +140,7 @@ async function transfer(
     size: number,
     links: ReturnType<typeof linkPair>,
     sink: TransferSink = new MemorySink(size),
-    options: { leaves?: Uint8Array[] } = {},
+    options: { leaves?: Uint8Array[]; timing?: TransferTiming } = {},
 ) {
     const { key } = await generateTransferKey();
     const file = fileOf(size);
@@ -145,7 +151,7 @@ async function transfer(
         links.sender,
         () => {},
         options.leaves ?? (await leavesFor(file)),
-        FAST,
+        options.timing ?? FAST,
     );
     const receiver = new BlockReceiver(
         size,
@@ -157,7 +163,7 @@ async function transfer(
         (ack) => sender.handleSlowAck(ack),
         await hashKey(),
         await treeRoot(await leavesFor(file)),
-        FAST,
+        options.timing ?? FAST,
     );
     const receiving = receiver.run();
     const sending = sender.run();
@@ -392,11 +398,37 @@ describe("the leaf list", () => {
         rx.deliver([tail]); // whole list again
         const data = await dataPackets(rx.key, size, 0, plain0);
         // The list is checked asynchronously: deliver until it is accepted.
-        for (let i = 0; i < 200 && rx.writes.length === 0; i++) {
+        const end = Date.now() + 20_000;
+        while (rx.writes.length === 0 && Date.now() < end) {
             rx.deliver(data);
             await sleep(10);
         }
         expect(rx.writes).toEqual([0]);
+        expect(rx.failures).toEqual([]);
+        rx.stop();
+    });
+
+    it("takes data that comes right behind the list, while it is checked", async () => {
+        // A direct link resends only after a minute: data dropped while the
+        // list was being checked stalled the transfer that long.
+        const size = 2 * BLOCK_SIZE;
+        const file = fileOf(size);
+        const leaves = await leavesFor(file);
+        const rx = await manualReceiver(size, await treeRoot(leaves));
+        const blocks = [];
+        for (let b = 0; b < 2; b++)
+            blocks.push(
+                ...(await dataPackets(
+                    rx.key,
+                    size,
+                    b,
+                    file.slice(b * BLOCK_SIZE, (b + 1) * BLOCK_SIZE),
+                )),
+            );
+        // Once, in order, with nothing in between, as a data channel delivers.
+        rx.deliver([...encodeLeavesPackets(leaves), ...blocks]);
+        await until(() => rx.writes.length === 2);
+        expect([...rx.writes].sort()).toEqual([0, BLOCK_SIZE]);
         expect(rx.failures).toEqual([]);
         rx.stop();
     });
@@ -420,29 +452,54 @@ describe("the leaf list", () => {
 
     it("does not resend the leaf list once data is acknowledged", async () => {
         const size = 6 * BLOCK_SIZE;
+        // Before the first acknowledgement of data, a resend-timer timeout
+        // sends the list again (LeafListGate), and on a slow machine one can
+        // come first; after it, never. The last block is lost once: nothing
+        // after it can reveal that, so only the resend timer brings it back,
+        // after earlier blocks were acknowledged.
         let leafPackets = 0;
+        let leafPacketsAfterAck = 0;
+        let acked = false;
         let dropped = false;
         const sink = new MemorySink(size);
         const { file } = await transfer(
             size,
-            linkPair((p) => {
-                const d = decodePacket(p);
-                if (d?.kind === "leaves") leafPackets++;
-                if (
-                    !dropped &&
-                    d?.kind === "data" &&
-                    d.data.block === 4 &&
-                    d.data.part === 0
-                ) {
-                    dropped = true;
-                    return null;
-                }
-                return p;
-            }),
+            linkPair(
+                (p) => {
+                    const d = decodePacket(p);
+                    if (d?.kind === "leaves") {
+                        leafPackets++;
+                        if (acked) leafPacketsAfterAck++;
+                    }
+                    if (
+                        !dropped &&
+                        d?.kind === "data" &&
+                        d.data.block === 5 &&
+                        d.data.part === 0
+                    ) {
+                        dropped = true;
+                        return null;
+                    }
+                    return p;
+                },
+                (p) => {
+                    const d = decodePacket(p);
+                    // Counted from once the sender has handled it (it is
+                    // delivered in a microtask after this).
+                    if (
+                        d?.kind === "ack" &&
+                        (d.ack.contiguous > 0 || d.ack.have.length > 0)
+                    )
+                        setTimeout(() => (acked = true), 0);
+                    return p;
+                },
+            ),
             sink,
         );
         expect(dropped).toBe(true);
-        expect(leafPackets).toBe(1);
+        expect(acked).toBe(true);
+        expect(leafPackets).toBeGreaterThanOrEqual(1);
+        expect(leafPacketsAfterAck).toBe(0);
         expect(Buffer.compare(sink.bytes, file)).toBe(0);
     });
 });
@@ -591,9 +648,11 @@ describe("tampering", () => {
             if (decodePacket(out)?.kind === "data") out[1] = 0xff;
             return out;
         });
-        await expect(transfer(size, links)).rejects.toMatchObject({
-            reason: "stalled",
-        });
+        await expect(
+            transfer(size, links, undefined, {
+                timing: { ...FAST, stallMs: 300 },
+            }),
+        ).rejects.toMatchObject({ reason: "stalled" });
     });
 });
 
@@ -746,7 +805,7 @@ describe("a receiver that has stopped or settled", () => {
         r.deliver(encodeLeavesPackets(leaves));
         await sleep(30);
         // No data arrives, so the run stalls and settles as failed.
-        await until(() => r.failures.length > 0, 2_000);
+        await until(() => r.failures.length > 0);
         const packets = await dataPackets(r.key, size, 0, file);
         const writesBefore = r.writes.length;
         const acksBefore = r.acks.length;

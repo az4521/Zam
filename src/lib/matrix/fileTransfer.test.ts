@@ -72,6 +72,10 @@ const directEnds = new Map<string, FakeDirectEnd>();
 const directCandidates: { at: string; value: unknown }[] = [];
 let directSeq = 0;
 /** The real timers, kept for waits that must not follow the fake clock. */
+// Each test moves a file with real crypto: under load (CI, the full suite in
+// parallel) that alone can outlast vitest's 5 s default.
+vi.setConfig({ testTimeout: 30_000 });
+
 const realSetTimeout = globalThis.setTimeout;
 /** Each client's teardown, run after its test. */
 const detachers: (() => void)[] = [];
@@ -479,7 +483,7 @@ async function until(check: () => boolean) {
         () => {
             if (!check()) throw new Error("not yet");
         },
-        { timeout: 4000, interval: 5 },
+        { timeout: 20_000, interval: 5 },
     );
 }
 
@@ -515,7 +519,8 @@ async function settleWithTimers<T>(p: Promise<T>): Promise<T> {
 
 /** Waits in real time, for something the transfer does with real crypto. */
 async function untilReal(check: () => boolean) {
-    for (let i = 0; i < 1_000 && !check(); i++)
+    // Counted, not timed: Date.now may be faked here. About 20 s of real time.
+    for (let i = 0; i < 2_000 && !check(); i++)
         await new Promise((r) => realSetTimeout(r, 10));
     if (!check()) throw new Error("never happened");
 }
