@@ -171,6 +171,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Alinhar minhas mensagens à direita (layout de balões)",
     "appearanceSettings.displayYourOwnMessagesOnThe":
         "Exibe suas próprias mensagens à direita, em um balão colorido",
+    "appearanceSettings.bubbleAllMessages": "Balões para todas as mensagens",
+    "appearanceSettings.bubbleAllMessagesDesc":
+        "Mostrar as mensagens de todos em balões, não só as suas",
     "appearanceSettings.showNameColours": "Mostrar cores dos nomes",
     "appearanceSettings.drawPeopleSNamesInThe":
         "Exibe o nome das pessoas na cor que elas escolheram no perfil. Desative para usar a cor de texto normal para todos.",

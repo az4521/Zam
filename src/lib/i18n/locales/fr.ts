@@ -172,6 +172,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Aligner mes messages à droite (bulles)",
     "appearanceSettings.displayYourOwnMessagesOnThe":
         "Afficher vos propres messages à droite dans une bulle colorée",
+    "appearanceSettings.bubbleAllMessages": "Bulles pour tous les messages",
+    "appearanceSettings.bubbleAllMessagesDesc":
+        "Afficher les messages de tout le monde dans des bulles, pas seulement les vôtres",
     "appearanceSettings.showNameColours": "Afficher les couleurs des noms",
     "appearanceSettings.drawPeopleSNamesInThe":
         "Afficher les noms dans la couleur choisie dans chaque profil. Désactivez pour utiliser la couleur de texte normale pour tout le monde.",

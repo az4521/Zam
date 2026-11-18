@@ -12,12 +12,15 @@ export interface BubbleRowLayout {
     showSenderName: boolean;
     showTimeOnlyHeader: boolean;
     bubble: boolean;
+    /** Neutral bubble for a left-aligned message. */
+    otherBubble: boolean;
     showInlineHoverTime: boolean;
 }
 
 export function resolveBubbleLayout(input: {
     isOwn: boolean;
     alignOwnEnabled: boolean;
+    bubbleAll?: boolean;
     showHeader: boolean;
 }): BubbleRowLayout {
     const alignOwn = input.isOwn && input.alignOwnEnabled;
@@ -26,7 +29,8 @@ export function resolveBubbleLayout(input: {
         showAvatar: input.showHeader && !alignOwn,
         showSenderName: input.showHeader && !alignOwn,
         showTimeOnlyHeader: input.showHeader && alignOwn,
-        bubble: alignOwn,
+        bubble: !!input.bubbleAll && input.isOwn,
+        otherBubble: !!input.bubbleAll && !input.isOwn,
         showInlineHoverTime: !input.showHeader && !alignOwn,
     };
 }

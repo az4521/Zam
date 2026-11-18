@@ -178,6 +178,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Meine Nachrichten rechtsbündig (Blasen-Layout)",
     "appearanceSettings.displayYourOwnMessagesOnThe":
         "Eigene Nachrichten rechts in einer farbigen Blase anzeigen",
+    "appearanceSettings.bubbleAllMessages": "Blasen für alle Nachrichten",
+    "appearanceSettings.bubbleAllMessagesDesc":
+        "Nachrichten aller in Blasen anzeigen, nicht nur deine eigenen",
     "appearanceSettings.showNameColours": "Namensfarben anzeigen",
     "appearanceSettings.drawPeopleSNamesInThe":
         "Namen in der Farbe anzeigen, die im jeweiligen Profil gewählt wurde. Ausschalten, um für alle die normale Textfarbe zu verwenden.",

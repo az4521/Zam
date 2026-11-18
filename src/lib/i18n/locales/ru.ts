@@ -176,6 +176,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Выравнивать мои сообщения по правому краю (пузырьки)",
     "appearanceSettings.displayYourOwnMessagesOnThe":
         "Показывать ваши сообщения справа в цветном пузырьке",
+    "appearanceSettings.bubbleAllMessages": "Пузыри для всех сообщений",
+    "appearanceSettings.bubbleAllMessagesDesc":
+        "Показывать сообщения всех в пузырях, а не только свои",
     "appearanceSettings.showNameColours": "Показывать цвета имён",
     "appearanceSettings.drawPeopleSNamesInThe":
         "Показывать имена людей цветом, выбранным в их профиле. Выключите, чтобы все имена были обычного цвета текста.",

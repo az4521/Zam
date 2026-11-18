@@ -21,6 +21,7 @@ export interface ClientCustomization {
     keepSidebarOpen?: boolean;
     showMatrixIds?: boolean;
     rightAlignOwnBubbles?: boolean;
+    bubbleAllMessages?: boolean;
     showNameColours?: boolean;
     shareCallStatus?: boolean;
     themePresets?: Record<string, CustomPreset>;
@@ -72,6 +73,7 @@ export function sanitizeCustomization(raw: unknown): ClientCustomization {
         keepSidebarOpen: bool(r.keepSidebarOpen),
         showMatrixIds: bool(r.showMatrixIds),
         rightAlignOwnBubbles: bool(r.rightAlignOwnBubbles),
+        bubbleAllMessages: bool(r.bubbleAllMessages),
         showNameColours: bool(r.showNameColours),
         shareCallStatus: bool(r.shareCallStatus),
         themePresets: themePresetsMap(r.themePresets),

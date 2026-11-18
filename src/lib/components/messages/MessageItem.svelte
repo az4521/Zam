@@ -864,6 +864,7 @@
         resolveBubbleLayout({
             isOwn: isOwnMessage,
             alignOwnEnabled: settingsState.rightAlignOwnBubbles,
+            bubbleAll: settingsState.bubbleAllMessages,
             showHeader,
         }),
     );
@@ -3564,7 +3565,15 @@
                         {/if}
                     </div>
                 {:else}
-                    <div class={bubble.bubble ? "own-bubble" : "contents"}>
+                    <div
+                        class={bubble.bubble
+                            ? bubble.alignOwn
+                                ? "own-bubble"
+                                : "own-bubble own-bubble-start"
+                            : bubble.otherBubble
+                              ? "other-bubble"
+                              : "contents"}
+                    >
                         <div
                             use:spoilers
                             use:matrixLinks

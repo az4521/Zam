@@ -161,9 +161,12 @@ export const en = {
 
     // src/lib/components/settings/AppearanceSettings.svelte
     "appearanceSettings.rightAlignMyMessagesBubbleLayout":
-        "Right-align my messages (bubble layout)",
+        "Right-align my messages",
     "appearanceSettings.displayYourOwnMessagesOnThe":
-        "Display your own messages on the right in a colored bubble",
+        "Display your own messages on the right",
+    "appearanceSettings.bubbleAllMessages": "Bubbles for all messages",
+    "appearanceSettings.bubbleAllMessagesDesc":
+        "Show everyone's messages in bubbles, not just your own",
     "appearanceSettings.showNameColours": "Show name colours",
     "appearanceSettings.drawPeopleSNamesInThe":
         "Draw people's names in the colour they picked in their profile. Turn off to use the normal text colour for everyone.",

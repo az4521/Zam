@@ -172,6 +172,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Вирівнювати мої повідомлення праворуч (компонування «бульбашки»)",
     "appearanceSettings.displayYourOwnMessagesOnThe":
         "Показувати ваші повідомлення праворуч у кольоровій бульбашці",
+    "appearanceSettings.bubbleAllMessages": "Бульбашки для всіх повідомлень",
+    "appearanceSettings.bubbleAllMessagesDesc":
+        "Показувати повідомлення всіх у бульбашках, а не лише свої",
     "appearanceSettings.showNameColours": "Показувати кольори імен",
     "appearanceSettings.drawPeopleSNamesInThe":
         "Малювати імена людей кольором, який вони вибрали у своєму профілі. Вимкніть, щоб для всіх використовувався звичайний колір тексту.",

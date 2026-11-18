@@ -270,6 +270,8 @@ export const settingsState = $state({
      *  iMessage convention). Default OFF (Discord uniform-left). Rides
      *  customization sync so it follows the account across devices. */
     rightAlignOwnBubbles: readBool("rightAlignOwnBubbles", false),
+    /** Render everyone's messages in bubbles, not only own right-aligned ones. */
+    bubbleAllMessages: readBool("bubbleAllMessages", false),
     /** Draw senders' names in the colour they chose in their profile
      *  (MSC4522). Default ON. Rides customization sync. */
     showNameColours: readBool("showNameColours", true),
@@ -748,6 +750,7 @@ export function customizationSnapshot(): ClientCustomization {
         keepSidebarOpen: settingsState.keepSidebarOpen,
         showMatrixIds: settingsState.showMatrixIds,
         rightAlignOwnBubbles: settingsState.rightAlignOwnBubbles,
+        bubbleAllMessages: settingsState.bubbleAllMessages,
         showNameColours: settingsState.showNameColours,
         shareCallStatus: settingsState.shareCallStatus,
         themePresets: Object.fromEntries(
@@ -823,6 +826,10 @@ export function applyCustomization(c: ClientCustomization): void {
     if (c.rightAlignOwnBubbles !== undefined) {
         settingsState.rightAlignOwnBubbles = c.rightAlignOwnBubbles;
         writeBool("rightAlignOwnBubbles", c.rightAlignOwnBubbles);
+    }
+    if (c.bubbleAllMessages !== undefined) {
+        settingsState.bubbleAllMessages = c.bubbleAllMessages;
+        writeBool("bubbleAllMessages", c.bubbleAllMessages);
     }
     if (c.gifDefaultTab !== undefined) {
         settingsState.gifDefaultTab = normalizeGifTab(c.gifDefaultTab);
@@ -1013,6 +1020,12 @@ export function setShareCallStatus(value: boolean): void {
 export function setShowNameColours(value: boolean): void {
     settingsState.showNameColours = value;
     writeBool("showNameColours", value);
+    customizationChanged();
+}
+
+export function setBubbleAllMessages(value: boolean): void {
+    settingsState.bubbleAllMessages = value;
+    writeBool("bubbleAllMessages", value);
     customizationChanged();
 }
 

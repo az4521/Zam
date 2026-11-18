@@ -160,6 +160,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "自分のメッセージを右寄せ（吹き出し表示）",
     "appearanceSettings.displayYourOwnMessagesOnThe":
         "自分のメッセージを色付きの吹き出しで右側に表示します",
+    "appearanceSettings.bubbleAllMessages":
+        "すべてのメッセージを吹き出しで表示",
+    "appearanceSettings.bubbleAllMessagesDesc":
+        "自分だけでなく全員のメッセージを吹き出しで表示します",
     "appearanceSettings.showNameColours": "名前の色を表示",
     "appearanceSettings.drawPeopleSNamesInThe":
         "プロフィールで設定した色で名前を表示します。オフにすると全員が通常の文字色になります。",

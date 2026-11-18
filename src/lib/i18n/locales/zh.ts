@@ -165,6 +165,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "我的消息靠右对齐（气泡布局）",
     "appearanceSettings.displayYourOwnMessagesOnThe":
         "将你自己的消息以彩色气泡显示在右侧",
+    "appearanceSettings.bubbleAllMessages": "所有消息使用气泡",
+    "appearanceSettings.bubbleAllMessagesDesc":
+        "以气泡显示所有人的消息，而不仅是你自己的",
     "appearanceSettings.showNameColours": "显示名称颜色",
     "appearanceSettings.drawPeopleSNamesInThe":
         "用每个人在个人资料中选择的颜色显示其名称。关闭后，所有人都使用普通文字颜色。",

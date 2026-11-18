@@ -518,6 +518,22 @@ body {
         transparent transparent;
 }
 
+/* Bubble for other people's messages (and own ones when everything is bubbled). */
+.other-bubble {
+    display: inline-block;
+    max-width: min(80%, 42rem);
+    width: fit-content;
+    padding: 0.5rem 0.75rem;
+    border-radius: 1rem;
+    background: var(--zam-bg-tertiary);
+}
+.own-bubble.own-bubble-start {
+    margin-inline-start: 0;
+}
+.own-bubble.own-bubble-start::after {
+    display: none;
+}
+
 /* Twemoji images inside room/space names (sidebar rows, invite cards, room
    header). Deliberately smaller than the message-body .twemoji rule: a name
    sits on a single dense row. Defined here, not in a component <style>, so it

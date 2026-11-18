@@ -5,6 +5,7 @@
     import OptionSelector from "$lib/components/ui/OptionSelector.svelte";
     import {
         setRightAlignOwnBubbles,
+        setBubbleAllMessages,
         setShowNameColours,
         setTimeClock,
         setDateStyle,
@@ -113,6 +114,24 @@
                 checked={settingsState.rightAlignOwnBubbles}
                 onChange={setRightAlignOwnBubbles}
                 label={t("appearanceSettings.rightAlignMyMessagesBubbleLayout")}
+            />
+        </div>
+        <div
+            data-setting-anchor="theme-bubbleall"
+            class="flex items-center gap-3 py-2 border-b border-zam-divider"
+        >
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-zam-textPrimary">
+                    {t("appearanceSettings.bubbleAllMessages")}
+                </p>
+                <p class="text-xs text-zam-textMuted">
+                    {t("appearanceSettings.bubbleAllMessagesDesc")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.bubbleAllMessages}
+                onChange={setBubbleAllMessages}
+                label={t("appearanceSettings.bubbleAllMessages")}
             />
         </div>
         <div

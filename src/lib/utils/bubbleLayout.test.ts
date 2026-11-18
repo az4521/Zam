@@ -15,6 +15,7 @@ describe("resolveBubbleLayout", () => {
             showSenderName: true,
             showTimeOnlyHeader: false,
             bubble: false,
+            otherBubble: false,
             showInlineHoverTime: false,
         });
     });
@@ -31,6 +32,7 @@ describe("resolveBubbleLayout", () => {
             showSenderName: false,
             showTimeOnlyHeader: false,
             bubble: false,
+            otherBubble: false,
             showInlineHoverTime: true,
         });
     });
@@ -47,6 +49,7 @@ describe("resolveBubbleLayout", () => {
             showSenderName: true,
             showTimeOnlyHeader: false,
             bubble: false,
+            otherBubble: false,
             showInlineHoverTime: false,
         });
     });
@@ -63,10 +66,11 @@ describe("resolveBubbleLayout", () => {
             showSenderName: false,
             showTimeOnlyHeader: false,
             bubble: false,
+            otherBubble: false,
             showInlineHoverTime: true,
         });
     });
-    it("own message, feature ON, first-of-group: right bubble, no avatar/name, time-only header", () => {
+    it("own message, feature ON, first-of-group: right-aligned, no avatar/name, time-only header", () => {
         expect(
             resolveBubbleLayout({
                 isOwn: true,
@@ -78,11 +82,12 @@ describe("resolveBubbleLayout", () => {
             showAvatar: false,
             showSenderName: false,
             showTimeOnlyHeader: true,
-            bubble: true,
+            bubble: false,
+            otherBubble: false,
             showInlineHoverTime: false,
         });
     });
-    it("own message, feature ON, grouped: right bubble, no header, no hover time", () => {
+    it("own message, feature ON, grouped: right-aligned, no header, no hover time", () => {
         expect(
             resolveBubbleLayout({
                 isOwn: true,
@@ -94,8 +99,34 @@ describe("resolveBubbleLayout", () => {
             showAvatar: false,
             showSenderName: false,
             showTimeOnlyHeader: false,
-            bubble: true,
+            bubble: false,
+            otherBubble: false,
             showInlineHoverTime: false,
         });
+    });
+});
+
+describe("resolveBubbleLayout bubbleAll", () => {
+    it("bubbles others without right-aligning them", () => {
+        const r = resolveBubbleLayout({
+            isOwn: false,
+            alignOwnEnabled: true,
+            bubbleAll: true,
+            showHeader: true,
+        });
+        expect(r.otherBubble).toBe(true);
+        expect(r.bubble).toBe(false);
+        expect(r.alignOwn).toBe(false);
+        expect(r.showAvatar).toBe(true);
+    });
+    it("bubbles own messages independently of alignment", () => {
+        const r = resolveBubbleLayout({
+            isOwn: true,
+            alignOwnEnabled: false,
+            bubbleAll: true,
+            showHeader: true,
+        });
+        expect(r.bubble).toBe(true);
+        expect(r.alignOwn).toBe(false);
     });
 });

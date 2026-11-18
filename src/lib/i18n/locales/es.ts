@@ -174,6 +174,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Alinear mis mensajes a la derecha (diseño de burbujas)",
     "appearanceSettings.displayYourOwnMessagesOnThe":
         "Muestra tus propios mensajes a la derecha en una burbuja de color",
+    "appearanceSettings.bubbleAllMessages": "Burbujas para todos los mensajes",
+    "appearanceSettings.bubbleAllMessagesDesc":
+        "Mostrar los mensajes de todos en burbujas, no solo los tuyos",
     "appearanceSettings.showNameColours": "Mostrar los colores de los nombres",
     "appearanceSettings.drawPeopleSNamesInThe":
         "Muestra los nombres de las personas en el color que eligieron en su perfil. Desactívalo para usar el color de texto normal para todos.",
