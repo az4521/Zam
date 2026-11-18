@@ -30,6 +30,7 @@
     import {
         changeOwnPresence,
         changeDoNotDisturb,
+        changeShareProfilePresence,
     } from "$lib/stores/presence.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import {
@@ -40,6 +41,7 @@
         OWN_PRESENCE_OPTIONS,
         type PresenceState,
     } from "$lib/utils/presence";
+    import { presenceControlsShown } from "$lib/utils/profilePresence";
     import {
         serverSupports,
         type Capabilities,
@@ -456,7 +458,7 @@
         >
             {t("accountSettings.presence")}
         </p>
-        {#if !settingsState.presenceUnsupported}
+        {#if presenceControlsShown(settingsState.presenceUnsupported, settingsState.shareProfilePresence)}
             <div class="flex items-center gap-3">
                 <OptionSelector
                     value={settingsState.ownPresence}
@@ -477,6 +479,25 @@
             <p class="text-xs text-zam-textMuted">
                 {t("presence.unsupportedByServer")}
             </p>
+        {/if}
+        {#if settingsState.presenceUnsupported}
+            <label class="mt-3 flex items-start gap-3 cursor-pointer">
+                <input
+                    type="checkbox"
+                    class="mt-1"
+                    checked={settingsState.shareProfilePresence}
+                    onchange={(e) =>
+                        changeShareProfilePresence(e.currentTarget.checked)}
+                />
+                <span>
+                    <span class="block text-sm text-zam-textPrimary"
+                        >{t("presence.shareViaProfile")}</span
+                    >
+                    <span class="block text-xs text-zam-textMuted"
+                        >{t("presence.shareViaProfileDescription")}</span
+                    >
+                </span>
+            </label>
         {/if}
         <label class="mt-3 flex items-start gap-3 cursor-pointer">
             <input

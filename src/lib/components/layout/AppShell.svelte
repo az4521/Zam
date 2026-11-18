@@ -1440,6 +1440,7 @@
         void settingsState.privateReadReceipts;
         void settingsState.ownPresence;
         void settingsState.presenceUnsupported;
+        void settingsState.shareProfilePresence;
         receiptMirrorTimer ??= setTimeout(() => {
             receiptMirrorTimer = undefined;
             mirrorReceiptPrivacy();

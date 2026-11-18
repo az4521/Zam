@@ -58,6 +58,7 @@
     } from "$lib/utils/extendedProfile";
     import { switchToAccount } from "$lib/stores/accountSwitch";
     import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
+    import { presenceControlsShown } from "$lib/utils/profilePresence";
     import {
         OWN_PRESENCE_OPTIONS,
         presenceDot,
@@ -200,7 +201,7 @@
 </script>
 
 {#snippet presenceMenu()}
-    {#each settingsState.presenceUnsupported ? [] : OWN_PRESENCE_OPTIONS as option (option.value)}
+    {#each presenceControlsShown(settingsState.presenceUnsupported, settingsState.shareProfilePresence) ? OWN_PRESENCE_OPTIONS : [] as option (option.value)}
         <button
             type="button"
             onclick={() => setPresence(option.value)}

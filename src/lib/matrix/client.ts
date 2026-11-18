@@ -84,6 +84,7 @@ import {
     type PresenceState,
     type SeenPresence,
 } from "$lib/utils/presence";
+import { presenceControlsShown } from "$lib/utils/profilePresence";
 import { sendPresenceWithSlidingSync } from "$lib/matrix/slidingSyncPresence";
 import {
     installMediaHealer,
@@ -6705,7 +6706,10 @@ export async function searchRoomMessagesMore(
 export function isActivityHidden(): boolean {
     return activityHidden(
         settingsState.ownPresence,
-        settingsState.presenceUnsupported,
+        !presenceControlsShown(
+            settingsState.presenceUnsupported,
+            settingsState.shareProfilePresence,
+        ),
     );
 }
 

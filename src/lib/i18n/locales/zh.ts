@@ -3615,6 +3615,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "隐身还会向其他用户隐藏你的已读回执和输入状态。",
     "presence.unsupportedByServer":
         "此服务器不支持在线状态，因此无法设置状态。",
+    "presence.shareViaProfile": "通过个人资料分享我的状态",
+    "presence.shareViaProfileDescription":
+        "此服务器已关闭在线状态。Zam 可以改为把你的状态发布到个人资料字段中。其他 Zam 用户以及任何能查看你个人资料的人都能看到。",
     "presence.appearOfflineToOtherUsers": "向其他用户显示为离线",
 
     // src/lib/utils/pushRuleWrite.ts

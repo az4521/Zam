@@ -3435,6 +3435,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "オフライン表示にすると、既読通知と入力中の表示も他のユーザーに見えなくなります。",
     "presence.unsupportedByServer":
         "このホームサーバーはプレゼンスに対応していないため、設定できるステータスはありません。",
+    "presence.shareViaProfile": "プロフィール経由でステータスを共有",
+    "presence.shareViaProfileDescription":
+        "このホームサーバーではプレゼンスが無効です。代わりに Zam がプロフィールのフィールドにステータスを公開できます。他の Zam ユーザーのほか、プロフィールを閲覧できる人なら誰でも見られます。",
     "presence.appearOfflineToOtherUsers": "他のユーザーにオフラインとして表示",
     "pushRuleWrite.yourHomeserverHasNoNotificationRule":
         "ホームサーバーに「{label}」の通知ルールがないため、変更できませんでした。",

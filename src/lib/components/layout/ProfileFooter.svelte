@@ -12,6 +12,7 @@
         presenceDotClass,
         presenceLabel,
     } from "$lib/utils/presence";
+    import { presenceControlsShown } from "$lib/utils/profilePresence";
     import { settingsState } from "$lib/stores/settings.svelte";
     import { openModal, closeModal } from "$lib/stores/interface.svelte";
     import { openProfileCard } from "$lib/stores/profileCard.svelte";
@@ -210,7 +211,7 @@
                 id={auth.userId}
                 size={32}
             />
-            {#if !settingsState.presenceUnsupported || settingsState.doNotDisturb}
+            {#if presenceControlsShown(settingsState.presenceUnsupported, settingsState.shareProfilePresence) || settingsState.doNotDisturb}
                 <div
                     title={ownPresence.label}
                     class="absolute bottom-0 end-0 w-3 h-3 {ownPresence.dotClass} rounded-full border-2 border-zam-backgroundTertiary"

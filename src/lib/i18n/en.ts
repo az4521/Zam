@@ -3844,6 +3844,9 @@ export const en = {
         "Invisible also hides your read receipts and typing from other users.",
     "presence.unsupportedByServer":
         "This homeserver does not support presence, so there is no status to set.",
+    "presence.shareViaProfile": "Share my status through my profile",
+    "presence.shareViaProfileDescription":
+        "This homeserver has presence turned off. Zam can publish your status in a profile field instead. Other Zam users will see it, and so can anyone who can read your profile.",
     "presence.appearOfflineToOtherUsers": "Appear offline to other users",
 
     // src/lib/utils/pushRuleWrite.ts

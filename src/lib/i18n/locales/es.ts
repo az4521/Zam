@@ -3985,6 +3985,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Invisible también oculta tus confirmaciones de lectura y que estás escribiendo.",
     "presence.unsupportedByServer":
         "Este servidor no admite presencia, así que no hay estado que configurar.",
+    "presence.shareViaProfile": "Compartir mi estado a través de mi perfil",
+    "presence.shareViaProfileDescription":
+        "Este servidor tiene la presencia desactivada. Zam puede publicar tu estado en un campo del perfil. Lo verán otros usuarios de Zam y cualquiera que pueda leer tu perfil.",
     "presence.appearOfflineToOtherUsers":
         "Aparecer desconectado para otros usuarios",
 

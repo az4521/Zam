@@ -3981,6 +3981,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Unsichtbar verbirgt auch deine Lesebestätigungen und dein Tippen vor anderen.",
     "presence.unsupportedByServer":
         "Dieser Homeserver unterstützt keine Anwesenheit, daher gibt es keinen Status zum Einstellen.",
+    "presence.shareViaProfile": "Meinen Status über mein Profil teilen",
+    "presence.shareViaProfileDescription":
+        "Auf diesem Homeserver ist Anwesenheit deaktiviert. Zam kann deinen Status stattdessen in einem Profilfeld veröffentlichen. Andere Zam-Nutzer sehen ihn, ebenso jeder, der dein Profil lesen kann.",
     "presence.appearOfflineToOtherUsers":
         "Für andere Benutzer offline erscheinen",
 

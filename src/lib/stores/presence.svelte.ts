@@ -10,8 +10,19 @@ import {
     refreshUserPresence,
     setAccountNotificationsDisabled,
     setOwnPresence,
+    setOwnProfileField,
     supportsBusyPresence,
 } from "$lib/matrix/client";
+import {
+    getCachedProfile,
+    requestProfile,
+} from "$lib/stores/profileFields.svelte";
+import {
+    PROFILE_PRESENCE_HEARTBEAT_MS,
+    PROFILE_PRESENCE_KEY,
+    buildProfilePresence,
+    parseProfilePresence,
+} from "$lib/utils/profilePresence";
 import {
     PROFILE_FIELDS,
     formatStatusMessage,
@@ -30,6 +41,7 @@ import {
     setDoNotDisturbSetting,
     setOwnPresenceSetting,
     setOwnStatusMessageSetting,
+    setShareProfilePresenceSetting,
 } from "$lib/stores/settings.svelte";
 
 export interface UserPresenceView {
@@ -70,10 +82,10 @@ function watcherFor(userId: string): PresenceWatcher {
             // Only fetch for someone who stays on screen: scrolling a big
             // member list flashes hundreds of rows past, and each would
             // otherwise cost a request.
-            const settle = setTimeout(
-                () => refreshUserPresence(userId),
-                PRESENCE_SETTLE_MS,
-            );
+            const settle = setTimeout(() => {
+                refreshUserPresence(userId);
+                requestProfilePresence(userId);
+            }, PRESENCE_SETTLE_MS);
             return () => {
                 clearTimeout(settle);
                 created.update = null;
@@ -98,12 +110,82 @@ export function presenceFor(userId: string): UserPresenceView | null {
     // watcher entry would leave one behind per user read.
     if ($effect.tracking()) watcherFor(userId).subscribe();
     const raw = getUserPresence(userId);
+    // A server with presence off sends nothing or offline for everyone; a
+    // client that publishes its presence in the profile fills that gap.
+    if (!raw || normalizePresence(raw.presence) === "offline") {
+        const published = parseProfilePresence(
+            getCachedProfile(userId),
+            Date.now(),
+        );
+        if (published) {
+            return {
+                state: published.state,
+                currentlyActive: published.state === "online",
+                statusMsg: raw?.statusMsg,
+            };
+        }
+    }
     if (!raw) return null;
     return {
         state: normalizePresence(raw.presence),
         currentlyActive: raw.currentlyActive,
         statusMsg: raw.statusMsg,
     };
+}
+
+/** Load a user's profile to look for published presence, only where the
+ *  server's own presence cannot be relied on: ours has none, or it has never
+ *  told us about this user. */
+function requestProfilePresence(userId: string): void {
+    if (settingsState.presenceUnsupported || getUserPresence(userId) === null)
+        requestProfile(userId, PROFILE_PRESENCE_HEARTBEAT_MS / 2);
+}
+
+// Our own presence in the profile field. Writes are chained so a slow one
+// never lands after a newer one; `profileFieldLive` says whether the field
+// currently holds something we wrote.
+let profileWrites: Promise<void> = Promise.resolve();
+let profileFieldLive = false;
+let profileFieldSent: SeenPresence | null = null;
+let profileFieldSentAt = 0;
+let profilePresenceBroken = false;
+
+/** Bring the profile field in line with what we advertise: publish it while
+ *  sharing is on and the server has no presence, delete it otherwise. Called
+ *  on every change and on a heartbeat, so a repeat of what was last written
+ *  is skipped until it is due for a refresh. */
+function syncProfilePresence(): void {
+    if (profilePresenceBroken) return;
+    const active =
+        settingsState.presenceUnsupported && settingsState.shareProfilePresence;
+    const now = Date.now();
+    const value = buildProfilePresence(active ? advertised : "offline", now);
+    if (value === null && !profileFieldLive) return;
+    if (
+        value !== null &&
+        profileFieldSent === value.presence &&
+        now - profileFieldSentAt < PROFILE_PRESENCE_HEARTBEAT_MS - 5_000
+    )
+        return;
+    profileFieldLive = value !== null;
+    profileFieldSent = value?.presence ?? null;
+    profileFieldSentAt = now;
+    profileWrites = profileWrites
+        .then(() => setOwnProfileField(PROFILE_PRESENCE_KEY, value))
+        .catch((err) => {
+            // No extended profiles here (or the write was refused): stop
+            // trying until the next sign-in rather than fail every heartbeat.
+            profilePresenceBroken = true;
+            console.warn("[presence] could not publish profile presence", err);
+        });
+}
+
+/** Turn publishing presence through the profile on or off (servers without
+ *  presence only; the setting waits quietly elsewhere). */
+export function changeShareProfilePresence(on: boolean): void {
+    setShareProfilePresenceSetting(on);
+    profilePresenceBroken = false;
+    syncProfilePresence();
 }
 
 /** The state the user picked, as the server should see it: Do Not Disturb
@@ -128,6 +210,7 @@ export async function changeDoNotDisturb(on: boolean): Promise<void> {
     setDoNotDisturbSetting(on);
     if (on) busySupported = await supportsBusyPresence();
     advertised = advertisedPresence(chosenPresence(), 0);
+    syncProfilePresence();
     await setOwnPresence(
         advertised,
         settingsState.ownStatusMessage || undefined,
@@ -140,6 +223,7 @@ export async function changeOwnPresence(value: PresenceState): Promise<void> {
     setOwnPresenceSetting(value);
     // Picking a presence is itself input, so the device is in use.
     advertised = advertisedPresence(chosenPresence(), 0);
+    syncProfilePresence();
     await setOwnPresence(
         advertised,
         settingsState.ownStatusMessage || undefined,
@@ -177,6 +261,7 @@ async function updateAdvertisedPresence(): Promise<void> {
     const next = advertisedPresence(chosenPresence(), idleMs);
     if (next === advertised) return;
     advertised = next;
+    syncProfilePresence();
     await setOwnPresence(next, settingsState.ownStatusMessage || undefined);
 }
 
@@ -207,6 +292,10 @@ export function initPresence(): () => void {
     busySupported = false;
     advertised = chosenPresence();
     lastInputTs = Date.now();
+    profilePresenceBroken = false;
+    profileFieldLive = false;
+    profileFieldSent = null;
+    profileFieldSentAt = 0;
     if (advertised !== "online") {
         setOwnPresence(
             advertised,
@@ -224,6 +313,7 @@ export function initPresence(): () => void {
         const next = chosenPresence();
         if (next === advertised) return;
         advertised = next;
+        syncProfilePresence();
         setOwnPresence(next, settingsState.ownStatusMessage || undefined).catch(
             (err) => {
                 console.warn("[presence] could not apply busy presence", err);
@@ -251,8 +341,10 @@ export function initPresence(): () => void {
                     sent,
                     seen?.presence ?? null,
                 );
-                if (supported !== null)
+                if (supported !== null) {
                     settingsState.presenceUnsupported = !supported;
+                    syncProfilePresence();
+                }
             })
             .catch(() => {});
     }, PRESENCE_PROBE_MS);
@@ -281,6 +373,11 @@ export function initPresence(): () => void {
     const idleCheck = setInterval(() => {
         updateAdvertisedPresence().catch(() => {});
     }, IDLE_CHECK_MS);
+    // The profile field goes stale for readers unless it is rewritten.
+    const profileHeartbeat = setInterval(
+        syncProfilePresence,
+        PROFILE_PRESENCE_HEARTBEAT_MS,
+    );
     // Passive: they only stamp a number. Coming back from away should not
     // wait for the next check, so input while away re-checks at once.
     const onUserInput = () => {
@@ -302,7 +399,10 @@ export function initPresence(): () => void {
     // once. On classic sync this is a no-op: the server pushes presence.
     const refreshWatched = () => {
         if (document.visibilityState !== "visible") return;
-        for (const id of watched) refreshUserPresence(id);
+        for (const id of watched) {
+            refreshUserPresence(id);
+            requestProfilePresence(id);
+        }
     };
     const presencePoll = setInterval(refreshWatched, 30_000);
     document.addEventListener("visibilitychange", refreshWatched);
@@ -313,6 +413,7 @@ export function initPresence(): () => void {
         unsubSliding();
         clearInterval(heartbeat);
         clearInterval(idleCheck);
+        clearInterval(profileHeartbeat);
         clearInterval(presencePoll);
         document.removeEventListener("visibilitychange", refreshWatched);
         for (const type of inputEvents)
