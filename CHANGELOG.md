@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.2
+
+✨ **New**
+
+- **Presence on servers without it:** on a homeserver that has presence turned off (matrix.org, for example), Settings > Account now has "Share my status through my profile". When it is on, Zam publishes your online, away or busy state in a profile field, and other Zam users see it in member lists and DMs. It is off by default, because anyone who can read your profile can see it. Invisible removes it.
+- **Role tags:** rooms can name, colour and give an icon to each power level (MSC3949). The member list groups people by tag, the timeline and profile card show the tag, and room settings has a Role tags editor.
+- **Message bubbles for everyone:** the bubble style can now apply to all messages, separately from the right-aligned layout.
+
+🐛 **Fixed**
+
+- **Slow file transfers:** a direct file transfer whose checks took a moment could sit still for about a minute. The receiver now keeps data that arrives during the check, so it carries on at once.
+
 ## v1.66.1
 
 🐛 **Fixed**
