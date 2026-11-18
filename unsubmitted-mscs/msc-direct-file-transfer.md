@@ -321,6 +321,19 @@ to the other.
 Every peer connection uses a freshly generated DTLS certificate. The SDP MUST NOT contain
 `a=candidate` lines; candidates go only in candidates messages.
 
+### Choosing the transport
+
+An accept may offer both a LiveKit room and an `sdp`. Then the **receiver** picks:
+
+- It sends `answer` only if it chooses the data channel. Otherwise it joins the LiveKit room and sends
+  no `answer`.
+- The transport that the receiver's first acknowledgement arrives on is the one used. A sender that
+  offered both and gets the first acknowledgement over LiveKit closes the data channel at once,
+  without waiting for it.
+- A receiver whose data channel fails before its first acknowledgement may still join the LiveKit room.
+
+Acknowledgements are authenticated on both transports, so nobody else can steer the choice.
+
 ### Relay-only
 
 When either side asks for relay-only, the other person must never learn either device's address.
@@ -336,7 +349,8 @@ Two transports meet that:
 A receiver that asked for relay-only and gets an accept whose `relay_only` is false cancels with
 `failed`.
 
-Which transport a client tries first, and when relay-only applies by default, is up to the client.
+Which transports a sender offers, which one a receiver picks, and when relay-only applies by default,
+is up to each client.
 
 ### Storage
 
