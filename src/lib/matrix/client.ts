@@ -5704,6 +5704,11 @@ export interface DefaultPushRule {
      *  present in the account's rules (e.g. .m.rule.roomnotif for @room). The
      *  reader/setter picks whichever id actually exists. */
     fallbackRuleIds?: string[];
+    /** Other rules this row controls together with ruleId (each entry is an
+     *  ordered list of alternate ids, first existing one wins). Only rules the
+     *  account actually has are written; they are server defaults and are
+     *  never created. */
+    siblingRuleIds?: string[][];
 }
 
 export type PushRuleLevel = "loud" | "silent" | "off";
@@ -5795,6 +5800,22 @@ export const DEFAULT_PUSH_RULES: DefaultPushRule[] = [
             { kind: "event_match", key: "state_key", pattern: "SELF_USER_ID" },
         ],
         defaultActions: MESSAGE_DEFAULT_ACTIONS,
+    },
+    {
+        // MSC3930 poll rules. Without a row of their own, a poll started in
+        // any room notifies like a message, with no way to quiet it short of
+        // muting the room. One row drives start and end, room and 1:1.
+        ruleId: RuleId.PollStart,
+        fallbackRuleIds: [RuleId.PollStartUnstable],
+        kind: PushRuleKind.Underride,
+        label: t("client.polls"),
+        description: t("client.pollsStartedOrEndedInRooms"),
+        defaultActions: MESSAGE_DEFAULT_ACTIONS,
+        siblingRuleIds: [
+            [RuleId.PollStartOneToOne, RuleId.PollStartOneToOneUnstable],
+            [RuleId.PollEnd, RuleId.PollEndUnstable],
+            [RuleId.PollEndOneToOne, RuleId.PollEndOneToOneUnstable],
+        ],
     },
 ];
 
@@ -5928,6 +5949,27 @@ export async function setDefaultPushRuleLevel(
     // Queued: the id resolution below reads the same cache a concurrent write
     // would be refreshing, so it must run inside the queue too, not at call time.
     return pushRuleWriteQueue.run(async () => {
+        try {
+            await writeOneRule(ruleId, kind);
+            // Rules this row drives together (polls: start/end, room/1:1).
+            const siblings =
+                DEFAULT_PUSH_RULES.find((r) => r.ruleId === ruleId)
+                    ?.siblingRuleIds ?? [];
+            for (const alternatives of siblings) {
+                const id = alternatives.find((a) => findRule(a));
+                if (!id) continue;
+                const siblingKind =
+                    Object.entries(getGlobalPushRules() ?? {}).find(
+                        ([, rules]) => rules.some((r) => r.rule_id === id),
+                    )?.[0] ?? kind;
+                await writeOneRule(id, siblingKind as PushRuleKind);
+            }
+        } finally {
+            pushRulesState.revision++;
+        }
+    });
+
+    async function writeOneRule(ruleId: string, kind: PushRuleKind) {
         const ruleDef = DEFAULT_PUSH_RULES.find((r) => r.ruleId === ruleId);
         const defaultActions =
             ruleDef?.defaultActions ?? MESSAGE_DEFAULT_ACTIONS;
@@ -5961,27 +6003,23 @@ export async function setDefaultPushRuleLevel(
             });
         };
 
-        try {
-            await setDefaultPushRuleLevelForClient(client, {
-                ruleId,
-                targetId,
-                kind,
-                level,
-                defaultActions,
-                label: ruleDef?.label ?? ruleId,
-                createRule: isServerDefault ? null : createRule,
-                readLevel: () => getDefaultPushRuleLevel(ruleId),
-                applyOptimistic: (actions) => {
-                    const rule = findRule(targetId);
-                    if (!rule) return;
-                    rule.enabled = level !== "off";
-                    if (level !== "off") rule.actions = actions;
-                },
-            });
-        } finally {
-            pushRulesState.revision++;
-        }
-    });
+        await setDefaultPushRuleLevelForClient(client, {
+            ruleId,
+            targetId,
+            kind,
+            level,
+            defaultActions,
+            label: ruleDef?.label ?? ruleId,
+            createRule: isServerDefault ? null : createRule,
+            readLevel: () => getDefaultPushRuleLevel(ruleId),
+            applyOptimistic: (actions) => {
+                const rule = findRule(targetId);
+                if (!rule) return;
+                rule.enabled = level !== "off";
+                if (level !== "off") rule.actions = actions;
+            },
+        });
+    }
 }
 
 /**

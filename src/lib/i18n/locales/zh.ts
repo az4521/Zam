@@ -3064,6 +3064,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "client.messagesUsingRoomToNotifyEveryone": "使用 @room 通知所有人的消息",
     "client.invitations": "邀请",
     "client.whenYouAreInvitedToA": "当你被邀请加入房间时",
+    "client.polls": "投票",
+    "client.pollsStartedOrEndedInRooms": "在房间和私信中发起或结束的投票",
     "client.thisRoom": "此房间",
     "client.keywordCannotStartWith": "关键词不能以“.”开头",
     "client.emotes": "{value} 表情",

@@ -2916,6 +2916,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "@room で全員に通知するメッセージ",
     "client.invitations": "招待",
     "client.whenYouAreInvitedToA": "ルームに招待されたとき",
+    "client.polls": "投票",
+    "client.pollsStartedOrEndedInRooms":
+        "ルームやダイレクトメッセージで開始または終了した投票",
     "client.thisRoom": "このルーム",
     "client.keywordCannotStartWith": "キーワードは「.」で始められません",
     "client.emotes": "{value} 絵文字",

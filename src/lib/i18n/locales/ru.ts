@@ -3324,6 +3324,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Сообщения с @room, уведомляющие всех",
     "client.invitations": "Приглашения",
     "client.whenYouAreInvitedToA": "Когда вас приглашают в комнату",
+    "client.polls": "Опросы",
+    "client.pollsStartedOrEndedInRooms":
+        "Опросы, начатые или завершённые в комнатах и личных сообщениях",
     "client.thisRoom": "эта комната",
     "client.keywordCannotStartWith": "Ключевое слово не может начинаться с «.»",
     "client.emotes": "Эмодзи ({value})",

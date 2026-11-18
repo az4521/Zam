@@ -3213,6 +3213,9 @@ export const en = {
         "Messages using @room to notify everyone",
     "client.invitations": "Invitations",
     "client.whenYouAreInvitedToA": "When you are invited to a room",
+    "client.polls": "Polls",
+    "client.pollsStartedOrEndedInRooms":
+        "Polls started or ended in rooms and direct messages",
     "client.thisRoom": "this room",
     "client.keywordCannotStartWith": "Keyword cannot start with '.'",
     "client.emotes": "{value} Emotes",

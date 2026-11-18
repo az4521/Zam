@@ -3304,6 +3304,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Messages utilisant @room pour notifier tout le monde",
     "client.invitations": "Invitations",
     "client.whenYouAreInvitedToA": "Quand vous êtes invité dans un salon",
+    "client.polls": "Sondages",
+    "client.pollsStartedOrEndedInRooms":
+        "Sondages lancés ou terminés dans les salons et les messages privés",
     "client.thisRoom": "ce salon",
     "client.keywordCannotStartWith":
         "Un mot-clé ne peut pas commencer par « . »",
