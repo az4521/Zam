@@ -8,6 +8,7 @@ import {
     nativeShareSize,
     PlaceholderClock,
     type NativeAu,
+    placeholderI420,
 } from "./nativeShareSubstitute";
 
 function au(tag: number, key: boolean): NativeAu {
@@ -274,5 +275,14 @@ describe("nativeShareSize", () => {
         expect(
             nativeShareSize({ event: "started", width: 0, height: 1080 }),
         ).toBeNull();
+    });
+});
+
+describe("placeholderI420", () => {
+    it("is a full I420 picture of one grey", () => {
+        const p = placeholderI420(64);
+        expect(p.length).toBe(64 * 64 * 1.5);
+        expect(new Set(p.subarray(0, 64 * 64))).toEqual(new Set([93]));
+        expect(new Set(p.subarray(64 * 64))).toEqual(new Set([128]));
     });
 });

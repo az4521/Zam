@@ -23,6 +23,29 @@ export const NATIVE_PLACEHOLDER_SIZE = 64;
  *  deltas, which the substitution then has to hold back. */
 export const NATIVE_PLACEHOLDER_FILL = "rgb(90,90,90)";
 
+/** NATIVE_PLACEHOLDER_FILL as video-range I420 (Y 93, U and V 128). */
+const PLACEHOLDER_LUMA = 93;
+const PLACEHOLDER_CHROMA = 128;
+
+/**
+ * The placeholder picture as I420 bytes, side x side (side even), for a
+ * VideoFrame built from memory. It must not come from a canvas: a canvas
+ * frame is RGB on the GPU, and Chromium's track generator converts such
+ * frames to NV12 on the GPU before the encoder gets them, holding each write
+ * open until the conversion calls back (breakout_box
+ * MaybeConvertToNV12MappableVideoFrame). That callback could stop coming, so
+ * every later placeholder was skipped and the share froze for good while the
+ * helper kept encoding. A memory I420 frame skips the conversion.
+ */
+export function placeholderI420(side: number): Uint8Array<ArrayBuffer> {
+    const luma = side * side;
+    const chroma = (side / 2) * (side / 2);
+    const out = new Uint8Array(luma + 2 * chroma);
+    out.fill(PLACEHOLDER_LUMA, 0, luma);
+    out.fill(PLACEHOLDER_CHROMA, luma);
+    return out;
+}
+
 /** The size of the helper's picture, from one of its info messages: "started"
  *  (Windows, and again whenever the encoder reopens at a new size) or "size"
  *  (Android, on rotation). Null for any other message. The share's track is

@@ -17,9 +17,9 @@
  *   is sent. Nothing published changes.
  */
 import {
-    NATIVE_PLACEHOLDER_FILL,
     NATIVE_PLACEHOLDER_SIZE,
     PlaceholderClock,
+    placeholderI420,
 } from "$lib/utils/nativeShareSubstitute";
 
 interface StartMessage {
@@ -37,11 +37,9 @@ interface StartMessage {
 type ToMain =
     { type: "info"; info: unknown } | { type: "ended"; reason: string };
 
-const canvas = new OffscreenCanvas(
-    NATIVE_PLACEHOLDER_SIZE,
-    NATIVE_PLACEHOLDER_SIZE,
-);
-const ctx = canvas.getContext("2d");
+/** The placeholder picture, from memory: see placeholderI420 for why it
+ *  must not be a canvas. */
+const placeholder = placeholderI420(NATIVE_PLACEHOLDER_SIZE);
 let writer: WritableStreamDefaultWriter<VideoFrame> | null = null;
 let previewWriter: WritableStreamDefaultWriter<VideoFrame> | null = null;
 let helper: MessagePort | null = null;
@@ -64,14 +62,6 @@ const statsTimer = setInterval(() => {
     skippedNotReady = 0;
 }, 2000);
 
-/** Fill the placeholder once. It stays one colour: a changing picture makes
- *  the encoder insert a keyframe every 256 frames (NATIVE_PLACEHOLDER_FILL). */
-function draw(): void {
-    if (!ctx) return;
-    ctx.fillStyle = NATIVE_PLACEHOLDER_FILL;
-    ctx.fillRect(0, 0, NATIVE_PLACEHOLDER_SIZE, NATIVE_PLACEHOLDER_SIZE);
-}
-
 /** Write one placeholder, stamped with `captureUs` (the AU's capture time;
  *  none for a catch-up placeholder, see PlaceholderClock). Skipped (not
  *  queued) when the generator can't take it now: the substitution stage asks
@@ -82,7 +72,12 @@ function tick(captureUs?: number): void {
         skippedNotReady++;
         return;
     }
-    const frame = new VideoFrame(canvas, {
+    // One colour every frame: a changing picture makes the encoder insert a
+    // keyframe every 256 frames (NATIVE_PLACEHOLDER_FILL).
+    const frame = new VideoFrame(placeholder, {
+        format: "I420",
+        codedWidth: NATIVE_PLACEHOLDER_SIZE,
+        codedHeight: NATIVE_PLACEHOLDER_SIZE,
         timestamp: clock.stamp(captureUs, performance.now() * 1000),
         duration: Math.round(1e6 / fps),
     });
@@ -263,7 +258,6 @@ self.onmessage = (
     helper = msg.helper;
     sub = msg.sub;
     fps = msg.fps;
-    draw();
     sub.onmessage = (ev: MessageEvent<{ req?: string } | null>) => {
         if (ev.data?.req === "key") helper?.postMessage({ cmd: "key" });
         else if (ev.data?.req === "catchup") tick();
