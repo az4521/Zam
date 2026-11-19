@@ -58,6 +58,27 @@
     // as a video; one at a time, with no gallery to step through.
     let gifViewer = $state<TweetEmbed["media"][number] | null>(null);
 
+    // A link ending in a language (fxtwitter.com/.../status/<id>/en) asks
+    // FxTwitter for a translation; it is shown in place of the original,
+    // which stays one click away.
+    let showOriginal = $state(false);
+    const translated = $derived(
+        tweet.translation && !showOriginal ? tweet.translation : null,
+    );
+    const sourceLanguage = $derived.by(() => {
+        const tr = tweet.translation;
+        if (!tr) return "";
+        try {
+            const name = new Intl.DisplayNames(intlLocale(), {
+                type: "language",
+            }).of(tr.sourceLang);
+            if (name && name !== tr.sourceLang) return name;
+        } catch {
+            // Old engines or an odd code: fall back below.
+        }
+        return tr.sourceLangName ?? tr.sourceLang;
+    });
+
     const photos = $derived(tweet.media.filter((m) => m.kind === "photo"));
 
     /** A photo as the viewer wants it: the original, the grid's thumb as its
@@ -155,6 +176,23 @@
 
     {#if tweet.text}
         <div>
+            {#if tweet.translation}
+                <p class="text-xs text-zam-textMuted mb-0.5">
+                    {t("linkPreview.translatedFrom", {
+                        language: sourceLanguage,
+                    })}
+                    ·
+                    <button
+                        type="button"
+                        class="text-zam-accent hover:underline"
+                        onclick={() => (showOriginal = !showOriginal)}
+                    >
+                        {showOriginal
+                            ? t("linkPreview.showTranslation")
+                            : t("linkPreview.showOriginal")}
+                    </button>
+                </p>
+            {/if}
             <p
                 use:measureClamp
                 class="text-sm text-zam-textPrimary leading-relaxed whitespace-pre-wrap break-words {expanded
@@ -163,7 +201,7 @@
                       ? 'line-clamp-6'
                       : 'line-clamp-[12]'}"
             >
-                {@render segments(tweet.segments)}
+                {@render segments(translated?.segments ?? tweet.segments)}
             </p>
             {#if clamped || expanded}
                 <button

@@ -1095,6 +1095,9 @@ export const en = {
     "linkPreview.replyingTo": "Replying to",
     "linkPreview.showMore": "Show more",
     "linkPreview.showLess": "Show less",
+    "linkPreview.translatedFrom": "Translated from {language}",
+    "linkPreview.showOriginal": "Show original",
+    "linkPreview.showTranslation": "Show translation",
     "linkPreview.pollVotes":
         "{count, plural, one {{votes} vote} other {{votes} votes}}",
     "linkPreview.pollFinal": "Final results",

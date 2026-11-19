@@ -50,6 +50,22 @@ describe("fxStatusApiUrl", () => {
         }
     });
 
+    it("asks for a translation when the link ends in a language", () => {
+        const api = "https://api.fxtwitter.com/2/status/123?lang=";
+        expect(fxStatusApiUrl("https://fxtwitter.com/a/status/123/en")).toBe(
+            `${api}en`,
+        );
+        expect(fxStatusApiUrl("https://fixupx.com/a/status/123/pt-BR/")).toBe(
+            `${api}pt-br`,
+        );
+        expect(fxStatusApiUrl("https://x.com/a/status/123/photo/1/ja")).toBe(
+            `${api}ja`,
+        );
+        expect(fxStatusApiUrl("https://x.com/a/status/123/photo/1")).toBe(
+            "https://api.fxtwitter.com/2/status/123",
+        );
+    });
+
     it("ignores other links", () => {
         expect(fxStatusApiUrl("https://x.com/someone")).toBeNull();
         expect(fxStatusApiUrl("https://x.com.evil.example/a/status/1")).toBe(
@@ -239,6 +255,44 @@ describe("parseFxStatusResponse", () => {
             text: "https://example.com",
             href: "https://example.com",
         });
+    });
+
+    it("parses a translation", () => {
+        const t = parseFxStatusResponse({
+            status: status({
+                text: "こんにちは",
+                translation: {
+                    text: "hello @jack",
+                    source_lang: "ja",
+                    target_lang: "en",
+                    source_lang_en: "Japanese",
+                },
+            }),
+        })!;
+        expect(t.translation).toEqual({
+            sourceLang: "ja",
+            sourceLangName: "Japanese",
+            text: "hello @jack",
+            segments: [
+                { kind: "text", text: "hello " },
+                { kind: "link", text: "@jack", href: "https://x.com/jack" },
+            ],
+        });
+        expect(parseFxStatusResponse({ status: status() })!.translation).toBe(
+            null,
+        );
+        // Already in the target language.
+        expect(
+            parseFxStatusResponse({
+                status: status({
+                    translation: {
+                        text: "hello",
+                        source_lang: "en",
+                        target_lang: "en",
+                    },
+                }),
+            })!.translation,
+        ).toBeNull();
     });
 
     it("refuses malformed or non-https statuses", () => {

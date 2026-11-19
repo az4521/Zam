@@ -1136,6 +1136,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "linkPreview.replyingTo": "В ответ",
     "linkPreview.showMore": "Показать больше",
     "linkPreview.showLess": "Свернуть",
+    "linkPreview.translatedFrom": "Переведено с языка: {language}",
+    "linkPreview.showOriginal": "Показать оригинал",
+    "linkPreview.showTranslation": "Показать перевод",
     "linkPreview.pollVotes":
         "{count, plural, one {{votes} голос} few {{votes} голоса} many {{votes} голосов} other {{votes} голоса}}",
     "linkPreview.pollFinal": "Окончательные результаты",

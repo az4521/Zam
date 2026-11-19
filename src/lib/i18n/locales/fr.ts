@@ -981,6 +981,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "linkPreview.replyingTo": "En réponse à",
     "linkPreview.showMore": "Afficher plus",
     "linkPreview.showLess": "Afficher moins",
+    "linkPreview.translatedFrom": "Traduit depuis : {language}",
+    "linkPreview.showOriginal": "Voir l'original",
+    "linkPreview.showTranslation": "Voir la traduction",
     "linkPreview.pollVotes":
         "{count, plural, one {{votes} vote} other {{votes} votes}}",
     "linkPreview.pollFinal": "Résultats finaux",

@@ -33,6 +33,15 @@ export interface TweetQuoteTombstone {
     url?: string;
 }
 
+export interface TweetTranslation {
+    /** BCP 47-ish code FxTwitter detected for the original, e.g. "ja". */
+    sourceLang: string;
+    /** English name of the source language, when FxTwitter gives one. */
+    sourceLangName?: string;
+    text: string;
+    segments: TweetSegment[];
+}
+
 export interface TweetEmbed {
     url: string;
     authorName: string;
@@ -46,6 +55,8 @@ export interface TweetEmbed {
     poll: TweetPoll | null;
     quote: TweetEmbed | TweetQuoteTombstone | null;
     communityNote: TweetSegment[] | null;
+    /** Present when the link asked for a translation (`/status/<id>/en`). */
+    translation: TweetTranslation | null;
     replies: number | null;
     reposts: number | null;
     likes: number | null;
@@ -72,7 +83,14 @@ const TWEET_HOSTS = new Set([
     "fixvx.com",
 ]);
 
-/** The FxTwitter v2 API URL for a tweet link, or null if it isn't one. */
+// A trailing language segment, as FxTwitter takes it: /status/<id>/en,
+// /status/<id>/pt-br, also after /photo/1 and the like.
+const LANG_SEGMENT_RE = /\/([a-z]{2,3}(?:[-_][a-z0-9]{2,4})?)\/?$/i;
+
+/**
+ * The FxTwitter v2 API URL for a tweet link, or null if it isn't one. A
+ * trailing language code (FxTwitter's translate feature) becomes `?lang=`.
+ */
 export function fxStatusApiUrl(rawUrl: string): string | null {
     let u: URL;
     try {
@@ -85,7 +103,10 @@ export function fxStatusApiUrl(rawUrl: string): string | null {
     // /{user}/status/{id}, /i/status/{id}, /i/web/status/{id}, with
     // anything after (/photo/1, /video/1, a language suffix...).
     const m = u.pathname.match(/^\/(?:[^/]+\/|i\/web\/)?status(?:es)?\/(\d+)/);
-    return m ? `https://api.fxtwitter.com/2/status/${m[1]}` : null;
+    if (!m) return null;
+    const api = `https://api.fxtwitter.com/2/status/${m[1]}`;
+    const lang = u.pathname.slice(m[0].length).match(LANG_SEGMENT_RE)?.[1];
+    return lang ? `${api}?lang=${lang.toLowerCase()}` : api;
 }
 
 function str(v: unknown): string | undefined {
@@ -267,6 +288,25 @@ function parsePoll(v: unknown): TweetPoll | null {
     };
 }
 
+function parseTranslation(
+    v: unknown,
+    original: string,
+): TweetTranslation | null {
+    const tr = obj(v);
+    const text = str(tr?.text)?.trim();
+    const sourceLang = str(tr?.source_lang);
+    // FxTwitter echoes the original when it is already in the target
+    // language; nothing to show then.
+    if (!tr || !text || !sourceLang || text === original) return null;
+    if (str(tr.target_lang) === sourceLang) return null;
+    return {
+        sourceLang,
+        sourceLangName: str(tr.source_lang_en) || undefined,
+        text,
+        segments: tweetSegments(text),
+    };
+}
+
 function parseCreatedAt(s: Record<string, unknown>): number | null {
     const ts = num(s.created_timestamp);
     if (ts !== undefined) return ts * 1000;
@@ -333,6 +373,7 @@ export function parseFxStatus(v: unknown, depth = 0): TweetEmbed | null {
         communityNote: noteText
             ? tweetSegments(noteText, urlDisplays(note))
             : null,
+        translation: parseTranslation(s.translation, text),
         replies: count(s.replies),
         reposts: count(s.reposts),
         likes: count(s.likes),
