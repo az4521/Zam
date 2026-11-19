@@ -25,7 +25,7 @@ import {
 import type { DotLottie } from "@lottiefiles/dotlottie-web";
 
 /** Output caps: keeps each animated sticker to a sane size in Matrix. */
-const MAX_SIDE = 512;
+const MAX_SIDE = 256;
 const MAX_FRAMES = 60;
 /** Ceiling on decompressed .tgs JSON, guards against a gzip bomb. */
 const MAX_TGS_JSON_BYTES = 32 * 1024 * 1024;
@@ -283,7 +283,7 @@ export interface ConvertedAnimation {
     height: number;
 }
 
-const WEBP_QUALITY = 0.8;
+const WEBP_QUALITY = 0.7;
 
 function canvasToBlob(
     canvas: HTMLCanvasElement,
