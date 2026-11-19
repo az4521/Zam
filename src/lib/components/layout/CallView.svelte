@@ -181,10 +181,11 @@
         source: "camera" | "screenshare",
     ): string {
         const userId = identity.slice(0, identity.lastIndexOf(":"));
-        const name =
-            userId === auth.userId
-                ? t("callView.you")
-                : getMemberName(room, userId);
+        if (userId === auth.userId)
+            return source === "screenshare"
+                ? t("callView.yourScreen")
+                : t("callView.you");
+        const name = getMemberName(room, userId);
         return source === "screenshare"
             ? t("callView.sScreen", { name })
             : name;

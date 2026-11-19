@@ -310,6 +310,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callView.unmuteShareAudio": "Reativar áudio compartilhado",
     "callView.you": "Você",
     "callView.sScreen": "Tela de {name}",
+    "callView.yourScreen": "Sua tela",
     "callView.exitSpotlightFor": "Sair do destaque de {label}",
     "callView.spotlight": "Destacar {label}",
 

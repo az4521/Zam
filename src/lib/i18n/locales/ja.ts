@@ -281,6 +281,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callView.unmuteShareAudio": "共有の音声のミュートを解除",
     "callView.you": "あなた",
     "callView.sScreen": "{name} の画面",
+    "callView.yourScreen": "あなたの画面",
     "callView.exitSpotlightFor": "{label} のスポットライトを解除",
     "callView.spotlight": "{label} をスポットライト",
     "createPollDialog.createPoll": "投票を作成",

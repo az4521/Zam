@@ -1210,7 +1210,101 @@ function notifyCallSpeakers(call: ActiveVoiceCall): void {
     const ids = new Set<string>();
     for (const list of call.speakersByRoom.values())
         for (const id of list) ids.add(id);
+    // Our own speaking state comes from our mic, not the SFU's report of it,
+    // which lags a round trip plus the server's smoothing.
+    const own = call.lkRoom?.localParticipant.identity;
+    if (own) {
+        ids.delete(own);
+        if (localSpeaking.call === call && localSpeaking.speaking) ids.add(own);
+    }
     for (const cb of activeSpeakerSubscribers) cb([...ids]);
+}
+
+const LOCAL_SPEAKING_LEVEL = 0.03;
+const LOCAL_SPEAKING_HOLD_MS = 600;
+const LOCAL_SPEAKING_POLL_MS = 100;
+
+/** Our own mic's level, read locally for the speaking indicator. One per
+ *  process: it follows the active call and closes when that call ends. */
+const localSpeaking: {
+    call: ActiveVoiceCall | null;
+    timer: ReturnType<typeof setInterval> | null;
+    ctx: AudioContext | null;
+    analyser: AnalyserNode | null;
+    track: MediaStreamTrack | null;
+    lastLoud: number;
+    speaking: boolean;
+} = {
+    call: null,
+    timer: null,
+    ctx: null,
+    analyser: null,
+    track: null,
+    lastLoud: 0,
+    speaking: false,
+};
+
+function stopLocalSpeaking(): void {
+    if (localSpeaking.timer) clearInterval(localSpeaking.timer);
+    void localSpeaking.ctx?.close().catch(() => {});
+    localSpeaking.call = null;
+    localSpeaking.timer = null;
+    localSpeaking.ctx = null;
+    localSpeaking.analyser = null;
+    localSpeaking.track = null;
+    localSpeaking.speaking = false;
+}
+
+function localMicLoud(call: ActiveVoiceCall): boolean {
+    const pub = call.local.getTrack(call.lk.Track.Source.Microphone) as
+        LivekitClient.LocalAudioTrack | undefined;
+    const track = pub && !pub.isMuted ? pub.mediaStreamTrack : null;
+    if (!track || track.readyState !== "live") return false;
+    if (localSpeaking.track !== track) {
+        void localSpeaking.ctx?.close().catch(() => {});
+        localSpeaking.ctx = null;
+        localSpeaking.analyser = null;
+        localSpeaking.track = track;
+        try {
+            const ctx = new AudioContext();
+            const analyser = ctx.createAnalyser();
+            analyser.fftSize = 512;
+            ctx.createMediaStreamSource(new MediaStream([track])).connect(
+                analyser,
+            );
+            localSpeaking.ctx = ctx;
+            localSpeaking.analyser = analyser;
+        } catch {
+            return false;
+        }
+    }
+    const analyser = localSpeaking.analyser;
+    if (!analyser) return false;
+    const samples = new Float32Array(analyser.fftSize);
+    analyser.getFloatTimeDomainData(samples);
+    let sum = 0;
+    for (const v of samples) sum += v * v;
+    return Math.sqrt(sum / samples.length) > LOCAL_SPEAKING_LEVEL;
+}
+
+/** Start polling our mic for `call` (idempotent). Stops itself once the
+ *  call is no longer the active one. */
+function ensureLocalSpeaking(call: ActiveVoiceCall): void {
+    if (localSpeaking.call === call) return;
+    stopLocalSpeaking();
+    localSpeaking.call = call;
+    localSpeaking.timer = setInterval(() => {
+        if (activeVoice !== call) {
+            if (localSpeaking.call === call) stopLocalSpeaking();
+            return;
+        }
+        const now = Date.now();
+        if (localMicLoud(call)) localSpeaking.lastLoud = now;
+        const speaking = now - localSpeaking.lastLoud < LOCAL_SPEAKING_HOLD_MS;
+        if (speaking === localSpeaking.speaking) return;
+        localSpeaking.speaking = speaking;
+        notifyCallSpeakers(call);
+    }, LOCAL_SPEAKING_POLL_MS);
 }
 
 /** Remote audio from any transport: an element per track, at the sender's
@@ -1345,6 +1439,7 @@ function callListener(
             refreshPlaybackBlocked(call);
         },
         speakers: (identities) => {
+            ensureLocalSpeaking(call);
             call.speakersByRoom.set(transport(), identities);
             notifyCallSpeakers(call);
         },
@@ -2398,6 +2493,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     for (const m of session.memberships) call.meshAsked.add(m.memberId);
     activeVoice = call;
     installDecodePreferences();
+    ensureLocalSpeaking(call);
     startUploadSampling(call);
     ensureVoiceDeviceWatch();
     desiredMicMuted = !!micFailure || micClosedAtJoin();
@@ -2786,6 +2882,7 @@ async function leaveVoiceCallInternal(): Promise<void> {
         voicePlaybackMuted = false;
         // Notify subscribers before the network teardown below so the UI clears
         // instantly; the join seq guard protects a racing join.
+        stopLocalSpeaking();
         for (const cb of activeSpeakerSubscribers) cb([]);
         for (const cb of participantMuteSubscribers) cb([]);
         for (const cb of videoTracksSubscribers) cb([]);

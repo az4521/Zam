@@ -302,6 +302,7 @@ export const en = {
     "callView.unmuteShareAudio": "Unmute share audio",
     "callView.you": "You",
     "callView.sScreen": "{name}'s screen",
+    "callView.yourScreen": "Your screen",
     "callView.exitSpotlightFor": "Exit spotlight for {label}",
     "callView.spotlight": "Spotlight {label}",
 

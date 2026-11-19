@@ -316,6 +316,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callView.unmuteShareAudio": "Включить звук демонстрации",
     "callView.you": "Вы",
     "callView.sScreen": "Экран пользователя {name}",
+    "callView.yourScreen": "Ваш экран",
     "callView.exitSpotlightFor": "Выйти из режима «в центре внимания»: {label}",
     "callView.spotlight": "Выделить: {label}",
 

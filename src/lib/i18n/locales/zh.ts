@@ -297,6 +297,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callView.unmuteShareAudio": "取消静音共享声音",
     "callView.you": "你",
     "callView.sScreen": "{name} 的屏幕",
+    "callView.yourScreen": "你的屏幕",
     "callView.exitSpotlightFor": "退出对 {label} 的聚焦",
     "callView.spotlight": "聚焦 {label}",
 

@@ -303,6 +303,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callView.unmuteShareAudio": "Réactiver le son du partage",
     "callView.you": "Vous",
     "callView.sScreen": "Écran de {name}",
+    "callView.yourScreen": "Votre écran",
     "callView.exitSpotlightFor": "Quitter la mise en avant de {label}",
     "callView.spotlight": "Mettre en avant {label}",
 
