@@ -3186,6 +3186,8 @@ interface NativeShareState {
     worker: Worker | null;
     /** The bitrate last sent to the helper. */
     bitrate: number | null;
+    /** The low simulcast layer's bitrate last sent (Windows helper). */
+    lowBitrate?: number | null;
     timer: ReturnType<typeof setInterval> | null;
     /** What the helper reported it started with (encoder, size). */
     helper: NativeShareHelperInfo;
@@ -3244,7 +3246,9 @@ function nativeSharePublishOptions() {
         degradationPreference: "maintain-resolution" as const,
         videoCodec: "h264" as const,
         backupCodec: false as const,
-        simulcast: false,
+        // The helper encodes a half-size layer too (--simulcast), and the
+        // placeholder is published with two layers to carry it.
+        simulcast: true,
     };
 }
 
@@ -3280,6 +3284,7 @@ async function startNativeShare(
     const helper: NativeShareHelperInfo = { info: null, size: null };
     processor = createNativeShareProcessor(picked.port, {
         fps: Number(settingsState.screenShareFps),
+        layered: true,
         onInfo: nativeShareLogger(helper),
         onEnded: (reason) => {
             if (!processor || nativeShare?.handle !== processor) return;
@@ -3473,10 +3478,34 @@ async function tuneNativeBitrate(n: NativeShareState): Promise<void> {
             )
                 available = pair.availableOutgoingBitrate;
         }
-    const target = nativeBitrateTarget(screenShareBitrateNow(), available);
-    if (!nativeBitrateChanged(n.bitrate, target)) return;
+    if (n.published) {
+        // Android: one layer, held under the viewers' cap as a whole.
+        const target = nativeBitrateTarget(screenShareBitrateNow(), available);
+        if (!nativeBitrateChanged(n.bitrate, target)) return;
+        n.bitrate = target;
+        n.handle.send({ cmd: "bitrate", bps: target });
+        return;
+    }
+    // Windows: two layers. The full one follows the pick and the uplink;
+    // the half-size one is what slow viewers are on, so it takes their cap.
+    const target = nativeBitrateTarget(screenShareBitratePicked(), available);
+    const cap = shareRateCaps.get(n.call)?.current() ?? null;
+    const low = Math.max(
+        100_000,
+        Math.min(
+            Math.floor(target / 4),
+            SHARE_LOW_LAYER_MAX_BPS,
+            cap ?? Infinity,
+        ),
+    );
+    if (
+        !nativeBitrateChanged(n.bitrate, target) &&
+        !nativeBitrateChanged(n.lowBitrate ?? null, low)
+    )
+        return;
     n.bitrate = target;
-    n.handle.send({ cmd: "bitrate", bps: target });
+    n.lowBitrate = low;
+    n.handle.send({ cmd: "bitrate", bps: target, lowBps: low });
 }
 
 /** The screen-share quality settings, to notice a change mid-picker. */
@@ -3508,7 +3537,8 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
             fps: res.frameRate,
             // Low until WebRTC has an uplink estimate; tuneNativeBitrate then
             // follows it up to the pick.
-            bitrate: nativeBitrateTarget(screenShareBitrateNow(), null),
+            bitrate: nativeBitrateTarget(screenShareBitratePicked(), null),
+            simulcast: true,
             maxWidth: res.width,
             maxHeight: res.height,
         });
@@ -4629,7 +4659,7 @@ function shareCodecOptions(
         return {
             videoCodec: "h264" as const,
             backupCodec: false as const,
-            simulcast: false,
+            simulcast: true,
         };
     const options = shareCodecPick(call, track);
     return { ...options, simulcast: shareSimulcast(options.videoCodec) };
@@ -5565,9 +5595,7 @@ function applyShareRateCap(call: ActiveVoiceCall): void {
     const before = cap.current();
     // With simulcast the cap is for the low layer (applyShareLayers), so it
     // is measured from that layer's own bitrate, not the top's.
-    const layered =
-        !isNativeShareTrack(track) &&
-        (track.sender?.getParameters().encodings?.length ?? 0) > 1;
+    const layered = (track.sender?.getParameters().encodings?.length ?? 0) > 1;
     const reference = layered
         ? Math.min(
               Math.floor(screenShareBitratePicked() / 4),
@@ -5586,6 +5614,7 @@ function applyShareRateCap(call: ActiveVoiceCall): void {
         // The helper's own encoder makes the bitrate; its tuning reads
         // screenShareBitrateNow.
         native.bitrate = null;
+        native.lowBitrate = null;
         void tuneNativeBitrate(native);
         return;
     }

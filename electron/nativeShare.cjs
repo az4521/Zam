@@ -30,6 +30,7 @@ const DEFAULTS = {
     bitrate: 8000000,
     maxWidth: 1920,
     maxHeight: 1080,
+    simulcast: false,
 };
 
 // Clamp a renderer-supplied number. Missing or non-numeric input gives the
@@ -50,6 +51,7 @@ function sanitizeConfig(raw) {
         bitrate: clampInt(o.bitrate, 100000, 100000000, DEFAULTS.bitrate),
         maxWidth: clampInt(o.maxWidth, 160, 7680, DEFAULTS.maxWidth),
         maxHeight: clampInt(o.maxHeight, 160, 7680, DEFAULTS.maxHeight),
+        simulcast: o.simulcast === true,
     };
 }
 
@@ -71,6 +73,7 @@ function helperArgs(sourceId, cfg) {
         String(cfg.maxHeight),
         "--cursor",
         "1",
+        ...(cfg.simulcast ? ["--simulcast", "1"] : []),
     ];
 }
 
@@ -92,6 +95,8 @@ function decodeFrame(type, body) {
         return {
             type: "au",
             key: (body[0] & 1) !== 0,
+            // Bit 1: the half-size simulcast layer (--simulcast).
+            layer: (body[0] & 2) !== 0 ? 1 : 0,
             ts: Number(body.readBigInt64LE(1)),
             w: body.readUInt16LE(9),
             h: body.readUInt16LE(11),
@@ -211,6 +216,7 @@ function createNativeShare(app) {
             s.port.postMessage({
                 type: "au",
                 key: msg.key,
+                layer: msg.layer,
                 ts: msg.ts,
                 w: msg.w,
                 h: msg.h,
@@ -225,10 +231,19 @@ function createNativeShare(app) {
     function onCommand(s, data) {
         if (s.dead || !data || typeof data !== "object") return;
         if (data.cmd === "key") {
-            sendToHelper(s.proc, { cmd: "key" });
+            sendToHelper(s.proc, {
+                cmd: "key",
+                layer: data.layer === 1 ? 1 : 0,
+            });
         } else if (data.cmd === "bitrate") {
             const bps = clampInt(data.bps, 100000, 100000000, null);
-            if (bps !== null) sendToHelper(s.proc, { cmd: "bitrate", bps });
+            const lowBps = clampInt(data.lowBps, 100000, 100000000, null);
+            if (bps !== null)
+                sendToHelper(s.proc, {
+                    cmd: "bitrate",
+                    bps,
+                    ...(lowBps !== null ? { lowBps } : {}),
+                });
         } else if (data.cmd === "fps") {
             const fps = clampInt(data.fps, 1, 240, null);
             if (fps !== null) sendToHelper(s.proc, { cmd: "fps", fps });

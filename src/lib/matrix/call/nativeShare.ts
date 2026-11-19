@@ -42,7 +42,8 @@ export interface NativeShareInfo {
 
 /** A command the renderer sends the helper through the worker. */
 export type NativeShareCommand =
-    { cmd: "fps"; fps: number } | { cmd: "bitrate"; bps: number };
+    | { cmd: "fps"; fps: number }
+    | { cmd: "bitrate"; bps: number; lowBps?: number };
 
 interface FrameStreams {
     MediaStreamTrackGenerator: new (init: {
@@ -87,6 +88,9 @@ export interface NativeShareOptions {
     onInfo?: (info: NativeShareInfo) => void;
     /** The source was destroyed (the share stopped). */
     onDestroy?: () => void;
+    /** The helper sends two simulcast layers (Windows): a placeholder large
+     *  enough for WebRTC to encode both. */
+    layered?: boolean;
 }
 
 export function nativeShareSupported(): boolean {
@@ -137,6 +141,7 @@ export function createNativeShareSource(
             helper,
             sub: channel.port1,
             fps: opts.fps,
+            layered: opts.layered === true,
         },
         [
             generator.writable as unknown as Transferable,

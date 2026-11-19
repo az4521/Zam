@@ -16,14 +16,14 @@ import {
 import { ZAM_NATIVE_SHARE, ZAM_REDUNDANCY } from "./protocol";
 import {
     isNativePlaceholder,
-    NativeSubstitute,
+    LayeredSubstitute,
     type EncodedFrameLike,
 } from "$lib/utils/nativeShareSubstitute";
 import { clearIdrPpsId } from "$lib/utils/h264ClearPps";
 
 /** The native screen share's substitution, once a port is attached
  *  (matrix/call/nativeShare.ts). Null otherwise: frames pass untouched. */
-let nativeShare: NativeSubstitute | null = null;
+let nativeShare: LayeredSubstitute | null = null;
 
 /** Replaces each native-share placeholder frame's data with the helper's next
  *  access unit (utils/nativeShareSubstitute). Frames that are not
@@ -72,8 +72,8 @@ function h264KeyStage(): TransformStream<
 }
 
 function attachNativeShare(port: MessagePort): void {
-    const sub = new NativeSubstitute({
-        requestKey: () => port.postMessage({ req: "key" }),
+    const sub = new LayeredSubstitute({
+        requestKey: (layer) => port.postMessage({ req: "key", layer }),
         requestCatchUp: () => port.postMessage({ req: "catchup" }),
     });
     nativeShare = sub;
@@ -85,11 +85,17 @@ function attachNativeShare(port: MessagePort): void {
             key?: boolean;
             data?: ArrayBuffer;
             ts?: number;
+            layer?: number;
         } | null>,
     ) => {
         const au = ev.data;
         if (au?.data && typeof au.key === "boolean" && nativeShare === sub)
-            sub.push({ key: au.key, data: au.data, ts: au.ts });
+            sub.push({
+                key: au.key,
+                data: au.data,
+                ts: au.ts,
+                layer: au.layer === 1 ? 1 : 0,
+            });
     };
 }
 
@@ -158,18 +164,18 @@ self.addEventListener("message", (ev) => {
                     AudioFrameLike
                 >,
             )
-            .pipeThrough(senderStage(config));
-    } else if (
-        msg.kind === "decode" &&
-        data.writableStream &&
-        // LiveKit names a codec only for video receivers. Video must reach
-        // the decoder straight from the decryptor: through one more stream,
             .pipeThrough(
                 h264KeyStage() as TransformStream<
                     AudioFrameLike,
                     AudioFrameLike
                 >,
             )
+            .pipeThrough(senderStage(config));
+    } else if (
+        msg.kind === "decode" &&
+        data.writableStream &&
+        // LiveKit names a codec only for video receivers. Video must reach
+        // the decoder straight from the decryptor: through one more stream,
         // Chrome dropped every encrypted H.264 delta frame (viewers saw a
         // share stuck on its first frame, then nothing). VP8 and HEVC were
         // unaffected; measured in a two-page loopback.

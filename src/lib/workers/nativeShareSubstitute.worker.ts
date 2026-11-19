@@ -9,12 +9,12 @@
  */
 import {
     isNativePlaceholder,
-    NativeSubstitute,
+    LayeredSubstitute,
     type EncodedFrameLike,
 } from "$lib/utils/nativeShareSubstitute";
 import { SCRIPT_TRANSFORM_TAG } from "$lib/polyfills/rtcScriptTransform";
 
-let policy: NativeSubstitute | null = null;
+let policy: LayeredSubstitute | null = null;
 
 /** Diagnostic: every 2 s, what the substitution did in that window. */
 let logged = {
@@ -77,8 +77,8 @@ self.onmessage = (
     }
     const port = e.data?.port;
     if (!port) return;
-    const sub = new NativeSubstitute({
-        requestKey: () => port.postMessage({ req: "key" }),
+    const sub = new LayeredSubstitute({
+        requestKey: (layer) => port.postMessage({ req: "key", layer }),
         requestCatchUp: () => port.postMessage({ req: "catchup" }),
     });
     policy = sub;
@@ -87,11 +87,17 @@ self.onmessage = (
             key?: boolean;
             data?: ArrayBuffer;
             ts?: number;
+            layer?: number;
         } | null>,
     ) => {
         const au = ev.data;
         if (au?.data && typeof au.key === "boolean" && policy === sub)
-            sub.push({ key: au.key, data: au.data, ts: au.ts });
+            sub.push({
+                key: au.key,
+                data: au.data,
+                ts: au.ts,
+                layer: au.layer === 1 ? 1 : 0,
+            });
     };
 };
 

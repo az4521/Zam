@@ -199,6 +199,8 @@ export interface NativeShareSetup {
     bitrate: number;
     maxWidth: number;
     maxHeight: number;
+    /** Also encode a half-size layer for simulcast (Windows helper). */
+    simulcast?: boolean;
 }
 
 /** What the helper reported when it started (its info JSON, see

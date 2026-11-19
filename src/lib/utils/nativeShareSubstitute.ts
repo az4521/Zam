@@ -15,6 +15,18 @@
 
 /** Side of the placeholder frame the encoder is given, in pixels. */
 export const NATIVE_PLACEHOLDER_SIZE = 64;
+/** The placeholder of a share sent as two simulcast layers (Windows). WebRTC
+ *  limits simulcast layers by input size: a 64x64 placeholder only ever got
+ *  its lowest layer encoded (the top one stayed at 0 frames), 512x512 got
+ *  both. Not a size a camera layer or LiveKit preset produces, since the E2EE
+ *  worker recognises placeholders by size among all outgoing frames. */
+export const NATIVE_LAYERED_PLACEHOLDER = { width: 704, height: 396 } as const;
+/** ...as its low layer encodes it (half the size): those frames carry the
+ *  helper's low-layer AUs. */
+export const NATIVE_LAYERED_PLACEHOLDER_LOW = {
+    width: NATIVE_LAYERED_PLACEHOLDER.width / 2,
+    height: NATIVE_LAYERED_PLACEHOLDER.height / 2,
+} as const;
 
 /** The placeholder's fill: one colour for every frame. Chromium's H.264
  *  encoder forces a keyframe every 256 input frames while the picture changes
@@ -37,9 +49,12 @@ const PLACEHOLDER_CHROMA = 128;
  * every later placeholder was skipped and the share froze for good while the
  * helper kept encoding. A memory I420 frame skips the conversion.
  */
-export function placeholderI420(side: number): Uint8Array<ArrayBuffer> {
-    const luma = side * side;
-    const chroma = (side / 2) * (side / 2);
+export function placeholderI420(
+    width: number,
+    height = width,
+): Uint8Array<ArrayBuffer> {
+    const luma = width * height;
+    const chroma = (width / 2) * (height / 2);
     const out = new Uint8Array(luma + 2 * chroma);
     out.fill(PLACEHOLDER_LUMA, 0, luma);
     out.fill(PLACEHOLDER_CHROMA, luma);
@@ -72,6 +87,8 @@ export function nativeShareSize(info: {
 export interface NativeAu {
     key: boolean;
     data: ArrayBuffer;
+    /** Simulcast layer: 0 the full picture, 1 the half-size one. */
+    layer?: 0 | 1;
     /** Capture time, microseconds (the placeholder carries the same). */
     ts?: number;
     /** When the worker queued it, in the policy's clock (ms). */
@@ -104,12 +121,21 @@ export function dropsEmptyPlaceholder(frame: EncodedFrameLike): boolean {
 /** Whether an encoded frame is one of the share's placeholders. Audio and
  *  frames of any other size pass through untouched. */
 export function isNativePlaceholder(frame: EncodedFrameLike): boolean {
-    if (frame.type === undefined) return false;
+    return placeholderLayer(frame) !== null;
+}
+
+/** Which simulcast layer a placeholder frame belongs to (by its encoded size:
+ *  the low layer encodes it at half size), or null for any other frame. */
+export function placeholderLayer(frame: EncodedFrameLike): 0 | 1 | null {
+    if (frame.type === undefined) return null;
     const meta = frame.getMetadata?.();
-    return (
-        meta?.width === NATIVE_PLACEHOLDER_SIZE &&
-        meta?.height === NATIVE_PLACEHOLDER_SIZE
-    );
+    const is = (size: { width: number; height: number }) =>
+        meta?.width === size.width && meta?.height === size.height;
+    if (is({ width: NATIVE_PLACEHOLDER_SIZE, height: NATIVE_PLACEHOLDER_SIZE }))
+        return 0;
+    if (is(NATIVE_LAYERED_PLACEHOLDER)) return 0;
+    if (is(NATIVE_LAYERED_PLACEHOLDER_LOW)) return 1;
+    return null;
 }
 
 /**
@@ -329,5 +355,57 @@ export class NativeSubstitute {
             }
         }
         return true;
+    }
+}
+
+/**
+ * Substitution for a share sent as two simulcast layers: the helper encodes
+ * the picture twice (full and half size, AUs tagged with their layer), the
+ * placeholder is published with two layers too, and each layer's placeholder
+ * frames take that layer's AUs. One queue per layer; an AU without a layer
+ * belongs to the full one (a one-layer share, Android).
+ */
+export class LayeredSubstitute {
+    readonly layers: [NativeSubstitute, NativeSubstitute];
+
+    constructor(opts: {
+        requestKey: (layer: 0 | 1) => void;
+        requestCatchUp?: () => void;
+        now?: () => number;
+    }) {
+        this.layers = [
+            new NativeSubstitute({
+                requestKey: () => opts.requestKey(0),
+                requestCatchUp: opts.requestCatchUp,
+                now: opts.now,
+            }),
+            // The low layer gets an AU for every other placeholder or so (it
+            // runs at up to 30 fps under a 60 fps top one); an empty queue
+            // there is normal, so it asks for no catch-ups.
+            new NativeSubstitute({
+                requestKey: () => opts.requestKey(1),
+                now: opts.now,
+            }),
+        ];
+    }
+
+    /** The full layer's policy (its stats are the share's). */
+    get stats(): NativeSubstituteStats {
+        return this.layers[0].stats;
+    }
+
+    get pending(): number {
+        return this.layers[0].pending;
+    }
+
+    push(au: NativeAu): void {
+        this.layers[au.layer === 1 ? 1 : 0].push(au);
+    }
+
+    /** As NativeSubstitute.substitute, on the frame's own layer. */
+    substitute(frame: EncodedFrameLike): boolean {
+        return this.layers[placeholderLayer(frame) === 1 ? 1 : 0].substitute(
+            frame,
+        );
     }
 }
