@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.8
+
+🐛 **Fixed**
+
+- **A share frozen for a viewer on a slower connection:** when a viewer's connection couldn't carry a share's full bitrate, the call server kept sending it anyway and the viewer's picture froze for good. Viewers now tell the sharer how much actually reaches them, and the share drops to a bitrate that fits within a few seconds, then stays there for a while before trying higher again.
+
 ## v1.66.7
 
 🐛 **Fixed**
