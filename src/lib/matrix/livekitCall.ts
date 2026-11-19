@@ -54,6 +54,7 @@ import {
 import {
     nativeBitrateChanged,
     nativeBitrateTarget,
+    UplinkCeiling,
     nativeSenderBitrate,
 } from "$lib/utils/nativeShareBitrate";
 import { shareEncoderSteps } from "$lib/utils/shareCrop";
@@ -3246,6 +3247,9 @@ function nativeSharePublishOptions() {
         degradationPreference: "maintain-resolution" as const,
         videoCodec: "h264" as const,
         backupCodec: false as const,
+    /** Where the uplink collapsed under this share (utils/nativeShareBitrate
+     *  UplinkCeiling), so the helper levels off below it. */
+    uplink?: UplinkCeiling;
         // The helper encodes a half-size layer too (--simulcast), and the
         // placeholder is published with two layers to carry it.
         simulcast: true,
@@ -3536,6 +3540,10 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
             enabled: nativeRequested,
             fps: res.frameRate,
             // Low until WebRTC has an uplink estimate; tuneNativeBitrate then
+    // Hold the helper under where the uplink last collapsed: it follows the
+    // estimate at a constant bitrate, so without this it climbs into the
+    // link's limit, crashes the estimate to the floor and climbs again.
+    available = (n.uplink ??= new UplinkCeiling()).limit(available, Date.now());
             // follows it up to the pick.
             bitrate: nativeBitrateTarget(screenShareBitratePicked(), null),
             simulcast: true,

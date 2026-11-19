@@ -53,3 +53,66 @@ export const NATIVE_SENDER_BITRATE_FLOOR = 8_000_000;
 export function nativeSenderBitrate(picked: number): number {
     return Math.max(picked, NATIVE_SENDER_BITRATE_FLOOR);
 }
+
+/** WebRTC's estimate falling under this share of its recent high is a
+ *  collapse (its ordinary backoffs are ~15% steps). */
+export const UPLINK_COLLAPSE_RATIO = 0.6;
+/** How far back the recent high looks. */
+export const UPLINK_PEAK_WINDOW_MS = 5_000;
+/** After a collapse the helper stays under this share of the high it fell
+ *  from. */
+export const UPLINK_CEILING_RATIO = 0.8;
+/** Each this long without a collapse, the ceiling rises by
+ *  UPLINK_CEILING_STEP (and goes once it passes the pick). */
+export const UPLINK_CEILING_CALM_MS = 60_000;
+export const UPLINK_CEILING_STEP = 1.1;
+
+/**
+ * Where the uplink broke, so the helper doesn't break it again.
+ *
+ * The helper encodes at a constant bitrate outside WebRTC's rate control and
+ * follows WebRTC's estimate (nativeBitrateTarget) half a second behind. So it
+ * fills every bit the estimate offers; the estimate climbs until the real
+ * link overflows, falls, and the helper keeps sending the old rate long
+ * enough to swell the send queue, which drives the estimate down to the
+ * floor. Then the climb starts over: a share sawtoothing between ~1 Mbps and
+ * the link's capacity. After the first collapse this holds the helper under
+ * 80% of where it happened, rising slowly while the link stays calm.
+ */
+export class UplinkCeiling {
+    private recent: { bps: number; at: number }[] = [];
+    private ceiling: number | null = null;
+    private calmSince = 0;
+
+    /** Feed WebRTC's estimate; returns what the helper may treat as the
+     *  uplink (the estimate, held under the ceiling). */
+    limit(available: number | null, now: number): number | null {
+        if (typeof available !== "number" || !(available > 0)) return available;
+        this.recent = this.recent.filter(
+            (s) => now - s.at <= UPLINK_PEAK_WINDOW_MS,
+        );
+        const peak = this.recent.reduce((m, s) => Math.max(m, s.bps), 0);
+        if (peak > 0 && available < peak * UPLINK_COLLAPSE_RATIO) {
+            const at = peak * UPLINK_CEILING_RATIO;
+            this.ceiling =
+                this.ceiling === null ? at : Math.min(this.ceiling, at);
+            this.calmSince = now;
+            this.recent = [];
+        } else if (
+            this.ceiling !== null &&
+            now - this.calmSince >= UPLINK_CEILING_CALM_MS
+        ) {
+            this.ceiling *= UPLINK_CEILING_STEP;
+            this.calmSince = now;
+        }
+        this.recent.push({ bps: available, at: now });
+        return this.ceiling === null
+            ? available
+            : Math.min(available, this.ceiling);
+    }
+
+    /** The current ceiling, or null before any collapse. */
+    current(): number | null {
+        return this.ceiling;
+    }
+}
