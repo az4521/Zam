@@ -4,6 +4,16 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.11
+
+🐛 **Fixed**
+
+- **Screen shares jumping back and forth on Linux with an NVIDIA card (Flatpak):** with NVIDIA hardware video decoding on, a decoded frame could be shown before it had finished arriving, so the picture flicked back a few frames over and over. Each frame is now complete before it's shown.
+
+✨ **New**
+
+- **Telegram video stickers:** sticker packs imported from Telegram now bring their video (.webm) stickers along too.
+
 ## v1.66.10
 
 🐛 **Fixed**
