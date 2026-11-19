@@ -2997,6 +2997,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.adaptiveStream": "Calidad de vídeo adaptativa",
     "voiceAudioSettings.adaptiveStreamHint":
         "Recibe cada vídeo al tamaño con que se muestra, y pausa el vídeo que no está en pantalla o mientras Zam está minimizado. Ahorra ancho de banda y decodificación. Se aplica la próxima vez que te unas a una llamada.",
+    "voiceAudioSettings.shareSmoothing":
+        "Suavizar pantallas compartidas recibidas",
+    "voiceAudioSettings.shareSmoothingHint":
+        "Retiene un poco la pantalla compartida para que una conexión con variaciones no se note como tirones o efecto elástico. Añade ese mismo retraso.",
+    "voiceAudioSettings.shareSmoothingOff": "Desactivado",
     "voiceAudioSettings.stopPreview": "Detener la vista previa",
     "voiceAudioSettings.preview": "Vista previa",
     "voiceAudioSettings.callSounds": "Sonidos de llamada",

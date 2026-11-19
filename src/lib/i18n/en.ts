@@ -2918,6 +2918,10 @@ export const en = {
     "voiceAudioSettings.adaptiveStream": "Adaptive video quality",
     "voiceAudioSettings.adaptiveStreamHint":
         "Receive each video at the size it's shown, and pause video that isn't on screen or while Zam is minimised. Saves bandwidth and decoding. Applies the next time you join a call.",
+    "voiceAudioSettings.shareSmoothing": "Smooth incoming screen shares",
+    "voiceAudioSettings.shareSmoothingHint":
+        "Holds a shared screen back a little so a jittery connection doesn't show as stutter or rubber-banding. Costs the same amount of delay.",
+    "voiceAudioSettings.shareSmoothingOff": "Off",
     "voiceAudioSettings.stopPreview": "Stop preview",
     "voiceAudioSettings.preview": "Preview",
     "voiceAudioSettings.callSounds": "Call sounds",

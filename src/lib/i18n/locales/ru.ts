@@ -3023,6 +3023,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.adaptiveStream": "Адаптивное качество видео",
     "voiceAudioSettings.adaptiveStreamHint":
         "Получать каждое видео в том размере, в каком оно показывается, и приостанавливать видео, которого нет на экране или пока Zam свёрнут. Экономит трафик и ресурсы декодирования. Применяется при следующем присоединении к звонку.",
+    "voiceAudioSettings.shareSmoothing":
+        "Сглаживать входящие трансляции экрана",
+    "voiceAudioSettings.shareSmoothingHint":
+        "Немного задерживает трансляцию экрана, чтобы нестабильное соединение не проявлялось рывками и эффектом резинки. Добавляет такую же задержку.",
+    "voiceAudioSettings.shareSmoothingOff": "Выкл.",
     "voiceAudioSettings.stopPreview": "Остановить предпросмотр",
     "voiceAudioSettings.preview": "Предпросмотр",
     "voiceAudioSettings.callSounds": "Звуки звонков",

@@ -2644,6 +2644,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.adaptiveStream": "適応型ビデオ画質",
     "voiceAudioSettings.adaptiveStreamHint":
         "各ビデオを表示されているサイズで受信し、画面外のビデオや Zam を最小化している間のビデオを一時停止します。帯域幅とデコード負荷を節約します。次に通話に参加したときから適用されます。",
+    "voiceAudioSettings.shareSmoothing": "受信する画面共有をなめらかにする",
+    "voiceAudioSettings.shareSmoothingHint":
+        "画面共有を少し遅らせて、不安定な接続によるカクつきやゴムのような動きを抑えます。その分だけ遅延が増えます。",
+    "voiceAudioSettings.shareSmoothingOff": "オフ",
     "voiceAudioSettings.stopPreview": "プレビューを停止",
     "voiceAudioSettings.preview": "プレビュー",
     "voiceAudioSettings.callSounds": "通話サウンド",

@@ -30,6 +30,7 @@
         setCallVideoCodec,
         setBlockedDecodeCodecs,
         setAdaptiveStream,
+        setShareSmoothingMs,
         setNoiseSuppressionGpu,
     } from "$lib/stores/settings.svelte";
     import {
@@ -94,6 +95,7 @@
         setVoiceCaptureConstraints,
         getRemoteAudioStreams,
         refreshDecodeSupport,
+        refreshShareSmoothing,
     } from "$lib/matrix/client";
     import { syncNativeRingEnabled } from "$lib/nativeSession";
     import {
@@ -943,6 +945,30 @@
                 onChange={(v) => setAdaptiveStream(v)}
                 label={t("voiceAudioSettings.adaptiveStream")}
             />
+        </div>
+        <div class="mt-3">
+            <div class="text-sm text-zam-textPrimary">
+                {t("voiceAudioSettings.shareSmoothing")}
+            </div>
+            <div class="text-xs text-zam-textMuted mb-1">
+                {t("voiceAudioSettings.shareSmoothingHint")}
+            </div>
+            <select
+                class={selectClass}
+                value={String(settingsState.shareSmoothingMs)}
+                onchange={(e) => {
+                    setShareSmoothingMs(Number(e.currentTarget.value));
+                    refreshShareSmoothing();
+                }}
+            >
+                <option value="0"
+                    >{t("voiceAudioSettings.shareSmoothingOff")}</option
+                >
+                <option value="100">100 ms</option>
+                <option value="170">170 ms</option>
+                <option value="250">250 ms</option>
+                <option value="400">400 ms</option>
+            </select>
         </div>
         {#if !settingsState.cameraDisabled}
             <button

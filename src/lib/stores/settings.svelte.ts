@@ -175,6 +175,21 @@ function readAccountNumber(key: string, fallback: number): number {
     return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : fallback;
 }
 
+/** About ten frames at 60 fps: enough to ride out a 60 ms jitter spike and a
+ *  retransmit round trip without a noticeable lag on a share. */
+const DEFAULT_SHARE_SMOOTHING_MS = 170;
+
+function clampShareSmoothing(n: number): number {
+    return Number.isFinite(n) ? Math.min(1000, Math.max(0, Math.round(n))) : 0;
+}
+
+function readShareSmoothing(): number {
+    const v = readAccountString("shareSmoothingMs");
+    return v === null
+        ? DEFAULT_SHARE_SMOOTHING_MS
+        : clampShareSmoothing(Number(v));
+}
+
 function clampSoundInterval(n: number): number {
     return Number.isFinite(n)
         ? Math.min(10000, Math.max(0, Math.round(n)))
@@ -587,6 +602,10 @@ export const settingsState = $state({
      *  change would re-prompt the OS picker). Stored as strings for the
      *  <select>s; fps is parsed to a number at the call site. */
     screenShareResolution: readAccountString("screenShareResolution") ?? "1080",
+    /** Extra playout delay for screens shared TO us, in ms (0 = the
+     *  browser's own low-latency choice). Trades latency for smoothness
+     *  when the connection's jitter would otherwise show as rubber-banding. */
+    shareSmoothingMs: readShareSmoothing(),
     screenShareFps: readAccountString("screenShareFps") ?? "30",
     /** Screen-share bitrate cap (bits/sec), picked apart from resolution and
      *  fps. Clamped to the measured upload when applied
@@ -951,6 +970,7 @@ export function reloadAccountSettings(): void {
         "nativeScreenShare",
         true,
     );
+    settingsState.shareSmoothingMs = readShareSmoothing();
     settingsState.screenShareResolution =
         readAccountString("screenShareResolution") ?? "1080";
     settingsState.screenShareFps = readAccountString("screenShareFps") ?? "30";
@@ -1550,6 +1570,12 @@ export function setShareSystemAudio(value: boolean): void {
 export function setNativeScreenShare(value: boolean): void {
     settingsState.nativeScreenShare = value;
     writeAccountBool("nativeScreenShare", value);
+}
+
+export function setShareSmoothingMs(value: number): void {
+    const ms = clampShareSmoothing(value);
+    settingsState.shareSmoothingMs = ms;
+    writeAccountNumber("shareSmoothingMs", ms);
 }
 
 export function setScreenShareResolution(value: string): void {

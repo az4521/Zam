@@ -1336,6 +1336,7 @@ function callListener(
                 isShareUnwatched(call, identity)
             )
                 view.setEnabled(false);
+            if (view.source === "screen_share") applyShareSmoothing(view.track);
         },
         changed: () => {
             notifyCallMutes(call);
@@ -4677,6 +4678,29 @@ export function refreshDecodeSupport(): void {
     if (!call) return;
     for (const lkRoom of callLkRooms(call)) announceCodecs(call, lkRoom);
     resubscribeVideo(call);
+}
+
+/** Hold incoming screen shares back by the user's smoothing delay, so a
+ *  jittery connection fills the buffer instead of showing as stalls and
+ *  catch-up bursts. 0 puts the browser's own choice back. */
+function applyShareSmoothing(track: unknown): void {
+    const t = track as { setPlayoutDelay?: (seconds: number) => void } | null;
+    try {
+        t?.setPlayoutDelay?.(settingsState.shareSmoothingMs / 1000);
+    } catch {
+        // A receiver that is gone, or a browser without the hint.
+    }
+}
+
+/** Re-apply the smoothing delay to the shares already arriving. */
+export function refreshShareSmoothing(): void {
+    const call = activeVoice;
+    if (!call) return;
+    const share = call.lk.Track.Source.ScreenShare;
+    for (const lkRoom of callLkRooms(call))
+        for (const p of lkRoom.remoteParticipants.values())
+            for (const pub of p.videoTrackPublications.values())
+                if (pub.source === share) applyShareSmoothing(pub.track);
 }
 
 /** Drop and re-take video subscriptions so the server offers them again

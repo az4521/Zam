@@ -2785,6 +2785,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "voiceAudioSettings.adaptiveStream": "自适应视频质量",
     "voiceAudioSettings.adaptiveStreamHint":
         "按每个视频的显示尺寸接收，并暂停不在屏幕上或 Zam 最小化期间的视频。可节省带宽和解码开销。下次加入通话时生效。",
+    "voiceAudioSettings.shareSmoothing": "平滑接收的屏幕共享",
+    "voiceAudioSettings.shareSmoothingHint":
+        "略微延后共享画面，让不稳定的连接不会表现为卡顿或橡皮筋效果。会增加相应的延迟。",
+    "voiceAudioSettings.shareSmoothingOff": "关闭",
     "voiceAudioSettings.stopPreview": "停止预览",
     "voiceAudioSettings.preview": "预览",
     "voiceAudioSettings.callSounds": "通话提示音",
