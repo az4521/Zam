@@ -4,6 +4,19 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.4
+
+🐛 **Fixed**
+
+- **Stuttering, freezing screen shares:** a share sent as one layer (every H.264 share, including the native Windows encoder) left the call server nothing lighter for a viewer whose connection couldn't keep up, so it kept pausing and resuming them. Viewers now tell the sharer when that happens, and the share lowers its bitrate until everyone can follow, then climbs back. The call stats panel says when your share is being held down.
+- **Stopping a native Windows share** could take the capture helper down, and a helper whose share had already fallen back to the browser kept encoding in the background, using more and more memory.
+- **A closed shared window** left a native share frozen on its last frame, and an encoder error froze it for good. The share now ends, or the encoder restarts.
+- **Share audio cutting out** while a share is busy: its buffer now grows a little after each dropout instead of starting over.
+- **Join call button missing** for a call in the first room you open after starting Zam.
+- **Your own speaking indicator** now lights up as you talk, instead of waiting for the server.
+- **"You's screen"** now reads "Your screen".
+- **Direct file transfer:** a resent part that differs from the first one starts that block over.
+
 ## v1.66.3
 
 ✨ **New**
