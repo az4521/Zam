@@ -218,6 +218,16 @@ describe("PlaceholderClock", () => {
         expect(clock.stamp(9e9, 6e6)).toBe(9e9 + 1e6);
     });
 
+    it("puts a catch-up 1 ms after the last, so the queued AUs keep their capture times", () => {
+        const clock = new PlaceholderClock();
+        expect(clock.stamp(9e9, 5e6)).toBe(9e9);
+        // Catch-up written 80 ms later, while AUs captured since are queued.
+        expect(clock.stamp(undefined, 5e6 + 80000)).toBe(9e9 + 1000);
+        // The queued AUs then keep their real 16.7 ms spacing.
+        expect(clock.stamp(9e9 + 16667, 5e6 + 81000)).toBe(9e9 + 16667);
+        expect(clock.stamp(9e9 + 33333, 5e6 + 82000)).toBe(9e9 + 33333);
+    });
+
     it("stays strictly increasing, by at least 1 ms", () => {
         const clock = new PlaceholderClock();
         const a = clock.stamp(9e9, 5e6);

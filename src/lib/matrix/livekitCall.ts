@@ -3197,7 +3197,10 @@ let nativeDisabled = false;
 /** Each SFU room's E2EE worker (the encoder of an encrypted room). */
 const roomWorkers = new WeakMap<LivekitRoom, Worker>();
 const NATIVE_PORT_WAIT_MS = 1500;
-const NATIVE_TUNE_MS = 2000;
+/** How often the helper's bitrate follows WebRTC's uplink estimate. Fast
+ *  enough to keep up with the estimate's own swings on a jittery link (2 s
+ *  left the helper sending far over it, and the share stuttering). */
+const NATIVE_TUNE_MS = 500;
 /** How long a native share's publish waits for the helper's picture size. */
 const NATIVE_SIZE_WAIT_MS = 1500;
 
@@ -3490,7 +3493,9 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
         configureNativeShare({
             enabled: nativeRequested,
             fps: res.frameRate,
-            bitrate: screenShareBitrateNow(),
+            // Low until WebRTC has an uplink estimate; tuneNativeBitrate then
+            // follows it up to the pick.
+            bitrate: nativeBitrateTarget(screenShareBitrateNow(), null),
             maxWidth: res.width,
             maxHeight: res.height,
         });

@@ -146,6 +146,16 @@ export class PlaceholderClock {
         ) {
             this.offset = captureUs - nowUs;
             ts = captureUs;
+        } else if (captureUs === undefined) {
+            // A catch-up placeholder carries the OLDEST queued AU, captured
+            // before now. Stamping it "now" put the clock ahead of every AU
+            // still queued, so those were all stamped 1 ms apart until real
+            // time caught up: a run of frames whose RTP timestamps were 1 ms
+            // apart arriving 16 ms apart, which the viewer's jitter buffer
+            // read as huge jitter (1.3 s, late frames dropped, keyframe
+            // requests, a second of freeze each). 1 ms after the last keeps
+            // the next AUs on their own capture times.
+            ts = this.last + 1000;
         } else {
             ts = Math.max(nowUs + (this.offset ?? 0), this.last + 1000);
         }

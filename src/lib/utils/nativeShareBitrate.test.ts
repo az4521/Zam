@@ -4,6 +4,7 @@ import {
     nativeBitrateTarget,
     nativeSenderBitrate,
     NATIVE_SENDER_BITRATE_FLOOR,
+    NATIVE_START_BITRATE,
 } from "./nativeShareBitrate";
 
 describe("nativeBitrateTarget", () => {
@@ -15,10 +16,13 @@ describe("nativeBitrateTarget", () => {
         expect(nativeBitrateTarget(6_000_000, 4_000_000)).toBe(3_400_000);
     });
 
-    it("keeps the picked bitrate while the uplink is unknown", () => {
-        expect(nativeBitrateTarget(6_000_000, null)).toBe(6_000_000);
-        expect(nativeBitrateTarget(6_000_000, undefined)).toBe(6_000_000);
-        expect(nativeBitrateTarget(6_000_000, 0)).toBe(6_000_000);
+    it("starts low while the uplink is unknown, and never above the pick", () => {
+        expect(nativeBitrateTarget(6_000_000, null)).toBe(NATIVE_START_BITRATE);
+        expect(nativeBitrateTarget(1_000_000, null)).toBe(1_000_000);
+        expect(nativeBitrateTarget(6_000_000, undefined)).toBe(
+            NATIVE_START_BITRATE,
+        );
+        expect(nativeBitrateTarget(6_000_000, 0)).toBe(NATIVE_START_BITRATE);
     });
 });
 

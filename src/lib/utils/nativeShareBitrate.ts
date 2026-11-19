@@ -7,17 +7,26 @@
 
 /** Share of the reported uplink the helper may use. */
 const UPLINK_SHARE = 0.85;
+/** What the helper starts at while the uplink is unknown. The helper encodes
+ *  outside WebRTC's rate control, so starting at the pick (often several
+ *  Mbps) while WebRTC's estimate was still ramping up from a few hundred kbps
+ *  backed up its pacer: WebRTC then throttled the placeholder encoder, the
+ *  helper's AUs piled up behind the placeholders and were skipped (measured:
+ *  ~230 AUs and 4 s of stutter at the start of a share on a jittery link). */
+export const NATIVE_START_BITRATE = 1_500_000;
 /** A change smaller than this (as a share of the last value) is not sent. */
 const RESEND_RATIO = 0.1;
 
 /** The bitrate to hand the helper: the picked one, or less when the uplink
- *  reports less. An unknown uplink (null, or not a positive number) keeps the
- *  picked bitrate. */
+ *  reports less. An unknown uplink (null, or not a positive number) gives
+ *  NATIVE_START_BITRATE (or the pick, if lower), and the share then follows
+ *  WebRTC's estimate up as it ramps. */
 export function nativeBitrateTarget(
     picked: number,
     availableBps: number | null | undefined,
 ): number {
-    if (typeof availableBps !== "number" || !(availableBps > 0)) return picked;
+    if (typeof availableBps !== "number" || !(availableBps > 0))
+        return Math.min(picked, NATIVE_START_BITRATE);
     return Math.round(Math.min(picked, availableBps * UPLINK_SHARE));
 }
 
