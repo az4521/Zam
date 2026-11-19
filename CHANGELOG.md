@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.5
+
+🐛 **Fixed**
+
+- **Missing buttons and menus after startup:** permission-gated controls (space settings, pin and delete in the message menu, the call participant menu) stayed hidden when a room's power levels arrived after it was first shown. They now appear as soon as the power levels load.
+- **Join call button** for calls whose members joined from newer clients now shows up once those members load, without switching rooms.
+
 ## v1.66.4
 
 🐛 **Fixed**
