@@ -2462,6 +2462,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Ваше вивантаження вимірюється як {upload}, тож це досягає {max}.",
     "screenShareQualityChips.bitrateUnmeasured":
         "Ваше вивантаження ще не виміряно. Його вимірюють, поки ви надсилаєте відео, тож наразі це досягає {max}.",
+    "screenShareQualityChips.bitrateHighWarning":
+        "Понад {safe}: ваш вибір, швидкість вивантаження не перевіряється, і глядачі з повільнішим з'єднанням чи пристроєм можуть бачити ривки або зависання.",
     "screenShareQualityChips.nativeCapture": "Помічник захоплення Windows",
     "screenShareQualityChips.nativeCaptureHint":
         "Захоплює й кодує трансляцію поза браузером, тож важка гра її не смикає. Застосовується до наступної трансляції.",

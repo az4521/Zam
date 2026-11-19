@@ -39,8 +39,8 @@ describe("share volume", () => {
 
 describe("bitrateCeiling override", () => {
     it("holds back 10% of a measurement but not of a typed figure", () => {
-        expect(bitrateCeiling(10_000_000)).toBe(9_000_000);
-        expect(bitrateCeiling(10_000_000, true)).toBe(10_000_000);
+        expect(bitrateCeiling(5_000_000)).toBe(4_500_000);
+        expect(bitrateCeiling(5_000_000, true)).toBe(5_000_000);
     });
 });
 

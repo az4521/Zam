@@ -169,7 +169,7 @@ import {
     type StreamOwner,
     type VideoTrackDebug,
 } from "$lib/utils/callStats";
-import { clampBitrate } from "$lib/utils/screenShareBitrate";
+import { effectiveBitrate } from "$lib/utils/screenShareBitrate";
 import { uploadSampleBps } from "$lib/utils/uploadSample";
 import {
     codecsFromMimeTypes,
@@ -3878,9 +3878,10 @@ function reapDeadTransceivers(
     setTimeout(tick, 500);
 }
 
-/** The picked screen-share bitrate, held under the measured upload. */
+/** The picked screen-share bitrate: held under the measured upload (and
+ *  8 Mbps) unless the user picked more than that by hand. */
 function screenShareBitratePicked(): number {
-    return clampBitrate(
+    return effectiveBitrate(
         settingsState.screenShareBitrate,
         screenShareBitrateCeiling(),
     );

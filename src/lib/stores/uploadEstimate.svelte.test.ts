@@ -11,13 +11,13 @@ describe("uploadEstimate", () => {
     it("starts unmeasured, with the unmeasured ceiling", async () => {
         const s = await freshStore();
         expect(s.measuredUpload()).toBeNull();
-        expect(s.screenShareBitrateCeiling()).toBe(10_000_000);
+        expect(s.screenShareBitrateCeiling()).toBe(8_000_000);
     });
 
     it("measures against the higher of this call's sample and the device peak", async () => {
         const s = await freshStore();
         s.noteUploadEstimate(20_000_000);
-        expect(s.screenShareBitrateCeiling()).toBe(18_000_000);
+        expect(s.screenShareBitrateCeiling()).toBe(8_000_000);
         s.noteUploadEstimate(5_000_000);
         expect(s.uploadEstimate.live).toBe(5_000_000);
         expect(s.measuredUpload()).toBe(20_000_000);

@@ -2276,6 +2276,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "测得你的上传速度为 {upload}，因此上限为 {max}。",
     "screenShareQualityChips.bitrateUnmeasured":
         "尚未测量你的上传速度。它会在你发送视频时测量，因此目前上限为 {max}。",
+    "screenShareQualityChips.bitrateHighWarning":
+        "超过 {safe} 由你自行决定：不会检查你的上传速度，网络或设备较慢的观众可能会看到卡顿或画面冻结。",
     "screenShareQualityChips.nativeCapture": "Windows 捕获辅助程序",
     "screenShareQualityChips.nativeCaptureHint":
         "在浏览器之外捕获并编码共享画面，因此占用大的游戏不会让共享卡顿。将应用于下一次共享。",

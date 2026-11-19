@@ -72,7 +72,8 @@ export function measuredUpload(): number | null {
     return peak === null ? live : Math.max(live, peak);
 }
 
-/** The most the bitrate slider offers right now. */
+/** The automatic limit on a screen-share pick right now (at most 8 Mbps;
+ *  a pick above that is the user's and isn't held to this). */
 export function screenShareBitrateCeiling(): number {
     return bitrateCeiling(measuredUpload(), uploadOverride() !== null);
 }

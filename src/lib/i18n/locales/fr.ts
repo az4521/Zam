@@ -2274,6 +2274,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Votre débit montant mesure {upload}, donc ceci va jusqu'à {max}.",
     "screenShareQualityChips.bitrateUnmeasured":
         "Votre débit montant n'a pas encore été mesuré. Il l'est pendant que vous envoyez de la vidéo, donc ceci va jusqu'à {max} pour l'instant.",
+    "screenShareQualityChips.bitrateHighWarning":
+        "Au-delà de {safe}, c'est votre choix : votre débit montant n'est pas vérifié, et les spectateurs sur des connexions ou appareils plus lents peuvent voir des saccades ou des gels.",
     "screenShareQualityChips.nativeCapture": "Assistant de capture Windows",
     "screenShareQualityChips.nativeCaptureHint":
         "Capture et encode le partage hors du navigateur, pour qu'un jeu gourmand ne le saccade pas. S'applique au prochain partage.",

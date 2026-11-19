@@ -56,14 +56,15 @@ afterEach(() => {
 });
 
 describe("ScreenShareQualityChips bitrate", () => {
-    it("goes up to 10% under the measured upload", () => {
+    it("runs to 50 Mbps, with the measurement holding only picks up to 8", () => {
         noteUploadEstimate(20_000_000);
         const slider = render();
         expect(host!.textContent).toContain("20 Mbps");
-        expect(host!.textContent).toContain("18 Mbps");
+        // 10% under 20 Mbps is 18, but the automatic limit stops at 8.
+        expect(host!.textContent).toContain("up to 8 Mbps");
         expect(host!.textContent).toContain("4 Mbps");
         release(slider, 1000);
-        expect(settingsState.screenShareBitrate).toBe(18_000_000);
+        expect(settingsState.screenShareBitrate).toBe(50_000_000);
         release(slider, 0);
         expect(settingsState.screenShareBitrate).toBe(300_000);
         expect(host!.textContent).toContain("300 kbps");
@@ -72,14 +73,25 @@ describe("ScreenShareQualityChips bitrate", () => {
     it("says when nothing has been measured", () => {
         render();
         expect(host!.textContent).toContain("hasn't been measured");
-        expect(host!.textContent).toContain("10 Mbps");
+        expect(host!.textContent).toContain("8 Mbps");
     });
 
-    it("shows a saved pick above the ceiling at the ceiling", () => {
+    it("says what a slow upload holds a pick to", () => {
         noteUploadEstimate(2_000_000);
-        const slider = render();
-        expect(slider.value).toBe("1000");
+        render();
         expect(host!.textContent).toContain("1.8 Mbps");
+    });
+
+    it("warns about a hand-picked bitrate above 8 Mbps", () => {
+        render();
+        expect(host!.querySelector('[role="alert"]')).toBeNull();
+        setScreenShareBitrate(20_000_000);
+        flushSync();
+        expect(host!.textContent).toContain("20 Mbps");
+        expect(host!.querySelector('[role="alert"]')?.textContent).toContain(
+            "Above 8 Mbps",
+        );
+        expect(host!.textContent).not.toContain("hasn't been measured");
     });
 
     it("retargets a live share on release, not while dragging", () => {

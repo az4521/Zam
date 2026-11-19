@@ -24,9 +24,12 @@
     } from "$lib/utils/videoCodecs";
     import {
         BITRATE_SLIDER_STEPS,
+        MAX_SCREEN_SHARE_BITRATE,
+        SAFE_SCREEN_SHARE_BITRATE,
         bitrateFromSlider,
         bitrateParts,
         clampBitrate,
+        isHighBitrate,
         sliderFromBitrate,
     } from "$lib/utils/screenShareBitrate";
     import {
@@ -55,16 +58,22 @@
     }
 
     // The bitrate is picked apart from resolution and fps, from about 240p's
-    // bitrate up to 10% under the measured upload. While dragging only the
-    // label follows; the pick is saved (and a live share retargeted) on
-    // release.
+    // bitrate up to 50 Mbps. Up to 8 Mbps the measured upload can hold it
+    // lower (`ceiling`); above 8 it is the user's own call, with a warning.
+    // While dragging only the label follows; the pick is saved (and a live
+    // share retargeted) on release.
     const ceiling = $derived(screenShareBitrateCeiling());
     const measured = $derived(measuredUpload());
     const overridden = $derived(uploadOverride() !== null);
     let draftBitrate = $state<number | null>(null);
     const shownBitrate = $derived(
-        draftBitrate ?? clampBitrate(settingsState.screenShareBitrate, ceiling),
+        draftBitrate ??
+            clampBitrate(
+                settingsState.screenShareBitrate,
+                MAX_SCREEN_SHARE_BITRATE,
+            ),
     );
+    const highBitrate = $derived(isHighBitrate(shownBitrate));
 
     function bitrateLabel(bps: number): string {
         const { unit, n } = bitrateParts(bps);
@@ -90,7 +99,9 @@
 
     function commitBitrate(position: number): void {
         draftBitrate = null;
-        setScreenShareBitrate(bitrateFromSlider(position, ceiling));
+        setScreenShareBitrate(
+            bitrateFromSlider(position, MAX_SCREEN_SHARE_BITRATE),
+        );
         onQualityChange?.(
             settingsState.screenShareResolution,
             Number(settingsState.screenShareFps),
@@ -226,34 +237,52 @@
             max={BITRATE_SLIDER_STEPS}
             step="1"
             class="w-full accent-zam-accent"
-            value={sliderFromBitrate(shownBitrate, ceiling)}
+            list="screen-share-bitrate-safe"
+            value={sliderFromBitrate(shownBitrate, MAX_SCREEN_SHARE_BITRATE)}
             aria-label={t("screenShareQualityChips.bitrate")}
             aria-valuetext={bitrateLabel(shownBitrate)}
             oninput={(e) =>
                 (draftBitrate = bitrateFromSlider(
                     Number(e.currentTarget.value),
-                    ceiling,
+                    MAX_SCREEN_SHARE_BITRATE,
                 ))}
             onchange={(e) => commitBitrate(Number(e.currentTarget.value))}
         />
+        <datalist id="screen-share-bitrate-safe">
+            <option
+                value={sliderFromBitrate(
+                    SAFE_SCREEN_SHARE_BITRATE,
+                    MAX_SCREEN_SHARE_BITRATE,
+                )}
+            ></option>
+        </datalist>
+        {#if highBitrate}
+            <div class="text-xs text-zam-warning mt-0.5" role="alert">
+                {t("screenShareQualityChips.bitrateHighWarning", {
+                    safe: bitrateLabel(SAFE_SCREEN_SHARE_BITRATE),
+                })}
+            </div>
+        {/if}
         <div class="text-xs text-zam-textMuted mt-0.5">
             {t("screenShareQualityChips.bitrateCapHint")}
         </div>
-        <div class="text-xs text-zam-textMuted mt-0.5">
-            {overridden && measured !== null
-                ? t("screenShareQualityChips.bitrateOverridden", {
-                      upload: bitrateLabel(measured),
-                      max: bitrateLabel(ceiling),
-                  })
-                : measured === null
-                  ? t("screenShareQualityChips.bitrateUnmeasured", {
-                        max: bitrateLabel(ceiling),
-                    })
-                  : t("screenShareQualityChips.bitrateMeasured", {
-                        upload: bitrateLabel(measured),
-                        max: bitrateLabel(ceiling),
-                    })}
-        </div>
+        {#if !highBitrate}
+            <div class="text-xs text-zam-textMuted mt-0.5">
+                {overridden && measured !== null
+                    ? t("screenShareQualityChips.bitrateOverridden", {
+                          upload: bitrateLabel(measured),
+                          max: bitrateLabel(ceiling),
+                      })
+                    : measured === null
+                      ? t("screenShareQualityChips.bitrateUnmeasured", {
+                            max: bitrateLabel(ceiling),
+                        })
+                      : t("screenShareQualityChips.bitrateMeasured", {
+                            upload: bitrateLabel(measured),
+                            max: bitrateLabel(ceiling),
+                        })}
+            </div>
+        {/if}
         <div class="flex items-center justify-between gap-2 mt-1.5">
             <label
                 for="upload-speed-override"

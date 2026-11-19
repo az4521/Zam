@@ -2,9 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
     BITRATE_SLIDER_STEPS,
     DEFAULT_SCREEN_SHARE_BITRATE,
+    MAX_SCREEN_SHARE_BITRATE,
     MIN_SCREEN_SHARE_BITRATE,
+    SAFE_SCREEN_SHARE_BITRATE,
     UNMEASURED_CEILING,
     bitrateCeiling,
+    effectiveBitrate,
+    isHighBitrate,
     bitrateFromSlider,
     bitrateParts,
     clampBitrate,
@@ -14,8 +18,16 @@ import {
 
 describe("bitrateCeiling", () => {
     it("is 10% under the measured upload", () => {
-        expect(bitrateCeiling(20_000_000)).toBe(18_000_000);
+        expect(bitrateCeiling(5_000_000)).toBe(4_500_000);
         expect(bitrateCeiling(1_000_000)).toBe(900_000);
+    });
+
+    it("never raises past 8 Mbps, measured or typed", () => {
+        expect(bitrateCeiling(20_000_000)).toBe(SAFE_SCREEN_SHARE_BITRATE);
+        expect(bitrateCeiling(100_000_000, true)).toBe(
+            SAFE_SCREEN_SHARE_BITRATE,
+        );
+        expect(UNMEASURED_CEILING).toBe(SAFE_SCREEN_SHARE_BITRATE);
     });
 
     it("never goes under the minimum", () => {
@@ -41,6 +53,27 @@ describe("clampBitrate", () => {
             DEFAULT_SCREEN_SHARE_BITRATE,
         );
         expect(clampBitrate(Number.NaN, 2_000_000)).toBe(2_000_000);
+    });
+});
+
+describe("effectiveBitrate", () => {
+    it("defaults to 8 Mbps", () => {
+        expect(DEFAULT_SCREEN_SHARE_BITRATE).toBe(8_000_000);
+    });
+
+    it("holds a pick of 8 Mbps or less under the automatic limit", () => {
+        expect(effectiveBitrate(8_000_000, 4_500_000)).toBe(4_500_000);
+        expect(effectiveBitrate(3_000_000, 4_500_000)).toBe(3_000_000);
+        expect(effectiveBitrate(8_000_000, UNMEASURED_CEILING)).toBe(8_000_000);
+    });
+
+    it("sends a hand-picked bitrate above 8 Mbps as picked", () => {
+        expect(isHighBitrate(8_000_000)).toBe(false);
+        expect(isHighBitrate(8_100_000)).toBe(true);
+        expect(effectiveBitrate(20_000_000, 4_500_000)).toBe(20_000_000);
+        expect(effectiveBitrate(90_000_000, 4_500_000)).toBe(
+            MAX_SCREEN_SHARE_BITRATE,
+        );
     });
 });
 
