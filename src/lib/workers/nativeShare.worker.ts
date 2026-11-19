@@ -87,12 +87,14 @@ function tick(captureUs?: number): void {
         duration: Math.round(1e6 / fps),
     });
     writes++;
-    writer.write(frame).catch(() => {});
+    writer.write(frame).catch(() => frame.close());
 }
 
 // ---------------------------------------------------------------- preview
 
 let decoder: VideoDecoder | null = null;
+/** Most AUs the preview decoder may hold before it is reset. */
+const MAX_PREVIEW_DECODE_QUEUE = 8;
 let needKey = true;
 
 /** H.264 codec string (avc1.PPCCLL) from the first SPS in an AU. */
@@ -182,6 +184,14 @@ function decodeAu(au: { key: boolean; ts: number; data: ArrayBuffer }): void {
     }
     if (needKey && !hasKeyNal(bytes)) return;
     needKey = false;
+    // A preview decoder that falls behind (a busy GPU under a game) would
+    // queue every AU without limit, each a copy: start over at a keyframe.
+    if (decoder.decodeQueueSize > MAX_PREVIEW_DECODE_QUEUE) {
+        previewInfo(`decoder behind (${decoder.decodeQueueSize} queued)`);
+        resetDecoder();
+        helper?.postMessage({ cmd: "key" });
+        return;
+    }
     try {
         decoder.decode(
             new EncodedVideoChunk({

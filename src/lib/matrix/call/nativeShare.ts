@@ -160,10 +160,17 @@ export function createNativeShareSource(
             if (destroyed) return;
             destroyed = true;
             generator.stop();
-            // The worker tells the helper to stop; terminating it closes the
-            // port too, which stops the helper all the same.
+            // The worker tells the helper to stop and then reports "ended";
+            // terminating it before that dropped the stop, leaving the
+            // helper to notice the closed port on its own.
+            const kill = setTimeout(() => worker.terminate(), 1000);
+            worker.addEventListener("message", (e: MessageEvent) => {
+                if ((e.data as { type?: string } | null)?.type !== "ended")
+                    return;
+                clearTimeout(kill);
+                worker.terminate();
+            });
             worker.postMessage({ cmd: "stop" });
-            worker.terminate();
             substitution?.close();
             substitution = null;
             opts.onDestroy?.();
@@ -199,9 +206,18 @@ export function createNativeShareProcessor(
             processor.previewTrack = source.previewTrack;
             processor.processedTrack = source.track;
         },
-        async restart(opts) {
-            await processor.destroy();
-            await processor.init(opts);
+        async restart({ track }) {
+            // The helper port was transferred on the first init and cannot
+            // be sent again, and destroying the source ends the share: keep
+            // it and only quiet the new capture track.
+            if (!source) throw new Error("native share already ended");
+            await track
+                .applyConstraints({
+                    width: { ideal: NATIVE_PLACEHOLDER_SIZE },
+                    height: { ideal: NATIVE_PLACEHOLDER_SIZE },
+                    frameRate: { ideal: 1 },
+                })
+                .catch(() => {});
         },
         takeSubstitutionPort() {
             return source?.takeSubstitutionPort() ?? null;

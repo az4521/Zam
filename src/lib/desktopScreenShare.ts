@@ -220,6 +220,15 @@ export interface NativeSharePort {
 const NATIVE_PORT_TAG = "zam:native-share-port";
 /** Main posts the helper's port to the window with this tag. */
 let nativePort: NativeSharePort | null = null;
+/** How long a helper port that arrived with nobody waiting is kept for
+ *  takeNativeSharePort before its helper is stopped. */
+const NATIVE_PORT_PARK_MS = 10_000;
+
+function releaseNativePort(p: NativeSharePort | null): void {
+    if (!p) return;
+    p.port.postMessage({ cmd: "stop" });
+    p.port.close();
+}
 let nativeWaiter: ((p: NativeSharePort | null) => void) | null = null;
 let nativeListening = false;
 
@@ -246,9 +255,17 @@ function listenNative(): void {
             nativeWaiter = null;
             waiter(next);
         } else {
-            // Kept for takeNativeSharePort; a newer one replaces it.
-            nativePort?.port.close();
+            // Kept for takeNativeSharePort; a newer one replaces it. One
+            // nobody takes (it came after the share gave up waiting) is
+            // stopped, or the helper keeps encoding into a port nobody
+            // reads and every AU queues in memory.
+            releaseNativePort(nativePort);
             nativePort = next;
+            setTimeout(() => {
+                if (nativePort !== next) return;
+                nativePort = null;
+                releaseNativePort(next);
+            }, NATIVE_PORT_PARK_MS);
         }
     });
 }
@@ -300,7 +317,5 @@ export function takeNativeSharePort(
 export function discardNativeSharePort(): void {
     const p = nativePort;
     nativePort = null;
-    if (!p) return;
-    p.port.postMessage({ cmd: "stop" });
-    p.port.close();
+    releaseNativePort(p);
 }

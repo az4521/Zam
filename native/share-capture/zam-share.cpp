@@ -15,6 +15,7 @@
 
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
+#include <atomic>
 #include <windows.h>
 #include <d3d11.h>
 #include <dxgi.h>
@@ -235,8 +236,24 @@ static ComPtr<T> dxgiOf(const winrt::Windows::Foundation::IInspectable& obj) {
 
 // ---------------------------------------------------------------- capture
 
+// Set before the pool closes; g_framesInFlight counts handlers still running,
+// so the pool and session are not closed under one (an exception escaping a
+// WinRT delegate ends the process, which users saw as a crash on stop).
+static std::atomic<bool> g_captureClosing{false};
+static std::atomic<int> g_framesInFlight{0};
+
 static void onFrameArrived(WGC::Direct3D11CaptureFramePool const& pool) {
-    auto frame = pool.TryGetNextFrame();
+    struct InFlight {
+        InFlight() { g_framesInFlight++; }
+        ~InFlight() { g_framesInFlight--; }
+    } inFlight;
+    if (g_captureClosing) return;
+    WGC::Direct3D11CaptureFrame frame{nullptr};
+    try {
+        frame = pool.TryGetNextFrame();
+    } catch (...) {
+        return;
+    }
     if (!frame) return;
     try {
         auto content = frame.ContentSize();
@@ -290,7 +307,10 @@ static void onFrameArrived(WGC::Direct3D11CaptureFramePool const& pool) {
     } catch (...) {
         logf_("share: frame handling failed");
     }
-    frame.Close();
+    try {
+        frame.Close();
+    } catch (...) {
+    }
     SetEvent(g_sh.wake);
 }
 
@@ -1426,7 +1446,10 @@ int wmain(int argc, wchar_t** argv) {
 
         code = runPacer();
 
+        g_captureClosing = true;
         pool.FrameArrived(frameToken);
+        // Let a handler that already started finish before the pool goes.
+        for (int i = 0; i < 100 && g_framesInFlight > 0; i++) Sleep(5);
         item.Closed(closedToken);
         session.Close();
         pool.Close();
