@@ -142,6 +142,7 @@ import {
 } from "$lib/stores/settings.svelte";
 import { lazyModule } from "$lib/utils/lazyModule";
 import { RedundancyController } from "$lib/utils/audioRedundancy";
+import { deadTransceivers } from "$lib/utils/deadTransceivers";
 import {
     SHARE_HEALTH_TOPIC,
     ShareRateCap,
@@ -1510,6 +1511,9 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
     // What the people we publish to decode (utils/videoCodecs): LiveKit
     // hands over everyone's attributes on joining and reports changes.
     if (lkRoom === call.lkRoom) {
+        lkRoom.on(lk.RoomEvent.LocalTrackUnpublished, () =>
+            reapDeadTransceivers(call, lkRoom),
+        );
         const codecsChanged = () => notifyCallCodecs(call);
         lkRoom.on(lk.RoomEvent.ParticipantConnected, codecsChanged);
         lkRoom.on(lk.RoomEvent.ParticipantDisconnected, codecsChanged);
@@ -3820,6 +3824,49 @@ function stopShareAudio(): void {
         void s.call.local.unpublishTrack(s.track).catch(() => {});
         notifyCallVideo(s.call);
     }
+}
+
+/** Stop the publisher's transceivers that an unpublish left empty
+ *  (utils/deadTransceivers): LiveKit never does, so every share, camera
+ *  toggle and codec republish kept its encoder's memory for the rest of the
+ *  call. Waits for the unpublish's own negotiation to settle first. */
+function reapDeadTransceivers(
+    call: ActiveVoiceCall,
+    lkRoom: LivekitRoom,
+): void {
+    let tries = 0;
+    const tick = () => {
+        if (activeVoice !== call) return;
+        const pc = publisherConnection(lkRoom);
+        if (!pc || pc.connectionState === "closed") return;
+        const dead =
+            pc.signalingState === "stable"
+                ? deadTransceivers(pc.getTransceivers())
+                : [];
+        for (const t of dead) {
+            try {
+                t.stop();
+            } catch {
+                // Already stopping, or the connection is going away.
+            }
+        }
+        if (dead.length > 0) {
+            // Stopping sets the connection's negotiation-needed flag, and
+            // LiveKit only negotiates when it publishes. Left set, the next
+            // publish fires no negotiationneeded event, which is where a
+            // plain call's native share attaches its substitution transform
+            // (queueSenderTransform): negotiate now so the flag clears.
+            void lkRoom.engine.negotiate().catch((err: unknown) => {
+                console.warn(
+                    "Renegotiating after stopping old transceivers failed:",
+                    err,
+                );
+            });
+            return;
+        }
+        if (++tries < 12) setTimeout(tick, 500);
+    };
+    setTimeout(tick, 500);
 }
 
 /** The picked screen-share bitrate, held under the measured upload. */
