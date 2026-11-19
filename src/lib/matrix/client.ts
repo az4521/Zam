@@ -11619,11 +11619,12 @@ function recalcCallOnMemberLoaded(event: MatrixEvent): void {
         .getLiveTimeline()
         .getState(EventTimeline.FORWARDS)
         ?.getStateEvents(EventType.GroupCallMemberPrefix);
-    const inCall = callState?.some(
-        (e) =>
-            e.getSender() === userId &&
-            !isMembershipLeave(e.getContent() as Record<string, unknown>),
-    );
+    const inCall =
+        callState?.some(
+            (e) =>
+                e.getSender() === userId &&
+                !isMembershipLeave(e.getContent() as Record<string, unknown>),
+        ) || hasStickyEventFrom(room, userId);
     if (!inCall) return;
     void rtcSessionFor(room)
         ?.ensureRecalculateSessionMembers()
@@ -11741,6 +11742,19 @@ let voiceSessionsBound = false;
 let onVoiceSessionStarted: ((roomId: string, session: object) => void) | null =
     null;
 let onVoiceSessionEnded: (() => void) | null = null;
+
+/** Whether `userId` has a sticky event in the room: how newer clients send
+ *  their call membership (m.rtc.member), which the state check above misses. */
+function hasStickyEventFrom(room: Room, userId: string): boolean {
+    const sticky = (
+        room as unknown as {
+            _unstable_getStickyEvents?: () => Iterable<MatrixEvent>;
+        }
+    )._unstable_getStickyEvents?.();
+    if (!sticky) return false;
+    for (const e of sticky) if (e.getSender() === userId) return true;
+    return false;
+}
 
 function notifyVoiceSessions(): void {
     for (const cb of voiceSessionSubscribers) cb();
