@@ -6,6 +6,8 @@ import {
     leaveVoiceCall,
     setMicMuted,
     setMicClosedAtJoin,
+    setMicGateOpen,
+    setMicGateOpenAtJoin,
     setVoicePlaybackMuted,
     onVoiceSessionsChanged,
     onVoiceConnStateChanged,
@@ -262,8 +264,10 @@ async function clearStaleCallStatus(): Promise<void> {
 
 /** Subscribe the store to client voice events. Call once from the app shell. */
 export function initVoiceCall(): () => void {
-    // A call joined in push to talk starts with the mic closed.
-    setMicClosedAtJoin(() => micGated());
+    // A call joined on hold starts muted; one joined in push to talk starts
+    // with the gate shut (silent, not muted).
+    setMicClosedAtJoin(() => voiceCallState.onHold);
+    setMicGateOpenAtJoin(() => !micGated());
     // The sound engine mirrors persisted settings once per boot (account
     // switches hard-reload, so this is also the per-account init).
     configureCallSounds({
@@ -550,10 +554,11 @@ export function pushToTalkEnabled(): boolean {
     return settingsState.pushToTalk && bindingFor("pushToTalk") !== null;
 }
 
-/** The mic is closed for a reason other than the user's own mute. */
+/** Push to talk not held, or push to mute held: the mic sends silence but
+ *  stays unmuted, so the rest of the call sees someone who stopped talking,
+ *  not a mute (their clients show a mute and play its sound). */
 function micGated(): boolean {
     return (
-        voiceCallState.onHold ||
         voiceCallState.pushToMuteHeld ||
         (pushToTalkEnabled() && !voiceCallState.pushToTalkHeld)
     );
@@ -561,7 +566,9 @@ function micGated(): boolean {
 
 function applyMicGate(): void {
     if (!voiceCallState.roomId) return;
-    const closed = voiceCallState.micMuted || micGated();
+    setMicGateOpen(!micGated());
+    // A system hold is a real mute: the line is taken for something else.
+    const closed = voiceCallState.micMuted || voiceCallState.onHold;
     void setMicMuted(closed).then((ok) => {
         if (ok || closed || voiceCallState.roomId === null) return;
         // Push to talk found no mic to open: show that, as a failed unmute does.
@@ -595,7 +602,7 @@ function applyMuteState(next: MuteState, prev: MuteState): void {
     voiceCallState.mutedByDeafen = next.mutedByDeafen;
     // A system hold keeps both muted underneath, whatever the user toggles.
     setVoicePlaybackMuted(next.deafened || voiceCallState.onHold);
-    void setMicMuted(next.micMuted || micGated()).then((ok) => {
+    void setMicMuted(next.micMuted || voiceCallState.onHold).then((ok) => {
         if (ok || voiceCallState.roomId === null) return;
         // The device refused — roll the UI back to the truth and say so.
         voiceCallState.micMuted = prev.micMuted;
@@ -722,7 +729,7 @@ function applySystemHold(held: boolean): void {
     if (!voiceCallState.roomId) return;
     voiceCallState.onHold = held;
     setVoicePlaybackMuted(held || voiceCallState.deafened);
-    void setMicMuted(voiceCallState.micMuted || micGated());
+    void setMicMuted(voiceCallState.micMuted || held);
 }
 
 /** Take the call off a system hold (the other call is over). */

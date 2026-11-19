@@ -11906,6 +11906,8 @@ export {
     leaveVoiceCall,
     setMicMuted,
     setMicClosedAtJoin,
+    setMicGateOpen,
+    setMicGateOpenAtJoin,
     setVoicePlaybackMuted,
     setVoiceOutputDevice,
     setVoiceOutputVolume,

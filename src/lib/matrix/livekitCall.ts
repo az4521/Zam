@@ -423,11 +423,56 @@ let voicePlaybackMuted = false;
 // The mic state the user last asked for; consulted after connect so a mute
 // toggled during the connect window isn't clobbered.
 let desiredMicMuted = false;
-/** Whether a new call should start with the mic closed (push to talk not
- *  held); registered by the voice call store. */
+/** Whether a new call should start with the mic closed (a system hold);
+ *  registered by the voice call store. */
 let micClosedAtJoin: () => boolean = () => false;
 export function setMicClosedAtJoin(fn: () => boolean): void {
     micClosedAtJoin = fn;
+}
+/** Push to talk / push to mute: the mic stays published and unmuted and only
+ *  sends silence while the gate is shut, so to everyone else it is someone
+ *  who stopped talking, not someone who muted (a LiveKit mute is announced
+ *  to the whole call, and their clients show it and play its sound). */
+let micGateOpen = true;
+let micGateOpenAtJoin: () => boolean = () => true;
+export function setMicGateOpenAtJoin(fn: () => boolean): void {
+    micGateOpenAtJoin = fn;
+}
+/** Open or shut the push-to-talk gate on the live call's mic. */
+export function setMicGateOpen(open: boolean): void {
+    micGateOpen = open;
+    const call = activeVoice;
+    if (!call) return;
+    enforceMicGate(call);
+    syncMicSending(
+        call.local.getTrack(call.lk.Track.Source.Microphone),
+        micSending(),
+    );
+}
+/** Whether the mic should be sending sound now: not muted, gate open. */
+function micSending(): boolean {
+    return !desiredMicMuted && micGateOpen;
+}
+
+/** Mic tracks that re-apply the gate when LiveKit swaps what they send. */
+const gateWatched = new WeakSet<object>();
+
+/** Keep a shut gate shut on the call's mic. LiveKit re-applies its own mute
+ *  when it restarts a track (device switch) or changes its processor, but
+ *  knows nothing of the gate, so the new track would start out sending:
+ *  re-applied on those events, and checked on every speaking poll besides. */
+function enforceMicGate(call: ActiveVoiceCall): void {
+    const track = call.local.getTrack(call.lk.Track.Source.Microphone);
+    if (!track) return;
+    if (!gateWatched.has(track)) {
+        gateWatched.add(track);
+        const resync = () => {
+            if (activeVoice === call) syncMicSending(track, micSending());
+        };
+        track.on(call.lk.TrackEvent.Restarted, resync);
+        track.on(call.lk.TrackEvent.TrackProcessorUpdate, resync);
+    }
+    if (!micGateOpen) syncMicSending(track, false);
 }
 // Whether the user currently wants the camera on. Intent, not LiveKit state:
 // turning the camera off only MUTES the publication, so "is a camera track
@@ -1268,6 +1313,8 @@ function stopLocalSpeaking(): void {
 }
 
 function localMicLoud(call: ActiveVoiceCall): boolean {
+    // Push to talk not held: nothing is sent, so nobody hears us speak.
+    if (!micGateOpen) return false;
     const pub = call.local.getTrack(call.lk.Track.Source.Microphone) as
         LivekitClient.LocalAudioTrack | undefined;
     const track = pub && !pub.isMuted ? pub.mediaStreamTrack : null;
@@ -1310,6 +1357,7 @@ function ensureLocalSpeaking(call: ActiveVoiceCall): void {
             if (localSpeaking.call === call) stopLocalSpeaking();
             return;
         }
+        enforceMicGate(call);
         const now = Date.now();
         if (localMicLoud(call)) localSpeaking.lastLoud = now;
         const speaking = now - localSpeaking.lastLoud < LOCAL_SPEAKING_HOLD_MS;
@@ -2524,6 +2572,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     startUploadSampling(call);
     ensureVoiceDeviceWatch();
     desiredMicMuted = !!micFailure || micClosedAtJoin();
+    micGateOpen = micGateOpenAtJoin();
     desiredCameraOn = false;
     notifyVoiceConnState("connecting");
     if (micFailure) notifyCallMicUnavailable(micFailure.err);
@@ -2965,11 +3014,20 @@ function syncMicSending(
     track: LivekitClient.LocalTrack | undefined,
     sending: boolean,
 ): void {
+    if (!track) return;
     const processed = (
-        track as
-            { processor?: { processedTrack?: MediaStreamTrack } } | undefined
-    )?.processor?.processedTrack;
-    if (processed) processed.enabled = sending;
+        track as unknown as {
+            processor?: { processedTrack?: MediaStreamTrack };
+        }
+    ).processor?.processedTrack;
+    if (processed) {
+        processed.enabled = sending;
+        return;
+    }
+    // No processor: the mic track itself is what's sent. A real mute has
+    // LiveKit disable it already; the gate disables it without telling
+    // anyone.
+    if (!track.isMuted) track.mediaStreamTrack.enabled = sending;
 }
 
 /** Turn the call's mic on or off. Once a mic track exists this is LiveKit's
@@ -2995,7 +3053,7 @@ async function setCallMicEnabled(
     ).chain;
     if (!enabled || !chain || local.getTrack(source)) {
         await local.setMicrophoneEnabled(enabled);
-        syncMicSending(local.getTrack(source), enabled);
+        syncMicSending(local.getTrack(source), enabled && micGateOpen);
         return;
     }
     const run = (async () => {
@@ -3016,7 +3074,7 @@ async function setCallMicEnabled(
             );
         }
         await local.publishTrack(track, { source });
-        syncMicSending(track, !desiredMicMuted);
+        syncMicSending(track, micSending());
     })();
     micCreation = run;
     try {
@@ -3189,6 +3247,9 @@ interface NativeShareState {
     bitrate: number | null;
     /** The low simulcast layer's bitrate last sent (Windows helper). */
     lowBitrate?: number | null;
+    /** Where the uplink collapsed under this share (utils/nativeShareBitrate
+     *  UplinkCeiling), so the helper levels off below it. */
+    uplink?: UplinkCeiling;
     timer: ReturnType<typeof setInterval> | null;
     /** What the helper reported it started with (encoder, size). */
     helper: NativeShareHelperInfo;
@@ -3247,9 +3308,6 @@ function nativeSharePublishOptions() {
         degradationPreference: "maintain-resolution" as const,
         videoCodec: "h264" as const,
         backupCodec: false as const,
-    /** Where the uplink collapsed under this share (utils/nativeShareBitrate
-     *  UplinkCeiling), so the helper levels off below it. */
-    uplink?: UplinkCeiling;
         // The helper encodes a half-size layer too (--simulcast), and the
         // placeholder is published with two layers to carry it.
         simulcast: true,
@@ -3482,6 +3540,10 @@ async function tuneNativeBitrate(n: NativeShareState): Promise<void> {
             )
                 available = pair.availableOutgoingBitrate;
         }
+    // Hold the helper under where the uplink last collapsed: it follows the
+    // estimate at a constant bitrate, so without this it climbs into the
+    // link's limit, crashes the estimate to the floor and climbs again.
+    available = (n.uplink ??= new UplinkCeiling()).limit(available, Date.now());
     if (n.published) {
         // Android: one layer, held under the viewers' cap as a whole.
         const target = nativeBitrateTarget(screenShareBitrateNow(), available);
@@ -3540,10 +3602,6 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
             enabled: nativeRequested,
             fps: res.frameRate,
             // Low until WebRTC has an uplink estimate; tuneNativeBitrate then
-    // Hold the helper under where the uplink last collapsed: it follows the
-    // estimate at a constant bitrate, so without this it climbs into the
-    // link's limit, crashes the estimate to the floor and climbs again.
-    available = (n.uplink ??= new UplinkCeiling()).limit(available, Date.now());
             // follows it up to the pick.
             bitrate: nativeBitrateTarget(screenShareBitratePicked(), null),
             simulcast: true,
@@ -4157,7 +4215,7 @@ export async function setVoiceCaptureConstraints(opts: {
     }
     // A restart or a new processor brings a new processed track: keep it
     // silent while the mic is closed.
-    syncMicSending(track, !desiredMicMuted);
+    syncMicSending(track, micSending());
     if (failure) {
         console.error("Voice capture constraints change failed:", failure);
         if (activeVoice === call)
