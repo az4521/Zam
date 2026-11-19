@@ -10178,6 +10178,42 @@ export async function setRoomPowerLevelTags(
     );
 }
 
+/** State that decides what we may do in a room. */
+const PERMISSION_STATE_TYPES = new Set([
+    "m.room.power_levels",
+    "m.room.create",
+    "m.room.join_rules",
+]);
+
+/**
+ * Calls `callback` (at most once per 100 ms) when power levels, the create
+ * event or join rules change in any room. Ordinary state events do not bump
+ * roomsTick, and a room's power levels often land after the first render
+ * (sliding sync, a space with no recent messages), so UI gated on a
+ * permission showed its "not allowed" default until something unrelated
+ * re-rendered it: the join button, the space settings menu. Returns the
+ * unsubscribe function.
+ */
+export function onPermissionStateChanged(callback: () => void): () => void {
+    if (!matrixClient) return () => {};
+    const client = matrixClient;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const onEvents = (event: MatrixEvent) => {
+        if (!PERMISSION_STATE_TYPES.has(event.getType())) return;
+        if (timer !== null) return;
+        timer = setTimeout(() => {
+            timer = null;
+            callback();
+        }, 100);
+    };
+    client.on(RoomStateEvent.Events as never, onEvents as never);
+    return () => {
+        client.off(RoomStateEvent.Events as never, onEvents as never);
+        if (timer !== null) clearTimeout(timer);
+        timer = null;
+    };
+}
+
 /**
  * Calls `callback` whenever either power level tags event changes in the
  * room. Ordinary state events do not bump roomsTick, so UI that shows tags
