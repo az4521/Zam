@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.10
+
+🐛 **Fixed**
+
+- **Screen shares jumping back a frame or two, over and over:** on computers whose graphics card encodes H.264 or HEVC, shares were sent in a layered form that made viewers' pictures skip backwards several times a second, at any bitrate. Shares are now sent without it.
+- **Push to talk looking like a mute:** letting go of the push-to-talk key muted the mic the same way the mute button does, so everyone else saw a muted mic and heard their mute and unmute sounds. Now it just looks like you stopped talking. The mute button still mutes.
+- **A Windows capture-helper share at a high bitrate climbing and crashing over and over:** after the connection gives way once, the share now levels off just below that point instead of repeatedly climbing back into it.
+
+✨ **New**
+
+- **Middle-click autoscroll** now works on Linux and macOS too, not just Windows.
+
 ## v1.66.9
 
 🐛 **Fixed**
