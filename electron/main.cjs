@@ -2742,6 +2742,17 @@ app.commandLine.appendSwitch(
         .filter(Boolean)
         .join(","),
 );
+// Middle-click autoscroll (the scroll anchor Chromium shows on Windows) is off
+// by default on Linux and macOS; turn it on everywhere.
+app.commandLine.appendSwitch(
+    "enable-blink-features",
+    [
+        app.commandLine.getSwitchValue("enable-blink-features"),
+        "MiddleClickAutoscroll",
+    ]
+        .filter(Boolean)
+        .join(","),
+);
 
 // Started by a Flatpak update (restartIntoFlatpakUpdate): the old version is
 // still quitting and holds the lock, and two processes must never share the
