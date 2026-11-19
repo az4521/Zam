@@ -19,6 +19,7 @@ import {
     NativeSubstitute,
     type EncodedFrameLike,
 } from "$lib/utils/nativeShareSubstitute";
+import { clearIdrPpsId } from "$lib/utils/h264ClearPps";
 
 /** The native screen share's substitution, once a port is attached
  *  (matrix/call/nativeShare.ts). Null otherwise: frames pass untouched. */
@@ -40,6 +41,32 @@ function nativeShareStage(): TransformStream<
             }
             if (sub.substitute(frame)) controller.enqueue(frame);
             // Otherwise dropped: no AU was ready for this placeholder.
+        },
+    });
+}
+
+/** Rewrites outgoing H.264 keyframes so their pps_id stays in the bytes
+ *  LiveKit leaves unencrypted (utils/h264ClearPps): otherwise a viewer's
+ *  WebRTC reads it from ciphertext and drops about half of all keyframes,
+ *  freezing the picture after every layer switch or loss. */
+function h264KeyStage(): TransformStream<
+    EncodedFrameLike & AudioFrameLike,
+    EncodedFrameLike & AudioFrameLike
+> {
+    return new TransformStream({
+        transform(frame, controller) {
+            if (
+                frame.type !== undefined &&
+                /h264/i.test(frame.getMetadata?.().mimeType ?? "")
+            ) {
+                try {
+                    const fixed = clearIdrPpsId(new Uint8Array(frame.data));
+                    if (fixed) frame.data = fixed.buffer as ArrayBuffer;
+                } catch {
+                    // Sent as it was.
+                }
+            }
+            controller.enqueue(frame);
         },
     });
 }
@@ -122,7 +149,8 @@ self.addEventListener("message", (ev) => {
     } else if (msg.kind === "encode" && data.readableStream) {
         // Every outgoing stream goes through the native-share stage first
         // (a pass-through unless a share's port is attached), then the
-        // redundancy stage (video frames pass through that one untouched).
+        // H.264 keyframe fix, then the redundancy stage (video frames pass
+        // through that one untouched).
         data.readableStream = data.readableStream
             .pipeThrough(
                 nativeShareStage() as TransformStream<
@@ -136,6 +164,12 @@ self.addEventListener("message", (ev) => {
         data.writableStream &&
         // LiveKit names a codec only for video receivers. Video must reach
         // the decoder straight from the decryptor: through one more stream,
+            .pipeThrough(
+                h264KeyStage() as TransformStream<
+                    AudioFrameLike,
+                    AudioFrameLike
+                >,
+            )
         // Chrome dropped every encrypted H.264 delta frame (viewers saw a
         // share stuck on its first frame, then nothing). VP8 and HEVC were
         // unaffected; measured in a two-page loopback.
