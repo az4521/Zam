@@ -5376,6 +5376,7 @@ async function reportShareHealth(call: ActiveVoiceCall): Promise<void> {
                         packetsReceived: r.packetsReceived ?? 0,
                         packetsLost: r.packetsLost ?? 0,
                         freezeCount: r.freezeCount ?? 0,
+                        bytesReceived: r.bytesReceived ?? 0,
                     };
                 }
                 const paused =
@@ -5384,6 +5385,7 @@ async function reportShareHealth(call: ActiveVoiceCall): Promise<void> {
                     counters.get(sid) ?? null,
                     cur ?? NO_COUNTERS,
                     paused,
+                    UPLOAD_SAMPLE_MS / 1000,
                 );
                 if (cur) counters.set(sid, cur);
                 if (!health || (!cur && !paused)) continue;

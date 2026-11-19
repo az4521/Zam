@@ -28,6 +28,17 @@ export const SHARE_CAP_FLOOR = 600_000;
  *  hold the share at the floor. A pause (the share doesn't fit) can go
  *  lower. */
 export const SHARE_CAP_LOSS_FLOOR = 0.5;
+/** Loss this heavy means the viewer's link is full, not merely lossy: the
+ *  call server forwards a one-layer share into a bottleneck it doesn't fit
+ *  (measured on a LiveKit SFU: viewer capped at 2 Mbps, share 3.3 Mbps, ~60%
+ *  loss, no pause, 0 frames decoded for as long as it lasted). The cap then
+ *  goes straight under what the viewer actually receives. */
+export const SHARE_LOSS_HEAVY = 0.1;
+/** Share of the viewer's received bitrate the cap is set to on heavy loss. */
+export const SHARE_CAP_DELIVERED_SHARE = 0.85;
+/** How long a heavy-loss ceiling holds the cap down before recovery may go
+ *  above it again (otherwise the cap climbs back into the same freeze). */
+export const SHARE_CAP_CEILING_MS = 120_000;
 
 /** One viewer's view of one share, over its last sample. */
 export interface ShareHealth {
@@ -37,6 +48,9 @@ export interface ShareHealth {
     paused: boolean;
     /** Freezes the viewer's player counted in the sample. */
     freezes: number;
+    /** Bitrate the viewer received for the share over the sample, kbps.
+     *  Missing from older clients. */
+    kbps?: number;
 }
 
 export function encodeShareHealth(h: ShareHealth): Uint8Array<ArrayBuffer> {
@@ -45,6 +59,9 @@ export function encodeShareHealth(h: ShareHealth): Uint8Array<ArrayBuffer> {
             loss: Math.round(Math.min(1, Math.max(0, h.loss)) * 1000) / 1000,
             paused: h.paused,
             freezes: Math.max(0, Math.round(h.freezes)),
+            ...(typeof h.kbps === "number" && Number.isFinite(h.kbps)
+                ? { kbps: Math.max(0, Math.round(h.kbps)) }
+                : {}),
         }),
     );
 }
@@ -58,7 +75,7 @@ export function decodeShareHealth(payload: Uint8Array): ShareHealth | null {
             unknown
         > | null;
         if (!raw || typeof raw !== "object") return null;
-        const { loss, paused, freezes } = raw;
+        const { loss, paused, freezes, kbps } = raw;
         if (typeof loss !== "number" || !Number.isFinite(loss)) return null;
         if (typeof paused !== "boolean") return null;
         if (typeof freezes !== "number" || !Number.isFinite(freezes))
@@ -67,6 +84,9 @@ export function decodeShareHealth(payload: Uint8Array): ShareHealth | null {
             loss: Math.min(1, Math.max(0, loss)),
             paused,
             freezes: Math.max(0, Math.round(freezes)),
+            ...(typeof kbps === "number" && Number.isFinite(kbps) && kbps >= 0
+                ? { kbps: Math.round(kbps) }
+                : {}),
         };
     } catch {
         return null;
@@ -87,6 +107,8 @@ export interface InboundShareCounters {
     packetsReceived: number;
     packetsLost: number;
     freezeCount: number;
+    /** Bytes received so far; optional for callers that don't have it. */
+    bytesReceived?: number;
 }
 
 /** A viewer's sample of one share from two readings of its inbound stream,
@@ -95,6 +117,7 @@ export function shareHealthBetween(
     prev: InboundShareCounters | null,
     cur: InboundShareCounters,
     paused: boolean,
+    seconds?: number,
 ): ShareHealth | null {
     if (paused) return { loss: 0, paused: true, freezes: 0 };
     if (!prev) return null;
@@ -103,10 +126,18 @@ export function shareHealthBetween(
     const freezes = cur.freezeCount - prev.freezeCount;
     if (received < 0 || lost < 0 || freezes < 0) return null;
     const total = received + lost;
+    const bytes =
+        typeof cur.bytesReceived === "number" &&
+        typeof prev.bytesReceived === "number"
+            ? cur.bytesReceived - prev.bytesReceived
+            : null;
     return {
         loss: total > 0 ? lost / total : 0,
         paused: false,
         freezes,
+        ...(bytes !== null && bytes >= 0 && seconds && seconds > 0
+            ? { kbps: (bytes * 8) / 1000 / seconds }
+            : {}),
     };
 }
 
@@ -118,6 +149,8 @@ export class ShareRateCap {
     private lastDecrease = -Infinity;
     private lastIncrease = -Infinity;
     private lastCongested = -Infinity;
+    /** Delivered bitrate (bps) at the last heavy-loss cut, and when. */
+    private ceiling: { bps: number; at: number } | null = null;
 
     note(identity: string, health: ShareHealth, now: number): void {
         this.reports.set(identity, { health, at: now });
@@ -132,6 +165,7 @@ export class ShareRateCap {
         this.reports.clear();
         this.cap = null;
         this.lastDecrease = this.lastIncrease = this.lastCongested = -Infinity;
+        this.ceiling = null;
     }
 
     /** Whether any viewer struggled in a report that still counts. */
@@ -154,12 +188,44 @@ export class ShareRateCap {
         return worst;
     }
 
+    /** The lowest bitrate (bps) a viewer with heavy loss received, or null
+     *  when no fresh report has heavy loss and a received bitrate. */
+    private deliveredUnderHeavyLoss(now: number): number | null {
+        let low: number | null = null;
+        for (const r of this.reports.values()) {
+            if (now - r.at > SHARE_HEALTH_TTL_MS) continue;
+            const h = r.health;
+            if (h.paused || h.loss < SHARE_LOSS_HEAVY) continue;
+            if (typeof h.kbps !== "number" || !(h.kbps > 0)) continue;
+            const bps = h.kbps * 1000;
+            if (low === null || bps < low) low = bps;
+        }
+        return low;
+    }
+
     /** Move the cap for this moment and return it: cut by a third while a
      *  viewer struggles, raised gently once all have been fine for a while,
      *  and gone again when it reaches what the sharer picked. */
     update(picked: number, now: number): number | null {
         if (this.cap !== null && this.cap >= picked) this.cap = null;
         const worst = this.worst(now);
+        const delivered =
+            worst === "loss" ? this.deliveredUnderHeavyLoss(now) : null;
+        if (delivered !== null) {
+            // The link is full: go straight under what actually arrives.
+            this.lastCongested = now;
+            const target = Math.max(
+                Math.min(SHARE_CAP_FLOOR, picked),
+                Math.round(delivered * SHARE_CAP_DELIVERED_SHARE),
+            );
+            const base = Math.min(this.cap ?? picked, picked);
+            if (target < base) {
+                this.cap = target;
+                this.lastDecrease = now;
+            }
+            this.ceiling = { bps: delivered, at: now };
+            return this.cap;
+        }
         if (worst !== "none") {
             this.lastCongested = now;
             if (now - this.lastDecrease >= SHARE_CAP_DECREASE_GAP_MS) {
@@ -188,9 +254,17 @@ export class ShareRateCap {
             now - this.lastCongested >= SHARE_CAP_RECOVER_AFTER_MS &&
             now - this.lastIncrease >= SHARE_CAP_INCREASE_GAP_MS
         ) {
-            const next = Math.round(this.cap * SHARE_CAP_INCREASE);
-            this.cap = next >= picked ? null : next;
-            this.lastIncrease = now;
+            let next = Math.round(this.cap * SHARE_CAP_INCREASE);
+            // Not back above where the link filled up, for a while.
+            if (this.ceiling && now - this.ceiling.at < SHARE_CAP_CEILING_MS)
+                next = Math.min(
+                    next,
+                    Math.round(this.ceiling.bps * SHARE_CAP_DELIVERED_SHARE),
+                );
+            if (next > this.cap) {
+                this.cap = next >= picked ? null : next;
+                this.lastIncrease = now;
+            }
         }
         return this.cap;
     }

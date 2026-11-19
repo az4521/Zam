@@ -185,3 +185,77 @@ describe("ShareRateCap", () => {
         expect(c.update(picked, now)).toBe(low);
     });
 });
+
+describe("heavy loss: a full link", () => {
+    const picked = 8_000_000;
+    const full = { loss: 0.6, paused: false, freezes: 0, kbps: 1900 };
+
+    it("goes straight under what the viewer receives", () => {
+        const c = new ShareRateCap();
+        c.note("v", full, 0);
+        expect(c.update(picked, 0)).toBe(1_615_000);
+    });
+
+    it("is not held at the loss floor (which sat above the share's real rate)", () => {
+        const c = new ShareRateCap();
+        c.note("v", full, 0);
+        expect(c.update(picked, 0)!).toBeLessThan(picked / 2);
+    });
+
+    it("uses the slowest viewer", () => {
+        const c = new ShareRateCap();
+        c.note("a", full, 0);
+        c.note("b", { ...full, kbps: 1000 }, 0);
+        expect(c.update(picked, 0)).toBe(850_000);
+    });
+
+    it("keeps the mild path without a received bitrate (older clients)", () => {
+        const c = new ShareRateCap();
+        c.note("v", { loss: 0.6, paused: false, freezes: 0 }, 0);
+        expect(c.update(picked, 0)).toBe(5_600_000);
+    });
+
+    it("recovers only up to the ceiling for two minutes", () => {
+        const c = new ShareRateCap();
+        c.note("v", full, 0);
+        c.update(picked, 0);
+        c.note("v", { loss: 0, paused: false, freezes: 0, kbps: 1500 }, 1000);
+        let cap = c.current()!;
+        for (let t = 15_000; t < 100_000; t += 5000) cap = c.update(picked, t)!;
+        expect(cap).toBe(1_615_000);
+        // After the ceiling expires it climbs again.
+        expect(c.update(picked, 125_000)!).toBeGreaterThan(1_615_000);
+    });
+
+    it("carries kbps through the wire format, and older payloads still decode", () => {
+        expect(decodeShareHealth(encodeShareHealth(full))).toEqual(full);
+        const old = new TextEncoder().encode(
+            JSON.stringify({ loss: 0.1, paused: false, freezes: 0 }),
+        );
+        expect(decodeShareHealth(old)).toEqual({
+            loss: 0.1,
+            paused: false,
+            freezes: 0,
+        });
+    });
+
+    it("measures received kbps between readings", () => {
+        const h = shareHealthBetween(
+            {
+                packetsReceived: 0,
+                packetsLost: 0,
+                freezeCount: 0,
+                bytesReceived: 0,
+            },
+            {
+                packetsReceived: 100,
+                packetsLost: 0,
+                freezeCount: 0,
+                bytesReceived: 750_000,
+            },
+            false,
+            3,
+        );
+        expect(h?.kbps).toBe(2000);
+    });
+});
