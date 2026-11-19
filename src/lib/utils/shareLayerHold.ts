@@ -1,23 +1,24 @@
 // Which simulcast layer of a screen share a viewer asks the call server for.
 // Left to itself, LiveKit's server moves a viewer between a share's layers on
 // every swing of its bandwidth estimate. Each switch has to wait for a
-// keyframe of the new layer, which costs most in an encrypted call: measured
-// on a viewer capped at 2 Mbps, the server flipped between a 5 Mbps and a
-// 1.25 Mbps layer and the share ran at 6-8 fps encrypted, 13-16 plain. This
-// holds the viewer on the low layer once the high one has struggled, and
-// only tries the high one again after a hold that grows each time it fails.
+// keyframe of the new layer: measured on a viewer capped at 2 Mbps, the
+// server flipped between a 5 Mbps and a 1.25 Mbps layer and the share ran at
+// 6-8 fps encrypted, 13-16 plain. This puts the viewer on the low layer once
+// the top one has kept struggling, and keeps it there for the rest of the
+// share.
+//
+// There is no probe back up: from the viewer, the only way to learn whether
+// the top layer fits is to receive it, and when it doesn't the picture
+// freezes for seconds (measured: 2-3 s per failed probe on a 1 Mbps link).
+// A new share, or watching this one again, starts on the top layer.
 
 /** Loss on the share, per sample, that counts as a struggling second. */
 export const LAYER_LOSS_BAD = 0.05;
-/** Struggling seconds in a row before dropping to the low layer. */
-export const LAYER_BAD_SAMPLES = 2;
-/** First hold on the low layer, and the most it grows to. */
-export const LAYER_HOLD_MIN_MS = 15_000;
-export const LAYER_HOLD_MAX_MS = 240_000;
-/** A probe of the high layer that struggles within this long has failed. */
-export const LAYER_PROBE_MS = 15_000;
-/** This long fine on the high layer and the hold starts over from the min. */
-export const LAYER_SETTLED_MS = 30_000;
+/** Samples looked at, and how many of them must struggle, before dropping:
+ *  a blip of a second or two (wifi) rides out, a link the top layer doesn't
+ *  fit (steady loss) drops within three seconds. */
+export const LAYER_WINDOW = 5;
+export const LAYER_BAD_SAMPLES = 3;
 
 export type ShareLayer = "high" | "low";
 
@@ -31,16 +32,8 @@ export interface LayerSample {
 
 export class ShareLayerHold {
     private layer: ShareLayer = "high";
-    private bad = 0;
-    private hold = LAYER_HOLD_MIN_MS;
-    private holdUntil = 0;
+    private recent: boolean[] = [];
     private lowSince = 0;
-    /** When the current stay on the high layer began (a probe, or the start). */
-    private highSince: number;
-
-    constructor(now: number) {
-        this.highSince = now;
-    }
 
     /** The layer the viewer should ask for now. */
     current(): ShareLayer {
@@ -60,33 +53,13 @@ export class ShareLayerHold {
 
     /** Feed one sample; returns the layer to ask for if it changed. */
     sample(s: LayerSample, now: number): ShareLayer | null {
-        const struggling = s.stalled || s.loss >= LAYER_LOSS_BAD;
-        if (this.layer === "low") {
-            // Only probe from a healthy low layer: if even it struggles, the
-            // top one certainly won't fit (the sharer's cap is still working
-            // the low layer down).
-            if (now < this.holdUntil || struggling) return null;
-            this.layer = "high";
-            this.highSince = now;
-            this.bad = 0;
-            return "high";
-        }
-        // On the high layer.
-        if (!struggling) {
-            this.bad = 0;
-            if (now - this.highSince >= LAYER_SETTLED_MS)
-                this.hold = LAYER_HOLD_MIN_MS;
-            return null;
-        }
-        if (++this.bad < LAYER_BAD_SAMPLES) return null;
-        // A probe that struggled straight away failed: hold longer next time.
-        const probeFailed = now - this.highSince < LAYER_PROBE_MS;
-        if (probeFailed && this.holdUntil > 0)
-            this.hold = Math.min(LAYER_HOLD_MAX_MS, this.hold * 2);
+        if (this.layer === "low") return null;
+        this.recent.push(s.stalled || s.loss >= LAYER_LOSS_BAD);
+        if (this.recent.length > LAYER_WINDOW) this.recent.shift();
+        if (this.recent.filter(Boolean).length < LAYER_BAD_SAMPLES) return null;
         this.layer = "low";
         this.lowSince = now;
-        this.holdUntil = now + this.hold;
-        this.bad = 0;
+        this.recent = [];
         return "low";
     }
 }

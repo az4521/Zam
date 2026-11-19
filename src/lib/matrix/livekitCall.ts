@@ -4611,8 +4611,9 @@ function shareSimulcast(_codec: VideoCodec | undefined): boolean {
     // Back on for every codec: without a lower layer the SFU forwards a share
     // into a viewer's link even when it doesn't fit (measured on LiveKit
     // 1.13.11: no pause, ~60% loss, 0 frames). Layer switches are now rare:
-    // the viewer holds itself on the low layer once the top one struggles
-    // (utils/shareLayerHold), and H.264 switches recovered in 1-3 s on 1.13.11.
+    // the viewer holds itself on the low layer once the top one keeps
+    // struggling, with no probe back up (utils/shareLayerHold), and encrypted
+    // H.264 keyframes no longer get dropped by viewers (utils/h264ClearPps).
     return true;
 }
 
@@ -5423,9 +5424,10 @@ const layerHolds = new WeakMap<
     }
 >();
 
-/** As a viewer, once a second: keep each watched simulcast share on the low
- *  layer once its top layer has struggled, so the server doesn't flip the
- *  viewer between layers (a keyframe wait each time, worst when encrypted). */
+/** As a viewer, once a second: put each watched simulcast share on the low
+ *  layer once its top layer keeps struggling, and keep it there, so the
+ *  server doesn't flip the viewer between layers (a keyframe wait each
+ *  time). */
 async function holdShareLayers(call: ActiveVoiceCall): Promise<void> {
     const share = call.lk.Track.Source.ScreenShare;
     const now = Date.now();
@@ -5437,7 +5439,7 @@ async function holdShareLayers(call: ActiveVoiceCall): Promise<void> {
                 if (!pub.simulcasted) continue;
                 let state = layerHolds.get(pub);
                 if (!state) {
-                    state = { hold: new ShareLayerHold(now), prev: null };
+                    state = { hold: new ShareLayerHold(), prev: null };
                     layerHolds.set(pub, state);
                 }
                 const report = await track
@@ -5471,12 +5473,8 @@ async function holdShareLayers(call: ActiveVoiceCall): Promise<void> {
                     },
                     now,
                 );
-                if (change)
-                    pub.setVideoQuality(
-                        change === "low"
-                            ? call.lk.VideoQuality.LOW
-                            : call.lk.VideoQuality.HIGH,
-                    );
+                if (change === "low")
+                    pub.setVideoQuality(call.lk.VideoQuality.LOW);
             }
 }
 
