@@ -376,6 +376,13 @@ export const en = {
     "soundboard.tooBig": "That file is too big.",
     "soundboard.tooLong": "Sounds can be at most {seconds} seconds long.",
     "soundboard.unreadable": "Couldn't read that audio file.",
+    "soundboard.badEmoji": "That isn't a single emoji.",
+    "soundboard.emoji": "Emoji",
+    "soundboard.noEmoji": "No emoji",
+    "soundboard.clearEmoji": "Clear emoji",
+    "soundboard.editEmoji": "Edit emoji",
+    "soundboard.emojiFailed": "Couldn't save that emoji.",
+    "soundboard.addStaged": "Add sound",
 
     // src/lib/components/settings/CustomPackSettings.svelte
     "customPackSettings.add": "Add {singular}",
@@ -390,6 +397,8 @@ export const en = {
     "customPackSettings.noCustomImages": "No custom images",
     "customPackSettings.noCustomEmojis": "No custom emojis",
     "customPackSettings.noCustomStickers": "No custom stickers",
+    "customPackSettings.chooseAnother": "Choose another file",
+    "customPackSettings.stagedPreview": "Selected image preview",
 
     // src/lib/components/debug/DebugEventItem.svelte
     "debugEventItem.stateKey": "state_key",
@@ -2607,6 +2616,32 @@ export const en = {
     "stickerPicker.noStickerPacksAvailable": "No sticker packs available",
     "stickerPicker.myStickers": "My stickers",
     "stickerPicker.myStickers2": "My Stickers",
+    "stickerPicker.openEmoteSettings": "Add or create sticker packs",
+    "telegramImport.title": "Import Telegram sticker pack",
+    "telegramImport.linkLabel": "Sticker pack link or name",
+    "telegramImport.linkPlaceholder": "https://t.me/addstickers/PackName",
+    "telegramImport.tokenLabel": "Bot token",
+    "telegramImport.tokenPlaceholder": "123456:ABC-DEF...",
+    "telegramImport.tokenHelp":
+        "Optional. Only needed if the built-in sticker service is unavailable. Get a free token from @BotFather. It is kept only while this page is open.",
+    "telegramImport.useOwnToken": "Use my own bot token",
+    "telegramImport.proxyUnavailable":
+        "The built-in sticker service is unavailable right now. You can import with your own bot token instead.",
+    "telegramImport.import": "Import",
+    "telegramImport.importing": "Importing...",
+    "telegramImport.progress": "{done} / {total}",
+    "telegramImport.invalidLink":
+        "That is not a Telegram sticker link or pack name.",
+    "telegramImport.tokenRequired": "Enter a bot token to import.",
+    "telegramImport.empty": "This sticker pack has no stickers.",
+    "telegramImport.cancelled":
+        "Import cancelled. {imported} of {total} stickers were imported.",
+    "telegramImport.doneWithFailures":
+        "Imported {imported} of {total} stickers from {title}. {failed} could not be imported.",
+    "telegramImport.done":
+        "Imported {imported} of {total} stickers from {title}.",
+    "telegramImport.failed": "Telegram returned an error: {message}",
+    "telegramImport.failedGeneric": "The sticker pack could not be imported.",
 
     // src/lib/components/ui/SwfEmbed.svelte
     "swfEmbed.adobeFlash": "Adobe Flash",

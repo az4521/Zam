@@ -71,6 +71,8 @@ jobs:
               env:
                   VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
                   VITE_VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
+                  VITE_TG_PROXY_URL: ${{ vars.TG_PROXY_URL }}
+                  VITE_TG_PROXY_KEY: ${{ vars.TG_PROXY_KEY }}
             - run: node scripts/build-bundle.mjs
             - uses: actions/upload-artifact@v4
               with:
@@ -118,6 +120,8 @@ jobs:
               env:
                   VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
                   VITE_VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
+                  VITE_TG_PROXY_URL: ${{ vars.TG_PROXY_URL }}
+                  VITE_TG_PROXY_KEY: ${{ vars.TG_PROXY_KEY }}
             - uses: actions/setup-java@v4
               with:
                   distribution: temurin
@@ -213,6 +217,8 @@ jobs:
               env:
                   VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
                   VITE_VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
+                  VITE_TG_PROXY_URL: ${{ vars.TG_PROXY_URL }}
+                  VITE_TG_PROXY_KEY: ${{ vars.TG_PROXY_KEY }}
             # Windows: the per-application screen-share audio helper
             # (native/app-audio), packed by build.win.extraResources. A no-op
             # on the other runners.
@@ -273,6 +279,8 @@ jobs:
               env:
                   VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
                   VITE_VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
+                  VITE_TG_PROXY_URL: ${{ vars.TG_PROXY_URL }}
+                  VITE_TG_PROXY_KEY: ${{ vars.TG_PROXY_KEY }}
             - name: Fingerprint the desktop shell
               run: node scripts/gen-shell-hash.mjs
             - name: Build unpacked Linux app

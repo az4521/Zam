@@ -45,7 +45,13 @@ export interface Sound {
     /** A description, for display and accessibility. */
     body?: string;
     info?: SoundInfo;
+    /** A single unicode emoji shown on the sound's button (see
+     *  isValidSoundEmoji). */
+    emoji?: string;
 }
+
+/** Longest emoji accepted, in code points (a ZWJ sequence counts each part). */
+export const MAX_SOUND_EMOJI_CODE_POINTS = 16;
 
 export interface SoundPack {
     id: string;
@@ -105,6 +111,23 @@ export function soundNameFromText(text: string): string {
         .replace(/\s+/g, "_")
         .replace(/[^a-zA-Z0-9_-]/g, "")
         .slice(0, 100);
+}
+
+/** Whether `value` is a usable sound emoji: non-empty, at most
+ *  MAX_SOUND_EMOJI_CODE_POINTS code points, no whitespace. Only the shape is
+ *  checked here; the editor offers emoji from the picker. */
+export function isValidSoundEmoji(value: unknown): value is string {
+    if (typeof value !== "string" || value.length === 0) return false;
+    if (/\s/.test(value)) return false;
+    return [...value].length <= MAX_SOUND_EMOJI_CODE_POINTS;
+}
+
+/** The emoji to store for `value` (trimmed), or undefined when there is none
+ *  or it is not valid. */
+export function normalizeSoundEmoji(value: unknown): string | undefined {
+    if (typeof value !== "string") return undefined;
+    const trimmed = value.trim();
+    return isValidSoundEmoji(trimmed) ? trimmed : undefined;
 }
 
 /** `wanted`, or `wanted_2`, `wanted_3`... whichever is free in `taken`. */
@@ -174,23 +197,35 @@ export function soundsFromContent(
             typeof value.body === "string" && value.body.trim()
                 ? value.body
                 : undefined;
+        const emoji = normalizeSoundEmoji(value.emoji);
         out.push({
             name,
             mxcUrl: value.url,
             ...(body ? { body } : {}),
             ...(info ? { info } : {}),
+            ...(emoji ? { emoji } : {}),
         });
     }
     return out.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Content with a sound added (or replaced). Other keys are kept. */
+/** Content with a sound added (or replaced). Other keys are kept, both at the
+ *  pack level and on a replaced sound's entry (so fields written by other
+ *  clients survive an edit). The fields Zam manages (url, body, info, emoji)
+ *  take the values in `sound`, so an omitted emoji or body is cleared. */
 export function withSound(
     content: SoundPackContent | undefined | null,
     sound: Sound,
     packName: string,
 ): SoundPackContent {
     const current = content ?? {};
+    const sounds = withCurrentDurations(current.sounds);
+    const previous = sounds[sound.name];
+    const kept: Record<string, unknown> = isRecord(previous)
+        ? { ...previous }
+        : {};
+    for (const key of ["url", "body", "info", "emoji"]) delete kept[key];
+    const emoji = normalizeSoundEmoji(sound.emoji);
     return {
         ...current,
         pack: {
@@ -198,11 +233,13 @@ export function withSound(
             display_name: current.pack?.display_name || packName,
         },
         sounds: {
-            ...withCurrentDurations(current.sounds),
+            ...sounds,
             [sound.name]: {
+                ...kept,
                 url: sound.mxcUrl,
                 ...(sound.body ? { body: sound.body } : {}),
                 ...(sound.info ? { info: sound.info } : {}),
+                ...(emoji ? { emoji } : {}),
             },
         },
     };

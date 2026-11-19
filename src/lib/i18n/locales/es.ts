@@ -382,6 +382,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "soundboard.tooLong":
         "Los sonidos pueden durar como máximo {seconds} segundos.",
     "soundboard.unreadable": "No se pudo leer ese archivo de audio.",
+    "soundboard.badEmoji": "Eso no es un único emoji.",
+    "soundboard.emoji": "Emoji",
+    "soundboard.noEmoji": "Sin emoji",
+    "soundboard.clearEmoji": "Quitar emoji",
+    "soundboard.editEmoji": "Editar emoji",
+    "soundboard.emojiFailed": "No se pudo guardar ese emoji.",
+    "soundboard.addStaged": "Añadir sonido",
 
     // src/lib/components/settings/CustomPackSettings.svelte
     "customPackSettings.add": "Añadir {singular}",
@@ -396,6 +403,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "customPackSettings.noCustomImages": "No hay imágenes personalizadas",
     "customPackSettings.noCustomEmojis": "No hay emojis personalizados",
     "customPackSettings.noCustomStickers": "No hay stickers personalizados",
+    "customPackSettings.chooseAnother": "Elegir otro archivo",
+    "customPackSettings.stagedPreview":
+        "Vista previa de la imagen seleccionada",
 
     // src/lib/components/debug/DebugEventItem.svelte
     "debugEventItem.stateKey": "state_key",
@@ -2680,6 +2690,33 @@ const messages: Partial<Record<MessageKey, string>> = {
         "No hay paquetes de stickers disponibles",
     "stickerPicker.myStickers": "Mis stickers",
     "stickerPicker.myStickers2": "Mis stickers",
+    "stickerPicker.openEmoteSettings": "Añadir o crear paquetes de stickers",
+    "telegramImport.title": "Importar paquete de stickers de Telegram",
+    "telegramImport.linkLabel": "Enlace o nombre del paquete de stickers",
+    "telegramImport.linkPlaceholder": "https://t.me/addstickers/PackName",
+    "telegramImport.tokenLabel": "Token del bot",
+    "telegramImport.tokenPlaceholder": "123456:ABC-DEF...",
+    "telegramImport.tokenHelp":
+        "Opcional. Solo hace falta si el servicio de stickers integrado no está disponible. Puedes obtener un token gratis de @BotFather. Solo se guarda mientras esta página está abierta.",
+    "telegramImport.useOwnToken": "Usar mi propio token de bot",
+    "telegramImport.proxyUnavailable":
+        "El servicio de stickers integrado no está disponible en este momento. Puedes importar con tu propio token de bot.",
+    "telegramImport.import": "Importar",
+    "telegramImport.importing": "Importando…",
+    "telegramImport.progress": "{done} / {total}",
+    "telegramImport.invalidLink":
+        "Eso no es un enlace de stickers de Telegram ni el nombre de un paquete.",
+    "telegramImport.tokenRequired": "Introduce un token de bot para importar.",
+    "telegramImport.empty": "Este paquete de stickers no tiene stickers.",
+    "telegramImport.cancelled":
+        "Importación cancelada. Se importaron {imported} de {total} stickers.",
+    "telegramImport.doneWithFailures":
+        "Se importaron {imported} de {total} stickers de {title}. {failed} no se pudieron importar.",
+    "telegramImport.done":
+        "Se importaron {imported} de {total} stickers de {title}.",
+    "telegramImport.failed": "Telegram devolvió un error: {message}",
+    "telegramImport.failedGeneric":
+        "No se pudo importar el paquete de stickers.",
 
     // src/lib/components/ui/SwfEmbed.svelte
     "swfEmbed.adobeFlash": "Adobe Flash",

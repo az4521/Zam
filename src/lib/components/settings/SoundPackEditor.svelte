@@ -1,8 +1,9 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
-    import { untrack } from "svelte";
+    import { onDestroy, untrack } from "svelte";
     import { Play, X } from "lucide-svelte";
+    import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
     import {
         USER_SOUND_PACK_NAME,
         addRoomSound,
@@ -23,7 +24,9 @@
         MAX_SOUND_BYTES,
         MAX_SOUND_SECONDS,
         isValidSoundName,
+        normalizeSoundEmoji,
         normalizeSoundName,
+        soundFileProblem,
         soundNameFromText,
         type Sound,
         type SoundPack,
@@ -37,13 +40,22 @@
     let { room }: Props = $props();
 
     let packs = $state<SoundPack[]>([]);
-    let name = $state("");
     let selectedKey = $state("");
     let newPackName = $state("");
     let uploading = $state(false);
     let pending = $state<string | null>(null);
     let error = $state("");
     let notice = $state("");
+
+    // A picked file waits here until Add or Cancel decides its fate.
+    let stagedFile = $state<File | null>(null);
+    let stagedUrl = $state("");
+    let stagedName = $state("");
+    let stagedEmoji = $state("");
+    let stagedPicker = $state(false);
+
+    // The sound whose emoji picker is open, as `soundKey(pack, sound)`.
+    let emojiEditKey = $state<string | null>(null);
 
     const canCreate = $derived(room ? canEditRoomSounds(room) : true);
     const editablePacks = $derived(packs.filter((pack) => pack.editable));
@@ -76,17 +88,57 @@
         untrack(() => load());
     });
 
-    async function upload(event: Event) {
+    onDestroy(() => {
+        if (stagedUrl) URL.revokeObjectURL(stagedUrl);
+    });
+
+    function clearStaged() {
+        if (stagedUrl) URL.revokeObjectURL(stagedUrl);
+        stagedUrl = "";
+        stagedFile = null;
+        stagedName = "";
+        stagedEmoji = "";
+        stagedPicker = false;
+    }
+
+    /** Pick a file: check it and stage it for review. Nothing is uploaded
+     *  until Add. */
+    function stageFile(event: Event) {
         const input = event.currentTarget as HTMLInputElement;
         const file = input.files?.[0];
         input.value = "";
         if (!file) return;
         error = "";
         notice = "";
-        // The typed (or file) name becomes a shortcode; when that had to
-        // change it, the original is kept as the sound's description.
+        const problem = soundFileProblem(file);
+        if (problem === "notAudio") {
+            error = t("soundboard.notAudio");
+            return;
+        }
+        if (problem === "tooBig") {
+            error = t("soundboard.tooBig");
+            return;
+        }
+        clearStaged();
+        stagedFile = file;
+        stagedUrl = URL.createObjectURL(file);
+        stagedName = soundNameFromText(file.name.replace(/\.[^.]+$/, ""));
+    }
+
+    function cancelStaged() {
+        error = "";
+        clearStaged();
+    }
+
+    /** Upload the staged file and add it. The typed name becomes a shortcode;
+     *  when that had to change it, the original is kept as the description. */
+    async function addStaged() {
+        const file = stagedFile;
+        if (!file) return;
+        error = "";
+        notice = "";
         const typed = normalizeSoundName(
-            name || file.name.replace(/\.[^.]+$/, ""),
+            stagedName || file.name.replace(/\.[^.]+$/, ""),
         );
         const wanted = soundNameFromText(typed);
         if (!isValidSoundName(wanted)) {
@@ -94,6 +146,7 @@
             return;
         }
         const body = typed !== wanted ? typed : undefined;
+        const emoji = normalizeSoundEmoji(stagedEmoji);
         const stateKey =
             selectedKey === "__new" ? newPackName.trim() : selectedKey;
         if (room && !stateKey) {
@@ -115,12 +168,13 @@
                     packName,
                     info,
                     body,
+                    emoji,
                 );
                 selectedKey = stateKey;
             } else {
-                await addUserSound(wanted, mxcUrl, info, body);
+                await addUserSound(wanted, mxcUrl, info, body, emoji);
             }
-            name = "";
+            clearStaged();
             newPackName = "";
             roomsState.roomsTick++;
             load();
@@ -128,6 +182,55 @@
             error = (err as Error)?.message ?? t("soundboard.uploadFailed");
         } finally {
             uploading = false;
+        }
+    }
+
+    function soundKey(pack: SoundPack, sound: Sound): string {
+        return `${pack.id}:${sound.name}`;
+    }
+
+    function toggleEmojiEdit(pack: SoundPack, sound: Sound) {
+        const key = soundKey(pack, sound);
+        emojiEditKey = emojiEditKey === key ? null : key;
+    }
+
+    /** Replace a sound's emoji (undefined clears it). Re-adding under the same
+     *  name keeps the rest of the entry. */
+    async function setSoundEmoji(
+        pack: SoundPack,
+        sound: Sound,
+        emoji: string | undefined,
+    ) {
+        pending = soundKey(pack, sound);
+        error = "";
+        notice = "";
+        try {
+            if (room && pack.stateKey !== undefined)
+                await addRoomSound(
+                    room,
+                    pack.stateKey,
+                    sound.name,
+                    sound.mxcUrl,
+                    pack.name,
+                    sound.info,
+                    sound.body,
+                    emoji,
+                );
+            else
+                await addUserSound(
+                    sound.name,
+                    sound.mxcUrl,
+                    sound.info,
+                    sound.body,
+                    emoji,
+                );
+            emojiEditKey = null;
+            roomsState.roomsTick++;
+            load();
+        } catch (err) {
+            error = (err as Error)?.message ?? t("soundboard.emojiFailed");
+        } finally {
+            pending = null;
         }
     }
 
@@ -236,59 +339,139 @@
                     kb: Math.round(MAX_SOUND_BYTES / 1024),
                 })}
             </p>
-            <div class="grid gap-2 sm:grid-cols-[1fr_auto]">
+            {#if room}
                 <div class="grid gap-2 min-w-0">
-                    {#if room}
-                        <select
-                            bind:value={selectedKey}
+                    <select
+                        bind:value={selectedKey}
+                        disabled={uploading}
+                        aria-label={t("soundboard.pack")}
+                        class="w-full bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
+                    >
+                        {#each editablePacks as pack (pack.id)}
+                            <option value={pack.stateKey}>{pack.name}</option>
+                        {/each}
+                        {#if canCreate}
+                            <option value="__new"
+                                >{t("soundboard.newPack")}</option
+                            >
+                        {/if}
+                    </select>
+                    {#if selectedKey === "__new"}
+                        <input
+                            bind:value={newPackName}
                             disabled={uploading}
-                            aria-label={t("soundboard.pack")}
-                            class="w-full bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
+                            placeholder={t("soundboard.packName")}
+                            class="min-w-0 bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
+                        />
+                    {/if}
+                </div>
+            {/if}
+            <label
+                class="inline-block cursor-pointer px-3 py-2 rounded bg-zam-accent text-white text-sm font-semibold text-center {uploading ||
+                (room && editablePacks.length === 0 && !canCreate)
+                    ? 'opacity-50 pointer-events-none'
+                    : ''}"
+            >
+                {uploading ? t("common.uploading") : t("soundboard.upload")}
+                <input
+                    type="file"
+                    accept="audio/*"
+                    class="hidden"
+                    onchange={stageFile}
+                    disabled={uploading}
+                />
+            </label>
+
+            {#if stagedFile}
+                <div class="space-y-2 rounded bg-zam-backgroundTertiary p-3">
+                    <p
+                        class="text-xs text-zam-textMuted truncate"
+                        title={stagedFile.name}
+                    >
+                        {stagedFile.name}
+                    </p>
+                    <audio
+                        controls
+                        src={stagedUrl}
+                        aria-label={t("soundboard.preview")}
+                        class="w-full"
+                    ></audio>
+                    <label class="grid gap-1">
+                        <span
+                            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                         >
-                            {#each editablePacks as pack (pack.id)}
-                                <option value={pack.stateKey}
-                                    >{pack.name}</option
+                            {t("soundboard.name")}
+                        </span>
+                        <input
+                            bind:value={stagedName}
+                            disabled={uploading}
+                            class="min-w-0 bg-zam-backgroundSecondary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
+                        />
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <span
+                            class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
+                        >
+                            {t("soundboard.emoji")}
+                        </span>
+                        <button
+                            type="button"
+                            onclick={() => (stagedPicker = !stagedPicker)}
+                            disabled={uploading}
+                            aria-expanded={stagedPicker}
+                            aria-label={t("soundboard.emoji")}
+                            class="min-w-[2.5rem] px-2 py-1 rounded bg-zam-backgroundSecondary hover:bg-zam-messageHover disabled:opacity-50"
+                        >
+                            {#if stagedEmoji}
+                                <span class="text-xl leading-none"
+                                    >{stagedEmoji}</span
                                 >
-                            {/each}
-                            {#if canCreate}
-                                <option value="__new"
-                                    >{t("soundboard.newPack")}</option
+                            {:else}
+                                <span class="text-xs text-zam-textMuted"
+                                    >{t("soundboard.noEmoji")}</span
                                 >
                             {/if}
-                        </select>
-                        {#if selectedKey === "__new"}
-                            <input
-                                bind:value={newPackName}
+                        </button>
+                        {#if stagedEmoji}
+                            <button
+                                type="button"
+                                onclick={() => (stagedEmoji = "")}
                                 disabled={uploading}
-                                placeholder={t("soundboard.packName")}
-                                class="min-w-0 bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
-                            />
+                                class="px-2 py-1 rounded text-xs text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-50"
+                            >
+                                {t("soundboard.clearEmoji")}
+                            </button>
                         {/if}
+                    </div>
+                    {#if stagedPicker}
+                        <EmojiPicker
+                            unicodeOnly
+                            onSelect={(picked) => (stagedEmoji = picked)}
+                            onClose={() => (stagedPicker = false)}
+                        />
                     {/if}
-                    <input
-                        bind:value={name}
-                        disabled={uploading}
-                        placeholder={t("soundboard.name")}
-                        aria-label={t("soundboard.name")}
-                        class="min-w-0 bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded px-3 py-2 outline-none border border-transparent focus:border-zam-accent/50"
-                    />
+                    <div class="flex justify-end gap-2">
+                        <button
+                            type="button"
+                            onclick={cancelStaged}
+                            disabled={uploading}
+                            class="px-3 py-1.5 rounded text-sm text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-50"
+                        >
+                            {t("common.cancel")}
+                        </button>
+                        <button
+                            type="button"
+                            onclick={addStaged}
+                            disabled={uploading}
+                            class="px-3 py-1.5 rounded bg-zam-accent text-white text-sm font-semibold disabled:opacity-50"
+                        >
+                            {uploading
+                                ? t("common.uploading")
+                                : t("soundboard.addStaged")}
+                        </button>
+                    </div>
                 </div>
-                <label
-                    class="cursor-pointer px-3 py-2 rounded bg-zam-accent text-white text-sm font-semibold text-center self-start {uploading ||
-                    (room && editablePacks.length === 0 && !canCreate)
-                        ? 'opacity-50 pointer-events-none'
-                        : ''}"
-                >
-                    {uploading ? t("common.uploading") : t("soundboard.upload")}
-                    <input
-                        type="file"
-                        accept="audio/*"
-                        class="hidden"
-                        onchange={upload}
-                        disabled={uploading}
-                    />
-                </label>
-            </div>
+            {/if}
         </section>
     {/if}
 
@@ -366,7 +549,11 @@
                                     class="text-sm font-medium text-zam-textPrimary truncate"
                                     title={sound.body}
                                 >
-                                    {sound.name}
+                                    {#if sound.emoji}<span
+                                            class="me-1"
+                                            aria-hidden="true"
+                                            >{sound.emoji}</span
+                                        >{/if}{sound.name}
                                 </p>
                                 {#if sound.info?.duration !== undefined}
                                     <p class="text-xs text-zam-textMuted">
@@ -384,6 +571,15 @@
                             {/if}
                             {#if pack.editable}
                                 <button
+                                    onclick={() => toggleEmojiEdit(pack, sound)}
+                                    disabled={pending === soundKey(pack, sound)}
+                                    aria-expanded={emojiEditKey ===
+                                        soundKey(pack, sound)}
+                                    class="px-2 py-1 rounded text-xs text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-50"
+                                >
+                                    {t("soundboard.editEmoji")}
+                                </button>
+                                <button
                                     onclick={() => remove(pack, sound)}
                                     disabled={pending ===
                                         `${pack.id}:${sound.name}`}
@@ -395,6 +591,32 @@
                                 </button>
                             {/if}
                         </div>
+                        {#if pack.editable && emojiEditKey === soundKey(pack, sound)}
+                            <div class="space-y-2 px-2 pb-2">
+                                {#if sound.emoji}
+                                    <button
+                                        type="button"
+                                        onclick={() =>
+                                            setSoundEmoji(
+                                                pack,
+                                                sound,
+                                                undefined,
+                                            )}
+                                        disabled={pending ===
+                                            soundKey(pack, sound)}
+                                        class="px-2 py-1 rounded text-xs text-zam-danger hover:bg-zam-messageHover disabled:opacity-50"
+                                    >
+                                        {t("soundboard.clearEmoji")}
+                                    </button>
+                                {/if}
+                                <EmojiPicker
+                                    unicodeOnly
+                                    onSelect={(picked) =>
+                                        setSoundEmoji(pack, sound, picked)}
+                                    onClose={() => (emojiEditKey = null)}
+                                />
+                            </div>
+                        {/if}
                     {/each}
                     {#if pack.sounds.length === 0}
                         <p class="text-sm text-zam-textMuted text-center py-2">

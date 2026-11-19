@@ -376,6 +376,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "soundboard.addedToYours":
         "{count, plural, one {Додано # звук до вашого набору.} few {Додано # звуки до вашого набору.} many {Додано # звуків до вашого набору.} other {Додано # звуку до вашого набору.}}",
     "soundboard.alreadyYours": "Уже у вашому наборі.",
+    "soundboard.badEmoji": "Це не один емодзі.",
+    "soundboard.emoji": "Емодзі",
+    "soundboard.noEmoji": "Без емодзі",
+    "soundboard.clearEmoji": "Очистити емодзі",
+    "soundboard.editEmoji": "Змінити емодзі",
+    "soundboard.emojiFailed": "Не вдалося зберегти цей емодзі.",
+    "soundboard.addStaged": "Додати звук",
     // src/lib/matrix/soundboard.ts
     "soundboard.badName":
         "Використовуйте від 1 до 100 літер, цифр, дефісів або підкреслень (A-Z, 0-9). Пробіли стають підкресленнями.",
@@ -399,6 +406,36 @@ const messages: Partial<Record<MessageKey, string>> = {
     "customPackSettings.noCustomImages": "Власних зображень немає",
     "customPackSettings.noCustomEmojis": "Власних емодзі немає",
     "customPackSettings.noCustomStickers": "Власних стікерів немає",
+    "customPackSettings.chooseAnother": "Вибрати інший файл",
+    "customPackSettings.stagedPreview":
+        "Попередній перегляд вибраного зображення",
+
+    // src/lib/components/settings/TelegramImport.svelte
+    "telegramImport.title": "Імпорт набору стікерів Telegram",
+    "telegramImport.linkLabel": "Посилання на набір стікерів або його назва",
+    "telegramImport.linkPlaceholder": "https://t.me/addstickers/PackName",
+    "telegramImport.tokenLabel": "Токен бота",
+    "telegramImport.tokenPlaceholder": "123456:ABC-DEF...",
+    "telegramImport.tokenHelp":
+        "Необов'язково. Потрібно лише якщо вбудована служба стікерів недоступна. Безкоштовний токен можна отримати в @BotFather. Він зберігається лише, поки відкрита ця сторінка.",
+    "telegramImport.useOwnToken": "Використати власний токен бота",
+    "telegramImport.proxyUnavailable":
+        "Вбудована служба стікерів зараз недоступна. Можна імпортувати, використавши власний токен бота.",
+    "telegramImport.import": "Імпортувати",
+    "telegramImport.importing": "Імпортування…",
+    "telegramImport.progress": "{done} / {total}",
+    "telegramImport.invalidLink":
+        "Це не посилання на стікери Telegram і не назва набору.",
+    "telegramImport.tokenRequired": "Введіть токен бота, щоб імпортувати.",
+    "telegramImport.empty": "Цей набір стікерів порожній.",
+    "telegramImport.cancelled":
+        "Імпорт скасовано. Імпортовано стікерів: {imported} з {total}.",
+    "telegramImport.doneWithFailures":
+        "Імпортовано {imported} з {total} стікерів з набору {title}. Не вдалося імпортувати: {failed}.",
+    "telegramImport.done":
+        "Імпортовано {imported} з {total} стікерів з набору {title}.",
+    "telegramImport.failed": "Telegram повернув помилку: {message}",
+    "telegramImport.failedGeneric": "Не вдалося імпортувати набір стікерів.",
 
     // src/lib/components/debug/DebugEventItem.svelte
     "debugEventItem.stateKey": "state_key",
@@ -2698,6 +2735,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "stickerPicker.noStickerPacksAvailable": "Немає доступних наборів стікерів",
     "stickerPicker.myStickers": "Мої стікери",
     "stickerPicker.myStickers2": "Мої стікери",
+    "stickerPicker.openEmoteSettings": "Додати або створити набори стікерів",
 
     // src/lib/components/ui/SwfEmbed.svelte
     "swfEmbed.adobeFlash": "Adobe Flash",

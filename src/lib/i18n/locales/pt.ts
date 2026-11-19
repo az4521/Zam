@@ -350,6 +350,13 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Nenhum som ainda. Adicione alguns em Configurações, Emotes, ou nas configurações de uma sala.",
     "soundboard.sendFailed": "Não foi possível enviar esse som para a chamada.",
     "soundboard.add": "Adicionar um som",
+    "soundboard.badEmoji": "Isso não é um único emoji.",
+    "soundboard.emoji": "Emoji",
+    "soundboard.noEmoji": "Sem emoji",
+    "soundboard.clearEmoji": "Limpar emoji",
+    "soundboard.editEmoji": "Editar emoji",
+    "soundboard.emojiFailed": "Não foi possível salvar esse emoji.",
+    "soundboard.addStaged": "Adicionar som",
     "soundboard.limits":
         "Arquivos de áudio de até {seconds} segundos e {kb} KB.",
     "soundboard.pack": "Pacote",
@@ -400,6 +407,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "customPackSettings.noCustomImages": "Nenhuma imagem personalizada",
     "customPackSettings.noCustomEmojis": "Nenhum emoji personalizado",
     "customPackSettings.noCustomStickers": "Nenhuma figurinha personalizada",
+    "customPackSettings.chooseAnother": "Escolher outro arquivo",
+    "customPackSettings.stagedPreview": "Prévia da imagem selecionada",
 
     // src/lib/components/debug/DebugEventItem.svelte
     "debugEventItem.stateKey": "state_key",
@@ -2702,11 +2711,39 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Nenhum pacote de figurinhas disponível",
     "stickerPicker.myStickers": "Minhas figurinhas",
     "stickerPicker.myStickers2": "Minhas figurinhas",
+    "stickerPicker.openEmoteSettings":
+        "Adicionar ou criar pacotes de figurinhas",
 
     // src/lib/components/ui/SwfEmbed.svelte
     "swfEmbed.adobeFlash": "Adobe Flash",
 
     // src/lib/components/settings/ThemeColorEditor.svelte
+    "telegramImport.title": "Importar pacote de figurinhas do Telegram",
+    "telegramImport.linkLabel": "Link ou nome do pacote de figurinhas",
+    "telegramImport.linkPlaceholder": "https://t.me/addstickers/PackName",
+    "telegramImport.tokenLabel": "Token do bot",
+    "telegramImport.tokenPlaceholder": "123456:ABC-DEF...",
+    "telegramImport.tokenHelp":
+        "Opcional. Só é necessário se o serviço de figurinhas integrado estiver indisponível. Obtenha um token gratuito com @BotFather. Ele é mantido apenas enquanto esta página estiver aberta.",
+    "telegramImport.useOwnToken": "Usar meu próprio token de bot",
+    "telegramImport.proxyUnavailable":
+        "O serviço de figurinhas integrado está indisponível no momento. Você pode importar usando seu próprio token de bot.",
+    "telegramImport.import": "Importar",
+    "telegramImport.importing": "Importando...",
+    "telegramImport.progress": "{done} / {total}",
+    "telegramImport.invalidLink":
+        "Isso não é um link de figurinha do Telegram nem o nome de um pacote.",
+    "telegramImport.tokenRequired": "Digite um token de bot para importar.",
+    "telegramImport.empty": "Este pacote de figurinhas não tem figurinhas.",
+    "telegramImport.cancelled":
+        "Importação cancelada. {imported} de {total} figurinhas foram importadas.",
+    "telegramImport.doneWithFailures":
+        "Importadas {imported} de {total} figurinhas de {title}. {failed} não puderam ser importadas.",
+    "telegramImport.done":
+        "Importadas {imported} de {total} figurinhas de {title}.",
+    "telegramImport.failed": "O Telegram retornou um erro: {message}",
+    "telegramImport.failedGeneric":
+        "Não foi possível importar o pacote de figurinhas.",
     "themeColorEditor.themeColors": "Cores do tema",
     "themeColorEditor.presetName": "Nome da predefinição",
     "themeColorEditor.savePreset": "Salvar predefinição",

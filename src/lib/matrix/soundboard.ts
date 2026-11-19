@@ -23,6 +23,7 @@ import {
     USER_SOUNDBOARD_TYPE,
     MAX_SOUND_SECONDS,
     isValidSoundName,
+    normalizeSoundEmoji,
     normalizeSoundName,
     soundFileProblem,
     isMp4Audio,
@@ -60,19 +61,29 @@ function validatedName(name: string): string {
     return normalized;
 }
 
+/** The emoji to store: none when absent, the trimmed value when valid. */
+function validatedEmoji(emoji: string | undefined): string | undefined {
+    if (emoji === undefined || emoji.trim() === "") return undefined;
+    const normalized = normalizeSoundEmoji(emoji);
+    if (!normalized) throw new Error(t("soundboard.badEmoji"));
+    return normalized;
+}
+
 export async function addUserSound(
     name: string,
     mxcUrl: string,
     info?: SoundInfo,
     body?: string,
+    emoji?: string,
 ): Promise<string> {
     const client = requireClient();
     const normalized = validatedName(name);
+    const sound = validatedEmoji(emoji);
     await client.setAccountData(
         USER_SOUNDBOARD_TYPE,
         withSound(
             userContent(),
-            { name: normalized, mxcUrl, info, body },
+            { name: normalized, mxcUrl, info, body, emoji: sound },
             USER_SOUND_PACK_NAME,
         ),
     );
@@ -251,10 +262,16 @@ export async function addRoomSound(
     packName: string,
     info?: SoundInfo,
     body?: string,
+    emoji?: string,
 ): Promise<string> {
     const normalized = validatedName(name);
+    const sound = validatedEmoji(emoji);
     await updateRoomSoundPack(room, stateKey, (current) =>
-        withSound(current, { name: normalized, mxcUrl, info, body }, packName),
+        withSound(
+            current,
+            { name: normalized, mxcUrl, info, body, emoji: sound },
+            packName,
+        ),
     );
     return normalized;
 }

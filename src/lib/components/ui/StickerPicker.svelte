@@ -1,6 +1,7 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
     import { untrack } from "svelte";
+    import { SvelteSet } from "svelte/reactivity";
     import {
         getCustomStickerPacks,
         getOwnAvatarUrl,
@@ -9,7 +10,10 @@
     } from "$lib/matrix/client";
     import { roomsState } from "$lib/stores/rooms.svelte";
 
-    import { interfaceState } from "$lib/stores/interface.svelte";
+    import {
+        interfaceState,
+        openAppSettingsTab,
+    } from "$lib/stores/interface.svelte";
     import { resizeHandle } from "$lib/actions/resizeHandle";
     import { COMPOSER_PICKER_SIZE } from "$lib/utils/pickerSize";
     import { scrollBehavior } from "$lib/utils/motionPreference";
@@ -297,6 +301,21 @@
         onClose();
     }
 
+    // Close first: the picker's close clears its own slot, and opening the
+    // settings modal before that would let the close tear the modal down.
+    function openEmoteSettings() {
+        onClose();
+        openAppSettingsTab("emotes");
+    }
+
+    // Thumbnails whose full image has loaded (or failed, so the broken image
+    // shows as it did before). Until a URL is in here its 16px placeholder
+    // stays behind it.
+    const loadedThumbs = new SvelteSet<string>();
+    function settleThumb(url: string) {
+        loadedThumbs.add(url);
+    }
+
     function onKeydown(e: KeyboardEvent) {
         if (e.key === "Escape") {
             onClose();
@@ -434,11 +453,20 @@
     {#if stickerPacks.length === 0}
         <!-- flex-1 so the empty state centres in the now fixed-height touch
              drawer instead of hugging the top of a half-empty box. -->
-        <p
-            class="flex-1 flex items-center justify-center text-center text-zam-textMuted text-sm py-8 px-4"
+        <div
+            class="flex-1 flex flex-col items-center justify-center gap-3 text-center py-8 px-4"
         >
-            {t("stickerPicker.noStickerPacksAvailable")}
-        </p>
+            <p class="text-zam-textMuted text-sm">
+                {t("stickerPicker.noStickerPacksAvailable")}
+            </p>
+            <button
+                type="button"
+                onclick={openEmoteSettings}
+                class="bg-zam-accent text-white text-sm font-medium px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zam-accent"
+            >
+                {t("stickerPicker.openEmoteSettings")}
+            </button>
+        </div>
     {:else}
         <!-- Tab bar -->
         {#if !search}
@@ -530,6 +558,12 @@
                         >
                             {#each indexRange(row.start, row.end) as idx (idx)}
                                 {@const s = flatItems[idx]}
+                                {@const thumb =
+                                    pickerThumbUrl(
+                                        s.mxcUrl,
+                                        STICKER_THUMB_PX,
+                                    ) ?? s.url}
+                                {@const lqip = pickerThumbUrl(s.mxcUrl, 16)}
                                 <button
                                     data-item-index={idx}
                                     onclick={() => pick(s)}
@@ -546,15 +580,30 @@
                                     class:ring-2={activeIndex === idx}
                                     class:ring-zam-accent={activeIndex === idx}
                                 >
-                                    <img
-                                        src={pickerThumbUrl(
-                                            s.mxcUrl,
-                                            STICKER_THUMB_PX,
-                                        ) ?? s.url}
-                                        alt={s.shortcode}
-                                        class="w-full h-full max-w-14 max-h-14 object-contain"
-                                        decoding="async"
-                                    />
+                                    <span
+                                        class="relative block w-full h-full max-w-14 max-h-14"
+                                    >
+                                        {#if lqip && !loadedThumbs.has(thumb)}
+                                            <img
+                                                src={lqip}
+                                                alt=""
+                                                aria-hidden="true"
+                                                class="absolute inset-0 w-full h-full object-cover blur-md scale-110"
+                                                decoding="async"
+                                            />
+                                        {/if}
+                                        <img
+                                            src={thumb}
+                                            alt={s.shortcode}
+                                            onload={() => settleThumb(thumb)}
+                                            onerror={() => settleThumb(thumb)}
+                                            class="relative w-full h-full object-contain transition-opacity duration-200"
+                                            class:opacity-0={!loadedThumbs.has(
+                                                thumb,
+                                            )}
+                                            decoding="async"
+                                        />
+                                    </span>
                                 </button>
                             {/each}
                         </div>

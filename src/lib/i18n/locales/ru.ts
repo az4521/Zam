@@ -356,6 +356,13 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Звуков пока нет. Добавьте их в разделе «Настройки», «Эмодзи» или в настройках комнаты.",
     "soundboard.sendFailed": "Не удалось отправить этот звук в звонок.",
     "soundboard.add": "Добавить звук",
+    "soundboard.badEmoji": "Это не одно эмодзи.",
+    "soundboard.emoji": "Эмодзи",
+    "soundboard.noEmoji": "Без эмодзи",
+    "soundboard.clearEmoji": "Убрать эмодзи",
+    "soundboard.editEmoji": "Изменить эмодзи",
+    "soundboard.emojiFailed": "Не удалось сохранить это эмодзи.",
+    "soundboard.addStaged": "Добавить звук",
     "soundboard.limits": "Аудиофайлы до {seconds} с и {kb} КБ.",
     "soundboard.pack": "Набор",
     "soundboard.newPack": "Новый набор",
@@ -406,6 +413,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "customPackSettings.noCustomImages": "Нет своих изображений",
     "customPackSettings.noCustomEmojis": "Нет своих эмодзи",
     "customPackSettings.noCustomStickers": "Нет своих стикеров",
+    "customPackSettings.chooseAnother": "Выбрать другой файл",
+    "customPackSettings.stagedPreview": "Превью выбранного изображения",
 
     // src/lib/components/debug/DebugEventItem.svelte
     "debugEventItem.stateKey": "state_key",
@@ -2706,11 +2715,37 @@ const messages: Partial<Record<MessageKey, string>> = {
     "stickerPicker.noStickerPacksAvailable": "Нет доступных наборов стикеров",
     "stickerPicker.myStickers": "Мои стикеры",
     "stickerPicker.myStickers2": "Мои стикеры",
+    "stickerPicker.openEmoteSettings": "Добавить или создать наборы стикеров",
 
     // src/lib/components/ui/SwfEmbed.svelte
     "swfEmbed.adobeFlash": "Adobe Flash",
 
     // src/lib/components/settings/ThemeColorEditor.svelte
+    "telegramImport.title": "Импорт набора стикеров Telegram",
+    "telegramImport.linkLabel": "Ссылка или название набора стикеров",
+    "telegramImport.linkPlaceholder": "https://t.me/addstickers/PackName",
+    "telegramImport.tokenLabel": "Токен бота",
+    "telegramImport.tokenPlaceholder": "123456:ABC-DEF...",
+    "telegramImport.tokenHelp":
+        "Необязательно. Нужен, только если встроенный сервис стикеров недоступен. Бесплатный токен можно получить у @BotFather. Он хранится только пока открыта эта страница.",
+    "telegramImport.useOwnToken": "Использовать свой токен бота",
+    "telegramImport.proxyUnavailable":
+        "Встроенный сервис стикеров сейчас недоступен. Можно импортировать, используя свой токен бота.",
+    "telegramImport.import": "Импорт",
+    "telegramImport.importing": "Импорт...",
+    "telegramImport.progress": "{done} / {total}",
+    "telegramImport.invalidLink":
+        "Это не ссылка на стикер Telegram и не название набора.",
+    "telegramImport.tokenRequired": "Введите токен бота для импорта.",
+    "telegramImport.empty": "В этом наборе стикеров нет стикеров.",
+    "telegramImport.cancelled":
+        "Импорт отменён. Импортировано стикеров: {imported} из {total}.",
+    "telegramImport.doneWithFailures":
+        "Импортировано стикеров из набора «{title}»: {imported} из {total}. Не удалось импортировать: {failed}.",
+    "telegramImport.done":
+        "Импортировано стикеров из набора «{title}»: {imported} из {total}.",
+    "telegramImport.failed": "Telegram вернул ошибку: {message}",
+    "telegramImport.failedGeneric": "Не удалось импортировать набор стикеров.",
     "themeColorEditor.themeColors": "Цвета темы",
     "themeColorEditor.presetName": "Название пресета",
     "themeColorEditor.savePreset": "Сохранить пресет",

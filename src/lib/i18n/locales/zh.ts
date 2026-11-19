@@ -359,6 +359,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "soundboard.addedToYours":
         "{count, plural, other {已将 # 个音效添加到你的音效包。}}",
     "soundboard.alreadyYours": "已在你的音效包中。",
+    "soundboard.badEmoji": "这不是单个表情符号。",
+    "soundboard.emoji": "表情符号",
+    "soundboard.noEmoji": "无表情符号",
+    "soundboard.clearEmoji": "清除表情符号",
+    "soundboard.editEmoji": "编辑表情符号",
+    "soundboard.emojiFailed": "无法保存该表情符号。",
+    "soundboard.addStaged": "添加音效",
     // src/lib/matrix/soundboard.ts
     "soundboard.badName":
         "请使用 1 到 100 个字母、数字、短横线或下划线（A-Z、0-9）。空格会变成下划线。",
@@ -381,6 +388,33 @@ const messages: Partial<Record<MessageKey, string>> = {
     "customPackSettings.noCustomImages": "没有自定义图片",
     "customPackSettings.noCustomEmojis": "没有自定义表情",
     "customPackSettings.noCustomStickers": "没有自定义贴纸",
+    "customPackSettings.chooseAnother": "选择其他文件",
+    "customPackSettings.stagedPreview": "所选图片预览",
+
+    // src/lib/components/settings/TelegramImport.svelte
+    "telegramImport.title": "导入 Telegram 贴纸包",
+    "telegramImport.linkLabel": "贴纸包链接或名称",
+    "telegramImport.linkPlaceholder": "https://t.me/addstickers/PackName",
+    "telegramImport.tokenLabel": "机器人令牌",
+    "telegramImport.tokenPlaceholder": "123456:ABC-DEF...",
+    "telegramImport.tokenHelp":
+        "可选。仅在内置贴纸服务不可用时需要。可通过 @BotFather 免费获取。令牌仅在此页面打开期间保存。",
+    "telegramImport.useOwnToken": "使用我自己的机器人令牌",
+    "telegramImport.proxyUnavailable":
+        "内置贴纸服务当前不可用。你可以改用自己的机器人令牌导入。",
+    "telegramImport.import": "导入",
+    "telegramImport.importing": "正在导入…",
+    "telegramImport.progress": "{done} / {total}",
+    "telegramImport.invalidLink": "这不是 Telegram 贴纸链接或贴纸包名称。",
+    "telegramImport.tokenRequired": "请输入机器人令牌后再导入。",
+    "telegramImport.empty": "该贴纸包没有贴纸。",
+    "telegramImport.cancelled":
+        "导入已取消。已导入 {imported}/{total} 个贴纸。",
+    "telegramImport.doneWithFailures":
+        "已从 {title} 导入 {imported}/{total} 个贴纸，{failed} 个无法导入。",
+    "telegramImport.done": "已从 {title} 导入 {imported}/{total} 个贴纸。",
+    "telegramImport.failed": "Telegram 返回错误：{message}",
+    "telegramImport.failedGeneric": "无法导入该贴纸包。",
 
     // src/lib/components/debug/DebugEventItem.svelte
     "debugEventItem.stateKey": "state_key",
@@ -2491,6 +2525,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "stickerPicker.noStickerPacksAvailable": "没有可用的贴纸包",
     "stickerPicker.myStickers": "我的贴纸",
     "stickerPicker.myStickers2": "我的贴纸",
+    "stickerPicker.openEmoteSettings": "添加或创建贴纸包",
 
     // src/lib/components/ui/SwfEmbed.svelte
     "swfEmbed.adobeFlash": "Adobe Flash",

@@ -7,7 +7,9 @@ import {
     decodeSoundboardMessage,
     encodeSoundboardMessage,
     isMp4Audio,
+    isValidSoundEmoji,
     isValidSoundName,
+    normalizeSoundEmoji,
     soundFileProblem,
     soundGain,
     soundNameFromText,
@@ -108,6 +110,86 @@ describe("withSound / withoutSound", () => {
             duration: 2400,
             mimetype: "audio/ogg",
         });
+    });
+});
+
+describe("sound emoji", () => {
+    it("accepts one emoji, including ZWJ sequences and flags", () => {
+        expect(isValidSoundEmoji("🔊")).toBe(true);
+        expect(isValidSoundEmoji("👨‍👩‍👧")).toBe(true);
+        expect(isValidSoundEmoji("🇩🇪")).toBe(true);
+    });
+
+    it("rejects empty, whitespace, and over-long values", () => {
+        expect(isValidSoundEmoji("")).toBe(false);
+        expect(isValidSoundEmoji("🔊 🔔")).toBe(false);
+        expect(isValidSoundEmoji("a\tb")).toBe(false);
+        expect(isValidSoundEmoji("🔊".repeat(17))).toBe(false);
+        expect(isValidSoundEmoji("🔊".repeat(16))).toBe(true);
+        expect(isValidSoundEmoji(42)).toBe(false);
+    });
+
+    it("normalizes by trimming and drops invalid values", () => {
+        expect(normalizeSoundEmoji("  🔔 ")).toBe("🔔");
+        expect(normalizeSoundEmoji("   ")).toBeUndefined();
+        expect(normalizeSoundEmoji("🔔 🔕")).toBeUndefined();
+        expect(normalizeSoundEmoji(undefined)).toBeUndefined();
+    });
+
+    it("reads emoji from content and skips invalid ones", () => {
+        const sounds = soundsFromContent({
+            sounds: {
+                a: { url: "mxc://s/1", emoji: "🥁" },
+                b: { url: "mxc://s/2", emoji: "two words" },
+                c: { url: "mxc://s/3" },
+            },
+        });
+        expect(sounds.map((s) => [s.name, s.emoji])).toEqual([
+            ["a", "🥁"],
+            ["b", undefined],
+            ["c", undefined],
+        ]);
+    });
+
+    it("writes emoji, and keeps unknown keys on a re-saved sound", () => {
+        const before = {
+            sounds: {
+                boom: {
+                    url: "mxc://s/1",
+                    body: "old",
+                    emoji: "💥",
+                    future_field: { x: 1 },
+                },
+            },
+        };
+        const edited = withSound(
+            before,
+            { name: "boom", mxcUrl: "mxc://s/1", emoji: "🔥" },
+            "P",
+        );
+        expect(edited.sounds?.boom).toEqual({
+            url: "mxc://s/1",
+            emoji: "🔥",
+            future_field: { x: 1 },
+        });
+        const cleared = withSound(
+            before,
+            { name: "boom", mxcUrl: "mxc://s/1" },
+            "P",
+        );
+        expect(cleared.sounds?.boom).toEqual({
+            url: "mxc://s/1",
+            future_field: { x: 1 },
+        });
+    });
+
+    it("does not write an invalid emoji", () => {
+        const next = withSound(
+            undefined,
+            { name: "x", mxcUrl: "mxc://s/1", emoji: "a b" },
+            "P",
+        );
+        expect(next.sounds?.x).toEqual({ url: "mxc://s/1" });
     });
 });
 

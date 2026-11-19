@@ -314,6 +314,13 @@ const messages: Partial<Record<MessageKey, string>> = {
         "サウンドはまだありません。設定の「絵文字」か、ルームの設定で追加できます。",
     "soundboard.sendFailed": "サウンドを通話に送信できませんでした。",
     "soundboard.add": "サウンドを追加",
+    "soundboard.badEmoji": "1 つの絵文字ではありません。",
+    "soundboard.emoji": "絵文字",
+    "soundboard.noEmoji": "絵文字なし",
+    "soundboard.clearEmoji": "絵文字をクリア",
+    "soundboard.editEmoji": "絵文字を編集",
+    "soundboard.emojiFailed": "その絵文字を保存できませんでした。",
+    "soundboard.addStaged": "サウンドを追加",
     "soundboard.limits": "{seconds} 秒以内、{kb} KB 以下の音声ファイル。",
     "soundboard.pack": "パック",
     "soundboard.newPack": "新しいパック",
@@ -360,6 +367,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "customPackSettings.noCustomImages": "カスタム画像はありません",
     "customPackSettings.noCustomEmojis": "カスタム絵文字はありません",
     "customPackSettings.noCustomStickers": "カスタムステッカーはありません",
+    "customPackSettings.chooseAnother": "別のファイルを選択",
+    "customPackSettings.stagedPreview": "選択した画像のプレビュー",
     "debugEventItem.stateKey": "state_key",
     "debugEventItem.empty": "（空）",
     "debugEventItem.redacted": "削除済み",
@@ -2356,7 +2365,35 @@ const messages: Partial<Record<MessageKey, string>> = {
         "利用できるステッカーパックがありません",
     "stickerPicker.myStickers": "マイステッカー",
     "stickerPicker.myStickers2": "マイステッカー",
+    "stickerPicker.openEmoteSettings": "ステッカーパックを追加または作成",
     "swfEmbed.adobeFlash": "Adobe Flash",
+    "telegramImport.title": "Telegram ステッカーパックをインポート",
+    "telegramImport.linkLabel": "ステッカーパックのリンクまたは名前",
+    "telegramImport.linkPlaceholder": "https://t.me/addstickers/PackName",
+    "telegramImport.tokenLabel": "ボットトークン",
+    "telegramImport.tokenPlaceholder": "123456:ABC-DEF...",
+    "telegramImport.tokenHelp":
+        "任意です。内蔵のステッカーサービスが利用できない場合にのみ必要です。無料のトークンは @BotFather から取得できます。このページを開いている間だけ保持されます。",
+    "telegramImport.useOwnToken": "自分のボットトークンを使う",
+    "telegramImport.proxyUnavailable":
+        "内蔵のステッカーサービスは現在利用できません。代わりに自分のボットトークンでインポートできます。",
+    "telegramImport.import": "インポート",
+    "telegramImport.importing": "インポート中...",
+    "telegramImport.progress": "{done} / {total}",
+    "telegramImport.invalidLink":
+        "Telegram のステッカーリンクまたはパック名ではありません。",
+    "telegramImport.tokenRequired":
+        "インポートするにはボットトークンを入力してください。",
+    "telegramImport.empty": "このステッカーパックにはステッカーがありません。",
+    "telegramImport.cancelled":
+        "インポートをキャンセルしました。{total} 個中 {imported} 個のステッカーをインポートしました。",
+    "telegramImport.doneWithFailures":
+        "{title} から {total} 個中 {imported} 個のステッカーをインポートしました。{failed} 個はインポートできませんでした。",
+    "telegramImport.done":
+        "{title} から {total} 個中 {imported} 個のステッカーをインポートしました。",
+    "telegramImport.failed": "Telegram がエラーを返しました: {message}",
+    "telegramImport.failedGeneric":
+        "ステッカーパックをインポートできませんでした。",
     "themeColorEditor.themeColors": "テーマの色",
     "themeColorEditor.presetName": "プリセット名",
     "themeColorEditor.savePreset": "プリセットを保存",

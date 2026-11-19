@@ -18,6 +18,8 @@
     } from "$lib/matrix/client";
     import { X } from "lucide-svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
+    import { shortcodeFromFileName } from "$lib/utils/emoteShortcode";
+    import TelegramImport from "./TelegramImport.svelte";
 
     type PackKind = "emotes" | "emojis" | "stickers";
     interface Props {
@@ -39,6 +41,11 @@
     let error = $state("");
     let asEmoji = $state(true);
     let asSticker = $state(false);
+    // A picked file waits here until the user confirms with Add.
+    let staged = $state<{ file: File; previewUrl: string } | null>(null);
+    // The shortcode last filled in from a file name; replaced on the next pick
+    // only while the user has not typed their own.
+    let autoShortcode = "";
 
     const singular = $derived(
         kind === "emotes"
@@ -71,22 +78,47 @@
         ];
     }
 
-    async function upload(event: Event) {
+    function releaseStaged(entry: { previewUrl: string }) {
+        URL.revokeObjectURL(entry.previewUrl);
+        if (staged === entry) staged = null;
+    }
+
+    // Picking a file only stages it; nothing is uploaded until Add.
+    function stageFile(event: Event) {
         const input = event.currentTarget as HTMLInputElement;
         const file = input.files?.[0];
+        input.value = "";
         if (!file) return;
+        error = "";
+        const suggested = shortcodeFromFileName(file.name);
+        if (shortcode === "" || shortcode === autoShortcode) {
+            shortcode = suggested;
+        }
+        autoShortcode = suggested;
+        if (staged) URL.revokeObjectURL(staged.previewUrl);
+        staged = { file, previewUrl: URL.createObjectURL(file) };
+    }
+
+    function cancelStaged() {
+        if (!staged) return;
+        if (shortcode === autoShortcode) shortcode = "";
+        autoShortcode = "";
+        error = "";
+        releaseStaged(staged);
+    }
+
+    async function addStaged() {
+        const entry = staged;
+        if (!entry) return;
         error = validateEmojiShortcode(shortcode) ?? "";
         const selectedUsage = usage(asEmoji, asSticker);
         if (kind === "emotes" && selectedUsage.length === 0) {
             error = t("customPackSettings.chooseAtLeastOneUsage");
         }
-        if (error) {
-            input.value = "";
-            return;
-        }
+        if (error) return;
         uploading = true;
         try {
-            const mxcUrl = await uploadContent(file);
+            const mxcUrl = await uploadContent(entry.file);
             const normalized =
                 kind === "emotes"
                     ? await addUserEmote(shortcode, mxcUrl, selectedUsage)
@@ -107,6 +139,8 @@
                 ]);
             }
             shortcode = "";
+            autoShortcode = "";
+            releaseStaged(entry);
             roomsState.roomsTick++;
         } catch (uploadError) {
             error =
@@ -114,7 +148,6 @@
                 t("customPackSettings.uploadFailed");
         } finally {
             uploading = false;
-            input.value = "";
         }
     }
 
@@ -178,6 +211,11 @@
         void kind;
         load();
     });
+
+    // Free the preview URL when the component goes away with a file staged.
+    $effect(() => () => {
+        if (staged) URL.revokeObjectURL(staged.previewUrl);
+    });
 </script>
 
 <div class="space-y-4">
@@ -235,17 +273,59 @@
                     ? 'opacity-50 pointer-events-none'
                     : ''}"
             >
-                {uploading ? t("common.uploading") : t("common.uploadImage")}
+                {uploading
+                    ? t("common.uploading")
+                    : staged
+                      ? t("customPackSettings.chooseAnother")
+                      : t("common.uploadImage")}
                 <input
                     type="file"
                     accept="image/*"
                     class="hidden"
-                    onchange={upload}
+                    onchange={stageFile}
                     disabled={uploading}
                 />
             </label>
         </div>
+        {#if staged}
+            <div
+                class="flex items-center gap-3 p-2 rounded bg-zam-backgroundTertiary"
+            >
+                <div
+                    class="w-12 h-12 rounded bg-zam-backgroundSecondary flex-shrink-0 overflow-hidden flex items-center justify-center"
+                >
+                    <img
+                        src={staged.previewUrl}
+                        alt={t("customPackSettings.stagedPreview")}
+                        class="max-w-full max-h-full object-contain"
+                    />
+                </div>
+                <p class="flex-1 min-w-0 text-sm text-zam-textPrimary truncate">
+                    {staged.file.name}
+                </p>
+                <button
+                    type="button"
+                    onclick={cancelStaged}
+                    disabled={uploading}
+                    class="px-3 py-1.5 rounded text-sm text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-50"
+                >
+                    {t("common.cancel")}
+                </button>
+                <button
+                    type="button"
+                    onclick={addStaged}
+                    disabled={uploading}
+                    class="px-3 py-1.5 rounded bg-zam-accent text-white text-sm font-semibold disabled:opacity-50"
+                >
+                    {t("common.add")}
+                </button>
+            </div>
+        {/if}
     </section>
+
+    {#if kind === "stickers"}
+        <TelegramImport onImported={load} />
+    {/if}
 
     {#if error}<p class="text-sm text-zam-danger">{error}</p>{/if}
     <div class="space-y-1.5">

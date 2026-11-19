@@ -107,15 +107,18 @@ other clients still work with ZDMB, they just see plain rooms.
 
 run `npm run build` and copy the files in `build/` into a web directory. it's all static — there is no backend to serve. point your SPA fallback at `index.html` (e.g. nginx `try_files $uri $uri/ /index.html;`).
 
-there are three _optional_ services the client talks to. none of them are needed to chat, but each one is a feature you don't get without it — and two of them have live defaults baked into the build, so read this before deploying a fork:
+there are four _optional_ services the client talks to. none of them are needed to chat, but each one is a feature you don't get without it — and some of them have live defaults baked into the build, so read this before deploying a fork:
 
 | service                                                                      | what it powers                             | default in this repo                                                                                                                                                                                                                                                     |
 | ---------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [Sygnal](https://github.com/matrix-org/sygnal) push gateway                  | Android FCM push, and browser/PWA web push | **falls back to `https://sygnal.crafty.moe`** (`src/lib/push.ts`, `src/lib/webPush.ts`). web push also falls back to a **public VAPID key** committed in `src/lib/webPush.ts`. so a fork you deploy unchanged will register pushers pointing at _this project's_ gateway |
 | LiveKit SFU + [lk-jwt-service](https://github.com/element-hq/lk-jwt-service) | voice/video calls                          | none. the SFU is discovered from an existing call member's advertised service url, or the homeserver's `.well-known` (`org.matrix.msc4143.rtc_foci`); with neither, joining a call fails with "No LiveKit focus available for this call"                                 |
 | identity server                                                              | invite-by-email                            | none, and nothing in the app configures one                                                                                                                                                                                                                              |
+| Telegram sticker proxy (nginx)                                               | importing Telegram sticker packs           | **falls back to the project's own proxy** (`src/lib/utils/telegramProxy.ts`). a fork deployed unchanged will not have its key, so the proxy refuses it and the importer asks the user for their own bot token instead                                                    |
 
 to point push at your own gateway, set `VITE_PUSH_GATEWAY_URL` (and `VITE_VAPID_PUBLIC_KEY`) at build time — see [ANDROID_PUSH_SETUP.md](ANDROID_PUSH_SETUP.md), which also covers how to turn push off. leaving the vars unset does _not_ turn it off; that's what the fallbacks above are.
+
+to host your own Telegram sticker proxy (a few nginx locations that hold one bot token server-side, so users never need their own), see [docs/telegram-proxy.md](docs/telegram-proxy.md). then set `VITE_TG_PROXY_URL` (and `VITE_TG_PROXY_KEY`, the shared key your proxy checks) at build time. set `VITE_TG_PROXY_URL` to an empty string to turn the proxy off, so the importer only offers the paste-your-own-bot-token flow. the key ships inside the bundle, so it only deters casual abuse, it is not a secret.
 
 ---
 

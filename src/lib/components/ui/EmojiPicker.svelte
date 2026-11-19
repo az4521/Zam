@@ -1,6 +1,7 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
     import { untrack } from "svelte";
+    import { SvelteSet } from "svelte/reactivity";
     import type { Room } from "matrix-js-sdk";
     import { EMOJI_CATEGORIES, ALL_EMOJIS } from "$lib/data/emojis";
     import {
@@ -414,6 +415,13 @@
         onClose();
     }
 
+    // Custom thumbnails whose full image has loaded (or failed). Until a URL
+    // is in here its 16px placeholder stays behind it.
+    const loadedThumbs = new SvelteSet<string>();
+    function settleThumb(url: string) {
+        loadedThumbs.add(url);
+    }
+
     function pickCustom(emoji: CustomEmoji) {
         if (onSelectCustom) {
             onSelectCustom(emoji);
@@ -674,15 +682,37 @@
                                 class:ring-zam-accent={activeIndex === idx}
                             >
                                 {#if item.kind === "custom"}
-                                    <img
-                                        src={pickerThumbUrl(
+                                    {@const thumb =
+                                        pickerThumbUrl(
                                             item.data.mxcUrl,
                                             EMOJI_THUMB_PX,
                                         ) ?? item.data.url}
-                                        alt={item.data.shortcode}
-                                        class="w-full h-full object-contain"
-                                        decoding="async"
-                                    />
+                                    {@const lqip = pickerThumbUrl(
+                                        item.data.mxcUrl,
+                                        16,
+                                    )}
+                                    <span class="relative block w-full h-full">
+                                        {#if lqip && !loadedThumbs.has(thumb)}
+                                            <img
+                                                src={lqip}
+                                                alt=""
+                                                aria-hidden="true"
+                                                class="absolute inset-0 w-full h-full object-cover blur-md scale-110"
+                                                decoding="async"
+                                            />
+                                        {/if}
+                                        <img
+                                            src={thumb}
+                                            alt={item.data.shortcode}
+                                            onload={() => settleThumb(thumb)}
+                                            onerror={() => settleThumb(thumb)}
+                                            class="relative w-full h-full object-contain transition-opacity duration-200"
+                                            class:opacity-0={!loadedThumbs.has(
+                                                thumb,
+                                            )}
+                                            decoding="async"
+                                        />
+                                    </span>
                                 {:else}
                                     {@const sprite = emojiSpriteStyle(
                                         item.data.emoji,

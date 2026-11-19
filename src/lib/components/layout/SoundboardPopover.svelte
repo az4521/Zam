@@ -133,14 +133,33 @@
                 </h3>
                 <div class="flex flex-wrap gap-1.5">
                     {#each pack.sounds as sound (sound.name)}
-                        <button
-                            type="button"
-                            onclick={() => play(sound)}
-                            title={sound.body ?? sound.name}
-                            class="max-w-full truncate px-3 py-1.5 rounded bg-zam-backgroundSecondary hover:bg-zam-accent hover:text-white text-sm text-zam-textPrimary transition-colors"
-                        >
-                            {sound.name}
-                        </button>
+                        {#if sound.emoji}
+                            <button
+                                type="button"
+                                onclick={() => play(sound)}
+                                title={sound.body ?? sound.name}
+                                aria-label={sound.name}
+                                class="flex w-16 max-w-full flex-col items-center gap-0.5 px-1 py-1.5 rounded bg-zam-backgroundSecondary hover:bg-zam-accent hover:text-white text-zam-textPrimary transition-colors"
+                            >
+                                <span
+                                    class="text-3xl leading-none"
+                                    aria-hidden="true">{sound.emoji}</span
+                                >
+                                <span
+                                    class="max-w-full truncate text-[11px] leading-tight"
+                                    aria-hidden="true">{sound.name}</span
+                                >
+                            </button>
+                        {:else}
+                            <button
+                                type="button"
+                                onclick={() => play(sound)}
+                                title={sound.body ?? sound.name}
+                                class="max-w-full truncate px-3 py-1.5 rounded bg-zam-backgroundSecondary hover:bg-zam-accent hover:text-white text-sm text-zam-textPrimary transition-colors"
+                            >
+                                {sound.name}
+                            </button>
+                        {/if}
                     {/each}
                 </div>
             </section>

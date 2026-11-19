@@ -9358,6 +9358,7 @@ async function addUserPackImage(
     mxcUrl: string,
     packName: string,
     kind: ImageUsage,
+    meta?: PackImageMeta,
 ): Promise<string> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const normalized = normalizeEmojiShortcode(shortcode);
@@ -9371,6 +9372,8 @@ async function addUserPackImage(
         ...existing,
         url: mxcUrl,
         usage: withUsage(existing.usage, kind),
+        ...(meta?.info ? { info: meta.info } : {}),
+        ...(meta?.body ? { body: meta.body } : {}),
     };
 
     await matrixClient.setAccountData("im.ponies.user_emotes", {
@@ -9486,8 +9489,9 @@ export async function removeUserEmoji(shortcode: string): Promise<void> {
 export async function addUserSticker(
     shortcode: string,
     mxcUrl: string,
+    meta?: PackImageMeta,
 ): Promise<string> {
-    return addUserPackImage(shortcode, mxcUrl, "My Stickers", "sticker");
+    return addUserPackImage(shortcode, mxcUrl, "My Stickers", "sticker", meta);
 }
 
 export async function removeUserSticker(shortcode: string): Promise<void> {
