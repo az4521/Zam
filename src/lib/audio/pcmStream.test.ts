@@ -3,6 +3,10 @@ import {
     PcmJitterBuffer,
     PCM_START_FRAMES,
     PCM_MAX_FRAMES,
+    PCM_TARGET_STEP,
+    PCM_TARGET_MAX,
+    PCM_TARGET_RELAX,
+    PCM_RELAX_AFTER_FRAMES,
 } from "./pcmStream.worklet.js";
 
 const QUANTUM = 128;
@@ -92,5 +96,49 @@ describe("PcmJitterBuffer", () => {
         const mono = new Float32Array(QUANTUM);
         buf.pull(mono, undefined);
         expect(mono[0]).toBeCloseTo(0.375);
+    });
+
+    it("waits for more after each underrun, up to a ceiling", () => {
+        const buf = new PcmJitterBuffer();
+        for (let k = 0; k < 10; k++) {
+            buf.push(frames(1, buf.target));
+            while (buf.size >= QUANTUM) pull(buf);
+            pull(buf); // underrun
+        }
+        expect(buf.underruns).toBe(10);
+        expect(buf.target).toBe(PCM_TARGET_MAX);
+        // Not playing until the raised target is queued.
+        buf.push(frames(1, PCM_TARGET_MAX - 1));
+        expect(pull(buf).left[0]).toBe(0);
+        buf.push(frames(1, 1));
+        expect(pull(buf).left[0]).toBe(1);
+    });
+
+    it("eases the target back after a long clean stretch", () => {
+        const buf = new PcmJitterBuffer();
+        buf.push(frames(1, PCM_START_FRAMES));
+        while (buf.size >= QUANTUM) pull(buf);
+        pull(buf);
+        expect(buf.target).toBe(PCM_START_FRAMES + PCM_TARGET_STEP);
+        let played = 0;
+        buf.push(frames(1, buf.target));
+        while (played < PCM_RELAX_AFTER_FRAMES) {
+            buf.push(frames(1, QUANTUM));
+            pull(buf);
+            played += QUANTUM;
+        }
+        expect(buf.target).toBe(
+            PCM_START_FRAMES + PCM_TARGET_STEP - PCM_TARGET_RELAX,
+        );
+    });
+
+    it("trims a long queue down to the raised target, not the start", () => {
+        const buf = new PcmJitterBuffer();
+        buf.push(frames(1, PCM_START_FRAMES));
+        while (buf.size >= QUANTUM) pull(buf);
+        pull(buf);
+        const target = buf.target;
+        buf.push(frames(1, target + PCM_MAX_FRAMES - PCM_START_FRAMES + 1));
+        expect(buf.size).toBe(target);
     });
 });

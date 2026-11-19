@@ -6,15 +6,23 @@
 // per-application screen-share audio the desktop app captures on Windows
 // (native/app-audio, electron/appAudio.cjs). The capture runs on the sound
 // card's clock and arrives in bursts, so this keeps a small jitter buffer:
-// output starts once PCM_START_FRAMES are queued, an underrun plays silence
-// and waits for that much again, and when the queue grows past
-// PCM_MAX_FRAMES (the two clocks drifting, or a stall that then caught up)
-// the oldest audio is dropped back down to PCM_START_FRAMES, so latency
-// can't creep up over a long share.
+// output starts once `target` frames are queued (PCM_START_FRAMES at first),
+// an underrun plays silence and waits for that much again, and when the
+// queue grows PCM_MAX_FRAMES - PCM_START_FRAMES past the target (the two
+// clocks drifting, or a stall that then caught up) the oldest audio is
+// dropped back down to the target, so latency can't creep up over a long
+// share. The target adapts: each underrun adds PCM_TARGET_STEP (up to
+// PCM_TARGET_MAX), since the PCM shares the main process with a native
+// share's video and a busy one stalls it past 40 ms; a long clean stretch
+// takes PCM_TARGET_RELAX back off.
 
 export const PCM_CHANNELS = 2;
 export const PCM_START_FRAMES = 1920; // 40 ms at 48 kHz
 export const PCM_MAX_FRAMES = 9600; // 200 ms
+export const PCM_TARGET_STEP = 960; // 20 ms
+export const PCM_TARGET_MAX = 5760; // 120 ms
+export const PCM_TARGET_RELAX = 480; // 10 ms
+export const PCM_RELAX_AFTER_FRAMES = 48000 * 30; // 30 s without an underrun
 const CAPACITY = 48000; // frames: 1 s
 
 export class PcmJitterBuffer {
@@ -25,6 +33,8 @@ export class PcmJitterBuffer {
         this.playing = false;
         this.dropped = 0;
         this.underruns = 0;
+        this.target = PCM_START_FRAMES;
+        this.clean = 0; // frames played since the last underrun or relax
     }
 
     /** Queue interleaved stereo samples (a trailing half frame is ignored). */
@@ -45,7 +55,8 @@ export class PcmJitterBuffer {
             write = write + 1 === CAPACITY ? 0 : write + 1;
         }
         this.size += frames;
-        if (this.size > PCM_MAX_FRAMES) this.drop(this.size - PCM_START_FRAMES);
+        if (this.size > this.target + PCM_MAX_FRAMES - PCM_START_FRAMES)
+            this.drop(this.size - this.target);
     }
 
     drop(frames) {
@@ -58,10 +69,15 @@ export class PcmJitterBuffer {
     /** Fill one render quantum; `right` may be undefined (mono output). */
     pull(left, right) {
         const n = left.length;
-        if (!this.playing && this.size >= PCM_START_FRAMES) this.playing = true;
+        if (!this.playing && this.size >= this.target) this.playing = true;
         if (this.playing && this.size < n) {
             this.playing = false;
             this.underruns++;
+            this.target = Math.min(
+                PCM_TARGET_MAX,
+                this.target + PCM_TARGET_STEP,
+            );
+            this.clean = 0;
         }
         if (!this.playing) {
             left.fill(0);
@@ -82,6 +98,14 @@ export class PcmJitterBuffer {
         }
         this.read = r;
         this.size -= n;
+        this.clean += n;
+        if (this.clean >= PCM_RELAX_AFTER_FRAMES) {
+            this.clean = 0;
+            this.target = Math.max(
+                PCM_START_FRAMES,
+                this.target - PCM_TARGET_RELAX,
+            );
+        }
     }
 }
 
