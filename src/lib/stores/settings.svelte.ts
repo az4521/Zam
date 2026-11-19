@@ -102,6 +102,7 @@ import {
 import {
     DEFAULT_SCREEN_SHARE_BITRATE,
     MIN_SCREEN_SHARE_BITRATE,
+    SAFE_SCREEN_SHARE_BITRATE,
 } from "$lib/utils/screenShareBitrate";
 
 const STORAGE_PREFIX = "settings:";
@@ -1590,9 +1591,28 @@ export function setScreenShareFps(value: string): void {
 
 function readScreenShareBitrate(): number {
     const n = Number(readAccountString("screenShareBitrate"));
-    return Number.isFinite(n) && n >= MIN_SCREEN_SHARE_BITRATE
-        ? n
-        : DEFAULT_SCREEN_SHARE_BITRATE;
+    if (!Number.isFinite(n) || n < MIN_SCREEN_SHARE_BITRATE)
+        return DEFAULT_SCREEN_SHARE_BITRATE;
+    // Before 8 Mbps became the limit, the slider offered up to 90% of the
+    // measured upload, so a pick above 8 wasn't a deliberate "more than the
+    // safe limit". Bring it down once per account; picks made after this
+    // stand. Only once signed in: a flag written before that lands in the
+    // unscoped key, which the account would later adopt as already done.
+    // (The key is a literal: this runs while settingsState is initialised.)
+    if (
+        auth.userId &&
+        readAccountString("screenShareBitrateResetTo8") === null
+    ) {
+        writeAccountString("screenShareBitrateResetTo8", "true");
+        if (n > SAFE_SCREEN_SHARE_BITRATE) {
+            writeAccountString(
+                "screenShareBitrate",
+                String(SAFE_SCREEN_SHARE_BITRATE),
+            );
+            return SAFE_SCREEN_SHARE_BITRATE;
+        }
+    }
+    return n;
 }
 
 function readUploadSpeedOverride(): number {

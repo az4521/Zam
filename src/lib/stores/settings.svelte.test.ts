@@ -954,3 +954,63 @@ describe("orderHints (device-local)", () => {
         expect(localStorage.getItem(OH_KEY)).toBe("false");
     });
 });
+
+describe("screen-share bitrate reset to 8 Mbps", () => {
+    const USER = "@bitrate:example.org";
+    let scoped: (base: string) => string;
+
+    /** A restart signed in as USER: fresh modules, auth set before settings
+     *  load, as session restore does before the account's settings are read. */
+    async function boot() {
+        vi.resetModules();
+        const a = await import("$lib/stores/auth.svelte");
+        a.auth.userId = USER;
+        const { scopedKey } = await import("$lib/utils/scopedStorage");
+        scoped = (base) => scopedKey(base, USER);
+        const fresh = await import("./settings.svelte");
+        fresh.reloadAccountSettings();
+        return { fresh, auth: a.auth };
+    }
+
+    afterEach(async () => {
+        for (const k of Object.keys(localStorage))
+            if (k.includes("screenShareBitrate")) localStorage.removeItem(k);
+        const a = await import("$lib/stores/auth.svelte");
+        a.auth.userId = null;
+    });
+
+    it("brings a saved pick above 8 Mbps down once, then leaves new picks alone", async () => {
+        const { scopedKey } = await import("$lib/utils/scopedStorage");
+        localStorage.setItem(
+            scopedKey("settings:screenShareBitrate", USER),
+            "18000000",
+        );
+        let { fresh } = await boot();
+        expect(fresh.settingsState.screenShareBitrate).toBe(8_000_000);
+        expect(
+            localStorage.getItem(scoped("settings:screenShareBitrate")),
+        ).toBe("8000000");
+        // A pick made by hand after the update stands across restarts.
+        fresh.setScreenShareBitrate(20_000_000);
+        ({ fresh } = await boot());
+        expect(fresh.settingsState.screenShareBitrate).toBe(20_000_000);
+    });
+
+    it("keeps a saved pick of 8 Mbps or less", async () => {
+        const { scopedKey } = await import("$lib/utils/scopedStorage");
+        localStorage.setItem(
+            scopedKey("settings:screenShareBitrate", USER),
+            "3000000",
+        );
+        const { fresh } = await boot();
+        expect(fresh.settingsState.screenShareBitrate).toBe(3_000_000);
+    });
+
+    it("waits for a signed-in account rather than marking the bare key done", async () => {
+        vi.resetModules();
+        await import("./settings.svelte");
+        expect(
+            localStorage.getItem("settings:screenShareBitrateResetTo8"),
+        ).toBeNull();
+    });
+});
