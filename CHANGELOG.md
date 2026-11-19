@@ -4,6 +4,21 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.3
+
+✨ **New**
+
+- **Telegram sticker import:** Settings > Emotes (stickers) can import a Telegram pack from a `t.me/addstickers/<name>` link. Animated stickers are converted to animated WebP in the app. Zam's own sticker service handles the Telegram side, so you do not need a bot token. If that service is unreachable you can paste your own.
+- **Add uploads in two steps:** choosing an emote, sticker or soundboard file now shows a preview first, so you can set the name (and an emoji for sounds) before pressing Add.
+- **Soundboard emoji:** sounds can have an emoji, shown big on their button in the soundboard.
+- **Polls notification rule:** one row in the notification rules list now controls poll start and end alerts, which used to ping like ordinary messages.
+- **Smoother screen shares:** incoming shares are held back by about 170 ms by default to hide jitter and rubber-banding, and the call stats panel has a slider to change it.
+
+🐛 **Fixed**
+
+- **Empty sticker picker:** with no sticker packs it now offers a button to the Emotes settings instead of a dead end.
+- **Sticker and emoji pickers:** a blurred preview shows while each full image loads.
+
 ## v1.66.2
 
 ✨ **New**
