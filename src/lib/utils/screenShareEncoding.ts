@@ -1,5 +1,15 @@
 const PRESET_FPS = [15, 30, 60] as const;
 
+/** The most a share's lower simulcast layer sends. It is the layer a viewer
+ *  whose link can't carry the share falls back to, so it has to fit a slow
+ *  link: LiveKit's quarter-of-the-top rule gave an 8 Mbps share a 2 Mbps low
+ *  layer, which froze a viewer capped at 2 Mbps just like the top one did. */
+export const SHARE_LOW_LAYER_MAX_BPS = 1_200_000;
+/** ...and its most frames a second: at 60 fps that bitrate leaves half the
+ *  bits per frame, and on the congested link the layer exists for, it fell
+ *  to 7-13 fps (measured), where Element Call's 30 fps low layer held 30. */
+export const SHARE_LOW_LAYER_MAX_FPS = 30;
+
 /** Screen-share PUBLISH encoding: the bitrate the user picked
  *  (utils/screenShareBitrate, already clamped to the measured upload) and the
  *  picked frame rate. Handed to LiveKit as `screenShareEncoding`, which would
@@ -27,15 +37,28 @@ export function screenShareEncodingFor(
 export function applyScreenShareEncoding(
     params: RTCRtpSendParameters,
     encoding: { maxBitrate: number; maxFramerate: number },
+    /** A cap for the lower layers only (a viewer on the low layer can't take
+     *  more), leaving the top layer at `encoding.maxBitrate`. */
+    lowLayerCap: number | null = null,
 ): boolean {
     if (!params.encodings || params.encodings.length === 0) return false;
     for (const enc of params.encodings) {
         const scale = enc.scaleResolutionDownBy ?? 1;
+        const proportional = Math.floor(encoding.maxBitrate / scale ** 2);
         enc.maxBitrate = Math.max(
             150_000,
-            Math.floor(encoding.maxBitrate / scale ** 2),
+            scale > 1
+                ? Math.min(
+                      proportional,
+                      SHARE_LOW_LAYER_MAX_BPS,
+                      lowLayerCap ?? Infinity,
+                  )
+                : proportional,
         );
-        enc.maxFramerate = encoding.maxFramerate;
+        enc.maxFramerate =
+            scale > 1
+                ? Math.min(encoding.maxFramerate, SHARE_LOW_LAYER_MAX_FPS)
+                : encoding.maxFramerate;
     }
     return true;
 }

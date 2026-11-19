@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
     screenShareEncodingFor,
     applyScreenShareEncoding,
+    SHARE_LOW_LAYER_MAX_BPS,
 } from "./screenShareEncoding";
 
 describe("screenShareEncodingFor", () => {
@@ -113,12 +114,39 @@ describe("applyScreenShareEncoding", () => {
             maxBitrate: 8_000_000,
             maxFramerate: 60,
         });
-        // Half-res: 8M / 2^2 = 2M
-        expect(params.encodings![0].maxBitrate).toBe(2_000_000);
-        expect(params.encodings![0].maxFramerate).toBe(60);
+        // Half-res: 8M / 2^2 = 2M, held to the low-layer cap so it fits a
+        // slow viewer's link.
+        expect(params.encodings![0].maxBitrate).toBe(SHARE_LOW_LAYER_MAX_BPS);
+        // The low layer runs at most 30 fps.
+        expect(params.encodings![0].maxFramerate).toBe(30);
         // Top layer (scaleResolutionDownBy undefined = 1): 8M / 1^2 = 8M
         expect(params.encodings![1].maxBitrate).toBe(8_000_000);
         expect(params.encodings![1].maxFramerate).toBe(60);
+    });
+
+    it("puts a viewers' cap on the lower layers only", () => {
+        const params = {
+            encodings: [{ rid: "q", scaleResolutionDownBy: 2 }, { rid: "h" }],
+        } as RTCRtpSendParameters;
+        applyScreenShareEncoding(
+            params,
+            { maxBitrate: 8_000_000, maxFramerate: 60 },
+            600_000,
+        );
+        expect(params.encodings![0].maxBitrate).toBe(600_000);
+        expect(params.encodings![1].maxBitrate).toBe(8_000_000);
+    });
+
+    it("keeps the quarter-of-the-top rule while it is under the cap", () => {
+        const params = {
+            encodings: [{ rid: "q", scaleResolutionDownBy: 2 }, { rid: "h" }],
+        } as RTCRtpSendParameters;
+        applyScreenShareEncoding(params, {
+            maxBitrate: 4_000_000,
+            maxFramerate: 30,
+        });
+        expect(params.encodings![0].maxBitrate).toBe(1_000_000);
+        expect(params.encodings![1].maxBitrate).toBe(4_000_000);
     });
 
     it("enforces the 150k floor on low-bitrate scaled layers", () => {

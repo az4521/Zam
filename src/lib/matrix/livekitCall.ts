@@ -89,6 +89,7 @@ import {
 import {
     screenShareEncodingFor,
     applyScreenShareEncoding,
+    SHARE_LOW_LAYER_MAX_BPS,
 } from "$lib/utils/screenShareEncoding";
 import { baselineH264Answer } from "$lib/utils/h264Profile";
 import {
@@ -143,6 +144,7 @@ import {
 import { lazyModule } from "$lib/utils/lazyModule";
 import { RedundancyController } from "$lib/utils/audioRedundancy";
 import { deadTransceivers } from "$lib/utils/deadTransceivers";
+import { ShareLayerHold } from "$lib/utils/shareLayerHold";
 import {
     SHARE_HEALTH_TOPIC,
     ShareRateCap,
@@ -1533,6 +1535,13 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
                 notifyCallVideo(call);
         };
         lkRoom.on(lk.RoomEvent.LocalTrackPublished, shareAudioChanged);
+        lkRoom.on(
+            lk.RoomEvent.LocalTrackPublished,
+            (pub: { source: unknown }) => {
+                if (pub.source === lk.Track.Source.ScreenShare)
+                    retargetShareEncodings(call);
+            },
+        );
         lkRoom.on(lk.RoomEvent.LocalTrackUnpublished, shareAudioChanged);
     }
     lkRoom.on(lk.RoomEvent.AudioPlaybackStatusChanged, () =>
@@ -4597,8 +4606,13 @@ function videoCodecPublishOptions(
  *  moves, so busy content froze over and over. One layer has nothing to
  *  switch between. H.264 matters: it's the only encoder some machines have
  *  (NVIDIA on Linux). */
-function shareSimulcast(codec: VideoCodec | undefined): boolean {
-    return codec !== "h264";
+function shareSimulcast(_codec: VideoCodec | undefined): boolean {
+    // Back on for every codec: without a lower layer the SFU forwards a share
+    // into a viewer's link even when it doesn't fit (measured on LiveKit
+    // 1.13.11: no pause, ~60% loss, 0 frames). Layer switches are now rare:
+    // the viewer holds itself on the low layer once the top one struggles
+    // (utils/shareLayerHold), and H.264 switches recovered in 1-3 s on 1.13.11.
+    return true;
 }
 
 /** The codec options for a screen share, once its capture exists: HEVC only
@@ -5297,6 +5311,13 @@ const UPLOAD_SAMPLE_MS = 3000;
 
 function startUploadSampling(call: ActiveVoiceCall): void {
     clearLiveUploadEstimate();
+    const holdTimer = setInterval(() => {
+        if (activeVoice !== call) {
+            clearInterval(holdTimer);
+            return;
+        }
+        void holdShareLayers(call);
+    }, 1000);
     const timer = setInterval(() => {
         if (activeVoice !== call) {
             clearInterval(timer);
@@ -5345,6 +5366,132 @@ export function shareBitrateHeldAt(): number | null {
         : null;
 }
 
+/** Zam's encodings for a published (non-native) share's sender: with more
+ *  than one layer, the top layer at the pick and the viewers' cap on the
+ *  lower ones (the slow viewers are the ones on them); with one layer, the
+ *  pick held under the cap. */
+function applyShareLayers(params: RTCRtpSendParameters): boolean {
+    const fps = Number(settingsState.screenShareFps);
+    const layered = (params.encodings?.length ?? 0) > 1;
+    if (!layered)
+        return applyScreenShareEncoding(
+            params,
+            screenShareEncodingFor(screenShareBitrateNow(), fps),
+        );
+    const cap = activeVoice
+        ? (shareRateCaps.get(activeVoice)?.current() ?? null)
+        : null;
+    return applyScreenShareEncoding(
+        params,
+        screenShareEncodingFor(screenShareBitratePicked(), fps),
+        cap,
+    );
+}
+
+/** Re-apply the share's encodings as Zam sets them (utils/screenShareEncoding:
+ *  the low simulcast layer held to what a slow link carries). LiveKit builds
+ *  the first encodings itself on every publish, with a low layer at a quarter
+ *  of the top, which didn't fit the links it is there for. */
+function retargetShareEncodings(call: ActiveVoiceCall): void {
+    screenShareQualityChain = screenShareQualityChain.then(async () => {
+        if (activeVoice !== call) return;
+        const track = call.local.getTrack(call.lk.Track.Source.ScreenShare);
+        if (!track || isNativeShareTrack(track)) return;
+        const sender = track.sender;
+        const params = sender?.getParameters();
+        if (!sender || !params || !applyShareLayers(params)) return;
+        params.degradationPreference = "maintain-resolution";
+        await sender.setParameters(params).catch((err: unknown) => {
+            console.warn("[share] couldn't set the share's layers:", err);
+        });
+    });
+}
+
+/** Each watched simulcast share's layer hold (utils/shareLayerHold) and its
+ *  last inbound counters. */
+const layerHolds = new WeakMap<
+    object,
+    {
+        hold: ShareLayerHold;
+        prev: {
+            id: string;
+            received: number;
+            lost: number;
+            decoded: number;
+        } | null;
+    }
+>();
+
+/** As a viewer, once a second: keep each watched simulcast share on the low
+ *  layer once its top layer has struggled, so the server doesn't flip the
+ *  viewer between layers (a keyframe wait each time, worst when encrypted). */
+async function holdShareLayers(call: ActiveVoiceCall): Promise<void> {
+    const share = call.lk.Track.Source.ScreenShare;
+    const now = Date.now();
+    for (const lkRoom of callLkRooms(call))
+        for (const p of lkRoom.remoteParticipants.values())
+            for (const pub of p.videoTrackPublications.values()) {
+                const track = pub.track;
+                if (pub.source !== share || !track || !pub.isEnabled) continue;
+                if (!pub.simulcasted) continue;
+                let state = layerHolds.get(pub);
+                if (!state) {
+                    state = { hold: new ShareLayerHold(now), prev: null };
+                    layerHolds.set(pub, state);
+                }
+                const report = await track
+                    .getRTCStatsReport()
+                    .catch(() => undefined);
+                if (activeVoice !== call) return;
+                let r: RTCInboundRtpStreamStats | null = null;
+                for (const s of report?.values() ?? [])
+                    if (
+                        (s as RTCStats).type === "inbound-rtp" &&
+                        (s as RTCInboundRtpStreamStats).kind === "video"
+                    )
+                        r = s as RTCInboundRtpStreamStats;
+                if (!r) continue;
+                const cur = {
+                    id: r.id,
+                    received: r.packetsReceived ?? 0,
+                    lost: r.packetsLost ?? 0,
+                    decoded: r.framesDecoded ?? 0,
+                };
+                const prev = state.prev;
+                state.prev = cur;
+                if (!prev || prev.id !== cur.id) continue;
+                const received = cur.received - prev.received;
+                const lost = Math.max(0, cur.lost - prev.lost);
+                const change = state.hold.sample(
+                    {
+                        loss:
+                            received + lost > 0 ? lost / (received + lost) : 0,
+                        stalled: received > 0 && cur.decoded === prev.decoded,
+                    },
+                    now,
+                );
+                if (change)
+                    pub.setVideoQuality(
+                        change === "low"
+                            ? call.lk.VideoQuality.LOW
+                            : call.lk.VideoQuality.HIGH,
+                    );
+            }
+}
+
+/** Whether we hold ourselves on a simulcast share's low layer, or the share
+ *  has one layer: only then does our trouble with it ask the sharer to cut
+ *  its bitrate (otherwise the low layer is the fix, and one slow viewer
+ *  shouldn't lower the share for everyone). */
+function shareReportsCount(pub: object & { simulcasted?: boolean }): boolean {
+    if (!pub.simulcasted) return true;
+    // A sample from just after the drop still describes the top layer.
+    return (
+        (layerHolds.get(pub)?.hold.heldLowFor(Date.now()) ?? 0) >=
+        UPLOAD_SAMPLE_MS + 1000
+    );
+}
+
 /** As a viewer: tell each sharer we watch how its share arrives. */
 async function reportShareHealth(call: ActiveVoiceCall): Promise<void> {
     const share = call.lk.Track.Source.ScreenShare;
@@ -5389,6 +5536,7 @@ async function reportShareHealth(call: ActiveVoiceCall): Promise<void> {
                 );
                 if (cur) counters.set(sid, cur);
                 if (!health || (!cur && !paused)) continue;
+                if (!shareReportsCount(pub)) continue;
                 void lkRoom.localParticipant
                     .publishData(encodeShareHealth(health), {
                         reliable: true,
@@ -5416,7 +5564,18 @@ function applyShareRateCap(call: ActiveVoiceCall): void {
         return;
     }
     const before = cap.current();
-    const after = cap.update(screenShareBitratePicked(), Date.now());
+    // With simulcast the cap is for the low layer (applyShareLayers), so it
+    // is measured from that layer's own bitrate, not the top's.
+    const layered =
+        !isNativeShareTrack(track) &&
+        (track.sender?.getParameters().encodings?.length ?? 0) > 1;
+    const reference = layered
+        ? Math.min(
+              Math.floor(screenShareBitratePicked() / 4),
+              SHARE_LOW_LAYER_MAX_BPS,
+          )
+        : screenShareBitratePicked();
+    const after = cap.update(reference, Date.now());
     if (after === before) return;
     console.info(
         after === null
@@ -5437,18 +5596,7 @@ function applyShareRateCap(call: ActiveVoiceCall): void {
             call.lk.Track.Source.ScreenShare,
         )?.sender;
         const params = sender?.getParameters();
-        if (
-            !sender ||
-            !params ||
-            !applyScreenShareEncoding(
-                params,
-                screenShareEncodingFor(
-                    screenShareBitrateNow(),
-                    Number(settingsState.screenShareFps),
-                ),
-            )
-        )
-            return;
+        if (!sender || !params || !applyShareLayers(params)) return;
         params.degradationPreference = "maintain-resolution";
         await sender.setParameters(params).catch((err: unknown) => {
             console.warn("[share] couldn't change the share bitrate:", err);
