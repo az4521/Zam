@@ -5,9 +5,11 @@
 //
 // Animated (.tgs) stickers are Lottie JSON. They are rendered frame by frame
 // with @lottiefiles/dotlottie-web (ThorVG compiled to wasm, no eval) and
-// packed into an animated WebP. Where the browser cannot encode WebP (Safari),
-// they are packed into an APNG instead. The renderer is dynamically imported
-// so it stays out of the main bundle.
+// packed into an animated WebP. Video (.webm) stickers are decoded by a
+// detached <video> element and sampled at fixed times. Both kinds share one
+// encoder: animated WebP, or APNG where the browser cannot encode WebP
+// (Safari). The renderer is dynamically imported so it stays out of the main
+// bundle.
 
 import { captureClient, ownedClientOrThrow } from "$lib/matrix/runtime";
 import { addUserSticker, type PackImageMeta } from "$lib/matrix/client";
@@ -15,6 +17,7 @@ import { uploadContent } from "$lib/matrix/media";
 import { encodeApng, type ApngFrame } from "$lib/utils/apng";
 import { muxAnimatedWebp, type AwebpFrame } from "$lib/utils/awebp";
 import { stickerShortcode } from "$lib/utils/telegramSticker";
+import { planVideoFrames } from "$lib/utils/videoFrames";
 import {
     buildBotApiUrl,
     buildProxyUrl,
@@ -30,6 +33,9 @@ const MAX_FRAMES = 60;
 /** Ceiling on decompressed .tgs JSON, guards against a gzip bomb. */
 const MAX_TGS_JSON_BYTES = 32 * 1024 * 1024;
 const LOAD_TIMEOUT_MS = 15_000;
+/** Video sticker decoding: metadata once, then one seek per sampled frame. */
+const VIDEO_METADATA_TIMEOUT_MS = 10_000;
+const VIDEO_SEEK_TIMEOUT_MS = 5_000;
 const DEFAULT_CONCURRENCY = 3;
 
 /** An error Telegram reported. `description` is Telegram's own text. */
@@ -293,33 +299,85 @@ function canvasToBlob(
     return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 }
 
+/** One frame to encode: how long it shows, and how to paint it on the canvas. */
+interface CanvasFrame {
+    delayMs: number;
+    /** Paints the frame. The canvas is already cleared to transparent. */
+    draw(): void | Promise<void>;
+}
+
 /**
- * Renders the given frames as still WebP files. Returns null as soon as the
- * browser hands back anything other than WebP (Safari falls back to PNG), so
- * the caller can take the APNG path instead.
+ * Shared encoder for every animated source. Each frame is cleared, painted
+ * with `draw`, and read back from the canvas. The result is an animated WebP
+ * when the browser can encode WebP. Otherwise it is an APNG. Because a frame
+ * may need to be painted twice (once per encoder), `draw` must be repeatable.
  */
-async function renderWebpFrames(
-    player: DotLottie,
+async function encodeCanvasFrames(
     canvas: HTMLCanvasElement,
     ctx: CanvasRenderingContext2D,
-    indexes: number[],
-    delayFor: (index: number) => number,
+    frames: CanvasFrame[],
+    signal?: AbortSignal,
+): Promise<ConvertedAnimation> {
+    const { width, height } = canvas;
+    const webpFrames = await renderWebpFrames(canvas, ctx, frames, signal);
+    if (webpFrames) {
+        try {
+            return {
+                bytes: muxAnimatedWebp(webpFrames, width, height),
+                mimetype: "image/webp",
+                width,
+                height,
+            };
+        } catch {
+            // A WebP the muxer cannot read is treated like no WebP support.
+        }
+    }
+
+    const apngFrames: ApngFrame[] = [];
+    for (const frame of frames) {
+        if (signal?.aborted) throw new DOMException("aborted", "AbortError");
+        ctx.clearRect(0, 0, width, height);
+        await frame.draw();
+        apngFrames.push({
+            width,
+            height,
+            delayMs: frame.delayMs,
+            rgba: ctx.getImageData(0, 0, width, height).data,
+        });
+    }
+    return {
+        bytes: await encodeApng(apngFrames),
+        mimetype: "image/png",
+        width,
+        height,
+    };
+}
+
+/**
+ * Renders the frames as still WebP files. Returns null as soon as the browser
+ * hands back anything other than WebP (Safari falls back to PNG), so the
+ * caller can take the APNG path instead.
+ */
+async function renderWebpFrames(
+    canvas: HTMLCanvasElement,
+    ctx: CanvasRenderingContext2D,
+    frames: CanvasFrame[],
     signal?: AbortSignal,
 ): Promise<AwebpFrame[] | null> {
-    const frames: AwebpFrame[] = [];
-    for (const index of indexes) {
+    const out: AwebpFrame[] = [];
+    for (const frame of frames) {
         if (signal?.aborted) throw new DOMException("aborted", "AbortError");
         // Clear first so transparent pixels stay transparent in every frame.
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        player.setFrame(index);
+        await frame.draw();
         const blob = await canvasToBlob(canvas, "image/webp", WEBP_QUALITY);
         if (!blob || blob.type !== "image/webp") return null;
-        frames.push({
+        out.push({
             webp: new Uint8Array(await blob.arrayBuffer()),
-            delayMs: delayFor(index),
+            delayMs: frame.delayMs,
         });
     }
-    return frames;
+    return out;
 }
 
 /**
@@ -362,54 +420,145 @@ export async function convertTgs(
         }
         const frameMs = durationMs / total;
         const step = Math.max(1, Math.ceil(total / MAX_FRAMES));
-        const indexes: number[] = [];
-        for (let index = 0; index < total; index += step) indexes.push(index);
-        const delayFor = (index: number) =>
-            Math.min(step, total - index) * frameMs;
-
-        const webp = await renderWebpFrames(
-            player,
-            canvas,
-            ctx,
-            indexes,
-            delayFor,
-            signal,
-        );
-        if (webp) {
-            try {
-                return {
-                    bytes: muxAnimatedWebp(webp, width, height),
-                    mimetype: "image/webp",
-                    width,
-                    height,
-                };
-            } catch {
-                // A WebP the muxer cannot read is treated like no WebP support.
-            }
-        }
-
-        const frames: ApngFrame[] = [];
-        for (const index of indexes) {
-            if (signal?.aborted)
-                throw new DOMException("aborted", "AbortError");
-            ctx.clearRect(0, 0, width, height);
-            player.setFrame(index);
-            const pixels = ctx.getImageData(0, 0, width, height).data;
+        const frames: CanvasFrame[] = [];
+        for (let index = 0; index < total; index += step) {
             frames.push({
-                width,
-                height,
-                delayMs: delayFor(index),
-                rgba: pixels,
+                delayMs: Math.min(step, total - index) * frameMs,
+                draw: () => player.setFrame(index),
             });
         }
-        return {
-            bytes: await encodeApng(frames),
-            mimetype: "image/png",
-            width,
-            height,
-        };
+        return await encodeCanvasFrames(canvas, ctx, frames, signal);
     } finally {
         player.destroy();
+    }
+}
+
+/**
+ * Resolves on the first `event` from the element. Rejects on a media error,
+ * on timeout, or on abort. Every listener and the timer are removed on each
+ * exit path.
+ */
+function waitForVideoEvent(
+    video: HTMLVideoElement,
+    event: "loadedmetadata" | "seeked",
+    timeoutMs: number,
+    what: string,
+    signal?: AbortSignal,
+): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(new DOMException("aborted", "AbortError"));
+            return;
+        }
+        const cleanup = () => {
+            clearTimeout(timer);
+            signal?.removeEventListener("abort", onAbort);
+            video.removeEventListener(event, onOk);
+            video.removeEventListener("error", onError);
+        };
+        const onOk = () => {
+            cleanup();
+            resolve();
+        };
+        const onError = () => {
+            cleanup();
+            reject(new Error("video sticker could not be decoded"));
+        };
+        const onAbort = () => {
+            cleanup();
+            reject(new DOMException("aborted", "AbortError"));
+        };
+        const timer = setTimeout(() => {
+            cleanup();
+            reject(new Error(`${what} timed out`));
+        }, timeoutMs);
+        signal?.addEventListener("abort", onAbort, { once: true });
+        video.addEventListener(event, onOk);
+        video.addEventListener("error", onError);
+    });
+}
+
+/** Seeks the video to `time` and waits until that frame can be drawn. */
+function seekVideo(
+    video: HTMLVideoElement,
+    time: number,
+    signal?: AbortSignal,
+): Promise<void> {
+    // Already at this instant with a frame ready: no seeked event will come.
+    if (
+        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        Math.abs(video.currentTime - time) < 1e-3
+    ) {
+        return Promise.resolve();
+    }
+    const seeked = waitForVideoEvent(
+        video,
+        "seeked",
+        VIDEO_SEEK_TIMEOUT_MS,
+        "video seek",
+        signal,
+    );
+    video.currentTime = time;
+    return seeked;
+}
+
+/**
+ * Converts a .webm video sticker (VP9 with alpha) into an animated WebP, or
+ * into an APNG when the browser cannot encode WebP. The clip is decoded by a
+ * detached <video> element (never attached to the DOM) and sampled at fixed
+ * times, so the output has at most MAX_FRAMES frames and fits MAX_SIDE. A clip
+ * the browser cannot decode throws, and the caller counts it as a failure.
+ */
+export async function convertWebm(
+    bytes: Uint8Array,
+    signal?: AbortSignal,
+): Promise<ConvertedAnimation> {
+    const url = URL.createObjectURL(
+        new Blob([bytes as BlobPart], { type: "video/webm" }),
+    );
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    try {
+        const loaded = waitForVideoEvent(
+            video,
+            "loadedmetadata",
+            VIDEO_METADATA_TIMEOUT_MS,
+            "video metadata",
+            signal,
+        );
+        video.src = url;
+        await loaded;
+        if (video.error || video.videoWidth === 0 || video.videoHeight === 0) {
+            throw new Error("video sticker could not be decoded");
+        }
+        const plan = planVideoFrames({
+            srcWidth: video.videoWidth,
+            srcHeight: video.videoHeight,
+            duration: video.duration,
+            maxSide: MAX_SIDE,
+            maxFrames: MAX_FRAMES,
+        });
+        const canvas = document.createElement("canvas");
+        canvas.width = plan.width;
+        canvas.height = plan.height;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        if (!ctx) throw new Error("2D canvas is unavailable");
+
+        const frames: CanvasFrame[] = plan.times.map((time) => ({
+            delayMs: plan.delayMs,
+            async draw() {
+                await seekVideo(video, time, signal);
+                ctx.drawImage(video, 0, 0, plan.width, plan.height);
+            },
+        }));
+        return await encodeCanvasFrames(canvas, ctx, frames, signal);
+    } finally {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+        URL.revokeObjectURL(url);
     }
 }
 
@@ -453,8 +602,12 @@ async function prepareSticker(
     const bytes = await downloadSticker(transport, sticker.file_id, signal);
     let file: File;
     let info: Record<string, unknown>;
-    if (sticker.is_animated) {
-        const converted = await convertTgs(bytes, signal);
+    if (sticker.is_video || sticker.is_animated) {
+        // Video (.webm) and Lottie (.tgs) stickers both become an image that
+        // Matrix clients can show as a sticker. A WebM is never uploaded as-is.
+        const converted = sticker.is_video
+            ? await convertWebm(bytes, signal)
+            : await convertTgs(bytes, signal);
         const ext = converted.mimetype === "image/webp" ? "webp" : "png";
         file = new File([converted.bytes as BlobPart], `${shortcode}.${ext}`, {
             type: converted.mimetype,
@@ -464,18 +617,6 @@ async function prepareSticker(
             h: converted.height,
             mimetype: converted.mimetype,
             size: converted.bytes.byteLength,
-        };
-    } else if (sticker.is_video) {
-        // Uploaded unchanged. A WebM cannot be shown in an <img>, so these
-        // stay invisible in the pack list (see the report).
-        file = new File([bytes as BlobPart], `${shortcode}.webm`, {
-            type: "video/webm",
-        });
-        info = {
-            w: sticker.width,
-            h: sticker.height,
-            mimetype: "video/webm",
-            size: bytes.byteLength,
         };
     } else {
         file = new File([bytes as BlobPart], `${shortcode}.webp`, {
