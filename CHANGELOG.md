@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.7
+
+🐛 **Fixed**
+
+- **Memory growing over a long call:** every screen share, camera toggle and codec switch left its video sender behind for the rest of the call, holding its memory. Encrypted calls switch codec whenever someone joins or leaves, so busy calls grew fastest. Old senders are now cleaned up.
+- **A Windows window share turning grey for viewers after a graphics crash** in unencrypted calls (common while a game fills the video memory): the share now keeps going after the call reconnects.
+
 ## v1.66.6
 
 🐛 **Fixed**
