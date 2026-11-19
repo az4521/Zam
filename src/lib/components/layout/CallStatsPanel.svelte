@@ -6,7 +6,11 @@
     import ModalDialog from "$lib/components/ui/ModalDialog.svelte";
     import { openModal, clearModalIfOwner } from "$lib/stores/interface.svelte";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
-    import { getRoom } from "$lib/matrix/client";
+    import { getRoom, refreshShareSmoothing } from "$lib/matrix/client";
+    import {
+        settingsState,
+        setShareSmoothingMs,
+    } from "$lib/stores/settings.svelte";
     import {
         getCallDebugStats,
         type CallDebugConnection,
@@ -808,6 +812,37 @@
         </div>
 
         <div class="overflow-y-auto px-5 py-4 space-y-4 text-sm">
+            <div>
+                <div class="flex items-center justify-between gap-3">
+                    <label
+                        for="share-smoothing-slider"
+                        class="text-zam-textPrimary"
+                    >
+                        {t("voiceAudioSettings.shareSmoothing")}
+                    </label>
+                    <span class="text-zam-textMuted tabular-nums">
+                        {settingsState.shareSmoothingMs === 0
+                            ? t("voiceAudioSettings.shareSmoothingOff")
+                            : `${settingsState.shareSmoothingMs} ms`}
+                    </span>
+                </div>
+                <input
+                    id="share-smoothing-slider"
+                    type="range"
+                    min="0"
+                    max="500"
+                    step="10"
+                    class="w-full accent-zam-accent"
+                    value={settingsState.shareSmoothingMs}
+                    oninput={(e) => {
+                        setShareSmoothingMs(Number(e.currentTarget.value));
+                        refreshShareSmoothing();
+                    }}
+                />
+                <p class="text-xs text-zam-textMuted">
+                    {t("voiceAudioSettings.shareSmoothingHint")}
+                </p>
+            </div>
             {#if connections === null}
                 <p class="text-zam-textMuted">{t("callStats.loading")}</p>
             {:else if connections.length === 0}
