@@ -254,6 +254,13 @@ constants are up to the implementation. On a data channel, delivery is reliable 
 sender uses the channel's `bufferedAmount` for flow control and resends only blocks that an
 acknowledgement shows missing after a failure.
 
+A resend on the same connection MUST repeat the block's sealed bytes exactly, not seal it again. Parts
+of two sealings of one block can't be combined, and a receiver can't tell them apart until the block
+fails, which would count against the 16. The sender keeps each sealed block until it is acknowledged;
+the window bounds that memory. A receiver still treats a part that differs from the one it holds for
+the same block as the start of a new attempt, and drops the old parts. On a new connection everything
+is sealed again under the new key.
+
 Either end gives up after two minutes with no progress.
 
 #### When acknowledgements can't be published

@@ -656,6 +656,107 @@ describe("tampering", () => {
     });
 });
 
+describe("a block resent under a new sealing", () => {
+    /** The block's parts under one sealing, told apart by its IV. */
+    async function sealingParts(
+        key: CryptoKey,
+        size: number,
+        plain: Uint8Array<ArrayBuffer>,
+        ivFill: number,
+    ): Promise<Uint8Array<ArrayBuffer>[]> {
+        return encodeDataPackets(
+            0,
+            await sealBlock(key, "t", size, 0, plain, {
+                iv: new Uint8Array(12).fill(ivFill),
+            }),
+        );
+    }
+
+    it("lands from the new sealing when the old one's parts were held", async () => {
+        const size = BLOCK_SIZE;
+        const file = fileOf(size);
+        const leaves = await leavesFor(file);
+        const sink = new MemorySink(size);
+        const rx = await manualReceiver(
+            size,
+            await treeRoot(leaves),
+            FAST,
+            sink,
+        );
+        rx.deliver(encodeLeavesPackets(leaves));
+        const plain = file.slice(0, size);
+        const a = await sealingParts(rx.key, size, plain, 1);
+        const b = await sealingParts(rx.key, size, plain, 2);
+        expect(a.length).toBeGreaterThan(3);
+        rx.deliver(a.slice(0, 3));
+        rx.deliver(b);
+        await expect(rx.done).resolves.toBeUndefined();
+        expect(rx.failures).toEqual([]);
+        expect(Buffer.compare(sink.bytes, file)).toBe(0);
+        rx.stop();
+    });
+
+    it("lands when the sealings are split across the parts", async () => {
+        const size = BLOCK_SIZE;
+        const file = fileOf(size);
+        const leaves = await leavesFor(file);
+        const sink = new MemorySink(size);
+        const rx = await manualReceiver(
+            size,
+            await treeRoot(leaves),
+            FAST,
+            sink,
+        );
+        rx.deliver(encodeLeavesPackets(leaves));
+        const plain = file.slice(0, size);
+        const a = await sealingParts(rx.key, size, plain, 1);
+        const b = await sealingParts(rx.key, size, plain, 2);
+        rx.deliver(a.slice(0, 2));
+        // Parts 2.. of B complete the index range with A's 0-1: a mixed
+        // assembly, which fails to open and is dropped (one bad block).
+        // While it is being opened, B's 0-1 are dropped as in-progress, so
+        // the sender's resends (here: all of B, until the run settles) are
+        // what lands the block.
+        rx.deliver(b.slice(2));
+        let finished = false;
+        rx.done.then(
+            () => (finished = true),
+            () => (finished = true),
+        );
+        await until(() => {
+            rx.deliver(b);
+            return finished;
+        });
+        await expect(rx.done).resolves.toBeUndefined();
+        expect(rx.failures).toEqual([]);
+        expect(Buffer.compare(sink.bytes, file)).toBe(0);
+        rx.stop();
+    });
+
+    it("changes nothing for a byte-identical duplicate part", async () => {
+        const size = BLOCK_SIZE;
+        const file = fileOf(size);
+        const leaves = await leavesFor(file);
+        const sink = new MemorySink(size);
+        const rx = await manualReceiver(
+            size,
+            await treeRoot(leaves),
+            FAST,
+            sink,
+        );
+        rx.deliver(encodeLeavesPackets(leaves));
+        const a = await sealingParts(rx.key, size, file.slice(0, size), 1);
+        for (const packet of a) {
+            rx.deliver([packet]);
+            rx.deliver([packet]);
+        }
+        await expect(rx.done).resolves.toBeUndefined();
+        expect(rx.failures).toEqual([]);
+        expect(Buffer.compare(sink.bytes, file)).toBe(0);
+        rx.stop();
+    });
+});
+
 describe("the receiver's disk", () => {
     it.each([
         ["a browser quota", new DOMException("full", "QuotaExceededError")],

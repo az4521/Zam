@@ -548,12 +548,22 @@ export class BlockReceiver {
         }
         if (this.working.has(data.block)) return;
         let parts = this.partial.get(data.block);
-        if (!parts) {
-            if (this.partial.size >= MAX_PARTIAL_BLOCKS) return;
+        if (!parts && this.partial.size >= MAX_PARTIAL_BLOCKS) return;
+        // A part count that differs from the assembly's, or a part that differs
+        // from the one held at its index, means the block is being resent under
+        // a new sealing. Two sealings can't be combined (the spec's rule), so
+        // the old parts are dropped and the new attempt starts from this part.
+        if (!parts || parts.length !== data.parts) {
             parts = new Array(data.parts);
             this.partial.set(data.block, parts);
         }
-        if (parts.length !== data.parts) return;
+        const held = parts[data.part];
+        if (held) {
+            // A byte-identical duplicate changes nothing.
+            if (sameBytes(held.payload, data.payload)) return;
+            parts = new Array(data.parts);
+            this.partial.set(data.block, parts);
+        }
         parts[data.part] = data;
         for (let i = 0; i < parts.length; i++) if (!parts[i]) return;
         this.partial.delete(data.block);
