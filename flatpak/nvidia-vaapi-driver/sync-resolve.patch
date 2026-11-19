@@ -1,0 +1,71 @@
+Finish every decode before vaEndPicture returns, for nvidia-vaapi-driver v0.0.18
+(applied after linear-surfaces.patch).
+
+Upstream, vaEndPicture only queues the decoded picture for the resolve thread,
+which later copies it into the surface's exported buffer; only vaSyncSurface
+waits for that copy. Chromium shows a decoded surface by importing that dma-buf
+and relies on implicit fences instead of vaSyncSurface, and CUDA attaches none.
+So it could show a surface before its new picture was copied in, getting
+whatever the surface held last: a frame a few back in its pool. Viewers saw
+screen shares jump back 3-4 frames, over and over (reported 2026-11-19 on a
+GTX 1650 under X11, H.264; gone with hardware decode off).
+
+- vaEndPicture waits for the resolve (NVD_ASYNC_RESOLVE=1 restores upstream).
+- The resolve thread synchronises its CUDA stream before marking the surface
+  resolved: a device-to-device cuMemcpy2D does not wait on the host.
+
+diff -ruN --text a/src/direct/direct-export-buf.c b/src/direct/direct-export-buf.c
+--- a/src/direct/direct-export-buf.c	2026-11-19 17:17:31.812297500 -0500
++++ b/src/direct/direct-export-buf.c	2026-11-19 17:17:48.490323400 -0500
+@@ -907,6 +907,14 @@
+ 
+     free(stagingPlane);
+ 
++    // A device-to-device cuMemcpy2D does not wait for the copy on the host, so
++    // the frame may still be landing in the exported buffer. Clients that
++    // import the dma-buf (Chromium) get no fence from CUDA to order against:
++    // wait here, so "resolved" means the picture is really in the buffer.
++    if (CHECK_CUDA_RESULT(drv->cu->cuStreamSynchronize(0))) {
++        return false;
++    }
++
+     //notify anyone waiting for us to be resolved
+     pthread_mutex_lock(&surface->mutex);
+     surface->resolving = 0;
+diff -ruN --text a/src/vabackend.c b/src/vabackend.c
+--- a/src/vabackend.c	2026-11-19 17:17:31.837296000 -0500
++++ b/src/vabackend.c	2026-11-19 17:17:48.498836700 -0500
+@@ -3024,6 +3024,15 @@
+     return VA_STATUS_SUCCESS;
+ }
+ 
++static bool asyncResolveAllowed(void) {
++    static int allowed = -1;
++    if (allowed < 0) {
++        const char *v = getenv("NVD_ASYNC_RESOLVE");
++        allowed = v != NULL && v[0] == '1';
++    }
++    return allowed == 1;
++}
++
+ static VAStatus nvEndPicture(
+         VADriverContextP ctx,
+         VAContextID context
+@@ -3082,6 +3091,17 @@
+     //Wake up the resolve thread
+     pthread_cond_signal(&nvCtx->resolveCondition);
+ 
++    // Chromium shows a decoded surface by importing its dma-buf and relies on
++    // implicit fences, never calling vaSyncSurface; CUDA sets none. Without
++    // this it could show a surface before the resolve thread copied the new
++    // picture in, i.e. whatever that surface last held: a frame a few back in
++    // its pool, so the video jumped back and forth. Finish the resolve before
++    // returning (a few ms of decode latency). NVD_ASYNC_RESOLVE=1 restores
++    // upstream behaviour.
++    if (!asyncResolveAllowed()) {
++        waitSurfaceResolved(surface);
++    }
++
+     return status;
+ }
+ 
