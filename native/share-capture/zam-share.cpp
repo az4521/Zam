@@ -1128,12 +1128,22 @@ static int runPacer() {
     bool everEncoded = false;
     uint64_t encodedSeq = 0;
     bool pendingKey = false;
+    // Times the encoder failed and was reopened; past a few the share ends.
+    int reopens = 0;
     int64_t lastStatsUs = nowUs();
     uint64_t lastCap = 0;
     uint32_t encW = 0, encH = 0;
+    int64_t windowCheckUs = 0;
 
     for (;;) {
         int64_t now = nowUs();
+        // WGC's Closed event needs a message pump this thread doesn't run, so
+        // a shared window that closed left the helper running on, its share
+        // frozen on the last frame. Look for the window ourselves.
+        if (g_opt.useWindow && now - windowCheckUs >= 250000) {
+            windowCheckUs = now;
+            if (!IsWindow(g_opt.hwnd)) stopNow("closed");
+        }
         bool stop = false, keyReq = false, bitrateDirty = false;
         uint32_t fps = 60, bitrate = 0, cw = 0, ch = 0;
         uint64_t seq = 0;
@@ -1193,6 +1203,21 @@ static int runPacer() {
                 bool key = pendingKey;
                 if (!encodeFrame(enc, conv, encW, encH, fps, key, usedSeq)) {
                     logf_("share: frame dropped");
+                    if (enc.failed) {
+                        // A failed encoder (a driver reset, an MEError) drops
+                        // every frame from now on, which viewers saw as a
+                        // share frozen for good. Open a fresh one (it starts
+                        // on a keyframe), and end the share if that keeps
+                        // failing so the page can say so.
+                        logf_("share: encoder failed, reopening");
+                        enc.close();
+                        if (++reopens > 3) {
+                            sendError("the H.264 encoder keeps failing");
+                            return 1;
+                        }
+                        nextSlotUs = std::max<int64_t>(nextSlotUs, now) + interval;
+                        continue;
+                    }
                 } else {
                     encodedSeq = usedSeq;
                 }
