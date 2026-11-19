@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.9
+
+🐛 **Fixed**
+
+- **Encrypted screen shares from the Windows capture helper freezing for seconds at a time:** about half of the share's keyframes were thrown away by viewers before they could be decrypted, so every bit of packet loss or quality change froze the picture until one got through. Keyframes now reach viewers intact.
+- **Shares stuttering for viewers on slower connections:** shares are sent as two layers again (the Windows capture helper included), and a viewer whose connection can't carry the full picture moves to the smaller one and stays there, instead of being flipped back and forth.
+
+✨ **Changed**
+
+- **Screen shares default to 8 Mbps.** The upload measurement can only lower it. More than 8 Mbps can still be picked by hand, with a warning that slower viewers may stutter; saved picks above 8 Mbps are reset to 8 once.
+
 ## v1.66.8
 
 🐛 **Fixed**
