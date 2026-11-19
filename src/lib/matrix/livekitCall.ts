@@ -4910,6 +4910,28 @@ function installDecodePreferences(): void {
     onWebrtcRealm(patchDecodePreferences);
     onWebrtcRealm(patchBaselineAnswer);
     onWebrtcRealm(patchTemporalLayers);
+    onWebrtcRealm(patchNativeShareTransform);
+}
+
+/** A plain call's native share is sent through a substitution transform,
+ *  attached at the sender's first negotiation (queueSenderTransform). After a
+ *  GPU exit the call fully reconnects on new peer connections (webrtcRealm,
+ *  scheduleGpuReconnect) and LiveKit publishes the same track again on a new
+ *  transceiver, where nothing attached it: viewers got the raw 64x64 grey
+ *  placeholders for the rest of the share. Queue it again wherever that track
+ *  is added. The worker takes any number of transforms. */
+function patchNativeShareTransform(pc: typeof RTCPeerConnection): void {
+    const original = pc.prototype.addTransceiver;
+    pc.prototype.addTransceiver = function (
+        this: RTCPeerConnection,
+        ...args: Parameters<RTCPeerConnection["addTransceiver"]>
+    ) {
+        const n = nativeShare;
+        const [source] = args;
+        if (n?.worker && typeof source !== "string" && source === n.track)
+            queueSenderTransform(this, source, n.worker);
+        return original.apply(this, args);
+    };
 }
 
 /** Whether the video we publish now is H.264/HEVC that a GPU encoder can
