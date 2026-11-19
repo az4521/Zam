@@ -11593,7 +11593,14 @@ function rtcSessionFor(
     room: Room,
 ): ReturnType<MatrixClient["matrixRTC"]["getRoomSession"]> | null {
     const live = matrixClient?.getRoom(room.roomId);
-    return live ? matrixClient!.matrixRTC.getRoomSession(live) : null;
+    if (!live) return null;
+    const session = matrixClient!.matrixRTC.getRoomSession(live);
+    // A session created here (a room opened before the subscribe-time scan
+    // saw it) can go 0 -> N members through a recalc with no
+    // `session_started`, so watch it now or its changes never bump voiceTick
+    // and the Join button stays hidden until the view remounts.
+    watchVoiceSession(session as never);
+    return session;
 }
 
 /**
