@@ -11830,6 +11830,7 @@ export {
     playSoundboardSound,
     refreshDecodeSupport,
     refreshShareSmoothing,
+    shareBitrateHeldAt,
     participantHasShareAudio,
     setParticipantLocalMute,
     setParticipantShareMute,

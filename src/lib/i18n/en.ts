@@ -3100,6 +3100,8 @@ export const en = {
     "callStats.limitCpu": "CPU",
     "callStats.limitBandwidth": "bandwidth",
     "callStats.limitNone": "nothing",
+    "callStats.shareHeldByViewers":
+        "A viewer can't keep up: your share is held at {rate} Mbps",
     "callStats.limitOther": "other",
     "callStats.frameTime": "Time per frame",
     "callStats.resent": "Resent",

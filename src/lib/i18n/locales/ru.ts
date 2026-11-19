@@ -3208,6 +3208,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callStats.limitCpu": "процессор",
     "callStats.limitBandwidth": "пропускная способность",
     "callStats.limitNone": "ничего",
+    "callStats.shareHeldByViewers":
+        "Зритель не успевает: ваша трансляция ограничена {rate} Мбит/с",
     "callStats.limitOther": "другое",
     "callStats.frameTime": "Время на кадр",
     "callStats.resent": "Повторно отправлено",

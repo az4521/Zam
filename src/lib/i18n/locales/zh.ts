@@ -2963,6 +2963,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callStats.limitCpu": "CPU",
     "callStats.limitBandwidth": "带宽",
     "callStats.limitNone": "无",
+    "callStats.shareHeldByViewers":
+        "有观众跟不上：你的共享已限制为 {rate} Mbps",
     "callStats.limitOther": "其他",
     "callStats.frameTime": "每帧耗时",
     "callStats.resent": "重发",

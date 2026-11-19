@@ -3140,6 +3140,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callStats.limitCpu": "le processeur",
     "callStats.limitBandwidth": "la bande passante",
     "callStats.limitNone": "rien",
+    "callStats.shareHeldByViewers":
+        "Un spectateur ne suit pas : votre partage est limité à {rate} Mbit/s",
     "callStats.limitOther": "autre",
     "callStats.frameTime": "Temps par image",
     "callStats.resent": "Renvoyé",

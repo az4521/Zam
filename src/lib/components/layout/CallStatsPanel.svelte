@@ -6,7 +6,11 @@
     import ModalDialog from "$lib/components/ui/ModalDialog.svelte";
     import { openModal, clearModalIfOwner } from "$lib/stores/interface.svelte";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
-    import { getRoom, refreshShareSmoothing } from "$lib/matrix/client";
+    import {
+        getRoom,
+        refreshShareSmoothing,
+        shareBitrateHeldAt,
+    } from "$lib/matrix/client";
     import {
         settingsState,
         setShareSmoothingMs,
@@ -236,7 +240,11 @@
         return member?.name || userId;
     }
 
+    /** Our share's bitrate as held down by struggling viewers, or null. */
+    let shareHeldAt = $state<number | null>(null);
+
     async function poll(): Promise<void> {
+        shareHeldAt = shareBitrateHeldAt();
         const raw = await getCallDebugStats();
         const at = performance.now();
         if (!raw) {
@@ -842,6 +850,13 @@
                 <p class="text-xs text-zam-textMuted">
                     {t("voiceAudioSettings.shareSmoothingHint")}
                 </p>
+                {#if shareHeldAt !== null}
+                    <p class="mt-1 text-xs text-zam-warning">
+                        {t("callStats.shareHeldByViewers", {
+                            rate: (shareHeldAt / 1_000_000).toFixed(1),
+                        })}
+                    </p>
+                {/if}
             </div>
             {#if connections === null}
                 <p class="text-zam-textMuted">{t("callStats.loading")}</p>

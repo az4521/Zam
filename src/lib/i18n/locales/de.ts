@@ -3166,6 +3166,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callStats.limitCpu": "CPU",
     "callStats.limitBandwidth": "Bandbreite",
     "callStats.limitNone": "nichts",
+    "callStats.shareHeldByViewers":
+        "Ein Zuschauer kommt nicht mit: deine Übertragung ist auf {rate} Mbit/s begrenzt",
     "callStats.limitOther": "anderes",
     "callStats.frameTime": "Zeit pro Bild",
     "callStats.resent": "Erneut gesendet",

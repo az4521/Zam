@@ -142,6 +142,14 @@ import {
 } from "$lib/stores/settings.svelte";
 import { lazyModule } from "$lib/utils/lazyModule";
 import { RedundancyController } from "$lib/utils/audioRedundancy";
+import {
+    SHARE_HEALTH_TOPIC,
+    ShareRateCap,
+    decodeShareHealth,
+    encodeShareHealth,
+    shareHealthBetween,
+    type InboundShareCounters,
+} from "$lib/utils/shareViewerFeedback";
 import { ZAM_REDUNDANCY } from "$lib/audio/redundancy/protocol";
 import {
     AUDIO_LOSS_TOPIC,
@@ -1389,6 +1397,11 @@ function handleCallData(
     if (activeVoice !== call) return;
     // Plugin topics first: they are namespaced, so never core topics.
     if (topic && handlePluginCallData(topic, payload, identity)) return;
+    if (topic === SHARE_HEALTH_TOPIC) {
+        const health = decodeShareHealth(payload);
+        if (health) shareRateCapOf(call).note(identity, health, Date.now());
+        return;
+    }
     if (topic === AUDIO_LOSS_TOPIC) {
         const loss = decodeLossReport(payload);
         if (loss !== null)
@@ -3452,7 +3465,7 @@ async function tuneNativeBitrate(n: NativeShareState): Promise<void> {
 
 /** The screen-share quality settings, to notice a change mid-picker. */
 function screenShareQualityKey(): string {
-    return `${settingsState.screenShareResolution}|${settingsState.screenShareFps}|${screenShareBitrateNow()}`;
+    return `${settingsState.screenShareResolution}|${settingsState.screenShareFps}|${screenShareBitratePicked()}`;
 }
 
 /** Start/stop publishing a screen share (with system audio per settings).
@@ -3805,11 +3818,19 @@ function stopShareAudio(): void {
 }
 
 /** The picked screen-share bitrate, held under the measured upload. */
-function screenShareBitrateNow(): number {
+function screenShareBitratePicked(): number {
     return clampBitrate(
         settingsState.screenShareBitrate,
         screenShareBitrateCeiling(),
     );
+}
+
+/** What the share sends now: the pick, held under what its viewers say
+ *  they can take (see applyShareRateCap). */
+function screenShareBitrateNow(): number {
+    const picked = screenShareBitratePicked();
+    const cap = activeVoice ? shareRateCaps.get(activeVoice)?.current() : null;
+    return typeof cap === "number" ? Math.min(picked, cap) : picked;
 }
 
 /** Re-target the currently published screen share to a new quality without
@@ -5211,10 +5232,153 @@ function startUploadSampling(call: ActiveVoiceCall): void {
         void sampleUpload(call);
         void checkDecodeHealth(call);
         void sampleAudioRedundancy(call);
+        void reportShareHealth(call);
+        applyShareRateCap(call);
     }, UPLOAD_SAMPLE_MS);
 }
 
 const micRedundancy = new WeakMap<ActiveVoiceCall, RedundancyController>();
+
+// Viewer feedback on screen shares (utils/shareViewerFeedback).
+
+const shareRateCaps = new WeakMap<ActiveVoiceCall, ShareRateCap>();
+/** Each watched share's last inbound counters, by room and track sid. */
+const shareCounters = new WeakMap<
+    LivekitRoom,
+    Map<string, InboundShareCounters>
+>();
+
+function shareRateCapOf(call: ActiveVoiceCall): ShareRateCap {
+    let c = shareRateCaps.get(call);
+    if (!c) {
+        c = new ShareRateCap();
+        shareRateCaps.set(call, c);
+    }
+    return c;
+}
+
+const NO_COUNTERS: InboundShareCounters = {
+    packetsReceived: 0,
+    packetsLost: 0,
+    freezeCount: 0,
+};
+
+/** The bitrate our screen share is held at because a viewer can't keep up,
+ *  or null when it sends what was picked. */
+export function shareBitrateHeldAt(): number | null {
+    return activeVoice
+        ? (shareRateCaps.get(activeVoice)?.current() ?? null)
+        : null;
+}
+
+/** As a viewer: tell each sharer we watch how its share arrives. */
+async function reportShareHealth(call: ActiveVoiceCall): Promise<void> {
+    const share = call.lk.Track.Source.ScreenShare;
+    for (const lkRoom of callLkRooms(call)) {
+        let counters = shareCounters.get(lkRoom);
+        if (!counters) {
+            counters = new Map();
+            shareCounters.set(lkRoom, counters);
+        }
+        const seen = new Set<string>();
+        for (const p of lkRoom.remoteParticipants.values()) {
+            for (const pub of p.videoTrackPublications.values()) {
+                const track = pub.track;
+                if (pub.source !== share || !track || !pub.isEnabled) continue;
+                const sid = pub.trackSid;
+                seen.add(sid);
+                const report = await track
+                    .getRTCStatsReport()
+                    .catch(() => undefined);
+                if (activeVoice !== call) return;
+                let cur: InboundShareCounters | null = null;
+                for (const s of report?.values() ?? []) {
+                    const r = s as RTCInboundRtpStreamStats & {
+                        freezeCount?: number;
+                    };
+                    if (r.type !== "inbound-rtp" || r.kind !== "video")
+                        continue;
+                    cur = {
+                        packetsReceived: r.packetsReceived ?? 0,
+                        packetsLost: r.packetsLost ?? 0,
+                        freezeCount: r.freezeCount ?? 0,
+                    };
+                }
+                const paused =
+                    track.streamState === call.lk.Track.StreamState.Paused;
+                const health = shareHealthBetween(
+                    counters.get(sid) ?? null,
+                    cur ?? NO_COUNTERS,
+                    paused,
+                );
+                if (cur) counters.set(sid, cur);
+                if (!health || (!cur && !paused)) continue;
+                void lkRoom.localParticipant
+                    .publishData(encodeShareHealth(health), {
+                        reliable: true,
+                        topic: SHARE_HEALTH_TOPIC,
+                        destinationIdentities: [p.identity],
+                    })
+                    .catch(() => {});
+            }
+        }
+        for (const sid of [...counters.keys()])
+            if (!seen.has(sid)) counters.delete(sid);
+    }
+}
+
+/** As a sharer: hold the share's bitrate under what its viewers take. A
+ *  share sent as one layer (H.264, every native share) leaves the call server
+ *  nothing lighter for a viewer who can't keep up, so without this it pauses
+ *  and resumes them or forwards into loss: the stutter and rubber-banding
+ *  people saw while the picture itself looked sharp. */
+function applyShareRateCap(call: ActiveVoiceCall): void {
+    const cap = shareRateCapOf(call);
+    const track = call.local.getTrack(call.lk.Track.Source.ScreenShare);
+    if (!track) {
+        cap.reset();
+        return;
+    }
+    const before = cap.current();
+    const after = cap.update(screenShareBitratePicked(), Date.now());
+    if (after === before) return;
+    console.info(
+        after === null
+            ? "[share] viewers keep up again; sending at the picked bitrate"
+            : `[share] a viewer can't keep up; share bitrate held at ${Math.round(after / 1000)} kbps`,
+    );
+    const native = nativeShare;
+    if (native?.call === call && isNativeShareTrack(track)) {
+        // The helper's own encoder makes the bitrate; its tuning reads
+        // screenShareBitrateNow.
+        native.bitrate = null;
+        void tuneNativeBitrate(native);
+        return;
+    }
+    screenShareQualityChain = screenShareQualityChain.then(async () => {
+        if (activeVoice !== call) return;
+        const sender = call.local.getTrack(
+            call.lk.Track.Source.ScreenShare,
+        )?.sender;
+        const params = sender?.getParameters();
+        if (
+            !sender ||
+            !params ||
+            !applyScreenShareEncoding(
+                params,
+                screenShareEncodingFor(
+                    screenShareBitrateNow(),
+                    Number(settingsState.screenShareFps),
+                ),
+            )
+        )
+            return;
+        params.degradationPreference = "maintain-resolution";
+        await sender.setParameters(params).catch((err: unknown) => {
+            console.warn("[share] couldn't change the share bitrate:", err);
+        });
+    });
+}
 const reportedLoss = new WeakMap<ActiveVoiceCall, ReportedLoss>();
 const redundancyDepth = new WeakMap<ActiveVoiceCall, number>();
 const lastSubscriberSample = new WeakMap<LivekitRoom, TransportSummary>();

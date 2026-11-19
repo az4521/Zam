@@ -2826,6 +2826,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callStats.limitCpu": "CPU",
     "callStats.limitBandwidth": "帯域幅",
     "callStats.limitNone": "なし",
+    "callStats.shareHeldByViewers":
+        "視聴者の回線が追いつかないため、共有を {rate} Mbps に抑えています",
     "callStats.limitOther": "その他",
     "callStats.frameTime": "1フレームあたりの時間",
     "callStats.resent": "再送",
