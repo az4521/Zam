@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.6
+
+🐛 **Fixed**
+
+- **Windows window shares freezing, especially while streaming a game:** the native share's placeholder frames could stop reaching the encoder, so the share froze for viewers while the capture kept running in the background. This was most likely with the GPU busy, as it is in a game.
+- **Stutter at the start of a native share and on unsteady connections:** a native share now starts at a modest bitrate and follows the connection every half second instead of every two, and a timing bug that made viewers drop frames and ask for keyframes on a jittery link is gone.
+
 ## v1.66.5
 
 🐛 **Fixed**
