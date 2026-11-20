@@ -53,6 +53,10 @@ const { createAppAudio } = require("./appAudio.cjs");
 const { createNativeShare } = require("./nativeShare.cjs");
 const { resolveShareAudio } = require("./shareAudio.cjs");
 const { createFileLog } = require("./fileLog.cjs");
+const {
+    readDiscordFavouriteGifs,
+    discordFavouriteDirs,
+} = require("./discordFavourites.cjs");
 const { createUpdateGuard } = require("./updateGuard.cjs");
 const {
     createFlatpakShellUpdate,
@@ -1281,6 +1285,16 @@ ipcMain.handle("rich-presence:join-game", (_e, req) =>
     richPresence.joinGame(req),
 );
 app.on("will-quit", () => richPresence.stop());
+
+// --- Discord favourite GIFs ----------------------------------------------
+
+// Read-only read of Discord's synced favourite GIFs (discordFavourites.cjs).
+// The renderer checks each link itself, so this makes no network requests.
+ipcMain.handle("discord-favourites:read", () =>
+    readDiscordFavouriteGifs({
+        dirs: discordFavouriteDirs(app.getPath("appData")),
+    }),
+);
 
 // --- Call priority -------------------------------------------------------
 

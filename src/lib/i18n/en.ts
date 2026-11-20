@@ -1579,6 +1579,26 @@ export const en = {
         "Send GIFs as animated WebP",
     "messagesMediaSettings.reencodeGifsYouSend":
         "Re-encode GIFs you send as lossless animated WebP, which is usually smaller and can play while it downloads. The picture is unchanged. A GIF that would not get smaller is sent as it is.",
+    "messagesMediaSettings.discordImportTitle":
+        "Import favourites from Discord",
+    "messagesMediaSettings.discordImportDescription":
+        "Copies the GIFs favourited in the Discord desktop app on this computer. GIFs uploaded to Discord can't be imported.",
+    "messagesMediaSettings.discordImportButton": "Import",
+    "messagesMediaSettings.discordImportBusy": "Checking links...",
+    "messagesMediaSettings.discordImportChecking":
+        "Checking links... {done} / {total}",
+    "messagesMediaSettings.discordImportSuccess":
+        "{added, plural, one {Imported # GIF.} other {Imported # GIFs.}}",
+    "messagesMediaSettings.discordImportSkipped":
+        "Skipped {discord} uploaded to Discord and {broken} broken links.",
+    "messagesMediaSettings.discordImportAllPresent":
+        "{count, plural, one {The GIF was already in your favourites.} other {All # GIFs were already in your favourites.}}",
+    "messagesMediaSettings.discordImportNotFound":
+        "Couldn't find the Discord desktop app's data on this computer.",
+    "messagesMediaSettings.discordImportNoneImportable":
+        "No GIFs could be imported.",
+    "messagesMediaSettings.discordImportFailed":
+        "Couldn't import favourites from Discord.",
     "messagesMediaSettings.defaultTab": "Default tab",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "Which tab the GIF picker opens on.",

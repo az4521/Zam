@@ -33,11 +33,7 @@
 
 <script lang="ts">
     import { t } from "$lib/i18n";
-    import {
-        getUrlPreview,
-        getHomeserverBaseUrl,
-        type UrlPreview,
-    } from "$lib/matrix/client";
+    import { getHomeserverBaseUrl, type UrlPreview } from "$lib/matrix/client";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
     import {
         favouritesState,
@@ -61,11 +57,12 @@
         allowsMediaAutoLoad,
         allowsThirdPartyEmbed,
     } from "$lib/utils/linkPreviewPolicy";
+    import { isGifHostMediaUrl } from "$lib/utils/gifEmbed";
     import {
-        fetchGifEmbed,
-        isGifHostLink,
-        isGifHostMediaUrl,
-    } from "$lib/utils/gifEmbed";
+        fetchLinkPreview,
+        homeserverPreviewUrl,
+        isGifSiteUrl,
+    } from "$lib/utils/linkPreviewFetch";
     import { reservedMediaBox } from "$lib/utils/mediaDimensions";
     import {
         learnImageSize,
@@ -82,7 +79,6 @@
     import { linkPreviewFavourite } from "$lib/utils/linkPreviewFavourite";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import { resolveEmbed, mountEmbed } from "$lib/plugins/embeds";
-    import { applyPreviewUrlTransforms } from "$lib/plugins/outgoingTransforms";
     import {
         parseYoutubeUrl,
         youtubeWatchUrl,
@@ -299,14 +295,9 @@
             };
         }
 
-        // The homeserver's own preview endpoint — no third party is contacted,
-        // so this runs under every policy. Only its MEDIA is gated, below.
-        // Plugins may point the request elsewhere (a mirror the homeserver can
-        // reach); the link shown and opened stays the original.
-        const previewUrl = applyPreviewUrlTransforms(
-            currentUrl,
-            pluginRegistry.previewUrlTransforms.map((e) => e.value),
-        );
+        // The homeserver's own preview endpoint, shared with the Discord
+        // favourites import (utils/linkPreviewFetch). Only its MEDIA is gated.
+        const previewUrl = homeserverPreviewUrl(currentUrl);
         const cacheKey = `${allowEmbeds ? 1 : 0} ${currentUrl} ${previewUrl}`;
         const known = resolvedPreviews.get(cacheKey);
         if (known) {
@@ -315,39 +306,12 @@
             pending = false;
             return;
         }
-        getUrlPreview(previewUrl)
-            .then(async (data) => {
+        fetchLinkPreview(currentUrl, allowEmbeds)
+            .then((result) => {
                 if (cancelled) return;
-                // GIF sites turn away most homeservers' previewers, so go to
-                // the site when the homeserver came back without media. A
-                // server that can preview these keeps serving its own copy.
-                if (
-                    isGifHostLink(currentUrl) &&
-                    !data?.imageUrl &&
-                    !data?.videoUrl
-                ) {
-                    if (allowEmbeds) {
-                        const embed = await fetchGifEmbed(currentUrl).catch(
-                            () => null,
-                        );
-                        if (cancelled) return;
-                        if (embed) {
-                            preview = embed;
-                            rememberPreview(cacheKey, {
-                                preview: embed,
-                                tweet: null,
-                                gifHostHeld: false,
-                            });
-                            return;
-                        }
-                    } else {
-                        gifHostHeld = true;
-                    }
-                }
-                if (data && (data.title || data.imageUrl || data.videoUrl)) {
-                    preview = data;
-                }
-                // getUrlPreview answers null for a failed request too, which
+                preview = result.preview;
+                gifHostHeld = result.gifHostHeld;
+                // fetchLinkPreview answers null for a failed request too, which
                 // is worth asking again.
                 if (preview || gifHostHeld) {
                     rememberPreview(cacheKey, {
@@ -476,17 +440,7 @@
     // GIF-sharing sites (Tenor/Giphy/Klipy) have page metadata but should embed
     // inline. Their previews expose the animation as a *video* URL, which we play
     // back gif-style (muted, looped, no controls) so it behaves like a real GIF.
-    const isGifSite = $derived.by(() => {
-        try {
-            // Match on the registrable domain's second-level label so that
-            // e.g. `media.tenor.com` counts but `tenor.com.evil.example` does not.
-            const labels = new URL(url).hostname.split(".");
-            const sld = labels[labels.length - 2];
-            return sld === "tenor" || sld === "giphy" || sld === "klipy";
-        } catch {
-            return false;
-        }
-    });
+    const isGifSite = $derived(isGifSiteUrl(url));
 
     const isInstagram = $derived(isInstagramUrl(url));
 

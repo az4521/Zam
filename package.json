@@ -19,7 +19,7 @@
         "electron:build": "npm run build && npm run build:app-audio && npm run build:share-capture && npm run build:mediaremote &&node scripts/gen-shell-hash.mjs && electron-builder",
         "build:app-audio": "node scripts/build-app-audio.mjs",
         "build:share-capture": "node scripts/build-share-capture.mjs",
-        "test:electron": "node --test electron/nativeShare.test.cjs",
+        "test:electron": "node --test electron/nativeShare.test.cjs electron/discordFavourites.test.cjs",
         "build:mediaremote": "node scripts/build-mediaremote-adapter.mjs",
         "test": "vitest run",
         "test:watch": "vitest",

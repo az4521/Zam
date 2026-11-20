@@ -36,6 +36,20 @@
         validateCustomSoundBankFile,
     } from "$lib/utils/customSoundBank";
     import { formatMediaSize } from "$lib/utils/roomMedia";
+    import { importFavouriteGifs } from "$lib/stores/favourites.svelte";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import {
+        fetchLinkPreview,
+        isGifSiteUrl,
+    } from "$lib/utils/linkPreviewFetch";
+    import {
+        discordItemToFavourite,
+        discordItemsToFavourites,
+        mapWithLimit,
+        usableDiscordItems,
+        type DiscordFavouriteItem,
+    } from "$lib/utils/discordFavourites";
+    import { allowsThirdPartyEmbed } from "$lib/utils/linkPreviewPolicy";
 
     const gifTabOptions: Array<{ value: GifTab; label: string }> = [
         { value: "gifs", label: "GIFs" },
@@ -53,6 +67,111 @@
     let bankFileInput = $state<HTMLInputElement | null>(null);
     let bankUploadBusy = $state(false);
     let bankUploadError = $state<string | null>(null);
+
+    // Discord favourites import: only where the desktop app provides the bridge.
+    const discordImportAvailable =
+        typeof window !== "undefined" && !!window.desktop?.discordFavourites;
+    let discordBusy = $state(false);
+    let discordProgress = $state<{ done: number; total: number } | null>(null);
+    let discordOutcome = $state<string | null>(null);
+    let discordMounted = true;
+    $effect(() => () => {
+        discordMounted = false;
+    });
+
+    // Checks each Discord link the way the chat previews it, then imports the
+    // ones with media. The UI writes are skipped once the row is gone.
+    async function importDiscordFavourites() {
+        const bridge = window.desktop?.discordFavourites;
+        if (!bridge || discordBusy) return;
+        discordBusy = true;
+        discordOutcome = null;
+        discordProgress = null;
+        const setOutcome = (msg: string) => {
+            if (discordMounted) discordOutcome = msg;
+        };
+        try {
+            const result = await bridge.read();
+            if (!result.found) {
+                setOutcome(t("messagesMediaSettings.discordImportNotFound"));
+                return;
+            }
+            const items: DiscordFavouriteItem[] = usableDiscordItems(
+                result.items,
+            );
+            const total = items.length;
+            const allowEmbeds = allowsThirdPartyEmbed(
+                settingsState.linkPreviewMedia,
+            );
+            if (discordMounted) discordProgress = { done: 0, total };
+            let done = 0;
+            const built = await mapWithLimit(
+                items,
+                4,
+                async (item) => {
+                    try {
+                        const { preview } = await fetchLinkPreview(
+                            item.url,
+                            allowEmbeds,
+                        );
+                        return discordItemToFavourite(
+                            item,
+                            preview,
+                            isGifSiteUrl(item.url),
+                        );
+                    } catch {
+                        return null;
+                    }
+                },
+                () => {
+                    done++;
+                    if (discordMounted) discordProgress = { done, total };
+                },
+            );
+            const entries = built.filter(
+                (e): e is NonNullable<typeof e> => e !== null,
+            );
+            const broken =
+                result.invalid +
+                (result.items.length - items.length) +
+                (total - entries.length);
+            const favourites = discordItemsToFavourites(entries, Date.now());
+            if (favourites.length === 0) {
+                setOutcome(
+                    t("messagesMediaSettings.discordImportNoneImportable"),
+                );
+                return;
+            }
+            const added = await importFavouriteGifs(favourites);
+            if (added === 0) {
+                setOutcome(
+                    t("messagesMediaSettings.discordImportAllPresent", {
+                        count: favourites.length,
+                    }),
+                );
+                return;
+            }
+            let msg = t("messagesMediaSettings.discordImportSuccess", {
+                added,
+            });
+            if (result.skippedDiscord + broken > 0)
+                msg +=
+                    " " +
+                    t("messagesMediaSettings.discordImportSkipped", {
+                        discord: result.skippedDiscord,
+                        broken,
+                    });
+            setOutcome(msg);
+        } catch (err) {
+            console.error("Discord favourites import failed:", err);
+            showErrorToast(t("messagesMediaSettings.discordImportFailed"));
+        } finally {
+            if (discordMounted) {
+                discordBusy = false;
+                discordProgress = null;
+            }
+        }
+    }
 
     $effect(() => {
         if (systemBankSupported)
@@ -394,6 +513,48 @@
                 ariaLabel={t("messagesMediaSettings.defaultGifTab")}
             />
         </div>
+        {#if discordImportAvailable}
+            <div
+                class="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+            >
+                <div class="flex-1 min-w-0">
+                    <span class="text-sm text-zam-textPrimary"
+                        >{t("messagesMediaSettings.discordImportTitle")}</span
+                    >
+                    <p class="text-xs text-zam-textMuted">
+                        {t("messagesMediaSettings.discordImportDescription")}
+                    </p>
+                    {#if discordBusy && discordProgress}
+                        <p
+                            class="text-xs text-zam-textMuted"
+                            aria-live="polite"
+                        >
+                            {t("messagesMediaSettings.discordImportChecking", {
+                                done: discordProgress.done,
+                                total: discordProgress.total,
+                            })}
+                        </p>
+                    {:else if discordOutcome}
+                        <p
+                            class="text-xs text-zam-textMuted"
+                            aria-live="polite"
+                        >
+                            {discordOutcome}
+                        </p>
+                    {/if}
+                </div>
+                <button
+                    type="button"
+                    class="px-3 py-1.5 rounded bg-zam-backgroundSecondary text-sm text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-50 transition-colors"
+                    onclick={importDiscordFavourites}
+                    disabled={discordBusy}
+                >
+                    {discordBusy
+                        ? t("messagesMediaSettings.discordImportBusy")
+                        : t("messagesMediaSettings.discordImportButton")}
+                </button>
+            </div>
+        {/if}
     </section>
 
     <section data-setting-anchor="cust-midi">

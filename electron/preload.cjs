@@ -69,6 +69,10 @@ ipcRenderer.on("native-share:port", (e, meta) => {
 
 contextBridge.exposeInMainWorld("desktop", {
     showWindow: () => ipcRenderer.send("show-window"),
+    // Discord's synced favourite GIFs (discordFavourites.cjs).
+    discordFavourites: {
+        read: () => ipcRenderer.invoke("discord-favourites:read"),
+    },
     // The call's pop-out window (main.cjs, CALL_PIP_FRAME). Main moves it with
     // the cursor during a drag and reports a drop back over the app's window.
     callPip: {

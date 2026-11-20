@@ -1544,6 +1544,23 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messagesMediaSettings.sendGifsAsAnimatedWebp": "将 GIF 作为动画 WebP 发送",
     "messagesMediaSettings.reencodeGifsYouSend":
         "将你发送的 GIF 重新编码为无损动画 WebP，通常体积更小，并且可以边下载边播放。画面不变。如果某个 GIF 转换后不会变小，则按原样发送。",
+    "messagesMediaSettings.discordImportTitle": "从 Discord 导入收藏",
+    "messagesMediaSettings.discordImportDescription":
+        "复制此电脑上 Discord 桌面应用中收藏的 GIF。上传到 Discord 的 GIF 无法导入。",
+    "messagesMediaSettings.discordImportButton": "导入",
+    "messagesMediaSettings.discordImportBusy": "正在检查链接...",
+    "messagesMediaSettings.discordImportChecking":
+        "正在检查链接... {done} / {total}",
+    "messagesMediaSettings.discordImportSuccess":
+        "{added, plural, other {已导入 # 个 GIF。}}",
+    "messagesMediaSettings.discordImportSkipped":
+        "已跳过 {discord} 个上传到 Discord 的 GIF 和 {broken} 个失效链接。",
+    "messagesMediaSettings.discordImportAllPresent":
+        "{count, plural, other {所有 # 个 GIF 都已在你的收藏中。}}",
+    "messagesMediaSettings.discordImportNotFound":
+        "在此电脑上找不到 Discord 桌面应用的数据。",
+    "messagesMediaSettings.discordImportNoneImportable": "没有可以导入的 GIF。",
+    "messagesMediaSettings.discordImportFailed": "无法从 Discord 导入收藏。",
     "messagesMediaSettings.defaultTab": "默认标签页",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "GIF 选择器打开时显示的标签页。",

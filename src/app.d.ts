@@ -150,6 +150,14 @@ declare global {
          *  arbitrates screen-share source selection. */
         desktop?: {
             showWindow?: () => void;
+            /** Settings > Messages > GIFs: the GIFs favourited in the Discord
+             *  desktop app on this machine (electron, read-only). Discord's
+             *  links are unverified: the renderer checks each one. */
+            discordFavourites?: {
+                read: () => Promise<
+                    import("$lib/utils/discordFavourites").DiscordFavouritesResult
+                >;
+            };
             /** Settings > General > Network (electron/proxy.cjs). */
             proxy?: {
                 info: () => Promise<DesktopProxyInfo>;

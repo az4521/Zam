@@ -1664,6 +1664,25 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Надсилати GIF як анімований WebP",
     "messagesMediaSettings.reencodeGifsYouSend":
         "Перекодовувати GIF, які ви надсилаєте, в анімований WebP без втрат, що зазвичай менший і може відтворюватися під час завантаження. Зображення не змінюється. GIF, який не зменшиться, надсилається як є.",
+    "messagesMediaSettings.discordImportTitle": "Імпорт обраного з Discord",
+    "messagesMediaSettings.discordImportDescription":
+        "Копіює GIF, додані до обраного в настільному застосунку Discord на цьому комп'ютері. GIF, завантажені в Discord, імпортувати не можна.",
+    "messagesMediaSettings.discordImportButton": "Імпортувати",
+    "messagesMediaSettings.discordImportBusy": "Перевірка посилань...",
+    "messagesMediaSettings.discordImportChecking":
+        "Перевірка посилань... {done} / {total}",
+    "messagesMediaSettings.discordImportSuccess":
+        "{added, plural, one {Імпортовано # GIF.} other {Імпортовано # GIF.}}",
+    "messagesMediaSettings.discordImportSkipped":
+        "Пропущено {discord} завантажених у Discord і {broken} неробочих посилань.",
+    "messagesMediaSettings.discordImportAllPresent":
+        "{count, plural, one {Цей GIF уже є в обраному.} other {Усі # GIF уже є в обраному.}}",
+    "messagesMediaSettings.discordImportNotFound":
+        "Не вдалося знайти дані настільного застосунку Discord на цьому комп'ютері.",
+    "messagesMediaSettings.discordImportNoneImportable":
+        "Не вдалося імпортувати жодного GIF.",
+    "messagesMediaSettings.discordImportFailed":
+        "Не вдалося імпортувати обране з Discord.",
     "messagesMediaSettings.defaultTab": "Типова вкладка",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "Яка вкладка відкривається у виборі GIF.",

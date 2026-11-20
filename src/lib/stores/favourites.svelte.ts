@@ -8,6 +8,7 @@ import {
 } from "$lib/matrix/client";
 import { matrixMediaMxc } from "$lib/matrix/favouriteFile";
 import { safeDimension } from "$lib/utils/mediaDimensions";
+import { mergeImportedFavourites } from "$lib/utils/discordFavourites";
 
 export type { FavouriteGif };
 
@@ -140,6 +141,20 @@ export function upgradeFavouriteGifs(
             ? gifs
             : out;
     });
+}
+
+/**
+ * Add favourites imported from another app (Discord). Entries whose link is
+ * already a favourite are skipped. Resolves to how many were new here.
+ */
+export function importFavouriteGifs(entries: FavouriteGif[]): Promise<number> {
+    const have = new Set(favouritesState.gifs.map((g) => g.url));
+    const added = new Set(entries.map((g) => g.url).filter((u) => !have.has(u)))
+        .size;
+    if (added === 0) return Promise.resolve(0);
+    return mutate((gifs) => mergeImportedFavourites(gifs, entries)).then(
+        () => added,
+    );
 }
 
 export function removeFavouriteGif(url: string): Promise<void> {

@@ -1638,6 +1638,25 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Отправлять GIF как анимированный WebP",
     "messagesMediaSettings.reencodeGifsYouSend":
         "Перекодировать отправляемые GIF в анимированный WebP без потерь, который обычно меньше и может воспроизводиться во время загрузки. Изображение не меняется. GIF, который не уменьшится, отправляется как есть.",
+    "messagesMediaSettings.discordImportTitle": "Импорт избранного из Discord",
+    "messagesMediaSettings.discordImportDescription":
+        "Копирует GIF, добавленные в избранное в настольном приложении Discord на этом компьютере. GIF, загруженные в Discord, импортировать нельзя.",
+    "messagesMediaSettings.discordImportButton": "Импортировать",
+    "messagesMediaSettings.discordImportBusy": "Проверка ссылок...",
+    "messagesMediaSettings.discordImportChecking":
+        "Проверка ссылок... {done} / {total}",
+    "messagesMediaSettings.discordImportSuccess":
+        "{added, plural, one {Импортирован # GIF.} other {Импортировано # GIF.}}",
+    "messagesMediaSettings.discordImportSkipped":
+        "Пропущено {discord} загруженных в Discord и {broken} неработающих ссылок.",
+    "messagesMediaSettings.discordImportAllPresent":
+        "{count, plural, one {Этот GIF уже в избранном.} other {Все # GIF уже в избранном.}}",
+    "messagesMediaSettings.discordImportNotFound":
+        "Не удалось найти данные настольного приложения Discord на этом компьютере.",
+    "messagesMediaSettings.discordImportNoneImportable":
+        "Не удалось импортировать ни одного GIF.",
+    "messagesMediaSettings.discordImportFailed":
+        "Не удалось импортировать избранное из Discord.",
     "messagesMediaSettings.defaultTab": "Вкладка по умолчанию",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "На какой вкладке открывается выбор GIF.",

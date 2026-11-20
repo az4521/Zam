@@ -1521,6 +1521,25 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Enviar GIF como WebP animado",
     "messagesMediaSettings.reencodeGifsYouSend":
         "Recodifica los GIF que envías como WebP animado sin pérdida, que suele ser más pequeño y puede reproducirse mientras se descarga. La imagen no cambia. Un GIF que no se reduciría se envía tal cual.",
+    "messagesMediaSettings.discordImportTitle": "Importar favoritos de Discord",
+    "messagesMediaSettings.discordImportDescription":
+        "Copia los GIF marcados como favoritos en la aplicación de escritorio de Discord de este equipo. Los GIF subidos a Discord no se pueden importar.",
+    "messagesMediaSettings.discordImportButton": "Importar",
+    "messagesMediaSettings.discordImportBusy": "Comprobando enlaces...",
+    "messagesMediaSettings.discordImportChecking":
+        "Comprobando enlaces... {done} / {total}",
+    "messagesMediaSettings.discordImportSuccess":
+        "{added, plural, one {Se importó # GIF.} other {Se importaron # GIF.}}",
+    "messagesMediaSettings.discordImportSkipped":
+        "Se omitieron {discord} subidos a Discord y {broken} enlaces rotos.",
+    "messagesMediaSettings.discordImportAllPresent":
+        "{count, plural, one {El GIF ya estaba en tus favoritos.} other {Los # GIF ya estaban en tus favoritos.}}",
+    "messagesMediaSettings.discordImportNotFound":
+        "No se encontraron los datos de la aplicación de escritorio de Discord en este equipo.",
+    "messagesMediaSettings.discordImportNoneImportable":
+        "No se pudo importar ningún GIF.",
+    "messagesMediaSettings.discordImportFailed":
+        "No se pudieron importar los favoritos de Discord.",
     "messagesMediaSettings.defaultTab": "Pestaña predeterminada",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "La pestaña en la que se abre el selector de GIF.",

@@ -1391,6 +1391,26 @@ const messages: Partial<Record<MessageKey, string>> = {
         "GIFをアニメーションWebPで送信",
     "messagesMediaSettings.reencodeGifsYouSend":
         "送信するGIFを可逆圧縮のアニメーションWebPに再エンコードします。通常はより小さく、ダウンロード中に再生できます。画質は変わりません。小さくならないGIFはそのまま送信されます。",
+    "messagesMediaSettings.discordImportTitle":
+        "Discordからお気に入りをインポート",
+    "messagesMediaSettings.discordImportDescription":
+        "このコンピュータのDiscordデスクトップアプリでお気に入りに登録したGIFをコピーします。DiscordにアップロードされたGIFはインポートできません。",
+    "messagesMediaSettings.discordImportButton": "インポート",
+    "messagesMediaSettings.discordImportBusy": "リンクを確認しています...",
+    "messagesMediaSettings.discordImportChecking":
+        "リンクを確認しています... {done} / {total}",
+    "messagesMediaSettings.discordImportSuccess":
+        "{added, plural, other {GIFを#件インポートしました。}}",
+    "messagesMediaSettings.discordImportSkipped":
+        "Discordにアップロードされた{discord}件と、壊れたリンク{broken}件をスキップしました。",
+    "messagesMediaSettings.discordImportAllPresent":
+        "{count, plural, other {#件のGIFはすでにお気に入りに登録されています。}}",
+    "messagesMediaSettings.discordImportNotFound":
+        "このコンピュータでDiscordデスクトップアプリのデータが見つかりませんでした。",
+    "messagesMediaSettings.discordImportNoneImportable":
+        "インポートできるGIFはありませんでした。",
+    "messagesMediaSettings.discordImportFailed":
+        "Discordからお気に入りをインポートできませんでした。",
     "messagesMediaSettings.defaultTab": "既定のタブ",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "GIFピッカーが開くタブです。",
