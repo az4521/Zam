@@ -651,6 +651,13 @@ const messages: Partial<Record<MessageKey, string>> = {
         "まだ記録はありません。再起動、失敗したリクエスト、タイムラインのリセットがここに表示されます。",
     "debugSettings.refresh": "更新",
     "debugSettings.copied": "コピーしました",
+    "debugSettings.startupTiming": "起動時間",
+    "debugSettings.startupTimingHint":
+        "ページ読み込みから各起動ステップまでの時間です。コピーして共有できます。",
+    "debugSettings.startupTimingEmpty":
+        "起動ステップはまだ記録されていません。",
+    "debugSettings.startupTimingRow": "+{dt} ms（{at} ms時点）",
+    "debugSettings.copyTiming": "時間をコピー",
     "debugSettings.useSlidingSync": "スライディング同期を使用",
     "debugSettings.experimentalLoadsRoomsInAGrowing":
         "実験的。ルームを拡大していくウィンドウで読み込みます。適用するにはアプリを再読み込みします。",

@@ -720,6 +720,13 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Nada registrado ainda. Reinícios, requisições com falha e redefinições da linha do tempo aparecem aqui.",
     "debugSettings.refresh": "Atualizar",
     "debugSettings.copied": "Copiado",
+    "debugSettings.startupTiming": "Tempo de inicialização",
+    "debugSettings.startupTimingHint":
+        "Tempo desde o carregamento da página até cada etapa de inicialização. Copie para compartilhar.",
+    "debugSettings.startupTimingEmpty":
+        "Nenhuma etapa de inicialização registrada ainda.",
+    "debugSettings.startupTimingRow": "+{dt} ms (em {at} ms)",
+    "debugSettings.copyTiming": "Copiar tempos",
     "debugSettings.useSlidingSync": "Usar sliding sync",
     "debugSettings.experimentalLoadsRoomsInAGrowing":
         "Experimental. Carrega salas em uma janela crescente. Recarrega o aplicativo para aplicar.",

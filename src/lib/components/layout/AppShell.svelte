@@ -4,6 +4,7 @@
     import { motionOK } from "$lib/utils/motionPreference";
     import { isSilentZamEvent } from "$lib/utils/silentZamEvents";
     import { targetCanScrollHoriz } from "$lib/utils/scrollHoriz";
+    import { bootMark } from "$lib/utils/bootTiming";
 
     import SpaceSidebar from "$lib/components/layout/SpaceSidebar.svelte";
     import RoomList from "$lib/components/layout/RoomList.svelte";
@@ -1720,6 +1721,7 @@
     });
 
     onMount(() => {
+        bootMark("shell-mounted");
         reloadAccountSettings();
 
         // One-time "What's New": pop up once on the first launch after the version
@@ -2675,6 +2677,7 @@
             ensureBackGuard();
         }
 
+        bootMark("shell-mount-done");
         return () => {
             // Deferred notifications must not land after teardown/logout.
             for (const t of pendingNotifyTimers) window.clearTimeout(t);

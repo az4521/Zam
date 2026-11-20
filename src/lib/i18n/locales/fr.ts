@@ -703,6 +703,13 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Rien n'est encore journalisé. Les redémarrages, les requêtes échouées et les réinitialisations de fil apparaissent ici.",
     "debugSettings.refresh": "Actualiser",
     "debugSettings.copied": "Copié",
+    "debugSettings.startupTiming": "Temps de démarrage",
+    "debugSettings.startupTimingHint":
+        "Temps entre le chargement de la page et chaque étape de démarrage. Copiez pour partager.",
+    "debugSettings.startupTimingEmpty":
+        "Aucune étape de démarrage enregistrée pour l'instant.",
+    "debugSettings.startupTimingRow": "+{dt} ms (à {at} ms)",
+    "debugSettings.copyTiming": "Copier les temps",
     "debugSettings.useSlidingSync": "Utiliser la synchronisation glissante",
     "debugSettings.experimentalLoadsRoomsInAGrowing":
         "Expérimental. Charge les salons dans une fenêtre croissante. Recharge l'application pour s'appliquer.",

@@ -21,13 +21,14 @@ import {
 } from "matrix-js-sdk/lib/sliding-sync";
 import {
     hasUnflaggedScrollback,
-    isSlidingSyncUnsupportedError,
     isSlidingTimelineGap,
     nextWindowEnd,
     roomsWithDroppedTimeline,
     shouldRecoverSkippedEvents,
 } from "$lib/utils/slidingSyncHelpers";
+import { bootMark } from "$lib/utils/bootTiming";
 import { describeSyncError, logSync } from "$lib/matrix/syncLog";
+import { startSlidingProbe, takeSlidingProbe } from "$lib/matrix/slidingProbe";
 import { keepSlidingSyncAlive } from "$lib/matrix/slidingSyncKeepAlive";
 import { adaptSlidingSyncTimeout } from "$lib/matrix/slidingSyncTimeout";
 import { resendRoomSubscriptions } from "$lib/matrix/slidingSyncSubscriptions";
@@ -284,29 +285,26 @@ export async function buildSlidingSync(
     if (!userId || !isSlidingSyncEnabled(userId)) return undefined;
 
     // Ask the server before committing: on one that lacks the endpoint sync
-    // would otherwise just sit in an error state with no way back.
-    try {
-        await client.slidingSync(
-            { lists: {}, timeout: 0, clientTimeout: 10000 },
-            client.getHomeserverUrl(),
+    // would otherwise just sit in an error state with no way back. The probe
+    // is normally already in flight (started in createAuthenticatedClient, see
+    // slidingProbe.ts); a fresh one is sent only when none was started.
+    const probe = await (takeSlidingProbe(client) ?? startSlidingProbe(client));
+    bootMark("sliding-probe-done");
+    if (probe.kind === "unsupported") {
+        const reason = t("client.thisHomeserverDoesnTSupportSliding");
+        console.warn(
+            "[matrix] sliding sync unsupported, falling back",
+            probe.err,
         );
-    } catch (err) {
-        if (isSlidingSyncUnsupportedError(err)) {
-            const reason = t("client.thisHomeserverDoesnTSupportSliding");
-            console.warn(
-                "[matrix] sliding sync unsupported, falling back",
-                err,
-            );
-            // Turned off so the next boot doesn't probe and warn again; the
-            // user can re-enable it from Debug settings if the server changes.
-            setSlidingSyncEnabled(userId, false);
-            slidingSyncFallbackReason = reason;
-            hooks.onFallback?.(reason);
-            return undefined;
-        }
-        // Anything else (network blip, 5xx, rate limit) is not evidence the
-        // server can't do it; let the real sync loop retry as it normally does.
+        // Turned off so the next boot doesn't probe and warn again; the
+        // user can re-enable it from Debug settings if the server changes.
+        setSlidingSyncEnabled(userId, false);
+        slidingSyncFallbackReason = reason;
+        hooks.onFallback?.(reason);
+        return undefined;
     }
+    // A transient failure ("failed") is not evidence the server can't do it;
+    // let the real sync loop retry as it normally does.
 
     const lists = new Map<string, MSC3575List>([
         [

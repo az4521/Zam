@@ -46,6 +46,7 @@
     } from "$lib/stores/accounts.svelte";
     import { getLastOpenedRoomId } from "$lib/stores/rooms.svelte";
     import { rootView, shouldRestoreSession } from "$lib/utils/sessionView";
+    import { bootMark, scheduleBootLog } from "$lib/utils/bootTiming";
     import {
         IDLE_SESSION_STARTUP,
         isLiveAttempt,
@@ -304,9 +305,11 @@
 
     onMount(() => {
         (async () => {
+            bootMark("restore-start");
             // Put back accounts a localStorage wipe took (registryBackup.ts)
             // BEFORE anything reads the registry, the wipe sweep below included.
             const recovered = await recoverRegistryFromBackup();
+            bootMark("registry-recovered");
             if (recovered) {
                 showToast(t("rootPage.storageWipedSessionRecovered"), {
                     tone: "accent",
@@ -335,6 +338,7 @@
             }
             const attempt = beginStartup();
             try {
+                bootMark("reconnect-start");
                 await reconnect(
                     stored.homeserverUrl,
                     stored.userId,
@@ -348,6 +352,7 @@
                           }
                         : undefined,
                 );
+                bootMark("reconnect-done");
                 await beginSync(attempt, getLastOpenedRoomId(stored.userId));
             } catch (err) {
                 // The device was signed out (its encryption data was lost):
@@ -392,6 +397,8 @@
                 auth.isAuthenticated = true;
                 restoring = false;
                 initServiceWorker();
+                bootMark("shell-committed");
+                scheduleBootLog();
             });
         })();
     });

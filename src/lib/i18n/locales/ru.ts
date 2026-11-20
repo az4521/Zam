@@ -730,6 +730,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Пока ничего не записано. Здесь появятся перезапуски, неудавшиеся запросы и сбросы временной шкалы.",
     "debugSettings.refresh": "Обновить",
     "debugSettings.copied": "Скопировано",
+    "debugSettings.startupTiming": "Время запуска",
+    "debugSettings.startupTimingHint":
+        "Время от загрузки страницы до каждого шага запуска. Скопируйте, чтобы поделиться.",
+    "debugSettings.startupTimingEmpty": "Шаги запуска ещё не записаны.",
+    "debugSettings.startupTimingRow": "+{dt} мс (в {at} мс)",
+    "debugSettings.copyTiming": "Копировать время",
     "debugSettings.useSlidingSync": "Использовать sliding sync",
     "debugSettings.experimentalLoadsRoomsInAGrowing":
         "Экспериментально. Загружает комнаты растущим окном. Для применения приложение перезагрузится.",

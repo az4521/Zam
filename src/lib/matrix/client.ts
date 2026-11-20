@@ -146,6 +146,9 @@ import {
     type PowerLevelTags,
 } from "$lib/utils/powerLevelTags";
 import { requestPersistentStorage } from "$lib/utils/persistentStorage";
+import { bootMark, logBootTimeline } from "$lib/utils/bootTiming";
+import { startSlidingProbe } from "$lib/matrix/slidingProbe";
+import type { OwnKeysVerdict } from "$lib/utils/ownDeviceKeysCheck";
 import { reportStorageError } from "$lib/stores/storageHealth.svelte";
 import { parseLoginFlows, type LoginOptions } from "$lib/utils/loginFlows";
 import {
@@ -378,6 +381,8 @@ import {
     initCrypto,
     isCryptoAvailable,
     ownDeviceKeysReplaced,
+    ownDeviceKeysCheckMode,
+    deferOwnDeviceKeysCheck,
     CryptoStoreLostError,
     SessionInUseError,
     getCryptoCallbacks,
@@ -609,6 +614,42 @@ function handleTokenRefresh(
     }
 }
 
+/**
+ * Dev only: a fetch that waits `localStorage["zam:devLatencyMs"]` ms before
+ * each request, to measure startup under WAN latency. Undefined in production
+ * builds (the body is dropped by the DEV guard).
+ */
+function devLatencyFetch(): typeof fetch | undefined {
+    if (!import.meta.env.DEV) return undefined;
+    return (input, init) => {
+        let ms = 0;
+        try {
+            ms = Number(localStorage.getItem("zam:devLatencyMs"));
+        } catch {
+            // No storage: no injected latency.
+        }
+        if (!(ms > 0)) return fetch(input, init);
+        // Waits on a MessageChannel loop, not setTimeout: a page the browser
+        // treats as backgrounded during boot aligns timers to 1 s, which
+        // turned a 200 ms delay into about 1 s and skewed the measurement.
+        const t0 = performance.now();
+        return new Promise<void>((resolve) => {
+            const ch = new MessageChannel();
+            ch.port1.onmessage = () =>
+                performance.now() - t0 >= ms
+                    ? resolve()
+                    : ch.port2.postMessage(0);
+            ch.port2.postMessage(0);
+        }).then(() => fetch(input, init));
+    };
+}
+
+/** The background own-keys verdicts, read by startSync for the same client. */
+const deferredKeysVerdicts = new WeakMap<
+    MatrixClient,
+    Promise<OwnKeysVerdict>
+>();
+
 async function createAuthenticatedClient(opts: {
     baseUrl: string;
     accessToken: string;
@@ -622,6 +663,7 @@ async function createAuthenticatedClient(opts: {
     // the running client, its stores or the network.
     if (!(await claimSessionOwnership(opts.userId, opts.deviceId)))
         throw new SessionInUseError();
+    bootMark("session-owned");
     matrixClient?.stopClient();
     // The slot below only changes several awaits later, and stopClient() does
     // NOT abort the predecessor's in-flight requests — so retire its ownership
@@ -681,6 +723,7 @@ async function createAuthenticatedClient(opts: {
         latestTokens.delete(opts.userId);
         delete clientOpts.refreshToken;
     }
+    const devFetch = devLatencyFetch();
     const commonOpts = {
         ...clientOpts,
         // The SDK refreshes on M_UNKNOWN_TOKEN (and shortly before a known
@@ -695,6 +738,7 @@ async function createAuthenticatedClient(opts: {
                   }) => handleTokenRefresh(opts.userId, tokens),
               }
             : {}),
+        ...(devFetch ? { fetchFn: devFetch } : {}),
         timelineSupport: true,
         verificationMethods: [
             VerificationMethod.Sas,
@@ -715,6 +759,7 @@ async function createAuthenticatedClient(opts: {
         try {
             await store.startup();
             setMatrixStore(store);
+            bootMark("store-ready");
         } catch (err) {
             console.warn(
                 "[matrix] IndexedDB store startup failed; falling back to memory store",
@@ -729,6 +774,18 @@ async function createAuthenticatedClient(opts: {
     addOrderHints(client, bottomEventId, () => settingsState.orderHints);
     installClient(client);
 
+    // Warm the /versions cache. The SDK's getVersions keeps its promise
+    // (serverVersionsPromise), so startClient's await and doesServerSupportThread
+    // reuse this one request instead of making their own round trips.
+    // Failures are not kept by the SDK, so startClient simply retries.
+    void client.getVersions().catch(() => {});
+
+    // Start the sliding sync capability probe now as well, so its round trip
+    // overlaps initCrypto. Only for accounts that opted in (buildSlidingSync
+    // checks the same flag); the probe carries no extensions and consumes no
+    // server state (see slidingProbe.ts).
+    if (isSlidingSyncEnabled(opts.userId)) startSlidingProbe(client);
+
     // Initialise E2EE before the caller starts sync, so crypto is ready when
     // to-device / m.room.encrypted events arrive. Never throws — a crypto-init
     // failure degrades gracefully (unencrypted rooms keep working; encrypted
@@ -739,17 +796,49 @@ async function createAuthenticatedClient(opts: {
     // the old store is gone. Sign the device out (which takes its stale keys
     // off the server, so senders stop encrypting to them) rather than give
     // it new keys nobody's crypto will accept.
-    if (await ownDeviceKeysReplaced(client)) {
-        console.warn(
-            `[matrix] encryption data for ${opts.deviceId} is gone; signing it out`,
-        );
-        try {
-            await client.logout(true);
-        } catch (err) {
-            console.warn("[matrix] signing out the lost session failed", err);
+    if ((await ownDeviceKeysCheckMode(client)) === "background") {
+        // Routine boot: this device's recorded key matches the store. The
+        // server comparison runs without holding the shell, and outgoing
+        // crypto requests wait for its verdict (deferOwnDeviceKeysCheck).
+        bootMark("keys-check-deferred");
+        const owner = captureClient();
+        const verdict = deferOwnDeviceKeysCheck(client).then(async (result) => {
+            bootMark("keys-check-done");
+            if (result === "replaced" && ownedClient(owner)) {
+                console.warn(
+                    `[matrix] encryption data for ${opts.deviceId} is gone; signing it out`,
+                );
+                try {
+                    await client.logout(true);
+                } catch (err) {
+                    console.warn(
+                        "[matrix] signing out the lost session failed",
+                        err,
+                    );
+                }
+                forgetOwnDeviceKey(opts.userId, opts.deviceId);
+            }
+            return result;
+        });
+        deferredKeysVerdicts.set(client, verdict);
+    } else {
+        bootMark("keys-check-start");
+        if (await ownDeviceKeysReplaced(client)) {
+            console.warn(
+                `[matrix] encryption data for ${opts.deviceId} is gone; signing it out`,
+            );
+            try {
+                await client.logout(true);
+            } catch (err) {
+                console.warn(
+                    "[matrix] signing out the lost session failed",
+                    err,
+                );
+            }
+            forgetOwnDeviceKey(opts.userId, opts.deviceId);
+            throw new CryptoStoreLostError();
         }
-        forgetOwnDeviceKey(opts.userId, opts.deviceId);
-        throw new CryptoStoreLostError();
+        bootMark("keys-check-done");
     }
 
     // Ask the browser not to evict our IndexedDB (crypto + sync stores).
@@ -1522,6 +1611,7 @@ export async function startSync(
 ): Promise<() => void> {
     const owner = captureClient();
     const client = owner.client;
+    bootMark("sync-start");
 
     initialSyncComplete = false;
     resetLiveSyncDelivered();
@@ -1547,6 +1637,10 @@ export async function startSync(
                 markRoomListComplete(client);
             if (state === "SYNCING") void saveRoomListSnapshot(client);
             if (state === "PREPARED") {
+                if (!initialSyncComplete) {
+                    bootMark("first-sync");
+                    logBootTimeline();
+                }
                 initialSyncComplete = true;
                 seedStatelessRooms();
             }
@@ -1750,6 +1844,7 @@ export async function startSync(
 
     // Paint the last known room list while sync catches up.
     await hydrateRoomListCache(client, preferredRoomId);
+    bootMark("roomlist-hydrated");
     // A hidden page may never come back (mobile kills it): save on the way out.
     const onHidden = () => {
         if (document.visibilityState === "hidden")
@@ -1793,6 +1888,7 @@ export async function startSync(
             onStateChange("STOPPED");
             return dispose;
         }
+        bootMark("startclient-start");
         await client.startClient({
             slidingSync: slidingSync,
             initialSyncLimit: 8,
@@ -1805,6 +1901,19 @@ export async function startSync(
             // thread filter in getTimelineMessages hides it from view entirely.
             threadSupport: true,
         });
+        bootMark("startclient-done");
+        // A background keys check (createAuthenticatedClient) that found this
+        // device replaced has signed it out already. End the session here the
+        // way an expiry does, as the blocking path does by throwing.
+        const keysVerdict = deferredKeysVerdicts.get(client);
+        if (keysVerdict) {
+            deferredKeysVerdicts.delete(client);
+            void keysVerdict.then((verdict) => {
+                if (verdict !== "replaced" || !ownedClient(owner)) return;
+                showErrorToast(t("crypto.encryptionDataLost"));
+                onSessionExpired?.();
+            });
+        }
     } catch (err) {
         // A rejected start must not leave four listeners bound to a client the
         // caller is about to throw away.

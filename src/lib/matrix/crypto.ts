@@ -14,6 +14,12 @@
 
 import { t, type MessageKey } from "$lib/i18n";
 import { clearDecryptedImageCache } from "$lib/utils/decryptedImageCache";
+import { bootMark } from "$lib/utils/bootTiming";
+import {
+    ownKeysCheckMode,
+    type OwnKeysCheckMode,
+    type OwnKeysVerdict,
+} from "$lib/utils/ownDeviceKeysCheck";
 import { decryptedBlobs } from "$lib/utils/decryptedBlobCache";
 import {
     ClientEvent,
@@ -426,6 +432,7 @@ export async function initCrypto(
     cryptoInitError = null;
     setSessionCryptoStatus(null);
     console.info(`[matrix] rust-crypto init starting for device ${deviceId}`);
+    bootMark("crypto-start");
     detachKeyBackfill?.();
     detachKeyBackfill = null;
     detachFileTransfer?.();
@@ -447,7 +454,9 @@ export async function initCrypto(
                 "crypto store is still held by a push-notification decrypt",
             );
         }
+        bootMark("crypto-lock");
         await trackEngineWork();
+        bootMark("crypto-wasm");
         const emitter = client as unknown as {
             listeners?(event: string): ((...args: unknown[]) => void)[];
         };
@@ -473,6 +482,7 @@ export async function initCrypto(
                 );
             }
         }
+        bootMark("crypto-ready");
         engineClient = client;
         engineHandlers = RUST_CRYPTO_CLIENT_EVENTS.flatMap((e) =>
             handlersOf(e)
@@ -507,6 +517,7 @@ export async function initCrypto(
         detachFileTransfer = attachFileTransfer(client);
         if (!(await installRekeyRepair(cryptoApi, { userId, deviceId })))
             console.warn("[matrix] can't watch for re-keyed sessions");
+        bootMark("rekey-repair-done");
     } catch (err) {
         cryptoInitError = describeError(err);
         console.error(
@@ -1875,6 +1886,66 @@ export async function ownDeviceKeysReplaced(
     if (!replaced)
         writeScoped(ownDeviceKeyName(deviceId), userId, ours.ed25519);
     return replaced;
+}
+
+/**
+ * Local only, no network: whether this boot can run the own-device check in
+ * the background (see ownKeysCheckMode). Blocking when crypto is down, since
+ * the check is then a no-op anyway.
+ */
+export async function ownDeviceKeysCheckMode(
+    client: MatrixClient,
+): Promise<OwnKeysCheckMode> {
+    const crypto = client.getCrypto();
+    const userId = client.getUserId();
+    const deviceId = client.getDeviceId();
+    if (!cryptoAvailable || !crypto || !userId || !deviceId) return "blocking";
+    const ours = await crypto.getOwnDeviceKeys();
+    return ownKeysCheckMode(
+        readScoped(ownDeviceKeyName(deviceId), userId),
+        ours.ed25519,
+    );
+}
+
+/**
+ * Background form of ownDeviceKeysReplaced, for a routine boot only (call when
+ * ownDeviceKeysCheckMode said "background").
+ *
+ * It holds every outgoing crypto request (the SDK's outgoing loop, and direct
+ * calls such as cross-signing uploads) until the verdict is "safe". Those
+ * requests are the only way this device publishes keys or sends to-device
+ * messages, so a replaced device never uploads or sends anything. Incoming sync
+ * is not held. A "replaced" verdict keeps the hold in place forever: the
+ * caller signs the device out. "unknown" (an unexpected failure) holds too,
+ * which fails closed. Never rejects.
+ */
+export function deferOwnDeviceKeysCheck(
+    client: MatrixClient,
+): Promise<OwnKeysVerdict> {
+    const verdict: Promise<OwnKeysVerdict> = ownDeviceKeysReplaced(client).then(
+        (replaced) => (replaced ? "replaced" : "safe"),
+        (err) => {
+            console.error(
+                "[matrix] own-device keys check failed; holding outgoing crypto requests",
+                err,
+            );
+            return "unknown";
+        },
+    );
+    const processor = (client.getCrypto() as RustKeysQueryHooks | undefined)
+        ?.outgoingRequestProcessor;
+    if (processor) {
+        const send = processor.makeOutgoingRequest.bind(processor);
+        processor.makeOutgoingRequest = async (request: unknown) => {
+            if ((await verdict) !== "safe") {
+                // Never settles: nothing is sent, and nothing is marked sent,
+                // so the SDK keeps the request for later.
+                return new Promise<never>(() => {});
+            }
+            return send(request);
+        };
+    }
+    return verdict;
 }
 
 /**

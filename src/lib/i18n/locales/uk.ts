@@ -749,6 +749,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Поки що нічого не записано. Тут з’являтимуться перезапуски, невдалі запити та скидання стрічки.",
     "debugSettings.refresh": "Оновити",
     "debugSettings.copied": "Скопійовано",
+    "debugSettings.startupTiming": "Час запуску",
+    "debugSettings.startupTimingHint":
+        "Час від завантаження сторінки до кожного кроку запуску. Скопіюйте, щоб поділитися.",
+    "debugSettings.startupTimingEmpty": "Кроки запуску ще не записано.",
+    "debugSettings.startupTimingRow": "+{dt} мс (о {at} мс)",
+    "debugSettings.copyTiming": "Копіювати час",
     "debugSettings.useSlidingSync": "Використовувати sliding sync",
     "debugSettings.experimentalLoadsRoomsInAGrowing":
         "Експериментально. Завантажує кімнати у вікні, що росте. Для застосування перезавантажує застосунок.",

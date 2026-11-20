@@ -704,6 +704,12 @@ export const en = {
         "Nothing logged yet. Restarts, failed requests and timeline resets show up here.",
     "debugSettings.refresh": "Refresh",
     "debugSettings.copied": "Copied",
+    "debugSettings.startupTiming": "Startup timing",
+    "debugSettings.startupTimingHint":
+        "Time from page load to each startup step. Copy to share.",
+    "debugSettings.startupTimingEmpty": "No startup steps recorded yet.",
+    "debugSettings.startupTimingRow": "+{dt} ms (at {at} ms)",
+    "debugSettings.copyTiming": "Copy timing",
     "debugSettings.useSlidingSync": "Use sliding sync",
     "debugSettings.experimentalLoadsRoomsInAGrowing":
         "Experimental. Loads rooms in a growing window. Reloads the app to apply.",

@@ -712,6 +712,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Noch nichts protokolliert. Neustarts, fehlgeschlagene Anfragen und Zeitleisten-Resets erscheinen hier.",
     "debugSettings.refresh": "Aktualisieren",
     "debugSettings.copied": "Kopiert",
+    "debugSettings.startupTiming": "Startzeit",
+    "debugSettings.startupTimingHint":
+        "Zeit von Seitenaufruf bis zu jedem Startschritt. Zum Teilen kopieren.",
+    "debugSettings.startupTimingEmpty": "Noch keine Startschritte erfasst.",
+    "debugSettings.startupTimingRow": "+{dt} ms (bei {at} ms)",
+    "debugSettings.copyTiming": "Zeiten kopieren",
     "debugSettings.useSlidingSync": "Sliding Sync verwenden",
     "debugSettings.experimentalLoadsRoomsInAGrowing":
         "Experimentell. Lädt Räume in einem wachsenden Fenster. Zum Anwenden wird die App neu geladen.",

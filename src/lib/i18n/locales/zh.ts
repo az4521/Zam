@@ -714,6 +714,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "尚无记录。重启、失败的请求和时间线重置会显示在这里。",
     "debugSettings.refresh": "刷新",
     "debugSettings.copied": "已复制",
+    "debugSettings.startupTiming": "启动耗时",
+    "debugSettings.startupTimingHint":
+        "从页面加载到每个启动步骤的耗时。可复制后分享。",
+    "debugSettings.startupTimingEmpty": "尚未记录启动步骤。",
+    "debugSettings.startupTimingRow": "+{dt} ms（{at} ms 时）",
+    "debugSettings.copyTiming": "复制耗时",
     "debugSettings.useSlidingSync": "使用滑动同步",
     "debugSettings.experimentalLoadsRoomsInAGrowing":
         "实验性。在不断扩大的窗口中加载房间。会重新加载应用以生效。",

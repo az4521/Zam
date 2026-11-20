@@ -701,6 +701,13 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Todavía no hay nada registrado. Aquí aparecen los reinicios, las solicitudes fallidas y los reinicios de la cronología.",
     "debugSettings.refresh": "Actualizar",
     "debugSettings.copied": "Copiado",
+    "debugSettings.startupTiming": "Tiempo de inicio",
+    "debugSettings.startupTimingHint":
+        "Tiempo desde la carga de la página hasta cada paso de inicio. Copia para compartir.",
+    "debugSettings.startupTimingEmpty":
+        "Aún no se han registrado pasos de inicio.",
+    "debugSettings.startupTimingRow": "+{dt} ms (en {at} ms)",
+    "debugSettings.copyTiming": "Copiar tiempos",
     "debugSettings.useSlidingSync": "Usar sincronización deslizante",
     "debugSettings.experimentalLoadsRoomsInAGrowing":
         "Experimental. Carga las salas en una ventana que va creciendo. Recarga la aplicación para aplicarlo.",
