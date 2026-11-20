@@ -4,6 +4,21 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.13
+
+✨ **New**
+
+- **Recently used emoji:** your 10 most recently used emoji (including custom ones) now show at the top of the emoji picker, with their own tab. The list follows you across devices. You can hide it in Settings > Messages & Media.
+- **Import favourite GIFs from Discord:** on desktop, Settings > Messages & Media can import the favourite GIFs from your Discord app, including Snap and Flatpak installs of Discord and Discord Canary. GIFs hosted on Discord itself can't be imported, because their links expire.
+
+🐛 **Fixed**
+
+- **Rooms whose last message has a reaction showing as unread again** after a restart.
+- **Android: notifications for messages you already read on another device** popping up when the phone came back on.
+- **Android: notifications showing an "N" avatar** when the message couldn't be loaded. They now use the room's name or Zam's icon.
+- **Android: notifications staying up** after you read everything on another device, on servers that send a "nothing unread" update.
+- **The Telegram sticker import** missing from Settings since stickers moved to the Emotes tab.
+
 ## v1.66.12
 
 ✨ **New**
