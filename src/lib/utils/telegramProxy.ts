@@ -37,18 +37,17 @@ export class TelegramProxyError extends Error {
 type EnvLike = Record<string, string | undefined>;
 
 /**
- * Reads the build-time proxy settings. An unset VITE_TG_PROXY_URL uses the
- * default. Setting it to an empty string turns the proxy off entirely, so only
- * the bot-token flow remains.
+ * Reads the build-time proxy settings. An unset or empty VITE_TG_PROXY_URL
+ * uses the default: CI expands a missing variable or secret to "", and that
+ * must not silently turn the proxy off. Setting it to "off" turns the proxy
+ * off entirely, so only the bot-token flow remains.
  */
 export function telegramProxyConfig(
     env: EnvLike = import.meta.env as EnvLike,
 ): TelegramProxyConfig | null {
-    const raw = env.VITE_TG_PROXY_URL;
-    const baseUrl = (raw === undefined ? DEFAULT_TG_PROXY_URL : raw)
-        .trim()
-        .replace(/\/+$/, "");
-    if (!baseUrl) return null;
+    const raw = (env.VITE_TG_PROXY_URL ?? "").trim();
+    if (raw.toLowerCase() === "off") return null;
+    const baseUrl = (raw || DEFAULT_TG_PROXY_URL).replace(/\/+$/, "");
     return { baseUrl, key: (env.VITE_TG_PROXY_KEY ?? "").trim() };
 }
 

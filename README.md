@@ -118,7 +118,7 @@ there are four _optional_ services the client talks to. none of them are needed 
 
 to point push at your own gateway, set `VITE_PUSH_GATEWAY_URL` (and `VITE_VAPID_PUBLIC_KEY`) at build time — see [ANDROID_PUSH_SETUP.md](ANDROID_PUSH_SETUP.md), which also covers how to turn push off. leaving the vars unset does _not_ turn it off; that's what the fallbacks above are.
 
-to host your own Telegram sticker proxy (a few nginx locations that hold one bot token server-side, so users never need their own), see [docs/telegram-proxy.md](docs/telegram-proxy.md). then set `VITE_TG_PROXY_URL` (and `VITE_TG_PROXY_KEY`, the shared key your proxy checks) at build time. set `VITE_TG_PROXY_URL` to an empty string to turn the proxy off, so the importer only offers the paste-your-own-bot-token flow. the key ships inside the bundle, so it only deters casual abuse, it is not a secret.
+to host your own Telegram sticker proxy (a few nginx locations that hold one bot token server-side, so users never need their own), see [docs/telegram-proxy.md](docs/telegram-proxy.md). then set `VITE_TG_PROXY_URL` (and `VITE_TG_PROXY_KEY`, the shared key your proxy checks) at build time. set `VITE_TG_PROXY_URL` to `off` to turn the proxy off, so the importer only offers the paste-your-own-bot-token flow. the key ships inside the bundle, so it only deters casual abuse, it is not a secret.
 
 ---
 

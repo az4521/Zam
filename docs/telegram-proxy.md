@@ -99,7 +99,7 @@ The client reads two Vite variables at build time:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `VITE_TG_PROXY_URL` | `https://zam.crafty.moe/tg` | Proxy base URL, no trailing slash needed. Set it to an empty string to turn the proxy off, so only the own-token flow remains. |
+| `VITE_TG_PROXY_URL` | `https://zam.crafty.moe/tg` | Proxy base URL, no trailing slash needed. An empty value also uses the default. Set it to `off` to turn the proxy off, so only the own-token flow remains. |
 | `VITE_TG_PROXY_KEY` | empty | Value sent as `k`. When empty, no `k` parameter is sent, which only works if the server has no key check. |
 
 For local builds, put them in `.env.local` (not committed):
@@ -109,9 +109,10 @@ VITE_TG_PROXY_URL=https://zam.example.org/tg
 VITE_TG_PROXY_KEY=<PROXY_KEY>
 ```
 
-For released builds, define them as repository variables (not secrets, because
-they are compiled into the bundle) and pass them to the build step's `env:` in
-the release workflow.
+For released builds, store them as repository secrets `TG_PROXY_URL` and
+`TG_PROXY_KEY`; the release workflow passes `secrets.TG_PROXY_*` to each build
+step's `env:`. They are compiled into the bundle, so the key is not truly
+secret, but keeping it out of the public repository settings still helps.
 
 ## Risks
 

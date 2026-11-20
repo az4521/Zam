@@ -31,8 +31,19 @@ describe("telegramProxyConfig", () => {
         ).toEqual({ baseUrl: "https://h.example/tg", key: "k" });
     });
 
-    it("turns the proxy off when the URL is set to an empty string", () => {
-        expect(telegramProxyConfig({ VITE_TG_PROXY_URL: "" })).toBeNull();
+    it("uses the default URL when the URL is an empty string", () => {
+        // CI expands an unset variable or secret to "".
+        expect(
+            telegramProxyConfig({
+                VITE_TG_PROXY_URL: "",
+                VITE_TG_PROXY_KEY: "",
+            }),
+        ).toEqual({ baseUrl: DEFAULT_TG_PROXY_URL, key: "" });
+    });
+
+    it("turns the proxy off when the URL is set to off", () => {
+        expect(telegramProxyConfig({ VITE_TG_PROXY_URL: "off" })).toBeNull();
+        expect(telegramProxyConfig({ VITE_TG_PROXY_URL: " OFF " })).toBeNull();
     });
 });
 
