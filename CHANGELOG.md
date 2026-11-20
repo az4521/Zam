@@ -4,6 +4,19 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.16
+
+✨ **New**
+
+- **Messages show greyed out until they're sent**, so you can tell when one hasn't reached the server yet.
+- **A loading bar on the "Restoring session" screen** while Zam starts up.
+
+🐛 **Fixed**
+
+- **Tapping a notification opening the room you were last in** instead of the message, when Zam was still starting up (Android) or the open window was still loading (web app).
+- **Accounts on different servers sharing the sticky call membership setting** (Debug). It's now per account, and Zam only uses it when your homeserver supports it.
+- **Calls after signing into another account in the same window** possibly using the previous server's TURN details.
+
 ## v1.66.15
 
 ✨ **New**
