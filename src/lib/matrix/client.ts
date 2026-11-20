@@ -3156,6 +3156,8 @@ export function getTimelineMessages(room: Room): MatrixEvent[] {
 export async function trimRoomHistory(
     roomId: string,
     canTrim: () => boolean,
+    keep?: number,
+    minDrop?: number,
 ): Promise<boolean> {
     if (!matrixClient) return false;
     const owner = captureOwnership(matrixClient, clientGeneration);
@@ -3175,8 +3177,6 @@ export async function trimRoomHistory(
     if (cut === null) return false;
     const cutId = chain[cut].getId()!;
     // A token that continues history right before the oldest kept event.
-    keep?: number,
-    minDrop?: number,
     const res = await owner.client.http.authedRequest<{ start?: string }>(
         Method.Get,
         `/rooms/${encodeURIComponent(roomId)}/context/${encodeURIComponent(cutId)}`,
