@@ -224,6 +224,11 @@ jobs:
             # on the other runners.
             - name: Build app audio helper
               run: npm run build:app-audio
+            # Windows: the native screen-share capture + encode helper
+            # (native/share-capture), packed by build.win.extraResources.
+            # Needs MSVC (C++/WinRT). A no-op on the other runners.
+            - name: Build share capture helper
+              run: npm run build:share-capture
             # Windows: the now-playing helper (native/media-session) for
             # "Listening to" presence. Needs MSVC (C++/WinRT), which the
             # windows runner has. A no-op on the other runners.
