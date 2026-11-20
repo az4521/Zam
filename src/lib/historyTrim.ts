@@ -1,17 +1,17 @@
 // Trims the history held for rooms the user isn't looking at (see
 // utils/historyTrim and client.ts trimRoomHistory), one room at a time every
-// HISTORY_TRIM_INTERVAL_MS. A trimmed room opens on its newest messages as
-// usual; scrolling up fetches the rest again.
+// HISTORY_TRIM_INTERVAL_MS, and drops the cached message list of rooms that
+// are closed. A trimmed room opens on its newest messages as usual; scrolling
+// up fetches the rest again.
 
-import { HISTORY_TRIM_INTERVAL_MS, mayTrimRoom } from "$lib/utils/historyTrim";
 import {
-    getRoom,
-    getRooms,
-    getTimelineMessages,
-    trimRoomHistory,
-} from "$lib/matrix/client";
+    HISTORY_TRIM_INTERVAL_MS,
+    historyTrimPlan,
+    mayTrimRoom,
+} from "$lib/utils/historyTrim";
+import { getRooms, trimRoomHistory } from "$lib/matrix/client";
 import { roomsState } from "$lib/stores/rooms.svelte";
-import { setMessages, setCanLoadMore } from "$lib/stores/messages.svelte";
+import { clearMessages } from "$lib/stores/messages.svelte";
 
 let openRoomId: string | null = null;
 /** When each room stopped being the open one. */
@@ -37,18 +37,15 @@ async function sweep(): Promise<void> {
     for (const room of getRooms()) {
         const id = room.roomId;
         if (!trimmable(id)) continue;
+        // The cached list would keep every dropped event alive. Opening the
+        // room rebuilds it from the SDK (MessageArea), so a closed room needs
+        // none.
+        clearMessages(id);
+        const { keep, minDrop } = historyTrimPlan(leftAt.get(id), Date.now());
         try {
-            if (!(await trimRoomHistory(id, () => trimmable(id)))) continue;
+            await trimRoomHistory(id, () => trimmable(id), keep, minDrop);
         } catch (err) {
             console.warn("Trimming room history failed:", id, err);
-            continue;
-        }
-        // The cached list for the room would otherwise keep every dropped
-        // event alive, and show them when the room is opened.
-        const trimmed = getRoom(id);
-        if (trimmed) {
-            setMessages(id, getTimelineMessages(trimmed));
-            setCanLoadMore(id, true);
         }
     }
 }

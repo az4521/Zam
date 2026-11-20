@@ -11,6 +11,15 @@ export const HISTORY_KEEP_VISIBLE = 100;
 export const HISTORY_TRIM_MIN_DROP = 50;
 /** A room left this recently is likely to be switched back to. */
 export const HISTORY_TRIM_IDLE_MS = 2 * 60_000;
+/**
+ * A room left this long ago (or never opened this session) keeps only enough
+ * to fill a screen, about what a room never opened holds after the first
+ * page. Every room ever opened otherwise kept ~100 rendered events for the
+ * rest of the session: ~240 KB of heap per room, measured over 141 rooms.
+ */
+export const HISTORY_DEEP_IDLE_MS = 15 * 60_000;
+export const HISTORY_KEEP_VISIBLE_DEEP = 20;
+export const HISTORY_TRIM_MIN_DROP_DEEP = 20;
 /** How often rooms are checked. */
 export const HISTORY_TRIM_INTERVAL_MS = 2 * 60_000;
 
@@ -42,4 +51,20 @@ export function mayTrimRoom(
 ): boolean {
     if (roomId === activeRoomId) return false;
     return leftAt === undefined || now - leftAt >= HISTORY_TRIM_IDLE_MS;
+}
+
+/**
+ * How much a trimmable room keeps: { keep, minDrop } for historyTrimCut. A
+ * room left a while ago keeps less than one left a moment ago.
+ */
+export function historyTrimPlan(
+    leftAt: number | undefined,
+    now: number,
+): { keep: number; minDrop: number } {
+    if (leftAt === undefined || now - leftAt >= HISTORY_DEEP_IDLE_MS)
+        return {
+            keep: HISTORY_KEEP_VISIBLE_DEEP,
+            minDrop: HISTORY_TRIM_MIN_DROP_DEEP,
+        };
+    return { keep: HISTORY_KEEP_VISIBLE, minDrop: HISTORY_TRIM_MIN_DROP };
 }

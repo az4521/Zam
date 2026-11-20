@@ -56,6 +56,15 @@ export function setMessages(roomId: string, events: MatrixEvent[]): void {
     messagesState.timelineTick++;
 }
 
+/**
+ * Forget a room's cached list. Opening a room always rebuilds it from the SDK
+ * (MessageArea), so a closed room's list only kept its events alive.
+ */
+export function clearMessages(roomId: string): void {
+    if (!(roomId in messagesState.byRoom)) return;
+    delete messagesState.byRoom[roomId];
+}
+
 export function appendMessage(roomId: string, event: MatrixEvent): void {
     const existing = messagesState.byRoom[roomId];
     if (existing) {

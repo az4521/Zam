@@ -3148,8 +3148,8 @@ export function getTimelineMessages(room: Room): MatrixEvent[] {
 
 /**
  * Let go of a room's older history (utils/historyTrim), keeping the newest
- * HISTORY_KEEP_VISIBLE rendered events and everything after the oldest of
- * them. Only for a room nobody is looking at (`canTrim`): its timeline is
+ * `keep` rendered events and everything after the oldest of them, when that
+ * drops at least `minDrop` events. Only for a room nobody is looking at (`canTrim`): its timeline is
  * rebuilt, which an open MessageArea would read as a gappy sync. Resolves
  * whether it trimmed.
  */
@@ -3167,10 +3167,16 @@ export async function trimRoomHistory(
             e.getId(),
         ),
     );
-    const cut = historyTrimCut(chain.map((e) => shown.has(e.getId())));
+    const cut = historyTrimCut(
+        chain.map((e) => shown.has(e.getId())),
+        keep,
+        minDrop,
+    );
     if (cut === null) return false;
     const cutId = chain[cut].getId()!;
     // A token that continues history right before the oldest kept event.
+    keep?: number,
+    minDrop?: number,
     const res = await owner.client.http.authedRequest<{ start?: string }>(
         Method.Get,
         `/rooms/${encodeURIComponent(roomId)}/context/${encodeURIComponent(cutId)}`,
