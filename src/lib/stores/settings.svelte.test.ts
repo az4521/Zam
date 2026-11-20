@@ -891,6 +891,33 @@ describe("gifsAsWebp", () => {
     });
 });
 
+describe("hideRecentEmoji", () => {
+    const HK = "settings:hideRecentEmoji";
+
+    async function boot(stored: string | null) {
+        if (stored === null) localStorage.removeItem(HK);
+        else localStorage.setItem(HK, stored);
+        vi.resetModules();
+        return await import("./settings.svelte");
+    }
+
+    afterEach(() => {
+        localStorage.removeItem(HK);
+    });
+
+    it("defaults to false so the Recently Used section is shown", async () => {
+        const fresh = await boot(null);
+        expect(fresh.settingsState.hideRecentEmoji).toBe(false);
+    });
+
+    it("persists the setter's value to localStorage", async () => {
+        const fresh = await boot(null);
+        fresh.setHideRecentEmoji(true);
+        expect(fresh.settingsState.hideRecentEmoji).toBe(true);
+        expect(localStorage.getItem(HK)).toBe("true");
+    });
+});
+
 describe("stickyCallMembership (device-local)", () => {
     const SK_KEY = "settings:stickyCallMembership";
 

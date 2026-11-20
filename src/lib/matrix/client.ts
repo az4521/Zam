@@ -4,6 +4,7 @@ import {
     type ReactionDetailGroup,
 } from "$lib/utils/reactionDetails";
 import type { SoundPackContent } from "$lib/utils/soundboard";
+import type { RecentEmoji } from "$lib/utils/recentEmoji";
 import {
     createClient,
     ClientEvent,
@@ -450,6 +451,7 @@ declare module "matrix-js-sdk" {
     interface AccountDataEvents {
         "moe.crafty.matrix.favourite_gifs": { gifs: FavouriteGif[] };
         "m.favourite_gifs": { gifs: FavouriteGif[] };
+        "moe.crafty.matrix.recent_emoji": { items: RecentEmoji[] };
         "moe.crafty.matrix.customization": ClientCustomization;
         "im.client.space_layout": SpaceLayout;
         "im.client.space_order": { order?: string[] };
@@ -1927,6 +1929,22 @@ export async function persistCustomization(
 ): Promise<void> {
     if (!matrixClient) return;
     await matrixClient.setAccountData(CUSTOMIZATION_KEY, value);
+}
+
+// Recently used emoji (utils/recentEmoji.ts). Raw on read: the store validates
+// it with parseRecentEmoji, since account data is untrusted.
+const RECENT_EMOJI_KEY = "moe.crafty.matrix.recent_emoji";
+
+/** The synced recent-emoji items as stored, unvalidated, or null when absent. */
+export function loadRecentEmoji(): unknown {
+    if (!matrixClient) return null;
+    const event = matrixClient.getAccountData(RECENT_EMOJI_KEY);
+    return event?.getContent()?.items ?? null;
+}
+
+export async function persistRecentEmoji(items: RecentEmoji[]): Promise<void> {
+    if (!matrixClient) return;
+    await matrixClient.setAccountData(RECENT_EMOJI_KEY, { items });
 }
 
 export function onAccountData(callback: (type: string) => void): () => void {

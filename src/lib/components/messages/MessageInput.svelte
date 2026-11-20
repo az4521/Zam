@@ -73,6 +73,7 @@
         replaceEmojiShortcodes,
     } from "$lib/data/emojiShortcodes";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
+    import { recordRecentEmoji } from "$lib/stores/recentEmoji.svelte";
     import EmojiSuggestions from "$lib/components/messages/EmojiSuggestions.svelte";
     import {
         caretOffset,
@@ -666,6 +667,23 @@
 
     function commitEmoji(candidate: EmojiCandidate) {
         if (emojiQuery === null) return;
+        // Record the use for "Recently Used". A custom candidate carries only
+        // the http url, so find its live copy for the mxc url the list keys on.
+        if (candidate.kind === "unicode") {
+            recordRecentEmoji({ kind: "unicode", emoji: candidate.emoji });
+        } else {
+            const live = getCustomEmojis(room, roomsState.activeSpaceId).find(
+                (e) =>
+                    e.shortcode === candidate.shortcode &&
+                    e.url === candidate.url,
+            );
+            if (live)
+                recordRecentEmoji({
+                    kind: "custom",
+                    shortcode: live.shortcode,
+                    url: live.mxcUrl,
+                });
+        }
         const next = applyEmojiCandidate(
             text,
             { query: emojiQuery, start: emojiStart },

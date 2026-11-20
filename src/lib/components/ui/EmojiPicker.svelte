@@ -16,7 +16,10 @@
     import { scrollBehavior } from "$lib/utils/motionPreference";
     import { nextActiveIndex, optionId } from "$lib/utils/listboxNavigation";
     import { anchoredActiveIndex } from "$lib/utils/listboxAnchor";
-    import { emojiOptionKeys } from "$lib/utils/pickerOptionKeys";
+    import {
+        emojiOptionKeys,
+        RECENT_SECTION_ID,
+    } from "$lib/utils/pickerOptionKeys";
     import {
         buildGridLayout,
         visibleRowRange,
@@ -25,7 +28,13 @@
         indexRange,
         type GridSection,
     } from "$lib/utils/virtualGrid";
-    import { pickerThumbUrl } from "$lib/matrix/media";
+    import { mxcToHttp, pickerThumbUrl } from "$lib/matrix/media";
+    import {
+        recentEmojiState,
+        recordRecentEmoji,
+    } from "$lib/stores/recentEmoji.svelte";
+    import type { RecentEmoji } from "$lib/utils/recentEmoji";
+    import { settingsState } from "$lib/stores/settings.svelte";
 
     import { renderEmoji } from "$lib/utils/twemoji";
     import { emojiSpriteStyle } from "$lib/utils/emojiSprites";
@@ -50,6 +59,27 @@
         onSwitchToGif,
         unicodeOnly = false,
     }: Props = $props();
+
+    // Name of each standard emoji, for the recent section's labels.
+    const EMOJI_NAMES = new Map<string, string>(
+        ALL_EMOJIS.map((e) => [e.emoji, e.name] as const),
+    );
+
+    // The recent list is frozen for this picker's lifetime, so an entry does not
+    // move under the cursor when a sync lands. Taken on open; if the list was
+    // still empty then, taken the first time it has entries.
+    let recentFrozen = $state<RecentEmoji[]>(
+        untrack(() => recentEmojiState.items),
+    );
+    let recentLocked = untrack(() => recentEmojiState.items.length > 0);
+    $effect(() => {
+        if (recentLocked) return;
+        const items = recentEmojiState.items;
+        if (items.length > 0) {
+            recentLocked = true;
+            recentFrozen = items;
+        }
+    });
 
     let search = $state("");
     let activeTab = $state("");
@@ -134,7 +164,35 @@
     });
     const ownAvatarUrl = $derived(getOwnAvatarUrl());
 
+    // Recently used entries shown in the "Recently Used" section. Hidden when
+    // unicodeOnly (custom entries) or when empty.
+    const recentShown = $derived.by((): RecentEmoji[] => {
+        if (settingsState.hideRecentEmoji) return [];
+        return unicodeOnly
+            ? recentFrozen.filter((e) => e.kind === "unicode")
+            : recentFrozen;
+    });
+    // Live copy of each custom emoji by its mxc url, so a recent entry picks up
+    // the pack's current shortcode and http url when the pack still has it.
+    const customByMxc = $derived.by(() => {
+        const out = new Map<string, CustomEmoji>();
+        for (const p of customPacks)
+            for (const e of p.emojis)
+                if (!out.has(e.mxcUrl)) out.set(e.mxcUrl, e);
+        return out;
+    });
+
     const tabs = $derived([
+        ...(recentShown.length > 0 && !search
+            ? [
+                  {
+                      id: RECENT_SECTION_ID,
+                      label: t("emojiPicker.recentlyUsed"),
+                      avatarUrl: undefined,
+                      isCustom: true as const,
+                  },
+              ]
+            : []),
         ...customPacks.map((p) => ({
             id: p.id,
             label: p.name,
@@ -212,6 +270,30 @@
             ];
         }
         const items: FlatItem[] = [];
+        for (const r of recentShown) {
+            if (r.kind === "unicode") {
+                items.push({
+                    kind: "standard",
+                    sectionId: RECENT_SECTION_ID,
+                    data: {
+                        emoji: r.emoji,
+                        name: EMOJI_NAMES.get(r.emoji) ?? r.emoji,
+                    },
+                });
+            } else {
+                const live = customByMxc.get(r.url);
+                const emoji: CustomEmoji = live ?? {
+                    shortcode: r.shortcode,
+                    mxcUrl: r.url,
+                    url: mxcToHttp(r.url, EMOJI_THUMB_PX) ?? "",
+                };
+                items.push({
+                    kind: "custom",
+                    sectionId: RECENT_SECTION_ID,
+                    data: { ...emoji, packId: RECENT_SECTION_ID },
+                });
+            }
+        }
         for (const pack of customPacks) {
             for (const e of pack.emojis) {
                 items.push({
@@ -241,6 +323,10 @@
             return offsets;
         }
         let offset = 0;
+        if (recentShown.length > 0) {
+            offsets.set(RECENT_SECTION_ID, 0);
+            offset = recentShown.length;
+        }
         for (const pack of customPacks) {
             offsets.set(pack.id, offset);
             offset += pack.emojis.length;
@@ -327,6 +413,16 @@
             return out;
         }
         return [
+            ...(recentShown.length > 0
+                ? [
+                      {
+                          id: RECENT_SECTION_ID,
+                          label: t("emojiPicker.recentlyUsed"),
+                          start: at(RECENT_SECTION_ID),
+                          count: recentShown.length,
+                      },
+                  ]
+                : []),
             ...customPacks.map((p) => ({
                 id: p.id,
                 label: p.id === "user" ? t("emojiPicker.myEmojis2") : p.name,
@@ -411,6 +507,7 @@
     }
 
     function pick(emoji: string) {
+        recordRecentEmoji({ kind: "unicode", emoji });
         onSelect(emoji);
         onClose();
     }
@@ -423,6 +520,11 @@
     }
 
     function pickCustom(emoji: CustomEmoji) {
+        recordRecentEmoji({
+            kind: "custom",
+            shortcode: emoji.shortcode,
+            url: emoji.mxcUrl,
+        });
         if (onSelectCustom) {
             onSelectCustom(emoji);
         } else {
@@ -583,7 +685,21 @@
                     class:opacity-40={activeTab !== tab.id}
                 >
                     {#if tab.isCustom}
-                        {#if tab.id === "user" && ownAvatarUrl}
+                        {#if tab.id === RECENT_SECTION_ID}
+                            <svg
+                                class="w-5 h-5 text-zam-textPrimary"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                viewBox="0 0 24 24"
+                                aria-hidden="true"
+                            >
+                                <circle cx="12" cy="12" r="9" />
+                                <path d="M12 7v5l3 2" />
+                            </svg>
+                        {:else if tab.id === "user" && ownAvatarUrl}
                             <img
                                 src={ownAvatarUrl}
                                 alt={t("emojiPicker.myEmojis")}

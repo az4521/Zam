@@ -780,6 +780,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "emojiPicker.custom": "自定义",
     "emojiPicker.standard": "标准",
     "emojiPicker.myEmojis2": "我的表情",
+    "emojiPicker.recentlyUsed": "最近使用",
 
     // src/lib/components/ui/ErrorToasts.svelte
     "errorToasts.dismiss": "忽略",
@@ -1538,6 +1539,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "从你发送的照片和视频中去除 EXIF、GPS 位置、相机信息和其他隐藏的元数据。画面不变，并保留旋转信息，使照片仍然正向显示。",
     "messagesMediaSettings.stripMetadataWarning":
         "警告：关闭后，你发送的文件可能泄露你的个人信息，包括拍摄地点。",
+    "messagesMediaSettings.hideRecentEmoji": "隐藏最近使用的表情区域",
+    "messagesMediaSettings.hideRecentEmojiDescription":
+        "不在表情选择器顶部显示最近使用的表情。",
     "messagesMediaSettings.randomizeFileNames": "随机化文件名",
     "messagesMediaSettings.randomizeFileNamesDescription":
         "以由字母和数字组成的随机名称上传文件，而不是使用真实文件名。文件扩展名会保留，包括 .tar.gz 这类扩展名。",
@@ -3857,6 +3861,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.removeLocationAndMetadata":
         "移除上传内容中的位置和其他元数据",
     "settingsSearch.sendGifsAsAnimatedWebp": "将 GIF 作为动画 WebP 发送",
+    "settingsSearch.hideRecentEmoji": "隐藏最近使用的表情区域",
     "settingsSearch.midiSoundBank": "MIDI 音色库",
     "settingsSearch.holdToOpenMessageMenu": "长按打开消息菜单",
     "settingsSearch.checkSpelling": "拼写检查",

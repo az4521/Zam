@@ -718,6 +718,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "emojiPicker.custom": "カスタム",
     "emojiPicker.standard": "標準",
     "emojiPicker.myEmojis2": "マイ絵文字",
+    "emojiPicker.recentlyUsed": "最近使った絵文字",
     "errorToasts.dismiss": "閉じる",
     "extendedProfileDebug.extendedProfile": "拡張プロフィール",
     "extendedProfileDebug.fetchFromServer": "サーバーから取得",
@@ -1384,6 +1385,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "送信する写真や動画からEXIF、GPS位置情報、カメラ情報などの隠れたメタデータを取り除きます。画質は変わらず、向きの情報は残るので写真は正しい向きで表示されます。",
     "messagesMediaSettings.stripMetadataWarning":
         "警告: これをオフにすると、送信するファイルから撮影場所などの個人情報が漏れる可能性があります。",
+    "messagesMediaSettings.hideRecentEmoji":
+        "最近使った絵文字のセクションを非表示",
+    "messagesMediaSettings.hideRecentEmojiDescription":
+        "絵文字ピッカーの上部に、最近使った絵文字を表示しません。",
     "messagesMediaSettings.randomizeFileNames": "ファイル名をランダム化",
     "messagesMediaSettings.randomizeFileNamesDescription":
         "実際の名前ではなく、英数字のランダムな名前でアップロードします。拡張子は .tar.gz のようなものも含めて保持されます。",
@@ -3655,6 +3660,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.removeLocationAndMetadata":
         "アップロードから位置情報などのメタデータを削除",
     "settingsSearch.sendGifsAsAnimatedWebp": "GIFをアニメーションWebPで送信",
+    "settingsSearch.hideRecentEmoji": "最近使った絵文字のセクションを非表示",
     "settingsSearch.midiSoundBank": "MIDIサウンドバンク",
     "settingsSearch.holdToOpenMessageMenu": "長押しでメッセージメニューを開く",
     "settingsSearch.checkSpelling": "スペルチェック",

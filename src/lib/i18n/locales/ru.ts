@@ -798,6 +798,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "emojiPicker.custom": "Свои",
     "emojiPicker.standard": "Стандартные",
     "emojiPicker.myEmojis2": "Мои эмодзи",
+    "emojiPicker.recentlyUsed": "Недавно использованные",
 
     // src/lib/components/ui/ErrorToasts.svelte
     "errorToasts.dismiss": "Скрыть",
@@ -1631,6 +1632,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Удалять EXIF, GPS-координаты, сведения о камере и другие скрытые метаданные из отправляемых фото и видео. Изображение не меняется, а поворот сохраняется, чтобы фото отображались прямо.",
     "messagesMediaSettings.stripMetadataWarning":
         "Внимание: если это выключено, отправляемые файлы могут раскрыть ваши личные данные, в том числе место съёмки.",
+    "messagesMediaSettings.hideRecentEmoji":
+        "Скрыть раздел недавно использованных эмодзи",
+    "messagesMediaSettings.hideRecentEmojiDescription":
+        "Не показывать последние использованные эмодзи в начале окна выбора эмодзи.",
     "messagesMediaSettings.randomizeFileNames": "Случайные имена файлов",
     "messagesMediaSettings.randomizeFileNamesDescription":
         "Загружать файлы под случайным именем из букв и цифр вместо настоящего. Расширение файла сохраняется, в том числе составные вроде .tar.gz.",
@@ -4217,6 +4222,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Удалять местоположение и другие метаданные из загружаемых файлов",
     "settingsSearch.sendGifsAsAnimatedWebp":
         "Отправлять GIF как анимированный WebP",
+    "settingsSearch.hideRecentEmoji":
+        "Скрыть раздел недавно использованных эмодзи",
     "settingsSearch.midiSoundBank": "Банк звуков MIDI",
     "settingsSearch.holdToOpenMessageMenu":
         "Удерживать для открытия меню сообщения",

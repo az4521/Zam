@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { emojiOptionKeys, stickerOptionKeys } from "./pickerOptionKeys";
+import {
+    RECENT_SECTION_ID,
+    emojiOptionKeys,
+    stickerOptionKeys,
+} from "./pickerOptionKeys";
 import { anchoredActiveIndex } from "./listboxAnchor";
 import { clampActiveIndex } from "./listboxNavigation";
 
@@ -76,6 +80,32 @@ describe("emojiOptionKeys", () => {
 
     it("returns an empty array for an empty list", () => {
         expect(emojiOptionKeys([])).toEqual([]);
+    });
+
+    it("gives a recent copy of an emoji a key distinct from its category copy", () => {
+        const keys = emojiOptionKeys([
+            { ...standard("😀", "grinning"), sectionId: RECENT_SECTION_ID },
+            { ...standard("😀", "grinning"), sectionId: "smileys" },
+        ]);
+        expect(keys).toEqual(["r\u0000😀", "s\u0000😀"]);
+        expect(new Set(keys).size).toBe(2);
+    });
+
+    it("keeps a recent custom copy distinct from the same image in its pack", () => {
+        const keys = emojiOptionKeys([
+            custom(RECENT_SECTION_ID, "blob", "mxc://h/1"),
+            custom("user", "blob", "mxc://h/1"),
+        ]);
+        expect(new Set(keys).size).toBe(2);
+    });
+
+    it("keeps every key unique when a recent section precedes the packs and categories", () => {
+        const keys = emojiOptionKeys([
+            { ...standard("👍", "+1"), sectionId: RECENT_SECTION_ID },
+            custom("user", "blob", "mxc://h/1"),
+            { ...standard("👍", "+1"), sectionId: "people" },
+        ]);
+        expect(new Set(keys).size).toBe(keys.length);
     });
 });
 

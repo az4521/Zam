@@ -778,6 +778,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "emojiPicker.custom": "Eigene",
     "emojiPicker.standard": "Standard",
     "emojiPicker.myEmojis2": "Meine Emojis",
+    "emojiPicker.recentlyUsed": "Zuletzt verwendet",
 
     // src/lib/components/ui/ErrorToasts.svelte
     "errorToasts.dismiss": "Schließen",
@@ -1499,6 +1500,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Entfernt EXIF, GPS-Standort, Kameradetails und andere versteckte Metadaten aus Fotos und Videos, die du sendest. Das Bild bleibt unverändert, die Drehung bleibt erhalten, damit Fotos weiterhin aufrecht angezeigt werden.",
     "messagesMediaSettings.stripMetadataWarning":
         "Warnung: Wenn dies deaktiviert ist, können gesendete Dateien persönliche Informationen preisgeben, einschließlich des Aufnahmeorts.",
+    "messagesMediaSettings.hideRecentEmoji":
+        "Zuletzt verwendete Emoji ausblenden",
+    "messagesMediaSettings.hideRecentEmojiDescription":
+        "Die zuletzt verwendeten Emoji nicht ganz oben im Emoji-Auswahlfenster anzeigen.",
     "messagesMediaSettings.randomizeFileNames": "Zufällige Dateinamen",
     "messagesMediaSettings.randomizeFileNamesDescription":
         "Lädt Dateien unter einem zufälligen Namen aus Buchstaben und Ziffern statt ihres echten Namens hoch. Die Dateiendung bleibt erhalten, auch Endungen wie .tar.gz.",
@@ -4248,6 +4253,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.removeLocationAndMetadata":
         "Standort und andere Metadaten aus Uploads entfernen",
     "settingsSearch.sendGifsAsAnimatedWebp": "GIFs als animiertes WebP senden",
+    "settingsSearch.hideRecentEmoji": "Zuletzt verwendete Emoji ausblenden",
     "settingsSearch.midiSoundBank": "MIDI-Soundbank",
     "settingsSearch.holdToOpenMessageMenu":
         "Gedrückt halten für Nachrichtenmenü",

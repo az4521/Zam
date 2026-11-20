@@ -14,6 +14,7 @@
         setStripMetadata,
         setRandomizeFileNames,
         setGifsAsWebp,
+        setHideRecentEmoji,
         setLightboxFitToScreen,
         setReplyPingDefault,
         setGifDefaultTab,
@@ -485,6 +486,21 @@
                 checked={settingsState.gifsAsWebp}
                 onChange={setGifsAsWebp}
                 label={t("messagesMediaSettings.sendGifsAsAnimatedWebp")}
+            />
+        </div>
+        <div class="flex items-center gap-3 py-2">
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-zam-textPrimary">
+                    {t("messagesMediaSettings.hideRecentEmoji")}
+                </p>
+                <p class="text-xs text-zam-textMuted">
+                    {t("messagesMediaSettings.hideRecentEmojiDescription")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.hideRecentEmoji}
+                onChange={setHideRecentEmoji}
+                label={t("messagesMediaSettings.hideRecentEmoji")}
             />
         </div>
     </section>

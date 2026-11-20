@@ -113,6 +113,7 @@
     } from "$lib/stores/composerDrafts.svelte";
     import { composerThreadKey } from "$lib/utils/threadContent";
     import { initFavourites } from "$lib/stores/favourites.svelte";
+    import { initRecentEmoji } from "$lib/stores/recentEmoji.svelte";
     import { initCustomizationSync } from "$lib/stores/customizationSync.svelte";
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
     import { initPresence } from "$lib/stores/presence.svelte";
@@ -2568,6 +2569,7 @@
             }
         })();
         const unsubFavourites = initFavourites();
+        const unsubRecentEmoji = initRecentEmoji();
         const unsubCustomization = initCustomizationSync();
         const unsubIgnored = initIgnoredUsers();
         const unsubPresence = initPresence();
@@ -2695,6 +2697,7 @@
             unsubMarkedUnread();
             unsubReadConfirmed();
             unsubFavourites();
+            unsubRecentEmoji();
             unsubCustomization();
             unsubIgnored();
             unsubPresence();

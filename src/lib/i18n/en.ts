@@ -772,6 +772,7 @@ export const en = {
     "emojiPicker.custom": "Custom",
     "emojiPicker.standard": "Standard",
     "emojiPicker.myEmojis2": "My Emojis",
+    "emojiPicker.recentlyUsed": "Recently Used",
 
     // src/lib/components/ui/ErrorToasts.svelte
     "errorToasts.dismiss": "Dismiss",
@@ -1572,6 +1573,9 @@ export const en = {
         "Strip EXIF, GPS location, camera details and other hidden metadata from photos and videos you send. The picture is unchanged, and the rotation is kept so photos still show upright.",
     "messagesMediaSettings.stripMetadataWarning":
         "Warning: with this off, files you send can leak your personal information, including the location where they were taken.",
+    "messagesMediaSettings.hideRecentEmoji": "Hide recently used emoji section",
+    "messagesMediaSettings.hideRecentEmojiDescription":
+        "Don't show the emoji you used last at the top of the emoji picker.",
     "messagesMediaSettings.randomizeFileNames": "Randomize file names",
     "messagesMediaSettings.randomizeFileNamesDescription":
         "Upload files under a random name made of letters and numbers instead of their real name. The file extension is kept, including ones like .tar.gz.",
@@ -4098,6 +4102,7 @@ export const en = {
     "settingsSearch.removeLocationAndMetadata":
         "Remove location and other metadata from uploads",
     "settingsSearch.sendGifsAsAnimatedWebp": "Send GIFs as animated WebP",
+    "settingsSearch.hideRecentEmoji": "Hide recently used emoji section",
     "settingsSearch.midiSoundBank": "MIDI sound bank",
     "settingsSearch.holdToOpenMessageMenu": "Hold to open message menu",
     "settingsSearch.checkSpelling": "Check spelling",

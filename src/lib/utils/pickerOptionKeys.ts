@@ -18,12 +18,16 @@
 
 const SEP = "\u0000";
 
+/** Section id of the "Recently Used" block. Its entries repeat emoji that also
+ *  appear in their category, so they need keys of their own. */
+export const RECENT_SECTION_ID = "recent";
+
 export type EmojiOptionLike =
     | {
           kind: "custom";
           data: { packId: string; shortcode: string; mxcUrl: string };
       }
-    | { kind: "standard"; data: { emoji: string } };
+    | { kind: "standard"; sectionId?: string; data: { emoji: string } };
 
 export type StickerOptionLike = { shortcode: string; mxcUrl: string };
 
@@ -42,17 +46,22 @@ function customImageKey(
     return "c" + SEP + packId + SEP + shortcode + SEP + mxcUrl;
 }
 
-/** Option keys for EmojiPicker's flat list, in render order. */
+/** Option keys for EmojiPicker's flat list, in render order. A standard emoji
+ *  in the recent section gets an `r` key, so it stays distinct from the same
+ *  character in its category (`s`). Custom recent entries are already distinct:
+ *  their packId is RECENT_SECTION_ID, which no real pack uses. */
 export function emojiOptionKeys(items: readonly EmojiOptionLike[]): string[] {
-    return items.map((item) =>
-        item.kind === "custom"
-            ? customImageKey(
-                  item.data.packId,
-                  item.data.shortcode,
-                  item.data.mxcUrl,
-              )
-            : "s" + SEP + item.data.emoji,
-    );
+    return items.map((item) => {
+        if (item.kind === "custom") {
+            return customImageKey(
+                item.data.packId,
+                item.data.shortcode,
+                item.data.mxcUrl,
+            );
+        }
+        const prefix = item.sectionId === RECENT_SECTION_ID ? "r" : "s";
+        return prefix + SEP + item.data.emoji;
+    });
 }
 
 /** Option keys for StickerPicker's flat list, in render order. */

@@ -816,6 +816,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "emojiPicker.custom": "Власні",
     "emojiPicker.standard": "Стандартні",
     "emojiPicker.myEmojis2": "Мої емодзі",
+    "emojiPicker.recentlyUsed": "Нещодавно використані",
 
     // src/lib/components/ui/ErrorToasts.svelte
     "errorToasts.dismiss": "Закрити",
@@ -1657,6 +1658,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Вилучати EXIF, GPS-координати, відомості про камеру й інші приховані метадані з фото та відео, які ви надсилаєте. Зображення не змінюється, а поворот зберігається, щоб фото й далі виглядали рівно.",
     "messagesMediaSettings.stripMetadataWarning":
         "Попередження: коли це вимкнено, файли, які ви надсилаєте, можуть розкрити вашу особисту інформацію, зокрема місце, де їх було зроблено.",
+    "messagesMediaSettings.hideRecentEmoji":
+        "Приховати розділ нещодавно використаних емодзі",
+    "messagesMediaSettings.hideRecentEmojiDescription":
+        "Не показувати останні використані емодзі на початку вікна вибору емодзі.",
     "messagesMediaSettings.randomizeFileNames": "Випадкові імена файлів",
     "messagesMediaSettings.randomizeFileNamesDescription":
         "Вивантажувати файли під випадковою назвою з літер і цифр замість справжньої. Розширення файлу зберігається, зокрема такі, як .tar.gz.",
@@ -4211,6 +4216,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.removeLocationAndMetadata":
         "Вилучати місцезнаходження та інші метадані із вивантажень",
     "settingsSearch.sendGifsAsAnimatedWebp": "Надсилати GIF як анімований WebP",
+    "settingsSearch.hideRecentEmoji":
+        "Приховати розділ нещодавно використаних емодзі",
     "settingsSearch.midiSoundBank": "Банк звуків MIDI",
     "settingsSearch.holdToOpenMessageMenu":
         "Утримувати для відкриття меню повідомлення",

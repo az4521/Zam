@@ -389,6 +389,10 @@ export const settingsState = $state({
      *  receivers can watch it as it downloads. Only used when the result is
      *  smaller. Default OFF, since the file type changes. Local-only. */
     gifsAsWebp: readBool("gifsAsWebp", false),
+    /** Device-global: hide the "Recently Used" section and tab at the top of
+     *  the emoji picker. Recording keeps going, so turning it back off shows an
+     *  up-to-date list. Default OFF (section shown). Local-only. */
+    hideRecentEmoji: readBool("hideRecentEmoji", false),
     /** Device-global: the image viewer opens with images smaller than the
      *  screen enlarged to fill it, instead of at their own size. The viewer's
      *  fit button flips it for the image being viewed. Default ON. */
@@ -1233,6 +1237,11 @@ export function setRandomizeFileNames(value: boolean): void {
 export function setGifsAsWebp(value: boolean): void {
     settingsState.gifsAsWebp = value;
     writeBool("gifsAsWebp", value);
+}
+
+export function setHideRecentEmoji(value: boolean): void {
+    settingsState.hideRecentEmoji = value;
+    writeBool("hideRecentEmoji", value);
 }
 
 export function setLightboxFitToScreen(value: boolean): void {

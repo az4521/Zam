@@ -210,6 +210,12 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     },
     {
         tab: "messages-media",
+        label: t("settingsSearch.hideRecentEmoji"),
+        keywords: ["emoji", "picker", "recent", "recently", "used", "hide"],
+        anchor: "cust-messages",
+    },
+    {
+        tab: "messages-media",
         label: t("messagesMediaSettings.pingOnReply"),
         keywords: ["reply", "mention", "ping", "notify", "@"],
         anchor: "cust-messages",
