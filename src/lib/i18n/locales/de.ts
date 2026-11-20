@@ -1597,6 +1597,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Der Discord-Aktualisierungsdienst ist ratenbegrenzt. Versuche es später erneut.",
     "messagesMediaSettings.discordRefreshHttpError":
         "Der Discord-Aktualisierungsdienst hat einen Fehler zurückgegeben ({status}).",
+    "messagesMediaSettings.discordRefreshForbidden":
+        "Der Discord-Aktualisierungsdienst hat den Schlüssel dieser App abgelehnt.",
     "messagesMediaSettings.discordRefreshBadResponse":
         "Der Discord-Aktualisierungsdienst hat eine Antwort gesendet, die Zam nicht lesen konnte.",
     "messagesMediaSettings.defaultTab": "Standard-Tab",

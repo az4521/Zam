@@ -1611,6 +1611,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "El servicio de actualización de Discord tiene limitación de peticiones. Inténtalo más tarde.",
     "messagesMediaSettings.discordRefreshHttpError":
         "El servicio de actualización de Discord devolvió un error ({status}).",
+    "messagesMediaSettings.discordRefreshForbidden":
+        "El servicio de actualización de Discord rechazó la clave de esta aplicación.",
     "messagesMediaSettings.discordRefreshBadResponse":
         "El servicio de actualización de Discord envió una respuesta que Zam no pudo leer.",
     "messagesMediaSettings.defaultTab": "Pestaña predeterminada",

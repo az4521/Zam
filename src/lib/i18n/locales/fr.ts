@@ -1580,6 +1580,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Le service de rafraîchissement Discord limite les requêtes. Réessayez plus tard.",
     "messagesMediaSettings.discordRefreshHttpError":
         "Le service de rafraîchissement Discord a renvoyé une erreur ({status}).",
+    "messagesMediaSettings.discordRefreshForbidden":
+        "Le service de rafraîchissement Discord a refusé la clé de cette application.",
     "messagesMediaSettings.discordRefreshBadResponse":
         "Le service de rafraîchissement Discord a envoyé une réponse que Zam n'a pas pu lire.",
     "messagesMediaSettings.defaultTab": "Onglet par défaut",

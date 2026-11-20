@@ -1753,6 +1753,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Службу оновлення Discord обмежено за кількістю запитів. Спробуйте пізніше.",
     "messagesMediaSettings.discordRefreshHttpError":
         "Служба оновлення Discord повернула помилку ({status}).",
+    "messagesMediaSettings.discordRefreshForbidden":
+        "Служба оновлення Discord відхилила ключ цього застосунку.",
     "messagesMediaSettings.discordRefreshBadResponse":
         "Служба оновлення Discord надіслала відповідь, яку Zam не зміг прочитати.",
     "messagesMediaSettings.defaultTab": "Типова вкладка",

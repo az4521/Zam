@@ -57,6 +57,7 @@
         type DiscordFavouriteItem,
     } from "$lib/utils/discordFavourites";
     import { allowsThirdPartyEmbed } from "$lib/utils/linkPreviewPolicy";
+    import { sharedProxyKey } from "$lib/utils/telegramProxy";
     import {
         attachmentFavourite,
         attachmentMediaType,
@@ -105,6 +106,8 @@
     function refreshErrorMessage(error: string, status?: number): string {
         if (error === "unreachable" || error === "bad-proxy-url")
             return t("messagesMediaSettings.discordRefreshUnreachable");
+        if (error === "forbidden")
+            return t("messagesMediaSettings.discordRefreshForbidden");
         if (error === "rate-limited")
             return t("messagesMediaSettings.discordRefreshRateLimited");
         if (error === "http-error")
@@ -177,7 +180,9 @@
                 .filter((i) => i.attachment && !uploaded.has(i.url))
                 .map((i) => i.url);
             if (serviceUrl && canCopy && pending.length > 0 && bridge.refresh) {
-                const r = await bridge.refresh(serviceUrl, pending);
+                // Same shared key as the Telegram proxy. Empty sends none.
+                const key = sharedProxyKey();
+                const r = await bridge.refresh(serviceUrl, pending, key);
                 if (r.ok) refreshed = r.refreshed;
                 else showErrorToast(refreshErrorMessage(r.error, r.status));
             }

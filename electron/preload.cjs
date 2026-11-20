@@ -72,8 +72,13 @@ contextBridge.exposeInMainWorld("desktop", {
     // Discord's synced favourite GIFs (discordFavourites.cjs).
     discordFavourites: {
         read: () => ipcRenderer.invoke("discord-favourites:read"),
-        refresh: (proxyBase, urls) =>
-            ipcRenderer.invoke("discord-favourites:refresh", proxyBase, urls),
+        refresh: (proxyBase, urls, key) =>
+            ipcRenderer.invoke(
+                "discord-favourites:refresh",
+                proxyBase,
+                urls,
+                key,
+            ),
         download: (url) =>
             ipcRenderer.invoke("discord-favourites:download", url),
     },

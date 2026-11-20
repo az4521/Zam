@@ -63,12 +63,17 @@ Unknown paths return `404 {"error":"not-found"}`. A wrong method on a known path
 
 ## Configuration
 
-| Variable            | Default         | Description                                                                     |
-| ------------------- | --------------- | ------------------------------------------------------------------------------- |
-| `DISCORD_BOT_TOKEN` | none (required) | Bot token. The process exits at start if it is missing.                         |
-| `PORT`              | `8787`          | Port to listen on.                                                              |
-| `HOST`              | `0.0.0.0`       | Address to bind.                                                                |
-| `ALLOWED_ORIGINS`   | `*`             | Comma-separated origins allowed by CORS, for example `https://app.example.com`. |
+| Variable            | Default         | Description                                                                                |
+| ------------------- | --------------- | ------------------------------------------------------------------------------------------ |
+| `DISCORD_BOT_TOKEN` | none (required) | Bot token. The process exits at start if it is missing.                                    |
+| `PORT`              | `8787`          | Port to listen on.                                                                         |
+| `HOST`              | `0.0.0.0`       | Address to bind.                                                                           |
+| `ALLOWED_ORIGINS`   | `*`             | Comma-separated origins allowed by CORS, for example `https://app.example.com`.            |
+| `PROXY_KEY`         | none            | Shared key. When set, every `POST /refresh` must carry `?k=<PROXY_KEY>`. Unset means open. |
+
+Set `PROXY_KEY` to the same value as the Telegram proxy key, `VITE_TG_PROXY_KEY` (or `TG_PROXY_KEY` in CI), so one secret covers both. The Zam app sends it as the `k` query parameter. A missing or wrong key gets `403 {"error":"forbidden"}`. The check runs before the body is read, so Discord is never called. `GET /health` and CORS preflight `OPTIONS` requests do not need the key.
+
+The key is deterrence, not a real secret. It ships inside the client bundle, so anyone who installs the app can read it. It stops casual abuse of your bot quota but not a determined user. Use a firewall or a reverse-proxy rule if you need real access control.
 
 ## Running
 
@@ -130,6 +135,7 @@ refresh.example.com {
   and request bodies are not logged.
 - The service refreshes links for anyone who can reach it. Restrict access with a firewall, a
   reverse-proxy authentication rule, or by binding `HOST` to a private address, if you want that.
+- `PROXY_KEY` is a deterrence key, not a secret. It is visible in the client bundle. Set it to the same value as the Telegram key so you manage one value.
 - CORS is not access control. `ALLOWED_ORIGINS` only tells browsers which pages may read
   responses. Anyone can send requests with `curl`.
 - All users of the service share the bot's rate limit. Heavy use by one user can slow down

@@ -162,6 +162,8 @@ declare global {
                 refresh?: (
                     serviceUrl: string,
                     urls: string[],
+                    /** Shared key sent as `k`. Empty means none. */
+                    key?: string,
                 ) => Promise<
                     | { ok: true; refreshed: Record<string, string> }
                     | {
@@ -169,6 +171,7 @@ declare global {
                           error:
                               | "bad-proxy-url"
                               | "unreachable"
+                              | "forbidden"
                               | "rate-limited"
                               | "http-error"
                               | "bad-response";

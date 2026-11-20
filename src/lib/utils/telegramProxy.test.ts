@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    sharedProxyKey,
     buildBotApiUrl,
     buildProxyUrl,
     chooseTelegramSource,
@@ -178,5 +179,16 @@ describe("shouldOfferOwnToken", () => {
 
     it("does not offer it after a cancel", () => {
         expect(shouldOfferOwnToken({ ...base, cancelled: true })).toBe(false);
+    });
+});
+
+describe("sharedProxyKey", () => {
+    it("returns the trimmed key even when the Telegram proxy is off", () => {
+        const env = { VITE_TG_PROXY_URL: "off", VITE_TG_PROXY_KEY: " abc " };
+        expect(telegramProxyConfig(env)).toBeNull();
+        expect(sharedProxyKey(env)).toBe("abc");
+    });
+    it("is empty when no key is set", () => {
+        expect(sharedProxyKey({})).toBe("");
     });
 });

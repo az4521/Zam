@@ -1317,7 +1317,7 @@ ipcMain.handle("discord-favourites:read", () =>
 );
 // Uploaded GIFs: refresh expiring links through the user's proxy and download
 // the bytes here, over net.fetch so the network proxy setting applies.
-ipcMain.handle("discord-favourites:refresh", (_e, proxyBase, urls) => {
+ipcMain.handle("discord-favourites:refresh", (_e, proxyBase, urls, key) => {
     if (typeof proxyBase !== "string") {
         return { ok: false, error: "bad-proxy-url" };
     }
@@ -1325,6 +1325,7 @@ ipcMain.handle("discord-favourites:refresh", (_e, proxyBase, urls) => {
         proxyBase,
         Array.isArray(urls) ? urls.filter((u) => typeof u === "string") : [],
         (u, o) => net.fetch(u, o),
+        typeof key === "string" ? key : "",
     );
 });
 ipcMain.handle("discord-favourites:download", (_e, url) =>

@@ -52,6 +52,17 @@ export function telegramProxyConfig(
 }
 
 /**
+ * The shared deterrence key on its own, even when the Telegram proxy is turned
+ * off, so other services that check the same key (the Discord link refresh
+ * service) still receive it.
+ */
+export function sharedProxyKey(
+    env: EnvLike = import.meta.env as EnvLike,
+): string {
+    return (env.VITE_TG_PROXY_KEY ?? "").trim();
+}
+
+/**
  * Picks the transport: a typed bot token always wins (the user's own
  * credentials), otherwise the proxy when one is configured.
  */

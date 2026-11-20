@@ -6,6 +6,7 @@ const {
     isDiscordAttachmentUrl,
     normaliseProxyBase,
     refreshAttachmentUrls,
+    refreshUrl,
     downloadAttachment,
 } = require("./discordAttachments.cjs");
 
@@ -119,6 +120,32 @@ test("proxy base: rejects credentials, other schemes and non-strings", () => {
     assert.equal(normaliseProxyBase(42), null);
 });
 
+// --- refreshUrl --------------------------------------------------------------
+
+test("refreshUrl: no key or a blank key gives the bare endpoint", () => {
+    assert.equal(
+        refreshUrl("https://refresh.example.com", ""),
+        "https://refresh.example.com/refresh",
+    );
+    assert.equal(
+        refreshUrl("https://refresh.example.com/sub", "   "),
+        "https://refresh.example.com/sub/refresh",
+    );
+    assert.equal(
+        refreshUrl("https://refresh.example.com", undefined),
+        "https://refresh.example.com/refresh",
+    );
+});
+
+test("refreshUrl: a key is added as k and encoded", () => {
+    assert.equal(
+        refreshUrl("https://refresh.example.com", "abc123"),
+        "https://refresh.example.com/refresh?k=abc123",
+    );
+    const url = new URL(refreshUrl("https://refresh.example.com", "a b&c"));
+    assert.equal(url.searchParams.get("k"), "a b&c");
+});
+
 // --- refreshAttachmentUrls ---------------------------------------------------
 
 test("refresh: bad proxy url never fetches", async () => {
@@ -152,6 +179,32 @@ test("refresh: filters non-attachment urls, dedupes, and maps refreshed links", 
                 "https://cdn.discordapp.com/attachments/1/2/g1.gif?ex=9&is=9&hm=9",
         },
     });
+});
+
+test("refresh: the key goes on the request URL and a 403 is its own failure", async () => {
+    const ok = stubFetch([echoRefresh]);
+    const r = await refreshAttachmentUrls(
+        "https://refresh.example.com",
+        [CDN],
+        ok.fetchImpl,
+        "KEY123",
+    );
+    assert.equal(
+        ok.calls[0].url,
+        "https://refresh.example.com/refresh?k=KEY123",
+    );
+    assert.equal(r.ok, true);
+
+    const denied = stubFetch([jsonRes({ error: "forbidden" }, 403)]);
+    assert.deepEqual(
+        await refreshAttachmentUrls(
+            "https://refresh.example.com",
+            [CDN],
+            denied.fetchImpl,
+            "wrong",
+        ),
+        { ok: false, error: "forbidden" },
+    );
 });
 
 test("refresh: empty input makes no request", async () => {

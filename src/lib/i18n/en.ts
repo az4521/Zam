@@ -1667,6 +1667,8 @@ export const en = {
         "The Discord refresh service is rate limited. Try again later.",
     "messagesMediaSettings.discordRefreshHttpError":
         "The Discord refresh service returned an error ({status}).",
+    "messagesMediaSettings.discordRefreshForbidden":
+        "The Discord refresh service rejected this app's key.",
     "messagesMediaSettings.discordRefreshBadResponse":
         "The Discord refresh service sent a reply Zam couldn't read.",
     "messagesMediaSettings.defaultTab": "Default tab",

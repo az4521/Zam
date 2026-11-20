@@ -1621,6 +1621,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Discord 刷新服务已限流,请稍后再试。",
     "messagesMediaSettings.discordRefreshHttpError":
         "Discord 刷新服务返回了错误({status})。",
+    "messagesMediaSettings.discordRefreshForbidden":
+        "Discord 刷新服务拒绝了本应用的密钥。",
     "messagesMediaSettings.discordRefreshBadResponse":
         "Discord 刷新服务返回了 Zam 无法读取的响应。",
     "messagesMediaSettings.whichTabTheGifPickerOpens":

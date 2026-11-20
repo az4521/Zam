@@ -47,15 +47,25 @@ function normaliseProxyBase(raw) {
     return `${u.protocol}//${u.host}${path}`;
 }
 
+// The refresh endpoint for a normalised base. Adds `k` only for a non-empty
+// key, so an open service (no PROXY_KEY) takes the bare URL. The key is never
+// logged or put in an error.
+function refreshUrl(base, key) {
+    const url = new URL(`${base}/refresh`);
+    const k = typeof key === "string" ? key.trim() : "";
+    if (k) url.searchParams.set("k", k);
+    return url.toString();
+}
+
 // POSTs one chunk to <base>/refresh. Returns { ok, refreshed } or an error.
-async function postRefreshChunk(base, chunk, fetchImpl) {
+async function postRefreshChunk(base, chunk, fetchImpl, key) {
     const wanted = new Set(chunk);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
     try {
         let res;
         try {
-            res = await fetchImpl(`${base}/refresh`, {
+            res = await fetchImpl(refreshUrl(base, key), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ urls: chunk }),
@@ -63,6 +73,9 @@ async function postRefreshChunk(base, chunk, fetchImpl) {
             });
         } catch {
             return { ok: false, error: "unreachable" };
+        }
+        if (res.status === 403) {
+            return { ok: false, error: "forbidden" };
         }
         if (res.status === 429) {
             return { ok: false, error: "rate-limited", status: 429 };
@@ -106,7 +119,7 @@ async function postRefreshChunk(base, chunk, fetchImpl) {
     }
 }
 
-async function refreshAttachmentUrls(proxyBase, urls, fetchImpl) {
+async function refreshAttachmentUrls(proxyBase, urls, fetchImpl, key = "") {
     const base = normaliseProxyBase(proxyBase);
     if (!base) return { ok: false, error: "bad-proxy-url" };
     const unique = [
@@ -117,7 +130,7 @@ async function refreshAttachmentUrls(proxyBase, urls, fetchImpl) {
     const refreshed = {};
     for (let i = 0; i < unique.length; i += REFRESH_CHUNK) {
         const chunk = unique.slice(i, i + REFRESH_CHUNK);
-        const res = await postRefreshChunk(base, chunk, fetchImpl);
+        const res = await postRefreshChunk(base, chunk, fetchImpl, key);
         if (!res.ok) return res;
         Object.assign(refreshed, res.refreshed);
     }
@@ -212,6 +225,7 @@ async function downloadAttachment(
 module.exports = {
     isDiscordAttachmentUrl,
     normaliseProxyBase,
+    refreshUrl,
     refreshAttachmentUrls,
     downloadAttachment,
 };

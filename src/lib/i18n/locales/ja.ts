@@ -1480,6 +1480,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Discord更新サービスはレート制限されています。しばらくしてから再試行してください。",
     "messagesMediaSettings.discordRefreshHttpError":
         "Discord更新サービスがエラーを返しました({status})。",
+    "messagesMediaSettings.discordRefreshForbidden":
+        "Discord更新サービスがこのアプリのキーを拒否しました。",
     "messagesMediaSettings.discordRefreshBadResponse":
         "Discord更新サービスから、Zamが読み取れない応答が返されました。",
     "messagesMediaSettings.defaultTab": "既定のタブ",

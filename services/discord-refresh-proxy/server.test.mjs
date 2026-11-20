@@ -318,3 +318,118 @@ test("CORS header is omitted for origins outside the allowlist", async () => {
         { allowedOrigins: ["https://app.example.com"] },
     );
 });
+
+// --- PROXY_KEY ----------------------------------------------------------------
+
+const KEY = "shared-key-123";
+const sameLengthWrong = "shared-key-124";
+
+const okUpstream = async () =>
+    new Response(JSON.stringify({ refreshed_urls: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+    });
+
+function postRefresh(base, query = "", headers = {}) {
+    return fetch(`${base}/refresh${query}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Origin: "https://app.example.com",
+            ...headers,
+        },
+        body: JSON.stringify({ urls: [GOOD] }),
+    });
+}
+
+test("PROXY_KEY: the right key reaches Discord", async () => {
+    await withServer(
+        okUpstream,
+        async (base, calls) => {
+            const res = await postRefresh(base, `?k=${KEY}`);
+            assert.equal(res.status, 200);
+            assert.equal(calls.length, 1);
+        },
+        { proxyKey: KEY },
+    );
+});
+
+test("PROXY_KEY: a wrong key is 403 with CORS and never calls Discord", async () => {
+    await withServer(
+        async () => {
+            throw new Error("should not be called");
+        },
+        async (base, calls) => {
+            const res = await postRefresh(base, `?k=${sameLengthWrong}`);
+            assert.equal(res.status, 403);
+            assert.equal(res.headers.get("access-control-allow-origin"), "*");
+            assert.deepEqual(await res.json(), { error: "forbidden" });
+            assert.equal(calls.length, 0);
+        },
+        { proxyKey: KEY },
+    );
+});
+
+test("PROXY_KEY: a missing key is 403", async () => {
+    await withServer(
+        async () => {
+            throw new Error("should not be called");
+        },
+        async (base, calls) => {
+            const res = await postRefresh(base);
+            assert.equal(res.status, 403);
+            assert.deepEqual(await res.json(), { error: "forbidden" });
+            assert.equal(calls.length, 0);
+        },
+        { proxyKey: KEY },
+    );
+});
+
+test("PROXY_KEY: a key of a different length is 403", async () => {
+    await withServer(
+        async () => {
+            throw new Error("should not be called");
+        },
+        async (base, calls) => {
+            const short = await postRefresh(base, "?k=shared-key");
+            assert.equal(short.status, 403);
+            const long = await postRefresh(base, `?k=${KEY}-extra`);
+            assert.equal(long.status, 403);
+            assert.equal(calls.length, 0);
+        },
+        { proxyKey: KEY },
+    );
+});
+
+test("PROXY_KEY: unset or blank means open, as before", async () => {
+    await withServer(okUpstream, async (base, calls) => {
+        const res = await postRefresh(base);
+        assert.equal(res.status, 200);
+        assert.equal(calls.length, 1);
+    });
+    await withServer(
+        okUpstream,
+        async (base, calls) => {
+            const res = await postRefresh(base);
+            assert.equal(res.status, 200);
+            assert.equal(calls.length, 1);
+        },
+        { proxyKey: "   " },
+    );
+});
+
+test("PROXY_KEY: OPTIONS preflight needs no key", async () => {
+    await withServer(
+        async () => {
+            throw new Error("should not be called");
+        },
+        async (base) => {
+            const preflight = await fetch(`${base}/refresh`, {
+                method: "OPTIONS",
+                headers: { Origin: "https://app.example.com" },
+            });
+            assert.equal(preflight.status, 204);
+        },
+        { proxyKey: KEY },
+    );
+});

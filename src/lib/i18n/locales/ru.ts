@@ -1727,6 +1727,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Сервис обновления Discord ограничивает количество запросов. Попробуйте позже.",
     "messagesMediaSettings.discordRefreshHttpError":
         "Сервис обновления Discord вернул ошибку ({status}).",
+    "messagesMediaSettings.discordRefreshForbidden":
+        "Сервис обновления Discord отклонил ключ этого приложения.",
     "messagesMediaSettings.discordRefreshBadResponse":
         "Сервис обновления Discord отправил ответ, который Zam не смог прочитать.",
     "messagesMediaSettings.defaultTab": "Вкладка по умолчанию",

@@ -2,6 +2,7 @@
 // Zero dependencies: node:http and the global fetch (Node 18+).
 
 import http from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import { pathToFileURL } from "node:url";
 
 export const DISCORD_REFRESH_URL =
@@ -89,6 +90,20 @@ export function corsAllowOrigin(requestOrigin, allowedOrigins) {
     return null;
 }
 
+// True when the request's `k` query parameter equals the expected key. The
+// compare is constant time. A length mismatch is refused first, because
+// timingSafeEqual throws on unequal lengths.
+function keyMatches(req, expected) {
+    const given = new URL(req.url ?? "/", "http://localhost").searchParams.get(
+        "k",
+    );
+    if (given === null) return false;
+    const a = Buffer.from(given, "utf8");
+    const b = Buffer.from(expected, "utf8");
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
+}
+
 // Error class used to signal an oversized request body.
 class BodyTooLargeError extends Error {}
 
@@ -150,9 +165,12 @@ export function createServer({
     token,
     fetchImpl = globalThis.fetch,
     allowedOrigins = "*",
+    proxyKey = "",
     log = () => {},
 } = {}) {
     if (!token) throw new Error("token is required");
+    // Empty means open: any client that can reach the service may refresh.
+    const requiredKey = String(proxyKey ?? "").trim();
 
     function sendJson(req, res, status, payload, extraHeaders = {}) {
         const origin = req.headers.origin;
@@ -281,6 +299,10 @@ export function createServer({
         if (pathname === "/refresh") {
             if (method !== "POST")
                 return sendJson(req, res, 405, { error: "method-not-allowed" });
+            if (requiredKey && !keyMatches(req, requiredKey)) {
+                log("refresh: rejected key");
+                return sendJson(req, res, 403, { error: "forbidden" });
+            }
             handleRefresh(req, res).catch(() => {
                 if (!res.headersSent)
                     sendJson(req, res, 500, { error: "internal" });
@@ -304,10 +326,17 @@ function runMain() {
     const port = Number(process.env.PORT ?? 8787);
     const host = process.env.HOST || "0.0.0.0";
     const allowedOrigins = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
+    const proxyKey = (process.env.PROXY_KEY ?? "").trim();
+    if (!proxyKey) {
+        console.warn(
+            "PROXY_KEY is not set. The service is open to anyone who can reach it.",
+        );
+    }
 
     const server = createServer({
         token,
         allowedOrigins,
+        proxyKey,
         log: (msg) => console.log(new Date().toISOString(), msg),
     });
 
