@@ -60,4 +60,16 @@ describe("stickerShortcode", () => {
         const code = stickerShortcode("a".repeat(80), 0);
         expect(code.length).toBeLessThanOrEqual(32 + 1 + 4);
     });
+
+    it("puts the emoji's name between the set name and the number", () => {
+        expect(stickerShortcode("Cats", 2, "joy")).toBe("Cats_joy_3");
+    });
+
+    it("cleans the emoji name and drops one with nothing usable left", () => {
+        expect(stickerShortcode("Cats", 0, "+1")).toBe("Cats_1_1");
+        expect(stickerShortcode("Cats", 0, "---")).toBe("Cats_1");
+        expect(stickerShortcode("Cats", 0, "b".repeat(80))).toMatch(
+            /^Cats_b{24}_1$/,
+        );
+    });
 });

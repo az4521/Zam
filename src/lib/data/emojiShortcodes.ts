@@ -55,6 +55,14 @@ export function shortcodesFor(emoji: string): string[] {
     return shortcodesByEmoji.get(emoji) ?? [];
 }
 
+/**
+ * The best shortcode name for an emoji, matched by codepoints with FE0F
+ * ignored, so "❤" and "❤️" both give "heart". Undefined when it has none.
+ */
+export function shortcodeNameFor(emoji: string): string | undefined {
+    return byKey.get(hexKey(emoji))?.[0];
+}
+
 /** The unicode emoji a shortcode (without colons) stands for, if any. */
 export function emojiForShortcode(code: string): string | undefined {
     return emojiByShortcode.get(code.toLowerCase());

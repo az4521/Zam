@@ -2,6 +2,7 @@
 
 const SET_NAME_RE = /^[A-Za-z0-9_]+$/;
 const MAX_PREFIX_LENGTH = 32;
+const MAX_EMOJI_NAME_LENGTH = 24;
 
 /**
  * Accepts a sticker set link or bare name and returns the set name, or null
@@ -33,17 +34,30 @@ function validSetName(candidate: string): string | null {
     return SET_NAME_RE.test(candidate) ? candidate : null;
 }
 
+/** Keeps `[A-Za-z0-9_]`, folds other runs to "_", trims "_" at the ends. */
+function shortcodePart(value: string, maxLength: number): string {
+    return value
+        .replace(/[^A-Za-z0-9_]+/g, "_")
+        .slice(0, maxLength)
+        .replace(/^_+|_+$/g, "");
+}
+
 /**
  * Builds a user-sticker shortcode that passes validateEmojiShortcode
- * (`[A-Za-z0-9_.+-]+`). The index is 0-based and becomes a 1-based suffix, so
+ * (`[A-Za-z0-9_.+-]+`). Telegram stickers have no names of their own, only an
+ * emoji, so the emoji's shortcode name (when the caller found one) goes in the
+ * middle: `Cats_joy_3`. The index is 0-based and becomes a 1-based suffix, so
  * stickers from one set get distinct, stable names: re-importing the same set
  * maps onto the same shortcodes instead of piling up new ones.
  */
-export function stickerShortcode(setName: string, index: number): string {
-    const prefix = setName
-        .replace(/[^A-Za-z0-9_]+/g, "_")
-        .slice(0, MAX_PREFIX_LENGTH)
-        .replace(/^_+|_+$/g, "");
-    const base = prefix || "sticker";
-    return `${base}_${index + 1}`;
+export function stickerShortcode(
+    setName: string,
+    index: number,
+    emojiName?: string,
+): string {
+    const base = shortcodePart(setName, MAX_PREFIX_LENGTH) || "sticker";
+    const name = emojiName
+        ? shortcodePart(emojiName, MAX_EMOJI_NAME_LENGTH)
+        : "";
+    return name ? `${base}_${name}_${index + 1}` : `${base}_${index + 1}`;
 }

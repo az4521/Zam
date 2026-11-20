@@ -3,6 +3,7 @@ import {
     convertTrailingShortcode,
     emojiForShortcode,
     replaceEmojiShortcodes,
+    shortcodeNameFor,
     shortcodesFor,
 } from "./emojiShortcodes";
 
@@ -39,5 +40,17 @@ describe("emoji shortcodes", () => {
         expect(replaceEmojiShortcodes(":blob: :tm:", (c) => c === "blob")).toBe(
             ":blob: ™",
         );
+    });
+});
+
+describe("shortcodeNameFor", () => {
+    it("names an emoji with or without the FE0F selector", () => {
+        expect(shortcodeNameFor("😂")).toBe("joy");
+        expect(shortcodeNameFor("❤")).toBe(shortcodeNameFor("❤️"));
+        expect(shortcodeNameFor("❤")).toBeTruthy();
+    });
+
+    it("returns undefined for text that is not an emoji", () => {
+        expect(shortcodeNameFor("abc")).toBeUndefined();
     });
 });

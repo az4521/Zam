@@ -9445,8 +9445,49 @@ export function getUserEmotePack(): CustomPackImage[] {
     return roomEmoteContentToPackImages(getUserEmoteContent());
 }
 
+const USER_EMOTES_TYPE = "im.ponies.user_emotes";
+
+function userEmotesPath(client: MatrixClient): string {
+    return `/user/${encodeURIComponent(client.getSafeUserId())}/account_data/${encodeURIComponent(USER_EMOTES_TYPE)}`;
+}
+
+/**
+ * The user's pack as the server has it, for read-modify-write. The local copy
+ * only catches up when sync echoes a write back, so back-to-back writes (the
+ * Telegram importer adds one sticker at a time) would each start from stale
+ * content and drop the stickers written just before.
+ */
 async function fetchUserEmoteContent(): Promise<RoomEmoteContent> {
-    return getUserEmoteContent();
+    const client = matrixClient;
+    if (!client) return {};
+    try {
+        return (
+            (await client.http.authedRequest<RoomEmoteContent>(
+                Method.Get,
+                userEmotesPath(client),
+            )) ?? {}
+        );
+    } catch (err) {
+        if ((err as { errcode?: string }).errcode === "M_NOT_FOUND") return {};
+        throw err;
+    }
+}
+
+/**
+ * Writes the user's pack and applies it locally at once. The SDK's
+ * setAccountData instead waits, with no timeout, for the write to come back
+ * over sync; when that echo is late or missed the write never resolves, and
+ * the Telegram importer, whose writes are serial, stalled for good.
+ */
+async function writeUserEmoteContent(content: RoomEmoteContent): Promise<void> {
+    const client = matrixClient;
+    if (!client) throw new Error(t("client.notLoggedIn"));
+    await client.setAccountDataRaw(USER_EMOTES_TYPE, content);
+    if (matrixClient !== client) return;
+    const previous = client.getAccountData(USER_EMOTES_TYPE);
+    const event = new MatrixEvent({ type: USER_EMOTES_TYPE, content });
+    client.store.storeAccountDataEvents([event]);
+    client.emit(ClientEvent.AccountData, event, previous);
 }
 
 async function addUserPackImage(
@@ -9472,7 +9513,7 @@ async function addUserPackImage(
         ...(meta?.body ? { body: meta.body } : {}),
     };
 
-    await matrixClient.setAccountData("im.ponies.user_emotes", {
+    await writeUserEmoteContent({
         ...current,
         pack: {
             ...(current.pack ?? {}),
@@ -9507,7 +9548,7 @@ export async function addUserEmote(
         ...(meta?.info ? { info: meta.info } : {}),
         ...(meta?.body ? { body: meta.body } : {}),
     };
-    await matrixClient.setAccountData("im.ponies.user_emotes", {
+    await writeUserEmoteContent({
         ...current,
         pack: {
             ...(current.pack ?? {}),
@@ -9535,7 +9576,7 @@ export async function setUserEmoteUsage(
         ...existing,
         usage: withKnownUsage(existing.usage, nextUsage),
     };
-    await matrixClient.setAccountData("im.ponies.user_emotes", {
+    await writeUserEmoteContent({
         ...current,
         images,
     });
@@ -9557,7 +9598,7 @@ async function removeUserPackImage(
         else delete images[normalized];
     }
 
-    await matrixClient.setAccountData("im.ponies.user_emotes", {
+    await writeUserEmoteContent({
         ...current,
         images,
     });
@@ -9600,7 +9641,7 @@ export async function removeUserEmoteImage(shortcode: string): Promise<void> {
     const current = await fetchUserEmoteContent();
     const images = { ...(current.images ?? {}) };
     delete images[normalized];
-    await matrixClient.setAccountData("im.ponies.user_emotes", {
+    await writeUserEmoteContent({
         ...current,
         images,
     });
@@ -9728,10 +9769,7 @@ export async function updateUserPackMeta(
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const current = await fetchUserEmoteContent();
-    await matrixClient.setAccountData(
-        "im.ponies.user_emotes",
-        applyPackMeta(current, update),
-    );
+    await writeUserEmoteContent(applyPackMeta(current, update));
 }
 
 export interface ImportableImage {
@@ -9773,7 +9811,7 @@ export async function importImagesToUserPack(
         added.push(shortcode);
     }
     if (added.length === 0) return added;
-    await matrixClient.setAccountData("im.ponies.user_emotes", {
+    await writeUserEmoteContent({
         ...current,
         pack: {
             ...(current.pack ?? {}),

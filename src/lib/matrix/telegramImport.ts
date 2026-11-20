@@ -17,6 +17,7 @@ import { uploadContent } from "$lib/matrix/media";
 import { encodeApng, type ApngFrame } from "$lib/utils/apng";
 import { muxAnimatedWebp, type AwebpFrame } from "$lib/utils/awebp";
 import { stickerShortcode } from "$lib/utils/telegramSticker";
+import { shortcodeNameFor } from "$lib/data/emojiShortcodes";
 import { planVideoFrames } from "$lib/utils/videoFrames";
 import {
     buildBotApiUrl,
@@ -37,6 +38,8 @@ const LOAD_TIMEOUT_MS = 15_000;
 const VIDEO_METADATA_TIMEOUT_MS = 10_000;
 const VIDEO_SEEK_TIMEOUT_MS = 5_000;
 const DEFAULT_CONCURRENCY = 3;
+/** One Bot API call or file download, body included. */
+const REQUEST_TIMEOUT_MS = 30_000;
 
 /** An error Telegram reported. `description` is Telegram's own text. */
 export class TelegramApiError extends Error {
@@ -89,22 +92,41 @@ function requestUrl(
 }
 
 /**
- * fetch that turns a proxy-side network failure into TelegramProxyError.
- * Aborts and direct-mode errors pass through unchanged.
+ * Fetches `url` and reads the response with `read`, under one timeout that
+ * covers the body too: a stalled proxy or Telegram connection fails that
+ * sticker instead of holding an import worker forever. A proxy-side network
+ * failure or timeout becomes TelegramProxyError. A user abort passes through.
  */
-async function send(
+async function send<T>(
     source: TelegramSource,
     url: string,
     signal: AbortSignal | undefined,
-): Promise<Response> {
+    read: (res: Response) => Promise<T>,
+): Promise<T> {
+    if (signal?.aborted) throw new DOMException("aborted", "AbortError");
+    const controller = new AbortController();
+    const onAbort = () => controller.abort();
+    signal?.addEventListener("abort", onAbort, { once: true });
+    let timedOut = false;
+    const timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+    }, REQUEST_TIMEOUT_MS);
     try {
-        return await fetch(url, { signal });
+        const res = await fetch(url, { signal: controller.signal });
+        return await read(res);
     } catch (err) {
         if (signal?.aborted) throw err;
+        if (err instanceof TelegramProxyError) throw err;
+        if (err instanceof TelegramApiError) throw err;
         if (source.mode === "proxy") {
             throw new TelegramProxyError("unavailable");
         }
+        if (timedOut) throw new Error("telegram request timed out");
         throw err;
+    } finally {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
     }
 }
 
@@ -125,39 +147,50 @@ export function createTelegramTransport(
             params: Record<string, string>,
             signal?: AbortSignal,
         ): Promise<T> {
-            const res = await send(
+            return send(
                 source,
                 requestUrl(source, "api", method, params),
                 signal,
+                async (res) => {
+                    checkProxyStatus(source, res.status);
+                    let body: {
+                        ok?: boolean;
+                        result?: T;
+                        description?: string;
+                    };
+                    try {
+                        body = await res.json();
+                    } catch (err) {
+                        if (signal?.aborted) throw err;
+                        throw new TelegramApiError(`HTTP ${res.status}`);
+                    }
+                    if (!body.ok || body.result === undefined) {
+                        throw new TelegramApiError(
+                            body.description ?? `HTTP ${res.status}`,
+                        );
+                    }
+                    return body.result;
+                },
             );
-            checkProxyStatus(source, res.status);
-            let body: { ok?: boolean; result?: T; description?: string };
-            try {
-                body = await res.json();
-            } catch {
-                throw new TelegramApiError(`HTTP ${res.status}`);
-            }
-            if (!body.ok || body.result === undefined) {
-                throw new TelegramApiError(
-                    body.description ?? `HTTP ${res.status}`,
-                );
-            }
-            return body.result;
         },
         async download(
             filePath: string,
             signal?: AbortSignal,
         ): Promise<Uint8Array> {
-            const res = await send(
+            return send(
                 source,
                 requestUrl(source, "file", filePath, {}),
                 signal,
+                async (res) => {
+                    checkProxyStatus(source, res.status);
+                    if (!res.ok) {
+                        throw new TelegramApiError(
+                            `sticker download failed (${res.status})`,
+                        );
+                    }
+                    return new Uint8Array(await res.arrayBuffer());
+                },
             );
-            checkProxyStatus(source, res.status);
-            if (!res.ok) {
-                throw new Error(`sticker download failed (${res.status})`);
-            }
-            return new Uint8Array(await res.arrayBuffer());
         },
     };
 }
@@ -598,7 +631,10 @@ async function prepareSticker(
     index: number,
     signal: AbortSignal | undefined,
 ): Promise<{ shortcode: string; file: File; meta: PackImageMeta }> {
-    const shortcode = stickerShortcode(setName, index);
+    const emojiName = sticker.emoji
+        ? shortcodeNameFor(sticker.emoji)
+        : undefined;
+    const shortcode = stickerShortcode(setName, index, emojiName);
     const bytes = await downloadSticker(transport, sticker.file_id, signal);
     let file: File;
     let info: Record<string, unknown>;
