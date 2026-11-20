@@ -294,6 +294,15 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callEncryption.partialShort": "Parcialmente criptografada",
     "callEncryption.notEncrypted":
         "Não criptografada de ponta a ponta: o servidor de chamadas pode ver e ouvir esta chamada. Chamadas em salas criptografadas são criptografadas.",
+    "callPopout.blocked":
+        "Não foi possível abrir a janela destacada. Permita pop-ups para este site e tente novamente.",
+    "callPopout.bringBack": "Trazer de volta",
+    "callPopout.focusWindow": "Mostrar janela",
+    "callPopout.inOtherWindow":
+        "Esta chamada está aberta em uma janela destacada.",
+    "callPopout.popOut": "Destacar chamada",
+    "callPopout.returnToMain": "Voltar à janela principal",
+    "callPopout.windowTitle": "{room} (chamada)",
     "callView.ringing": "Chamando…",
     "callView.showChat": "Mostrar chat",
     "callView.noOneIsInThisCall": "Ninguém está nesta chamada",

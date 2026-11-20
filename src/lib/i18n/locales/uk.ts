@@ -296,6 +296,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callEncryption.partialShort": "Частково зашифровано",
     "callEncryption.notEncrypted":
         "Без наскрізного шифрування: сервер викликів може бачити й чути цей виклик. Виклики в зашифрованих кімнатах зашифровані.",
+    "callPopout.blocked":
+        "Не вдалося відкрити вікно винесеного дзвінка. Дозвольте спливаючі вікна для цього сайту і спробуйте ще раз.",
+    "callPopout.bringBack": "Повернути",
+    "callPopout.focusWindow": "Показати вікно",
+    "callPopout.inOtherWindow": "Цей дзвінок відкрито в окремому вікні.",
+    "callPopout.popOut": "Винести дзвінок в окреме вікно",
+    "callPopout.returnToMain": "Повернути в головне вікно",
+    "callPopout.windowTitle": "{room} (дзвінок)",
     "callView.ringing": "Дзвінок…",
     "callView.showChat": "Показати чат",
     "callView.noOneIsInThisCall": "У цьому виклику нікого немає",

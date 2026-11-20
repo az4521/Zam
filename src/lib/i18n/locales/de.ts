@@ -294,6 +294,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callEncryption.partialShort": "Teilweise verschlüsselt",
     "callEncryption.notEncrypted":
         "Nicht Ende-zu-Ende-verschlüsselt: Der Anrufserver kann diesen Anruf sehen und hören. Anrufe in verschlüsselten Räumen sind verschlüsselt.",
+    "callPopout.blocked":
+        "Das Pop-out-Fenster konnte nicht geöffnet werden. Erlaube Pop-ups für diese Seite und versuche es erneut.",
+    "callPopout.bringBack": "Zurückholen",
+    "callPopout.focusWindow": "Fenster anzeigen",
+    "callPopout.inOtherWindow": "Dieser Anruf läuft in einem Pop-out-Fenster.",
+    "callPopout.popOut": "Anruf in Fenster öffnen",
+    "callPopout.returnToMain": "Zum Hauptfenster zurückkehren",
+    "callPopout.windowTitle": "{room} (Anruf)",
     "callView.ringing": "Klingelt…",
     "callView.showChat": "Chat anzeigen",
     "callView.noOneIsInThisCall": "Niemand ist in diesem Anruf",

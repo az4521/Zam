@@ -288,6 +288,15 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callEncryption.partialShort": "Partiellement chiffré",
     "callEncryption.notEncrypted":
         "Pas chiffré de bout en bout : le serveur d'appel peut voir et entendre cet appel. Les appels dans les salons chiffrés sont chiffrés.",
+    "callPopout.blocked":
+        "Impossible d'ouvrir la fenêtre détachée. Autorisez les pop-ups pour ce site et réessayez.",
+    "callPopout.bringBack": "Ramener",
+    "callPopout.focusWindow": "Afficher la fenêtre",
+    "callPopout.inOtherWindow":
+        "Cet appel est ouvert dans une fenêtre détachée.",
+    "callPopout.popOut": "Détacher l'appel",
+    "callPopout.returnToMain": "Revenir à la fenêtre principale",
+    "callPopout.windowTitle": "{room} (appel)",
     "callView.ringing": "Sonnerie…",
     "callView.showChat": "Afficher la discussion",
     "callView.noOneIsInThisCall": "Personne n'est dans cet appel",

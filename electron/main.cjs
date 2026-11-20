@@ -96,6 +96,9 @@ const ICONS_DIR = path
 // window.open name of the call's floating video; see setWindowOpenHandler.
 const CALL_PIP_FRAME = "zam-call-pip";
 const callPipWindows = new Set();
+// window.open name of the call's pop-out window (src/lib/stores/callPopout.svelte.ts).
+const CALL_POPOUT_FRAME = "zam-call-popout";
+const callPopoutWindows = new Set();
 // Size the page asked for before opening the pop-out (call-pip:spawn-size),
 // used once by the next open; null keeps the default.
 let pendingCallPipSize = null;
@@ -2435,10 +2438,38 @@ async function createWindow() {
                 },
             };
         }
+        // The call's pop-out: a normal framed, resizable window the page fills.
+        if (url === "about:blank" && frameName === CALL_POPOUT_FRAME) {
+            return {
+                action: "allow",
+                overrideBrowserWindowOptions: {
+                    width: 960,
+                    height: 600,
+                    minWidth: 480,
+                    minHeight: 320,
+                    title: "Zam",
+                    icon: ICON_PATH,
+                    backgroundColor: "#313338",
+                    autoHideMenuBar: true,
+                    webPreferences: {
+                        contextIsolation: true,
+                        nodeIntegration: false,
+                        sandbox: true,
+                    },
+                },
+            };
+        }
         openExternalSafely(url);
         return { action: "deny" };
     });
     mainWindow.webContents.on("did-create-window", (win, { frameName }) => {
+        if (frameName === CALL_POPOUT_FRAME) {
+            callPopoutWindows.add(win);
+            win.on("closed", () => callPopoutWindows.delete(win));
+            win.removeMenu();
+            win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+            return;
+        }
         if (frameName !== CALL_PIP_FRAME) return;
         callPipWindows.add(win);
         win.on("closed", () => callPipWindows.delete(win));
@@ -2480,6 +2511,7 @@ async function createWindow() {
     // so close it with the app ourselves.
     mainWindow.on("closed", () => {
         for (const w of callPipWindows) if (!w.isDestroyed()) w.close();
+        for (const w of callPopoutWindows) if (!w.isDestroyed()) w.close();
     });
 
     // Any attempt to navigate the window away from the app → open externally.

@@ -22,6 +22,8 @@
         Settings,
         Ear,
         Bluetooth,
+        ExternalLink,
+        PictureInPicture2,
     } from "lucide-svelte";
     import { longPress } from "$lib/actions/longPress";
     import Avatar from "$lib/components/ui/Avatar.svelte";
@@ -76,6 +78,10 @@
         clearModalIfOwner,
         interfaceState,
     } from "$lib/stores/interface.svelte";
+    import {
+        callPopoutSupported,
+        openCallPopout,
+    } from "$lib/stores/callPopout.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
@@ -107,11 +113,14 @@
         isMobile?: boolean;
         onMenuOpen?: () => void;
     }
-    let { room, isMobile = false, onMenuOpen }: Props = $props();
+    let { room, isMobile = false, onMenuOpen, popout }: Props = $props();
 
     // Capture support is fixed for the session (no runtime change), so a plain
     // const is enough — used to hide the share-screen button where unsupported.
     const screenShareSupported = $derived(screenShareSupportedHere());
+        /** Set in the call's pop-out window (CallPopoutView): the header button
+         *  brings the call back to the main window. */
+        popout?: { onReturn: () => void };
 
     // Live SDK objects mutate in place, so every read of call/room state hangs
     // off a tick: voiceTick for the roster, roomsTick for names and avatars.
@@ -374,14 +383,35 @@
             </span>
         {/if}
         <div class="flex-1"></div>
-        <button
-            onclick={showChatView}
-            class="p-1.5 rounded transition-colors text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover"
-            title={t("callView.showChat")}
-            aria-label={t("callView.showChat")}
-        >
-            <MessageSquare size={20} />
-        </button>
+        {#if popout}
+            <button
+                onclick={popout.onReturn}
+                class="p-1.5 rounded transition-colors text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover"
+                title={t("callPopout.returnToMain")}
+                aria-label={t("callPopout.returnToMain")}
+            >
+                <PictureInPicture2 size={20} />
+            </button>
+        {:else}
+            {#if !isMobile && inThisCall && callPopoutSupported()}
+                <button
+                    onclick={() => void openCallPopout(room.roomId)}
+                    class="p-1.5 rounded transition-colors text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover"
+                    title={t("callPopout.popOut")}
+                    aria-label={t("callPopout.popOut")}
+                >
+                    <ExternalLink size={20} />
+                </button>
+            {/if}
+            <button
+                onclick={showChatView}
+                class="p-1.5 rounded transition-colors text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover"
+                title={t("callView.showChat")}
+                aria-label={t("callView.showChat")}
+            >
+                <MessageSquare size={20} />
+            </button>
+        {/if}
     </div>
 
     <!-- Tiles -->

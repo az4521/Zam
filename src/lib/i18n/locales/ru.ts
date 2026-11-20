@@ -300,6 +300,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callEncryption.partialShort": "Частично зашифровано",
     "callEncryption.notEncrypted":
         "Нет сквозного шифрования: сервер звонков может видеть и слышать этот звонок. Звонки в зашифрованных комнатах шифруются.",
+    "callPopout.blocked":
+        "Не удалось открыть окно вынесенного звонка. Разрешите всплывающие окна для этого сайта и попробуйте снова.",
+    "callPopout.bringBack": "Вернуть",
+    "callPopout.focusWindow": "Показать окно",
+    "callPopout.inOtherWindow": "Этот звонок открыт в отдельном окне.",
+    "callPopout.popOut": "Вынести звонок в окно",
+    "callPopout.returnToMain": "Вернуть в главное окно",
+    "callPopout.windowTitle": "{room} (звонок)",
     "callView.ringing": "Вызов…",
     "callView.showChat": "Показать чат",
     "callView.noOneIsInThisCall": "В этом звонке никого нет",

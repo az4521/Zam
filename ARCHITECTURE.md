@@ -306,6 +306,14 @@ UI: `CallView`, `VoiceCallPanel`, `VideoTile`, `ActiveCallBanner`, `IncomingCall
 `stores/incomingCalls.svelte.ts`. Device handling lives in `lib/audio/`, track attachment in
 `actions/videoTrack.ts`.
 
+**Call pop-out.** `stores/callPopout.svelte.ts` opens the whole call view (`CallPopoutView`, which
+renders `CallView` with a `popout` prop) in its own window. The window comes from the desktop app's
+`zam-call-popout` popup (`electron/main.cjs`), Document Picture-in-Picture where available, or a
+plain popup, in that order. The call keeps running in the main client: the pop-out mounts the same
+components into its own document, so it is the same JS realm, mirrors the main call and drives its
+controls. The pop-out copies the app's styles and root attributes, forwards its key events to the
+main window, and closes when the call ends (`watchCallPopout`) or the window is closed.
+
 **Transports.** Each member publishes on one transport, the first of its membership's `transports`:
 the LiveKit SFU (`livekitTransport.ts`), the full mesh (MSC4575, `call/fullMesh/`, behind the
 `CallTransport` interface in `call/transport.ts`), or a plugin transport (`call/pluginTransport.ts`,

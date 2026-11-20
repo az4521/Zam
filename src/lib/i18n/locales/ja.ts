@@ -263,6 +263,15 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callEncryption.partialShort": "一部暗号化",
     "callEncryption.notEncrypted":
         "エンドツーエンド暗号化されていません: 通話サーバーがこの通話を見聞きできます。暗号化されたルームでの通話は暗号化されます。",
+    "callPopout.blocked":
+        "ポップアウトウィンドウを開けませんでした。このサイトでポップアップを許可して、もう一度お試しください。",
+    "callPopout.bringBack": "戻す",
+    "callPopout.focusWindow": "ウィンドウを表示",
+    "callPopout.inOtherWindow":
+        "この通話はポップアウトウィンドウで開いています。",
+    "callPopout.popOut": "通話をポップアウト",
+    "callPopout.returnToMain": "メインウィンドウに戻す",
+    "callPopout.windowTitle": "{room}（通話）",
     "callView.ringing": "呼び出し中…",
     "callView.showChat": "チャットを表示",
     "callView.noOneIsInThisCall": "この通話には誰もいません",

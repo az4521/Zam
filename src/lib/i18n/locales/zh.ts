@@ -279,6 +279,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callEncryption.partialShort": "部分加密",
     "callEncryption.notEncrypted":
         "未端到端加密：通话服务器可以看到和听到此通话。加密房间中的通话是加密的。",
+    "callPopout.blocked": "无法打开弹出窗口。请允许此网站弹出窗口，然后重试。",
+    "callPopout.bringBack": "收回",
+    "callPopout.focusWindow": "显示窗口",
+    "callPopout.inOtherWindow": "此通话已在弹出窗口中打开。",
+    "callPopout.popOut": "弹出通话",
+    "callPopout.returnToMain": "返回主窗口",
+    "callPopout.windowTitle": "{room}（通话）",
     "callView.ringing": "正在响铃…",
     "callView.showChat": "显示聊天",
     "callView.noOneIsInThisCall": "此通话中没有人",
