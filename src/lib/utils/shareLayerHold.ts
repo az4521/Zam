@@ -11,6 +11,14 @@
 // the top layer fits is to receive it, and when it doesn't the picture
 // freezes for seconds (measured: 2-3 s per failed probe on a 1 Mbps link).
 // A new share, or watching this one again, starts on the top layer.
+//
+// Only loss counts against the top layer. A stall with nothing lost is a
+// keyframe wait, not a slow link: the server moving the viewer up to the top
+// layer once the sharer's encoder turns it on (a few seconds into every
+// share, as the sharer's bandwidth estimate ramps) leaves packets arriving
+// and nothing decodable until that layer's next keyframe. Counting those
+// seconds dropped viewers on fast links to the half-size layer for the rest
+// of every share. The low layer doesn't help a stall anyway.
 
 /** Loss on the share, per sample, that counts as a struggling second. */
 export const LAYER_LOSS_BAD = 0.05;
@@ -26,7 +34,8 @@ export type ShareLayer = "high" | "low";
 export interface LayerSample {
     /** Share of its packets lost in the sample (0..1). */
     loss: number;
-    /** Packets arrived but nothing was decoded: the picture is stuck. */
+    /** Packets arrived but nothing was decoded: the picture is stuck. Only
+     *  counts with some loss alongside (see above). */
     stalled: boolean;
 }
 
@@ -54,7 +63,7 @@ export class ShareLayerHold {
     /** Feed one sample; returns the layer to ask for if it changed. */
     sample(s: LayerSample, now: number): ShareLayer | null {
         if (this.layer === "low") return null;
-        this.recent.push(s.stalled || s.loss >= LAYER_LOSS_BAD);
+        this.recent.push(s.loss >= LAYER_LOSS_BAD || (s.stalled && s.loss > 0));
         if (this.recent.length > LAYER_WINDOW) this.recent.shift();
         if (this.recent.filter(Boolean).length < LAYER_BAD_SAMPLES) return null;
         this.layer = "low";
