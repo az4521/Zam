@@ -72,6 +72,10 @@ const cl = [
     "/EHsc",
     "/W3",
     "/std:c++17",
+    // C++/WinRT includes <experimental/coroutine> under C++17, which MSVC
+    // 14.5x (Visual Studio 18, the CI runner) rejects unless silenced. Same
+    // fix as build-share-capture.mjs, which explains why not /std:c++20.
+    "/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS",
     `"${src}"`,
     `/Fe:"${out}"`,
     `/Fo:"${outDir}\\\\"`,
