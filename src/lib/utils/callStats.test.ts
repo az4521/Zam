@@ -10,6 +10,7 @@ import {
     codecLabel,
     opusFeatures,
     availableOutgoingBitrate,
+    outgoingVideoLoss,
     diagnoseVideo,
     type RawStat,
     type RtpStreamSummary,
@@ -94,6 +95,34 @@ function chromiumReport(opts: {
         },
     ];
 }
+
+describe("outgoingVideoLoss", () => {
+    it("takes the worst video loss the far end reports", () => {
+        expect(
+            outgoingVideoLoss([
+                {
+                    id: "a",
+                    type: "remote-inbound-rtp",
+                    kind: "audio",
+                    fractionLost: 0.5,
+                },
+                {
+                    id: "b",
+                    type: "remote-inbound-rtp",
+                    kind: "video",
+                    fractionLost: 0.02,
+                },
+                {
+                    id: "c",
+                    type: "remote-inbound-rtp",
+                    kind: "video",
+                    fractionLost: 0.1,
+                },
+            ]),
+        ).toBe(0.1);
+        expect(outgoingVideoLoss([])).toBeNull();
+    });
+});
 
 describe("classifyPath", () => {
     it.each([

@@ -2421,20 +2421,21 @@ export const en = {
     "screenShareQualityChips.bitrateUpTo": "Up to",
     "screenShareQualityChips.bitrateCapHint":
         "A limit, not a target: the share uses only what the picture needs and your connection can carry, up to this.",
-    "screenShareQualityChips.bitrateOverridden":
-        "Using the upload speed you entered, {upload}, so this goes up to {max}.",
+    "screenShareQualityChips.bitrateAuto": "Automatic",
+    "screenShareQualityChips.bitrateAutoHint":
+        "No limit: the share sends what your connection carries right now, and backs off when it fills up or a viewer falls behind.",
+    "screenShareQualityChips.bitrateAutoNow":
+        "Your upload carries about {upload} right now.",
+    "screenShareQualityChips.bitrateAutoUnknown":
+        "Your upload is followed live while you send video.",
+    "screenShareQualityChips.bitrateAutoOverridden":
+        "Held to the upload speed you entered, {upload}.",
+    "screenShareQualityChips.uploadOverrideCapHint":
+        "Optional. Enter your upload speed to keep the share under it; leave it empty to follow the connection.",
     "screenShareQualityChips.uploadOverride": "Upload speed (Mbps)",
     "screenShareQualityChips.uploadOverrideAuto": "Auto",
-    "screenShareQualityChips.uploadOverrideHint":
-        "The automatic measurement can read well under your real speed. Enter your own figure to raise the limit; leave it empty to measure.",
     "screenShareQualityChips.kbps": "{n} kbps",
     "screenShareQualityChips.mbps": "{n} Mbps",
-    "screenShareQualityChips.bitrateMeasured":
-        "Your upload measures {upload}, so this goes up to {max}.",
-    "screenShareQualityChips.bitrateUnmeasured":
-        "Your upload hasn't been measured yet. It's measured while you send video, so this goes up to {max} for now.",
-    "screenShareQualityChips.bitrateHighWarning":
-        "Above {safe} is your call: your upload isn't checked, and viewers on slower connections or devices may see stutter or freezes.",
     "screenShareQualityChips.nativeCapture": "Windows capture helper",
     "screenShareQualityChips.nativeCaptureHint":
         "Captures and encodes the share outside the browser, so a busy game doesn't stutter it. Applies to the next share.",

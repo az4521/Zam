@@ -2329,20 +2329,20 @@ const messages: Partial<Record<MessageKey, string>> = {
     "screenShareQualityChips.bitrateUpTo": "最高",
     "screenShareQualityChips.bitrateCapHint":
         "这是上限而非目标：共享只会使用画面所需且你的连接能承载的带宽，最高不超过此值。",
-    "screenShareQualityChips.bitrateOverridden":
-        "正在使用你输入的上传速度 {upload}，因此上限为 {max}。",
+    "screenShareQualityChips.bitrateAuto": "自动",
+    "screenShareQualityChips.bitrateAutoHint":
+        "不限制：共享会发送当前网络能承载的码率，网络拥塞或观众跟不上时自动降低。",
+    "screenShareQualityChips.bitrateAutoNow": "你的上传速度目前约为 {upload}。",
+    "screenShareQualityChips.bitrateAutoUnknown":
+        "发送视频时会实时检测上传速度。",
+    "screenShareQualityChips.bitrateAutoOverridden":
+        "已限制为你填写的上传速度 {upload}。",
+    "screenShareQualityChips.uploadOverrideCapHint":
+        "可选。填写上传速度可让共享不超过该值；留空则跟随网络状况。",
     "screenShareQualityChips.uploadOverride": "上传速度（Mbps）",
     "screenShareQualityChips.uploadOverrideAuto": "自动",
-    "screenShareQualityChips.uploadOverrideHint":
-        "自动测量的结果可能远低于你的实际速度。输入你自己的数值可提高上限；留空则自动测量。",
     "screenShareQualityChips.kbps": "{n} kbps",
     "screenShareQualityChips.mbps": "{n} Mbps",
-    "screenShareQualityChips.bitrateMeasured":
-        "测得你的上传速度为 {upload}，因此上限为 {max}。",
-    "screenShareQualityChips.bitrateUnmeasured":
-        "尚未测量你的上传速度。它会在你发送视频时测量，因此目前上限为 {max}。",
-    "screenShareQualityChips.bitrateHighWarning":
-        "超过 {safe} 由你自行决定：不会检查你的上传速度，网络或设备较慢的观众可能会看到卡顿或画面冻结。",
     "screenShareQualityChips.nativeCapture": "Windows 捕获辅助程序",
     "screenShareQualityChips.nativeCaptureHint":
         "在浏览器之外捕获并编码共享画面，因此占用大的游戏不会让共享卡顿。将应用于下一次共享。",

@@ -3,7 +3,8 @@ import { ShareLayerHold } from "./shareLayerHold";
 
 const ok = { loss: 0, stalled: false };
 const bad = { loss: 0.3, stalled: false };
-const stuck = { loss: 0, stalled: true };
+const stuck = { loss: 0.01, stalled: true };
+const keyframeWait = { loss: 0, stalled: true };
 
 describe("ShareLayerHold", () => {
     it("stays high while the share arrives fine", () => {
@@ -28,6 +29,13 @@ describe("ShareLayerHold", () => {
         expect(h.sample(stuck, 3000)).toBeNull();
         expect(h.sample(bad, 4000)).toBe("low");
         expect(h.heldLowFor(10_000)).toBe(6000);
+    });
+
+    it("doesn't drop for a keyframe wait (the server's switch up)", () => {
+        const h = new ShareLayerHold();
+        for (let t = 1000; t <= 5000; t += 1000)
+            expect(h.sample(keyframeWait, t)).toBeNull();
+        expect(h.current()).toBe("high");
     });
 
     it("never probes back up: no visible freeze from a failed probe", () => {

@@ -2527,20 +2527,21 @@ const messages: Partial<Record<MessageKey, string>> = {
     "screenShareQualityChips.bitrateUpTo": "До",
     "screenShareQualityChips.bitrateCapHint":
         "Це межа, а не ціль: показ екрана використовує лише те, що потрібно зображенню й що може передати ваше з’єднання, аж до цього значення.",
-    "screenShareQualityChips.bitrateOverridden":
-        "Використовується введена вами швидкість вивантаження, {upload}, тож це досягає {max}.",
+    "screenShareQualityChips.bitrateAuto": "Автоматично",
+    "screenShareQualityChips.bitrateAutoHint":
+        "Без обмежень: трансляція надсилає стільки, скільки зараз витримує ваше з'єднання, і знижує потік, коли канал заповнюється або глядач відстає.",
+    "screenShareQualityChips.bitrateAutoNow":
+        "Ваше вивантаження зараз близько {upload}.",
+    "screenShareQualityChips.bitrateAutoUnknown":
+        "Швидкість вивантаження відстежується наживо, поки ви надсилаєте відео.",
+    "screenShareQualityChips.bitrateAutoOverridden":
+        "Обмежено швидкістю вивантаження, яку ви вказали: {upload}.",
+    "screenShareQualityChips.uploadOverrideCapHint":
+        "Необов'язково. Вкажіть швидкість вивантаження, щоб трансляція її не перевищувала; залиште порожнім, щоб слідувати за з'єднанням.",
     "screenShareQualityChips.uploadOverride": "Швидкість вивантаження (Мбіт/с)",
     "screenShareQualityChips.uploadOverrideAuto": "Авто",
-    "screenShareQualityChips.uploadOverrideHint":
-        "Автоматичне вимірювання може показувати значно менше за вашу справжню швидкість. Введіть власне значення, щоб підняти межу; залиште порожнім, щоб вимірювати.",
     "screenShareQualityChips.kbps": "{n} кбіт/с",
     "screenShareQualityChips.mbps": "{n} Мбіт/с",
-    "screenShareQualityChips.bitrateMeasured":
-        "Ваше вивантаження вимірюється як {upload}, тож це досягає {max}.",
-    "screenShareQualityChips.bitrateUnmeasured":
-        "Ваше вивантаження ще не виміряно. Його вимірюють, поки ви надсилаєте відео, тож наразі це досягає {max}.",
-    "screenShareQualityChips.bitrateHighWarning":
-        "Понад {safe}: ваш вибір, швидкість вивантаження не перевіряється, і глядачі з повільнішим з'єднанням чи пристроєм можуть бачити ривки або зависання.",
     "screenShareQualityChips.nativeCapture": "Помічник захоплення Windows",
     "screenShareQualityChips.nativeCaptureHint":
         "Захоплює й кодує трансляцію поза браузером, тож важка гра її не смикає. Застосовується до наступної трансляції.",

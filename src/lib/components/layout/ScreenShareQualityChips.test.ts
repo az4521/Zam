@@ -42,7 +42,6 @@ function release(slider: HTMLInputElement, position: number) {
 
 beforeEach(() => {
     uploadEstimate.live = null;
-    uploadEstimate.peak = null;
     setScreenShareBitrate(4_000_000);
 });
 
@@ -56,12 +55,14 @@ afterEach(() => {
 });
 
 describe("ScreenShareQualityChips bitrate", () => {
-    it("runs to 50 Mbps, with the measurement holding only picks up to 8", () => {
-        noteUploadEstimate(20_000_000);
+    const autoToggle = () =>
+        host!.querySelector<HTMLElement>(
+            '[role="switch"][aria-label="Automatic"]',
+        ) ?? host!.querySelector<HTMLElement>('[aria-label="Automatic"]');
+
+    it("runs a manual cap from 300 kbps to 50 Mbps, sent as picked", () => {
+        noteUploadEstimate(2_000_000);
         const slider = render();
-        expect(host!.textContent).toContain("20 Mbps");
-        // 10% under 20 Mbps is 18, but the automatic limit stops at 8.
-        expect(host!.textContent).toContain("up to 8 Mbps");
         expect(host!.textContent).toContain("4 Mbps");
         release(slider, 1000);
         expect(settingsState.screenShareBitrate).toBe(50_000_000);
@@ -70,32 +71,36 @@ describe("ScreenShareQualityChips bitrate", () => {
         expect(host!.textContent).toContain("300 kbps");
     });
 
-    it("says when nothing has been measured", () => {
+    it("has no cap in automatic mode and shows the live upload", () => {
+        setScreenShareBitrate(0);
+        noteUploadEstimate(20_000_000);
         render();
-        expect(host!.textContent).toContain("hasn't been measured");
-        expect(host!.textContent).toContain("8 Mbps");
-    });
-
-    it("says what a slow upload holds a pick to", () => {
-        noteUploadEstimate(2_000_000);
-        render();
-        expect(host!.textContent).toContain("1.8 Mbps");
-    });
-
-    it("warns about a hand-picked bitrate above 8 Mbps", () => {
-        render();
-        expect(host!.querySelector('[role="alert"]')).toBeNull();
-        setScreenShareBitrate(20_000_000);
-        flushSync();
+        expect(host!.querySelector('input[type="range"]')).toBeNull();
+        expect(host!.textContent).toContain("No limit");
         expect(host!.textContent).toContain("20 Mbps");
-        expect(host!.querySelector('[role="alert"]')?.textContent).toContain(
-            "Above 8 Mbps",
-        );
-        expect(host!.textContent).not.toContain("hasn't been measured");
+    });
+
+    it("says when the upload isn't known yet", () => {
+        setScreenShareBitrate(0);
+        render();
+        expect(host!.textContent).toContain("followed live");
+    });
+
+    it("switches between automatic and a manual cap", () => {
+        noteUploadEstimate(12_000_000);
+        const onQualityChange = vi.fn();
+        render(onQualityChange);
+        autoToggle()!.click();
+        flushSync();
+        expect(settingsState.screenShareBitrate).toBe(0);
+        expect(onQualityChange).toHaveBeenCalledTimes(1);
+        autoToggle()!.click();
+        flushSync();
+        // A manual cap starts at what the upload carries now.
+        expect(settingsState.screenShareBitrate).toBe(12_000_000);
     });
 
     it("retargets a live share on release, not while dragging", () => {
-        noteUploadEstimate(20_000_000);
         const onQualityChange = vi.fn();
         const slider = render(onQualityChange);
         slider.value = "500";

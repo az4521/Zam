@@ -1,79 +1,33 @@
-// Measured upload bandwidth, for the screen-share bitrate slider.
+// The upload the call's publishing connection carries right now, for the
+// screen-share settings and the share helpers that encode outside WebRTC.
 //
-// The number is the higher of WebRTC's own estimate on the call's publishing
-// connection (availableOutgoingBitrate) and what is actually being sent,
-// sampled by matrix/livekitCall while video goes out. The estimate only
-// climbs as far as the sender gives it reason to, so it can read well under
-// the line's real speed; Settings can override it with a typed-in figure.
-// With only a microphone sending it barely probes and reads far too low, so
-// audio-only samples aren't taken. The highest sample is kept per device:
-// the slider can then offer a sensible range before the next share starts,
-// and since the picked bitrate is only a cap, a stale high value never makes
-// WebRTC send more than it currently estimates.
+// matrix/livekitCall feeds it once a second while video goes out, through
+// utils/uplinkTracker: WebRTC's live estimate (availableOutgoingBitrate),
+// held under what got through while the server reports loss or the round
+// trip swells. It is never stored: an upload measured on another network,
+// or by an earlier share, says nothing about this one. (Older builds kept
+// the highest sample per device under "uploadEstimate:peak" and capped every
+// share at 90% of it; that key is removed here.)
 
-import { bitrateCeiling } from "$lib/utils/screenShareBitrate";
-import { MAX_UPLOAD_SAMPLE_BPS } from "$lib/utils/uploadSample";
-import { settingsState } from "$lib/stores/settings.svelte";
-
-const PEAK_KEY = "uploadEstimate:peak";
-
-/** A stored peak, kept within the largest plausible sample: one stored from
- *  an older build can be an implausible multi-Gbps estimate, which would
- *  otherwise hold the slider's ceiling far above any share bitrate. */
-function readPeak(): number | null {
-    try {
-        const n = Number(localStorage.getItem(PEAK_KEY));
-        return Number.isFinite(n) && n > 0
-            ? Math.min(n, MAX_UPLOAD_SAMPLE_BPS)
-            : null;
-    } catch {
-        return null;
-    }
+try {
+    localStorage.removeItem("uploadEstimate:peak");
+} catch {
+    // ignore (private mode / no storage)
 }
 
 export const uploadEstimate = $state<{
-    /** The latest sample of this call, bits/sec. */
+    /** The latest estimate of this call, bits/sec. */
     live: number | null;
-    /** The highest sample on this device, bits/sec. */
-    peak: number | null;
-}>({ live: null, peak: readPeak() });
+}>({ live: null });
 
-export function noteUploadEstimate(raw: number): void {
-    if (!Number.isFinite(raw) || raw <= 0) return;
-    const bps = Math.min(raw, MAX_UPLOAD_SAMPLE_BPS);
-    uploadEstimate.live = bps;
-    if (uploadEstimate.peak !== null && bps <= uploadEstimate.peak) return;
-    uploadEstimate.peak = bps;
-    try {
-        localStorage.setItem(PEAK_KEY, String(Math.round(bps)));
-    } catch {
-        // ignore (private mode / storage full)
-    }
+export function noteUploadEstimate(bps: number | null): void {
+    uploadEstimate.live =
+        typeof bps === "number" && Number.isFinite(bps) && bps > 0
+            ? Math.round(bps)
+            : null;
 }
 
-/** The call ended: its live sample no longer says anything. */
+/** The call ended: its estimate no longer says anything. */
 export function clearLiveUploadEstimate(): void {
     uploadEstimate.live = null;
-}
-
-/** The upload speed the user typed in (bits/sec), or null for "measure it". */
-export function uploadOverride(): number | null {
-    const n = settingsState.uploadSpeedOverride;
-    return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-/** The upload the slider is measured against: the user's own figure if they
- *  gave one, else the best measurement, or null before any sample. */
-export function measuredUpload(): number | null {
-    const override = uploadOverride();
-    if (override !== null) return override;
-    const { live, peak } = uploadEstimate;
-    if (live === null) return peak;
-    return peak === null ? live : Math.max(live, peak);
-}
-
-/** The automatic limit on a screen-share pick right now (at most 8 Mbps;
- *  a pick above that is the user's and isn't held to this). */
-export function screenShareBitrateCeiling(): number {
-    return bitrateCeiling(measuredUpload(), uploadOverride() !== null);
 }

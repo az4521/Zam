@@ -2501,20 +2501,21 @@ const messages: Partial<Record<MessageKey, string>> = {
     "screenShareQualityChips.bitrateUpTo": "Até",
     "screenShareQualityChips.bitrateCapHint":
         "Um limite, não uma meta: o compartilhamento usa apenas o que a imagem precisa e sua conexão suporta, até este valor.",
-    "screenShareQualityChips.bitrateOverridden":
-        "Usando a velocidade de envio que você informou, {upload}, então isto chega a {max}.",
+    "screenShareQualityChips.bitrateAuto": "Automática",
+    "screenShareQualityChips.bitrateAutoHint":
+        "Sem limite: o compartilhamento envia o que sua conexão suporta agora e reduz quando ela lota ou um espectador fica para trás.",
+    "screenShareQualityChips.bitrateAutoNow":
+        "Seu envio está em cerca de {upload} agora.",
+    "screenShareQualityChips.bitrateAutoUnknown":
+        "Seu envio é acompanhado ao vivo enquanto você envia vídeo.",
+    "screenShareQualityChips.bitrateAutoOverridden":
+        "Limitado à velocidade de envio que você informou, {upload}.",
+    "screenShareQualityChips.uploadOverrideCapHint":
+        "Opcional. Informe sua velocidade de envio para manter o compartilhamento abaixo dela; deixe vazio para acompanhar a conexão.",
     "screenShareQualityChips.uploadOverride": "Velocidade de envio (Mbps)",
     "screenShareQualityChips.uploadOverrideAuto": "Automática",
-    "screenShareQualityChips.uploadOverrideHint":
-        "A medição automática pode ficar bem abaixo da sua velocidade real. Informe seu próprio valor para aumentar o limite; deixe em branco para medir.",
     "screenShareQualityChips.kbps": "{n} kbps",
     "screenShareQualityChips.mbps": "{n} Mbps",
-    "screenShareQualityChips.bitrateMeasured":
-        "Seu envio mede {upload}, então isto chega a {max}.",
-    "screenShareQualityChips.bitrateUnmeasured":
-        "Seu envio ainda não foi medido. Ele é medido enquanto você envia vídeo, então por enquanto isto chega a {max}.",
-    "screenShareQualityChips.bitrateHighWarning":
-        "Acima de {safe} a escolha é sua: seu envio não é verificado, e quem assiste com conexões ou dispositivos mais lentos pode ver travadas ou congelamentos.",
     "screenShareQualityChips.nativeCapture": "Auxiliar de captura do Windows",
     "screenShareQualityChips.nativeCaptureHint":
         "Captura e codifica o compartilhamento fora do navegador, para que um jogo pesado não o trave. Vale para o próximo compartilhamento.",

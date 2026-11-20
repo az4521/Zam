@@ -2390,12 +2390,6 @@ const messages: Partial<Record<MessageKey, string>> = {
     "screenShareQualityChips.bitrate": "Tasa de bits",
     "screenShareQualityChips.kbps": "{n} kbps",
     "screenShareQualityChips.mbps": "{n} Mbps",
-    "screenShareQualityChips.bitrateMeasured":
-        "Tu subida mide {upload}, así que esto llega hasta {max}.",
-    "screenShareQualityChips.bitrateUnmeasured":
-        "Tu subida aún no se ha medido. Se mide mientras envías vídeo, así que por ahora esto llega hasta {max}.",
-    "screenShareQualityChips.bitrateHighWarning":
-        "Por encima de {safe} es decisión tuya: no se comprueba tu subida, y quienes miren con conexiones o dispositivos más lentos pueden ver tirones o congelaciones.",
     "screenShareQualityChips.nativeCapture": "Asistente de captura de Windows",
     "screenShareQualityChips.nativeCaptureHint":
         "Captura y codifica la pantalla compartida fuera del navegador, para que un juego exigente no la entrecorte. Se aplica al próximo uso compartido.",
@@ -4581,12 +4575,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callParticipantMenu.muteShare": "Silenciar pantalla compartida",
     "screenShareQualityChips.bitrateCapHint":
         "Un límite, no un objetivo: la transmisión solo usa lo que la imagen necesita y tu conexión puede soportar, hasta este valor.",
-    "screenShareQualityChips.bitrateOverridden":
-        "Se usa la velocidad de subida que introdujiste, {upload}, así que esto llega hasta {max}.",
+    "screenShareQualityChips.bitrateAuto": "Automática",
+    "screenShareQualityChips.bitrateAutoHint":
+        "Sin límite: la transmisión envía lo que tu conexión admite en ese momento y reduce la velocidad cuando se llena o un espectador se retrasa.",
+    "screenShareQualityChips.bitrateAutoNow":
+        "Tu subida admite unos {upload} en este momento.",
+    "screenShareQualityChips.bitrateAutoUnknown":
+        "Tu subida se sigue en directo mientras envías vídeo.",
+    "screenShareQualityChips.bitrateAutoOverridden":
+        "Limitado a la velocidad de subida que introdujiste, {upload}.",
+    "screenShareQualityChips.uploadOverrideCapHint":
+        "Opcional. Introduce tu velocidad de subida para mantener la transmisión por debajo; déjalo vacío para seguir la conexión.",
     "screenShareQualityChips.uploadOverride": "Velocidad de subida (Mbps)",
     "screenShareQualityChips.uploadOverrideAuto": "Automática",
-    "screenShareQualityChips.uploadOverrideHint":
-        "La medición automática puede dar bastante menos que tu velocidad real. Introduce tu propia cifra para subir el límite; déjalo vacío para medir.",
     "voiceAudioSettings.cannotWatch": "Vídeo que no puedo ver",
     "voiceAudioSettings.cannotWatchHint":
         "Elige los códecs que no muestran nada (o una imagen negra) en este dispositivo. Los demás participantes de la llamada te enviarán entonces H.264. Zam también los marca cuando llega una transmisión que nunca se decodifica.",

@@ -2378,12 +2378,6 @@ const messages: Partial<Record<MessageKey, string>> = {
     "screenShareQualityChips.bitrate": "Bitrate",
     "screenShareQualityChips.kbps": "{n} kbit/s",
     "screenShareQualityChips.mbps": "{n} Mbit/s",
-    "screenShareQualityChips.bitrateMeasured":
-        "Dein Upload liegt bei {upload}, daher geht dies bis {max}.",
-    "screenShareQualityChips.bitrateUnmeasured":
-        "Dein Upload wurde noch nicht gemessen. Er wird gemessen, während du Video sendest, daher geht dies vorerst bis {max}.",
-    "screenShareQualityChips.bitrateHighWarning":
-        "Über {safe} entscheidest du selbst: Dein Upload wird nicht geprüft, und Zuschauer mit langsameren Verbindungen oder Geräten sehen eventuell Ruckeln oder Standbilder.",
     "screenShareQualityChips.nativeCapture": "Windows-Aufnahmehilfe",
     "screenShareQualityChips.nativeCaptureHint":
         "Erfasst und kodiert die Freigabe außerhalb des Browsers, damit ein stark belastetes Spiel sie nicht ruckeln lässt. Gilt für die nächste Freigabe.",
@@ -4628,12 +4622,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callParticipantMenu.muteShare": "Bildschirmübertragung stummschalten",
     "screenShareQualityChips.bitrateCapHint":
         "Eine Obergrenze, kein Ziel: Die Freigabe nutzt nur, was das Bild braucht und deine Verbindung schafft, bis zu diesem Wert.",
-    "screenShareQualityChips.bitrateOverridden":
-        "Es wird die von dir eingegebene Upload-Geschwindigkeit {upload} verwendet, daher geht dies bis zu {max}.",
+    "screenShareQualityChips.bitrateAuto": "Automatisch",
+    "screenShareQualityChips.bitrateAutoHint":
+        "Ohne Grenze: Die Freigabe sendet, was Ihre Verbindung gerade trägt, und drosselt, wenn sie voll wird oder ein Zuschauer zurückfällt.",
+    "screenShareQualityChips.bitrateAutoNow":
+        "Ihr Upload schafft gerade etwa {upload}.",
+    "screenShareQualityChips.bitrateAutoUnknown":
+        "Ihr Upload wird live verfolgt, während Sie Video senden.",
+    "screenShareQualityChips.bitrateAutoOverridden":
+        "Auf die von Ihnen eingegebene Upload-Geschwindigkeit begrenzt, {upload}.",
+    "screenShareQualityChips.uploadOverrideCapHint":
+        "Optional. Geben Sie Ihre Upload-Geschwindigkeit ein, um die Freigabe darunter zu halten; leer lassen, um der Verbindung zu folgen.",
     "screenShareQualityChips.uploadOverride": "Upload-Geschwindigkeit (Mbit/s)",
     "screenShareQualityChips.uploadOverrideAuto": "Automatisch",
-    "screenShareQualityChips.uploadOverrideHint":
-        "Die automatische Messung kann deutlich unter deiner echten Geschwindigkeit liegen. Gib einen eigenen Wert ein, um die Grenze anzuheben; lass das Feld leer, um zu messen.",
     "voiceAudioSettings.cannotWatch": "Video, das ich nicht sehen kann",
     "voiceAudioSettings.cannotWatchHint":
         "Wähle die Codecs, die auf diesem Gerät nichts (oder ein schwarzes Bild) zeigen. Andere im Anruf senden dir dann stattdessen H.264. Zam trägt sie auch selbst ein, wenn ein Stream ankommt und nie decodiert wird.",

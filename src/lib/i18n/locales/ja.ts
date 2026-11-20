@@ -2188,20 +2188,21 @@ const messages: Partial<Record<MessageKey, string>> = {
     "screenShareQualityChips.bitrateUpTo": "最大",
     "screenShareQualityChips.bitrateCapHint":
         "これは上限であり目標値ではありません。共有は映像に必要な分と回線が運べる分だけを使い、最大でこの値までです。",
-    "screenShareQualityChips.bitrateOverridden":
-        "入力したアップロード速度 {upload} を使用しているため、最大 {max} まで上がります。",
+    "screenShareQualityChips.bitrateAuto": "自動",
+    "screenShareQualityChips.bitrateAutoHint":
+        "上限なし: 共有は現在の回線が扱える量を送信し、回線が混雑するか視聴者が遅れると送信量を下げます。",
+    "screenShareQualityChips.bitrateAutoNow":
+        "現在のアップロード速度は約 {upload} です。",
+    "screenShareQualityChips.bitrateAutoUnknown":
+        "映像を送信している間、アップロード速度をリアルタイムで確認します。",
+    "screenShareQualityChips.bitrateAutoOverridden":
+        "入力したアップロード速度 {upload} を上限にしています。",
+    "screenShareQualityChips.uploadOverrideCapHint":
+        "任意。アップロード速度を入力すると共有をその速度以下に抑えます。空欄の場合は回線に合わせます。",
     "screenShareQualityChips.uploadOverride": "アップロード速度 (Mbps)",
     "screenShareQualityChips.uploadOverrideAuto": "自動",
-    "screenShareQualityChips.uploadOverrideHint":
-        "自動測定は実際の速度よりかなり低く出ることがあります。上限を上げたい場合はご自身の数値を入力してください。空欄にすると測定します。",
     "screenShareQualityChips.kbps": "{n} kbps",
     "screenShareQualityChips.mbps": "{n} Mbps",
-    "screenShareQualityChips.bitrateMeasured":
-        "アップロードの実測値は {upload} なので、最大 {max} まで上がります。",
-    "screenShareQualityChips.bitrateUnmeasured":
-        "アップロードはまだ測定されていません。ビデオ送信中に測定されるため、当面は最大 {max} までです。",
-    "screenShareQualityChips.bitrateHighWarning":
-        "{safe} を超える値は手動での選択です。アップロード速度は確認されず、遅い回線や端末の視聴者にはカクつきやフリーズが起きることがあります。",
     "screenShareQualityChips.nativeCapture": "Windows キャプチャヘルパー",
     "screenShareQualityChips.nativeCaptureHint":
         "ブラウザの外で共有をキャプチャしてエンコードするため、負荷の高いゲーム中も映像がかくつきません。次の共有から適用されます。",
