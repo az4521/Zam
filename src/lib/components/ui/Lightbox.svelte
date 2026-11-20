@@ -96,6 +96,8 @@
     import { isSameOrigin } from "$lib/utils/mxcUri";
     import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
     import { rememberVolume } from "$lib/actions/rememberVolume";
+    import { releaseDecoder } from "$lib/actions/releaseDecoder";
+    import { holdVideoDecoders } from "$lib/stores/videoDecoderHold";
     import { authedMediaBlobUrl } from "$lib/stores/mediaAuth.svelte";
     import { isSvg, safeMediaBlob } from "$lib/utils/attachmentMime";
     import { STREAM_ENCRYPTED_MIN_BYTES } from "$lib/matrix/videoStream";
@@ -352,6 +354,11 @@
             };
         }
     });
+
+    // This viewer covers the whole timeline, so the timeline's own videos drop
+    // their decoders while it is mounted (see stores/videoDecoderHold). The
+    // parent mounts it only while open, so the effect's teardown is the close.
+    $effect(() => holdVideoDecoders());
 
     // ── Zoom & pan ──────────────────────────────────────────────────────────
     let imgEl = $state<HTMLImageElement | null>(null);
@@ -1353,6 +1360,7 @@
                                 }}
                                 poster={poster ?? undefined}
                                 use:rememberVolume
+                                use:releaseDecoder
                                 controls
                                 {loop}
                                 autoplay

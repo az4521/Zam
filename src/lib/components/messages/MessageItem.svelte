@@ -11,7 +11,7 @@
 </script>
 
 <script lang="ts">
-    import { t } from "$lib/i18n";
+    import { t, getLocale } from "$lib/i18n";
     import type { MatrixEvent, Room } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import EmojiPicker from "$lib/components/ui/EmojiPicker.svelte";
@@ -280,6 +280,8 @@
         type MessageMenuMode,
     } from "$lib/utils/messageGesture";
     import { spoilers } from "$lib/actions/spoilers";
+    import { relativeTimestamps } from "$lib/actions/relativeTimestamps";
+    import { renderInlineTimestampsHtml } from "$lib/utils/inlineTimestamp";
     import { codeBlocks } from "$lib/actions/codeBlocks";
     import { rovingToolbar } from "$lib/actions/rovingToolbar";
     import {
@@ -2520,11 +2522,17 @@
         // differently across an account switch. A NUL (U+0000) is a safe
         // separator (never present in a URL or in Matrix HTML).
         const base = getHomeserverBaseUrl() ?? "";
+        // Inline <t:...> timestamps (sanitized <time>) are localized here,
+        // outside the cache: relative ones depend on the current time.
         return renderMessageTimestamps(
-            highlightRoomMention(
-                sanitizeCache.get(`${base}\u0000${html}`, () =>
-                    sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp }),
+            renderInlineTimestampsHtml(
+                highlightRoomMention(
+                    sanitizeCache.get(`${base}\u0000${html}`, () =>
+                        sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp }),
+                    ),
                 ),
+                getLocale(),
+                Date.now(),
             ),
         );
     }
@@ -3134,6 +3142,7 @@
                 {#if hasCaption()}
                     <div
                         use:spoilers
+                        use:relativeTimestamps={formattedBody()}
                         use:matrixLinks
                         use:codeBlocks={{ key: eventId }}
                         use:bodyImageGallery={{ onOpen: openBodyGallery }}
@@ -3685,6 +3694,7 @@
                     >
                         <div
                             use:spoilers
+                            use:relativeTimestamps={formattedBody()}
                             use:matrixLinks
                             use:codeBlocks={{ key: eventId }}
                             use:bodyImageGallery={{ onOpen: openBodyGallery }}
@@ -4485,6 +4495,7 @@
      the message as it looks in the timeline. -->
     <div
         use:spoilers
+        use:relativeTimestamps={formattedBody()}
         dir="auto"
         class="message-body text-sm text-zam-textPrimary leading-relaxed break-words"
         class:emoji-only={emojiOnly}

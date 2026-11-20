@@ -47,6 +47,14 @@
         mentionsFromHtml,
     } from "$lib/utils/messageBody";
     import {
+        buildInlineTimestampToken,
+        convertInlineTimestampsInBody,
+        localDateTimeToUnix,
+        unixToLocalDateTimeValue,
+        type TimestampStyle,
+    } from "$lib/utils/inlineTimestamp";
+    import TimestampPicker from "./TimestampPicker.svelte";
+    import {
         editableBody,
         isEmptyEdit,
         sendMessageEdit,
@@ -135,6 +143,7 @@
         clearFileQueue,
         type QueuedFile,
     } from "$lib/stores/composerFileQueue.svelte";
+    import { composerVideoPreview } from "$lib/actions/composerVideoPreview";
     import { sendQueuedFiles } from "$lib/utils/queuedFileSend";
     import { filesToRestoreAfterSend } from "$lib/utils/composerFileRestore";
     import { chunkGalleryItems } from "$lib/utils/gallery";
@@ -785,6 +794,11 @@
             interfaceState.composerPicker === "gif" &&
             interfaceState.composerPickerOwner === effComposerKey,
     );
+    const showTimestampPicker = $derived(
+        composerPickerOpen &&
+            interfaceState.composerPicker === "timestamp" &&
+            interfaceState.composerPickerOwner === effComposerKey,
+    );
     // Read-only room: the user's power level is below what posting needs
     // (announcement channels). Locks the composer like `disabled` does.
     const noSendPermission = $derived(
@@ -851,6 +865,18 @@
     ) {
         closeModal();
         if (refocus && textareaFocusedBeforePicker) textareaEl?.focus();
+    }
+
+    function openTimestampPicker() {
+        openComposerPicker("timestamp", effComposerKey);
+    }
+
+    // Appends the token like the emoji and GIF inserts do (the composer has
+    // no caret-position insert helper).
+    function insertTimestamp(token: string) {
+        setComposerText(composerInsertText(text, token));
+        closeModal();
+        textareaEl?.focus();
     }
 
     const replyTargetName = $derived.by(() => {
@@ -1041,7 +1067,8 @@
                     showActionsMenu ||
                     showEmojiPicker ||
                     showGifPicker ||
-                    showStickerPicker
+                    showStickerPicker ||
+                    showTimestampPicker
                 )
                     closeModal();
                 tick().then(() => {
@@ -1256,6 +1283,9 @@
             return;
         }
         const usePlain = command.kind === "text-transform" && !!command.plain;
+        // The plain body of a message that also has a formatted body: tokens
+        // read as UTC text. /plain stays literal (no formatted body either).
+        const plainBody = usePlain ? body : convertInlineTimestampsInBody(body);
         // Resolve formatting before clearing the composer (buildFormattedBody
         // reads pendingMentions, reset below).
         const formatted = usePlain ? null : buildFormattedBody(body);
@@ -1292,7 +1322,7 @@
             if (command.kind === "emote") {
                 await sendEmote(
                     roomId,
-                    body,
+                    plainBody,
                     formatted?.html ?? undefined,
                     mentions,
                     isThread ? { rootEventId: threadRootId! } : undefined,
@@ -1305,7 +1335,7 @@
                 await sendThreadReply(
                     roomId,
                     threadRootId!,
-                    body,
+                    plainBody,
                     mentions,
                     usePlain ? undefined : (formatted?.html ?? undefined),
                     undefined,
@@ -1316,7 +1346,7 @@
                     roomId,
                     buildReplyContent({
                         replyEventId: replyId,
-                        text: body,
+                        text: plainBody,
                         formattedText: usePlain
                             ? undefined
                             : (formatted?.html ?? undefined),
@@ -1328,12 +1358,12 @@
             } else if (formatted?.html) {
                 await sendFormattedMessage(
                     roomId,
-                    body,
+                    plainBody,
                     formatted.html,
                     mentions,
                 );
             } else {
-                await sendTextMessage(roomId, body);
+                await sendTextMessage(roomId, plainBody);
             }
             // The reply was used (or, for /me, dropped) — clear it so the
             // banner doesn't leak onto the user's next message.
@@ -1553,7 +1583,10 @@
             pluginRegistry.outgoingTextTransforms.map((e) => e.value),
             { roomId },
         );
-        const trimmed = outgoingText.trim();
+        // `sourceText` keeps the typed <t:...> tokens for the formatted body;
+        // `trimmed` is the plain body, where each token reads as UTC text.
+        const sourceText = outgoingText.trim();
+        const trimmed = convertInlineTimestampsInBody(sourceText);
         if ((!trimmed && fileQueue.length === 0) || isSending || disabled)
             return;
 
@@ -1605,7 +1638,7 @@
         }
         // Resolve mentions before clearing the composer below (buildFormattedBody
         // reads pendingMentions, which we reset up front).
-        const formatted = trimmed ? buildFormattedBody(trimmed) : null;
+        const formatted = trimmed ? buildFormattedBody(sourceText) : null;
 
         // When files are queued alongside text, attach the text to the first
         // file as a caption (MSC2530) rather than sending it as a separate
@@ -2553,9 +2586,12 @@
                         {#if item.previewUrl && item.file.type.startsWith("video/")}
                             <!-- A file with no decodable picture (unsupported
                                  codec, audio-only webm) falls back to the icon.
-                                 The #t makes iOS Safari paint the first frame. -->
+                                 The #t makes iOS Safari paint the first frame.
+                                 Its src (and so its decoder) is owned by
+                                 composerVideoPreview: only tiles in the strip's
+                                 visible area hold one; the rest show the still. -->
                             <video
-                                src="{item.previewUrl}#t=0.001"
+                                use:composerVideoPreview={`${item.previewUrl}#t=0.001`}
                                 preload="metadata"
                                 muted
                                 playsinline
@@ -2838,6 +2874,7 @@
                                     : undefined}
                                 onInviteToGame={() =>
                                     openGameInviteDialog(roomId)}
+                                onInsertTimestamp={openTimestampPicker}
                             />
                         </div>
                     {:else}
@@ -2871,6 +2908,30 @@
                                     : undefined}
                                 onInviteToGame={() =>
                                     openGameInviteDialog(roomId)}
+                                onInsertTimestamp={openTimestampPicker}
+                            />
+                        </div>
+                    {/if}
+                {/if}
+                {#if showTimestampPicker}
+                    {#if interfaceState.isTouchscreen}
+                        <PickerDock onClose={closeModal} {keyboardOffset}>
+                            <TimestampPicker
+                                onInsert={insertTimestamp}
+                                onClose={closeModal}
+                            />
+                        </PickerDock>
+                    {:else}
+                        <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+                        <div
+                            class="fixed inset-0 z-40"
+                            onclick={closeModal}
+                            onkeydown={closeModal}
+                        ></div>
+                        <div class="absolute bottom-full start-0 mb-2 z-50">
+                            <TimestampPicker
+                                onInsert={insertTimestamp}
+                                onClose={closeModal}
                             />
                         </div>
                     {/if}

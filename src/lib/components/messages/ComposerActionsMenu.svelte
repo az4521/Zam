@@ -16,6 +16,7 @@
         onShareLocation?: () => void;
         onCreateThread?: () => void;
         onInviteToGame?: () => void;
+        onInsertTimestamp?: () => void;
     }
     let {
         roomId,
@@ -29,6 +30,7 @@
         onShareLocation,
         onCreateThread,
         onInviteToGame,
+        onInsertTimestamp,
     }: Props = $props();
 
     const FALLBACK_ICON =
@@ -108,6 +110,16 @@
                           label: t("composerActionsMenu.shareLocation"),
                           run: () => onShareLocation?.(),
                           icon: "M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z",
+                      },
+                  ]
+                : []),
+            ...(onInsertTimestamp
+                ? [
+                      {
+                          key: "timestamp",
+                          label: t("composerActionsMenu.insertTimestamp"),
+                          run: () => onInsertTimestamp?.(),
+                          icon: "M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z",
                       },
                   ]
                 : []),

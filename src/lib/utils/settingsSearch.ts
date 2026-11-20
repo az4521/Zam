@@ -257,6 +257,21 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         keywords: ["gif", "picker", "tenor", "klipy"],
         anchor: "cust-gifs",
     },
+    {
+        tab: "messages-media",
+        label: t("settingsSearch.encryptFavouriteGifs"),
+        keywords: [
+            "encrypt",
+            "encryption",
+            "private",
+            "privacy",
+            "favourites",
+            "favorites",
+            "homeserver",
+            "gif",
+        ],
+        anchor: "cust-gifs",
+    },
     // general (behavior)
     {
         tab: "general",

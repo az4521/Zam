@@ -16,16 +16,29 @@ import {
 } from "$lib/utils/editableMessage";
 import { stripBodyFallback } from "$lib/utils/replyFallback";
 import { displayContent } from "$lib/utils/displayContent";
+import {
+    convertInlineTimestampsInBody,
+    restoreInlineTimestampTokens,
+} from "$lib/utils/inlineTimestamp";
 import { applySedCommand, type SedCommand } from "$lib/utils/sedEdit";
 import { roomsState } from "$lib/stores/rooms.svelte";
 import { bumpReactionTick } from "$lib/stores/messages.svelte";
 
-/** The text an edit of `event` starts from: its current body, minus any reply fallback. */
+/**
+ * The text an edit of `event` starts from: its current body, minus any reply
+ * fallback, with each inline timestamp's UTC text put back as its `<t:N:S>`
+ * token (from the formatted body's Zam <time> elements).
+ */
 export function editableBody(event: MatrixEvent): string {
-    const raw = (displayContent(event)?.body as string | undefined) ?? "";
+    const content = displayContent(event);
+    const raw = (content?.body as string | undefined) ?? "";
     const isReply =
         !!event.getOriginalContent()?.["m.relates_to"]?.["m.in_reply_to"];
-    return isReply ? stripBodyFallback(raw) : raw;
+    const plain = isReply ? stripBodyFallback(raw) : raw;
+    return restoreInlineTimestampTokens(
+        plain,
+        content?.formatted_body as string | undefined,
+    );
 }
 
 /**
@@ -59,7 +72,11 @@ export async function sendMessageEdit(
     // Captioned media: the edit restates the media content, and an empty
     // caption just strips the caption (body falls back to the file name).
     const mediaBase = mediaEditBase(event.getContent());
-    const newBody = trimmed || String(mediaBase?.filename ?? "");
+    // Plain body: inline timestamp tokens read as their UTC text. The formatted
+    // body below is built from `trimmed` and keeps them as <time> elements.
+    const newBody =
+        convertInlineTimestampsInBody(trimmed) ||
+        String(mediaBase?.filename ?? "");
     // Same rich-body pipeline as the composer, so a typed :shortcode: becomes
     // the custom emote.
     // Mention pills: the ones already in the message's formatted_body (so they

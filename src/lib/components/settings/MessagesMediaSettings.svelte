@@ -37,7 +37,12 @@
         validateCustomSoundBankFile,
     } from "$lib/utils/customSoundBank";
     import { formatMediaSize } from "$lib/utils/roomMedia";
-    import { importFavouriteGifs } from "$lib/stores/favourites.svelte";
+    import {
+        importFavouriteGifs,
+        setFavouritesEncrypted,
+    } from "$lib/stores/favourites.svelte";
+    import { privateModeState } from "$lib/matrix/privateAccountData.svelte";
+    import { Loader2 } from "lucide-svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import {
         fetchLinkPreview,
@@ -73,6 +78,22 @@
     const discordImportAvailable =
         typeof window !== "undefined" && !!window.desktop?.discordFavourites;
     let discordBusy = $state(false);
+
+    // Encrypted favourites are account state, shown live from the server. Turning
+    // them off is two-step: the list becomes readable by the homeserver again.
+    let confirmingEncryptionOff = $state(false);
+    const encryptedOn = $derived(privateModeState.mode === "encrypted");
+    const encryptionBusy = $derived(
+        privateModeState.switching || privateModeState.mode === "unknown",
+    );
+    async function setEncryption(enable: boolean) {
+        confirmingEncryptionOff = false;
+        await setFavouritesEncrypted(enable);
+    }
+    function onEncryptionToggle(checked: boolean) {
+        if (checked) void setEncryption(true);
+        else confirmingEncryptionOff = true;
+    }
     let discordProgress = $state<{ done: number; total: number } | null>(null);
     let discordOutcome = $state<string | null>(null);
     let discordMounted = true;
@@ -528,6 +549,60 @@
                 onChange={setGifDefaultTab}
                 ariaLabel={t("messagesMediaSettings.defaultGifTab")}
             />
+        </div>
+        <div
+            class="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+        >
+            <div class="flex-1 min-w-0">
+                <span class="text-sm text-zam-textPrimary"
+                    >{t("privateData.toggleLabel")}</span
+                >
+                <p class="text-xs text-zam-textMuted">
+                    {t("privateData.toggleHelp")}
+                </p>
+                {#if confirmingEncryptionOff}
+                    <p class="text-xs text-zam-textPrimary mt-1" role="alert">
+                        {t("privateData.offWarning")}
+                    </p>
+                {/if}
+            </div>
+            {#if confirmingEncryptionOff}
+                <div class="flex items-center gap-2 shrink-0">
+                    <button
+                        type="button"
+                        class="px-3 py-1.5 rounded bg-zam-backgroundSecondary text-sm text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
+                        onclick={() => (confirmingEncryptionOff = false)}
+                        >{t("common.cancel")}</button
+                    >
+                    <button
+                        type="button"
+                        class="px-3 py-1.5 rounded bg-zam-backgroundSecondary text-sm text-zam-textPrimary hover:bg-zam-messageHover disabled:opacity-50 transition-colors"
+                        onclick={() => setEncryption(false)}
+                        disabled={encryptionBusy}
+                        >{t("privateData.turnOff")}</button
+                    >
+                </div>
+            {:else}
+                <div class="flex items-center gap-2 shrink-0">
+                    {#if encryptionBusy}
+                        <Loader2
+                            size={16}
+                            class="animate-spin text-zam-accent"
+                        />
+                    {/if}
+                    <div
+                        class:opacity-50={encryptionBusy}
+                        class:pointer-events-none={encryptionBusy}
+                        aria-disabled={encryptionBusy}
+                    >
+                        <ToggleSwitch
+                            checked={encryptedOn}
+                            onChange={onEncryptionToggle}
+                            label={t("privateData.toggleLabel")}
+                        />
+                    </div>
+                </div>
+            {/if}
         </div>
         {#if discordImportAvailable}
             <div

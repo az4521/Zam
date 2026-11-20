@@ -262,6 +262,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callParticipantMenu.couldNotOpenADirectMessage": "无法打开私信",
     "callParticipantMenu.couldNotKick": "无法移出 {name}",
     "callParticipantMenu.couldNotBan": "无法封禁 {name}",
+    "callParticipantMenu.disconnectFromVoice": "断开语音连接",
+    "callParticipantMenu.disconnecting": "正在断开…",
+    "callParticipantMenu.confirmDisconnect": "确认将 {name} 断开语音连接？",
+    "callParticipantMenu.couldNotDisconnect": "无法断开 {name}",
+    "callKick.notPermitted": "你无法将此成员断开语音连接",
+    "callKick.removedFromVoice": "{name} 将你移出了语音频道",
 
     // src/lib/components/layout/CallView.svelte
     "callEncryption.encrypted":
@@ -942,6 +948,22 @@ const messages: Partial<Record<MessageKey, string>> = {
     "richPresenceCard.openFailed": "无法获取 OpenID 令牌。",
 
     // src/lib/components/ui/GifPicker.svelte
+    "favourites.locked": "此设备上的收藏已锁定。请先解锁再修改。",
+    "favourites.saveFailed": "无法保存收藏，更改已撤销。",
+    "favourites.lockedHint":
+        "此设备上的收藏已锁定。输入恢复密钥或验证此设备即可查看和修改。",
+    "favourites.unlock": "解锁",
+    "privateData.locked": "此设备上的私密数据已锁定。请先解锁加密。",
+    "privateData.keySaveFailed":
+        "无法将私密数据密钥保存到账户的安全存储中，下次解锁时会重试。",
+    "settingsSearch.encryptFavouriteGifs": "加密收藏的 GIF",
+    "privateData.toggleLabel": "加密收藏的 GIF",
+    "privateData.toggleHelp":
+        "对家庭服务器隐藏你收藏的 GIF。其他设备需要恢复密钥或已验证的会话才能读取，旧版 Zam 将看不到这些收藏。",
+    "privateData.offWarning": "关闭后，家庭服务器将能再次读取你收藏的 GIF。",
+    "privateData.turnOff": "关闭加密",
+    "privateData.enableFailed": "无法加密收藏的 GIF，未做任何更改。",
+    "privateData.disableFailed": "无法关闭收藏 GIF 的加密，未做任何更改。",
     "gifPicker.searchFavourites": "搜索收藏…",
     "gifPicker.searchKlipy": "搜索 KLIPY…",
     "gifPicker.searchFavourites2": "搜索收藏",
@@ -3061,6 +3083,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "composerActionsMenu.recordVoiceMessage": "录制语音消息",
     "composerActionsMenu.shareLocation": "共享位置",
     "composerActionsMenu.createThread": "创建消息列",
+    "composerActionsMenu.insertTimestamp": "插入时间戳",
+    "timestampPicker.title": "插入时间戳",
+    "timestampPicker.dateAndTime": "日期和时间",
+    "timestampPicker.format": "格式",
+    "timestampPicker.insert": "插入",
+    "timestampPicker.cancel": "取消",
+    "timestampPicker.styleShortTime": "短时间",
+    "timestampPicker.styleLongTime": "长时间",
+    "timestampPicker.styleShortDate": "短日期",
+    "timestampPicker.styleLongDate": "长日期",
+    "timestampPicker.styleShortDateTime": "短日期和时间",
+    "timestampPicker.styleLongDateTime": "长日期和时间",
+    "timestampPicker.styleRelative": "相对时间",
     "composerActionsMenu.inviteToGame": "邀请加入游戏",
     "gameInvite.title": "邀请加入游戏",
     "gameInvite.game": "游戏",

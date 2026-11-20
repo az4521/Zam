@@ -270,6 +270,13 @@ const messages: Partial<Record<MessageKey, string>> = {
         "No se pudo abrir un mensaje directo",
     "callParticipantMenu.couldNotKick": "No se pudo expulsar a {name}",
     "callParticipantMenu.couldNotBan": "No se pudo vetar a {name}",
+    "callParticipantMenu.disconnectFromVoice": "Desconectar de la voz",
+    "callParticipantMenu.disconnecting": "Desconectando…",
+    "callParticipantMenu.confirmDisconnect":
+        "¿Confirmar la desconexión de {name} de la voz?",
+    "callParticipantMenu.couldNotDisconnect": "No se pudo desconectar a {name}",
+    "callKick.notPermitted": "No puedes desconectar a este miembro de la voz",
+    "callKick.removedFromVoice": "{name} te ha sacado del canal de voz",
 
     // src/lib/components/layout/CallView.svelte
     "callEncryption.encrypted":
@@ -860,6 +867,28 @@ const messages: Partial<Record<MessageKey, string>> = {
         "No hay ajustes generales disponibles en esta plataforma.",
 
     // src/lib/components/ui/GifPicker.svelte
+    "favourites.locked":
+        "Los favoritos están bloqueados en este dispositivo. Desbloquéalos antes de cambiarlos.",
+    "favourites.saveFailed":
+        "No se pudieron guardar tus favoritos. Se deshizo el cambio.",
+    "favourites.lockedHint":
+        "Los favoritos están bloqueados en este dispositivo. Introduce tu clave de recuperación o verifica este dispositivo para verlos y cambiarlos.",
+    "favourites.unlock": "Desbloquear",
+    "privateData.locked":
+        "Los datos privados están bloqueados en este dispositivo. Desbloquea primero el cifrado.",
+    "privateData.keySaveFailed":
+        "No se pudo guardar la clave de datos privados en el almacenamiento secreto de tu cuenta. Se volverá a intentar la próxima vez que desbloquees.",
+    "settingsSearch.encryptFavouriteGifs": "Cifrar GIF favoritos",
+    "privateData.toggleLabel": "Cifrar GIF favoritos",
+    "privateData.toggleHelp":
+        "Oculta tus GIF favoritos del servidor doméstico. Otros dispositivos necesitan tu clave de recuperación o una sesión verificada para leerlos, y las versiones antiguas de Zam no los verán.",
+    "privateData.offWarning":
+        "Si lo desactivas, tus GIF favoritos volverán a ser legibles por el servidor doméstico.",
+    "privateData.turnOff": "Desactivar el cifrado",
+    "privateData.enableFailed":
+        "No se pudieron cifrar tus GIF favoritos. No se cambió nada.",
+    "privateData.disableFailed":
+        "No se pudo desactivar el cifrado de tus GIF favoritos. No se cambió nada.",
     "gifPicker.searchFavourites": "Buscar en favoritos…",
     "gifPicker.searchKlipy": "Buscar en KLIPY…",
     "gifPicker.searchFavourites2": "Buscar en favoritos",
@@ -3335,6 +3364,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "composerActionsMenu.recordVoiceMessage": "Grabar un mensaje de voz",
     "composerActionsMenu.shareLocation": "Compartir ubicación",
     "composerActionsMenu.createThread": "Crear hilo",
+    "composerActionsMenu.insertTimestamp": "Insertar marca de tiempo",
+    "timestampPicker.title": "Insertar una marca de tiempo",
+    "timestampPicker.dateAndTime": "Fecha y hora",
+    "timestampPicker.format": "Formato",
+    "timestampPicker.insert": "Insertar",
+    "timestampPicker.cancel": "Cancelar",
+    "timestampPicker.styleShortTime": "Hora corta",
+    "timestampPicker.styleLongTime": "Hora larga",
+    "timestampPicker.styleShortDate": "Fecha corta",
+    "timestampPicker.styleLongDate": "Fecha larga",
+    "timestampPicker.styleShortDateTime": "Fecha y hora cortas",
+    "timestampPicker.styleLongDateTime": "Fecha y hora largas",
+    "timestampPicker.styleRelative": "Relativa",
     "composerActionsMenu.inviteToGame": "Invitar a jugar",
     "gameInvite.title": "Invitar a jugar",
     "gameInvite.game": "Juego",

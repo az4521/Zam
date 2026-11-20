@@ -1,5 +1,9 @@
 import { reviveOnReturn } from "./reviveOnReturn";
 import { scrollParent } from "./unloadOffscreen";
+import {
+    onVideoDecodersHeldChange,
+    videoDecodersHeld,
+} from "$lib/stores/videoDecoderHold";
 
 /** Just past the scroller's edges, so a tile is already playing when it
  *  scrolls in. Far tighter than unloadOffscreen's margin: that one guards a
@@ -20,6 +24,10 @@ const MARGIN = "25% 0px";
 export function gifTileVideo(node: HTMLVideoElement, url: string) {
     let current = url;
     let loaded = false;
+    // Whether the tile is near view, and whether an open Lightbox holds the
+    // decoders (see videoDecoderHold). A src is held only when both allow it.
+    let near = typeof IntersectionObserver !== "function";
+    let held = videoDecodersHeld();
 
     function load() {
         if (loaded) return;
@@ -34,18 +42,35 @@ export function gifTileVideo(node: HTMLVideoElement, url: string) {
         node.load();
     }
 
+    function sync() {
+        if (near && !held) load();
+        else unload();
+    }
+
+    const stopHolding = onVideoDecodersHeldChange(() => {
+        held = videoDecodersHeld();
+        sync();
+    });
+
     if (typeof IntersectionObserver !== "function") {
-        load();
+        sync();
         return {
             update(next: string) {
                 current = next;
-                node.src = next;
+                if (loaded) node.src = next;
+            },
+            destroy() {
+                stopHolding();
+                unload();
             },
         };
     }
 
     const observer = new IntersectionObserver(
-        ([entry]) => (entry.isIntersecting ? load() : unload()),
+        ([entry]) => {
+            near = entry.isIntersecting;
+            sync();
+        },
         { root: scrollParent(node), rootMargin: MARGIN, threshold: 0 },
     );
     observer.observe(node);
@@ -55,7 +80,7 @@ export function gifTileVideo(node: HTMLVideoElement, url: string) {
         () => loaded,
         () => {
             unload();
-            load();
+            sync();
         },
     );
 
@@ -68,6 +93,7 @@ export function gifTileVideo(node: HTMLVideoElement, url: string) {
         destroy() {
             observer.disconnect();
             stopReviving();
+            stopHolding();
             unload();
         },
     };

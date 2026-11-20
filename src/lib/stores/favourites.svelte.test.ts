@@ -1,14 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// The "homeserver" copy of the favourites, as the encrypted layer hands it back.
 const server = { gifs: [] as unknown[] };
 vi.mock("$lib/matrix/client", () => ({
-    loadFavouriteGifs: () => [],
-    fetchFavouriteGifsFromServer: async () => server.gifs,
-    persistFavouriteGifs: async (gifs: unknown[]) => {
-        server.gifs = gifs;
-    },
     onAccountData: () => () => {},
     onSyncPrepared: () => () => {},
+    persistPrivateAccountData: async () => {},
+}));
+vi.mock("$lib/matrix/runtime", () => ({
+    captureClient: () => ({}),
+    ownedClient: () => ({}),
+}));
+vi.mock("$lib/stores/onboarding.svelte", () => ({
+    openEncryptionSetup: () => {},
+}));
+vi.mock("$lib/matrix/privateAccountData.svelte", () => ({
+    readPrivate: async () => ({
+        kind: "value",
+        value: { gifs: server.gifs },
+        source: "encrypted",
+    }),
+    writePrivate: async (_type: string, value: { gifs: unknown[] }) => {
+        server.gifs = value.gifs;
+    },
+    hasPrivateKey: () => true,
+    onPrivateKeyChange: () => () => {},
+    preparePrivateKey: async () => "ready",
+    setPrivateMode: () => {},
+    privateModeState: { mode: "encrypted", switching: false },
+    PrivateAccountDataLockedError: class extends Error {},
 }));
 
 import {

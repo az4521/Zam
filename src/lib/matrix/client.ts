@@ -1,4 +1,5 @@
 import { t } from "$lib/i18n";
+import { clearPrivateAccountDataLocal } from "$lib/utils/privateAccountDataStorage";
 import {
     groupReactionDetails,
     type ReactionDetailGroup,
@@ -218,7 +219,6 @@ import {
 } from "$lib/utils/pendingEchoes";
 import { firstReusableDmRoom } from "$lib/utils/dmReuse";
 import { pickDmRoomVersion } from "$lib/utils/dmRoomVersion";
-import { pickFavouriteGifs } from "$lib/utils/favouriteGifs";
 import {
     countReactions,
     type ReactionAnnotation,
@@ -325,6 +325,12 @@ import {
 } from "$lib/utils/roomUnread";
 import { localReadVerdict, type LocalReadMark } from "$lib/utils/localRead";
 import { callMemberSendersMissingMembership } from "$lib/utils/callMemberSenders";
+import {
+    CALL_KICK_EVENT_TYPE,
+    canDisconnectFromVoice,
+    type CallKickContent,
+} from "$lib/utils/callKick";
+import { isCallDeviceKicked } from "$lib/utils/callKickRegistry";
 import {
     isPollStartEventType,
     isPollResponseEventType,
@@ -1827,12 +1833,6 @@ export function deleteFailedMessage(event: MatrixEvent): void {
     matrixClient.cancelPendingEvent(event);
 }
 
-// Namespaced under the app's own reverse-DNS id so it no longer squats the
-// reserved `m.*` spec namespace. The old key is still READ (migration fallback)
-// but never written again — see loadFavouriteGifs / persistFavouriteGifs.
-const FAV_GIFS_KEY = "moe.crafty.matrix.favourite_gifs";
-const LEGACY_FAV_GIFS_KEY = "m.favourite_gifs";
-
 export interface FavouriteGif {
     url: string;
     previewUrl: string;
@@ -1878,69 +1878,54 @@ export interface PluginSyncAccountData {
     autoUpdate: boolean;
 }
 
-function gifsFromEvent(
-    event: MatrixEvent | null | undefined,
-): FavouriteGif[] | null {
-    if (!event) return null;
-    return (event.getContent()?.gifs as FavouriteGif[] | undefined) ?? [];
-}
-
-export function loadFavouriteGifs(): FavouriteGif[] {
-    if (!matrixClient) return [];
-    // Prefer the new key; fall back to the legacy key only when the new one was
-    // never written (pickFavouriteGifs treats a present-but-empty new key as
-    // authoritative, so a cleared list is never resurrected from the legacy blob).
-    return pickFavouriteGifs(
-        gifsFromEvent(matrixClient.getAccountData(FAV_GIFS_KEY)),
-        gifsFromEvent(matrixClient.getAccountData(LEGACY_FAV_GIFS_KEY)),
-    );
+/**
+ * Raw account data at `type` as the local sync copy holds it: the content, or
+ * null when there is no such event. Untrusted: callers validate it. Used for
+ * the encrypted private account data types (privateAccountData.svelte.ts) and their
+ * legacy plaintext predecessors.
+ */
+export function loadPrivateAccountData(type: string): unknown | null {
+    if (!matrixClient) return null;
+    const event = matrixClient.getAccountData(type as never);
+    return event ? event.getContent() : null;
 }
 
 /**
- * The favourites list as the homeserver currently has it, fetched over the
- * wire. Throws if the request fails, so callers can tell "the server says
- * there are none" (empty array) from "we couldn't ask" (throw).
+ * The same account data as the homeserver has it right now, fetched over the
+ * wire: the content, or null when the event was never set (404). Throws when
+ * the request fails, so callers can tell "none" from "we couldn't ask".
  *
- * Deliberately NOT client.getAccountDataFromServer(): despite the name, that
- * short-circuits to the local sync store once the initial sync has completed,
- * which returns exactly the possibly-stale data we are trying to look past.
+ * Deliberately NOT client.getAccountDataFromServer(): that short-circuits to the
+ * local sync store once the initial sync has completed, which is the stale data
+ * a read-modify-write must look past.
  */
-export async function fetchFavouriteGifsFromServer(): Promise<FavouriteGif[]> {
+export async function fetchPrivateAccountDataFromServer(
+    type: string,
+): Promise<unknown | null> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const userId = matrixClient.getUserId();
     if (!userId) throw new Error(t("client.notLoggedIn"));
-    // Returns null when the key has never been set for this account (404), so
-    // the new key falling back to the legacy key is distinguishable from a key
-    // that is set to an empty list.
-    const fetchKey = async (key: string): Promise<FavouriteGif[] | null> => {
-        const path = `/user/${encodeURIComponent(userId)}/account_data/${key}`;
-        try {
-            const content = await matrixClient!.http.authedRequest<{
-                gifs?: FavouriteGif[];
-            }>(Method.Get, path);
-            return content?.gifs ?? [];
-        } catch (err) {
-            if ((err as MatrixError)?.errcode === "M_NOT_FOUND") return null;
-            throw err;
-        }
-    };
-    // Prefer the new key; fall back to the legacy key only when the new one is
-    // absent (the first write after migration copies the legacy list forward).
-    const current = await fetchKey(FAV_GIFS_KEY);
-    if (current !== null) return current;
-    return pickFavouriteGifs(current, await fetchKey(LEGACY_FAV_GIFS_KEY));
+    const path = `/user/${encodeURIComponent(userId)}/account_data/${encodeURIComponent(type)}`;
+    try {
+        return await matrixClient.http.authedRequest<unknown>(Method.Get, path);
+    } catch (err) {
+        if ((err as MatrixError)?.errcode === "M_NOT_FOUND") return null;
+        throw err;
+    }
 }
 
-export async function persistFavouriteGifs(
-    gifs: FavouriteGif[],
+/** Write account data at `type`. Callers pass an already-encrypted payload. */
+export async function persistPrivateAccountData(
+    type: string,
+    content: object,
 ): Promise<void> {
     if (!matrixClient) return;
-    await matrixClient.setAccountData(FAV_GIFS_KEY, { gifs });
+    await matrixClient.setAccountData(type as never, content as never);
 }
 
 // Namespaced under the app's own reverse-DNS id (the Android applicationId /
 // Electron appId) so it cannot collide with another client's account data —
-// same convention as FAV_GIFS_KEY above.
+// same convention as the private account data types (privateAccountData.svelte.ts).
 const CUSTOMIZATION_KEY = "moe.crafty.matrix.customization";
 
 /** Raw customization account data, or null when absent / not logged in. */
@@ -2056,6 +2041,9 @@ export async function logout(): Promise<void> {
     if (client) {
         const userId = client.getUserId();
         const deviceId = client.getDeviceId();
+        // The private account data key and its decrypted cache stay on this
+        // device only while the account is signed in here.
+        if (userId) clearPrivateAccountDataLocal(userId);
         // Remember the wipe BEFORE attempting it. `clearStores()` hangs forever
         // when another tab holds the crypto IndexedDB open (its `onblocked`
         // handler only logs), and AppShell's 4s window then reloads the page
@@ -5069,25 +5057,31 @@ export async function probeCallingSupport(): Promise<{
         configuredRtcFoci()
             .then((foci) => foci.length > 0)
             .catch(() => false),
-        Promise.all([
-            getServerVersions()
-                .then(({ unstableFeatures }) =>
-                    hasUnstableFeature(unstableFeatures, "org.matrix.msc4140"),
-                )
-                .catch(() => false),
-            getServerCapabilities()
-                .then((caps) =>
-                    ["m.delayed_events", "org.matrix.msc4140.delayed_events"]
-                        .map((name) => caps[name])
-                        .some((cap) => cap?.enabled === true),
-                )
-                .catch(() => false),
-        ]).then(
-            ([fromVersions, fromCapabilities]) =>
-                fromVersions || fromCapabilities,
-        ),
+        delayedEventsAdvertised(),
     ]);
     return { rtcFoci, delayedEvents };
+}
+
+/** Whether the homeserver advertises delayed events (MSC4140 or the spec
+ *  `m.delayed_events` capability). Failures count as false. */
+export async function delayedEventsAdvertised(): Promise<boolean> {
+    if (!matrixClient) return false;
+    return Promise.all([
+        getServerVersions()
+            .then(({ unstableFeatures }) =>
+                hasUnstableFeature(unstableFeatures, "org.matrix.msc4140"),
+            )
+            .catch(() => false),
+        getServerCapabilities()
+            .then((caps) =>
+                ["m.delayed_events", "org.matrix.msc4140.delayed_events"]
+                    .map((name) => caps[name])
+                    .some((cap) => cap?.enabled === true),
+            )
+            .catch(() => false),
+    ]).then(
+        ([fromVersions, fromCapabilities]) => fromVersions || fromCapabilities,
+    );
 }
 
 // ── Device / session management ─────────────────────────────────────────────
@@ -10357,6 +10351,75 @@ export async function kickUser(
     await matrixClient.kick(roomId, userId, reason);
 }
 
+/** May we disconnect `userId` from the room's voice call? Our rank must meet
+ *  the room's kick level and outrank theirs. The receiving clients check the
+ *  same rule when they apply the kick. Never for ourselves or a non-member. */
+export function canDisconnectFromVoiceInRoom(
+    room: Room,
+    userId: string,
+): boolean {
+    if (userId === matrixClient?.getUserId()) return false;
+    if (!room.getMember(userId)) return false;
+    return canDisconnectFromVoice(
+        getMyPowerRank(room),
+        getUserPowerRank(room, userId),
+        getRoomPowerLevels(room).kick,
+    );
+}
+
+/** Disconnect a member from the room's voice call, without kicking them from
+ *  the room. Sends `com.zam.call.kick`, which every Zam client in the call
+ *  applies. Then clears the member's call state, best effort: a server usually
+ *  refuses writing another user's state key, and that refusal is ignored.
+ *
+ *  The kick is sent UNENCRYPTED on purpose, even in an encrypted room. The
+ *  server's default `.m.rule.encrypted` push rule would notify (and count) an
+ *  encrypted kick in a group room, and an undecryptable copy shows as a
+ *  placeholder. A plaintext custom type matches no default push rule, renders
+ *  nowhere (isSilentZamEvent), and needs no decryption. It carries nothing the
+ *  membership state does not already expose. So the send is a raw PUT: the
+ *  SDK's sendEvent would encrypt it. */
+export async function disconnectFromVoice(
+    roomId: string,
+    userId: string,
+    deviceId?: string,
+    reason?: string,
+): Promise<void> {
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    const room = getRoom(roomId);
+    if (!room || !canDisconnectFromVoiceInRoom(room, userId)) {
+        throw new Error(t("callKick.notPermitted"));
+    }
+    const content: CallKickContent = { user_id: userId, call_id: "" };
+    if (deviceId) content.device_id = deviceId;
+    if (reason) content.reason = reason;
+    const txnId = `zam-kick-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    await matrixClient.http.authedRequest(
+        Method.Put,
+        `/rooms/${encodeURIComponent(roomId)}/send/${encodeURIComponent(CALL_KICK_EVENT_TYPE)}/${encodeURIComponent(txnId)}`,
+        undefined,
+        content,
+    );
+    const memberStates =
+        room.currentState.getStateEvents(EventType.GroupCallMemberPrefix) ?? [];
+    await Promise.allSettled(
+        memberStates
+            .filter((ev) => {
+                const key = ev.getStateKey();
+                if (!key || ev.getSender() !== userId) return false;
+                return !deviceId || ev.getContent().device_id === deviceId;
+            })
+            .map((ev) =>
+                matrixClient!.sendStateEvent(
+                    roomId,
+                    EventType.GroupCallMemberPrefix,
+                    {} as never,
+                    ev.getStateKey()!,
+                ),
+            ),
+    );
+}
+
 export async function banUser(
     roomId: string,
     userId: string,
@@ -11795,8 +11858,14 @@ export function loadUnknownCallMembers(roomIds: string[]): void {
 export function getRoomCallMemberships(room: Room): VoiceMembership[] {
     const session = rtcSessionFor(room);
     if (!session) return [];
+    // A device a moderator disconnected stays out of the roster for the kick
+    // window, even while its membership state still exists.
     return session.memberships
-        .filter((m) => !m.isExpired())
+        .filter(
+            (m) =>
+                !m.isExpired() &&
+                !isCallDeviceKicked(room.roomId, m.userId, m.deviceId),
+        )
         .map((m) => ({
             userId: m.userId,
             deviceId: m.deviceId,

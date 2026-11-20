@@ -14,6 +14,7 @@ import {
     EventType,
     Method,
     type MatrixClient,
+    type MatrixEvent,
     type Room,
 } from "matrix-js-sdk";
 import type * as LivekitClient from "livekit-client";
@@ -59,7 +60,27 @@ import {
 } from "$lib/utils/nativeShareBitrate";
 import { shareEncoderSteps } from "$lib/utils/shareCrop";
 import { matrixClient } from "./runtime";
-import { getDirectRoomIds, getRoomCallMemberships } from "./client";
+import {
+    getDirectRoomIds,
+    getMemberName,
+    getRoomCallMemberships,
+    getRoomPowerLevels,
+    getUserPowerRank,
+    onDecryptedTimelineEvent,
+    onTimelineEvent,
+} from "./client";
+import {
+    CALL_KICK_EVENT_TYPE,
+    canDisconnectFromVoice,
+    isLiveCallKick,
+    parseCallKickContent,
+} from "$lib/utils/callKick";
+import {
+    clearCallKicks,
+    isCallDeviceKicked,
+    recordCallKick,
+} from "$lib/utils/callKickRegistry";
+import { voiceCallState } from "$lib/stores/voiceCall.svelte";
 import {
     ensureFreshWebrtcRealm,
     markWebrtcRealmStale,
@@ -1792,6 +1813,96 @@ async function publishCallData(
     if (plugin?.carriesData) await plugin.publishData(payload, opts);
 }
 
+// ── Disconnect from voice (com.zam.call.kick) ───────────────────────────────
+
+/** Unsubscribes the kick listener of the call we are in. */
+let callKickUnsub: (() => void) | null = null;
+/** Kick event ids already applied, so a re-emitted decryption acts once. */
+const appliedKickIds = new Set<string>();
+
+/** Publications this module unsubscribed because their device was kicked, so
+ *  the window's end restores exactly those and nothing else (autoSubscribe is
+ *  off, so the app decides what it subscribes to). */
+const subscriptionsCutForKick = new WeakSet<object>();
+
+/** Stop receiving a kicked device's media on every LiveKit room of the call,
+ *  and restore it when the window ends. A shared SFU room carries every member,
+ *  so this works per track publication rather than per room connection. */
+function applyKickedSubscriptions(call: ActiveVoiceCall): void {
+    for (const room of callLkRooms(call)) {
+        for (const p of room.remoteParticipants.values()) {
+            const userId = userIdFromIdentity(p.identity);
+            const deviceId = p.identity.slice(p.identity.lastIndexOf(":") + 1);
+            const kicked = isCallDeviceKicked(call.roomId, userId, deviceId);
+            for (const pub of p.trackPublications.values()) {
+                if (kicked && pub.isSubscribed) {
+                    pub.setSubscribed(false);
+                    subscriptionsCutForKick.add(pub);
+                } else if (!kicked && subscriptionsCutForKick.has(pub)) {
+                    subscriptionsCutForKick.delete(pub);
+                    pub.setSubscribed(true);
+                }
+            }
+        }
+    }
+}
+
+/** Re-read who is in the call after a kick starts or its window ends. */
+function refreshCallRoster(call: ActiveVoiceCall): void {
+    voiceCallState.voiceTick++;
+    void syncRemoteSfus(call);
+}
+
+function scheduleKickRefresh(roomId: string, endTs: number): void {
+    setTimeout(
+        () => {
+            if (activeVoice?.roomId === roomId) refreshCallRoster(activeVoice);
+        },
+        Math.max(0, endTs - Date.now()) + 50,
+    );
+}
+
+/** A `com.zam.call.kick` in the call's room. Applied only when it is live, and
+ *  only when its sender met the kick bar at the moment it arrived. */
+function onCallKickEvent(event: MatrixEvent, room: Room): void {
+    if (event.getType() !== CALL_KICK_EVENT_TYPE) return;
+    const call = activeVoice;
+    if (!call || call.roomId !== room.roomId || !matrixClient) return;
+    const eventId = event.getId();
+    if (eventId) {
+        if (appliedKickIds.has(eventId)) return;
+        if (appliedKickIds.size > 500) appliedKickIds.clear();
+        appliedKickIds.add(eventId);
+    }
+    const kick = parseCallKickContent(event.getContent());
+    const now = Date.now();
+    if (!kick || !isLiveCallKick(event.getTs(), now)) return;
+    const actor = event.getSender();
+    if (!actor) return;
+    const permitted = canDisconnectFromVoice(
+        getUserPowerRank(room, actor),
+        getUserPowerRank(room, kick.user_id),
+        getRoomPowerLevels(room).kick,
+    );
+    if (!permitted) return;
+
+    const me = matrixClient.getUserId();
+    const myDevice = matrixClient.getDeviceId();
+    if (
+        kick.user_id === me &&
+        (!kick.device_id || kick.device_id === myDevice)
+    ) {
+        const name = getMemberName(room, actor);
+        void leaveVoiceCall()
+            .then(() => showToast(t("callKick.removedFromVoice", { name })))
+            .catch(() => {});
+        return;
+    }
+    const end = recordCallKick(room.roomId, kick.user_id, kick.device_id, now);
+    scheduleKickRefresh(room.roomId, end);
+    refreshCallRoster(call);
+}
+
 /** Who receives what we publish, over any transport. */
 function callSubscriberIdentities(call: ActiveVoiceCall): string[] {
     const plugin = call.pluginPublish
@@ -1963,7 +2074,13 @@ async function syncRemoteSfus(call: ActiveVoiceCall): Promise<void> {
             transport: published[i],
             senderOk: sendersMatch[i],
         }))
-        .filter(({ m }) => !(m.userId === me && m.deviceId === myDevice));
+        .filter(
+            ({ m }) =>
+                !(m.userId === me && m.deviceId === myDevice) &&
+                // A device a moderator disconnected is not received, over any
+                // transport, until its kick window ends.
+                !isCallDeviceKicked(call.roomId, m.userId, m.deviceId),
+        );
     const wanted = remoteLivekitTargets(
         others.map(({ transport }) => transport),
         call.publishKey,
@@ -1978,6 +2095,7 @@ async function syncRemoteSfus(call: ActiveVoiceCall): Promise<void> {
     for (const [key, target] of wanted)
         if (!call.remotes.has(key) && !call.remotesConnecting.has(key))
             void connectRemoteSfu(call, key, target);
+    applyKickedSubscriptions(call);
     syncMesh(
         call,
         others.map(({ m, transport, senderOk }) => ({
@@ -2702,6 +2820,22 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             "memberships_changed" as never,
             call.onMembershipsChanged as never,
         );
+        // Moderator "disconnect from voice" (com.zam.call.kick), live only.
+        // Kicks are sent plaintext (see disconnectFromVoice), so the plain
+        // timeline carries them; the decrypted listener still takes an
+        // encrypted kick from an older client. Both go through the same
+        // validation, and the event-id set keeps either from acting twice.
+        callKickUnsub?.();
+        const unsubPlain = onTimelineEvent((event, room) =>
+            onCallKickEvent(event, room),
+        );
+        const unsubDecrypted = onDecryptedTimelineEvent((event, room) =>
+            onCallKickEvent(event, room),
+        );
+        callKickUnsub = () => {
+            unsubPlain();
+            unsubDecrypted();
+        };
         void syncRemoteSfus(call);
     } catch (err) {
         if (activeVoice === call) {
@@ -3007,6 +3141,10 @@ async function leaveVoiceCallInternal(): Promise<void> {
             "memberships_changed" as never,
             call.onMembershipsChanged as never,
         );
+        callKickUnsub?.();
+        callKickUnsub = null;
+        appliedKickIds.clear();
+        clearCallKicks();
         for (const el of call.audioEls) el.remove();
         call.audioEls.clear();
         if (call.audioGraph) call.audioGraph.close();

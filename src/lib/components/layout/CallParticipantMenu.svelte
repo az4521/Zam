@@ -18,6 +18,8 @@
         getMemberName,
         kickUser,
         banUser,
+        disconnectFromVoice,
+        canDisconnectFromVoiceInRoom,
         createDirectMessage,
         hasExistingDirectMessage,
         retryRoomFollowUp,
@@ -94,15 +96,19 @@
         // admin Kick/Ban entries that only fail server-side. Mirrors
         // UserProfileCard's `!!member` guard; `menuGates` has no such concept,
         // so the check belongs here at the call site.
-        if (!member) return { canKick: false, canBan: false };
+        if (!member)
+            return { canKick: false, canBan: false, canDisconnect: false };
         const pl = getRoomPowerLevels(room);
-        return menuGates({
-            isSelf,
-            myLevel: getMyPowerRank(room),
-            targetLevel: getUserPowerRank(room, userId),
-            kickLevel: pl.kick,
-            banLevel: pl.ban,
-        });
+        return {
+            ...menuGates({
+                isSelf,
+                myLevel: getMyPowerRank(room),
+                targetLevel: getUserPowerRank(room, userId),
+                kickLevel: pl.kick,
+                banLevel: pl.ban,
+            }),
+            canDisconnect: canDisconnectFromVoiceInRoom(room, userId),
+        };
     });
     const audio = $derived(participantAudioFor(userId));
     // Read when the menu opens (or is retargeted): a second slider only
@@ -246,11 +252,11 @@
     // SDK store (up to 15s), so an unguarded second click would run the action
     // twice: two concurrent createDirectMessage calls can both miss the
     // existing-DM check and leave the user with two DM rooms for one contact.
-    type MenuAction = "message" | "block" | "kick" | "ban";
+    type MenuAction = "message" | "block" | "kick" | "ban" | "disconnect";
     let pending = $state<MenuAction | null>(null);
     // Which moderation action is armed for confirmation — mirrors
     // UserProfileCard's `confirming` flow (UX-07).
-    let confirming = $state<"kick" | "ban" | null>(null);
+    let confirming = $state<"kick" | "ban" | "disconnect" | null>(null);
 
     // Reset confirming state when the open menu is retargeted to a different
     // participant (the host can swap userId without remounting), so an armed
@@ -361,6 +367,18 @@
             "kick",
             () => kickUser(room.roomId, userId),
             () => t("callParticipantMenu.couldNotKick", { name }),
+        )();
+    }
+    // Removes them from this voice call only; the room membership stays.
+    async function onDisconnect() {
+        if (confirming !== "disconnect") {
+            confirming = "disconnect";
+            return;
+        }
+        await act(
+            "disconnect",
+            () => disconnectFromVoice(room.roomId, userId),
+            () => t("callParticipantMenu.couldNotDisconnect", { name }),
         )();
     }
     async function onBan() {
@@ -671,8 +689,20 @@
                   : t("common.block")}</button
         >
 
-        {#if gates.canKick || gates.canBan}
+        {#if gates.canDisconnect || gates.canKick || gates.canBan}
             <div class="w-full h-px bg-zam-divider my-1"></div>
+        {/if}
+        {#if gates.canDisconnect}
+            <button
+                onclick={onDisconnect}
+                disabled={pending !== null}
+                class="w-full text-start px-3 py-1.5 text-sm text-zam-danger hover:bg-zam-danger hover:text-white transition-colors truncate disabled:opacity-50"
+                >{pending === "disconnect"
+                    ? t("callParticipantMenu.disconnecting")
+                    : confirming === "disconnect"
+                      ? t("callParticipantMenu.confirmDisconnect", { name })
+                      : t("callParticipantMenu.disconnectFromVoice")}</button
+            >
         {/if}
         {#if gates.canKick}
             <button

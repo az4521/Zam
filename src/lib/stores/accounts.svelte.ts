@@ -16,6 +16,7 @@ import {
 } from "$lib/utils/accounts";
 
 import { syncNativeAccounts } from "$lib/nativeSession";
+import { clearPrivateAccountDataLocal } from "$lib/utils/privateAccountDataStorage";
 import { syncServiceWorkerAccounts } from "$lib/swAccounts";
 import {
     pickRecoveredRegistry,
@@ -111,6 +112,7 @@ export function updateTokens(
 /** Remove an account; when it was active, the successor becomes active. */
 export function removeAccountById(userId: string): void {
     accountsState.registry = removeAccount(accountsState.registry, userId);
+    clearPrivateAccountDataLocal(userId);
     persist();
 }
 

@@ -248,6 +248,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "ダイレクトメッセージを開けませんでした",
     "callParticipantMenu.couldNotKick": "{name} をキックできませんでした",
     "callParticipantMenu.couldNotBan": "{name} をBANできませんでした",
+    "callParticipantMenu.disconnectFromVoice": "通話から切断",
+    "callParticipantMenu.disconnecting": "切断中…",
+    "callParticipantMenu.confirmDisconnect": "{name} を通話から切断しますか？",
+    "callParticipantMenu.couldNotDisconnect": "{name} を切断できませんでした",
+    "callKick.notPermitted": "このメンバーを通話から切断する権限がありません",
+    "callKick.removedFromVoice": "{name} により通話から退出させられました",
     "callEncryption.encrypted":
         "エンドツーエンド暗号化: この通話の参加者だけが映像と音声を見聞きできます。",
     "callEncryption.encryptedShort": "暗号化済み",
@@ -790,6 +796,28 @@ const messages: Partial<Record<MessageKey, string>> = {
     "generalSettings.runAtStartupFailed": "システムで許可されませんでした。",
     "generalSettings.noGeneralSettingsAreAvailableOn":
         "このプラットフォームで利用できる一般設定はありません。",
+    "favourites.locked":
+        "このデバイスではお気に入りがロックされています。変更するにはロックを解除してください。",
+    "favourites.saveFailed":
+        "お気に入りを保存できませんでした。変更は元に戻されました。",
+    "favourites.lockedHint":
+        "このデバイスではお気に入りがロックされています。リカバリーキーを入力するか、このデバイスを認証すると、表示と変更ができます。",
+    "favourites.unlock": "ロック解除",
+    "privateData.locked":
+        "このデバイスでは非公開データがロックされています。先に暗号化のロックを解除してください。",
+    "privateData.keySaveFailed":
+        "非公開データの鍵をアカウントのシークレットストレージに保存できませんでした。次回のロック解除時に再試行します。",
+    "settingsSearch.encryptFavouriteGifs": "お気に入りGIFを暗号化",
+    "privateData.toggleLabel": "お気に入りGIFを暗号化",
+    "privateData.toggleHelp":
+        "お気に入りのGIFをホームサーバーから見えないようにします。ほかの端末で読むにはリカバリーキーか検証済みのセッションが必要で、古いZamでは表示されません。",
+    "privateData.offWarning":
+        "オフにすると、お気に入りのGIFはホームサーバーから再び読めるようになります。",
+    "privateData.turnOff": "暗号化をオフにする",
+    "privateData.enableFailed":
+        "お気に入りGIFを暗号化できませんでした。変更はありません。",
+    "privateData.disableFailed":
+        "お気に入りGIFの暗号化をオフにできませんでした。変更はありません。",
     "gifPicker.searchFavourites": "お気に入りを検索…",
     "gifPicker.searchKlipy": "KLIPY を検索…",
     "gifPicker.searchFavourites2": "お気に入りを検索",
@@ -2914,6 +2942,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "composerActionsMenu.recordVoiceMessage": "ボイスメッセージを録音",
     "composerActionsMenu.shareLocation": "位置情報を共有",
     "composerActionsMenu.createThread": "スレッドを作成",
+    "composerActionsMenu.insertTimestamp": "タイムスタンプを挿入",
+    "timestampPicker.title": "タイムスタンプを挿入",
+    "timestampPicker.dateAndTime": "日時",
+    "timestampPicker.format": "形式",
+    "timestampPicker.insert": "挿入",
+    "timestampPicker.cancel": "キャンセル",
+    "timestampPicker.styleShortTime": "短い時刻",
+    "timestampPicker.styleLongTime": "長い時刻",
+    "timestampPicker.styleShortDate": "短い日付",
+    "timestampPicker.styleLongDate": "長い日付",
+    "timestampPicker.styleShortDateTime": "短い日付と時刻",
+    "timestampPicker.styleLongDateTime": "長い日付と時刻",
+    "timestampPicker.styleRelative": "相対時刻",
     "composerActionsMenu.inviteToGame": "ゲームに招待",
     "gameInvite.title": "ゲームに招待",
     "gameInvite.game": "ゲーム",

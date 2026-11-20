@@ -267,6 +267,13 @@ export const en = {
         "Could not open a direct message",
     "callParticipantMenu.couldNotKick": "Could not kick {name}",
     "callParticipantMenu.couldNotBan": "Could not ban {name}",
+    "callParticipantMenu.disconnectFromVoice": "Disconnect from voice",
+    "callParticipantMenu.disconnecting": "Disconnecting…",
+    "callParticipantMenu.confirmDisconnect":
+        "Confirm disconnecting {name} from voice?",
+    "callParticipantMenu.couldNotDisconnect": "Could not disconnect {name}",
+    "callKick.notPermitted": "You cannot disconnect this member from voice",
+    "callKick.removedFromVoice": "{name} removed you from the voice channel",
 
     // src/lib/components/layout/CallView.svelte
     "callEncryption.encrypted":
@@ -942,6 +949,28 @@ export const en = {
     "richPresenceCard.openFailed": "Couldn't get an OpenID token.",
 
     // src/lib/components/ui/GifPicker.svelte
+    "favourites.locked":
+        "Favourites are locked on this device. Unlock them before changing them.",
+    "favourites.saveFailed":
+        "Could not save your favourites. Your change was undone.",
+    "favourites.lockedHint":
+        "Favourites are locked on this device. Enter your recovery key or verify this device to see and change them.",
+    "favourites.unlock": "Unlock",
+    "privateData.locked":
+        "Private data is locked on this device. Unlock encryption first.",
+    "privateData.keySaveFailed":
+        "Could not save the private data key to your account's secret storage. It will be retried the next time you unlock.",
+    "settingsSearch.encryptFavouriteGifs": "Encrypt favourite GIFs",
+    "privateData.toggleLabel": "Encrypt favourite GIFs",
+    "privateData.toggleHelp":
+        "Hides your favourite GIFs from the homeserver. Other devices need your recovery key or a verified session to read them, and older Zam versions won't see them.",
+    "privateData.offWarning":
+        "Turning this off makes your favourite GIFs readable by the homeserver again.",
+    "privateData.turnOff": "Turn off encryption",
+    "privateData.enableFailed":
+        "Could not encrypt your favourite GIFs. Nothing was changed.",
+    "privateData.disableFailed":
+        "Could not turn off encryption for your favourite GIFs. Nothing was changed.",
     "gifPicker.searchFavourites": "Search favourites…",
     "gifPicker.searchKlipy": "Search KLIPY…",
     "gifPicker.searchFavourites2": "Search favourites",
@@ -3203,6 +3232,19 @@ export const en = {
     "composerActionsMenu.recordVoiceMessage": "Record voice message",
     "composerActionsMenu.shareLocation": "Share location",
     "composerActionsMenu.createThread": "Create thread",
+    "composerActionsMenu.insertTimestamp": "Insert timestamp",
+    "timestampPicker.title": "Insert a timestamp",
+    "timestampPicker.dateAndTime": "Date and time",
+    "timestampPicker.format": "Format",
+    "timestampPicker.insert": "Insert",
+    "timestampPicker.cancel": "Cancel",
+    "timestampPicker.styleShortTime": "Short time",
+    "timestampPicker.styleLongTime": "Long time",
+    "timestampPicker.styleShortDate": "Short date",
+    "timestampPicker.styleLongDate": "Long date",
+    "timestampPicker.styleShortDateTime": "Short date and time",
+    "timestampPicker.styleLongDateTime": "Long date and time",
+    "timestampPicker.styleRelative": "Relative",
     "composerActionsMenu.inviteToGame": "Invite to game",
     "gameInvite.title": "Invite to game",
     "gameInvite.game": "Game",

@@ -54,6 +54,8 @@ const ALLOWED_TAGS = [
     "img",
     "details",
     "summary",
+    // Zam inline timestamp (see inlineTimestamp.ts); attributes below.
+    "time",
 ];
 
 // Attribute allowlist. This is the OUTER gate DOMPurify applies to every tag;
@@ -76,6 +78,8 @@ const ALLOWED_ATTR = [
     "data-mx-spoiler",
     "data-mx-maths",
     "data-mx-emoticon",
+    "datetime",
+    "data-zam-ts-style",
 ];
 
 // Spec v1.19 m.room.message HTML subset: which attrs are legal on which tag.
@@ -99,6 +103,8 @@ const PER_TAG_ATTRS: Record<string, Set<string>> = {
     div: new Set(["data-mx-maths"]),
     code: new Set(["class"]),
     ol: new Set(["start"]),
+    // Zam inline timestamp only: the value is validated where it is rendered.
+    time: new Set(["datetime", "data-zam-ts-style"]),
 };
 const HREF_SCHEME = /^(?:https?|ftp|mailto|magnet|matrix):/i;
 

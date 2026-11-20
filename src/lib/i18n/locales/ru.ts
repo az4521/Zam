@@ -281,6 +281,14 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Не удалось открыть личный чат",
     "callParticipantMenu.couldNotKick": "Не удалось исключить {name}",
     "callParticipantMenu.couldNotBan": "Не удалось заблокировать {name}",
+    "callParticipantMenu.disconnectFromVoice": "Отключить от голосового канала",
+    "callParticipantMenu.disconnecting": "Отключение…",
+    "callParticipantMenu.confirmDisconnect":
+        "Подтвердить отключение {name} от голосового канала?",
+    "callParticipantMenu.couldNotDisconnect": "Не удалось отключить {name}",
+    "callKick.notPermitted":
+        "Вы не можете отключить этого участника от голосового канала",
+    "callKick.removedFromVoice": "{name} отключил вас от голосового канала",
 
     // src/lib/components/layout/CallView.svelte
     "callEncryption.encrypted":
@@ -971,6 +979,28 @@ const messages: Partial<Record<MessageKey, string>> = {
     "richPresenceCard.openFailed": "Не удалось получить токен OpenID.",
 
     // src/lib/components/ui/GifPicker.svelte
+    "favourites.locked":
+        "Избранное заблокировано на этом устройстве. Разблокируйте его, прежде чем менять.",
+    "favourites.saveFailed":
+        "Не удалось сохранить избранное. Изменение отменено.",
+    "favourites.lockedHint":
+        "Избранное заблокировано на этом устройстве. Введите ключ восстановления или подтвердите это устройство, чтобы просматривать и менять его.",
+    "favourites.unlock": "Разблокировать",
+    "privateData.locked":
+        "Личные данные заблокированы на этом устройстве. Сначала разблокируйте шифрование.",
+    "privateData.keySaveFailed":
+        "Не удалось сохранить ключ личных данных в секретном хранилище аккаунта. Попытка повторится при следующей разблокировке.",
+    "settingsSearch.encryptFavouriteGifs": "Шифровать избранные GIF",
+    "privateData.toggleLabel": "Шифровать избранные GIF",
+    "privateData.toggleHelp":
+        "Скрывает избранные GIF от домашнего сервера. Другим устройствам для чтения нужен ключ восстановления или подтверждённая сессия, а старые версии Zam их не увидят.",
+    "privateData.offWarning":
+        "После отключения избранные GIF снова станут доступны для чтения домашнему серверу.",
+    "privateData.turnOff": "Отключить шифрование",
+    "privateData.enableFailed":
+        "Не удалось зашифровать избранные GIF. Ничего не изменено.",
+    "privateData.disableFailed":
+        "Не удалось отключить шифрование избранных GIF. Ничего не изменено.",
     "gifPicker.searchFavourites": "Поиск по избранному…",
     "gifPicker.searchKlipy": "Поиск в KLIPY…",
     "gifPicker.searchFavourites2": "Поиск по избранному",
@@ -3312,6 +3342,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "composerActionsMenu.recordVoiceMessage": "Записать голосовое сообщение",
     "composerActionsMenu.shareLocation": "Поделиться местоположением",
     "composerActionsMenu.createThread": "Создать обсуждение",
+    "composerActionsMenu.insertTimestamp": "Вставить метку времени",
+    "timestampPicker.title": "Вставить метку времени",
+    "timestampPicker.dateAndTime": "Дата и время",
+    "timestampPicker.format": "Формат",
+    "timestampPicker.insert": "Вставить",
+    "timestampPicker.cancel": "Отмена",
+    "timestampPicker.styleShortTime": "Короткое время",
+    "timestampPicker.styleLongTime": "Длинное время",
+    "timestampPicker.styleShortDate": "Короткая дата",
+    "timestampPicker.styleLongDate": "Длинная дата",
+    "timestampPicker.styleShortDateTime": "Короткие дата и время",
+    "timestampPicker.styleLongDateTime": "Длинные дата и время",
+    "timestampPicker.styleRelative": "Относительное",
     "composerActionsMenu.inviteToGame": "Пригласить в игру",
     "gameInvite.title": "Пригласить в игру",
     "gameInvite.game": "Игра",

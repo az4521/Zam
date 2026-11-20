@@ -268,6 +268,15 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Impossible d'ouvrir un message direct",
     "callParticipantMenu.couldNotKick": "Impossible d'expulser {name}",
     "callParticipantMenu.couldNotBan": "Impossible de bannir {name}",
+    "callParticipantMenu.disconnectFromVoice": "Déconnecter du vocal",
+    "callParticipantMenu.disconnecting": "Déconnexion…",
+    "callParticipantMenu.confirmDisconnect":
+        "Confirmer la déconnexion de {name} du vocal ?",
+    "callParticipantMenu.couldNotDisconnect":
+        "Impossible de déconnecter {name}",
+    "callKick.notPermitted":
+        "Vous ne pouvez pas déconnecter ce membre du vocal",
+    "callKick.removedFromVoice": "{name} vous a retiré du salon vocal",
 
     // src/lib/components/layout/CallView.svelte
     "callEncryption.encrypted":
@@ -858,6 +867,28 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Aucun paramètre général n'est disponible sur cette plateforme.",
 
     // src/lib/components/ui/GifPicker.svelte
+    "favourites.locked":
+        "Les favoris sont verrouillés sur cet appareil. Déverrouillez-les avant de les modifier.",
+    "favourites.saveFailed":
+        "Impossible d'enregistrer vos favoris. La modification a été annulée.",
+    "favourites.lockedHint":
+        "Les favoris sont verrouillés sur cet appareil. Saisissez votre clé de récupération ou vérifiez cet appareil pour les voir et les modifier.",
+    "favourites.unlock": "Déverrouiller",
+    "privateData.locked":
+        "Les données privées sont verrouillées sur cet appareil. Déverrouillez d'abord le chiffrement.",
+    "privateData.keySaveFailed":
+        "Impossible d'enregistrer la clé des données privées dans le stockage secret de votre compte. Une nouvelle tentative aura lieu au prochain déverrouillage.",
+    "settingsSearch.encryptFavouriteGifs": "Chiffrer les GIF favoris",
+    "privateData.toggleLabel": "Chiffrer les GIF favoris",
+    "privateData.toggleHelp":
+        "Masque vos GIF favoris au serveur d'accueil. Les autres appareils ont besoin de votre clé de récupération ou d'une session vérifiée pour les lire, et les anciennes versions de Zam ne les verront pas.",
+    "privateData.offWarning":
+        "En désactivant cette option, vos GIF favoris redeviendront lisibles par le serveur d'accueil.",
+    "privateData.turnOff": "Désactiver le chiffrement",
+    "privateData.enableFailed":
+        "Impossible de chiffrer vos GIF favoris. Rien n'a été modifié.",
+    "privateData.disableFailed":
+        "Impossible de désactiver le chiffrement de vos GIF favoris. Rien n'a été modifié.",
     "gifPicker.searchFavourites": "Rechercher dans les favoris…",
     "gifPicker.searchKlipy": "Rechercher sur KLIPY…",
     "gifPicker.searchFavourites2": "Rechercher dans les favoris",
@@ -3291,6 +3322,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "composerActionsMenu.recordVoiceMessage": "Enregistrer un message vocal",
     "composerActionsMenu.shareLocation": "Partager la position",
     "composerActionsMenu.createThread": "Créer un fil",
+    "composerActionsMenu.insertTimestamp": "Insérer un horodatage",
+    "timestampPicker.title": "Insérer un horodatage",
+    "timestampPicker.dateAndTime": "Date et heure",
+    "timestampPicker.format": "Format",
+    "timestampPicker.insert": "Insérer",
+    "timestampPicker.cancel": "Annuler",
+    "timestampPicker.styleShortTime": "Heure courte",
+    "timestampPicker.styleLongTime": "Heure longue",
+    "timestampPicker.styleShortDate": "Date courte",
+    "timestampPicker.styleLongDate": "Date longue",
+    "timestampPicker.styleShortDateTime": "Date et heure courtes",
+    "timestampPicker.styleLongDateTime": "Date et heure longues",
+    "timestampPicker.styleRelative": "Relative",
     "composerActionsMenu.inviteToGame": "Inviter à jouer",
     "gameInvite.title": "Inviter à jouer",
     "gameInvite.game": "Jeu",

@@ -3,6 +3,7 @@
     // Edit a queued attachment before it is sent (Discord-style: tap the
     // attachment in the composer drawer). The caller owns the modal slot.
     import { focusTrap } from "$lib/actions/focusTrap";
+    import { releaseDecoder } from "$lib/actions/releaseDecoder";
     import { onMount, untrack } from "svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
     import {
@@ -84,6 +85,7 @@
                 <!-- svelte-ignore a11y_media_has_caption -->
                 <video
                     src={previewUrl}
+                    use:releaseDecoder
                     controls
                     playsinline
                     preload="metadata"

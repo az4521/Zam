@@ -1795,6 +1795,9 @@ async function buildNotification(data, session) {
 					: null) || (await decryptInWorker(roomId, event, session));
 			if (clear) event = { ...event, type: clear.type, content: clear.content };
 		}
+		// A moderator's "disconnect from voice" (com.zam.call.kick) is a command,
+		// not a message: show nothing (same as SILENT_ZAM_EVENT_TYPES).
+		if (event && event.type === "com.zam.call.kick") return { own: true };
 		if (event) {
 			// Homeserver-supplied and untrusted: coerce to strings so a
 			// malformed event can't blow up on .trim() below.

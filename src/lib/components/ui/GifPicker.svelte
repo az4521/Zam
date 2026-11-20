@@ -20,6 +20,7 @@
         type FavouriteGif,
     } from "$lib/stores/favourites.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
+    import { openEncryptionSetup } from "$lib/stores/onboarding.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import { gifSendUrl, type GifKind, type GifResult } from "$lib/utils/klipy";
     import {
@@ -532,6 +533,20 @@
             class="search-input w-full bg-zam-backgroundTertiary text-zam-textPrimary placeholder-zam-textMuted text-sm rounded-lg px-3 py-1.5 outline-none border border-transparent"
         />
     </div>
+
+    {#if tab === "favourites" && favouritesState.locked}
+        <div
+            class="mx-3 mb-2 flex items-center gap-2 rounded-lg bg-zam-backgroundTertiary px-3 py-2 text-xs text-zam-textMuted flex-shrink-0"
+        >
+            <span class="flex-1">{t("favourites.lockedHint")}</span>
+            <button
+                type="button"
+                onclick={() => openEncryptionSetup(false)}
+                class="font-semibold text-zam-textPrimary hover:underline whitespace-nowrap"
+                >{t("favourites.unlock")}</button
+            >
+        </div>
+    {/if}
 
     <!-- Grid. This scroll box is the element the search field points into. It
          is rendered on both tabs and in every empty state, and it carries

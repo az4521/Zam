@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+    canonicalFavouriteUrl,
     discordItemToFavourite,
     discordItemsToFavourites,
     mapWithLimit,
@@ -151,6 +152,52 @@ describe("mergeImportedFavourites", () => {
         const twice = mergeImportedFavourites(once, imported);
         expect(twice).toEqual(once);
         expect(twice).toBe(once);
+    });
+
+    it("treats spelling variants of one link as the same favourite", () => {
+        const base = [gif("https://tenor.com/view/cat-gif-123")];
+        const out = mergeImportedFavourites(base, [
+            {
+                ...gif("https://www.tenor.com/en-GB/view/cat-gif-123/"),
+                previewUrl: "x",
+            },
+            {
+                ...gif("https://tenor.com/view/cat-gif-123?utm_source=share#a"),
+                previewUrl: "y",
+            },
+        ]);
+        expect(out).toBe(base);
+    });
+
+    it("keeps links whose meaningful query differs", () => {
+        const out = mergeImportedFavourites(
+            [gif("https://example.com/v?id=1")],
+            [gif("https://example.com/v?id=2")],
+        );
+        expect(out).toHaveLength(2);
+    });
+
+    it("skips a GIF whose favourite was re-keyed to another link", () => {
+        // An earlier import stored https://old; a later URL upgrade moved it
+        // to https://new but kept the preview.
+        const base = [
+            { ...gif("https://new"), previewUrl: "https://old.webp" },
+        ];
+        expect(mergeImportedFavourites(base, [gif("https://old")])).toBe(base);
+    });
+});
+
+describe("canonicalFavouriteUrl", () => {
+    it("normalises host, slash, fragment, tracking params and param order", () => {
+        expect(
+            canonicalFavouriteUrl(
+                "https://WWW.Example.com/a/?b=2&utm_x=1&a=1#f",
+            ),
+        ).toBe("example.com/a?a=1&b=2");
+    });
+
+    it("returns unparseable input unchanged", () => {
+        expect(canonicalFavouriteUrl("not a url")).toBe("not a url");
     });
 });
 

@@ -1,16 +1,39 @@
 import {
-    loadFavouriteGifs,
-    fetchFavouriteGifsFromServer,
-    persistFavouriteGifs,
     onAccountData,
     onSyncPrepared,
+    persistPrivateAccountData,
     type FavouriteGif,
 } from "$lib/matrix/client";
+import {
+    hasPrivateKey,
+    onPrivateKeyChange,
+    preparePrivateKey,
+    PrivateAccountDataLockedError,
+    privateModeState,
+    readPrivate,
+    setPrivateMode,
+    writePrivate,
+    type PrivateRead,
+} from "$lib/matrix/privateAccountData.svelte";
+import { captureClient, ownedClient } from "$lib/matrix/runtime";
 import { matrixMediaMxc } from "$lib/matrix/favouriteFile";
+import { disableStep, enableStep } from "$lib/utils/favouritesMode";
 import { safeDimension } from "$lib/utils/mediaDimensions";
 import { mergeImportedFavourites } from "$lib/utils/discordFavourites";
+import { showErrorToast } from "$lib/stores/toasts.svelte";
+import { openEncryptionSetup } from "$lib/stores/onboarding.svelte";
+import { t } from "$lib/i18n";
 
 export type { FavouriteGif };
+
+/** The favourites list when encrypted (see privateAccountData.svelte.ts). */
+const FAVOURITES_TYPE = "com.zam.private.favourites";
+/** The plaintext list: the account data type the app has always used. Its
+ *  first entry is the one plain-mode writes go to. */
+const LEGACY_FAVOURITES_TYPES = [
+    "moe.crafty.matrix.favourite_gifs",
+    "m.favourite_gifs",
+] as const;
 
 /** `width`/`height` for a new favourite, from a size that may be untrusted
  *  (event info, og tags): nothing unless both sides are usable. The picker
@@ -26,6 +49,9 @@ export function favouriteSize(
 
 class FavouritesState {
     gifs = $state<FavouriteGif[]>([]);
+    /** The key is not on this device, so changes are refused and the list may
+     *  be the last one this device read. The picker shows a hint. */
+    locked = $state(false);
 }
 
 export const favouritesState = new FavouritesState();
@@ -50,29 +76,237 @@ export function isFavouriteGif(url: string): boolean {
  */
 type FavouritesOp = (gifs: FavouriteGif[]) => FavouriteGif[];
 
-/** Serializes mutations so two rapid clicks can't interleave GET/PUT pairs
- *  and lose each other's change on this device. */
+/** Serializes reads, writes and migration so two rapid clicks can't interleave
+ *  read/write pairs and lose each other's change on this device. A failed task
+ *  never stops the ones behind it. */
 let queue: Promise<void> = Promise.resolve();
 
+/** Latest refresh wins: an older read that finishes late must not overwrite. */
+let refreshGeneration = 0;
+
+function gifsOf(value: unknown): FavouriteGif[] {
+    const gifs =
+        value && typeof value === "object"
+            ? (value as { gifs?: unknown }).gifs
+            : undefined;
+    if (!Array.isArray(gifs)) return [];
+    // Account data is untrusted: keep only entries that can be a favourite.
+    return gifs.filter(
+        (g): g is FavouriteGif =>
+            !!g &&
+            typeof g === "object" &&
+            typeof (g as { url?: unknown }).url === "string",
+    );
+}
+
+/** Show what this device can show: the decrypted list, or the last one it read. */
+async function refresh(): Promise<void> {
+    const generation = ++refreshGeneration;
+    let owner: ReturnType<typeof captureClient>;
+    try {
+        owner = captureClient();
+    } catch {
+        return;
+    }
+    let read: PrivateRead;
+    try {
+        read = await readPrivate(FAVOURITES_TYPE, {
+            legacyTypes: LEGACY_FAVOURITES_TYPES,
+        });
+    } catch (err) {
+        console.warn("[favourites] could not read favourites", err);
+        return;
+    }
+    if (generation !== refreshGeneration || !ownedClient(owner)) return;
+
+    if (read.kind === "locked") {
+        favouritesState.gifs = gifsOf(read.cached);
+        favouritesState.locked = true;
+        return;
+    }
+    favouritesState.gifs = read.kind === "value" ? gifsOf(read.value) : [];
+    // Only an encrypted list this device cannot read counts as locked. A plain
+    // list is always readable here.
+    favouritesState.locked = false;
+}
+
+function enqueue(
+    task: () => Promise<void>,
+    { rollback }: { rollback: boolean },
+): Promise<void> {
+    queue = queue.then(task).catch((err: unknown) => {
+        if (err instanceof PrivateAccountDataLockedError) {
+            showErrorToast(t("favourites.locked"));
+        } else {
+            console.warn("[favourites] save failed", err);
+            showErrorToast(t("favourites.saveFailed"));
+        }
+        // Drop the optimistic change.
+        if (rollback) void refresh();
+    });
+    return queue;
+}
+
 function mutate(op: FavouritesOp): Promise<void> {
+    // Refused while the list is encrypted and the key is not here: writing
+    // would replace the encrypted set this device cannot read, so nothing is
+    // changed locally either. A plain list needs no key.
+    if (privateModeState.mode === "encrypted" && !hasPrivateKey()) {
+        showErrorToast(t("favourites.locked"));
+        return Promise.resolve();
+    }
     // Optimistic: the picker reflects the click immediately, before the
     // round-trip below.
     favouritesState.gifs = op(favouritesState.gifs);
 
-    queue = queue.then(async () => {
-        let base: FavouriteGif[];
-        try {
-            base = await fetchFavouriteGifsFromServer();
-        } catch {
-            // Couldn't ask (offline, server down). Fall back to local state:
-            // no worse than the unconditional overwrite this replaced.
-            base = favouritesState.gifs;
-        }
-        const next = op(base);
-        favouritesState.gifs = next;
-        await persistFavouriteGifs(next);
+    return enqueue(
+        async () => {
+            const owner = captureClient();
+            let read: PrivateRead;
+            try {
+                // The homeserver's copy, not the local one: another device may
+                // have written since, and may have switched the mode.
+                read = await readPrivate(FAVOURITES_TYPE, {
+                    legacyTypes: LEGACY_FAVOURITES_TYPES,
+                    fresh: true,
+                });
+            } catch {
+                // Couldn't ask (offline, server down). Fall back to local state
+                // in the mode this device last knew: no worse than the
+                // unconditional overwrite this replaced.
+                read =
+                    privateModeState.mode === "encrypted"
+                        ? {
+                              kind: "value",
+                              value: { gifs: favouritesState.gifs },
+                              source: "encrypted",
+                          }
+                        : {
+                              kind: "value",
+                              value: { gifs: favouritesState.gifs },
+                              source: "legacy",
+                          };
+            }
+            if (read.kind === "locked")
+                throw new PrivateAccountDataLockedError();
+            const base = read.kind === "value" ? gifsOf(read.value) : [];
+            const next = op(base);
+            if (!ownedClient(owner)) return;
+            favouritesState.gifs = next;
+            if (read.kind === "value" && read.source === "encrypted") {
+                await writePrivate(
+                    FAVOURITES_TYPE,
+                    { gifs: next },
+                    { clearLegacy: LEGACY_FAVOURITES_TYPES },
+                );
+            } else {
+                // Plain mode: the same write the app has always made.
+                await persistPrivateAccountData(LEGACY_FAVOURITES_TYPES[0], {
+                    gifs: next,
+                });
+            }
+        },
+        { rollback: true },
+    );
+}
+
+export type FavouritesModeChange = "done" | "noop" | "unlock" | "failed";
+
+/**
+ * Turn encryption of the favourites list on or off for the whole account.
+ *
+ * On: get a usable key (4S when unlocked, else this device's key), read the
+ * plaintext list fresh, write it encrypted, then blank the plaintext.
+ * Off: needs the key to read the encrypted list; write it back as plaintext,
+ * then blank the encrypted event.
+ *
+ * "unlock" means secret storage exists and this session cannot read it: the
+ * unlock dialog is opened and nothing changes. Any failure is toasted and
+ * leaves the list as it was.
+ */
+export async function setFavouritesEncrypted(
+    enable: boolean,
+): Promise<FavouritesModeChange> {
+    if (privateModeState.switching) return "noop";
+    privateModeState.switching = true;
+    try {
+        return enable ? await enableEncrypted() : await disableEncrypted();
+    } catch (err) {
+        console.warn("[favourites] changing encryption failed", err);
+        showErrorToast(
+            t(
+                enable
+                    ? "privateData.enableFailed"
+                    : "privateData.disableFailed",
+            ),
+        );
+        return "failed";
+    } finally {
+        privateModeState.switching = false;
+    }
+}
+
+async function enableEncrypted(): Promise<FavouritesModeChange> {
+    const step = enableStep(privateModeState.mode);
+    if (step === "noop") return "noop";
+    if (step === "refuse") return "failed";
+    const owner = captureClient();
+    const key = await preparePrivateKey();
+    if (!ownedClient(owner)) return "failed";
+    if (key === "unlock") {
+        openEncryptionSetup(false);
+        return "unlock";
+    }
+    if (key !== "ready") return "failed";
+    const read = await readPrivate(FAVOURITES_TYPE, {
+        legacyTypes: LEGACY_FAVOURITES_TYPES,
+        fresh: true,
     });
-    return queue;
+    if (!ownedClient(owner)) return "failed";
+    // The server already holds an encrypted list: the mode is encrypted.
+    if (
+        read.kind === "locked" ||
+        (read.kind === "value" && read.source === "encrypted")
+    ) {
+        setPrivateMode("encrypted");
+        return "noop";
+    }
+    const gifs = read.kind === "value" ? gifsOf(read.value) : [];
+    await writePrivate(
+        FAVOURITES_TYPE,
+        { gifs },
+        { clearLegacy: LEGACY_FAVOURITES_TYPES },
+    );
+    setPrivateMode("encrypted");
+    void refresh();
+    return "done";
+}
+
+async function disableEncrypted(): Promise<FavouritesModeChange> {
+    const step = disableStep({
+        mode: privateModeState.mode,
+        keyReady: hasPrivateKey(),
+    });
+    if (step === "noop") return "noop";
+    if (step === "unlock") {
+        openEncryptionSetup(false);
+        return "unlock";
+    }
+    const owner = captureClient();
+    const read = await readPrivate(FAVOURITES_TYPE, { fresh: true });
+    if (!ownedClient(owner)) return "failed";
+    if (read.kind === "locked") {
+        openEncryptionSetup(false);
+        return "unlock";
+    }
+    const gifs = read.kind === "value" ? gifsOf(read.value) : [];
+    // Plaintext first, so a failure in between leaves the list readable rather
+    // than lost.
+    await persistPrivateAccountData(LEGACY_FAVOURITES_TYPES[0], { gifs });
+    await persistPrivateAccountData(FAVOURITES_TYPE, {});
+    setPrivateMode("plain");
+    void refresh();
+    return "done";
 }
 
 export function addFavouriteGif(
@@ -148,9 +382,9 @@ export function upgradeFavouriteGifs(
  * already a favourite are skipped. Resolves to how many were new here.
  */
 export function importFavouriteGifs(entries: FavouriteGif[]): Promise<number> {
-    const have = new Set(favouritesState.gifs.map((g) => g.url));
-    const added = new Set(entries.map((g) => g.url).filter((u) => !have.has(u)))
-        .size;
+    const current = favouritesState.gifs;
+    const added =
+        mergeImportedFavourites(current, entries).length - current.length;
     if (added === 0) return Promise.resolve(0);
     return mutate((gifs) => mergeImportedFavourites(gifs, entries)).then(
         () => added,
@@ -208,25 +442,25 @@ export function favouriteUrlForMxc(mxc: string): string | undefined {
 // Call once on app mount. Returns a cleanup function.
 export function initFavourites(): () => void {
     // Load immediately in case sync already completed before this was called
-    favouritesState.gifs = loadFavouriteGifs();
+    void refresh();
 
     // Also reload on sync PREPARED in case we registered before the first sync finished
-    const unsubSync = onSyncPrepared(() => {
-        favouritesState.gifs = loadFavouriteGifs();
-    });
+    const unsubSync = onSyncPrepared(() => void refresh());
     const unsubAccount = onAccountData((type) => {
-        // React to the namespaced key (our own writes) and the legacy key (a
-        // pre-migration device may still write it — loadFavouriteGifs falls
-        // back to it when the new key is absent).
+        // Our own encrypted type, and the legacy plaintext types a pre-encryption
+        // device may still write.
         if (
-            type === "moe.crafty.matrix.favourite_gifs" ||
-            type === "m.favourite_gifs"
+            type === FAVOURITES_TYPE ||
+            (LEGACY_FAVOURITES_TYPES as readonly string[]).includes(type)
         ) {
-            favouritesState.gifs = loadFavouriteGifs();
+            void refresh();
         }
     });
+    // The key arriving (unlock, gossip) or changing makes the list readable.
+    const unsubKey = onPrivateKeyChange(() => void refresh());
     return () => {
         unsubSync();
         unsubAccount();
+        unsubKey();
     };
 }

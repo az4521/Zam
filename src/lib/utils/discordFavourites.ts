@@ -86,14 +86,56 @@ export function mergeImportedFavourites(
     base: FavouriteGif[],
     imported: readonly FavouriteGif[],
 ): FavouriteGif[] {
-    const seen = new Set(base.map((g) => g.url));
+    const seen = new Set<string>();
+    for (const g of base) for (const k of favouriteDedupeKeys(g)) seen.add(k);
     const added: FavouriteGif[] = [];
     for (const g of imported) {
-        if (seen.has(g.url)) continue;
-        seen.add(g.url);
+        const keys = favouriteDedupeKeys(g);
+        if (keys.some((k) => seen.has(k))) continue;
+        for (const k of keys) seen.add(k);
         added.push(g);
     }
     return added.length === 0 ? base : [...base, ...added];
+}
+
+/** Query parameters that only track where a link was shared from. */
+const TRACKING_PARAMS = /^(utm_.*|si|s|t|ref|ref_src|fbclid|igsh|igshid)$/i;
+
+/**
+ * A link reduced to what identifies the page: lowercased host without "www.",
+ * no fragment, no tracking parameters, no trailing slash, and Tenor's locale
+ * prefix ("/en-GB/view/...") dropped. Unparseable input comes back as is.
+ */
+export function canonicalFavouriteUrl(url: string): string {
+    let u: URL;
+    try {
+        u = new URL(url);
+    } catch {
+        return url;
+    }
+    const host = u.hostname.toLowerCase().replace(/^www\./, "");
+    let path = u.pathname.replace(/\/+$/, "");
+    if (host === "tenor.com")
+        path = path.replace(/^\/[a-z]{2}(-[a-z]{2})?\//i, "/");
+    const params = [...u.searchParams.entries()]
+        .filter(([k]) => !TRACKING_PARAMS.test(k))
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    const query = params.length
+        ? "?" + new URLSearchParams(params).toString()
+        : "";
+    return `${host}${path}${query}`;
+}
+
+/**
+ * The keys two favourites of the same GIF share: the canonical link, and the
+ * media it previews as. The media keys catch a favourite whose link was
+ * re-keyed since an earlier import (upgradeFavouriteGifs keeps the preview).
+ */
+export function favouriteDedupeKeys(g: FavouriteGif): string[] {
+    const keys = ["link:" + canonicalFavouriteUrl(g.url)];
+    if (g.previewVideoUrl) keys.push("media:" + g.previewVideoUrl);
+    else if (g.previewUrl) keys.push("media:" + g.previewUrl);
+    return keys;
 }
 
 /** `fn` over `items` with at most `limit` running at once. Results keep the

@@ -10,7 +10,10 @@
  *   - unordered list item
  *   1. ordered list item
  *   -# subtext (smaller muted text)
+ *   <t:UNIX> / <t:UNIX:STYLE> inline timestamps (see inlineTimestamp.ts)
  */
+
+import { inlineTimestampHtml, timestampTokenPattern } from "./inlineTimestamp";
 
 export function escapeHtml(s: string): string {
     return s
@@ -27,7 +30,17 @@ function processInline(raw: string): { html: string; changed: boolean } {
         spans.push(`<code>${escapeHtml(code)}</code>`);
         return `\x02${spans.length - 1}\x03`;
     });
-    s = s.replace(/https?:\/\/[^\s<>)"']*/g, (url) => {
+    // Timestamps before URLs and emoji: `<t:1700000000:F>` would otherwise
+    // lose its colons to the emoji stash. A valid token becomes its <time>
+    // element; an invalid one stays literal text.
+    s = s.replace(timestampTokenPattern(), (token, secs: string, style) => {
+        const html = inlineTimestampHtml(Number(secs), style);
+        if (html === null) return token;
+        spans.push(html);
+        return `\x02${spans.length - 1}\x03`;
+    });
+    // \x02 is excluded so a URL stops before a stashed span placeholder.
+    s = s.replace(/https?:\/\/[^\s<>)"'\x02]*/g, (url) => {
         spans.push(`<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`);
         return `\x02${spans.length - 1}\x03`;
     });

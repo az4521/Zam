@@ -322,6 +322,9 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                             event.put("content", clear.content);
                         }
                     }
+                    // A moderator's "disconnect from voice" (com.zam.call.kick)
+                    // is a command, not a message: never notify for it.
+                    if ("com.zam.call.kick".equals(event.optString("type", ""))) return;
                     JSONObject content = event.optJSONObject("content");
                     String body = content != null ? content.optString("body", "") : "";
                     String senderName = fetchSenderName(hs, token, roomId, sender);

@@ -2,6 +2,7 @@
     import { localeInfo, t } from "$lib/i18n";
     import { onMount, untrack } from "svelte";
     import { motionOK } from "$lib/utils/motionPreference";
+    import { isSilentZamEvent } from "$lib/utils/silentZamEvents";
     import { targetCanScrollHoriz } from "$lib/utils/scrollHoriz";
 
     import SpaceSidebar from "$lib/components/layout/SpaceSidebar.svelte";
@@ -113,6 +114,7 @@
     } from "$lib/stores/composerDrafts.svelte";
     import { composerThreadKey } from "$lib/utils/threadContent";
     import { initFavourites } from "$lib/stores/favourites.svelte";
+    import { initPrivateAccountData } from "$lib/matrix/privateAccountData.svelte";
     import { initRecentEmoji } from "$lib/stores/recentEmoji.svelte";
     import { initCustomizationSync } from "$lib/stores/customizationSync.svelte";
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
@@ -2236,6 +2238,8 @@
         // otherwise never re-derive the lists — catch up once.
         scheduleRefreshRooms();
         const unsubTimeline = onTimelineEvent((event, room, isLiveAppend) => {
+            // Commands (com.zam.call.kick) are not messages: no unread, no alert.
+            if (isSilentZamEvent(event.getType())) return;
             bumpUnreadTick();
             // Mid-timeline insertions (out-of-order/threaded events the SDK
             // slots into the middle of the timeline) are forwarded so the view
@@ -2269,6 +2273,7 @@
         // see them, because it gates on the cleartext type.
         const unsubDecryptedNotify = onDecryptedTimelineEvent(
             (event, room, meta) => {
+                if (isSilentZamEvent(event.getType())) return;
                 bumpUnreadTick();
                 const eventId = event.getId();
                 // The SDK caches push actions against the ciphertext envelope
@@ -2568,6 +2573,7 @@
                 // offline boot — cached values stay
             }
         })();
+        const unsubPrivateData = initPrivateAccountData();
         const unsubFavourites = initFavourites();
         const unsubRecentEmoji = initRecentEmoji();
         const unsubCustomization = initCustomizationSync();
@@ -2697,6 +2703,7 @@
             unsubMarkedUnread();
             unsubReadConfirmed();
             unsubFavourites();
+            unsubPrivateData();
             unsubRecentEmoji();
             unsubCustomization();
             unsubIgnored();

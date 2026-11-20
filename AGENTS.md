@@ -51,7 +51,8 @@ proves nothing about CSP (test with the built output, e.g. the `static-build` en
 - **SDK boundary.** `src/lib/matrix/client.ts` wraps matrix-js-sdk and re-exports the LiveKit call
   engine. Everything else imports SDK _types_ only. Sanctioned exceptions: `runtime.ts` (client
   slot + generation counter), `crypto.ts` (all E2EE), `media.ts`, `livekitCall.ts`,
-  `slidingSync.ts`, `roomHealing.ts`, `pluginHost.ts`, `pushRules.ts`/`notifications.ts`. Add new
+  `slidingSync.ts`, `roomHealing.ts`, `pluginHost.ts`, `pushRules.ts`/`notifications.ts`,
+  `privateAccountData.svelte.ts` (the encrypted account data key and gossip). Add new
   SDK capabilities as thin wrappers in `client.ts`.
 - **Data flow.** SDK events → `client.ts` `on*` helpers (return an unsubscribe; always call it) →
   `$state` stores in `src/lib/stores/*.svelte.ts` → components. No `svelte/store`.

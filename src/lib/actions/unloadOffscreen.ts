@@ -1,4 +1,8 @@
 import { reviveOnReturn } from "./reviveOnReturn";
+import {
+    onVideoDecodersHeldChange,
+    videoDecodersHeld,
+} from "$lib/stores/videoDecoderHold";
 
 /** How far past the scroller's edges a video stays loaded, so a short scroll
  *  back doesn't refetch and a quick flick past doesn't unload. */
@@ -48,6 +52,15 @@ export function inFullscreen(node: Element): boolean {
 export function unloadOffscreen(node: HTMLVideoElement, url: string) {
     let current = url;
     let loaded = false;
+    // Near view, and not held by an open Lightbox (videoDecoderHold): a src
+    // is kept only when both allow it.
+    let near = typeof IntersectionObserver !== "function";
+    let held = videoDecodersHeld();
+
+    function sync() {
+        if (near && !held) load();
+        else unload();
+    }
 
     function load() {
         if (loaded) return;
@@ -77,19 +90,33 @@ export function unloadOffscreen(node: HTMLVideoElement, url: string) {
         node.load();
     }
 
+    const stopHolding = onVideoDecodersHeldChange(() => {
+        held = videoDecodersHeld();
+        sync();
+    });
+
     if (typeof IntersectionObserver !== "function") {
-        load();
+        sync();
         return {
             update(next: string) {
                 if (next === current) return;
                 current = next;
-                node.src = next;
+                if (loaded) node.src = next;
+            },
+            destroy() {
+                stopHolding();
+                loaded = false;
+                node.removeAttribute("src");
+                node.load();
             },
         };
     }
 
     const observer = new IntersectionObserver(
-        ([entry]) => (entry.isIntersecting ? load() : unload()),
+        ([entry]) => {
+            near = entry.isIntersecting;
+            sync();
+        },
         { root: scrollParent(node), rootMargin: KEEP_MARGIN, threshold: 0 },
     );
     observer.observe(node);
@@ -100,7 +127,7 @@ export function unloadOffscreen(node: HTMLVideoElement, url: string) {
         () => loaded,
         () => {
             unload();
-            load();
+            sync();
         },
     );
 
@@ -113,6 +140,7 @@ export function unloadOffscreen(node: HTMLVideoElement, url: string) {
         destroy() {
             observer.disconnect();
             stopReviving();
+            stopHolding();
             loaded = false;
             node.removeAttribute("src");
             node.load();
