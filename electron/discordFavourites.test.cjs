@@ -354,6 +354,110 @@ test("candidates: filters Discord hosts, invalid urls, dedupes and sorts newest 
     assert.equal(r.candidates[3].video, false);
 });
 
+test("candidates: Discord attachment links become canonical and dedupe", () => {
+    const gifs = {
+        "https://cdn.discordapp.com/attachments/1/2/cat.gif?ex=1&is=2&hm=3": {
+            format: 1,
+            order: 5,
+            width: 40,
+        },
+        "https://media.discordapp.net/attachments/1/2/dog.gif?ex=9": {
+            format: 1,
+            order: 4,
+        },
+        "https://cdn.discordapp.com/attachments/1/2/cat.gif?ex=7&is=8&hm=9": {
+            format: 1,
+            order: 1,
+        },
+        "https://discord.com/channels/1/2/3": { format: 1, order: 6 },
+    };
+    const r = discordFavouriteCandidates(gifs);
+    assert.equal(r.skippedDiscord, 1);
+    assert.deepEqual(r.candidates, [
+        {
+            url: "https://cdn.discordapp.com/attachments/1/2/cat.gif",
+            attachment: true,
+            src: "",
+            video: false,
+            width: 40,
+            height: undefined,
+            order: 5,
+        },
+        {
+            url: "https://cdn.discordapp.com/attachments/1/2/dog.gif",
+            attachment: true,
+            src: "",
+            video: false,
+            width: undefined,
+            height: undefined,
+            order: 4,
+        },
+    ]);
+});
+
+test("candidates: ephemeral attachments count, other Discord paths do not", () => {
+    const r = discordFavouriteCandidates({
+        "https://cdn.discordapp.com/ephemeral-attachments/a/b/x.gif?ex=1": {
+            format: 1,
+            order: 1,
+        },
+        "https://cdn.discordapp.com/emojis/1.gif": { format: 1, order: 2 },
+    });
+    assert.equal(r.skippedDiscord, 1);
+    assert.equal(r.candidates.length, 1);
+    assert.equal(
+        r.candidates[0].url,
+        "https://cdn.discordapp.com/ephemeral-attachments/a/b/x.gif",
+    );
+});
+
+test("reader: attachment items carry attachment:true and mixed order holds", async () => {
+    const dir = makeDiscordDir({
+        "000001.log": encodeLog([
+            writeBatch(1, [
+                {
+                    key: SETTINGS_KEY,
+                    value:
+                        "\x01" +
+                        JSON.stringify({
+                            favoriteGifs: {
+                                gifs: {
+                                    "https://media.tenor.com/old.gif": {
+                                        format: 1,
+                                        order: 1,
+                                    },
+                                    "https://media.discordapp.net/attachments/1/2/new.gif?ex=1&hm=2":
+                                        {
+                                            format: 1,
+                                            order: 3,
+                                        },
+                                    "https://media.tenor.com/mid.gif": {
+                                        format: 1,
+                                        order: 2,
+                                    },
+                                },
+                            },
+                        }),
+                },
+            ]),
+        ]),
+    });
+    try {
+        const r = await readDiscordFavouriteGifs({ dirs: [dir] });
+        assert.deepEqual(
+            r.items.map((i) => [i.url, i.attachment]),
+            [
+                ["https://cdn.discordapp.com/attachments/1/2/new.gif", true],
+                ["https://media.tenor.com/mid.gif", undefined],
+                ["https://media.tenor.com/old.gif", undefined],
+            ],
+        );
+        assert.equal("attachment" in r.items[1], false);
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+});
+
 test("candidates: non-object input is empty", () => {
     assert.deepEqual(discordFavouriteCandidates(null), {
         skippedDiscord: 0,

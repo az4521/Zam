@@ -72,6 +72,10 @@ contextBridge.exposeInMainWorld("desktop", {
     // Discord's synced favourite GIFs (discordFavourites.cjs).
     discordFavourites: {
         read: () => ipcRenderer.invoke("discord-favourites:read"),
+        refresh: (proxyBase, urls) =>
+            ipcRenderer.invoke("discord-favourites:refresh", proxyBase, urls),
+        download: (url) =>
+            ipcRenderer.invoke("discord-favourites:download", url),
     },
     // The call's pop-out window (main.cjs, CALL_PIP_FRAME). Main moves it with
     // the cursor during a drag and reports a drop back over the app's window.

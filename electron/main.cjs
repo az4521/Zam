@@ -57,6 +57,10 @@ const {
     readDiscordFavouriteGifs,
     discordFavouriteDirs,
 } = require("./discordFavourites.cjs");
+const {
+    refreshAttachmentUrls,
+    downloadAttachment,
+} = require("./discordAttachments.cjs");
 const { createUpdateGuard } = require("./updateGuard.cjs");
 const {
     createFlatpakShellUpdate,
@@ -1302,11 +1306,28 @@ app.on("will-quit", () => richPresence.stop());
 // --- Discord favourite GIFs ----------------------------------------------
 
 // Read-only read of Discord's synced favourite GIFs (discordFavourites.cjs).
-// The renderer checks each link itself, so this makes no network requests.
+// The read itself makes no network requests; refresh and download below do.
 ipcMain.handle("discord-favourites:read", () =>
     readDiscordFavouriteGifs({
         dirs: discordFavouriteDirs(app.getPath("appData")),
     }),
+);
+// Uploaded GIFs: refresh expiring links through the user's proxy and download
+// the bytes here, over net.fetch so the network proxy setting applies.
+ipcMain.handle("discord-favourites:refresh", (_e, proxyBase, urls) => {
+    if (typeof proxyBase !== "string") {
+        return { ok: false, error: "bad-proxy-url" };
+    }
+    return refreshAttachmentUrls(
+        proxyBase,
+        Array.isArray(urls) ? urls.filter((u) => typeof u === "string") : [],
+        (u, o) => net.fetch(u, o),
+    );
+});
+ipcMain.handle("discord-favourites:download", (_e, url) =>
+    typeof url === "string"
+        ? downloadAttachment(url, (u, o) => net.fetch(u, o))
+        : { ok: false, error: "bad-url" },
 );
 
 // --- Call priority -------------------------------------------------------
