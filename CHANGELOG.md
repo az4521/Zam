@@ -4,6 +4,19 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.15
+
+✨ **New**
+
+- **Timestamps in everyone's local time:** write `<t:1700000000>` (or `<t:1700000000:R>` and the other Discord styles), or pick a date with "Insert timestamp" in the composer's + menu. Each reader sees it in their own time zone; other Matrix apps see it in UTC.
+- **Disconnect from voice:** moderators can remove someone from a voice channel without kicking them from the room, from the participant's menu in the call. Only works on people using Zam.
+- **Encrypted favourite GIFs (optional):** Settings > Messages & Media > GIFs can encrypt your favourites list so your homeserver can't read it. Off by default; your other devices need your recovery key or a verified session to read the list.
+
+🐛 **Fixed**
+
+- **Green and purple bands, and crashes, with videos in the attachment viewer and the composer's attachment preview.** Zam no longer keeps more videos decoding than your graphics card can handle.
+- **Importing favourite GIFs from Discord twice** adding duplicates.
+
 ## v1.66.14
 
 🐛 **Fixed**
