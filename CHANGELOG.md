@@ -4,6 +4,22 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.17
+
+⚡ **Faster**
+
+- **Zam starts up faster**, most noticeably on phones and slow connections: it no longer waits for three server checks in a row before showing your chats.
+- **Less memory over a long session:** rooms you haven't looked at for a while keep only their newest messages in memory, and load the rest again when you scroll up.
+
+🐛 **Fixed**
+
+- **Telegram sticker imports freezing partway through.** A sticker that won't download now fails on its own instead of stopping the import.
+- **Imported Telegram stickers are named after their emoji** (for example `Pack_joy_3`) instead of just a number.
+
+🛠️ **Debug**
+
+- **Settings > Debug > Startup timing** shows how long each startup step took, with a copy button for bug reports.
+
 ## v1.66.16
 
 ✨ **New**
