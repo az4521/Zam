@@ -240,6 +240,7 @@
         clearServiceWorkerNotifications,
         ensureCallNotifyPushRule,
         ensureThreadNamePushRule,
+        ensureEncryptedMentionRules,
         sendNotificationQuickReply,
         resolveQuickReplyThreadRoot,
         markRoomAsRead,
@@ -1791,6 +1792,9 @@
         if (client) ensureCallNotifyPushRule().catch(() => {});
         // Keep encrypted thread renames from notifying. Best-effort too.
         if (client) ensureThreadNamePushRule().catch(() => {});
+        // Let mentions in encrypted "mentions only" rooms reach this device's
+        // mention check (the server cannot see them). Best-effort too.
+        if (client) ensureEncryptedMentionRules().catch(() => {});
 
         // Mirror the session natively so the push service can enrich
         // notifications and read the active-session blob (off-native this is a

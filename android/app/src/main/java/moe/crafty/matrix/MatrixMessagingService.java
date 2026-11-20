@@ -33,6 +33,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Firebase messaging service that DISPLAYS a notification for the data-only
@@ -98,6 +99,10 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     // ...and for the hidden WebView to start, load the crypto WASM and decrypt
     // it when the app is not running.
     private static final long HEADLESS_DECRYPT_TIMEOUT = 8000L;
+    // Push-rule id prefix for a room's "mentions only" override (the room id
+    // is appended). Mirrors src/lib/utils/encryptedMentions.ts and
+    // static/sw.js (region mirrored:mentions); keep the three in step.
+    private static final String ENCRYPTED_MENTIONS_RULE_PREFIX = "moe.crafty.matrix.e2ee_mentions.";
 
     @Override
     public void onNewToken(@NonNull String token) {
@@ -320,6 +325,20 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                         if (clear != null) {
                             event.put("type", clear.type);
                             event.put("content", clear.content);
+                        }
+                        // A mentions-only room gets every encrypted message
+                        // pushed (via the e2ee_mentions override), so notify
+                        // only for a real mention of this user.
+                        if (hasEncryptedMentionsRule(hs, token, roomId)) {
+                            if (clear == null) {
+                                PushLog.log(ctx, tag + "skipped: undecryptable message in a mentions-only room");
+                                return;
+                            }
+                            String myName = fetchOwnRoomDisplayName(hs, token, roomId, selfUserId);
+                            if (!isMentionOfUser(event.optJSONObject("content"), selfUserId, myName)) {
+                                PushLog.log(ctx, tag + "skipped: not a mention in a mentions-only room");
+                                return;
+                            }
                         }
                     }
                     // A moderator's "disconnect from voice" (com.zam.call.kick)
@@ -1149,6 +1168,72 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             } catch (Exception ignored) {}
         }
         return null;
+    }
+
+    /** The user's own per-room display name from member state, or "" if none. */
+    private static String fetchOwnRoomDisplayName(String hs, String token, String roomId,
+                                                  String userId) {
+        if (userId == null || userId.isEmpty()) return "";
+        String json = httpGet(hs + "/_matrix/client/v3/rooms/" + enc(roomId)
+            + "/state/m.room.member/" + enc(userId), token);
+        if (json == null) return "";
+        try {
+            Object name = new JSONObject(json).opt("displayname");
+            return name instanceof String ? (String) name : "";
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /** True when a room has an enabled "mentions only" override for encrypted events. */
+    private static boolean hasEncryptedMentionsRule(String hs, String token, String roomId) {
+        String json = httpGet(hs + "/_matrix/client/v3/pushrules/global/override/"
+            + enc(ENCRYPTED_MENTIONS_RULE_PREFIX + roomId), token);
+        if (json == null) return false;
+        try {
+            return !Boolean.FALSE.equals(new JSONObject(json).opt("enabled"));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Mirror of isMentionOfUser in src/lib/utils/encryptedMentions.ts. Structured
+     * m.mentions wins when present; otherwise the body is searched for the
+     * display name, the user's localpart, or @room as whole words.
+     */
+    static boolean isMentionOfUser(JSONObject content, String userId, String displayName) {
+        if (content == null) return false;
+        Object mentions = content.opt("m.mentions");
+        if (mentions instanceof JSONObject) {
+            JSONObject m = (JSONObject) mentions;
+            JSONArray ids = m.optJSONArray("user_ids");
+            if (ids != null && userId != null) {
+                for (int i = 0; i < ids.length(); i++) {
+                    if (userId.equals(ids.opt(i))) return true;
+                }
+            }
+            return Boolean.TRUE.equals(m.opt("room"));
+        }
+        Object rawBody = content.opt("body");
+        if (!(rawBody instanceof String)) return false;
+        String body = (String) rawBody;
+        if (body.isEmpty()) return false;
+        String localpart = "";
+        if (userId != null && userId.startsWith("@")) {
+            int colon = userId.indexOf(':');
+            if (colon > 1) localpart = userId.substring(1, colon);
+        }
+        String[] words = { displayName != null ? displayName : "", localpart, "@room" };
+        for (String word : words) {
+            if (!word.isEmpty() && containsMentionWord(body, word)) return true;
+        }
+        return false;
+    }
+
+    private static boolean containsMentionWord(String body, String word) {
+        return Pattern.compile("(^|\\W)" + Pattern.quote(word) + "(\\W|$)",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE).matcher(body).find();
     }
 
     private static final int IMAGE_MAX_PX = 800;
