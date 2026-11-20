@@ -1592,7 +1592,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "将你发送的 GIF 重新编码为无损动画 WebP，通常体积更小，并且可以边下载边播放。画面不变。如果某个 GIF 转换后不会变小，则按原样发送。",
     "messagesMediaSettings.discordImportTitle": "从 Discord 导入收藏",
     "messagesMediaSettings.discordImportDescription":
-        "复制此电脑上 Discord 桌面应用中收藏的 GIF。上传到 Discord 的 GIF 无法导入。",
+        "复制此电脑上 Discord 桌面应用中收藏的 GIF。上传到 Discord 的 GIF 只有在下方设置了刷新服务时才会复制。",
     "messagesMediaSettings.discordImportButton": "导入",
     "messagesMediaSettings.discordImportBusy": "正在检查链接...",
     "messagesMediaSettings.discordImportChecking":
@@ -1608,6 +1608,21 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messagesMediaSettings.discordImportNoneImportable": "没有可以导入的 GIF。",
     "messagesMediaSettings.discordImportFailed": "无法从 Discord 导入收藏。",
     "messagesMediaSettings.defaultTab": "默认标签页",
+    "messagesMediaSettings.discordImportCopyFailed":
+        "{count, plural, other {无法复制 # 个上传到 Discord 的 GIF。}}",
+    "messagesMediaSettings.discordRefreshServiceTitle": "Discord 刷新服务",
+    "messagesMediaSettings.discordRefreshServiceDescription":
+        "上传到 Discord 的 GIF 链接会过期。若要一并导入这些 GIF,请输入你自己运行的刷新服务地址(Zam 源代码中的 services/discord-refresh-proxy)。随后这些 GIF 会上传到你的家庭服务器。",
+    "messagesMediaSettings.discordRefreshServiceInvalid":
+        "请输入 https:// 地址(http:// 仅适用于此电脑)。",
+    "messagesMediaSettings.discordRefreshUnreachable":
+        "无法连接到 Discord 刷新服务。",
+    "messagesMediaSettings.discordRefreshRateLimited":
+        "Discord 刷新服务已限流,请稍后再试。",
+    "messagesMediaSettings.discordRefreshHttpError":
+        "Discord 刷新服务返回了错误({status})。",
+    "messagesMediaSettings.discordRefreshBadResponse":
+        "Discord 刷新服务返回了 Zam 无法读取的响应。",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "GIF 选择器打开时显示的标签页。",
     "messagesMediaSettings.defaultGifTab": "默认 GIF 标签页",

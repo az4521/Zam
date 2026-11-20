@@ -1687,7 +1687,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Recodifica os GIFs que você envia como WebP animado sem perdas, que costuma ser menor e pode ser reproduzido durante o download. A imagem não muda. Um GIF que não ficaria menor é enviado como está.",
     "messagesMediaSettings.discordImportTitle": "Importar favoritos do Discord",
     "messagesMediaSettings.discordImportDescription":
-        "Copia os GIFs marcados como favoritos no aplicativo de desktop do Discord neste computador. GIFs enviados ao Discord não podem ser importados.",
+        "Copia os GIFs marcados como favoritos no aplicativo de desktop do Discord neste computador. GIFs enviados ao Discord só são copiados quando um serviço de atualização é configurado abaixo.",
     "messagesMediaSettings.discordImportButton": "Importar",
     "messagesMediaSettings.discordImportBusy": "Verificando links...",
     "messagesMediaSettings.discordImportChecking":
@@ -1704,6 +1704,22 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Nenhum GIF pôde ser importado.",
     "messagesMediaSettings.discordImportFailed":
         "Não foi possível importar os favoritos do Discord.",
+    "messagesMediaSettings.discordImportCopyFailed":
+        "{count, plural, one {Não foi possível copiar # GIF enviado ao Discord.} other {Não foi possível copiar # GIFs enviados ao Discord.}}",
+    "messagesMediaSettings.discordRefreshServiceTitle":
+        "Serviço de atualização do Discord",
+    "messagesMediaSettings.discordRefreshServiceDescription":
+        "Os links para GIFs enviados ao Discord expiram. Para importar também esses, informe o endereço de um serviço de atualização que você mesmo executa (services/discord-refresh-proxy no código-fonte do Zam). Os GIFs são então enviados ao seu homeserver.",
+    "messagesMediaSettings.discordRefreshServiceInvalid":
+        "Informe um endereço https:// (http:// só funciona neste computador).",
+    "messagesMediaSettings.discordRefreshUnreachable":
+        "Não foi possível acessar o serviço de atualização do Discord.",
+    "messagesMediaSettings.discordRefreshRateLimited":
+        "O serviço de atualização do Discord está com limite de requisições. Tente novamente mais tarde.",
+    "messagesMediaSettings.discordRefreshHttpError":
+        "O serviço de atualização do Discord retornou um erro ({status}).",
+    "messagesMediaSettings.discordRefreshBadResponse":
+        "O serviço de atualização do Discord enviou uma resposta que o Zam não conseguiu ler.",
     "messagesMediaSettings.defaultTab": "Aba padrão",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "Em qual aba o seletor de GIFs abre.",

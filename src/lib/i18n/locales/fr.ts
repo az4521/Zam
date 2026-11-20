@@ -1549,7 +1549,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messagesMediaSettings.discordImportTitle":
         "Importer les favoris depuis Discord",
     "messagesMediaSettings.discordImportDescription":
-        "Copie les GIF ajoutés aux favoris dans l'application de bureau Discord de cet ordinateur. Les GIF envoyés sur Discord ne peuvent pas être importés.",
+        "Copie les GIF ajoutés aux favoris dans l'application de bureau Discord de cet ordinateur. Les GIF envoyés sur Discord ne sont copiés que si un service de rafraîchissement est configuré ci-dessous.",
     "messagesMediaSettings.discordImportButton": "Importer",
     "messagesMediaSettings.discordImportBusy": "Vérification des liens...",
     "messagesMediaSettings.discordImportChecking":
@@ -1566,6 +1566,22 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Aucun GIF n'a pu être importé.",
     "messagesMediaSettings.discordImportFailed":
         "Impossible d'importer les favoris depuis Discord.",
+    "messagesMediaSettings.discordImportCopyFailed":
+        "{count, plural, one {Impossible de copier # GIF envoyé sur Discord.} other {Impossible de copier # GIF envoyés sur Discord.}}",
+    "messagesMediaSettings.discordRefreshServiceTitle":
+        "Service de rafraîchissement Discord",
+    "messagesMediaSettings.discordRefreshServiceDescription":
+        "Les liens vers les GIF envoyés sur Discord expirent. Pour importer aussi ces GIF, saisissez l'adresse d'un service de rafraîchissement que vous exploitez vous-même (services/discord-refresh-proxy dans le code source de Zam). Les GIF sont ensuite envoyés sur votre serveur d'accueil.",
+    "messagesMediaSettings.discordRefreshServiceInvalid":
+        "Saisissez une adresse https:// (http:// ne fonctionne que pour cet ordinateur).",
+    "messagesMediaSettings.discordRefreshUnreachable":
+        "Impossible de joindre le service de rafraîchissement Discord.",
+    "messagesMediaSettings.discordRefreshRateLimited":
+        "Le service de rafraîchissement Discord limite les requêtes. Réessayez plus tard.",
+    "messagesMediaSettings.discordRefreshHttpError":
+        "Le service de rafraîchissement Discord a renvoyé une erreur ({status}).",
+    "messagesMediaSettings.discordRefreshBadResponse":
+        "Le service de rafraîchissement Discord a envoyé une réponse que Zam n'a pas pu lire.",
     "messagesMediaSettings.defaultTab": "Onglet par défaut",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "L'onglet sur lequel s'ouvre le sélecteur de GIF.",

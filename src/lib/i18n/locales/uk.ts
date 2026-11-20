@@ -1722,7 +1722,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Перекодовувати GIF, які ви надсилаєте, в анімований WebP без втрат, що зазвичай менший і може відтворюватися під час завантаження. Зображення не змінюється. GIF, який не зменшиться, надсилається як є.",
     "messagesMediaSettings.discordImportTitle": "Імпорт обраного з Discord",
     "messagesMediaSettings.discordImportDescription":
-        "Копіює GIF, додані до обраного в настільному застосунку Discord на цьому комп'ютері. GIF, завантажені в Discord, імпортувати не можна.",
+        "Копіює GIF, додані до обраного в настільному застосунку Discord на цьому комп'ютері. GIF, завантажені в Discord, копіюються лише тоді, коли нижче налаштовано службу оновлення.",
     "messagesMediaSettings.discordImportButton": "Імпортувати",
     "messagesMediaSettings.discordImportBusy": "Перевірка посилань...",
     "messagesMediaSettings.discordImportChecking":
@@ -1739,6 +1739,22 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Не вдалося імпортувати жодного GIF.",
     "messagesMediaSettings.discordImportFailed":
         "Не вдалося імпортувати обране з Discord.",
+    "messagesMediaSettings.discordImportCopyFailed":
+        "{count, plural, one {Не вдалося скопіювати # GIF, завантажений в Discord.} few {Не вдалося скопіювати # GIF, завантажені в Discord.} many {Не вдалося скопіювати # GIF, завантажених в Discord.} other {Не вдалося скопіювати # GIF, завантажених в Discord.}}",
+    "messagesMediaSettings.discordRefreshServiceTitle":
+        "Служба оновлення Discord",
+    "messagesMediaSettings.discordRefreshServiceDescription":
+        "Посилання на GIF, завантажені в Discord, з часом застарівають. Щоб імпортувати й їх, введіть адресу служби оновлення, яку ви запускаєте самі (services/discord-refresh-proxy у вихідному коді Zam). Після цього GIF завантажуються на ваш домашній сервер.",
+    "messagesMediaSettings.discordRefreshServiceInvalid":
+        "Введіть адресу https:// (http:// працює лише на цьому комп'ютері).",
+    "messagesMediaSettings.discordRefreshUnreachable":
+        "Не вдалося зв'язатися зі службою оновлення Discord.",
+    "messagesMediaSettings.discordRefreshRateLimited":
+        "Службу оновлення Discord обмежено за кількістю запитів. Спробуйте пізніше.",
+    "messagesMediaSettings.discordRefreshHttpError":
+        "Служба оновлення Discord повернула помилку ({status}).",
+    "messagesMediaSettings.discordRefreshBadResponse":
+        "Служба оновлення Discord надіслала відповідь, яку Zam не зміг прочитати.",
     "messagesMediaSettings.defaultTab": "Типова вкладка",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "Яка вкладка відкривається у виборі GIF.",

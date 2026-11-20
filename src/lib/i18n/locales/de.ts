@@ -1566,7 +1566,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messagesMediaSettings.discordImportTitle":
         "Favoriten aus Discord importieren",
     "messagesMediaSettings.discordImportDescription":
-        "Kopiert die GIFs, die in der Discord-Desktop-App auf diesem Computer als Favoriten markiert sind. In Discord hochgeladene GIFs können nicht importiert werden.",
+        "Kopiert die GIFs, die in der Discord-Desktop-App auf diesem Computer als Favoriten markiert sind. In Discord hochgeladene GIFs werden nur kopiert, wenn unten ein Aktualisierungsdienst eingerichtet ist.",
     "messagesMediaSettings.discordImportButton": "Importieren",
     "messagesMediaSettings.discordImportBusy": "Links werden geprüft...",
     "messagesMediaSettings.discordImportChecking":
@@ -1583,6 +1583,22 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Es konnten keine GIFs importiert werden.",
     "messagesMediaSettings.discordImportFailed":
         "Favoriten konnten nicht aus Discord importiert werden.",
+    "messagesMediaSettings.discordImportCopyFailed":
+        "{count, plural, one {# in Discord hochgeladenes GIF konnte nicht kopiert werden.} other {# in Discord hochgeladene GIFs konnten nicht kopiert werden.}}",
+    "messagesMediaSettings.discordRefreshServiceTitle":
+        "Discord-Aktualisierungsdienst",
+    "messagesMediaSettings.discordRefreshServiceDescription":
+        "Links zu in Discord hochgeladenen GIFs laufen ab. Um auch diese zu importieren, eine https://-Adresse eines Aktualisierungsdienstes eingeben, den du selbst betreibst (services/discord-refresh-proxy im Quellcode von Zam). Die GIFs werden dann auf deinen Homeserver hochgeladen.",
+    "messagesMediaSettings.discordRefreshServiceInvalid":
+        "https://-Adresse eingeben (http:// funktioniert nur für diesen Computer).",
+    "messagesMediaSettings.discordRefreshUnreachable":
+        "Der Discord-Aktualisierungsdienst ist nicht erreichbar.",
+    "messagesMediaSettings.discordRefreshRateLimited":
+        "Der Discord-Aktualisierungsdienst ist ratenbegrenzt. Versuche es später erneut.",
+    "messagesMediaSettings.discordRefreshHttpError":
+        "Der Discord-Aktualisierungsdienst hat einen Fehler zurückgegeben ({status}).",
+    "messagesMediaSettings.discordRefreshBadResponse":
+        "Der Discord-Aktualisierungsdienst hat eine Antwort gesendet, die Zam nicht lesen konnte.",
     "messagesMediaSettings.defaultTab": "Standard-Tab",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "Welcher Tab in der GIF-Auswahl zuerst geöffnet wird.",

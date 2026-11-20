@@ -18,6 +18,7 @@
         setLightboxFitToScreen,
         setReplyPingDefault,
         setGifDefaultTab,
+        setDiscordRefreshServiceUrl,
         setMidiSoundBank,
         settingsState,
     } from "$lib/stores/settings.svelte";
@@ -56,6 +57,14 @@
         type DiscordFavouriteItem,
     } from "$lib/utils/discordFavourites";
     import { allowsThirdPartyEmbed } from "$lib/utils/linkPreviewPolicy";
+    import {
+        attachmentFavourite,
+        attachmentMediaType,
+        normaliseRefreshServiceUrl,
+        readUploadedAttachments,
+        writeUploadedAttachments,
+    } from "$lib/utils/discordAttachmentImport";
+    import { getOwnUserId, mxcToHttp, uploadContent } from "$lib/matrix/client";
 
     const gifTabOptions: Array<{ value: GifTab; label: string }> = [
         { value: "gifs", label: "GIFs" },
@@ -78,6 +87,32 @@
     const discordImportAvailable =
         typeof window !== "undefined" && !!window.desktop?.discordFavourites;
     let discordBusy = $state(false);
+    // The user's own refresh service for GIFs uploaded to Discord. Saved only
+    // once it is a usable address (or cleared).
+    let refreshServiceDraft = $state(settingsState.discordRefreshServiceUrl);
+    const refreshServiceInvalid = $derived(
+        refreshServiceDraft.trim() !== "" &&
+            normaliseRefreshServiceUrl(refreshServiceDraft) === null,
+    );
+    function onRefreshServiceInput(e: Event) {
+        refreshServiceDraft = (e.currentTarget as HTMLInputElement).value;
+        if (
+            refreshServiceDraft.trim() === "" ||
+            normaliseRefreshServiceUrl(refreshServiceDraft) !== null
+        )
+            setDiscordRefreshServiceUrl(refreshServiceDraft);
+    }
+    function refreshErrorMessage(error: string, status?: number): string {
+        if (error === "unreachable" || error === "bad-proxy-url")
+            return t("messagesMediaSettings.discordRefreshUnreachable");
+        if (error === "rate-limited")
+            return t("messagesMediaSettings.discordRefreshRateLimited");
+        if (error === "http-error")
+            return t("messagesMediaSettings.discordRefreshHttpError", {
+                status: status ?? 0,
+            });
+        return t("messagesMediaSettings.discordRefreshBadResponse");
+    }
 
     // Encrypted favourites are account state, shown live from the server. Turning
     // them off is two-step: the list becomes readable by the homeserver again.
@@ -125,12 +160,83 @@
             const allowEmbeds = allowsThirdPartyEmbed(
                 settingsState.linkPreviewMedia,
             );
+            // GIFs uploaded to Discord: refresh their links through the user's
+            // service, then copy each file to the homeserver. Without a
+            // service they are skipped, as before.
+            const userId = getOwnUserId();
+            const serviceUrl = normaliseRefreshServiceUrl(
+                settingsState.discordRefreshServiceUrl,
+            );
+            const canCopy =
+                !!serviceUrl && !!bridge.refresh && !!bridge.download;
+            const uploaded = readUploadedAttachments(userId);
+            let refreshed: Record<string, string> = {};
+            let skippedAttachments = 0;
+            let failedAttachments = 0;
+            const pending = items
+                .filter((i) => i.attachment && !uploaded.has(i.url))
+                .map((i) => i.url);
+            if (serviceUrl && canCopy && pending.length > 0 && bridge.refresh) {
+                const r = await bridge.refresh(serviceUrl, pending);
+                if (r.ok) refreshed = r.refreshed;
+                else showErrorToast(refreshErrorMessage(r.error, r.status));
+            }
+            const sameAccount = () => getOwnUserId() === userId;
+            // One attachment: re-use an earlier copy, or download and upload.
+            const copyAttachment = async (item: DiscordFavouriteItem) => {
+                let mxc = uploaded.get(item.url);
+                let name: string | undefined;
+                let video = item.video;
+                if (!mxc) {
+                    const fresh = refreshed[item.url];
+                    if (!fresh || !bridge.download) return null;
+                    const file = await bridge.download(fresh);
+                    if (!file.ok) return null;
+                    const type = attachmentMediaType(
+                        file.name,
+                        file.contentType,
+                    );
+                    if (!type) return null;
+                    if (!sameAccount()) throw new Error("account changed");
+                    name = file.name;
+                    video = type.startsWith("video/");
+                    mxc = await uploadContent(
+                        new File([file.data as BlobPart], file.name, { type }),
+                    );
+                    uploaded.set(item.url, mxc);
+                    writeUploadedAttachments(userId, uploaded);
+                }
+                const httpUrl = mxcToHttp(mxc);
+                if (!httpUrl) return null;
+                return attachmentFavourite({
+                    mxc,
+                    httpUrl,
+                    video,
+                    name,
+                    width: item.width,
+                    height: item.height,
+                });
+            };
             if (discordMounted) discordProgress = { done: 0, total };
             let done = 0;
             const built = await mapWithLimit(
                 items,
                 4,
                 async (item) => {
+                    if (item.attachment) {
+                        if (!canCopy && !uploaded.has(item.url)) {
+                            skippedAttachments++;
+                            return null;
+                        }
+                        try {
+                            const entry = await copyAttachment(item);
+                            if (!entry) failedAttachments++;
+                            return entry;
+                        } catch {
+                            failedAttachments++;
+                            return null;
+                        }
+                    }
                     try {
                         const { preview } = await fetchLinkPreview(
                             item.url,
@@ -153,10 +259,21 @@
             const entries = built.filter(
                 (e): e is NonNullable<typeof e> => e !== null,
             );
+            if (failedAttachments > 0)
+                showErrorToast(
+                    t("messagesMediaSettings.discordImportCopyFailed", {
+                        count: failedAttachments,
+                    }),
+                );
+            if (!sameAccount()) throw new Error("account changed");
+            const skippedDiscord = result.skippedDiscord + skippedAttachments;
             const broken =
                 result.invalid +
                 (result.items.length - items.length) +
-                (total - entries.length);
+                (total -
+                    entries.length -
+                    skippedAttachments -
+                    failedAttachments);
             const favourites = discordItemsToFavourites(entries, Date.now());
             if (favourites.length === 0) {
                 setOutcome(
@@ -176,11 +293,11 @@
             let msg = t("messagesMediaSettings.discordImportSuccess", {
                 added,
             });
-            if (result.skippedDiscord + broken > 0)
+            if (skippedDiscord + broken > 0)
                 msg +=
                     " " +
                     t("messagesMediaSettings.discordImportSkipped", {
-                        discord: result.skippedDiscord,
+                        discord: skippedDiscord,
                         broken,
                     });
             setOutcome(msg);
@@ -644,6 +761,42 @@
                         ? t("messagesMediaSettings.discordImportBusy")
                         : t("messagesMediaSettings.discordImportButton")}
                 </button>
+            </div>
+            <div class="py-2">
+                <label
+                    class="text-sm text-zam-textPrimary"
+                    for="discord-refresh-service"
+                    >{t(
+                        "messagesMediaSettings.discordRefreshServiceTitle",
+                    )}</label
+                >
+                <p class="text-xs text-zam-textMuted">
+                    {t(
+                        "messagesMediaSettings.discordRefreshServiceDescription",
+                    )}
+                </p>
+                <input
+                    id="discord-refresh-service"
+                    type="url"
+                    value={refreshServiceDraft}
+                    oninput={onRefreshServiceInput}
+                    disabled={discordBusy}
+                    spellcheck="false"
+                    autocomplete="off"
+                    autocapitalize="off"
+                    placeholder="https://refresh.example.com"
+                    aria-invalid={refreshServiceInvalid}
+                    class="mt-2 w-full px-2.5 py-1.5 rounded bg-zam-backgroundTertiary text-sm text-zam-textPrimary border {refreshServiceInvalid
+                        ? 'border-zam-danger'
+                        : 'border-zam-divider focus:border-zam-accent'} outline-none disabled:opacity-50"
+                />
+                {#if refreshServiceInvalid}
+                    <p class="mt-1.5 text-xs text-zam-danger" role="alert">
+                        {t(
+                            "messagesMediaSettings.discordRefreshServiceInvalid",
+                        )}
+                    </p>
+                {/if}
             </div>
         {/if}
     </section>

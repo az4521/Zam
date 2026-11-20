@@ -1450,7 +1450,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messagesMediaSettings.discordImportTitle":
         "Discordからお気に入りをインポート",
     "messagesMediaSettings.discordImportDescription":
-        "このコンピュータのDiscordデスクトップアプリでお気に入りに登録したGIFをコピーします。DiscordにアップロードされたGIFはインポートできません。",
+        "このコンピュータのDiscordデスクトップアプリでお気に入りに登録したGIFをコピーします。DiscordにアップロードされたGIFは、下で更新サービスを設定した場合のみコピーされます。",
     "messagesMediaSettings.discordImportButton": "インポート",
     "messagesMediaSettings.discordImportBusy": "リンクを確認しています...",
     "messagesMediaSettings.discordImportChecking":
@@ -1467,6 +1467,21 @@ const messages: Partial<Record<MessageKey, string>> = {
         "インポートできるGIFはありませんでした。",
     "messagesMediaSettings.discordImportFailed":
         "Discordからお気に入りをインポートできませんでした。",
+    "messagesMediaSettings.discordImportCopyFailed":
+        "{count, plural, other {DiscordにアップロードされたGIFを#件コピーできませんでした。}}",
+    "messagesMediaSettings.discordRefreshServiceTitle": "Discord更新サービス",
+    "messagesMediaSettings.discordRefreshServiceDescription":
+        "DiscordにアップロードされたGIFへのリンクは期限切れになります。これらも取り込むには、ご自身で運用している更新サービスのアドレスを入力してください(Zamのソースコードにある services/discord-refresh-proxy)。GIFはお使いのホームサーバーにアップロードされます。",
+    "messagesMediaSettings.discordRefreshServiceInvalid":
+        "https:// のアドレスを入力してください(http:// はこのコンピュータでのみ使用できます)。",
+    "messagesMediaSettings.discordRefreshUnreachable":
+        "Discord更新サービスに接続できませんでした。",
+    "messagesMediaSettings.discordRefreshRateLimited":
+        "Discord更新サービスはレート制限されています。しばらくしてから再試行してください。",
+    "messagesMediaSettings.discordRefreshHttpError":
+        "Discord更新サービスがエラーを返しました({status})。",
+    "messagesMediaSettings.discordRefreshBadResponse":
+        "Discord更新サービスから、Zamが読み取れない応答が返されました。",
     "messagesMediaSettings.defaultTab": "既定のタブ",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "GIFピッカーが開くタブです。",

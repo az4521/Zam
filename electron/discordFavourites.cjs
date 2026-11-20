@@ -21,13 +21,18 @@ const LOG_BLOCK = 32768;
 const TABLE_MAGIC = Buffer.from("57fb808b247547db", "hex");
 
 // Discord-owned hosts: their gif links are not the user's own favourites and
-// are skipped (counted as skippedDiscord).
+// are skipped (counted as skippedDiscord), except uploaded attachments below.
 const DISCORD_HOSTS = [
     "discordapp.com",
     "discordapp.net",
     "discord.com",
     "discord.gg",
 ];
+// Uploaded GIFs. Their signed links expire, so they are kept as a canonical
+// cdn URL with no query and refreshed through the proxy at import time
+// (discordAttachments.cjs).
+const ATTACHMENT_HOSTS = ["cdn.discordapp.com", "media.discordapp.net"];
+const ATTACHMENT_PATHS = ["/attachments/", "/ephemeral-attachments/"];
 // Discord proxy and attachment links expire, so they are never kept as a src.
 const DISCORD_SRC_HOSTS = ["discordapp.net", "discordapp.com"];
 
@@ -327,6 +332,20 @@ function normaliseSrc(src) {
     return u.href;
 }
 
+// True for a Discord-uploaded attachment link on a Discord CDN host.
+function isDiscordAttachmentLink(u) {
+    return (
+        ATTACHMENT_HOSTS.includes(u.hostname) &&
+        ATTACHMENT_PATHS.some((p) => u.pathname.startsWith(p))
+    );
+}
+
+// Drops the signature query (ex, is, hm) so the same file dedupes and the
+// stored link is always on the canonical host.
+function canonicalAttachmentUrl(u) {
+    return `https://cdn.discordapp.com${u.pathname}`;
+}
+
 // Turns Discord's favoriteGifs map into candidates, newest first (higher order
 // is newer in Discord's settings).
 function discordFavouriteCandidates(gifsMap) {
@@ -349,7 +368,8 @@ function discordFavouriteCandidates(gifsMap) {
             invalid++;
             continue;
         }
-        if (hostMatches(u.hostname, DISCORD_HOSTS)) {
+        const attachment = isDiscordAttachmentLink(u);
+        if (!attachment && hostMatches(u.hostname, DISCORD_HOSTS)) {
             skippedDiscord++;
             continue;
         }
@@ -357,11 +377,13 @@ function discordFavouriteCandidates(gifsMap) {
             invalid++;
             continue;
         }
-        if (seen.has(u.href)) continue;
-        seen.add(u.href);
+        const url = attachment ? canonicalAttachmentUrl(u) : u.href;
+        if (seen.has(url)) continue;
+        seen.add(url);
         candidates.push({
-            url: u.href,
-            src: normaliseSrc(entry.src),
+            url,
+            attachment,
+            src: attachment ? "" : normaliseSrc(entry.src),
             video: entry.format === 2,
             width: positiveInt(entry.width),
             height: positiveInt(entry.height),
@@ -490,6 +512,7 @@ async function readDiscordFavouriteGifs({ dirs }) {
             discordFavouriteCandidates(found.gifs);
         const items = candidates.map((c) => {
             const item = { url: c.url, video: c.video };
+            if (c.attachment) item.attachment = true;
             if (c.src) item.src = c.src;
             if (c.width !== undefined) item.width = c.width;
             if (c.height !== undefined) item.height = c.height;

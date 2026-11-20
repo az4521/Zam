@@ -15,6 +15,10 @@ export interface DiscordFavouriteItem {
     video: boolean;
     width?: number;
     height?: number;
+    /** A GIF uploaded to Discord: `url` is the attachment link without its
+     *  expiring signature (cdn.discordapp.com). It needs the refresh service
+     *  and is re-uploaded to the homeserver. */
+    attachment?: boolean;
 }
 
 export type DiscordFavouritesResult =
