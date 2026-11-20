@@ -14,6 +14,7 @@
 
 import { t, type MessageKey } from "$lib/i18n";
 import { clearDecryptedImageCache } from "$lib/utils/decryptedImageCache";
+import { decryptedBlobs } from "$lib/utils/decryptedBlobCache";
 import {
     ClientEvent,
     EventTimeline,
@@ -435,6 +436,7 @@ export async function initCrypto(
     // old session would be served for the same event ids and under-warn.
     clearEventShieldCache();
     clearDecryptedImageCache();
+    decryptedBlobs.clear();
     backupSessionsRemaining = null;
     // The 4S key cache backs the cryptoCallbacks of whichever client is live;
     // a previous account's recovery key must not outlive its session.

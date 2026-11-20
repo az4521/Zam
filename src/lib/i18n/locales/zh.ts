@@ -1422,6 +1422,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.galleryDownload": "下载 {name}",
     "messageItem.galleryEmpty": "空图库",
     "messageItem.edited": "（已编辑）",
+    "codeBlock.showMore": "显示更多",
+    "codeBlock.showLess": "收起",
     "messageItem.decryptingImage": "正在解密图片...",
     "messageItem.couldnTDecryptImage": "无法解密图片",
     "messageItem.imageUnavailable": "[图片不可用]",
@@ -3376,6 +3378,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     // src/lib/stores/voiceCall.svelte.ts
     "voiceCall.couldnTLoadTheCallComponent":
         "无法加载通话组件。请检查你的连接，然后重新加载页面重试。",
+    "voiceCall.rejoin": "重新加入",
+    "voiceCall.rejoinVoicePrompt": "你之前在 {room} 的语音通话中。重新加入？",
+    "voiceCall.rejoinVideoPrompt": "你之前在 {room} 的视频通话中。重新加入？",
     "voiceCall.couldNotJoinTheVoiceCall": "无法加入语音通话",
     "voiceCall.joinedWithoutAMicrophone":
         "你的麦克风不可用，但你仍可以收听并共享屏幕",

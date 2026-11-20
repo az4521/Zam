@@ -1368,6 +1368,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.galleryDownload": "{name} herunterladen",
     "messageItem.galleryEmpty": "Leere Galerie",
     "messageItem.edited": "(bearbeitet)",
+    "codeBlock.showMore": "Mehr anzeigen",
+    "codeBlock.showLess": "Weniger anzeigen",
     "messageItem.decryptingImage": "Bild wird entschlüsselt...",
     "messageItem.couldnTDecryptImage": "Bild konnte nicht entschlüsselt werden",
     "messageItem.imageUnavailable": "[Bild nicht verfügbar]",
@@ -3695,6 +3697,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     // src/lib/stores/voiceCall.svelte.ts
     "voiceCall.couldnTLoadTheCallComponent":
         "Die Anrufkomponente konnte nicht geladen werden. Prüfe deine Verbindung und lade die Seite dann neu.",
+    "voiceCall.rejoin": "Wieder beitreten",
+    "voiceCall.rejoinVoicePrompt":
+        "Du warst in einem Sprachanruf in {room}. Wieder beitreten?",
+    "voiceCall.rejoinVideoPrompt":
+        "Du warst in einem Videoanruf in {room}. Wieder beitreten?",
     "voiceCall.couldNotJoinTheVoiceCall":
         "Dem Sprachanruf konnte nicht beigetreten werden",
     "voiceCall.joinedWithoutAMicrophone":

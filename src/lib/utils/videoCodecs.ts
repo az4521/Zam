@@ -110,16 +110,18 @@ export function effectiveCodec(
 
 /** The automatic pick: the best-ranked codec this device encodes on the GPU
  *  (software AV1 or HEVC would cost more than the picture gains), else
- *  H.264, else VP8. */
+ *  H.264, else VP8. VP8 is only ever picked when H.264 can't be sent: it
+ *  ranks below H.264 in the picker, and a GPU that encodes VP8 but only
+ *  software H.264 still gets H.264. */
 export function autoCodec(
     candidates: readonly VideoCodec[],
     hardware: readonly VideoCodec[],
 ): VideoCodec {
-    return (
-        VIDEO_CODECS.find(
-            (c) => candidates.includes(c) && hardware.includes(c),
-        ) ?? effectiveCodec("h264", candidates)
+    const gpu = VIDEO_CODECS.find(
+        (c) => candidates.includes(c) && hardware.includes(c),
     );
+    if (gpu && gpu !== "vp8") return gpu;
+    return effectiveCodec("h264", candidates);
 }
 
 /** Whether a screen share of this capture can go out as HEVC. Browsers have

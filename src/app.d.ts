@@ -165,6 +165,18 @@ declare global {
             /** Tell main a call is (dis)connected, to raise process
              *  priority during it (electron/callPriority.cjs). */
             call?: { setActive: (active: boolean) => void };
+            /** The call's pop-out window (electron/main.cjs, "zam-call-pip"):
+             *  its size, following the cursor during a drag, and docking
+             *  back when it is dropped over the Zam window. Screen
+             *  coordinates in DIPs. */
+            callPip?: {
+                spawnSize: (size: { width: number; height: number }) => void;
+                follow: (grab: { x: number; y: number } | null) => void;
+                /** Returns the unsubscribe. */
+                onDocked: (
+                    cb: (centre: { x: number; y: number }) => void,
+                ) => () => void;
+            };
             /** Settings > Debug GPU section (electron/main.cjs). */
             gpu?: {
                 info: () => Promise<{

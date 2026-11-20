@@ -151,9 +151,23 @@ export interface StreamDecryptor {
     finish(): Promise<Uint8Array>;
 }
 
+/**
+ * A resume point for a download that starts mid-file. `plaintext` is the first
+ * `offset` bytes of the file, which the caller already holds (a thumbnail
+ * prefix). `offset` must be a whole number of AES blocks. The decryptor then
+ * takes ciphertext from `offset` on, returns plaintext from `offset` on, and
+ * still hashes the whole ciphertext: the held bytes are re-encrypted here to
+ * rebuild the ciphertext prefix, so a wrong prefix fails the hash in finish().
+ */
+export interface StreamResume {
+    offset: number;
+    plaintext: Uint8Array;
+}
+
 export async function createStreamDecryptor(
     info: EncryptedFileInfo,
     subtle: SubtleCrypto = globalThis.crypto.subtle,
+    resume?: StreamResume,
 ): Promise<StreamDecryptor> {
     if (!info?.key?.k) throw new Error("Encrypted file is missing its key");
     if (!info.iv) throw new Error("Encrypted file is missing its IV");
@@ -169,12 +183,18 @@ export async function createStreamDecryptor(
         throw new Error("Encrypted file IV is not 16 bytes");
     }
     const expected = base64ToBytes(info.hashes.sha256);
+    if (resume && resume.offset % AES_BLOCK !== 0) {
+        throw new Error("Resume offset is not on an AES block");
+    }
+    if (resume && resume.plaintext.length !== resume.offset) {
+        throw new Error("Resume plaintext does not match its offset");
+    }
     const key = await subtle.importKey(
         "raw",
         keyBytes,
         { name: "AES-CTR" },
         false,
-        ["decrypt"],
+        resume ? ["encrypt", "decrypt"] : ["decrypt"],
     );
 
     // Retained for the final digest: WebCrypto has no incremental SHA-256.
@@ -182,6 +202,18 @@ export async function createStreamDecryptor(
     let carry: Uint8Array<ArrayBuffer> = new Uint8Array(0);
     let blocks = 0n;
     let finished = false;
+    if (resume && resume.offset > 0) {
+        // (offset is a multiple of AES_BLOCK; checked above.)
+        // AES-CTR: encrypting the known plaintext yields the ciphertext it
+        // came from, so the hash can cover the bytes that were never fetched.
+        const prefixCipher = await subtle.encrypt(
+            { name: "AES-CTR", counter: iv, length: 64 },
+            key,
+            resume.plaintext.slice(0, resume.offset),
+        );
+        seen.push(new Uint8Array(prefixCipher));
+        blocks = BigInt(resume.offset / AES_BLOCK);
+    }
 
     const decrypt = async (data: Uint8Array<ArrayBuffer>) =>
         new Uint8Array(

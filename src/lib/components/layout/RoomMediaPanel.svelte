@@ -11,6 +11,16 @@
         mxcToHttp,
         type RoomMediaPage,
     } from "$lib/matrix/client";
+    import {
+        fetchDecryptedAttachment,
+        fetchDecryptedAttachmentFromPrefix,
+        fetchThumbnailPrefix,
+    } from "$lib/matrix/media";
+    import {
+        decryptedBlobs,
+        type HeldBlob,
+    } from "$lib/utils/decryptedBlobCache";
+    import { createTileImage } from "$lib/utils/tileImage";
     import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
     import {
         mergeMediaPages,
@@ -27,8 +37,6 @@
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
-    import MediaProgress from "$lib/components/ui/MediaProgress.svelte";
-    import type { DownloadProgress } from "$lib/utils/downloadProgress";
 
     interface Props {
         room: Room;
@@ -56,15 +64,17 @@
     let thumbFailed = $state<Record<string, boolean>>({});
     // Decrypted encrypted thumbnails, keyed by mediaItemKey.
     let decryptedThumbs = $state<Record<string, string>>({});
-    // Decrypted full media for the lightbox viewer, keyed by mediaItemKey.
+    // Decrypted full image for the viewer and its neighbours, keyed by
+    // mediaItemKey. Each URL is held in `heldFull` from the shared cache.
     let decryptedFull = $state<Record<string, string>>({});
-    // Encrypted images either side of the viewed one, decrypted ahead so a
-    // swipe lands on a loaded image. Handed over to decryptedFull when the
-    // viewer steps onto one; revoked once they are no longer neighbours.
-    let prefetchedFull = $state<Record<string, string>>({});
     const prefetchPending = new Set<string>();
-    let viewerDecrypting = $state(false);
-    let viewerProgress = $state<DownloadProgress | null>(null);
+    // Encrypted tiles that have come near the viewport: only these decrypt.
+    let nearIds = $state<Record<string, boolean>>({});
+    // The holds on full images, by item key (see decryptedBlobCache.ts).
+    const heldFull = new Map<string, HeldBlob>();
+    // The items the viewer shows or steps to. A decrypt that lands for any
+    // other item lets go of it at once.
+    let liveIds = new Set<string>();
 
     const split = $derived(splitMediaItems(items));
     const visible = $derived(tab === "media" ? split.visual : split.files);
@@ -246,10 +256,11 @@
         }
     }
 
-    // Decrypted blob URLs live until the panel switches room or unmounts, and
-    // are released together here. Bumping `blobGen` (a plain let, never
-    // reactive) orphans any decrypt still in flight: it revokes its own URL
-    // instead of writing into the new room's maps.
+    // Blob URLs this panel makes for its tiles are released together when the
+    // panel switches room or unmounts. Bumping `blobGen` (a plain let, never
+    // reactive) orphans any decrypt still in flight: its result is released
+    // instead of written into the new room's maps. Full images are held from
+    // the shared decryptedBlobs cache, which keeps them warm for the next view.
     let blobGen = 0;
     const thumbPending = new Set<string>();
     function releaseDecryptedBlobs(): void {
@@ -258,34 +269,135 @@
         prefetchPending.clear();
         for (const url of Object.values(decryptedThumbs))
             URL.revokeObjectURL(url);
-        for (const url of Object.values(decryptedFull))
-            URL.revokeObjectURL(url);
-        for (const url of Object.values(prefetchedFull))
-            URL.revokeObjectURL(url);
+        for (const held of heldFull.values()) held.release();
+        heldFull.clear();
+        liveIds = new Set();
+        nearIds = {};
         decryptedThumbs = {};
         decryptedFull = {};
-        prefetchedFull = {};
-        viewerDecrypting = false;
     }
     $effect(() => () => releaseDecryptedBlobs());
 
-    // Decrypt each encrypted tile once: an image's own file, a video's
-    // thumbnail_file (never the video itself; see mediaTileSource). Re-runs on
-    // every "Load more", so it skips anything already decrypted or in flight.
+    /** Marks an encrypted tile as near the viewport, which lets it decrypt. Once
+     *  near it stays marked: a tile is a small copy, not the full file. */
+    function nearViewport(node: HTMLElement, id: string) {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (!entries.some((e) => e.isIntersecting)) return;
+                nearIds[id] = true;
+                observer.disconnect();
+            },
+            { rootMargin: "300px" },
+        );
+        observer.observe(node);
+        return { destroy: () => observer.disconnect() };
+    }
+
+    /** The decrypted full image of an encrypted item: held from the shared
+     *  cache when it is there, else decrypted now and cached. The caller owns
+     *  the hold and must release it or keep it (keepFull). */
+    function heldFullOf(media: RoomMediaItem): Promise<HeldBlob> {
+        const file = media.encryptedFile!;
+        const hit = decryptedBlobs.get(file.url);
+        if (hit) return Promise.resolve(hit);
+        return fullBlobOf(media).then((blob) =>
+            decryptedBlobs.hold(file.url, blob),
+        );
+    }
+
+    /** The decrypted prefix thumbnail of an item (thumbnailPrefix.ts): the whole
+     *  thumbnail for decoding, and the shared prefix for the resume. Null when it
+     *  has none, or it does not check out as the declared shape. */
+    function prefixOf(
+        media: RoomMediaItem,
+    ): Promise<{ thumb: Uint8Array; prefix: Uint8Array } | null> {
+        const thumb = media.encryptedThumbnailFile;
+        if (!media.thumbnailPrefix || !thumb) return Promise.resolve(null);
+        return fetchThumbnailPrefix(
+            { thumbnail_file: thumb },
+            media.thumbnailPrefix,
+        ).catch(() => null);
+    }
+
+    /** The full image of an encrypted item, fetched from where its prefix
+     *  thumbnail ends when it has one. */
+    async function fullBlobOf(media: RoomMediaItem): Promise<Blob> {
+        const file = media.encryptedFile!;
+        const got = await prefixOf(media);
+        if (got) {
+            return fetchDecryptedAttachmentFromPrefix(
+                file,
+                got.prefix,
+                media.mimetype ?? undefined,
+                { expectedSize: media.size },
+            );
+        }
+        return fetchDecryptedAttachment(file, media.mimetype ?? undefined, {
+            expectedSize: media.size,
+        });
+    }
+
+    /** A blob URL for an encrypted tile, owned by the caller. An image sent with
+     *  a thumbnail decrypts that thumbnail; one sent without gets a tile cut from
+     *  its full image, so the grid never holds a full-size decode. A video uses
+     *  its thumbnail_file (never the video itself; see mediaTileSource). */
+    async function tileUrlOf(media: RoomMediaItem): Promise<string> {
+        // A prefix thumbnail is the top of a full-size JPEG: cut it down to a
+        // tile, never show it as it is. The tile decodes the whole thumbnail.
+        const got =
+            media.kind === "image" && media.thumbnailPrefix
+                ? await prefixOf(media)
+                : null;
+        if (got) {
+            const blob = new Blob([got.thumb as BlobPart], {
+                type: "image/jpeg",
+            });
+            const tile =
+                (await createTileImage(blob).catch(() => null)) ?? blob;
+            return URL.createObjectURL(tile);
+        }
+        if (
+            media.kind === "image" &&
+            (!media.encryptedThumbnailFile || media.thumbnailPrefix)
+        ) {
+            const held = await heldFullOf(media);
+            try {
+                const tile = (await createTileImage(held.blob)) ?? held.blob;
+                return URL.createObjectURL(tile);
+            } finally {
+                held.release();
+            }
+        }
+        const source = mediaTileSource(media);
+        if (source?.kind !== "encrypted") throw new Error("no encrypted tile");
+        return fetchDecryptedAttachmentBlob(
+            source.file,
+            source.mimetype ?? undefined,
+        );
+    }
+
+    // Decrypt each encrypted tile once, and only once it is near the viewport.
+    // Re-runs as tiles scroll in and on "Load more"; skips anything already
+    // decrypted or in flight.
     $effect(() => {
-        const wanted = split.visual
-            .map((m) => ({ id: mediaItemKey(m), source: mediaTileSource(m) }))
-            .filter((x) => x.source?.kind === "encrypted");
+        const wanted = split.visual.filter(
+            (m) =>
+                !!nearIds[mediaItemKey(m)] &&
+                !!m.encrypted &&
+                mediaTileSource(m)?.kind === "encrypted",
+        );
         untrack(() => {
             const gen = blobGen;
-            for (const { id, source } of wanted) {
-                if (source?.kind !== "encrypted") continue;
-                if (decryptedThumbs[id] || thumbPending.has(id)) continue;
-                thumbPending.add(id);
-                fetchDecryptedAttachmentBlob(
-                    source.file,
-                    source.mimetype ?? undefined,
+            for (const media of wanted) {
+                const id = mediaItemKey(media);
+                if (
+                    decryptedThumbs[id] ||
+                    thumbPending.has(id) ||
+                    thumbFailed[id]
                 )
+                    continue;
+                thumbPending.add(id);
+                tileUrlOf(media)
                     .then((url) => {
                         if (gen !== blobGen) {
                             URL.revokeObjectURL(url);
@@ -303,10 +415,21 @@
         });
     });
 
-    // Decrypt full media when the viewer opens on an encrypted item. The
-    // result is kept in decryptedFull (released with the panel) even if the
-    // user has stepped on, but only the current item's decrypt may clear the
-    // spinner.
+    /** Keeps a decrypted full image for the viewer or a neighbour, or lets go of
+     *  it when nothing wants it any more (stale, or not on screen). */
+    function keepFull(id: string, gen: number, held: HeldBlob): void {
+        if (gen !== blobGen || !liveIds.has(id)) {
+            held.release();
+            return;
+        }
+        const have = heldFull.get(id);
+        if (have) held.release();
+        else heldFull.set(id, held);
+        decryptedFull[id] = (have ?? held).url;
+    }
+
+    // Decrypt the full image when the viewer opens on an encrypted image. Until
+    // it lands the viewer shows the tile as its stand-in (see the template).
     $effect(() => {
         if (viewerIndex === null) return;
         const item = gallery[viewerIndex];
@@ -315,93 +438,51 @@
         // start playing while it is still downloading.
         if (item.kind === "video") return;
         const id = mediaItemKey(item);
-        if (untrack(() => decryptedFull[id])) return; // Already decrypted
-        // Already decrypted ahead as a neighbour: take that copy over.
-        const ahead = untrack(() => prefetchedFull[id]);
-        if (ahead) {
-            untrack(() => {
-                decryptedFull[id] = ahead;
-                delete prefetchedFull[id];
-            });
-            return;
-        }
+        if (untrack(() => decryptedFull[id])) return;
         const gen = blobGen;
-        let cancelled = false;
-        viewerDecrypting = true;
-        viewerProgress = null;
-        fetchDecryptedAttachmentBlob(
-            item.encryptedFile,
-            item.mimetype ?? undefined,
-            {
-                expectedSize: item.size,
-                onProgress: (p) => {
-                    if (!cancelled) viewerProgress = p;
-                },
-            },
-        )
-            .then((decrypted) => {
-                if (gen !== blobGen) {
-                    URL.revokeObjectURL(decrypted);
-                    return;
-                }
-                decryptedFull[id] = decrypted;
-                if (!cancelled) viewerDecrypting = false;
-            })
+        heldFullOf(item)
+            .then((held) => keepFull(id, gen, held))
             .catch(() => {
-                if (!cancelled) viewerDecrypting = false;
+                /* the stand-in stays up; nothing else to show */
             });
-        return () => {
-            cancelled = true;
-            viewerDecrypting = false;
-        };
     });
 
-    // Decrypt the encrypted images either side of the viewed one, through the
-    // same helper the viewer uses, and release any blob that no longer belongs
-    // to a neighbour. Closing the viewer empties `wanted`, which releases all.
+    // Decrypt the encrypted images either side of the viewed one, so a swipe
+    // lands on a loaded image, and let go of every full image that is no longer
+    // the viewed one or a neighbour. Closing the viewer keeps none of them.
     $effect(() => {
         const idx = viewerIndex;
-        const wanted =
+        const current = idx === null ? null : gallery[idx];
+        const near =
             idx === null
                 ? []
                 : [gallery[idx - 1], gallery[idx + 1]].filter(
-                      (m): m is RoomMediaItem =>
-                          !!m &&
-                          m.kind === "image" &&
-                          !!m.encrypted &&
-                          !!m.encryptedFile,
+                      (m): m is RoomMediaItem => !!m,
                   );
+        const wanted = near.filter(
+            (m) => m.kind === "image" && !!m.encrypted && !!m.encryptedFile,
+        );
         untrack(() => {
-            const keep = new Set(wanted.map((m) => mediaItemKey(m)));
-            for (const key of Object.keys(prefetchedFull)) {
-                if (keep.has(key)) continue;
-                URL.revokeObjectURL(prefetchedFull[key]);
-                delete prefetchedFull[key];
+            const keep = new Set(
+                [current, ...near]
+                    .filter((m): m is RoomMediaItem => !!m)
+                    .map((m) => mediaItemKey(m)),
+            );
+            liveIds = keep;
+            for (const [id, held] of heldFull) {
+                if (keep.has(id)) continue;
+                held.release();
+                heldFull.delete(id);
             }
+            for (const id of Object.keys(decryptedFull))
+                if (!keep.has(id)) delete decryptedFull[id];
             const gen = blobGen;
             for (const media of wanted) {
                 const id = mediaItemKey(media);
-                if (
-                    decryptedFull[id] ||
-                    prefetchedFull[id] ||
-                    prefetchPending.has(id)
-                )
-                    continue;
+                if (decryptedFull[id] || prefetchPending.has(id)) continue;
                 prefetchPending.add(id);
-                fetchDecryptedAttachmentBlob(
-                    media.encryptedFile!,
-                    media.mimetype ?? undefined,
-                    { expectedSize: media.size },
-                )
-                    .then((url) => {
-                        // Stale (torn down, or the viewer has since decrypted
-                        // it itself): nothing will own this URL, so release it.
-                        if (gen !== blobGen || decryptedFull[id]) {
-                            URL.revokeObjectURL(url);
-                            return;
-                        }
-                        prefetchedFull[id] = url;
-                    })
+                heldFullOf(media)
+                    .then((held) => keepFull(id, gen, held))
                     .catch(() => {
                         /* a failed prefetch just means no warm copy */
                     })
@@ -431,7 +512,7 @@
             item.kind !== "image"
                 ? ""
                 : item.encrypted
-                  ? (decryptedFull[id] ?? prefetchedFull[id] ?? "")
+                  ? (decryptedFull[id] ?? "")
                   : (mxcToHttp(item.url) ?? "");
         return { src, placeholders: [tileThumb(item)] };
     }
@@ -553,6 +634,7 @@
                     {@const duration = formatMediaDuration(media.durationMs)}
                     <button
                         onclick={() => openViewer(media)}
+                        use:nearViewport={mediaItemKey(media)}
                         class="relative aspect-square rounded overflow-hidden bg-zam-background hover:opacity-80 transition-opacity"
                         title={media.kind === "video"
                             ? t("roomMediaPanel.play", { name: media.name })
@@ -649,10 +731,11 @@
     {@const item = gallery[viewerIndex]}
     {@const view = mediaViewerItem(item, {
         // An encrypted item resolves only once decrypted: its mxc holds
-        // ciphertext, which the viewer would download and fail to show.
+        // ciphertext, which the viewer would download and fail to show. Until
+        // then "" (not null, which would drop the viewer): the tile stands in.
         full: (mxc) =>
             item.encrypted && item.kind !== "video"
-                ? (decryptedFull[mediaItemKey(item)] ?? null)
+                ? (decryptedFull[mediaItemKey(item)] ?? "")
                 : mxcToHttp(mxc),
         // "scale" rather than the default crop: a poster must match the video's
         // own aspect ratio or the player letterboxes a distorted still.
@@ -661,21 +744,9 @@
                 ? decryptedThumbs[mediaItemKey(item)]
                 : mxcToHttp(mxc, 800, 600, "scale"),
     })}
-    {#if viewerDecrypting}
-        <div
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-label={t("roomMediaPanel.decryptingMedia")}
-        >
-            <div class="max-w-sm w-full shadow-lg">
-                <MediaProgress
-                    label={t("roomMediaPanel.decryptingMedia2")}
-                    progress={viewerProgress}
-                />
-            </div>
-        </div>
-    {:else if view}
+    {#if view}
+        <!-- Shown at once: an encrypted image's src is "" until its full copy
+             has decrypted, and the tile stands in behind it (placeholders). -->
         <Lightbox
             src={view.src}
             alt={view.filename}

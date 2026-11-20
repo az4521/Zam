@@ -9,6 +9,7 @@
 import { t } from "$lib/i18n";
 import { formatCallDuration } from "./callDuration";
 import type { EncryptedFileInfo } from "./decryptAttachment";
+import { thumbnailPrefixLength } from "./thumbnailPrefix";
 import { galleryItems, isGalleryContent } from "./gallery";
 
 export type MediaKind = "image" | "video" | "file" | "audio";
@@ -62,6 +63,9 @@ export interface RoomMediaItem {
     encryptedThumbnailFile?: EncryptedFileRef;
     /** Mimetype of the thumbnail. */
     thumbnailMimetype?: string | null;
+    /** The length of a Zam prefix thumbnail (utils/thumbnailPrefix.ts), or
+     *  null for an ordinary thumbnail. */
+    thumbnailPrefix?: number | null;
     /** Index inside an MSC4274 gallery; absent for a single-media event. */
     itemIndex?: number;
 }
@@ -338,6 +342,7 @@ function mediaItemFromContent(
         encryptedFile: encFile ?? undefined,
         encryptedThumbnailFile: encThumbFile ?? undefined,
         thumbnailMimetype: encThumbFile ? str(thumbInfo.mimetype) : undefined,
+        thumbnailPrefix: thumbnailPrefixLength(info) ?? undefined,
     };
 }
 
@@ -360,12 +365,20 @@ export function mediaThumbnailMxc(item: RoomMediaItem): string | null {
 }
 
 /**
- * The media source for a media panel tile: image → its own url/file, video →
- * thumbnail_file or thumbnailUrl (NEVER the video itself), other kinds → null.
- * Encrypted items use their encrypted file/thumbnail; plain items use plain mxc.
+ * The media source for a media panel tile: image → its thumbnail_file when the
+ * sender sent one, else its own url/file; video → thumbnail_file or
+ * thumbnailUrl (NEVER the video itself); other kinds → null. Encrypted items use
+ * their encrypted file/thumbnail; plain items use plain mxc.
  */
 export function mediaTileSource(item: RoomMediaItem): MediaSource | null {
     if (item.kind === "image") {
+        if (item.encrypted && item.encryptedThumbnailFile) {
+            return {
+                kind: "encrypted",
+                file: item.encryptedThumbnailFile,
+                mimetype: item.thumbnailMimetype ?? null,
+            };
+        }
         if (item.encrypted && item.encryptedFile) {
             return {
                 kind: "encrypted",

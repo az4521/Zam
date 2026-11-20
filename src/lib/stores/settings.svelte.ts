@@ -626,7 +626,7 @@ export const settingsState = $state({
     ),
     /** Ask the SFU for video sized to the tile showing it, and pause video
      *  that isn't on screen (LiveKit adaptiveStream). Read at join. */
-    adaptiveStream: readAccountBool("adaptiveStream", false),
+    adaptiveStream: readAccountBool("adaptiveStream", true),
     /** Peer-to-peer calls (MSC4575) only through the homeserver's TURN
      *  server, so the others see its address instead of ours. Read when a
      *  connection is made. */
@@ -981,7 +981,7 @@ export function reloadAccountSettings(): void {
     settingsState.callVideoCodec = normalizeCallVideoCodec(
         readAccountString("callVideoCodec"),
     );
-    settingsState.adaptiveStream = readAccountBool("adaptiveStream", false);
+    settingsState.adaptiveStream = readAccountBool("adaptiveStream", true);
     settingsState.meshRelayOnly = readAccountBool("meshRelayOnly", false);
     settingsState.meshPublicStun = readAccountBool("meshPublicStun", false);
     settingsState.callSoundsEnabled = readAccountBool(

@@ -1387,6 +1387,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.galleryDownload": "Descargar {name}",
     "messageItem.galleryEmpty": "Galería vacía",
     "messageItem.edited": "(editado)",
+    "codeBlock.showMore": "Mostrar más",
+    "codeBlock.showLess": "Mostrar menos",
     "messageItem.decryptingImage": "Descifrando la imagen...",
     "messageItem.couldnTDecryptImage": "No se pudo descifrar la imagen",
     "messageItem.imageUnavailable": "[Imagen no disponible]",
@@ -3707,6 +3709,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     // src/lib/stores/voiceCall.svelte.ts
     "voiceCall.couldnTLoadTheCallComponent":
         "No se pudo cargar el componente de llamada. Comprueba tu conexión y recarga la página para volver a intentarlo.",
+    "voiceCall.rejoin": "Volver a unirse",
+    "voiceCall.rejoinVoicePrompt":
+        "Estabas en una llamada de voz en {room}. ¿Volver a unirte?",
+    "voiceCall.rejoinVideoPrompt":
+        "Estabas en una videollamada en {room}. ¿Volver a unirte?",
     "voiceCall.couldNotJoinTheVoiceCall": "No se pudo unir a la llamada de voz",
     "voiceCall.joinedWithoutAMicrophone":
         "Tu micrófono no está disponible; aun así puedes escuchar y compartir tu pantalla",

@@ -9,6 +9,7 @@
     import { rememberVolume } from "$lib/actions/rememberVolume";
     import { parkOffscreen } from "$lib/actions/parkOffscreen";
     import { gifTileVideo } from "$lib/actions/gifTileVideo";
+    import { hlsSource } from "$lib/actions/hlsSource";
     import { reservedMediaBox } from "$lib/utils/mediaDimensions";
     import { galleryNav, galleryPositionLabel } from "$lib/utils/mediaGallery";
     import {
@@ -23,6 +24,7 @@
         type TweetEmbed,
         type TweetSegment,
     } from "$lib/utils/tweetEmbed";
+    import { pickVideoSource } from "$lib/utils/tweetVideo";
 
     interface Props {
         tweet: TweetEmbed;
@@ -275,6 +277,7 @@
                     512,
                     512,
                 )}
+                {@const source = pickVideoSource(item)}
                 {#if item.kind === "gif"}
                     <!-- Played like a GIF: muted, looped, no controls. Its
                          src is owned by gifTileVideo, which only gives it one
@@ -341,7 +344,10 @@
                 {:else if item.kind === "video"}
                     <!-- svelte-ignore a11y_media_has_caption -->
                     <video
-                        src={item.url}
+                        src={source.kind === "mp4" ? source.url : undefined}
+                        use:hlsSource={source.kind === "hls"
+                            ? source.url
+                            : null}
                         poster={item.thumbnail}
                         width={box?.width}
                         height={box?.height}

@@ -190,8 +190,8 @@ import {
 } from "$lib/utils/videoCodecs";
 import {
     WATCHING_ATTRIBUTE,
+    buildWatchingMap,
     encodeWatchingAttribute,
-    parseWatchingAttribute,
     type WatchingMap,
 } from "$lib/utils/shareWatchers";
 import {
@@ -636,22 +636,27 @@ export function setShareWatched(identity: string, watched: boolean): void {
     notifyCallWatchers(call);
 }
 
-// The last `zam.watching` value we set on the call's room, so an unchanged
-// list is never sent again.
-const watchingSent = new WeakMap<ActiveVoiceCall, string>();
+// The last `zam.watching` value we set in each LiveKit room, so an unchanged
+// list is not re-sent. Keyed by the room object, so a room that reconnected
+// or was rebuilt (a new object) always gets its value again.
+const watchingSent = new WeakMap<LivekitRoom, string>();
 
-/** Tell the room which shares we watch (SFU only: mesh viewers are not
- *  reported). Sends only when the value changes. */
+/** Tell every LiveKit room of the call which shares we watch (mesh viewers
+ *  are not reported). Sends only when a room's value changes. */
 function announceWatching(call: ActiveVoiceCall): void {
-    const room = call.lkRoom;
-    if (activeVoice !== call || !room) return;
+    if (activeVoice !== call) return;
+    for (const room of callLkRooms(call)) announceWatchingTo(call, room);
+}
+
+function announceWatchingTo(call: ActiveVoiceCall, room: LivekitRoom): void {
+    if (activeVoice !== call) return;
     const value = encodeWatchingAttribute(watchedShareIds(call));
-    if (watchingSent.get(call) === value) return;
-    watchingSent.set(call, value);
+    if (watchingSent.get(room) === value) return;
+    watchingSent.set(room, value);
     void room.localParticipant
         .setAttributes({ [WATCHING_ATTRIBUTE]: value })
         .catch((err: unknown) => {
-            watchingSent.delete(call);
+            watchingSent.delete(room);
             console.warn("Couldn't announce watched screen shares:", err);
         });
 }
@@ -668,17 +673,23 @@ export function onShareWatchersChanged(
 
 function notifyCallWatchers(call: ActiveVoiceCall): void {
     if (activeVoice !== call) return;
-    const watching: WatchingMap = {};
-    for (const p of call.lkRoom?.remoteParticipants.values() ?? [])
-        watching[p.identity] = parseWatchingAttribute(
-            p.attributes[WATCHING_ATTRIBUTE],
-        );
+    const rooms = callLkRooms(call).map((room) =>
+        [...room.remoteParticipants.values()].map((p) => ({
+            identity: p.identity,
+            attribute: p.attributes[WATCHING_ATTRIBUTE],
+        })),
+    );
     const me = matrixClient?.getUserId();
     const myDevice = matrixClient?.getDeviceId();
     const ownIdentity =
         call.lkRoom?.localParticipant.identity ||
         (me && myDevice ? `${me}:${myDevice}` : "");
-    if (ownIdentity) watching[ownIdentity] = watchedShareIds(call).sort();
+    const watching = buildWatchingMap(
+        rooms,
+        ownIdentity
+            ? { identity: ownIdentity, shares: watchedShareIds(call) }
+            : null,
+    );
     for (const cb of watchersSubscribers) cb(watching);
 }
 
@@ -1572,12 +1583,8 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
             lk.RoomEvent.ParticipantAttributesChanged,
             (changed: Record<string, string>) => {
                 if (DECODE_ATTRIBUTE in changed) codecsChanged();
-                if (WATCHING_ATTRIBUTE in changed) notifyCallWatchers(call);
             },
         );
-        const watchersChanged = () => notifyCallWatchers(call);
-        lkRoom.on(lk.RoomEvent.ParticipantConnected, watchersChanged);
-        lkRoom.on(lk.RoomEvent.ParticipantDisconnected, watchersChanged);
         // Our share's sound comes and goes with the share (SFU publishes it).
         const shareAudioChanged = (pub: { source: unknown }) => {
             if (pub.source === lk.Track.Source.ScreenShareAudio)
@@ -1593,6 +1600,24 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
         );
         lkRoom.on(lk.RoomEvent.LocalTrackUnpublished, shareAudioChanged);
     }
+    // Watching is per room: a viewer announces in every room it is in, and
+    // a room's participants count toward who watches what, so these run for
+    // remote SFU rooms too. A reconnect may drop the attribute server-side,
+    // so the room's announcement is re-sent.
+    const watchersChanged = () => notifyCallWatchers(call);
+    lkRoom.on(lk.RoomEvent.ParticipantConnected, watchersChanged);
+    lkRoom.on(lk.RoomEvent.ParticipantDisconnected, watchersChanged);
+    lkRoom.on(
+        lk.RoomEvent.ParticipantAttributesChanged,
+        (changed: Record<string, string>) => {
+            if (WATCHING_ATTRIBUTE in changed) watchersChanged();
+        },
+    );
+    lkRoom.on(lk.RoomEvent.Reconnected, () => {
+        if (activeVoice !== call) return;
+        announceWatchingTo(call, lkRoom);
+        notifyCallWatchers(call);
+    });
     lkRoom.on(lk.RoomEvent.AudioPlaybackStatusChanged, () =>
         refreshPlaybackBlocked(call),
     );
@@ -2265,6 +2290,9 @@ async function connectRemoteSfu(
         scanPluginDataTracks(lkRoom);
         notifyCallMutes(call);
         announceCodecs(call, lkRoom);
+        // Viewers here must be visible to the sharers on this SFU too.
+        announceWatchingTo(call, lkRoom);
+        notifyCallWatchers(call);
         notifyCallEncryption(call);
         call.remoteFailuresNotified.delete(key);
         // Settles anything that changed while connecting (incl. the SFU no

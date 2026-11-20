@@ -20,11 +20,13 @@
     type Decode = "hardware" | "software" | "unsupported";
 
     // One common stream per codec; HEVC twice because 10-bit (Main10) is the
-    // one phones record and the one drivers most often lack.
+    // one phones record and the one drivers most often lack. VP8 is the call
+    // fallback codec, so it has to be here as well.
     const CODECS: [string, string][] = [
         ["H.264", 'video/mp4; codecs="avc1.640028"'],
         ["HEVC", 'video/mp4; codecs="hvc1.1.6.L120.90"'],
         ["HEVC 10-bit", 'video/mp4; codecs="hvc1.2.4.L120.90"'],
+        ["VP8", 'video/webm; codecs="vp8"'],
         ["VP9", 'video/webm; codecs="vp09.00.40.08"'],
         ["AV1", 'video/mp4; codecs="av01.0.08M.08"'],
     ];

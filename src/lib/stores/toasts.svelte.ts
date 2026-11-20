@@ -18,6 +18,9 @@ export interface Toast {
     message: string;
     action?: ToastAction;
     tone: ToastTone;
+    /** Runs when the user dismisses it (close button or action), not when it
+     *  is retired silently or times out. */
+    onDismiss?: () => void;
 }
 
 const TOAST_TTL_MS = 8000;
@@ -35,12 +38,23 @@ export const toastsState = new ToastsState();
  *  id, for dismissToast. */
 export function showToast(
     message: string,
-    opts?: { action?: ToastAction; tone?: ToastTone; sticky?: boolean },
+    opts?: {
+        action?: ToastAction;
+        tone?: ToastTone;
+        sticky?: boolean;
+        onDismiss?: () => void;
+    },
 ): number {
     const id = nextId++;
     toastsState.toasts = [
         ...toastsState.toasts,
-        { id, message, action: opts?.action, tone: opts?.tone ?? "danger" },
+        {
+            id,
+            message,
+            action: opts?.action,
+            tone: opts?.tone ?? "danger",
+            onDismiss: opts?.onDismiss,
+        },
     ];
     if (!opts?.sticky) setTimeout(() => dismissToast(id), TOAST_TTL_MS);
     return id;
@@ -52,5 +66,13 @@ export function showErrorToast(message: string, action?: ToastAction): void {
 }
 
 export function dismissToast(id: number): void {
+    const toast = toastsState.toasts.find((t) => t.id === id);
+    retireToast(id);
+    toast?.onDismiss?.();
+}
+
+/** Remove a toast without running its onDismiss (the reason it is gone no
+ *  longer applies, e.g. the prompt was answered some other way). */
+export function retireToast(id: number): void {
     toastsState.toasts = toastsState.toasts.filter((t) => t.id !== id);
 }

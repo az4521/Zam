@@ -24,9 +24,9 @@ function setup(extra: Record<string, unknown> = {}) {
         relaunch: vi.fn(),
     };
     (window as unknown as { desktop: unknown }).desktop = { gpu };
-    // H.264 on the GPU, HEVC in software only, the rest unsupported.
+    // H.264 on the GPU, HEVC and VP8 in software only, the rest unsupported.
     (globalThis as unknown as { MediaSource: unknown }).MediaSource = {
-        isTypeSupported: (type: string) => /avc1|hvc1/.test(type),
+        isTypeSupported: (type: string) => /avc1|hvc1|vp8/.test(type),
     };
     Object.defineProperty(navigator, "mediaCapabilities", {
         configurable: true,
@@ -78,6 +78,7 @@ describe("GpuDebug", () => {
             )?.lastElementChild?.textContent;
         expect(row("H.264")).toBe("Hardware");
         expect(row("HEVC")).toBe("Software");
+        expect(row("VP8")).toBe("Software");
         expect(row("AV1")).toBe("Not supported");
         expect(text).toContain("VaapiOnNvidiaGPUs");
     });

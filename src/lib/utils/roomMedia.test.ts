@@ -920,6 +920,41 @@ describe("mediaTileSource", () => {
             ),
         ).toBeNull();
     });
+
+    it("prefers an encrypted image's thumbnail_file over the full image", () => {
+        const source = mediaTileSource(
+            item({
+                eventId: "$1",
+                kind: "image",
+                url: "mxc://example.org/enc",
+                mimetype: "image/jpeg",
+                encrypted: true,
+                encryptedFile: {
+                    url: "mxc://example.org/enc",
+                    key: { k: "k" },
+                    iv: "iv",
+                    hashes: { sha256: "hash" },
+                },
+                encryptedThumbnailFile: {
+                    url: "mxc://example.org/thumb",
+                    key: { k: "k2" },
+                    iv: "iv2",
+                    hashes: { sha256: "hash2" },
+                },
+                thumbnailMimetype: "image/jpeg",
+            }),
+        );
+        expect(source).toEqual({
+            kind: "encrypted",
+            file: {
+                url: "mxc://example.org/thumb",
+                key: { k: "k2" },
+                iv: "iv2",
+                hashes: { sha256: "hash2" },
+            },
+            mimetype: "image/jpeg",
+        });
+    });
 });
 
 describe("mediaItemFromEvent with encrypted thumbnail", () => {

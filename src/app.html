@@ -11,6 +11,38 @@
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
         <meta name="theme-color" content="#313338" />
+        <!-- Link previews (Discord, Slack, ...) read these from the static
+             HTML and never run the app. PUBLIC_SITE_URL is the deployed origin,
+             set at build time (e.g. PUBLIC_SITE_URL=https://example.org npm run
+             build). Unset, the image path is relative and scrapers ignore it,
+             so the build never fails. -->
+        <meta
+            name="description"
+            content="Zam is a Matrix chat client with voice and video calls, end-to-end encryption, threads and more."
+        />
+        <meta property="og:title" content="Zam" />
+        <meta
+            property="og:description"
+            content="A Matrix chat client with voice and video calls, end-to-end encryption, threads and more."
+        />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Zam" />
+        <meta
+            property="og:image"
+            content="%sveltekit.env.PUBLIC_SITE_URL%/favicon_maskable.png"
+        />
+        <meta property="og:image:width" content="1024" />
+        <meta property="og:image:height" content="1024" />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content="Zam" />
+        <meta
+            name="twitter:description"
+            content="A Matrix chat client with voice and video calls, end-to-end encryption, threads and more."
+        />
+        <meta
+            name="twitter:image"
+            content="%sveltekit.env.PUBLIC_SITE_URL%/favicon_maskable.png"
+        />
         <script>
             try {
                 var base =

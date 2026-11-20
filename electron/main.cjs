@@ -92,6 +92,15 @@ const ICONS_DIR = path
 // window.open name of the call's floating video; see setWindowOpenHandler.
 const CALL_PIP_FRAME = "zam-call-pip";
 const callPipWindows = new Set();
+// Size the page asked for before opening the pop-out (call-pip:spawn-size),
+// used once by the next open; null keeps the default.
+let pendingCallPipSize = null;
+// While the page drags the pop-out with the cursor, its grab point inside the
+// window; the window does not dock back during that drag.
+let callPipFollowTimer = null;
+let callPipDockTimer = null;
+const CALL_PIP_FOLLOW_MAX_MS = 60000;
+const CALL_PIP_DOCK_SETTLE_MS = 150;
 const ICON_PATH = path.join(
     ICONS_DIR,
     process.platform === "win32" ? "icon.ico" : "icon.png",
@@ -291,6 +300,76 @@ function showWindow() {
 // The renderer asks for this when a call notification is clicked while the
 // window is hidden in the tray.
 ipcMain.on("show-window", showWindow);
+
+// The call's pop-out (preload callPip). Sizes are clamped to what a pop-out
+// can sensibly be; anything else is ignored.
+function sanePopSize(size) {
+    const w = Number(size?.width);
+    const h = Number(size?.height);
+    if (!Number.isFinite(w) || !Number.isFinite(h)) return null;
+    return {
+        width: Math.round(Math.min(Math.max(w, 160), 1200)),
+        height: Math.round(Math.min(Math.max(h, 90), 800)),
+    };
+}
+
+function latestCallPipWindow() {
+    let found = null;
+    for (const w of callPipWindows) if (!w.isDestroyed()) found = w;
+    return found;
+}
+
+function stopCallPipFollow() {
+    clearInterval(callPipFollowTimer);
+    callPipFollowTimer = null;
+}
+
+ipcMain.on("call-pip:spawn-size", (_e, size) => {
+    pendingCallPipSize = sanePopSize(size);
+});
+
+// Keep the pop-out's grab point under the cursor until the page says the
+// button came up (or the safety limit runs out, if that message was lost).
+ipcMain.on("call-pip:follow", (_e, grab) => {
+    stopCallPipFollow();
+    const ox = Number(grab?.x);
+    const oy = Number(grab?.y);
+    if (!Number.isFinite(ox) || !Number.isFinite(oy)) return;
+    const started = Date.now();
+    callPipFollowTimer = setInterval(() => {
+        const win = latestCallPipWindow();
+        if (!win || Date.now() - started > CALL_PIP_FOLLOW_MAX_MS) {
+            stopCallPipFollow();
+            return;
+        }
+        const p = screen.getCursorScreenPoint();
+        const b = win.getBounds();
+        const x = Math.round(p.x - ox);
+        const y = Math.round(p.y - oy);
+        if (x !== b.x || y !== b.y) win.setPosition(x, y);
+    }, 16);
+});
+
+// After the user drags a pop-out, once it has stopped for a moment: if its
+// centre is over the app's window, tell the page to dock it there. Ignored
+// while the page is carrying it with the cursor.
+function scheduleCallPipDockCheck(win) {
+    if (callPipFollowTimer) return;
+    clearTimeout(callPipDockTimer);
+    callPipDockTimer = setTimeout(() => {
+        if (win.isDestroyed() || !mainWindow || mainWindow.isDestroyed())
+            return;
+        if (mainWindow.isMinimized() || !mainWindow.isVisible()) return;
+        const b = win.getBounds();
+        const m = mainWindow.getBounds();
+        const cx = b.x + b.width / 2;
+        const cy = b.y + b.height / 2;
+        const over =
+            cx >= m.x && cx < m.x + m.width && cy >= m.y && cy < m.y + m.height;
+        if (over)
+            mainWindow.webContents.send("call-pip:docked", { x: cx, y: cy });
+    }, CALL_PIP_DOCK_SETTLE_MS);
+}
 
 // Plugins' native code (zam.native), after the user agrees.
 registerPluginNative(ipcMain, () => mainWindow);
@@ -2302,11 +2381,13 @@ async function createWindow() {
     // window prints the page origin on it, our loopback address and port.
     mainWindow.webContents.setWindowOpenHandler(({ url, frameName }) => {
         if (url === "about:blank" && frameName === CALL_PIP_FRAME) {
+            const size = pendingCallPipSize ?? { width: 480, height: 270 };
+            pendingCallPipSize = null;
             return {
                 action: "allow",
                 overrideBrowserWindowOptions: {
-                    width: 480,
-                    height: 270,
+                    width: size.width,
+                    height: size.height,
                     minWidth: 160,
                     minHeight: 90,
                     title: "Zam",
@@ -2364,6 +2445,9 @@ async function createWindow() {
                 .catch(() => {});
         }, 100);
         win.on("closed", () => clearInterval(hoverTimer));
+        // Dropped back over the app's window: the page docks it there. The
+        // page closes the window itself, so the drop reaches it first.
+        win.on("move", () => scheduleCallPipDockCheck(win));
     });
     // It has no parent (an owned window would hide when the app minimises),
     // so close it with the app ourselves.

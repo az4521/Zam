@@ -69,6 +69,18 @@ ipcRenderer.on("native-share:port", (e, meta) => {
 
 contextBridge.exposeInMainWorld("desktop", {
     showWindow: () => ipcRenderer.send("show-window"),
+    // The call's pop-out window (main.cjs, CALL_PIP_FRAME). Main moves it with
+    // the cursor during a drag and reports a drop back over the app's window.
+    callPip: {
+        spawnSize: (size) => ipcRenderer.send("call-pip:spawn-size", size),
+        follow: (grab) => ipcRenderer.send("call-pip:follow", grab),
+        onDocked: (cb) => {
+            const listener = (_event, centre) => cb(centre);
+            ipcRenderer.on("call-pip:docked", listener);
+            return () =>
+                ipcRenderer.removeListener("call-pip:docked", listener);
+        },
+    },
     pluginNative: {
         platform: `${process.platform}-${process.arch}`,
         open: (req) => ipcRenderer.invoke("plugin-native:open", req),

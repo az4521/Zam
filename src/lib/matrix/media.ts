@@ -39,6 +39,14 @@ import {
     mediaFilterDefinition,
     type RoomMediaItem,
 } from "$lib/utils/roomMedia";
+import { openAuthedReader } from "./mediaStream";
+import {
+    JPEG_EOI,
+    chooseThumbnailPrefix,
+    prefixThumbnailBytes,
+    splitThumbnailPrefix,
+    thumbnailPrefixFields,
+} from "$lib/utils/thumbnailPrefix";
 
 async function captureVideoThumbnail(file: File): Promise<{
     blob: Blob;
@@ -240,6 +248,28 @@ function mediaEventContent(
     return content;
 }
 
+function isJpegUpload(upload: File, original: File): boolean {
+    const mime = (upload.type || original.type).split(";")[0].trim();
+    return mime.toLowerCase() === "image/jpeg";
+}
+
+/**
+ * The leading scans of a JPEG upload to send as its thumbnail, with the EOI
+ * marker appended (see prefixThumbnailBytes), and the shared prefix length; or
+ * null when no prefix qualifies.
+ */
+async function prefixThumbnailFor(
+    upload: File,
+): Promise<{ length: number; bytes: Uint8Array<ArrayBuffer> } | null> {
+    const bytes = new Uint8Array(await upload.arrayBuffer());
+    const found = chooseThumbnailPrefix(bytes, "image/jpeg");
+    if (!found) return null;
+    return {
+        length: found.length,
+        bytes: prefixThumbnailBytes(bytes.subarray(0, found.length)),
+    };
+}
+
 /**
  * Upload one file (and its thumbnail) and build its media event content,
  * without sending anything. The content is what sendFile posts; sendGallery
@@ -335,7 +365,34 @@ export async function prepareFileContent(
                 info["org.matrix.msc4230.is_animated"] = true;
             }
         }
-        if (thumb?.blob) {
+        // A JPEG whose first scans qualify is its own thumbnail: the prefix
+        // bytes plus EOI, marked so receivers can fetch the rest
+        // (utils/thumbnailPrefix).
+        const prefix =
+            thumb && isJpegUpload(toUpload, file)
+                ? await prefixThumbnailFor(toUpload)
+                : null;
+        if (thumb && prefix) {
+            ownedClientOrThrow(owner);
+            const name = "thumbnail.jpg";
+            const thumbUpload = await uploadAttachment(
+                owner,
+                roomId,
+                new File([prefix.bytes], name, { type: "image/jpeg" }),
+                { name, msgtype },
+            );
+            Object.assign(
+                info,
+                thumbnailFields(thumbUpload),
+                thumbnailPrefixFields(prefix.length),
+            );
+            info.thumbnail_info = {
+                mimetype: "image/jpeg",
+                w: thumb.w,
+                h: thumb.h,
+                size: prefix.bytes.length,
+            };
+        } else if (thumb?.blob) {
             ownedClientOrThrow(owner);
             const mimetype = thumb.blob.type;
             const name =
@@ -653,17 +710,16 @@ export async function fetchMediaBytes(
 
 /**
  * Fetch an ENCRYPTED attachment (`content.file`) from the homeserver with auth,
- * decrypt it (AES-CTR, integrity-checked in decryptAttachment) and return an
- * object URL. Mirrors fetchAttachmentBlob's same-origin token guard. The
- * plaintext mimetype comes from the event's `content.info.mimetype` — the
- * EncryptedFile itself carries none. The caller owns the object URL and must
- * revoke it. Throws (never returns a URL) if the integrity hash fails.
+ * decrypt it (AES-CTR, integrity-checked in decryptAttachment) and return the
+ * plaintext as a Blob. The caller decides what to do with it: put it in the
+ * shared decryptedBlobCache, or make an object URL of its own. Throws (never
+ * returns a Blob) if the integrity hash fails.
  */
-export async function fetchDecryptedAttachmentBlob(
+export async function fetchDecryptedAttachment(
     file: EncryptedFileInfo & { url: string },
     mimetype?: string,
     opts: ReadProgressOptions = {},
-): Promise<string> {
+): Promise<Blob> {
     if (!matrixClient) throw new Error(t("media.notLoggedIn"));
     const httpUrl = mxcToHttp(file.url);
     if (!httpUrl)
@@ -690,8 +746,94 @@ export async function fetchDecryptedAttachmentBlob(
     // future open-in-tab/iframe sink can't execute e.g. an image/svg+xml or
     // text/html blob in our origin (audit SEC-L9). SVG is the exception: it is
     // sanitized instead, so it keeps the type an <img> needs to render it.
-    const blob = await safeMediaBlob(new Blob([plaintext]), mimetype);
+    return safeMediaBlob(new Blob([plaintext]), mimetype);
+}
+
+/**
+ * As fetchDecryptedAttachment, but as an object URL the caller owns and must
+ * revoke. Prefer decryptedBlobCache when the file is shown more than once.
+ */
+export async function fetchDecryptedAttachmentBlob(
+    file: EncryptedFileInfo & { url: string },
+    mimetype?: string,
+    opts: ReadProgressOptions = {},
+): Promise<string> {
+    const blob = await fetchDecryptedAttachment(file, mimetype, opts);
     return URL.createObjectURL(blob);
+}
+
+/** Whether `file` looks like an EncryptedFile (its key and url are there). */
+function isEncryptedFileRef(
+    file: unknown,
+): file is EncryptedFileInfo & { url: string } {
+    if (typeof file !== "object" || file === null) return false;
+    const f = file as Record<string, unknown>;
+    return (
+        typeof f.url === "string" && typeof f.key === "object" && f.key !== null
+    );
+}
+
+/**
+ * The bytes of an image's prefix thumbnail (`info.thumbnail_file`), decrypted,
+ * split into the whole thumbnail (with its EOI, for decoding) and the shared
+ * prefix (the file's first `length` bytes, for the resume). Null when there is
+ * no encrypted thumbnail or it does not have the declared shape (then the event
+ * is shown as ordinary). Throws when the download or its integrity check fails.
+ */
+export async function fetchThumbnailPrefix(
+    info: Record<string, unknown>,
+    length: number,
+    opts: ReadProgressOptions = {},
+): Promise<{ thumb: Uint8Array; prefix: Uint8Array } | null> {
+    if (!isEncryptedFileRef(info.thumbnail_file)) return null;
+    const blob = await fetchDecryptedAttachment(
+        info.thumbnail_file,
+        "image/jpeg",
+        opts,
+    );
+    if (blob.size !== length + JPEG_EOI.length) return null;
+    return splitThumbnailPrefix(
+        new Uint8Array(await blob.arrayBuffer()),
+        length,
+    );
+}
+
+/**
+ * The plaintext of an encrypted image, fetched from where its thumbnail prefix
+ * ends: the prefix's bytes are not downloaded again. The result is the whole
+ * file, verified as fetchDecryptedAttachment verifies it. When the ranged
+ * download fails (the server did not honour the Range, or the held prefix is
+ * not the start of this file) the whole file is downloaded as usual.
+ */
+export async function fetchDecryptedAttachmentFromPrefix(
+    file: EncryptedFileInfo & { url: string },
+    prefix: Uint8Array,
+    mimetype?: string,
+    opts: ReadProgressOptions = {},
+): Promise<Blob> {
+    if (!matrixClient) throw new Error(t("media.notLoggedIn"));
+    try {
+        const httpUrl = mxcToHttp(file.url);
+        if (!httpUrl)
+            throw new Error(t("media.encryptedAttachmentHasAnInvalidUrl"));
+        const reader = await openAuthedReader(httpUrl, {
+            decrypt: file,
+            prefix,
+            expectedSize: opts.expectedSize,
+            onProgress: opts.onProgress,
+            signal: opts.signal,
+        });
+        const chunks: Uint8Array[] = [];
+        for (;;) {
+            const r = await reader.read();
+            if (r.done) break;
+            chunks.push(r.value);
+        }
+        return await safeMediaBlob(new Blob(chunks as BlobPart[]), mimetype);
+    } catch (err) {
+        if (opts.signal?.aborted) throw err;
+        return fetchDecryptedAttachment(file, mimetype, opts);
+    }
 }
 
 /** HEAD-request a URL (with auth for homeserver URLs) and return its Content-Type. */

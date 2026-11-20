@@ -34,8 +34,6 @@
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import Lightbox from "$lib/components/ui/Lightbox.svelte";
     import { fullImage, type FullImageSource } from "$lib/actions/fullImage";
-    import MediaProgress from "$lib/components/ui/MediaProgress.svelte";
-    import type { DownloadProgress } from "$lib/utils/downloadProgress";
 
     interface Props {
         /** The gallery's valid items, from galleryItems(content). */
@@ -133,8 +131,6 @@
     // viewer steps onto one; revoked once they are no longer neighbours.
     let prefetchedFull = $state<Record<string, string>>({});
     const prefetchPending = new Set<string>();
-    let viewerDecrypting = $state(false);
-    let viewerProgress = $state<DownloadProgress | null>(null);
     let viewerIndex = $state<number | null>(null);
 
     // Bumped on teardown (a plain let, never reactive) so a decrypt still in
@@ -154,7 +150,6 @@
         decryptedThumbs = {};
         decryptedFull = {};
         prefetchedFull = {};
-        viewerDecrypting = false;
     }
     $effect(() => () => releaseDecryptedBlobs());
 
@@ -231,19 +226,12 @@
             });
             return;
         }
+        // The lightbox is up already: its tile stand-in shows until this lands.
         const gen = blobGen;
-        let cancelled = false;
-        viewerDecrypting = true;
-        viewerProgress = null;
         fetchDecryptedAttachmentBlob(
             media.encryptedFile,
             media.mimetype ?? undefined,
-            {
-                expectedSize: media.size,
-                onProgress: (p) => {
-                    if (!cancelled) viewerProgress = p;
-                },
-            },
+            { expectedSize: media.size },
         )
             .then((decrypted) => {
                 if (gen !== blobGen) {
@@ -251,26 +239,21 @@
                     return;
                 }
                 decryptedFull[key] = decrypted;
-                if (!cancelled) viewerDecrypting = false;
             })
             .catch(() => {
-                if (cancelled || gen !== blobGen) return;
-                viewerDecrypting = false;
+                if (gen !== blobGen) return;
                 viewerIndex = null;
                 showErrorToast(t("roomMediaPanel.couldNotLoadThisMedia"));
             });
-        return () => {
-            cancelled = true;
-            viewerDecrypting = false;
-        };
     });
 
     const viewerSrc = $derived.by((): string | null => {
         const entry = viewerEntry;
         if (!entry) return null;
         const media = entry.media;
+        // "" while an encrypted image decrypts: the lightbox shows its tile then.
         if (media.encrypted && media.kind !== "video")
-            return decryptedFull[entry.key] ?? null;
+            return decryptedFull[entry.key] ?? "";
         return mxcToHttp(media.url);
     });
 
@@ -561,21 +544,7 @@
 </div>
 
 {#if viewerEntry}
-    {#if viewerDecrypting}
-        <div
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-label={t("roomMediaPanel.decryptingMedia")}
-        >
-            <div class="max-w-sm w-full shadow-lg">
-                <MediaProgress
-                    label={t("roomMediaPanel.decryptingMedia2")}
-                    progress={viewerProgress}
-                />
-            </div>
-        </div>
-    {:else if viewerSrc}
+    {#if viewerSrc !== null}
         <Lightbox
             src={viewerSrc}
             alt={viewerEntry.media.name}

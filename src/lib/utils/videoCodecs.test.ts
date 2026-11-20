@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+    autoCodec,
     backupCodecFor,
     codecsEveryoneDecodes,
     codecsFromMimeTypes,
@@ -223,5 +224,24 @@ describe("planCodecs with auto", () => {
         const plan = planCodecs("auto", sendable, [null], false, ["av1"]);
         expect(plan.current).toBe("h264");
         expect(plan.backup).toBeNull();
+    });
+});
+
+describe("autoCodec", () => {
+    it("takes the best-ranked codec the GPU encodes", () => {
+        expect(
+            autoCodec(["av1", "h265", "vp9", "h264", "vp8"], ["h265", "h264"]),
+        ).toBe("h265");
+    });
+
+    it("prefers software H.264 to hardware VP8", () => {
+        expect(autoCodec(["h264", "vp8"], ["vp8"])).toBe("h264");
+        expect(autoCodec(["vp9", "h264", "vp8"], ["vp8", "vp9"])).toBe("vp9");
+    });
+
+    it("picks H.264 when neither is on the GPU, and VP8 only without H.264", () => {
+        expect(autoCodec(["h264", "vp8"], [])).toBe("h264");
+        expect(autoCodec(["vp8"], ["vp8"])).toBe("vp8");
+        expect(autoCodec(["vp8"], [])).toBe("vp8");
     });
 });

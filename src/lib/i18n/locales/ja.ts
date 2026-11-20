@@ -1269,6 +1269,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.galleryDownload": "{name}をダウンロード",
     "messageItem.galleryEmpty": "空のギャラリー",
     "messageItem.edited": "（編集済み）",
+    "codeBlock.showMore": "もっと見る",
+    "codeBlock.showLess": "折りたたむ",
     "messageItem.decryptingImage": "画像を復号しています...",
     "messageItem.couldnTDecryptImage": "画像を復号できませんでした",
     "messageItem.imageUnavailable": "[画像は利用できません]",
@@ -3231,6 +3233,11 @@ const messages: Partial<Record<MessageKey, string>> = {
         "このリクエストを承認できませんでした。もう一度お試しください。",
     "voiceCall.couldnTLoadTheCallComponent":
         "通話コンポーネントを読み込めませんでした。接続を確認してから、ページを再読み込みしてお試しください。",
+    "voiceCall.rejoin": "再参加",
+    "voiceCall.rejoinVoicePrompt":
+        "{room} の音声通話に参加していました。再参加しますか？",
+    "voiceCall.rejoinVideoPrompt":
+        "{room} のビデオ通話に参加していました。再参加しますか？",
     "voiceCall.couldNotJoinTheVoiceCall": "音声通話に参加できませんでした",
     "voiceCall.joinedWithoutAMicrophone":
         "マイクを使用できません - 聞くことと画面共有はできます",

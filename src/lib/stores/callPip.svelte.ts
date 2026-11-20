@@ -1,12 +1,17 @@
+import { mount, unmount } from "svelte";
 import type { Track } from "livekit-client";
 import type { PipPlacement } from "$lib/utils/videoTiles";
-import { t } from "$lib/i18n";
+import { centreOf, dockPlacement, type PipPoint } from "$lib/utils/pipGeometry";
 
 const PLACEMENT_KEY = "call-pip-placement";
 const SIDES = ["top", "bottom", "left", "right"];
-/** How long a stream gets to produce a frame before asking for the window.
- *  User activation lasts about 5s, so past that the request would fail anyway. */
+/** How long a stream gets to produce a frame before asking for the browser's
+ *  window. User activation lasts about 5s, so past that the request would
+ *  fail anyway. */
 const METADATA_TIMEOUT_MS = 3000;
+
+/** Size of the pop-out when the caller gives none: the built-in video at 18rem. */
+export const DEFAULT_POP_SIZE = { width: 288, height: 162 };
 
 function loadPlacement(): PipPlacement {
     try {
@@ -25,9 +30,9 @@ function loadPlacement(): PipPlacement {
 }
 
 class CallPipState {
-    /** The system picture-in-picture window is open. */
+    /** The desktop app's pop-out window is open. */
     windowOpen = $state(false);
-    /** The tile the user sent to the system window, if they picked one. */
+    /** The tile the user sent to the pop-out, if they picked one. */
     pinnedKey = $state<string | null>(null);
     /** The floating video was closed. Holds until the call ends or someone
      *  starts a new share. */
@@ -47,31 +52,35 @@ export function setPipPlacement(placement: PipPlacement): void {
     }
 }
 
-// The system window plays its own <video>, not a call tile's: tiles unmount
-// with the call view, which would close the window the moment the user went
-// back to the chat, the very time it is wanted.
+// The pop-out is the Electron desktop app's frameless always-on-top window
+// (electron/main.cjs lets this one popup through). It renders the same panel
+// as the floating video (CallPipPanel), mounted into the window's own
+// document. Chromium's own video window prints the page's origin on it, so
+// this one is ours. Web and Android have no pop-out at all.
+const DESKTOP_PIP_FRAME = "zam-call-pip";
+interface PipHost {
+    win: Window;
+    /** Svelte's handle on the mounted panel. */
+    app: Record<string, unknown> | null;
+    /** Listeners and timers this window owns. */
+    cleanup: Array<() => void>;
+}
+let host: PipHost | null = null;
+
+type DesktopPipApi = NonNullable<NonNullable<Window["desktop"]>["callPip"]>;
+function desktopPipApi(): DesktopPipApi | undefined {
+    if (typeof window === "undefined") return undefined;
+    return window.desktop?.callPip;
+}
+
+// The browser's own picture-in-picture window, on web browsers that have it.
+// It plays a <video> of its own, not a call tile's: tiles unmount with the
+// call view, which would close the window the moment the user went back to
+// the chat, the very time it is wanted.
 let video: HTMLVideoElement | null = null;
 let attached: Track | null = null;
 
-// On the desktop app the system window is our own small always-on-top window
-// (electron/main.cjs lets this one popup through). Chromium's own video
-// window prints the page's origin on it, which for the app is the loopback
-// address and port it is served from.
-const DESKTOP_PIP_FRAME = "zam-call-pip";
-let desktopWin: Window | null = null;
-let desktopControls: {
-    mic: HTMLButtonElement;
-    camera: HTMLButtonElement;
-    label: HTMLSpanElement;
-} | null = null;
-let pipLabel = "";
-let pipActions: PipCallActions | null = null;
-let pipMicOn = false;
-let pipCameraOn = false;
-
-/** Android's WebView and Firefox have no picture-in-picture API. Support is
- *  fixed for the session, so callers may hold the result in a plain const. */
-export function pipWindowSupported(): boolean {
+function nativePipSupported(): boolean {
     return (
         typeof document !== "undefined" &&
         document.pictureInPictureEnabled === true &&
@@ -79,149 +88,19 @@ export function pipWindowSupported(): boolean {
     );
 }
 
-function releaseVideo(): void {
-    attached?.detach(video!);
-    attached = null;
-    video?.remove();
-    video = null;
-    callPipState.windowOpen = false;
-    callPipState.pinnedKey = null;
-    const win = desktopWin;
-    desktopWin = null;
-    desktopControls = null;
-    if (win && !win.closed) win.close();
+/** Whether a call's video can float in a picture-in-picture window: the
+ *  desktop app's pop-out, or the browser's own window. Android's WebView and
+ *  Firefox have neither. Support is fixed for the session, so callers may
+ *  hold the result in a plain const. */
+export function pipWindowSupported(): boolean {
+    return !!desktopPipApi() || nativePipSupported();
 }
 
-const ICON_MIC =
-    '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>';
-const ICON_CAMERA =
-    '<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>';
-const ICON_HANG_UP =
-    '<path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><line x1="22" x2="2" y1="2" y2="22"/>';
-const ICON_BACK =
-    '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>';
-const ICON_CLOSE = '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>';
-const ICON_STRIKE = '<line x1="2" x2="22" y1="2" y2="22"/>';
-
-// Chromium's picture-in-picture look: controls fade in on hover over a
-// shade at the top and bottom; everything but a button drags the window.
-// A drag region gets no mouse events, so the desktop app marks hovering
-// itself (the "hover" class, electron/main.cjs).
-const PIP_CSS = `
-html,body{margin:0;height:100%;background:#000;overflow:hidden;font:13px system-ui,sans-serif;color:#fff;-webkit-app-region:drag;user-select:none}
-video{width:100%;height:100%;object-fit:contain;display:block}
-.top,.bottom{position:fixed;left:0;right:0;display:flex;align-items:center;opacity:0;transition:opacity .15s}
-html.hover .top,html.hover .bottom{opacity:1}
-.top{top:0;height:40px;padding:0 4px 0 10px;gap:8px;background:linear-gradient(rgba(0,0,0,.65),transparent)}
-.top img{width:16px;height:16px}
-.label{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bottom{bottom:0;height:64px;justify-content:center;gap:12px;background:linear-gradient(transparent,rgba(0,0,0,.65))}
-button{-webkit-app-region:no-drag;border:0;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
-button[hidden]{display:none}
-.icon{width:32px;height:32px;border-radius:50%;background:transparent}
-.icon:hover{background:rgba(255,255,255,.2)}
-.round{width:36px;height:36px;border-radius:50%;background:rgba(60,60,60,.9)}
-.round:hover{background:rgba(90,90,90,.95)}
-.round.danger{background:#d93025}
-.round.danger:hover{background:#e8453c}
-`;
-
-function svgIcon(paths: string): string {
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+/** Whether a video can be dragged out of the page into its own window. Only
+ *  the desktop app does that; a browser's window stays clamped to the page. */
+export function pipDetachSupported(): boolean {
+    return !!desktopPipApi();
 }
-
-function pipButton(
-    doc: Document,
-    className: string,
-    onClick: () => void,
-): HTMLButtonElement {
-    const b = doc.createElement("button");
-    b.className = className;
-    b.addEventListener("click", (e) => {
-        e.stopPropagation();
-        onClick();
-    });
-    return b;
-}
-
-function paintDesktopControls(): void {
-    if (!desktopControls) return;
-    const { mic, camera } = desktopControls;
-    mic.innerHTML = svgIcon(ICON_MIC + (pipMicOn ? "" : ICON_STRIKE));
-    mic.title = pipMicOn ? t("common.mute") : t("callView.unmute");
-    mic.classList.toggle("danger", !pipMicOn);
-    camera.innerHTML = svgIcon(ICON_CAMERA + (pipCameraOn ? "" : ICON_STRIKE));
-    camera.title = pipCameraOn
-        ? t("common.turnOffCamera")
-        : t("common.turnOnCamera");
-    camera.hidden = !pipActions?.toggleCamera;
-    desktopControls.label.textContent = pipLabel;
-}
-
-/** The desktop app's own floating window, or null where the app refuses
- *  the popup (a desktop build older than this page). Frameless, laid out like
- *  Chromium's picture-in-picture window: hovering shows the stream's name with
- *  back-to-call and close along the top, the call buttons along the bottom,
- *  and the window drags from anywhere else. */
-function openDesktopWindow(): HTMLVideoElement | null {
-    if (typeof window === "undefined" || !window.desktop) return null;
-    const win = window.open("about:blank", DESKTOP_PIP_FRAME, "popup");
-    if (!win) return null;
-    const doc = win.document;
-    doc.title = "Zam";
-    const style = doc.createElement("style");
-    style.textContent = PIP_CSS;
-    doc.head.append(style);
-    const el = doc.createElement("video");
-    el.muted = true;
-    el.playsInline = true;
-    el.autoplay = true;
-
-    const top = doc.createElement("div");
-    top.className = "top";
-    const icon = doc.createElement("img");
-    icon.src = new URL("/favicon.png", location.origin).href;
-    icon.alt = "";
-    const label = doc.createElement("span");
-    label.className = "label";
-    label.textContent = pipLabel;
-    const back = pipButton(doc, "icon", () => {
-        pipActions?.openCall?.();
-        window.desktop?.showWindow?.();
-        window.focus();
-    });
-    back.innerHTML = svgIcon(ICON_BACK);
-    back.title = t("voiceCallPanel.openCallView");
-    const close = pipButton(doc, "icon", () => releaseVideo());
-    close.innerHTML = svgIcon(ICON_CLOSE);
-    close.title = t("common.close");
-    top.append(icon, label, back, close);
-
-    const bar = doc.createElement("div");
-    bar.className = "bottom";
-    const mic = pipButton(doc, "round", () => pipActions?.toggleMic());
-    const camera = pipButton(doc, "round", () => pipActions?.toggleCamera?.());
-    const hangUp = pipButton(doc, "round danger", () => pipActions?.hangUp());
-    hangUp.innerHTML = svgIcon(ICON_HANG_UP);
-    hangUp.title = t("callView.disconnect");
-    bar.append(mic, camera, hangUp);
-
-    doc.body.append(el, top, bar);
-    desktopWin = win;
-    desktopControls = { mic, camera, label };
-    paintDesktopControls();
-    // Closed by the user or by the app.
-    win.addEventListener("pagehide", () => {
-        if (desktopWin === win) releaseVideo();
-    });
-    return el;
-}
-
-// A reload of the app must not leave the floating window behind.
-if (typeof window !== "undefined")
-    window.addEventListener("pagehide", () => {
-        if (desktopWin) releaseVideo();
-    });
 
 function ensureVideo(): HTMLVideoElement {
     if (video) return video;
@@ -241,6 +120,15 @@ function ensureVideo(): HTMLVideoElement {
     return el;
 }
 
+function releaseVideo(): void {
+    if (video && attached) attached.detach(video);
+    attached = null;
+    video?.remove();
+    video = null;
+    callPipState.windowOpen = false;
+    callPipState.pinnedKey = null;
+}
+
 function metadataReady(el: HTMLVideoElement): Promise<void> {
     if (el.readyState >= HTMLMediaElement.HAVE_METADATA)
         return Promise.resolve();
@@ -257,13 +145,8 @@ function metadataReady(el: HTMLVideoElement): Promise<void> {
     });
 }
 
-/** Put a track in the system window, which may already be showing another. */
-/** The name the desktop window shows for its stream ("Alice's screen"). */
-export function setPipLabel(label: string): void {
-    pipLabel = label;
-    paintDesktopControls();
-}
-
+/** Put a track in the browser's picture-in-picture window, which may already
+ *  be showing another. Does nothing while that window is closed. */
 export function showPipTrack(track: Track): void {
     if (track === attached || !video) return;
     attached?.detach(video);
@@ -271,20 +154,173 @@ export function showPipTrack(track: Track): void {
     track.attach(video);
 }
 
-/** Open the system window on `track`. Must run in a click. A `pinnedKey` keeps
- *  it on that tile; null lets it follow the conversation like the floating
- *  video does. */
+function rootRem(): number {
+    return (
+        parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+    );
+}
+
+function releaseHost(): void {
+    callPipState.windowOpen = false;
+    callPipState.pinnedKey = null;
+    const h = host;
+    host = null;
+    if (!h) return;
+    for (const stop of h.cleanup) stop();
+    if (h.app) void unmount(h.app);
+    if (!h.win.closed) h.win.close();
+}
+
+// The pop-out window's own style sheet. The panel's Tailwind classes come
+// from the app's stylesheets, copied in by adoptStyles; these rules are the
+// window-only parts: the Chromium-style chrome that fades in on hover, and
+// the drag region of the window (everything but a button drags it).
+const PIP_WINDOW_CSS = `
+html,body{margin:0;height:100%;overflow:hidden;background:#000;color:#fff;user-select:none}
+.pip-root{position:relative;width:100%;height:100%;overflow:hidden;background:#000}
+.pip-chrome{transition:opacity .15s;opacity:0}
+html.hover .pip-chrome,.pip-root:hover .pip-chrome,.pip-root:focus-within .pip-chrome{opacity:1}
+html.pip-desktop,html.pip-desktop body{-webkit-app-region:drag}
+html.pip-desktop button{-webkit-app-region:no-drag}
+`;
+
+function adoptStyles(doc: Document): void {
+    for (const node of document.querySelectorAll(
+        'style, link[rel="stylesheet"]',
+    )) {
+        if (node instanceof HTMLLinkElement) {
+            const link = doc.createElement("link");
+            link.rel = "stylesheet";
+            link.href = node.href;
+            doc.head.append(link);
+        } else {
+            doc.head.append(node.cloneNode(true));
+        }
+    }
+    const style = doc.createElement("style");
+    style.textContent = PIP_WINDOW_CSS;
+    doc.head.append(style);
+}
+
+/** Where the pop-out's centre is on screen. */
+function popupCentre(h: PipHost): PipPoint | undefined {
+    try {
+        const c = centreOf({
+            x: h.win.screenX,
+            y: h.win.screenY,
+            width: h.win.outerWidth,
+            height: h.win.outerHeight,
+        });
+        return Number.isFinite(c.x) && Number.isFinite(c.y) ? c : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/** Put the built-in video back in the Zam window, at `centre` (screen
+ *  coordinates) when given, and close the pop-out. Without a centre the
+ *  built-in video keeps its last spot. */
+export function dockPipWindow(
+    centre: PipPoint | undefined,
+    size: { width: number; height: number } = DEFAULT_POP_SIZE,
+): void {
+    if (!host) return;
+    if (centre) {
+        const { width, height } = size;
+        setPipPlacement(
+            dockPlacement(
+                centre.x - width / 2 - window.screenX,
+                centre.y - height / 2 - window.screenY,
+                width,
+                height,
+                window.innerWidth,
+                window.innerHeight,
+                rootRem(),
+            ),
+        );
+    }
+    releaseHost();
+}
+
+/** Take over the pop-out window: mount the panel in it and watch for its
+ *  closing and for a drop back over the Zam window. */
+async function openHost(
+    win: Window,
+    size: { width: number; height: number },
+): Promise<void> {
+    const doc = win.document;
+    doc.title = "Zam";
+    adoptStyles(doc);
+    doc.documentElement.classList.add("pip-desktop");
+    const h: PipHost = { win, app: null, cleanup: [] };
+    host = h;
+    callPipState.windowOpen = true;
+
+    // Closed by the user or by the app.
+    const gone = () => {
+        if (host === h) releaseHost();
+    };
+    win.addEventListener("pagehide", gone);
+    h.cleanup.push(() => win.removeEventListener("pagehide", gone));
+
+    const off = desktopPipApi()?.onDocked((centre) => {
+        if (host === h) dockPipWindow(centre, size);
+    });
+    if (off) h.cleanup.push(off);
+
+    // Loaded on first use, so the store (and its tests) don't pull in the
+    // call's UI and SDK modules.
+    const { default: CallPipPanel } =
+        await import("$lib/components/layout/CallPipPanel.svelte");
+    if (host !== h) return;
+    h.app = mount(CallPipPanel, {
+        target: doc.body,
+        props: {
+            mode: "window",
+            onReturn: () => dockPipWindow(popupCentre(h), size),
+            onClose: () => {
+                if (host === h) releaseHost();
+            },
+        },
+    });
+}
+
+/** The desktop app's own floating window, or null where the app refuses
+ *  the popup (a desktop build older than this page). Must run in a click. */
+function openDesktopWindow(size: {
+    width: number;
+    height: number;
+}): Window | null {
+    const api = desktopPipApi();
+    if (!api) return null;
+    api.spawnSize(size);
+    return window.open("about:blank", DESKTOP_PIP_FRAME, "popup");
+}
+
+/** Open the window on a call's video. Must run in a click: the window is
+ *  requested before the first await. A `pinnedKey` keeps it on that tile; null
+ *  lets it follow the conversation like the floating video does. In the
+ *  desktop app this is the pop-out (`size` sizes it, `track` is unused). In a
+ *  browser with picture-in-picture it is the browser's own window, which shows
+ *  `track`. Does nothing elsewhere. */
 export async function openPipWindow(
     pinnedKey: string | null,
-    track: Track,
+    track: Track | null = null,
+    size: { width: number; height: number } = DEFAULT_POP_SIZE,
 ): Promise<void> {
     callPipState.pinnedKey = pinnedKey;
     if (callPipState.windowOpen) return;
-    const desktopVideo = openDesktopWindow();
-    if (desktopVideo) {
-        video = desktopVideo;
-        callPipState.windowOpen = true;
-        showPipTrack(track);
+    if (desktopPipApi()) {
+        const win = openDesktopWindow(size);
+        if (!win) {
+            callPipState.pinnedKey = null;
+            return;
+        }
+        await openHost(win, size);
+        return;
+    }
+    if (!track || !nativePipSupported()) {
+        callPipState.pinnedKey = null;
         return;
     }
     const el = ensureVideo();
@@ -297,14 +333,32 @@ export async function openPipWindow(
     }
 }
 
+/** A drag of the built-in video has left the Zam window. Opens the pop-out at
+ *  the same size, and it then follows the cursor (`grab` is where the pointer
+ *  held the video) until `endPipFollow`. Returns false outside the desktop
+ *  app. */
+export function detachPipWindow(
+    pinnedKey: string | null,
+    size: { width: number; height: number },
+    grab: PipPoint,
+): boolean {
+    const api = desktopPipApi();
+    if (!api) return false;
+    api.follow(grab);
+    void openPipWindow(pinnedKey, null, size);
+    return true;
+}
+
+/** The pointer let go while the pop-out followed it. */
+export function endPipFollow(): void {
+    desktopPipApi()?.follow(null);
+}
+
 export function closePipWindow(): void {
-    if (desktopWin) {
-        releaseVideo();
-    } else if (video && document.pictureInPictureElement === video) {
+    if (host) releaseHost();
+    else if (video && document.pictureInPictureElement === video)
         void document.exitPictureInPicture().catch(() => {});
-    } else if (video) {
-        releaseVideo();
-    }
+    else if (video) releaseVideo();
 }
 
 export interface PipCallActions {
@@ -312,17 +366,14 @@ export interface PipCallActions {
     /** Null leaves the camera button out (camera disabled in settings). */
     toggleCamera: (() => void) | null;
     hangUp: () => void;
-    /** Go back to the call view, from the desktop window's top bar. */
-    openCall?: () => void;
 }
 
 // Not in TypeScript's MediaSessionAction yet.
 const SESSION_ACTIONS = ["togglemicrophone", "togglecamera", "hangup"];
 
-/** Mute, camera and hang-up buttons in the system window. Returns the cleanup. */
+/** Mute, camera and hang-up as the OS media controls. Returns the cleanup.
+ *  The pop-out's own buttons call the same store actions directly. */
 export function bindPipCallActions(actions: PipCallActions): () => void {
-    pipActions = actions;
-    paintDesktopControls();
     const handlers = [actions.toggleMic, actions.toggleCamera, actions.hangUp];
     const set = (i: number, handler: (() => void) | null) => {
         try {
@@ -336,16 +387,19 @@ export function bindPipCallActions(actions: PipCallActions): () => void {
     };
     handlers.forEach((handler, i) => set(i, handler));
     return () => {
-        if (pipActions === actions) pipActions = null;
         handlers.forEach((_, i) => set(i, null));
     };
 }
 
-/** Keep those buttons' on/off state honest. */
+/** Keep the OS media controls' on/off state honest. */
 export function reportPipCallState(micOn: boolean, cameraOn: boolean): void {
-    pipMicOn = micOn;
-    pipCameraOn = cameraOn;
-    paintDesktopControls();
     void navigator.mediaSession?.setMicrophoneActive?.(micOn);
     void navigator.mediaSession?.setCameraActive?.(cameraOn);
 }
+
+// Closing the page closes the pop-out with it.
+if (typeof window !== "undefined")
+    window.addEventListener("pagehide", () => {
+        if (host) releaseHost();
+        if (video) releaseVideo();
+    });

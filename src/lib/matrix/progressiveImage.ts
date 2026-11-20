@@ -49,6 +49,12 @@ export interface ProgressiveImageOptions {
     /** MIME type of the image, which must satisfy canPreviewImage. */
     mimetype: string;
     decrypt?: EncryptedFileInfo;
+    /**
+     * The image's first bytes, already held (a thumbnail prefix). The preview
+     * starts from them and the download fetches only the rest (see
+     * openAuthedReader's `prefix`).
+     */
+    prefix?: Uint8Array;
     expectedSize?: number | null;
     signal?: AbortSignal;
     onProgress?: (p: DownloadProgress) => void;
@@ -71,6 +77,7 @@ export async function loadImageProgressively(
 ): Promise<Blob> {
     const reader = await openAuthedReader(httpUrl, {
         decrypt: opts.decrypt,
+        prefix: opts.prefix,
         expectedSize: opts.expectedSize,
         onProgress: opts.onProgress,
         signal: opts.signal,

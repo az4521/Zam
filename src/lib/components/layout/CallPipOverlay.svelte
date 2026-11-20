@@ -2,9 +2,7 @@
     import { t } from "$lib/i18n";
     import type { Track } from "livekit-client";
     import { scale } from "svelte/transition";
-    import { PictureInPicture2, X } from "lucide-svelte";
-    import VideoTile from "$lib/components/layout/VideoTile.svelte";
-    import { getMemberName, getRoom } from "$lib/matrix/client";
+    import CallPipPanel from "$lib/components/layout/CallPipPanel.svelte";
     import {
         voiceCallState,
         isCallViewShowing,
@@ -14,31 +12,42 @@
     } from "$lib/stores/voiceCall.svelte";
     import {
         callPipState,
-        pipWindowSupported,
         openPipWindow,
-        showPipTrack,
-        setPipLabel,
+        detachPipWindow,
+        endPipFollow,
         closePipWindow,
         bindPipCallActions,
         reportPipCallState,
         setPipPlacement,
+        pipDetachSupported,
+        pipWindowSupported,
+        showPipTrack,
     } from "$lib/stores/callPip.svelte";
     import { interfaceState, showCallView } from "$lib/stores/interface.svelte";
-    import { navigateToRoom, roomsState } from "$lib/stores/rooms.svelte";
+    import { navigateToRoom } from "$lib/stores/rooms.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
-    import { auth } from "$lib/stores/auth.svelte";
     import { motionOK } from "$lib/utils/motionPreference";
     import { pickPipTile, snapPipToEdge } from "$lib/utils/videoTiles";
+    import {
+        REST_BOTTOM_REM,
+        REST_SIDE_REM,
+        REST_TOP_REM,
+        leftViewport,
+        pipSizeFor,
+        restBounds,
+    } from "$lib/utils/pipGeometry";
 
     const DRAG_THRESHOLD_PX = 5;
     const EDGE_GAP_PX = 8;
-    // How far a resting video keeps from the window's sides: clear of the room
-    // header above and the composer below.
-    const REST_SIDE_REM = 1;
-    const REST_TOP_REM = 3.5;
-    const REST_BOTTOM_REM = 5.5;
 
+    // Drag-out is desktop-only. The pop-out button opens the desktop window
+    // there, and the browser's own picture-in-picture window on the web.
+    const detachSupported = pipDetachSupported();
     const windowSupported = pipWindowSupported();
+
+    function rootRem(): number {
+        return parseFloat(getComputedStyle(document.documentElement).fontSize);
+    }
 
     // Plain let: pickPipTile only wants last time's answer, and $state here
     // would make the derived depend on what it writes.
@@ -55,33 +64,25 @@
         return picked;
     });
 
+    // While a desktop pop-out is carried by the cursor, the built-in video
+    // stays mounted (the drag's pointer capture lives on it) but is hidden.
+    let detaching = $state(false);
+
     const visible = $derived(
         tile !== null &&
             !isCallViewShowing() &&
-            !callPipState.windowOpen &&
+            (!callPipState.windowOpen || detaching) &&
             !callPipState.dismissed,
     );
 
-    const label = $derived.by(() => {
-        void roomsState.roomsTick;
-        if (!tile) return "";
-        const room = voiceCallState.roomId && getRoom(voiceCallState.roomId);
-        if (tile.userId === auth.userId)
-            return tile.source === "screenshare"
-                ? t("callView.yourScreen")
-                : t("callView.you");
-        const name = room ? getMemberName(room, tile.userId) : tile.userId;
-        return tile.source === "screenshare"
-            ? t("callView.sScreen", { name })
-            : name;
-    });
-
-    // The system window follows the same pick, and ends with the last stream.
+    // The window ends with the last stream. The desktop pop-out shows its own
+    // pick (CallPipPanel); the browser's window (showPipTrack) follows this one.
     $effect(() => {
         if (!callPipState.windowOpen) return;
         if (tile) showPipTrack(tile.track as Track);
         else closePipWindow();
     });
+    // The OS media controls drive the call while the pop-out is open.
     $effect(() => {
         if (!callPipState.windowOpen) return;
         return bindPipCallActions({
@@ -90,11 +91,7 @@
                 ? null
                 : () => void toggleCamera(),
             hangUp: leaveCall,
-            openCall,
         });
-    });
-    $effect(() => {
-        if (callPipState.windowOpen) setPipLabel(label);
     });
     $effect(() => {
         if (!callPipState.windowOpen) return;
@@ -108,8 +105,18 @@
         showCallView(roomId);
     }
 
+    function popOut(): void {
+        if (!tile) return;
+        void openPipWindow(
+            null,
+            tile.track as Track,
+            pipSizeFor(interfaceState.isMobile, rootRem()),
+        );
+    }
+
     // A press on the video is a click until it moves; then it's a drag, and
-    // letting go settles against the nearest side.
+    // letting go settles against the nearest side. A drag that leaves the
+    // Zam window becomes a pop-out (see startDetach).
     let dragPos = $state<{ x: number; y: number } | null>(null);
     let press: {
         x: number;
@@ -136,12 +143,36 @@
         dragged = false;
         el.setPointerCapture(e.pointerId);
     }
+
+    function startDetach(): void {
+        const p = press;
+        if (!p) return;
+        const size = pipSizeFor(interfaceState.isMobile, rootRem());
+        const grab = { x: p.x - p.left, y: p.y - p.top };
+        // The pop-out follows the cursor until the button is released
+        // (onPointerUp).
+        if (detachPipWindow(tile?.key ?? null, size, grab)) detaching = true;
+    }
+
     function onPointerMove(e: PointerEvent): void {
-        if (!press) return;
+        if (!press || detaching) return;
         const dx = e.clientX - press.x;
         const dy = e.clientY - press.y;
         if (!dragged && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return;
         dragged = true;
+        if (
+            detachSupported &&
+            !callPipState.windowOpen &&
+            leftViewport(
+                e.clientX,
+                e.clientY,
+                window.innerWidth,
+                window.innerHeight,
+            )
+        ) {
+            startDetach();
+            return;
+        }
         const maxX = window.innerWidth - press.width - EDGE_GAP_PX;
         const maxY = window.innerHeight - press.height - EDGE_GAP_PX;
         dragPos = {
@@ -149,22 +180,24 @@
             y: Math.min(Math.max(press.top + dy, EDGE_GAP_PX), maxY),
         };
     }
+
     function onPointerUp(): void {
+        if (detaching) {
+            detaching = false;
+            endPipFollow();
+            press = null;
+            dragPos = null;
+            return;
+        }
         if (press && dragPos) {
-            const rem = parseFloat(
-                getComputedStyle(document.documentElement).fontSize,
+            const bounds = restBounds(
+                window.innerWidth,
+                window.innerHeight,
+                press.width,
+                press.height,
+                rootRem(),
             );
-            setPipPlacement(
-                snapPipToEdge(dragPos.x, dragPos.y, {
-                    minX: REST_SIDE_REM * rem,
-                    maxX: window.innerWidth - press.width - REST_SIDE_REM * rem,
-                    minY: REST_TOP_REM * rem,
-                    maxY:
-                        window.innerHeight -
-                        press.height -
-                        REST_BOTTOM_REM * rem,
-                }),
-            );
+            setPipPlacement(snapPipToEdge(dragPos.x, dragPos.y, bounds));
         }
         press = null;
         dragPos = null;
@@ -200,8 +233,6 @@
                   : along(minTop, maxTop);
         return `left:${left};top:${top}`;
     });
-    const OVERLAY_CONTROL =
-        "p-1.5 rounded bg-black/60 text-white opacity-70 hover:opacity-100 focus-visible:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white";
 </script>
 
 {#if visible && tile}
@@ -217,7 +248,7 @@
             : ''}"
         style="width:{widthRem}rem;{dragPos
             ? `left:${dragPos.x}px;top:${dragPos.y}px`
-            : restStyle}"
+            : restStyle}{detaching ? ';opacity:0' : ''}"
         title={t("voiceCallPanel.openCallView")}
         onpointerdown={onPointerDown}
         onpointermove={onPointerMove}
@@ -231,13 +262,10 @@
             opacity: 0,
         }}
     >
-        <VideoTile
-            {tile}
-            {label}
-            compact
-            mirror={tile.source === "camera" &&
-                tile.isLocal &&
-                settingsState.mirrorCamera}
+        <CallPipPanel
+            mode="inline"
+            onPopOut={windowSupported ? popOut : undefined}
+            onHide={() => (callPipState.dismissed = true)}
         />
         <button
             type="button"
@@ -248,40 +276,5 @@
                 openCall();
             }}
         ></button>
-        <div
-            class="absolute bottom-1.5 start-1.5 px-1.5 py-0.5 rounded bg-black/60 max-w-[calc(100%-0.75rem)]"
-        >
-            <span class="block text-xs text-white truncate">{label}</span>
-        </div>
-        <div class="absolute top-1.5 end-1.5 z-20 flex gap-1">
-            {#if windowSupported}
-                <button
-                    type="button"
-                    class={OVERLAY_CONTROL}
-                    title={t("videoTile.pictureInPicture")}
-                    aria-label={t("videoTile.pictureInPicture")}
-                    onpointerdown={(e) => e.stopPropagation()}
-                    onclick={(e) => {
-                        e.stopPropagation();
-                        void openPipWindow(null, tile.track as Track);
-                    }}
-                >
-                    <PictureInPicture2 size={14} />
-                </button>
-            {/if}
-            <button
-                type="button"
-                class={OVERLAY_CONTROL}
-                title={t("callParticipantMenu.hideVideo")}
-                aria-label={t("callParticipantMenu.hideVideo")}
-                onpointerdown={(e) => e.stopPropagation()}
-                onclick={(e) => {
-                    e.stopPropagation();
-                    callPipState.dismissed = true;
-                }}
-            >
-                <X size={14} />
-            </button>
-        </div>
     </div>
 {/if}

@@ -1450,6 +1450,8 @@ export const en = {
     "messageItem.galleryDownload": "Download {name}",
     "messageItem.galleryEmpty": "Empty gallery",
     "messageItem.edited": "(edited)",
+    "codeBlock.showMore": "Show more",
+    "codeBlock.showLess": "Show less",
     "messageItem.decryptingImage": "Decrypting image...",
     "messageItem.couldnTDecryptImage": "Couldn't decrypt image",
     "messageItem.imageUnavailable": "[Image unavailable]",
@@ -3556,6 +3558,11 @@ export const en = {
     // src/lib/stores/voiceCall.svelte.ts
     "voiceCall.couldnTLoadTheCallComponent":
         "Couldn't load the call component. Check your connection, then reload the page to try again.",
+    "voiceCall.rejoin": "Rejoin",
+    "voiceCall.rejoinVoicePrompt":
+        "You were in a voice call in {room}. Rejoin?",
+    "voiceCall.rejoinVideoPrompt":
+        "You were in a video call in {room}. Rejoin?",
     "voiceCall.couldNotJoinTheVoiceCall": "Could not join the voice call",
     "voiceCall.joinedWithoutAMicrophone":
         "Your microphone isn't available - you can still listen and share your screen",

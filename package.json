@@ -154,6 +154,7 @@
         "@homebridge/dbus-native": "^0.7.9",
         "@lottiefiles/dotlottie-web": "0.82.1",
         "electron-updater": "^6.3.9",
+        "hls.js": "1.7.4",
         "uiohook-napi": "^1.5.5",
         "ws": "8.22.1"
     },

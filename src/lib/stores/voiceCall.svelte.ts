@@ -43,6 +43,8 @@ import {
     setOwnProfileField,
     clearStaleOwnCallMemberships,
     getOwnUserId,
+    getOwnDeviceId,
+    getRoomRejoinState,
 } from "$lib/matrix/client";
 import {
     PROFILE_FIELDS,
@@ -93,7 +95,25 @@ import {
     setParticipantAudioSetting,
 } from "$lib/stores/settings.svelte";
 import { auth } from "$lib/stores/auth.svelte";
-import { showErrorToast, showToast } from "$lib/stores/toasts.svelte";
+import {
+    retireToast,
+    showErrorToast,
+    showToast,
+} from "$lib/stores/toasts.svelte";
+import {
+    readScoped,
+    removeScoped,
+    writeScoped,
+} from "$lib/utils/scopedStorage";
+import {
+    CALL_HEARTBEAT_MS,
+    CALL_RECORD_KEY,
+    buildCallRecord,
+    hasOtherCallParticipants,
+    isCallRecordExpired,
+    parseCallRecord,
+    shouldOfferRejoin,
+} from "$lib/utils/callRejoin";
 import { interfaceState, showCallView } from "$lib/stores/interface.svelte";
 import { navigateToRoom, roomsState } from "$lib/stores/rooms.svelte";
 import { callPipState, closePipWindow } from "$lib/stores/callPip.svelte";
@@ -262,6 +282,100 @@ async function clearStaleCallStatus(): Promise<void> {
     }
 }
 
+// ── Rejoin after a restart (utils/callRejoin) ──────────────────────────────
+// While in a call, a per-account record names the room and refreshes a
+// heartbeat. A deliberate leave or the call ending clears it. A crash or a
+// close leaves it behind, and the next start may offer a rejoin. Never joins
+// by itself: the prompt's Rejoin runs the same joinCall as the call button.
+
+let recordTimer: ReturnType<typeof setInterval> | null = null;
+let rejoinToastId: number | null = null;
+
+function writeCallRecord(roomId: string, joinedAt: number): void {
+    writeScoped(
+        CALL_RECORD_KEY,
+        auth.userId,
+        JSON.stringify(
+            buildCallRecord({
+                roomId,
+                joinedAt,
+                now: Date.now(),
+                video: voiceCallState.cameraOn || voiceCallState.screenSharing,
+            }),
+        ),
+    );
+}
+
+function stopCallRecordTimer(): void {
+    if (recordTimer !== null) {
+        clearInterval(recordTimer);
+        recordTimer = null;
+    }
+}
+
+function startCallRecord(roomId: string, joinedAt: number): void {
+    stopCallRecordTimer();
+    writeCallRecord(roomId, joinedAt);
+    recordTimer = setInterval(() => {
+        const current = voiceCallState.roomId;
+        if (current) writeCallRecord(current, joinedAt);
+    }, CALL_HEARTBEAT_MS);
+}
+
+/** The call ended or was left on purpose: nothing to rejoin. */
+function stopCallRecord(): void {
+    stopCallRecordTimer();
+    removeScoped(CALL_RECORD_KEY, auth.userId);
+}
+
+/** Once synced: offer to rejoin a call the last session was in, if it is
+ *  recent, we are still in its room and someone else is still in the call. */
+function offerRejoinIfRecorded(): void {
+    if (voiceCallState.roomId !== null) return;
+    const raw = readScoped(CALL_RECORD_KEY, auth.userId);
+    if (raw === null) return;
+    const record = parseCallRecord(raw);
+    if (!record || isCallRecordExpired(record, Date.now())) {
+        removeScoped(CALL_RECORD_KEY, auth.userId);
+        return;
+    }
+    const state = getRoomRejoinState(record.roomId);
+    const offer = shouldOfferRejoin({
+        record,
+        now: Date.now(),
+        roomJoined: state?.joined ?? false,
+        othersInCall: hasOtherCallParticipants(state?.memberships ?? [], {
+            userId: getOwnUserId(),
+            deviceId: getOwnDeviceId(),
+        }),
+        alreadyInCall: false,
+    });
+    if (!offer) return;
+    const roomId = record.roomId;
+    const roomName = getRoom(roomId)?.name || roomId;
+    rejoinToastId = showToast(
+        t(
+            record.kind === "video"
+                ? "voiceCall.rejoinVideoPrompt"
+                : "voiceCall.rejoinVoicePrompt",
+            { room: roomName },
+        ),
+        {
+            tone: "accent",
+            sticky: true,
+            // Dismissing (close or Rejoin) forgets the call for good.
+            onDismiss: () => removeScoped(CALL_RECORD_KEY, auth.userId),
+            action: {
+                label: t("voiceCall.rejoin"),
+                run: () => {
+                    rejoinToastId = null;
+                    if (voiceCallState.roomId === null) void joinCall(roomId);
+                },
+            },
+        },
+    );
+}
+
 /** Subscribe the store to client voice events. Call once from the app shell. */
 export function initVoiceCall(): () => void {
     // A call joined on hold starts muted; one joined in push to talk starts
@@ -340,6 +454,13 @@ export function initVoiceCall(): () => void {
             }
             voiceCallState.lastLeftCall = null;
             clearRecentlyLeftTimer();
+            // Connected here, so no prompt to rejoin is needed any more.
+            if (rejoinToastId !== null) {
+                retireToast(rejoinToastId);
+                rejoinToastId = null;
+            }
+            if (roomId && voiceCallState.connectedAt !== null)
+                startCallRecord(roomId, voiceCallState.connectedAt);
             // The system may have reported the route before we were
             // listening for it; later changes arrive as events.
             void getNativeAudioRoute().then((info) => {
@@ -366,6 +487,7 @@ export function initVoiceCall(): () => void {
         voiceCallState.roomId = state === null ? null : roomId;
         if (state === null) {
             stopNativeCall();
+            stopCallRecord();
             voiceCallState.onHold = false;
             voiceCallState.audioRoute = null;
             voiceCallState.availableAudioRoutes = [];
@@ -494,6 +616,8 @@ export function initVoiceCall(): () => void {
             if (!synced || swept) return;
             swept = true;
             untrack(() => {
+                // Read before the sweep, which may drop our own membership.
+                offerRejoinIfRecorded();
                 // A membership a reload left behind, then the call field.
                 void clearStaleOwnCallMemberships()
                     .catch(() => {})
@@ -503,6 +627,7 @@ export function initVoiceCall(): () => void {
     });
     return () => {
         clearTimeout(prefetchTimer);
+        stopCallRecordTimer();
         stopSweep();
         clearRecentlyLeftTimer();
         unsubSessions();

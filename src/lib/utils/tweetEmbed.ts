@@ -7,6 +7,12 @@
 // Everything here is parsed from a third-party JSON body, so every field is
 // type-checked and every link or media URL must be https before it is used.
 
+export interface TweetVideoFormat {
+    url: string;
+    container: "mp4" | "webm" | "m3u8";
+    bitrate?: number;
+}
+
 export interface TweetMedia {
     kind: "photo" | "video" | "gif";
     url: string;
@@ -15,6 +21,8 @@ export interface TweetMedia {
     /** Poster for a video or GIF. */
     thumbnail?: string;
     alt?: string;
+    /** Every encoding FxTwitter lists for a video (mp4s, webm, HLS playlist). */
+    formats?: TweetVideoFormat[];
 }
 
 export type TweetSegment =
@@ -241,6 +249,7 @@ function parseMediaItem(v: unknown): TweetMedia | null {
             : type === "gif" && (thumbnail !== undefined || "duration" in m)
               ? "gif"
               : "photo";
+    const formats = parseFormats(m.formats);
     return {
         kind,
         url,
@@ -248,7 +257,28 @@ function parseMediaItem(v: unknown): TweetMedia | null {
         height: num(m.height),
         thumbnail,
         alt: str(m.altText) || undefined,
+        ...(formats.length > 0 ? { formats } : {}),
     };
+}
+
+const CONTAINERS = new Set<TweetVideoFormat["container"]>([
+    "mp4",
+    "webm",
+    "m3u8",
+]);
+
+function parseFormats(v: unknown): TweetVideoFormat[] {
+    if (!Array.isArray(v)) return [];
+    const out: TweetVideoFormat[] = [];
+    for (const f of v) {
+        const fmt = obj(f);
+        const url = httpsUrl(fmt?.url);
+        const container = str(fmt?.container) as TweetVideoFormat["container"];
+        if (!url || !CONTAINERS.has(container)) continue;
+        const bitrate = num(fmt?.bitrate);
+        out.push({ url, container, bitrate });
+    }
+    return out;
 }
 
 function parseMedia(v: unknown): TweetMedia[] {

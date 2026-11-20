@@ -8,6 +8,11 @@ import {
     expectedBodySize,
     type DownloadProgress,
 } from "$lib/utils/downloadProgress";
+import {
+    contentRangeStart,
+    resumeBodyReader,
+    resumeOffset,
+} from "$lib/utils/thumbnailResume";
 
 /**
  * An authenticated, optionally decrypting, progress-reporting reader over a
@@ -29,6 +34,14 @@ export interface OpenReaderOptions {
     /** Bytes downloaded so far. */
     onProgress?: (p: DownloadProgress) => void;
     signal?: AbortSignal;
+    /**
+     * The file's first bytes, already held (a thumbnail prefix, plaintext).
+     * The download then asks only for the rest, from the last AES block at or
+     * before the prefix's end, and the reader still yields the whole file from
+     * byte 0 (see thumbnailResume.ts). A server that ignores the Range and
+     * sends the whole file (a plain 200) is read from byte 0 as usual.
+     */
+    prefix?: Uint8Array;
 }
 
 // Chunks arrive faster than anyone can read a counter; cap UI updates.
@@ -58,13 +71,27 @@ export async function openAuthedReader(
     httpUrl: string,
     opts: OpenReaderOptions = {},
 ): Promise<ChunkReader> {
+    const offset = opts.prefix ? resumeOffset(opts.prefix.length) : 0;
     const resp = await fetch(httpUrl, {
-        headers: authHeaders(httpUrl),
+        headers: {
+            ...authHeaders(httpUrl),
+            ...(offset > 0 ? { Range: `bytes=${offset}-` } : {}),
+        },
         signal: opts.signal,
     });
     if (!resp.ok) throw new Error(`Media fetch failed: ${resp.status}`);
+    const ranged = offset > 0 && resp.status === 206;
+    if (
+        ranged &&
+        contentRangeStart(resp.headers.get("content-range")) !== offset
+    ) {
+        void resp.body?.cancel().catch(() => {});
+        throw new Error("Media range does not start at the prefix");
+    }
 
-    const total = expectedBodySize(resp, opts.expectedSize);
+    const total = ranged
+        ? (opts.expectedSize ?? null)
+        : expectedBodySize(resp, opts.expectedSize);
     let raw: ChunkReader;
     const streamReader = resp.body?.getReader();
     if (streamReader) {
@@ -80,10 +107,8 @@ export async function openAuthedReader(
                     : ((sent = true), { done: false, value: all }),
         };
     }
-    const decryptor = opts.decrypt
-        ? await createStreamDecryptor(opts.decrypt)
-        : null;
-    let loaded = 0;
+    // Bytes counted from where the body starts: the offset of a ranged read.
+    let loaded = ranged ? offset : 0;
     let lastReport = 0;
     let finished = false;
     const report = (force = false) => {
@@ -96,12 +121,32 @@ export async function openAuthedReader(
         });
     };
     report(true);
+    const body: ChunkReader = {
+        async read() {
+            const r = await raw.read();
+            if (r.done) {
+                report(true);
+                return r;
+            }
+            loaded += r.value.length;
+            report();
+            return r;
+        },
+    };
+    if (ranged) {
+        return resumeBodyReader(body, {
+            prefix: opts.prefix!,
+            decrypt: opts.decrypt,
+        });
+    }
+    const decryptor = opts.decrypt
+        ? await createStreamDecryptor(opts.decrypt)
+        : null;
     return {
         async read() {
             for (;;) {
-                const r = await raw.read();
+                const r = await body.read();
                 if (r.done) {
-                    report(true);
                     if (decryptor && !finished) {
                         finished = true;
                         const tail = await decryptor.finish();
@@ -109,8 +154,6 @@ export async function openAuthedReader(
                     }
                     return { done: true, value: undefined };
                 }
-                loaded += r.value.length;
-                report();
                 if (!decryptor) return r;
                 const out = await decryptor.push(r.value);
                 if (out.length) return { done: false, value: out };

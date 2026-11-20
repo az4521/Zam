@@ -36,8 +36,17 @@
     import {
         cacheDecryptedImage,
         cachedDecryptedImage,
-        DECRYPTED_IMAGE_ORIGINAL_MAX,
     } from "$lib/utils/decryptedImageCache";
+    import {
+        decryptedBlobs,
+        type HeldBlob,
+    } from "$lib/utils/decryptedBlobCache";
+    import {
+        fetchDecryptedAttachment,
+        fetchDecryptedAttachmentFromPrefix,
+        fetchThumbnailPrefix,
+    } from "$lib/matrix/media";
+    import { thumbnailPrefixLength } from "$lib/utils/thumbnailPrefix";
     import type { DownloadProgress } from "$lib/utils/downloadProgress";
     import LocationBody from "$lib/components/messages/LocationBody.svelte";
     import VerificationRequestMessage from "$lib/components/messages/VerificationRequestMessage.svelte";
@@ -271,6 +280,7 @@
         type MessageMenuMode,
     } from "$lib/utils/messageGesture";
     import { spoilers } from "$lib/actions/spoilers";
+    import { codeBlocks } from "$lib/actions/codeBlocks";
     import { rovingToolbar } from "$lib/actions/rovingToolbar";
     import {
         shouldMountActionBar,
@@ -1705,6 +1715,22 @@
         () => (isSvgImage ? "image/svg+xml" : undefined),
     );
 
+    /** A tile-sized copy of a decrypted image, or null when it is already
+     *  small enough to be shown as is (see tileImage.ts). Cached by mxc. */
+    async function tileCopyOf(
+        original: Blob,
+        key: string,
+    ): Promise<Blob | null> {
+        try {
+            const small = await createTileImage(original);
+            if (small)
+                cacheDecryptedImage(key, { blob: small, isOriginal: false });
+            return small;
+        } catch {
+            return null;
+        }
+    }
+
     $effect(() => {
         if (msgtype !== "m.image") return;
         const file = content?.file as EncryptedFile | undefined;
@@ -1712,32 +1738,25 @@
         imageDecryptFailed = false;
         imageProgress = null;
         imagePreviewing = false;
-        let blobUrl: string | null = null;
         let tileUrl: string | null = null;
+        // The full image, held from the shared decryptedBlobs cache for as long
+        // as this tile shows it. The cache keeps it warm after this unmounts,
+        // so the next view of the same file (lightbox, another room, the media
+        // panel) reuses this decrypt instead of downloading it again.
+        let full: HeldBlob | null = null;
         let cancelled = false;
         const abort = new AbortController();
         const cleanup = () => {
             cancelled = true;
             abort.abort();
             requestFullImage = null;
-            if (blobUrl) URL.revokeObjectURL(blobUrl);
+            full?.release();
+            full = null;
             if (tileUrl) URL.revokeObjectURL(tileUrl);
+            tileUrl = null;
             encryptedImageThumbUrl = null;
             encryptedImageFullUrl = null;
         };
-        // Seen before (another room and back): show the kept copy now.
-        const cached = cachedDecryptedImage(file.url);
-        if (cached) {
-            tileUrl = URL.createObjectURL(cached.blob);
-            encryptedImageThumbUrl = tileUrl;
-            imageDecrypting = false;
-            if (cached.isOriginal) {
-                encryptedImageFullUrl = tileUrl;
-                return cleanup;
-            }
-        } else {
-            imageDecrypting = true;
-        }
         const info = content?.info as
             { mimetype?: string; size?: number } | undefined;
         const mime = info?.mimetype?.split(";")[0].trim().toLowerCase();
@@ -1745,19 +1764,130 @@
         const onProgress = (p: DownloadProgress) => {
             if (!cancelled) imageProgress = p;
         };
-        // One download serves both the inline image and the viewer: the
-        // thumbnail and the full image are the same ciphertext, and fetching it
-        // twice doubled the wait on a slow server.
-        const plainDownload = async () =>
-            fetchDecryptedAttachmentBlob(file, info?.mimetype, {
+
+        // Already decrypted in full (this file was shown before): use that.
+        const heldFull = decryptedBlobs.get(file.url);
+        if (heldFull) {
+            full = heldFull;
+            imageDecrypting = false;
+            encryptedImageFullUrl = heldFull.url;
+            encryptedImageThumbUrl = heldFull.url;
+            const cachedTile = cachedDecryptedImage(file.url);
+            if (cachedTile) {
+                tileUrl = URL.createObjectURL(cachedTile.blob);
+                encryptedImageThumbUrl = tileUrl;
+            } else {
+                // Cut the tile from the held copy; until then the tile is the
+                // full image itself, which the browser scales down.
+                void tileCopyOf(heldFull.blob, file.url).then((tile) => {
+                    if (cancelled || !tile) return;
+                    tileUrl = URL.createObjectURL(tile);
+                    encryptedImageThumbUrl = tileUrl;
+                });
+            }
+            return cleanup;
+        }
+
+        // Only the tile copy is kept (the full image was let go): show it at
+        // once and decrypt the full image again only when the viewer is opened.
+        const cachedTile = cachedDecryptedImage(file.url);
+        if (cachedTile) {
+            tileUrl = URL.createObjectURL(cachedTile.blob);
+            encryptedImageThumbUrl = tileUrl;
+            imageDecrypting = false;
+        } else {
+            imageDecrypting = true;
+        }
+
+        const plainDownload = () =>
+            fetchDecryptedAttachment(file, info?.mimetype, {
                 expectedSize: info?.size,
                 signal: abort.signal,
                 onProgress,
             });
+        // A prefix thumbnail (utils/thumbnailPrefix.ts): the tile is the
+        // decrypted prefix, and the full image is fetched from where the prefix
+        // ends only once the viewer asks for it. Skipped when a kept tile
+        // exists, and null when the event has no usable prefix (ordinary path).
+        const prefixLen = cachedTile
+            ? null
+            : thumbnailPrefixLength(content?.info);
+        let prefixBytes: Uint8Array | null = null;
+        // Tile-only modes wait here until the viewer asks for the full image.
+        // Set now, not once the prefix has arrived, so an early open is kept.
+        const viewer =
+            cachedTile || prefixLen !== null
+                ? new Promise<void>((resolve) => (requestFullImage = resolve))
+                : null;
+        const prefixReady: Promise<boolean> =
+            prefixLen === null
+                ? Promise.resolve(false)
+                : fetchThumbnailPrefix(
+                      (content?.info ?? {}) as Record<string, unknown>,
+                      prefixLen,
+                      { signal: abort.signal },
+                  )
+                      .then(async (got) => {
+                          if (!got || cancelled) return false;
+                          // The resume takes only the shared prefix; the tile
+                          // decodes the whole thumbnail, EOI included.
+                          prefixBytes = got.prefix;
+                          const blob = new Blob([got.thumb as BlobPart], {
+                              type: "image/jpeg",
+                          });
+                          // Not kept in decryptedImageCache: it is the tile of
+                          // the prefix, not of the file. The prefix itself is
+                          // the fallback when it is already small enough.
+                          const tile = await createTileImage(blob).catch(
+                              () => null,
+                          );
+                          if (cancelled) return true;
+                          tileUrl = URL.createObjectURL(tile ?? blob);
+                          encryptedImageThumbUrl = tileUrl;
+                          imageDecrypting = false;
+                          return true;
+                      })
+                      .catch(() => false);
+        // One download serves the inline image, its tile and the viewer.
+        const start: Promise<unknown> = viewer
+            ? prefixReady.then((ok) => (cachedTile || ok ? viewer : null))
+            : Promise.resolve();
         // Big images preview as they arrive when the browser can decode the
         // format incrementally; anything else, or any failure of that route,
         // takes the plain download-verify-show path.
-        const load = async (): Promise<string> => {
+        const load = async (): Promise<Blob> => {
+            if (prefixBytes) {
+                const held = prefixBytes;
+                if (httpUrl && mime && (await canPreviewImage(mime))) {
+                    try {
+                        return await loadImageProgressively(httpUrl, {
+                            mimetype: mime,
+                            decrypt: file,
+                            prefix: held,
+                            expectedSize: info?.size,
+                            signal: abort.signal,
+                            onProgress,
+                            onPreview: (frame) => {
+                                if (!cancelled) imagePreview.draw(frame);
+                            },
+                        });
+                    } catch (err) {
+                        if (abort.signal.aborted) throw err;
+                        imagePreviewing = false;
+                        imageProgress = null;
+                    }
+                }
+                return fetchDecryptedAttachmentFromPrefix(
+                    file,
+                    held,
+                    info?.mimetype,
+                    {
+                        expectedSize: info?.size,
+                        signal: abort.signal,
+                        onProgress,
+                    },
+                );
+            }
             if (
                 httpUrl &&
                 mime &&
@@ -1766,7 +1896,7 @@
                 (await canPreviewImage(mime))
             ) {
                 try {
-                    const blob = await loadImageProgressively(httpUrl, {
+                    return await loadImageProgressively(httpUrl, {
                         mimetype: mime,
                         decrypt: file,
                         expectedSize: info.size,
@@ -1776,7 +1906,6 @@
                             if (!cancelled) imagePreview.draw(frame);
                         },
                     });
-                    return URL.createObjectURL(blob);
                 } catch (err) {
                     if (abort.signal.aborted) throw err;
                     imagePreviewing = false;
@@ -1785,60 +1914,32 @@
             }
             return plainDownload();
         };
-        // The tile gets a copy sized to its box (see tileImage.ts) so it
-        // doesn't hold a full-resolution decode for the message's lifetime;
-        // the original is kept for the lightbox only.
-        // It is also what decryptedImageCache keeps, or the original if it is
-        // small and has no copy.
-        const tileCopy = async (url: string): Promise<Blob | null> => {
-            try {
-                const original = await (await fetch(url)).blob();
-                const small = await createTileImage(original);
-                if (small) {
-                    cacheDecryptedImage(file.url, {
-                        blob: small,
-                        isOriginal: false,
-                    });
-                } else if (original.size <= DECRYPTED_IMAGE_ORIGINAL_MAX) {
-                    cacheDecryptedImage(file.url, {
-                        blob: original,
-                        isOriginal: true,
-                    });
-                }
-                return small;
-            } catch {
-                return null;
-            }
-        };
-        const start = cached
-            ? new Promise<void>((resolve) => (requestFullImage = resolve))
-            : Promise.resolve();
         start
             .then(load)
-            .then(async (url) => {
+            .then(async (blob) => {
                 if (cancelled) {
-                    URL.revokeObjectURL(url);
+                    // Nothing shows it any more: keep it warm for the next view.
+                    decryptedBlobs.cache(file.url, blob);
                     return;
                 }
-                blobUrl = url;
+                const held = decryptedBlobs.hold(file.url, blob);
+                full = held;
                 imagePreviewing = false;
-                // The kept copy stays as the tile; only the viewer needed this.
-                if (cached) {
-                    encryptedImageFullUrl = url;
-                    return;
-                }
-                const tile = await tileCopy(url);
+                encryptedImageFullUrl = held.url;
+                // The kept tile (or the prefix tile) stays as the tile; only
+                // the viewer needed this.
+                if (cachedTile || prefixBytes) return;
+                const tile = await tileCopyOf(blob, file.url);
                 if (cancelled) return;
                 tileUrl = tile ? URL.createObjectURL(tile) : null;
-                encryptedImageThumbUrl = tileUrl ?? url;
-                encryptedImageFullUrl = url;
+                encryptedImageThumbUrl = tileUrl ?? held.url;
                 imageDecrypting = false;
             })
             .catch(() => {
                 if (cancelled) return;
                 imagePreviewing = false;
-                // A kept copy is still worth showing over an error.
-                if (cached) return;
+                // A kept tile is still worth showing over an error.
+                if (cachedTile || prefixBytes) return;
                 imageDecrypting = false;
                 imageDecryptFailed = true;
             });
@@ -1849,8 +1950,15 @@
     // shown as a stand-in until the real image loads: behind the server's
     // thumbnail in the tile, and behind the full image in the lightbox. The
     // poster helper is not video-specific: it reads the same thumbnail fields.
+    // An image with a prefix thumbnail (utils/thumbnailPrefix.ts) is its own
+    // stand-in, so its sender thumbnail is not fetched a second time.
+    const prefixedImage = $derived(
+        msgtype === "m.image" &&
+            !!content?.file &&
+            thumbnailPrefixLength(content?.info) !== null,
+    );
     const senderThumbSrc = $derived(
-        msgtype === "m.image" ? videoPoster(content) : null,
+        msgtype === "m.image" && !prefixedImage ? videoPoster(content) : null,
     );
     let encryptedSenderThumbUrl = $state<string | null>(null);
     const senderThumbUrl = $derived(
@@ -3027,6 +3135,7 @@
                     <div
                         use:spoilers
                         use:matrixLinks
+                        use:codeBlocks={{ key: eventId }}
                         use:bodyImageGallery={{ onOpen: openBodyGallery }}
                         dir="auto"
                         class="message-body text-sm text-zam-textPrimary leading-relaxed break-words"
@@ -3577,6 +3686,7 @@
                         <div
                             use:spoilers
                             use:matrixLinks
+                            use:codeBlocks={{ key: eventId }}
                             use:bodyImageGallery={{ onOpen: openBodyGallery }}
                             dir="auto"
                             class="message-body text-sm text-zam-textPrimary leading-relaxed break-words"
@@ -4516,6 +4626,49 @@
         font-family: "Roboto Mono", Consolas, "Liberation Mono", monospace;
         font-size: calc(0.8125rem * var(--message-text-scale, 1));
         line-height: 1.5;
+    }
+    /* Tall code blocks clip at 24rem (matches CODE_BLOCK_MAX_REM); the
+       codeBlocks action sets data-code-expanded to lift the cap. The toggle
+       bar is sticky so it rides over the fade at the visible bottom. */
+    :global(.message-body pre:not([data-code-expanded])) {
+        max-height: 24rem;
+        overflow-y: hidden;
+    }
+    :global(.message-body pre > .code-block-toggle) {
+        position: sticky;
+        bottom: 0;
+        display: flex;
+        justify-content: center;
+        margin: 0 -0.75rem -0.75rem;
+        padding: 0.5rem 0 0.75rem;
+        white-space: normal;
+        user-select: none;
+    }
+    :global(.message-body pre:not([data-code-expanded]) > .code-block-toggle) {
+        padding-top: 2.25rem;
+        background: linear-gradient(
+            to bottom,
+            transparent,
+            var(--zam-bg-tertiary) 1.75rem
+        );
+    }
+    :global(.message-body .code-block-toggle-btn) {
+        font-family: inherit;
+        font-size: 0.75rem;
+        line-height: 1.25;
+        padding: 0.2rem 0.75rem;
+        border-radius: 999px;
+        border: 1px solid var(--zam-divider);
+        background: var(--zam-bg-secondary);
+        color: var(--zam-text-primary);
+        cursor: pointer;
+    }
+    :global(.message-body .code-block-toggle-btn:hover) {
+        border-color: var(--zam-accent);
+    }
+    :global(.message-body .code-block-toggle-btn:focus-visible) {
+        outline: 2px solid var(--zam-accent);
+        outline-offset: 2px;
     }
     :global(.message-body .hljs-keyword),
     :global(.message-body .hljs-selector-tag),

@@ -1527,6 +1527,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.galleryDownload": "Завантажити {name}",
     "messageItem.galleryEmpty": "Порожня галерея",
     "messageItem.edited": "(відредаговано)",
+    "codeBlock.showMore": "Показати більше",
+    "codeBlock.showLess": "Показати менше",
     "messageItem.decryptingImage": "Розшифрування зображення...",
     "messageItem.couldnTDecryptImage": "Не вдалося розшифрувати зображення",
     "messageItem.imageUnavailable": "[Зображення недоступне]",
@@ -3675,6 +3677,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     // src/lib/stores/voiceCall.svelte.ts
     "voiceCall.couldnTLoadTheCallComponent":
         "Не вдалося завантажити компонент виклику. Перевірте з’єднання, а потім перезавантажте сторінку, щоб спробувати знову.",
+    "voiceCall.rejoin": "Повернутися",
+    "voiceCall.rejoinVoicePrompt":
+        "Ви були в голосовому виклику в {room}. Повернутися?",
+    "voiceCall.rejoinVideoPrompt":
+        "Ви були у відеовиклику в {room}. Повернутися?",
     "voiceCall.couldNotJoinTheVoiceCall":
         "Не вдалося приєднатися до голосового виклику",
     "voiceCall.joinedWithoutAMicrophone":
