@@ -4,6 +4,27 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.12
+
+✨ **New**
+
+- **Rejoin after a restart:** if Zam closes or crashes while you're in a call, it offers to rejoin that call next time it starts (as long as people are still in it).
+- **Picture in picture:** the streamer's avatar now sits next to their name. On desktop the pop-out window has the same look as the in-app one, plus mute, deafen and hang up buttons, and you can drag the in-app window out of Zam to pop it out, or drag it back in.
+- **Long code blocks** are now cut off at about 20 lines, with a Show more button to see the rest.
+- **Images open faster:** the lightbox shows the image you already see straight away and sharpens it as the full one loads. Photos sent from Zam now use the start of the full image as their preview, so opening one continues from what's already downloaded.
+- **Tweets with HLS-only video** now play.
+- **Link previews** of the web app now show Zam's name, description and icon.
+- **Adaptive video quality** is now on by default.
+
+🐛 **Fixed**
+
+- **The media tab using a lot of memory:** it loaded full-size images, all at once. It now loads thumbnails, only for the tiles you can see.
+- **Encrypted images being downloaded and decrypted again** every time you opened them.
+- **Screen shares stuck on VP8** on some computers whose graphics card can encode H.264.
+- **People watching a screen share missing from its watcher list**, especially after someone left and rejoined.
+- **The picture-in-picture watcher list hidden under its buttons**, and the call screen's watcher list being cut off.
+- **VP8 missing** from the hardware video decoding debug list.
+
 ## v1.66.11
 
 🐛 **Fixed**
