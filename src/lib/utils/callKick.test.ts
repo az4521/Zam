@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
     CALL_KICK_MAX_AGE_MS,
     callKickKey,
+    callMembershipRemovedBy,
     canDisconnectFromVoice,
+    isDeviceCallMemberStateKey,
     isLiveCallKick,
     kickCoversDevice,
     parseCallKickContent,
@@ -105,5 +107,86 @@ describe("callKickKey", () => {
         expect(callKickKey("!r", "@a:x")).toBe(
             callKickKey("!r", "@a:x", undefined),
         );
+    });
+});
+
+describe("isDeviceCallMemberStateKey", () => {
+    it("matches the underscore-prefixed legacy key", () => {
+        expect(
+            isDeviceCallMemberStateKey("_@a:hs_DEV_m.call", "@a:hs", "DEV"),
+        ).toBe(true);
+    });
+
+    it("matches the MSC3757 key without the prefix", () => {
+        expect(
+            isDeviceCallMemberStateKey("@a:hs_DEV_m.call", "@a:hs", "DEV"),
+        ).toBe(true);
+    });
+
+    it("does not match another device whose id starts the same", () => {
+        expect(
+            isDeviceCallMemberStateKey("_@a:hs_DEV2_m.call", "@a:hs", "DEV"),
+        ).toBe(false);
+    });
+
+    it("does not match another user", () => {
+        expect(
+            isDeviceCallMemberStateKey("_@ab:hs_DEV_m.call", "@a:hs", "DEV"),
+        ).toBe(false);
+    });
+});
+
+describe("callMembershipRemovedBy", () => {
+    const now = 1_000_000_000;
+    const removal = {
+        stateKey: "_@me:hs_DEV_m.call",
+        sender: "@mod:hs",
+        content: {},
+        ts: now - 1000,
+    };
+
+    it("names the moderator who emptied our membership", () => {
+        expect(callMembershipRemovedBy(removal, "@me:hs", "DEV", now)).toBe(
+            "@mod:hs",
+        );
+    });
+
+    it("ignores our own leave", () => {
+        expect(
+            callMembershipRemovedBy(
+                { ...removal, sender: "@me:hs" },
+                "@me:hs",
+                "DEV",
+                now,
+            ),
+        ).toBeNull();
+    });
+
+    it("ignores another device's membership", () => {
+        expect(
+            callMembershipRemovedBy(removal, "@me:hs", "OTHER", now),
+        ).toBeNull();
+    });
+
+    it("ignores a membership that is still filled", () => {
+        expect(
+            callMembershipRemovedBy(
+                { ...removal, content: { device_id: "DEV" } },
+                "@me:hs",
+                "DEV",
+                now,
+            ),
+        ).toBeNull();
+    });
+
+    it("ignores an old removal a sync replays", () => {
+        expect(
+            callMembershipRemovedBy(
+                { ...removal, ts: now - CALL_KICK_MAX_AGE_MS - 1 },
+                "@me:hs",
+                "DEV",
+                now,
+            ),
+        ).toBeNull();
     });
 });

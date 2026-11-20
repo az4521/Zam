@@ -274,6 +274,7 @@ export const en = {
     "callParticipantMenu.couldNotDisconnect": "Could not disconnect {name}",
     "callKick.notPermitted": "You cannot disconnect this member from voice",
     "callKick.removedFromVoice": "{name} removed you from the voice channel",
+    "callKick.removedByServer": "You were removed from the call",
 
     // src/lib/components/layout/CallView.svelte
     "callEncryption.encrypted":

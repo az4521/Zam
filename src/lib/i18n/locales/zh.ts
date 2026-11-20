@@ -268,6 +268,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callParticipantMenu.couldNotDisconnect": "无法断开 {name}",
     "callKick.notPermitted": "你无法将此成员断开语音连接",
     "callKick.removedFromVoice": "{name} 将你移出了语音频道",
+    "callKick.removedByServer": "你已被移出通话",
 
     // src/lib/components/layout/CallView.svelte
     "callEncryption.encrypted":

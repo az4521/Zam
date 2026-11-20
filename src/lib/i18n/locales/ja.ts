@@ -254,6 +254,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callParticipantMenu.couldNotDisconnect": "{name} を切断できませんでした",
     "callKick.notPermitted": "このメンバーを通話から切断する権限がありません",
     "callKick.removedFromVoice": "{name} により通話から退出させられました",
+    "callKick.removedByServer": "通話から退出させられました",
     "callEncryption.encrypted":
         "エンドツーエンド暗号化: この通話の参加者だけが映像と音声を見聞きできます。",
     "callEncryption.encryptedShort": "暗号化済み",

@@ -285,6 +285,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callKick.notPermitted":
         "Ви не можете відключити цього учасника від голосового каналу",
     "callKick.removedFromVoice": "{name} відключив вас від голосового каналу",
+    "callKick.removedByServer": "Вас відключили від дзвінка",
 
     // src/lib/components/layout/CallView.svelte
     "callEncryption.encrypted":

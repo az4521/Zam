@@ -277,6 +277,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callParticipantMenu.couldNotDisconnect": "No se pudo desconectar a {name}",
     "callKick.notPermitted": "No puedes desconectar a este miembro de la voz",
     "callKick.removedFromVoice": "{name} te ha sacado del canal de voz",
+    "callKick.removedByServer": "Te han sacado de la llamada",
 
     // src/lib/components/layout/CallView.svelte
     "callEncryption.encrypted":

@@ -283,6 +283,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callKick.notPermitted":
         "Du kannst dieses Mitglied nicht aus dem Sprachkanal trennen",
     "callKick.removedFromVoice": "{name} hat dich aus dem Sprachkanal entfernt",
+    "callKick.removedByServer": "Du wurdest aus dem Anruf entfernt",
 
     // src/lib/components/layout/CallView.svelte
     "callEncryption.encrypted":
