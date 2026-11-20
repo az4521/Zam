@@ -323,7 +323,7 @@
         {/if}
     </section>
 
-    {#if kind === "stickers"}
+    {#if kind !== "emojis"}
         <TelegramImport onImported={load} />
     {/if}
 
