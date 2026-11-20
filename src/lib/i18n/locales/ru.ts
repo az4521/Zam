@@ -2911,6 +2911,29 @@ const messages: Partial<Record<MessageKey, string>> = {
     "storageBanner.dismissLowStorageWarning":
         "Скрыть предупреждение о нехватке места",
 
+    // src/lib/components/layout/UsageLimitBanner.svelte, stores/usageLimits.svelte.ts
+    "usageLimits.bannerMau":
+        "Ваш сервер достиг лимита ежемесячно активных пользователей, поэтому ваш аккаунт сейчас не может отправлять сообщения и синхронизироваться.",
+    "usageLimits.bannerDisabled":
+        "Ваш сервер отключён администратором, поэтому ваш аккаунт сейчас не может отправлять сообщения и синхронизироваться.",
+    "usageLimits.bannerResource":
+        "Ваш аккаунт достиг лимита использования на сервере, поэтому некоторые действия сейчас заблокированы.",
+    "usageLimits.bannerMediaQuota":
+        "Вы исчерпали квоту загрузки медиафайлов на сервере. Загрузка снова заработает после сброса квоты.",
+    "usageLimits.canUpgrade":
+        "Переход на более высокий тариф увеличит этот лимит.",
+    "usageLimits.learnMore": "Подробнее",
+    "usageLimits.contactAdmin": "Связаться с администратором сервера",
+    "usageLimits.dismiss": "Закрыть предупреждение о лимите",
+    "usageLimits.toastResource":
+        "Ваш сервер блокирует этот аккаунт, потому что достигнут лимит использования.",
+    "usageLimits.toastMediaQuota":
+        "Не удалось загрузить: достигнут лимит загрузки медиафайлов.",
+    "usageLimits.toastRateLimited":
+        "Сервер ограничивает передачу медиафайлов. Повторите попытку чуть позже.",
+    "usageLimits.toastRateLimitedFor":
+        "Сервер ограничивает передачу медиафайлов. Повторите попытку через {seconds} с.",
+
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification":
         "Скрыть уведомление об обновлении",

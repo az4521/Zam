@@ -2811,6 +2811,28 @@ export const en = {
     "storageBanner.checkAgain": "Check again",
     "storageBanner.dismissLowStorageWarning": "Dismiss storage warning",
 
+    // src/lib/components/layout/UsageLimitBanner.svelte, stores/usageLimits.svelte.ts
+    "usageLimits.bannerMau":
+        "Your homeserver has reached its monthly active user limit, so your account can't send messages or sync right now.",
+    "usageLimits.bannerDisabled":
+        "Your homeserver has been disabled by its administrator, so your account can't send messages or sync right now.",
+    "usageLimits.bannerResource":
+        "Your account has reached a usage limit on your homeserver, so some actions are blocked right now.",
+    "usageLimits.bannerMediaQuota":
+        "You've used up your media upload allowance on your homeserver. Uploads will work again when it resets.",
+    "usageLimits.canUpgrade": "Upgrading your plan raises this limit.",
+    "usageLimits.learnMore": "Learn more",
+    "usageLimits.contactAdmin": "Contact the server admin",
+    "usageLimits.dismiss": "Dismiss usage limit warning",
+    "usageLimits.toastResource":
+        "Your homeserver is blocking this account because a usage limit was reached.",
+    "usageLimits.toastMediaQuota":
+        "Upload failed: you've reached your media upload limit.",
+    "usageLimits.toastRateLimited":
+        "The server is limiting media transfers. Try again in a moment.",
+    "usageLimits.toastRateLimitedFor":
+        "The server is limiting media transfers. Try again in {seconds} s.",
+
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification": "Dismiss update notification",
     "updateBanner.installFailed": "Install failed",

@@ -2679,6 +2679,26 @@ const messages: Partial<Record<MessageKey, string>> = {
     "storageBanner.checkAgain": "重新检查",
     "storageBanner.dismissLowStorageWarning": "忽略存储空间警告",
 
+    // src/lib/components/layout/UsageLimitBanner.svelte, stores/usageLimits.svelte.ts
+    "usageLimits.bannerMau":
+        "你的主服务器已达到每月活跃用户上限，你的账号目前无法发送消息或同步。",
+    "usageLimits.bannerDisabled":
+        "你的主服务器已被管理员停用，你的账号目前无法发送消息或同步。",
+    "usageLimits.bannerResource":
+        "你的账号已达到主服务器的使用上限，部分操作目前被阻止。",
+    "usageLimits.bannerMediaQuota":
+        "你已用完主服务器上的媒体上传额度。额度重置后即可再次上传。",
+    "usageLimits.canUpgrade": "升级套餐可提高此上限。",
+    "usageLimits.learnMore": "了解更多",
+    "usageLimits.contactAdmin": "联系服务器管理员",
+    "usageLimits.dismiss": "关闭使用上限警告",
+    "usageLimits.toastResource":
+        "由于已达到使用上限，你的主服务器正在阻止此账号。",
+    "usageLimits.toastMediaQuota": "上传失败：你已达到媒体上传上限。",
+    "usageLimits.toastRateLimited": "服务器正在限制媒体传输。请稍后再试。",
+    "usageLimits.toastRateLimitedFor":
+        "服务器正在限制媒体传输。请在 {seconds} 秒后重试。",
+
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification": "忽略更新通知",
     "updateBanner.installFailed": "安装失败",

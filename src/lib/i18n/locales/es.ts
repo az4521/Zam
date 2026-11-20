@@ -2887,6 +2887,28 @@ const messages: Partial<Record<MessageKey, string>> = {
     "storageBanner.checkAgain": "Comprobar de nuevo",
     "storageBanner.dismissLowStorageWarning": "Cerrar aviso de almacenamiento",
 
+    // src/lib/components/layout/UsageLimitBanner.svelte, stores/usageLimits.svelte.ts
+    "usageLimits.bannerMau":
+        "Tu servidor ha alcanzado su límite de usuarios activos mensuales, así que tu cuenta no puede enviar mensajes ni sincronizar ahora mismo.",
+    "usageLimits.bannerDisabled":
+        "El administrador de tu servidor lo ha desactivado, así que tu cuenta no puede enviar mensajes ni sincronizar ahora mismo.",
+    "usageLimits.bannerResource":
+        "Tu cuenta ha alcanzado un límite de uso en tu servidor, así que algunas acciones están bloqueadas ahora mismo.",
+    "usageLimits.bannerMediaQuota":
+        "Has agotado tu cuota de subida de archivos en tu servidor. Las subidas volverán a funcionar cuando se restablezca.",
+    "usageLimits.canUpgrade": "Mejorar tu plan aumenta este límite.",
+    "usageLimits.learnMore": "Más información",
+    "usageLimits.contactAdmin": "Contactar con el administrador",
+    "usageLimits.dismiss": "Cerrar aviso de límite de uso",
+    "usageLimits.toastResource":
+        "Tu servidor está bloqueando esta cuenta porque se alcanzó un límite de uso.",
+    "usageLimits.toastMediaQuota":
+        "La subida falló: has alcanzado tu límite de subida de archivos.",
+    "usageLimits.toastRateLimited":
+        "El servidor está limitando las transferencias de archivos. Inténtalo de nuevo en un momento.",
+    "usageLimits.toastRateLimitedFor":
+        "El servidor está limitando las transferencias de archivos. Inténtalo de nuevo en {seconds} s.",
+
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification":
         "Descartar el aviso de actualización",

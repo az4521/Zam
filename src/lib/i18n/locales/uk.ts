@@ -2906,6 +2906,28 @@ const messages: Partial<Record<MessageKey, string>> = {
     "storageBanner.dismissLowStorageWarning":
         "Закрити попередження про сховище",
 
+    // src/lib/components/layout/UsageLimitBanner.svelte, stores/usageLimits.svelte.ts
+    "usageLimits.bannerMau":
+        "Ваш сервер досяг ліміту щомісячно активних користувачів, тому ваш обліковий запис зараз не може надсилати повідомлення й синхронізуватися.",
+    "usageLimits.bannerDisabled":
+        "Ваш сервер вимкнено адміністратором, тому ваш обліковий запис зараз не може надсилати повідомлення й синхронізуватися.",
+    "usageLimits.bannerResource":
+        "Ваш обліковий запис досяг ліміту використання на сервері, тому деякі дії зараз заблоковано.",
+    "usageLimits.bannerMediaQuota":
+        "Ви вичерпали квоту завантаження медіафайлів на сервері. Завантаження знову працюватиме після скидання квоти.",
+    "usageLimits.canUpgrade": "Перехід на вищий тариф збільшить цей ліміт.",
+    "usageLimits.learnMore": "Докладніше",
+    "usageLimits.contactAdmin": "Зв'язатися з адміністратором сервера",
+    "usageLimits.dismiss": "Закрити попередження про ліміт",
+    "usageLimits.toastResource":
+        "Ваш сервер блокує цей обліковий запис, бо досягнуто ліміту використання.",
+    "usageLimits.toastMediaQuota":
+        "Не вдалося завантажити: досягнуто ліміту завантаження медіафайлів.",
+    "usageLimits.toastRateLimited":
+        "Сервер обмежує передавання медіафайлів. Спробуйте трохи згодом.",
+    "usageLimits.toastRateLimitedFor":
+        "Сервер обмежує передавання медіафайлів. Спробуйте знову через {seconds} с.",
+
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification":
         "Закрити сповіщення про оновлення",

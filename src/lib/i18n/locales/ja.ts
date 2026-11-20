@@ -2550,6 +2550,29 @@ const messages: Partial<Record<MessageKey, string>> = {
         "デバイスの空き容量がほとんどありません（残り {free}）。早めに空きを確保してください。そうしないとZamはメッセージや暗号化キーを保存できません。",
     "storageBanner.checkAgain": "再確認",
     "storageBanner.dismissLowStorageWarning": "容量警告を閉じる",
+
+    // src/lib/components/layout/UsageLimitBanner.svelte, stores/usageLimits.svelte.ts
+    "usageLimits.bannerMau":
+        "ホームサーバーが月間アクティブユーザー数の上限に達したため、現在このアカウントはメッセージの送信や同期ができません。",
+    "usageLimits.bannerDisabled":
+        "ホームサーバーが管理者によって無効化されたため、現在このアカウントはメッセージの送信や同期ができません。",
+    "usageLimits.bannerResource":
+        "このアカウントはホームサーバーの利用上限に達したため、現在一部の操作がブロックされています。",
+    "usageLimits.bannerMediaQuota":
+        "ホームサーバーのメディアアップロード枠を使い切りました。リセットされるとアップロードできるようになります。",
+    "usageLimits.canUpgrade":
+        "プランをアップグレードするとこの上限が引き上げられます。",
+    "usageLimits.learnMore": "詳細",
+    "usageLimits.contactAdmin": "サーバー管理者に連絡",
+    "usageLimits.dismiss": "利用上限の警告を閉じる",
+    "usageLimits.toastResource":
+        "利用上限に達したため、ホームサーバーがこのアカウントをブロックしています。",
+    "usageLimits.toastMediaQuota":
+        "アップロードに失敗しました: メディアのアップロード上限に達しています。",
+    "usageLimits.toastRateLimited":
+        "サーバーがメディア転送を制限しています。しばらくしてからもう一度お試しください。",
+    "usageLimits.toastRateLimitedFor":
+        "サーバーがメディア転送を制限しています。{seconds} 秒後にもう一度お試しください。",
     "updateBanner.dismissUpdateNotification": "更新通知を閉じる",
     "updateBanner.installFailed": "インストールに失敗しました",
     "userPicker.remove": "{userId} を削除",
