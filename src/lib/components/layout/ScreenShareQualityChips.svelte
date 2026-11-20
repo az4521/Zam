@@ -9,13 +9,10 @@
         setNativeScreenShare,
         setScreenShareBitrate,
         setUploadSpeedOverride,
+        uploadOverride,
     } from "$lib/stores/settings.svelte";
     import { nativeShareAvailable } from "$lib/desktopScreenShare";
-    import {
-        measuredUpload,
-        screenShareBitrateCeiling,
-        uploadOverride,
-    } from "$lib/stores/uploadEstimate.svelte";
+    import { uploadEstimate } from "$lib/stores/uploadEstimate.svelte";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
     import { switchCallVideoCodec } from "$lib/matrix/client";
     import {
@@ -23,13 +20,15 @@
         type VideoCodec,
     } from "$lib/utils/videoCodecs";
     import {
+        AUTO_SCREEN_SHARE_BITRATE,
         BITRATE_SLIDER_STEPS,
         MAX_SCREEN_SHARE_BITRATE,
-        SAFE_SCREEN_SHARE_BITRATE,
+        SHARE_AUTO_START_BPS,
         bitrateFromSlider,
         bitrateParts,
         clampBitrate,
-        isHighBitrate,
+        isAutoBitrate,
+        roundBitrate,
         sliderFromBitrate,
     } from "$lib/utils/screenShareBitrate";
     import {
@@ -57,13 +56,13 @@
         onQualityChange?.(settingsState.screenShareResolution, fps);
     }
 
-    // The bitrate is picked apart from resolution and fps, from about 240p's
-    // bitrate up to 50 Mbps. Up to 8 Mbps the measured upload can hold it
-    // lower (`ceiling`); above 8 it is the user's own call, with a warning.
-    // While dragging only the label follows; the pick is saved (and a live
-    // share retargeted) on release.
-    const ceiling = $derived(screenShareBitrateCeiling());
-    const measured = $derived(measuredUpload());
+    // The bitrate is automatic by default: no cap, the share sends what the
+    // upload carries right now. Turning that off picks a cap, from about
+    // 240p's bitrate up to 50 Mbps, sent as picked. While dragging only the
+    // label follows; the pick is saved (and a live share retargeted) on
+    // release.
+    const auto = $derived(isAutoBitrate(settingsState.screenShareBitrate));
+    const live = $derived(uploadEstimate.live);
     const overridden = $derived(uploadOverride() !== null);
     let draftBitrate = $state<number | null>(null);
     const shownBitrate = $derived(
@@ -73,7 +72,26 @@
                 MAX_SCREEN_SHARE_BITRATE,
             ),
     );
-    const highBitrate = $derived(isHighBitrate(shownBitrate));
+
+    function retarget(): void {
+        onQualityChange?.(
+            settingsState.screenShareResolution,
+            Number(settingsState.screenShareFps),
+        );
+    }
+
+    function setAuto(on: boolean): void {
+        // A manual cap starts from what the upload carries now, if known.
+        setScreenShareBitrate(
+            on
+                ? AUTO_SCREEN_SHARE_BITRATE
+                : clampBitrate(
+                      roundBitrate(live ?? SHARE_AUTO_START_BPS),
+                      MAX_SCREEN_SHARE_BITRATE,
+                  ),
+        );
+        retarget();
+    }
 
     function bitrateLabel(bps: number): string {
         const { unit, n } = bitrateParts(bps);
@@ -90,11 +108,8 @@
                 ? mbps * 1_000_000
                 : 0,
         );
-        // The ceiling moved: bring a live share's cap along with it.
-        onQualityChange?.(
-            settingsState.screenShareResolution,
-            Number(settingsState.screenShareFps),
-        );
+        // The automatic cap moved: bring a live share along with it.
+        retarget();
     }
 
     function commitBitrate(position: number): void {
@@ -102,10 +117,7 @@
         setScreenShareBitrate(
             bitrateFromSlider(position, MAX_SCREEN_SHARE_BITRATE),
         );
-        onQualityChange?.(
-            settingsState.screenShareResolution,
-            Number(settingsState.screenShareFps),
-        );
+        retarget();
     }
 
     // In a call: the codecs we can send that everyone can watch, plus the one
@@ -220,97 +232,100 @@
         </div>
     {/if}
     <div>
-        <div class="flex items-baseline justify-between gap-2 mb-1.5">
+        <div class="flex items-center justify-between gap-2 mb-1.5">
             <div
                 class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
             >
                 {t("screenShareQualityChips.bitrate")}
             </div>
-            <div class="text-xs text-zam-textPrimary tabular-nums">
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-zam-textMuted">
+                    {t("screenShareQualityChips.bitrateAuto")}
+                </span>
+                <ToggleSwitch
+                    checked={auto}
+                    onChange={(v) => setAuto(v)}
+                    label={t("screenShareQualityChips.bitrateAuto")}
+                />
+            </div>
+        </div>
+        {#if auto}
+            <div class="text-xs text-zam-textMuted">
+                {t("screenShareQualityChips.bitrateAutoHint")}
+            </div>
+            <div class="text-xs text-zam-textMuted mt-0.5">
+                {overridden
+                    ? t("screenShareQualityChips.bitrateAutoOverridden", {
+                          upload: bitrateLabel(
+                              settingsState.uploadSpeedOverride,
+                          ),
+                      })
+                    : live !== null
+                      ? t("screenShareQualityChips.bitrateAutoNow", {
+                            upload: bitrateLabel(live),
+                        })
+                      : t("screenShareQualityChips.bitrateAutoUnknown")}
+            </div>
+            <div class="flex items-center justify-between gap-2 mt-1.5">
+                <label
+                    for="upload-speed-override"
+                    class="text-xs text-zam-textMuted"
+                >
+                    {t("screenShareQualityChips.uploadOverride")}
+                </label>
+                <input
+                    id="upload-speed-override"
+                    type="text"
+                    inputmode="decimal"
+                    autocomplete="off"
+                    class="w-24 px-2 py-1 rounded text-xs bg-zam-backgroundTertiary text-zam-textPrimary border border-transparent focus:border-zam-accent outline-none text-end"
+                    placeholder={t(
+                        "screenShareQualityChips.uploadOverrideAuto",
+                    )}
+                    value={settingsState.uploadSpeedOverride > 0
+                        ? String(
+                              Math.round(
+                                  (settingsState.uploadSpeedOverride /
+                                      1_000_000) *
+                                      10,
+                              ) / 10,
+                          )
+                        : ""}
+                    onchange={(e) =>
+                        commitUploadOverride(e.currentTarget.value)}
+                />
+            </div>
+            <div class="text-xs text-zam-textMuted mt-0.5">
+                {t("screenShareQualityChips.uploadOverrideCapHint")}
+            </div>
+        {:else}
+            <div class="text-xs text-zam-textPrimary tabular-nums mb-1">
                 {t("screenShareQualityChips.bitrateUpTo")}
                 {bitrateLabel(shownBitrate)}
             </div>
-        </div>
-        <input
-            type="range"
-            min="0"
-            max={BITRATE_SLIDER_STEPS}
-            step="1"
-            class="w-full accent-zam-accent"
-            list="screen-share-bitrate-safe"
-            value={sliderFromBitrate(shownBitrate, MAX_SCREEN_SHARE_BITRATE)}
-            aria-label={t("screenShareQualityChips.bitrate")}
-            aria-valuetext={bitrateLabel(shownBitrate)}
-            oninput={(e) =>
-                (draftBitrate = bitrateFromSlider(
-                    Number(e.currentTarget.value),
-                    MAX_SCREEN_SHARE_BITRATE,
-                ))}
-            onchange={(e) => commitBitrate(Number(e.currentTarget.value))}
-        />
-        <datalist id="screen-share-bitrate-safe">
-            <option
+            <input
+                type="range"
+                min="0"
+                max={BITRATE_SLIDER_STEPS}
+                step="1"
+                class="w-full accent-zam-accent"
                 value={sliderFromBitrate(
-                    SAFE_SCREEN_SHARE_BITRATE,
+                    shownBitrate,
                     MAX_SCREEN_SHARE_BITRATE,
                 )}
-            ></option>
-        </datalist>
-        {#if highBitrate}
-            <div class="text-xs text-zam-warning mt-0.5" role="alert">
-                {t("screenShareQualityChips.bitrateHighWarning", {
-                    safe: bitrateLabel(SAFE_SCREEN_SHARE_BITRATE),
-                })}
-            </div>
-        {/if}
-        <div class="text-xs text-zam-textMuted mt-0.5">
-            {t("screenShareQualityChips.bitrateCapHint")}
-        </div>
-        {#if !highBitrate}
-            <div class="text-xs text-zam-textMuted mt-0.5">
-                {overridden && measured !== null
-                    ? t("screenShareQualityChips.bitrateOverridden", {
-                          upload: bitrateLabel(measured),
-                          max: bitrateLabel(ceiling),
-                      })
-                    : measured === null
-                      ? t("screenShareQualityChips.bitrateUnmeasured", {
-                            max: bitrateLabel(ceiling),
-                        })
-                      : t("screenShareQualityChips.bitrateMeasured", {
-                            upload: bitrateLabel(measured),
-                            max: bitrateLabel(ceiling),
-                        })}
-            </div>
-        {/if}
-        <div class="flex items-center justify-between gap-2 mt-1.5">
-            <label
-                for="upload-speed-override"
-                class="text-xs text-zam-textMuted"
-            >
-                {t("screenShareQualityChips.uploadOverride")}
-            </label>
-            <input
-                id="upload-speed-override"
-                type="text"
-                inputmode="decimal"
-                autocomplete="off"
-                class="w-24 px-2 py-1 rounded text-xs bg-zam-backgroundTertiary text-zam-textPrimary border border-transparent focus:border-zam-accent outline-none text-end"
-                placeholder={t("screenShareQualityChips.uploadOverrideAuto")}
-                value={settingsState.uploadSpeedOverride > 0
-                    ? String(
-                          Math.round(
-                              (settingsState.uploadSpeedOverride / 1_000_000) *
-                                  10,
-                          ) / 10,
-                      )
-                    : ""}
-                onchange={(e) => commitUploadOverride(e.currentTarget.value)}
+                aria-label={t("screenShareQualityChips.bitrate")}
+                aria-valuetext={bitrateLabel(shownBitrate)}
+                oninput={(e) =>
+                    (draftBitrate = bitrateFromSlider(
+                        Number(e.currentTarget.value),
+                        MAX_SCREEN_SHARE_BITRATE,
+                    ))}
+                onchange={(e) => commitBitrate(Number(e.currentTarget.value))}
             />
-        </div>
-        <div class="text-xs text-zam-textMuted mt-0.5">
-            {t("screenShareQualityChips.uploadOverrideHint")}
-        </div>
+            <div class="text-xs text-zam-textMuted mt-0.5">
+                {t("screenShareQualityChips.bitrateCapHint")}
+            </div>
+        {/if}
     </div>
     <div class="flex items-center justify-between gap-3">
         <div>

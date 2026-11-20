@@ -173,6 +173,19 @@ export function availableOutgoingBitrate(
     return v !== null && v > 0 ? v : null;
 }
 
+/** The worst loss (0..1) the far end reports on our outgoing video
+ *  (remote-inbound-rtp fractionLost), or null when it reports none. */
+export function outgoingVideoLoss(stats: readonly RawStat[]): number | null {
+    let worst: number | null = null;
+    for (const s of stats) {
+        if (s.type !== "remote-inbound-rtp") continue;
+        if ((s.kind ?? s.mediaType) !== "video") continue;
+        const lost = num(s.fractionLost);
+        if (lost !== null) worst = Math.max(worst ?? 0, lost);
+    }
+    return worst;
+}
+
 /**
  * Fold one transport's stats report. Pass the previous summary of the SAME
  * transport to get interval rates; without it the rates are null.

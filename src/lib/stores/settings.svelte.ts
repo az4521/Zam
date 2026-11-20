@@ -100,9 +100,10 @@ import {
     type VideoCodecChoice,
 } from "$lib/utils/videoCodecs";
 import {
+    AUTO_SCREEN_SHARE_BITRATE,
     DEFAULT_SCREEN_SHARE_BITRATE,
     MIN_SCREEN_SHARE_BITRATE,
-    SAFE_SCREEN_SHARE_BITRATE,
+    isAutoBitrate,
 } from "$lib/utils/screenShareBitrate";
 
 const STORAGE_PREFIX = "settings:";
@@ -623,8 +624,7 @@ export const settingsState = $state({
     shareSmoothingMs: readShareSmoothing(),
     screenShareFps: readAccountString("screenShareFps") ?? "30",
     /** Screen-share bitrate cap (bits/sec), picked apart from resolution and
-     *  fps. Clamped to the measured upload when applied
-     *  (utils/screenShareBitrate). */
+     *  fps; 0 is automatic, no cap (utils/screenShareBitrate). */
     screenShareBitrate: readScreenShareBitrate(),
     /** Video codecs this device lists but can't show (set by the user, or by
      *  a stream that arrived and never decoded). Left out of what it tells
@@ -1614,28 +1614,28 @@ export function setScreenShareFps(value: string): void {
 
 function readScreenShareBitrate(): number {
     const n = Number(readAccountString("screenShareBitrate"));
-    if (!Number.isFinite(n) || n < MIN_SCREEN_SHARE_BITRATE)
+    if (!Number.isFinite(n) || isAutoBitrate(n))
         return DEFAULT_SCREEN_SHARE_BITRATE;
-    // Before 8 Mbps became the limit, the slider offered up to 90% of the
-    // measured upload, so a pick above 8 wasn't a deliberate "more than the
-    // safe limit". Bring it down once per account; picks made after this
-    // stand. Only once signed in: a flag written before that lands in the
-    // unscoped key, which the account would later adopt as already done.
-    // (The key is a literal: this runs while settingsState is initialised.)
-    if (
-        auth.userId &&
-        readAccountString("screenShareBitrateResetTo8") === null
-    ) {
-        writeAccountString("screenShareBitrateResetTo8", "true");
-        if (n > SAFE_SCREEN_SHARE_BITRATE) {
+    // Older builds had no automatic mode: 8 Mbps was both the default and a
+    // limit every pick at or under it was held to, and an earlier migration
+    // brought every higher pick down to it. So a stored 8 Mbps is almost
+    // never a deliberate cap: make it automatic once per account. Picks made
+    // after this stand. Only once signed in: a flag written before that
+    // lands in the unscoped key, which the account would later adopt as
+    // already done. (The key is a literal: this runs while settingsState is
+    // initialised.)
+    if (auth.userId && readAccountString("screenShareBitrateAuto") === null) {
+        writeAccountString("screenShareBitrateAuto", "true");
+        // (A literal too: older builds' default and "safe" limit.)
+        if (n === 8_000_000) {
             writeAccountString(
                 "screenShareBitrate",
-                String(SAFE_SCREEN_SHARE_BITRATE),
+                String(AUTO_SCREEN_SHARE_BITRATE),
             );
-            return SAFE_SCREEN_SHARE_BITRATE;
+            return AUTO_SCREEN_SHARE_BITRATE;
         }
     }
-    return n;
+    return Math.max(MIN_SCREEN_SHARE_BITRATE, n);
 }
 
 function readUploadSpeedOverride(): number {
@@ -1643,7 +1643,15 @@ function readUploadSpeedOverride(): number {
     return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-/** 0 (or anything not a positive number) goes back to measuring. */
+/** The upload speed the user typed in (bits/sec), or null for "follow the
+ *  connection" (stores/uploadEstimate). */
+export function uploadOverride(): number | null {
+    const n = settingsState.uploadSpeedOverride;
+    return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** 0 (or anything not a positive number) goes back to following the
+ *  connection. */
 export function setUploadSpeedOverride(bps: number): void {
     settingsState.uploadSpeedOverride =
         Number.isFinite(bps) && bps > 0 ? Math.round(bps) : 0;
@@ -1653,12 +1661,12 @@ export function setUploadSpeedOverride(bps: number): void {
     );
 }
 
+/** 0 (or less) is automatic: no cap (utils/screenShareBitrate). */
 export function setScreenShareBitrate(bps: number): void {
     if (!Number.isFinite(bps)) return;
-    settingsState.screenShareBitrate = Math.max(
-        MIN_SCREEN_SHARE_BITRATE,
-        Math.round(bps),
-    );
+    settingsState.screenShareBitrate = isAutoBitrate(bps)
+        ? AUTO_SCREEN_SHARE_BITRATE
+        : Math.max(MIN_SCREEN_SHARE_BITRATE, Math.round(bps));
     writeAccountString(
         "screenShareBitrate",
         String(settingsState.screenShareBitrate),

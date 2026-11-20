@@ -2337,12 +2337,6 @@ const messages: Partial<Record<MessageKey, string>> = {
     "screenShareQualityChips.bitrate": "Débit",
     "screenShareQualityChips.kbps": "{n} kbit/s",
     "screenShareQualityChips.mbps": "{n} Mbit/s",
-    "screenShareQualityChips.bitrateMeasured":
-        "Votre débit montant mesure {upload}, donc ceci va jusqu'à {max}.",
-    "screenShareQualityChips.bitrateUnmeasured":
-        "Votre débit montant n'a pas encore été mesuré. Il l'est pendant que vous envoyez de la vidéo, donc ceci va jusqu'à {max} pour l'instant.",
-    "screenShareQualityChips.bitrateHighWarning":
-        "Au-delà de {safe}, c'est votre choix : votre débit montant n'est pas vérifié, et les spectateurs sur des connexions ou appareils plus lents peuvent voir des saccades ou des gels.",
     "screenShareQualityChips.nativeCapture": "Assistant de capture Windows",
     "screenShareQualityChips.nativeCaptureHint":
         "Capture et encode le partage hors du navigateur, pour qu'un jeu gourmand ne le saccade pas. S'applique au prochain partage.",
@@ -4562,12 +4556,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callParticipantMenu.muteShare": "Couper le son du partage d'écran",
     "screenShareQualityChips.bitrateCapHint":
         "Une limite, pas un objectif : le partage n'utilise que ce dont l'image a besoin et ce que votre connexion peut supporter, jusqu'à cette valeur.",
-    "screenShareQualityChips.bitrateOverridden":
-        "Utilise la vitesse d'envoi que vous avez saisie, {upload}, donc ceci va jusqu'à {max}.",
+    "screenShareQualityChips.bitrateAuto": "Automatique",
+    "screenShareQualityChips.bitrateAutoHint":
+        "Sans limite : le partage envoie ce que votre connexion permet à l'instant et ralentit quand elle se sature ou qu'un spectateur prend du retard.",
+    "screenShareQualityChips.bitrateAutoNow":
+        "Votre vitesse d'envoi permet environ {upload} en ce moment.",
+    "screenShareQualityChips.bitrateAutoUnknown":
+        "Votre vitesse d'envoi est suivie en direct pendant l'envoi de la vidéo.",
+    "screenShareQualityChips.bitrateAutoOverridden":
+        "Limité à la vitesse d'envoi que vous avez saisie, {upload}.",
+    "screenShareQualityChips.uploadOverrideCapHint":
+        "Facultatif. Saisissez votre vitesse d'envoi pour garder le partage en dessous ; laissez vide pour suivre la connexion.",
     "screenShareQualityChips.uploadOverride": "Vitesse d'envoi (Mbit/s)",
     "screenShareQualityChips.uploadOverrideAuto": "Automatique",
-    "screenShareQualityChips.uploadOverrideHint":
-        "La mesure automatique peut indiquer bien moins que votre vitesse réelle. Saisissez votre propre valeur pour relever la limite ; laissez vide pour mesurer.",
     "voiceAudioSettings.cannotWatch": "Vidéos que je ne peux pas voir",
     "voiceAudioSettings.cannotWatchHint":
         "Choisissez les codecs qui n'affichent rien (ou une image noire) sur cet appareil. Les autres participants de l'appel vous envoient alors du H.264 à la place. Zam les ajoute aussi lui-même quand un flux arrive et n'est jamais décodé.",

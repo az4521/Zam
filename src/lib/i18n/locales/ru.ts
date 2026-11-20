@@ -2491,20 +2491,21 @@ const messages: Partial<Record<MessageKey, string>> = {
     "screenShareQualityChips.bitrateUpTo": "До",
     "screenShareQualityChips.bitrateCapHint":
         "Это предел, а не цель: демонстрация использует только то, что нужно картинке и что способно передать ваше соединение, не выше этого значения.",
-    "screenShareQualityChips.bitrateOverridden":
-        "Используется введённая вами скорость отдачи, {upload}, поэтому предел поднимается до {max}.",
+    "screenShareQualityChips.bitrateAuto": "Автоматически",
+    "screenShareQualityChips.bitrateAutoHint":
+        "Без ограничения: трансляция отправляет столько, сколько сейчас тянет ваше соединение, и снижает поток, когда канал переполняется или зритель отстаёт.",
+    "screenShareQualityChips.bitrateAutoNow":
+        "Ваша отдача сейчас около {upload}.",
+    "screenShareQualityChips.bitrateAutoUnknown":
+        "Скорость отдачи отслеживается в реальном времени во время отправки видео.",
+    "screenShareQualityChips.bitrateAutoOverridden":
+        "Ограничено скоростью отдачи, которую вы указали: {upload}.",
+    "screenShareQualityChips.uploadOverrideCapHint":
+        "Необязательно. Укажите скорость отдачи, чтобы трансляция не превышала её; оставьте пустым, чтобы следовать за соединением.",
     "screenShareQualityChips.uploadOverride": "Скорость отдачи (Мбит/с)",
     "screenShareQualityChips.uploadOverrideAuto": "Авто",
-    "screenShareQualityChips.uploadOverrideHint":
-        "Автоматическое измерение может показывать значение заметно ниже вашей реальной скорости. Введите свою цифру, чтобы поднять предел; оставьте пустым для измерения.",
     "screenShareQualityChips.kbps": "{n} кбит/с",
     "screenShareQualityChips.mbps": "{n} Мбит/с",
-    "screenShareQualityChips.bitrateMeasured":
-        "Ваша скорость отдачи измерена как {upload}, поэтому предел поднимается до {max}.",
-    "screenShareQualityChips.bitrateUnmeasured":
-        "Скорость вашей отдачи ещё не измерена. Она измеряется, пока вы отправляете видео, поэтому пока предел поднимается до {max}.",
-    "screenShareQualityChips.bitrateHighWarning":
-        "Выше {safe}: на ваш страх и риск, скорость отдачи не проверяется, и у зрителей с медленным соединением или устройством возможны рывки и зависания.",
     "screenShareQualityChips.nativeCapture": "Помощник захвата Windows",
     "screenShareQualityChips.nativeCaptureHint":
         "Захватывает и кодирует трансляцию вне браузера, поэтому тяжелая игра её не подтормаживает. Применяется к следующей трансляции.",

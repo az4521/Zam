@@ -1,60 +1,65 @@
-/** Screen-share bitrate, picked by the user independently of resolution and
- *  frame rate. The slider runs from roughly what YouTube asks for at 240p up
- *  to MAX_SCREEN_SHARE_BITRATE, on a log scale so the low end isn't squeezed
- *  into the first pixel. Up to SAFE_SCREEN_SHARE_BITRATE the pick is held
- *  10% under the measured upload (WebRTC's own estimate, see
- *  stores/uploadEstimate.svelte): the measurement can only lower it, never
- *  raise it past SAFE. A pick above SAFE is the user's own call and is sent
- *  as picked (the UI warns about it). */
+/** Screen-share bitrate. By default (AUTO_SCREEN_SHARE_BITRATE) a share has
+ *  no ceiling of its own: it sends what the uplink carries right now, as
+ *  WebRTC's congestion control finds it (and, for the helpers that encode
+ *  outside WebRTC, as utils/uplinkTracker follows it). The user may instead
+ *  pick a cap on a log-scale slider from roughly what YouTube asks for at
+ *  240p up to MAX_SCREEN_SHARE_BITRATE; a pick is sent as picked.
+ *
+ *  There used to be an 8 Mbps "safe" ceiling and an automatic limit at 90%
+ *  of the highest upload ever measured on the device. That measurement could
+ *  only see what the share itself pushed (WebRTC's estimate stays within
+ *  ~1.5x what is sent while the sender is the limit), so the limit fed on
+ *  itself and pinned shares far under the line's speed. */
 
+/** "Automatic": no cap, follow the uplink. */
+export const AUTO_SCREEN_SHARE_BITRATE = 0;
 /** YouTube's lowest recommended bitrate for 240p. */
 export const MIN_SCREEN_SHARE_BITRATE = 300_000;
-/** The most a share sends unless the user picks more by hand. Element Call
- *  sends screen shares at 5 Mbps; past this, viewers on ordinary links and
- *  devices mostly get stutter. */
-export const SAFE_SCREEN_SHARE_BITRATE = 8_000_000;
 /** The top of the slider. */
 export const MAX_SCREEN_SHARE_BITRATE = 50_000_000;
-/** Before anything has been measured. */
-export const UNMEASURED_CEILING = SAFE_SCREEN_SHARE_BITRATE;
-export const DEFAULT_SCREEN_SHARE_BITRATE = SAFE_SCREEN_SHARE_BITRATE;
+export const DEFAULT_SCREEN_SHARE_BITRATE = AUTO_SCREEN_SHARE_BITRATE;
+/** What a share's encoder may use in automatic mode. Not a practical limit:
+ *  it has to be set, because WebRTC's own default for an encoding without a
+ *  maxBitrate is a low per-resolution table (5 Mbps for a 1080p simulcast
+ *  layer), and congestion control holds the real rate under the uplink. */
+export const SHARE_AUTO_MAX_BPS = 100_000_000;
+/** The bitrate an automatic share is published at. LiveKit hints WebRTC's
+ *  estimator to start at 90% of the publish maxBitrate, so publishing at
+ *  SHARE_AUTO_MAX_BPS would open with a 90 Mbps burst. The top layer is
+ *  raised to SHARE_AUTO_MAX_BPS right after publishing, and the estimator
+ *  probes its way up from here. */
+export const SHARE_AUTO_START_BPS = 8_000_000;
 /** Slider positions; the value is mapped onto the bitrate range. */
 export const BITRATE_SLIDER_STEPS = 1000;
 
-/** The automatic limit on a pick of SAFE or less: 10% under the measured
- *  upload, or UNMEASURED_CEILING with no measurement, never above SAFE. A
- *  number the user typed in (`overridden`) is taken as it is: they know
- *  their line better than the estimate does. Never below the minimum. */
-export function bitrateCeiling(
-    measuredBps: number | null,
-    overridden = false,
-): number {
-    if (measuredBps === null || !(measuredBps > 0)) return UNMEASURED_CEILING;
-    return Math.min(
-        SAFE_SCREEN_SHARE_BITRATE,
-        Math.max(
-            MIN_SCREEN_SHARE_BITRATE,
-            Math.floor(measuredBps * (overridden ? 1 : 0.9)),
-        ),
-    );
+/** Whether a stored pick means automatic. */
+export function isAutoBitrate(pick: number): boolean {
+    return !Number.isFinite(pick) || pick <= 0;
 }
 
-/** A pick above SAFE: a manual choice, sent as picked. */
-export function isHighBitrate(bps: number): boolean {
-    return Number.isFinite(bps) && bps > SAFE_SCREEN_SHARE_BITRATE;
+/** The cap a share's encoder gets: the user's pick as picked, or in
+ *  automatic mode the upload speed the user typed in (`override`), else
+ *  none in practice (SHARE_AUTO_MAX_BPS). */
+export function shareBitrateCap(pick: number, override: number | null): number {
+    if (!isAutoBitrate(pick))
+        return Math.min(
+            MAX_SCREEN_SHARE_BITRATE,
+            Math.max(MIN_SCREEN_SHARE_BITRATE, pick),
+        );
+    if (override !== null && override > 0)
+        return Math.max(MIN_SCREEN_SHARE_BITRATE, Math.round(override));
+    return SHARE_AUTO_MAX_BPS;
 }
 
-/** What a pick sends at: above SAFE as picked (up to the slider's top),
- *  else held under the automatic limit (`ceiling`, from bitrateCeiling). */
-export function effectiveBitrate(pick: number, ceiling: number): number {
-    if (isHighBitrate(pick)) return Math.min(pick, MAX_SCREEN_SHARE_BITRATE);
-    return clampBitrate(pick, Math.min(ceiling, SAFE_SCREEN_SHARE_BITRATE));
+/** The bitrate a share is published at: its cap, or SHARE_AUTO_START_BPS
+ *  when the cap is higher (see there). */
+export function shareStartBitrate(cap: number): number {
+    return Math.min(cap, SHARE_AUTO_START_BPS);
 }
 
 /** A stored or picked bitrate, kept inside [minimum, ceiling]. */
 export function clampBitrate(bps: number, ceiling: number): number {
-    if (!Number.isFinite(bps))
-        return Math.min(DEFAULT_SCREEN_SHARE_BITRATE, ceiling);
+    if (!Number.isFinite(bps) || bps <= 0) return ceiling;
     return Math.min(ceiling, Math.max(MIN_SCREEN_SHARE_BITRATE, bps));
 }
 

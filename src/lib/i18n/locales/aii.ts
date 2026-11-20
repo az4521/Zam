@@ -1940,10 +1940,6 @@ const messages: Partial<Record<MessageKey, string>> = {
     "screenShareQualityChips.bitrate": "Bitrate",
     "screenShareQualityChips.kbps": "{n} kbps",
     "screenShareQualityChips.mbps": "{n} Mbps",
-    "screenShareQualityChips.bitrateMeasured":
-        "Your upload measures {upload}, so this goes up to {max}.",
-    "screenShareQualityChips.bitrateUnmeasured":
-        "Your upload hasn't been measured yet. It's measured while you send video, so this goes up to {max} for now.",
     "screenShareQualityChips.shareSystemAudio": "ܫܘܬܦ ܩܠܐ ܕܣܝܣܛܡ",
     "screenShareQualityChips.appliesToNextShare": "ܦܠܚܐ ܥܠ ܫܘܬܦܘܬܐ ܒܬܪܝܬܐ",
     "screenShareQualityChips.shareSystemAudioAppliesToNext":
@@ -3828,12 +3824,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "screenShareQualityChips.bitrateUpTo": "Up to",
     "screenShareQualityChips.bitrateCapHint":
         "A limit, not a target: the share uses only what the picture needs and your connection can carry, up to this.",
-    "screenShareQualityChips.bitrateOverridden":
-        "Using the upload speed you entered, {upload}, so this goes up to {max}.",
     "screenShareQualityChips.uploadOverride": "Upload speed (Mbps)",
     "screenShareQualityChips.uploadOverrideAuto": "Auto",
-    "screenShareQualityChips.uploadOverrideHint":
-        "The automatic measurement can read well under your real speed. Enter your own figure to raise the limit; leave it empty to measure.",
     "voiceAudioSettings.cannotWatch": "Video I can't watch",
     "voiceAudioSettings.cannotWatchHint":
         "Pick the codecs that show nothing (or a black picture) on this device. Others in the call then send you H.264 instead. Zam also fills this in when a stream arrives and never decodes.",

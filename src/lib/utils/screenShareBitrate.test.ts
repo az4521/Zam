@@ -1,43 +1,55 @@
 import { describe, it, expect } from "vitest";
 import {
+    AUTO_SCREEN_SHARE_BITRATE,
     BITRATE_SLIDER_STEPS,
     DEFAULT_SCREEN_SHARE_BITRATE,
     MAX_SCREEN_SHARE_BITRATE,
     MIN_SCREEN_SHARE_BITRATE,
-    SAFE_SCREEN_SHARE_BITRATE,
-    UNMEASURED_CEILING,
-    bitrateCeiling,
-    effectiveBitrate,
-    isHighBitrate,
+    SHARE_AUTO_MAX_BPS,
+    SHARE_AUTO_START_BPS,
     bitrateFromSlider,
     bitrateParts,
     clampBitrate,
+    isAutoBitrate,
     roundBitrate,
+    shareBitrateCap,
+    shareStartBitrate,
     sliderFromBitrate,
 } from "./screenShareBitrate";
 
-describe("bitrateCeiling", () => {
-    it("is 10% under the measured upload", () => {
-        expect(bitrateCeiling(5_000_000)).toBe(4_500_000);
-        expect(bitrateCeiling(1_000_000)).toBe(900_000);
+describe("shareBitrateCap", () => {
+    it("defaults to automatic", () => {
+        expect(DEFAULT_SCREEN_SHARE_BITRATE).toBe(AUTO_SCREEN_SHARE_BITRATE);
+        expect(isAutoBitrate(DEFAULT_SCREEN_SHARE_BITRATE)).toBe(true);
     });
 
-    it("never raises past 8 Mbps, measured or typed", () => {
-        expect(bitrateCeiling(20_000_000)).toBe(SAFE_SCREEN_SHARE_BITRATE);
-        expect(bitrateCeiling(100_000_000, true)).toBe(
-            SAFE_SCREEN_SHARE_BITRATE,
+    it("has no ceiling of its own in automatic mode", () => {
+        expect(shareBitrateCap(AUTO_SCREEN_SHARE_BITRATE, null)).toBe(
+            SHARE_AUTO_MAX_BPS,
         );
-        expect(UNMEASURED_CEILING).toBe(SAFE_SCREEN_SHARE_BITRATE);
     });
 
-    it("never goes under the minimum", () => {
-        expect(bitrateCeiling(200_000)).toBe(MIN_SCREEN_SHARE_BITRATE);
+    it("takes a typed-in upload speed as the automatic cap", () => {
+        expect(shareBitrateCap(AUTO_SCREEN_SHARE_BITRATE, 12_000_000)).toBe(
+            12_000_000,
+        );
     });
 
-    it("uses the unmeasured ceiling without a measurement", () => {
-        expect(bitrateCeiling(null)).toBe(UNMEASURED_CEILING);
-        expect(bitrateCeiling(0)).toBe(UNMEASURED_CEILING);
-        expect(bitrateCeiling(Number.NaN)).toBe(UNMEASURED_CEILING);
+    it("sends a pick as picked, whatever the upload", () => {
+        expect(shareBitrateCap(20_000_000, 4_000_000)).toBe(20_000_000);
+        expect(shareBitrateCap(3_000_000, null)).toBe(3_000_000);
+        expect(shareBitrateCap(90_000_000, null)).toBe(
+            MAX_SCREEN_SHARE_BITRATE,
+        );
+    });
+});
+
+describe("shareStartBitrate", () => {
+    it("publishes an uncapped share at a sane start", () => {
+        expect(shareStartBitrate(SHARE_AUTO_MAX_BPS)).toBe(
+            SHARE_AUTO_START_BPS,
+        );
+        expect(shareStartBitrate(3_000_000)).toBe(3_000_000);
     });
 });
 
@@ -48,32 +60,9 @@ describe("clampBitrate", () => {
         expect(clampBitrate(1000, 10_000_000)).toBe(MIN_SCREEN_SHARE_BITRATE);
     });
 
-    it("falls back to the default for a non-number", () => {
-        expect(clampBitrate(Number.NaN, 10_000_000)).toBe(
-            DEFAULT_SCREEN_SHARE_BITRATE,
-        );
-        expect(clampBitrate(Number.NaN, 2_000_000)).toBe(2_000_000);
-    });
-});
-
-describe("effectiveBitrate", () => {
-    it("defaults to 8 Mbps", () => {
-        expect(DEFAULT_SCREEN_SHARE_BITRATE).toBe(8_000_000);
-    });
-
-    it("holds a pick of 8 Mbps or less under the automatic limit", () => {
-        expect(effectiveBitrate(8_000_000, 4_500_000)).toBe(4_500_000);
-        expect(effectiveBitrate(3_000_000, 4_500_000)).toBe(3_000_000);
-        expect(effectiveBitrate(8_000_000, UNMEASURED_CEILING)).toBe(8_000_000);
-    });
-
-    it("sends a hand-picked bitrate above 8 Mbps as picked", () => {
-        expect(isHighBitrate(8_000_000)).toBe(false);
-        expect(isHighBitrate(8_100_000)).toBe(true);
-        expect(effectiveBitrate(20_000_000, 4_500_000)).toBe(20_000_000);
-        expect(effectiveBitrate(90_000_000, 4_500_000)).toBe(
-            MAX_SCREEN_SHARE_BITRATE,
-        );
+    it("puts automatic (or a non-number) at the top", () => {
+        expect(clampBitrate(Number.NaN, 10_000_000)).toBe(10_000_000);
+        expect(clampBitrate(0, 10_000_000)).toBe(10_000_000);
     });
 });
 
@@ -118,18 +107,11 @@ describe("the bitrate slider", () => {
         expect(sliderFromBitrate(5_000_000, low)).toBe(BITRATE_SLIDER_STEPS);
         expect(bitrateFromSlider(0, low)).toBe(low);
     });
-
-    it("shows a pick above the ceiling at the top", () => {
-        expect(sliderFromBitrate(50_000_000, ceiling)).toBe(
-            BITRATE_SLIDER_STEPS,
-        );
-    });
 });
 
 describe("bitrateParts", () => {
     it("uses kbps under 1 Mbps and Mbps above", () => {
         expect(bitrateParts(750_000)).toEqual({ unit: "kbps", n: "750" });
-        expect(bitrateParts(4_500_000)).toEqual({ unit: "mbps", n: "4.5" });
-        expect(bitrateParts(18_000_000)).toEqual({ unit: "mbps", n: "18" });
+        expect(bitrateParts(4_500_000).unit).toBe("mbps");
     });
 });

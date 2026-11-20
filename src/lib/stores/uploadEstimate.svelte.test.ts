@@ -8,36 +8,28 @@ async function freshStore() {
 describe("uploadEstimate", () => {
     beforeEach(() => localStorage.clear());
 
-    it("starts unmeasured, with the unmeasured ceiling", async () => {
+    it("starts unknown", async () => {
         const s = await freshStore();
-        expect(s.measuredUpload()).toBeNull();
-        expect(s.screenShareBitrateCeiling()).toBe(8_000_000);
+        expect(s.uploadEstimate.live).toBeNull();
     });
 
-    it("measures against the higher of this call's sample and the device peak", async () => {
+    it("follows the live estimate down as well as up", async () => {
         const s = await freshStore();
         s.noteUploadEstimate(20_000_000);
-        expect(s.screenShareBitrateCeiling()).toBe(8_000_000);
         s.noteUploadEstimate(5_000_000);
         expect(s.uploadEstimate.live).toBe(5_000_000);
-        expect(s.measuredUpload()).toBe(20_000_000);
+        s.noteUploadEstimate(null);
+        expect(s.uploadEstimate.live).toBeNull();
     });
 
-    it("keeps the peak across reloads and drops the live sample when the call ends", async () => {
+    it("keeps nothing across reloads and removes the old stored peak", async () => {
+        localStorage.setItem("uploadEstimate:peak", "90000000");
         let s = await freshStore();
+        expect(localStorage.getItem("uploadEstimate:peak")).toBeNull();
         s.noteUploadEstimate(12_000_000);
         s.clearLiveUploadEstimate();
         expect(s.uploadEstimate.live).toBeNull();
         s = await freshStore();
-        expect(s.uploadEstimate.peak).toBe(12_000_000);
-        expect(s.measuredUpload()).toBe(12_000_000);
-    });
-
-    it("ignores samples that aren't positive numbers", async () => {
-        const s = await freshStore();
-        s.noteUploadEstimate(0);
-        s.noteUploadEstimate(Number.NaN);
-        s.noteUploadEstimate(-5);
-        expect(s.measuredUpload()).toBeNull();
+        expect(s.uploadEstimate.live).toBeNull();
     });
 });
