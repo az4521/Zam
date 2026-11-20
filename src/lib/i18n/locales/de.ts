@@ -2876,6 +2876,29 @@ const messages: Partial<Record<MessageKey, string>> = {
     "storageBanner.checkAgain": "Erneut prüfen",
     "storageBanner.dismissLowStorageWarning": "Speicherwarnung schließen",
 
+    // src/lib/components/layout/UsageLimitBanner.svelte, stores/usageLimits.svelte.ts
+    "usageLimits.bannerMau":
+        "Dein Homeserver hat sein Limit an monatlich aktiven Nutzern erreicht, daher kann dein Konto gerade keine Nachrichten senden oder synchronisieren.",
+    "usageLimits.bannerDisabled":
+        "Dein Homeserver wurde von seiner Administration deaktiviert, daher kann dein Konto gerade keine Nachrichten senden oder synchronisieren.",
+    "usageLimits.bannerResource":
+        "Dein Konto hat ein Nutzungslimit auf deinem Homeserver erreicht, daher sind einige Aktionen gerade gesperrt.",
+    "usageLimits.bannerMediaQuota":
+        "Du hast dein Upload-Kontingent für Medien auf deinem Homeserver aufgebraucht. Uploads funktionieren wieder, sobald es zurückgesetzt wird.",
+    "usageLimits.canUpgrade":
+        "Mit einem Upgrade deines Tarifs wird dieses Limit erhöht.",
+    "usageLimits.learnMore": "Mehr erfahren",
+    "usageLimits.contactAdmin": "Server-Administration kontaktieren",
+    "usageLimits.dismiss": "Warnung zum Nutzungslimit schließen",
+    "usageLimits.toastResource":
+        "Dein Homeserver sperrt dieses Konto, weil ein Nutzungslimit erreicht wurde.",
+    "usageLimits.toastMediaQuota":
+        "Upload fehlgeschlagen: Du hast dein Medien-Upload-Limit erreicht.",
+    "usageLimits.toastRateLimited":
+        "Der Server begrenzt Medienübertragungen. Versuche es gleich noch einmal.",
+    "usageLimits.toastRateLimitedFor":
+        "Der Server begrenzt Medienübertragungen. Versuche es in {seconds} s erneut.",
+
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification": "Update-Hinweis schließen",
     "updateBanner.installFailed": "Installation fehlgeschlagen",

@@ -5,6 +5,11 @@ import { matrixClient, captureClient, ownedClientOrThrow } from "./runtime";
 import type { ClientOwnership } from "$lib/utils/clientGeneration";
 import { threadRelationParams } from "./client";
 import { settingsState } from "$lib/stores/settings.svelte";
+import { noteUsageOk, reportUsageLimit } from "$lib/stores/usageLimits.svelte";
+import {
+    classifyLimitError,
+    classifyLimitResponse,
+} from "$lib/utils/usageLimits";
 import { faststartMp4 } from "$lib/utils/mp4Faststart";
 import { progressiveJpegForUpload } from "$lib/utils/progressiveJpegUpload";
 import { stripLocationMetadata } from "$lib/utils/stripMetadata";
@@ -192,7 +197,8 @@ export async function uploadAttachment(
         const encryptedBlob = new Blob([data], {
             type: "application/octet-stream",
         });
-        const { content_uri } = await ownedClientOrThrow(owner).uploadContent(
+        const { content_uri } = await watchedUpload(
+            ownedClientOrThrow(owner),
             encryptedBlob,
             {
                 type: "application/octet-stream",
@@ -205,7 +211,8 @@ export async function uploadAttachment(
         // Plaintext path: upload as-is with the original name, byte-identical
         // to the pre-encryption code path for unencrypted rooms. `type` only
         // matters for a plugin Blob that carries none of its own.
-        const { content_uri } = await ownedClientOrThrow(owner).uploadContent(
+        const { content_uri } = await watchedUpload(
+            ownedClientOrThrow(owner),
             blob,
             opts.type
                 ? { name: opts.name, type: opts.type, progressHandler }
@@ -646,6 +653,47 @@ export function pickerThumbUrl(mxcUrl: string, size: number): string | null {
     return swControlsPage() ? markPickerThumb(url) : url;
 }
 
+/** Report a media download refused for a usage limit (rate limit). Reads
+ *  a clone, so the caller's response stays usable. Never throws. */
+async function reportMediaLimit(resp: Response, url: string): Promise<void> {
+    try {
+        if (!(resp.headers.get("content-type") ?? "").includes("json")) return;
+        const body: unknown = await resp
+            .clone()
+            .json()
+            .catch(() => null);
+        const signal = classifyLimitResponse(
+            resp.status,
+            body,
+            url,
+            resp.headers.get("retry-after"),
+        );
+        if (signal) reportUsageLimit(signal, url);
+    } catch {
+        // Reporting never masks the real failure.
+    }
+}
+
+/** The SDK uploads over XMLHttpRequest, past limitWatchingFetch: classify
+ *  a refused upload here (upload quota, server block, rate limit) and note
+ *  a successful one so an upload-quota banner lifts. */
+async function watchedUpload(
+    client: MatrixClient,
+    ...args: Parameters<MatrixClient["uploadContent"]>
+): Promise<Awaited<ReturnType<MatrixClient["uploadContent"]>>> {
+    try {
+        const res = await client.uploadContent(...args);
+        noteUsageOk(UPLOAD_PATH, "POST");
+        return res;
+    } catch (err) {
+        const signal = classifyLimitError(err, UPLOAD_PATH);
+        if (signal) reportUsageLimit(signal, UPLOAD_PATH);
+        throw err;
+    }
+}
+
+const UPLOAD_PATH = "/_matrix/media/v3/upload";
+
 /** Fetch an attachment from the homeserver with auth and return an object URL for use in <video/audio src> and file downloads. */
 export async function fetchAttachmentBlob(
     httpUrl: string,
@@ -666,10 +714,12 @@ export async function fetchAttachmentBlob(
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const resp = await fetch(httpUrl, { headers, signal: opts.signal });
-    if (!resp.ok)
+    if (!resp.ok) {
+        await reportMediaLimit(resp, httpUrl);
         throw new Error(
             t("media.failedToFetchAttachment", { status: resp.status }),
         );
+    }
     const chunks = await readBodyWithProgress(resp, opts);
     // Same allowlist as a decrypted attachment: the server's sandbox CSP
     // doesn't follow the bytes into a blob URL of our origin.
@@ -695,10 +745,12 @@ export async function fetchMediaBytes(
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const resp = await fetch(httpUrl, { headers, signal });
-    if (!resp.ok)
+    if (!resp.ok) {
+        await reportMediaLimit(resp, httpUrl);
         throw new Error(
             t("media.failedToFetchAttachment", { status: resp.status }),
         );
+    }
     const declared = Number(resp.headers.get("content-length"));
     if (Number.isFinite(declared) && declared > maxBytes)
         throw new Error("Media too large");
@@ -733,6 +785,7 @@ export async function fetchDecryptedAttachment(
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const resp = await fetch(httpUrl, { headers, signal: opts.signal });
     if (!resp.ok) {
+        await reportMediaLimit(resp, httpUrl);
         throw new Error(
             t("media.failedToFetchEncryptedAttachment", {
                 status: resp.status,
@@ -933,7 +986,7 @@ export async function uploadContent(file: File): Promise<string> {
     const upload = settingsState.stripMetadata
         ? await stripLocationMetadata(file)
         : file;
-    const { content_uri } = await matrixClient.uploadContent(upload, {
+    const { content_uri } = await watchedUpload(matrixClient, upload, {
         name: upload.name,
     });
     return content_uri;

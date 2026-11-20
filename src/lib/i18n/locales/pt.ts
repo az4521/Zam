@@ -2916,6 +2916,28 @@ const messages: Partial<Record<MessageKey, string>> = {
     "storageBanner.dismissLowStorageWarning":
         "Dispensar aviso de armazenamento",
 
+    // src/lib/components/layout/UsageLimitBanner.svelte, stores/usageLimits.svelte.ts
+    "usageLimits.bannerMau":
+        "Seu servidor atingiu o limite de usuários ativos mensais, então sua conta não pode enviar mensagens nem sincronizar agora.",
+    "usageLimits.bannerDisabled":
+        "Seu servidor foi desativado pelo administrador, então sua conta não pode enviar mensagens nem sincronizar agora.",
+    "usageLimits.bannerResource":
+        "Sua conta atingiu um limite de uso no seu servidor, então algumas ações estão bloqueadas agora.",
+    "usageLimits.bannerMediaQuota":
+        "Você esgotou sua cota de envio de mídia no seu servidor. Os envios voltarão a funcionar quando ela for renovada.",
+    "usageLimits.canUpgrade": "Fazer upgrade do seu plano aumenta este limite.",
+    "usageLimits.learnMore": "Saiba mais",
+    "usageLimits.contactAdmin": "Contatar o administrador do servidor",
+    "usageLimits.dismiss": "Fechar aviso de limite de uso",
+    "usageLimits.toastResource":
+        "Seu servidor está bloqueando esta conta porque um limite de uso foi atingido.",
+    "usageLimits.toastMediaQuota":
+        "Falha no envio: você atingiu seu limite de envio de mídia.",
+    "usageLimits.toastRateLimited":
+        "O servidor está limitando transferências de mídia. Tente novamente em instantes.",
+    "usageLimits.toastRateLimitedFor":
+        "O servidor está limitando transferências de mídia. Tente novamente em {seconds} s.",
+
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification":
         "Dispensar notificação de atualização",

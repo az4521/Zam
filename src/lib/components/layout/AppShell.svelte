@@ -208,6 +208,7 @@
         getDMPartnerId,
         logout,
         onRoomUpdate,
+        watchServerNotices,
         onAccountData,
         onLocalEchoUpdated,
         onThreadNameChange,
@@ -2587,6 +2588,7 @@
         const unsubRecentEmoji = initRecentEmoji();
         const unsubCustomization = initCustomizationSync();
         const unsubIgnored = initIgnoredUsers();
+        const unsubServerNotices = watchServerNotices();
         const unsubPresence = initPresence();
         const unsubVoice = initVoiceCall();
         const unsubIncoming = initIncomingCalls();
@@ -2717,6 +2719,7 @@
             unsubRecentEmoji();
             unsubCustomization();
             unsubIgnored();
+            unsubServerNotices();
             unsubPresence();
             unsubVoice();
             unsubIncoming();

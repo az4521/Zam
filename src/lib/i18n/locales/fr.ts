@@ -2848,6 +2848,29 @@ const messages: Partial<Record<MessageKey, string>> = {
     "storageBanner.dismissLowStorageWarning":
         "Fermer l'avertissement de stockage",
 
+    // src/lib/components/layout/UsageLimitBanner.svelte, stores/usageLimits.svelte.ts
+    "usageLimits.bannerMau":
+        "Ton serveur a atteint sa limite d'utilisateurs actifs mensuels, ton compte ne peut donc pas envoyer de messages ni se synchroniser pour le moment.",
+    "usageLimits.bannerDisabled":
+        "Ton serveur a été désactivé par son administrateur, ton compte ne peut donc pas envoyer de messages ni se synchroniser pour le moment.",
+    "usageLimits.bannerResource":
+        "Ton compte a atteint une limite d'utilisation sur ton serveur, certaines actions sont donc bloquées pour le moment.",
+    "usageLimits.bannerMediaQuota":
+        "Tu as épuisé ton quota d'envoi de médias sur ton serveur. Les envois fonctionneront à nouveau quand il sera réinitialisé.",
+    "usageLimits.canUpgrade":
+        "Passer à une offre supérieure augmente cette limite.",
+    "usageLimits.learnMore": "En savoir plus",
+    "usageLimits.contactAdmin": "Contacter l'administrateur du serveur",
+    "usageLimits.dismiss": "Fermer l'avertissement de limite d'utilisation",
+    "usageLimits.toastResource":
+        "Ton serveur bloque ce compte car une limite d'utilisation a été atteinte.",
+    "usageLimits.toastMediaQuota":
+        "Échec de l'envoi : tu as atteint ta limite d'envoi de médias.",
+    "usageLimits.toastRateLimited":
+        "Le serveur limite les transferts de médias. Réessaie dans un instant.",
+    "usageLimits.toastRateLimitedFor":
+        "Le serveur limite les transferts de médias. Réessaie dans {seconds} s.",
+
     // src/lib/components/layout/UpdateBanner.svelte
     "updateBanner.dismissUpdateNotification":
         "Ignorer la notification de mise à jour",

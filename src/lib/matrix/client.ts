@@ -192,6 +192,18 @@ import {
     type MaterializedCache,
 } from "./roomListCache";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
+import {
+    limitWatchingFetch,
+    usageLimitNotice,
+    SERVER_NOTICE_TAG,
+    type UsageLimitSignal,
+} from "$lib/utils/usageLimits";
+import {
+    noteUsageOk,
+    reportUsageLimit,
+    resetUsageLimits,
+    setUsageLimitNotice,
+} from "$lib/stores/usageLimits.svelte";
 import { forgetSignInPassword } from "$lib/stores/onboarding.svelte";
 import {
     markSyncStoreFallback,
@@ -620,6 +632,9 @@ function handleTokenRefresh(
  * each request, to measure startup under WAN latency. Undefined in production
  * builds (the body is dropped by the DEV guard).
  */
+/** Identifies the client whose requests feed the usage-limit store. */
+let usageLimitOwner: object | null = null;
+
 function devLatencyFetch(): typeof fetch | undefined {
     if (!import.meta.env.DEV) return undefined;
     return (input, init) => {
@@ -725,6 +740,20 @@ async function createAuthenticatedClient(opts: {
         delete clientOpts.refreshToken;
     }
     const devFetch = devLatencyFetch();
+    // Every request goes through the usage-limit watch (UsageLimitBanner);
+    // a request still in flight from a client replaced since reports nothing.
+    resetUsageLimits();
+    const limitOwner = {};
+    usageLimitOwner = limitOwner;
+    const watchedFetch = limitWatchingFetch(
+        devFetch ?? ((input, init) => fetch(input, init)),
+        (signal, url) => {
+            if (usageLimitOwner === limitOwner) reportUsageLimit(signal, url);
+        },
+        (url, method) => {
+            if (usageLimitOwner === limitOwner) noteUsageOk(url, method);
+        },
+    );
     const commonOpts = {
         ...clientOpts,
         // The SDK refreshes on M_UNKNOWN_TOKEN (and shortly before a known
@@ -739,7 +768,7 @@ async function createAuthenticatedClient(opts: {
                   }) => handleTokenRefresh(opts.userId, tokens),
               }
             : {}),
-        ...(devFetch ? { fetchFn: devFetch } : {}),
+        fetchFn: watchedFetch,
         timelineSupport: true,
         verificationMethods: [
             VerificationMethod.Sas,
@@ -2130,6 +2159,8 @@ export function onSyncReconnected(callback: () => void): () => void {
 
 export async function logout(): Promise<void> {
     forgetSignInPassword();
+    usageLimitOwner = null;
+    resetUsageLimits();
     const client = matrixClient;
     const owner = client ? captureOwnership(client, clientGeneration) : null;
     // Only release the module slot if we still own it — a successor account's
@@ -10196,6 +10227,106 @@ export function getRoomPowerLevels(room: Room): PowerLevels {
     const creatorId =
         state?.getStateEvents("m.room.create", "")?.getSender() ?? null;
     return normalizePowerLevels(content ?? null, creatorId);
+}
+
+/**
+ * Keep the usage-limit store in step with the server-notice room(s): rooms
+ * tagged m.server_notice, where Synapse pins an
+ * m.server_notice.usage_limit_reached notice while a limit applies and
+ * unpins it once lifted. Re-checked when sync is ready, when tags change and
+ * when such a room gets a new event or new pins. Returns an unsubscribe.
+ */
+export function watchServerNotices(): () => void {
+    const client = matrixClient;
+    if (!client) return () => {};
+    const owner = captureClient();
+    let running = false;
+    let again = false;
+
+    const noticeRooms = () =>
+        client
+            .getRooms()
+            .filter(
+                (r) =>
+                    r.getMyMembership() === "join" &&
+                    !!r.tags?.[SERVER_NOTICE_TAG],
+            );
+
+    async function check(): Promise<void> {
+        if (running) {
+            again = true;
+            return;
+        }
+        running = true;
+        try {
+            let found: UsageLimitSignal | null = null;
+            for (const room of noticeRooms()) {
+                let pinned = getPinnedEventIds(room);
+                if (
+                    !room.currentState.getStateEvents(
+                        "m.room.pinned_events",
+                        "",
+                    )
+                )
+                    pinned = await fetchPinnedEventIds(room.roomId);
+                if (!ownedClient(owner)) return;
+                // Newest pin last; the latest notice wins.
+                for (const id of [...pinned].reverse()) {
+                    const ev =
+                        room.findEventById(id) ??
+                        (await fetchSingleEvent(room.roomId, id));
+                    if (!ownedClient(owner)) return;
+                    const notice = usageLimitNotice(ev?.getContent());
+                    if (notice) {
+                        found = notice;
+                        break;
+                    }
+                }
+                if (found) break;
+            }
+            setUsageLimitNotice(found);
+        } catch (err) {
+            console.warn("[usage-limits] server notice check failed", err);
+        } finally {
+            running = false;
+            if (again && ownedClient(owner)) {
+                again = false;
+                void check();
+            }
+        }
+    }
+
+    const isNoticeRoom = (room: Room | undefined) =>
+        !!room?.tags?.[SERVER_NOTICE_TAG];
+    const onSync = (state: string) => {
+        if (state === "PREPARED") void check();
+    };
+    const onTags = () => void check();
+    const onTimeline = (
+        _ev: MatrixEvent,
+        room: Room | undefined,
+        toStartOfTimeline: boolean | undefined,
+    ) => {
+        if (!toStartOfTimeline && isNoticeRoom(room)) void check();
+    };
+    const onState = (ev: MatrixEvent) => {
+        if (
+            ev.getType() === "m.room.pinned_events" &&
+            isNoticeRoom(client.getRoom(ev.getRoomId() ?? "") ?? undefined)
+        )
+            void check();
+    };
+    client.on(ClientEvent.Sync, onSync as never);
+    client.on(RoomEvent.Tags as never, onTags as never);
+    client.on(RoomEvent.Timeline, onTimeline as never);
+    client.on(RoomStateEvent.Events, onState as never);
+    if (client.isInitialSyncComplete()) void check();
+    return () => {
+        client.off(ClientEvent.Sync, onSync as never);
+        client.off(RoomEvent.Tags as never, onTags as never);
+        client.off(RoomEvent.Timeline, onTimeline as never);
+        client.off(RoomStateEvent.Events, onState as never);
+    };
 }
 
 export function getPinnedEventIds(room: Room): string[] {
