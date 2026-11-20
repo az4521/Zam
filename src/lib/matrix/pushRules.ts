@@ -13,6 +13,11 @@ import {
     verifyPushRuleLevel,
     type PushRuleWriteFailure,
 } from "$lib/utils/pushRuleWrite";
+import {
+    encryptedMentionsRuleBody,
+    encryptedMentionsRuleId,
+    planEncryptedMentionRules,
+} from "$lib/utils/encryptedMentions";
 
 export type RoomNotificationSetting = "default" | "all" | "mentions" | "mute";
 
@@ -190,6 +195,10 @@ export async function setRoomNotificationSettingForClient(
                 roomId,
                 { actions: [] },
             );
+            // The room rule above also swallows every ENCRYPTED message,
+            // mentions included: the server cannot read them. This rule has
+            // the server push those, and the device keeps only the mentions.
+            await addEncryptedMentionsRule(client, roomId);
             await deleteRuleIfPresent(client, PushRuleKind.Override, roomId);
         } else if (setting === "mute") {
             await client.addPushRule("global", PushRuleKind.Override, roomId, {
@@ -215,6 +224,8 @@ export async function setRoomNotificationSettingForClient(
             );
             await deleteRuleIfPresent(client, PushRuleKind.Override, roomId);
         }
+        if (setting !== "mentions")
+            await removeEncryptedMentionsRule(client, roomId);
         updated = true;
     } finally {
         // SDK push-rule mutation methods only update the server. Pull the
@@ -224,6 +235,70 @@ export async function setRoomNotificationSettingForClient(
             updateCachedSetting(client, roomId, setting);
         }
     }
+}
+
+/** Best-effort: a failure leaves mentions-only working for plaintext, and
+ *  `reconcileEncryptedMentionRulesForClient` retries on the next start. */
+async function addEncryptedMentionsRule(
+    client: MatrixClient,
+    roomId: string,
+): Promise<boolean> {
+    try {
+        await client.addPushRule(
+            "global",
+            PushRuleKind.Override,
+            encryptedMentionsRuleId(roomId),
+            encryptedMentionsRuleBody(roomId) as any,
+        );
+        return true;
+    } catch (error) {
+        console.warn("[push rules] encrypted mentions rule", roomId, error);
+        return false;
+    }
+}
+
+async function removeEncryptedMentionsRule(
+    client: MatrixClient,
+    roomId: string,
+): Promise<void> {
+    await removeEncryptedMentionsRuleById(
+        client,
+        encryptedMentionsRuleId(roomId),
+    );
+}
+
+async function removeEncryptedMentionsRuleById(
+    client: MatrixClient,
+    ruleId: string,
+): Promise<boolean> {
+    try {
+        await client.deletePushRule("global", PushRuleKind.Override, ruleId);
+        return true;
+    } catch (error) {
+        if (isMissingRule(error)) return true;
+        console.warn("[push rules] encrypted mentions rule", ruleId, error);
+        return false;
+    }
+}
+
+/**
+ * Bring the per-room encrypted-mentions rules in line with the room settings
+ * (see utils/encryptedMentions): add one for every "mentions only" room that
+ * lacks it (rooms set before this rule existed, or a write that failed) and
+ * drop the ones whose room is no longer "mentions only" (changed on another
+ * client). Never throws; returns how many rules it changed.
+ */
+export async function reconcileEncryptedMentionRulesForClient(
+    client: MatrixClient,
+): Promise<number> {
+    const plan = planEncryptedMentionRules(globalRules(client) as any);
+    let changed = 0;
+    for (const roomId of plan.add)
+        if (await addEncryptedMentionsRule(client, roomId)) changed++;
+    for (const ruleId of plan.remove)
+        if (await removeEncryptedMentionsRuleById(client, ruleId)) changed++;
+    if (changed > 0) await refreshCachedPushRules(client);
+    return changed;
 }
 
 /**

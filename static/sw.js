@@ -1436,6 +1436,49 @@ async function mxGet(path, session) {
 	}
 }
 
+// #region mirrored:mentions
+// Hand-mirrored from src/lib/utils/encryptedMentions.ts (and into
+// MatrixMessagingService.java); a test runs this region against the same
+// cases. In an encrypted "mentions only" room the server cannot see mentions,
+// so a per-room override rule has it push every encrypted message, and only
+// the ones this check passes after decryption are shown.
+const ENCRYPTED_MENTIONS_RULE_PREFIX = "moe.crafty.matrix.e2ee_mentions.";
+
+function mentionWordRegExp(word) {
+	return new RegExp(
+		"(^|\\W)" + word.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&") + "(\\W|$)",
+		"i",
+	);
+}
+
+function isMentionOfUser(content, userId, displayName) {
+	if (!content || typeof content !== "object") return false;
+	const mentions = content["m.mentions"];
+	if (mentions && typeof mentions === "object" && !Array.isArray(mentions)) {
+		if (Array.isArray(mentions.user_ids) && mentions.user_ids.includes(userId))
+			return true;
+		return mentions.room === true;
+	}
+	const body = content.body;
+	if (typeof body !== "string" || !body) return false;
+	const match = /^@([^:]+):/.exec(userId);
+	const localpart = match ? match[1] : "";
+	return [displayName || "", localpart, "@room"].some(
+		(word) => !!word && mentionWordRegExp(word).test(body),
+	);
+}
+// #endregion mirrored:mentions
+
+/** Whether this room has the encrypted-mentions rule (see above), enabled.
+ *  Any doubt (network, 404) is "no", which shows the message as before. */
+async function hasEncryptedMentionsRule(roomId, session) {
+	const rule = await mxGet(
+		`/_matrix/client/v3/pushrules/global/override/${encodeURIComponent(ENCRYPTED_MENTIONS_RULE_PREFIX + roomId)}`,
+		session,
+	);
+	return !!rule && typeof rule === "object" && rule.enabled !== false;
+}
+
 /** Whether a room is a DM: the account's m.direct, as the in-app ringer
  *  decides; only when that cannot be read, "at most two joined members". */
 async function isDirectRoom(roomId, session) {
@@ -1792,6 +1835,21 @@ async function buildNotification(data, session) {
 					? await decryptViaPage(roomId, eventId)
 					: null) || (await decryptInWorker(roomId, event, session));
 			if (clear) event = { ...event, type: clear.type, content: clear.content };
+			// A "mentions only" room: the server pushed this only because it
+			// cannot read it. Show it if it mentions us; otherwise (or when it
+			// cannot be decrypted, which is what happened before the rule
+			// existed: no push at all) close it silently.
+			if (await hasEncryptedMentionsRule(roomId, session)) {
+				if (!clear) return { own: true };
+				const me = await mxGet(
+					`/_matrix/client/v3/rooms/${rid}/state/m.room.member/${encodeURIComponent(session.userId)}`,
+					session,
+				);
+				const myName =
+					me && typeof me.displayname === "string" ? me.displayname : "";
+				if (!isMentionOfUser(event.content, session.userId, myName))
+					return { own: true };
+			}
 		}
 		// A moderator's "disconnect from voice" (com.zam.call.kick) is a command,
 		// not a message: show nothing (same as SILENT_ZAM_EVENT_TYPES).

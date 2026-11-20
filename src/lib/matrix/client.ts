@@ -361,6 +361,7 @@ import {
     getRoomNotificationSettingForClient,
     isHighlightAction,
     refreshCachedPushRules,
+    reconcileEncryptedMentionRulesForClient,
     setDefaultPushRuleLevelForClient,
     setRoomNotificationSettingForClient,
     type RoomNotificationSetting,
@@ -6285,6 +6286,26 @@ export async function ensureCallNotifyPushRule(): Promise<void> {
             // Already present or a transient failure — the rule is best-effort.
         }
     }
+}
+
+/**
+ * Give every "mentions only" room the rule that lets its encrypted messages
+ * reach the device's mention check (see utils/encryptedMentions), and drop the
+ * ones left over from rooms changed on another client. Best-effort, never
+ * throws; runs once push rules are loaded.
+ */
+export async function ensureEncryptedMentionRules(): Promise<void> {
+    if (!matrixClient) return;
+    const client = matrixClient;
+    return pushRuleWriteQueue.run(async () => {
+        try {
+            const changed =
+                await reconcileEncryptedMentionRulesForClient(client);
+            if (changed > 0) pushRulesState.revision++;
+        } catch {
+            // Best-effort: retried on the next start.
+        }
+    });
 }
 
 // ── Per-room notification settings ────────────────────────────────────────

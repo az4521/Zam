@@ -4,11 +4,16 @@ import {
     actionsForLevel,
     getRoomNotificationSettingForClient,
     isHighlightAction,
+    reconcileEncryptedMentionRulesForClient,
     setDefaultPushRuleLevelForClient,
     setRoomNotificationSettingForClient,
     type DefaultRuleLevelWrite,
     type PushRuleLevel,
 } from "./pushRules";
+import {
+    encryptedMentionsRuleBody,
+    encryptedMentionsRuleId,
+} from "$lib/utils/encryptedMentions";
 
 // Spec-default action templates (as stored on each DEFAULT_PUSH_RULES entry).
 const MENTION_DEFAULT = [
@@ -166,15 +171,48 @@ describe("room notification settings", () => {
             "mentions",
         );
 
-        expect(calls).toEqual(["add", "delete"]);
+        expect(calls).toEqual(["add", "add", "delete"]);
         expect(client.addPushRule).toHaveBeenCalledWith(
             "global",
             PushRuleKind.RoomSpecific,
             "!room:example.org",
             { actions: [] },
         );
+        // Encrypted messages in the room still reach the device's mention check.
+        expect(client.addPushRule).toHaveBeenCalledWith(
+            "global",
+            PushRuleKind.Override,
+            encryptedMentionsRuleId("!room:example.org"),
+            encryptedMentionsRuleBody("!room:example.org"),
+        );
         expect(client.getPushRules).toHaveBeenCalledTimes(1);
     });
+
+    it("mentions-only still applies when the encrypted rule cannot be added", async () => {
+        const client = clientWithRules();
+        client.addPushRule.mockImplementation(
+            async (_s: string, kind: PushRuleKind) => {
+                if (kind === PushRuleKind.Override) throw new Error("nope");
+                return {};
+            },
+        );
+        await expect(
+            setRoomNotificationSettingForClient(client, "!r", "mentions"),
+        ).resolves.toBeUndefined();
+    });
+
+    it.each(["all", "mute", "default"] as const)(
+        "%s removes the encrypted mentions rule",
+        async (setting) => {
+            const client = clientWithRules();
+            await setRoomNotificationSettingForClient(client, "!r", setting);
+            expect(client.deletePushRule).toHaveBeenCalledWith(
+                "global",
+                PushRuleKind.Override,
+                encryptedMentionsRuleId("!r"),
+            );
+        },
+    );
 
     it("does not swallow a real delete failure", async () => {
         const client = clientWithRules();
@@ -183,6 +221,56 @@ describe("room notification settings", () => {
             setRoomNotificationSettingForClient(client, "!r", "all"),
         ).rejects.toThrow("offline");
         expect(client.getPushRules).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe("reconcileEncryptedMentionRulesForClient", () => {
+    it("adds missing rules, drops stale ones, then re-reads", async () => {
+        const client = clientWithRules({
+            room: [{ rule_id: "!quiet", actions: [] }],
+            override: [
+                {
+                    rule_id: encryptedMentionsRuleId("!loud"),
+                    actions: ["notify"],
+                },
+            ],
+        });
+        await expect(
+            reconcileEncryptedMentionRulesForClient(client),
+        ).resolves.toBe(2);
+        expect(client.addPushRule).toHaveBeenCalledWith(
+            "global",
+            PushRuleKind.Override,
+            encryptedMentionsRuleId("!quiet"),
+            encryptedMentionsRuleBody("!quiet"),
+        );
+        expect(client.deletePushRule).toHaveBeenCalledWith(
+            "global",
+            PushRuleKind.Override,
+            encryptedMentionsRuleId("!loud"),
+        );
+        expect(client.getPushRules).toHaveBeenCalledTimes(1);
+    });
+
+    it("does nothing (and never throws) when in step or failing", async () => {
+        const inStep = clientWithRules({
+            room: [{ rule_id: "!q", actions: [] }],
+            override: [
+                { rule_id: encryptedMentionsRuleId("!q"), actions: ["notify"] },
+            ],
+        });
+        await expect(
+            reconcileEncryptedMentionRulesForClient(inStep),
+        ).resolves.toBe(0);
+        expect(inStep.getPushRules).not.toHaveBeenCalled();
+
+        const failing = clientWithRules({
+            room: [{ rule_id: "!q", actions: [] }],
+        });
+        failing.addPushRule.mockRejectedValue(new Error("offline"));
+        await expect(
+            reconcileEncryptedMentionRulesForClient(failing),
+        ).resolves.toBe(0);
     });
 });
 
