@@ -31,6 +31,17 @@ finish-args:
     # discord-ipc-N here (electron/discordRpc.cjs). Creating the folder
     # shares it with the host.
     - --filesystem=xdg-run/app/com.discordapp.Discord:create
+    # Import favourite GIFs from Discord (Settings > Messages & Media): read
+    # only Discord's localStorage, for each place a Discord install keeps it
+    # (native, Discord's Flatpaks, Snaps). Keep in step with
+    # discordFavouriteDirs in electron/discordFavourites.cjs.
+    - --filesystem=xdg-config/discord/Local Storage:ro
+    - --filesystem=xdg-config/discordcanary/Local Storage:ro
+    - --filesystem=xdg-config/discordptb/Local Storage:ro
+    - --filesystem=~/.var/app/com.discordapp.Discord/config/discord/Local Storage:ro
+    - --filesystem=~/.var/app/com.discordapp.DiscordCanary/config/discordcanary/Local Storage:ro
+    - --filesystem=~/snap/discord/current/.config/discord/Local Storage:ro
+    - --filesystem=~/snap/discord-canary/current/.config/discordcanary/Local Storage:ro
     # Host process list and Discord restart. The sandbox has its own PID
     # namespace, so it cannot see or end host programs; there is no narrower
     # permission for that. Zam runs `ps`, `flatpak ps` and `flatpak kill` on

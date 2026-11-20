@@ -486,6 +486,18 @@ test("dirs: linux adds the flatpak folder; other platforms do not", () => {
         home: "/home/x",
         platform: "linux",
     });
-    assert.equal(linux.length, 4);
-    assert.match(linux[3], /com\.discordapp\.Discord/);
+    // ~/.config is appData already, so it is not listed twice.
+    assert.equal(linux.length, 7);
+    assert.ok(linux.some((d) => d.includes("com.discordapp.Discord/")));
+    assert.ok(linux.some((d) => d.includes("com.discordapp.DiscordCanary/")));
+    assert.ok(linux.some((d) => d.includes("snap/discord/")));
+    assert.ok(linux.some((d) => d.includes("snap/discord-canary/")));
+    // Zam in its own Flatpak: appData is the sandbox, the real ~/.config is
+    // still searched.
+    const sandboxed = discordFavouriteDirs(
+        "/home/x/.var/app/moe.crafty.matrix/config",
+        { home: "/home/x", platform: "linux" },
+    );
+    assert.equal(sandboxed.length, 10);
+    assert.ok(sandboxed.includes("/home/x/.config/discordcanary"));
 });

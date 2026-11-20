@@ -447,22 +447,29 @@ function discordFavouriteDirs(
     appData,
     { home = os.homedir(), platform = process.platform } = {},
 ) {
-    const dirs = ["discord", "discordcanary", "discordptb"].map((n) =>
-        path.join(appData, n),
-    );
+    // Path rules follow `platform` (not the host) so the list is testable.
+    const p = platform === "win32" ? path.win32 : path.posix;
+    const names = ["discord", "discordcanary", "discordptb"];
+    const dirs = names.map((n) => p.join(appData, n));
     if (platform === "linux") {
+        // Inside Zam's own Flatpak, appData is Zam's sandbox config folder,
+        // so also look in the real ~/.config (HOME stays the host's home).
+        for (const n of names) dirs.push(p.join(home, ".config", n));
+        // Discord's own Flatpaks and Snaps keep their config in their own
+        // per-app folders. Zam's Flatpak manifest grants read-only access to
+        // each of these paths; keep the two lists in step.
         dirs.push(
-            path.join(
+            p.join(home, ".var/app/com.discordapp.Discord/config/discord"),
+            p.join(
                 home,
-                ".var",
-                "app",
-                "com.discordapp.Discord",
-                "config",
-                "discord",
+                ".var/app/com.discordapp.DiscordCanary/config/discordcanary",
             ),
+            p.join(home, "snap/discord/current/.config/discord"),
+            p.join(home, "snap/discord-canary/current/.config/discordcanary"),
         );
     }
-    return dirs;
+    // appData is usually ~/.config already, which would list it twice.
+    return [...new Set(dirs)];
 }
 
 // Result contract for the renderer (discord-favourites:read IPC). Link checks
