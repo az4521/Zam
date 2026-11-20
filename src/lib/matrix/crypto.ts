@@ -1949,6 +1949,33 @@ export function deferOwnDeviceKeysCheck(
 }
 
 /**
+ * Display names of the devices already in this session's crypto store, for
+ * the given users, keyed userId -> deviceId -> displayName. Never downloads
+ * anything (`false`), so it is cheap to call from UI and only reports devices
+ * we already track. Empty when crypto isn't ready or the lookup fails.
+ */
+export async function getCachedDeviceDisplayNames(
+    userIds: string[],
+): Promise<Map<string, Map<string, string | null>>> {
+    const out = new Map<string, Map<string, string | null>>();
+    const crypto = getClient()?.getCrypto();
+    if (!crypto || userIds.length === 0) return out;
+    try {
+        const info = await crypto.getUserDeviceInfo(userIds, false);
+        for (const [userId, devices] of info) {
+            const names = new Map<string, string | null>();
+            for (const [deviceId, device] of devices) {
+                names.set(deviceId, device.displayName ?? null);
+            }
+            out.set(userId, names);
+        }
+    } catch {
+        return new Map();
+    }
+    return out;
+}
+
+/**
  * Every session of `userId` that this session's crypto knows, with its trust.
  * For someone we share an encrypted room with, these are exactly the sessions
  * our messages are encrypted for: one missing here gets no keys from us. With

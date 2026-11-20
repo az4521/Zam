@@ -3,6 +3,8 @@ import {
     deviceCountByUser,
     callTileStatus,
     rosterCallStatus,
+    devicesByUser,
+    deviceLabel,
 } from "./callTileStatus";
 
 describe("deviceCountByUser", () => {
@@ -181,5 +183,57 @@ describe("rosterCallStatus", () => {
                 selfDeafened: true,
             }),
         ).toEqual({ micOff: false, deafened: true });
+    });
+});
+
+describe("devicesByUser", () => {
+    it("is empty for no memberships", () => {
+        expect(devicesByUser([])).toEqual(new Map());
+    });
+    it("lists each user's distinct devices, earliest joined first", () => {
+        expect(
+            devicesByUser([
+                { userId: "@a:s", deviceId: "D2", joinedTs: 300 },
+                { userId: "@b:s", deviceId: "D3", joinedTs: 50 },
+                { userId: "@a:s", deviceId: "D1", joinedTs: 100 },
+            ]),
+        ).toEqual(
+            new Map([
+                [
+                    "@a:s",
+                    [
+                        { deviceId: "D1", joinedTs: 100 },
+                        { deviceId: "D2", joinedTs: 300 },
+                    ],
+                ],
+                ["@b:s", [{ deviceId: "D3", joinedTs: 50 }]],
+            ]),
+        );
+    });
+    it("counts a repeated (user, device) once, keeping the earliest join", () => {
+        expect(
+            devicesByUser([
+                { userId: "@a:s", deviceId: "D1", joinedTs: 200 },
+                { userId: "@a:s", deviceId: "D1", joinedTs: 100 },
+            ]),
+        ).toEqual(new Map([["@a:s", [{ deviceId: "D1", joinedTs: 100 }]]]));
+    });
+});
+
+describe("deviceLabel", () => {
+    it("uses the this-device text for the local device", () => {
+        expect(deviceLabel("D1", "Phone", true, "This device")).toBe(
+            "This device",
+        );
+    });
+    it("uses the trimmed display name for other devices", () => {
+        expect(deviceLabel("D2", "  Laptop  ", false, "This device")).toBe(
+            "Laptop",
+        );
+    });
+    it("falls back to the device id when the name is missing or blank", () => {
+        expect(deviceLabel("D2", null, false, "This device")).toBe("D2");
+        expect(deviceLabel("D3", undefined, false, "This device")).toBe("D3");
+        expect(deviceLabel("D4", "   ", false, "This device")).toBe("D4");
     });
 });

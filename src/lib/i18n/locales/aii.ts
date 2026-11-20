@@ -273,8 +273,6 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callView.muted": "ܫܬܝܩܐ",
     "callView.deafened": "ܫܡܥܐ ܣܟܝܪܐ",
     "callView.mutedForYou": "ܫܬܝܩܐ ܩܬܘܟ",
-    "callView.joinedFromMultipleDevices": "ܥܠܠܗ ܡܢ ܒܝܫ ܡܢ ܚܕ ܡܐܢܐ",
-    "callView.devices": "{value} ܡܐܢ̈ܐ",
     "callView.enableAudio": "ܕܠܩ ܩܠܐ",
     "callView.onHold": "ܡܛܘܪܐ ܟܕ ܩܪܝܬܐ ܐܚܪܬܐ ܦܥܝܠܬܐ",
     "callView.resume": "ܐܡܫܟ",

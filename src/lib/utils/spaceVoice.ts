@@ -9,6 +9,8 @@ export interface VoiceParticipantInput {
     userId: string;
     name: string;
     avatar: string | null;
+    /** Device labels, present only when the user is joined from 2+ devices. */
+    devices?: string[];
 }
 
 /** A room that has at least one device in its call. */
@@ -78,6 +80,7 @@ export function summarizeVoice(
                 userId: p.userId,
                 name: p.name,
                 avatar: p.avatar,
+                ...(p.devices ? { devices: p.devices } : {}),
                 live:
                     share.roomId === room.roomId && share.userIds.has(p.userId),
             });

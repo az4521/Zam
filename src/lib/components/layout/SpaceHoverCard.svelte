@@ -1,6 +1,6 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
-    import { Volume2 } from "lucide-svelte";
+    import { MonitorSmartphone, Volume2 } from "lucide-svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import {
         countVoiceParticipants,
@@ -96,24 +96,49 @@
                 </div>
                 <ul class="mt-1 flex flex-col gap-1 ps-4">
                     {#each shown as p (p.userId)}
-                        <li class="flex items-center gap-1.5 min-w-0">
-                            <Avatar
-                                src={p.avatar}
-                                name={p.name}
-                                id={p.userId}
-                                size={20}
-                            />
-                            <span
-                                class="text-xs text-zam-textSecondary truncate min-w-0"
-                            >
-                                {p.name}
-                            </span>
-                            {#if p.live}
+                        <li class="min-w-0">
+                            <div class="flex items-center gap-1.5 min-w-0">
+                                <Avatar
+                                    src={p.avatar}
+                                    name={p.name}
+                                    id={p.userId}
+                                    size={20}
+                                />
                                 <span
-                                    class="ms-auto flex-shrink-0 h-3.5 px-1 rounded-sm bg-zam-danger text-white text-[9px] font-bold leading-[14px] tracking-wide"
+                                    class="text-xs text-zam-textSecondary truncate min-w-0"
                                 >
-                                    {t("spaceSidebar.liveBadge")}
+                                    {p.name}
                                 </span>
+                                {#if p.devices && p.devices.length > 1}
+                                    <span
+                                        class="flex-shrink-0 flex items-center gap-0.5 text-[10px] leading-none px-1 py-0.5 rounded bg-zam-backgroundTertiary text-zam-textMuted"
+                                        title={p.devices.join(", ")}
+                                    >
+                                        <MonitorSmartphone
+                                            size={12}
+                                            aria-hidden="true"
+                                        />{p.devices.length}<span
+                                            class="sr-only"
+                                            >{t("callView.deviceCountPill", {
+                                                count: p.devices.length,
+                                            })}</span
+                                        >
+                                    </span>
+                                {/if}
+                                {#if p.live}
+                                    <span
+                                        class="ms-auto flex-shrink-0 h-3.5 px-1 rounded-sm bg-zam-danger text-white text-[9px] font-bold leading-[14px] tracking-wide"
+                                    >
+                                        {t("spaceSidebar.liveBadge")}
+                                    </span>
+                                {/if}
+                            </div>
+                            {#if p.devices && p.devices.length > 1}
+                                <p
+                                    class="ps-[26px] text-[11px] leading-tight text-zam-textMuted truncate"
+                                >
+                                    {p.devices.join(", ")}
+                                </p>
                             {/if}
                         </li>
                     {/each}

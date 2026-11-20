@@ -18,7 +18,7 @@
         VideoOff,
         MonitorUp,
         EllipsisVertical,
-        Smartphone,
+        MonitorSmartphone,
         Settings,
         Ear,
         Bluetooth,
@@ -41,9 +41,15 @@
     import VideoTile from "$lib/components/layout/VideoTile.svelte";
     import {
         deviceCountByUser,
+        devicesByUser,
         callTileStatus,
     } from "$lib/utils/callTileStatus";
     import {
+        requestDeviceLabels,
+        callDeviceLabelsFor,
+    } from "$lib/stores/callDeviceLabels.svelte";
+    import {
+        getOwnDeviceId,
         getRoomCallMemberships,
         getRoomDisplayName,
         getMemberName,
@@ -73,15 +79,15 @@
     } from "$lib/utils/voiceCall";
     import { screenShareSupportedHere } from "$lib/utils/videoTiles";
     import {
+        callPopoutSupported,
+        openCallPopout,
+    } from "$lib/stores/callPopout.svelte";
+    import {
         showChatView,
         openModal,
         clearModalIfOwner,
         interfaceState,
     } from "$lib/stores/interface.svelte";
-    import {
-        callPopoutSupported,
-        openCallPopout,
-    } from "$lib/stores/callPopout.svelte";
     import { roomsState } from "$lib/stores/rooms.svelte";
     import { auth } from "$lib/stores/auth.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
@@ -112,15 +118,15 @@
         room: Room;
         isMobile?: boolean;
         onMenuOpen?: () => void;
+        /** Set in the call's pop-out window (CallPopoutView): the header button
+         *  brings the call back to the main window. */
+        popout?: { onReturn: () => void };
     }
     let { room, isMobile = false, onMenuOpen, popout }: Props = $props();
 
     // Capture support is fixed for the session (no runtime change), so a plain
     // const is enough — used to hide the share-screen button where unsupported.
     const screenShareSupported = $derived(screenShareSupportedHere());
-        /** Set in the call's pop-out window (CallPopoutView): the header button
-         *  brings the call back to the main window. */
-        popout?: { onReturn: () => void };
 
     // Live SDK objects mutate in place, so every read of call/room state hangs
     // off a tick: voiceTick for the roster, roomsTick for names and avatars.
@@ -131,6 +137,25 @@
     );
     const participants = $derived(dedupeParticipants(rawCallMemberships));
     const deviceCounts = $derived(deviceCountByUser(rawCallMemberships));
+    const devicesOf = $derived(devicesByUser(rawCallMemberships));
+    // Device names come from the crypto store (cache only). Fetch them for
+    // anyone joined from more than one device; the store dedupes by age.
+    $effect(() => {
+        const multi = [...deviceCounts]
+            .filter(([, n]) => n > 1)
+            .map(([id]) => id);
+        if (multi.length > 0) untrack(() => void requestDeviceLabels(multi));
+    });
+    /** Display label for each of a user's devices, earliest joined first. */
+    function deviceLabelsFor(userId: string): string[] {
+        return callDeviceLabelsFor(
+            userId,
+            devicesOf.get(userId) ?? [],
+            auth.userId,
+            getOwnDeviceId(),
+            t("callView.thisDevice"),
+        );
+    }
     const inThisCall = $derived(voiceCallState.roomId === room.roomId);
     const controlMode = $derived(
         callControlMode({
@@ -703,6 +728,7 @@
                         selfDeafened: voiceCallState.deafened,
                         deviceCount: deviceCounts.get(p.userId) ?? 1,
                     })}
+                    {@const deviceNames = deviceLabelsFor(p.userId)}
                     <!-- svelte-ignore a11y_no_static_element_interactions -->
                     <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <div
@@ -748,7 +774,7 @@
                                     spotlightTile(cam.key);
                                 }}
                             ></button>
-                            {#if status.micOff || status.deafened || status.locallyMuted || status.multiDevice}
+                            {#if status.micOff || status.deafened || status.locallyMuted}
                                 <div
                                     class="absolute top-2 start-2 flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60"
                                 >
@@ -781,29 +807,6 @@
                                         <span class="sr-only"
                                             >{t("callView.mutedForYou")}</span
                                         >
-                                    {/if}
-                                    {#if status.multiDevice}
-                                        <span
-                                            class="flex items-center gap-0.5 text-[10px] leading-none text-white flex-shrink-0"
-                                            title={t(
-                                                "callView.joinedFromMultipleDevices",
-                                            )}
-                                        >
-                                            <Smartphone
-                                                size={12}
-                                                aria-hidden="true"
-                                            /><span class="sr-only"
-                                                >{t("callView.devices", {
-                                                    value:
-                                                        deviceCounts.get(
-                                                            p.userId,
-                                                        ) ?? 1,
-                                                })}</span
-                                            ><span aria-hidden="true"
-                                                >{deviceCounts.get(p.userId) ??
-                                                    1}</span
-                                            >
-                                        </span>
                                     {/if}
                                 </div>
                             {/if}
@@ -847,33 +850,37 @@
                                         >{t("callView.mutedForYou")}</span
                                     >
                                 {/if}
-                                {#if status.multiDevice}
-                                    <span
-                                        class="flex items-center gap-0.5 text-[10px] leading-none text-white flex-shrink-0"
-                                        title={t(
-                                            "callView.joinedFromMultipleDevices",
-                                        )}
-                                    >
-                                        <Smartphone
-                                            size={12}
-                                            aria-hidden="true"
-                                        /><span class="sr-only"
-                                            >{t("callView.devices", {
-                                                value:
-                                                    deviceCounts.get(
-                                                        p.userId,
-                                                    ) ?? 1,
-                                            })}</span
-                                        ><span aria-hidden="true"
-                                            >{deviceCounts.get(p.userId) ??
-                                                1}</span
-                                        >
-                                    </span>
-                                {/if}
                                 <span class="text-xs text-white truncate"
                                     >{name}</span
                                 >
                             </div>
+                            {#if status.multiDevice}
+                                <span
+                                    class="absolute bottom-9 start-2 max-w-[calc(100%-1rem)] truncate px-2 py-0.5 rounded bg-black/60 text-[11px] leading-tight text-white/75"
+                                    title={deviceNames.join(", ")}
+                                    >{deviceNames.join(", ")}</span
+                                >
+                            {/if}
+                        {/if}
+                        {#if status.multiDevice}
+                            <span
+                                class="absolute top-2 end-10 flex items-center gap-1 max-w-[45%] px-1.5 py-0.5 rounded bg-black/60 text-[11px] leading-none text-white"
+                                title={deviceNames.join(", ")}
+                            >
+                                <MonitorSmartphone
+                                    size={12}
+                                    class="flex-shrink-0"
+                                    aria-hidden="true"
+                                />
+                                <span class="truncate"
+                                    >{t("callView.deviceCountPill", {
+                                        count: deviceNames.length,
+                                    })}</span
+                                >
+                                <span class="sr-only"
+                                    >{deviceNames.join(", ")}</span
+                                >
+                            </span>
                         {/if}
                         <button
                             type="button"
