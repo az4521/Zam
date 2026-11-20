@@ -83,6 +83,12 @@ const cl = [
     "/EHsc",
     "/W3",
     "/std:c++17",
+    // C++/WinRT includes <experimental/coroutine> under C++17. MSVC 14.5x
+    // (Visual Studio 18, the CI runner) turns its deprecation into a hard
+    // error; this define keeps it a no-op. /std:c++20 is not the way out:
+    // the Windows SDK C++/WinRT that ships with VS 2022 still includes the
+    // experimental header there, which C++20 rejects outright.
+    "/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS",
     `"${src}"`,
     `/Fe:"${out}"`,
     `/Fo:"${outDir}\\\\"`,
