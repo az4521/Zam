@@ -224,6 +224,11 @@ jobs:
             # on the other runners.
             - name: Build app audio helper
               run: npm run build:app-audio
+            # Windows: the now-playing helper (native/media-session) for
+            # "Listening to" presence. Needs MSVC (C++/WinRT), which the
+            # windows runner has. A no-op on the other runners.
+            - name: Build media session helper
+              run: npm run build:media-session
             # macOS: the MediaRemote now-playing adapter
             # (native/mediaremote-adapter), packed by build.mac.extraResources.
             # A no-op on the other runners.

@@ -1178,11 +1178,22 @@ const richPresence = createRichPresence({
     inFlatpak: IN_FLATPAK,
     // Discord's game list and app names, over net.fetch so the proxy applies.
     fetch: (url, init) => net.fetch(url, init),
-    // The macOS now-playing adapter (see mediaSession.cjs and
-    // scripts/build-mediaremote-adapter.mjs).
-    mediaDir: app.isPackaged
-        ? path.join(process.resourcesPath, "mediaremote")
-        : path.join(app.getAppPath(), "native", "mediaremote-adapter"),
+    // The now-playing helper: zam-media.exe on Windows
+    // (scripts/build-media-session.mjs), the MediaRemote adapter on macOS
+    // (scripts/build-mediaremote-adapter.mjs). See mediaSession.cjs.
+    mediaDir:
+        process.platform === "win32"
+            ? app.isPackaged
+                ? process.resourcesPath
+                : path.join(
+                      app.getAppPath(),
+                      "native",
+                      "media-session",
+                      "build",
+                  )
+            : app.isPackaged
+              ? path.join(process.resourcesPath, "mediaremote")
+              : path.join(app.getAppPath(), "native", "mediaremote-adapter"),
     // Steam game invites open their steam:// link (richPresence joinGame).
     openExternal: (url) => shell.openExternal(url),
     send: (event) => {

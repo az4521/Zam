@@ -16,9 +16,10 @@
         "format": "prettier --write .",
         "electron": "electron .",
         "electron:dev": "npm run build && electron .",
-        "electron:build": "npm run build && npm run build:app-audio && npm run build:share-capture && npm run build:mediaremote &&node scripts/gen-shell-hash.mjs && electron-builder",
+        "electron:build": "npm run build && npm run build:app-audio && npm run build:share-capture && npm run build:media-session && npm run build:mediaremote && node scripts/gen-shell-hash.mjs && electron-builder",
         "build:app-audio": "node scripts/build-app-audio.mjs",
         "build:share-capture": "node scripts/build-share-capture.mjs",
+        "build:media-session": "node scripts/build-media-session.mjs",
         "test:electron": "node --test electron/nativeShare.test.cjs electron/discordFavourites.test.cjs",
         "build:mediaremote": "node scripts/build-mediaremote-adapter.mjs",
         "test": "vitest run",
@@ -63,6 +64,10 @@
                 {
                     "from": "native/share-capture/build/zam-share.exe",
                     "to": "zam-share.exe"
+                },
+                {
+                    "from": "native/media-session/build/zam-media.exe",
+                    "to": "zam-media.exe"
                 }
             ]
         },

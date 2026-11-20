@@ -11,9 +11,9 @@
 // or null, where startedAt = Date.now() - positionMs and cover is { type, data }
 // (the album art, PNG/JPEG/WebP) or undefined.
 //
-// Windows reads go through one long-lived PowerShell helper, since the WinRT
-// API is only reachable from .NET. Its output is one JSON line per session and
-// an end marker after each poll.
+// Windows reads go through one long-lived native helper,
+// native/media-session/zam-media.exe (C++/WinRT, scripts/build-media-session.mjs).
+// Its output is one JSON line per session and an end marker after each poll.
 
 const { spawn } = require("child_process");
 const fs = require("fs");
@@ -24,7 +24,8 @@ const { connectStream, readVardict } = require("./portalShortcuts.cjs");
 
 const POLL_MS = 2000;
 // Cover art: a file or download at most this big, and a Windows thumbnail
-// (sent base64 in its line) at most SMTC_COVER_MAX bytes.
+// (sent base64 in its line) at most SMTC_COVER_MAX bytes (COVER_MAX in
+// zam-media.cpp).
 const ART_MAX_BYTES = 4 * 1024 * 1024;
 const ART_TIMEOUT_MS = 10_000;
 const SMTC_COVER_MAX = 1536 * 1024;
@@ -40,74 +41,6 @@ const MPRIS_PREFIX = "org.mpris.MediaPlayer2.";
 const MPRIS_PATH = "/org/mpris/MediaPlayer2";
 const ROOT_IFACE = "org.mpris.MediaPlayer2";
 const PLAYER_IFACE = "org.mpris.MediaPlayer2.Player";
-
-// Reads every session's media, timeline and playback state, prints one JSON
-// line per session, then {"end":true}, and repeats every two seconds. When a
-// session's title, artist or album changed since its last line, the line also
-// carries its thumbnail as base64 `cover` and `coverType` (PNG or JPEG only).
-const SMTC_SCRIPT = `
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
-Add-Type -AssemblyName System.Runtime.WindowsRuntime
-$null =[Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager,Windows.Media.Control,ContentType=WindowsRuntime]
-$asTask = [System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -like 'IAsyncOperation*' } | Select-Object -First 1
-function AwaitWinRt($op, $type) {
-    $task = $asTask.MakeGenericMethod($type).Invoke($null, @($op))
-    $task.Wait(-1) | Out-Null
-    $task.Result
-}
-function ReadCover($ref) {
-    if ($null -eq $ref) { return $null }
-    $stream = AwaitWinRt ($ref.OpenReadAsync()) ([Windows.Storage.Streams.IRandomAccessStreamWithContentType])
-    # Called by reflection: PowerShell will not convert the COM object to IRandomAccessStream.
-    $asStream = [System.IO.WindowsRuntimeStreamExtensions].GetMethod('AsStream', [type[]]@([Windows.Storage.Streams.IRandomAccessStream]))
-    $net = $asStream.Invoke($null, @($stream))
-    $mem = New-Object System.IO.MemoryStream
-    $net.CopyTo($mem)
-    if ($mem.Length -gt ${SMTC_COVER_MAX}) { return $null }
-    $bytes = $mem.ToArray()
-    if ($bytes.Length -ge 8 -and $bytes[0] -eq 137 -and $bytes[1] -eq 80 -and $bytes[2] -eq 78 -and $bytes[3] -eq 71) { $type = 'image/png' }
-    elseif ($bytes.Length -ge 3 -and $bytes[0] -eq 255 -and $bytes[1] -eq 216 -and $bytes[2] -eq 255) { $type = 'image/jpeg' }
-    else { return $null }
-    return @{ type = $type; b64 = [Convert]::ToBase64String($bytes) }
-}
-$mgr = AwaitWinRt ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
-$out = [Console]::Out
-$coverKeys = @{}
-while ($true) {
-    foreach ($s in $mgr.GetSessions()) {
-        try {
-            $media = AwaitWinRt ($s.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
-            $timeline = $s.GetTimelineProperties()
-            $status = [string]$s.GetPlaybackInfo().PlaybackStatus
-            $pos = $timeline.Position.TotalMilliseconds
-            if ($status -eq 'Playing') { $pos += ([DateTimeOffset]::UtcNow - $timeline.LastUpdatedTime).TotalMilliseconds }
-            $id = [string]$s.SourceAppUserModelId
-            $cover = $null
-            $trackKey = [string]$media.Title + [char]10 + [string]$media.Artist + [char]10 + [string]$media.AlbumTitle
-            if ($coverKeys[$id] -ne $trackKey) {
-                $coverKeys[$id] = $trackKey
-                try { $cover = ReadCover $media.Thumbnail } catch {}
-            }
-            $line = [pscustomobject]@{
-                SourceAppUserModelId = $s.SourceAppUserModelId
-                title = $media.Title
-                artist = $media.Artist
-                albumTitle = $media.AlbumTitle
-                playbackStatus = $status
-                positionMs = [math]::Round($pos)
-                endTimeMs = [math]::Round($timeline.EndTime.TotalMilliseconds)
-            }
-            if ($null -ne $cover) {
-                $line | Add-Member -NotePropertyName cover -NotePropertyValue $cover.b64
-                $line | Add-Member -NotePropertyName coverType -NotePropertyValue $cover.type
-            }
-            $out.WriteLine(($line | ConvertTo-Json -Compress))
-        } catch {}
-    }
-    $out.WriteLine('{"end":true}')
-    Start-Sleep -Seconds 2
-}
-`;
 
 const text = (v) => (typeof v === "string" ? v.trim() : "");
 /** A whole, non-negative number of milliseconds, or 0 when there is none. */
@@ -169,7 +102,7 @@ function coverOf(bytes, types = ["image/png", "image/jpeg", "image/webp"]) {
 }
 
 /**
- * One line from the PowerShell helper: a session as { end: false, playerId,
+ * One line from the zam-media helper: a session as { end: false, playerId,
  * playerName, playing, title, artist, album, durationMs, positionMs, cover }, the
  * end of a poll as { end: true }, or null for anything else. `cover` is { type,
  * data } when the line carried a PNG or JPEG thumbnail that is not too big.
@@ -426,20 +359,31 @@ function createTrackDiffer(onTrack) {
     };
 }
 
-function startSmtc({ diff, status, log }) {
+function startSmtc({ diff, status, log, mediaDir }) {
     let stopping = false;
     let child = null;
     let restarts = 0;
+    const helper = path.join(
+        mediaDir ||
+            path.join(process.cwd(), "native", "media-session", "build"),
+        "zam-media.exe",
+    );
+    if (!fs.existsSync(helper)) {
+        log(
+            "media",
+            "zam-media.exe not built; run npm run build:media-session",
+        );
+        status.error = "media helper missing";
+        return { stop() {} };
+    }
 
     const spawnHelper = () => {
-        // The script is passed as an argument: PowerShell reads nothing from a
-        // stdin that Node gives it, and reports the end of input at once.
-        const encoded = Buffer.from(SMTC_SCRIPT, "utf16le").toString("base64");
-        const proc = spawn(
-            "powershell.exe",
-            ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
-            { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] },
-        );
+        // stdin stays open as a pipe: the helper exits when it closes, so it
+        // cannot outlive Zam.
+        const proc = spawn(helper, [], {
+            windowsHide: true,
+            stdio: ["pipe", "pipe", "pipe"],
+        });
         child = proc;
         let buf = "";
         let batch = [];
@@ -816,8 +760,9 @@ function startMacos({ diff, status, log, mediaDir }) {
  * and the SMTC helper are both reachable from inside a Flatpak, but the
  * manifest must grant org.mpris.MediaPlayer2.* for players to be visible. `fetch` (net.fetch in
  * the app) is what cover art from i.scdn.co is downloaded with; without it only
- * file:// art is read. `mediaDir` is where the macOS MediaRemote adapter was
- * built (see scripts/build-mediaremote-adapter.mjs).
+ * file:// art is read. `mediaDir` is the folder holding zam-media.exe on
+ * Windows (scripts/build-media-session.mjs) or the macOS MediaRemote adapter
+ * (scripts/build-mediaremote-adapter.mjs).
  */
 function createMediaSession({
     onTrack,
@@ -836,7 +781,7 @@ function createMediaSession({
             impl = null;
             status.error = null;
             if (process.platform === "win32")
-                impl = startSmtc({ diff, status, log });
+                impl = startSmtc({ diff, status, log, mediaDir });
             else if (process.platform === "linux")
                 impl = startMpris({ diff, status, log, doFetch });
             else if (process.platform === "darwin")
@@ -864,5 +809,4 @@ module.exports = {
     parseMprisProps,
     parseSmtcLine,
     readArt,
-    SMTC_SCRIPT,
 };
