@@ -79,3 +79,47 @@ export function callKickKey(
 ): string {
     return `${roomId}\n${userId}\n${deviceId ?? "*"}`;
 }
+
+/** Whether a call membership state key (legacy `m.call.member`) belongs to one
+ *  device. matrix-js-sdk writes `_{user}_{device}_{application}{slot}`, or
+ *  the same without the leading underscore in MSC3757/MSC3779 rooms. */
+export function isDeviceCallMemberStateKey(
+    stateKey: string,
+    userId: string,
+    deviceId: string,
+): boolean {
+    const key = stateKey.startsWith("_") ? stateKey.slice(1) : stateKey;
+    return key.startsWith(`${userId}_${deviceId}_`);
+}
+
+/** A call membership state event, reduced to what the removal check reads. */
+export interface CallMemberStateChange {
+    stateKey: string;
+    sender: string;
+    content: Record<string, unknown>;
+    ts: number;
+}
+
+/**
+ * Who removed this device from the call, when `change` is someone else
+ * emptying our own membership (how "disconnect from voice" ends a call
+ * server-side). Null for anything else: our own leave, a membership that is
+ * not ours, a still-filled one, or an old event a sync replays.
+ *
+ * matrix-js-sdk's MembershipManager answers a missing own membership by
+ * sending it again ("force re-join"), so this must end the call on purpose,
+ * or the removal undoes itself.
+ */
+export function callMembershipRemovedBy(
+    change: CallMemberStateChange,
+    userId: string,
+    deviceId: string,
+    nowMs: number,
+): string | null {
+    if (change.sender === userId) return null;
+    if (!isDeviceCallMemberStateKey(change.stateKey, userId, deviceId))
+        return null;
+    if (Object.keys(change.content).length > 0) return null;
+    if (!isLiveCallKick(change.ts, nowMs)) return null;
+    return change.sender;
+}

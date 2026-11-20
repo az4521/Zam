@@ -72,7 +72,9 @@ import {
 } from "./client";
 import {
     CALL_KICK_EVENT_TYPE,
+    callMembershipRemovedBy,
     canDisconnectFromVoice,
+    isDeviceCallMemberStateKey,
     isLiveCallKick,
     parseCallKickContent,
 } from "$lib/utils/callKick";
@@ -391,6 +393,13 @@ interface ActiveVoiceCall {
     audioGraph: CallAudioGraph | null | false;
     onMmError: (err: unknown) => void;
     onMyMembership: (room: Room, membership: string) => void;
+    /** Watches our own call membership state for a moderator emptying it. */
+    onMemberState: (event: MatrixEvent) => void;
+    /** Our membership state events as they stood at join: a removal that is
+     *  already there (an earlier kick) is not one of this call. */
+    memberStateAtJoin: Set<string>;
+    /** Remote SFUs that removed us (PARTICIPANT_REMOVED): not retried. */
+    remotesRemoved: Set<string>;
     /** What this device can send and decode (localVideoCodecs). */
     codecs: LocalVideoCodecs;
     /** End-to-end encryption, when the room is encrypted (setupCallE2EE). */
@@ -1863,6 +1872,63 @@ function scheduleKickRefresh(roomId: string, endTs: number): void {
     );
 }
 
+/** Calls already ending because we were removed, so one removal seen several
+ *  ways (the kick event, our emptied membership, the SFU) toasts once. */
+const removedCalls = new WeakSet<ActiveVoiceCall>();
+
+/** We were removed from the call (a moderator, or the SFU): end it for good
+ *  and say so. Final: leaving stops the SDK's membership manager, which would
+ *  otherwise re-send the membership the moderator emptied ("force re-join"),
+ *  and nothing reconnects LiveKit after a leave. */
+function endCallRemoved(call: ActiveVoiceCall, message: string): void {
+    if (activeVoice !== call || removedCalls.has(call)) return;
+    removedCalls.add(call);
+    void leaveVoiceCall()
+        .then(() => showToast(message))
+        .catch(() => {});
+}
+
+/** A call membership state event in the call's room: when another user
+ *  emptied ours (disconnectFromVoice does), we were removed. Covers a kick
+ *  event this device missed or has not seen yet. */
+function onOwnMemberStateEvent(
+    call: ActiveVoiceCall,
+    event: MatrixEvent,
+): void {
+    if (activeVoice !== call || !matrixClient) return;
+    if (event.getRoomId() !== call.roomId) return;
+    if (event.getType() !== EventType.GroupCallMemberPrefix) return;
+    const eventId = event.getId();
+    if (eventId && call.memberStateAtJoin.has(eventId)) return;
+    const me = matrixClient.getUserId();
+    const myDevice = matrixClient.getDeviceId();
+    if (!me || !myDevice) return;
+    const actor = callMembershipRemovedBy(
+        {
+            stateKey: event.getStateKey() ?? "",
+            sender: event.getSender() ?? "",
+            content: event.getContent(),
+            ts: event.getTs(),
+        },
+        me,
+        myDevice,
+        Date.now(),
+    );
+    if (!actor) return;
+    const room = matrixClient.getRoom(call.roomId);
+    if (!room) return;
+    const permitted = canDisconnectFromVoice(
+        getUserPowerRank(room, actor),
+        getUserPowerRank(room, me),
+        getRoomPowerLevels(room).kick,
+    );
+    if (!permitted) return;
+    endCallRemoved(
+        call,
+        t("callKick.removedFromVoice", { name: getMemberName(room, actor) }),
+    );
+}
+
 /** A `com.zam.call.kick` in the call's room. Applied only when it is live, and
  *  only when its sender met the kick bar at the moment it arrived. */
 function onCallKickEvent(event: MatrixEvent, room: Room): void {
@@ -1894,9 +1960,7 @@ function onCallKickEvent(event: MatrixEvent, room: Room): void {
         (!kick.device_id || kick.device_id === myDevice)
     ) {
         const name = getMemberName(room, actor);
-        void leaveVoiceCall()
-            .then(() => showToast(t("callKick.removedFromVoice", { name })))
-            .catch(() => {});
+        endCallRemoved(call, t("callKick.removedFromVoice", { name }));
         return;
     }
     const end = recordCallKick(room.roomId, kick.user_id, kick.device_id, now);
@@ -2094,7 +2158,11 @@ async function syncRemoteSfus(call: ActiveVoiceCall): Promise<void> {
         void lkRoom.disconnect().catch(() => {});
     }
     for (const [key, target] of wanted)
-        if (!call.remotes.has(key) && !call.remotesConnecting.has(key))
+        if (
+            !call.remotes.has(key) &&
+            !call.remotesConnecting.has(key) &&
+            !call.remotesRemoved.has(key)
+        )
             void connectRemoteSfu(call, key, target);
     applyKickedSubscriptions(call);
     syncMesh(
@@ -2386,15 +2454,20 @@ async function connectRemoteSfu(
         const { url, jwt } = await fetchSfuJwt(target);
         if (activeVoice !== call) return;
         wireCallMedia(call, lkRoom);
-        lkRoom.on(call.lk.RoomEvent.Disconnected, () => {
+        lkRoom.on(call.lk.RoomEvent.Disconnected, (reason) => {
             // Dropped by the SFU or the network (our own disconnects remove
-            // the entry first): forget it and try again shortly.
+            // the entry first): forget it and try again shortly. Removed by
+            // that SFU on purpose: stay away from it for the rest of the call.
             if (call.remotes.get(key) !== lkRoom) return;
             call.remotes.delete(key);
             dropLkTransport(call, lkRoom);
             notifyCallMutes(call);
             notifyCallVideo(call);
             notifyCallSpeakers(call);
+            if (reason === call.lk.DisconnectReason.PARTICIPANT_REMOVED) {
+                call.remotesRemoved.add(key);
+                return;
+            }
             setTimeout(() => void syncRemoteSfus(call), REMOTE_SFU_RETRY_MS);
         });
         await bypassProxyFor(url);
@@ -2705,6 +2778,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         remotes: new Map(),
         remotesConnecting: new Set(),
         remoteFailuresNotified: new Set(),
+        remotesRemoved: new Set(),
         speakersByRoom: new Map(),
         onMembershipsChanged: () => void syncRemoteSfus(call),
         lk,
@@ -2714,6 +2788,23 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         elByTrack: new Map(),
         onMmError,
         onMyMembership,
+        onMemberState: (event) => onOwnMemberStateEvent(call, event),
+        memberStateAtJoin: new Set(
+            (
+                room.currentState.getStateEvents(
+                    EventType.GroupCallMemberPrefix,
+                ) ?? []
+            )
+                .filter((ev) =>
+                    isDeviceCallMemberStateKey(
+                        ev.getStateKey() ?? "",
+                        userId,
+                        deviceId,
+                    ),
+                )
+                .map((ev) => ev.getId())
+                .filter((id): id is string => !!id),
+        ),
         codecs: localCodecs,
         e2ee,
         decryptErrors: new Map(),
@@ -2734,6 +2825,7 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     if (micFailure) notifyCallMicUnavailable(micFailure.err);
     session.on("membership_manager_error" as never, onMmError as never);
     matrixClient.on("Room.myMembership" as never, onMyMembership as never);
+    matrixClient.on("RoomState.events" as never, call.onMemberState as never);
     // Our own camera/screenshare tiles, whichever transport sends them.
     // Turning the camera off mutes it: an SFU room reports that as a
     // track event, standalone tracks through the mesh's view of them.
@@ -2892,13 +2984,19 @@ async function connectPublishingRoom(
         if (activeVoice !== call) return;
         notifyVoiceConnState("connected");
     });
-    lkRoom.on(lk.RoomEvent.Disconnected, () => {
+    lkRoom.on(lk.RoomEvent.Disconnected, (reason) => {
         // SFU kicked us or the connection died for good — tear down
         // fully and tell the user. User-initiated leaves null
         // activeVoice first, so this only fires on genuine drops.
         // LiveKit emits Disconnected while still Connecting when the
         // connect fails; the join's own catch reports that failure
         // exactly once, so only act here when we were connected.
+        if (reason === lk.DisconnectReason.PARTICIPANT_REMOVED) {
+            // Removed on purpose (a server-side kick): final, and said as such.
+            if (activeVoice?.lkRoom === lkRoom)
+                endCallRemoved(call, t("callKick.removedByServer"));
+            return;
+        }
         if (connected && activeVoice?.lkRoom === lkRoom) {
             for (const cb of voiceErrorSubscribers)
                 cb(t("client.voiceCallDisconnected"));
@@ -3156,6 +3254,10 @@ async function leaveVoiceCallInternal(): Promise<void> {
         matrixClient?.off(
             "Room.myMembership" as never,
             call.onMyMembership as never,
+        );
+        matrixClient?.off(
+            "RoomState.events" as never,
+            call.onMemberState as never,
         );
         call.session.off(
             "memberships_changed" as never,

@@ -184,7 +184,9 @@ html.pip-desktop,html.pip-desktop body{-webkit-app-region:drag}
 html.pip-desktop button{-webkit-app-region:no-drag}
 `;
 
-function adoptStyles(doc: Document): void {
+/** Copy the app's style sheets into another window's document, then add
+ *  `extraCss` after them. Shared by the call pop-out (callPopout.svelte.ts). */
+export function adoptAppStyles(doc: Document, extraCss: string): void {
     for (const node of document.querySelectorAll(
         'style, link[rel="stylesheet"]',
     )) {
@@ -198,7 +200,7 @@ function adoptStyles(doc: Document): void {
         }
     }
     const style = doc.createElement("style");
-    style.textContent = PIP_WINDOW_CSS;
+    style.textContent = extraCss;
     doc.head.append(style);
 }
 
@@ -250,7 +252,7 @@ async function openHost(
 ): Promise<void> {
     const doc = win.document;
     doc.title = "Zam";
-    adoptStyles(doc);
+    adoptAppStyles(doc, PIP_WINDOW_CSS);
     doc.documentElement.classList.add("pip-desktop");
     const h: PipHost = { win, app: null, cleanup: [] };
     host = h;

@@ -254,6 +254,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callParticipantMenu.couldNotDisconnect": "{name} を切断できませんでした",
     "callKick.notPermitted": "このメンバーを通話から切断する権限がありません",
     "callKick.removedFromVoice": "{name} により通話から退出させられました",
+    "callKick.removedByServer": "通話から退出させられました",
     "callEncryption.encrypted":
         "エンドツーエンド暗号化: この通話の参加者だけが映像と音声を見聞きできます。",
     "callEncryption.encryptedShort": "暗号化済み",
@@ -262,6 +263,15 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callEncryption.partialShort": "一部暗号化",
     "callEncryption.notEncrypted":
         "エンドツーエンド暗号化されていません: 通話サーバーがこの通話を見聞きできます。暗号化されたルームでの通話は暗号化されます。",
+    "callPopout.blocked":
+        "ポップアウトウィンドウを開けませんでした。このサイトでポップアップを許可して、もう一度お試しください。",
+    "callPopout.bringBack": "戻す",
+    "callPopout.focusWindow": "ウィンドウを表示",
+    "callPopout.inOtherWindow":
+        "この通話はポップアウトウィンドウで開いています。",
+    "callPopout.popOut": "通話をポップアウト",
+    "callPopout.returnToMain": "メインウィンドウに戻す",
+    "callPopout.windowTitle": "{room}（通話）",
     "callView.ringing": "呼び出し中…",
     "callView.showChat": "チャットを表示",
     "callView.noOneIsInThisCall": "この通話には誰もいません",
@@ -271,8 +281,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callView.muted": "ミュート中",
     "callView.deafened": "スピーカーミュート中",
     "callView.mutedForYou": "あなたに対してミュート中",
-    "callView.joinedFromMultipleDevices": "複数のデバイスから参加中",
-    "callView.devices": "{value}台のデバイス",
+    "callView.deviceCountPill": "{count}台のデバイス",
+    "callView.thisDevice": "この端末",
     "callView.enableAudio": "音声を有効にする",
     "callView.onHold": "別の通話が有効なため保留中",
     "callView.resume": "再開",

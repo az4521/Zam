@@ -403,8 +403,10 @@ import {
     releaseCryptoStoreLocks,
     restartCrypto,
     waitForCryptoEngineIdle,
+    getCachedDeviceDisplayNames,
     ENGINE_IDLE_TIMEOUT_MS,
 } from "$lib/matrix/crypto";
+export { getCachedDeviceDisplayNames };
 import { mxcToHttp, resetMediaUploadSizeLimit, sendFile } from "./media";
 import { getCryptoDbName } from "$lib/utils/cryptoStore";
 import { waitForRoomArrival } from "$lib/utils/roomArrival";

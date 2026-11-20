@@ -268,6 +268,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callParticipantMenu.couldNotDisconnect": "无法断开 {name}",
     "callKick.notPermitted": "你无法将此成员断开语音连接",
     "callKick.removedFromVoice": "{name} 将你移出了语音频道",
+    "callKick.removedByServer": "你已被移出通话",
 
     // src/lib/components/layout/CallView.svelte
     "callEncryption.encrypted":
@@ -278,6 +279,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callEncryption.partialShort": "部分加密",
     "callEncryption.notEncrypted":
         "未端到端加密：通话服务器可以看到和听到此通话。加密房间中的通话是加密的。",
+    "callPopout.blocked": "无法打开弹出窗口。请允许此网站弹出窗口，然后重试。",
+    "callPopout.bringBack": "收回",
+    "callPopout.focusWindow": "显示窗口",
+    "callPopout.inOtherWindow": "此通话已在弹出窗口中打开。",
+    "callPopout.popOut": "弹出通话",
+    "callPopout.returnToMain": "返回主窗口",
+    "callPopout.windowTitle": "{room}（通话）",
     "callView.ringing": "正在响铃…",
     "callView.showChat": "显示聊天",
     "callView.noOneIsInThisCall": "此通话中没有人",
@@ -287,8 +295,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callView.muted": "已静音",
     "callView.deafened": "已拒听",
     "callView.mutedForYou": "已对你静音",
-    "callView.joinedFromMultipleDevices": "从多台设备加入",
-    "callView.devices": "{value} 台设备",
+    "callView.deviceCountPill": "{count} 台设备",
+    "callView.thisDevice": "此设备",
     "callView.enableAudio": "启用音频",
     "callView.onHold": "另一通通话进行时已保留",
     "callView.resume": "恢复",

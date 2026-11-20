@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { untrack } from "svelte";
     import { HIERARCHY_TTL_MS } from "$lib/utils/hierarchyRefresh";
     import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
@@ -46,6 +47,8 @@
         patchCachedHierarchyEntry,
         getDMPartnerId,
         getRoomCallMemberships,
+        getOwnDeviceId,
+        getRooms,
         getMemberName,
         getMemberAvatar,
         isVideoRoom,
@@ -54,14 +57,23 @@
         type SpaceChildInfo,
     } from "$lib/matrix/client";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
+    import {
+        callDeviceLabelsFor,
+        requestCallDeviceLabels,
+    } from "$lib/stores/callDeviceLabels.svelte";
     import { dedupeParticipants } from "$lib/utils/voiceCall";
-    import { rosterCallStatus } from "$lib/utils/callTileStatus";
+    import {
+        rosterCallStatus,
+        devicesByUser,
+        type DeviceMembership,
+    } from "$lib/utils/callTileStatus";
     import {
         MicOff,
         HeadphoneOff,
         GripVertical,
         Circle,
         Check,
+        MonitorSmartphone,
     } from "lucide-svelte";
     import { presenceFor } from "$lib/stores/presence.svelte";
     import { settingsState, setDmSortOrder } from "$lib/stores/settings.svelte";
@@ -308,6 +320,28 @@
     } | null>(null);
     // Plain let: read only from event handlers, never from markup or an effect.
     let participantMenuToken = 0;
+
+    // Device names for anyone joined from several devices in a call roster.
+    // Cache-only fetch; requestDeviceLabels skips users checked recently.
+    $effect(() => {
+        void voiceCallState.voiceTick;
+        void roomsState.roomsTick;
+        untrack(() => void requestCallDeviceLabels(getRooms()));
+    });
+
+    /** Labels for a roster user's devices, earliest joined first. */
+    function rosterDeviceLabels(
+        userId: string,
+        devices: DeviceMembership[],
+    ): string[] {
+        return callDeviceLabelsFor(
+            userId,
+            devices,
+            auth.userId,
+            getOwnDeviceId(),
+            t("callView.thisDevice"),
+        );
+    }
 
     function openParticipantMenu(
         room: Room,
@@ -1281,9 +1315,10 @@
         <!-- Who's in this room's call — rendered under the room's own row.
              Replaces the old participant-count badge. -->
         {#snippet callRoster(room: Room)}
-            {@const participants =
-                (void voiceCallState.voiceTick,
-                dedupeParticipants(getRoomCallMemberships(room)))}
+            {@const rawMemberships =
+                (void voiceCallState.voiceTick, getRoomCallMemberships(room))}
+            {@const participants = dedupeParticipants(rawMemberships)}
+            {@const devicesOf = devicesByUser(rawMemberships)}
             {#if participants.length > 0}
                 {@const speaking = voiceCallState.speakingUserIds}
                 {@const muted = voiceCallState.mutedUserIds}
@@ -1306,6 +1341,11 @@
                             selfMicMuted: voiceCallState.micMuted,
                             selfDeafened: voiceCallState.deafened,
                         })}
+                        {@const devices = devicesOf.get(p.userId) ?? []}
+                        {@const deviceNames = rosterDeviceLabels(
+                            p.userId,
+                            devices,
+                        )}
                         <button
                             class="w-full flex items-center gap-2 ps-8 pe-2 py-0.5 text-start rounded hover:bg-zam-messageHover"
                             onclick={() => {
@@ -1349,11 +1389,39 @@
                                     size={20}
                                 />
                             </div>
-                            <span
-                                class="flex-1 text-xs text-zam-textSecondary truncate"
-                            >
-                                {name}
-                            </span>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-1 min-w-0">
+                                    <span
+                                        class="flex-1 min-w-0 text-xs text-zam-textSecondary truncate"
+                                    >
+                                        {name}
+                                    </span>
+                                    {#if devices.length > 1}
+                                        <span
+                                            class="flex-shrink-0 flex items-center gap-0.5 text-[10px] leading-none px-1 py-0.5 rounded bg-zam-backgroundTertiary text-zam-textMuted"
+                                            title={deviceNames.join(", ")}
+                                        >
+                                            <MonitorSmartphone
+                                                size={12}
+                                                aria-hidden="true"
+                                            />{devices.length}<span
+                                                class="sr-only"
+                                                >{t(
+                                                    "callView.deviceCountPill",
+                                                    { count: devices.length },
+                                                )}</span
+                                            >
+                                        </span>
+                                    {/if}
+                                </div>
+                                {#if devices.length > 1}
+                                    <div
+                                        class="text-[11px] leading-tight text-zam-textMuted truncate"
+                                    >
+                                        {deviceNames.join(", ")}
+                                    </div>
+                                {/if}
+                            </div>
                             {#if status.micOff}
                                 <MicOff
                                     size={14}

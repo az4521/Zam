@@ -274,6 +274,7 @@ export const en = {
     "callParticipantMenu.couldNotDisconnect": "Could not disconnect {name}",
     "callKick.notPermitted": "You cannot disconnect this member from voice",
     "callKick.removedFromVoice": "{name} removed you from the voice channel",
+    "callKick.removedByServer": "You were removed from the call",
 
     // src/lib/components/layout/CallView.svelte
     "callEncryption.encrypted":
@@ -284,6 +285,14 @@ export const en = {
     "callEncryption.partialShort": "Partly encrypted",
     "callEncryption.notEncrypted":
         "Not end-to-end encrypted: the call server can see and hear this call. Calls in encrypted rooms are encrypted.",
+    "callPopout.blocked":
+        "Could not open the pop-out window. Allow pop-ups for this site and try again.",
+    "callPopout.bringBack": "Bring back",
+    "callPopout.focusWindow": "Show window",
+    "callPopout.inOtherWindow": "This call is open in a pop-out window.",
+    "callPopout.popOut": "Pop out call",
+    "callPopout.returnToMain": "Return to main window",
+    "callPopout.windowTitle": "{room} (call)",
     "callView.ringing": "Ringing…",
     "callView.showChat": "Show chat",
     "callView.noOneIsInThisCall": "No one is in this call",
@@ -293,8 +302,8 @@ export const en = {
     "callView.muted": "Muted",
     "callView.deafened": "Deafened",
     "callView.mutedForYou": "Muted for you",
-    "callView.joinedFromMultipleDevices": "Joined from multiple devices",
-    "callView.devices": "{value} devices",
+    "callView.deviceCountPill": "{count} devices",
+    "callView.thisDevice": "This device",
     "callView.enableAudio": "Enable audio",
     "callView.onHold": "On hold while another call is active",
     "callView.resume": "Resume",

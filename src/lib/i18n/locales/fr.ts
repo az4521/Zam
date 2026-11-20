@@ -277,6 +277,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callKick.notPermitted":
         "Vous ne pouvez pas déconnecter ce membre du vocal",
     "callKick.removedFromVoice": "{name} vous a retiré du salon vocal",
+    "callKick.removedByServer": "Vous avez été retiré de l'appel",
 
     // src/lib/components/layout/CallView.svelte
     "callEncryption.encrypted":
@@ -287,6 +288,15 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callEncryption.partialShort": "Partiellement chiffré",
     "callEncryption.notEncrypted":
         "Pas chiffré de bout en bout : le serveur d'appel peut voir et entendre cet appel. Les appels dans les salons chiffrés sont chiffrés.",
+    "callPopout.blocked":
+        "Impossible d'ouvrir la fenêtre détachée. Autorisez les pop-ups pour ce site et réessayez.",
+    "callPopout.bringBack": "Ramener",
+    "callPopout.focusWindow": "Afficher la fenêtre",
+    "callPopout.inOtherWindow":
+        "Cet appel est ouvert dans une fenêtre détachée.",
+    "callPopout.popOut": "Détacher l'appel",
+    "callPopout.returnToMain": "Revenir à la fenêtre principale",
+    "callPopout.windowTitle": "{room} (appel)",
     "callView.ringing": "Sonnerie…",
     "callView.showChat": "Afficher la discussion",
     "callView.noOneIsInThisCall": "Personne n'est dans cet appel",
@@ -296,8 +306,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callView.muted": "Micro coupé",
     "callView.deafened": "Son coupé",
     "callView.mutedForYou": "Rendu muet pour vous",
-    "callView.joinedFromMultipleDevices": "Connecté depuis plusieurs appareils",
-    "callView.devices": "{value} appareils",
+    "callView.deviceCountPill": "{count} appareils",
+    "callView.thisDevice": "Cet appareil",
     "callView.enableAudio": "Activer l'audio",
     "callView.onHold": "En attente pendant un autre appel",
     "callView.resume": "Reprendre",

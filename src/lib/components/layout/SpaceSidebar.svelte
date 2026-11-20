@@ -9,9 +9,12 @@
     import QuickActions from "$lib/components/layout/QuickActions.svelte";
     import SpaceHoverCard from "$lib/components/layout/SpaceHoverCard.svelte";
     import { Circle, Volume2 } from "lucide-svelte";
+    import { untrack } from "svelte";
     import {
         getRoomAvatar,
         getRoomDisplayName,
+        getOwnDeviceId,
+        getRooms,
         getRoomCallMemberships,
         getMemberName,
         getMemberAvatar,
@@ -52,6 +55,12 @@
     import { openModal, closeModal } from "$lib/stores/interface.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
+    import { auth } from "$lib/stores/auth.svelte";
+    import {
+        callDeviceLabelsFor,
+        requestCallDeviceLabels,
+    } from "$lib/stores/callDeviceLabels.svelte";
+    import { devicesByUser } from "$lib/utils/callTileStatus";
     import { focusTrap, activeFocusTrap } from "$lib/actions/focusTrap";
     import { dismissOnOutsidePointer } from "$lib/actions/dismissOnOutsidePointer";
     import { mapWithConcurrency } from "$lib/utils/async";
@@ -147,23 +156,46 @@
         void roomsState.roomsTick; // member names/avatars mutate in place
         void voiceCallState.voiceTick; // call membership is an SDK mutation
         const out: VoiceRoomInput[] = [];
+        const ownDevice = getOwnDeviceId();
+        const thisDevice = t("callView.thisDevice");
         for (const room of rooms) {
-            const participants = dedupeParticipants(
-                getRoomCallMemberships(room),
-            );
+            const memberships = getRoomCallMemberships(room);
+            const participants = dedupeParticipants(memberships);
             if (participants.length === 0) continue;
+            const devicesOf = devicesByUser(memberships);
             out.push({
                 roomId: room.roomId,
                 name: getRoomDisplayName(room),
-                participants: participants.map((p) => ({
-                    userId: p.userId,
-                    name: getMemberName(room, p.userId),
-                    avatar: getMemberAvatar(room, p.userId),
-                })),
+                participants: participants.map((p) => {
+                    const devices = devicesOf.get(p.userId) ?? [];
+                    return {
+                        userId: p.userId,
+                        name: getMemberName(room, p.userId),
+                        avatar: getMemberAvatar(room, p.userId),
+                        ...(devices.length > 1
+                            ? {
+                                  devices: callDeviceLabelsFor(
+                                      p.userId,
+                                      devices,
+                                      auth.userId,
+                                      ownDevice,
+                                      thisDevice,
+                                  ),
+                              }
+                            : {}),
+                    };
+                }),
             });
         }
         return out;
     }
+
+    // Device names for multi-device call members (cache-only, see the store).
+    $effect(() => {
+        void voiceCallState.voiceTick;
+        void roomsState.roomsTick;
+        untrack(() => void requestCallDeviceLabels(getRooms()));
+    });
 
     /** Screen shares are only known in the call THIS device is in. */
     function currentLiveShare(): LiveShareInfo {

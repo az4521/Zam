@@ -285,6 +285,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callKick.notPermitted":
         "Ви не можете відключити цього учасника від голосового каналу",
     "callKick.removedFromVoice": "{name} відключив вас від голосового каналу",
+    "callKick.removedByServer": "Вас відключили від дзвінка",
 
     // src/lib/components/layout/CallView.svelte
     "callEncryption.encrypted":
@@ -295,6 +296,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callEncryption.partialShort": "Частково зашифровано",
     "callEncryption.notEncrypted":
         "Без наскрізного шифрування: сервер викликів може бачити й чути цей виклик. Виклики в зашифрованих кімнатах зашифровані.",
+    "callPopout.blocked":
+        "Не вдалося відкрити вікно винесеного дзвінка. Дозвольте спливаючі вікна для цього сайту і спробуйте ще раз.",
+    "callPopout.bringBack": "Повернути",
+    "callPopout.focusWindow": "Показати вікно",
+    "callPopout.inOtherWindow": "Цей дзвінок відкрито в окремому вікні.",
+    "callPopout.popOut": "Винести дзвінок в окреме вікно",
+    "callPopout.returnToMain": "Повернути в головне вікно",
+    "callPopout.windowTitle": "{room} (дзвінок)",
     "callView.ringing": "Дзвінок…",
     "callView.showChat": "Показати чат",
     "callView.noOneIsInThisCall": "У цьому виклику нікого немає",
@@ -304,8 +313,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callView.muted": "Мікрофон вимкнено",
     "callView.deafened": "Звук вимкнено",
     "callView.mutedForYou": "Заглушено для вас",
-    "callView.joinedFromMultipleDevices": "Приєднано з кількох пристроїв",
-    "callView.devices": "Пристроїв: {value}",
+    "callView.deviceCountPill": "Пристроїв: {count}",
+    "callView.thisDevice": "Цей пристрій",
     "callView.enableAudio": "Увімкнути звук",
     "callView.onHold": "Утримується, поки триває інший виклик",
     "callView.resume": "Відновити",

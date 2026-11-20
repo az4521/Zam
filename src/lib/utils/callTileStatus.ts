@@ -97,3 +97,41 @@ export function rosterCallStatus(
         deafened: input.isSelf && input.selfDeafened,
     };
 }
+
+export interface DeviceMembership {
+    deviceId: string;
+    joinedTs: number;
+}
+
+/** Distinct devices per user from the PRE-dedupe membership list, earliest
+ *  joined first. A repeated (user, device) pair counts once, keeping its
+ *  earliest join time. Feeds the device labels on call tiles and roster rows. */
+export function devicesByUser(
+    memberships: { userId: string; deviceId: string; joinedTs: number }[],
+): Map<string, DeviceMembership[]> {
+    const out = new Map<string, DeviceMembership[]>();
+    for (const m of memberships) {
+        let list = out.get(m.userId);
+        if (!list) out.set(m.userId, (list = []));
+        const seen = list.find((d) => d.deviceId === m.deviceId);
+        if (!seen) list.push({ deviceId: m.deviceId, joinedTs: m.joinedTs });
+        else if (m.joinedTs < seen.joinedTs) seen.joinedTs = m.joinedTs;
+    }
+    for (const list of out.values())
+        list.sort((a, b) => a.joinedTs - b.joinedTs);
+    return out;
+}
+
+/** Human label for one device of a call participant. This device gets
+ *  `thisDeviceText`; other devices use their trimmed display name, falling
+ *  back to the device id when the name is missing or blank. */
+export function deviceLabel(
+    deviceId: string,
+    displayName: string | null | undefined,
+    isThisDevice: boolean,
+    thisDeviceText: string,
+): string {
+    if (isThisDevice) return thisDeviceText;
+    const name = displayName?.trim();
+    return name ? name : deviceId;
+}

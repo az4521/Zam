@@ -277,6 +277,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callParticipantMenu.couldNotDisconnect": "No se pudo desconectar a {name}",
     "callKick.notPermitted": "No puedes desconectar a este miembro de la voz",
     "callKick.removedFromVoice": "{name} te ha sacado del canal de voz",
+    "callKick.removedByServer": "Te han sacado de la llamada",
 
     // src/lib/components/layout/CallView.svelte
     "callEncryption.encrypted":
@@ -287,6 +288,15 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callEncryption.partialShort": "Cifrada en parte",
     "callEncryption.notEncrypted":
         "No está cifrada de extremo a extremo: el servidor de llamadas puede ver y oír esta llamada. Las llamadas en salas cifradas sí lo están.",
+    "callPopout.blocked":
+        "No se pudo abrir la ventana emergente. Permite las ventanas emergentes para este sitio e inténtalo de nuevo.",
+    "callPopout.bringBack": "Traer de vuelta",
+    "callPopout.focusWindow": "Mostrar ventana",
+    "callPopout.inOtherWindow":
+        "Esta llamada está abierta en una ventana emergente.",
+    "callPopout.popOut": "Sacar la llamada a una ventana",
+    "callPopout.returnToMain": "Volver a la ventana principal",
+    "callPopout.windowTitle": "{room} (llamada)",
     "callView.ringing": "Llamando…",
     "callView.showChat": "Mostrar el chat",
     "callView.noOneIsInThisCall": "No hay nadie en esta llamada",
@@ -296,8 +306,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "callView.muted": "Silenciado",
     "callView.deafened": "Ensordecido",
     "callView.mutedForYou": "Silenciado para ti",
-    "callView.joinedFromMultipleDevices": "Conectado desde varios dispositivos",
-    "callView.devices": "{value} dispositivos",
+    "callView.deviceCountPill": "{count} dispositivos",
+    "callView.thisDevice": "Este dispositivo",
     "callView.enableAudio": "Activar el audio",
     "callView.onHold": "En espera mientras hay otra llamada activa",
     "callView.resume": "Reanudar",
