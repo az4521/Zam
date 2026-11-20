@@ -318,7 +318,11 @@ import {
     FILE_OFFER_EVENT,
     isFileOfferEventType,
 } from "$lib/utils/fileTransfer";
-import { hasUnreadMessages, isStaleLocalUnread } from "$lib/utils/roomUnread";
+import {
+    hasUnreadMessages,
+    isStaleLocalUnread,
+    receiptCoversEvent,
+} from "$lib/utils/roomUnread";
 import { localReadVerdict, type LocalReadMark } from "$lib/utils/localRead";
 import { callMemberSendersMissingMembership } from "$lib/utils/callMemberSenders";
 import {
@@ -1643,6 +1647,25 @@ export async function startSync(
         },
     );
     client.on(RoomEvent.Receipt as never, onOwnReceipt as never);
+    // A message decrypted after our receipt (older history paged in, or a cold
+    // room's newest event) is counted unread by the SDK, and no receipt follows
+    // to fix it. This listener runs after the SDK's own count fix-up, which is
+    // registered in the MatrixClient constructor.
+    const onDecryptedUnread = guardOwnership(
+        owner,
+        readOwner,
+        (event: MatrixEvent) => {
+            try {
+                const roomId = event.getRoomId();
+                const room = roomId ? client.getRoom(roomId) : null;
+                if (room && clearStaleEncryptedUnread(room))
+                    notifyLocalUnreadChange(room.roomId);
+            } catch {
+                // Never break the decryption fan-out to other listeners.
+            }
+        },
+    );
+    client.on(MatrixEventEvent.Decrypted as never, onDecryptedUnread as never);
     if (onLoggedOut) client.on(HttpApiEvent.SessionLoggedOut, onLoggedOut);
 
     let disposed = false;
@@ -1657,6 +1680,10 @@ export async function startSync(
         client.off(RoomStateEvent.Events, onMemberState);
         client.off(RoomEvent.Timeline as never, onTimelineMember as never);
         client.off(RoomEvent.Receipt as never, onOwnReceipt as never);
+        client.off(
+            MatrixEventEvent.Decrypted as never,
+            onDecryptedUnread as never,
+        );
         if (onLoggedOut) client.off(HttpApiEvent.SessionLoggedOut, onLoggedOut);
         document.removeEventListener("visibilitychange", onHidden);
         document.removeEventListener("visibilitychange", onVisibleKick);
@@ -5453,6 +5480,40 @@ function newestOtherNotificationTs(room: Room, userId: string): number | null {
     return null;
 }
 
+/** Newest timestamp among our own read receipts (public and private), or null when we have none. */
+function ownReceiptTs(
+    room: Room,
+    userId: string,
+    ignoreSynthesized = false,
+): number | null {
+    const receipts = [
+        room.getReadReceiptForUserId(userId, ignoreSynthesized),
+        room.getReadReceiptForUserId(
+            userId,
+            ignoreSynthesized,
+            "m.read.private" as any,
+        ),
+    ].filter((r) => r !== null);
+    return receipts.length
+        ? Math.max(...receipts.map((r) => r.data?.ts ?? 0))
+        : null;
+}
+
+/** Whether our read receipt covers `event`: the SDK's answer, with the receipt's timestamp as the fallback when it cannot place the receipt (see receiptCoversEvent). */
+function receiptCoversRoomEvent(
+    room: Room,
+    userId: string,
+    event: MatrixEvent,
+): boolean {
+    const eventId = event.getId();
+    return receiptCoversEvent({
+        sdkRead: eventId ? room.hasUserReadEvent(userId, eventId) : false,
+        receiptPlaced: room.getEventReadUpTo(userId) !== null,
+        receiptTs: ownReceiptTs(room, userId),
+        eventTs: event.getTs(),
+    });
+}
+
 /** Returns whether the room has any unread messages and whether any are highlights (mentions). */
 export function getRoomUnreadInfo(room: Room): {
     unread: boolean;
@@ -5486,10 +5547,6 @@ export function getRoomUnreadInfo(room: Room): {
     // getEventReadUpTo returns null when the receipt points at an event that
     // isn't loaded (the SDK rejects it via receiptPointsAtConsistentEvent);
     // hasUnreadMessages then goes by the receipts' own timestamps.
-    const receipts = [
-        room.getReadReceiptForUserId(userId),
-        room.getReadReceiptForUserId(userId, false, "m.read.private" as any),
-    ].filter((r) => r !== null);
     const unread = hasUnreadMessages({
         events: room
             .getLiveTimeline()
@@ -5501,9 +5558,7 @@ export function getRoomUnreadInfo(room: Room): {
                 isNotification: isNotificationEvent(event),
             })),
         readUpToId: room.getEventReadUpTo(userId),
-        receiptTs: receipts.length
-            ? Math.max(...receipts.map((r) => r.data?.ts ?? 0))
-            : null,
+        receiptTs: ownReceiptTs(room, userId),
     });
     return { unread, highlight };
 }
@@ -5529,9 +5584,8 @@ function clearStaleEncryptedUnread(room: Room): boolean {
             break;
         }
     }
-    const newestId = newest?.getId();
-    const newestNotificationRead = newestId
-        ? room.hasUserReadEvent(userId, newestId)
+    const newestNotificationRead = newest
+        ? receiptCoversRoomEvent(room, userId, newest)
         : null;
     if (
         !isStaleLocalUnread({
@@ -6823,11 +6877,23 @@ export async function sendReadReceipt(event: MatrixEvent): Promise<void> {
     if (
         room &&
         myUserId &&
-        receiptAlreadySent(
+        (receiptAlreadySent(
             roomId,
             eventId,
             room.getEventReadUpTo(myUserId, true),
-        )
+        ) ||
+            // Our server receipt sits on an event the SDK cannot place (a
+            // reaction whose parent was not loaded when it arrived) and is not
+            // older than this event: it already covers it, and sending this
+            // one would move the receipt backwards. Server receipts only, and
+            // never the SDK's own answer: a synthetic receipt whose request
+            // failed must not block the retry.
+            receiptCoversEvent({
+                sdkRead: false,
+                receiptPlaced: room.getEventReadUpTo(myUserId, true) !== null,
+                receiptTs: ownReceiptTs(room, myUserId, true),
+                eventTs: event.getTs(),
+            }))
     ) {
         // Our receipt may already cover the newest message while the counts
         // still show it unread (see clearStaleEncryptedUnread). Opening the room

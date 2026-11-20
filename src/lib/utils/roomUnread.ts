@@ -71,3 +71,31 @@ export function isStaleLocalUnread(input: {
         newestNotificationRead === true
     );
 }
+
+/**
+ * Whether our read receipt covers `event`, when the SDK may not be able to say.
+ *
+ * The SDK answers `sdkRead` by ordering the receipt's event against `event`.
+ * It can only do that when the receipt's event is in a loaded timeline. A
+ * receipt on a reaction whose parent message is not loaded (sliding sync
+ * cold-starts a room with one event) is "homeless": the SDK places nothing, so
+ * `receiptPlaced` is false and `sdkRead` is false too. Then the receipt's own
+ * timestamp is the only evidence, the same rule hasUnreadMessages uses: a
+ * receipt made at or after the event's time was sent after we saw the event.
+ * A receipt without a timestamp (or a zero one) keeps the answer: not read.
+ */
+export function receiptCoversEvent(input: {
+    /** The SDK says our receipt is at or after `event`. */
+    sdkRead: boolean;
+    /** The SDK could place our receipt in a loaded timeline. */
+    receiptPlaced: boolean;
+    /** Newest timestamp among our receipts, or null when we have none. */
+    receiptTs: number | null;
+    /** The event's origin timestamp. */
+    eventTs: number;
+}): boolean {
+    const { sdkRead, receiptPlaced, receiptTs, eventTs } = input;
+    if (sdkRead) return true;
+    if (receiptPlaced) return false;
+    return receiptTs !== null && receiptTs > 0 && receiptTs >= eventTs;
+}

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
     hasUnreadMessages,
     isStaleLocalUnread,
+    receiptCoversEvent,
     type UnreadEventView,
 } from "./roomUnread";
 
@@ -163,6 +164,55 @@ describe("isStaleLocalUnread", () => {
     it("is stale for a highlight-only count", () => {
         expect(isStaleLocalUnread({ ...stale, total: 0, highlight: 1 })).toBe(
             true,
+        );
+    });
+});
+
+describe("receiptCoversEvent", () => {
+    const base = {
+        sdkRead: false,
+        receiptPlaced: false,
+        receiptTs: 2_000,
+        eventTs: 1_000,
+    };
+
+    it("is covered when the SDK says the receipt is at or after the event", () => {
+        expect(
+            receiptCoversEvent({
+                ...base,
+                sdkRead: true,
+                receiptPlaced: true,
+                receiptTs: null,
+            }),
+        ).toBe(true);
+    });
+
+    it("is not covered when the receipt is placed and the SDK disagrees, even with a later timestamp", () => {
+        expect(
+            receiptCoversEvent({
+                ...base,
+                receiptPlaced: true,
+                receiptTs: 9_999,
+            }),
+        ).toBe(false);
+    });
+
+    it("is covered by an unplaced receipt whose timestamp is not older than the event", () => {
+        expect(receiptCoversEvent({ ...base, receiptTs: 1_000 })).toBe(true);
+        expect(receiptCoversEvent({ ...base, receiptTs: 2_000 })).toBe(true);
+    });
+
+    it("is not covered by an unplaced receipt older than the event", () => {
+        expect(receiptCoversEvent({ ...base, receiptTs: 999 })).toBe(false);
+    });
+
+    it("is not covered when there is no receipt timestamp", () => {
+        expect(receiptCoversEvent({ ...base, receiptTs: null })).toBe(false);
+    });
+
+    it("is not covered by a zero receipt timestamp", () => {
+        expect(receiptCoversEvent({ ...base, receiptTs: 0, eventTs: 0 })).toBe(
+            false,
         );
     });
 });
