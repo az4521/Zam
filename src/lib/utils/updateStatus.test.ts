@@ -220,6 +220,24 @@ describe("updateStatusView — fold updater phase + toggle into a view model", (
         });
     });
 
+    it("a Flatpak update says why the portal could not install it", () => {
+        const label = (
+            manualReason: "permissions" | "declined" | "no-portal",
+        ) =>
+            updateStatusView({
+                phase: "unsupported",
+                autoEnabled: true,
+                version: "1.2.0",
+                manual: "flatpak",
+                manualReason,
+            }).label;
+        expect(label("permissions")).toBe(
+            "Update available (v1.2.0). It needs new permissions, which Flatpak only grants through your software center or flatpak update",
+        );
+        expect(label("declined")).toContain("were declined");
+        expect(label("no-portal")).toContain("can't update apps itself");
+    });
+
     it("error surfaces the message verbatim", () => {
         expect(
             updateStatusView({

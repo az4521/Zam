@@ -78,8 +78,16 @@ function createFlatpakShellUpdate(deps) {
             log("update failed:", err?.dbusName, err?.message);
             // New permissions, or the user said no in the portal's dialog:
             // only the system's own tools can install it now.
-            if (/NotSupported|AccessDenied/.test(err?.dbusName ?? ""))
-                status({ phase: "unsupported", manual: "flatpak" });
+            // `manualReason` lets the UI say why instead of looking broken.
+            const dbusName = err?.dbusName ?? "";
+            if (/NotSupported|AccessDenied/.test(dbusName))
+                status({
+                    phase: "unsupported",
+                    manual: "flatpak",
+                    manualReason: /NotSupported/.test(dbusName)
+                        ? "permissions"
+                        : "declined",
+                });
             else
                 status({
                     phase: "error",

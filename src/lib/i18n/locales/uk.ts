@@ -4377,6 +4377,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "updateStatus.openReleasePage": "Відкрити сторінку випуску",
     "updateStatus.flatpakManualUpdate":
         "Доступне оновлення{versionSuffix}. Встановіть його з центру програм або командою flatpak update",
+    "updateStatus.flatpakNeedsPermissions":
+        "Доступне оновлення{versionSuffix}. Йому потрібні нові дозволи, які Flatpak надає лише через центр програм або flatpak update",
+    "updateStatus.flatpakUpdateDeclined":
+        "Доступне оновлення{versionSuffix}. Автооновлення Flatpak було відхилено; встановіть його з центру програм або командою flatpak update",
+    "updateStatus.flatpakNoPortal":
+        "Доступне оновлення{versionSuffix}. Ця версія Flatpak не вміє оновлювати програми сама; встановіть його з центру програм або командою flatpak update",
     "updateStatus.packageManagerUpdate":
         "Доступне оновлення{versionSuffix}. Оновіть через {manager}",
     "updateStatus.updateCheckFailed": "Не вдалося перевірити оновлення",

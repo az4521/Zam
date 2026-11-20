@@ -3795,6 +3795,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "updateStatus.openReleasePage": "リリースページを開く",
     "updateStatus.flatpakManualUpdate":
         "アップデートがあります{versionSuffix}。ソフトウェアセンターか flatpak update でインストールしてください",
+    "updateStatus.flatpakNeedsPermissions":
+        "アップデートがあります{versionSuffix}。新しい権限が必要で、Flatpak はソフトウェアセンターか flatpak update でのみ許可します",
+    "updateStatus.flatpakUpdateDeclined":
+        "アップデートがあります{versionSuffix}。Flatpak の自動アップデートが拒否されたため、ソフトウェアセンターか flatpak update でインストールしてください",
+    "updateStatus.flatpakNoPortal":
+        "アップデートがあります{versionSuffix}。この Flatpak のバージョンはアプリ自身による更新に対応していません。ソフトウェアセンターか flatpak update でインストールしてください",
     "updateStatus.packageManagerUpdate":
         "アップデートがあります{versionSuffix}。{manager}で更新してください",
     "updateStatus.updateCheckFailed": "アップデートの確認に失敗しました",

@@ -118,9 +118,9 @@ describe("flatpakShellUpdate", () => {
     });
 
     it("sends the system tools' way for new permissions or a refusal", async () => {
-        for (const dbusName of [
-            "org.freedesktop.DBus.Error.NotSupported",
-            "org.freedesktop.DBus.Error.AccessDenied",
+        for (const [dbusName, manualReason] of [
+            ["org.freedesktop.DBus.Error.NotSupported", "permissions"],
+            ["org.freedesktop.DBus.Error.AccessDenied", "declined"],
         ]) {
             const { shell, statuses } = setup({
                 update: async () => {
@@ -131,6 +131,7 @@ describe("flatpakShellUpdate", () => {
             expect(statuses.at(-1)).toMatchObject({
                 phase: "unsupported",
                 manual: "flatpak",
+                manualReason,
             });
         }
     });

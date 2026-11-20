@@ -4385,6 +4385,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "updateStatus.openReleasePage": "Открыть страницу выпуска",
     "updateStatus.flatpakManualUpdate":
         "Доступно обновление{versionSuffix}. Установите его через центр приложений или командой flatpak update",
+    "updateStatus.flatpakNeedsPermissions":
+        "Доступно обновление{versionSuffix}. Ему нужны новые разрешения, которые Flatpak выдаёт только через центр приложений или flatpak update",
+    "updateStatus.flatpakUpdateDeclined":
+        "Доступно обновление{versionSuffix}. Автообновления Flatpak были отклонены; установите его через центр приложений или командой flatpak update",
+    "updateStatus.flatpakNoPortal":
+        "Доступно обновление{versionSuffix}. Эта версия Flatpak не умеет обновлять приложения сама; установите его через центр приложений или командой flatpak update",
     "updateStatus.packageManagerUpdate":
         "Доступно обновление{versionSuffix}. Обновите через {manager}",
     "updateStatus.updateCheckFailed": "Не удалось проверить обновления",

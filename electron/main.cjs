@@ -639,7 +639,9 @@ async function checkBundleThenInstaller(manual) {
                 ? {
                       phase: "unsupported",
                       version: shellVersion,
-                      ...(IN_FLATPAK ? { manual: "flatpak" } : {}),
+                      ...(IN_FLATPAK
+                          ? { manual: "flatpak", manualReason: "no-portal" }
+                          : {}),
                       ...(IS_MANAGED
                           ? {
                                 manual: "package-manager",

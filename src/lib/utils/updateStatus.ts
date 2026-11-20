@@ -34,6 +34,10 @@ export interface UpdateStatusInput {
     /** With "unsupported": the app cannot install it, the system can (a
      *  Flatpak update that needs new permissions, or no update portal). */
     manual?: "flatpak" | "package-manager";
+    /** With manual "flatpak": why the portal could not install it. The
+     *  portal refuses any update that adds sandbox permissions, and keeps a
+     *  "no" from its "Update Zam?" prompt; an old Flatpak has no portal. */
+    manualReason?: "permissions" | "declined" | "no-portal";
     /** With manual "package-manager": which one installed the app. */
     manager?: string;
 }
@@ -64,6 +68,7 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
         installFailed,
         reopenToApply,
         manual,
+        manualReason,
         manager,
     } = input;
 
@@ -173,9 +178,16 @@ export function updateStatusView(input: UpdateStatusInput): UpdateStatusView {
             // The release page has nothing a Flatpak can install.
             if (manual === "flatpak")
                 return {
-                    label: t("updateStatus.flatpakManualUpdate", {
-                        versionSuffix,
-                    }),
+                    label: t(
+                        manualReason === "permissions"
+                            ? "updateStatus.flatpakNeedsPermissions"
+                            : manualReason === "declined"
+                              ? "updateStatus.flatpakUpdateDeclined"
+                              : manualReason === "no-portal"
+                                ? "updateStatus.flatpakNoPortal"
+                                : "updateStatus.flatpakManualUpdate",
+                        { versionSuffix },
+                    ),
                     action: "none",
                     actionLabel: "",
                     busy: false,

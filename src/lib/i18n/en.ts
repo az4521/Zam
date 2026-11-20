@@ -4257,6 +4257,12 @@ export const en = {
     "updateStatus.openReleasePage": "Open release page",
     "updateStatus.flatpakManualUpdate":
         "Update available{versionSuffix}. Install it from your software center or with flatpak update",
+    "updateStatus.flatpakNeedsPermissions":
+        "Update available{versionSuffix}. It needs new permissions, which Flatpak only grants through your software center or flatpak update",
+    "updateStatus.flatpakUpdateDeclined":
+        "Update available{versionSuffix}. Automatic Flatpak updates were declined, so install it from your software center or with flatpak update",
+    "updateStatus.flatpakNoPortal":
+        "Update available{versionSuffix}. This Flatpak version can't update apps itself; install it from your software center or with flatpak update",
     "updateStatus.packageManagerUpdate":
         "Update available{versionSuffix}. Update it with {manager}",
     "updateStatus.updateCheckFailed": "Update check failed",

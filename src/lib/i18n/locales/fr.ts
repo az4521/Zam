@@ -4381,6 +4381,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "updateStatus.openReleasePage": "Ouvrir la page de la version",
     "updateStatus.flatpakManualUpdate":
         "Mise à jour disponible{versionSuffix}. Installez-la depuis votre logithèque ou avec flatpak update",
+    "updateStatus.flatpakNeedsPermissions":
+        "Mise à jour disponible{versionSuffix}. Elle demande de nouvelles autorisations, que Flatpak n'accorde que via votre logithèque ou flatpak update",
+    "updateStatus.flatpakUpdateDeclined":
+        "Mise à jour disponible{versionSuffix}. Les mises à jour automatiques Flatpak ont été refusées ; installez-la depuis votre logithèque ou avec flatpak update",
+    "updateStatus.flatpakNoPortal":
+        "Mise à jour disponible{versionSuffix}. Cette version de Flatpak ne peut pas mettre à jour les applis elle-même ; installez-la depuis votre logithèque ou avec flatpak update",
     "updateStatus.packageManagerUpdate":
         "Mise à jour disponible{versionSuffix}. Mettez-la à jour avec {manager}",
     "updateStatus.updateCheckFailed": "Échec de la recherche de mises à jour",

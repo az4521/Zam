@@ -4008,6 +4008,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "updateStatus.openReleasePage": "打开发行页面",
     "updateStatus.flatpakManualUpdate":
         "有可用更新{versionSuffix}。请通过你的软件中心或使用 flatpak update 安装",
+    "updateStatus.flatpakNeedsPermissions":
+        "有可用更新{versionSuffix}。它需要新的权限，Flatpak 只能通过软件中心或 flatpak update 授予",
+    "updateStatus.flatpakUpdateDeclined":
+        "有可用更新{versionSuffix}。Flatpak 自动更新已被拒绝，请通过软件中心或使用 flatpak update 安装",
+    "updateStatus.flatpakNoPortal":
+        "有可用更新{versionSuffix}。此 Flatpak 版本无法让应用自行更新，请通过软件中心或使用 flatpak update 安装",
     "updateStatus.packageManagerUpdate":
         "有可用更新{versionSuffix}。请使用 {manager} 更新",
     "updateStatus.updateCheckFailed": "检查更新失败",

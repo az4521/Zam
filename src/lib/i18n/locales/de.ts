@@ -4415,6 +4415,12 @@ const messages: Partial<Record<MessageKey, string>> = {
     "updateStatus.openReleasePage": "Versionsseite öffnen",
     "updateStatus.flatpakManualUpdate":
         "Update verfügbar{versionSuffix}. Installiere es über deine Softwareverwaltung oder mit flatpak update",
+    "updateStatus.flatpakNeedsPermissions":
+        "Update verfügbar{versionSuffix}. Es braucht neue Berechtigungen, die Flatpak nur über deine Softwareverwaltung oder flatpak update vergibt",
+    "updateStatus.flatpakUpdateDeclined":
+        "Update verfügbar{versionSuffix}. Automatische Flatpak-Updates wurden abgelehnt, installiere es über deine Softwareverwaltung oder mit flatpak update",
+    "updateStatus.flatpakNoPortal":
+        "Update verfügbar{versionSuffix}. Diese Flatpak-Version kann Apps nicht selbst aktualisieren; installiere es über deine Softwareverwaltung oder mit flatpak update",
     "updateStatus.packageManagerUpdate":
         "Update verfügbar{versionSuffix}. Aktualisiere es mit {manager}",
     "updateStatus.updateCheckFailed": "Updateprüfung fehlgeschlagen",
