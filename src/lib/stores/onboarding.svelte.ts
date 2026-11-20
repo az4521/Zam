@@ -1,3 +1,5 @@
+import type { MessageKey } from "$lib/i18n";
+
 // First-run state: the guided encryption setup dialog, and the password a
 // password sign-in just used.
 //
@@ -45,6 +47,12 @@ class OnboardingStore {
     automatic = $state(false);
     /** Device verification was started from the dialog; reopen once it ends. */
     resumeAfterVerification = $state(false);
+    /**
+     * Opened only to unlock secret storage for a feature (an i18n key saying
+     * why). The dialog then asks for the recovery key even when this session
+     * is already verified, since verified does not mean 4S is readable here.
+     */
+    unlockReason = $state<MessageKey | null>(null);
 }
 
 export const onboardingState = new OnboardingStore();
@@ -73,10 +81,38 @@ export function takeFreshSignIn(userId: string | null): boolean {
 /** Open the guided setup (from a nudge, or automatically after sign-in). */
 export function openEncryptionSetup(automatic = false): void {
     onboardingState.automatic = automatic;
+    onboardingState.unlockReason = null;
+    afterUnlock = null;
     onboardingState.encryptionSetupOpen = true;
+}
+
+let afterUnlock: (() => void) | null = null;
+
+/**
+ * Open the dialog straight at the recovery key prompt, for a feature that
+ * needs secret storage readable in this session. `onUnlocked` runs once the
+ * key is accepted; closing without unlocking drops it.
+ */
+export function openSecretStorageUnlock(
+    reasonKey: MessageKey,
+    onUnlocked?: () => void,
+): void {
+    onboardingState.automatic = false;
+    onboardingState.unlockReason = reasonKey;
+    afterUnlock = onUnlocked ?? null;
+    onboardingState.encryptionSetupOpen = true;
+}
+
+/** The pending after-unlock action, consumed. */
+export function takeAfterUnlock(): (() => void) | null {
+    const run = afterUnlock;
+    afterUnlock = null;
+    return run;
 }
 
 export function closeEncryptionSetup(): void {
     onboardingState.encryptionSetupOpen = false;
     onboardingState.automatic = false;
+    onboardingState.unlockReason = null;
+    afterUnlock = null;
 }

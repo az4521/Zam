@@ -21,7 +21,7 @@ import { disableStep, enableStep } from "$lib/utils/favouritesMode";
 import { safeDimension } from "$lib/utils/mediaDimensions";
 import { mergeImportedFavourites } from "$lib/utils/discordFavourites";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
-import { openEncryptionSetup } from "$lib/stores/onboarding.svelte";
+import { openSecretStorageUnlock } from "$lib/stores/onboarding.svelte";
 import { t } from "$lib/i18n";
 
 export type { FavouriteGif };
@@ -254,7 +254,12 @@ async function enableEncrypted(): Promise<FavouritesModeChange> {
     const key = await preparePrivateKey();
     if (!ownedClient(owner)) return "failed";
     if (key === "unlock") {
-        openEncryptionSetup(false);
+        // Carry on once the recovery key is in, so the toggle does not
+        // silently stay off after a successful unlock.
+        openSecretStorageUnlock(
+            "privateData.unlockToEncrypt",
+            () => void setFavouritesEncrypted(true),
+        );
         return "unlock";
     }
     if (key !== "ready") return "failed";
@@ -289,14 +294,20 @@ async function disableEncrypted(): Promise<FavouritesModeChange> {
     });
     if (step === "noop") return "noop";
     if (step === "unlock") {
-        openEncryptionSetup(false);
+        openSecretStorageUnlock(
+            "privateData.unlockToDecrypt",
+            () => void setFavouritesEncrypted(false),
+        );
         return "unlock";
     }
     const owner = captureClient();
     const read = await readPrivate(FAVOURITES_TYPE, { fresh: true });
     if (!ownedClient(owner)) return "failed";
     if (read.kind === "locked") {
-        openEncryptionSetup(false);
+        openSecretStorageUnlock(
+            "privateData.unlockToDecrypt",
+            () => void setFavouritesEncrypted(false),
+        );
         return "unlock";
     }
     const gifs = read.kind === "value" ? gifsOf(read.value) : [];

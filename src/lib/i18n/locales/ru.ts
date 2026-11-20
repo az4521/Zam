@@ -998,6 +998,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Личные данные заблокированы на этом устройстве. Сначала разблокируйте шифрование.",
     "privateData.keySaveFailed":
         "Не удалось сохранить ключ личных данных в секретном хранилище аккаунта. Попытка повторится при следующей разблокировке.",
+    "privateData.unlockToEncrypt":
+        "Чтобы зашифровать избранные GIF, на этом устройстве нужен ключ восстановления, чтобы другие ваши устройства могли их прочитать.",
+    "privateData.unlockToDecrypt":
+        "Ваши избранные GIF зашифрованы. Введите ключ восстановления, чтобы читать их на этом устройстве.",
     "settingsSearch.encryptFavouriteGifs": "Шифровать избранные GIF",
     "privateData.toggleLabel": "Шифровать избранные GIF",
     "privateData.toggleHelp":

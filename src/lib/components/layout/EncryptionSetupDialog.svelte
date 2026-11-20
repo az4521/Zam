@@ -29,6 +29,7 @@
         forgetSignInPassword,
         onboardingState,
         peekSignInPassword,
+        takeAfterUnlock,
     } from "$lib/stores/onboarding.svelte";
     import {
         planEncryptionSetup,
@@ -112,7 +113,17 @@
         | "unlock"
         | "unlock-working"
         | "finished";
-    let flow = $state<Flow>("idle");
+    // Opened to unlock secret storage for a feature: start at the key
+    // prompt, whatever the plan says (a verified session can still have 4S
+    // locked here).
+    const unlockOnly = onboardingState.unlockReason !== null;
+    let flow = $state<Flow>(unlockOnly ? "unlock" : "idle");
+    // "You're all set" only for a finished flow, or for the plan before the
+    // user has started anything.
+    const showDone = $derived(
+        flow === "finished" ||
+            (flow === "idle" && !unlockOnly && plan.kind === "done"),
+    );
     let error = $state("");
 
     // An automatic open stays invisible until there is something to say, and
@@ -286,6 +297,13 @@
             unlockPassphrase = "";
             await read();
             void refreshVerificationStatus();
+            // Opened for a feature: hand back to it, no setup summary.
+            if (unlockOnly) {
+                const resume = takeAfterUnlock();
+                close();
+                resume?.();
+                return;
+            }
             flow = "finished";
         } catch (e) {
             error =
@@ -396,7 +414,7 @@
                 aria-hidden="true"
                 class="flex-shrink-0 w-10 h-10 rounded-full bg-zam-accent/15 text-zam-accent flex items-center justify-center text-xl"
             >
-                {#if flow === "finished" || plan.kind === "done"}
+                {#if showDone}
                     <Check size={22} />
                 {:else}
                     <Lock size={20} />
@@ -409,7 +427,7 @@
                 >
                     {#if flow === "show-key"}
                         {t("encryptionSetup.saveKeyTitle")}
-                    {:else if flow === "finished" || plan.kind === "done"}
+                    {:else if showDone}
                         {t("encryptionSetup.doneTitle")}
                     {:else if flow === "unlock" || flow === "unlock-working"}
                         {t("encryptionSetup.enterKeyTitle")}
@@ -464,7 +482,7 @@
                 <span>{t("securitySettings.iVeSavedMyRecoveryKey")}</span>
             </label>
             {@render primary(t("securitySettings.done"), finishSetup, !saved)}
-        {:else if flow === "finished" || plan.kind === "done"}
+        {:else if showDone}
             <p class="text-sm text-zam-textSecondary">
                 {t("encryptionSetup.doneBody")}
             </p>
@@ -491,6 +509,11 @@
                         >{t("securitySettings.passphrase")}</button
                     >
                 </div>
+            {/if}
+            {#if onboardingState.unlockReason}
+                <p class="text-sm text-zam-textSecondary">
+                    {t(onboardingState.unlockReason)}
+                </p>
             {/if}
             <p class="text-sm text-zam-textSecondary">
                 {effectiveMode === "key"
@@ -542,10 +565,14 @@
                     runUnlock,
                     !unlockReady,
                 )}
-                {@render secondary(t("encryptionSetup.back"), () => {
-                    error = "";
-                    flow = "idle";
-                })}
+                {@render secondary(
+                    unlockOnly ? t("common.cancel") : t("encryptionSetup.back"),
+                    () => {
+                        error = "";
+                        if (unlockOnly) close();
+                        else flow = "idle";
+                    },
+                )}
             {/if}
         {:else if plan.kind === "checking" || cryptoStarting}
             <p

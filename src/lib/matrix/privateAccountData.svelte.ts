@@ -34,6 +34,7 @@ import {
 import { captureClient, ownedClient } from "./runtime";
 import {
     hasSecretStorage,
+    isSecretStorageUnlocked,
     onSecretStorageReady,
     readPrivateKeySecret,
     storePrivateKeySecret,
@@ -493,6 +494,14 @@ async function ensureFromSecretStorage(): Promise<void> {
         )) {
             await install(userId, bytes, true);
         }
+    } else if (
+        (action === "generate-and-store" || action === "store-local") &&
+        !(await isSecretStorageUnlocked())
+    ) {
+        // Locked here (the session can be verified with 4S still locked):
+        // writing would only fail. The caller asks for the recovery key, and
+        // onSecretStorageReady runs this again once it is entered.
+        if (!ownedClient(owner)) return;
     } else if (action === "generate-and-store" || action === "store-local") {
         const bytes =
             action === "store-local" && key && keyBytes

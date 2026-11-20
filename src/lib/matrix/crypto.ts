@@ -2771,6 +2771,22 @@ export async function readPrivateKeySecret(): Promise<
     }
 }
 
+/**
+ * Whether this session can write to secret storage now: the account's default
+ * 4S key has been unlocked (recovery key or passphrase) in this session. A
+ * verified session can still have it locked, e.g. after a restart.
+ */
+export async function isSecretStorageUnlocked(): Promise<boolean> {
+    const client = getClient();
+    if (!client) return false;
+    try {
+        const found = await client.secretStorage.getKey();
+        return found !== null && secretStorageKeys.has(found[0]);
+    } catch {
+        return false;
+    }
+}
+
 /** Store the private account data key in 4S. Throws without an unlocked key. */
 export async function storePrivateKeySecret(value: string): Promise<void> {
     const client = getClient();

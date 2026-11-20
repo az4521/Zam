@@ -18,6 +18,14 @@ const h = vi.hoisted(() => ({
     onServer: false as boolean | null,
     remembered: null as string | null,
     setupRecovery: vi.fn(),
+    unlockWithRecoveryKey: vi.fn(),
+    onboarding: {
+        encryptionSetupOpen: true,
+        automatic: false,
+        resumeAfterVerification: false,
+        unlockReason: null as string | null,
+    },
+    afterUnlock: null as (() => void) | null,
 }));
 
 vi.mock("$lib/matrix/crypto", () => ({
@@ -35,7 +43,7 @@ vi.mock("$lib/matrix/crypto", () => ({
     accountHasCrossSigning: async () => h.onServer,
     getCryptoInitError: () => null,
     setupRecovery: h.setupRecovery,
-    unlockWithRecoveryKey: vi.fn(),
+    unlockWithRecoveryKey: h.unlockWithRecoveryKey,
     unlockWithPassphrase: vi.fn(),
 }));
 vi.mock("$lib/stores/auth.svelte", () => ({
@@ -52,10 +60,11 @@ vi.mock("$lib/stores/interface.svelte", () => ({
     openAppSettingsTab: vi.fn(),
 }));
 vi.mock("$lib/stores/onboarding.svelte", () => ({
-    onboardingState: {
-        encryptionSetupOpen: true,
-        automatic: false,
-        resumeAfterVerification: false,
+    onboardingState: h.onboarding,
+    takeAfterUnlock: () => {
+        const run = h.afterUnlock;
+        h.afterUnlock = null;
+        return run;
     },
     closeEncryptionSetup: vi.fn(),
     forgetSignInPassword: vi.fn(),
@@ -63,6 +72,7 @@ vi.mock("$lib/stores/onboarding.svelte", () => ({
 }));
 
 import EncryptionSetupDialog from "./EncryptionSetupDialog.svelte";
+import { closeEncryptionSetup } from "$lib/stores/onboarding.svelte";
 
 async function settle() {
     for (let i = 0; i < 5; i++) {
@@ -88,6 +98,9 @@ describe("EncryptionSetupDialog", () => {
         h.onServer = false;
         h.remembered = null;
         h.setupRecovery.mockReset();
+        h.unlockWithRecoveryKey.mockReset();
+        h.onboarding.unlockReason = null;
+        h.afterUnlock = null;
     });
 
     afterEach(() => {
@@ -157,5 +170,54 @@ describe("EncryptionSetupDialog", () => {
         expect(
             document.body.querySelector("input[type=password]"),
         ).not.toBeNull();
+    });
+
+    it("says all set on a verified session opened from the nudge", async () => {
+        h.onServer = true;
+        h.status.secretStorageReady = true;
+        h.status.defaultKeyId = "K";
+        h.status.thisDeviceVerified = true;
+        component = mount(EncryptionSetupDialog, { target: document.body });
+        await settle();
+        expect(document.body.textContent).toContain("You're all set");
+    });
+
+    // A verified session can still have secret storage locked (after a
+    // restart). Opened to unlock it, the dialog must ask for the key rather
+    // than claim all is set, and resume the feature once the key is in.
+    it("asks for the key when opened to unlock, even when verified", async () => {
+        h.onServer = true;
+        h.status.secretStorageReady = true;
+        h.status.defaultKeyId = "K";
+        h.status.thisDeviceVerified = true;
+        h.onboarding.unlockReason = "privateData.unlockToEncrypt";
+        const resumed = vi.fn();
+        h.afterUnlock = resumed;
+        h.unlockWithRecoveryKey.mockResolvedValue({
+            total: 0,
+            imported: 0,
+            sessionVerified: true,
+        });
+        component = mount(EncryptionSetupDialog, { target: document.body });
+        await settle();
+        expect(document.body.textContent).toContain("Enter your recovery key");
+        expect(document.body.textContent).not.toContain("You're all set");
+        expect(resumed).not.toHaveBeenCalled();
+
+        const input = document.body.querySelector(
+            "input[type=text]",
+        ) as HTMLInputElement;
+        input.value =
+            "EsTc 3gpd 5JNe ZFqb 4GzC Hf7k LRr2 9oVm XEdA bU1s w8iT h6Ky";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        await settle();
+        [...document.body.querySelectorAll("button")]
+            .find((b) => b.textContent?.trim() === "Continue")!
+            .click();
+        await settle();
+        expect(h.unlockWithRecoveryKey).toHaveBeenCalled();
+        expect(resumed).toHaveBeenCalledTimes(1);
+        expect(document.body.textContent).not.toContain("You're all set");
+        expect(closeEncryptionSetup).toHaveBeenCalled();
     });
 });

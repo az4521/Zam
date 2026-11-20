@@ -964,6 +964,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "privateData.locked": "此设备上的私密数据已锁定。请先解锁加密。",
     "privateData.keySaveFailed":
         "无法将私密数据密钥保存到账户的安全存储中，下次解锁时会重试。",
+    "privateData.unlockToEncrypt":
+        "加密收藏的 GIF 需要在此设备上输入恢复密钥，以便你的其他设备也能读取。",
+    "privateData.unlockToDecrypt":
+        "你收藏的 GIF 已加密。输入恢复密钥即可在此设备上读取。",
     "settingsSearch.encryptFavouriteGifs": "加密收藏的 GIF",
     "privateData.toggleLabel": "加密收藏的 GIF",
     "privateData.toggleHelp":

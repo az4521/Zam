@@ -887,6 +887,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Les données privées sont verrouillées sur cet appareil. Déverrouillez d'abord le chiffrement.",
     "privateData.keySaveFailed":
         "Impossible d'enregistrer la clé des données privées dans le stockage secret de votre compte. Une nouvelle tentative aura lieu au prochain déverrouillage.",
+    "privateData.unlockToEncrypt":
+        "Pour chiffrer vos GIF favoris, votre clé de récupération est nécessaire sur cet appareil, afin que vos autres appareils puissent les lire.",
+    "privateData.unlockToDecrypt":
+        "Vos GIF favoris sont chiffrés. Saisissez votre clé de récupération pour les lire sur cet appareil.",
     "settingsSearch.encryptFavouriteGifs": "Chiffrer les GIF favoris",
     "privateData.toggleLabel": "Chiffrer les GIF favoris",
     "privateData.toggleHelp":

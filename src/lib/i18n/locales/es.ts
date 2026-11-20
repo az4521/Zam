@@ -887,6 +887,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Los datos privados están bloqueados en este dispositivo. Desbloquea primero el cifrado.",
     "privateData.keySaveFailed":
         "No se pudo guardar la clave de datos privados en el almacenamiento secreto de tu cuenta. Se volverá a intentar la próxima vez que desbloquees.",
+    "privateData.unlockToEncrypt":
+        "Para cifrar tus GIF favoritos se necesita tu clave de recuperación en este dispositivo, para que tus otros dispositivos puedan leerlos.",
+    "privateData.unlockToDecrypt":
+        "Tus GIF favoritos están cifrados. Introduce tu clave de recuperación para leerlos en este dispositivo.",
     "settingsSearch.encryptFavouriteGifs": "Cifrar GIF favoritos",
     "privateData.toggleLabel": "Cifrar GIF favoritos",
     "privateData.toggleHelp":

@@ -816,6 +816,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "このデバイスでは非公開データがロックされています。先に暗号化のロックを解除してください。",
     "privateData.keySaveFailed":
         "非公開データの鍵をアカウントのシークレットストレージに保存できませんでした。次回のロック解除時に再試行します。",
+    "privateData.unlockToEncrypt":
+        "お気に入りGIFを暗号化するには、他のデバイスでも読めるように、このデバイスでリカバリーキーが必要です。",
+    "privateData.unlockToDecrypt":
+        "お気に入りGIFは暗号化されています。このデバイスで読むにはリカバリーキーを入力してください。",
     "settingsSearch.encryptFavouriteGifs": "お気に入りGIFを暗号化",
     "privateData.toggleLabel": "お気に入りGIFを暗号化",
     "privateData.toggleHelp":

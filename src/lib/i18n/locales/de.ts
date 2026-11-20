@@ -894,6 +894,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Private Daten sind auf diesem Gerät gesperrt. Entsperre zuerst die Verschlüsselung.",
     "privateData.keySaveFailed":
         "Der Schlüssel für private Daten konnte nicht im Secret Storage deines Kontos gespeichert werden. Er wird beim nächsten Entsperren erneut versucht.",
+    "privateData.unlockToEncrypt":
+        "Um deine Lieblings-GIFs zu verschlüsseln, wird dein Wiederherstellungsschlüssel auf diesem Gerät benötigt, damit deine anderen Geräte sie lesen können.",
+    "privateData.unlockToDecrypt":
+        "Deine Lieblings-GIFs sind verschlüsselt. Gib deinen Wiederherstellungsschlüssel ein, um sie auf diesem Gerät zu lesen.",
     "settingsSearch.encryptFavouriteGifs": "Favoriten-GIFs verschlüsseln",
     "privateData.toggleLabel": "Favoriten-GIFs verschlüsseln",
     "privateData.toggleHelp":

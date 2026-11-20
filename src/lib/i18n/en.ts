@@ -968,6 +968,10 @@ export const en = {
         "Private data is locked on this device. Unlock encryption first.",
     "privateData.keySaveFailed":
         "Could not save the private data key to your account's secret storage. It will be retried the next time you unlock.",
+    "privateData.unlockToEncrypt":
+        "Encrypting your favourite GIFs needs your recovery key on this device, so other devices can read them.",
+    "privateData.unlockToDecrypt":
+        "Your favourite GIFs are encrypted. Enter your recovery key to read them on this device.",
     "settingsSearch.encryptFavouriteGifs": "Encrypt favourite GIFs",
     "privateData.toggleLabel": "Encrypt favourite GIFs",
     "privateData.toggleHelp":
