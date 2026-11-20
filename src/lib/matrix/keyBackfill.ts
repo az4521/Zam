@@ -218,8 +218,15 @@ function log(message: string): void {
  * teardown. Call once crypto is running.
  */
 export function attachKeyBackfill(client: MatrixClient): () => void {
-    const crypto = client.getCrypto();
-    if (!crypto) return () => {};
+    if (!client.getCrypto()) return () => {};
+    // Looked up on every use, never kept: the Android background release
+    // stops this engine and restartCrypto puts a new one on the same client,
+    // and calls into the old one throw ClientStoppedError.
+    const engine = (): CryptoApi => {
+        const crypto = client.getCrypto();
+        if (!crypto) throw new Error("crypto is not running");
+        return crypto;
+    };
     const ownUserId = client.getUserId();
     const ownDeviceId = client.getDeviceId();
     if (!ownUserId || !ownDeviceId) return () => {};
@@ -243,7 +250,7 @@ export function attachKeyBackfill(client: MatrixClient): () => void {
         content: Record<string, unknown>,
     ): Promise<void> {
         if (devices.length === 0) return;
-        const batch = await crypto!.encryptToDeviceMessages(
+        const batch = await engine().encryptToDeviceMessages(
             type,
             devices,
             content,
@@ -271,7 +278,7 @@ export function attachKeyBackfill(client: MatrixClient): () => void {
         // Older senders name the device; otherwise ask all of theirs.
         const named =
             typeof content.device_id === "string" ? content.device_id : null;
-        const known = (await crypto!.getUserDeviceInfo([sender])).get(sender);
+        const known = (await engine().getUserDeviceInfo([sender])).get(sender);
         const deviceIds = named
             ? [named]
             : [...(known?.keys() ?? [])].filter(
@@ -297,9 +304,9 @@ export function attachKeyBackfill(client: MatrixClient): () => void {
         const requester = encryptionInfo!.sender;
         const deviceId = encryptionInfo!.senderDevice;
         const room = client.getRoom(roomId);
-        const own = await crypto!.getOwnDeviceKeys();
+        const own = await engine().getOwnDeviceKeys();
         let keys: ExportedRoomKey[] = [];
-        const machine = (crypto as unknown as ExportHooks).olmMachine;
+        const machine = (engine() as unknown as ExportHooks).olmMachine;
         if (room && machine) {
             keys = JSON.parse(
                 await machine.exportRoomKeys(
@@ -312,7 +319,7 @@ export function attachKeyBackfill(client: MatrixClient): () => void {
             ) as ExportedRoomKey[];
         }
         const status = deviceId
-            ? await crypto!.getDeviceVerificationStatus(requester, deviceId)
+            ? await engine().getDeviceVerificationStatus(requester, deviceId)
             : null;
         const refusal = answerRefusal({
             fromKnownDevice: !!deviceId,
@@ -320,7 +327,7 @@ export function attachKeyBackfill(client: MatrixClient): () => void {
             requesterJoined: room?.getMember(requester)?.membership === "join",
             historyVisibility: room?.getHistoryVisibility() ?? null,
             ownKey: keys.length === 1,
-            deviceAllowed: deviceAllowed(crypto!, ownUserId!, status),
+            deviceAllowed: deviceAllowed(engine(), ownUserId!, status),
         });
         if (refusal) {
             log(`not re-sending ${sessionId} to ${requester}: ${refusal}`);
@@ -354,13 +361,13 @@ export function attachKeyBackfill(client: MatrixClient): () => void {
             log(`ignoring a key for ${sessionId}: ${refusal}`);
             return;
         }
-        await crypto!.importRoomKeys([key as ExportedRoomKey]);
+        await engine().importRoomKeys([key as ExportedRoomKey]);
         asked.delete(sessionId);
         log(`got ${sessionId} back from ${encryptionInfo.sender}`);
         for (const event of pending!.events) {
             if (!event.isDecryptionFailure()) continue;
             event
-                .attemptDecryption(crypto as never, { isRetry: true })
+                .attemptDecryption(engine() as never, { isRetry: true })
                 .catch(() => {});
         }
     }
@@ -391,7 +398,7 @@ export function attachKeyBackfill(client: MatrixClient): () => void {
                     if (!isMissingRoomKey(event)) continue;
                     // A failed retry fires Decrypted again, which asks.
                     event
-                        .attemptDecryption(crypto as never, { isRetry: true })
+                        .attemptDecryption(engine() as never, { isRetry: true })
                         .catch(() => {});
                 }
             }
@@ -409,7 +416,7 @@ export function attachKeyBackfill(client: MatrixClient): () => void {
     }
 
     async function checkOwnTrust(): Promise<void> {
-        const status = await crypto!.getDeviceVerificationStatus(
+        const status = await engine().getDeviceVerificationStatus(
             ownUserId!,
             ownDeviceId!,
         );
@@ -446,7 +453,7 @@ export function attachKeyBackfill(client: MatrixClient): () => void {
     manualRequest = async (event) => {
         if (event.isDecryptionFailure())
             await event
-                .attemptDecryption(crypto as never, { isRetry: true })
+                .attemptDecryption(engine() as never, { isRetry: true })
                 .catch(() => {});
         if (!event.isDecryptionFailure()) return;
         await request(event, true);

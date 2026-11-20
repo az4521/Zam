@@ -18,6 +18,7 @@
 
 import { ClientEvent } from "matrix-js-sdk";
 import type { MatrixClient } from "matrix-js-sdk";
+import type { CryptoApi } from "matrix-js-sdk/lib/crypto-api";
 import {
     DAY_MS,
     INDEX_SYNC_BLOCK,
@@ -142,10 +143,17 @@ interface Assembly {
 /** Start syncing the index with the account's other sessions. Returns the
  *  teardown. Call once the index is running. */
 export function attachIndexSync(client: MatrixClient): () => void {
-    const crypto = client.getCrypto();
     const ownUserId = client.getUserId();
     const ownDeviceId = client.getDeviceId();
-    if (!crypto || !ownUserId || !ownDeviceId) return () => {};
+    if (!client.getCrypto() || !ownUserId || !ownDeviceId) return () => {};
+    // Looked up on every use, never kept: the Android background release
+    // stops this engine and restartCrypto puts a new one on the same client,
+    // and calls into the old one throw ClientStoppedError.
+    const engine = (): CryptoApi => {
+        const crypto = client.getCrypto();
+        if (!crypto) throw new Error("crypto is not running");
+        return crypto;
+    };
 
     const requests = new Map<
         string,
@@ -167,9 +175,10 @@ export function attachIndexSync(client: MatrixClient): () => void {
         payload: ReceivedToDevice,
     ): Promise<{ deviceId: string } | null> {
         const info = payload.encryptionInfo;
+        const crypto = engine();
         const status =
             info?.senderDevice && info.sender === ownUserId
-                ? await crypto!.getDeviceVerificationStatus(
+                ? await crypto.getDeviceVerificationStatus(
                       info.sender,
                       info.senderDevice,
                   )
@@ -181,7 +190,7 @@ export function attachIndexSync(client: MatrixClient): () => void {
             fromDevice: info?.senderDevice,
             ownDeviceId: ownDeviceId!,
             verified: !!status?.isVerified(),
-            allowed: deviceAllowed(crypto!, ownUserId!, status),
+            allowed: deviceAllowed(crypto, ownUserId!, status),
         });
         if (refusal) {
             log(`ignoring ${payload.message.type}: ${refusal}`);
@@ -196,7 +205,7 @@ export function attachIndexSync(client: MatrixClient): () => void {
         content: Record<string, unknown>,
     ): Promise<void> {
         if (devices.length === 0) return;
-        const batch = await crypto!.encryptToDeviceMessages(
+        const batch = await engine().encryptToDeviceMessages(
             type,
             devices,
             content,
@@ -206,7 +215,8 @@ export function attachIndexSync(client: MatrixClient): () => void {
 
     /** Other sessions of ours that we'd trade index entries with. */
     async function peers(): Promise<{ userId: string; deviceId: string }[]> {
-        const known = (await crypto!.getUserDeviceInfo([ownUserId!])).get(
+        const crypto = engine();
+        const known = (await crypto.getUserDeviceInfo([ownUserId!])).get(
             ownUserId!,
         );
         const out: { userId: string; deviceId: string }[] = [];
@@ -215,15 +225,12 @@ export function attachIndexSync(client: MatrixClient): () => void {
         for (const id of known?.keys() ?? []) {
             if (id === ownDeviceId) continue;
             others++;
-            const trust = await crypto!.getDeviceVerificationStatus(
+            const trust = await crypto.getDeviceVerificationStatus(
                 ownUserId!,
                 id,
             );
             if (trust?.isVerified()) verified++;
-            if (
-                trust?.isVerified() &&
-                deviceAllowed(crypto!, ownUserId!, trust)
-            )
+            if (trust?.isVerified() && deviceAllowed(crypto, ownUserId!, trust))
                 out.push({ userId: ownUserId!, deviceId: id });
         }
         status.otherSessions = others;
