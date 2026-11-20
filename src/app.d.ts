@@ -157,6 +157,42 @@ declare global {
                 read: () => Promise<
                     import("$lib/utils/discordFavourites").DiscordFavouritesResult
                 >;
+                /** Fresh signed links for Discord attachment links, from the
+                 *  user's refresh service (electron/discordAttachments.cjs). */
+                refresh?: (
+                    serviceUrl: string,
+                    urls: string[],
+                ) => Promise<
+                    | { ok: true; refreshed: Record<string, string> }
+                    | {
+                          ok: false;
+                          error:
+                              | "bad-proxy-url"
+                              | "unreachable"
+                              | "rate-limited"
+                              | "http-error"
+                              | "bad-response";
+                          status?: number;
+                      }
+                >;
+                /** Downloads one refreshed Discord attachment in main. */
+                download?: (url: string) => Promise<
+                    | {
+                          ok: true;
+                          data: Uint8Array;
+                          contentType: string;
+                          name: string;
+                      }
+                    | {
+                          ok: false;
+                          error:
+                              | "bad-url"
+                              | "unreachable"
+                              | "http-error"
+                              | "too-large";
+                          status?: number;
+                      }
+                >;
             };
             /** Settings > General > Network (electron/proxy.cjs). */
             proxy?: {

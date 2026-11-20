@@ -285,6 +285,10 @@ export const settingsState = $state({
     dateStyle: normalizeDateStyle(readString("dateStyle")),
     /** Which tab the GIF picker opens on (device-global, like theme). */
     gifDefaultTab: normalizeGifTab(readString("gifDefaultTab")),
+    /** Base URL of the user's own Discord link refresh service
+     *  (services/discord-refresh-proxy), used by the Discord favourites
+     *  import for GIFs uploaded to Discord. Device-global; "" when unset. */
+    discordRefreshServiceUrl: readString("discordRefreshServiceUrl") ?? "",
     customDatePattern: readString("customDatePattern") || "yyyy-MM-dd",
     alwaysAbsolute: readBool("alwaysAbsolute", false),
     /** Show full Matrix ids (@user:server) instead of display names across
@@ -1032,6 +1036,14 @@ export function setDateStyle(value: DateStyle): void {
     settingsState.dateStyle = value;
     writeString("dateStyle", value);
     customizationChanged();
+}
+
+export function setDiscordRefreshServiceUrl(value: string): void {
+    settingsState.discordRefreshServiceUrl = value.trim();
+    writeString(
+        "discordRefreshServiceUrl",
+        settingsState.discordRefreshServiceUrl,
+    );
 }
 
 export function setGifDefaultTab(value: GifTab): void {

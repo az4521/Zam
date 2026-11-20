@@ -1623,7 +1623,7 @@ export const en = {
     "messagesMediaSettings.discordImportTitle":
         "Import favourites from Discord",
     "messagesMediaSettings.discordImportDescription":
-        "Copies the GIFs favourited in the Discord desktop app on this computer. GIFs uploaded to Discord can't be imported.",
+        "Copies the GIFs favourited in the Discord desktop app on this computer. GIFs uploaded to Discord are copied only when a refresh service is set below.",
     "messagesMediaSettings.discordImportButton": "Import",
     "messagesMediaSettings.discordImportBusy": "Checking links...",
     "messagesMediaSettings.discordImportChecking":
@@ -1640,6 +1640,22 @@ export const en = {
         "No GIFs could be imported.",
     "messagesMediaSettings.discordImportFailed":
         "Couldn't import favourites from Discord.",
+    "messagesMediaSettings.discordImportCopyFailed":
+        "{count, plural, one {Couldn't copy # GIF uploaded to Discord.} other {Couldn't copy # GIFs uploaded to Discord.}}",
+    "messagesMediaSettings.discordRefreshServiceTitle":
+        "Discord refresh service",
+    "messagesMediaSettings.discordRefreshServiceDescription":
+        "Links to GIFs uploaded to Discord expire. To import those too, enter the address of a refresh service you run yourself (services/discord-refresh-proxy in Zam's source). The GIFs are then uploaded to your homeserver.",
+    "messagesMediaSettings.discordRefreshServiceInvalid":
+        "Enter an https:// address (http:// only works for this computer).",
+    "messagesMediaSettings.discordRefreshUnreachable":
+        "Couldn't reach the Discord refresh service.",
+    "messagesMediaSettings.discordRefreshRateLimited":
+        "The Discord refresh service is rate limited. Try again later.",
+    "messagesMediaSettings.discordRefreshHttpError":
+        "The Discord refresh service returned an error ({status}).",
+    "messagesMediaSettings.discordRefreshBadResponse":
+        "The Discord refresh service sent a reply Zam couldn't read.",
     "messagesMediaSettings.defaultTab": "Default tab",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "Which tab the GIF picker opens on.",

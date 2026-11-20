@@ -1683,7 +1683,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Перекодировать отправляемые GIF в анимированный WebP без потерь, который обычно меньше и может воспроизводиться во время загрузки. Изображение не меняется. GIF, который не уменьшится, отправляется как есть.",
     "messagesMediaSettings.discordImportTitle": "Импорт избранного из Discord",
     "messagesMediaSettings.discordImportDescription":
-        "Копирует GIF, добавленные в избранное в настольном приложении Discord на этом компьютере. GIF, загруженные в Discord, импортировать нельзя.",
+        "Копирует GIF, добавленные в избранное в настольном приложении Discord на этом компьютере. GIF, загруженные в Discord, копируются только при настроенном сервисе обновления ниже.",
     "messagesMediaSettings.discordImportButton": "Импортировать",
     "messagesMediaSettings.discordImportBusy": "Проверка ссылок...",
     "messagesMediaSettings.discordImportChecking":
@@ -1700,6 +1700,22 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Не удалось импортировать ни одного GIF.",
     "messagesMediaSettings.discordImportFailed":
         "Не удалось импортировать избранное из Discord.",
+    "messagesMediaSettings.discordImportCopyFailed":
+        "{count, plural, one {Не удалось скопировать # GIF, загруженный в Discord.} few {Не удалось скопировать # GIF, загруженных в Discord.} many {Не удалось скопировать # GIF, загруженных в Discord.} other {Не удалось скопировать # GIF, загруженных в Discord.}}",
+    "messagesMediaSettings.discordRefreshServiceTitle":
+        "Сервис обновления Discord",
+    "messagesMediaSettings.discordRefreshServiceDescription":
+        "Ссылки на GIF, загруженные в Discord, со временем истекают. Чтобы импортировать и их, укажите адрес сервиса обновления, который вы запускаете сами (services/discord-refresh-proxy в исходном коде Zam). GIF будут загружены на ваш домашний сервер.",
+    "messagesMediaSettings.discordRefreshServiceInvalid":
+        "Укажите адрес https:// (http:// работает только на этом компьютере).",
+    "messagesMediaSettings.discordRefreshUnreachable":
+        "Не удалось подключиться к сервису обновления Discord.",
+    "messagesMediaSettings.discordRefreshRateLimited":
+        "Сервис обновления Discord ограничивает количество запросов. Попробуйте позже.",
+    "messagesMediaSettings.discordRefreshHttpError":
+        "Сервис обновления Discord вернул ошибку ({status}).",
+    "messagesMediaSettings.discordRefreshBadResponse":
+        "Сервис обновления Discord отправил ответ, который Zam не смог прочитать.",
     "messagesMediaSettings.defaultTab": "Вкладка по умолчанию",
     "messagesMediaSettings.whichTabTheGifPickerOpens":
         "На какой вкладке открывается выбор GIF.",
