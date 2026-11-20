@@ -4,6 +4,26 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.18
+
+✨ **New**
+
+- **Pop a call out into its own window**, so you can keep it in view while you use the rest of Zam.
+- **See each device someone joined a call from**, instead of a tiny indicator, when they're in a call on more than one device.
+- **A warning when your server blocks your account or your upload quota runs out**, for example on matrix.org.
+- **Import favourite GIFs you uploaded to Discord** (desktop app), through a small self-hostable link-refresh service you set up in Settings.
+
+⚡ **Better screen shares**
+
+- **No bitrate ceiling:** shares now default to Automatic and follow your live upload speed instead of an old best-ever reading. A manual cap is still available.
+- **Shares no longer get stuck at half resolution** for viewers, including on high-DPI screens.
+
+🐛 **Fixed**
+
+- **Mentions not notifying in encrypted rooms set to "mentions only".**
+- **Being kicked from a call** no longer reconnects you automatically.
+- **Turning on encrypted favourite GIFs** now asks for your recovery key when it's needed.
+
 ## v1.66.17
 
 ⚡ **Faster**
