@@ -1,0 +1,12 @@
+{
+    "name": "zam-discord-refresh-proxy",
+    "private": true,
+    "type": "module",
+    "engines": {
+        "node": ">=18"
+    },
+    "scripts": {
+        "start": "node server.mjs",
+        "test": "node --test"
+    }
+}
