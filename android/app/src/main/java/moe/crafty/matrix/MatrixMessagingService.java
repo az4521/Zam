@@ -162,17 +162,22 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         if (unreadStr != null) {
             try {
                 if (Integer.parseInt(unreadStr) == 0) {
-                    // Must match showNotification()'s id scheme exactly, or we
-                    // cancel nothing. Scoped to the room the push names: a
-                    // clear push without a room_id says nothing about WHICH
-                    // notification is stale.
                     if (roomId != null) {
+                        // Must match showNotification()'s id scheme exactly, or
+                        // we cancel nothing.
                         try {
                             NotificationManagerCompat.from(ctx)
                                 .cancel(roomId.hashCode());
                         } catch (Throwable ignored) {}
+                        PushLog.log(ctx, tag + "clear push (room read), notification removed");
+                    } else {
+                        // Badge-only push from a receipt change (no room): every
+                        // room of the account is read now. Cancel that account's
+                        // message notifications and nothing else.
+                        int removed = cancelReadAccountMessages(ctx, accountId);
+                        PushLog.log(ctx, tag + "clear push (all rooms read), "
+                            + removed + " message notification(s) removed");
                     }
-                    PushLog.log(ctx, tag + "clear push (room read), notification removed");
                     return;
                 }
             } catch (NumberFormatException ignored) {}
@@ -205,7 +210,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         final String postedBy = session != null ? session.userId : null;
 
         // Defaults (used if enrichment fails).
-        String title = "New message";
+        String title = DEFAULT_TITLE;
         String text = "You have a new message";
         Bitmap largeIcon = null;
         // MSC4075 m.call.notify → render an incoming CALL, not a message.
@@ -236,6 +241,14 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             // before the enrichment fetches below so a suppressed push costs
             // one request instead of five. Never throws; false on any doubt.
             if (shouldStayQuiet(ctx, tag, hs, token, selfUserId, selfDeviceId)) return;
+            // Already read on another client: when the phone wakes, FCM can
+            // deliver pushes queued while it was off. Fails open (see
+            // isRoomReadElsewhere). Runs before the event is known, so it also
+            // applies to m.call.notify; see the note there.
+            if (session != null && roomId != null && isRoomReadElsewhere(hs, token, roomId)) {
+                PushLog.log(ctx, tag + "skipped: room already read (server count 0)");
+                return;
+            }
             // Device-global "hide message text in notifications" privacy setting,
             // mirrored by src/lib/nativeSession.ts. Capacitor Preferences stores
             // every value as a String, so compare rather than getBoolean() (which
@@ -750,6 +763,67 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     }
 
     // ── Homeserver queries ──────────────────────────────────────────────────
+
+    // ── Read-state check ────────────────────────────────────────────────────
+
+    /** Title used when the room name was not fetched; compared, never shown as a sender. */
+    private static final String DEFAULT_TITLE = "New message";
+
+    /**
+     * conn_id of the one-shot read check. The web app's SDK sends no conn_id
+     * at all, so this cannot share server-side connection state with it.
+     */
+    private static final String PUSH_CHECK_CONN_ID = "zam-push-check";
+
+    /**
+     * Whether the server reports nothing unread for this room. One simplified
+     * sliding sync request (MSC4186): timeout=0, the room as the only
+     * subscription, no lists. Fails open: any error, timeout or missing field
+     * means "not known to be read", so the notification still posts.
+     *
+     * Applied before the event is fetched, so call rings go through it too.
+     * That is safe: the server only pushes an event whose push actions
+     * notify, and those same actions count it in notification_count, so an
+     * unread ring is never 0. A ring the user already saw elsewhere is dropped.
+     */
+    private static boolean isRoomReadElsewhere(String hs, String token, String roomId) {
+        try {
+            JSONObject request = new JSONObject()
+                .put("conn_id", PUSH_CHECK_CONN_ID)
+                .put("room_subscriptions", new JSONObject().put(roomId, new JSONObject()
+                    .put("timeline_limit", 1)
+                    .put("required_state", new JSONArray())));
+            String json = httpPostJson(hs + "/_matrix/client/unstable/org.matrix.simplified_msc3575"
+                + "/sync?timeout=0", token, request.toString());
+            Integer unread = parseRoomUnread(json, roomId);
+            return unread != null && unread == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * The room's unread count from a simplified sliding sync response: the
+     * larger of notification_count and highlight_count. Highlights are counted
+     * within notifications, so the result is 0 only when both are 0. Null (the
+     * unknown case) when the body is not JSON, the room is absent, or either
+     * field is missing or not a number.
+     */
+    static Integer parseRoomUnread(String json, String roomId) {
+        if (json == null || roomId == null) return null;
+        try {
+            JSONObject rooms = new JSONObject(json).optJSONObject("rooms");
+            JSONObject room = rooms != null ? rooms.optJSONObject(roomId) : null;
+            if (room == null) return null;
+            Object notifications = room.opt("notification_count");
+            Object highlights = room.opt("highlight_count");
+            if (!(notifications instanceof Number) || !(highlights instanceof Number)) return null;
+            return Math.max(((Number) notifications).intValue(),
+                ((Number) highlights).intValue());
+        } catch (Exception e) {
+            return null;
+        }
+    }
 
     private static JSONObject fetchEvent(String hs, String token, String roomId, String eventId) {
         String url = hs + "/_matrix/client/v3/rooms/" + enc(roomId) + "/event/" + enc(eventId);
@@ -1279,6 +1353,37 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         }
     }
 
+    /** POST a JSON body. Response text on 200, else null. Same timeouts and auth as httpGet. */
+    private static String httpPostJson(String urlStr, String token, String json) {
+        HttpURLConnection conn = null;
+        try {
+            conn = ZamProxy.open(new URL(urlStr));
+            conn.setConnectTimeout(CONNECT_TIMEOUT);
+            conn.setReadTimeout(READ_TIMEOUT);
+            conn.setRequestMethod("POST");
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Authorization", "Bearer " + token);
+            conn.setRequestProperty("Content-Type", "application/json");
+            byte[] payload = json.getBytes("UTF-8");
+            conn.setFixedLengthStreamingMode(payload.length);
+            try (java.io.OutputStream os = conn.getOutputStream()) {
+                os.write(payload);
+            }
+            if (conn.getResponseCode() != 200) return null;
+            try (InputStream is = conn.getInputStream()) {
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[4096];
+                int n;
+                while ((n = is.read(buf)) != -1) out.write(buf, 0, n);
+                return out.toString("UTF-8");
+            }
+        } catch (Exception e) {
+            return null;
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
+    }
+
     static String enc(String s) {
         try {
             return URLEncoder.encode(s, "UTF-8").replace("+", "%20");
@@ -1288,6 +1393,66 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     }
 
     // ── Notification ──────────────────────────────────────────────────────────
+
+    /**
+     * Cancels this account's conversation notifications after a badge-only
+     * clear push (every room read). Touches only notifications this service
+     * posted in the message style with the account's stamp: showNotification()
+     * sets the "You" Person's key to the account's user id, and the stamp is
+     * only readable through that style. Message channels only, so calls,
+     * invites and foreground-service notifications are never cancelled.
+     * Returns the count cancelled; 0 when the account is not on this device.
+     */
+    private static int cancelReadAccountMessages(Context ctx, String accountId) {
+        SessionRecord session = null;
+        try {
+            SharedPreferences sessionPrefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            session = resolveSession(sessionPrefs, readSessionRecord(sessionPrefs), accountId);
+        } catch (Throwable ignored) {}
+        if (session == null || session.userId == null || session.userId.isEmpty()) return 0;
+        int cancelled = 0;
+        try {
+            NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+            if (nm == null) return 0;
+            NotificationManagerCompat compat = NotificationManagerCompat.from(ctx);
+            for (StatusBarNotification sbn : nm.getActiveNotifications()) {
+                if (sbn.getTag() != null) continue;
+                android.app.Notification n = sbn.getNotification();
+                if (!NotificationCompat.CATEGORY_MESSAGE.equals(n.category)) continue;
+                // Channels exist from API 26; minSdk is 24, where no channel check applies.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    String channel = n.getChannelId();
+                    if (channel == null || !(channel.equals(CHANNEL_ID)
+                            || channel.startsWith(CHANNEL_ID + ":"))) continue;
+                }
+                NotificationCompat.MessagingStyle style =
+                    NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(n);
+                if (style == null || style.getUser() == null) continue;
+                if (!session.userId.equals(style.getUser().getKey())) continue;
+                compat.cancel(sbn.getId());
+                cancelled++;
+            }
+        } catch (Throwable ignored) {}
+        return cancelled;
+    }
+
+    /**
+     * The name for a notification author with no sender name: the room name
+     * when one was fetched, else the app's label. Never null.
+     */
+    private static String appLabel(Context ctx) {
+        try {
+            return ctx.getApplicationInfo().loadLabel(ctx.getPackageManager()).toString();
+        } catch (Throwable t) {
+            return ctx.getPackageName();
+        }
+    }
+
+    /** The app icon as an author icon, so no letter avatar is drawn. Null if the app has none. */
+    private static IconCompat appIcon(Context ctx) {
+        int icon = ctx.getApplicationInfo().icon;
+        return icon != 0 ? IconCompat.createWithResource(ctx, icon) : null;
+    }
 
     private static void showNotification(Context ctx, String title, String body, String roomId,
             String eventId, Bitmap largeIcon, String postedBy, String senderId,
@@ -1411,11 +1576,18 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         if (roomId != null && postedBy != null && !postedBy.isEmpty()) {
             try {
                 Person me = new Person.Builder().setName("You").setKey(postedBy).build();
+                // No sender name (the event was not fetched): the room's name
+                // when it was fetched, else the app's label. A bare
+                // DEFAULT_TITLE would draw as a fake "N" avatar.
+                String authorName = senderName != null && !senderName.isEmpty() ? senderName
+                    : !DEFAULT_TITLE.equals(title) ? title : appLabel(ctx);
                 Person.Builder author = new Person.Builder()
-                    .setName(senderName != null && !senderName.isEmpty() ? senderName : title)
+                    .setName(authorName)
                     .setKey(senderId != null && !senderId.isEmpty() ? senderId : roomId);
+                // Never an icon-less author: Android letter-avatars the name.
                 if (senderIcon != null) author.setIcon(IconCompat.createWithBitmap(senderIcon));
                 else if (largeIcon != null && dm) author.setIcon(IconCompat.createWithBitmap(largeIcon));
+                else author.setIcon(appIcon(ctx));
                 Person authorPerson = author.build();
 
                 NotificationCompat.MessagingStyle style = null;
