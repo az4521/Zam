@@ -4,6 +4,14 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.14
+
+🐛 **Fixed**
+
+- **The Telegram sticker import asking for a bot token** even though Zam's built-in sticker service is available. Packs now import with just a link again.
+- **Android: "Sync now" for the search index failing** with "MatrixClient has been stopped" after the app had been in the background.
+- **Flatpak: the update message** now says why an update has to go through your software center (it needs new permissions, you declined the prompt, or your Flatpak is too old), instead of looking like a broken updater.
+
 ## v1.66.13
 
 ✨ **New**
