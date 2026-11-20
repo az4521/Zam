@@ -261,6 +261,15 @@ const initialActivePreset =
     storedActivePreset ||
     (legacyTheme ? migrateThemeToPresetName(legacyTheme) : "");
 
+// The sticky-membership toggle used to be device-global. Drop that bare key
+// before anything reads it: readScoped() would otherwise hand it to whichever
+// account reads first, and the old value would reach every other account.
+try {
+    localStorage.removeItem(STORAGE_PREFIX + "stickyCallMembership");
+} catch {
+    // ignore (private mode)
+}
+
 export const settingsState = $state({
     /** COMPAT SHIM: Legacy local interface color theme. Now derived from activePreset's base.
      * Use activeBase for the actual base; this exists for back-compat only. */
@@ -302,8 +311,9 @@ export const settingsState = $state({
     orderHints: readBool("orderHints", true),
     /** Debug: announce our call membership as a sticky m.rtc.member (MSC4354)
      *  instead of an m.call.member state event. Default OFF: clients that
-     *  only read state events won't see us in the call. */
-    stickyCallMembership: readBool("stickyCallMembership", false),
+     *  only read state events won't see us in the call. Account-scoped: each
+     *  homeserver differs in whether it supports sticky events. */
+    stickyCallMembership: readAccountBool("stickyCallMembership", false),
     /** Device-global: whether the packaged desktop/Android build auto-downloads
      *  updates. Default ON; the escape hatch is this toggle. */
     autoUpdateEnabled: readBool("autoUpdateEnabled", true),
@@ -994,6 +1004,10 @@ export function reloadAccountSettings(): void {
     );
     settingsState.callSoundsVolume = readAccountNumber("callSoundsVolume", 0.5);
     settingsState.ringEnabled = readAccountBool("ringEnabled", true);
+    settingsState.stickyCallMembership = readAccountBool(
+        "stickyCallMembership",
+        false,
+    );
     settingsState.ringVolume = readAccountNumber("ringVolume", 1);
     settingsState.ringtone = readAccountString("ringtone") ?? "";
     settingsState.participantAudio = parseAudioMap(
@@ -1080,7 +1094,7 @@ export function setOrderHints(value: boolean): void {
 
 export function setStickyCallMembership(value: boolean): void {
     settingsState.stickyCallMembership = value;
-    writeBool("stickyCallMembership", value);
+    writeAccountBool("stickyCallMembership", value);
 }
 
 export function setAutoUpdateEnabled(value: boolean): void {

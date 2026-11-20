@@ -568,6 +568,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.disableGallerySend": "ギャラリーを送信しない",
     "debugSettings.disableGallerySendHint":
         "一緒に選んだ添付ファイルは通常、キャプション1つのギャラリーメッセージ1件として送信されます（MSC4274、dm.filament.gallery として送信）。オンにすると、それぞれ別のメッセージとして送信します。他の人のギャラリーは引き続き表示されます。",
+    "debugSettings.stickyCallMembershipUnsupported":
+        "お使いのホームサーバーはスティッキーイベントに対応していません。",
     "debugSettings.stickyCallMembership": "スティッキー通話メンバーシップ",
     "debugSettings.stickyCallMembershipHint":
         "通話に m.call.member ステートイベントの代わりに、スティッキーな m.rtc.member イベント (MSC4354) で参加します。ステートイベントしか読まないクライアント (1.51 より前の Zam を含む) には、通話中のあなたが見えません。次の通話から適用されます。",

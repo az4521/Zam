@@ -30,6 +30,12 @@ public class MainActivity extends BridgeActivity {
     // path is text/URL; large-file share is verified on-device).
     private static final long MAX_SHARE_FILE_BYTES = 25L * 1024L * 1024L;
 
+    // How many 500 ms polls the notification-tap bridge makes while waiting
+    // for the web app's hooks (window.__matrixOpenRoom and friends). 360 polls
+    // is 3 minutes: long enough for a cold start that restores the session and
+    // runs its first sync, still bounded if the app never gets that far.
+    private static final int HOOK_WAIT_POLLS = 360;
+
     // Whether the UI is in front. MatrixMessagingService reads it to leave an
     // incoming call to the in-app ringer instead of ringing a second time,
     // and to skip message notifications the open app already shows.
@@ -346,7 +352,12 @@ public class MainActivity extends BridgeActivity {
                     // A cold start (the notification woke a dead app) reaches
                     // here long before the web app has defined its hooks, and a
                     // bare `hook && hook(...)` silently dropped the reply / tap.
-                    // Wait for the hook instead, up to 30s.
+                    // Wait for the hook instead. The hook only exists once the
+                    // web app has restored the session and started its client
+                    // (AppShell.onMount, after the crypto init and the startup
+                    // network round trips). On a slow start that is well past
+                    // 30s: a shorter cap silently dropped the tap and left the
+                    // user on the last-viewed room.
                     java.util.regex.Matcher hook = java.util.regex.Pattern
                         .compile("^window\\.(\\w+) &&").matcher(js);
                     if (hook.find()) {
@@ -355,7 +366,8 @@ public class MainActivity extends BridgeActivity {
                             hook.group(1) +
                             "){" +
                             js +
-                            "}else if(n-->0){setTimeout(f,500)}};f()})(60)";
+                            "}else if(n-->0){setTimeout(f,500)}};f()})(" +
+                            HOOK_WAIT_POLLS + ")";
                     }
                     getBridge().getWebView().evaluateJavascript(js, null);
                 },

@@ -622,6 +622,8 @@ export const en = {
     "debugSettings.disableGallerySend": "Don't send galleries",
     "debugSettings.disableGallerySendHint":
         "Attachments picked together normally go as one gallery message with one caption (MSC4274, sent as dm.filament.gallery). On, each goes as its own message instead. Galleries from others are still shown.",
+    "debugSettings.stickyCallMembershipUnsupported":
+        "Your homeserver doesn't support sticky events.",
     "debugSettings.stickyCallMembership": "Sticky call membership",
     "debugSettings.stickyCallMembershipHint":
         "Join calls with a sticky m.rtc.member event (MSC4354) instead of an m.call.member state event. Clients that only read state events, including Zam before 1.51, won't see you in the call. Applies from your next call.",

@@ -4,9 +4,10 @@
         onChange: (checked: boolean) => void;
         label: string;
         title?: string;
+        disabled?: boolean;
     }
 
-    let { checked, onChange, label, title }: Props = $props();
+    let { checked, onChange, label, title, disabled = false }: Props = $props();
 </script>
 
 <button
@@ -14,10 +15,11 @@
     role="switch"
     aria-label={label}
     aria-checked={checked}
+    {disabled}
     onclick={() => onChange(!checked)}
     class="relative flex-shrink-0 w-10 h-5 rounded-full transition-colors {checked
         ? 'bg-zam-accent'
-        : 'bg-zam-backgroundTertiary'}"
+        : 'bg-zam-backgroundTertiary'} disabled:opacity-50 disabled:cursor-not-allowed"
     {title}
 >
     <!-- The knob is placed with a logical inset (not translate-x) so it slides

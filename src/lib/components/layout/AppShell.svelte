@@ -2170,6 +2170,9 @@
         // Web push notification taps (service worker) deep-link via postMessage.
         const onSwMessage = (e: MessageEvent) => {
             if (e.data?.type === "OPEN_ROOM" && e.data.roomId) {
+                // Tell the service worker this window took the tap; it tries
+                // the next window (or opens one) when no ack arrives.
+                e.ports?.[0]?.postMessage({ handled: true });
                 openRoomFromNotification(
                     e.data.roomId,
                     e.data.userId,

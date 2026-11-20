@@ -636,6 +636,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.disableGallerySend": "不发送图库",
     "debugSettings.disableGallerySendHint":
         "一起选择的附件通常会作为一条带有一个说明的图库消息发出（MSC4274，以 dm.filament.gallery 发送）。开启后，每个附件单独作为一条消息发送。其他人发送的图库仍会显示。",
+    "debugSettings.stickyCallMembershipUnsupported":
+        "你的主服务器不支持粘性事件。",
     "debugSettings.stickyCallMembership": "粘性通话成员身份",
     "debugSettings.stickyCallMembershipHint":
         "使用粘性 m.rtc.member 事件 (MSC4354) 而不是 m.call.member 状态事件加入通话。只读取状态事件的客户端（包括 1.51 之前的 Zam）看不到你在通话中。从下一次通话起生效。",

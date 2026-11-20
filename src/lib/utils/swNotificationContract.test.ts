@@ -96,6 +96,35 @@ describe("static/sw.js notification contract", () => {
         );
     });
 
+    it("only counts a tap as taken when the window acknowledges it", () => {
+        // A window still on its splash has no listener: a bare postMessage to
+        // it was lost. The tap must be handed over on a reply port, with a
+        // timeout that moves on to the next window (or opens one).
+        const click = SW.slice(
+            SW.indexOf('addEventListener("notificationclick"'),
+        );
+        const clickEnd = click.indexOf("self.addEventListener(", 1);
+        const clickBody = click.slice(0, clickEnd);
+        expect(clickBody).toMatch(/new\s+MessageChannel\(\)/);
+        expect(clickBody).toMatch(/\[channel\.port2\]/);
+        expect(clickBody).toMatch(/channel\.port1\.onmessage/);
+        expect(clickBody).toMatch(
+            /setTimeout\(\s*\(\)\s*=>\s*resolve\(false\)/,
+        );
+        expect(clickBody).toMatch(/if\s*\(taken\)\s*return;/);
+    });
+
+    it("the page acknowledges OPEN_ROOM on the reply port it was given", () => {
+        const page = readFileSync(
+            resolve(process.cwd(), "src/lib/components/layout/AppShell.svelte"),
+            "utf8",
+        );
+        const handler = page.slice(page.indexOf("const onSwMessage ="));
+        expect(handler.slice(0, 600)).toMatch(
+            /e\.ports\?\.\[0\]\?\.postMessage\(\{\s*handled:\s*true\s*\}\)/,
+        );
+    });
+
     describe("notification quick-actions contract", () => {
         it("posts NOTIF_REPLY with text and userId when handling reply action", () => {
             expect(SW).toMatch(/type:\s*"NOTIF_REPLY"/);

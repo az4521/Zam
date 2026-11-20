@@ -68,6 +68,7 @@ import {
     getUserPowerRank,
     onDecryptedTimelineEvent,
     onTimelineEvent,
+    stickyEventsAdvertised,
 } from "./client";
 import {
     CALL_KICK_EVENT_TYPE,
@@ -2458,6 +2459,11 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     // same promise below still throws.
     const livekitLoad = livekit.load();
     livekitLoad.catch(() => {});
+    // The sticky-membership probe (only when the debug toggle is on) overlaps
+    // the same startup I/O; it is awaited before the join. Never rejects.
+    const stickyProbe = settingsState.stickyCallMembership
+        ? stickyEventsAdvertised()
+        : null;
     // Same for the noise filter: compiled now, awaited before the mic exists
     // so the call never starts unfiltered. Bounded, so a first download on a
     // slow link delays the join rather than blocking it.
@@ -2547,6 +2553,10 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     const lk = await livekitLoad;
     await denoiseLoad;
     if (seq !== voiceJoinSeq) return; // superseded while loading livekit
+    // Sticky membership only when the toggle is on AND this homeserver
+    // advertises MSC4354; otherwise the membership stays a state event.
+    const unstableSendStickyEvents = stickyProbe ? await stickyProbe : false;
+    if (seq !== voiceJoinSeq) return;
     // A GPU-process exit since the last call left this window's WebRTC in
     // software; this call's peer connections come from a fresh window.
     ensureFreshWebrtcRealm();
@@ -2771,8 +2781,8 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
         advertiseMeshSubscribe();
         session.join({ userId, deviceId, memberId }, [transport], {
             membershipEventExpiryMs: 4 * 60 * 60 * 1000,
-            // Debug toggle: m.rtc.member as a sticky event (MSC4354).
-            unstableSendStickyEvents: settingsState.stickyCallMembership,
+            // Debug toggle, gated on the homeserver's MSC4354 support.
+            unstableSendStickyEvents,
             // Make our media key, send it to everyone's devices, and
             // report theirs (setupCallE2EE). Needed on the mesh too, to
             // read the SFUs of the others.
@@ -2930,15 +2940,25 @@ async function connectPublishingRoom(
     if (seq !== voiceJoinSeq) await lkRoom.disconnect().catch(() => {});
 }
 
-/** TURN credentials from our homeserver, reused until they near expiry. */
-let turnCache: { creds: TurnCredentials | null; until: number } | null = null;
+/** TURN credentials from our homeserver, reused until they near expiry. Keyed
+ *  by the account that fetched them: after a switch to another account (and
+ *  so another homeserver) in the same page, the old server's credentials must
+ *  not be handed out. */
+let turnCache: {
+    owner: string | null;
+    creds: TurnCredentials | null;
+    until: number;
+} | null = null;
 
 export async function homeserverTurn(): Promise<TurnCredentials | null> {
-    if (turnCache && Date.now() < turnCache.until) return turnCache.creds;
+    const client = matrixClient;
+    const owner = client?.getUserId() ?? null;
+    if (turnCache && turnCache.owner === owner && Date.now() < turnCache.until)
+        return turnCache.creds;
     let creds: TurnCredentials | null = null;
     let ttlMs = 5 * 60_000;
     try {
-        const res = (await matrixClient?.turnServer()) as
+        const res = (await client?.turnServer()) as
             | {
                   uris?: unknown;
                   username?: unknown;
@@ -2968,7 +2988,7 @@ export async function homeserverTurn(): Promise<TurnCredentials | null> {
         // No TURN: direct and host connections still work on open networks.
         console.warn("[full-mesh] no TURN server from the homeserver:", err);
     }
-    turnCache = { creds, until: Date.now() + ttlMs };
+    turnCache = { owner, creds, until: Date.now() + ttlMs };
     return creds;
 }
 

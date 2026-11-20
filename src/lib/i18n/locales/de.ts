@@ -625,6 +625,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.disableGallerySend": "Keine Galerien senden",
     "debugSettings.disableGallerySendHint":
         "Zusammen ausgewählte Anhänge gehen normalerweise als eine Galerie-Nachricht mit einer Bildunterschrift raus (MSC4274, gesendet als dm.filament.gallery). Ist das an, geht jeder als eigene Nachricht. Galerien von anderen werden weiter angezeigt.",
+    "debugSettings.stickyCallMembershipUnsupported":
+        "Dein Homeserver unterstützt keine Sticky-Events.",
     "debugSettings.stickyCallMembership": "Sticky-Anrufmitgliedschaft",
     "debugSettings.stickyCallMembershipHint":
         "Anrufen mit einem Sticky-Event m.rtc.member (MSC4354) statt eines m.call.member-Statusevents beitreten. Clients, die nur Statusevents lesen, darunter Zam vor 1.51, sehen dich nicht im Anruf. Gilt ab deinem nächsten Anruf.",

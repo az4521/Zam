@@ -1,5 +1,6 @@
 <script module lang="ts">
     import { createLruMemo } from "$lib/utils/lruMemo";
+    import { isPendingSendStatus } from "$lib/utils/pendingSend";
 
     // Module scope is deliberate: a room switch unmounts every MessageItem and
     // re-mounts them, so an instance-scoped cache would die before it could
@@ -896,6 +897,12 @@
     const isFailed = $derived.by(() => {
         void messagesState.timelineTick;
         return event.status === EventStatus.NOT_SENT;
+    });
+    // A local echo the server hasn't confirmed yet: its body is greyed out
+    // until it lands, so backing out of the app mid-send is noticeable.
+    const isPending = $derived.by(() => {
+        void messagesState.timelineTick;
+        return isPendingSendStatus(event.status);
     });
     let isResending = $state(false);
 
@@ -3148,6 +3155,7 @@
                         use:bodyImageGallery={{ onOpen: openBodyGallery }}
                         dir="auto"
                         class="message-body text-sm text-zam-textPrimary leading-relaxed break-words"
+                        class:opacity-50={isPending}
                     >
                         {#if formattedBody()}
                             {@html withTwemoji(sanitize(formattedBody()!))}
@@ -3700,6 +3708,7 @@
                             use:bodyImageGallery={{ onOpen: openBodyGallery }}
                             dir="auto"
                             class="message-body text-sm text-zam-textPrimary leading-relaxed break-words"
+                            class:opacity-50={isPending}
                             class:emoji-only={emojiOnly}
                             class:italic={msgtype === "m.emote"}
                             class:opacity-70={msgtype === "m.notice"}
@@ -4498,6 +4507,7 @@
         use:relativeTimestamps={formattedBody()}
         dir="auto"
         class="message-body text-sm text-zam-textPrimary leading-relaxed break-words"
+        class:opacity-50={isPending}
         class:emoji-only={emojiOnly}
         class:italic={msgtype === "m.emote"}
         class:opacity-70={msgtype === "m.notice"}

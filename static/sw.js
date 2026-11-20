@@ -1526,9 +1526,7 @@ async function decryptViaPage(roomId, eventId) {
 			};
 			try {
 				client.postMessage(
-					{ type: "DECRYPT_FOR_PUSH", roomId, eventId },
-					[channel.port2],
-				);
+					{ type: "DECRYPT_FOR_PUSH", roomId, eventId }, [channel.port2]);
 			} catch {
 				if (--pending === 0) done(null);
 			}
@@ -2461,30 +2459,58 @@ self.addEventListener("notificationclick", (event) => {
 	}
 	// Accept on a call → open the room AND join; every other tap just opens
 	// the room. The page reads this flag off the OPEN_ROOM message.
-	const joinCall = !!data.isCall && event.action === "accept";
-	event.waitUntil(
-		self.clients
-			.matchAll({ type: "window", includeUncontrolled: true })
-			.then((clients) => {
-				for (const client of clients) {
-					if ("focus" in client) {
-						client.focus();
-						if (roomId)
-							client.postMessage({
-								type: "OPEN_ROOM",
-								roomId: roomId,
-								userId: postedBy,
-								joinCall: joinCall,
-								eventId: data.eventId,
-							});
+		const joinCall = !!data.isCall && event.action === "accept";
+		// A window takes the tap only if its page is past boot and listening
+		// (AppShell.svelte onSwMessage). A window still on its splash or login
+		// card has no listener, so a bare postMessage to it was lost and the
+		// tap landed on the last-viewed room. Each window is asked on a reply
+		// port: the first that answers takes it, and a window is opened only
+		// when none does.
+		const OPEN_ROOM_ACK_MS = 2000;
+		event.waitUntil(
+			self.clients
+				.matchAll({ type: "window", includeUncontrolled: true })
+				.then(async (clients) => {
+					const windows = clients.filter((c) => "focus" in c);
+					if (!roomId) {
+						if (windows.length) windows[0].focus();
+						else return self.clients.openWindow("/");
 						return;
 					}
-				}
-				return self.clients.openWindow(
-					deepLinkUrl(roomId, data.eventId, postedBy),
-				);
-			}),
-	);
+					for (const client of windows) {
+						client.focus();
+						const taken = await new Promise((resolve) => {
+							const channel = new MessageChannel();
+							const timer = setTimeout(
+								() => resolve(false),
+								OPEN_ROOM_ACK_MS,
+							);
+							channel.port1.onmessage = () => {
+								clearTimeout(timer);
+								resolve(true);
+							};
+							try {
+								client.postMessage({
+										type: "OPEN_ROOM",
+										roomId: roomId,
+										userId: postedBy,
+										joinCall: joinCall,
+										eventId: data.eventId,
+									},
+									[channel.port2],
+								);
+							} catch (err) {
+								clearTimeout(timer);
+								resolve(false);
+							}
+						});
+						if (taken) return;
+					}
+					return self.clients.openWindow(
+						deepLinkUrl(roomId, data.eventId, postedBy),
+					);
+				}),
+		);
 });
 
 self.addEventListener("install", (event) => {

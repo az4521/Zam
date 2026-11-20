@@ -646,6 +646,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.disableGallerySend": "Не отправлять галереи",
     "debugSettings.disableGallerySendHint":
         "Вложения, выбранные вместе, обычно уходят одним сообщением-галереей с одной подписью (MSC4274, отправляется как dm.filament.gallery). Если включено, каждое уходит отдельным сообщением. Галереи других по-прежнему показываются.",
+    "debugSettings.stickyCallMembershipUnsupported":
+        "Ваш домашний сервер не поддерживает sticky-события.",
     "debugSettings.stickyCallMembership": "Sticky-участие в звонках",
     "debugSettings.stickyCallMembershipHint":
         "Входить в звонки с помощью sticky-события m.rtc.member (MSC4354) вместо события состояния m.call.member. Клиенты, которые читают только события состояния, в том числе Zam до 1.51, не увидят вас в звонке. Применяется со следующего звонка.",

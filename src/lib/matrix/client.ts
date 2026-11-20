@@ -5084,6 +5084,18 @@ export async function delayedEventsAdvertised(): Promise<boolean> {
     );
 }
 
+/** Whether the homeserver advertises sticky events (MSC4354) in `/versions`
+ *  `unstable_features`: the same flag matrix-js-sdk checks before it sends a
+ *  sticky event. Failures count as false. */
+export async function stickyEventsAdvertised(): Promise<boolean> {
+    if (!matrixClient) return false;
+    return getServerVersions()
+        .then(({ unstableFeatures }) =>
+            hasUnstableFeature(unstableFeatures, "org.matrix.msc4354"),
+        )
+        .catch(() => false);
+}
+
 // ── Device / session management ─────────────────────────────────────────────
 
 export function getOwnDeviceId(): string | null {

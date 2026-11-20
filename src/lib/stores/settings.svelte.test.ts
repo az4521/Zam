@@ -18,7 +18,6 @@ import {
     setHoldToOpenMessageMenu,
     setSpellCheckEnabled,
     setOrderHints,
-    setStickyCallMembership,
     setMinimizeToTrayOnClose,
     setCallVideoCodec,
     normalizeCallVideoCodec,
@@ -918,37 +917,60 @@ describe("hideRecentEmoji", () => {
     });
 });
 
-describe("stickyCallMembership (device-local)", () => {
+describe("stickyCallMembership (account-scoped)", () => {
     const SK_KEY = "settings:stickyCallMembership";
+    const SCOPED_SK_KEY = `${SK_KEY}:${SCOPED_USER}`;
 
-    afterEach(() => {
-        setStickyCallMembership(false);
+    afterEach(async () => {
         localStorage.removeItem(SK_KEY);
+        localStorage.removeItem(SCOPED_SK_KEY);
+        const { auth: a } = await import("$lib/stores/auth.svelte");
+        a.userId = null;
     });
 
-    async function bootWith(stored: string | null) {
-        if (stored === null) localStorage.removeItem(SK_KEY);
-        else localStorage.setItem(SK_KEY, stored);
+    /** Boot with `stored` under the account-scoped key, signed in as
+     *  SCOPED_USER, then reload the account settings as session restore does. */
+    async function bootSignedIn(stored: string | null) {
+        if (stored === null) localStorage.removeItem(SCOPED_SK_KEY);
+        else localStorage.setItem(SCOPED_SK_KEY, stored);
         vi.resetModules();
-        return await import("./settings.svelte");
+        const fresh = await import("./settings.svelte");
+        const { auth: a } = await import("$lib/stores/auth.svelte");
+        a.userId = SCOPED_USER;
+        fresh.reloadAccountSettings();
+        return fresh;
     }
 
-    it("defaults to off", async () => {
-        expect((await bootWith(null)).settingsState.stickyCallMembership).toBe(
-            false,
-        );
+    it("defaults to off for an account that never touched it", async () => {
+        expect(
+            (await bootSignedIn(null)).settingsState.stickyCallMembership,
+        ).toBe(false);
     });
 
-    it("reads a stored true at boot", async () => {
+    it("reads a stored true for the account at reload", async () => {
         expect(
-            (await bootWith("true")).settingsState.stickyCallMembership,
+            (await bootSignedIn("true")).settingsState.stickyCallMembership,
         ).toBe(true);
     });
 
-    it("saves the choice", () => {
-        setStickyCallMembership(true);
-        expect(settingsState.stickyCallMembership).toBe(true);
-        expect(localStorage.getItem(SK_KEY)).toBe("true");
+    it("saves the choice under the account's key", async () => {
+        const fresh = await bootSignedIn(null);
+        fresh.setStickyCallMembership(true);
+        expect(fresh.settingsState.stickyCallMembership).toBe(true);
+        expect(localStorage.getItem(SCOPED_SK_KEY)).toBe("true");
+        expect(localStorage.getItem(SK_KEY)).toBeNull();
+    });
+
+    it("does not carry an old device-global value into any account", async () => {
+        localStorage.setItem(SK_KEY, "true");
+        vi.resetModules();
+        const fresh = await import("./settings.svelte");
+        expect(localStorage.getItem(SK_KEY)).toBeNull();
+        const { auth: a } = await import("$lib/stores/auth.svelte");
+        a.userId = SCOPED_USER;
+        fresh.reloadAccountSettings();
+        expect(fresh.settingsState.stickyCallMembership).toBe(false);
+        expect(localStorage.getItem(SCOPED_SK_KEY)).toBeNull();
     });
 });
 

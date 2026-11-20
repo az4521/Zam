@@ -615,6 +615,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.disableGallerySend": "No enviar galerías",
     "debugSettings.disableGallerySendHint":
         "Los adjuntos elegidos juntos salen normalmente como un solo mensaje de galería con un solo pie de foto (MSC4274, enviado como dm.filament.gallery). Activado, cada uno sale como su propio mensaje. Las galerías de otros se siguen mostrando.",
+    "debugSettings.stickyCallMembershipUnsupported":
+        "Tu servidor no admite eventos sticky.",
     "debugSettings.stickyCallMembership": "Membresía de llamada sticky",
     "debugSettings.stickyCallMembershipHint":
         "Unirse a las llamadas con un evento sticky m.rtc.member (MSC4354) en lugar de un evento de estado m.call.member. Los clientes que solo leen eventos de estado, incluido Zam anterior a 1.51, no te verán en la llamada. Se aplica desde tu próxima llamada.",

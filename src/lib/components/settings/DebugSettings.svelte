@@ -16,6 +16,7 @@
         isAccountNotificationsDisabled,
         getSlidingSyncProgress,
         getSlidingSyncFallbackReason,
+        stickyEventsAdvertised,
     } from "$lib/matrix/client";
     import {
         checkGatewayHealth,
@@ -160,6 +161,25 @@
     onMount(() => {
         if (prefetchOn) void refreshPrefetch();
     });
+
+    // Whether this homeserver advertises MSC4354 sticky events. null while the
+    // probe is pending, which leaves the toggle enabled.
+    let stickyAdvertised = $state<boolean | null>(null);
+    onMount(() => {
+        let live = true;
+        void stickyEventsAdvertised().then((ok) => {
+            if (live) stickyAdvertised = ok;
+        });
+        return () => {
+            live = false;
+        };
+    });
+    // Unsupported and off: nothing to switch on. Unsupported but still on
+    // (saved earlier, or on another homeserver) stays switchable so it can be
+    // turned off.
+    const stickyDisabled = $derived(
+        stickyAdvertised === false && !settingsState.stickyCallMembership,
+    );
 
     // Android background download of raw history pages. Read on demand (Refresh).
     const prefetchOn = historyPrefetchAvailable();
@@ -580,11 +600,17 @@
                 <p class="text-xs text-zam-textMuted">
                     {t("debugSettings.stickyCallMembershipHint")}
                 </p>
+                {#if stickyDisabled}
+                    <p class="text-xs text-zam-textMuted">
+                        {t("debugSettings.stickyCallMembershipUnsupported")}
+                    </p>
+                {/if}
             </div>
             <ToggleSwitch
                 checked={settingsState.stickyCallMembership}
                 onChange={setStickyCallMembership}
                 label={t("debugSettings.stickyCallMembership")}
+                disabled={stickyDisabled}
             />
         </div>
         <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
