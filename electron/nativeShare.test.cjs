@@ -169,6 +169,7 @@ test("sanitizeConfig clamps and defaults", () => {
         bitrate: 8000000,
         maxWidth: 1920,
         maxHeight: 1080,
+        simulcast: false,
     });
     assert.deepEqual(
         sanitizeConfig({
@@ -177,6 +178,7 @@ test("sanitizeConfig clamps and defaults", () => {
             bitrate: 1,
             maxWidth: 10,
             maxHeight: 100000,
+            simulcast: "yes",
         }),
         {
             enabled: false,
@@ -184,9 +186,11 @@ test("sanitizeConfig clamps and defaults", () => {
             bitrate: 100000,
             maxWidth: 160,
             maxHeight: 7680,
+            simulcast: false,
         },
     );
     assert.equal(sanitizeConfig({ enabled: true }).enabled, true);
+    assert.equal(sanitizeConfig({ simulcast: true }).simulcast, true);
     assert.equal(sanitizeConfig({ fps: "abc" }).fps, 30);
     assert.equal(sanitizeConfig({ fps: 0 }).fps, 1);
 });
