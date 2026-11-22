@@ -1,5 +1,6 @@
 <script lang="ts">
     import { untrack } from "svelte";
+    import { roomPrefetchRow } from "$lib/actions/roomPrefetchRow";
     import { HIERARCHY_TTL_MS } from "$lib/utils/hierarchyRefresh";
     import { t } from "$lib/i18n";
     import type { Room } from "matrix-js-sdk";
@@ -1476,6 +1477,7 @@
                 data-nav-room={room.roomId}
                 data-nav-unread={unread ? "" : undefined}
                 data-nav-mention={highlight ? "" : undefined}
+                use:roomPrefetchRow={room.roomId}
                 onpointerdown={draggable
                     ? (e) => onRowPointerDown(e, room, section!)
                     : undefined}
@@ -1966,6 +1968,7 @@
                         data-nav-room={room.roomId}
                         data-nav-unread={unread ? "" : undefined}
                         data-nav-mention={highlight ? "" : undefined}
+                        use:roomPrefetchRow={room.roomId}
                         onpointerdown={dmDraggable
                             ? (e) => onRowPointerDown(e, room, dmSection!)
                             : undefined}

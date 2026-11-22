@@ -6819,6 +6819,30 @@ export async function loadPreviousMessages(
     return paginateLiveChain(client, room, limit);
 }
 
+/**
+ * Page a room's newest history into its live timeline before the room is
+ * opened (stores/roomPrefetch.svelte.ts). It goes through loadPreviousMessages,
+ * the scroll-up path, so the room view (which reads the live chain through
+ * getTimelineMessages) shows these events on open with no request. A page the
+ * view asks for meanwhile shares this request (the SDK dedupes in-flight
+ * pagination). Joined rooms only; a failure throws and the caller drops it.
+ */
+export async function prefetchRoomTimeline(
+    roomId: string,
+    limit: number,
+): Promise<void> {
+    if (!matrixClient) return;
+    const room = lookupRoom(roomId);
+    if (!room || room.getMyMembership() !== "join") return;
+    await loadPreviousMessages(room, limit);
+}
+
+/** Events held by a room's live chain: the prefetch's "already loaded" measure. */
+export function getLoadedEventCount(roomId: string): number {
+    const room = lookupRoom(roomId);
+    return room ? liveChainEvents(room).length : 0;
+}
+
 // Reply previews reference events that are often outside the loaded
 // timeline window. Fetch them individually, promise-cached so concurrent
 // renders of the same reply share one request; failures aren't cached so

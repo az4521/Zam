@@ -254,6 +254,7 @@
         startEventIndex,
         type ActiveSessionHeartbeat,
     } from "$lib/matrix/client";
+    import { startRoomPrefetch } from "$lib/stores/roomPrefetch.svelte";
     import {
         shouldNotifyDecrypted,
         isAlreadyReadEvent,
@@ -2604,6 +2605,9 @@
         const unsubEventIndex = settingsState.indexEncryptedRooms
             ? startEventIndex()
             : () => {};
+        // Recent messages for the rooms visible in the list, so opening one
+        // shows its text at once (stores/roomPrefetch.svelte.ts).
+        const unsubRoomPrefetch = startRoomPrefetch();
         // Android: free the crypto store for push decryption while the app
         // sits in the background (reloads on return).
         const unsubBackgroundRelease = initBackgroundRelease();
@@ -2733,6 +2737,7 @@
             unsubLiveLocation();
             unsubOutbox();
             unsubEventIndex();
+            unsubRoomPrefetch();
             unsubBackgroundRelease();
             unsubHistoryTrim();
             unsubVerification();
