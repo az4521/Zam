@@ -10,6 +10,7 @@ import {
     setActive,
     removeAccount,
     updateAccountTokens,
+    setAccountPushTag,
     getActive,
     type AccountRegistry,
     type StoredAccount,
@@ -18,6 +19,7 @@ import {
 import { syncNativeAccounts } from "$lib/nativeSession";
 import { clearPrivateAccountDataLocal } from "$lib/utils/privateAccountDataStorage";
 import { syncServiceWorkerAccounts } from "$lib/swAccounts";
+import { isValidPushTag, newPushTag } from "$lib/utils/pushTag";
 import {
     pickRecoveredRegistry,
     readRegistryBackup,
@@ -144,4 +146,25 @@ export function updateAccountProfile(
         avatarUrl: profile.avatarUrl ?? undefined,
     });
     persist();
+}
+
+/**
+ * The account's push tag (pushTag.ts), generated and persisted on first use.
+ * Null when the account is not in the registry: the pusher then names no
+ * account, which the push readers treat as the active one.
+ */
+export function ensurePushTag(userId: string): string | null {
+    const existing = accountsState.registry.accounts.find(
+        (a) => a.userId === userId,
+    );
+    if (!existing) return null;
+    if (isValidPushTag(existing.pushTag)) return existing.pushTag;
+    const tag = newPushTag();
+    accountsState.registry = setAccountPushTag(
+        accountsState.registry,
+        userId,
+        tag,
+    );
+    persist();
+    return tag;
 }

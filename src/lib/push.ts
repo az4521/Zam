@@ -20,6 +20,8 @@ import {
     type PusherGatewayStatus,
 } from "$lib/utils/pusherVerification";
 import { WEBPUSH_APP_ID } from "$lib/webPush";
+import { ensurePushTag } from "$lib/stores/accounts.svelte";
+import { pushTagPayload } from "$lib/utils/pushTag";
 import { navigateToRoom } from "$lib/stores/rooms.svelte";
 import {
     getPushProviderPref,
@@ -289,8 +291,10 @@ async function registerPusher(
                 format: "event_id_only",
                 // Names the account in every push: several accounts on this
                 // device share the pushkey, and the native service picks the
-                // matching session by this (MatrixMessagingService.ACCOUNT_KEY).
-                default_payload: { zam_account: userId },
+                // matching session by this (MatrixMessagingService.PUSH_TAG_KEY).
+                // A random per-account tag, not the user id: everything in
+                // `data` reaches the gateway, and from there FCM (pushTag.ts).
+                ...pushTagPayload(ensurePushTag(userId)),
             },
             // multi-account: false would delete other users' pushers for this token
             append: true,

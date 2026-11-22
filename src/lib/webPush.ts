@@ -19,6 +19,8 @@
 
 import { Capacitor } from "@capacitor/core";
 import { checkPusherGateway } from "$lib/utils/pusherVerification";
+import { ensurePushTag } from "$lib/stores/accounts.svelte";
+import { pushTagPayload } from "$lib/utils/pushTag";
 
 const PUSH_GATEWAY_URL =
     (import.meta.env as Record<string, string | undefined>)
@@ -172,13 +174,18 @@ async function registerWebPusher(
     const p256dh = json.keys?.p256dh ?? bufToBase64Url(sub.getKey("p256dh"));
     const auth = json.keys?.auth ?? bufToBase64Url(sub.getKey("auth"));
     const deviceId = matrixClient.getDeviceId() ?? "";
+    const userId = matrixClient.getUserId();
 
     try {
         await (matrixClient as any).setPusher({
             kind: "http",
             app_id: APP_ID,
             app_display_name: "Zam (Web)",
-            device_display_name: navigator.userAgent.slice(0, 80),
+            // Carries the Matrix device id so a later registration can find
+            // this browser's superseded pushers (removeStaleWebPushers). The
+            // display name stays between client and homeserver; `data` below
+            // is forwarded to the push gateway, so the id is not put there.
+            device_display_name: webPusherDisplayName(deviceId),
             // Sygnal's webpush pushkin treats pushkey as the p256dh key.
             pushkey: p256dh,
             lang: navigator.language || "en",
@@ -189,17 +196,11 @@ async function registerWebPusher(
                 // the p256dh key from the Matrix pusher pushkey.
                 endpoint,
                 auth,
-                // This browser's Matrix device id. Other devices on the same
-                // account register under the same app_id, so a later
-                // registration uses this to find only ITS superseded pushers
-                // (see removeStaleWebPushers).
-                zam_device_id: deviceId,
                 // Names the account in every push: each account signed in in
                 // this browser shares the subscription, and static/sw.js picks
-                // the matching session by this (see push.ts for Android).
-                default_payload: {
-                    zam_account: matrixClient.getUserId() ?? "",
-                },
+                // the matching session by this (see push.ts for Android). A
+                // random per-account tag, not the user id (pushTag.ts).
+                ...pushTagPayload(userId ? ensurePushTag(userId) : null),
             },
             // multi-account: false would delete other users' pushers for this token
             append: true,
@@ -235,11 +236,21 @@ async function registerWebPusher(
 }
 
 /**
+ * The pusher display name: user agent plus the Matrix device id, which
+ * removeStaleWebPushers matches on. Without a device id, the user agent alone.
+ */
+function webPusherDisplayName(deviceId: string): string {
+    const ua = navigator.userAgent.slice(0, 80);
+    return deviceId ? `${ua.slice(0, 60)} (${deviceId})` : ua;
+}
+
+/**
  * Delete this device's web pushers that a previous subscription left behind.
- * Matched on app_id AND the device id stored in the pusher's data, because
- * every other device signed in to the account registers under the same app_id
- * and must keep its own pusher. Pushers registered before the device id was
- * stored carry none and are left alone. Best-effort.
+ * Matched on app_id AND this device's id, because every other device signed
+ * in to the account registers under the same app_id and must keep its own
+ * pusher. The id is in the display name; pushers from before that carry it as
+ * `zam_device_id` in their data instead. Pushers with neither are left alone.
+ * Best-effort.
  */
 async function removeStaleWebPushers(
     matrixClient: import("matrix-js-sdk").MatrixClient,
@@ -252,7 +263,8 @@ async function removeStaleWebPushers(
         for (const p of (res?.pushers ?? []) as any[]) {
             if (
                 p.app_id === APP_ID &&
-                p.data?.zam_device_id === deviceId &&
+                (p.device_display_name === webPusherDisplayName(deviceId) ||
+                    p.data?.zam_device_id === deviceId) &&
                 typeof p.pushkey === "string" &&
                 p.pushkey &&
                 p.pushkey !== keep

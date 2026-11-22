@@ -2,6 +2,8 @@
 // "matrix_accounts" localStorage key. All functions are immutable: they
 // return new objects and never touch storage — the accounts store owns I/O.
 
+import { isValidPushTag } from "./pushTag";
+
 /**
  * What a native OAuth 2.0 / OIDC session needs beyond its access token: the
  * client id this app registered under and the issuer that registered it.
@@ -25,6 +27,12 @@ export interface StoredAccount {
     /** Cached profile bits so the switcher can render inactive accounts. */
     displayName?: string;
     avatarUrl?: string;
+    /**
+     * Random tag this device's pushers put in their payload instead of the
+     * user id, so the push gateway never learns which account a push is for
+     * (pushTag.ts). Generated on first pusher registration.
+     */
+    pushTag?: string;
 }
 
 export interface AccountRegistry {
@@ -65,7 +73,13 @@ export function isOAuthSessionInfo(o: unknown): o is OAuthSessionInfo {
  * works, and a refresh token without its client id is unusable anyway.
  */
 function sanitizeOAuthFields(a: StoredAccount): StoredAccount {
-    const { refreshToken, oauth, accessTokenExpiresAt, ...rest } = a;
+    const { refreshToken, oauth, accessTokenExpiresAt, pushTag, ...withTag } =
+        a;
+    // Not an OAuth field, but sanitized here for the same reason: a bad tag is
+    // dropped (a new one gets generated), never the account.
+    const rest: StoredAccount = isValidPushTag(pushTag)
+        ? { ...withTag, pushTag }
+        : withTag;
     if (!isOAuthSessionInfo(oauth)) return rest;
     const out: StoredAccount = { ...rest, oauth };
     if (typeof refreshToken === "string" && refreshToken)
@@ -134,7 +148,10 @@ export function upsertAccount(
         ...account,
         displayName: account.displayName ?? existing?.displayName,
         avatarUrl: account.avatarUrl ?? existing?.avatarUrl,
+        // A fresh login does not know the tag; keep the one the pushers use.
+        pushTag: account.pushTag ?? existing?.pushTag,
     };
+    if (merged.pushTag === undefined) delete merged.pushTag;
     const accounts = existing
         ? reg.accounts.map((a) => (a.userId === account.userId ? merged : a))
         : [...reg.accounts, merged];
@@ -170,6 +187,22 @@ export function updateAccountTokens(
     return {
         ...reg,
         accounts: reg.accounts.map((a) => (a.userId === userId ? next : a)),
+    };
+}
+
+/** Set an account's push tag. No-op when the account is gone or the tag invalid. */
+export function setAccountPushTag(
+    reg: AccountRegistry,
+    userId: string,
+    pushTag: string,
+): AccountRegistry {
+    if (!isValidPushTag(pushTag)) return reg;
+    if (!reg.accounts.some((a) => a.userId === userId)) return reg;
+    return {
+        ...reg,
+        accounts: reg.accounts.map((a) =>
+            a.userId === userId ? { ...a, pushTag } : a,
+        ),
     };
 }
 

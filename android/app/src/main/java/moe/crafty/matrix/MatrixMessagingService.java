@@ -68,8 +68,13 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     // Every signed-in account's record, keyed by user id: NATIVE_ACCOUNTS_KEY
     // in nativeSessionRecord.ts. Each value is a record string as above.
     private static final String KEY_SESSION_ACCOUNTS = "matrix_session_accounts";
-    // The push data field naming the account a push is for: the pusher's
-    // default_payload, set in src/lib/push.ts.
+    // The push data fields naming the account a push is for: the pusher's
+    // default_payload, set in src/lib/push.ts. PUSH_TAG_KEY carries a random
+    // per-account tag (src/lib/utils/pushTag.ts, which this mirrors), mapped
+    // back to the account through the records' "pushTag". ACCOUNT_KEY is the
+    // plain user id that pushers sent before tags; still honoured until they
+    // re-register.
+    static final String PUSH_TAG_KEY = "zam_tag";
     static final String ACCOUNT_KEY = "zam_account";
     // Mirrors NATIVE_SESSION_VERSION. A record of any other version may mean
     // something else by the same field names, so it is refused, not guessed at.
@@ -134,7 +139,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
         Map<String, String> data = remoteMessage.getData();
         handleMatrixPush(this, data.get("room_id"), data.get("event_id"), data.get("unread"),
-            data.get(ACCOUNT_KEY));
+            accountField(data.get(PUSH_TAG_KEY), data.get(ACCOUNT_KEY)));
     }
 
     /**
@@ -144,8 +149,9 @@ public class MatrixMessagingService extends FirebaseMessagingService {
      * (UnifiedPushService). Blocking: it makes several homeserver requests,
      * so it must run off the main thread.
      *
-     * `accountId` is the account the push names (null from a pusher that has
-     * not re-registered since pushes were tagged: the active account then).
+     * `accountField` is how the push names its account (accountField():
+     * a push tag, a legacy user id, or null from a pusher that has not
+     * re-registered since pushes were tagged: the active account then).
      */
     private static String priorityName(int p) {
         switch (p) {
@@ -156,7 +162,10 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     }
 
     static void handleMatrixPush(Context ctx, String roomId, String eventId, String unreadStr,
-            String accountId) {
+            String accountField) {
+        // From here on, a user id (or an unmatched tag, which resolves to no
+        // session: generic text, never another account's).
+        final String accountId = accountIdOf(ctx, accountField);
         final long startedAt = System.currentTimeMillis();
         final String tag = "push room " + PushLog.shortId(roomId) + " event "
             + PushLog.shortId(eventId) + ": ";
@@ -649,6 +658,43 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * What a push names its account by: the push tag when present (marked with
+     * TAG_PREFIX so it can never be taken for a user id), else the legacy user
+     * id, else null.
+     */
+    static final String TAG_PREFIX = "tag:";
+
+    static String accountField(String tag, String legacyUserId) {
+        if (tag != null && !tag.isEmpty()) return TAG_PREFIX + tag;
+        return legacyUserId != null && !legacyUserId.isEmpty() ? legacyUserId : null;
+    }
+
+    /**
+     * The user id an accountField() value names. A tag is looked up in the
+     * all-accounts map; one no account holds is returned as is, so it matches
+     * no session. Never throws.
+     */
+    static String accountIdOf(Context ctx, String field) {
+        if (field == null || !field.startsWith(TAG_PREFIX)) return field;
+        String tag = field.substring(TAG_PREFIX.length());
+        try {
+            String raw = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getString(KEY_SESSION_ACCOUNTS, null);
+            if (raw == null) return field;
+            JSONObject map = new JSONObject(raw);
+            java.util.Iterator<String> keys = map.keys();
+            while (keys.hasNext()) {
+                String userId = keys.next();
+                Object entry = map.opt(userId);
+                if (!(entry instanceof String)) continue;
+                Object entryTag = new JSONObject((String) entry).opt("pushTag");
+                if (tag.equals(entryTag)) return userId;
+            }
+        } catch (Exception ignored) {}
+        return field;
     }
 
     /** Strict parse of one stored record string; see readSessionRecord. */

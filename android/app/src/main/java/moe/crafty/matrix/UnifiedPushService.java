@@ -151,7 +151,10 @@ public class UnifiedPushService extends PushService {
             JSONObject data = device != null ? device.optJSONObject("data") : null;
             JSONObject payload = data != null ? data.optJSONObject("default_payload") : null;
             String account = payload != null
-                ? optNonEmpty(payload, MatrixMessagingService.ACCOUNT_KEY) : null;
+                ? MatrixMessagingService.accountField(
+                    optNonEmpty(payload, MatrixMessagingService.PUSH_TAG_KEY),
+                    optNonEmpty(payload, MatrixMessagingService.ACCOUNT_KEY))
+                : null;
             if (account != null) return account;
         }
         return null;

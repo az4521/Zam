@@ -8,6 +8,7 @@ import {
     removeAccount,
     getActive,
     updateAccountTokens,
+    setAccountPushTag,
     type StoredAccount,
 } from "./accounts";
 
@@ -221,5 +222,42 @@ describe("OAuth accounts", () => {
         expect(
             updateAccountTokens(reg, "@gone:x.org", { accessToken: "t" }),
         ).toBe(reg);
+    });
+});
+
+describe("push tags", () => {
+    const TAG = "AAAAAAAAAAAAAAAAAAAAAA";
+
+    it("sets a tag on an existing account only", () => {
+        const reg = upsertAccount(emptyRegistry(), acct("@a:x.org"));
+        const tagged = setAccountPushTag(reg, "@a:x.org", TAG);
+        expect(tagged.accounts[0].pushTag).toBe(TAG);
+        expect(setAccountPushTag(reg, "@b:x.org", TAG)).toBe(reg);
+        expect(setAccountPushTag(reg, "@a:x.org", "@a:x.org")).toBe(reg);
+    });
+
+    it("keeps the tag across a re-login upsert and a round trip", () => {
+        const reg = setAccountPushTag(
+            upsertAccount(emptyRegistry(), acct("@a:x.org")),
+            "@a:x.org",
+            TAG,
+        );
+        const relogin = upsertAccount(reg, {
+            ...acct("@a:x.org"),
+            accessToken: "new",
+        });
+        expect(relogin.accounts[0].pushTag).toBe(TAG);
+        expect(parseRegistry(JSON.stringify(relogin))).toEqual(relogin);
+    });
+
+    it("drops a malformed tag but keeps the account", () => {
+        const raw = JSON.stringify({
+            version: 1,
+            activeUserId: "@a:x.org",
+            accounts: [{ ...acct("@a:x.org"), pushTag: "@a:x.org" }],
+        });
+        const reg = parseRegistry(raw);
+        expect(reg.accounts).toHaveLength(1);
+        expect(reg.accounts[0].pushTag).toBeUndefined();
     });
 });

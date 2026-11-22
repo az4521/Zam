@@ -425,6 +425,18 @@ describe("native account map", () => {
         expect(parseNativeAccount(null, GOOD.userId)).toBeNull();
     });
 
+    it("carries a valid push tag and drops a malformed one", () => {
+        const TAG = "AAAAAAAAAAAAAAAAAAAAAA";
+        const raw = serializeNativeAccounts([
+            { ...GOOD, pushTag: TAG },
+            { ...BOB, pushTag: BOB.userId },
+        ]);
+        expect(parseNativeAccount(raw, GOOD.userId)?.pushTag).toBe(TAG);
+        const bob = parseNativeAccount(raw, BOB.userId);
+        expect(bob).not.toBeNull();
+        expect(bob).not.toHaveProperty("pushTag");
+    });
+
     it("refuses a record filed under another user id", () => {
         const raw = JSON.stringify({
             [BOB.userId]: serializeNativeSession(GOOD),

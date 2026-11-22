@@ -652,6 +652,9 @@ function validUserId(value) {
  * "this device has no credentials", which every caller must treat as "contact
  * no homeserver", never as "use what's there".
  */
+// Mirrors isValidPushTag in src/lib/utils/pushTag.ts.
+const PUSH_TAG_PATTERN = /^[A-Za-z0-9_-]{16,64}$/;
+
 function parseSessionRecord(raw) {
 	if (typeof raw !== "string" || raw.trim().length === 0) return null;
 	let parsed;
@@ -685,6 +688,12 @@ function parseSessionRecord(raw) {
 		accessToken,
 		userId,
 		deviceId: nonBlank(rawDevice),
+		// The account's push tag (src/lib/utils/pushTag.ts), when it has a
+		// well-formed one. Only the account map uses it.
+		pushTag:
+			typeof parsed.pushTag === "string" && PUSH_TAG_PATTERN.test(parsed.pushTag)
+				? parsed.pushTag
+				: null,
 	};
 }
 
@@ -741,8 +750,10 @@ let receiptPrivacyByUser = {};
 let receiptRoomPrivacyByUser = {};
 // Every account signed in on this origin, user id → session, mirrored from the
 // page (SET_ACCOUNTS) and kept in IndexedDB. A push names its account (the
-// pusher's default_payload `zam_account`) and is handled with THAT account's
-// session, so pushes for accounts other than the active one still notify.
+// pusher's default_payload: `zam_tag`, a random per-account tag, or on pushers
+// from before tags the user id as `zam_account`) and is handled with THAT
+// account's session, so pushes for accounts other than the active one still
+// notify. The field names mirror src/lib/utils/pushTag.ts.
 // Same IndexedDB-held credentials as SESSION_KEY, one per account.
 let accountSessions = {};
 // Like authFromMessage, for the account map.
@@ -766,6 +777,23 @@ function parseAccountSessions(raw) {
 function activeSessionRecord() {
 	if (!accessToken || !homeserverUrl || !userId) return null;
 	return { accessToken, homeserverUrl, userId, deviceId };
+}
+
+// The user id a push names, from its payload: the account whose push tag it
+// carries, else the legacy plain user id. Null when it names none (a pusher
+// that predates naming accounts). A tag no account here holds yields the tag
+// itself, which matches no session: generic text, never another account's.
+function accountOfPush(data) {
+	const tag = typeof data.zam_tag === "string" ? data.zam_tag : "";
+	if (tag) {
+		for (const uid of Object.keys(accountSessions)) {
+			if (accountSessions[uid].pushTag === tag) return uid;
+		}
+		return tag;
+	}
+	return typeof data.zam_account === "string" && data.zam_account
+		? data.zam_account
+		: null;
 }
 
 // The session for the account a push names: the active one when it names
@@ -2171,11 +2199,7 @@ self.addEventListener("push", (event) => {
 				authReady,
 				new Promise((resolve) => setTimeout(resolve, 3000)),
 			]).catch(() => {});
-			const session = sessionForAccount(
-				typeof data.zam_account === "string" && data.zam_account
-					? data.zam_account
-					: null,
-			);
+			const session = sessionForAccount(accountOfPush(data));
 			// Another device is demonstrably in use → stay quiet. Checked first
 			// so none of the enrichment fetches below run when we won't show
 			// anything. Never throws; returns false on any doubt.

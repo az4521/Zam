@@ -22,6 +22,8 @@
  * this file, including the key names and the version check.
  */
 
+import { isValidPushTag } from "./pushTag";
+
 /**
  * Preferences / IndexedDB key holding the whole session record.
  *
@@ -76,6 +78,16 @@ export interface NativeSessionRecord {
      */
     oauth?: { clientId: string; issuer: string };
     accessTokenExpiresAt?: number;
+    /**
+     * The random tag this account's pushers send instead of the user id
+     * (pushTag.ts): the push readers find the account by it. Absent when the
+     * account has none yet; a malformed one is dropped, not the record.
+     */
+    pushTag?: string;
+}
+
+function pushTagField(value: unknown): Pick<NativeSessionRecord, "pushTag"> {
+    return isValidPushTag(value) ? { pushTag: value } : {};
 }
 
 function nonBlankString(value: unknown): string | null {
@@ -144,6 +156,7 @@ export function serializeNativeSession(input: {
     deviceId?: string | null;
     oauth?: { clientId: string; issuer: string } | null;
     accessTokenExpiresAt?: number | null;
+    pushTag?: string | null;
 }): string | null {
     const homeserverUrl = validHomeserverUrl(input.homeserverUrl);
     const accessToken = nonBlankString(input.accessToken);
@@ -160,6 +173,7 @@ export function serializeNativeSession(input: {
         // be indistinguishable from a truncated record.
         deviceId: nonBlankString(input.deviceId),
         ...oauthFields(input.oauth, input.accessTokenExpiresAt),
+        ...pushTagField(input.pushTag),
     };
     return JSON.stringify(record);
 }
@@ -204,6 +218,7 @@ export function parseNativeSession(raw: unknown): NativeSessionRecord | null {
         userId,
         deviceId: nonBlankString(rawDevice),
         ...oauthFields(record.oauth, record.accessTokenExpiresAt),
+        ...pushTagField(record.pushTag),
     };
 }
 
@@ -231,6 +246,7 @@ export function serializeNativeAccounts(
         deviceId?: string | null;
         oauth?: { clientId: string; issuer: string } | null;
         accessTokenExpiresAt?: number | null;
+        pushTag?: string | null;
     }[],
 ): string {
     const map: Record<string, string> = {};
