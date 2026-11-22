@@ -4,6 +4,25 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.19
+
+⚡ **Faster**
+
+- **Attachments start uploading as soon as you add them**, so pressing Send only posts the message. You can turn this off in Settings > Debug if your server limits uploads.
+- **Rooms you can see in the room list load their recent messages in the background**, so opening one on a slow connection shows text right away.
+
+✨ **New**
+
+- **Encrypted favourite GIFs unlock on verified sessions** without your recovery key, using your message key backup.
+
+🔒 **Privacy**
+
+- **Push notifications no longer send your Matrix user ID or device ID** to the push gateway.
+
+🐛 **Fixed**
+
+- **X posts show every image** (up to 20, not just 4), plus link-card and article cover images, and direct image links embed.
+
 ## v1.66.18
 
 ✨ **New**
