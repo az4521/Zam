@@ -3,6 +3,7 @@ import {
     compactCount,
     fxStatusApiUrl,
     isQuoteTombstone,
+    MAX_TWEET_MEDIA,
     parseFxStatusResponse,
     tweetPhotoThumb,
     tweetSegments,
@@ -322,5 +323,185 @@ describe("helpers", () => {
     it("compacts counts", () => {
         expect(compactCount(1234, "en")).toBe("1.2K");
         expect(compactCount(12, "en")).toBe("12");
+    });
+});
+describe("card images", () => {
+    const img =
+        "https://pbs.twimg.com/card_img/2122691233717817344/W04J7qqN?format=jpg&name=800x419";
+
+    it("takes a link card's image with its dims, title and target", () => {
+        const t = parseFxStatusResponse({
+            status: status({
+                card: {
+                    url: "https://on.example/wq319j",
+                    title: "2026: Pictures of the Year",
+                    description: "d",
+                    domain: "example.com",
+                    image: { width: 800, height: 419, url: img, alt: "alt" },
+                },
+            }),
+        })!;
+        expect(t.card).toEqual({
+            image: img,
+            width: 800,
+            height: 419,
+            title: "2026: Pictures of the Year",
+            url: "https://on.example/wq319j",
+        });
+        expect(t.card?.external).toBeUndefined();
+    });
+
+    it("leaves title and target out when the card has none", () => {
+        const t = parseFxStatusResponse({
+            status: status({
+                card: { image: { width: 10, height: 5, url: img } },
+            }),
+        })!;
+        expect(t.card?.image).toBe(img);
+        expect(t.card?.title).toBeUndefined();
+        expect(t.card?.url).toBeUndefined();
+    });
+
+    it("takes a video thumbnail from media.external, linking to it", () => {
+        const t = parseFxStatusResponse({
+            status: status({
+                media: {
+                    external: {
+                        type: "video",
+                        url: "https://www.youtube.com/embed/YeA17Ex3lcE",
+                        width: 1280,
+                        height: 720,
+                        thumbnail_url:
+                            "https://img.youtube.com/vi/YeA17Ex3lcE/maxresdefault.jpg",
+                    },
+                },
+            }),
+        })!;
+        expect(t.card).toEqual({
+            image: "https://img.youtube.com/vi/YeA17Ex3lcE/maxresdefault.jpg",
+            width: 1280,
+            height: 720,
+            url: "https://www.youtube.com/embed/YeA17Ex3lcE",
+            external: true,
+        });
+    });
+
+    it("prefers a link card over media.external", () => {
+        const t = parseFxStatusResponse({
+            status: status({
+                card: { image: { url: img } },
+                media: {
+                    external: {
+                        url: "https://www.youtube.com/embed/x",
+                        thumbnail_url: "https://img.youtube.com/vi/x/0.jpg",
+                    },
+                },
+            }),
+        })!;
+        expect(t.card?.image).toBe(img);
+    });
+
+    it("takes an article cover when there is no card", () => {
+        const t = parseFxStatusResponse({
+            status: status({
+                article: {
+                    title: "Elections Portal",
+                    cover_media: {
+                        media_info: {
+                            original_img_url:
+                                "https://pbs.twimg.com/media/cover.jpg",
+                            original_img_width: 1200,
+                            original_img_height: 630,
+                        },
+                    },
+                },
+            }),
+        })!;
+        expect(t.card).toEqual({
+            image: "https://pbs.twimg.com/media/cover.jpg",
+            width: 1200,
+            height: 630,
+            title: "Elections Portal",
+        });
+    });
+
+    it("drops a card with an empty cover or no picture", () => {
+        expect(
+            parseFxStatusResponse({
+                status: status({
+                    article: { title: "t", cover_media: {} },
+                }),
+            })!.card,
+        ).toBeUndefined();
+        expect(
+            parseFxStatusResponse({ status: status({ card: { title: "x" } }) })!
+                .card,
+        ).toBeUndefined();
+    });
+
+    it("drops malformed or non-https card images", () => {
+        const bad = [
+            "http://pbs.twimg.com/card_img/1/a.jpg",
+            "javascript:alert(1)",
+            "not a url",
+            42,
+        ];
+        for (const url of bad) {
+            expect(
+                parseFxStatusResponse({
+                    status: status({ card: { image: { url } } }),
+                })!.card,
+            ).toBeUndefined();
+        }
+        expect(
+            parseFxStatusResponse({
+                status: status({
+                    media: {
+                        external: {
+                            url: "https://www.youtube.com/embed/x",
+                            thumbnail_url: "http://img.youtube.com/a.jpg",
+                        },
+                    },
+                }),
+            })!.card,
+        ).toBeUndefined();
+    });
+
+    it("drops a non-https card link but keeps the image", () => {
+        const t = parseFxStatusResponse({
+            status: status({
+                card: { url: "javascript:alert(1)", image: { url: img } },
+            }),
+        })!;
+        expect(t.card?.image).toBe(img);
+        expect(t.card?.url).toBeUndefined();
+    });
+});
+
+describe("media count", () => {
+    function photos(n: number) {
+        return Array.from({ length: n }, (_, i) => ({
+            type: "photo",
+            url: `https://pbs.twimg.com/media/p${i}.jpg`,
+            width: 1000,
+            height: 800,
+        }));
+    }
+
+    it("keeps all twenty images of a post, in posted order", () => {
+        const t = parseFxStatusResponse({
+            status: status({ media: { all: photos(20) } }),
+        })!;
+        expect(t.media).toHaveLength(20);
+        expect(t.media[0].url).toBe("https://pbs.twimg.com/media/p0.jpg");
+        expect(t.media[19].url).toBe("https://pbs.twimg.com/media/p19.jpg");
+    });
+
+    it("caps a post at MAX_TWEET_MEDIA items", () => {
+        const t = parseFxStatusResponse({
+            status: status({ media: { all: photos(MAX_TWEET_MEDIA + 5) } }),
+        })!;
+        expect(t.media).toHaveLength(MAX_TWEET_MEDIA);
+        expect(MAX_TWEET_MEDIA).toBe(20);
     });
 });

@@ -58,6 +58,7 @@
         allowsThirdPartyEmbed,
     } from "$lib/utils/linkPreviewPolicy";
     import { isGifHostMediaUrl } from "$lib/utils/gifEmbed";
+    import { isDirectPbsImageUrl } from "$lib/utils/pbsTwimgUrl";
     import {
         fetchLinkPreview,
         homeserverPreviewUrl,
@@ -147,7 +148,8 @@
               short: boolean;
               start: number;
           }
-        | { type: "video"; videoUrl: string };
+        | { type: "video"; videoUrl: string }
+        | { type: "image"; imageUrl: string };
 
     let directEmbed = $state<DirectEmbed | null>(null);
     // Title and channel of the YouTube video, from oEmbed. Null until known
@@ -186,9 +188,11 @@
         if (isFavouriteGif(url)) {
             removeFavouriteGif(url);
         } else {
-            const entry = linkPreviewFavourite(url, preview, {
-                gifSite: isGifSite,
-            });
+            const entry =
+                linkPreviewFavourite(url, preview, { gifSite: isGifSite }) ??
+                (directEmbed?.type === "image"
+                    ? { url, previewUrl: directEmbed.imageUrl }
+                    : null);
             if (entry) addFavouriteGif(entry);
         }
     }
@@ -256,40 +260,11 @@
             };
         }
 
-        // Twitter/X: built from FxTwitter's status API (it sends CORS
-        // headers; see utils/tweetEmbed). This is a request straight to a
-        // third party, so it needs the same consent as the media itself.
-        const twitterApiUrl = allowEmbeds ? fxStatusApiUrl(currentUrl) : null;
-        if (twitterApiUrl) {
-            const known = resolvedPreviews.get(twitterApiUrl);
-            if (known) {
-                tweetEmbed = known.tweet as TweetEmbed | null;
-                pending = false;
-                return;
-            }
-            fetch(twitterApiUrl, {
-                headers: { Accept: "application/json" },
-                referrerPolicy: "no-referrer",
-            })
-                .then((r) => r.json())
-                .then((data: unknown) => {
-                    if (cancelled) return;
-                    const embed = parseFxStatusResponse(data);
-                    if (!embed) return;
-                    tweetEmbed = embed;
-                    rememberPreview(twitterApiUrl, {
-                        preview: null,
-                        tweet: embed,
-                        gifHostHeld: false,
-                    });
-                })
-                .catch((err) => {
-                    if (cancelled) return;
-                    console.error("Twitter preview fetch failed:", err);
-                })
-                .finally(() => {
-                    if (!cancelled) pending = false;
-                });
+        // A direct image on X's CDN (pbs.twimg.com), shown inline the way a
+        // YouTube link is. Needs the same consent as any third-party request.
+        if (allowEmbeds && isDirectPbsImageUrl(currentUrl)) {
+            directEmbed = { type: "image", imageUrl: currentUrl };
+            pending = false;
             return () => {
                 cancelled = true;
             };
@@ -297,37 +272,93 @@
 
         // The homeserver's own preview endpoint, shared with the Discord
         // favourites import (utils/linkPreviewFetch). Only its MEDIA is gated.
-        const previewUrl = homeserverPreviewUrl(currentUrl);
-        const cacheKey = `${allowEmbeds ? 1 : 0} ${currentUrl} ${previewUrl}`;
-        const known = resolvedPreviews.get(cacheKey);
-        if (known) {
-            preview = known.preview;
-            gifHostHeld = known.gifHostHeld;
-            pending = false;
-            return;
-        }
-        fetchLinkPreview(currentUrl, allowEmbeds)
-            .then((result) => {
-                if (cancelled) return;
-                preview = result.preview;
-                gifHostHeld = result.gifHostHeld;
-                // fetchLinkPreview answers null for a failed request too, which
-                // is worth asking again.
-                if (preview || gifHostHeld) {
-                    rememberPreview(cacheKey, {
-                        preview,
-                        tweet: null,
-                        gifHostHeld,
+        const loadHomeserverPreview = () => {
+            const previewUrl = homeserverPreviewUrl(currentUrl);
+            const cacheKey = `${allowEmbeds ? 1 : 0} ${currentUrl} ${previewUrl}`;
+            const known = resolvedPreviews.get(cacheKey);
+            if (known) {
+                preview = known.preview;
+                gifHostHeld = known.gifHostHeld;
+                pending = false;
+                return;
+            }
+            fetchLinkPreview(currentUrl, allowEmbeds)
+                .then((result) => {
+                    if (cancelled) return;
+                    preview = result.preview;
+                    gifHostHeld = result.gifHostHeld;
+                    // fetchLinkPreview answers null for a failed request too, which
+                    // is worth asking again.
+                    if (preview || gifHostHeld) {
+                        rememberPreview(cacheKey, {
+                            preview,
+                            tweet: null,
+                            gifHostHeld,
+                        });
+                    }
+                })
+                .catch((err) => {
+                    if (cancelled) return;
+                    console.error("URL preview fetch failed:", err);
+                })
+                .finally(() => {
+                    if (!cancelled) pending = false;
+                });
+        };
+
+        // Twitter/X: built from FxTwitter's status API (it sends CORS
+        // headers; see utils/tweetEmbed). This is a request straight to a
+        // third party, so it needs the same consent as the media itself.
+        // When FxTwitter fails or gives nothing usable, the homeserver's
+        // preview is used instead. A failure is cached under the same key a
+        // success is, so it is not asked for again on every mount.
+        const twitterApiUrl = allowEmbeds ? fxStatusApiUrl(currentUrl) : null;
+        if (twitterApiUrl) {
+            const known = resolvedPreviews.get(twitterApiUrl);
+            if (known?.tweet) {
+                tweetEmbed = known.tweet as TweetEmbed;
+                pending = false;
+                return () => {
+                    cancelled = true;
+                };
+            }
+            if (known) {
+                // A remembered failure: straight to the homeserver preview.
+                loadHomeserverPreview();
+                return () => {
+                    cancelled = true;
+                };
+            }
+            fetch(twitterApiUrl, {
+                headers: { Accept: "application/json" },
+                referrerPolicy: "no-referrer",
+            })
+                .then((r) => r.json())
+                .then((data: unknown) => parseFxStatusResponse(data))
+                .catch((err) => {
+                    console.error("Twitter preview fetch failed:", err);
+                    return null;
+                })
+                .then((embed) => {
+                    if (cancelled) return;
+                    rememberPreview(twitterApiUrl, {
+                        preview: null,
+                        tweet: embed,
+                        gifHostHeld: false,
                     });
-                }
-            })
-            .catch((err) => {
-                if (cancelled) return;
-                console.error("URL preview fetch failed:", err);
-            })
-            .finally(() => {
-                if (!cancelled) pending = false;
-            });
+                    if (embed) {
+                        tweetEmbed = embed;
+                        pending = false;
+                    } else {
+                        loadHomeserverPreview();
+                    }
+                });
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        loadHomeserverPreview();
 
         return () => {
             cancelled = true;
@@ -448,7 +479,9 @@
     // anything, so the button can appear immediately.
     const blockedEmbed = $derived(
         !embedsAllowed &&
-            (getYoutubeEmbedUrl(url) !== null || fxStatusApiUrl(url) !== null),
+            (getYoutubeEmbedUrl(url) !== null ||
+                fxStatusApiUrl(url) !== null ||
+                isDirectPbsImageUrl(url)),
     );
     // Preview media the policy suppressed. `preview` is homeserver-sourced, so
     // reading it here costs nothing.
@@ -546,6 +579,57 @@
         controls
         preload="metadata"
     ></video>
+{:else if directEmbed?.type === "image" && !imageError}
+    <!-- A direct X/Twitter CDN image: the same card as an image preview. -->
+    <div class="relative inline-block group/media mt-1">
+        <a
+            href={directEmbed.imageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onclick={(e) => {
+                e.preventDefault();
+                lightboxOpen = true;
+            }}
+        >
+            <img
+                src={directEmbed.imageUrl}
+                alt=""
+                class="max-w-[min(100%,32rem)] max-h-96 rounded-lg object-contain cursor-pointer block"
+                loading="lazy"
+                referrerpolicy="no-referrer"
+                onerror={() => (imageError = true)}
+            />
+        </a>
+        <button
+            onclick={toggleFavourite}
+            title={favourited
+                ? t("common.removeFromFavourites")
+                : t("common.addToFavourites")}
+            class="absolute top-1.5 end-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/media:opacity-100 transition-opacity hover:bg-black/70"
+        >
+            <svg
+                class="w-4 h-4"
+                fill={favourited ? "currentColor" : "none"}
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+            >
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                />
+            </svg>
+        </button>
+    </div>
+    {#if lightboxOpen}
+        <Lightbox
+            src={directEmbed.imageUrl}
+            alt=""
+            favourite={{ url, previewUrl: directEmbed.imageUrl }}
+            onClose={() => (lightboxOpen = false)}
+        />
+    {/if}
 {:else if tweetEmbed}
     <TweetCard tweet={tweetEmbed} />
 {:else if matchedEmbed}

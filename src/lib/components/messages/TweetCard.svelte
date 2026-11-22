@@ -83,6 +83,18 @@
 
     const photos = $derived(tweet.media.filter((m) => m.kind === "photo"));
 
+    // One item fills the row; two to four share two columns; five or more
+    // (X allows up to twenty) take three, with square photo tiles so a big
+    // post stays compact.
+    const mediaColumns = $derived(
+        tweet.media.length <= 1 ? 1 : tweet.media.length <= 4 ? 2 : 3,
+    );
+    const denseMedia = $derived(tweet.media.length >= 5);
+
+    // A card's picture, opened full size. A video's thumbnail links out
+    // instead (card.external), so the lightbox only serves link cards.
+    let cardLightbox = $state(false);
+
     /** A photo as the viewer wants it: the original, the grid's thumb as its
      *  stand-in, and its size so the box is laid out before either loads. */
     function viewerItem(p: (typeof photos)[number]) {
@@ -262,10 +274,7 @@
     {#if tweet.media.length > 0}
         <div
             class="grid gap-1 rounded overflow-hidden"
-            style="grid-template-columns: repeat({Math.min(
-                tweet.media.length,
-                2,
-            )}, minmax(0, 1fr))"
+            style="grid-template-columns: repeat({mediaColumns}, minmax(0, 1fr))"
         >
             {#each tweet.media as item}
                 <!-- width/height reserve the box before load (from the
@@ -387,15 +396,79 @@
                             src={tweetPhotoThumb(item.url)}
                             alt={item.alt ?? ""}
                             title={item.alt}
-                            width={box?.width}
-                            height={box?.height}
-                            class="w-full h-auto max-h-72 min-w-0 max-w-full object-contain rounded bg-black/10"
+                            width={denseMedia ? undefined : box?.width}
+                            height={denseMedia ? undefined : box?.height}
+                            class={denseMedia
+                                ? "w-full aspect-square object-cover rounded bg-black/10"
+                                : "w-full h-auto max-h-72 min-w-0 max-w-full object-contain rounded bg-black/10"}
                             loading="lazy"
                             referrerpolicy="no-referrer"
                         />
                     </button>
                 {/if}
             {/each}
+        </div>
+    {/if}
+
+    {#if tweet.media.length === 0 && tweet.card}
+        {@const card = tweet.card}
+        {@const cardBox = reservedMediaBox(card.width, card.height, 512, 512)}
+        <!-- No media of the post's own: the card's picture (a link card, a
+             video's thumbnail or an article cover). -->
+        <div class="flex flex-col gap-1 min-w-0">
+            {#if card.external && card.url}
+                <a
+                    href={card.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="block w-full min-w-0 no-underline"
+                    aria-label={card.title ?? card.url}
+                >
+                    <img
+                        src={card.image}
+                        alt=""
+                        width={cardBox?.width}
+                        height={cardBox?.height}
+                        class="w-full h-auto max-h-72 min-w-0 max-w-full object-contain rounded bg-black/10"
+                        loading="lazy"
+                        referrerpolicy="no-referrer"
+                    />
+                </a>
+            {:else}
+                <button
+                    type="button"
+                    class="block w-full min-w-0 p-0 border-0 bg-transparent cursor-pointer"
+                    aria-label={card.title || t("lightbox.image")}
+                    onclick={() => (cardLightbox = true)}
+                >
+                    <img
+                        src={card.image}
+                        alt={card.title ?? ""}
+                        width={cardBox?.width}
+                        height={cardBox?.height}
+                        class="w-full h-auto max-h-72 min-w-0 max-w-full object-contain rounded bg-black/10"
+                        loading="lazy"
+                        referrerpolicy="no-referrer"
+                    />
+                </button>
+            {/if}
+            {#if card.title}
+                {#if card.url}
+                    <a
+                        href={card.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-sm font-semibold text-zam-textPrimary hover:underline break-words"
+                        >{card.title}</a
+                    >
+                {:else}
+                    <p
+                        class="text-sm font-semibold text-zam-textPrimary break-words"
+                    >
+                        {card.title}
+                    </p>
+                {/if}
+            {/if}
         </div>
     {/if}
 
@@ -514,6 +587,17 @@
         poster={gifViewer.thumbnail}
         alt={gifViewer.alt ?? ""}
         onClose={() => (gifViewer = null)}
+    />
+{/if}
+
+{#if cardLightbox && tweet.card && !tweet.card.external}
+    <Lightbox
+        src={tweet.card.image}
+        alt={tweet.card.title ?? ""}
+        dims={tweet.card.width && tweet.card.height
+            ? { w: tweet.card.width, h: tweet.card.height }
+            : null}
+        onClose={() => (cardLightbox = false)}
     />
 {/if}
 

@@ -25,6 +25,21 @@ export interface TweetMedia {
     formats?: TweetVideoFormat[];
 }
 
+/**
+ * The picture a tweet with no media of its own shows: a link card's image,
+ * a video's thumbnail (media.external) or an article's cover.
+ */
+export interface TweetCardImage {
+    image: string;
+    width?: number;
+    height?: number;
+    title?: string;
+    /** Where the card points. */
+    url?: string;
+    /** A video thumbnail: clicking it goes to `url`, not the lightbox. */
+    external?: boolean;
+}
+
 export type TweetSegment =
     | { kind: "text"; text: string }
     | { kind: "link"; text: string; href: string };
@@ -65,6 +80,8 @@ export interface TweetEmbed {
     communityNote: TweetSegment[] | null;
     /** Present when the link asked for a translation (`/status/<id>/en`). */
     translation: TweetTranslation | null;
+    /** Set only when the tweet has no media and one of its cards has a picture. */
+    card?: TweetCardImage;
     replies: number | null;
     reposts: number | null;
     likes: number | null;
@@ -281,6 +298,9 @@ function parseFormats(v: unknown): TweetVideoFormat[] {
     return out;
 }
 
+/** Most media a tweet can carry (X allows 20 images); a safety cap. */
+export const MAX_TWEET_MEDIA = 20;
+
 function parseMedia(v: unknown): TweetMedia[] {
     const media = obj(v);
     if (!media) return [];
@@ -294,7 +314,7 @@ function parseMedia(v: unknown): TweetMedia[] {
     return list
         .map(parseMediaItem)
         .filter((x): x is TweetMedia => x !== null)
-        .slice(0, 4);
+        .slice(0, MAX_TWEET_MEDIA);
 }
 
 function parsePoll(v: unknown): TweetPoll | null {
@@ -334,6 +354,53 @@ function parseTranslation(
         sourceLangName: str(tr.source_lang_en) || undefined,
         text,
         segments: tweetSegments(text),
+    };
+}
+
+/** FxTwitter's `card`: its picture as `card.image.url`, with dims and a link. */
+function cardFromCard(v: unknown): TweetCardImage | null {
+    const c = obj(v);
+    const img = obj(c?.image);
+    const image = httpsUrl(img?.url) ?? httpsUrl(c?.image);
+    if (!c || !image) return null;
+    const title = str(c.title)?.trim();
+    return {
+        image,
+        width: num(img?.width),
+        height: num(img?.height),
+        title: title || undefined,
+        url: httpsUrl(c.url),
+    };
+}
+
+/** A video's thumbnail, from `media.external` (e.g. a YouTube embed). */
+function cardFromExternal(media: unknown): TweetCardImage | null {
+    const ext = obj(obj(media)?.external);
+    const image = httpsUrl(ext?.thumbnail_url);
+    if (!ext || !image) return null;
+    const url = httpsUrl(ext.url);
+    return {
+        image,
+        width: num(ext.width),
+        height: num(ext.height),
+        url,
+        external: url !== undefined,
+    };
+}
+
+/** An article's cover image, when FxTwitter gives one (guarded: not seen filled in the samples). */
+function cardFromArticle(v: unknown): TweetCardImage | null {
+    const a = obj(v);
+    const cover = obj(a?.cover_media);
+    const info = obj(cover?.media_info);
+    const image = httpsUrl(info?.original_img_url) ?? httpsUrl(cover?.url);
+    if (!a || !image) return null;
+    const title = str(a.title)?.trim();
+    return {
+        image,
+        width: num(info?.original_img_width),
+        height: num(info?.original_img_height),
+        title: title || undefined,
     };
 }
 
@@ -383,6 +450,11 @@ export function parseFxStatus(v: unknown, depth = 0): TweetEmbed | null {
           }
         : null;
 
+    const card =
+        cardFromCard(s.card) ??
+        cardFromExternal(s.media) ??
+        cardFromArticle(s.article);
+
     const note = obj(s.community_note);
     const noteText = str(note?.text)?.trim();
 
@@ -404,6 +476,7 @@ export function parseFxStatus(v: unknown, depth = 0): TweetEmbed | null {
             ? tweetSegments(noteText, urlDisplays(note))
             : null,
         translation: parseTranslation(s.translation, text),
+        ...(card ? { card } : {}),
         replies: count(s.replies),
         reposts: count(s.reposts),
         likes: count(s.likes),
