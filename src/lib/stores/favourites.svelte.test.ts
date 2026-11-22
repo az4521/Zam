@@ -26,6 +26,7 @@ vi.mock("$lib/matrix/privateAccountData.svelte", () => ({
     hasPrivateKey: () => true,
     onPrivateKeyChange: () => () => {},
     preparePrivateKey: async () => "ready",
+    restorePrivateKeyFromBackup: async () => false,
     setPrivateMode: () => {},
     privateModeState: { mode: "encrypted", switching: false },
     PrivateAccountDataLockedError: class extends Error {},

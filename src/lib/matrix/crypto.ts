@@ -2821,6 +2821,84 @@ export async function storePrivateKeySecret(value: string): Promise<void> {
     await client.secretStorage.store(SECRET_NAME, value);
 }
 
+/**
+ * The message-history backup decryption key this session holds, with the backup
+ * version it belongs to. Null when there is no active backup, or the held key
+ * does not match the server's backup. Never throws. Verified sessions receive
+ * this key by the SDK's secret gossip (m.megolm_backup.v1), without any recovery key.
+ */
+export async function readBackupDecryptionKey(): Promise<{
+    key: Uint8Array<ArrayBuffer>;
+    version: string;
+} | null> {
+    const client = getClient();
+    const crypto = client?.getCrypto();
+    if (!client || !crypto) return null;
+    try {
+        // Local only: no request unless the active version or held key moved.
+        const version = await crypto.getActiveSessionBackupVersion();
+        const held = await crypto.getSessionBackupPrivateKey();
+        if (!version || !held) return null;
+        const key = new Uint8Array(held);
+        const memo = backupKeyMemo;
+        if (
+            memo &&
+            memo.client === client &&
+            memo.version === version &&
+            memo.key.length === key.length &&
+            memo.key.every((b, i) => b === key[i])
+        ) {
+            return memo.ok ? { key, version } : null;
+        }
+        const info = await crypto.getKeyBackupInfo();
+        const ok =
+            !!info &&
+            info.version === version &&
+            (await crypto.isKeyBackupTrusted(info)).matchesDecryptionKey;
+        backupKeyMemo = { client, version, key, ok };
+        return ok ? { key, version } : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Last checked (backup version, held key) pair; see readBackupDecryptionKey. */
+let backupKeyMemo: {
+    client: object;
+    version: string;
+    key: Uint8Array;
+    ok: boolean;
+} | null = null;
+
+/**
+ * Run `callback` with the backup version each time a backup decryption key is
+ * cached in this session (received by gossip, restored, or created). Returns
+ * an unsubscribe function.
+ */
+export function onBackupDecryptionKeyCached(
+    callback: (version: string) => void,
+): () => void {
+    const client = getClient();
+    if (!client) return () => {};
+    const handler = (version: string): void => {
+        try {
+            callback(version);
+        } catch (err) {
+            console.warn("[matrix] backup key listener failed", err);
+        }
+    };
+    client.on(
+        CryptoEvent.KeyBackupDecryptionKeyCached as never,
+        handler as never,
+    );
+    return () => {
+        client.off(
+            CryptoEvent.KeyBackupDecryptionKeyCached as never,
+            handler as never,
+        );
+    };
+}
+
 // ─── Layer 3: key-backup restore & recovery on another session ───────────────
 //
 // The "recover" side of E2EE. On a session that lacks the keys, the user pastes

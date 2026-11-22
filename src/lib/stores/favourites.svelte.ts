@@ -11,6 +11,7 @@ import {
     PrivateAccountDataLockedError,
     privateModeState,
     readPrivate,
+    restorePrivateKeyFromBackup,
     setPrivateMode,
     writePrivate,
     type PrivateRead,
@@ -288,6 +289,10 @@ async function enableEncrypted(): Promise<FavouritesModeChange> {
 }
 
 async function disableEncrypted(): Promise<FavouritesModeChange> {
+    // The backup-wrapped copy first: with it, turning off needs no recovery key.
+    if (privateModeState.mode === "encrypted" && !hasPrivateKey()) {
+        await restorePrivateKeyFromBackup();
+    }
     const step = disableStep({
         mode: privateModeState.mode,
         keyReady: hasPrivateKey(),

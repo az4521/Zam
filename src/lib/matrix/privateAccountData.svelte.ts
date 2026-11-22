@@ -12,6 +12,13 @@
 //     to-device messages, and a session that has the key answers. Only this
 //     account's sessions that are verified and allowed by the "who gets keys"
 //     settings are asked or answered, and the key only travels encrypted.
+//   - backup-wrapped copy: account data at BACKUP_WRAPPED_KEY_TYPE holds the
+//     key wrapped under the message-history backup decryption key
+//     (utils/privateKeyBackupWrap.ts). Every verified session gets that backup
+//     key by the SDK's own secret gossip, so it unwraps the key with no recovery
+//     key and no other session online. The backup key already decrypts all
+//     message history, so this is no downgrade. Written only from a confirmed
+//     key, in encrypted mode, and tried before 4S when there is no local copy.
 //
 // Which key is used is decided in utils/privateKeyPolicy.ts from what the
 // server's encrypted events say. A key this device generated itself is only
@@ -35,7 +42,9 @@ import { captureClient, ownedClient } from "./runtime";
 import {
     hasSecretStorage,
     isSecretStorageUnlocked,
+    onBackupDecryptionKeyCached,
     onSecretStorageReady,
+    readBackupDecryptionKey,
     readPrivateKeySecret,
     storePrivateKeySecret,
 } from "./crypto";
@@ -62,6 +71,11 @@ import {
     type ServerState,
 } from "$lib/utils/privateKeyPolicy";
 import {
+    unwrapPrivateKey,
+    wrapNeedsUpdate,
+    wrapPrivateKey,
+} from "$lib/utils/privateKeyBackupWrap";
+import {
     PRIVATE_CACHE_STORAGE,
     PRIVATE_DATA_TYPES,
     PRIVATE_KEY_STATE_STORAGE,
@@ -75,6 +89,9 @@ import {
 
 export const KEY_REQUEST_TYPE = "com.zam.private_account_data_key.request";
 export const KEY_SHARE_TYPE = "com.zam.private_account_data_key.share";
+/** The private key wrapped under the backup decryption key (see the header). */
+export const BACKUP_WRAPPED_KEY_TYPE =
+    "com.zam.private_account_data_key.backup_wrapped";
 
 /** How long before another request for the key is sent. */
 const REQUEST_RETRY_MS = 10 * 60_000;
@@ -143,6 +160,15 @@ let cryptoKey: CryptoKey | null = null;
 let keyConfirmed = false;
 /** When this device last asked its other sessions for the key. */
 let requestedAt = 0;
+/**
+ * Fingerprint (key and backup version) of the wrapped copy this device last
+ * sent. Kept until the server's copy of the type changes again, because the
+ * echo of our own write can lag the write itself.
+ */
+let sentWrap: string | null = null;
+/** The wrap sync in progress, and whether another pass was asked for meanwhile. */
+let backupWrapRun: Promise<void> | null = null;
+let backupWrapAgain = false;
 
 const readyListeners = new Set<() => void>();
 
@@ -289,6 +315,7 @@ async function reconcile(): Promise<void> {
     const verdict = keyVerdict(localState(userId), server);
     setStatus(verdict === "ready" ? "ready" : "missing");
     if (verdict === "missing") scheduleRequest();
+    if (verdict === "ready") void syncBackupWrap();
 }
 
 /**
@@ -404,6 +431,135 @@ export function setPrivateMode(mode: FavouritesMode): void {
     privateModeState.mode = mode;
 }
 
+// ─── Backup-wrapped copy ─────────────────────────────────────────────────────
+
+/**
+ * Install the key in the backup-wrapped copy, when this session holds the backup
+ * key that unwraps it and the key fits the server by the rule for a gossiped
+ * share (acceptShare). Returns whether a key was installed. The caller settles
+ * the status. Never throws.
+ */
+async function installFromBackupWrap(
+    userId: string,
+    owner: ReturnType<typeof captureClient>,
+): Promise<boolean> {
+    const backup = await readBackupDecryptionKey();
+    if (!ownedClient(owner) || !backup) return false;
+    const raw = loadPrivateAccountData(BACKUP_WRAPPED_KEY_TYPE);
+    if (raw === null || isEmptyRecord(raw)) return false;
+    const bytes = await unwrapPrivateKey(raw, backup.key, backup.version);
+    if (!ownedClient(owner) || !bytes) return false;
+    const shareDecrypts =
+        (await serverState(await importPrivateKey(bytes))) === "readable";
+    const take = acceptShare({
+        local: localState(userId),
+        server: await serverState(keyFor(userId)),
+        shareDecrypts,
+    });
+    if (!ownedClient(owner) || !take) return false;
+    // Only a confirmed key is ever wrapped, so the unwrapped one is confirmed too.
+    await install(userId, bytes, true);
+    return true;
+}
+
+/**
+ * Make this device's key usable from the backup-wrapped copy when it has no
+ * usable key yet. Returns whether the device now holds a usable key. Callers
+ * use it before asking for the recovery key, so a verified session with the
+ * backup key does not need it.
+ */
+export async function restorePrivateKeyFromBackup(): Promise<boolean> {
+    const userId = currentUserId();
+    if (!userId) return false;
+    if (hasPrivateKey()) return true;
+    const owner = captureClient();
+    if (!(await installFromBackupWrap(userId, owner))) return hasPrivateKey();
+    if (!ownedClient(owner)) return false;
+    await reconcile();
+    return hasPrivateKey();
+}
+
+/**
+ * Keep the backup-wrapped copy in step with this device's confirmed key. Writes
+ * it when the copy is missing, is under another backup version, or does not
+ * unwrap to the key. Only in encrypted mode, and never for an unconfirmed key.
+ * Idempotent and loop-free: the write echoes back as account data, and the
+ * echo finds the copy already right. Overlapping calls are merged into one more
+ * pass after the current one.
+ */
+function syncBackupWrap(): Promise<void> {
+    if (backupWrapRun) {
+        backupWrapAgain = true;
+        return backupWrapRun;
+    }
+    backupWrapRun = (async () => {
+        do {
+            backupWrapAgain = false;
+            await writeBackupWrapOnce();
+        } while (backupWrapAgain);
+    })().finally(() => {
+        backupWrapRun = null;
+    });
+    return backupWrapRun;
+}
+
+async function writeBackupWrapOnce(): Promise<void> {
+    const userId = currentUserId();
+    if (!userId || privateModeState.mode !== "encrypted") return;
+    if (
+        !keyFor(userId) ||
+        !keyConfirmed ||
+        privateKeyState.status !== "ready"
+    ) {
+        return;
+    }
+    const owner = captureClient();
+    const bytes = keyBytes;
+    try {
+        const backup = await readBackupDecryptionKey();
+        if (!ownedClient(owner) || !backup || !bytes) return;
+        // Still the same confirmed key after the await (it can be replaced).
+        if (keyBytes !== bytes || !keyConfirmed) return;
+        const fingerprint = `${backup.version}:${toBase64(bytes)}`;
+        if (sentWrap === fingerprint) return;
+        const current = loadPrivateAccountData(BACKUP_WRAPPED_KEY_TYPE);
+        const stale = await wrapNeedsUpdate(
+            current,
+            backup.key,
+            backup.version,
+            bytes,
+        );
+        if (!ownedClient(owner)) return;
+        if (!stale) {
+            // Already right on this device's copy: nothing to send.
+            sentWrap = fingerprint;
+            return;
+        }
+        const content = await wrapPrivateKey(bytes, backup.key, backup.version);
+        if (!ownedClient(owner)) return;
+        await persistPrivateAccountData(BACKUP_WRAPPED_KEY_TYPE, content);
+        sentWrap = fingerprint;
+    } catch (err) {
+        console.warn("[matrix] could not write the backup-wrapped key", err);
+    }
+}
+
+/**
+ * The backup key changed, or the wrapped copy did. Without a usable key, try the
+ * copy now (the status was "missing" while the backup key was not here). With
+ * one, make sure the copy is current.
+ */
+function backupChanged(): void {
+    if (privateModeState.mode !== "encrypted") return;
+    if (privateKeyState.status === "missing") {
+        restorePrivateKeyFromBackup().catch((err) =>
+            console.warn("[matrix] restoring the private key failed", err),
+        );
+    } else if (privateKeyState.status === "ready") {
+        void syncBackupWrap();
+    }
+}
+
 /**
  * Get a usable key ready for turning encryption on. Reads 4S when it is
  * unlocked here, or makes a device key when the account has no secret storage.
@@ -416,6 +572,9 @@ export async function preparePrivateKey(): Promise<
     if (!userId) return "failed";
     const owner = captureClient();
     if (keyFor(userId) && !hasPrivateKey()) await reconcile();
+    if (!ownedClient(owner)) return "failed";
+    // The backup-wrapped copy first: with it, no recovery key is needed.
+    if (!hasPrivateKey()) await restorePrivateKeyFromBackup();
     if (!ownedClient(owner)) return "failed";
     const step = enableKeyStep({
         keyReady: hasPrivateKey(),
@@ -449,9 +608,15 @@ async function bootKey(): Promise<void> {
         const stored = storedKeyBytes(userId);
         if (stored) {
             await install(userId, stored, storedKeyConfirmed(userId));
-        } else if (!(await hasSecretStorage())) {
+        } else {
+            // No local copy: the backup-wrapped copy comes before 4S, so a
+            // verified session with the backup key needs no recovery key.
+            await installFromBackupWrap(userId, owner);
             if (!ownedClient(owner)) return;
-            await install(userId, generatePrivateKeyBytes(), false);
+            if (!keyFor(userId) && !(await hasSecretStorage())) {
+                if (!ownedClient(owner)) return;
+                await install(userId, generatePrivateKeyBytes(), false);
+            }
         }
     }
     if (!ownedClient(owner)) return;
@@ -691,11 +856,19 @@ export function initPrivateAccountData(): () => void {
         );
     });
     const unsubAccount = onAccountData((type) => {
+        if (type === BACKUP_WRAPPED_KEY_TYPE) {
+            // The server's copy changed (or our own write echoed): forget what
+            // this device last sent, and act on the copy as it now stands.
+            sentWrap = null;
+            backupChanged();
+            return;
+        }
         if (!(PRIVATE_DATA_TYPES as readonly string[]).includes(type)) return;
         // Another device may have turned encryption on or off: follow it.
         refreshMode();
         bootEncrypted();
     });
+    const unsubBackupKey = onBackupDecryptionKeyCached(() => backupChanged());
     client.on(ClientEvent.ReceivedToDeviceMessage as never, handler as never);
     if (isInitialSyncComplete()) {
         refreshMode();
@@ -706,6 +879,7 @@ export function initPrivateAccountData(): () => void {
         unsubSync();
         unsubSecret();
         unsubAccount();
+        unsubBackupKey();
         client.off(
             ClientEvent.ReceivedToDeviceMessage as never,
             handler as never,
@@ -716,6 +890,7 @@ export function initPrivateAccountData(): () => void {
         keyBytes = null;
         cryptoKey = null;
         keyConfirmed = false;
+        sentWrap = null;
         setStatus("unknown");
         privateModeState.mode = "unknown";
     };
