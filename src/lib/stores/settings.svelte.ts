@@ -390,6 +390,10 @@ export const settingsState = $state({
      *  items); on, each goes as its own message as before. Galleries from
      *  others are shown either way. Default OFF. Local-only. */
     disableGallerySend: readBool("disableGallerySend", false),
+    /** Debug: start uploading an attachment as soon as it is queued, so Send
+     *  only posts the event (see media.ts startPreUpload). Files removed before
+     *  sending still count toward the server's upload limit. Default ON. Local-only. */
+    preUploadAttachments: readBool("preUploadAttachments", true),
     /** Device-global: strip location and other identifying metadata (Exif GPS,
      *  XMP, IPTC, video location atoms; see utils/stripMetadata) from files
      *  before upload, keeping only the Exif orientation. Default ON; turning
@@ -1248,6 +1252,11 @@ export function setProgressiveJpegs(value: boolean): void {
 export function setDisableGallerySend(value: boolean): void {
     settingsState.disableGallerySend = value;
     writeBool("disableGallerySend", value);
+}
+
+export function setPreUploadAttachments(value: boolean): void {
+    settingsState.preUploadAttachments = value;
+    writeBool("preUploadAttachments", value);
 }
 
 export function setStripMetadata(value: boolean): void {

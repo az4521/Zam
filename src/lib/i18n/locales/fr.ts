@@ -629,6 +629,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.disableGallerySend": "Ne pas envoyer de galeries",
     "debugSettings.disableGallerySendHint":
         "Les pièces jointes choisies ensemble partent normalement en un seul message galerie avec une seule légende (MSC4274, envoyé en dm.filament.gallery). Activé, chacune part dans son propre message. Les galeries des autres restent affichées.",
+    "debugSettings.preUploadAttachments":
+        "Téléverser les pièces jointes avant l'envoi",
+    "debugSettings.preUploadAttachmentsHint":
+        "Commence à téléverser les fichiers dès qu'ils sont ajoutés, pour que l'envoi soit plus rapide. Les fichiers retirés avant l'envoi comptent quand même dans la limite de téléversement de ton serveur. Désactive pour économiser des données.",
     "debugSettings.stickyCallMembershipUnsupported":
         "Votre serveur domestique ne prend pas en charge les événements sticky.",
     "debugSettings.stickyCallMembership": "Appartenance aux appels en sticky",
@@ -4372,6 +4376,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.showAllEvents": "Afficher tous les événements",
     "settingsSearch.orderHints": "Indications d'ordre des messages",
     "settingsSearch.disableGallerySend": "Ne pas envoyer de galeries",
+    "settingsSearch.preUploadAttachments":
+        "Téléverser les pièces jointes avant l'envoi",
     "settingsSearch.stickyCallMembership": "Appartenance aux appels en sticky",
     "settingsSearch.pushDiagnostics": "Diagnostic des notifications push",
     "settingsSearch.pushService": "Service push (UnifiedPush / Firebase)",

@@ -147,7 +147,16 @@
     import { sendQueuedFiles } from "$lib/utils/queuedFileSend";
     import { filesToRestoreAfterSend } from "$lib/utils/composerFileRestore";
     import { chunkGalleryItems } from "$lib/utils/gallery";
-    import { sendGallery } from "$lib/matrix/media";
+    import {
+        sendGallery,
+        startPreUpload,
+        detachPreUpload,
+        cancelPreUpload,
+        claimPreUpload,
+        type PreparedMedia,
+    } from "$lib/matrix/media";
+    import { preUploadFor } from "$lib/stores/preUploads.svelte";
+    import type { PreUploadEntry } from "$lib/utils/preUploadCache";
     import {
         shouldClearComposerAfterSend,
         shouldClearStoredDraft,
@@ -1459,6 +1468,7 @@
             | undefined,
         onProgress: ((loaded: number, total: number) => void) | undefined,
         ready: () => Promise<void>,
+        pre?: PreUploadEntry<PreparedMedia>,
     ): Promise<void> {
         if (
             item.reuse &&
@@ -1473,6 +1483,15 @@
             ))
         )
             return;
+        // A pre-upload that is still the upload Send would make is used as is
+        // (its progress still shows); otherwise the file is uploaded now.
+        const prepared = await claimPreUpload(
+            pre,
+            roomId,
+            item.file,
+            item.name,
+            onProgress,
+        );
         await sendFile(
             roomId,
             item.file,
@@ -1481,6 +1500,7 @@
             transform,
             onProgress,
             ready,
+            prepared ?? undefined,
         );
     }
 
@@ -1618,6 +1638,19 @@
         // new sentence (nor yank the caret back to 0).
         const textAtSend = text;
         const filesToSend = fileQueue.slice();
+        // Pre-uploads of these files are detached before clearFileQueue (below)
+        // drops the queue's entries. Each send claims its file's pre-upload, or
+        // the leftovers are cancelled when the send ends.
+        const preUploaded = new Map<string, PreUploadEntry<PreparedMedia>>();
+        for (const item of filesToSend) {
+            const entry = detachPreUpload(item.id);
+            if (entry) preUploaded.set(item.id, entry);
+        }
+        const claimPreUploaded = (item: QueuedFile) => {
+            const entry = preUploaded.get(item.id);
+            preUploaded.delete(item.id);
+            return entry;
+        };
         // Clear the drawer up front so in-flight attachments don't look
         // attached to the next message the user starts composing. The files
         // are already snapshotted in filesToSend; a failure restores only the
@@ -1842,8 +1875,21 @@
                 try {
                     await sendQueuedFiles(
                         galleryChunks,
-                        (chunk, i, ready) =>
-                            sendGallery(
+                        async (chunk, i, ready) => {
+                            const prepared = await Promise.all(
+                                chunk.map((item) =>
+                                    claimPreUpload(
+                                        claimPreUploaded(item),
+                                        targetRoomId,
+                                        item.file,
+                                        item.name,
+                                        onUploadProgress(
+                                            filesToSend.indexOf(item),
+                                        ),
+                                    ),
+                                ),
+                            );
+                            return sendGallery(
                                 targetRoomId,
                                 chunk.map((item) => item.file),
                                 useCaption && i === 0 && formatted
@@ -1861,7 +1907,9 @@
                                         filesToSend.indexOf(chunk[local]),
                                     )(loaded, total),
                                 ready,
-                            ),
+                                prepared,
+                            );
+                        },
                         (chunk, i) => {
                             for (const item of chunk) sentIds.add(item.id);
                             // The caption and the reply both ride on the first
@@ -1904,6 +1952,7 @@
                                 transformOutgoingContent,
                                 onUploadProgress(filesToSend.indexOf(item)),
                                 ready,
+                                claimPreUploaded(item),
                             );
                         }
                         return sendQueuedMedia(
@@ -1914,6 +1963,7 @@
                             undefined,
                             onUploadProgress(filesToSend.indexOf(item)),
                             ready,
+                            claimPreUploaded(item),
                         );
                     },
                     (item, i) => {
@@ -1977,6 +2027,7 @@
                 );
             }
         } finally {
+            for (const entry of preUploaded.values()) cancelPreUpload(entry);
             isSending = false;
             sendingFileCount = 0;
             uploadPercent = null;
@@ -2197,7 +2248,7 @@
         // Attachments are not offered while editing a message.
         if (activeEdit) return;
         const name = file.name || defaultName || "file";
-        addQueuedFile(
+        const queued = addQueuedFile(
             effComposerKey,
             file,
             name,
@@ -2205,10 +2256,26 @@
             direct,
             reusableMediaOfFile(file),
         );
+        // Upload now, so Send only posts the event (see startPreUpload). A direct
+        // offer and reused media never upload, so they start nothing.
+        if (!direct && !queued.reuse) {
+            const composerKey = effComposerKey;
+            startPreUpload(queued.id, roomId, file, name, () =>
+                getFileQueue(composerKey).some((q) => q.id === queued.id),
+            );
+        }
         // Look up the upload size limit now, while the user is still writing,
         // so its round trip isn't added to the send (slow links: Tor).
         void getMediaUploadSizeLimit();
         textareaEl?.focus();
+    }
+
+    /** Percent of a queued file's pre-upload sent so far (0 before the first
+     *  progress event). */
+    function preUploadPercent(id: string): number {
+        const { progress } = preUploadFor(id);
+        if (!progress || progress.total <= 0) return 0;
+        return Math.floor((progress.loaded / progress.total) * 100);
     }
 
     function removeFromQueue(id: string) {
@@ -2581,7 +2648,7 @@
                         aria-label={t("messageInput.editAttachment2", {
                             name: item.name,
                         })}
-                        class="w-20 h-20 rounded-lg bg-zam-backgroundTertiary flex items-center justify-center overflow-hidden border border-zam-divider hover:border-zam-accent transition-colors"
+                        class="relative w-20 h-20 rounded-lg bg-zam-backgroundTertiary flex items-center justify-center overflow-hidden border border-zam-divider hover:border-zam-accent transition-colors"
                     >
                         {#if item.previewUrl && item.file.type.startsWith("video/")}
                             <!-- A file with no decodable picture (unsupported
@@ -2626,6 +2693,17 @@
                                     d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"
                                 />
                             </svg>
+                        {/if}
+                        {#if preUploadFor(item.id).status === "uploading"}
+                            <span
+                                class="absolute inset-x-0 bottom-0 h-1 bg-zam-backgroundSecondary"
+                                aria-hidden="true"
+                            >
+                                <span
+                                    class="block h-full bg-zam-accent transition-[width] duration-200"
+                                    style:width="{preUploadPercent(item.id)}%"
+                                ></span>
+                            </span>
                         {/if}
                     </button>
                     <!-- Filename -->

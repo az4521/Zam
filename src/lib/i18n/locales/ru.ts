@@ -657,6 +657,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.disableGallerySend": "Не отправлять галереи",
     "debugSettings.disableGallerySendHint":
         "Вложения, выбранные вместе, обычно уходят одним сообщением-галереей с одной подписью (MSC4274, отправляется как dm.filament.gallery). Если включено, каждое уходит отдельным сообщением. Галереи других по-прежнему показываются.",
+    "debugSettings.preUploadAttachments": "Загружать вложения до отправки",
+    "debugSettings.preUploadAttachmentsHint":
+        "Начинает загружать файлы сразу после добавления, чтобы отправка была быстрее. Файлы, которые вы удалите до отправки, всё равно учитываются в лимите загрузки вашего сервера. Выключите, чтобы экономить трафик.",
     "debugSettings.stickyCallMembershipUnsupported":
         "Ваш домашний сервер не поддерживает sticky-события.",
     "debugSettings.stickyCallMembership": "Sticky-участие в звонках",
@@ -4383,6 +4386,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.showAllEvents": "Показывать все события",
     "settingsSearch.orderHints": "Подсказки порядка сообщений",
     "settingsSearch.disableGallerySend": "Не отправлять галереи",
+    "settingsSearch.preUploadAttachments": "Загружать вложения до отправки",
     "settingsSearch.stickyCallMembership": "Sticky-участие в звонках",
     "settingsSearch.pushDiagnostics": "Диагностика push-уведомлений",
     "settingsSearch.pushService": "Push-служба (UnifiedPush / Firebase)",

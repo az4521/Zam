@@ -646,6 +646,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.disableGallerySend": "不发送图库",
     "debugSettings.disableGallerySendHint":
         "一起选择的附件通常会作为一条带有一个说明的图库消息发出（MSC4274，以 dm.filament.gallery 发送）。开启后，每个附件单独作为一条消息发送。其他人发送的图库仍会显示。",
+    "debugSettings.preUploadAttachments": "发送前上传附件",
+    "debugSettings.preUploadAttachmentsHint":
+        "添加文件后立即开始上传，让发送更快。发送前移除的文件仍会计入服务器的上传限额。关闭可节省流量。",
     "debugSettings.stickyCallMembershipUnsupported":
         "你的主服务器不支持粘性事件。",
     "debugSettings.stickyCallMembership": "粘性通话成员身份",
@@ -4003,6 +4006,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.showAllEvents": "显示所有事件",
     "settingsSearch.orderHints": "消息顺序提示",
     "settingsSearch.disableGallerySend": "不发送图库",
+    "settingsSearch.preUploadAttachments": "发送前上传附件",
     "settingsSearch.stickyCallMembership": "粘性通话成员身份",
     "settingsSearch.pushDiagnostics": "推送诊断",
     "settingsSearch.pushService": "推送服务（UnifiedPush / Firebase）",

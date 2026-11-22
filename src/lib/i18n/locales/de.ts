@@ -636,6 +636,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.disableGallerySend": "Keine Galerien senden",
     "debugSettings.disableGallerySendHint":
         "Zusammen ausgewählte Anhänge gehen normalerweise als eine Galerie-Nachricht mit einer Bildunterschrift raus (MSC4274, gesendet als dm.filament.gallery). Ist das an, geht jeder als eigene Nachricht. Galerien von anderen werden weiter angezeigt.",
+    "debugSettings.preUploadAttachments": "Anhänge vor dem Senden hochladen",
+    "debugSettings.preUploadAttachmentsHint":
+        "Startet das Hochladen von Dateien, sobald sie hinzugefügt werden, damit das Senden schneller geht. Dateien, die du vor dem Senden entfernst, zählen trotzdem zum Upload-Limit deines Servers. Zum Datensparen ausschalten.",
     "debugSettings.stickyCallMembershipUnsupported":
         "Dein Homeserver unterstützt keine Sticky-Events.",
     "debugSettings.stickyCallMembership": "Sticky-Anrufmitgliedschaft",
@@ -4407,6 +4410,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.showAllEvents": "Alle Ereignisse anzeigen",
     "settingsSearch.orderHints": "Hinweise zur Nachrichtenreihenfolge",
     "settingsSearch.disableGallerySend": "Keine Galerien senden",
+    "settingsSearch.preUploadAttachments": "Anhänge vor dem Senden hochladen",
     "settingsSearch.stickyCallMembership": "Sticky-Anrufmitgliedschaft",
     "settingsSearch.pushDiagnostics": "Push-Diagnose",
     "settingsSearch.pushService": "Push-Dienst (UnifiedPush / Firebase)",

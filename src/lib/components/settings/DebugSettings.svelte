@@ -45,6 +45,7 @@
         setShowAllEvents,
         setOrderHints,
         setDisableGallerySend,
+        setPreUploadAttachments,
         setStickyCallMembership,
         setUpdateNagDisabled,
         settingsState,
@@ -652,6 +653,21 @@
                 checked={settingsState.disableGallerySend}
                 onChange={setDisableGallerySend}
                 label={t("debugSettings.disableGallerySend")}
+            />
+        </div>
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-zam-textPrimary">
+                    {t("debugSettings.preUploadAttachments")}
+                </p>
+                <p class="text-xs text-zam-textMuted">
+                    {t("debugSettings.preUploadAttachmentsHint")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.preUploadAttachments}
+                onChange={setPreUploadAttachments}
+                label={t("debugSettings.preUploadAttachments")}
             />
         </div>
         <div class="flex items-center gap-3 py-2 border-b border-zam-divider">

@@ -633,6 +633,9 @@ export const en = {
     "debugSettings.disableGallerySend": "Don't send galleries",
     "debugSettings.disableGallerySendHint":
         "Attachments picked together normally go as one gallery message with one caption (MSC4274, sent as dm.filament.gallery). On, each goes as its own message instead. Galleries from others are still shown.",
+    "debugSettings.preUploadAttachments": "Upload attachments before sending",
+    "debugSettings.preUploadAttachmentsHint":
+        "Starts uploading files as soon as they are added, so sending is faster. Files you remove before sending still count toward your server's upload limit. Turn off to save data.",
     "debugSettings.stickyCallMembershipUnsupported":
         "Your homeserver doesn't support sticky events.",
     "debugSettings.stickyCallMembership": "Sticky call membership",
@@ -4258,6 +4261,7 @@ export const en = {
     "settingsSearch.showAllEvents": "Show all events",
     "settingsSearch.orderHints": "Message order hints",
     "settingsSearch.disableGallerySend": "Don't send galleries",
+    "settingsSearch.preUploadAttachments": "Upload attachments before sending",
     "settingsSearch.stickyCallMembership": "Sticky call membership",
     "settingsSearch.pushDiagnostics": "Push diagnostics",
     "settingsSearch.pushService": "Push service (UnifiedPush / Firebase)",

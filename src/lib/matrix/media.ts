@@ -35,6 +35,11 @@ import { safeMediaBlob } from "$lib/utils/attachmentMime";
 import { exceedsUploadLimit, FileTooLargeError } from "$lib/utils/uploadLimits";
 import { parseMxc, isSameOrigin } from "$lib/utils/mxcUri";
 import { markPickerThumb, swControlsPage } from "$lib/utils/pickerThumbCache";
+import { preUploads } from "$lib/stores/preUploads.svelte";
+import type {
+    PreUploadEntry,
+    PreUploadFingerprint,
+} from "$lib/utils/preUploadCache";
 import {
     readBodyWithProgress,
     type ReadProgressOptions,
@@ -179,8 +184,12 @@ export async function uploadAttachment(
         msgtype: string;
         /** Bytes sent so far, from the upload's progress events. */
         onProgress?: (loaded: number, total: number) => void;
+        /** Cancels the upload: its request is aborted (see linkedAbortController). */
+        signal?: AbortSignal;
     },
 ): Promise<UploadedAttachment> {
+    throwIfAborted(opts.signal);
+    const abortController = linkedAbortController(opts.signal);
     const progressHandler = opts.onProgress
         ? ({ loaded, total }: { loaded: number; total: number }) =>
               opts.onProgress!(loaded, total)
@@ -204,6 +213,7 @@ export async function uploadAttachment(
                 type: "application/octet-stream",
                 includeFilename: false,
                 progressHandler,
+                abortController,
             },
         );
         return { file: { ...info, url: content_uri } };
@@ -215,8 +225,13 @@ export async function uploadAttachment(
             ownedClientOrThrow(owner),
             blob,
             opts.type
-                ? { name: opts.name, type: opts.type, progressHandler }
-                : { name: opts.name, progressHandler },
+                ? {
+                      name: opts.name,
+                      type: opts.type,
+                      progressHandler,
+                      abortController,
+                  }
+                : { name: opts.name, progressHandler, abortController },
         );
         return { url: content_uri };
     }
@@ -289,6 +304,28 @@ export async function prepareFileContent(
     onProgress?: (loaded: number, total: number) => void,
     caption?: MediaCaption,
 ): Promise<Record<string, unknown>> {
+    const p = await prepareMediaUpload(roomId, file, onProgress);
+    return mediaEventContent(
+        p.msgtype,
+        p.name,
+        p.uploadResult,
+        p.info,
+        caption,
+    );
+}
+
+/**
+ * The upload half of prepareFileContent: everything that goes to the media repo
+ * (the file, its thumbnails), with the event fields that depend on them, but
+ * no caption and nothing sent. A pre-upload (startPreUpload) keeps one of these
+ * until its file is sent. `signal` cancels the uploads still in flight.
+ */
+export async function prepareMediaUpload(
+    roomId: string,
+    file: File,
+    onProgress?: (loaded: number, total: number) => void,
+    signal?: AbortSignal,
+): Promise<PreparedMedia> {
     const owner = captureClient();
     // Precheck the size against the server's advertised upload limit so an
     // over-limit file fails fast instead of a 413 mid-upload. This REJECTS
@@ -353,6 +390,7 @@ export async function prepareFileContent(
         name: toUpload.name,
         msgtype,
         onProgress,
+        signal,
     });
 
     const info: Record<string, unknown> = {
@@ -386,7 +424,7 @@ export async function prepareFileContent(
                 owner,
                 roomId,
                 new File([prefix.bytes], name, { type: "image/jpeg" }),
-                { name, msgtype },
+                { name, msgtype, signal },
             );
             Object.assign(
                 info,
@@ -410,7 +448,7 @@ export async function prepareFileContent(
                 owner,
                 roomId,
                 new File([thumb.blob], name, { type: mimetype }),
-                { name, msgtype },
+                { name, msgtype, signal },
             );
             Object.assign(info, thumbnailFields(thumbUpload));
             info.thumbnail_info = {
@@ -435,7 +473,7 @@ export async function prepareFileContent(
                 owner,
                 roomId,
                 thumbFile,
-                { name: "thumbnail.jpg", msgtype },
+                { name: "thumbnail.jpg", msgtype, signal },
             );
             info.w = thumb.w;
             info.h = thumb.h;
@@ -449,13 +487,13 @@ export async function prepareFileContent(
         }
     }
 
-    return mediaEventContent(
+    return {
         msgtype,
-        toUpload.name,
+        name: toUpload.name,
         uploadResult,
         info,
-        caption,
-    );
+        encrypted: "file" in uploadResult,
+    };
 }
 
 export async function sendFile(
@@ -474,11 +512,21 @@ export async function sendFile(
     // Awaited after the uploads, right before the event is sent, so a batch
     // can upload in parallel yet post in order (utils/queuedFileSend).
     beforeSend?: () => Promise<void>,
+    // A pre-upload of this file (claimPreUpload): its upload is not repeated.
+    prepared?: PreparedMedia,
 ): Promise<void> {
     // Captured synchronously, before prepareFileContent's own capture, so both
     // name the same client generation.
     const owner = captureClient();
-    const content = await prepareFileContent(roomId, file, onProgress, caption);
+    const content = prepared
+        ? mediaEventContent(
+              prepared.msgtype,
+              prepared.name,
+              prepared.uploadResult,
+              prepared.info,
+              caption,
+          )
+        : await prepareFileContent(roomId, file, onProgress, caption);
     const finalContent = relationFor(roomId, content, relation);
     const outgoing = transformContent
         ? transformContent(finalContent)
@@ -508,18 +556,31 @@ export async function sendGallery(
     onProgress?: (index: number, loaded: number, total: number) => void,
     // Awaited after the uploads, right before the event is sent.
     beforeSend?: () => Promise<void>,
+    // Pre-uploads of some or all of the files, by index (undefined = upload).
+    prepared?: (PreparedMedia | null | undefined)[],
 ): Promise<void> {
     const owner = captureClient();
     const contents = await Promise.all(
-        files.map((file, index) =>
-            prepareFileContent(
+        files.map((file, index) => {
+            const done = prepared?.[index];
+            if (done)
+                return Promise.resolve(
+                    mediaEventContent(
+                        done.msgtype,
+                        done.name,
+                        done.uploadResult,
+                        done.info,
+                        undefined,
+                    ),
+                );
+            return prepareFileContent(
                 roomId,
                 file,
                 onProgress
                     ? (loaded, total) => onProgress(index, loaded, total)
                     : undefined,
-            ),
-        ),
+            );
+        }),
     );
     const content = buildGalleryContent(contents.map(toGalleryItem), caption);
     const finalContent = relationFor(roomId, content, relation);
@@ -620,6 +681,119 @@ export async function sendVoiceMessage(
         relationFor(roomId, content, relation) as never,
     );
 }
+/** Thrown by a cancelled pre-upload. Nothing shows it: the claim treats any
+ *  failure as "upload afresh". */
+function throwIfAborted(signal?: AbortSignal): void {
+    if (signal?.aborted)
+        throw new DOMException("Upload cancelled", "AbortError");
+}
+
+/** An AbortController that aborts when `signal` does, for the SDK's upload
+ *  option (its request is aborted, not just ignored). */
+function linkedAbortController(signal?: AbortSignal): AbortController {
+    const controller = new AbortController();
+    if (!signal) return controller;
+    if (signal.aborted) controller.abort();
+    else
+        signal.addEventListener("abort", () => controller.abort(), {
+            once: true,
+        });
+    return controller;
+}
+
+/** An upload whose media is ready before Send (Instagram-style): the result of
+ *  prepareMediaUpload, with `encrypted` the state it was made under. */
+export interface PreparedMedia {
+    msgtype: string;
+    name: string;
+    uploadResult: UploadedAttachment;
+    info: Record<string, unknown>;
+    encrypted: boolean;
+}
+
+/** The settings that change what gets uploaded. A pre-upload made under other
+ *  settings is not the file that Send would post, so it is never claimed. */
+function uploadSettingsKey(): string {
+    return [
+        settingsState.stripMetadata,
+        settingsState.faststartVideos,
+        settingsState.progressiveJpegs,
+        settingsState.gifsAsWebp,
+        settingsState.randomizeFileNames,
+    ]
+        .map((on) => (on ? "1" : "0"))
+        .join("");
+}
+
+async function preUploadFingerprint(
+    roomId: string,
+    file: File,
+    name: string,
+): Promise<PreUploadFingerprint> {
+    return {
+        roomId,
+        file,
+        name,
+        settings: uploadSettingsKey(),
+        encrypted: await isRoomEncryptedForSend(roomId),
+    };
+}
+
+/**
+ * Start uploading a queued file now, so Send only posts the event. Off when the
+ * debug setting preUploadAttachments is off. `stillQueued` is checked once the
+ * room state is known: a file removed in the meantime is never uploaded.
+ */
+export function startPreUpload(
+    id: string,
+    roomId: string,
+    file: File,
+    name: string,
+    stillQueued: () => boolean,
+): void {
+    if (!settingsState.preUploadAttachments) return;
+    void (async () => {
+        const fingerprint = await preUploadFingerprint(roomId, file, name);
+        if (!stillQueued()) return;
+        preUploads.start(id, fingerprint, (report, signal) =>
+            prepareMediaUpload(roomId, file, report, signal),
+        );
+    })().catch(() => {});
+}
+
+/** Take a queued file's pre-upload out of the cache, for the send to claim or
+ *  cancel. Undefined when none was started. */
+export function detachPreUpload(
+    id: string,
+): PreUploadEntry<PreparedMedia> | undefined {
+    return preUploads.detach(id);
+}
+
+/** Abort a pre-upload nobody will claim (its file was not sent). */
+export function cancelPreUpload(entry: PreUploadEntry<PreparedMedia>): void {
+    preUploads.cancel(entry);
+}
+
+/**
+ * The pre-upload's media if it is still the upload Send would make: same room
+ * state, file, name and settings, and the result was encrypted as the room is
+ * now. Null means upload afresh (failed, changed, or never started). Progress
+ * goes to `onProgress`.
+ */
+export async function claimPreUpload(
+    entry: PreUploadEntry<PreparedMedia> | undefined,
+    roomId: string,
+    file: File,
+    name: string,
+    onProgress?: (loaded: number, total: number) => void,
+): Promise<PreparedMedia | null> {
+    if (!entry) return null;
+    const fingerprint = await preUploadFingerprint(roomId, file, name);
+    const prepared = await preUploads.claim(entry, fingerprint, onProgress);
+    if (!prepared || prepared.encrypted !== fingerprint.encrypted) return null;
+    return prepared;
+}
+
 export function mxcToHttp(
     mxcUrl: string | null | undefined,
     width = 0,

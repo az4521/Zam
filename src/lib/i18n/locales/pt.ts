@@ -648,6 +648,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.disableGallerySend": "Não enviar galerias",
     "debugSettings.disableGallerySendHint":
         "Anexos escolhidos juntos normalmente saem como uma única mensagem de galeria com uma única legenda (MSC4274, enviada como dm.filament.gallery). Ativado, cada um sai como sua própria mensagem. Galerias de outras pessoas continuam aparecendo.",
+    "debugSettings.preUploadAttachments": "Carregar anexos antes de enviar",
+    "debugSettings.preUploadAttachmentsHint":
+        "Começa a enviar os arquivos assim que são adicionados, para que o envio seja mais rápido. Arquivos removidos antes do envio ainda contam para o limite de upload do seu servidor. Desative para economizar dados.",
     "debugSettings.stickyCallMembershipUnsupported":
         "Seu servidor doméstico não oferece suporte a eventos sticky.",
     "debugSettings.stickyCallMembership": "Participação em chamadas sticky",
@@ -4406,6 +4409,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.showAllEvents": "Mostrar todos os eventos",
     "settingsSearch.orderHints": "Dicas de ordem das mensagens",
     "settingsSearch.disableGallerySend": "Não enviar galerias",
+    "settingsSearch.preUploadAttachments": "Carregar anexos antes de enviar",
     "settingsSearch.stickyCallMembership": "Participação em chamadas sticky",
     "settingsSearch.pushDiagnostics": "Diagnóstico de push",
     "settingsSearch.pushService": "Serviço de push (UnifiedPush / Firebase)",

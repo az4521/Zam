@@ -12,6 +12,7 @@
 // through here, so a preview URL can't be leaked by a caller that forgets.
 
 import type { ReusableMedia } from "$lib/matrix/favouriteFile";
+import { preUploads } from "./preUploads.svelte";
 
 export type QueuedFile = {
     /** Stable identity so a batch send can commit items one at a time. */
@@ -81,6 +82,7 @@ export function removeQueuedFile(roomId: string, id: string): void {
     if (!queue) return;
     const item = queue.find((q) => q.id === id);
     if (!item) return;
+    preUploads.discard(id);
     if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
     const next = queue.filter((q) => q.id !== id);
     const queues = { ...queueState.queues };
@@ -98,6 +100,8 @@ export function renameQueuedFile(
 ): void {
     const queue = queueState.queues[roomId];
     if (!queue) return;
+    // The upload reads the old name and File: a pre-upload of it is stale.
+    preUploads.discard(id);
     queueState.queues = {
         ...queueState.queues,
         [roomId]: queue.map((q) =>
@@ -136,6 +140,7 @@ export function markQueuedFilesDirect(
 ): void {
     const queue = queueState.queues[roomId];
     if (!queue) return;
+    for (const q of queue) if (matches(q)) preUploads.discard(q.id);
     queueState.queues = {
         ...queueState.queues,
         [roomId]: queue.map((q) => (matches(q) ? { ...q, direct: true } : q)),
@@ -150,6 +155,8 @@ export function setQueuedFileDirect(
 ): void {
     const queue = queueState.queues[roomId];
     if (!queue) return;
+    // A direct offer never uploads, so a pre-upload of this file is dropped.
+    if (direct) preUploads.discard(id);
     queueState.queues = {
         ...queueState.queues,
         [roomId]: queue.map((q) => (q.id === id ? { ...q, direct } : q)),
@@ -160,6 +167,7 @@ export function clearFileQueue(roomId: string): void {
     const queue = queueState.queues[roomId];
     if (!queue) return;
     for (const item of queue) {
+        preUploads.discard(item.id);
         if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
     }
     const queues = { ...queueState.queues };

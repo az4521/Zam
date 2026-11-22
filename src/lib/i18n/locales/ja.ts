@@ -580,6 +580,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.disableGallerySend": "ギャラリーを送信しない",
     "debugSettings.disableGallerySendHint":
         "一緒に選んだ添付ファイルは通常、キャプション1つのギャラリーメッセージ1件として送信されます（MSC4274、dm.filament.gallery として送信）。オンにすると、それぞれ別のメッセージとして送信します。他の人のギャラリーは引き続き表示されます。",
+    "debugSettings.preUploadAttachments": "送信前に添付ファイルをアップロード",
+    "debugSettings.preUploadAttachmentsHint":
+        "ファイルを追加した時点でアップロードを開始するため、送信が速くなります。送信前に削除したファイルも、サーバーのアップロード上限にはカウントされます。データを節約するにはオフにしてください。",
     "debugSettings.stickyCallMembershipUnsupported":
         "お使いのホームサーバーはスティッキーイベントに対応していません。",
     "debugSettings.stickyCallMembership": "スティッキー通話メンバーシップ",
@@ -3815,6 +3818,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.showAllEvents": "すべてのイベントを表示",
     "settingsSearch.orderHints": "メッセージ順序のヒント",
     "settingsSearch.disableGallerySend": "ギャラリーを送信しない",
+    "settingsSearch.preUploadAttachments": "送信前に添付ファイルをアップロード",
     "settingsSearch.stickyCallMembership": "スティッキー通話メンバーシップ",
     "settingsSearch.pushDiagnostics": "プッシュの診断",
     "settingsSearch.pushService": "プッシュサービス(UnifiedPush / Firebase)",

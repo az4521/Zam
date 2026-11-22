@@ -616,6 +616,18 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     },
     {
         tab: "debug",
+        label: t("settingsSearch.preUploadAttachments"),
+        keywords: [
+            "upload",
+            "attachments",
+            "pre-upload",
+            "send",
+            "speed",
+            "data",
+        ],
+    },
+    {
+        tab: "debug",
         label: t("settingsSearch.stickyCallMembership"),
         keywords: ["msc4354", "m.rtc.member", "call", "matrixrtc"],
     },

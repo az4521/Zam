@@ -627,6 +627,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.disableGallerySend": "No enviar galerías",
     "debugSettings.disableGallerySendHint":
         "Los adjuntos elegidos juntos salen normalmente como un solo mensaje de galería con un solo pie de foto (MSC4274, enviado como dm.filament.gallery). Activado, cada uno sale como su propio mensaje. Las galerías de otros se siguen mostrando.",
+    "debugSettings.preUploadAttachments": "Subir adjuntos antes de enviar",
+    "debugSettings.preUploadAttachmentsHint":
+        "Empieza a subir los archivos en cuanto se añaden, para que enviar sea más rápido. Los archivos que quites antes de enviar cuentan igualmente para el límite de subida de tu servidor. Desactívalo para ahorrar datos.",
     "debugSettings.stickyCallMembershipUnsupported":
         "Tu servidor no admite eventos sticky.",
     "debugSettings.stickyCallMembership": "Membresía de llamada sticky",
@@ -4410,6 +4413,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.showAllEvents": "Mostrar todos los eventos",
     "settingsSearch.orderHints": "Pistas de orden de mensajes",
     "settingsSearch.disableGallerySend": "No enviar galerías",
+    "settingsSearch.preUploadAttachments": "Subir adjuntos antes de enviar",
     "settingsSearch.stickyCallMembership": "Membresía de llamada sticky",
     "settingsSearch.pushDiagnostics": "Diagnóstico de notificaciones push",
     "settingsSearch.pushService": "Servicio push (UnifiedPush / Firebase)",
