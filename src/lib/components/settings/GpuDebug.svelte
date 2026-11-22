@@ -613,6 +613,11 @@
                         ? t("gpuDebug.nvidiaVideoActive")
                         : t("gpuDebug.nvidiaVideoInactive")}
                 </p>
+                {#if ve.crashedAt && !ve.enabled}
+                    <p class="text-xs text-zam-warning">
+                        {t("gpuDebug.videoEncodeCrashed")}
+                    </p>
+                {/if}
             </div>
             <ToggleSwitch
                 checked={ve.enabled}

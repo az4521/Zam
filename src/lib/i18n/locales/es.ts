@@ -487,7 +487,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "gpuDebug.decodeUnsupported": "No compatible",
     "gpuDebug.videoEncode": "Codificación de vídeo por hardware",
     "gpuDebug.videoEncodeHint":
-        "Codifica tu cámara y tu pantalla compartida en la GPU (VA-API) para los códecs que admite tu controlador. Desactívalo si los demás ven tu imagen en negro, congelada o dañada. Se aplica tras reiniciar.",
+        "Codifica tu cámara y tu pantalla compartida en la GPU para los códecs que admite tu controlador. Desactívalo si los demás ven tu imagen en negro, congelada o dañada. Se aplica tras reiniciar.",
+    "gpuDebug.videoEncodeCrashed":
+        "Se desactivó automáticamente porque el controlador gráfico falló al codificar. Vuelve a activarse tras actualizar el controlador, o actívalo de nuevo para reintentarlo.",
     "gpuDebug.videoEncoding": "Codificación de vídeo",
     "gpuDebug.videoEncodingHint":
         "Las llamadas envían el códec elegido en Voz y vídeo (H.264 por defecto). El panel de estadísticas de la llamada muestra qué codificador usa.",
@@ -3852,6 +3854,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Los gráficos siguieron fallando, así que la GPU está desactivada hasta que reinicies Zam y el vídeo se codifica por software.",
     "voiceCall.gpuRecovered":
         "Los gráficos se reiniciaron, así que la llamada se volvió a conectar para seguir codificando el vídeo en la GPU.",
+    "voiceCall.gpuEncodeCrashed":
+        "El controlador gráfico falló al codificar tu vídeo, así que Zam lo codifica por software a partir de ahora. Si tu pantalla compartida se detuvo, vuelve a iniciarla.",
     "voiceCall.restartZam": "Reiniciar Zam",
     "voiceCall.youWereBannedFromThisRoom":
         "Te han vetado en esta sala; la llamada ha terminado",

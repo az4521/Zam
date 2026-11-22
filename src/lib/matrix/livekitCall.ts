@@ -1007,6 +1007,13 @@ let lastGpuExitAt = 0;
 let gpuNoticeId: number | null = null;
 /** Chromium gave up on the GPU, which lasts for the rest of the run. */
 let gpuGivenUp = false;
+/** The GPU process crashed while a call encoded on the GPU (the desktop
+ *  shell's electron/encodeCrash.cjs): every call encodes in software for the
+ *  rest of the run, so no reconnect for hardware encoding. Later launches
+ *  start with hardware encoding off. */
+let hardwareEncodeFailed = false;
+/** The last "encoding on the GPU" report sent to the desktop shell. */
+let hardwareEncodingReported = false;
 
 /** How long the GPU must stay up before a call reconnects to get hardware
  *  encoding back. Out of video memory (a game holding it), the GPU process
@@ -1075,7 +1082,7 @@ function cancelGpuReconnect(): void {
  *  still needs it then. Also run when the call's video changes, so a camera
  *  turned on after a GPU exit gets there too. */
 function scheduleGpuReconnect(call: ActiveVoiceCall): void {
-    if (gpuGivenUp || !webrtcRealmStale()) return;
+    if (gpuGivenUp || hardwareEncodeFailed || !webrtcRealmStale()) return;
     if (gpuReconnect?.call === call && gpuReconnect.timer) return;
     cancelGpuReconnect();
     const pending: NonNullable<typeof gpuReconnect> = { call, timer: null };
@@ -1106,8 +1113,28 @@ function scheduleGpuReconnect(call: ActiveVoiceCall): void {
     pending.timer = setTimeout(check, 0);
 }
 
-if (typeof window !== "undefined")
+/** The GPU encoder took the GPU process down. This window's WebRTC is already
+ *  in software after the exit (webrtcRealm.ts); keep it there instead of
+ *  reconnecting into the same crash, and pick codecs as if no GPU encodes. */
+function onEncodeCrashed(): void {
+    if (hardwareEncodeFailed) return;
+    hardwareEncodeFailed = true;
+    cancelGpuReconnect();
+    if (activeVoice) activeVoice.codecs.hardware = [];
+    showToast(t("voiceCall.gpuEncodeCrashed"), { sticky: true });
+}
+
+/** Tell the desktop shell whether a call encodes on the GPU, on change. */
+function reportHardwareEncoding(encoding: boolean): void {
+    if (encoding === hardwareEncodingReported) return;
+    hardwareEncodingReported = encoding;
+    window.desktop?.gpu?.setHardwareEncoding?.(encoding);
+}
+
+if (typeof window !== "undefined") {
     window.desktop?.gpu?.onProcessGone?.(() => void onGpuProcessGone());
+    window.desktop?.gpu?.onEncodeCrashed?.(onEncodeCrashed);
+}
 
 let voicePlaybackBlocked = false;
 const voicePlaybackBlockedSubscribers = new Set<(blocked: boolean) => void>();
@@ -4923,6 +4950,9 @@ async function localVideoCodecs(lk: LivekitModule): Promise<LocalVideoCodecs> {
             }
         }),
     );
+    // MediaCapabilities still says power efficient after the encoder
+    // crashed the GPU: nothing is encoded on the GPU for the rest of the run.
+    if (hardwareEncodeFailed) hardware.fill(null);
     // The receiver's capability list is what the call server and the other
     // participants go by, and it can name codecs no decoder here backs. Ask
     // MediaCapabilities too, and keep only what it confirms.
@@ -5672,6 +5702,7 @@ function startUploadSampling(call: ActiveVoiceCall): void {
     const holdTimer = setInterval(() => {
         if (activeVoice !== call) {
             clearInterval(holdTimer);
+            if (!activeVoice) reportHardwareEncoding(false);
             return;
         }
         void holdShareLayers(call);
@@ -6165,6 +6196,7 @@ async function sampleUpload(call: ActiveVoiceCall): Promise<void> {
     });
     let tracker = uplinkTrackers.get(call);
     if (!sendingVideo) {
+        reportHardwareEncoding(false);
         // Audio alone says nothing about the uplink; a later share starts
         // from a fresh reading.
         if (tracker?.current() != null) {
@@ -6187,6 +6219,15 @@ async function sampleUpload(call: ActiveVoiceCall): Promise<void> {
     )?.pcManager;
     const stats = await reportValues(pcm?.publisher?.getStats());
     if (!stats || activeVoice !== call) return;
+    reportHardwareEncoding(
+        stats.some(
+            (s) =>
+                s.type === "outbound-rtp" &&
+                s.kind === "video" &&
+                s.active !== false &&
+                s.powerEfficientEncoder === true,
+        ),
+    );
     const now = Date.now();
     const summary = summarizeTransport(
         stats,

@@ -20,7 +20,7 @@
         "build:app-audio": "node scripts/build-app-audio.mjs",
         "build:share-capture": "node scripts/build-share-capture.mjs",
         "build:media-session": "node scripts/build-media-session.mjs",
-        "test:electron": "node --test electron/nativeShare.test.cjs electron/discordFavourites.test.cjs electron/discordAttachments.test.cjs",
+        "test:electron": "node --test electron/nativeShare.test.cjs electron/discordFavourites.test.cjs electron/discordAttachments.test.cjs electron/encodeCrash.test.cjs",
         "build:mediaremote": "node scripts/build-mediaremote-adapter.mjs",
         "test": "vitest run",
         "test:watch": "vitest",

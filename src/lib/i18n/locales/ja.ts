@@ -453,7 +453,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "gpuDebug.decodeUnsupported": "非対応",
     "gpuDebug.videoEncode": "ハードウェアビデオエンコード",
     "gpuDebug.videoEncodeHint":
-        "ドライバが対応するコーデックについて、カメラと画面共有を GPU（VA-API）でエンコードします。他の人に自分の映像が黒い、止まる、乱れて見える場合はオフにしてください。再起動後に適用されます。",
+        "ドライバが対応するコーデックについて、カメラと画面共有を GPUでエンコードします。他の人に自分の映像が黒い、止まる、乱れて見える場合はオフにしてください。再起動後に適用されます。",
+    "gpuDebug.videoEncodeCrashed":
+        "エンコード中にグラフィックドライバがクラッシュしたため、自動的にオフになりました。ドライバを更新すると元に戻ります。再度試すにはオンにしてください。",
     "gpuDebug.videoEncoding": "ビデオエンコード",
     "gpuDebug.videoEncodingHint":
         "通話では「音声とビデオ」で選んだコーデックを送信します（既定は H.264）。通話統計パネルで、通話が使用しているエンコーダを確認できます。",
@@ -3383,6 +3385,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "グラフィックが繰り返しクラッシュしたため、Zam を再起動するまでGPUを無効にし、映像はソフトウェアでエンコードします。",
     "voiceCall.gpuRecovered":
         "グラフィックが再起動したため、GPUでの映像エンコードを維持するために通話を再接続しました。",
+    "voiceCall.gpuEncodeCrashed":
+        "映像のエンコード中にグラフィックドライバがクラッシュしたため、今後 Zam はソフトウェアでエンコードします。画面共有が止まった場合は、もう一度開始してください。",
     "voiceCall.restartZam": "Zam を再起動",
     "voiceCall.youWereBannedFromThisRoom":
         "このルームからBANされました - 通話を終了しました",

@@ -68,6 +68,11 @@ const {
 } = require("./flatpakShellUpdate.cjs");
 const { launchOnHost } = require("./flatpakHostLaunch.cjs");
 const { createFlatpakUpdateMonitor } = require("./portalFlatpakUpdate.cjs");
+const {
+    encodeCrashCounts,
+    gpuDriverKey,
+    encodeCrashApplies,
+} = require("./encodeCrash.cjs");
 
 // userData/main.log: what a packaged app would otherwise lose (crashes, renderer
 // and GPU exits). Capped at start by fileLog.cjs.
@@ -1472,6 +1477,7 @@ ipcMain.handle("gpu:info", async () => {
         "use-gl",
         "use-angle",
         "disable-accelerated-video-decode",
+        "disable-accelerated-video-encode",
         "ozone-platform",
         "ozone-platform-hint",
     ]) {
@@ -1515,13 +1521,14 @@ ipcMain.handle("gpu:info", async () => {
                   activeAtLaunch: nvidiaEncode,
               }
             : null,
-        videoEncode:
-            process.platform === "linux"
-                ? {
-                      enabled: prefs.videoEncode !== false,
-                      activeAtLaunch: hardwareVideoEncode,
-                  }
-                : null,
+        videoEncode: {
+            enabled: prefs.videoEncode !== false && !prefs.videoEncodeCrashed,
+            activeAtLaunch:
+                process.platform === "linux"
+                    ? hardwareVideoEncode
+                    : hardwareAccelerationAtLaunch && !videoEncodeOffAtLaunch,
+            crashedAt: prefs.videoEncodeCrashed?.at ?? null,
+        },
         gameAuto: {
             enabled: prefs.gameGpuAuto === true,
             pausedAtLaunch: gamePausedAtLaunch,
@@ -1696,8 +1703,13 @@ ipcMain.handle("gpu:set-nvidia-encode", (_e, enabled) => {
     writeGpuPrefs({ nvidiaEncode: enabled ? true : undefined });
 });
 
+// Turning it on also forgets an encoder crash (encodeCrash.cjs).
 ipcMain.handle("gpu:set-video-encode", (_e, enabled) => {
-    writeGpuPrefs({ videoEncode: enabled ? undefined : false });
+    writeGpuPrefs(
+        enabled
+            ? { videoEncode: undefined, videoEncodeCrashed: undefined }
+            : { videoEncode: false },
+    );
 });
 
 ipcMain.handle("gpu:set-h264-profile-fix", (_e, enabled) => {
@@ -1763,6 +1775,34 @@ ipcMain.on("gpu:video-playing", (_e, playing) => {
     if (videoPlaying && !playing) videoStoppedAt = Date.now();
     videoPlaying = !!playing;
 });
+
+// Whether a call encodes video on the GPU right now (the page reads its
+// sender's stats), and when that last stopped; see encodeCrash.cjs.
+let hardwareEncoding = false;
+let hardwareEncodingStoppedAt = 0;
+ipcMain.on("gpu:hardware-encoding", (_e, encoding) => {
+    if (hardwareEncoding && !encoding) hardwareEncodingStoppedAt = Date.now();
+    hardwareEncoding = !!encoding;
+});
+
+/** A crash recorded for another GPU or driver than this run's: forget it, so
+ *  the next launch tries hardware encoding again. */
+async function forgetStaleEncodeCrash() {
+    const record = readGpuPrefs().videoEncodeCrashed;
+    if (!record) return;
+    let key = "";
+    try {
+        key = gpuDriverKey(await app.getGPUInfo("basic"));
+    } catch {
+        return;
+    }
+    if (encodeCrashApplies(record, key)) return;
+    mainLog.info(
+        "encodeCrash",
+        `GPU or driver changed (${record.driver} -> ${key}); hardware video encoding comes back on the next launch`,
+    );
+    writeGpuPrefs({ videoEncodeCrashed: undefined });
+}
 
 // The GPU process never gives back what it has used: the video stack the
 // first hardware-decoded video sets up (about 100 MB on Windows), decoders'
@@ -1904,6 +1944,34 @@ app.on("child-process-gone", (_e, details) => {
     if (details.reason === "clean-exit" || details.reason === "killed") return;
     if (isRepaintExit()) return;
     gameGpuPause.onGpuExit();
+});
+
+// A crash while a call encodes on the GPU: the encoder took the GPU process
+// down. Encode in software from now on (encodeCrash.cjs); the page keeps
+// this run's calls off the GPU, later launches start without it.
+app.on("child-process-gone", (_e, details) => {
+    if (details.type !== "GPU") return;
+    const counts = encodeCrashCounts({
+        reason: details.reason,
+        encoding: hardwareEncoding,
+        stoppedAt: hardwareEncodingStoppedAt,
+        now: Date.now(),
+        repaint: isRepaintExit(),
+    });
+    if (!counts || !hardwareAccelerationAtLaunch) return;
+    hardwareEncoding = false;
+    void app
+        .getGPUInfo("basic")
+        .then(gpuDriverKey, () => "")
+        .then((driver) => {
+            mainLog.warn(
+                "encodeCrash",
+                `GPU process ${details.reason} while encoding video on the GPU (${driver || "unknown GPU"}); hardware video encoding off`,
+            );
+            writeGpuPrefs({ videoEncodeCrashed: { driver, at: Date.now() } });
+            if (mainWindow && !mainWindow.isDestroyed())
+                mainWindow.webContents.send("gpu:encode-crashed");
+        });
 });
 
 // Any GPU-process exit, crash or not, leaves the page's WebRTC video stuck in
@@ -2813,11 +2881,17 @@ if (nvidiaVulkanVideo) {
 // shares) and WebCodecs use it for the codecs the driver can encode, and
 // fall back to software for the rest. Settings > Debug can turn it off for
 // drivers that produce broken streams.
+// Also off after the GPU encoder crashed the GPU process (encodeCrash.cjs).
+const videoEncodeOffAtLaunch =
+    readGpuPrefs().videoEncode === false || !!readGpuPrefs().videoEncodeCrashed;
 const hardwareVideoEncode =
     process.platform === "linux" &&
     hardwareAccelerationAtLaunch &&
-    readGpuPrefs().videoEncode !== false;
+    !videoEncodeOffAtLaunch;
 if (hardwareVideoEncode) features.push("AcceleratedVideoEncoder");
+// Elsewhere hardware encoding is Chromium's default; this switch is the off.
+if (hardwareAccelerationAtLaunch && videoEncodeOffAtLaunch)
+    app.commandLine.appendSwitch("disable-accelerated-video-encode");
 // Windows: Chromium only offers the GPU encoder H.264 Constrained Baseline
 // (profile-level-id 42e01f, what LiveKit's server answers with) behind this
 // flag; without it that format goes to OpenH264 in software. Linux and
@@ -2827,6 +2901,7 @@ if (hardwareVideoEncode) features.push("AcceleratedVideoEncoder");
 const h264Cbp =
     process.platform === "win32" &&
     hardwareAccelerationAtLaunch &&
+    !videoEncodeOffAtLaunch &&
     readGpuPrefs().h264ProfileFix !== false;
 if (h264Cbp) features.push("PlatformH264CbpEncoding");
 // NVIDIA in Flatpak: zam.sh put our NVENC encoding driver in front of
@@ -2963,6 +3038,7 @@ function startApp() {
         createTray();
         setupAutoUpdater();
         detectNvidiaVideo();
+        void forgetStaleEncodeCrash();
         autostart.refresh();
     });
 

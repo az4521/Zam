@@ -501,7 +501,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "gpuDebug.decodeUnsupported": "不支持",
     "gpuDebug.videoEncode": "硬件视频编码",
     "gpuDebug.videoEncodeHint":
-        "在 GPU 上（VA-API）为你的驱动所支持的编解码器编码摄像头和屏幕共享。如果其他人看到你的画面是黑屏、卡住或损坏的，请关闭此项。重启后生效。",
+        "在 GPU 上为你的驱动所支持的编解码器编码摄像头和屏幕共享。如果其他人看到你的画面是黑屏、卡住或损坏的，请关闭此项。重启后生效。",
+    "gpuDebug.videoEncodeCrashed":
+        "由于显卡驱动在编码时崩溃，已自动关闭。更新驱动后会重新开启，也可以手动开启以重试。",
     "gpuDebug.videoEncoding": "视频编码",
     "gpuDebug.videoEncodingHint":
         "通话会发送“语音和视频”中选择的编解码器（默认为 H.264）。通话统计面板会显示通话正在使用哪种编码器。",
@@ -3509,6 +3511,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "图形进程反复崩溃，因此 GPU 将保持关闭直到 Zam 重启，视频使用软件编码。",
     "voiceCall.gpuRecovered":
         "图形进程已重启，因此通话已重新连接，以便继续使用 GPU 进行视频编码。",
+    "voiceCall.gpuEncodeCrashed":
+        "显卡驱动在编码你的视频时崩溃，因此 Zam 今后将以软件方式编码。如果你的屏幕共享已停止，请重新开始。",
     "voiceCall.restartZam": "重启 Zam",
     "voiceCall.youWereBannedFromThisRoom": "你已被此房间封禁，通话已结束",
     "voiceCall.youLeftThisRoomCallEnded": "你已离开此房间，通话已结束",

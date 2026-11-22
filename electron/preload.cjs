@@ -305,6 +305,16 @@ contextBridge.exposeInMainWorld("desktop", {
         // Whether a <video> is playing (src/lib/utils/videoPlaybackWatch.ts).
         setVideoPlaying: (playing) =>
             ipcRenderer.send("gpu:video-playing", !!playing),
+        // Whether a call encodes video on the GPU (electron/encodeCrash.cjs).
+        setHardwareEncoding: (encoding) =>
+            ipcRenderer.send("gpu:hardware-encoding", !!encoding),
+        // The GPU process crashed while encoding: video encodes in software
+        // from now on.
+        onEncodeCrashed: (cb) => {
+            const h = () => cb();
+            ipcRenderer.on("gpu:encode-crashed", h);
+            return () => ipcRenderer.removeListener("gpu:encode-crashed", h);
+        },
         // Chromium's GPU process exited (crash or restart); see
         // src/lib/matrix/webrtcRealm.ts for why calls care.
         onProcessGone: (cb) => {

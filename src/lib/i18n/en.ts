@@ -488,7 +488,9 @@ export const en = {
     "gpuDebug.decodeUnsupported": "Not supported",
     "gpuDebug.videoEncode": "Hardware video encoding",
     "gpuDebug.videoEncodeHint":
-        "Encodes your camera and screen share on the GPU (VA-API) for the codecs your driver supports. Turn this off if others see a black, frozen or corrupted stream from you. Applies after a restart.",
+        "Encodes your camera and screen share on the GPU for the codecs your driver supports. Turn this off if others see a black, frozen or corrupted stream from you. Applies after a restart.",
+    "gpuDebug.videoEncodeCrashed":
+        "Turned off automatically because the graphics driver crashed while encoding. Comes back on after a driver update, or turn it on again to retry.",
     "gpuDebug.videoEncoding": "Video encoding",
     "gpuDebug.videoEncodingHint":
         "Calls send the codec chosen in Voice & Video (H.264 by default). The call stats panel shows which encoder a call is using.",
@@ -3706,6 +3708,8 @@ export const en = {
         "Graphics kept crashing, so the GPU is off until Zam restarts and video is encoded in software.",
     "voiceCall.gpuRecovered":
         "Graphics restarted, so the call reconnected to keep video encoding on the GPU.",
+    "voiceCall.gpuEncodeCrashed":
+        "The graphics driver crashed while encoding your video, so Zam encodes it in software from now on. If your screen share stopped, start it again.",
     "voiceCall.restartZam": "Restart Zam",
     "voiceCall.youWereBannedFromThisRoom":
         "You were banned from this room - call ended",

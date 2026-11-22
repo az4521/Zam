@@ -494,7 +494,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "gpuDebug.decodeUnsupported": "Nicht unterstützt",
     "gpuDebug.videoEncode": "Hardware-Videokodierung",
     "gpuDebug.videoEncodeHint":
-        "Kodiert Kamera und Bildschirmfreigabe auf der GPU (VA-API) für die Codecs, die dein Treiber unterstützt. Schalte dies aus, wenn andere von dir ein schwarzes, eingefrorenes oder fehlerhaftes Bild sehen. Gilt nach einem Neustart.",
+        "Kodiert Kamera und Bildschirmfreigabe auf der GPU für die Codecs, die dein Treiber unterstützt. Schalte dies aus, wenn andere von dir ein schwarzes, eingefrorenes oder fehlerhaftes Bild sehen. Gilt nach einem Neustart.",
+    "gpuDebug.videoEncodeCrashed":
+        "Automatisch ausgeschaltet, weil der Grafiktreiber beim Kodieren abgestürzt ist. Nach einem Treiberupdate wieder an, oder schalte es ein, um es erneut zu versuchen.",
     "gpuDebug.videoEncoding": "Videokodierung",
     "gpuDebug.videoEncodingHint":
         "Anrufe senden den unter Sprache und Video gewählten Codec (standardmäßig H.264). Das Anrufstatistik-Fenster zeigt, welchen Encoder ein Anruf verwendet.",
@@ -3844,6 +3846,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Die Grafik ist wiederholt abgestürzt, daher ist die GPU bis zum Neustart von Zam aus und Video wird per Software kodiert.",
     "voiceCall.gpuRecovered":
         "Die Grafik wurde neu gestartet, daher hat sich der Anruf neu verbunden, damit Video weiter auf der GPU kodiert wird.",
+    "voiceCall.gpuEncodeCrashed":
+        "Der Grafiktreiber ist beim Kodieren deines Videos abgestürzt, daher kodiert Zam es ab jetzt in Software. Falls deine Bildschirmfreigabe beendet wurde, starte sie erneut.",
     "voiceCall.restartZam": "Zam neu starten",
     "voiceCall.youWereBannedFromThisRoom":
         "Du wurdest aus diesem Raum gebannt - Anruf beendet",

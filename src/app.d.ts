@@ -249,12 +249,16 @@ declare global {
                         /** Whether this run has the driver and flags. */
                         activeAtLaunch: boolean;
                     } | null;
-                    /** Linux only: VA-API video encoding (AcceleratedVideoEncoder). */
+                    /** Hardware video encoding (VA-API on Linux, Chromium's
+                     *  default elsewhere). */
                     videoEncode: {
                         /** The saved choice (applies on the next launch). */
                         enabled: boolean;
-                        /** Whether this run has the flag on. */
+                        /** Whether this run encodes on the GPU. */
                         activeAtLaunch: boolean;
+                        /** When it was turned off because the GPU process
+                         *  crashed while encoding (electron/encodeCrash.cjs). */
+                        crashedAt: number | null;
                     } | null;
                     /** Go without the GPU while a game holds its memory. */
                     gameAuto: {
@@ -317,6 +321,11 @@ declare global {
                 setVideoPlaying?: (playing: boolean) => void;
                 /** Chromium's GPU process exited; `reason` is Electron's. */
                 onProcessGone?: (cb: (reason: string) => void) => () => void;
+                /** Whether a call encodes video on the GPU right now. */
+                setHardwareEncoding?: (encoding: boolean) => void;
+                /** The GPU process crashed while a call encoded on the GPU;
+                 *  video encodes in software from now on. */
+                onEncodeCrashed?: (cb: () => void) => () => void;
             };
             /** System-wide input idleness, for presence auto-away. */
             idle?: {

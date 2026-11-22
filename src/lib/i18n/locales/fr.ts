@@ -487,7 +487,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "gpuDebug.decodeUnsupported": "Non pris en charge",
     "gpuDebug.videoEncode": "Encodage vidéo matériel",
     "gpuDebug.videoEncodeHint":
-        "Encode votre caméra et votre partage d'écran sur le GPU (VA-API) pour les codecs pris en charge par votre pilote. Désactivez-le si les autres voient votre flux noir, figé ou corrompu. S'applique après un redémarrage.",
+        "Encode votre caméra et votre partage d'écran sur le GPU pour les codecs pris en charge par votre pilote. Désactivez-le si les autres voient votre flux noir, figé ou corrompu. S'applique après un redémarrage.",
+    "gpuDebug.videoEncodeCrashed":
+        "Désactivé automatiquement car le pilote graphique a planté pendant l'encodage. Se réactive après une mise à jour du pilote, ou réactivez-le pour réessayer.",
     "gpuDebug.videoEncoding": "Encodage vidéo",
     "gpuDebug.videoEncodingHint":
         "Les appels envoient le codec choisi dans Voix et vidéo (H.264 par défaut). Le panneau des statistiques d'appel indique quel encodeur un appel utilise.",
@@ -3814,6 +3816,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Les graphismes ont planté à répétition, le GPU est donc désactivé jusqu’au redémarrage de Zam et la vidéo est encodée en logiciel.",
     "voiceCall.gpuRecovered":
         "Les graphismes ont redémarré, l’appel s’est donc reconnecté pour continuer à encoder la vidéo sur le GPU.",
+    "voiceCall.gpuEncodeCrashed":
+        "Le pilote graphique a planté pendant l'encodage de votre vidéo, Zam l'encode donc désormais en logiciel. Si votre partage d'écran s'est arrêté, relancez-le.",
     "voiceCall.restartZam": "Redémarrer Zam",
     "voiceCall.youWereBannedFromThisRoom":
         "Vous avez été banni de ce salon - appel terminé",
