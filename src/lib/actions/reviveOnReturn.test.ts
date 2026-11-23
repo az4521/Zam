@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
     FRAME_GRACE_MS,
+    GPU_RECYCLED_EVENT,
     MIN_HIDDEN_MS,
     reviveOnReturn,
 } from "./reviveOnReturn";
@@ -93,6 +94,35 @@ describe("reviveOnReturn", () => {
         reviveOnReturn(node, () => true, reload);
         hideFor(MIN_HIDDEN_MS);
         expect(reload).toHaveBeenCalledTimes(1);
+    });
+
+    it("reloads at once when the GPU process was recycled, even with a frame", () => {
+        const { node, presentFrame } = video(true);
+        const reload = vi.fn();
+        reviveOnReturn(node, () => true, reload);
+        hideFor(MIN_HIDDEN_MS);
+        // The frame check may pass on a frame the new process can't show.
+        window.dispatchEvent(new Event(GPU_RECYCLED_EVENT));
+        expect(reload).toHaveBeenCalledTimes(1);
+        presentFrame();
+        vi.advanceTimersByTime(FRAME_GRACE_MS);
+        expect(reload).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaves an unloaded video alone on a GPU recycle", () => {
+        const { node } = video(true);
+        const reload = vi.fn();
+        reviveOnReturn(node, () => false, reload);
+        window.dispatchEvent(new Event(GPU_RECYCLED_EVENT));
+        expect(reload).not.toHaveBeenCalled();
+    });
+
+    it("ignores a GPU recycle after teardown", () => {
+        const { node } = video(true);
+        const reload = vi.fn();
+        reviveOnReturn(node, () => true, reload)();
+        window.dispatchEvent(new Event(GPU_RECYCLED_EVENT));
+        expect(reload).not.toHaveBeenCalled();
     });
 
     it("stops after teardown", () => {

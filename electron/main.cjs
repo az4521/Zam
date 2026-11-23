@@ -1967,7 +1967,22 @@ function disarmGpuRecycle() {
     rendererTrimmed = false;
     clearTimeout(gpuRecycleTimer);
     gpuRecycleTimer = null;
+    if (gpuRecycled) announceGpuRecycled();
     gpuRecycled = false;
+}
+
+// Back in sight after a recycle. Everything the old GPU process held is gone:
+// the hardware decoders and frames of looping GIF videos, and the page's
+// raster tiles. Chromium does not reliably rebuild those on its own (seen:
+// white boxes and stale, overlapping rows on scroll), so the page is told to
+// reload its videos (src/lib/actions/reviveOnReturn.ts) and is repainted
+// whole.
+function announceGpuRecycled() {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const wc = mainWindow.webContents;
+    if (wc.isDestroyed()) return;
+    wc.send("gpu:recycled");
+    wc.invalidate();
 }
 
 // Every helper-process exit (GPU, utility, plugin...) leaves a line in main.log,

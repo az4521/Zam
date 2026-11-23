@@ -2,6 +2,10 @@
  *  alt-tab doesn't need checking. */
 export const MIN_HIDDEN_MS = 5000;
 
+/** Window event the desktop preload fires when the window is back after its
+ *  GPU process was recycled (electron/main.cjs). */
+export const GPU_RECYCLED_EVENT = "zam:gpu-recycled";
+
 /** How long a looping video gets, once the page is back, to put up a frame
  *  before it is taken for dead. */
 export const FRAME_GRACE_MS = 1000;
@@ -27,6 +31,11 @@ type FrameCallbackVideo = HTMLVideoElement & {
  * is left alone, so a healthy GIF doesn't flash its poster; one that doesn't
  * is reloaded. Without requestVideoFrameCallback there is no way to tell, so
  * every loaded one is reloaded.
+ *
+ * On the desktop the GPU process may also have been recycled while the window
+ * was out of sight ({@link GPU_RECYCLED_EVENT}). Every decoder and frame was
+ * in that process, and a video can still report a frame it can't show, so
+ * then each loaded video is reloaded without waiting for the check.
  *
  * `isLoaded` says whether the owner currently has a source on the element;
  * an unloaded one has nothing to lose. Returns the teardown.
@@ -82,9 +91,16 @@ export function reviveOnReturn(
         check();
     }
 
+    function onGpuRecycled() {
+        cancelCheck();
+        if (isLoaded()) reload();
+    }
+
     document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener(GPU_RECYCLED_EVENT, onGpuRecycled);
     return () => {
         document.removeEventListener("visibilitychange", onVisibility);
+        window.removeEventListener(GPU_RECYCLED_EVENT, onGpuRecycled);
         cancelCheck();
     };
 }

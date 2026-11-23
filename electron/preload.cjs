@@ -13,6 +13,12 @@ const sendPageHidden = () =>
 document.addEventListener("visibilitychange", sendPageHidden);
 window.addEventListener("DOMContentLoaded", sendPageHidden);
 
+// The window is back after main.cjs recycled the GPU process while it was
+// out of sight: looping videos reload (src/lib/actions/reviveOnReturn.ts).
+ipcRenderer.on("gpu:recycled", () => {
+    window.dispatchEvent(new Event("zam:gpu-recycled"));
+});
+
 // Plugins' native code (pluginNative.cjs): main answers "plugin-native:open"
 // with a MessagePort to the plugin's host. A port can't cross contextBridge,
 // so it is posted to the page's window, tagged with the id the page asked
