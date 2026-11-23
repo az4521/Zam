@@ -233,6 +233,11 @@ const SIMPLE_CAPABILITY_KEYS: Record<string, string> = {
     "org.matrix.msc3973.user_directory_search": "widgets.cap.userDirectory",
     "org.matrix.msc4039.upload_file": "widgets.cap.uploadFile",
     "org.matrix.msc4039.download_file": "widgets.cap.downloadFile",
+    "org.matrix.msc4157.send.delayed_event": "widgets.cap.sendDelayed",
+    "org.matrix.msc4157.update_delayed_event": "widgets.cap.updateDelayed",
+    "org.matrix.msc4407.send.sticky_event": "widgets.cap.sendSticky",
+    "org.matrix.msc4407.receive.sticky_event": "widgets.cap.receiveSticky",
+    "org.matrix.msc4515.rtc_transports": "widgets.cap.rtcTransports",
 };
 
 const TIMELINE_PREFIX = "org.matrix.msc2762.timeline:";
@@ -246,6 +251,11 @@ export const WIDGET_CAP_KEYS: string[] = [
     "widgets.cap.userDirectory",
     "widgets.cap.uploadFile",
     "widgets.cap.downloadFile",
+    "widgets.cap.sendDelayed",
+    "widgets.cap.updateDelayed",
+    "widgets.cap.sendSticky",
+    "widgets.cap.receiveSticky",
+    "widgets.cap.rtcTransports",
     "widgets.cap.timelineAll",
     "widgets.cap.timelineRoom",
     "widgets.cap.sendState",

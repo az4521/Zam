@@ -4614,6 +4614,15 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.cap.sendToDevice": "{eventType} のデバイスメッセージを送信する",
     "widgets.cap.receiveToDevice": "{eventType} のデバイスメッセージを受信する",
     "widgets.cap.unknown": "不明な権限: {capability}",
+    "widgets.cap.sendDelayed":
+        "後で、または退出時に配信されるイベントを送信する",
+    "widgets.cap.updateDelayed":
+        "予約したイベントをキャンセル、延期、または送信する",
+    "widgets.cap.sendSticky": "しばらく有効なイベントを送信する",
+    "widgets.cap.receiveSticky": "しばらく有効なイベントを受信する",
+    "widgets.cap.rtcTransports": "ホームサーバーの通話サーバーを調べる",
+    "widgets.unsupportedCapabilities":
+        "{widget} には Zam がまだ対応していない機能が必要なため、動作しない可能性があります: {features}",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ja };

@@ -5096,6 +5096,18 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.cap.receiveToDevice":
         "Получать сообщения устройств типа {eventType}",
     "widgets.cap.unknown": "Неизвестное разрешение: {capability}",
+    "widgets.cap.sendDelayed":
+        "Отправлять события, которые доставляются позже или при вашем уходе",
+    "widgets.cap.updateDelayed":
+        "Отменять, откладывать или отправлять свои запланированные события",
+    "widgets.cap.sendSticky":
+        "Отправлять события, которые остаются актуальными какое-то время",
+    "widgets.cap.receiveSticky":
+        "Получать события, которые остаются актуальными какое-то время",
+    "widgets.cap.rtcTransports":
+        "Узнавать сервер звонков вашего домашнего сервера",
+    "widgets.unsupportedCapabilities":
+        "{widget} нужны функции, которые Zam пока не поддерживает, поэтому он может не работать: {features}",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ru };

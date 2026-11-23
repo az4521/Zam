@@ -14,6 +14,7 @@ import {
     type MatrixClient,
     type MatrixEvent,
     type Room,
+    UnsupportedStickyEventsEndpointError,
 } from "matrix-js-sdk";
 import {
     ClientWidgetApi,
@@ -29,6 +30,9 @@ import {
     type IRoomAccountData,
     type IRoomEvent,
     type ISearchUserDirectoryResult,
+    type IRtcTransport,
+    type IRtcTransportsResult,
+    type ISendDelayedEventDetails,
     type ISendEventDetails,
     type ITurnServer,
 } from "matrix-widget-api";
@@ -39,6 +43,7 @@ import {
     ownedClientOrThrow,
 } from "$lib/matrix/runtime";
 import type { ClientOwnership } from "$lib/utils/clientGeneration";
+import { configuredRtcFoci } from "$lib/matrix/livekitCall";
 import { mxcToHttp, fetchMediaBytes, uploadContent } from "$lib/matrix/media";
 import {
     WIDGET_STATE_TYPES,
@@ -62,18 +67,12 @@ function isWidgetStateType(type: string): boolean {
 
 /**
  * Capabilities Zam does not implement are dropped before the user is asked,
- * so a prompt never offers something the driver would then reject:
- * delayed and sticky events, RTC transports and LiveKit tokens, and room
- * account data.
+ * so a prompt never offers something the driver would then reject: LiveKit
+ * tokens and delegated leave (MSC4533), and room account data.
  */
-const UNSUPPORTED_CAPABILITY_PREFIXES = [
-    "org.matrix.msc4157.",
-    "org.matrix.msc4407.",
-    "org.matrix.msc4515.",
-    "org.matrix.msc4533.",
-];
+const UNSUPPORTED_CAPABILITY_PREFIXES = ["org.matrix.msc4533."];
 
-function isSupportedCapability(cap: string): boolean {
+export function isSupportedCapability(cap: string): boolean {
     if (UNSUPPORTED_CAPABILITY_PREFIXES.some((p) => cap.startsWith(p)))
         return false;
     const [parsed] = WidgetEventCapability.findEventCapabilities([cap]);
@@ -269,6 +268,7 @@ interface DriverDeps {
     owner: ClientOwnership<MatrixClient>;
     requestCapabilities(requested: Set<string>): Promise<Set<string>>;
     requestOpenId(): Promise<boolean>;
+    onUnsupportedCapabilities?(caps: string[]): void;
 }
 
 /**
@@ -303,8 +303,15 @@ class ZamWidgetDriver extends WidgetDriver {
         requested: Set<Capability>,
     ): Promise<Set<Capability>> {
         const supported = new Set<string>();
-        for (const cap of requested)
+        const unsupported: string[] = [];
+        for (const cap of requested) {
             if (isSupportedCapability(cap)) supported.add(cap);
+            else unsupported.push(cap);
+        }
+        // Said out loud: a widget that insists on one of these shows its own
+        // "missing permissions" screen, and asking again can never fix that.
+        if (unsupported.length > 0)
+            this.deps.onUnsupportedCapabilities?.(unsupported);
         if (supported.size === 0) return new Set();
         try {
             const approved = await this.deps.requestCapabilities(
@@ -340,6 +347,132 @@ class ZamWidgetDriver extends WidgetDriver {
                       stateKey,
                   );
         return { roomId: target, eventId: res.event_id };
+    }
+
+    /**
+     * MSC4354 sticky event. A server without sticky events gets an ordinary
+     * event instead, as the SDK does for its own call declines: peers on the
+     * live timeline still see it, it is just not replayed to late joiners.
+     */
+    override async sendStickyEvent(
+        stickyDurationMs: number,
+        eventType: string,
+        content: unknown,
+        roomId: string | null = null,
+    ): Promise<ISendEventDetails> {
+        const target = this.resolveRoom(roomId);
+        const client = this.client();
+        try {
+            const res = await client._unstable_sendStickyEvent(
+                target,
+                stickyDurationMs,
+                null,
+                eventType as never,
+                content as never,
+            );
+            return { roomId: target, eventId: res.event_id };
+        } catch (e) {
+            if (!(e instanceof UnsupportedStickyEventsEndpointError)) throw e;
+            return this.sendEvent(eventType, content, null, target);
+        }
+    }
+
+    /** MSC4140 delayed event (timeline or state). */
+    override async sendDelayedEvent(
+        delay: number,
+        eventType: string,
+        content: unknown,
+        stateKey: string | null = null,
+        roomId: string | null = null,
+    ): Promise<ISendDelayedEventDetails> {
+        const target = this.resolveRoom(roomId);
+        const client = this.client();
+        const res =
+            stateKey === null
+                ? await client._unstable_sendDelayedEvent(
+                      target,
+                      delay,
+                      null,
+                      eventType as never,
+                      content as never,
+                  )
+                : await client._unstable_sendDelayedStateEvent(
+                      target,
+                      delay,
+                      eventType as never,
+                      content as never,
+                      stateKey,
+                  );
+        return { roomId: target, delayId: res.delay_id };
+    }
+
+    /** Delayed and sticky; a plain delayed event without sticky support. */
+    override async sendDelayedStickyEvent(
+        delay: number,
+        stickyDurationMs: number,
+        eventType: string,
+        content: unknown,
+        roomId: string | null = null,
+    ): Promise<ISendDelayedEventDetails> {
+        const target = this.resolveRoom(roomId);
+        const client = this.client();
+        try {
+            const res = await client._unstable_sendStickyDelayedEvent(
+                target,
+                stickyDurationMs,
+                delay,
+                null,
+                eventType as never,
+                content as never,
+            );
+            return { roomId: target, delayId: res.delay_id };
+        } catch (e) {
+            if (!(e instanceof UnsupportedStickyEventsEndpointError)) throw e;
+            return this.sendDelayedEvent(
+                delay,
+                eventType,
+                content,
+                null,
+                target,
+            );
+        }
+    }
+
+    override async cancelScheduledDelayedEvent(delayId: string): Promise<void> {
+        await this.client()._unstable_cancelScheduledDelayedEvent(delayId);
+    }
+
+    override async restartScheduledDelayedEvent(
+        delayId: string,
+    ): Promise<void> {
+        await this.client()._unstable_restartScheduledDelayedEvent(delayId);
+    }
+
+    override async sendScheduledDelayedEvent(delayId: string): Promise<void> {
+        await this.client()._unstable_sendScheduledDelayedEvent(delayId);
+    }
+
+    /** The room's active sticky events (none on a server without them). */
+    override async readStickyEvents(roomId: string): Promise<IRoomEvent[]> {
+        const room = this.client().getRoom(this.resolveRoom(roomId));
+        if (!room) return [];
+        return [...room._unstable_getStickyEvents()].map((e) =>
+            toRaw(e as unknown as MatrixEvent),
+        );
+    }
+
+    /** MSC4143 call transports: the same discovery Zam's own calls use. */
+    override async getRtcTransports(): Promise<IRtcTransportsResult> {
+        this.client();
+        const foci = await configuredRtcFoci();
+        if (!ownedClient(this.deps.owner)) throw new Error("client changed");
+        const transports = foci.filter(
+            (f): f is IRtcTransport =>
+                !!f &&
+                typeof f === "object" &&
+                typeof (f as { type?: unknown }).type === "string",
+        );
+        return { rtc_transports: transports };
     }
 
     override async sendToDevice(
@@ -553,6 +686,8 @@ export interface MountWidgetOptions {
     requestCapabilities(requested: Set<string>): Promise<Set<string>>;
     /** Ask the user whether the widget may get an OpenID token (identity). */
     requestOpenId(): Promise<boolean>;
+    /** Told which requested capabilities Zam cannot provide (never asked about). */
+    onUnsupportedCapabilities?(caps: string[]): void;
     onReady?(): void;
 }
 
@@ -586,6 +721,7 @@ export function mountWidget(opts: MountWidgetOptions): MountedWidget {
         owner,
         requestCapabilities: opts.requestCapabilities,
         requestOpenId: opts.requestOpenId,
+        onUnsupportedCapabilities: opts.onUnsupportedCapabilities,
     });
     const api = new ClientWidgetApi(widget, opts.iframe, driver);
     // The API is listening for the iframe load now, so the caller sets the

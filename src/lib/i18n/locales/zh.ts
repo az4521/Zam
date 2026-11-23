@@ -4633,6 +4633,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.cap.sendToDevice": "发送 {eventType} 设备消息",
     "widgets.cap.receiveToDevice": "接收 {eventType} 设备消息",
     "widgets.cap.unknown": "未知权限：{capability}",
+    "widgets.cap.sendDelayed": "发送稍后或在你离开时才送达的事件",
+    "widgets.cap.updateDelayed": "取消、推迟或发送其预定的事件",
+    "widgets.cap.sendSticky": "发送在一段时间内保持有效的事件",
+    "widgets.cap.receiveSticky": "接收在一段时间内保持有效的事件",
+    "widgets.cap.rtcTransports": "查询你的主服务器的通话服务器",
+    "widgets.unsupportedCapabilities":
+        "{widget} 需要 Zam 尚不支持的功能，因此可能无法正常工作：{features}",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: zhCN };

@@ -5171,6 +5171,18 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.cap.receiveToDevice":
         "Recevoir des messages d'appareil {eventType}",
     "widgets.cap.unknown": "Autorisation inconnue : {capability}",
+    "widgets.cap.sendDelayed":
+        "Envoyer des événements remis plus tard ou à votre départ",
+    "widgets.cap.updateDelayed":
+        "Annuler, retarder ou envoyer ses événements programmés",
+    "widgets.cap.sendSticky":
+        "Envoyer des événements qui restent actuels un moment",
+    "widgets.cap.receiveSticky":
+        "Recevoir des événements qui restent actuels un moment",
+    "widgets.cap.rtcTransports":
+        "Consulter le serveur d'appels de votre serveur d'accueil",
+    "widgets.unsupportedCapabilities":
+        "{widget} a besoin de fonctionnalités que Zam ne prend pas encore en charge, il risque de ne pas fonctionner : {features}",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: fr };

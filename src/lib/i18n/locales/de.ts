@@ -5201,6 +5201,17 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.cap.receiveToDevice":
         "Geräte-Nachrichten vom Typ {eventType} empfangen",
     "widgets.cap.unknown": "Unbekannte Berechtigung: {capability}",
+    "widgets.cap.sendDelayed":
+        "Ereignisse senden, die später oder beim Verlassen zugestellt werden",
+    "widgets.cap.updateDelayed":
+        "Seine geplanten Ereignisse abbrechen, verschieben oder senden",
+    "widgets.cap.sendSticky":
+        "Ereignisse senden, die eine Weile aktuell bleiben",
+    "widgets.cap.receiveSticky":
+        "Ereignisse empfangen, die eine Weile aktuell bleiben",
+    "widgets.cap.rtcTransports": "Den Anrufserver deines Homeservers abfragen",
+    "widgets.unsupportedCapabilities":
+        "{widget} benötigt Funktionen, die Zam noch nicht unterstützt, und funktioniert daher eventuell nicht: {features}",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: de };

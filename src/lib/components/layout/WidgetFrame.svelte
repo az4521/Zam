@@ -28,13 +28,18 @@
     // Imports shared with the module script above (getLocale, settingsState,
     // buildWidgetUrl, widgetUrlContext, RoomWidget) are not repeated here:
     // both scripts share one module scope.
-    import { t } from "$lib/i18n";
+    import { t, type MessageKey } from "$lib/i18n";
     import { untrack } from "svelte";
+    import { showToast } from "$lib/stores/toasts.svelte";
     import type { Room } from "matrix-js-sdk";
     import { auth } from "$lib/stores/auth.svelte";
     import { getMemberName } from "$lib/matrix/client";
     import { mountWidget, type MountedWidget } from "$lib/matrix/widgetHost";
-    import { widgetOrigin, isUnsafeWidgetUrl } from "$lib/utils/widgets";
+    import {
+        widgetOrigin,
+        isUnsafeWidgetUrl,
+        describeCapability,
+    } from "$lib/utils/widgets";
     import {
         widgetPrompts,
         effectiveApproval,
@@ -104,6 +109,19 @@
                 requestCapabilities: (requested) =>
                     resolveCapabilityRequest(auth.userId, rid, w, requested),
                 requestOpenId: () => resolveOpenIdRequest(auth.userId, rid, w),
+                onUnsupportedCapabilities: (caps) =>
+                    showToast(
+                        t("widgets.unsupportedCapabilities", {
+                            widget: w.name,
+                            features: caps
+                                .map((c) => {
+                                    const d = describeCapability(c);
+                                    return t(d.key as MessageKey, d.params);
+                                })
+                                .join(", "),
+                        }),
+                        { tone: "danger" },
+                    ),
             }),
         );
         mounted = m;

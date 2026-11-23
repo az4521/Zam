@@ -398,6 +398,24 @@ describe("describeCapability", () => {
         );
     });
 
+    it("maps the MatrixRTC widget capabilities", () => {
+        expect(
+            describeCapability("org.matrix.msc4157.send.delayed_event").key,
+        ).toBe("widgets.cap.sendDelayed");
+        expect(
+            describeCapability("org.matrix.msc4157.update_delayed_event").key,
+        ).toBe("widgets.cap.updateDelayed");
+        expect(
+            describeCapability("org.matrix.msc4407.send.sticky_event").key,
+        ).toBe("widgets.cap.sendSticky");
+        expect(
+            describeCapability("org.matrix.msc4407.receive.sticky_event").key,
+        ).toBe("widgets.cap.receiveSticky");
+        expect(
+            describeCapability("org.matrix.msc4515.rtc_transports").key,
+        ).toBe("widgets.cap.rtcTransports");
+    });
+
     it("maps timeline capabilities", () => {
         expect(describeCapability("org.matrix.msc2762.timeline:*")).toEqual({
             key: "widgets.cap.timelineAll",
@@ -515,6 +533,11 @@ describe("describeCapability", () => {
                 "org.matrix.msc3973.user_directory_search",
                 "org.matrix.msc4039.upload_file",
                 "org.matrix.msc4039.download_file",
+                "org.matrix.msc4157.send.delayed_event",
+                "org.matrix.msc4157.update_delayed_event",
+                "org.matrix.msc4407.send.sticky_event",
+                "org.matrix.msc4407.receive.sticky_event",
+                "org.matrix.msc4515.rtc_transports",
                 "org.matrix.msc2762.timeline:*",
                 "org.matrix.msc2762.timeline:!r:x",
                 "org.matrix.msc2762.send.state_event:a#",

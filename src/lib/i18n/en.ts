@@ -4930,6 +4930,14 @@ export const en = {
     "widgets.cap.sendToDevice": "Send {eventType} device messages",
     "widgets.cap.receiveToDevice": "Receive {eventType} device messages",
     "widgets.cap.unknown": "Unknown permission: {capability}",
+    "widgets.cap.sendDelayed":
+        "Send events that are delivered later, or when you leave",
+    "widgets.cap.updateDelayed": "Cancel, delay or send its scheduled events",
+    "widgets.cap.sendSticky": "Send events that stay current for a while",
+    "widgets.cap.receiveSticky": "Receive events that stay current for a while",
+    "widgets.cap.rtcTransports": "Look up your homeserver's call server",
+    "widgets.unsupportedCapabilities":
+        "{widget} needs features Zam does not support yet, so it may not work: {features}",
 };
 
 export type MessageKey = keyof typeof en;
