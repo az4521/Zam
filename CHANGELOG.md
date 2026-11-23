@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.0
+
+✨ **New**
+
+- **Room widgets**: widgets added to a room show in a new Widgets panel (room header menu). A widget someone else added asks before it loads, and you approve what each widget may do, optionally remembering your choice. Add one from the panel or with `/addwidget <url> [name]`.
+- **Per-event-type permissions**: the Permissions tab in room settings lists a level for everything Zam sends (messages, reactions, polls, calls, live location, each room setting), lets you reset any row to the default, and supports custom event types. The reaction button is hidden when you aren't allowed to react.
+- **Room nicknames**: use a different display name in one room, or across a whole space and every room in it, from the General tab of room settings.
+- **Audit log for moderators**: a new room settings tab lists membership, moderation and settings changes, with filters.
+- **Edit history**: click "(edited)" on a message, or use the message menu, to see every earlier version.
+- **Block all invites** in Privacy & Safety. Invite notifications stop on all your devices, and inviting someone who blocks invites tells you so.
+
 ## v1.66.22
 
 ✨ **New**
