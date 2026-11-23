@@ -30,6 +30,8 @@
     import CallParticipantMenu from "$lib/components/layout/CallParticipantMenu.svelte";
     import ScreenShareQualityPopover from "$lib/components/layout/ScreenShareQualityPopover.svelte";
     import SoundboardButton from "$lib/components/layout/SoundboardButton.svelte";
+    import CallWidgetsButton from "$lib/components/layout/CallWidgetsButton.svelte";
+    import CallWidgetLayer from "$lib/components/layout/CallWidgetLayer.svelte";
     import { pluginMount } from "$lib/plugins/pluginMount";
     import {
         callControlItems,
@@ -78,6 +80,12 @@
         isRecentlyLeftHere,
     } from "$lib/utils/voiceCall";
     import { screenShareSupportedHere } from "$lib/utils/videoTiles";
+    import { widgetIdFromTileKey } from "$lib/utils/callWidgets";
+    import {
+        listRoomWidgets,
+        onRoomWidgetsChange,
+    } from "$lib/matrix/widgetHost";
+    import type { RoomWidget } from "$lib/utils/widgets";
     import {
         callPopoutSupported,
         openCallPopout,
@@ -208,6 +216,53 @@
                   (t) => t.key === voiceCallState.focusedTileKey,
               )
             : undefined) ?? null),
+    );
+
+    // Open call widgets, shown as tiles. The room's widget entries are read
+    // from state; widgetTick bumps when one changes. Only this room's call
+    // shows them. The pop-out window cannot reach the widget API, so there it
+    // only knows the ids and the tiles say to open the widget in the main window.
+    let widgetTick = $state(0);
+    $effect(() => {
+        const rid = room.roomId;
+        return onRoomWidgetsChange(rid, () => {
+            widgetTick++;
+        });
+    });
+    const openWidgets = $derived.by((): RoomWidget[] => {
+        void widgetTick;
+        const ids = voiceCallState.callWidgetIds;
+        if (!inThisCall || popout || ids.length === 0) return [];
+        return listRoomWidgets(room.roomId).filter((w) => ids.includes(w.id));
+    });
+    // Every widget tile in this call's layout, in grid and filmstrip order.
+    const tileWidgetIds = $derived(
+        popout
+            ? inThisCall
+                ? voiceCallState.callWidgetIds
+                : []
+            : openWidgets.map((w) => w.id),
+    );
+    const focusedWidgetId = $derived.by(() => {
+        const id = widgetIdFromTileKey(voiceCallState.focusedTileKey);
+        return id !== null && tileWidgetIds.includes(id) ? id : null;
+    });
+    // Filmstrip shows every open widget but the one on the stage.
+    const stripWidgetIds = $derived(
+        tileWidgetIds.filter((id) => id !== focusedWidgetId),
+    );
+    const spotlightShown = $derived(
+        focusedTile !== null || focusedWidgetId !== null,
+    );
+    // Anything that moves a slot. The layer re-measures when this changes.
+    const layoutKey = $derived(
+        [
+            voiceCallState.focusedTileKey ?? "",
+            tileWidgetIds.join(","),
+            screenTiles.length,
+            participants.length,
+            spotlightShown,
+        ].join("|"),
     );
 
     function tileLabel(
@@ -375,6 +430,14 @@
 
 <svelte:window onkeydown={onKeydown} />
 
+{#snippet widgetSlotNote()}
+    {#if popout}
+        <p class="px-3 text-sm text-zam-textMuted text-center">
+            {t("callView.widgetInMainWindow")}
+        </p>
+    {/if}
+{/snippet}
+
 <div
     data-zam-region="call"
     class="flex-1 flex flex-col min-w-0 bg-zam-backgroundTertiary"
@@ -447,57 +510,70 @@
     <div
         bind:this={tilesEl}
         tabindex="-1"
-        class="flex-1 min-h-0 p-4 flex flex-col gap-3"
+        class="relative flex-1 min-h-0 p-4 flex flex-col gap-3"
     >
-        {#if participants.length === 0 && screenTiles.length === 0}
+        {#if participants.length === 0 && screenTiles.length === 0 && tileWidgetIds.length === 0}
             <div
                 class="flex-1 flex flex-col items-center justify-center gap-3 text-zam-textMuted"
             >
                 <Volume2 size={40} />
                 <p class="text-sm">{t("callView.noOneIsInThisCall")}</p>
             </div>
-        {:else if focusedTile}
-            <!-- Spotlight: the focused stream fills the view -->
-            <!-- The wrapper keeps click-anywhere-to-go-back for the pointer, so
+        {:else if spotlightShown}
+            {#if focusedTile}
+                <!-- Spotlight: the focused stream fills the view -->
+                <!-- The wrapper keeps click-anywhere-to-go-back for the pointer, so
                  both ignores below stay live; the keyboard path is the overlay
                  button (and Escape, handled on <svelte:window> above). -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <div
-                class="relative flex-1 min-h-0 rounded-lg overflow-hidden cursor-zoom-out"
-                onclick={clearFocus}
-                oncontextmenu={(e) => {
-                    e.preventDefault();
-                    openParticipantMenu(
-                        focusedTile.userId,
-                        e.clientX,
-                        e.clientY,
-                        false,
-                    );
-                }}
-                use:longPress={{
-                    onTrigger: (x, y) =>
-                        openParticipantMenu(focusedTile.userId, x, y, true),
-                }}
-                title={t("callView.backToGrid")}
-            >
-                <VideoTile
-                    tile={focusedTile}
-                    label={tileLabel(focusedTile.identity, focusedTile.source)}
-                    mirror={focusedTile.source === "camera" &&
-                        isLocalIdentity(focusedTile.identity) &&
-                        settingsState.mirrorCamera}
-                />
-                <button
-                    type="button"
-                    class={TILE_OVERLAY_BTN}
-                    aria-label={t("callView.backToGrid")}
-                    onclick={(e) => {
-                        e.stopPropagation();
-                        backToGrid();
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <div
+                    class="relative flex-1 min-h-0 rounded-lg overflow-hidden cursor-zoom-out"
+                    onclick={clearFocus}
+                    oncontextmenu={(e) => {
+                        e.preventDefault();
+                        openParticipantMenu(
+                            focusedTile.userId,
+                            e.clientX,
+                            e.clientY,
+                            false,
+                        );
                     }}
-                ></button>
-            </div>
+                    use:longPress={{
+                        onTrigger: (x, y) =>
+                            openParticipantMenu(focusedTile.userId, x, y, true),
+                    }}
+                    title={t("callView.backToGrid")}
+                >
+                    <VideoTile
+                        tile={focusedTile}
+                        label={tileLabel(
+                            focusedTile.identity,
+                            focusedTile.source,
+                        )}
+                        mirror={focusedTile.source === "camera" &&
+                            isLocalIdentity(focusedTile.identity) &&
+                            settingsState.mirrorCamera}
+                    />
+                    <button
+                        type="button"
+                        class={TILE_OVERLAY_BTN}
+                        aria-label={t("callView.backToGrid")}
+                        onclick={(e) => {
+                            e.stopPropagation();
+                            backToGrid();
+                        }}
+                    ></button>
+                </div>
+            {:else if focusedWidgetId}
+                <!-- A widget on the stage: its frame sits over this slot. -->
+                <div
+                    data-call-widget-slot={focusedWidgetId}
+                    class="relative flex-1 min-h-0 rounded-lg overflow-hidden bg-black flex items-center justify-center"
+                >
+                    {@render widgetSlotNote()}
+                </div>
+            {/if}
             <!-- Filmstrip: everyone else, small, along the bottom -->
             <div
                 class="flex-shrink-0 flex gap-2 justify-center overflow-x-auto py-1"
@@ -557,6 +633,17 @@
                                 spotlightTile(tile.key);
                             }}
                         ></button>
+                    </div>
+                {/each}
+                {#each stripWidgetIds as wid (wid)}
+                    <div
+                        data-call-widget-slot={wid}
+                        animate:flip={tileFlip()}
+                        in:scale={tileIn()}
+                        out:scale={tileOut()}
+                        class="relative h-20 aspect-video flex-shrink-0 rounded-md overflow-hidden bg-black border-2 border-transparent flex items-center justify-center"
+                    >
+                        {@render widgetSlotNote()}
                     </div>
                 {/each}
                 {#each participants as p (p.userId)}
@@ -707,6 +794,18 @@
                                 spotlightTile(tile.key);
                             }}
                         ></button>
+                    </div>
+                {/each}
+
+                {#each tileWidgetIds as wid (wid)}
+                    <div
+                        data-call-widget-slot={wid}
+                        animate:flip={tileFlip()}
+                        in:scale={tileIn()}
+                        out:scale={tileOut()}
+                        class="relative aspect-video rounded-lg overflow-hidden bg-black border-2 border-transparent flex items-center justify-center"
+                    >
+                        {@render widgetSlotNote()}
                     </div>
                 {/each}
 
@@ -911,6 +1010,15 @@
                 {/each}
             </div>
         {/if}
+        {#if !popout && openWidgets.length > 0}
+            <CallWidgetLayer
+                {room}
+                {openWidgets}
+                {focusedWidgetId}
+                spotlight={spotlightShown}
+                {layoutKey}
+            />
+        {/if}
     </div>
 
     <!-- Plugin panels (open ones only; each scrolls within its own cap) -->
@@ -1066,6 +1174,13 @@
                     buttonClass="p-3 rounded-full hover:bg-zam-messageHover"
                     idleClass="text-zam-textPrimary"
                 />
+                {#if !popout}
+                    <CallWidgetsButton
+                        {room}
+                        buttonClass="p-3 rounded-full hover:bg-zam-messageHover"
+                        idleClass="text-zam-textPrimary"
+                    />
+                {/if}
                 {#each callControlItems(room.roomId) as c (c.key)}
                     <button
                         onclick={(e) => c.click(e.currentTarget)}

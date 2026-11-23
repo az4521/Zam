@@ -59,6 +59,7 @@ import {
     type VideoTileDescriptor,
 } from "$lib/utils/videoTiles";
 import type { WatchingMap } from "$lib/utils/shareWatchers";
+import { callWidgetKey } from "$lib/utils/callWidgets";
 import type { CallCodecState, CallEncryptionState } from "$lib/matrix/client";
 import {
     DEFAULT_PARTICIPANT_AUDIO,
@@ -203,6 +204,9 @@ class VoiceCallState {
     cameraOn = $state(false);
     /** The tile promoted to the spotlight, or null for the plain grid. */
     focusedTileKey = $state<string | null>(null);
+    /** Room widgets opened as tiles in this call. Local to this device: no
+     *  room events. Cleared when the call ends. */
+    callWidgetIds = $state<string[]>([]);
     /** Android: the system held the call (a cellular call was answered).
      *  Mic and playback are muted underneath the user's own mute state. */
     onHold = $state(false);
@@ -506,6 +510,7 @@ export function initVoiceCall(): () => void {
             voiceCallState.screenSharing = false;
             voiceCallState.cameraOn = false;
             voiceCallState.focusedTileKey = null;
+            voiceCallState.callWidgetIds = [];
             callPipState.dismissed = false;
             void clearCallStatus();
             if (prevRoomId) {
@@ -600,6 +605,7 @@ export function initVoiceCall(): () => void {
             prevVideoKeys,
             tiles,
             voiceCallState.focusedTileKey,
+            voiceCallState.callWidgetIds.map(callWidgetKey),
         );
         const newShares = newRemoteShares(prevVideoKeys, tiles);
         announceNewShares(newShares);
@@ -923,6 +929,28 @@ export function focusTile(key: string): void {
 
 export function clearFocus(): void {
     voiceCallState.focusedTileKey = null;
+}
+
+/** Shows a room widget as a tile in the call. Opening it also spotlights it:
+ *  the user just asked to see it. */
+export function openCallWidget(id: string): void {
+    if (!voiceCallState.callWidgetIds.includes(id))
+        voiceCallState.callWidgetIds = [...voiceCallState.callWidgetIds, id];
+    voiceCallState.focusedTileKey = callWidgetKey(id);
+}
+
+/** Removes a widget tile from the call. Drops the spotlight if it had it. */
+export function closeCallWidget(id: string): void {
+    voiceCallState.callWidgetIds = voiceCallState.callWidgetIds.filter(
+        (w) => w !== id,
+    );
+    if (voiceCallState.focusedTileKey === callWidgetKey(id))
+        voiceCallState.focusedTileKey = null;
+}
+
+export function toggleCallWidget(id: string): void {
+    if (voiceCallState.callWidgetIds.includes(id)) closeCallWidget(id);
+    else openCallWidget(id);
 }
 
 export function setCallVideoInputDevice(deviceId: string | null): void {

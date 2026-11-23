@@ -2,7 +2,16 @@
     import { t } from "$lib/i18n";
     import { untrack } from "svelte";
     import type { Room } from "matrix-js-sdk";
-    import { interfaceState, openModal } from "$lib/stores/interface.svelte";
+    import {
+        interfaceState,
+        openModal,
+        showCallView,
+    } from "$lib/stores/interface.svelte";
+    import {
+        voiceCallState,
+        openCallWidget,
+        closeCallWidget,
+    } from "$lib/stores/voiceCall.svelte";
     import {
         widgetsState,
         bumpWidgetsTick,
@@ -22,7 +31,13 @@
         templatedWidgetUrl,
     } from "$lib/components/layout/WidgetFrame.svelte";
     import AddWidgetDialog from "$lib/components/layout/AddWidgetDialog.svelte";
-    import { ArrowLeft, ExternalLink, Plus, Trash2 } from "lucide-svelte";
+    import {
+        ArrowLeft,
+        ExternalLink,
+        LayoutGrid,
+        Plus,
+        Trash2,
+    } from "lucide-svelte";
 
     // The room's widgets, in the right-hand panel. The list and the open
     // widget share this panel: the open one is tracked in widgetsState, so
@@ -87,6 +102,20 @@
         activeWidget ? templatedWidgetUrl(room.roomId, activeWidget) : null,
     );
 
+    // Widgets can also be tiles in this room's call. Only while that call is
+    // running here. A widget shown in the call is never mounted twice, so the
+    // panel offers to close it there instead of showing a second frame.
+    const inThisRoomCall = $derived(voiceCallState.roomId === room.roomId);
+    const inCallHere = $derived(
+        inThisRoomCall &&
+            activeWidget !== null &&
+            voiceCallState.callWidgetIds.includes(activeWidget.id),
+    );
+    function openInCall(id: string) {
+        openCallWidget(id);
+        showCallView(room.roomId);
+    }
+
     async function removeActive(w: RoomWidget) {
         if (removing) return;
         removing = true;
@@ -135,6 +164,17 @@
             >
                 {activeWidget.name}
             </h3>
+            {#if inThisRoomCall && !inCallHere && activeWidget}
+                <button
+                    type="button"
+                    onclick={() => openInCall(activeWidget!.id)}
+                    class="p-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover"
+                    title={t("callView.openInCall")}
+                    aria-label={t("callView.openInCall")}
+                >
+                    <LayoutGrid size={16} />
+                </button>
+            {/if}
             {#if openUrl}
                 <a
                     href={openUrl}
@@ -199,7 +239,26 @@
     <div class="flex-1 min-h-0 flex flex-col overflow-y-auto">
         {#if activeWidget}
             {#key activeWidget.id}
-                <WidgetFrame {room} widget={activeWidget} />
+                {#if inCallHere}
+                    <div
+                        class="p-4 flex flex-col items-center gap-3 text-center"
+                    >
+                        <p class="text-sm text-zam-textMuted">
+                            {t("callView.widgetInCall")}
+                        </p>
+                        <button
+                            type="button"
+                            onclick={() =>
+                                activeWidget &&
+                                closeCallWidget(activeWidget.id)}
+                            class="rounded px-4 py-2 text-sm font-medium text-zam-accent hover:underline"
+                        >
+                            {t("callView.showWidgetHere")}
+                        </button>
+                    </div>
+                {:else}
+                    <WidgetFrame {room} widget={activeWidget} />
+                {/if}
             {/key}
         {:else if widgets.length === 0}
             <p class="text-sm text-zam-textMuted text-center mt-8 px-4">
@@ -208,11 +267,11 @@
         {:else}
             <ul class="p-2 space-y-1">
                 {#each widgets as w (w.id)}
-                    <li>
+                    <li class="flex items-center gap-1">
                         <button
                             type="button"
                             onclick={() => setActiveWidget(room.roomId, w.id)}
-                            class="w-full text-start p-2 rounded-lg hover:bg-zam-messageHover transition-colors"
+                            class="flex-1 min-w-0 text-start p-2 rounded-lg hover:bg-zam-messageHover transition-colors"
                         >
                             <span
                                 class="block text-sm font-semibold text-zam-textPrimary truncate"
@@ -223,6 +282,17 @@
                                 >{widgetOrigin(w.url) ?? w.url}</span
                             >
                         </button>
+                        {#if inThisRoomCall && !voiceCallState.callWidgetIds.includes(w.id)}
+                            <button
+                                type="button"
+                                onclick={() => openInCall(w.id)}
+                                class="p-2 rounded-lg text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover"
+                                title={t("callView.openInCall")}
+                                aria-label={t("callView.openInCall")}
+                            >
+                                <LayoutGrid size={16} />
+                            </button>
+                        {/if}
                     </li>
                 {/each}
             </ul>

@@ -129,6 +129,19 @@ describe("nextFocus", () => {
         ).toBeNull();
     });
 
+    it("keeps a focused call widget while it is open", () => {
+        expect(nextFocus([], tiles([]), "widget:zam_1", ["widget:zam_1"])).toBe(
+            "widget:zam_1",
+        );
+    });
+
+    it("drops a focused call widget once it is no longer open", () => {
+        expect(nextFocus([], tiles([]), "widget:zam_1", [])).toBeNull();
+        expect(
+            nextFocus([], tiles([]), "widget:zam_1", ["widget:zam_2"]),
+        ).toBeNull();
+    });
+
     it("does not steal a manual camera focus when a new screenshare arrives", () => {
         expect(
             nextFocus(

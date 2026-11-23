@@ -65,13 +65,17 @@ export function buildVideoTiles(
  *  always wins; a focus that left falls back to the grid; an unfocused grid
  *  auto-promotes the first screenshare that has just appeared, unless it is
  *  our own: the sharer would only see their own screen (a hall of mirrors
- *  when sharing the whole screen) instead of the call. */
+ *  when sharing the whole screen) instead of the call.
+ *  `extraKeys` are focus targets that are not video tiles (open call widgets)
+ *  and count as present while they are listed. */
 export function nextFocus(
     prevKeys: string[],
     tiles: VideoTileDescriptor[],
     current: string | null,
+    extraKeys: string[] = [],
 ): string | null {
     const present = new Set(tiles.map((t) => t.key));
+    for (const key of extraKeys) present.add(key);
     if (current && present.has(current)) return current;
     if (current) return null;
     const prev = new Set(prevKeys);
