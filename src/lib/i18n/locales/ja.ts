@@ -841,9 +841,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "privateData.keySaveFailed":
         "非公開データの鍵をアカウントのシークレットストレージに保存できませんでした。次回のロック解除時に再試行します。",
     "privateData.unlockToEncrypt":
-        "お気に入りGIFを暗号化するには、他のデバイスでも読めるように、このデバイスでリカバリーキーが必要です。",
+        "お気に入りGIFを暗号化するには、他のデバイスでも読めるように、まずこのデバイスを確認する必要があります。リカバリーキーを使うか、別のデバイスからこのデバイスを承認してください。",
     "privateData.unlockToDecrypt":
-        "お気に入りGIFは暗号化されています。このデバイスで読むにはリカバリーキーを入力してください。",
+        "お気に入りGIFは暗号化されています。このデバイスで読むには、別のデバイスからキーを受け取るか、リカバリーキーを入力してください。",
     "settingsSearch.encryptFavouriteGifs": "お気に入りGIFを暗号化",
     "privateData.toggleLabel": "お気に入りGIFを暗号化",
     "privateData.toggleHelp":
@@ -1122,6 +1122,16 @@ const messages: Partial<Record<MessageKey, string>> = {
         "このアカウントはすでに暗号化を使用しています。新しい端末を承認すると、暗号化メッセージと履歴を読めるようになります。",
     "encryptionSetup.useAnotherDevice": "別の端末を使用",
     "encryptionSetup.useRecoveryKey": "リカバリーキーを使用",
+    "encryptionSetup.verifyInsteadHint":
+        "すでにサインイン済みのデバイスからこのデバイスを承認すれば、リカバリーキーは不要です。",
+    "encryptionSetup.fromOtherDeviceTimeout":
+        "どのデバイスも応答しませんでした。これがすでに使えているデバイスでZamを開いて、もう一度お試しください。",
+    "encryptionSetup.fromOtherDeviceNone":
+        "問い合わせできる確認済みのデバイスが他にありません。代わりにリカバリーキーを使ってください。",
+    "encryptionSetup.fromOtherDeviceWaiting":
+        "これがすでに使えているデバイスでZamを開いたままにしてください。キーは自動で送られます。承認は不要です。",
+    "encryptionSetup.fromOtherDeviceTitle": "他のデバイスに問い合わせ中",
+    "encryptionSetup.fromOtherDevice": "別のデバイスから受け取る",
     "encryptionSetup.anotherDeviceHint":
         "別の端末とは、すでにサインイン済みの端末（スマートフォンのZamやElementアプリなど）です。承認リクエストが表示されます。",
     "encryptionSetup.recoveryKeyHint":

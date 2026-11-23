@@ -75,6 +75,7 @@
     import {
         onboardingState,
         openEncryptionSetup,
+        takeAfterVerification,
         takeFreshSignIn,
     } from "$lib/stores/onboarding.svelte";
     import VerificationRequestCard from "$lib/components/layout/VerificationRequestCard.svelte";
@@ -1764,7 +1765,11 @@
             !verificationState.active
         ) {
             onboardingState.resumeAfterVerification = false;
-            openEncryptionSetup(false);
+            // Started from a feature's unlock prompt: retry the feature (it
+            // asks again if this session still cannot get the key).
+            const resume = takeAfterVerification();
+            if (resume) untrack(resume);
+            else openEncryptionSetup(false);
         }
     });
 

@@ -2798,6 +2798,24 @@ export async function readPrivateKeySecret(): Promise<
     }
 }
 
+/** Whether this session is cross-signed by its own account. Never throws. */
+export async function isThisDeviceCrossSigned(): Promise<boolean> {
+    const client = getClient();
+    const crypto = client?.getCrypto();
+    const userId = client?.getUserId();
+    const deviceId = client?.getDeviceId();
+    if (!crypto || !userId || !deviceId) return false;
+    try {
+        const status = await crypto.getDeviceVerificationStatus(
+            userId,
+            deviceId,
+        );
+        return status?.crossSigningVerified ?? false;
+    } catch {
+        return false;
+    }
+}
+
 /**
  * Whether this session can write to secret storage now: the account's default
  * 4S key has been unlocked (recovery key or passphrase) in this session. A

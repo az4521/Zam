@@ -83,10 +83,13 @@ export function openEncryptionSetup(automatic = false): void {
     onboardingState.automatic = automatic;
     onboardingState.unlockReason = null;
     afterUnlock = null;
+    fromOtherDevice = null;
     onboardingState.encryptionSetupOpen = true;
 }
 
 let afterUnlock: (() => void) | null = null;
+/** The feature's after-unlock action, kept while device verification runs. */
+let afterVerification: (() => void) | null = null;
 
 /**
  * Open the dialog straight at the recovery key prompt, for a feature that
@@ -96,11 +99,48 @@ let afterUnlock: (() => void) | null = null;
 export function openSecretStorageUnlock(
     reasonKey: MessageKey,
     onUnlocked?: () => void,
+    options: SecretStorageUnlockOptions = {},
 ): void {
     onboardingState.automatic = false;
     onboardingState.unlockReason = reasonKey;
     afterUnlock = onUnlocked ?? null;
+    fromOtherDevice = options.fromOtherDevice ?? null;
     onboardingState.encryptionSetupOpen = true;
+}
+
+export interface SecretStorageUnlockOptions {
+    /**
+     * Get what the feature needs from another of the account's sessions
+     * instead of the recovery key. Offered on a verified session.
+     */
+    fromOtherDevice?: (
+        signal: AbortSignal,
+    ) => Promise<"ready" | "no-devices" | "timeout">;
+}
+
+let fromOtherDevice: SecretStorageUnlockOptions["fromOtherDevice"] | null =
+    null;
+
+/** The current unlock prompt's other-device path, if it has one. */
+export function unlockFromOtherDevice():
+    SecretStorageUnlockOptions["fromOtherDevice"] | null {
+    return fromOtherDevice;
+}
+
+/**
+ * Device verification is starting from the unlock prompt: keep the feature's
+ * after-unlock action, to run once verification ends (takeAfterVerification).
+ */
+export function keepAfterUnlockForVerification(): void {
+    afterVerification = afterUnlock;
+    afterUnlock = null;
+}
+
+/** The action kept by keepAfterUnlockForVerification, consumed. */
+export function takeAfterVerification(): (() => void) | null {
+    const run = afterVerification;
+    afterVerification = null;
+    return run;
 }
 
 /** The pending after-unlock action, consumed. */
@@ -115,4 +155,5 @@ export function closeEncryptionSetup(): void {
     onboardingState.automatic = false;
     onboardingState.unlockReason = null;
     afterUnlock = null;
+    fromOtherDevice = null;
 }

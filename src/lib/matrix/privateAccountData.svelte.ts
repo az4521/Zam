@@ -42,6 +42,7 @@ import { captureClient, ownedClient } from "./runtime";
 import {
     hasSecretStorage,
     isSecretStorageUnlocked,
+    isThisDeviceCrossSigned,
     onBackupDecryptionKeyCached,
     onSecretStorageReady,
     readBackupDecryptionKey,
@@ -562,8 +563,12 @@ function backupChanged(): void {
 
 /**
  * Get a usable key ready for turning encryption on. Reads 4S when it is
- * unlocked here, or makes a device key when the account has no secret storage.
- * "unlock" when secret storage exists but this session cannot read it.
+ * unlocked here. Otherwise makes a device key when the account has no secret
+ * storage, or when this session is verified: the list is plain, so there is
+ * nothing an older key would need to read, and the new key reaches the other
+ * sessions by the backup-wrapped copy and gossip (4S takes it on the next
+ * unlock, see secretStorageAction). "unlock" when this session is unverified
+ * and cannot read secret storage: its key would reach no other session.
  */
 export async function preparePrivateKey(): Promise<
     "ready" | "unlock" | "failed"
@@ -579,6 +584,8 @@ export async function preparePrivateKey(): Promise<
     const step = enableKeyStep({
         keyReady: hasPrivateKey(),
         hasSecretStorage: await hasSecretStorage(),
+        secretStorageUnlocked: await isSecretStorageUnlocked(),
+        deviceVerified: await isThisDeviceCrossSigned(),
     });
     if (!ownedClient(owner)) return "failed";
     if (step === "create-key") {
@@ -640,13 +647,22 @@ async function ensureFromSecretStorage(): Promise<void> {
     const server = await serverState(key);
     if (!ownedClient(owner)) return;
 
+    const remoteBytes =
+        remote.state === "value" ? decodeKey(remote.value) : null;
+    // A 4S key the server's events do not fit is stale (see secretStorageAction).
+    const remoteFits =
+        remoteBytes !== null &&
+        (await serverState(await importPrivateKey(remoteBytes))) !==
+            "unreadable";
+    if (!ownedClient(owner)) return;
     const action = secretStorageAction({
         remote: remote.state,
+        remoteFits,
         local: localState(userId),
         server,
     });
     if (action === "adopt" && remote.state === "value") {
-        const bytes = decodeKey(remote.value);
+        const bytes = remoteBytes;
         if (!bytes) {
             console.warn(
                 "[matrix] the stored private account data key is malformed",
@@ -714,21 +730,51 @@ async function trustedOwnDevices(): Promise<
     return out;
 }
 
-/** Ask this account's other trusted sessions for the key. */
-async function requestFromOwnDevices(): Promise<void> {
+/** Ask this account's other trusted sessions for the key. Returns how many. */
+async function requestFromOwnDevices(): Promise<number> {
     const client = getClient();
     const crypto = client?.getCrypto();
-    if (!client || !crypto || privateKeyState.status === "ready") return;
+    if (!client || !crypto || privateKeyState.status === "ready") return 0;
     const owner = captureClient();
     requestedAt = Date.now();
     const devices = await trustedOwnDevices();
-    if (!ownedClient(owner) || devices.length === 0) return;
+    if (!ownedClient(owner) || devices.length === 0) return 0;
     const batch = await crypto.encryptToDeviceMessages(
         KEY_REQUEST_TYPE,
         devices,
         {},
     );
     if (batch.batch.length > 0) await client.queueToDevice(batch);
+    return devices.length;
+}
+
+/** How long the unlock prompt waits for another session to send the key. */
+const FETCH_WAIT_MS = 60_000;
+
+/**
+ * The unlock prompt's "another device" path: get the key without the recovery
+ * key. Tries the backup-wrapped copy, then asks this account's other verified
+ * sessions now (not on the retry timer) and waits for one to answer, until
+ * `signal` aborts or FETCH_WAIT_MS passes. "no-devices" when there is no
+ * verified session to ask.
+ */
+export async function fetchPrivateKeyFromOwnDevices(
+    signal?: AbortSignal,
+): Promise<"ready" | "no-devices" | "timeout"> {
+    if (hasPrivateKey()) return "ready";
+    const owner = captureClient();
+    if (await restorePrivateKeyFromBackup()) return "ready";
+    if (!ownedClient(owner) || signal?.aborted) return "timeout";
+    const asked = await requestFromOwnDevices();
+    if (hasPrivateKey()) return "ready";
+    if (asked === 0) return "no-devices";
+    const deadline = Date.now() + FETCH_WAIT_MS;
+    while (Date.now() < deadline) {
+        if (!ownedClient(owner) || signal?.aborted) return "timeout";
+        if (hasPrivateKey()) return "ready";
+        await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    return hasPrivateKey() ? "ready" : "timeout";
 }
 
 let requestTimer: ReturnType<typeof setTimeout> | null = null;

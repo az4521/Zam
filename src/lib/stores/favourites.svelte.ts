@@ -5,6 +5,7 @@ import {
     type FavouriteGif,
 } from "$lib/matrix/client";
 import {
+    fetchPrivateKeyFromOwnDevices,
     hasPrivateKey,
     onPrivateKeyChange,
     preparePrivateKey,
@@ -26,6 +27,16 @@ import { openSecretStorageUnlock } from "$lib/stores/onboarding.svelte";
 import { t } from "$lib/i18n";
 
 export type { FavouriteGif };
+
+/**
+ * Ask for what reading the encrypted favourites needs on this device: the
+ * recovery key, or (on a verified session) the key from another session.
+ */
+export function unlockFavourites(onUnlocked?: () => void): void {
+    openSecretStorageUnlock("privateData.unlockToDecrypt", onUnlocked, {
+        fromOtherDevice: fetchPrivateKeyFromOwnDevices,
+    });
+}
 
 /** The favourites list when encrypted (see privateAccountData.svelte.ts). */
 const FAVOURITES_TYPE = "com.zam.private.favourites";
@@ -299,20 +310,14 @@ async function disableEncrypted(): Promise<FavouritesModeChange> {
     });
     if (step === "noop") return "noop";
     if (step === "unlock") {
-        openSecretStorageUnlock(
-            "privateData.unlockToDecrypt",
-            () => void setFavouritesEncrypted(false),
-        );
+        unlockFavourites(() => void setFavouritesEncrypted(false));
         return "unlock";
     }
     const owner = captureClient();
     const read = await readPrivate(FAVOURITES_TYPE, { fresh: true });
     if (!ownedClient(owner)) return "failed";
     if (read.kind === "locked") {
-        openSecretStorageUnlock(
-            "privateData.unlockToDecrypt",
-            () => void setFavouritesEncrypted(false),
-        );
+        unlockFavourites(() => void setFavouritesEncrypted(false));
         return "unlock";
     }
     const gifs = read.kind === "value" ? gifsOf(read.value) : [];

@@ -61,23 +61,31 @@ export function acceptShare(input: {
 
 /**
  * What to do with secret storage once it is readable this session.
- *  - adopt: 4S holds a key. It is the account's key, so take it.
- *  - store-local: 4S holds nothing usable (absent, or a copy this session cannot
- *    read). Put this device's key there, but only when that key fits the
- *    server, so 4S is never overwritten with a key that would lock out the
- *    events already there.
+ *  - adopt: 4S holds a key that fits the server (decrypts its events, or there
+ *    are none), so it is the account's key: take it.
+ *  - store-local: 4S holds nothing usable (absent, a copy this session cannot
+ *    read, or a stale key the server's events no longer fit). Put this
+ *    device's key there, but only when that key fits the server, so 4S is
+ *    never overwritten with a key that would lock out the events already
+ *    there. A stale 4S key is normal: a verified session may turn encryption
+ *    on with a fresh key while 4S is locked, and 4S catches up here.
  *  - generate-and-store: 4S is absent, this device has no key, and the server
  *    holds no encrypted events, so a new key is safe to make.
  *  - leave: nothing to do.
  */
 export function secretStorageAction(input: {
     remote: SecretStorageRemote;
+    /** Whether the 4S key fits the server (only read when remote is "value"). */
+    remoteFits: boolean;
     local: LocalKeyState;
     server: ServerState;
 }): SecretStorageAction {
-    const { remote, local, server } = input;
-    if (remote === "value") return "adopt";
+    const { remote, remoteFits, local, server } = input;
     const localFits = local !== "none" && server !== "unreadable";
+    if (remote === "value") {
+        if (remoteFits) return "adopt";
+        return localFits ? "store-local" : "leave";
+    }
     if (remote === "absent" && local === "none") {
         return server === "none" ? "generate-and-store" : "leave";
     }

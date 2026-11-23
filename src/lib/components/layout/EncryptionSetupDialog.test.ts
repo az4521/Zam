@@ -26,6 +26,11 @@ const h = vi.hoisted(() => ({
         unlockReason: null as string | null,
     },
     afterUnlock: null as (() => void) | null,
+    fromOtherDevice: null as
+        | ((signal: AbortSignal) => Promise<"ready" | "no-devices" | "timeout">)
+        | null,
+    keptForVerification: null as (() => void) | null,
+    verifyWithAnotherDevice: vi.fn(),
 }));
 
 vi.mock("$lib/matrix/crypto", () => ({
@@ -54,7 +59,7 @@ vi.mock("$lib/stores/verificationStatus.svelte", () => ({
     refreshVerificationStatus: vi.fn(),
 }));
 vi.mock("$lib/stores/verification.svelte", () => ({
-    verifyWithAnotherDevice: vi.fn(),
+    verifyWithAnotherDevice: h.verifyWithAnotherDevice,
 }));
 vi.mock("$lib/stores/interface.svelte", () => ({
     openAppSettingsTab: vi.fn(),
@@ -65,6 +70,11 @@ vi.mock("$lib/stores/onboarding.svelte", () => ({
         const run = h.afterUnlock;
         h.afterUnlock = null;
         return run;
+    },
+    unlockFromOtherDevice: () => h.fromOtherDevice,
+    keepAfterUnlockForVerification: () => {
+        h.keptForVerification = h.afterUnlock;
+        h.afterUnlock = null;
     },
     closeEncryptionSetup: vi.fn(),
     forgetSignInPassword: vi.fn(),
@@ -101,6 +111,10 @@ describe("EncryptionSetupDialog", () => {
         h.unlockWithRecoveryKey.mockReset();
         h.onboarding.unlockReason = null;
         h.afterUnlock = null;
+        h.fromOtherDevice = null;
+        h.keptForVerification = null;
+        h.verifyWithAnotherDevice.mockReset();
+        h.onboarding.resumeAfterVerification = false;
     });
 
     afterEach(() => {
@@ -219,5 +233,79 @@ describe("EncryptionSetupDialog", () => {
         expect(resumed).toHaveBeenCalledTimes(1);
         expect(document.body.textContent).not.toContain("You're all set");
         expect(closeEncryptionSetup).toHaveBeenCalled();
+    });
+
+    // A verified session can get the feature's key from another of its
+    // sessions instead of typing the recovery key.
+    it("gets the key from another device on a verified session", async () => {
+        h.onServer = true;
+        h.status.secretStorageReady = true;
+        h.status.defaultKeyId = "K";
+        h.status.thisDeviceVerified = true;
+        h.onboarding.unlockReason = "privateData.unlockToDecrypt";
+        const resumed = vi.fn();
+        h.afterUnlock = resumed;
+        h.fromOtherDevice = vi.fn(async () => "ready" as const);
+        component = mount(EncryptionSetupDialog, { target: document.body });
+        await settle();
+        expect(buttonLabels()).not.toContain("Use another device");
+        [...document.body.querySelectorAll("button")]
+            .find(
+                (b) => b.textContent?.trim() === "Get it from another device",
+            )!
+            .click();
+        await settle();
+        expect(h.fromOtherDevice).toHaveBeenCalledTimes(1);
+        expect(resumed).toHaveBeenCalledTimes(1);
+        expect(closeEncryptionSetup).toHaveBeenCalled();
+    });
+
+    it("says so when no device answers, and stays on the key prompt", async () => {
+        h.onServer = true;
+        h.status.secretStorageReady = true;
+        h.status.defaultKeyId = "K";
+        h.status.thisDeviceVerified = true;
+        h.onboarding.unlockReason = "privateData.unlockToDecrypt";
+        const resumed = vi.fn();
+        h.afterUnlock = resumed;
+        h.fromOtherDevice = vi.fn(async () => "no-devices" as const);
+        component = mount(EncryptionSetupDialog, { target: document.body });
+        await settle();
+        [...document.body.querySelectorAll("button")]
+            .find(
+                (b) => b.textContent?.trim() === "Get it from another device",
+            )!
+            .click();
+        await settle();
+        expect(resumed).not.toHaveBeenCalled();
+        expect(document.body.textContent).toContain(
+            "no other verified device to ask",
+        );
+        expect(document.body.textContent).toContain("Enter your recovery key");
+    });
+
+    // An unverified session's key would reach no other session: it is offered
+    // device verification, and the feature resumes once that ends.
+    it("offers device verification on an unverified session and keeps the feature's action", async () => {
+        h.onServer = true;
+        h.status.secretStorageReady = true;
+        h.status.defaultKeyId = "K";
+        h.status.thisDeviceVerified = false;
+        h.onboarding.unlockReason = "privateData.unlockToEncrypt";
+        const resumed = vi.fn();
+        h.afterUnlock = resumed;
+        h.fromOtherDevice = vi.fn(async () => "ready" as const);
+        h.verifyWithAnotherDevice.mockResolvedValue(undefined);
+        component = mount(EncryptionSetupDialog, { target: document.body });
+        await settle();
+        expect(buttonLabels()).not.toContain("Get it from another device");
+        [...document.body.querySelectorAll("button")]
+            .find((b) => b.textContent?.trim() === "Use another device")!
+            .click();
+        await settle();
+        expect(h.verifyWithAnotherDevice).toHaveBeenCalledTimes(1);
+        expect(h.keptForVerification).toBe(resumed);
+        expect(h.onboarding.resumeAfterVerification).toBe(true);
+        expect(resumed).not.toHaveBeenCalled();
     });
 });

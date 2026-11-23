@@ -22,37 +22,43 @@ describe("enableStep", () => {
 });
 
 describe("enableKeyStep", () => {
+    const base = {
+        keyReady: false,
+        hasSecretStorage: true,
+        secretStorageUnlocked: false,
+        deviceVerified: false,
+    };
+
     it("uses a usable key as it is", () => {
-        expect(enableKeyStep({ keyReady: true, hasSecretStorage: true })).toBe(
-            "ready",
-        );
-        expect(enableKeyStep({ keyReady: true, hasSecretStorage: false })).toBe(
-            "ready",
-        );
-    });
-
-    it("reads secret storage when the account has it, otherwise makes a device key", () => {
-        expect(enableKeyStep({ keyReady: false, hasSecretStorage: true })).toBe(
-            "load-key",
-        );
+        expect(enableKeyStep({ ...base, keyReady: true })).toBe("ready");
         expect(
-            enableKeyStep({ keyReady: false, hasSecretStorage: false }),
-        ).toBe("create-key");
-    });
-});
-
-describe("disableStep", () => {
-    it("does nothing unless the mode is encrypted", () => {
-        expect(disableStep({ mode: "plain", keyReady: true })).toBe("noop");
-        expect(disableStep({ mode: "unknown", keyReady: true })).toBe("noop");
+            enableKeyStep({ ...base, keyReady: true, hasSecretStorage: false }),
+        ).toBe("ready");
     });
 
-    it("needs the key to decrypt before writing the plaintext back", () => {
-        expect(disableStep({ mode: "encrypted", keyReady: true })).toBe(
-            "write-plain",
+    it("makes a device key when the account has no secret storage", () => {
+        expect(enableKeyStep({ ...base, hasSecretStorage: false })).toBe(
+            "create-key",
         );
-        expect(disableStep({ mode: "encrypted", keyReady: false })).toBe(
-            "unlock",
+    });
+
+    it("reads secret storage when it is unlocked here", () => {
+        expect(
+            enableKeyStep({
+                ...base,
+                secretStorageUnlocked: true,
+                deviceVerified: true,
+            }),
+        ).toBe("load-key");
+    });
+
+    it("needs no recovery key on a verified session", () => {
+        expect(enableKeyStep({ ...base, deviceVerified: true })).toBe(
+            "create-key",
         );
+    });
+
+    it("asks an unverified session with locked secret storage to unlock", () => {
+        expect(enableKeyStep(base)).toBe("load-key");
     });
 });

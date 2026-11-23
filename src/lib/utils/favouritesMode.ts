@@ -31,15 +31,21 @@ export function enableStep(
 
 /**
  * How to get a key for encrypting. A usable key is used as it is. Without one,
- * a device with no secret storage on the account makes its own key, and one
- * with secret storage reads it from there (which may need the recovery key).
+ * read secret storage when this session can, else make a new key when the
+ * account has no secret storage or this session is verified (its key then
+ * reaches the account's other sessions). An unverified session with secret
+ * storage locked has to unlock it first ("load-key" then asks).
  */
 export function enableKeyStep(input: {
     keyReady: boolean;
     hasSecretStorage: boolean;
+    secretStorageUnlocked: boolean;
+    deviceVerified: boolean;
 }): "ready" | "create-key" | "load-key" {
     if (input.keyReady) return "ready";
-    return input.hasSecretStorage ? "load-key" : "create-key";
+    if (!input.hasSecretStorage) return "create-key";
+    if (input.secretStorageUnlocked) return "load-key";
+    return input.deviceVerified ? "create-key" : "load-key";
 }
 
 /**

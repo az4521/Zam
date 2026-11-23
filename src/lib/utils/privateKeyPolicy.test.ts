@@ -124,10 +124,11 @@ describe("acceptShare", () => {
 });
 
 describe("secretStorageAction", () => {
-    it("adopts whatever secret storage holds", () => {
+    it("adopts the 4S key when it fits the server", () => {
         expect(
             secretStorageAction({
                 remote: "value",
+                remoteFits: true,
                 local: "none",
                 server: "unreadable",
             }),
@@ -135,6 +136,7 @@ describe("secretStorageAction", () => {
         expect(
             secretStorageAction({
                 remote: "value",
+                remoteFits: true,
                 local: "confirmed",
                 server: "readable",
             }),
@@ -145,6 +147,7 @@ describe("secretStorageAction", () => {
         expect(
             secretStorageAction({
                 remote: "absent",
+                remoteFits: false,
                 local: "none",
                 server: "none",
             }),
@@ -152,6 +155,7 @@ describe("secretStorageAction", () => {
         expect(
             secretStorageAction({
                 remote: "absent",
+                remoteFits: false,
                 local: "none",
                 server: "unreadable",
             }),
@@ -162,6 +166,7 @@ describe("secretStorageAction", () => {
         expect(
             secretStorageAction({
                 remote: "absent",
+                remoteFits: false,
                 local: "unconfirmed",
                 server: "none",
             }),
@@ -169,6 +174,7 @@ describe("secretStorageAction", () => {
         expect(
             secretStorageAction({
                 remote: "absent",
+                remoteFits: false,
                 local: "confirmed",
                 server: "readable",
             }),
@@ -179,6 +185,7 @@ describe("secretStorageAction", () => {
         expect(
             secretStorageAction({
                 remote: "unreadable",
+                remoteFits: false,
                 local: "confirmed",
                 server: "unreadable",
             }),
@@ -186,6 +193,7 @@ describe("secretStorageAction", () => {
         expect(
             secretStorageAction({
                 remote: "unreadable",
+                remoteFits: false,
                 local: "none",
                 server: "none",
             }),
@@ -193,6 +201,7 @@ describe("secretStorageAction", () => {
         expect(
             secretStorageAction({
                 remote: "unreadable",
+                remoteFits: false,
                 local: "unconfirmed",
                 server: "none",
             }),
@@ -200,6 +209,7 @@ describe("secretStorageAction", () => {
         expect(
             secretStorageAction({
                 remote: "unreadable",
+                remoteFits: false,
                 local: "confirmed",
                 server: "readable",
             }),
@@ -210,7 +220,35 @@ describe("secretStorageAction", () => {
         expect(
             secretStorageAction({
                 remote: "absent",
+                remoteFits: false,
                 local: "unconfirmed",
+                server: "unreadable",
+            }),
+        ).toBe("leave");
+    });
+
+    it("replaces a stale 4S key with a local key that fits, never the reverse", () => {
+        expect(
+            secretStorageAction({
+                remote: "value",
+                remoteFits: false,
+                local: "confirmed",
+                server: "readable",
+            }),
+        ).toBe("store-local");
+        expect(
+            secretStorageAction({
+                remote: "value",
+                remoteFits: false,
+                local: "none",
+                server: "unreadable",
+            }),
+        ).toBe("leave");
+        expect(
+            secretStorageAction({
+                remote: "value",
+                remoteFits: false,
+                local: "confirmed",
                 server: "unreadable",
             }),
         ).toBe("leave");

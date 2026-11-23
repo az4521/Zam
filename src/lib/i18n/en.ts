@@ -991,9 +991,9 @@ export const en = {
     "privateData.keySaveFailed":
         "Could not save the private data key to your account's secret storage. It will be retried the next time you unlock.",
     "privateData.unlockToEncrypt":
-        "Encrypting your favourite GIFs needs your recovery key on this device, so other devices can read them.",
+        "Encrypting your favourite GIFs needs this device confirmed first, so your other devices can read them. Use your recovery key, or approve this device from another one.",
     "privateData.unlockToDecrypt":
-        "Your favourite GIFs are encrypted. Enter your recovery key to read them on this device.",
+        "Your favourite GIFs are encrypted. To read them on this device, get the key from another of your devices or enter your recovery key.",
     "settingsSearch.encryptFavouriteGifs": "Encrypt favourite GIFs",
     "privateData.toggleLabel": "Encrypt favourite GIFs",
     "privateData.toggleHelp":
@@ -1292,6 +1292,16 @@ export const en = {
         "This account already uses encryption. Confirm this new device so it can read your encrypted messages and history.",
     "encryptionSetup.useAnotherDevice": "Use another device",
     "encryptionSetup.useRecoveryKey": "Use recovery key",
+    "encryptionSetup.verifyInsteadHint":
+        "Approving this device from one where you're already signed in works without the recovery key.",
+    "encryptionSetup.fromOtherDeviceTimeout":
+        "No device answered. Open Zam on a device where this already works, then try again.",
+    "encryptionSetup.fromOtherDeviceNone":
+        "There's no other verified device to ask. Use your recovery key instead.",
+    "encryptionSetup.fromOtherDeviceWaiting":
+        "Keep Zam open on a device where this already works. It sends the key on its own; nothing to approve.",
+    "encryptionSetup.fromOtherDeviceTitle": "Asking your other devices",
+    "encryptionSetup.fromOtherDevice": "Get it from another device",
     "encryptionSetup.anotherDeviceHint":
         "Another device means one where you're already signed in, like the Zam or Element app on your phone. It'll show a request to approve.",
     "encryptionSetup.recoveryKeyHint":

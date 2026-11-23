@@ -913,9 +913,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "privateData.keySaveFailed":
         "Impossible d'enregistrer la clé des données privées dans le stockage secret de votre compte. Une nouvelle tentative aura lieu au prochain déverrouillage.",
     "privateData.unlockToEncrypt":
-        "Pour chiffrer vos GIF favoris, votre clé de récupération est nécessaire sur cet appareil, afin que vos autres appareils puissent les lire.",
+        "Pour chiffrer tes GIF favoris, cet appareil doit d'abord être confirmé, afin que tes autres appareils puissent les lire. Utilise ta clé de récupération ou approuve cet appareil depuis un autre.",
     "privateData.unlockToDecrypt":
-        "Vos GIF favoris sont chiffrés. Saisissez votre clé de récupération pour les lire sur cet appareil.",
+        "Tes GIF favoris sont chiffrés. Pour les lire sur cet appareil, récupère la clé depuis un autre de tes appareils ou saisis ta clé de récupération.",
     "settingsSearch.encryptFavouriteGifs": "Chiffrer les GIF favoris",
     "privateData.toggleLabel": "Chiffrer les GIF favoris",
     "privateData.toggleHelp":
@@ -1187,6 +1187,16 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Ce compte utilise déjà le chiffrement. Confirmez ce nouvel appareil pour qu'il puisse lire vos messages chiffrés et votre historique.",
     "encryptionSetup.useAnotherDevice": "Utiliser un autre appareil",
     "encryptionSetup.useRecoveryKey": "Utiliser la clé de récupération",
+    "encryptionSetup.verifyInsteadHint":
+        "Approuver cet appareil depuis un appareil où tu es déjà connecté fonctionne sans la clé de récupération.",
+    "encryptionSetup.fromOtherDeviceTimeout":
+        "Aucun appareil n'a répondu. Ouvre Zam sur un appareil où cela fonctionne déjà, puis réessaie.",
+    "encryptionSetup.fromOtherDeviceNone":
+        "Aucun autre appareil vérifié à qui demander. Utilise plutôt ta clé de récupération.",
+    "encryptionSetup.fromOtherDeviceWaiting":
+        "Garde Zam ouvert sur un appareil où cela fonctionne déjà. Il envoie la clé tout seul ; rien à approuver.",
+    "encryptionSetup.fromOtherDeviceTitle": "Demande à tes autres appareils",
+    "encryptionSetup.fromOtherDevice": "La récupérer depuis un autre appareil",
     "encryptionSetup.anotherDeviceHint":
         "Un autre appareil est un appareil où vous êtes déjà connecté, comme l'app Zam ou Element sur votre téléphone. Une demande à approuver s'y affichera.",
     "encryptionSetup.recoveryKeyHint":

@@ -913,9 +913,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "privateData.keySaveFailed":
         "No se pudo guardar la clave de datos privados en el almacenamiento secreto de tu cuenta. Se volverá a intentar la próxima vez que desbloquees.",
     "privateData.unlockToEncrypt":
-        "Para cifrar tus GIF favoritos se necesita tu clave de recuperación en este dispositivo, para que tus otros dispositivos puedan leerlos.",
+        "Para cifrar tus GIF favoritos, primero hay que confirmar este dispositivo, para que tus otros dispositivos puedan leerlos. Usa tu clave de recuperación o aprueba este dispositivo desde otro.",
     "privateData.unlockToDecrypt":
-        "Tus GIF favoritos están cifrados. Introduce tu clave de recuperación para leerlos en este dispositivo.",
+        "Tus GIF favoritos están cifrados. Para leerlos en este dispositivo, obtén la clave desde otro de tus dispositivos o introduce tu clave de recuperación.",
     "settingsSearch.encryptFavouriteGifs": "Cifrar GIF favoritos",
     "privateData.toggleLabel": "Cifrar GIF favoritos",
     "privateData.toggleHelp":
@@ -1229,6 +1229,17 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Esta cuenta ya usa cifrado. Confirma este dispositivo nuevo para que pueda leer tus mensajes cifrados y tu historial.",
     "encryptionSetup.useAnotherDevice": "Usar otro dispositivo",
     "encryptionSetup.useRecoveryKey": "Usar clave de recuperación",
+    "encryptionSetup.verifyInsteadHint":
+        "Aprobar este dispositivo desde uno en el que ya tengas la sesión iniciada funciona sin la clave de recuperación.",
+    "encryptionSetup.fromOtherDeviceTimeout":
+        "Ningún dispositivo respondió. Abre Zam en un dispositivo donde esto ya funcione y vuelve a intentarlo.",
+    "encryptionSetup.fromOtherDeviceNone":
+        "No hay otro dispositivo verificado al que preguntar. Usa tu clave de recuperación.",
+    "encryptionSetup.fromOtherDeviceWaiting":
+        "Mantén Zam abierto en un dispositivo donde esto ya funcione. Enviará la clave solo; no hay nada que aprobar.",
+    "encryptionSetup.fromOtherDeviceTitle":
+        "Preguntando a tus otros dispositivos",
+    "encryptionSetup.fromOtherDevice": "Obtenerla desde otro dispositivo",
     "encryptionSetup.anotherDeviceHint":
         "Otro dispositivo es uno en el que ya has iniciado sesión, como la app de Zam o Element en tu móvil. Mostrará una solicitud para aprobar.",
     "encryptionSetup.recoveryKeyHint":

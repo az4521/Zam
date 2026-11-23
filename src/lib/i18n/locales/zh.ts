@@ -986,9 +986,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "privateData.keySaveFailed":
         "无法将私密数据密钥保存到账户的安全存储中，下次解锁时会重试。",
     "privateData.unlockToEncrypt":
-        "加密收藏的 GIF 需要在此设备上输入恢复密钥，以便你的其他设备也能读取。",
+        "要加密你的收藏 GIF，需要先确认此设备，以便你的其他设备能够读取。请使用恢复密钥，或从另一台设备批准此设备。",
     "privateData.unlockToDecrypt":
-        "你收藏的 GIF 已加密。输入恢复密钥即可在此设备上读取。",
+        "你的收藏 GIF 已加密。要在此设备上查看，请从你的另一台设备获取密钥，或输入恢复密钥。",
     "settingsSearch.encryptFavouriteGifs": "加密收藏的 GIF",
     "privateData.toggleLabel": "加密收藏的 GIF",
     "privateData.toggleHelp":
@@ -1271,6 +1271,16 @@ const messages: Partial<Record<MessageKey, string>> = {
         "此账户已在使用加密。请确认这台新设备，使其能够读取你的加密消息和历史记录。",
     "encryptionSetup.useAnotherDevice": "使用另一台设备",
     "encryptionSetup.useRecoveryKey": "使用恢复密钥",
+    "encryptionSetup.verifyInsteadHint":
+        "从已登录的设备批准此设备，无需恢复密钥。",
+    "encryptionSetup.fromOtherDeviceTimeout":
+        "没有设备响应。请在已经可以正常使用的设备上打开 Zam，然后重试。",
+    "encryptionSetup.fromOtherDeviceNone":
+        "没有其他已验证的设备可以询问。请改用恢复密钥。",
+    "encryptionSetup.fromOtherDeviceWaiting":
+        "请在已经可以正常使用的设备上保持 Zam 打开。它会自动发送密钥，无需批准。",
+    "encryptionSetup.fromOtherDeviceTitle": "正在询问你的其他设备",
+    "encryptionSetup.fromOtherDevice": "从另一台设备获取",
     "encryptionSetup.anotherDeviceHint":
         "另一台设备指你已经登录的设备，例如手机上的 Zam 或 Element 应用。它会显示一个待批准的请求。",
     "encryptionSetup.recoveryKeyHint":

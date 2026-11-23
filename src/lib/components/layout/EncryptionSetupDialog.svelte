@@ -28,8 +28,10 @@
         closeEncryptionSetup,
         forgetSignInPassword,
         onboardingState,
+        keepAfterUnlockForVerification,
         peekSignInPassword,
         takeAfterUnlock,
+        unlockFromOtherDevice,
     } from "$lib/stores/onboarding.svelte";
     import {
         planEncryptionSetup,
@@ -112,6 +114,7 @@
         | "show-key"
         | "unlock"
         | "unlock-working"
+        | "device-fetch"
         | "finished";
     // Opened to unlock secret storage for a feature: start at the key
     // prompt, whatever the plan says (a verified session can still have 4S
@@ -148,6 +151,7 @@
     });
 
     function close() {
+        fetchAbort?.abort();
         // Never leave a key or password lingering in a closed dialog.
         answerApproval(false);
         recoveryKey = "";
@@ -319,6 +323,8 @@
         try {
             await verifyWithAnotherDevice();
             // The verification modal takes over; come back once it ends.
+            // Opened for a feature: retry the feature then, not setup.
+            if (unlockOnly) keepAfterUnlockForVerification();
             onboardingState.resumeAfterVerification = true;
             closeEncryptionSetup();
         } catch (e) {
@@ -327,6 +333,54 @@
                     ? e.message
                     : t("verification.couldNotSendVerificationRequest");
         }
+    }
+
+    // ── The feature's key from another session (no recovery key) ─────────
+    // Offered on a verified session, whose other sessions will answer it. An
+    // unverified one is offered device verification instead.
+    const fromOtherDevice = unlockFromOtherDevice();
+    const offerFetch = $derived(
+        unlockOnly &&
+            fromOtherDevice !== null &&
+            (status?.thisDeviceVerified ?? false),
+    );
+    const offerVerify = $derived(
+        unlockOnly &&
+            status !== null &&
+            !status.thisDeviceVerified &&
+            plan.kind === "confirm" &&
+            plan.withDevice,
+    );
+    let fetchAbort: AbortController | null = null;
+
+    async function runDeviceFetch() {
+        if (!fromOtherDevice || flow === "device-fetch") return;
+        error = "";
+        flow = "device-fetch";
+        const abort = new AbortController();
+        fetchAbort = abort;
+        const result = await fromOtherDevice(abort.signal).catch(
+            () => "timeout" as const,
+        );
+        if (abort.signal.aborted) return;
+        fetchAbort = null;
+        if (result === "ready") {
+            const resume = takeAfterUnlock();
+            close();
+            resume?.();
+            return;
+        }
+        error =
+            result === "no-devices"
+                ? t("encryptionSetup.fromOtherDeviceNone")
+                : t("encryptionSetup.fromOtherDeviceTimeout");
+        flow = "unlock";
+    }
+
+    function cancelDeviceFetch() {
+        fetchAbort?.abort();
+        fetchAbort = null;
+        flow = "unlock";
     }
 
     function openSecuritySettings() {
@@ -431,6 +485,8 @@
                         {t("encryptionSetup.doneTitle")}
                     {:else if flow === "unlock" || flow === "unlock-working"}
                         {t("encryptionSetup.enterKeyTitle")}
+                    {:else if flow === "device-fetch"}
+                        {t("encryptionSetup.fromOtherDeviceTitle")}
                     {:else if plan.kind === "confirm"}
                         {t("encryptionSetup.confirmTitle")}
                     {:else if plan.kind === "connect-backup"}
@@ -487,6 +543,18 @@
                 {t("encryptionSetup.doneBody")}
             </p>
             {@render primary(t("common.close"), close)}
+        {:else if flow === "device-fetch"}
+            <p
+                class="text-sm text-zam-textSecondary flex items-center gap-2"
+                role="status"
+            >
+                <span
+                    aria-hidden="true"
+                    class="w-4 h-4 shrink-0 border-2 border-zam-accent border-t-transparent rounded-full animate-spin"
+                ></span>
+                {t("encryptionSetup.fromOtherDeviceWaiting")}
+            </p>
+            {@render secondary(t("common.cancel"), cancelDeviceFetch)}
         {:else if flow === "unlock" || flow === "unlock-working"}
             {#if canUsePassphrase}
                 <div class="flex gap-2 text-xs">
@@ -565,6 +633,20 @@
                     runUnlock,
                     !unlockReady,
                 )}
+                {#if offerFetch}
+                    {@render secondary(
+                        t("encryptionSetup.fromOtherDevice"),
+                        () => void runDeviceFetch(),
+                    )}
+                {:else if offerVerify}
+                    {@render secondary(
+                        t("encryptionSetup.useAnotherDevice"),
+                        () => void useAnotherDevice(),
+                    )}
+                    <p class="text-xs text-zam-textMuted">
+                        {t("encryptionSetup.verifyInsteadHint")}
+                    </p>
+                {/if}
                 {@render secondary(
                     unlockOnly ? t("common.cancel") : t("encryptionSetup.back"),
                     () => {

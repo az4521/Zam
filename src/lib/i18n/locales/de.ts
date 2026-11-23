@@ -919,9 +919,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "privateData.keySaveFailed":
         "Der Schlüssel für private Daten konnte nicht im Secret Storage deines Kontos gespeichert werden. Er wird beim nächsten Entsperren erneut versucht.",
     "privateData.unlockToEncrypt":
-        "Um deine Lieblings-GIFs zu verschlüsseln, wird dein Wiederherstellungsschlüssel auf diesem Gerät benötigt, damit deine anderen Geräte sie lesen können.",
+        "Um deine Lieblings-GIFs zu verschlüsseln, muss dieses Gerät zuerst bestätigt sein, damit deine anderen Geräte sie lesen können. Nutze deinen Wiederherstellungsschlüssel oder bestätige dieses Gerät von einem anderen aus.",
     "privateData.unlockToDecrypt":
-        "Deine Lieblings-GIFs sind verschlüsselt. Gib deinen Wiederherstellungsschlüssel ein, um sie auf diesem Gerät zu lesen.",
+        "Deine Lieblings-GIFs sind verschlüsselt. Um sie auf diesem Gerät zu lesen, hol dir den Schlüssel von einem anderen deiner Geräte oder gib deinen Wiederherstellungsschlüssel ein.",
     "settingsSearch.encryptFavouriteGifs": "Favoriten-GIFs verschlüsseln",
     "privateData.toggleLabel": "Favoriten-GIFs verschlüsseln",
     "privateData.toggleHelp":
@@ -1199,6 +1199,16 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Dieses Konto nutzt bereits Verschlüsselung. Bestätige dieses neue Gerät, damit es deine verschlüsselten Nachrichten und deinen Verlauf lesen kann.",
     "encryptionSetup.useAnotherDevice": "Anderes Gerät verwenden",
     "encryptionSetup.useRecoveryKey": "Wiederherstellungsschlüssel verwenden",
+    "encryptionSetup.verifyInsteadHint":
+        "Dieses Gerät von einem Gerät aus zu bestätigen, auf dem du schon angemeldet bist, geht ohne Wiederherstellungsschlüssel.",
+    "encryptionSetup.fromOtherDeviceTimeout":
+        "Kein Gerät hat geantwortet. Öffne Zam auf einem Gerät, auf dem das schon funktioniert, und versuche es erneut.",
+    "encryptionSetup.fromOtherDeviceNone":
+        "Es gibt kein anderes verifiziertes Gerät, das gefragt werden kann. Nutze stattdessen deinen Wiederherstellungsschlüssel.",
+    "encryptionSetup.fromOtherDeviceWaiting":
+        "Lass Zam auf einem Gerät geöffnet, auf dem das schon funktioniert. Es sendet den Schlüssel von selbst; du musst nichts bestätigen.",
+    "encryptionSetup.fromOtherDeviceTitle": "Frage deine anderen Geräte",
+    "encryptionSetup.fromOtherDevice": "Von einem anderen Gerät holen",
     "encryptionSetup.anotherDeviceHint":
         "Ein anderes Gerät ist eines, auf dem du bereits angemeldet bist, etwa die Zam- oder Element-App auf deinem Handy. Dort erscheint eine Anfrage zum Bestätigen.",
     "encryptionSetup.recoveryKeyHint":

@@ -16,11 +16,11 @@
         isFavouriteGif,
         setFavouriteGifMxc,
         setFavouriteGifTags,
+        unlockFavourites,
         upgradeFavouriteGifs,
         type FavouriteGif,
     } from "$lib/stores/favourites.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
-    import { openSecretStorageUnlock } from "$lib/stores/onboarding.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import { gifSendUrl, type GifKind, type GifResult } from "$lib/utils/klipy";
     import {
@@ -541,8 +541,7 @@
             <span class="flex-1">{t("favourites.lockedHint")}</span>
             <button
                 type="button"
-                onclick={() =>
-                    openSecretStorageUnlock("privateData.unlockToDecrypt")}
+                onclick={() => unlockFavourites()}
                 class="font-semibold text-zam-textPrimary hover:underline whitespace-nowrap"
                 >{t("favourites.unlock")}</button
             >
