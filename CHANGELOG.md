@@ -4,6 +4,29 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.1
+
+✨ **New**
+
+- **Room widgets that use MatrixRTC (such as NeoBoard) now load.** Delayed events, sticky events and call transports are supported; any capability Zam still can't offer is named instead of failing silently.
+
+🐛 **Fixed**
+
+- **The desktop app no longer glitches after coming back from the background**: GIFs in the timeline showed as white boxes and rows overlapped while scrolling.
+- **Old Tenor, Giphy and KLIPY favourites play again** in the GIF picker instead of showing a still frame, and favourites saved on another homeserver or by an older version no longer show as broken images.
+- **Unlocking with your recovery key is quick again**: it no longer waits for every key in the backup to download. The full restore carries on in the background with its progress shown.
+- **No more stray "You have a new message" notifications** after reading a room on another device; notifications for rooms you've read are taken down.
+- **Redacted messages are removed from local storage**: the notification inbox, the room list snapshot and the search index.
+- **The full search index build shows real progress**: which room it is on, and how far back it has reached.
+- **Sliders and checkboxes follow your accent colour.**
+- **Security**: messages crafted to freeze the app or exhaust its memory are handled safely, and push, call server, link and account data checks are stricter. On Android, other apps can no longer trigger joins, replies or calls through Zam.
+
+⚡ **Faster and lighter**
+
+- **Voice filters are unloaded** 30 seconds after the last call or mic test, freeing their memory.
+- **The GIF picker plays at most 12 GIFs at once** and keeps memory bounded while you scroll through results.
+- **Less memory for long videos, file transfers, shared files on Android and typing in the composer.**
+
 ## v1.67.0
 
 ✨ **New**
