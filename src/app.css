@@ -302,6 +302,18 @@ body {
     );
 }
 
+/* Native form controls follow the user's accent by default, so a slider or
+   checkbox that forgets `accent-zam-accent` is not left in the browser's blue.
+   :where() keeps it at zero specificity, so an `accent-*` utility still wins. */
+:where(
+    input[type="range"],
+    input[type="checkbox"],
+    input[type="radio"],
+    progress
+) {
+    accent-color: rgb(var(--zam-accent-rgb));
+}
+
 #app {
     height: 100%;
 }
