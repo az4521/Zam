@@ -1715,6 +1715,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Serviço de atualização do Discord",
     "messagesMediaSettings.discordRefreshServiceDescription":
         "Os links para GIFs enviados ao Discord expiram. Para importar também esses, informe o endereço de um serviço de atualização que você mesmo executa (services/discord-refresh-proxy no código-fonte do Zam). Os GIFs são então enviados ao seu homeserver.",
+    "messagesMediaSettings.discordRefreshServiceDescriptionBuiltIn":
+        "Os links para GIFs enviados ao Discord expiram. O Zam os atualiza por meio de um serviço de atualização e envia os GIFs ao seu homeserver. Deixe em branco para usar o serviço integrado ou informe o endereço de um que você mesmo executa (services/discord-refresh-proxy no código-fonte do Zam).",
+    "messagesMediaSettings.discordRefreshServiceUseOwn":
+        "Usar meu próprio serviço de atualização",
     "messagesMediaSettings.discordRefreshServiceInvalid":
         "Informe um endereço https:// (http:// só funciona neste computador).",
     "messagesMediaSettings.discordRefreshUnreachable":

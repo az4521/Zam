@@ -1618,6 +1618,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messagesMediaSettings.discordRefreshServiceTitle": "Discord 刷新服务",
     "messagesMediaSettings.discordRefreshServiceDescription":
         "上传到 Discord 的 GIF 链接会过期。若要一并导入这些 GIF,请输入你自己运行的刷新服务地址(Zam 源代码中的 services/discord-refresh-proxy)。随后这些 GIF 会上传到你的家庭服务器。",
+    "messagesMediaSettings.discordRefreshServiceDescriptionBuiltIn":
+        "上传到 Discord 的 GIF 链接会过期。Zam 会通过刷新服务刷新这些链接,并将 GIF 上传到你的家庭服务器。留空即使用内置服务,或输入你自己运行的刷新服务地址(Zam 源代码中的 services/discord-refresh-proxy)。",
+    "messagesMediaSettings.discordRefreshServiceUseOwn": "使用我自己的刷新服务",
     "messagesMediaSettings.discordRefreshServiceInvalid":
         "请输入 https:// 地址(http:// 仅适用于此电脑)。",
     "messagesMediaSettings.discordRefreshUnreachable":

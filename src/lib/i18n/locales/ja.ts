@@ -1477,6 +1477,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messagesMediaSettings.discordRefreshServiceTitle": "Discord更新サービス",
     "messagesMediaSettings.discordRefreshServiceDescription":
         "DiscordにアップロードされたGIFへのリンクは期限切れになります。これらも取り込むには、ご自身で運用している更新サービスのアドレスを入力してください(Zamのソースコードにある services/discord-refresh-proxy)。GIFはお使いのホームサーバーにアップロードされます。",
+    "messagesMediaSettings.discordRefreshServiceDescriptionBuiltIn":
+        "DiscordにアップロードされたGIFへのリンクは期限切れになります。Zamは更新サービスを通じてリンクを更新し、GIFをお使いのホームサーバーにアップロードします。組み込みのサービスを使うには空欄のままにし、ご自身で運用しているサービスを使うにはそのアドレスを入力してください(Zamのソースコードにある services/discord-refresh-proxy)。",
+    "messagesMediaSettings.discordRefreshServiceUseOwn":
+        "自分の更新サービスを使う",
     "messagesMediaSettings.discordRefreshServiceInvalid":
         "https:// のアドレスを入力してください(http:// はこのコンピュータでのみ使用できます)。",
     "messagesMediaSettings.discordRefreshUnreachable":

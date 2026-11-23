@@ -1594,6 +1594,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Discord-Aktualisierungsdienst",
     "messagesMediaSettings.discordRefreshServiceDescription":
         "Links zu in Discord hochgeladenen GIFs laufen ab. Um auch diese zu importieren, eine https://-Adresse eines Aktualisierungsdienstes eingeben, den du selbst betreibst (services/discord-refresh-proxy im Quellcode von Zam). Die GIFs werden dann auf deinen Homeserver hochgeladen.",
+    "messagesMediaSettings.discordRefreshServiceDescriptionBuiltIn":
+        "Links zu in Discord hochgeladenen GIFs laufen ab. Zam aktualisiert sie über einen Aktualisierungsdienst und lädt die GIFs auf deinen Homeserver hoch. Leer lassen, um den eingebauten Dienst zu nutzen, oder die Adresse eines Dienstes eingeben, den du selbst betreibst (services/discord-refresh-proxy im Quellcode von Zam).",
+    "messagesMediaSettings.discordRefreshServiceUseOwn":
+        "Eigenen Aktualisierungsdienst verwenden",
     "messagesMediaSettings.discordRefreshServiceInvalid":
         "https://-Adresse eingeben (http:// funktioniert nur für diesen Computer).",
     "messagesMediaSettings.discordRefreshUnreachable":

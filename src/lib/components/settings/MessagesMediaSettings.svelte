@@ -61,6 +61,8 @@
     import {
         attachmentFavourite,
         attachmentMediaType,
+        builtInRefreshServiceUrl,
+        effectiveRefreshServiceUrl,
         normaliseRefreshServiceUrl,
         readUploadedAttachments,
         writeUploadedAttachments,
@@ -88,9 +90,14 @@
     const discordImportAvailable =
         typeof window !== "undefined" && !!window.desktop?.discordFavourites;
     let discordBusy = $state(false);
-    // The user's own refresh service for GIFs uploaded to Discord. Saved only
-    // once it is a usable address (or cleared).
+    // The refresh service for GIFs uploaded to Discord: the built-in one, or
+    // the user's own. Saved only once it is a usable address (or cleared;
+    // empty means the built-in one).
+    const builtInRefreshService = builtInRefreshServiceUrl();
     let refreshServiceDraft = $state(settingsState.discordRefreshServiceUrl);
+    let refreshServiceOpen = $state(
+        settingsState.discordRefreshServiceUrl.trim() !== "",
+    );
     const refreshServiceInvalid = $derived(
         refreshServiceDraft.trim() !== "" &&
             normaliseRefreshServiceUrl(refreshServiceDraft) === null,
@@ -163,12 +170,14 @@
             const allowEmbeds = allowsThirdPartyEmbed(
                 settingsState.linkPreviewMedia,
             );
-            // GIFs uploaded to Discord: refresh their links through the user's
-            // service, then copy each file to the homeserver. Without a
-            // service they are skipped, as before.
+            // GIFs uploaded to Discord: refresh their links through the
+            // refresh service (the user's own, else the built-in one), then
+            // copy each file to the homeserver. Without a service they are
+            // skipped.
             const userId = getOwnUserId();
-            const serviceUrl = normaliseRefreshServiceUrl(
+            const serviceUrl = effectiveRefreshServiceUrl(
                 settingsState.discordRefreshServiceUrl,
+                builtInRefreshService,
             );
             const canCopy =
                 !!serviceUrl && !!bridge.refresh && !!bridge.download;
@@ -767,7 +776,7 @@
                         : t("messagesMediaSettings.discordImportButton")}
                 </button>
             </div>
-            <div class="py-2">
+            {#snippet refreshServiceField()}
                 <label
                     class="text-sm text-zam-textPrimary"
                     for="discord-refresh-service"
@@ -776,9 +785,13 @@
                     )}</label
                 >
                 <p class="text-xs text-zam-textMuted">
-                    {t(
-                        "messagesMediaSettings.discordRefreshServiceDescription",
-                    )}
+                    {builtInRefreshService
+                        ? t(
+                              "messagesMediaSettings.discordRefreshServiceDescriptionBuiltIn",
+                          )
+                        : t(
+                              "messagesMediaSettings.discordRefreshServiceDescription",
+                          )}
                 </p>
                 <input
                     id="discord-refresh-service"
@@ -789,7 +802,8 @@
                     spellcheck="false"
                     autocomplete="off"
                     autocapitalize="off"
-                    placeholder="https://refresh.example.com"
+                    placeholder={builtInRefreshService ??
+                        "https://refresh.example.com"}
                     aria-invalid={refreshServiceInvalid}
                     class="mt-2 w-full px-2.5 py-1.5 rounded bg-zam-backgroundTertiary text-sm text-zam-textPrimary border {refreshServiceInvalid
                         ? 'border-zam-danger'
@@ -802,7 +816,32 @@
                         )}
                     </p>
                 {/if}
-            </div>
+            {/snippet}
+            {#if builtInRefreshService}
+                <!-- A built-in service is compiled in: the own-service field
+                     is tucked away, open only when one is already entered. -->
+                <details
+                    class="py-2"
+                    open={refreshServiceOpen}
+                    ontoggle={(event) => {
+                        refreshServiceOpen = event.currentTarget.open;
+                    }}
+                >
+                    <summary
+                        class="cursor-pointer text-xs text-zam-textMuted hover:text-zam-textPrimary"
+                        >{t(
+                            "messagesMediaSettings.discordRefreshServiceUseOwn",
+                        )}</summary
+                    >
+                    <div class="pt-2">
+                        {@render refreshServiceField()}
+                    </div>
+                </details>
+            {:else}
+                <div class="py-2">
+                    {@render refreshServiceField()}
+                </div>
+            {/if}
         {/if}
     </section>
 

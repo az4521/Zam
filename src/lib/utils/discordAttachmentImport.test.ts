@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
     attachmentFavourite,
     attachmentMediaType,
+    builtInRefreshServiceUrl,
+    DEFAULT_DISCORD_REFRESH_URL,
+    effectiveRefreshServiceUrl,
     normaliseRefreshServiceUrl,
     parseUploadedAttachments,
     serialiseUploadedAttachments,
@@ -118,5 +121,56 @@ describe("uploaded attachment record", () => {
         expect(parseUploadedAttachments(null).size).toBe(0);
         expect(parseUploadedAttachments("{").size).toBe(0);
         expect(parseUploadedAttachments("[1]").size).toBe(0);
+    });
+});
+
+describe("builtInRefreshServiceUrl", () => {
+    it("uses the default when unset or empty", () => {
+        expect(builtInRefreshServiceUrl({})).toBe(DEFAULT_DISCORD_REFRESH_URL);
+        expect(
+            builtInRefreshServiceUrl({ VITE_DISCORD_REFRESH_URL: "  " }),
+        ).toBe(DEFAULT_DISCORD_REFRESH_URL);
+    });
+    it("takes a build-time override and normalises it", () => {
+        expect(
+            builtInRefreshServiceUrl({
+                VITE_DISCORD_REFRESH_URL: "https://h.example/r//",
+            }),
+        ).toBe("https://h.example/r");
+    });
+    it("is turned off by 'off' and by an unusable address", () => {
+        expect(
+            builtInRefreshServiceUrl({ VITE_DISCORD_REFRESH_URL: "OFF" }),
+        ).toBe(null);
+        expect(
+            builtInRefreshServiceUrl({
+                VITE_DISCORD_REFRESH_URL: "http://h.example",
+            }),
+        ).toBe(null);
+    });
+});
+
+describe("effectiveRefreshServiceUrl", () => {
+    it("prefers the user's own address", () => {
+        expect(
+            effectiveRefreshServiceUrl(
+                "https://mine.example/",
+                "https://built.example",
+            ),
+        ).toBe("https://mine.example");
+    });
+    it("falls back to the built-in service when empty", () => {
+        expect(effectiveRefreshServiceUrl(" ", "https://built.example")).toBe(
+            "https://built.example",
+        );
+        expect(effectiveRefreshServiceUrl("", null)).toBe(null);
+    });
+    it("does not fall back when the user's address is unusable", () => {
+        expect(
+            effectiveRefreshServiceUrl(
+                "http://mine.example",
+                "https://built.example",
+            ),
+        ).toBe(null);
     });
 });

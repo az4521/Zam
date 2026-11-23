@@ -1751,6 +1751,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Служба оновлення Discord",
     "messagesMediaSettings.discordRefreshServiceDescription":
         "Посилання на GIF, завантажені в Discord, з часом застарівають. Щоб імпортувати й їх, введіть адресу служби оновлення, яку ви запускаєте самі (services/discord-refresh-proxy у вихідному коді Zam). Після цього GIF завантажуються на ваш домашній сервер.",
+    "messagesMediaSettings.discordRefreshServiceDescriptionBuiltIn":
+        "Посилання на GIF, завантажені в Discord, з часом застарівають. Zam оновлює їх через службу оновлення і завантажує GIF на ваш домашній сервер. Залиште поле порожнім, щоб використовувати вбудовану службу, або введіть адресу служби, яку ви запускаєте самі (services/discord-refresh-proxy у вихідному коді Zam).",
+    "messagesMediaSettings.discordRefreshServiceUseOwn":
+        "Використовувати власну службу оновлення",
     "messagesMediaSettings.discordRefreshServiceInvalid":
         "Введіть адресу https:// (http:// працює лише на цьому комп'ютері).",
     "messagesMediaSettings.discordRefreshUnreachable":

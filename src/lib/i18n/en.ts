@@ -1664,6 +1664,10 @@ export const en = {
         "Discord refresh service",
     "messagesMediaSettings.discordRefreshServiceDescription":
         "Links to GIFs uploaded to Discord expire. To import those too, enter the address of a refresh service you run yourself (services/discord-refresh-proxy in Zam's source). The GIFs are then uploaded to your homeserver.",
+    "messagesMediaSettings.discordRefreshServiceDescriptionBuiltIn":
+        "Links to GIFs uploaded to Discord expire. Zam refreshes them through a refresh service and uploads the GIFs to your homeserver. Leave this empty to use the built-in service, or enter the address of one you run yourself (services/discord-refresh-proxy in Zam's source).",
+    "messagesMediaSettings.discordRefreshServiceUseOwn":
+        "Use my own refresh service",
     "messagesMediaSettings.discordRefreshServiceInvalid":
         "Enter an https:// address (http:// only works for this computer).",
     "messagesMediaSettings.discordRefreshUnreachable":

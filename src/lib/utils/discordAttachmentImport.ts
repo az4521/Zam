@@ -31,6 +31,36 @@ export function normaliseRefreshServiceUrl(raw: string): string | null {
     return `${u.origin}${u.pathname.replace(/\/+$/, "")}`;
 }
 
+export const DEFAULT_DISCORD_REFRESH_URL =
+    "https://zam.crafty.moe/discord-refresh";
+
+type EnvLike = Record<string, string | undefined>;
+
+/**
+ * The built-in refresh service, from VITE_DISCORD_REFRESH_URL at build time.
+ * Unset or empty uses the default (CI expands a missing secret to "", which
+ * must not turn it off); "off" means no built-in service.
+ */
+export function builtInRefreshServiceUrl(
+    env: EnvLike = import.meta.env as EnvLike,
+): string | null {
+    const raw = (env.VITE_DISCORD_REFRESH_URL ?? "").trim();
+    if (raw.toLowerCase() === "off") return null;
+    return normaliseRefreshServiceUrl(raw || DEFAULT_DISCORD_REFRESH_URL);
+}
+
+/**
+ * The service the import uses: the user's own address when they entered one,
+ * otherwise the built-in one. Null when neither is usable.
+ */
+export function effectiveRefreshServiceUrl(
+    userValue: string,
+    builtIn: string | null = builtInRefreshServiceUrl(),
+): string | null {
+    if (userValue.trim()) return normaliseRefreshServiceUrl(userValue);
+    return builtIn;
+}
+
 const EXT_TYPES: Record<string, string> = {
     gif: "image/gif",
     webp: "image/webp",

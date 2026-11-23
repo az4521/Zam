@@ -144,6 +144,11 @@ refresh.example.com {
 
 ## Connecting the Zam app
 
-In Zam, open **Settings > Messages & Media > GIFs** and paste the base URL of your service into
-the **Discord refresh service** field, for example `https://refresh.example.com`. Do not add a
-path.
+Zam has a built-in service address, `https://zam.crafty.moe/discord-refresh`, used whenever the
+user has not entered their own. Override it at build time with `VITE_DISCORD_REFRESH_URL` (an
+empty value keeps the default; `off` removes the built-in service). The key sent as `k` is
+`VITE_TG_PROXY_KEY`.
+
+To use a different service, open **Settings > Messages & Media > GIFs**, expand **Use my own
+refresh service** and paste the base URL of your service, for example
+`https://refresh.example.com`. Do not add a `/refresh` path.

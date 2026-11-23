@@ -1578,6 +1578,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Service de rafraîchissement Discord",
     "messagesMediaSettings.discordRefreshServiceDescription":
         "Les liens vers les GIF envoyés sur Discord expirent. Pour importer aussi ces GIF, saisissez l'adresse d'un service de rafraîchissement que vous exploitez vous-même (services/discord-refresh-proxy dans le code source de Zam). Les GIF sont ensuite envoyés sur votre serveur d'accueil.",
+    "messagesMediaSettings.discordRefreshServiceDescriptionBuiltIn":
+        "Les liens vers les GIF envoyés sur Discord expirent. Zam les rafraîchit via un service de rafraîchissement et envoie les GIF sur votre serveur d'accueil. Laissez vide pour utiliser le service intégré, ou saisissez l'adresse d'un service que vous exploitez vous-même (services/discord-refresh-proxy dans le code source de Zam).",
+    "messagesMediaSettings.discordRefreshServiceUseOwn":
+        "Utiliser mon propre service de rafraîchissement",
     "messagesMediaSettings.discordRefreshServiceInvalid":
         "Saisissez une adresse https:// (http:// ne fonctionne que pour cet ordinateur).",
     "messagesMediaSettings.discordRefreshUnreachable":
