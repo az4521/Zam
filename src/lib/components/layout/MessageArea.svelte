@@ -166,6 +166,10 @@
         MoreHorizontal,
         X,
         ChevronRight,
+        Search,
+        MessageSquareText,
+        Pin,
+        Bell,
     } from "lucide-svelte";
     import { bridgedThreadParent } from "$lib/stores/bridgedThreads.svelte";
     import { bridgedChannel } from "$lib/stores/bridgedChannels.svelte";
@@ -3144,11 +3148,7 @@
                         : 'text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover'}"
                     title={t("messageArea.searchMessages")}
                 >
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
-                        ><path
-                            d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
-                        /></svg
-                    >
+                    <Search size={20} />
                 </button>
             {/if}
             <!-- Threads, pinned, notifications and the member list are desktop
@@ -3164,11 +3164,7 @@
                     title={t("messageArea.threads")}
                     aria-label={t("messageArea.toggleThreadsList")}
                 >
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
-                        ><path
-                            d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2zm2 5h12V7H6v2zm0 4h9v-2H6v2z"
-                        /></svg
-                    >
+                    <MessageSquareText size={20} />
                     {#if threadRollup.mentions > 0}
                         <span
                             class="absolute -top-1 -end-1 flex-shrink-0 bg-zam-danger text-white text-[10px] leading-none font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center ring-2 ring-zam-backgroundSecondary"
@@ -3196,11 +3192,7 @@
                           })
                         : t("messageArea.pinnedMessages")}
                 >
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
-                        ><path
-                            d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"
-                        /></svg
-                    >
+                    <Pin size={20} />
                 </button>
                 <!-- Notifications inbox button -->
                 <button
@@ -3210,11 +3202,7 @@
                         : 'text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover'}"
                     title={t("messageArea.notificationsInbox")}
                 >
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"
-                        ><path
-                            d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"
-                        /></svg
-                    >
+                    <Bell size={20} />
                 </button>
                 <!-- Media and files browser -->
                 <button

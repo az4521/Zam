@@ -7,6 +7,14 @@
         type RoomHeaderMenuKey,
         type PluginHeaderMenuRow,
     } from "$lib/utils/roomHeaderMenu";
+    import {
+        MessageSquareText,
+        Pin,
+        Bell,
+        Image,
+        Users,
+        AppWindow,
+    } from "lucide-svelte";
 
     interface Props {
         /** `interfaceState.sidebar` — which panel is currently open. */
@@ -39,22 +47,14 @@
         }),
     );
 
-    // The same glyphs the desktop header buttons use, so the two layouts read
-    // as the same controls. Icon *sourcing* is chore/icon-normalization's job.
-    const ICONS: Record<RoomHeaderMenuKey, string> = {
-        threads:
-            "M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2zm2 5h12V7H6v2zm0 4h9v-2H6v2z",
-        pinned: "M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z",
-        notifications:
-            "M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z",
-        // Mirrors lucide's `Image` (the desktop media button) as a solid glyph,
-        // so this sheet stays one visual family rather than mixing artwork.
-        media: "M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z",
-        // Mirrors lucide's `Users` (the desktop member-list button) as a solid
-        // glyph. Two people, not one-person-plus: this row *opens* the member
-        // list, it does not invite anyone.
-        members:
-            "M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z",
+    // The same lucide outline icons the desktop header buttons use, so the two
+    // layouts read as the same controls.
+    const ICONS: Record<RoomHeaderMenuKey, typeof Pin> = {
+        threads: MessageSquareText,
+        pinned: Pin,
+        notifications: Bell,
+        media: Image,
+        members: Users,
     };
 
     // What each row's badge is counting, for screen readers. The visible pill
@@ -118,6 +118,7 @@
             class="pb-1"
         >
             {#each rows as row (row.key)}
+                {@const Icon = ICONS[row.key]}
                 <!--
                   menuitemcheckbox, not menuitem: each row toggles a panel, and
                   `aria-checked` is what carries "this one is open" to anything
@@ -131,13 +132,12 @@
                         ? 'text-zam-accent'
                         : 'text-zam-textPrimary'}"
                 >
-                    <svg
-                        class="w-5 h-5 flex-shrink-0 {row.active
+                    <Icon
+                        size={20}
+                        class="flex-shrink-0 {row.active
                             ? 'text-zam-accent'
                             : 'text-zam-textMuted'}"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"><path d={ICONS[row.key]} /></svg
-                    >
+                    />
                     <span class="flex-1 truncate">{row.label}</span>
                     <!--
                       The pill and the dot are both hidden from assistive tech
@@ -177,16 +177,12 @@
                         ? 'text-zam-accent'
                         : 'text-zam-textPrimary'}"
                 >
-                    <svg
-                        class="w-5 h-5 flex-shrink-0 {row.active
+                    <AppWindow
+                        size={20}
+                        class="flex-shrink-0 {row.active
                             ? 'text-zam-accent'
                             : 'text-zam-textMuted'}"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                        ><path
-                            d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 4v10h16V8H4z"
-                        /></svg
-                    >
+                    />
                     <span class="flex-1 truncate">{row.label}</span>
                 </button>
             {/each}
