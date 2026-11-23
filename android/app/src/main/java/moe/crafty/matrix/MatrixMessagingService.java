@@ -118,6 +118,8 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     // Keys on each MessagingStyle line, for the event-id dedupe in showNotification.
     private static final String LINE_EVENT_ID = "zam_event_id";
     private static final String LINE_PLACEHOLDER = "zam_placeholder";
+    /** Notification extra: the room a conversation notification is for. */
+    private static final String NOTIF_ROOM_ID = "zam_room_id";
     // Push-rule id prefix for a room's "mentions only" override (the room id
     // is appended). Mirrors src/lib/utils/encryptedMentions.ts and
     // static/sw.js (region mirrored:mentions); keep the three in step.
@@ -209,6 +211,21 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     return;
                 }
             } catch (NumberFormatException ignored) {}
+        }
+
+        // A push naming no room is a badge refresh, never a message. tuwunel
+        // sends one after every read receipt that moves (send_badge_notice),
+        // carrying only the account-wide unread count. That total is rarely 0,
+        // so the branch above almost never fires for it; it used to fall
+        // through here and post the generic "You have a new message" for a
+        // room the user had just READ, while the read room's own notification
+        // stayed up. Instead, ask the server which of the rooms still showing a
+        // notification are read now, and take those down.
+        if (roomId == null) {
+            int removed = cancelReadRooms(ctx, accountId);
+            PushLog.log(ctx, tag + "badge push (unread " + unreadStr + "), "
+                + removed + " read room notification(s) removed");
+            return;
         }
 
         // The account this push is for, resolved ONCE: every request, the
@@ -551,6 +568,14 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         } else {
             if (sessionIsActive && MainActivity.isInForeground()) {
                 PushLog.log(ctx, tag + "skipped: app came to the front during enrichment");
+                return;
+            }
+            // Read once more: enrichment (headless decryption above all) can
+            // take seconds, and a message pushed while the user is reading on
+            // another device is usually read by then. Only a definite 0 skips.
+            if (session != null && Boolean.TRUE.equals(
+                    isRoomReadElsewhere(session.homeserverUrl, session.accessToken, roomId))) {
+                PushLog.log(ctx, tag + "skipped: room read during enrichment");
                 return;
             }
             showNotification(ctx, title, text, roomId, eventId, largeIcon, postedBy,
@@ -954,17 +979,32 @@ public class MatrixMessagingService extends FirebaseMessagingService {
      * unread ring is never 0. A ring the user already saw elsewhere is dropped.
      */
     private static Boolean isRoomReadElsewhere(String hs, String token, String roomId) {
+        String json = fetchRoomCounts(hs, token, java.util.Collections.singleton(roomId));
+        if (json == null) return null;
+        Integer unread = parseRoomUnread(json, roomId);
+        return unread != null && unread == 0;
+    }
+
+    /**
+     * The raw simplified sliding sync response for these rooms (one request,
+     * each room a subscription with a one-event timeline and no state), for
+     * parseRoomUnread. No `pos`, so the server starts the connection afresh.
+     * Null when the request fails.
+     */
+    private static String fetchRoomCounts(String hs, String token,
+            java.util.Collection<String> roomIds) {
         try {
+            JSONObject subscriptions = new JSONObject();
+            for (String roomId : roomIds) {
+                subscriptions.put(roomId, new JSONObject()
+                    .put("timeline_limit", 1)
+                    .put("required_state", new JSONArray()));
+            }
             JSONObject request = new JSONObject()
                 .put("conn_id", PUSH_CHECK_CONN_ID)
-                .put("room_subscriptions", new JSONObject().put(roomId, new JSONObject()
-                    .put("timeline_limit", 1)
-                    .put("required_state", new JSONArray())));
-            String json = httpPostJson(hs + "/_matrix/client/unstable/org.matrix.simplified_msc3575"
+                .put("room_subscriptions", subscriptions);
+            return httpPostJson(hs + "/_matrix/client/unstable/org.matrix.simplified_msc3575"
                 + "/sync?timeout=0", token, request.toString());
-            if (json == null) return null;
-            Integer unread = parseRoomUnread(json, roomId);
-            return unread != null && unread == 0;
         } catch (Exception e) {
             return null;
         }
@@ -1638,36 +1678,102 @@ public class MatrixMessagingService extends FirebaseMessagingService {
      * Returns the count cancelled; 0 when the account is not on this device.
      */
     private static int cancelReadAccountMessages(Context ctx, String accountId) {
-        SessionRecord session = null;
-        try {
-            SharedPreferences sessionPrefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-            session = resolveSession(sessionPrefs, readSessionRecord(sessionPrefs), accountId);
-        } catch (Throwable ignored) {}
-        if (session == null || session.userId == null || session.userId.isEmpty()) return 0;
+        SessionRecord session = sessionForAccount(ctx, accountId);
+        if (session == null) return 0;
         int cancelled = 0;
         try {
             NotificationManager nm = ctx.getSystemService(NotificationManager.class);
             if (nm == null) return 0;
             NotificationManagerCompat compat = NotificationManagerCompat.from(ctx);
             for (StatusBarNotification sbn : nm.getActiveNotifications()) {
-                if (sbn.getTag() != null) continue;
-                android.app.Notification n = sbn.getNotification();
-                if (!NotificationCompat.CATEGORY_MESSAGE.equals(n.category)) continue;
-                // Channels exist from API 26; minSdk is 24, where no channel check applies.
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    String channel = n.getChannelId();
-                    if (channel == null || !(channel.equals(CHANNEL_ID)
-                            || channel.startsWith(CHANNEL_ID + ":"))) continue;
-                }
-                NotificationCompat.MessagingStyle style =
-                    NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(n);
-                if (style == null || style.getUser() == null) continue;
-                if (!session.userId.equals(style.getUser().getKey())) continue;
+                if (!isAccountMessage(sbn, session.userId)) continue;
                 compat.cancel(sbn.getId());
                 cancelled++;
             }
         } catch (Throwable ignored) {}
         return cancelled;
+    }
+
+    /**
+     * After a badge push with a non-zero count: cancels this account's
+     * conversation notifications whose room the server now reports read (0
+     * unread). One request covers every room still showing. A room whose
+     * count is missing or non-zero, or a failed request, leaves its
+     * notification up. Same notification filter as cancelReadAccountMessages.
+     * Returns the count cancelled.
+     */
+    private static int cancelReadRooms(Context ctx, String accountId) {
+        SessionRecord session = sessionForAccount(ctx, accountId);
+        if (session == null) return 0;
+        int cancelled = 0;
+        try {
+            NotificationManager nm = ctx.getSystemService(NotificationManager.class);
+            if (nm == null) return 0;
+            java.util.Map<String, Integer> idByRoom = new java.util.HashMap<>();
+            for (StatusBarNotification sbn : nm.getActiveNotifications()) {
+                if (!isAccountMessage(sbn, session.userId)) continue;
+                String room = notificationRoomId(sbn.getNotification());
+                if (room != null && room.hashCode() == sbn.getId()) idByRoom.put(room, sbn.getId());
+            }
+            if (idByRoom.isEmpty()) return 0;
+            String json = fetchRoomCounts(session.homeserverUrl, session.accessToken,
+                idByRoom.keySet());
+            if (json == null) return 0;
+            NotificationManagerCompat compat = NotificationManagerCompat.from(ctx);
+            for (java.util.Map.Entry<String, Integer> e : idByRoom.entrySet()) {
+                Integer unread = parseRoomUnread(json, e.getKey());
+                if (unread == null || unread != 0) continue;
+                compat.cancel(e.getValue());
+                cancelled++;
+            }
+        } catch (Throwable ignored) {}
+        return cancelled;
+    }
+
+    /** The session of the account a push names, or null when it has none here. */
+    private static SessionRecord sessionForAccount(Context ctx, String accountId) {
+        SessionRecord session = null;
+        try {
+            SharedPreferences sessionPrefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            session = resolveSession(sessionPrefs, readSessionRecord(sessionPrefs), accountId);
+        } catch (Throwable ignored) {}
+        if (session == null || session.userId == null || session.userId.isEmpty()) return null;
+        return session;
+    }
+
+    /**
+     * Whether a posted notification is one of this service's conversation
+     * notifications for this account: message category, a message channel,
+     * and the "You" Person keyed to the account (showNotification() sets it).
+     * Calls, invites and foreground-service notifications never match.
+     */
+    private static boolean isAccountMessage(StatusBarNotification sbn, String userId) {
+        if (sbn.getTag() != null) return false;
+        android.app.Notification n = sbn.getNotification();
+        if (!NotificationCompat.CATEGORY_MESSAGE.equals(n.category)) return false;
+        // Channels exist from API 26; minSdk is 24, where no channel check applies.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            String channel = n.getChannelId();
+            if (channel == null || !(channel.equals(CHANNEL_ID)
+                    || channel.startsWith(CHANNEL_ID + ":"))) return false;
+        }
+        NotificationCompat.MessagingStyle style =
+            NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(n);
+        return style != null && style.getUser() != null
+            && userId.equals(style.getUser().getKey());
+    }
+
+    /**
+     * The room a conversation notification is for: the NOTIF_ROOM_ID extra,
+     * else (notifications posted before that stamp) its shortcut id, which
+     * publishShortcut() sets to the room id. Null when neither is there.
+     */
+    private static String notificationRoomId(android.app.Notification n) {
+        String room = n.extras != null ? n.extras.getString(NOTIF_ROOM_ID) : null;
+        if (room == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            room = n.getShortcutId();
+        }
+        return room != null && room.startsWith("!") ? room : null;
     }
 
     /**
@@ -1918,6 +2024,11 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 }
                 builder.setStyle(style);
                 builder.setCategory(NotificationCompat.CATEGORY_MESSAGE);
+                // The room, readable from the posted notification, so a badge
+                // push can ask which rooms are read now (cancelReadRooms).
+                Bundle stamp = new Bundle();
+                stamp.putString(NOTIF_ROOM_ID, roomId);
+                builder.addExtras(stamp);
                 // Lets the system treat it as a conversation: a per-person
                 // entry in the share sheet and in notification settings.
                 builder.setShortcutId(publishShortcut(ctx, roomId, title,

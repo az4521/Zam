@@ -1586,6 +1586,99 @@ async function mxPost(path, body, session) {
 	}
 }
 
+// conn_id of the read check. The page's SDK sends none, so this one-shot
+// connection cannot disturb the app's own sliding sync on this device.
+const PUSH_CHECK_CONN_ID = "zam-push-check";
+
+/**
+ * A room's unread count from a simplified sliding sync response: the larger of
+ * notification_count and highlight_count. Null when the room is absent or
+ * either field is not a number. Hand-mirrors parseRoomUnread() in
+ * MatrixMessagingService.java.
+ */
+function roomUnreadFromSync(json, roomId) {
+	const room = json && json.rooms && json.rooms[roomId];
+	if (!room || typeof room !== "object") return null;
+	const n = room.notification_count;
+	const h = room.highlight_count;
+	if (typeof n !== "number" || typeof h !== "number") return null;
+	return Math.max(n, h);
+}
+
+/**
+ * The server's unread count for each room, in one simplified sliding sync
+ * request (MSC4186; timeout=0, no `pos`, each room a subscription with a
+ * one-event timeline and no state): { roomId: count | null }. Null when the
+ * request fails. Callers act only on a definite 0.
+ */
+async function fetchRoomUnreadCounts(roomIds, session) {
+	await authReady;
+	if (!session || !roomIds.length) return null;
+	const base = session.homeserverUrl.endsWith("/")
+		? session.homeserverUrl.slice(0, -1)
+		: session.homeserverUrl;
+	const subscriptions = {};
+	for (const roomId of roomIds) {
+		subscriptions[roomId] = { timeline_limit: 1, required_state: [] };
+	}
+	try {
+		const res = await fetch(
+			base +
+				"/_matrix/client/unstable/org.matrix.simplified_msc3575/sync?timeout=0",
+			{
+				method: "POST",
+				headers: {
+					Authorization: `Bearer ${session.accessToken}`,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					conn_id: PUSH_CHECK_CONN_ID,
+					room_subscriptions: subscriptions,
+				}),
+			},
+		);
+		if (!res.ok) return null;
+		const json = await res.json();
+		const counts = {};
+		for (const roomId of roomIds) {
+			counts[roomId] = roomUnreadFromSync(json, roomId);
+		}
+		return counts;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * After a badge push (no room): close this account's message notifications
+ * whose room the server now reports read. Calls and invites are left alone.
+ */
+async function closeReadRoomNotifications(session) {
+	if (!session) return;
+	let list = [];
+	try {
+		list = await self.registration.getNotifications();
+	} catch {
+		return;
+	}
+	const byRoom = new Map();
+	for (const n of list) {
+		const d = n.data || {};
+		if (d.userId !== session.userId || !d.roomId || d.isCall || d.invite) {
+			continue;
+		}
+		if (!byRoom.has(d.roomId)) byRoom.set(d.roomId, []);
+		byRoom.get(d.roomId).push(n);
+	}
+	if (byRoom.size === 0) return;
+	const counts = await fetchRoomUnreadCounts([...byRoom.keys()], session);
+	if (!counts) return;
+	for (const [roomId, notifications] of byRoom) {
+		if (counts[roomId] !== 0) continue;
+		for (const n of notifications) n.close();
+	}
+}
+
 /**
  * Ask the open pages to decrypt one event for a notification. Resolves with
  * the first `{ type, content }` answer, or null when no page answers in time.
@@ -2226,6 +2319,30 @@ self.addEventListener("push", (event) => {
 		data = {};
 	}
 
+	// No room at all → a badge refresh, never a message. tuwunel sends one
+	// after every read receipt that moves, carrying only the account-wide
+	// unread count, which is rarely 0. It used to fall through to a generic
+	// "You have a new message" for a room the user had just READ. Instead, ask
+	// which rooms still showing a notification are read now and close those.
+	// The silent placeholder keeps iOS Safari from revoking the subscription
+	// over a push that showed nothing (it sends one per read).
+	if (!data.room_id && !data.event_id && data.counts) {
+		event.waitUntil(
+			(async () => {
+				await Promise.race([
+					authReady,
+					new Promise((resolve) => setTimeout(resolve, 3000)),
+				]).catch(() => {});
+				await closeReadRoomNotifications(
+					sessionForAccount(accountOfPush(data)),
+				).catch(() => {});
+				await showAndCloseSilently().catch(() => {});
+				await updateAppBadgeFromNotifications();
+			})(),
+		);
+		return;
+	}
+
 	// counts.unread === 0 → a "clear" push: the server is telling us this room
 	// was read (on this device or another). Take the room's notification down
 	// instead of merely declining to post a new one — leaving it up is exactly
@@ -2310,6 +2427,17 @@ self.addEventListener("push", (event) => {
 			if (n.own) {
 				await showAndCloseSilently();
 				return;
+			}
+			// Already read elsewhere: a push queued while this device slept, or
+			// one the user read on another device while it was being built
+			// (decryption can take seconds). Only a definite 0 skips. Invites
+			// are exempt: an invited room's count says nothing about the invite.
+			if (session && data.room_id && !n.isInvite) {
+				const counts = await fetchRoomUnreadCounts([data.room_id], session);
+				if (counts && counts[data.room_id] === 0) {
+					await showAndCloseSilently();
+					return;
+				}
 			}
 			const show = () =>
 					self.registration.showNotification(n.title, {
