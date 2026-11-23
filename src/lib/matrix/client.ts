@@ -61,6 +61,7 @@ import {
     watchdogOverdueMs,
 } from "$lib/utils/slidingSyncHelpers";
 import { logSync } from "$lib/matrix/syncLog";
+import { resetSlidingSyncTimeout } from "$lib/matrix/slidingSyncTimeout";
 import { isDesktopTray } from "$lib/desktopTray";
 import { applyTimelineMemberEvent } from "$lib/matrix/slidingMemberState";
 import {
@@ -1851,7 +1852,15 @@ export async function startSync(
             isUsingSlidingSync() ? slidingRequestTimeoutMs() : 0,
         );
         if (!shouldKickSync(trigger, since, hiddenForMs, overdueAfter)) return;
-        if (trigger === "watchdog") watchdogStrikes++;
+        if (trigger === "watchdog") {
+            watchdogStrikes++;
+        } else {
+            // The network or the app's state just changed, so the old
+            // timeouts say nothing about the next request: give it the
+            // normal allowance and no watchdog backoff.
+            resetSlidingSyncTimeout(client);
+            watchdogStrikes = 0;
+        }
         logSync(
             `kick: ${trigger}, ${Math.round(since / 1000)}s since last response` +
                 (hiddenForMs

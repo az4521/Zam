@@ -193,10 +193,16 @@ describe("shouldKickSync", () => {
     it("restarts after the app was hidden for a while", () => {
         // A notification tap after the app sat in the background.
         expect(shouldKickSync("visible", 2_000, 60_000)).toBe(true);
-        // Flicking away and straight back doesn't disturb a healthy poll.
-        expect(shouldKickSync("visible", 2_000, 1_000)).toBe(false);
-        // ...unless sync was already overdue.
-        expect(shouldKickSync("visible", 90_000, 1_000)).toBe(true);
+        // A quick app switch (Android task switch, a second away) is enough:
+        // the socket may be dead even though the app was gone briefly.
+        expect(shouldKickSync("visible", 2_000, 1_000)).toBe(true);
+        expect(shouldKickSync("visible", 2_000, 4_999)).toBe(true);
+        // Focus flicker (under a second hidden) doesn't disturb a healthy poll.
+        expect(shouldKickSync("visible", 2_000, 999)).toBe(false);
+        expect(shouldKickSync("visible", 2_000, 0)).toBe(false);
+        // ...and a visible return with sync already overdue always restarts.
+        expect(shouldKickSync("visible", 90_000, 0)).toBe(true);
+        expect(shouldKickSync("visible", 90_000, 999)).toBe(true);
     });
 
     it("watchdog only fires once a response is well overdue", () => {

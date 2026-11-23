@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MatrixClient } from "matrix-js-sdk";
-import { adaptSlidingSyncTimeout } from "./slidingSyncTimeout";
+import {
+    adaptSlidingSyncTimeout,
+    resetSlidingSyncTimeout,
+} from "./slidingSyncTimeout";
 
 // A fake client.slidingSync whose requests take `durationMs` to answer and,
 // like the SDK's fetch, fail once they outlive req.clientTimeout.
@@ -79,6 +82,23 @@ describe("adaptSlidingSyncTimeout", () => {
         await request(client);
         await request(client);
         expect(seen).toEqual([40_000, 40_000]);
+    });
+
+    it("reset drops a raised allowance so the next request is back to the SDK's timeout", async () => {
+        // Raised to 80s by a timeout on the old connection.
+        const { client, seen } = fakeClient(() => 100_000);
+        const allowance = adaptSlidingSyncTimeout(client);
+        await request(client); // times out at 40s
+        expect(allowance()).toBe(80_000);
+        resetSlidingSyncTimeout(client);
+        expect(allowance()).toBe(0);
+        await request(client);
+        expect(seen).toEqual([40_000, 40_000]);
+    });
+
+    it("reset is a no-op for a client that was never wrapped", () => {
+        const client = {} as MatrixClient;
+        expect(() => resetSlidingSyncTimeout(client)).not.toThrow();
     });
 
     it("wraps a client only once", async () => {

@@ -12,7 +12,9 @@ import type { MatrixClient } from "matrix-js-sdk";
  * next one's allowance (up to `maxMs`), and a success puts it back.
  *
  * Returns the allowance the next request gets, so the stuck-sync watchdog can
- * stay out of the way of a request that is still within it.
+ * stay out of the way of a request that is still within it. Call
+ * resetSlidingSyncTimeout after the network changed (app resumed, back
+ * online) so a raised allowance from the old connection doesn't stick.
  */
 export function adaptSlidingSyncTimeout(
     client: MatrixClient,
@@ -22,7 +24,7 @@ export function adaptSlidingSyncTimeout(
     }: { maxMs?: number; onTimeout?: (nextTimeoutMs: number) => void } = {},
 ): () => number {
     const existing = adapted.get(client);
-    if (existing) return existing;
+    if (existing) return existing.allowance;
     type Request = { clientTimeout?: number };
     const send = client.slidingSync.bind(client) as (
         req: Request,
@@ -62,9 +64,27 @@ export function adaptSlidingSyncTimeout(
         }
     };
     const allowance = () => Math.max(raisedMs, lastUsedMs);
-    adapted.set(client, allowance);
+    const reset = () => {
+        raisedMs = 0;
+        lastUsedMs = 0;
+    };
+    adapted.set(client, { allowance, reset });
     return allowance;
 }
 
+/**
+ * Drop any raised allowance so the next request gets the SDK's own timeout
+ * again. For when the network just changed (the app resumed, the browser is
+ * back online) and the old timeouts say nothing about the new connection.
+ * A request already in flight keeps the limit it was given. No-op for a
+ * client that was never wrapped.
+ */
+export function resetSlidingSyncTimeout(client: MatrixClient): void {
+    adapted.get(client)?.reset();
+}
+
 // Sync setup can run again for the same client; wrap its slidingSync once.
-const adapted = new WeakMap<MatrixClient, () => number>();
+const adapted = new WeakMap<
+    MatrixClient,
+    { allowance: () => number; reset: () => void }
+>();

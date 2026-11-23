@@ -108,8 +108,11 @@ export const SYNC_POLL_MS = 30_000;
  * just don't arrive for up to two minutes. The SDK's own `online` handler
  * only helps once a request has already FAILED. So restart when:
  *   - the browser says we're back online,
- *   - the app becomes visible after being hidden for a few seconds (timers
- *     and sockets may have been frozen), or
+ *   - the app becomes visible after being hidden for at least a second
+ *     (timers and sockets may have been frozen; a quick app switch or a
+ *     Wi-Fi/cellular handover can leave the long-poll on a dead socket), or
+ *     the last response is overdue. The one-second floor only keeps pure
+ *     focus flicker from aborting a healthy poll, or
  *   - no sync response has landed for well over a poll interval (watchdog,
  *     for blips that fire no event at all).
  */
@@ -124,7 +127,7 @@ export function shouldKickSync(
         case "online":
             return true;
         case "visible":
-            return hiddenForMs >= 5_000 || overdue;
+            return hiddenForMs >= 1_000 || overdue;
         case "watchdog":
             return overdue;
     }
