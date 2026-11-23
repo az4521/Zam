@@ -724,6 +724,11 @@ export function mountWidget(opts: MountWidgetOptions): MountedWidget {
         onUnsupportedCapabilities: opts.onUnsupportedCapabilities,
     });
     const api = new ClientWidgetApi(widget, opts.iframe, driver);
+    // Without a viewed room the API drops every fed event and state update
+    // for a widget that has no timeline capability (most of them), and never
+    // pushes the initial room state after capabilities are approved: the
+    // widget then waits forever. The widget only ever sees its own room.
+    api.setViewedRoomId(opts.roomId);
     // The API is listening for the iframe load now, so the caller sets the
     // src next. Setting it here as well would navigate the frame twice (a
     // second assignment of the same src reloads it) and break the handshake.
@@ -757,8 +762,9 @@ export function mountWidget(opts: MountWidgetOptions): MountedWidget {
         ) => {
             if (!live() || toStartOfTimeline || removed) return;
             if (!room || room.roomId !== opts.roomId) return;
-            // State events reach the widget through RoomStateEvent below.
-            if (event.isState()) return;
+            // State events are fed here too, as Element does: a widget
+            // without MSC2762 update_state only learns of them as send_event,
+            // and feedStateUpdate below covers the ones that do support it.
             if (event.getType() === "m.room.encrypted") {
                 const id = event.getId();
                 if (id) rememberId(pendingEncrypted, id);
