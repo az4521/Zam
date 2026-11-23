@@ -143,7 +143,9 @@ describe.each(PICKERS)("%s cursor funnel", (name) => {
         // -- a one-char "markup" that trivially contains no `selectedIndex`,
         // so the guard would go green while checking nothing. Svelte permits
         // the <script> block BELOW the markup, so that refactor is legal.
-        const scriptEnd = src.indexOf("</script>");
+        // The last one: a `<script module>` block comes before the instance
+        // script.
+        const scriptEnd = src.lastIndexOf("</script>");
         expect(
             scriptEnd,
             "no </script> found -- the markup scan would be vacuous",

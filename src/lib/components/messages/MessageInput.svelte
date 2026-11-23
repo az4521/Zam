@@ -90,6 +90,7 @@
         caretOffset,
         editorText,
         pastedPlainText,
+        replaceKeepingImages,
         selectedLength,
         setCaretOffset as setCaretOffsetIn,
     } from "$lib/utils/composerDom";
@@ -1038,7 +1039,7 @@
     function renderComposer(caretOffset = getCaretOffset()): void {
         if (!textareaEl) return;
         renderingComposer = true;
-        textareaEl.innerHTML = decorateInline(text);
+        replaceKeepingImages(textareaEl, decorateInline(text));
         renderingComposer = false;
         setCaretOffset(caretOffset);
     }

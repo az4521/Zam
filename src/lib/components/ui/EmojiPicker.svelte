@@ -1,7 +1,19 @@
+<script module lang="ts">
+    import { SvelteSet } from "svelte/reactivity";
+
+    // Custom thumbnails whose full image has loaded (or failed). Until a URL
+    // is in here its 16px placeholder stays behind it. Kept across mounts: the
+    // picker is rebuilt on every open, and a thumbnail the page already has
+    // comes from the memory cache, but its load event still lands a few frames
+    // after the first paint, so a per-mount set flashed every placeholder on
+    // each reopen.
+    const loadedThumbs = new SvelteSet<string>();
+    const LOADED_THUMBS_MAX = 5000;
+</script>
+
 <script lang="ts">
     import { t } from "$lib/i18n";
     import { untrack } from "svelte";
-    import { SvelteSet } from "svelte/reactivity";
     import type { Room } from "matrix-js-sdk";
     import {
         loadEmojiData,
@@ -534,10 +546,9 @@
         onClose();
     }
 
-    // Custom thumbnails whose full image has loaded (or failed). Until a URL
-    // is in here its 16px placeholder stays behind it.
-    const loadedThumbs = new SvelteSet<string>();
     function settleThumb(url: string) {
+        if (loadedThumbs.has(url)) return;
+        if (loadedThumbs.size >= LOADED_THUMBS_MAX) loadedThumbs.clear();
         loadedThumbs.add(url);
     }
 

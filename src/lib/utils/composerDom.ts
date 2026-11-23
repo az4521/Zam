@@ -117,3 +117,41 @@ export function pastedPlainText(data: DataTransfer | null): string {
     }
     return pasted.replace(/\r\n?/g, "\n");
 }
+
+/**
+ * Replace `root`'s content with `html`, carrying over each `<img>` the old
+ * content had for the same src. Setting innerHTML alone makes a fresh `<img>`
+ * per custom emote on every keystroke. Where the page has no service worker
+ * to authenticate media, that fresh one fails, and the media healer has to
+ * fetch it again and swap in a blob URL; until then it has no width, so the
+ * emote blinks and the text after it jumps. The same happens wherever the
+ * browser has let go of the decoded image. The old element keeps its image.
+ * Images carry no model text, so the text content (and the caret math) is
+ * unchanged.
+ */
+export function replaceKeepingImages(root: HTMLElement, html: string): void {
+    const old = new Map<string, HTMLImageElement[]>();
+    for (const img of Array.from(root.querySelectorAll("img"))) {
+        // A healed image's src is now its blob URL; the markup still names
+        // the URL it was healed from (installMediaHealer records it).
+        const src = img.dataset.mediaHealed || img.src;
+        if (!src) continue;
+        const list = old.get(src);
+        if (list) list.push(img);
+        else old.set(src, [img]);
+    }
+    root.innerHTML = html;
+    if (old.size === 0) return;
+    for (const img of Array.from(root.querySelectorAll("img"))) {
+        const kept = img.src ? old.get(img.src)?.shift() : undefined;
+        if (!kept) continue;
+        // Same markup otherwise, so take the new element's other attributes;
+        // src stays as it is (it may be the healed blob URL).
+        for (const attr of Array.from(img.attributes)) {
+            if (attr.name === "src") continue;
+            if (kept.getAttribute(attr.name) !== attr.value)
+                kept.setAttribute(attr.name, attr.value);
+        }
+        img.replaceWith(kept);
+    }
+}
