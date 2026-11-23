@@ -1,14 +1,20 @@
-// Prefetches recent messages for rooms visible in the room list, so opening
-// one on a slow connection shows its text at once. Pure rules live in
-// utils/roomPrefetch.ts; the fetch is prefetchRoomTimeline in client.ts, which
-// fills the live timeline the room view reads, so nothing is fetched twice.
+// Prefetches messages for rooms visible in the room list, where the user will
+// land when opening one, so a slow connection shows its text at once. An
+// unread room whose read position is not loaded opens in a window at that
+// position, so that window is built ahead (prefetchContextWindow, handed over
+// by createContextWindow); any other room opens at its newest messages, which
+// prefetchRoomTimeline pages into the live timeline the room view reads.
+// Pure rules live in utils/roomPrefetch.ts.
 //
 // Not reactive: nothing renders from this state, so plain module state is used.
 
 import type { MatrixClient } from "matrix-js-sdk";
 import {
     getLoadedEventCount,
+    getPrefetchedAnchor,
+    getUnreadAnchor,
     isInitialSyncComplete,
+    prefetchContextWindow,
     prefetchRoomTimeline,
 } from "$lib/matrix/client";
 import { captureClient, ownedClient } from "$lib/matrix/runtime";
@@ -17,7 +23,9 @@ import { roomsState } from "$lib/stores/rooms.svelte";
 import {
     PREFETCH_SETTLE_MS,
     pickPrefetchRooms,
+    prefetchKey,
     prefetchPageSize,
+    type PrefetchPick,
 } from "$lib/utils/roomPrefetch";
 
 // Row element -> room id. The same room can render in more than one place, so
@@ -123,12 +131,21 @@ function run(): void {
     }
     const visibleRoomIds = orderedVisibleRoomIds();
     const loadedCounts = new Map<string, number>();
-    for (const roomId of visibleRoomIds)
+    const unreadAnchors = new Map<string, string>();
+    const preparedAnchors = new Map<string, string>();
+    for (const roomId of visibleRoomIds) {
         loadedCounts.set(roomId, getLoadedEventCount(roomId));
+        const anchor = getUnreadAnchor(roomId);
+        if (anchor) unreadAnchors.set(roomId, anchor);
+        const prepared = getPrefetchedAnchor(roomId);
+        if (prepared) preparedAnchors.set(roomId, prepared);
+    }
     const now = Date.now();
     const picks = pickPrefetchRooms({
         visibleRoomIds,
         activeRoomId: roomsState.activeRoomId,
+        unreadAnchors,
+        preparedAnchors,
         loadedCounts,
         lastPrefetchAt,
         inFlight: new Set(inFlight.keys()),
@@ -136,25 +153,22 @@ function run(): void {
         saveData: saveDataEnabled(),
         hidden: document.hidden,
     });
-    for (const roomId of picks) {
+    for (const pick of picks) {
         // Cooldown starts at the attempt, so a failure is not retried in a loop.
-        lastPrefetchAt.set(roomId, now);
-        inFlight.set(roomId, owner.client);
-        void prefetchOne(
-            owner,
-            roomId,
-            prefetchPageSize(loadedCounts.get(roomId) ?? 0),
-        );
+        lastPrefetchAt.set(prefetchKey(pick), now);
+        inFlight.set(pick.roomId, owner.client);
+        void prefetchOne(owner, pick, loadedCounts.get(pick.roomId) ?? 0);
     }
 }
 
 async function prefetchOne(
     owner: ClientOwnership<MatrixClient>,
-    roomId: string,
-    limit: number,
+    { roomId, anchor }: PrefetchPick,
+    loaded: number,
 ): Promise<void> {
     try {
-        await prefetchRoomTimeline(roomId, limit);
+        if (anchor) await prefetchContextWindow(roomId, anchor);
+        else await prefetchRoomTimeline(roomId, prefetchPageSize(loaded));
     } catch (err) {
         console.debug("[room-prefetch] failed", roomId, err);
     } finally {

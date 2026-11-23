@@ -84,6 +84,7 @@ import {
     type KeywordRuleView,
 } from "$lib/utils/keywordRules";
 import { pickViaServers } from "$lib/utils/roomVia";
+import { ANCHOR_WINDOW_TTL_MS } from "$lib/utils/roomPrefetch";
 import {
     BUSY_PRESENCE_FEATURE,
     BUSY_PRESENCE_VALUES,
@@ -7083,7 +7084,27 @@ export async function loadMessagesUntilEvent(
 export async function createContextWindow(
     room: Room,
     eventId: string,
-    windowSize = 50,
+    windowSize = CONTEXT_WINDOW_SIZE,
+): Promise<TimelineWindow | null> {
+    if (!matrixClient) return null;
+    const prefetched = takePrefetchedWindow(room.roomId, eventId, windowSize);
+    if (prefetched) {
+        const win = await prefetched.catch(() => null);
+        if (win) {
+            const set = windowTimelineSets.get(win);
+            if (set) contextTimelineSets.set(room.roomId, set);
+            return win;
+        }
+    }
+    return loadContextWindow(room, eventId, windowSize);
+}
+
+const CONTEXT_WINDOW_SIZE = 50;
+
+async function loadContextWindow(
+    room: Room,
+    eventId: string,
+    windowSize: number,
 ): Promise<TimelineWindow | null> {
     if (!matrixClient) return null;
     // A private timeline set, NOT the room's unfiltered one. Sync appends via
@@ -7108,11 +7129,128 @@ export async function createContextWindow(
     // empty window means we have nothing to show, so treat it as unavailable.
     if (window.getEvents().length === 0) return null;
     contextWindowRooms.set(window, room);
+    windowTimelineSets.set(window, timelineSet);
     contextTimelineSets.set(room.roomId, timelineSet);
     return window;
 }
 
 const contextWindowRooms = new WeakMap<TimelineWindow, Room>();
+const windowTimelineSets = new WeakMap<TimelineWindow, EventTimelineSet>();
+
+// Windows built ahead of time at an unread room's read position
+// (stores/roomPrefetch.svelte.ts), one per room. The room view opens an unread
+// room there, so a slow connection shows the unread messages at once. Each is
+// taken once: its holder pages it as the user scrolls.
+interface PrefetchedWindow {
+    eventId: string;
+    windowSize: number;
+    client: MatrixClient;
+    at: number;
+    window: Promise<TimelineWindow | null>;
+}
+const prefetchedWindows = new Map<string, PrefetchedWindow>();
+/** Rooms with a window held at once; the oldest goes first. */
+const MAX_PREFETCHED_WINDOWS = 12;
+
+function prunePrefetchedWindows(): void {
+    const now = Date.now();
+    for (const [roomId, entry] of prefetchedWindows) {
+        if (
+            entry.client !== matrixClient ||
+            now - entry.at >= ANCHOR_WINDOW_TTL_MS
+        )
+            prefetchedWindows.delete(roomId);
+    }
+}
+
+function takePrefetchedWindow(
+    roomId: string,
+    eventId: string,
+    windowSize: number,
+): Promise<TimelineWindow | null> | null {
+    prunePrefetchedWindows();
+    const entry = prefetchedWindows.get(roomId);
+    if (!entry || entry.eventId !== eventId || entry.windowSize !== windowSize)
+        return null;
+    prefetchedWindows.delete(roomId);
+    return entry.window;
+}
+
+/** The read-position event a usable prefetched window of the room sits at. */
+export function getPrefetchedAnchor(roomId: string): string | null {
+    prunePrefetchedWindows();
+    return prefetchedWindows.get(roomId)?.eventId ?? null;
+}
+
+/**
+ * Build the window the room view will open an unread room at, before it is
+ * opened (stores/roomPrefetch.svelte.ts). createContextWindow hands it over
+ * when asked for the same event, also while it is still loading. A failure
+ * throws and drops the entry, so the room view loads its own.
+ */
+export async function prefetchContextWindow(
+    roomId: string,
+    eventId: string,
+): Promise<void> {
+    const client = matrixClient;
+    if (!client) return;
+    const room = lookupRoom(roomId);
+    if (!room || room.getMyMembership() !== "join") return;
+    const window = loadContextWindow(room, eventId, CONTEXT_WINDOW_SIZE);
+    const entry: PrefetchedWindow = {
+        eventId,
+        windowSize: CONTEXT_WINDOW_SIZE,
+        client,
+        at: Date.now(),
+        window,
+    };
+    prefetchedWindows.delete(roomId);
+    prefetchedWindows.set(roomId, entry);
+    while (prefetchedWindows.size > MAX_PREFETCHED_WINDOWS) {
+        const oldest = prefetchedWindows.keys().next().value;
+        if (oldest === undefined) break;
+        prefetchedWindows.delete(oldest);
+    }
+    const win = await window.catch((err) => {
+        if (prefetchedWindows.get(roomId) === entry)
+            prefetchedWindows.delete(roomId);
+        throw err;
+    });
+    if (!win && prefetchedWindows.get(roomId) === entry)
+        prefetchedWindows.delete(roomId);
+}
+
+/**
+ * Where an unread room will open when its read position is not loaded: the
+ * event the room view builds a window at (see MessageArea's room-open
+ * effect, whose rules this mirrors). Null when the room opens at the newest
+ * messages: read, or the read position is already in the live timeline.
+ */
+export function getUnreadAnchor(roomId: string): string | null {
+    const userId = matrixClient?.getUserId();
+    const room = lookupRoom(roomId);
+    if (!userId || !room || room.getMyMembership() !== "join") return null;
+    const marked = getMarkedUnread(room);
+    if (marked) {
+        const from = marked.from?.eventId ?? null;
+        return from && !isInLiveTimeline(room, from) ? from : null;
+    }
+    const receipt = getOwnReadReceipt(room);
+    const anchor = getReadUpToEventId(room) ?? receipt?.eventId ?? null;
+    if (!anchor || isInLiveTimeline(room, anchor)) return null;
+    // Only a room with a newer message from someone else opens at its read
+    // position. The newest live event stands in for the newest shown one:
+    // under sliding sync an unopened room usually holds just that.
+    const events = room.getLiveTimeline().getEvents();
+    for (let i = events.length - 1; i >= 0; i--) {
+        const ev = events[i];
+        if (!isRenderableTimelineEvent(ev)) continue;
+        if (ev.getSender() === userId) return null;
+        if (receipt && receipt.ts > 0 && ev.getTs() <= receipt.ts) return null;
+        return anchor;
+    }
+    return null;
+}
 // Each room's most recent context window set, so findEventById still resolves
 // events that only a jump view holds (reply/edit targets in that view).
 const contextTimelineSets = new Map<string, EventTimelineSet>();
