@@ -5020,6 +5020,73 @@ const messages: Partial<Record<MessageKey, string>> = {
     "inviteBlocking.couldNotSave":
         "Impossible de modifier le paramètre d'invitation. Réessayez.",
     "inviteBlocking.userNotAccepting": "{user} n'accepte pas les invitations",
+    // Room widgets (WidgetsPanel, WidgetFrame, consent and capability dialogs)
+    "messageArea.widgets": "Widgets",
+    "roomHeaderMenu.widgets": "Widgets",
+    "slashCommands.addAWidgetToThisRoom": "Ajouter un widget à ce salon",
+    "widgets.panelTitle": "Widgets",
+    "widgets.add": "Ajouter un widget",
+    "widgets.empty": "Aucun widget dans ce salon.",
+    "widgets.back": "Retour aux widgets",
+    "widgets.openInBrowser": "Ouvrir dans le navigateur",
+    "widgets.remove": "Retirer",
+    "widgets.confirmRemove": "Retirer {name} de ce salon ?",
+    "widgets.confirmRemoveButton": "Oui, retirer",
+    "widgets.removeFailed": "Impossible de retirer le widget",
+    "widgets.unsafeUrl":
+        "L'adresse de ce widget n'est pas autorisée, il n'a donc pas été chargé.",
+    "widgets.unavailable": "Reconnectez-vous pour ouvrir ce widget.",
+    "widgets.consent.body":
+        "Ce widget a été ajouté par {user}. Le charger partagera votre identifiant utilisateur, votre nom affiché, votre avatar et l'identifiant de ce salon avec {host}.",
+    "widgets.consent.allow": "Autoriser",
+    "widgets.consent.allowAndRemember": "Autoriser et mémoriser",
+    "widgets.capabilities.title": "{widget} demande des autorisations",
+    "widgets.capabilities.description":
+        "{host} demande ce qui suit. N'autorisez que ce en quoi vous avez confiance.",
+    "widgets.capabilities.remember": "Mémoriser mon choix",
+    "widgets.capabilities.approve": "Approuver",
+    "widgets.capabilities.deny": "Refuser",
+    "widgets.openId.title": "{widget} veut vous vérifier",
+    "widgets.openId.description":
+        "{host} veut confirmer votre identifiant utilisateur Matrix. Il reçoit un jeton de courte durée qu'il peut vérifier auprès de votre serveur.",
+    "widgets.addDialog.title": "Ajouter un widget",
+    "widgets.addDialog.name": "Nom",
+    "widgets.addDialog.url": "URL du widget",
+    "widgets.addDialog.urlInvalid":
+        "Saisissez une adresse http:// ou https://.",
+    "widgets.addDialog.add": "Ajouter",
+    "widgets.addDialog.added": "Widget ajouté",
+    "widgets.addDialog.failed": "Impossible d'ajouter le widget",
+    "widgets.slash.noPermission":
+        "Vous n'avez pas la permission d'ajouter des widgets à ce salon.",
+    "widgets.slash.invalidUrl":
+        "Saisissez une adresse de widget http:// ou https://.",
+    "widgets.cap.alwaysOnScreen":
+        "Rester ouvert pendant que vous utilisez d'autres salons",
+    "widgets.cap.screenshot": "Prendre des captures d'écran du widget",
+    "widgets.cap.navigate": "Déplacer Zam vers d'autres salons",
+    "widgets.cap.requiresClient": "Exiger un client Matrix",
+    "widgets.cap.userDirectory": "Rechercher dans l'annuaire des utilisateurs",
+    "widgets.cap.uploadFile": "Envoyer des fichiers",
+    "widgets.cap.downloadFile": "Télécharger des fichiers",
+    "widgets.cap.timelineAll": "Lire les messages de tous les salons",
+    "widgets.cap.timelineRoom": "Lire les messages du salon {roomId}",
+    "widgets.cap.sendState":
+        "Envoyer l'état du salon de type {eventType} avec la clé {stateKey}",
+    "widgets.cap.sendStateAny":
+        "Envoyer n'importe quel état du salon de type {eventType}",
+    "widgets.cap.receiveState":
+        "Recevoir l'état du salon de type {eventType} avec la clé {stateKey}",
+    "widgets.cap.receiveStateAny":
+        "Recevoir n'importe quel état du salon de type {eventType}",
+    "widgets.cap.sendEvent": "Envoyer des événements {eventType}",
+    "widgets.cap.sendMessage": "Envoyer des messages {msgtype}",
+    "widgets.cap.receiveEvent": "Recevoir des événements {eventType}",
+    "widgets.cap.receiveMessage": "Recevoir des messages {msgtype}",
+    "widgets.cap.sendToDevice": "Envoyer des messages d'appareil {eventType}",
+    "widgets.cap.receiveToDevice":
+        "Recevoir des messages d'appareil {eventType}",
+    "widgets.cap.unknown": "Autorisation inconnue : {capability}",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: fr };

@@ -14,6 +14,7 @@
         Image,
         Users,
         AppWindow,
+        LayoutGrid,
     } from "lucide-svelte";
 
     interface Props {
@@ -22,6 +23,8 @@
         threadMentions: number;
         threadAnyUnread: boolean;
         pinnedCount: number;
+        /** The room has widgets, or the user may add one (adds the row). */
+        hasWidgets?: boolean;
         pluginRows?: PluginHeaderMenuRow[];
         onChoose: (key: RoomHeaderMenuKey) => void;
         onChoosePlugin?: (key: string) => void;
@@ -32,6 +35,7 @@
         threadMentions,
         threadAnyUnread,
         pinnedCount,
+        hasWidgets = false,
         pluginRows = [],
         onChoose,
         onChoosePlugin,
@@ -44,6 +48,7 @@
             threadMentions,
             threadAnyUnread,
             pinnedCount,
+            hasWidgets,
         }),
     );
 
@@ -55,11 +60,13 @@
         notifications: Bell,
         media: Image,
         members: Users,
+        widgets: LayoutGrid,
     };
 
     // What each row's badge is counting, for screen readers. The visible pill
     // is a bare number, which on its own announces as "Threads, 3".
-    const BADGE_NOUNS: Record<RoomHeaderMenuKey, MessageKey> = {
+    // Partial: the widgets row never carries a badge, so it has no noun.
+    const BADGE_NOUNS: Partial<Record<RoomHeaderMenuKey, MessageKey>> = {
         threads: "roomHeaderOverflowMenu.badgeThreads",
         pinned: "roomHeaderOverflowMenu.badgePinned",
         notifications: "roomHeaderOverflowMenu.badgeNotifications",
@@ -72,9 +79,11 @@
     // keeps "99+" out of Number() (which would yield NaN) without needing to
     // parse anything.
     function badgeAnnouncement(key: RoomHeaderMenuKey, badge: string): string {
+        const noun = BADGE_NOUNS[key];
+        if (!noun) return badge;
         // The plural form is picked from the count; `badge` is shown as-is so
         // the "99+" cap survives into the announcement.
-        return t(BADGE_NOUNS[key], {
+        return t(noun, {
             count: badge === "1" ? 1 : 2,
             badge,
         });
@@ -92,6 +101,7 @@
         notifications: "bg-zam-divider text-zam-textPrimary",
         media: "bg-zam-divider text-zam-textPrimary",
         members: "bg-zam-divider text-zam-textPrimary",
+        widgets: "bg-zam-divider text-zam-textPrimary",
     };
 
     function choose(key: RoomHeaderMenuKey) {

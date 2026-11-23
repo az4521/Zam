@@ -12,7 +12,7 @@ import type { HeaderButton } from "$lib/plugins/types";
 
 /** The panels that move off the header and into the overflow menu. */
 export type RoomHeaderMenuKey =
-    "threads" | "pinned" | "notifications" | "media" | "members";
+    "threads" | "pinned" | "notifications" | "media" | "members" | "widgets";
 
 export interface RoomHeaderMenuInput {
     /** `interfaceState.sidebar` — may name a panel that stays in the header. */
@@ -22,6 +22,12 @@ export interface RoomHeaderMenuInput {
     /** Any unread thread activity at all (the quiet signal). */
     threadAnyUnread: boolean;
     pinnedCount: number;
+    /**
+     * The room has widgets, or the user may add one. Only then is the
+     * Widgets row offered. Optional, so callers that predate widgets are
+     * unchanged.
+     */
+    hasWidgets?: boolean;
 }
 
 export interface RoomHeaderMenuRow {
@@ -51,7 +57,7 @@ export function roomHeaderMenuRows(
 ): RoomHeaderMenuRow[] {
     const mentions = badgeFor(input.threadMentions);
     const active = (key: RoomHeaderMenuKey) => input.activeSidebar === key;
-    return [
+    const rows: RoomHeaderMenuRow[] = [
         {
             key: "threads",
             label: t("roomHeaderMenu.threads"),
@@ -89,6 +95,16 @@ export function roomHeaderMenuRows(
             dot: false,
         },
     ];
+    if (input.hasWidgets) {
+        rows.push({
+            key: "widgets",
+            label: t("roomHeaderMenu.widgets"),
+            active: active("widgets"),
+            badge: null,
+            dot: false,
+        });
+    }
+    return rows;
 }
 
 /**

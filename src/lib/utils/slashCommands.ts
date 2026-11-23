@@ -135,6 +135,14 @@ export const SLASH_COMMANDS: SlashCommand[] = [
         argKind: "none",
         kind: "action",
     },
+    {
+        name: "addwidget",
+        description: t("slashCommands.addAWidgetToThisRoom"),
+        argHint: "<url> [name]",
+        argKind: "text",
+        kind: "action",
+        requiresArg: true,
+    },
 ];
 
 /** Adapt a plugin's command into a `SlashCommand` the pure matchers + the

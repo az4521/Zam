@@ -106,6 +106,9 @@ const SLIDING_ROOM_STATE: string[][] = [
     ["m.space.child", "*"],
     ["m.call.member", "*"],
     ["m.rtc.member", "*"],
+    // Room widgets (the open room only): the app bar and widget panel list them.
+    ["im.vector.modular.widgets", "*"],
+    ["m.widget", "*"],
     ["m.room.member", MSC3575_STATE_KEY_ME],
     ["m.room.member", MSC3575_STATE_KEY_LAZY],
 ];

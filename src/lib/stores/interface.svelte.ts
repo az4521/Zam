@@ -93,7 +93,12 @@ export type ModalId =
     // Call connection stats (CallStatsPanel, opened from VoiceCallPanel).
     | "call-stats"
     // Every version of an edited message (EditHistoryDialog, MessageItem).
-    | "edit-history";
+    | "edit-history"
+    // Approve a room widget's requested capabilities or OpenID access
+    // (WidgetCapabilityDialog, mounted by WidgetFrame). Escape denies.
+    | "widget-capabilities"
+    // Add a widget to the room by URL (AddWidgetDialog, WidgetsPanel).
+    | "add-widget";
 
 export type SidebarId =
     | "members"
@@ -102,6 +107,8 @@ export type SidebarId =
     | "search"
     | "threads"
     | "media"
+    // The room's widgets list, and an open widget (WidgetsPanel).
+    | "widgets"
     // A plugin's room-header panel (zam.room.addHeaderButton). Shares the
     // single sidebar slot so Escape/back dismiss it via AppShell like every
     // core panel; MessageArea renders pluginPanel.current into it.

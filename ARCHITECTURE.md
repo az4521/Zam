@@ -153,6 +153,9 @@ Sanctioned exceptions, all deliberate:
   seeded from `/rooms/{id}/state` and backfilled, and rooms the server lists as joined but the
   store lacks are materialized in place after the first live sync (a cache-wipe reload is the
   last resort, at most once per room). It pings room lists through `notifyRoomUpdate()`.
+- **`src/lib/matrix/widgetHost.ts`** — the Matrix widget host. It runs the matrix-widget-api
+  `ClientWidgetApi` for one room's widget, feeds it live events, and reads and writes the
+  `im.vector.modular.widgets` / `m.widget` room state. See "Widgets" below.
 - **`src/lib/matrix/pluginHost.ts`** — the plugin host bridge. Exports `sendEventContent`
   (also the core composer's send path), `getPlugin*`, `uploadPluginMedia`, `sendPluginMedia` and `sendPluginSticker`, `redactOwnEvent`,
   plugin sync persistence, and the upload-to-send owner guard. Plugins never touch these modules themselves; they call the `zam` host API,
@@ -521,6 +524,28 @@ Live location is MSC3672 beacons with throttled publishes and expiry timers
 (`stores/liveLocation.svelte.ts`, `utils/liveLocation.ts`), rendered on real Leaflet maps
 (`LocationMap.svelte`, `LiveLocationMapView.svelte`). Polls are MSC3381, parsed and tallied by the
 pure `utils/pollContent.ts`, which accepts both stable and unstable poll event names on read.
+
+### Widgets
+
+Room widgets are iframes an app attaches to a room (custom apps, Jitsi, etherpad). The state is
+`im.vector.modular.widgets` or `m.widget`, keyed by widget id; `utils/widgets.ts` parses it, drops
+the Element Call types (`m.call`, `io.element.call`, `org.matrix.msc3401.call`) because Zam has
+native MatrixRTC calls, and de-duplicates the two state types (`m.widget` wins). Both types are in
+`SLIDING_ROOM_STATE` for the open room only.
+
+The iframe URL is built by `buildWidgetUrl`, which fills the `$matrix_*` and `$org.matrix.msc*`
+template variables and the widget's own data keys, then sets `widgetId` and `parentUrl`.
+
+Consent and capabilities: opening a widget asks the user to load it. The widget then asks for
+capabilities, and the driver in `matrix/widgetHost.ts` offers only those it supports (delayed and
+sticky events, RTC transports, LiveKit tokens and room account data are filtered out before the
+prompt). OpenID identity is a separate yes or no. Approvals are kept per room, widget id and raw
+URL in scoped storage (`stores/widgets.svelte.ts`, key `zam_widget_approvals`), so a changed URL
+asks again. The driver answers for its own room only: other rooms, and anything it cannot do, are
+refused.
+
+The iframe sandbox must not get same-origin with allow-scripts. `isUnsafeWidgetUrl` refuses any
+non-http(s) URL and any URL on the app's own origin, so a widget can never run as the app.
 
 ### Plugin system
 

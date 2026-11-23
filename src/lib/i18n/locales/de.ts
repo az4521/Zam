@@ -5053,6 +5053,74 @@ const messages: Partial<Record<MessageKey, string>> = {
     "inviteBlocking.couldNotSave":
         "Die Einladungseinstellung konnte nicht geändert werden. Versuche es erneut.",
     "inviteBlocking.userNotAccepting": "{user} nimmt keine Einladungen an",
+    // Room widgets (WidgetsPanel, WidgetFrame, consent and capability dialogs)
+    "messageArea.widgets": "Widgets",
+    "roomHeaderMenu.widgets": "Widgets",
+    "slashCommands.addAWidgetToThisRoom":
+        "Ein Widget zu diesem Raum hinzufügen",
+    "widgets.panelTitle": "Widgets",
+    "widgets.add": "Widget hinzufügen",
+    "widgets.empty": "Keine Widgets in diesem Raum.",
+    "widgets.back": "Zurück zu den Widgets",
+    "widgets.openInBrowser": "Im Browser öffnen",
+    "widgets.remove": "Entfernen",
+    "widgets.confirmRemove": "{name} aus diesem Raum entfernen?",
+    "widgets.confirmRemoveButton": "Ja, entfernen",
+    "widgets.removeFailed": "Das Widget konnte nicht entfernt werden",
+    "widgets.unsafeUrl":
+        "Die Adresse dieses Widgets ist nicht erlaubt, daher wurde es nicht geladen.",
+    "widgets.unavailable": "Melde dich erneut an, um dieses Widget zu öffnen.",
+    "widgets.consent.body":
+        "Dieses Widget wurde von {user} hinzugefügt. Beim Laden werden deine Nutzer-ID, dein Anzeigename, dein Avatar und die ID dieses Raums an {host} übermittelt.",
+    "widgets.consent.allow": "Erlauben",
+    "widgets.consent.allowAndRemember": "Erlauben und merken",
+    "widgets.capabilities.title": "{widget} fordert Berechtigungen an",
+    "widgets.capabilities.description":
+        "{host} fordert Folgendes an. Erlaube nur, was du vertraust.",
+    "widgets.capabilities.remember": "Meine Auswahl merken",
+    "widgets.capabilities.approve": "Genehmigen",
+    "widgets.capabilities.deny": "Ablehnen",
+    "widgets.openId.title": "{widget} möchte dich verifizieren",
+    "widgets.openId.description":
+        "{host} möchte deine Matrix-Nutzer-ID bestätigen. Es erhält ein kurzlebiges Token, das es bei deinem Homeserver prüfen kann.",
+    "widgets.addDialog.title": "Widget hinzufügen",
+    "widgets.addDialog.name": "Name",
+    "widgets.addDialog.url": "Widget-URL",
+    "widgets.addDialog.urlInvalid":
+        "Gib eine http://- oder https://-Adresse ein.",
+    "widgets.addDialog.add": "Hinzufügen",
+    "widgets.addDialog.added": "Widget hinzugefügt",
+    "widgets.addDialog.failed": "Das Widget konnte nicht hinzugefügt werden",
+    "widgets.slash.noPermission":
+        "Du hast keine Berechtigung, Widgets zu diesem Raum hinzuzufügen.",
+    "widgets.slash.invalidUrl":
+        "Gib eine http://- oder https://-Widget-Adresse ein.",
+    "widgets.cap.alwaysOnScreen":
+        "Geöffnet bleiben, während du andere Räume nutzt",
+    "widgets.cap.screenshot": "Screenshots des Widgets machen",
+    "widgets.cap.navigate": "Zam zu anderen Räumen wechseln lassen",
+    "widgets.cap.requiresClient": "Einen Matrix-Client voraussetzen",
+    "widgets.cap.userDirectory": "Das Nutzerverzeichnis durchsuchen",
+    "widgets.cap.uploadFile": "Dateien hochladen",
+    "widgets.cap.downloadFile": "Dateien herunterladen",
+    "widgets.cap.timelineAll": "Die Nachrichten aller Räume lesen",
+    "widgets.cap.timelineRoom": "Die Nachrichten von Raum {roomId} lesen",
+    "widgets.cap.sendState":
+        "Raumstatus vom Typ {eventType} mit dem Schlüssel {stateKey} senden",
+    "widgets.cap.sendStateAny":
+        "Beliebigen Raumstatus vom Typ {eventType} senden",
+    "widgets.cap.receiveState":
+        "Raumstatus vom Typ {eventType} mit dem Schlüssel {stateKey} empfangen",
+    "widgets.cap.receiveStateAny":
+        "Beliebigen Raumstatus vom Typ {eventType} empfangen",
+    "widgets.cap.sendEvent": "{eventType}-Ereignisse senden",
+    "widgets.cap.sendMessage": "{msgtype}-Nachrichten senden",
+    "widgets.cap.receiveEvent": "{eventType}-Ereignisse empfangen",
+    "widgets.cap.receiveMessage": "{msgtype}-Nachrichten empfangen",
+    "widgets.cap.sendToDevice": "Geräte-Nachrichten vom Typ {eventType} senden",
+    "widgets.cap.receiveToDevice":
+        "Geräte-Nachrichten vom Typ {eventType} empfangen",
+    "widgets.cap.unknown": "Unbekannte Berechtigung: {capability}",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: de };

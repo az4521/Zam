@@ -4472,6 +4472,70 @@ const messages: Partial<Record<MessageKey, string>> = {
     "inviteBlocking.couldNotSave":
         "招待の設定を変更できませんでした。もう一度お試しください。",
     "inviteBlocking.userNotAccepting": "{user} は招待を受け付けていません",
+    // Room widgets (WidgetsPanel, WidgetFrame, consent and capability dialogs)
+    "messageArea.widgets": "ウィジェット",
+    "roomHeaderMenu.widgets": "ウィジェット",
+    "slashCommands.addAWidgetToThisRoom": "このルームにウィジェットを追加",
+    "widgets.panelTitle": "ウィジェット",
+    "widgets.add": "ウィジェットを追加",
+    "widgets.empty": "このルームにウィジェットはありません。",
+    "widgets.back": "ウィジェット一覧に戻る",
+    "widgets.openInBrowser": "ブラウザで開く",
+    "widgets.remove": "削除",
+    "widgets.confirmRemove": "このルームから {name} を削除しますか？",
+    "widgets.confirmRemoveButton": "はい、削除します",
+    "widgets.removeFailed": "ウィジェットを削除できませんでした",
+    "widgets.unsafeUrl":
+        "このウィジェットのアドレスは許可されていないため、読み込まれませんでした。",
+    "widgets.unavailable":
+        "このウィジェットを開くには、再度サインインしてください。",
+    "widgets.consent.body":
+        "このウィジェットは {user} が追加しました。読み込むと、ユーザーID、表示名、アバター、このルームのIDが {host} に共有されます。",
+    "widgets.consent.allow": "許可",
+    "widgets.consent.allowAndRemember": "許可して記憶する",
+    "widgets.capabilities.title": "{widget} が権限を求めています",
+    "widgets.capabilities.description":
+        "{host} は次の権限を求めています。信頼できるものだけを許可してください。",
+    "widgets.capabilities.remember": "選択を記憶する",
+    "widgets.capabilities.approve": "承認",
+    "widgets.capabilities.deny": "拒否",
+    "widgets.openId.title": "{widget} があなたを確認しようとしています",
+    "widgets.openId.description":
+        "{host} は Matrix ユーザーIDの確認を求めています。ホームサーバーで確認できる短期間有効なトークンが渡されます。",
+    "widgets.addDialog.title": "ウィジェットを追加",
+    "widgets.addDialog.name": "名前",
+    "widgets.addDialog.url": "ウィジェットのURL",
+    "widgets.addDialog.urlInvalid":
+        "http:// または https:// で始まるアドレスを入力してください。",
+    "widgets.addDialog.add": "追加",
+    "widgets.addDialog.added": "ウィジェットを追加しました",
+    "widgets.addDialog.failed": "ウィジェットを追加できませんでした",
+    "widgets.slash.noPermission":
+        "このルームにウィジェットを追加する権限がありません。",
+    "widgets.slash.invalidUrl":
+        "http:// または https:// のウィジェットアドレスを入力してください。",
+    "widgets.cap.alwaysOnScreen": "他のルームを使用中も開いたままにする",
+    "widgets.cap.screenshot": "ウィジェットのスクリーンショットを撮る",
+    "widgets.cap.navigate": "Zam を他のルームへ移動する",
+    "widgets.cap.requiresClient": "Matrix クライアントを必須とする",
+    "widgets.cap.userDirectory": "ユーザーディレクトリを検索する",
+    "widgets.cap.uploadFile": "ファイルをアップロードする",
+    "widgets.cap.downloadFile": "ファイルをダウンロードする",
+    "widgets.cap.timelineAll": "すべてのルームのメッセージを読む",
+    "widgets.cap.timelineRoom": "ルーム {roomId} のメッセージを読む",
+    "widgets.cap.sendState":
+        "キー {stateKey} で {eventType} のルーム状態を送信する",
+    "widgets.cap.sendStateAny": "任意の {eventType} のルーム状態を送信する",
+    "widgets.cap.receiveState":
+        "キー {stateKey} で {eventType} のルーム状態を受信する",
+    "widgets.cap.receiveStateAny": "任意の {eventType} のルーム状態を受信する",
+    "widgets.cap.sendEvent": "{eventType} イベントを送信する",
+    "widgets.cap.sendMessage": "{msgtype} メッセージを送信する",
+    "widgets.cap.receiveEvent": "{eventType} イベントを受信する",
+    "widgets.cap.receiveMessage": "{msgtype} メッセージを受信する",
+    "widgets.cap.sendToDevice": "{eventType} のデバイスメッセージを送信する",
+    "widgets.cap.receiveToDevice": "{eventType} のデバイスメッセージを受信する",
+    "widgets.cap.unknown": "不明な権限: {capability}",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ja };

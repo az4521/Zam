@@ -152,6 +152,36 @@ describe("roomHeaderMenuRows", () => {
         expect(badgesFor(100)).toEqual(["99+", "99+"]);
     });
 
+    it("omits the widgets row unless the room has widgets", () => {
+        expect(roomHeaderMenuRows(base).map((r) => r.key)).not.toContain(
+            "widgets",
+        );
+        expect(
+            roomHeaderMenuRows({ ...base, hasWidgets: false }).map(
+                (r) => r.key,
+            ),
+        ).not.toContain("widgets");
+    });
+
+    it("adds the widgets row last when the room has widgets", () => {
+        const rows = roomHeaderMenuRows({ ...base, hasWidgets: true });
+        expect(rows.map((r) => r.key).at(-1)).toBe("widgets");
+        expect(
+            rows.find((r) => r.key === "widgets")!.label.length,
+        ).toBeGreaterThan(0);
+    });
+
+    it("marks the widgets row active when the widgets panel is open", () => {
+        const rows = roomHeaderMenuRows({
+            ...base,
+            hasWidgets: true,
+            activeSidebar: "widgets",
+        });
+        expect(rows.filter((r) => r.active).map((r) => r.key)).toEqual([
+            "widgets",
+        ]);
+    });
+
     it("falls back to the unread dot when a NaN mention count is dropped", () => {
         const rows = roomHeaderMenuRows({
             ...base,

@@ -98,6 +98,13 @@
     import MessageSearchPanel from "$lib/components/layout/MessageSearchPanel.svelte";
     import ThreadsListPanel from "$lib/components/layout/ThreadsListPanel.svelte";
     import RoomMediaPanel from "$lib/components/layout/RoomMediaPanel.svelte";
+    import WidgetsPanel from "$lib/components/layout/WidgetsPanel.svelte";
+    import {
+        canManageWidgets,
+        listRoomWidgets,
+        onRoomWidgetsChange,
+    } from "$lib/matrix/widgetHost";
+    import { widgetsState, bumpWidgetsTick } from "$lib/stores/widgets.svelte";
     import { searchState } from "$lib/stores/search.svelte";
     import UserProfileCard from "$lib/components/ui/UserProfileCard.svelte";
     import {
@@ -170,6 +177,7 @@
         MessageSquareText,
         Pin,
         Bell,
+        LayoutGrid,
     } from "lucide-svelte";
     import { bridgedThreadParent } from "$lib/stores/bridgedThreads.svelte";
     import { bridgedChannel } from "$lib/stores/bridgedChannels.svelte";
@@ -426,13 +434,31 @@
     const showSearchPanel = $derived(interfaceState.sidebar === "search");
     const showThreadsPanel = $derived(interfaceState.sidebar === "threads");
     const showMediaPanel = $derived(interfaceState.sidebar === "media");
+    const showWidgetsPanel = $derived(interfaceState.sidebar === "widgets");
     const showRightPanel = $derived(
         showPinnedPanel ||
             showNotificationsPanel ||
             showSearchPanel ||
             showThreadsPanel ||
-            showMediaPanel,
+            showMediaPanel ||
+            showWidgetsPanel,
     );
+
+    // Whether the room has any widgets, or the user may add one: decides
+    // whether the Widgets header button (desktop) and overflow row (mobile)
+    // show. Re-derived on widget-state changes and power-level changes.
+    const hasWidgets = $derived.by(() => {
+        void widgetsState.tick;
+        void roomsState.roomsTick;
+        return (
+            listRoomWidgets(room.roomId).length > 0 ||
+            canManageWidgets(room.roomId)
+        );
+    });
+    $effect(() => {
+        const rid = room.roomId;
+        return onRoomWidgetsChange(rid, bumpWidgetsTick);
+    });
 
     // Room-level thread unread rollup for the threads-toggle badge. Keyed off
     // unreadTick so it refreshes on sync/receipts (live Room mutates in place).
@@ -527,6 +553,7 @@
             showPinnedPanel ||
             showNotificationsPanel ||
             showMemberList ||
+            showWidgetsPanel ||
             interfaceState.sidebar === "plugin",
     );
 
@@ -3225,6 +3252,19 @@
                 >
                     <Users size={20} />
                 </button>
+                {#if hasWidgets}
+                    <!-- Room widgets (desktop only; mobile has a row in the "⋯" sheet) -->
+                    <button
+                        onclick={() => toggleSidebar("widgets")}
+                        class="p-1.5 rounded transition-colors {showWidgetsPanel
+                            ? 'text-zam-accent bg-zam-messageHover'
+                            : 'text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover'}"
+                        title={t("messageArea.widgets")}
+                        aria-label={t("messageArea.widgets")}
+                    >
+                        <LayoutGrid size={20} />
+                    </button>
+                {/if}
                 {#each pluginHeaderBtns as btn (btn.entryId)}
                     <button
                         onclick={() => openPluginHeaderPanel(btn)}
@@ -3716,6 +3756,8 @@
                     />
                 {:else if showMediaPanel}
                     <RoomMediaPanel {room} onClose={closeSidebar} />
+                {:else if showWidgetsPanel}
+                    <WidgetsPanel {room} onClose={closeSidebar} />
                 {:else}
                     <PinnedMessagesPanel
                         {room}
@@ -3743,6 +3785,8 @@
             />
         {:else if showMediaPanel}
             <RoomMediaPanel {room} onClose={closeSidebar} />
+        {:else if showWidgetsPanel}
+            <WidgetsPanel {room} onClose={closeSidebar} />
         {:else if showPinnedPanel}
             <PinnedMessagesPanel
                 {room}
@@ -3885,6 +3929,7 @@
         threadMentions={threadRollup.mentions}
         threadAnyUnread={threadRollup.anyUnread}
         {pinnedCount}
+        {hasWidgets}
         pluginRows={pluginOverflowRows}
         onChoose={chooseOverflowItem}
         onChoosePlugin={choosePluginOverflow}

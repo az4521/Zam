@@ -1417,6 +1417,7 @@ export const en = {
     "messageArea.pinnedMessages": "Pinned messages",
     "messageArea.notificationsInbox": "Notifications inbox",
     "messageArea.mediaAndFiles": "Media and files",
+    "messageArea.widgets": "Widgets",
     "messageArea.toggleMemberList": "Toggle member list",
     "messageArea.more": "More",
     "messageArea.moreRoomOptions": "More room options",
@@ -4136,6 +4137,7 @@ export const en = {
     "roomHeaderMenu.notificationsInbox": "Notifications inbox",
     "roomHeaderMenu.mediaAndFiles": "Media and files",
     "roomHeaderMenu.memberList": "Member list",
+    "roomHeaderMenu.widgets": "Widgets",
 
     // src/lib/utils/roomMedia.ts
     "roomMedia.image": "Image",
@@ -4320,6 +4322,7 @@ export const en = {
         "Reset a user's power level to default",
     "slashCommands.discardSession":
         "Use a new room key for your next message, if people can't read yours",
+    "slashCommands.addAWidgetToThisRoom": "Add a widget to this room",
     "slashCommands.usage": "Usage: /{name} {argHint}",
     "slashCommands.usage2": "Usage: /{name}",
 
@@ -4792,6 +4795,65 @@ export const en = {
     "inviteBlocking.couldNotSave":
         "Couldn't change the invite setting. Try again.",
     "inviteBlocking.userNotAccepting": "{user} isn't accepting invites",
+
+    // src/lib/components/layout/WidgetsPanel.svelte, WidgetFrame.svelte,
+    // WidgetCapabilityDialog.svelte, AddWidgetDialog.svelte, /addwidget
+    "widgets.panelTitle": "Widgets",
+    "widgets.add": "Add widget",
+    "widgets.empty": "No widgets in this room.",
+    "widgets.back": "Back to widgets",
+    "widgets.openInBrowser": "Open in browser",
+    "widgets.remove": "Remove",
+    "widgets.confirmRemove": "Remove {name} from this room?",
+    "widgets.confirmRemoveButton": "Yes, remove",
+    "widgets.removeFailed": "Could not remove the widget",
+    "widgets.unsafeUrl":
+        "This widget's address is not allowed, so it was not loaded.",
+    "widgets.unavailable": "Sign in again to open this widget.",
+    "widgets.consent.body":
+        "This widget was added by {user}. Loading it will share your user ID, display name, avatar and this room's ID with {host}.",
+    "widgets.consent.allow": "Allow",
+    "widgets.consent.allowAndRemember": "Allow and remember",
+    "widgets.capabilities.title": "{widget} asks for permissions",
+    "widgets.capabilities.description":
+        "{host} asks for the following. Only allow what you trust.",
+    "widgets.capabilities.remember": "Remember my choice",
+    "widgets.capabilities.approve": "Approve",
+    "widgets.capabilities.deny": "Deny",
+    "widgets.openId.title": "{widget} wants to verify you",
+    "widgets.openId.description":
+        "{host} wants to confirm your Matrix user ID. It gets a short-lived token it can check with your homeserver.",
+    "widgets.addDialog.title": "Add widget",
+    "widgets.addDialog.name": "Name",
+    "widgets.addDialog.url": "Widget URL",
+    "widgets.addDialog.urlInvalid": "Enter an http:// or https:// address.",
+    "widgets.addDialog.add": "Add",
+    "widgets.addDialog.added": "Widget added",
+    "widgets.addDialog.failed": "Could not add the widget",
+    "widgets.slash.noPermission":
+        "You do not have permission to add widgets to this room.",
+    "widgets.slash.invalidUrl": "Enter an http:// or https:// widget address.",
+    "widgets.cap.alwaysOnScreen": "Stay open while you use other rooms",
+    "widgets.cap.screenshot": "Take screenshots of the widget",
+    "widgets.cap.navigate": "Move Zam to other rooms",
+    "widgets.cap.requiresClient": "Require a Matrix client",
+    "widgets.cap.userDirectory": "Search the user directory",
+    "widgets.cap.uploadFile": "Upload files",
+    "widgets.cap.downloadFile": "Download files",
+    "widgets.cap.timelineAll": "Read the messages of every room",
+    "widgets.cap.timelineRoom": "Read the messages of room {roomId}",
+    "widgets.cap.sendState": "Send {eventType} room state with key {stateKey}",
+    "widgets.cap.sendStateAny": "Send any {eventType} room state",
+    "widgets.cap.receiveState":
+        "Receive {eventType} room state with key {stateKey}",
+    "widgets.cap.receiveStateAny": "Receive any {eventType} room state",
+    "widgets.cap.sendEvent": "Send {eventType} events",
+    "widgets.cap.sendMessage": "Send {msgtype} messages",
+    "widgets.cap.receiveEvent": "Receive {eventType} events",
+    "widgets.cap.receiveMessage": "Receive {msgtype} messages",
+    "widgets.cap.sendToDevice": "Send {eventType} device messages",
+    "widgets.cap.receiveToDevice": "Receive {eventType} device messages",
+    "widgets.cap.unknown": "Unknown permission: {capability}",
 };
 
 export type MessageKey = keyof typeof en;

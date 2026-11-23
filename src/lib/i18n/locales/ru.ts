@@ -4950,6 +4950,72 @@ const messages: Partial<Record<MessageKey, string>> = {
     "inviteBlocking.couldNotSave":
         "Не удалось изменить настройку приглашений. Попробуйте ещё раз.",
     "inviteBlocking.userNotAccepting": "{user} не принимает приглашения",
+    // Room widgets (WidgetsPanel, WidgetFrame, consent and capability dialogs)
+    "messageArea.widgets": "Виджеты",
+    "roomHeaderMenu.widgets": "Виджеты",
+    "slashCommands.addAWidgetToThisRoom": "Добавить виджет в эту комнату",
+    "widgets.panelTitle": "Виджеты",
+    "widgets.add": "Добавить виджет",
+    "widgets.empty": "В этой комнате нет виджетов.",
+    "widgets.back": "Назад к виджетам",
+    "widgets.openInBrowser": "Открыть в браузере",
+    "widgets.remove": "Удалить",
+    "widgets.confirmRemove": "Удалить {name} из этой комнаты?",
+    "widgets.confirmRemoveButton": "Да, удалить",
+    "widgets.removeFailed": "Не удалось удалить виджет",
+    "widgets.unsafeUrl":
+        "Адрес этого виджета не разрешён, поэтому он не был загружен.",
+    "widgets.unavailable": "Войдите снова, чтобы открыть этот виджет.",
+    "widgets.consent.body":
+        "Этот виджет добавил {user}. При загрузке ваш ID пользователя, отображаемое имя, аватар и ID этой комнаты будут переданы {host}.",
+    "widgets.consent.allow": "Разрешить",
+    "widgets.consent.allowAndRemember": "Разрешить и запомнить",
+    "widgets.capabilities.title": "{widget} запрашивает разрешения",
+    "widgets.capabilities.description":
+        "{host} запрашивает следующее. Разрешайте только то, чему доверяете.",
+    "widgets.capabilities.remember": "Запомнить мой выбор",
+    "widgets.capabilities.approve": "Разрешить",
+    "widgets.capabilities.deny": "Отклонить",
+    "widgets.openId.title": "{widget} хочет подтвердить вашу личность",
+    "widgets.openId.description":
+        "{host} хочет подтвердить ваш ID пользователя Matrix. Он получит короткоживущий токен, который может проверить на вашем домашнем сервере.",
+    "widgets.addDialog.title": "Добавить виджет",
+    "widgets.addDialog.name": "Имя",
+    "widgets.addDialog.url": "URL виджета",
+    "widgets.addDialog.urlInvalid": "Введите адрес http:// или https://.",
+    "widgets.addDialog.add": "Добавить",
+    "widgets.addDialog.added": "Виджет добавлен",
+    "widgets.addDialog.failed": "Не удалось добавить виджет",
+    "widgets.slash.noPermission":
+        "У вас нет прав на добавление виджетов в эту комнату.",
+    "widgets.slash.invalidUrl": "Введите адрес виджета http:// или https://.",
+    "widgets.cap.alwaysOnScreen":
+        "Оставаться открытым, пока вы пользуетесь другими комнатами",
+    "widgets.cap.screenshot": "Делать снимки экрана виджета",
+    "widgets.cap.navigate": "Переходить к другим комнатам в Zam",
+    "widgets.cap.requiresClient": "Требовать клиент Matrix",
+    "widgets.cap.userDirectory": "Искать в каталоге пользователей",
+    "widgets.cap.uploadFile": "Загружать файлы",
+    "widgets.cap.downloadFile": "Скачивать файлы",
+    "widgets.cap.timelineAll": "Читать сообщения всех комнат",
+    "widgets.cap.timelineRoom": "Читать сообщения комнаты {roomId}",
+    "widgets.cap.sendState":
+        "Отправлять состояние комнаты типа {eventType} с ключом {stateKey}",
+    "widgets.cap.sendStateAny":
+        "Отправлять любое состояние комнаты типа {eventType}",
+    "widgets.cap.receiveState":
+        "Получать состояние комнаты типа {eventType} с ключом {stateKey}",
+    "widgets.cap.receiveStateAny":
+        "Получать любое состояние комнаты типа {eventType}",
+    "widgets.cap.sendEvent": "Отправлять события типа {eventType}",
+    "widgets.cap.sendMessage": "Отправлять сообщения типа {msgtype}",
+    "widgets.cap.receiveEvent": "Получать события типа {eventType}",
+    "widgets.cap.receiveMessage": "Получать сообщения типа {msgtype}",
+    "widgets.cap.sendToDevice":
+        "Отправлять сообщения устройствам типа {eventType}",
+    "widgets.cap.receiveToDevice":
+        "Получать сообщения устройств типа {eventType}",
+    "widgets.cap.unknown": "Неизвестное разрешение: {capability}",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ru };

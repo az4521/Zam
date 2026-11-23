@@ -42,6 +42,8 @@
         type MediaRelation,
     } from "$lib/matrix/client";
     import { reusableMediaOfFile } from "$lib/matrix/favouriteFile";
+    import { addRoomWidget, canManageWidgets } from "$lib/matrix/widgetHost";
+    import { parseAddWidgetArg } from "$lib/utils/widgetAdd";
     import { sendEventContent } from "$lib/matrix/pluginHost";
     import { composerThreadKey } from "$lib/utils/threadContent";
     import {
@@ -1274,6 +1276,19 @@
                 await discardRoomSession(roomId);
                 showToast(t("crypto.roomKeyDiscarded"), { tone: "accent" });
                 break;
+            case "addwidget": {
+                // A failed command throws, and dispatch shows the message.
+                if (!canManageWidgets(roomId))
+                    throw new Error(t("widgets.slash.noPermission"));
+                const parsed = parseAddWidgetArg(arg);
+                if (!parsed) throw new Error(t("widgets.slash.invalidUrl"));
+                await addRoomWidget(roomId, {
+                    url: parsed.url,
+                    name: parsed.name || new URL(parsed.url).host,
+                });
+                showToast(t("widgets.addDialog.added"), { tone: "accent" });
+                break;
+            }
             default:
                 throw new Error(
                     t("messageInput.unhandledCommand", { name: command.name }),

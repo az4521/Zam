@@ -5001,6 +5001,74 @@ const messages: Partial<Record<MessageKey, string>> = {
     "inviteBlocking.couldNotSave":
         "No se pudo cambiar la configuración de invitaciones. Inténtalo de nuevo.",
     "inviteBlocking.userNotAccepting": "{user} no acepta invitaciones",
+    // Room widgets (WidgetsPanel, WidgetFrame, consent and capability dialogs)
+    "messageArea.widgets": "Widgets",
+    "roomHeaderMenu.widgets": "Widgets",
+    "slashCommands.addAWidgetToThisRoom": "Añadir un widget a esta sala",
+    "widgets.panelTitle": "Widgets",
+    "widgets.add": "Añadir widget",
+    "widgets.empty": "No hay widgets en esta sala.",
+    "widgets.back": "Volver a los widgets",
+    "widgets.openInBrowser": "Abrir en el navegador",
+    "widgets.remove": "Quitar",
+    "widgets.confirmRemove": "¿Quitar {name} de esta sala?",
+    "widgets.confirmRemoveButton": "Sí, quitar",
+    "widgets.removeFailed": "No se pudo quitar el widget",
+    "widgets.unsafeUrl":
+        "La dirección de este widget no está permitida, así que no se ha cargado.",
+    "widgets.unavailable": "Vuelve a iniciar sesión para abrir este widget.",
+    "widgets.consent.body":
+        "Este widget lo añadió {user}. Al cargarlo se compartirán tu ID de usuario, tu nombre visible, tu avatar y el ID de esta sala con {host}.",
+    "widgets.consent.allow": "Permitir",
+    "widgets.consent.allowAndRemember": "Permitir y recordar",
+    "widgets.capabilities.title": "{widget} solicita permisos",
+    "widgets.capabilities.description":
+        "{host} solicita lo siguiente. Permite solo lo que sea de tu confianza.",
+    "widgets.capabilities.remember": "Recordar mi elección",
+    "widgets.capabilities.approve": "Aprobar",
+    "widgets.capabilities.deny": "Denegar",
+    "widgets.openId.title": "{widget} quiere verificarte",
+    "widgets.openId.description":
+        "{host} quiere confirmar tu ID de usuario de Matrix. Recibirá un token de corta duración que puede comprobar con tu servidor.",
+    "widgets.addDialog.title": "Añadir widget",
+    "widgets.addDialog.name": "Nombre",
+    "widgets.addDialog.url": "URL del widget",
+    "widgets.addDialog.urlInvalid":
+        "Introduce una dirección http:// o https://.",
+    "widgets.addDialog.add": "Añadir",
+    "widgets.addDialog.added": "Widget añadido",
+    "widgets.addDialog.failed": "No se pudo añadir el widget",
+    "widgets.slash.noPermission":
+        "No tienes permiso para añadir widgets a esta sala.",
+    "widgets.slash.invalidUrl":
+        "Introduce una dirección de widget http:// o https://.",
+    "widgets.cap.alwaysOnScreen":
+        "Mantenerse abierto mientras usas otras salas",
+    "widgets.cap.screenshot": "Hacer capturas de pantalla del widget",
+    "widgets.cap.navigate": "Mover Zam a otras salas",
+    "widgets.cap.requiresClient": "Requerir un cliente de Matrix",
+    "widgets.cap.userDirectory": "Buscar en el directorio de usuarios",
+    "widgets.cap.uploadFile": "Subir archivos",
+    "widgets.cap.downloadFile": "Descargar archivos",
+    "widgets.cap.timelineAll": "Leer los mensajes de todas las salas",
+    "widgets.cap.timelineRoom": "Leer los mensajes de la sala {roomId}",
+    "widgets.cap.sendState":
+        "Enviar estado de sala de tipo {eventType} con la clave {stateKey}",
+    "widgets.cap.sendStateAny":
+        "Enviar cualquier estado de sala de tipo {eventType}",
+    "widgets.cap.receiveState":
+        "Recibir estado de sala de tipo {eventType} con la clave {stateKey}",
+    "widgets.cap.receiveStateAny":
+        "Recibir cualquier estado de sala de tipo {eventType}",
+    "widgets.cap.sendEvent": "Enviar eventos de tipo {eventType}",
+    "widgets.cap.sendMessage": "Enviar mensajes de tipo {msgtype}",
+    "widgets.cap.receiveEvent": "Recibir eventos de tipo {eventType}",
+    "widgets.cap.receiveMessage": "Recibir mensajes de tipo {msgtype}",
+    "widgets.cap.sendToDevice":
+        "Enviar mensajes de dispositivo de tipo {eventType}",
+    "widgets.cap.receiveToDevice":
+        "Recibir mensajes de dispositivo de tipo {eventType}",
+    "widgets.cap.unknown": "Permiso desconocido: {capability}",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: es };
