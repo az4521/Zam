@@ -214,6 +214,31 @@ describe("normalizeKlipyItems", () => {
         });
     });
 
+    it("takes a jpg still as the tile poster when there is one", () => {
+        const item = sample.data.data[0];
+        const page = normalizeKlipyItems({
+            data: {
+                data: [
+                    {
+                        ...item,
+                        file: {
+                            ...item.file,
+                            sm: {
+                                ...item.file!.sm,
+                                jpg: {
+                                    url: "https://static2.klipy.com/sm.jpg",
+                                },
+                            },
+                        },
+                    },
+                ],
+            },
+        });
+        expect(page.items[0].previewPosterUrl).toBe(
+            "https://static2.klipy.com/sm.jpg",
+        );
+    });
+
     it("builds the page url from the requested kind", () => {
         const page = normalizeKlipyItems(sample, "memes");
         expect(page.items[0].pageUrl).toBe("https://klipy.com/memes/abc");

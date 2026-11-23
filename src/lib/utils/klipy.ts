@@ -24,6 +24,9 @@ export interface GifResult {
     /** Small mp4 for the picker grid. Animated webp only starts playing once
      *  fully downloaded; video streams, so tiles animate almost immediately. */
     previewVideoUrl?: string;
+    /** Still jpg of the grid tile: shown while its video has no decoder
+     *  (scrolled away, waiting for a slot, or a Lightbox holds them). */
+    previewPosterUrl?: string;
     width: number;
     height: number;
 }
@@ -76,6 +79,9 @@ const PREVIEW_FORMATS: (keyof Fmt)[] = ["webp", "gif", "mp4"];
 // animated webp, plays while it is still downloading.
 const PREVIEW_VIDEO_SIZES = ["sm", "md", "xs", "hd"];
 const PREVIEW_VIDEO_FORMATS: (keyof Fmt)[] = ["mp4"];
+// Grid tile poster: a still, so a tile never sits blank before it plays.
+const PREVIEW_POSTER_SIZES = ["sm", "md", "xs", "hd"];
+const PREVIEW_POSTER_FORMATS: (keyof Fmt)[] = ["jpg"];
 
 const SLUG_RE = /^[A-Za-z0-9_-]+$/;
 
@@ -126,6 +132,11 @@ export function normalizeKlipyItems(
             PREVIEW_VIDEO_SIZES,
             PREVIEW_VIDEO_FORMATS,
         );
+        const poster = pickRendition(
+            it.file,
+            PREVIEW_POSTER_SIZES,
+            PREVIEW_POSTER_FORMATS,
+        );
         const pageUrl =
             typeof it.slug === "string"
                 ? klipyPageUrl(kind, it.slug)
@@ -136,6 +147,7 @@ export function normalizeKlipyItems(
             ...(pageUrl ? { pageUrl } : {}),
             previewUrl: small.url,
             ...(video?.url ? { previewVideoUrl: video.url } : {}),
+            ...(poster?.url ? { previewPosterUrl: poster.url } : {}),
             width: full.width ?? 0,
             height: full.height ?? 0,
         });

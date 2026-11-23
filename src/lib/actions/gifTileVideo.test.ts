@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { gifTileVideo, MAX_PLAYING_TILES } from "./gifTileVideo";
+import { gifTileVideo } from "./gifTileVideo";
 import { holdVideoDecoders } from "$lib/stores/videoDecoderHold";
 
 // One fake observer per (root, margin) pool. `fire` reports every target the
@@ -96,22 +96,37 @@ describe("gifTileVideo", () => {
         expect(node.getAttribute("src")).toBeNull();
     });
 
-    it("caps how many tiles play at once and starts a waiter when one leaves", () => {
-        // Tiles stay alive for the whole test, so the cap is what stops them.
-        const tiles = Array.from({ length: MAX_PLAYING_TILES + 1 }, (_, i) =>
+    it("plays every tile in view, with no count cap", () => {
+        const tiles = Array.from({ length: 40 }, (_, i) =>
             tile(`https://x/${i}.mp4`),
         );
-        // One observer serves all of them; report each one in view.
         fire(true);
-        const playing = tiles.filter((t) => t.node.getAttribute("src"));
-        expect(playing).toHaveLength(MAX_PLAYING_TILES);
-        // The overflow tile is the one waiting.
-        const waiting = tiles[MAX_PLAYING_TILES];
-        expect(waiting.node.getAttribute("src")).toBeNull();
-        // Destroying a playing tile hands its slot to the waiter.
-        tiles[0].action.destroy?.();
-        expect(waiting.node.getAttribute("src")).toBe(
-            `https://x/${MAX_PLAYING_TILES}.mp4`,
-        );
+        expect(tiles.every((t) => t.node.getAttribute("src"))).toBe(true);
+    });
+
+    it("plays a hovered tile before the observer reports it, and stops on leave", () => {
+        const host = document.createElement("button");
+        const node = document.createElement("video");
+        node.load = vi.fn();
+        host.appendChild(node);
+        actions.push(gifTileVideo(node, "https://x/h.mp4"));
+        expect(node.getAttribute("src")).toBeNull();
+        host.dispatchEvent(new Event("pointerenter"));
+        expect(node.getAttribute("src")).toBe("https://x/h.mp4");
+        host.dispatchEvent(new Event("pointerleave"));
+        expect(node.getAttribute("src")).toBeNull();
+    });
+
+    it("keeps a hovered tile unloaded while a Lightbox holds the decoders", () => {
+        const host = document.createElement("button");
+        const node = document.createElement("video");
+        node.load = vi.fn();
+        host.appendChild(node);
+        actions.push(gifTileVideo(node, "https://x/h.mp4"));
+        const release = holdVideoDecoders();
+        host.dispatchEvent(new Event("pointerenter"));
+        expect(node.getAttribute("src")).toBeNull();
+        release();
+        expect(node.getAttribute("src")).toBe("https://x/h.mp4");
     });
 });

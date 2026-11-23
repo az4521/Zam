@@ -5,18 +5,12 @@ import {
     videoDecodersHeld,
 } from "$lib/stores/videoDecoderHold";
 import { observeShared } from "$lib/utils/sharedIntersection";
-import { PlaybackSlots } from "$lib/utils/playbackSlots";
 
-/** One viewport's height above and below the scroller: tiles a screen away
- *  keep playing, so scrolling back shows no blank or reloading tile. Only
- *  tiles well outside this are released. */
-const MARGIN = "100% 0px";
-
-/** Most picker tiles playing at once across the app. The hardware decoder
- *  pool is small; past this the driver returns corrupt frames. */
-export const MAX_PLAYING_TILES = 12;
-
-const playingTiles = new PlaybackSlots<object>(MAX_PLAYING_TILES);
+/** A quarter of the viewport above and below the scroller: tiles about to
+ *  scroll in are already playing, while tiles well out of view hold no
+ *  decoder. What plays follows what is visible; there is no count cap, since
+ *  the viewport already bounds how many tiles are on screen. */
+const MARGIN = "25% 0px";
 
 export interface TileGate {
     /** Re-run the grant: drop the current one and take it again. */
@@ -25,38 +19,32 @@ export interface TileGate {
 }
 
 /**
- * Decide when a tile may play: it must be near the scroller's viewport, not
- * held by an open Lightbox, and inside the concurrency cap. `onActive` is
- * called with true when the tile is granted playback and false when it is
- * released. Every tile of the picker shares one observer (sharedIntersection)
- * and the one slot budget.
+ * Decide when a tile may play: it must be in or near the scroller's viewport
+ * (or under the pointer), and not held by an open Lightbox. `onActive` is
+ * called with true when the tile may play and false when it must stop. Every
+ * tile of the picker shares one observer (sharedIntersection).
  */
 export function gateTile(
     node: Element,
     onActive: (on: boolean) => void,
 ): TileGate {
-    const key = {};
     const hasObserver = typeof IntersectionObserver === "function";
     // Without an observer there is no way to tell, so every tile is near.
     let near = !hasObserver;
+    // The tile under the pointer plays at once, ahead of the observer's
+    // first report for it.
+    let hovered = false;
     let held = videoDecodersHeld();
     let granted = false;
 
-    function grant() {
-        granted = true;
-        onActive(true);
-    }
-
-    function dropSlot() {
-        playingTiles.cancel(key);
-        if (!granted) return;
-        granted = false;
-        onActive(false);
+    function set(on: boolean) {
+        if (on === granted) return;
+        granted = on;
+        onActive(on);
     }
 
     function sync() {
-        if (near && !held) playingTiles.request(key, grant);
-        else dropSlot();
+        set((near || hovered) && !held);
     }
 
     const unobserve = hasObserver
@@ -69,18 +57,32 @@ export function gateTile(
         held = videoDecodersHeld();
         sync();
     });
+    // The tile's own box (the video and overlay are pointer-events-none).
+    const host = node.parentElement;
+    const enter = () => {
+        hovered = true;
+        sync();
+    };
+    const leave = () => {
+        hovered = false;
+        sync();
+    };
+    host?.addEventListener("pointerenter", enter);
+    host?.addEventListener("pointerleave", leave);
     if (!hasObserver) sync();
 
     return {
         refresh() {
             if (!granted) return;
-            dropSlot();
+            set(false);
             sync();
         },
         destroy() {
             unobserve?.();
             stopHolding();
-            dropSlot();
+            host?.removeEventListener("pointerenter", enter);
+            host?.removeEventListener("pointerleave", leave);
+            set(false);
         },
     };
 }
@@ -107,13 +109,11 @@ export function gifTileSlot(
 
 /**
  * Svelte action: own a picker tile's looping `<video>`, giving it a source only
- * while it is near the scroller's viewport and under the playing cap.
+ * while it is in or near the scroller's viewport, or hovered.
  *
- * Hardware decoders are a small fixed pool (D3D11VA on Windows, VA-API on
- * Linux). Starting every result at once, plus every page of "load more" on
- * top, exhausts it: the driver then hands back corrupt frames (a green bar) or
- * takes the GPU process down. Only the tiles in or near view hold a decoder,
- * and at most {@link MAX_PLAYING_TILES} do. The `poster`, when there is one,
+ * Every page of "load more" stays mounted, so starting every result at once
+ * would keep hundreds of decoders alive for tiles nobody can see. Only the
+ * tiles in or near view hold one. The `poster`, when there is one,
  * stays up while a tile is unloaded; the caller's aspect ratio sizes its box,
  * so nothing shifts.
  */

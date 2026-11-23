@@ -389,7 +389,7 @@
             });
     }
 
-    // Favourite videos that are granted playback (in view, under the cap).
+    // Favourite videos that are granted playback (in or near view, or hovered).
     // Keyed by URL; a video that is not in here has no source at all.
     const playing = new SvelteSet<string>();
     function setPlaying(url: string, on: boolean) {
@@ -754,8 +754,8 @@
                                         {#if parseEventFavouriteSource(gif.source)}
                                             {#if gif.video && !playing.has(gif.url)}
                                                 <!-- Held back until the tile is in
-                                                 view and under the playing cap:
-                                                 same box, so nothing shifts. -->
+                                                 or near view, or hovered: same
+                                                 box, so nothing shifts. -->
                                                 <div
                                                     class="w-full block rounded bg-zam-backgroundTertiary"
                                                     style={favouriteAspectStyle(
@@ -857,7 +857,7 @@
                                     </button>
                                     {#if gif.video}
                                         <!-- Invisible overlay that gates this
-                                         tile's video (view + playing cap). -->
+                                         tile's video (view or hover). -->
                                         <span
                                             class="absolute inset-0 pointer-events-none"
                                             aria-hidden="true"
@@ -1017,6 +1017,7 @@
                                          mp4 plays while it streams. -->
                                             <video
                                                 use:gifTileVideo={r.previewVideoUrl}
+                                                poster={r.previewPosterUrl}
                                                 class="w-full h-auto block rounded bg-zam-backgroundTertiary pointer-events-none"
                                                 style={gifAspectRatioStyle(
                                                     r.width,
