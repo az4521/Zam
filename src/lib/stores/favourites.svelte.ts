@@ -22,6 +22,10 @@ import { matrixMediaMxc } from "$lib/matrix/favouriteFile";
 import { disableStep, enableStep } from "$lib/utils/favouritesMode";
 import { safeDimension } from "$lib/utils/mediaDimensions";
 import { mergeImportedFavourites } from "$lib/utils/discordFavourites";
+import {
+    applyFavouriteMediaRefresh,
+    type FavouriteMediaRefresh,
+} from "$lib/utils/linkPreviewFavourite";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 import { openSecretStorageUnlock } from "$lib/stores/onboarding.svelte";
 import { t } from "$lib/i18n";
@@ -396,6 +400,25 @@ export function upgradeFavouriteGifs(
             ? gifs
             : out;
     });
+}
+
+/**
+ * Give GIF-site favourites the tile media their link preview has now (see
+ * needsGifSiteRefresh). A background repair: when the list is encrypted and
+ * locked it is skipped quietly rather than raising the locked toast.
+ */
+export function refreshFavouriteGifMedia(
+    refreshes: ReadonlyMap<string, FavouriteMediaRefresh>,
+): Promise<void> {
+    if (refreshes.size === 0) return Promise.resolve();
+    if (privateModeState.mode === "encrypted" && !hasPrivateKey())
+        return Promise.resolve();
+    if (
+        applyFavouriteMediaRefresh(favouritesState.gifs, refreshes) ===
+        favouritesState.gifs
+    )
+        return Promise.resolve();
+    return mutate((gifs) => applyFavouriteMediaRefresh(gifs, refreshes));
 }
 
 /**

@@ -399,7 +399,42 @@ export function favouriteTileUrl(url: string): string;
 export function favouriteTileUrl(url: string | undefined): string | undefined;
 export function favouriteTileUrl(url: string | undefined): string | undefined {
     if (!url) return url;
-    return homeserverMediaUrl(url) ?? url;
+    return homeserverMediaUrl(url) ?? homeserverThumbnailUrl(url) ?? url;
+}
+
+const MEDIA_THUMBNAIL_RE =
+    /^(?:.*\/)?_matrix\/(?:client\/v1\/media|media\/v3)\/thumbnail\/([^/]+)\/([^/?#]+)\/?$/;
+
+/** This homeserver's authenticated thumbnail URL for a stored Matrix
+ *  thumbnail URL (either path, any homeserver), keeping its size. Null when
+ *  `url` is not one. */
+function homeserverThumbnailUrl(url: string): string | null {
+    let parsed: URL;
+    try {
+        parsed = new URL(url);
+    } catch {
+        return null;
+    }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:")
+        return null;
+    const match = MEDIA_THUMBNAIL_RE.exec(parsed.pathname);
+    if (!match) return null;
+    let mxc: string;
+    try {
+        mxc = `mxc://${decodeURIComponent(match[1])}/${decodeURIComponent(match[2])}`;
+    } catch {
+        return null;
+    }
+    if (!parseMxc(mxc)) return null;
+    const size = (k: string) => {
+        const n = Number(parsed.searchParams.get(k));
+        return Number.isInteger(n) && n > 0 && n <= 4096 ? n : null;
+    };
+    const width = size("width") ?? 800;
+    const height = size("height") ?? width;
+    const method =
+        parsed.searchParams.get("method") === "crop" ? "crop" : "scale";
+    return mxcToHttp(mxc, width, height, method);
 }
 
 /** Whether `url` names Matrix media the picker can fetch through this

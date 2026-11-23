@@ -2,19 +2,9 @@ import { getUrlPreview, type UrlPreview } from "$lib/matrix/client";
 import { pluginRegistry } from "$lib/stores/plugins.svelte";
 import { applyPreviewUrlTransforms } from "$lib/plugins/outgoingTransforms";
 import { fetchGifEmbed, isGifHostLink } from "$lib/utils/gifEmbed";
+import { isGifSiteUrl } from "$lib/utils/linkPreviewFavourite";
 
-/** GIF-sharing sites (Tenor/Giphy/Klipy), matched on the registrable domain's
- *  second-level label so `media.tenor.com` counts but `tenor.com.evil.example`
- *  does not. */
-export function isGifSiteUrl(url: string): boolean {
-    try {
-        const labels = new URL(url).hostname.split(".");
-        const sld = labels[labels.length - 2];
-        return sld === "tenor" || sld === "giphy" || sld === "klipy";
-    } catch {
-        return false;
-    }
-}
+export { isGifSiteUrl };
 
 /** The URL the homeserver's preview endpoint is asked about. Plugins may point
  *  the request elsewhere (a mirror the homeserver can reach). */

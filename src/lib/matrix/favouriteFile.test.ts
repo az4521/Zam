@@ -14,11 +14,12 @@ vi.mock("$lib/matrix/client", () => ({
 vi.mock("$lib/matrix/media", () => ({
     fetchAttachmentBlob: (url: string) => fetchAttachmentBlob(url),
     fetchDecryptedAttachmentBlob: vi.fn(),
-    mxcToHttp: (mxc: string) => {
+    mxcToHttp: (mxc: string, width = 0, height?: number, method = "crop") => {
         const m = /^mxc:\/\/([^/]+)\/([A-Za-z0-9_-]+)$/.exec(mxc);
-        return client.homeserver && m
-            ? `${client.homeserver}/_matrix/client/v1/media/download/${m[1]}/${m[2]}`
-            : null;
+        if (!client.homeserver || !m) return null;
+        return width > 0
+            ? `${client.homeserver}/_matrix/client/v1/media/thumbnail/${m[1]}/${m[2]}?width=${width}&height=${height ?? width}&method=${method}&animated=true`
+            : `${client.homeserver}/_matrix/client/v1/media/download/${m[1]}/${m[2]}`;
     },
 }));
 
@@ -47,6 +48,25 @@ describe("favouriteTileUrl", () => {
             "https://hs.example/_matrix/client/v1/media/download/other.example/AbC123",
         );
         expect(favouriteTileUrl(HS_MEDIA)).toBe(HS_MEDIA);
+    });
+
+    it("rewrites a legacy thumbnail URL to this homeserver's authed thumbnail", () => {
+        // An old Tenor favourite's tile, as stored.
+        expect(
+            favouriteTileUrl(
+                "https://other.example/_matrix/media/v3/thumbnail/other.example/AbC123?width=800&height=600&method=scale",
+            ),
+        ).toBe(
+            "https://hs.example/_matrix/client/v1/media/thumbnail/other.example/AbC123?width=800&height=600&method=scale&animated=true",
+        );
+        // An absurd or missing size falls back to a sane one.
+        expect(
+            favouriteTileUrl(
+                "https://hs.example/_matrix/media/v3/thumbnail/hs.example/AbC123?width=99999",
+            ),
+        ).toBe(
+            "https://hs.example/_matrix/client/v1/media/thumbnail/hs.example/AbC123?width=800&height=800&method=scale&animated=true",
+        );
     });
 
     it("leaves non-Matrix URLs and empty values alone", () => {

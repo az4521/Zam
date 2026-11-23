@@ -1,3 +1,9 @@
+<script lang="ts" module>
+    /** GIF-site favourites whose link preview was already fetched again this
+     *  session (see refreshStaleFavourites), refreshed or not. */
+    const refreshedFavouriteLinks = new Set<string>();
+</script>
+
 <script lang="ts">
     import { t } from "$lib/i18n";
     import FavouriteFileImg from "$lib/components/ui/FavouriteFileImg.svelte";
@@ -19,6 +25,7 @@
         setFavouriteGifTags,
         unlockFavourites,
         upgradeFavouriteGifs,
+        refreshFavouriteGifMedia,
         type FavouriteGif,
     } from "$lib/stores/favourites.svelte";
     import { interfaceState } from "$lib/stores/interface.svelte";
@@ -34,6 +41,12 @@
     } from "$lib/stores/gifSearch.svelte";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import { normalizeProviderPage } from "$lib/plugins/pluginGifs";
+    import { fetchLinkPreview } from "$lib/utils/linkPreviewFetch";
+    import {
+        gifSiteRefresh,
+        needsGifSiteRefresh,
+        type FavouriteMediaRefresh,
+    } from "$lib/utils/linkPreviewFavourite";
     import { tick, untrack } from "svelte";
     import { SvelteSet } from "svelte/reactivity";
     import { Film, Star } from "lucide-svelte";
@@ -318,6 +331,46 @@
                 previewVideoUrl: r.previewVideoUrl,
             }));
         if (upgrades.length) untrack(() => upgradeFavouriteGifs(upgrades));
+    });
+
+    // Old GIF-site favourites have a still server thumbnail as their tile.
+    // Fetch their link preview again (a few at a time, once a session) and
+    // give them the video a new star gets.
+    const REFRESH_CONCURRENCY = 3;
+    async function refreshStaleFavourites(links: string[]) {
+        const refreshes = new Map<string, FavouriteMediaRefresh>();
+        let next = 0;
+        async function worker() {
+            while (next < links.length) {
+                const url = links[next++];
+                const { preview } = await fetchLinkPreview(url, false).catch(
+                    () => ({ preview: null }),
+                );
+                const refresh = gifSiteRefresh(url, preview);
+                if (refresh) refreshes.set(url, refresh);
+            }
+        }
+        await Promise.all(
+            Array.from(
+                { length: Math.min(REFRESH_CONCURRENCY, links.length) },
+                worker,
+            ),
+        );
+        await refreshFavouriteGifMedia(refreshes);
+    }
+
+    $effect(() => {
+        if (tab !== "favourites") return;
+        const links = favourites
+            .filter(
+                (g) =>
+                    needsGifSiteRefresh(g) &&
+                    !refreshedFavouriteLinks.has(g.url),
+            )
+            .map((g) => g.url);
+        if (!links.length) return;
+        for (const url of links) refreshedFavouriteLinks.add(url);
+        untrack(() => void refreshStaleFavourites(links));
     });
 
     function toggleStar(r: GifResult) {
