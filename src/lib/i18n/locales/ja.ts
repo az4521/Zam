@@ -3607,6 +3607,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "keyBackup.fetchingYourEncryptedHistory": "暗号化された履歴を取得中…",
     "keyBackup.restoringYourEncryptedHistory": "暗号化された履歴を復元中…",
     "keyBackup.restoringOfKeys": "{total} 件中 {successes} 件の鍵を復元中…",
+    "keyBackup.restoringInBackground":
+        "各鍵は過去のメッセージのまとまりを復号します。Zam はこのまま使えます。開いたメッセージはすぐに鍵を取得し、残りはバックグラウンドで完了します。",
+    "keyBackup.restoreFailed":
+        "バックアップからすべての鍵を復元できませんでした。開いたメッセージは引き続き鍵を取得します。",
     "keyBackup.noEncryptedHistoryToRestore": "復元する暗号化履歴がありません",
     "keyBackup.restored": "{count, plural, other {#件の鍵を復元しました}}",
     "keyBackup.ofKeysRestored": "{total} 件中 {imported} 件の鍵を復元しました",

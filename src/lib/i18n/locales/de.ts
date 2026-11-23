@@ -4110,6 +4110,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Dein verschlüsselter Verlauf wird wiederhergestellt…",
     "keyBackup.restoringOfKeys":
         "{successes} von {total} Schlüsseln werden wiederhergestellt…",
+    "keyBackup.restoringInBackground":
+        "Jeder Schlüssel entsperrt einen Teil deiner älteren Nachrichten. Du kannst Zam weiter nutzen: Jede geöffnete Nachricht holt ihren Schlüssel sofort, der Rest wird im Hintergrund fertig.",
+    "keyBackup.restoreFailed":
+        "Nicht alle Schlüssel konnten aus deinem Backup wiederhergestellt werden. Geöffnete Nachrichten holen ihre Schlüssel trotzdem.",
     "keyBackup.noEncryptedHistoryToRestore":
         "Kein verschlüsselter Verlauf zum Wiederherstellen",
     "keyBackup.restored":

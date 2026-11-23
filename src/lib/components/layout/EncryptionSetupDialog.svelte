@@ -5,6 +5,7 @@
     // existing one (another device, or the recovery key). Security settings
     // keeps the full toolbox; this is the short path for everyone else.
     import { t } from "$lib/i18n";
+    import KeyRestoreProgress from "$lib/components/settings/KeyRestoreProgress.svelte";
     import ModalDialog from "$lib/components/ui/ModalDialog.svelte";
     import { Check, Lock } from "lucide-svelte";
     import {
@@ -41,10 +42,6 @@
         formatRecoveryKey,
         isLikelyRecoveryKey,
     } from "$lib/utils/recoveryKey";
-    import {
-        restoreProgressView,
-        type RestoreProgress,
-    } from "$lib/utils/keyBackup";
     import { revokeLater, saveObjectUrl } from "$lib/utils/saveFile";
 
     // How long an automatic open waits for encryption to start before giving
@@ -269,8 +266,6 @@
     let unlockMode = $state<"key" | "passphrase">("key");
     let unlockKey = $state("");
     let unlockPassphrase = $state("");
-    let progress = $state<RestoreProgress | null>(null);
-    const progressView = $derived(restoreProgressView(progress));
     const canUsePassphrase = $derived(status?.passphraseRecovery ?? false);
     const effectiveMode = $derived(canUsePassphrase ? unlockMode : "key");
     const unlockReady = $derived(
@@ -290,13 +285,10 @@
     async function runUnlock() {
         if (!unlockReady || flow === "unlock-working") return;
         error = "";
-        progress = null;
         flow = "unlock-working";
         try {
-            const onProgress = (p: RestoreProgress) => (progress = p);
-            if (effectiveMode === "key")
-                await unlockWithRecoveryKey(unlockKey, onProgress);
-            else await unlockWithPassphrase(unlockPassphrase, onProgress);
+            if (effectiveMode === "key") await unlockWithRecoveryKey(unlockKey);
+            else await unlockWithPassphrase(unlockPassphrase);
             unlockKey = "";
             unlockPassphrase = "";
             await read();
@@ -542,6 +534,7 @@
             <p class="text-sm text-zam-textSecondary">
                 {t("encryptionSetup.doneBody")}
             </p>
+            <KeyRestoreProgress />
             {@render primary(t("common.close"), close)}
         {:else if flow === "device-fetch"}
             <p
@@ -616,14 +609,14 @@
             {#if flow === "unlock-working"}
                 <div class="space-y-1.5">
                     <p class="text-xs text-zam-textMuted">
-                        {progressView.label}
+                        {t("keyBackup.preparing")}
                     </p>
                     <div
                         class="h-1.5 w-full rounded bg-zam-backgroundTertiary overflow-hidden"
                     >
                         <div
                             class="h-full bg-zam-accent transition-all"
-                            style="width: {progressView.percent ?? 15}%"
+                            style="width: 15%"
                         ></div>
                     </div>
                 </div>

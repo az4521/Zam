@@ -3747,6 +3747,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "keyBackup.fetchingYourEncryptedHistory": "正在获取你的加密历史…",
     "keyBackup.restoringYourEncryptedHistory": "正在恢复你的加密历史…",
     "keyBackup.restoringOfKeys": "正在恢复密钥：{successes} / {total}…",
+    "keyBackup.restoringInBackground":
+        "每个密钥可解锁一批较早的消息。你可以继续使用 Zam：打开的消息会立即获取其密钥，其余的在后台完成。",
+    "keyBackup.restoreFailed":
+        "无法从备份中恢复所有密钥。你打开的消息仍会获取其密钥。",
     "keyBackup.noEncryptedHistoryToRestore": "没有可恢复的加密历史",
     "keyBackup.restored": "{count, plural, other {已恢复 # 个密钥}}",
     "keyBackup.ofKeysRestored": "已恢复 {imported} / {total} 个密钥",

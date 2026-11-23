@@ -4091,6 +4091,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "keyBackup.restoringYourEncryptedHistory":
         "Відновлення вашої зашифрованої історії…",
     "keyBackup.restoringOfKeys": "Відновлення ключів: {successes} з {total}…",
+    "keyBackup.restoringInBackground":
+        "Кожен ключ відкриває частину ваших старіших повідомлень. Можна й далі користуватися Zam: відкрите повідомлення одразу отримує свій ключ, решта завершиться у фоні.",
+    "keyBackup.restoreFailed":
+        "Не вдалося відновити всі ключі з резервної копії. Відкриті повідомлення все одно отримають свої ключі.",
     "keyBackup.noEncryptedHistoryToRestore":
         "Немає зашифрованої історії для відновлення",
     "keyBackup.restored":

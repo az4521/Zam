@@ -1,5 +1,6 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
+    import KeyRestoreProgress from "$lib/components/settings/KeyRestoreProgress.svelte";
     import { Check } from "lucide-svelte";
     import KeyExportSettings from "$lib/components/settings/KeyExportSettings.svelte";
     import {
@@ -32,10 +33,7 @@
         backupBadge,
         backupDetailLines,
         backupSummaryLabel,
-        restoreProgressView,
-        restoreResultLabel,
         secretStorageKeyLabel,
-        type RestoreProgress,
     } from "$lib/utils/keyBackup";
     import {
         passphraseIssue,
@@ -144,7 +142,6 @@
     let unlockStep = $state<UnlockStep>("idle");
     let unlockKey = $state("");
     let unlockError = $state("");
-    let progress = $state<RestoreProgress | null>(null);
     let unlockResult = $state<UnlockResult | null>(null);
 
     // Which credential the user is entering. Defaults to the recovery key;
@@ -182,7 +179,6 @@
     const summary = $derived(
         backupModel ? backupSummaryLabel(backupModel) : null,
     );
-    const progressView = $derived(restoreProgressView(progress));
 
     // Additive detail the SDK already reports (server key count, this session's
     // upload queue). Empty when there's no backup — the summary line above
@@ -490,23 +486,18 @@
         // Always open on the recovery key: it's the path every account has.
         unlockMode = "key";
         unlockResult = null;
-        progress = null;
         unlockStep = "entry";
     }
 
     async function runUnlock() {
         if (!unlockReady || unlockStep === "working") return;
         unlockError = "";
-        progress = null;
         unlockStep = "working";
         try {
-            const onProgress = (p: RestoreProgress) => {
-                progress = p;
-            };
             const result =
                 effectiveUnlockMode === "key"
-                    ? await unlockWithRecoveryKey(unlockKey, onProgress)
-                    : await unlockWithPassphrase(unlockPassphrase, onProgress);
+                    ? await unlockWithRecoveryKey(unlockKey)
+                    : await unlockWithPassphrase(unlockPassphrase);
             unlockKey = "";
             unlockPassphrase = "";
             unlockResult = result;
@@ -526,7 +517,6 @@
         unlockKey = "";
         unlockPassphrase = "";
         unlockError = "";
-        progress = null;
         unlockStep = "idle";
     }
 
@@ -1275,14 +1265,14 @@
                 {:else if unlockStep === "working"}
                     <div class="space-y-2">
                         <p class="text-sm text-zam-textPrimary">
-                            {progressView.label}
+                            {t("keyBackup.preparing")}
                         </p>
                         <div
                             class="h-1.5 w-full rounded bg-zam-backgroundDark overflow-hidden"
                         >
                             <div
                                 class="h-full bg-zam-accent transition-all"
-                                style="width: {progressView.percent ?? 15}%"
+                                style="width: 15%"
                             ></div>
                         </div>
                     </div>
@@ -1302,9 +1292,13 @@
                             ? t("securitySettings.thisSessionIsNowVerified")
                             : t("securitySettings.encryptedHistoryRestored")}
                     </p>
-                    <p class="text-xs text-zam-textMuted">
-                        {restoreResultLabel(unlockResult)}.
-                    </p>
+                    {#if unlockResult.restoring}
+                        <KeyRestoreProgress />
+                    {:else}
+                        <p class="text-xs text-zam-textMuted">
+                            {t("keyBackup.noEncryptedHistoryToRestore")}.
+                        </p>
+                    {/if}
                     <button
                         onclick={finishUnlock}
                         class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-sm"

@@ -1158,22 +1158,49 @@ describe("unlockWithRecoveryKey", () => {
         h.getClient.mockReturnValue(client);
 
         await expect(mod.unlockWithRecoveryKey(key)).resolves.toEqual({
-            total: 3,
-            imported: 3,
+            restoring: true,
             sessionVerified: true,
         });
         expect(calls).toEqual(["bootstrapCrossSigning", "restoreKeyBackup"]);
     });
 
+    // Thousands of keys took minutes behind the dialog (issue #64); the SDK
+    // fetches a needed key on demand once the backup key is cached, so the
+    // unlock must not wait for the full restore.
+    it("returns without waiting for the full restore", async () => {
+        const mod = await import("./crypto");
+        const { keyRestoreState } =
+            await import("$lib/stores/keyRestore.svelte");
+        let finish!: (r: { total: number; imported: number }) => void;
+        const { client, key } = await makeUnlockClient(
+            () => new Promise((resolve) => (finish = resolve)),
+        );
+        h.getClient.mockReturnValue(client);
+
+        await expect(mod.unlockWithRecoveryKey(key)).resolves.toMatchObject({
+            restoring: true,
+        });
+        expect(keyRestoreState.running).toBe(true);
+        finish({ total: 5, imported: 5 });
+        await vi.waitFor(() => expect(keyRestoreState.running).toBe(false));
+        expect(keyRestoreState.result).toEqual({ total: 5, imported: 5 });
+    });
+
     it("still verifies the session when the restore fails", async () => {
         const mod = await import("./crypto");
+        const { keyRestoreState } =
+            await import("$lib/stores/keyRestore.svelte");
         const { client, calls, key } = await makeUnlockClient(() =>
             Promise.reject(new Error("network")),
         );
         h.getClient.mockReturnValue(client);
 
-        await expect(mod.unlockWithRecoveryKey(key)).rejects.toThrow("network");
+        await expect(mod.unlockWithRecoveryKey(key)).resolves.toMatchObject({
+            sessionVerified: true,
+        });
         expect(calls[0]).toBe("bootstrapCrossSigning");
+        await vi.waitFor(() => expect(keyRestoreState.running).toBe(false));
+        expect(keyRestoreState.result).toBeNull();
     });
 });
 

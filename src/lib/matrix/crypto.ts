@@ -94,7 +94,14 @@ import {
     VerificationMethodValue,
     type QrMethodOptions,
 } from "$lib/utils/qrVerification";
-import type { RestoreProgress } from "$lib/utils/keyBackup";
+import { restoreResultLabel, type RestoreProgress } from "$lib/utils/keyBackup";
+import {
+    beginKeyRestore,
+    endKeyRestore,
+    keyRestoreState,
+    setKeyRestoreProgress,
+} from "$lib/stores/keyRestore.svelte";
+import { showErrorToast, showToast } from "$lib/stores/toasts.svelte";
 import {
     decryptKeyExportFile,
     encryptKeyExportFile,
@@ -3053,10 +3060,12 @@ export async function getOwnVerificationStatusInputs(): Promise<{
 
 /** Result of a successful `unlockWithRecoveryKey` run. */
 export interface UnlockResult {
-    /** Keys found in the server backup (0 when there is no message backup). */
-    total: number;
-    /** Keys actually imported into this session. */
-    imported: number;
+    /**
+     * A message-history backup exists and its full restore was started in
+     * the background (progress in `keyRestoreState`). False when the account
+     * has no backup.
+     */
+    restoring: boolean;
     /** True once this session published its cross-signature (became trusted). */
     sessionVerified: boolean;
 }
@@ -3071,7 +3080,6 @@ async function completeUnlock(
     crypto: NonNullable<ReturnType<MatrixClient["getCrypto"]>>,
     keyId: string,
     decoded: Uint8Array<ArrayBuffer>,
-    onProgress?: (progress: RestoreProgress) => void,
 ): Promise<UnlockResult> {
     // Cache the validated key so the cryptoCallbacks resolve secret-storage
     // reads (backup key, cross-signing keys) without re-prompting.
@@ -3098,8 +3106,7 @@ async function completeUnlock(
 
     // Restore message-history keys, but only if the server actually holds a
     // backup — an account may have cross-signing/4S without a message backup.
-    let total = 0;
-    let imported = 0;
+    let restoring = false;
     const backupInfo = await crypto.getKeyBackupInfo();
     if (backupInfo) {
         try {
@@ -3113,17 +3120,60 @@ async function completeUnlock(
             }
             throw e;
         }
-        const result = await crypto.restoreKeyBackup(
-            onProgress
-                ? { progressCallback: (p) => onProgress(toRestoreProgress(p)) }
-                : undefined,
-        );
-        total = result.total;
-        imported = result.imported;
+        // The key is cached now, which is all decryption needs: the SDK
+        // fetches a missing room key from the backup the moment a message
+        // needs it. The FULL restore (every key, for search and history not
+        // yet opened) is thousands of keys on a long-lived account and took
+        // minutes behind this dialog, so it runs on in the background.
+        restoring = true;
+        restoreBackupInBackground(crypto);
     }
 
     bumpSecurityTick();
-    return { total, imported, sessionVerified };
+    return { restoring, sessionVerified };
+}
+
+/**
+ * Run `restoreKeyBackup` without blocking the caller, reporting through
+ * `keyRestoreState`. One run at a time; a run whose client is replaced
+ * (logout, account switch) stops reporting. Ends with a toast either way.
+ */
+function restoreBackupInBackground(
+    crypto: NonNullable<ReturnType<MatrixClient["getCrypto"]>>,
+): void {
+    if (keyRestoreState.running) return;
+    const client = getClient();
+    const stillOurs = () => getClient() === client;
+    beginKeyRestore();
+    void crypto
+        .restoreKeyBackup({
+            progressCallback: (p) => {
+                if (stillOurs()) setKeyRestoreProgress(toRestoreProgress(p));
+            },
+        })
+        .then(
+            (result) => {
+                if (!stillOurs()) return endKeyRestore(null);
+                endKeyRestore({
+                    total: result.total,
+                    imported: result.imported,
+                });
+                bumpSecurityTick();
+                if (result.total > 0) {
+                    showToast(restoreResultLabel(result));
+                }
+            },
+            (e) => {
+                console.warn(
+                    "[matrix] background key backup restore failed",
+                    e,
+                );
+                endKeyRestore(null);
+                if (stillOurs()) {
+                    showErrorToast(t("keyBackup.restoreFailed"));
+                }
+            },
+        );
 }
 
 /**
@@ -3133,16 +3183,16 @@ async function completeUnlock(
  * Flow: decode the key (malformed → clean retryable error) → validate it against
  * the account's default 4S key info via `secretStorage.checkKey` (wrong key →
  * clean retryable error) → cache it so the SDK's secret-storage reads resolve
- * without prompting → load the backup decryption key from 4S → restore the
- * backup (with progress) → `bootstrapCrossSigning({})` to publish this device's
- * cross-signature (keys already exist in 4S from L2, so no UIA upload).
+ * without prompting → `bootstrapCrossSigning({})` to publish this device's
+ * cross-signature (keys already exist in 4S from L2, so no UIA upload) → load
+ * the backup decryption key from 4S → start the full backup restore in the
+ * background (`keyRestoreState`); the call returns without waiting for it.
  *
  * Never persists or logs the key. Wrong keys are surfaced as retryable errors,
  * never a crash, and never lock the user out.
  */
 export async function unlockWithRecoveryKey(
     recoveryKey: string,
-    onProgress?: (progress: RestoreProgress) => void,
 ): Promise<UnlockResult> {
     const client = getClient();
     const crypto = client?.getCrypto();
@@ -3173,7 +3223,7 @@ export async function unlockWithRecoveryKey(
     }
 
     // 3-5. Cache, restore history, cross-sign this session.
-    return completeUnlock(crypto, keyId, decoded, onProgress);
+    return completeUnlock(crypto, keyId, decoded);
 }
 
 /**
@@ -3191,7 +3241,6 @@ export async function unlockWithRecoveryKey(
  */
 export async function unlockWithPassphrase(
     passphrase: string,
-    onProgress?: (progress: RestoreProgress) => void,
 ): Promise<UnlockResult> {
     const client = getClient();
     const crypto = client?.getCrypto();
@@ -3234,7 +3283,7 @@ export async function unlockWithPassphrase(
         throw new Error(t("crypto.thatPassphraseDoesnTMatchThis"));
     }
 
-    return completeUnlock(crypto, keyId, decoded, onProgress);
+    return completeUnlock(crypto, keyId, decoded);
 }
 
 /**

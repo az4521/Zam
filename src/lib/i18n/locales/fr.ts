@@ -4081,6 +4081,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Restauration de votre historique chiffré…",
     "keyBackup.restoringOfKeys":
         "Restauration de {successes} clés sur {total}…",
+    "keyBackup.restoringInBackground":
+        "Chaque clé déverrouille un lot de vos anciens messages. Vous pouvez continuer à utiliser Zam : tout message ouvert récupère sa clé immédiatement, le reste se termine en arrière-plan.",
+    "keyBackup.restoreFailed":
+        "Impossible de restaurer toutes les clés de votre sauvegarde. Les messages que vous ouvrez récupéreront quand même leurs clés.",
     "keyBackup.noEncryptedHistoryToRestore":
         "Aucun historique chiffré à restaurer",
     "keyBackup.restored":

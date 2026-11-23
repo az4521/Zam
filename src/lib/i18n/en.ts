@@ -3962,6 +3962,10 @@ export const en = {
     "keyBackup.restoringYourEncryptedHistory":
         "Restoring your encrypted history…",
     "keyBackup.restoringOfKeys": "Restoring {successes} of {total} keys…",
+    "keyBackup.restoringInBackground":
+        "Each key unlocks a batch of your older messages. You can keep using Zam: any message you open fetches its key right away, and the rest finish in the background.",
+    "keyBackup.restoreFailed":
+        "Couldn't restore all keys from your backup. Messages you open will still fetch their keys.",
     "keyBackup.noEncryptedHistoryToRestore": "No encrypted history to restore",
     "keyBackup.restored":
         "{count, plural, one {# key restored} other {# keys restored}}",
