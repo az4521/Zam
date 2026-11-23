@@ -8,7 +8,11 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.os.Build;
+import android.os.Bundle;
 import android.net.Uri;
 
 import androidx.annotation.NonNull;
@@ -104,6 +108,16 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     // ...and for the hidden WebView to start, load the crypto WASM and decrypt
     // it when the app is not running.
     private static final long HEADLESS_DECRYPT_TIMEOUT = 8000L;
+    // How long a push waits for the network to be validated after the phone
+    // wakes from Doze (waitForValidatedNetwork), and the pause before the one
+    // retry of a failed enrichment request.
+    // Kept short: FCM gives onMessageReceived roughly 20s in all, and the
+    // enrichment requests and decryption still have to fit after it.
+    private static final long NETWORK_WAIT_MS = 5000L;
+    private static final long RETRY_DELAY_MS = 1500L;
+    // Keys on each MessagingStyle line, for the event-id dedupe in showNotification.
+    private static final String LINE_EVENT_ID = "zam_event_id";
+    private static final String LINE_PLACEHOLDER = "zam_placeholder";
     // Push-rule id prefix for a room's "mentions only" override (the room id
     // is appended). Mirrors src/lib/utils/encryptedMentions.ts and
     // static/sw.js (region mirrored:mentions); keep the three in step.
@@ -251,6 +265,21 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             String selfUserId = session != null ? session.userId : null;
             String selfDeviceId = session != null ? session.deviceId : null;
 
+            // A push that woke the phone from Doze can beat the network's
+            // validation: every request below would then fail, and the
+            // notification would fall back to the generic text. Wait, bounded,
+            // before the first request.
+            if (session != null) {
+                long waitStart = System.currentTimeMillis();
+                boolean validated = waitForValidatedNetwork(ctx, NETWORK_WAIT_MS);
+                long waited = System.currentTimeMillis() - waitStart;
+                if (!validated) {
+                    PushLog.log(ctx, tag + "network not validated after " + waited
+                        + "ms, trying anyway");
+                } else if (waited >= 500) {
+                    PushLog.log(ctx, tag + "waited " + waited + "ms for a validated network");
+                }
+            }
             // Another device is demonstrably in use → stay quiet. Checked
             // before the enrichment fetches below so a suppressed push costs
             // one request instead of five. Never throws; false on any doubt.
@@ -259,7 +288,17 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             // deliver pushes queued while it was off. Fails open (see
             // isRoomReadElsewhere). Runs before the event is known, so it also
             // applies to m.call.notify; see the note there.
-            if (session != null && roomId != null && isRoomReadElsewhere(hs, token, roomId)) {
+            boolean checkRead = session != null && roomId != null;
+            Boolean readElsewhere = checkRead ? isRoomReadElsewhere(hs, token, roomId) : Boolean.FALSE;
+            if (checkRead && readElsewhere == null) {
+                // The request itself failed (no answer at all): one retry.
+                pauseQuietly(RETRY_DELAY_MS);
+                readElsewhere = isRoomReadElsewhere(hs, token, roomId);
+                if (readElsewhere == null) {
+                    PushLog.log(ctx, tag + "read check failed twice, notifying");
+                }
+            }
+            if (Boolean.TRUE.equals(readElsewhere)) {
                 PushLog.log(ctx, tag + "skipped: room already read (server count 0)");
                 return;
             }
@@ -288,6 +327,13 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 // fallback below both need it). Null until asked.
                 Boolean direct = null;
                 JSONObject event = fetchEvent(hs, token, roomId, eventId);
+                if (event == null) {
+                    // One retry: a request sent just after wake can still fail.
+                    pauseQuietly(RETRY_DELAY_MS);
+                    event = fetchEvent(hs, token, roomId, eventId);
+                    PushLog.log(ctx, tag + "event fetch retry "
+                        + (event != null ? "succeeded" : "failed"));
+                }
                 // An invite: the push names our own invite event, which an
                 // invitee usually cannot fetch (only joined members see a
                 // room under "shared" history). Either way the room's
@@ -830,6 +876,53 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         }
     }
 
+    /**
+     * Waits until the active network has internet access AND is validated, for
+     * at most maxMs. True at once when it already is; false when the time runs
+     * out or the check cannot be made (the push then goes ahead, as before).
+     * Polls every 500 ms. Blocking, so it runs on the push's worker thread
+     * (never the main thread, see handleMatrixPush). Never throws.
+     */
+    private static boolean waitForValidatedNetwork(Context ctx, long maxMs) {
+        try {
+            // getActiveNetwork() and getNetworkCapabilities() need API 23;
+            // minSdk is 24 (android/variables.gradle), so this is defensive only.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true;
+            ConnectivityManager cm = ctx.getSystemService(ConnectivityManager.class);
+            if (cm == null) return true;
+            long deadline = System.currentTimeMillis() + maxMs;
+            while (true) {
+                if (isNetworkValidated(cm)) return true;
+                long left = deadline - System.currentTimeMillis();
+                if (left <= 0) return false;
+                Thread.sleep(Math.min(500L, left));
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (Throwable t) {
+            return true; // the check itself failed: do not hold the push back
+        }
+    }
+
+    private static boolean isNetworkValidated(ConnectivityManager cm) {
+        Network network = cm.getActiveNetwork();
+        if (network == null) return false;
+        NetworkCapabilities caps = cm.getNetworkCapabilities(network);
+        return caps != null
+            && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            && caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+    }
+
+    /** Sleeps for ms. An interrupt ends the pause early and is re-asserted. Never throws. */
+    private static void pauseQuietly(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     // ── Homeserver queries ──────────────────────────────────────────────────
 
     // ── Read-state check ────────────────────────────────────────────────────
@@ -846,15 +939,21 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     /**
      * Whether the server reports nothing unread for this room. One simplified
      * sliding sync request (MSC4186): timeout=0, the room as the only
-     * subscription, no lists. Fails open: any error, timeout or missing field
-     * means "not known to be read", so the notification still posts.
+     * subscription, no lists.
+     *
+     * Three outcomes, so the caller can retry a failed request:
+     *   TRUE  - the server reports 0 unread: the room is read elsewhere.
+     *   FALSE - the request answered, but the count is not 0 (or unreadable).
+     *   null  - the request itself failed (error, timeout, no body).
+     * Callers treat FALSE and null as "not known to be read": the notification
+     * still posts.
      *
      * Applied before the event is fetched, so call rings go through it too.
      * That is safe: the server only pushes an event whose push actions
      * notify, and those same actions count it in notification_count, so an
      * unread ring is never 0. A ring the user already saw elsewhere is dropped.
      */
-    private static boolean isRoomReadElsewhere(String hs, String token, String roomId) {
+    private static Boolean isRoomReadElsewhere(String hs, String token, String roomId) {
         try {
             JSONObject request = new JSONObject()
                 .put("conn_id", PUSH_CHECK_CONN_ID)
@@ -863,10 +962,11 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     .put("required_state", new JSONArray())));
             String json = httpPostJson(hs + "/_matrix/client/unstable/org.matrix.simplified_msc3575"
                 + "/sync?timeout=0", token, request.toString());
+            if (json == null) return null;
             Integer unread = parseRoomUnread(json, roomId);
             return unread != null && unread == 0;
         } catch (Exception e) {
-            return false;
+            return null;
         }
     }
 
@@ -1588,6 +1688,18 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         return icon != 0 ? IconCompat.createWithResource(ctx, icon) : null;
     }
 
+    /** The event id a MessagingStyle line was posted for (its extras), or null. */
+    private static String lineEventId(NotificationCompat.MessagingStyle.Message m) {
+        Bundle extras = m.getExtras();
+        return extras != null ? extras.getString(LINE_EVENT_ID) : null;
+    }
+
+    /** Whether a MessagingStyle line is the generic placeholder (event not fetched). */
+    private static boolean lineIsPlaceholder(NotificationCompat.MessagingStyle.Message m) {
+        Bundle extras = m.getExtras();
+        return extras != null && extras.getBoolean(LINE_PLACEHOLDER, false);
+    }
+
     private static void showNotification(Context ctx, String title, String body, String roomId,
             String eventId, Bitmap largeIcon, String postedBy, String senderId,
             String senderName, Bitmap senderIcon, boolean dm, long ts, String msgBody,
@@ -1744,6 +1856,34 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 } else {
                     style.setGroupConversation(false);
                 }
+                // Event-id dedupe. A push for an event already on the stack (a
+                // re-delivery, or a later fetch after a placeholder was posted)
+                // replaces its line instead of stacking another. A placeholder
+                // (event not fetched, senderId null) never replaces a real line:
+                // then this push posts nothing at all.
+                boolean placeholder = senderId == null;
+                java.util.List<NotificationCompat.MessagingStyle.Message> previous =
+                    style.getMessages();
+                if (eventId != null) {
+                    for (NotificationCompat.MessagingStyle.Message m : previous) {
+                        if (!eventId.equals(lineEventId(m)) || !placeholder) continue;
+                        if (!lineIsPlaceholder(m)) {
+                            PushLog.log(ctx, "event " + PushLog.shortId(eventId)
+                                + " already shown, placeholder not posted");
+                            return;
+                        }
+                    }
+                }
+                // Rebuilt from the old style, minus the same event's line: the
+                // title and group flags carry over as they were set above.
+                NotificationCompat.MessagingStyle rebuilt =
+                    new NotificationCompat.MessagingStyle(me);
+                rebuilt.setConversationTitle(style.getConversationTitle());
+                rebuilt.setGroupConversation(style.isGroupConversation());
+                for (NotificationCompat.MessagingStyle.Message m : previous) {
+                    if (eventId != null && eventId.equals(lineEventId(m))) continue;
+                    rebuilt.addMessage(m);
+                }
                 // The message itself when there is one (the "sent a message"
                 // placeholder when its text is hidden).
                 NotificationCompat.MessagingStyle.Message line =
@@ -1753,7 +1893,16 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     Uri imageUri = saveNotificationImage(ctx, msgImage);
                     if (imageUri != null) line.setData("image/jpeg", imageUri);
                 }
-                style.addMessage(line);
+                // Extras travel with the line through the notification's own
+                // bundle (androidx writes and reads them in Message.toBundle /
+                // getMessageFromBundle), so the next push can find this event.
+                Bundle lineExtras = line.getExtras();
+                if (eventId != null && lineExtras != null) {
+                    lineExtras.putString(LINE_EVENT_ID, eventId);
+                    lineExtras.putBoolean(LINE_PLACEHOLDER, placeholder);
+                }
+                rebuilt.addMessage(line);
+                style = rebuilt;
                 // Keep the tray notification short: the newest 12.
                 java.util.List<NotificationCompat.MessagingStyle.Message> all = style.getMessages();
                 if (all.size() > 12) {
