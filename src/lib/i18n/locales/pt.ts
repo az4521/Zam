@@ -2083,9 +2083,18 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Ocultar o texto das mensagens nas notificações",
     "privacySafetySettings.notificationsOnThisDeviceSayWho":
         "As notificações neste dispositivo dizem quem enviou mensagem a você, mas não o que a pessoa disse. Os nomes do remetente e da sala continuam sendo exibidos. Vale somente para este dispositivo.",
+    "privacySafetySettings.gifPickerMedia": "Mídia do seletor de GIF",
+    "privacySafetySettings.gifPickerMediaHint":
+        'GIFs favoritos de links do Tenor, GIPHY e KLIPY. "Direto" carrega-os diretamente desses sites, então continuam funcionando quando a mídia do seu servidor doméstico está lenta ou fora do ar, e esses sites ficam sabendo seu endereço IP quando você abre o seletor. "Servidor doméstico" carrega apenas a cópia salva quando você os favoritou. Os resultados de busca do KLIPY sempre vêm do KLIPY.',
+    "privacySafetySettings.gifPickerDirect": "Direto",
+    "privacySafetySettings.gifPickerDirectTitle":
+        "Carregar GIFs favoritos diretamente do Tenor, GIPHY e KLIPY",
+    "privacySafetySettings.gifPickerHomeserver": "Servidor doméstico",
+    "privacySafetySettings.gifPickerHomeserverTitle":
+        "Carregar apenas a cópia salva com cada favorito",
     "privacySafetySettings.linkPreviewMedia": "Mídia da prévia de links",
     "privacySafetySettings.previewImagesAndVideosUsuallyCome":
-        "As imagens e os vídeos das prévias de links comuns passam pelo seu servidor doméstico. “Tudo” também carrega players do YouTube, cartões do X/Twitter e GIFs que seu servidor não consegue gerar prévia, diretamente desses sites, que então descobrem seu endereço IP e quando você leu a mensagem. “Somente servidor doméstico” segura esses itens; “Desativado” também segura o que seu servidor fornece. De qualquer forma, cada prévia afetada mantém um botão para carregar a mídia. O interruptor de ativar/desativar prévias de links fica em Mensagens e mídia.",
+        "As imagens e os vídeos das prévias de links comuns passam pelo seu servidor doméstico. “Tudo” também carrega players do YouTube, cartões do X/Twitter e GIFs do Tenor, GIPHY e KLIPY diretamente desses sites, que então descobrem seu endereço IP e quando você leu a mensagem. “Somente servidor doméstico” segura esses itens; “Desativado” também segura o que seu servidor fornece. De qualquer forma, cada prévia afetada mantém um botão para carregar a mídia. O interruptor de ativar/desativar prévias de links fica em Mensagens e mídia.",
     "privacySafetySettings.blockedUsers": "Usuários bloqueados",
     "privacySafetySettings.all": "Tudo",
     "privacySafetySettings.loadPreviewMediaFromWhereverIt":
@@ -4472,6 +4481,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.showMatrixIds": "Mostrar IDs Matrix",
     "settingsSearch.readReceiptAvatars": "Avatares de confirmação de leitura",
     "settingsSearch.linkPreviews": "Prévias de links",
+    "settingsSearch.gifPickerMedia": "Mídia do seletor de GIF",
     "settingsSearch.linkPreviewMedia": "Mídia da prévia de links",
     "settingsSearch.pauseVideosOffScreen": "Pausar vídeos fora da tela",
     "settingsSearch.sendVideosThatStreamFaster":

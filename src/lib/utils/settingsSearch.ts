@@ -179,6 +179,12 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         anchor: "notif-privacy",
     },
     {
+        tab: "privacy",
+        label: t("settingsSearch.gifPickerMedia"),
+        keywords: ["gif", "tenor", "giphy", "klipy", "favourites", "ip"],
+        anchor: "notif-privacy",
+    },
+    {
         tab: "messages-media",
         label: t("settingsSearch.pauseVideosOffScreen"),
         keywords: ["autoplay", "battery", "video"],

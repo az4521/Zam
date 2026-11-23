@@ -2092,9 +2092,18 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Скрывать текст сообщений в уведомлениях",
     "privacySafetySettings.notificationsOnThisDeviceSayWho":
         "Уведомления на этом устройстве сообщают, кто вам написал, но не что именно. Имена отправителя и комнаты по-прежнему показываются. Действует только на этом устройстве.",
+    "privacySafetySettings.gifPickerMedia": "Медиа в выборе GIF",
+    "privacySafetySettings.gifPickerMediaHint":
+        "Избранные GIF из ссылок Tenor, GIPHY и KLIPY. «Напрямую» загружает их прямо с этих сайтов, поэтому они работают, даже когда медиа вашего домашнего сервера тормозят или недоступны, а эти сайты узнают ваш IP-адрес при открытии выбора. «Домашний сервер» загружает только копию, сохранённую при добавлении в избранное. Результаты поиска KLIPY всегда загружаются с KLIPY.",
+    "privacySafetySettings.gifPickerDirect": "Напрямую",
+    "privacySafetySettings.gifPickerDirectTitle":
+        "Загружать избранные GIF прямо с Tenor, GIPHY и KLIPY",
+    "privacySafetySettings.gifPickerHomeserver": "Домашний сервер",
+    "privacySafetySettings.gifPickerHomeserverTitle":
+        "Загружать только копию, сохранённую с каждым избранным",
     "privacySafetySettings.linkPreviewMedia": "Медиа предпросмотра ссылок",
     "privacySafetySettings.previewImagesAndVideosUsuallyCome":
-        "Изображения и видео в обычных предпросмотрах ссылок проходят через ваш домашний сервер. «Все» также загружает плееры YouTube, карточки X/Twitter и GIF, которые ваш сервер не может показать в предпросмотре, прямо с этих сайтов, поэтому они узнают ваш IP-адрес и когда вы прочитали сообщение. «Только домашний сервер» удерживает их; «Выкл.» удерживает и то, что отдаёт ваш сервер. В любом случае у каждого затронутого предпросмотра остаётся кнопка загрузки его медиа. Переключатель предпросмотра ссылок находится в разделе «Сообщения и медиа».",
+        "Изображения и видео в обычных предпросмотрах ссылок проходят через ваш домашний сервер. «Все» также загружает плееры YouTube, карточки X/Twitter и GIF из Tenor, GIPHY и KLIPY прямо с этих сайтов, поэтому они узнают ваш IP-адрес и когда вы прочитали сообщение. «Только домашний сервер» удерживает их; «Выкл.» удерживает и то, что отдаёт ваш сервер. В любом случае у каждого затронутого предпросмотра остаётся кнопка загрузки его медиа. Переключатель предпросмотра ссылок находится в разделе «Сообщения и медиа».",
     "privacySafetySettings.blockedUsers": "Заблокированные пользователи",
     "privacySafetySettings.all": "Все",
     "privacySafetySettings.loadPreviewMediaFromWhereverIt":
@@ -4449,6 +4458,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.showMatrixIds": "Показывать Matrix ID",
     "settingsSearch.readReceiptAvatars": "Аватары отметок о прочтении",
     "settingsSearch.linkPreviews": "Предпросмотр ссылок",
+    "settingsSearch.gifPickerMedia": "Медиа в выборе GIF",
     "settingsSearch.linkPreviewMedia": "Медиа предпросмотра ссылок",
     "settingsSearch.pauseVideosOffScreen": "Приостанавливать видео вне экрана",
     "settingsSearch.sendVideosThatStreamFaster":

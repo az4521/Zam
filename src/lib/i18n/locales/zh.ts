@@ -1944,9 +1944,18 @@ const messages: Partial<Record<MessageKey, string>> = {
         "在通知中隐藏消息文本",
     "privacySafetySettings.notificationsOnThisDeviceSayWho":
         "此设备上的通知会显示谁给你发了消息，但不显示内容。发送者和房间名称仍会显示。仅适用于此设备。",
+    "privacySafetySettings.gifPickerMedia": "GIF 选择器媒体",
+    "privacySafetySettings.gifPickerMediaHint":
+        "来自 Tenor、GIPHY 和 KLIPY 链接的收藏 GIF。“直接”从这些网站直接加载，因此在主服务器媒体缓慢或不可用时仍可显示，但打开选择器时这些网站会获知你的 IP 地址。“主服务器”只加载收藏时保存的副本。KLIPY 搜索结果始终来自 KLIPY。",
+    "privacySafetySettings.gifPickerDirect": "直接",
+    "privacySafetySettings.gifPickerDirectTitle":
+        "直接从 Tenor、GIPHY 和 KLIPY 加载收藏的 GIF",
+    "privacySafetySettings.gifPickerHomeserver": "主服务器",
+    "privacySafetySettings.gifPickerHomeserverTitle":
+        "只加载每个收藏保存的副本",
     "privacySafetySettings.linkPreviewMedia": "链接预览媒体",
     "privacySafetySettings.previewImagesAndVideosUsuallyCome":
-        "普通链接预览中的图片和视频经由你的主服务器获取。“全部”还会直接从这些网站加载 YouTube 播放器、X/Twitter 卡片以及你的服务器无法预览的 GIF，因此它们会获知你的 IP 地址和你阅读消息的时间。“仅主服务器”会阻止这些加载；“关闭”还会阻止加载你的服务器提供的内容。无论哪种方式，每个受影响的预览都保留一个加载其媒体的按钮。链接预览的开关位于“消息和媒体”。",
+        "普通链接预览中的图片和视频经由你的主服务器获取。“全部”还会直接从这些网站加载 YouTube 播放器、X/Twitter 卡片以及 Tenor、GIPHY 和 KLIPY 的 GIF，因此它们会获知你的 IP 地址和你阅读消息的时间。“仅主服务器”会阻止这些加载；“关闭”还会阻止加载你的服务器提供的内容。无论哪种方式，每个受影响的预览都保留一个加载其媒体的按钮。链接预览的开关位于“消息和媒体”。",
     "privacySafetySettings.blockedUsers": "被屏蔽的用户",
     "privacySafetySettings.all": "全部",
     "privacySafetySettings.loadPreviewMediaFromWhereverIt":
@@ -4068,6 +4077,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.showMatrixIds": "显示 Matrix ID",
     "settingsSearch.readReceiptAvatars": "已读回执头像",
     "settingsSearch.linkPreviews": "链接预览",
+    "settingsSearch.gifPickerMedia": "GIF 选择器媒体",
     "settingsSearch.linkPreviewMedia": "链接预览媒体",
     "settingsSearch.pauseVideosOffScreen": "视频移出屏幕时暂停",
     "settingsSearch.sendVideosThatStreamFaster": "发送可更快开始播放的视频",

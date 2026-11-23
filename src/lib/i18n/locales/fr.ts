@@ -1936,9 +1936,18 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Masquer le texte des messages dans les notifications",
     "privacySafetySettings.notificationsOnThisDeviceSayWho":
         "Les notifications sur cet appareil indiquent qui vous a écrit, mais pas ce qui a été dit. Les noms de l'expéditeur et du salon restent visibles. S'applique uniquement à cet appareil.",
+    "privacySafetySettings.gifPickerMedia": "Médias du sélecteur de GIF",
+    "privacySafetySettings.gifPickerMediaHint":
+        "GIF favoris issus de liens Tenor, GIPHY et KLIPY. « Direct » les charge directement depuis ces sites, ils fonctionnent donc même quand les médias de votre serveur d'accueil sont lents ou en panne, et ces sites voient votre adresse IP quand vous ouvrez le sélecteur. « Serveur d'accueil » charge uniquement la copie enregistrée lors de l'ajout aux favoris. Les résultats de recherche KLIPY viennent toujours de KLIPY.",
+    "privacySafetySettings.gifPickerDirect": "Direct",
+    "privacySafetySettings.gifPickerDirectTitle":
+        "Charger les GIF favoris directement depuis Tenor, GIPHY et KLIPY",
+    "privacySafetySettings.gifPickerHomeserver": "Serveur d'accueil",
+    "privacySafetySettings.gifPickerHomeserverTitle":
+        "Charger uniquement la copie enregistrée avec chaque favori",
     "privacySafetySettings.linkPreviewMedia": "Médias des aperçus de liens",
     "privacySafetySettings.previewImagesAndVideosUsuallyCome":
-        "Les images et vidéos des aperçus de liens ordinaires passent par votre serveur d'accueil. « Tous » charge aussi les lecteurs YouTube, les cartes X/Twitter et les GIF que votre serveur ne peut pas prévisualiser directement depuis ces sites, qui apprennent donc votre adresse IP et le moment où vous lisez le message. « Serveur d'accueil uniquement » les bloque ; « Désactivé » bloque aussi ce que sert votre serveur. Dans tous les cas, chaque aperçu concerné garde un bouton pour charger ses médias. L'interrupteur des aperçus de liens se trouve dans Messages et médias.",
+        "Les images et vidéos des aperçus de liens ordinaires passent par votre serveur d'accueil. « Tous » charge aussi les lecteurs YouTube, les cartes X/Twitter et les GIF de Tenor, GIPHY et KLIPY directement depuis ces sites, qui apprennent donc votre adresse IP et le moment où vous lisez le message. « Serveur d'accueil uniquement » les bloque ; « Désactivé » bloque aussi ce que sert votre serveur. Dans tous les cas, chaque aperçu concerné garde un bouton pour charger ses médias. L'interrupteur des aperçus de liens se trouve dans Messages et médias.",
     "privacySafetySettings.blockedUsers": "Utilisateurs bloqués",
     "privacySafetySettings.all": "Tous",
     "privacySafetySettings.loadPreviewMediaFromWhereverIt":
@@ -4439,6 +4448,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.showMatrixIds": "Afficher les identifiants Matrix",
     "settingsSearch.readReceiptAvatars": "Avatars des accusés de lecture",
     "settingsSearch.linkPreviews": "Aperçus des liens",
+    "settingsSearch.gifPickerMedia": "Médias du sélecteur de GIF",
     "settingsSearch.linkPreviewMedia": "Médias des aperçus de liens",
     "settingsSearch.pauseVideosOffScreen":
         "Mettre en pause les vidéos hors écran",

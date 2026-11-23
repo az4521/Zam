@@ -1977,10 +1977,19 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Ocultar el texto de los mensajes en las notificaciones",
     "privacySafetySettings.notificationsOnThisDeviceSayWho":
         "Las notificaciones de este dispositivo dicen quién te ha escrito, pero no qué ha dicho. Se siguen mostrando el remitente y el nombre de la sala. Solo se aplica a este dispositivo.",
+    "privacySafetySettings.gifPickerMedia": "Multimedia del selector de GIF",
+    "privacySafetySettings.gifPickerMediaHint":
+        'GIF favoritos de enlaces de Tenor, GIPHY y KLIPY. "Directo" los carga directamente desde esos sitios, así siguen funcionando cuando el contenido de tu servidor doméstico va lento o está caído, y esos sitios conocen tu dirección IP al abrir el selector. "Servidor doméstico" solo carga la copia guardada al marcarlos como favoritos. Los resultados de búsqueda de KLIPY siempre vienen de KLIPY.',
+    "privacySafetySettings.gifPickerDirect": "Directo",
+    "privacySafetySettings.gifPickerDirectTitle":
+        "Cargar los GIF favoritos directamente desde Tenor, GIPHY y KLIPY",
+    "privacySafetySettings.gifPickerHomeserver": "Servidor doméstico",
+    "privacySafetySettings.gifPickerHomeserverTitle":
+        "Cargar solo la copia guardada con cada favorito",
     "privacySafetySettings.linkPreviewMedia":
         "Contenido de las vistas previas de enlaces",
     "privacySafetySettings.previewImagesAndVideosUsuallyCome":
-        'Las imágenes y los vídeos de las vistas previas de enlaces normales pasan por tu servidor base. "Todo" también carga reproductores de YouTube, tarjetas de X/Twitter y los GIF que tu servidor no puede previsualizar directamente desde esos sitios, que así conocen tu dirección IP y cuándo lees el mensaje. "Solo el servidor base" los retiene; "Desactivado" retiene además lo que sirve tu servidor. En cualquier caso, cada vista previa afectada conserva un botón para cargar su contenido. El interruptor para activar o desactivar las vistas previas de enlaces está en Mensajes y multimedia.',
+        'Las imágenes y los vídeos de las vistas previas de enlaces normales pasan por tu servidor base. "Todo" también carga reproductores de YouTube, tarjetas de X/Twitter y los GIF de Tenor, GIPHY y KLIPY directamente desde esos sitios, que así conocen tu dirección IP y cuándo lees el mensaje. "Solo el servidor base" los retiene; "Desactivado" retiene además lo que sirve tu servidor. En cualquier caso, cada vista previa afectada conserva un botón para cargar su contenido. El interruptor para activar o desactivar las vistas previas de enlaces está en Mensajes y multimedia.',
     "privacySafetySettings.blockedUsers": "Usuarios bloqueados",
     "privacySafetySettings.all": "Todo",
     "privacySafetySettings.loadPreviewMediaFromWhereverIt":
@@ -4476,6 +4485,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.showMatrixIds": "Mostrar los ID de Matrix",
     "settingsSearch.readReceiptAvatars": "Avatares de confirmación de lectura",
     "settingsSearch.linkPreviews": "Vistas previas de enlaces",
+    "settingsSearch.gifPickerMedia": "Multimedia del selector de GIF",
     "settingsSearch.linkPreviewMedia":
         "Contenido de las vistas previas de enlaces",
     "settingsSearch.pauseVideosOffScreen":

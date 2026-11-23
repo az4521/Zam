@@ -26,23 +26,26 @@ function usablePreview(data: UrlPreview | null): UrlPreview | null {
 }
 
 /**
- * The preview the chat shows for a link: the homeserver's preview, with a
- * GIF-site embed standing in when the homeserver came back without media (and
- * the policy allows third-party embeds). Shared by LinkPreview.svelte and the
- * Discord favourites import, so both see the same media for a link.
+ * The preview the chat shows for a link. A GIF-site link (Tenor, GIPHY,
+ * KLIPY) loads its media straight from the site when the policy allows
+ * third-party embeds, so a slow or broken homeserver media repo cannot hold
+ * it up; the homeserver's preview is the fallback when the site gives
+ * nothing. Otherwise it is the homeserver's preview, and a GIF-site link it
+ * comes back without media for is marked held. Shared by LinkPreview.svelte,
+ * the GIF picker and the Discord favourites import, so all see the same media
+ * for a link.
  */
 export async function fetchLinkPreview(
     url: string,
     allowEmbeds: boolean,
 ): Promise<LinkPreviewFetch> {
-    const data = await getUrlPreview(homeserverPreviewUrl(url));
-    if (isGifHostLink(url) && !data?.imageUrl && !data?.videoUrl) {
-        if (allowEmbeds) {
-            const embed = await fetchGifEmbed(url).catch(() => null);
-            if (embed) return { preview: embed, gifHostHeld: false };
-        } else {
-            return { preview: usablePreview(data), gifHostHeld: true };
-        }
+    const gifHost = isGifHostLink(url);
+    if (gifHost && allowEmbeds) {
+        const embed = await fetchGifEmbed(url).catch(() => null);
+        if (embed?.imageUrl || embed?.videoUrl)
+            return { preview: embed, gifHostHeld: false };
     }
-    return { preview: usablePreview(data), gifHostHeld: false };
+    const data = await getUrlPreview(homeserverPreviewUrl(url));
+    const held = gifHost && !allowEmbeds && !data?.imageUrl && !data?.videoUrl;
+    return { preview: usablePreview(data), gifHostHeld: held };
 }

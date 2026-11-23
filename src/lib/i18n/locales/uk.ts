@@ -2114,10 +2114,19 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Приховувати текст повідомлень у сповіщеннях",
     "privacySafetySettings.notificationsOnThisDeviceSayWho":
         "Сповіщення на цьому пристрої вказують, хто вам написав, але не що саме. Імена відправника й кімнати все одно показуються. Застосовується лише до цього пристрою.",
+    "privacySafetySettings.gifPickerMedia": "Медіа у виборі GIF",
+    "privacySafetySettings.gifPickerMediaHint":
+        "Обрані GIF із посилань Tenor, GIPHY та KLIPY. «Напряму» завантажує їх просто з цих сайтів, тож вони працюють, навіть коли медіа вашого домашнього сервера гальмують або недоступні, а ці сайти дізнаються вашу IP-адресу, коли ви відкриваєте вибір. «Домашній сервер» завантажує лише копію, збережену під час додавання до обраного. Результати пошуку KLIPY завжди надходять із KLIPY.",
+    "privacySafetySettings.gifPickerDirect": "Напряму",
+    "privacySafetySettings.gifPickerDirectTitle":
+        "Завантажувати обрані GIF просто з Tenor, GIPHY та KLIPY",
+    "privacySafetySettings.gifPickerHomeserver": "Домашній сервер",
+    "privacySafetySettings.gifPickerHomeserverTitle":
+        "Завантажувати лише копію, збережену з кожним обраним",
     "privacySafetySettings.linkPreviewMedia":
         "Медіа попереднього перегляду посилань",
     "privacySafetySettings.previewImagesAndVideosUsuallyCome":
-        "Зображення й відео у звичайних попередніх переглядах посилань надходять через ваш домашній сервер. «Усі» також завантажує програвачі YouTube, картки X/Twitter і GIF, які ваш сервер не може переглянути, безпосередньо з тих сайтів, тож вони дізнаються вашу IP-адресу й коли ви прочитали повідомлення. «Лише домашній сервер» стримує їх; «Вимкнено» стримує також те, що віддає ваш сервер. В обох випадках кожен зачеплений попередній перегляд зберігає кнопку для завантаження свого медіа. Перемикач попереднього перегляду посилань міститься в розділі «Повідомлення та медіа».",
+        "Зображення й відео у звичайних попередніх переглядах посилань надходять через ваш домашній сервер. «Усі» також завантажує програвачі YouTube, картки X/Twitter і GIF із Tenor, GIPHY та KLIPY безпосередньо з тих сайтів, тож вони дізнаються вашу IP-адресу й коли ви прочитали повідомлення. «Лише домашній сервер» стримує їх; «Вимкнено» стримує також те, що віддає ваш сервер. В обох випадках кожен зачеплений попередній перегляд зберігає кнопку для завантаження свого медіа. Перемикач попереднього перегляду посилань міститься в розділі «Повідомлення та медіа».",
     "privacySafetySettings.blockedUsers": "Заблоковані користувачі",
     "privacySafetySettings.all": "Усі",
     "privacySafetySettings.loadPreviewMediaFromWhereverIt":
@@ -4443,6 +4452,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.showMatrixIds": "Показувати ID Matrix",
     "settingsSearch.readReceiptAvatars": "Аватари підтверджень прочитання",
     "settingsSearch.linkPreviews": "Попередній перегляд посилань",
+    "settingsSearch.gifPickerMedia": "Медіа у виборі GIF",
     "settingsSearch.linkPreviewMedia": "Медіа попереднього перегляду посилань",
     "settingsSearch.pauseVideosOffScreen": "Призупиняти відео поза екраном",
     "settingsSearch.sendVideosThatStreamFaster":

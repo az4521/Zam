@@ -1811,9 +1811,18 @@ const messages: Partial<Record<MessageKey, string>> = {
         "通知でメッセージ本文を隠す",
     "privacySafetySettings.notificationsOnThisDeviceSayWho":
         "この端末の通知では、誰から来たかは表示しますが、本文は表示しません。送信者名とルーム名は引き続き表示されます。この端末のみに適用されます。",
+    "privacySafetySettings.gifPickerMedia": "GIFピッカーのメディア",
+    "privacySafetySettings.gifPickerMediaHint":
+        "Tenor、GIPHY、KLIPYのリンクからお気に入りに登録したGIF。「直接」はそれらのサイトから直接読み込むため、ホームサーバーのメディアが遅い・停止しているときも表示されますが、ピッカーを開くとそれらのサイトにIPアドレスが伝わります。「ホームサーバー」はお気に入り登録時に保存されたコピーのみを読み込みます。KLIPYの検索結果は常にKLIPYから読み込まれます。",
+    "privacySafetySettings.gifPickerDirect": "直接",
+    "privacySafetySettings.gifPickerDirectTitle":
+        "お気に入りのGIFをTenor、GIPHY、KLIPYから直接読み込む",
+    "privacySafetySettings.gifPickerHomeserver": "ホームサーバー",
+    "privacySafetySettings.gifPickerHomeserverTitle":
+        "各お気に入りに保存されたコピーのみを読み込む",
     "privacySafetySettings.linkPreviewMedia": "リンクプレビューのメディア",
     "privacySafetySettings.previewImagesAndVideosUsuallyCome":
-        "プレビューの画像や動画は通常、それをホストするサイトから直接読み込まれるため、そのサイトにあなたのIPアドレスとメッセージを読んだ時刻が伝わります。「ホームサーバーのみ」では自分のサーバーが配信するコピーだけを読み込み、「オフ」では一切読み込みません。どちらも、常にそれらのサイトから直接読み込まれる埋め込みYouTubeプレーヤーとX/Twitterカードも隠します。いずれの場合も、影響を受ける各プレビューにはメディアを読み込むボタンが残ります。リンクプレビューのオン/オフはメッセージとメディアにあります。",
+        "通常のリンクプレビューの画像や動画はホームサーバーを経由します。「すべて」ではYouTubeプレーヤー、X/Twitterカード、Tenor・GIPHY・KLIPYのGIFもそれらのサイトから直接読み込むため、そのサイトにあなたのIPアドレスとメッセージを読んだ時刻が伝わります。「ホームサーバーのみ」ではそれらを読み込まず、「オフ」ではサーバーが配信するものも読み込みません。いずれの場合も、影響を受ける各プレビューにはメディアを読み込むボタンが残ります。リンクプレビューのオン/オフはメッセージとメディアにあります。",
     "privacySafetySettings.blockedUsers": "ブロックしたユーザー",
     "privacySafetySettings.all": "すべて",
     "privacySafetySettings.loadPreviewMediaFromWhereverIt":
@@ -3882,6 +3891,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.showMatrixIds": "Matrix IDを表示",
     "settingsSearch.readReceiptAvatars": "既読のアバター",
     "settingsSearch.linkPreviews": "リンクプレビュー",
+    "settingsSearch.gifPickerMedia": "GIFピッカーのメディア",
     "settingsSearch.linkPreviewMedia": "リンクプレビューのメディア",
     "settingsSearch.pauseVideosOffScreen": "画面外の動画を一時停止",
     "settingsSearch.sendVideosThatStreamFaster":

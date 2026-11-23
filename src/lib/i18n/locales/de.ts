@@ -1956,9 +1956,18 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Nachrichtentext in Benachrichtigungen ausblenden",
     "privacySafetySettings.notificationsOnThisDeviceSayWho":
         "Benachrichtigungen auf diesem Gerät zeigen, wer dir geschrieben hat, aber nicht was. Absender- und Raumnamen werden weiterhin angezeigt. Gilt nur für dieses Gerät.",
+    "privacySafetySettings.gifPickerMedia": "Medien in der GIF-Auswahl",
+    "privacySafetySettings.gifPickerMediaHint":
+        'Favorisierte GIFs aus Tenor-, GIPHY- und KLIPY-Links. "Direkt" lädt sie direkt von diesen Seiten, sodass sie auch funktionieren, wenn die Medien deines Heimservers langsam oder ausgefallen sind; diese Seiten erfahren dann deine IP-Adresse, wenn du die Auswahl öffnest. "Heimserver" lädt nur die Kopie, die beim Favorisieren gespeichert wurde. KLIPY-Suchergebnisse kommen immer von KLIPY.',
+    "privacySafetySettings.gifPickerDirect": "Direkt",
+    "privacySafetySettings.gifPickerDirectTitle":
+        "Favorisierte GIFs direkt von Tenor, GIPHY und KLIPY laden",
+    "privacySafetySettings.gifPickerHomeserver": "Heimserver",
+    "privacySafetySettings.gifPickerHomeserverTitle":
+        "Nur die mit jedem Favoriten gespeicherte Kopie laden",
     "privacySafetySettings.linkPreviewMedia": "Medien in Linkvorschauen",
     "privacySafetySettings.previewImagesAndVideosUsuallyCome":
-        "Bilder und Videos in normalen Linkvorschauen kommen über deinen Heimserver. „Alle“ lädt zusätzlich YouTube-Player, X/Twitter-Karten und GIFs, die dein Server nicht als Vorschau anzeigen kann, direkt von diesen Seiten, die dadurch deine IP-Adresse und den Zeitpunkt des Lesens erfahren. „Nur Heimserver“ hält diese zurück; „Aus“ hält auch zurück, was dein Server bereitstellt. In jedem Fall behält jede betroffene Vorschau eine Schaltfläche zum Laden ihrer Medien. Der Schalter für Linkvorschauen befindet sich unter Nachrichten und Medien.",
+        "Bilder und Videos in normalen Linkvorschauen kommen über deinen Heimserver. „Alle“ lädt zusätzlich YouTube-Player, X/Twitter-Karten und GIFs von Tenor, GIPHY und KLIPY direkt von diesen Seiten, die dadurch deine IP-Adresse und den Zeitpunkt des Lesens erfahren. „Nur Heimserver“ hält diese zurück; „Aus“ hält auch zurück, was dein Server bereitstellt. In jedem Fall behält jede betroffene Vorschau eine Schaltfläche zum Laden ihrer Medien. Der Schalter für Linkvorschauen befindet sich unter Nachrichten und Medien.",
     "privacySafetySettings.blockedUsers": "Blockierte Benutzer",
     "privacySafetySettings.all": "Alle",
     "privacySafetySettings.loadPreviewMediaFromWhereverIt":
@@ -4471,6 +4480,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "settingsSearch.showMatrixIds": "Matrix-IDs anzeigen",
     "settingsSearch.readReceiptAvatars": "Avatare für Lesebestätigungen",
     "settingsSearch.linkPreviews": "Linkvorschauen",
+    "settingsSearch.gifPickerMedia": "Medien in der GIF-Auswahl",
     "settingsSearch.linkPreviewMedia": "Medien in Linkvorschauen",
     "settingsSearch.pauseVideosOffScreen":
         "Videos außerhalb des Bildschirms pausieren",

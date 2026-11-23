@@ -10,10 +10,12 @@
         setStreamerMode,
         notificationBodyHidden,
         setLinkPreviewMedia,
+        setGifPickerMedia,
         setIndexEncryptedRooms,
         settingsState,
     } from "$lib/stores/settings.svelte";
     import type { LinkPreviewMedia } from "$lib/utils/linkPreviewPolicy";
+    import type { GifPickerMedia } from "$lib/utils/gifPickerMedia";
     import {
         updateServiceWorkerNotificationPrivacy,
         startEventIndex,
@@ -48,6 +50,23 @@
             title: t(
                 "privacySafetySettings.neverLoadPreviewMediaAutomatically",
             ),
+        },
+    ];
+
+    const gifPickerOptions: Array<{
+        value: GifPickerMedia;
+        label: string;
+        title: string;
+    }> = [
+        {
+            value: "direct",
+            label: t("privacySafetySettings.gifPickerDirect"),
+            title: t("privacySafetySettings.gifPickerDirectTitle"),
+        },
+        {
+            value: "homeserver",
+            label: t("privacySafetySettings.gifPickerHomeserver"),
+            title: t("privacySafetySettings.gifPickerHomeserverTitle"),
         },
     ];
 
@@ -187,6 +206,24 @@
                 options={linkPreviewOptions}
                 onChange={setLinkPreviewMedia}
                 ariaLabel={t("privacySafetySettings.linkPreviewMedia")}
+            />
+        </div>
+        <div
+            class="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+        >
+            <div class="flex-1 min-w-0">
+                <span class="text-sm text-zam-textPrimary"
+                    >{t("privacySafetySettings.gifPickerMedia")}</span
+                >
+                <p class="text-xs text-zam-textMuted">
+                    {t("privacySafetySettings.gifPickerMediaHint")}
+                </p>
+            </div>
+            <OptionSelector
+                value={settingsState.gifPickerMedia}
+                options={gifPickerOptions}
+                onChange={setGifPickerMedia}
+                ariaLabel={t("privacySafetySettings.gifPickerMedia")}
             />
         </div>
     </section>

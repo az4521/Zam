@@ -1,7 +1,17 @@
 <script lang="ts" module>
+    import { SvelteMap, SvelteSet } from "svelte/reactivity";
+    import { fetchKlipyEmbed, type KlipyEmbed } from "$lib/utils/klipy";
+    import { localEmbed } from "$lib/utils/gifEmbed";
+    import { directTile, wantsDirectTile } from "$lib/utils/gifPickerMedia";
+
     /** GIF-site favourites whose link preview was already fetched again this
      *  session (see refreshStaleFavourites), refreshed or not. */
     const refreshedFavouriteLinks = new Set<string>();
+    /** KLIPY page favourites' media from KLIPY's API, by link (null: none). */
+    const klipyTiles = new SvelteMap<string, KlipyEmbed | null>();
+    /** Favourites whose site media failed to load this session: their stored
+     *  copy is shown instead. */
+    const directTileFailed = new SvelteSet<string>();
 </script>
 
 <script lang="ts">
@@ -48,7 +58,6 @@
         type FavouriteMediaRefresh,
     } from "$lib/utils/linkPreviewFavourite";
     import { tick, untrack } from "svelte";
-    import { SvelteSet } from "svelte/reactivity";
     import { Film, Star } from "lucide-svelte";
     import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
     import { resizeHandle } from "$lib/actions/resizeHandle";
@@ -333,6 +342,45 @@
         if (upgrades.length) untrack(() => upgradeFavouriteGifs(upgrades));
     });
 
+    // GIF-site favourites load their tile from the site itself unless the
+    // picker is set to the stored (homeserver) copy, or the site's media
+    // failed. Tenor and GIPHY links give their media without a request;
+    // KLIPY pages are looked up once per session.
+    const directTiles = $derived(settingsState.gifPickerMedia === "direct");
+    function tileOf(gif: FavouriteGif): FavouriteGif {
+        if (
+            !directTiles ||
+            directTileFailed.has(gif.url) ||
+            !wantsDirectTile(gif)
+        )
+            return gif;
+        const embed = localEmbed(gif.url) ?? klipyTiles.get(gif.url);
+        return directTile(gif, embed) ?? gif;
+    }
+    function directFailed(gif: FavouriteGif, tile: FavouriteGif) {
+        if (tile !== gif) directTileFailed.add(gif.url);
+    }
+    $effect(() => {
+        if (tab !== "favourites" || !directTiles) return;
+        const links = favourites
+            .filter(
+                (g) =>
+                    wantsDirectTile(g) &&
+                    !localEmbed(g.url) &&
+                    !klipyTiles.has(g.url),
+            )
+            .map((g) => g.url);
+        if (!links.length) return;
+        untrack(() => {
+            for (const url of links) {
+                klipyTiles.set(url, null);
+                fetchKlipyEmbed(url)
+                    .then((embed) => klipyTiles.set(url, embed))
+                    .catch(() => klipyTiles.delete(url));
+            }
+        });
+    });
+
     // Old GIF-site favourites have a still server thumbnail as their tile.
     // Fetch their link preview again (a few at a time, once a session) and
     // give them the video a new star gets.
@@ -360,7 +408,7 @@
     }
 
     $effect(() => {
-        if (tab !== "favourites") return;
+        if (tab !== "favourites" || directTiles) return;
         const links = favourites
             .filter(
                 (g) =>
@@ -721,6 +769,7 @@
                             {#each column as placed (placed.item.url)}
                                 {@const gif = placed.item}
                                 {@const idx = placed.idx}
+                                {@const tile = tileOf(gif)}
                                 <div class="relative group/gif mb-1">
                                     <!-- The <img> is alt="", so without a label this
                                  button announces as bare "button". The user's
@@ -801,17 +850,19 @@
                                                 disablepictureinpicture
                                                 aria-hidden="true"
                                             ></video>
-                                        {:else if gif.previewVideoUrl}
+                                        {:else if tile.previewVideoUrl}
                                             <video
                                                 use:gifTileVideo={favouriteTileUrl(
-                                                    gif.previewVideoUrl,
+                                                    tile.previewVideoUrl,
                                                 )}
-                                                poster={gif.previewUrl !==
-                                                gif.previewVideoUrl
+                                                poster={tile.previewUrl !==
+                                                tile.previewVideoUrl
                                                     ? favouriteTileUrl(
-                                                          gif.previewUrl,
+                                                          tile.previewUrl,
                                                       )
                                                     : undefined}
+                                                onerror={() =>
+                                                    directFailed(gif, tile)}
                                                 class="w-full h-auto block rounded bg-zam-backgroundTertiary pointer-events-none"
                                                 style={favouriteAspectStyle(
                                                     gif,
@@ -826,8 +877,10 @@
                                         {:else}
                                             <img
                                                 src={favouriteTileUrl(
-                                                    gif.previewUrl,
+                                                    tile.previewUrl,
                                                 )}
+                                                onerror={() =>
+                                                    directFailed(gif, tile)}
                                                 alt=""
                                                 class="w-full h-auto block rounded bg-zam-backgroundTertiary"
                                                 loading="lazy"

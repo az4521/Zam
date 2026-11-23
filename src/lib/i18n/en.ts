@@ -2016,9 +2016,18 @@ export const en = {
         "Hide message text in notifications",
     "privacySafetySettings.notificationsOnThisDeviceSayWho":
         "Notifications on this device say who messaged you, but not what they said. The sender and room names are still shown. Applies to this device only.",
+    "privacySafetySettings.gifPickerMedia": "GIF picker media",
+    "privacySafetySettings.gifPickerMediaHint":
+        'Favourite GIFs from Tenor, GIPHY and KLIPY links. "Direct" loads them straight from those sites, so they keep working when your homeserver\'s media is slow or down, and those sites learn your IP address when you open the picker. "Homeserver" only loads the copy saved when you starred them. KLIPY search results always come from KLIPY.',
+    "privacySafetySettings.gifPickerDirect": "Direct",
+    "privacySafetySettings.gifPickerDirectTitle":
+        "Load favourite GIFs straight from Tenor, GIPHY and KLIPY",
+    "privacySafetySettings.gifPickerHomeserver": "Homeserver",
+    "privacySafetySettings.gifPickerHomeserverTitle":
+        "Only load the copy saved with each favourite",
     "privacySafetySettings.linkPreviewMedia": "Link preview media",
     "privacySafetySettings.previewImagesAndVideosUsuallyCome":
-        'Images and videos on ordinary link previews come through your homeserver. "All" also loads YouTube players, X/Twitter cards, and GIFs your server can\'t preview straight from those sites, so they learn your IP address and when you read the message. "Homeserver only" holds those back; "Off" also holds back what your server serves. Either way, each affected preview keeps a button to load its media. The link-preview on/off switch lives in Messages & Media.',
+        'Images and videos on ordinary link previews come through your homeserver. "All" also loads YouTube players, X/Twitter cards, and Tenor, GIPHY and KLIPY GIFs straight from those sites, so they learn your IP address and when you read the message. "Homeserver only" holds those back; "Off" also holds back what your server serves. Either way, each affected preview keeps a button to load its media. The link-preview on/off switch lives in Messages & Media.',
     "privacySafetySettings.blockedUsers": "Blocked users",
     "privacySafetySettings.all": "All",
     "privacySafetySettings.loadPreviewMediaFromWhereverIt":
@@ -4327,6 +4336,7 @@ export const en = {
     "settingsSearch.showMatrixIds": "Show Matrix IDs",
     "settingsSearch.readReceiptAvatars": "Read receipt avatars",
     "settingsSearch.linkPreviews": "Link previews",
+    "settingsSearch.gifPickerMedia": "GIF picker media",
     "settingsSearch.linkPreviewMedia": "Link preview media",
     "settingsSearch.pauseVideosOffScreen": "Pause videos off-screen",
     "settingsSearch.sendVideosThatStreamFaster":

@@ -70,7 +70,9 @@ function tenorEmbed(url: string): KlipyEmbed | null {
     return m ? { imageUrl: `https://tenor.com/view/${m[1]}.gif` } : null;
 }
 
-function localEmbed(url: string): KlipyEmbed | null {
+/** The media of a GIF-site link that needs no request to find: direct files,
+ *  GIPHY and Tenor pages. Null for KLIPY pages, which need fetchGifEmbed. */
+export function localEmbed(url: string): KlipyEmbed | null {
     const file = directFile(url);
     if (file) {
         return VIDEO_FILE_RE.test(new URL(file).pathname)

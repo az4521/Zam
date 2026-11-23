@@ -48,6 +48,10 @@ import {
     normalizeLinkPreviewMedia,
     type LinkPreviewMedia,
 } from "$lib/utils/linkPreviewPolicy";
+import {
+    normalizeGifPickerMedia,
+    type GifPickerMedia,
+} from "$lib/utils/gifPickerMedia";
 import { normalizeGraceMs } from "$lib/utils/activeSession";
 import { normalizeMicGainMode, type MicGainMode } from "$lib/utils/micGainMode";
 import { normalizeAttenuationDb } from "$lib/utils/micProcessing";
@@ -485,6 +489,11 @@ export const settingsState = $state({
      *  on this device. It is deliberately NOT part of ClientCustomization
      *  either — this is a per-device trust decision, not a look-and-feel one. */
     linkPreviewMedia: normalizeLinkPreviewMedia(readString("linkPreviewMedia")),
+    /** Device-global: where the GIF picker loads Tenor/GIPHY/KLIPY favourite
+     *  tiles from. "direct" (default) asks the site itself, falling back to
+     *  the stored copy; "homeserver" only loads the stored copy (usually the
+     *  homeserver's). Same device-global storage rule as linkPreviewMedia. */
+    gifPickerMedia: normalizeGifPickerMedia(readString("gifPickerMedia")),
     /** Device-global: keep message text out of OS notifications — they say
      *  "<sender> sent a message" instead of the body. Default OFF. Applies to
      *  in-app popups, web push (service worker) and Android FCM on THIS
@@ -1401,6 +1410,12 @@ export function setLinkPreviewMedia(value: LinkPreviewMedia): void {
     const next = normalizeLinkPreviewMedia(value);
     settingsState.linkPreviewMedia = next;
     writeString("linkPreviewMedia", next);
+}
+
+export function setGifPickerMedia(value: GifPickerMedia): void {
+    const next = normalizeGifPickerMedia(value);
+    settingsState.gifPickerMedia = next;
+    writeString("gifPickerMedia", next);
 }
 
 export function setHideNotificationBody(value: boolean): void {
