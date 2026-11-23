@@ -3,7 +3,7 @@
 // ranking candidates, and splicing the pick into the text.
 
 import type { CustomEmoji } from "$lib/matrix/client";
-import { ALL_EMOJIS } from "$lib/data/emojis";
+import type { EmojiEntry } from "$lib/data/emojis";
 import { shortcodesFor } from "$lib/data/emojiShortcodes";
 import { textSymbolPresentation } from "$lib/utils/twemoji";
 
@@ -32,13 +32,16 @@ export function findEmojiQuery(text: string, caret: number): EmojiQuery | null {
 
 /**
  * Suggestions for `query` (at least 2 chars): up to 5 custom emotes, then
- * unicode emoji, 8 in all. Unicode ranks Discord-style: an exact shortcode
- * (":tm" → ™️) first, then shortcodes starting with the query, then any
- * shortcode or name containing it. The row shows the shortcode that matched.
+ * unicode emoji, 8 in all. `standard` is the standard dataset (emojis.ts), which
+ * the caller passes once loaded; until then only custom emotes can match.
+ * Unicode ranks Discord-style: an exact shortcode (":tm" → ™️) first, then
+ * shortcodes starting with the query, then any shortcode or name containing
+ * it. The row shows the shortcode that matched.
  */
 export function rankEmojiCandidates(
     query: string,
     customEmojis: CustomEmoji[],
+    standard: readonly EmojiEntry[],
 ): EmojiCandidate[] {
     if (query.length < 2) return [];
     const q = query.toLowerCase();
@@ -52,7 +55,7 @@ export function rankEmojiCandidates(
             source: e.source,
         }));
     const ranked: { rank: number; candidate: EmojiCandidate }[] = [];
-    for (const e of ALL_EMOJIS) {
+    for (const e of standard) {
         const codes = shortcodesFor(e.emoji);
         const exact = codes.find((c) => c === q);
         const prefix = codes.find((c) => c.startsWith(q));

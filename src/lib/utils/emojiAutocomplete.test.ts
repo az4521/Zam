@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import type { CustomEmoji } from "$lib/matrix/client";
+import { loadEmojiData, type EmojiEntry } from "$lib/data/emojis";
 import {
     applyEmojiCandidate,
     findEmojiQuery,
@@ -13,6 +14,11 @@ const emote = (shortcode: string): CustomEmoji => ({
 });
 
 describe("emoji autocomplete", () => {
+    let ALL: readonly EmojiEntry[] = [];
+    beforeAll(async () => {
+        ALL = (await loadEmojiData()).all;
+    });
+
     it("finds the open :query at the caret", () => {
         expect(findEmojiQuery("hi :smi", 7)).toEqual({
             query: "smi",
@@ -29,15 +35,15 @@ describe("emoji autocomplete", () => {
     });
 
     it("needs two characters before suggesting", () => {
-        expect(rankEmojiCandidates("s", [])).toEqual([]);
-        expect(rankEmojiCandidates("sm", []).length).toBeGreaterThan(0);
+        expect(rankEmojiCandidates("s", [], ALL)).toEqual([]);
+        expect(rankEmojiCandidates("sm", [], ALL).length).toBeGreaterThan(0);
     });
 
     it("ranks an exact shortcode first and caps the list at 8", () => {
-        const list = rankEmojiCandidates("tm", []);
+        const list = rankEmojiCandidates("tm", [], ALL);
         expect(list[0]).toMatchObject({ kind: "unicode", name: "tm" });
-        expect(rankEmojiCandidates("a", []).length).toBe(0);
-        expect(rankEmojiCandidates("an", []).length).toBe(8);
+        expect(rankEmojiCandidates("a", [], ALL).length).toBe(0);
+        expect(rankEmojiCandidates("an", [], ALL).length).toBe(8);
     });
 
     it("puts custom emotes first, at most 5", () => {
@@ -49,7 +55,7 @@ describe("emoji autocomplete", () => {
             "smile5",
             "smile6",
         ].map(emote);
-        const list = rankEmojiCandidates("smile", customs);
+        const list = rankEmojiCandidates("smile", customs, ALL);
         expect(list.slice(0, 5).every((c) => c.kind === "custom")).toBe(true);
         expect(list.filter((c) => c.kind === "custom").length).toBe(5);
         expect(list.length).toBe(8);

@@ -25,7 +25,7 @@
     import MediaProgress from "$lib/components/ui/MediaProgress.svelte";
     import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
     import { rememberVolume } from "$lib/actions/rememberVolume";
-    import { STREAM_ENCRYPTED_MIN_BYTES } from "$lib/matrix/videoStream";
+    import { STREAM_ENCRYPTED_MIN_BYTES } from "$lib/utils/streamThresholds";
     import {
         canPreviewImage,
         loadImageProgressively,
@@ -94,7 +94,7 @@
         noteLeavingReceipts,
     } from "$lib/actions/receiptGlide";
     import { eventFavouriteKey } from "$lib/matrix/favouriteFile";
-    import Lightbox from "$lib/components/ui/Lightbox.svelte";
+    import LazyLightbox from "$lib/components/ui/LazyLightbox.svelte";
     import SwfEmbed from "$lib/components/ui/SwfEmbed.svelte";
     import {
         getMemberName,
@@ -3473,7 +3473,7 @@
                                     {@const uprev = unav.prevIndex}
                                     {@const unext = unav.nextIndex}
                                     {#if ucur}
-                                        <Lightbox
+                                        <LazyLightbox
                                             src={ucur.src}
                                             alt={ucur.alt}
                                             placeholders={ucur.placeholders}
@@ -3523,7 +3523,7 @@
                  opened on its thumbnail mid-decrypt, stays open when the
                  full image lands. -->
                     {#if imageLightboxOpen && (full || thumb || senderThumbUrl)}
-                        <Lightbox
+                        <LazyLightbox
                             src={full ?? ""}
                             alt={mediaFilename}
                             filename={mediaFilename || undefined}
@@ -3797,7 +3797,7 @@
                 {@const prev = nav.prevIndex}
                 {@const next = nav.nextIndex}
                 {#if cur}
-                    <Lightbox
+                    <LazyLightbox
                         src={cur.src}
                         alt={cur.alt}
                         placeholders={cur.placeholders}

@@ -34,7 +34,7 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
     import { getHomeserverBaseUrl, type UrlPreview } from "$lib/matrix/client";
-    import Lightbox from "$lib/components/ui/Lightbox.svelte";
+    import LazyLightbox from "$lib/components/ui/LazyLightbox.svelte";
     import {
         favouritesState,
         isFavouriteGif,
@@ -623,7 +623,7 @@
         </button>
     </div>
     {#if lightboxOpen}
-        <Lightbox
+        <LazyLightbox
             src={directEmbed.imageUrl}
             alt=""
             favourite={{ url, previewUrl: directEmbed.imageUrl }}
@@ -797,7 +797,7 @@
             </button>
         </div>
         {#if lightboxOpen}
-            <Lightbox
+            <LazyLightbox
                 src={preview.imageUrl}
                 alt=""
                 favourite={{ url, previewUrl: preview.imageUrl }}
@@ -904,7 +904,7 @@
                 </div>
             </a>
             {#if lightboxOpen && preview.imageUrl && canLoad(preview.imageUrl)}
-                <Lightbox
+                <LazyLightbox
                     src={preview.imageUrl}
                     alt=""
                     onClose={() => (lightboxOpen = false)}

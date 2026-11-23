@@ -3,7 +3,11 @@
     import { untrack } from "svelte";
     import { SvelteSet } from "svelte/reactivity";
     import type { Room } from "matrix-js-sdk";
-    import { EMOJI_CATEGORIES, ALL_EMOJIS } from "$lib/data/emojis";
+    import {
+        loadEmojiData,
+        loadedEmojiData,
+        type EmojiData,
+    } from "$lib/data/emojis";
     import {
         getCustomEmojiPacks,
         getOwnAvatarUrl,
@@ -60,9 +64,27 @@
         unicodeOnly = false,
     }: Props = $props();
 
+    // The standard emoji set loads on demand (emojis.ts). Until it resolves the
+    // grid has only the recent and custom sections, and the tabs and search
+    // fill in once it does.
+    let emojiData = $state.raw<EmojiData | null>(loadedEmojiData());
+    $effect(() => {
+        if (emojiData) return;
+        let alive = true;
+        void loadEmojiData().then((d) => {
+            if (alive) emojiData = d;
+        });
+        return () => {
+            alive = false;
+        };
+    });
+    const emojiCategories = $derived(emojiData?.categories ?? []);
+    const allEmojis = $derived(emojiData?.all ?? []);
     // Name of each standard emoji, for the recent section's labels.
-    const EMOJI_NAMES = new Map<string, string>(
-        ALL_EMOJIS.map((e) => [e.emoji, e.name] as const),
+    const emojiNames = $derived(
+        new Map<string, string>(
+            allEmojis.map((e) => [e.emoji, e.name] as const),
+        ),
     );
 
     // The recent list is frozen for this picker's lifetime, so an entry does not
@@ -199,7 +221,7 @@
             avatarUrl: p.avatarUrl,
             isCustom: true as const,
         })),
-        ...EMOJI_CATEGORIES.map((c) => ({
+        ...emojiCategories.map((c) => ({
             id: c.id,
             label: c.label,
             avatarUrl: undefined,
@@ -227,7 +249,7 @@
     );
     const searchStandard = $derived(
         search
-            ? ALL_EMOJIS.filter((e) => e.name.includes(search.toLowerCase()))
+            ? allEmojis.filter((e) => e.name.includes(search.toLowerCase()))
             : [],
     );
 
@@ -277,7 +299,7 @@
                     sectionId: RECENT_SECTION_ID,
                     data: {
                         emoji: r.emoji,
-                        name: EMOJI_NAMES.get(r.emoji) ?? r.emoji,
+                        name: emojiNames.get(r.emoji) ?? r.emoji,
                     },
                 });
             } else {
@@ -303,7 +325,7 @@
                 });
             }
         }
-        for (const cat of EMOJI_CATEGORIES) {
+        for (const cat of emojiCategories) {
             for (const e of cat.emojis) {
                 items.push({ kind: "standard", sectionId: cat.id, data: e });
             }
@@ -331,7 +353,7 @@
             offsets.set(pack.id, offset);
             offset += pack.emojis.length;
         }
-        for (const cat of EMOJI_CATEGORIES) {
+        for (const cat of emojiCategories) {
             offsets.set(cat.id, offset);
             offset += cat.emojis.length;
         }
@@ -429,7 +451,7 @@
                 start: at(p.id),
                 count: p.emojis.length,
             })),
-            ...EMOJI_CATEGORIES.map((c) => ({
+            ...emojiCategories.map((c) => ({
                 id: c.id,
                 label: c.name,
                 start: at(c.id),
@@ -752,7 +774,7 @@
         aria-label={hasOptions ? t("common.emoji") : undefined}
         class="relative flex-1 overflow-y-auto min-h-0 px-2 pb-2"
     >
-        {#if search && !hasOptions}
+        {#if search && !hasOptions && emojiData}
             <p class="text-center text-zam-textMuted text-sm py-8">
                 {t("common.noResults")}
             </p>

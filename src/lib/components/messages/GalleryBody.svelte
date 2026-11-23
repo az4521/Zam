@@ -32,7 +32,7 @@
         thumbnailBox,
     } from "$lib/utils/galleryLayout";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
-    import Lightbox from "$lib/components/ui/Lightbox.svelte";
+    import LazyLightbox from "$lib/components/ui/LazyLightbox.svelte";
     import { fullImage, type FullImageSource } from "$lib/actions/fullImage";
 
     interface Props {
@@ -545,7 +545,7 @@
 
 {#if viewerEntry}
     {#if viewerSrc !== null}
-        <Lightbox
+        <LazyLightbox
             src={viewerSrc}
             alt={viewerEntry.media.name}
             kind={viewerEntry.media.kind === "video" ? "video" : "image"}

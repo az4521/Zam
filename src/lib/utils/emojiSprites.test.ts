@@ -3,16 +3,18 @@ import { describe, it, expect } from "vitest";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import manifest from "$lib/data/emojiSheets.json";
-import { EMOJI_CATEGORIES } from "$lib/data/emojis";
+import { loadEmojiData } from "$lib/data/emojis";
 import { renderEmoji } from "./twemoji";
 import { emojiSpriteStyle, hasEmojiSprite } from "./emojiSprites";
 
 describe("emoji sprite sheets", () => {
-    it("cover every picker emoji that Twemoji draws", () => {
+    it("cover every picker emoji that Twemoji draws", async () => {
         // Fails when the emoji data or the vendored Twemoji changed without
         // re-running scripts/build-emoji-sheets.mjs. Missing emoji would still
         // show (the picker falls back to the SVG), just slowly.
-        const missing = EMOJI_CATEGORIES.flatMap((c) => c.emojis)
+        const { categories } = await loadEmojiData();
+        const missing = categories
+            .flatMap((c) => c.emojis)
             .map((e) => e.emoji)
             .filter((e) => renderEmoji(e, "x").includes("<img"))
             .filter((e) => !hasEmojiSprite(e));

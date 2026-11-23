@@ -101,8 +101,19 @@
         rankEmojiCandidates,
         type EmojiCandidate,
     } from "$lib/utils/emojiAutocomplete";
-    import StickerPicker from "$lib/components/ui/StickerPicker.svelte";
-    import GifPicker from "$lib/components/ui/GifPicker.svelte";
+    import {
+        loadEmojiData,
+        loadedEmojiData,
+        type EmojiEntry,
+    } from "$lib/data/emojis";
+    import { lazyOnce } from "$lib/utils/lazyOnce";
+    // Loaded the first time a picker opens, then reused (lazyOnce).
+    const loadGifPicker = lazyOnce(
+        () => import("$lib/components/ui/GifPicker.svelte"),
+    );
+    const loadStickerPicker = lazyOnce(
+        () => import("$lib/components/ui/StickerPicker.svelte"),
+    );
     import PickerDock, {
         markPickerSwitch,
     } from "$lib/components/messages/PickerDock.svelte";
@@ -646,12 +657,29 @@
     let emojiStart = $state(0);
     let emojiSelectedIdx = $state(0);
 
+    // The standard emoji set loads once a :query opens (emojis.ts). Custom
+    // emotes match at once; unicode candidates appear when the set resolves.
+    let emojiAll = $state.raw<readonly EmojiEntry[]>(
+        loadedEmojiData()?.all ?? [],
+    );
+    $effect(() => {
+        if (emojiQuery === null || emojiAll.length > 0) return;
+        let alive = true;
+        void loadEmojiData().then((d) => {
+            if (alive) emojiAll = d.all;
+        });
+        return () => {
+            alive = false;
+        };
+    });
+
     const emojiCandidates = $derived.by((): EmojiCandidate[] =>
         emojiQuery === null
             ? []
             : rankEmojiCandidates(
                   emojiQuery,
                   getCustomEmojis(room, roomsState.activeSpaceId),
+                  emojiAll,
               ),
     );
 
@@ -3124,13 +3152,16 @@
                 {#if showGifPicker}
                     {#if interfaceState.isTouchscreen}
                         <PickerDock onClose={closeModal} {keyboardOffset}>
-                            <GifPicker
-                                onSelect={insertGif}
-                                onSelectFile={(f) => addFiles([f])}
-                                onClose={() => closePicker("gif", true)}
-                                onSwitchToEmoji={() => openPicker("emoji")}
-                                onSwitchToSticker={() => openPicker("sticker")}
-                            />
+                            {#await loadGifPicker() then { default: GifPicker }}
+                                <GifPicker
+                                    onSelect={insertGif}
+                                    onSelectFile={(f) => addFiles([f])}
+                                    onClose={() => closePicker("gif", true)}
+                                    onSwitchToEmoji={() => openPicker("emoji")}
+                                    onSwitchToSticker={() =>
+                                        openPicker("sticker")}
+                                />
+                            {/await}
                         </PickerDock>
                     {:else}
                         <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
@@ -3140,13 +3171,16 @@
                             onkeydown={closeModal}
                         ></div>
                         <div class="absolute bottom-full end-0 mb-2 z-50">
-                            <GifPicker
-                                onSelect={insertGif}
-                                onSelectFile={(f) => addFiles([f])}
-                                onClose={() => closePicker("gif", true)}
-                                onSwitchToEmoji={() => openPicker("emoji")}
-                                onSwitchToSticker={() => openPicker("sticker")}
-                            />
+                            {#await loadGifPicker() then { default: GifPicker }}
+                                <GifPicker
+                                    onSelect={insertGif}
+                                    onSelectFile={(f) => addFiles([f])}
+                                    onClose={() => closePicker("gif", true)}
+                                    onSwitchToEmoji={() => openPicker("emoji")}
+                                    onSwitchToSticker={() =>
+                                        openPicker("sticker")}
+                                />
+                            {/await}
                         </div>
                     {/if}
                 {/if}
@@ -3173,13 +3207,15 @@
                 {#if showStickerPicker}
                     {#if interfaceState.isTouchscreen}
                         <PickerDock onClose={closeModal} {keyboardOffset}>
-                            <StickerPicker
-                                {roomId}
-                                onSelect={sendStickerMessage}
-                                onClose={() => closePicker("sticker", true)}
-                                onSwitchToEmoji={() => openPicker("emoji")}
-                                onSwitchToGif={() => openPicker("gif")}
-                            />
+                            {#await loadStickerPicker() then { default: StickerPicker }}
+                                <StickerPicker
+                                    {roomId}
+                                    onSelect={sendStickerMessage}
+                                    onClose={() => closePicker("sticker", true)}
+                                    onSwitchToEmoji={() => openPicker("emoji")}
+                                    onSwitchToGif={() => openPicker("gif")}
+                                />
+                            {/await}
                         </PickerDock>
                     {:else}
                         <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
@@ -3189,13 +3225,15 @@
                             onkeydown={closeModal}
                         ></div>
                         <div class="absolute bottom-full end-0 mb-2 z-50">
-                            <StickerPicker
-                                {roomId}
-                                onSelect={sendStickerMessage}
-                                onClose={() => closePicker("sticker", true)}
-                                onSwitchToEmoji={() => openPicker("emoji")}
-                                onSwitchToGif={() => openPicker("gif")}
-                            />
+                            {#await loadStickerPicker() then { default: StickerPicker }}
+                                <StickerPicker
+                                    {roomId}
+                                    onSelect={sendStickerMessage}
+                                    onClose={() => closePicker("sticker", true)}
+                                    onSwitchToEmoji={() => openPicker("emoji")}
+                                    onSwitchToGif={() => openPicker("gif")}
+                                />
+                            {/await}
                         </div>
                     {/if}
                 {/if}

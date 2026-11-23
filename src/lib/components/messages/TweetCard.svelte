@@ -3,7 +3,7 @@
     // (utils/tweetEmbed). Renders itself again, `nested`, for a quoted post.
     import TweetCard from "./TweetCard.svelte";
     import { t, intlLocale } from "$lib/i18n";
-    import Lightbox from "$lib/components/ui/Lightbox.svelte";
+    import LazyLightbox from "$lib/components/ui/LazyLightbox.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import { pauseOffscreen } from "$lib/actions/pauseOffscreen";
     import { rememberVolume } from "$lib/actions/rememberVolume";
@@ -580,7 +580,7 @@
 {/if}
 
 {#if gifViewer}
-    <Lightbox
+    <LazyLightbox
         src={gifViewer.url}
         kind="video"
         loop
@@ -591,7 +591,7 @@
 {/if}
 
 {#if cardLightbox && tweet.card && !tweet.card.external}
-    <Lightbox
+    <LazyLightbox
         src={tweet.card.image}
         alt={tweet.card.title ?? ""}
         dims={tweet.card.width && tweet.card.height
@@ -611,7 +611,7 @@
              sized from the media dims, until the original arrives; the
              neighbours carry the same so a step or swipe lands on a sized,
              painted image instead of an empty 0x0 one. -->
-        <Lightbox
+        <LazyLightbox
             src={photo.url}
             alt={photo.alt ?? ""}
             placeholders={viewerItem(photo).placeholders}

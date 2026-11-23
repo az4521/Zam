@@ -100,7 +100,7 @@
     import { holdVideoDecoders } from "$lib/stores/videoDecoderHold";
     import { authedMediaBlobUrl } from "$lib/stores/mediaAuth.svelte";
     import { isSvg, safeMediaBlob } from "$lib/utils/attachmentMime";
-    import { STREAM_ENCRYPTED_MIN_BYTES } from "$lib/matrix/videoStream";
+    import { STREAM_ENCRYPTED_MIN_BYTES } from "$lib/utils/streamThresholds";
     import type { EncryptedFileInfo } from "$lib/utils/decryptAttachment";
     import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
     import { placeholderStyle } from "$lib/utils/imagePlaceholder";

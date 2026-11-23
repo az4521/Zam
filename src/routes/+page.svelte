@@ -57,9 +57,22 @@
     import { clearAllNotificationSurfaces } from "$lib/utils/notificationSurfaces";
     import AppShell from "$lib/components/layout/AppShell.svelte";
     import Splash from "$lib/components/layout/Splash.svelte";
-    import LoginView from "$lib/components/layout/LoginView.svelte";
     import { markFreshSignIn } from "$lib/stores/onboarding.svelte";
     import HealthBanners from "$lib/components/layout/HealthBanners.svelte";
+    // Modal-only components are fetched on first open. The promise is cached
+    // so reopening does not re-enter the loader; a failed load is retried.
+    function lazy<T>(load: () => Promise<T>): () => Promise<T> {
+        let pending: Promise<T> | null = null;
+        return () =>
+            (pending ??= load().catch((e) => {
+                pending = null;
+                throw e;
+            }));
+    }
+
+    const loadLoginView = lazy(
+        () => import("$lib/components/layout/LoginView.svelte"),
+    );
 
     const RESTORE_FAILED_MESSAGE = t("rootPage.failedToReconnectPleaseLogIn");
     const SYNC_START_FAILED_MESSAGE = t("rootPage.signedInButSyncingCouldNot");
@@ -492,12 +505,14 @@
         message={sessionInUse ? t("rootPage.sessionOpenInAnotherTab") : null}
     />
 {:else}
-    <LoginView
-        {isAddAccountMode}
-        onAuthenticated={handleAuthenticated}
-        onContinueAs={continueAs}
-        onBackToActive={backToActive}
-    />
+    {#await loadLoginView() then { default: LoginView }}
+        <LoginView
+            {isAddAccountMode}
+            onAuthenticated={handleAuthenticated}
+            onContinueAs={continueAs}
+            onBackToActive={backToActive}
+        />
+    {/await}
 {/if}
 
 <HealthBanners />

@@ -1,12 +1,13 @@
 // Discord-style `:shortcode:` names for unicode emoji (`:tm:` → ™,
 // `:thumbsup:` → 👍). Discord's names come from JoyPixels (formerly EmojiOne);
 // GitHub's gemoji names are folded in as aliases since most people know both.
-// The emoji itself is taken from ALL_EMOJIS (unicode-emoji-json), except that
+// The emoji itself is taken from EMOJI_SEQUENCE (unicode-emoji-json, static so
+// the send path stays synchronous), except that
 // (c) (R) TM come out as their plain text glyphs ("™", not "™️"), as in Discord.
 
 import joypixels from "emojibase-data/en/shortcodes/joypixels.json";
 import github from "emojibase-data/en/shortcodes/github.json";
-import { ALL_EMOJIS } from "./emojis";
+import { EMOJI_SEQUENCE } from "./emojiSequence";
 import { textSymbolPresentation } from "$lib/utils/twemoji";
 
 type ShortcodeData = Record<string, string | string[]>;
@@ -40,7 +41,7 @@ for (const data of [joypixels, github] as ShortcodeData[]) {
 
 const shortcodesByEmoji = new Map<string, string[]>();
 const emojiByShortcode = new Map<string, string>();
-for (const { emoji } of ALL_EMOJIS) {
+for (const emoji of EMOJI_SEQUENCE) {
     const codes = byKey.get(hexKey(emoji));
     if (!codes) continue;
     shortcodesByEmoji.set(emoji, codes);

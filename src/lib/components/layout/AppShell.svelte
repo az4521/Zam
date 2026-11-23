@@ -5,6 +5,56 @@
     import { isSilentZamEvent } from "$lib/utils/silentZamEvents";
     import { targetCanScrollHoriz } from "$lib/utils/scrollHoriz";
     import { bootMark } from "$lib/utils/bootTiming";
+    // Modal-only components are fetched on first open. The promise is cached
+    // so reopening does not re-enter the loader; a failed load is retried.
+    function lazy<T>(load: () => Promise<T>): () => Promise<T> {
+        let pending: Promise<T> | null = null;
+        return () =>
+            (pending ??= load().catch((e) => {
+                pending = null;
+                throw e;
+            }));
+    }
+
+    const loadAppSettings = lazy(
+        () => import("$lib/components/layout/AppSettings.svelte"),
+    );
+    const loadRoomSettings = lazy(
+        () => import("$lib/components/layout/RoomSettings.svelte"),
+    );
+    const loadVerificationModal = lazy(
+        () => import("$lib/components/layout/VerificationModal.svelte"),
+    );
+    const loadEncryptionSetupDialog = lazy(
+        () => import("$lib/components/layout/EncryptionSetupDialog.svelte"),
+    );
+    const loadInviteModal = lazy(
+        () => import("$lib/components/layout/InviteModal.svelte"),
+    );
+    const loadCreatePollDialog = lazy(
+        () => import("$lib/components/messages/CreatePollDialog.svelte"),
+    );
+    const loadGameInviteDialog = lazy(
+        () => import("$lib/components/messages/GameInviteDialog.svelte"),
+    );
+    const loadShareLocationDialog = lazy(
+        () => import("$lib/components/messages/ShareLocationDialog.svelte"),
+    );
+    const loadShareTargetSheet = lazy(
+        () => import("$lib/components/messages/ShareTargetSheet.svelte"),
+    );
+    const loadWhatsNewModal = lazy(
+        () => import("$lib/components/layout/WhatsNewModal.svelte"),
+    );
+    const loadQuickSwitcher = lazy(
+        () => import("$lib/components/layout/QuickSwitcher.svelte"),
+    );
+    const loadKeyboardShortcutsDialog = lazy(
+        () => import("$lib/components/keybinds/KeyboardShortcutsDialog.svelte"),
+    );
+    const loadPluginPopoverHost = lazy(
+        () => import("$lib/components/plugins/PluginPopoverHost.svelte"),
+    );
 
     import SpaceSidebar from "$lib/components/layout/SpaceSidebar.svelte";
     import RoomList from "$lib/components/layout/RoomList.svelte";
@@ -13,13 +63,6 @@
     import MessageArea from "$lib/components/layout/MessageArea.svelte";
     import DraftDmView from "$lib/components/layout/DraftDmView.svelte";
     import CallView from "$lib/components/layout/CallView.svelte";
-    import RoomSettings from "$lib/components/layout/RoomSettings.svelte";
-    import InviteModal from "$lib/components/layout/InviteModal.svelte";
-    import CreatePollDialog from "$lib/components/messages/CreatePollDialog.svelte";
-    import GameInviteDialog from "$lib/components/messages/GameInviteDialog.svelte";
-    import ShareLocationDialog from "$lib/components/messages/ShareLocationDialog.svelte";
-    import ShareTargetSheet from "$lib/components/messages/ShareTargetSheet.svelte";
-    import AppSettings from "$lib/components/layout/AppSettings.svelte";
     import InboxPanel from "$lib/components/layout/InboxPanel.svelte";
     import SpaceLandingPanel from "./SpaceLandingPanel.svelte";
     import IncomingCallCard from "$lib/components/layout/IncomingCallCard.svelte";
@@ -29,25 +72,19 @@
         callPopoutState,
         watchCallPopout,
     } from "$lib/stores/callPopout.svelte";
-    import VerificationModal from "$lib/components/layout/VerificationModal.svelte";
-    import EncryptionSetupDialog from "$lib/components/layout/EncryptionSetupDialog.svelte";
     import {
         onboardingState,
         openEncryptionSetup,
         takeFreshSignIn,
     } from "$lib/stores/onboarding.svelte";
-    import WhatsNewModal from "$lib/components/layout/WhatsNewModal.svelte";
     import VerificationRequestCard from "$lib/components/layout/VerificationRequestCard.svelte";
     import ErrorToasts from "$lib/components/ui/ErrorToasts.svelte";
     import { requestPersistentStorage } from "$lib/utils/persistentStorage";
     import ScreenSharePicker from "$lib/components/layout/ScreenSharePicker.svelte";
     import JoinConsentDialog from "$lib/components/layout/JoinConsentDialog.svelte";
     import MeshConsentDialog from "$lib/components/layout/MeshConsentDialog.svelte";
-    import PluginPopoverHost from "$lib/components/plugins/PluginPopoverHost.svelte";
     import PluginOverlayHost from "$lib/components/plugins/PluginOverlayHost.svelte";
-    import QuickSwitcher from "$lib/components/layout/QuickSwitcher.svelte";
     import QuickActions from "$lib/components/layout/QuickActions.svelte";
-    import KeyboardShortcutsDialog from "$lib/components/keybinds/KeyboardShortcutsDialog.svelte";
     import {
         handleHoldKey,
         handleHoldMouse,
@@ -3110,49 +3147,65 @@
         <!-- Settings overlay -->
         {#if interfaceState.modal === "app-settings"}
             <div class="contents" dir={uiDir}>
-                <AppSettings onClose={closeModal} onLogout={handleLogout} />
+                {#await loadAppSettings() then { default: AppSettings }}
+                    <AppSettings onClose={closeModal} onLogout={handleLogout} />
+                {/await}
             </div>
         {/if}
     </div>
 {/if}
 
 {#if interfaceState.modal === "room-settings" && settingsRoom}
-    <RoomSettings
-        room={settingsRoom}
-        onClose={closeModal}
-        onUpdate={() => {
-            if (roomsState.activeSpaceId)
-                roomsState.roomsInSpace = getRoomsInSpace(
-                    roomsState.activeSpaceId,
-                );
-        }}
-    />
+    {#await loadRoomSettings() then { default: RoomSettings }}
+        <RoomSettings
+            room={settingsRoom}
+            onClose={closeModal}
+            onUpdate={() => {
+                if (roomsState.activeSpaceId)
+                    roomsState.roomsInSpace = getRoomsInSpace(
+                        roomsState.activeSpaceId,
+                    );
+            }}
+        />
+    {/await}
 {/if}
 
 {#if interfaceState.modal === "invite" && inviteDialogState.roomId}
-    <InviteModal roomId={inviteDialogState.roomId} />
+    {#await loadInviteModal() then { default: InviteModal }}
+        <InviteModal roomId={inviteDialogState.roomId} />
+    {/await}
 {/if}
 
 {#if interfaceState.modal === "create-poll" && pollDialogState.roomId}
-    <CreatePollDialog />
+    {#await loadCreatePollDialog() then { default: CreatePollDialog }}
+        <CreatePollDialog />
+    {/await}
 {/if}
 
 {#if interfaceState.modal === "game-invite" && gameInviteDialogState.roomId}
-    <GameInviteDialog />
+    {#await loadGameInviteDialog() then { default: GameInviteDialog }}
+        <GameInviteDialog />
+    {/await}
 {/if}
 
 {#if interfaceState.modal === "share-location" && locationDialogState.roomId}
-    <ShareLocationDialog />
+    {#await loadShareLocationDialog() then { default: ShareLocationDialog }}
+        <ShareLocationDialog />
+    {/await}
 {/if}
 
 {#if interfaceState.modal === "plugin-popover"}
-    <PluginPopoverHost />
+    {#await loadPluginPopoverHost() then { default: PluginPopoverHost }}
+        <PluginPopoverHost />
+    {/await}
 {/if}
 
 <PluginOverlayHost />
 
 {#if interfaceState.modal === "share-target" && shareInboxState.payload}
-    <ShareTargetSheet />
+    {#await loadShareTargetSheet() then { default: ShareTargetSheet }}
+        <ShareTargetSheet />
+    {/await}
 {/if}
 
 <!-- The pop-out window already shows the whole call: no floating video too. -->
@@ -3177,25 +3230,37 @@
     </div>
 {/if}
 
-<VerificationModal />
+{#if verificationState.active}
+    {#await loadVerificationModal() then { default: VerificationModal }}
+        <VerificationModal />
+    {/await}
+{/if}
 {#if onboardingState.encryptionSetupOpen}
-    <EncryptionSetupDialog />
+    {#await loadEncryptionSetupDialog() then { default: EncryptionSetupDialog }}
+        <EncryptionSetupDialog />
+    {/await}
 {/if}
 
 <!-- Opened by the Ctrl+Shift+T / Ctrl+Shift+N shortcuts. -->
 <QuickActions headless bind:this={shortcutActions} />
 {#if quickSwitcherOpen && interfaceState.modal === "quick-switcher"}
-    <QuickSwitcher onClose={closeModal} />
+    {#await loadQuickSwitcher() then { default: QuickSwitcher }}
+        <QuickSwitcher onClose={closeModal} />
+    {/await}
 {/if}
 {#if shortcutsHelpOpen && interfaceState.modal === "keyboard-shortcuts"}
-    <KeyboardShortcutsDialog
-        onClose={closeModal}
-        onCustomize={() => openAppSettingsTab("keybinds")}
-    />
+    {#await loadKeyboardShortcutsDialog() then { default: KeyboardShortcutsDialog }}
+        <KeyboardShortcutsDialog
+            onClose={closeModal}
+            onCustomize={() => openAppSettingsTab("keybinds")}
+        />
+    {/await}
 {/if}
 
 {#if showWhatsNew}
-    <WhatsNewModal onClose={dismissWhatsNew} lastSeen={whatsNewSince} />
+    {#await loadWhatsNewModal() then { default: WhatsNewModal }}
+        <WhatsNewModal onClose={dismissWhatsNew} lastSeen={whatsNewSince} />
+    {/await}
 {/if}
 
 <ErrorToasts />

@@ -112,7 +112,9 @@ try {
     await sleep(3000);
 
     const sheets = await evaluate(`
-        const { EMOJI_CATEGORIES } = await import("/src/lib/data/emojis.ts");
+        const { EMOJI_CATEGORIES } = await import("/src/lib/data/emojis.ts").then(
+            (m) => m.loadEmojiData(),
+        ).then((d) => ({ EMOJI_CATEGORIES: d.categories }));
         const { renderEmoji } = await import("/src/lib/utils/twemoji.ts");
         const CELL = ${CELL}, PAD = ${PAD}, COLS = ${COLS};
         const load = (src) => new Promise((res) => {

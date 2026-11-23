@@ -60,7 +60,7 @@ import {
  * check at the end (see the file header), which is only worth risking when the
  * wait for the whole file would be long.
  */
-export const STREAM_ENCRYPTED_MIN_BYTES = 4 * 1024 * 1024;
+export { STREAM_ENCRYPTED_MIN_BYTES } from "$lib/utils/streamThresholds";
 
 /** True when this page has no service worker to authenticate `<video src>`. */
 export function videoNeedsAuthedStream(): boolean {

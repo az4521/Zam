@@ -36,7 +36,7 @@
     import { galleryPositionLabel } from "$lib/utils/mediaGallery";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
-    import Lightbox from "$lib/components/ui/Lightbox.svelte";
+    import LazyLightbox from "$lib/components/ui/LazyLightbox.svelte";
 
     interface Props {
         room: Room;
@@ -747,7 +747,7 @@
     {#if view}
         <!-- Shown at once: an encrypted image's src is "" until its full copy
              has decrypted, and the tile stands in behind it (placeholders). -->
-        <Lightbox
+        <LazyLightbox
             src={view.src}
             alt={view.filename}
             kind={view.kind}

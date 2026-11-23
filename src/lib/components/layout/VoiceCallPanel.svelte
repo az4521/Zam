@@ -40,7 +40,9 @@
     import ScreenShareQualityPopover from "./ScreenShareQualityPopover.svelte";
     import SoundboardButton from "./SoundboardButton.svelte";
     import CallEncryptionBadge from "./CallEncryptionBadge.svelte";
-    import CallStatsPanel from "./CallStatsPanel.svelte";
+    import { lazyOnce } from "$lib/utils/lazyOnce";
+    // The stats panel loads the first time it opens (see the {#if} below).
+    const loadCallStats = lazyOnce(() => import("./CallStatsPanel.svelte"));
 
     // Hides share where unsupported; reactive, as Android's answer comes late.
     const screenShareSupported = $derived(screenShareSupportedHere());
@@ -307,6 +309,8 @@
         />
     {/if}
     {#if statsOpen}
-        <CallStatsPanel onClose={() => (statsOpen = false)} />
+        {#await loadCallStats() then { default: CallStatsPanel }}
+            <CallStatsPanel onClose={() => (statsOpen = false)} />
+        {/await}
     {/if}
 {/if}
