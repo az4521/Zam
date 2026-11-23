@@ -19,7 +19,10 @@ import {
     decodePacket,
     deriveMacKey,
     encodeAckPacket,
+    LEAF_HEADER_BYTES,
+    blockLeafInPlace,
     encodeDataPackets,
+    encodeDataPacketsFrom,
     encodeLeavesPackets,
     formatTransferBytes,
     generateTransferKey,
@@ -33,6 +36,7 @@ import {
     parseFileOffer,
     safeFileName,
     sealBlock,
+    sealBlockParts,
     sealedLength,
     sealPacket,
     transferIdentity,
@@ -325,6 +329,56 @@ describe("hash tree", () => {
         const root = await treeRoot(leaves);
         root[0] ^= 1;
         expect(await leafListMatches(leaves, BLOCK_SIZE + 1, root)).toBe(false);
+    });
+});
+
+describe("segmented packets", () => {
+    it("cut the same packets from segments as from the joined block", () => {
+        const joined = Uint8Array.from(
+            { length: PART_SIZE * 3 + 17 },
+            (_, i) => (i * 13) % 256,
+        );
+        // Segment boundaries inside and across parts, one at an IV's length.
+        const cuts = [12, PART_SIZE - 5, PART_SIZE * 2 + 1, joined.length];
+        const segments: Uint8Array<ArrayBuffer>[] = [];
+        let at = 0;
+        for (const cut of cuts) {
+            segments.push(joined.slice(at, cut));
+            at = cut;
+        }
+        expect(encodeDataPacketsFrom(9, segments)).toEqual(
+            encodeDataPackets(9, joined),
+        );
+    });
+
+    it("seals to the same bytes as the two parts joined", async () => {
+        const key = await generateTransferKey();
+        const iv = new Uint8Array(12).fill(5) as Uint8Array<ArrayBuffer>;
+        const plain = new Uint8Array(100).fill(3) as Uint8Array<ArrayBuffer>;
+        const parts = await sealBlockParts(key.key, "t", 100, 0, plain, { iv });
+        const joined = await sealBlock(key.key, "t", 100, 0, plain, { iv });
+        expect(parts.iv).toEqual(iv);
+        expect(new Uint8Array([...parts.iv, ...parts.ciphertext])).toEqual(
+            joined,
+        );
+    });
+
+    it("hashes a block in place to the same leaf as blockLeaf", async () => {
+        const hashKey = await importHashKey(
+            new Uint8Array(32).fill(2) as Uint8Array<ArrayBuffer>,
+        );
+        const plain = Uint8Array.from(
+            { length: 50 },
+            (_, i) => i,
+        ) as Uint8Array<ArrayBuffer>;
+        // A reused buffer, longer than the block, holding stale bytes.
+        const buf = new Uint8Array(LEAF_HEADER_BYTES + 200).fill(
+            0xee,
+        ) as Uint8Array<ArrayBuffer>;
+        buf.set(plain, LEAF_HEADER_BYTES);
+        expect(await blockLeafInPlace(hashKey, 4, buf, plain.length)).toEqual(
+            await blockLeaf(hashKey, 4, plain),
+        );
     });
 });
 

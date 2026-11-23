@@ -115,6 +115,40 @@ describe("hashFile", () => {
         expect(calls).toEqual([BLOCK_SIZE]);
     });
 
+    it("hashes the same leaves read through stream chunks of any size", async () => {
+        // A blob that only offers stream(), in chunks that straddle the blocks.
+        const chunked = (bytes: Uint8Array<ArrayBuffer>, chunk: number) =>
+            ({
+                size: bytes.length,
+                slice: (a: number, b: number) =>
+                    chunked(
+                        bytes.subarray(a, b) as Uint8Array<ArrayBuffer>,
+                        chunk,
+                    ),
+                stream: () => {
+                    let at = 0;
+                    return new ReadableStream<Uint8Array>({
+                        pull(controller) {
+                            if (at >= bytes.length) return controller.close();
+                            controller.enqueue(bytes.slice(at, at + chunk));
+                            at += chunk;
+                        },
+                    });
+                },
+            }) as unknown as Blob;
+        const bytes = pattern(2 * BLOCK_SIZE + 100);
+        const reference = await hashFile(new Blob([bytes]), {
+            hashKeyRaw: FIXED_KEY,
+        });
+        for (const chunk of [1000, BLOCK_SIZE + 7]) {
+            const h = await hashFile(chunked(bytes, chunk), {
+                hashKeyRaw: FIXED_KEY,
+            });
+            expect(h.leaves).toEqual(reference.leaves);
+            expect(h.root).toEqual(reference.root);
+        }
+    });
+
     it("rejects immediately when the signal is already aborted", async () => {
         const controller = new AbortController();
         controller.abort();

@@ -3,18 +3,20 @@
 // away for a while; both ends carry on from what the receiver has on disk.
 import {
     BLOCK_SIZE,
+    LEAF_BYTES,
     MAX_ACK_BLOCKS,
+    MAX_LEAVES_PER_PACKET,
     blockCount,
     blockLeaf,
     blockLength,
     decodePacket,
     encodeAckPacket,
-    encodeDataPackets,
-    encodeLeavesPackets,
+    encodeDataPacketsFrom,
+    encodeLeavesPacket,
     isStorageFullError,
     leafListMatches,
     openBlock,
-    sealBlock,
+    sealBlockParts,
     sealedLength,
     type AckPacket,
     type DataPacket,
@@ -60,6 +62,8 @@ const MAX_PARTIAL_BLOCKS = MAX_ACK_BLOCKS;
 /** Failed blocks before the transfer counts as tampered with. */
 const MAX_BAD_BLOCKS = 16;
 const ACK_HEARTBEAT_MS = 1_000;
+/** Blocks opened and checked at once. Each holds about two blocks of bytes. */
+const STORE_CONCURRENCY = 4;
 
 export class TransferError extends Error {
     constructor(
@@ -123,7 +127,7 @@ interface InFlight {
 
 export class BlockSender {
     private readonly blocks: number;
-    private readonly leafPackets: Uint8Array<ArrayBuffer>[];
+    private readonly leaves: Uint8Array[];
     private readonly leafGate = new LeafListGate();
     private readonly inFlight = new Map<number, InFlight>();
     private readonly resend = new Set<number>();
@@ -157,7 +161,11 @@ export class BlockSender {
         this.blocks = blockCount(file.size);
         if (leaves.length !== this.blocks)
             throw new Error("leaf count does not match the file");
-        this.leafPackets = encodeLeavesPackets(leaves);
+        if (leaves.some((leaf) => leaf.length !== LEAF_BYTES))
+            throw new Error("bad leaf length");
+        // The caller's list is the only copy. Packets are encoded from it on
+        // each send, so no second, packed copy of the leaves is kept.
+        this.leaves = leaves;
         link.onPacket((packet) => {
             const decoded = decodePacket(packet);
             if (decoded?.kind === "ack") this.handleAck(decoded.ack);
@@ -293,19 +301,25 @@ export class BlockSender {
 
     private async seal(block: number): Promise<InFlight> {
         const start = block * BLOCK_SIZE;
+        // A view of the buffer the blob read made: no copy.
         const plain = new Uint8Array(
             await this.file
                 .slice(start, start + blockLength(this.file.size, block))
                 .arrayBuffer(),
         );
-        const sealed = await sealBlock(
+        const { iv, ciphertext } = await sealBlockParts(
             this.key,
             this.transferId,
             this.file.size,
             block,
             plain,
         );
-        return { packets: encodeDataPackets(block, sealed), sentAt: 0 };
+        // Packets are cut straight from the IV and ciphertext: the joined block
+        // is never built.
+        return {
+            packets: encodeDataPacketsFrom(block, [iv, ciphertext]),
+            sentAt: 0,
+        };
     }
 
     private async transmit(flight: InFlight): Promise<void> {
@@ -319,9 +333,13 @@ export class BlockSender {
     private async transmitLeaves(): Promise<void> {
         this.leafGate.beginSend();
         try {
-            for (const packet of this.leafPackets) {
+            for (
+                let first = 0;
+                first < this.leaves.length;
+                first += MAX_LEAVES_PER_PACKET
+            ) {
                 if (this.stopped) return;
-                await this.link.send(packet);
+                await this.link.send(encodeLeavesPacket(first, this.leaves));
             }
         } catch (err) {
             this.leafGate.request();
@@ -374,6 +392,9 @@ export class BlockReceiver {
     private readonly partial = new Map<number, (DataPacket | undefined)[]>();
     private readonly stored = new Set<number>();
     private readonly working = new Set<number>();
+    /** Blocks being opened and checked now, and those waiting for a slot. */
+    private storing = 0;
+    private readonly storeWaiting: (() => void)[] = [];
     /** The leaf list as collected so far; whole once it has `blocks` leaves. */
     private leaves: Uint8Array[] = [];
     private leavesChecking = false;
@@ -571,17 +592,48 @@ export class BlockReceiver {
         void this.store(data.block, parts as DataPacket[]);
     }
 
+    /** Opens and checks a block, with at most STORE_CONCURRENCY at once. Each
+     *  block at its peak holds its sealed bytes and its plaintext, so the cap
+     *  bounds the receiver's transient memory however many blocks complete. */
     private async store(block: number, parts: DataPacket[]): Promise<void> {
+        // A waiter that is woken inherits the slot, so the count never exceeds
+        // the cap, even briefly.
+        if (this.storing >= STORE_CONCURRENCY)
+            await new Promise<void>((resolve) =>
+                this.storeWaiting.push(resolve),
+            );
+        else this.storing++;
+        try {
+            await this.storeBlock(block, parts);
+        } finally {
+            const next = this.storeWaiting.shift();
+            if (next) next();
+            else this.storing--;
+        }
+    }
+
+    private async storeBlock(
+        block: number,
+        parts: DataPacket[],
+    ): Promise<void> {
+        if (this.closed()) {
+            this.working.delete(block);
+            return;
+        }
         try {
             const length = parts.reduce((n, p) => n + p.payload.length, 0);
             // Exact, so a forged block count can't make us allocate more.
             if (length !== sealedLength(this.size, block)) throw new Error();
-            const sealed = new Uint8Array(length);
+            let sealed: Uint8Array<ArrayBuffer> | null = new Uint8Array(length);
             let offset = 0;
             for (const part of parts) {
                 sealed.set(part.payload, offset);
                 offset += part.payload.length;
             }
+            // The parts are copied into `sealed`. Emptying the array drops the
+            // packet payloads now: the caller's frame still holds the array, so
+            // reassigning the parameter would release nothing.
+            parts.length = 0;
             const plain = await openBlock(
                 this.key,
                 this.transferId,
@@ -589,7 +641,11 @@ export class BlockReceiver {
                 block,
                 sealed,
             );
+            sealed = null;
             const leaf = this.leaves[block];
+            // blockLeaf copies the plaintext once behind its header, because
+            // WebCrypto's HMAC takes its input whole. That copy is the block's
+            // only one beyond `plain`, and it is dropped when this returns.
             const computed = await blockLeaf(this.hashKey, block, plain);
             if (!leaf || !sameBytes(computed, leaf)) throw new Error();
             // Stopped or settled while the block was being opened: no write.

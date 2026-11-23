@@ -216,15 +216,25 @@ function blockAad(
     return new TextEncoder().encode(`${prefix}|${transferId}|${index}|${size}`);
 }
 
-/** IV then ciphertext, ready to split into parts. */
-export async function sealBlock(
+/** A sealed block as its two parts, IV and ciphertext, which are not joined. */
+export interface SealedParts {
+    iv: Uint8Array<ArrayBuffer>;
+    ciphertext: Uint8Array<ArrayBuffer>;
+}
+
+/**
+ * The sealed block, in two parts: the caller joins them only if it needs one
+ * buffer. Sending splits the block into packets anyway, so the join is a copy
+ * of a block that is not needed.
+ */
+export async function sealBlockParts(
     key: CryptoKey,
     transferId: string,
     size: number,
     index: number,
     plain: Uint8Array<ArrayBuffer>,
     opts?: { iv?: Uint8Array<ArrayBuffer>; prefix?: string },
-): Promise<Uint8Array<ArrayBuffer>> {
+): Promise<SealedParts> {
     // A fixed IV is for the test vectors only; real blocks always get a fresh one.
     const iv = opts?.iv ?? crypto.getRandomValues(new Uint8Array(IV_BYTES));
     const sealed = await crypto.subtle.encrypt(
@@ -241,9 +251,29 @@ export async function sealBlock(
         key,
         plain,
     );
-    const out = new Uint8Array(IV_BYTES + sealed.byteLength);
+    return { iv, ciphertext: new Uint8Array(sealed) };
+}
+
+/** IV then ciphertext, ready to split into parts. */
+export async function sealBlock(
+    key: CryptoKey,
+    transferId: string,
+    size: number,
+    index: number,
+    plain: Uint8Array<ArrayBuffer>,
+    opts?: { iv?: Uint8Array<ArrayBuffer>; prefix?: string },
+): Promise<Uint8Array<ArrayBuffer>> {
+    const { iv, ciphertext } = await sealBlockParts(
+        key,
+        transferId,
+        size,
+        index,
+        plain,
+        opts,
+    );
+    const out = new Uint8Array(IV_BYTES + ciphertext.length);
     out.set(iv);
-    out.set(new Uint8Array(sealed), IV_BYTES);
+    out.set(ciphertext, IV_BYTES);
     return out;
 }
 
@@ -290,18 +320,47 @@ export function importHashKey(
     return hmacKeyUsage(raw);
 }
 
-/** Leaf of block `index`: HMAC(hash_key, 0x00 || uint64be(index) || plain). */
+/** Bytes the leaf's header takes in front of the plaintext. */
+export const LEAF_HEADER_BYTES = 1 + SEQ_BYTES;
+
+/**
+ * Leaf of block `index` for a plaintext already sitting at
+ * `buf[LEAF_HEADER_BYTES..LEAF_HEADER_BYTES + length)`. Writes the header into
+ * the first bytes of `buf` and signs a view of it, so no copy is made. The
+ * caller may reuse `buf` once this resolves, not before.
+ */
+export async function blockLeafInPlace(
+    hashKey: CryptoKey,
+    index: number,
+    buf: Uint8Array<ArrayBuffer>,
+    length: number,
+): Promise<Uint8Array<ArrayBuffer>> {
+    buf[0] = 0x00;
+    new DataView(buf.buffer, buf.byteOffset, LEAF_HEADER_BYTES).setBigUint64(
+        1,
+        BigInt(index),
+    );
+    const mac = await crypto.subtle.sign(
+        "HMAC",
+        hashKey,
+        buf.subarray(0, LEAF_HEADER_BYTES + length),
+    );
+    return new Uint8Array(mac);
+}
+
+/**
+ * Leaf of block `index`: HMAC(hash_key, 0x00 || uint64be(index) || plain).
+ * Copies `plain` once, behind the header, because WebCrypto's HMAC takes its
+ * input whole. Callers with a buffer of their own use blockLeafInPlace.
+ */
 export async function blockLeaf(
     hashKey: CryptoKey,
     index: number,
     plain: Uint8Array<ArrayBuffer>,
 ): Promise<Uint8Array<ArrayBuffer>> {
-    const input = new Uint8Array(1 + SEQ_BYTES + plain.length);
-    input[0] = 0x00;
-    new DataView(input.buffer).setBigUint64(1, BigInt(index));
-    input.set(plain, 1 + SEQ_BYTES);
-    const mac = await crypto.subtle.sign("HMAC", hashKey, input);
-    return new Uint8Array(mac);
+    const buf = new Uint8Array(LEAF_HEADER_BYTES + plain.length);
+    buf.set(plain, LEAF_HEADER_BYTES);
+    return blockLeafInPlace(hashKey, index, buf, plain.length);
 }
 
 async function parentNode(
@@ -376,25 +435,51 @@ export interface LeavesPacket {
     leaves: Uint8Array[];
 }
 
-/** Split a sealed block into the packets that carry it. */
-export function encodeDataPackets(
+/**
+ * Split a sealed block, given as consecutive segments that together are its
+ * bytes, into the packets that carry it. Each packet is copied out of the
+ * segments once; the segments themselves are not joined first.
+ */
+export function encodeDataPacketsFrom(
     block: number,
-    sealed: Uint8Array<ArrayBuffer>,
+    segments: Uint8Array[],
 ): Uint8Array<ArrayBuffer>[] {
-    const parts = Math.max(1, Math.ceil(sealed.length / PART_SIZE));
+    const total = segments.reduce((n, s) => n + s.length, 0);
+    const parts = Math.max(1, Math.ceil(total / PART_SIZE));
     const packets: Uint8Array<ArrayBuffer>[] = [];
     for (let part = 0; part < parts; part++) {
-        const chunk = sealed.subarray(part * PART_SIZE, (part + 1) * PART_SIZE);
-        const packet = new Uint8Array(DATA_HEADER_BYTES + chunk.length);
+        const start = part * PART_SIZE;
+        const end = Math.min(total, start + PART_SIZE);
+        const packet = new Uint8Array(DATA_HEADER_BYTES + (end - start));
         const view = new DataView(packet.buffer);
         view.setUint8(0, DATA_PACKET);
         view.setUint32(1, block);
         view.setUint16(5, part);
         view.setUint16(7, parts);
-        packet.set(chunk, DATA_HEADER_BYTES);
+        // Copies the part of each segment that falls inside [start, end).
+        let segStart = 0;
+        for (const seg of segments) {
+            const segEnd = segStart + seg.length;
+            const lo = Math.max(start, segStart);
+            const hi = Math.min(end, segEnd);
+            if (lo < hi)
+                packet.set(
+                    seg.subarray(lo - segStart, hi - segStart),
+                    DATA_HEADER_BYTES + (lo - start),
+                );
+            segStart = segEnd;
+        }
         packets.push(packet);
     }
     return packets;
+}
+
+/** Split a sealed block into the packets that carry it. */
+export function encodeDataPackets(
+    block: number,
+    sealed: Uint8Array<ArrayBuffer>,
+): Uint8Array<ArrayBuffer>[] {
+    return encodeDataPacketsFrom(block, [sealed]);
 }
 
 export function encodeAckPacket(ack: AckPacket): Uint8Array<ArrayBuffer> {
@@ -408,25 +493,36 @@ export function encodeAckPacket(ack: AckPacket): Uint8Array<ArrayBuffer> {
     return packet;
 }
 
+/**
+ * One leaves packet: the leaves from index `first` on, at most
+ * MAX_LEAVES_PER_PACKET of them, from `leaves`, the whole list.
+ */
+export function encodeLeavesPacket(
+    first: number,
+    leaves: Uint8Array[],
+): Uint8Array<ArrayBuffer> {
+    const count = Math.min(MAX_LEAVES_PER_PACKET, leaves.length - first);
+    if (count < 1) throw new Error("no leaves at that index");
+    const packet = new Uint8Array(LEAVES_HEADER_BYTES + count * LEAF_BYTES);
+    const view = new DataView(packet.buffer);
+    view.setUint8(0, LEAVES_PACKET);
+    view.setUint32(1, first);
+    view.setUint16(5, count);
+    for (let i = 0; i < count; i++) {
+        const leaf = leaves[first + i];
+        if (leaf.length !== LEAF_BYTES) throw new Error("bad leaf length");
+        packet.set(leaf, LEAVES_HEADER_BYTES + i * LEAF_BYTES);
+    }
+    return packet;
+}
+
 /** The leaf list in packets of up to 437 leaves, in order from leaf 0. */
 export function encodeLeavesPackets(
     leaves: Uint8Array[],
 ): Uint8Array<ArrayBuffer>[] {
     const packets: Uint8Array<ArrayBuffer>[] = [];
-    for (let first = 0; first < leaves.length; first += MAX_LEAVES_PER_PACKET) {
-        const count = Math.min(MAX_LEAVES_PER_PACKET, leaves.length - first);
-        const packet = new Uint8Array(LEAVES_HEADER_BYTES + count * LEAF_BYTES);
-        const view = new DataView(packet.buffer);
-        view.setUint8(0, LEAVES_PACKET);
-        view.setUint32(1, first);
-        view.setUint16(5, count);
-        for (let i = 0; i < count; i++) {
-            const leaf = leaves[first + i];
-            if (leaf.length !== LEAF_BYTES) throw new Error("bad leaf length");
-            packet.set(leaf, LEAVES_HEADER_BYTES + i * LEAF_BYTES);
-        }
-        packets.push(packet);
-    }
+    for (let first = 0; first < leaves.length; first += MAX_LEAVES_PER_PACKET)
+        packets.push(encodeLeavesPacket(first, leaves));
     return packets;
 }
 
