@@ -8,11 +8,10 @@ commit list is appended below it.
 
 ✨ **New**
 
-- **Install Zam as an app** from Settings > About in supported browsers (or see how to add it to your Home Screen on iOS).
-- **The app icon shows an unread badge**, and an incoming call keeps ringing and vibrating until you answer or dismiss it.
+- **The app icon shows an unread badge on iOS**, and an incoming call keeps ringing and vibrating until you answer or dismiss it.
 - **Your screen stays on during video calls.**
-- **Large rooms (500+ members) behave like Discord**: the member list shows active members with the room's real member count, and mentions search the user directory.
-- **Discord favourite GIFs refresh out of the box** through a built-in service; you can still use your own.
+- **Large rooms (500+ members) load faster**: the member list shows active members with the room's real member count, and mentions search the user directory.
+- **Discord favourite GIFs import out of the box** through a built-in service; you can still use your own.
 
 ⚡ **Faster**
 
