@@ -558,10 +558,17 @@ describe("Wine and Proton games on Linux", () => {
     });
 
     it("finds a Proton game run by a python3 loader when its file name is listed", async () => {
-        const { byExe } = await linuxIndex();
-        byExe.set("sakuyaizayoigivesyouadviceanddabs.exe", [
-            { id: "1", exact: false, wine: true },
+        const { byExe: index } = await linuxIndex();
+        // The index is read-only; layer the listed file name over it.
+        const extra = new Map([
+            [
+                "sakuyaizayoigivesyouadviceanddabs.exe",
+                [{ id: "1", exact: false, wine: true }],
+            ],
         ]);
+        const byExe = {
+            get: (key: string) => extra.get(key) ?? index.get(key),
+        } as unknown as typeof index;
         expect(matchOf(psLines([[14285, sakuyaProton]]), byExe)).toEqual(["1"]);
     });
 

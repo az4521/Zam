@@ -73,6 +73,10 @@ const {
     gpuDriverKey,
     encodeCrashApplies,
 } = require("./encodeCrash.cjs");
+const {
+    VIDEO_TRACK_COUNT_FUNCTION,
+    findVideoCaptureService,
+} = require("./videoCaptureReaper.cjs");
 
 // userData/main.log: what a packaged app would otherwise lose (crashes, renderer
 // and GPU exits). Capped at start by fileLog.cjs.
@@ -1880,12 +1884,69 @@ async function trimRendererIfIdle() {
         // comes back as a blank grey page with no script running (verified in
         // a bare BrowserWindow: executeJavaScript times out afterwards).
         await dbg.sendCommand("HeapProfiler.collectGarbage");
+        await reapVideoCaptureIfIdle(dbg);
     } catch (err) {
         console.error("renderer trim failed:", err);
     } finally {
         try {
             dbg.detach();
         } catch {}
+    }
+}
+
+// Any enumerateDevices() (voice settings, self menu, sessions panel) starts
+// Chromium's "video_capture" utility process, and it stays until the app quits:
+// measured 15-42 MB private, 67-104 MB working set, idle. Killing it while idle
+// is safe, since the next enumerateDevices respawns it on demand (verified in
+// Electron 44). Killing it with a live camera track would break that camera, so
+// this only kills when nothing of ours holds a video track: no other window
+// (the call pop-out, anything else) that we don't query, no live video track in
+// the main renderer, and no call. Any failure leaves the process alone.
+// Runs inside trimRendererIfIdle's attached debugger session.
+async function reapVideoCaptureIfIdle(dbg) {
+    try {
+        if (callActive || !windowOutOfSight()) return;
+        const others = BrowserWindow.getAllWindows().filter(
+            (w) => w !== mainWindow && !w.isDestroyed(),
+        );
+        if (others.length) return;
+        const group = "zam-reaper";
+        let live;
+        try {
+            const proto = await dbg.sendCommand("Runtime.evaluate", {
+                expression: "MediaStreamTrack.prototype",
+                objectGroup: group,
+            });
+            if (proto.exceptionDetails || !proto.result?.objectId) return;
+            const query = await dbg.sendCommand("Runtime.queryObjects", {
+                prototypeObjectId: proto.result.objectId,
+                objectGroup: group,
+            });
+            if (!query.objects?.objectId) return;
+            const counted = await dbg.sendCommand("Runtime.callFunctionOn", {
+                objectId: query.objects.objectId,
+                functionDeclaration: VIDEO_TRACK_COUNT_FUNCTION,
+                returnByValue: true,
+            });
+            if (counted.exceptionDetails) return;
+            live = counted.result?.value;
+        } finally {
+            try {
+                await dbg.sendCommand("Runtime.releaseObjectGroup", {
+                    objectGroup: group,
+                });
+            } catch {}
+        }
+        // Re-check after the awaits: a call may have started or the window
+        // may have come back into sight in the meantime.
+        if (typeof live !== "number" || live !== 0) return;
+        if (callActive || !windowOutOfSight()) return;
+        const pid = findVideoCaptureService(app.getAppMetrics());
+        if (pid === undefined) return;
+        process.kill(pid);
+        mainLog.info("video capture service stopped", `pid=${pid}`);
+    } catch {
+        // Uncertain (debugger refused, process already gone): leave it alone.
     }
 }
 

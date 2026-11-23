@@ -40,6 +40,119 @@ function parseDetectable(all) {
         .filter((a) => a.exe.length > 0);
 }
 
+const EXACT = 1;
+const WINE = 2;
+
+const ICON_BYTES = 16;
+const ICON_HEX = /^[0-9a-f]{32}$/;
+
+/**
+ * Builds the lookup tables from the decoded list. About 10,000 games and
+ * 11,000 executable names are kept in compact form: games as parallel arrays
+ * (icon hashes packed into one byte array), executable entries as typed arrays
+ * (game index and flags, with arguments only where there are some). The
+ * returned `byId` and `byExe` are read-only views with the Map methods the
+ * consumers use (get, has, size); get() builds the plain objects on demand, so
+ * a lookup returns the same shape it always did:
+ *   byId.get(id)     -> { name, icon } | undefined
+ *   byExe.get(key)   -> [{ id, exact, args, wine }] | undefined
+ */
+function indexGames(games, platform) {
+    const list = games ?? [];
+    const n = list.length;
+    const ids = new Array(n);
+    const names = new Array(n);
+    const iconBytes = new Uint8Array(n * ICON_BYTES);
+    const hexIcon = new Uint8Array(n); // 1 where the icon is packed in iconBytes
+    const otherIcons = new Map(); // game index -> icon, when not 32 hex digits
+    const gameOf = new Map(); // id -> game index (a later game with the same id wins)
+    const entryGame = []; // entry -> game index
+    const entryFlags = []; // entry -> EXACT | WINE
+    const entryArgs = new Map(); // entry -> args, only where the game gives some
+    const nativeKeys = new Map(); // key -> [entry]
+    const wineKeys = new Map(); // key -> [entry]
+    for (let g = 0; g < n; g++) {
+        const game = list[g];
+        ids[g] = game.id;
+        names[g] = game.name;
+        if (typeof game.icon === "string" && ICON_HEX.test(game.icon)) {
+            hexIcon[g] = 1;
+            iconBytes.set(Buffer.from(game.icon, "hex"), g * ICON_BYTES);
+        } else {
+            otherIcons.set(g, game.icon);
+        }
+        gameOf.set(game.id, g);
+        for (const exe of game.exe) {
+            // Windows executables on Linux: Steam games run through Wine or
+            // Proton are listed as win32 and run as .exe files.
+            const wine =
+                platform === "linux" &&
+                exe.os === "win32" &&
+                /\.exe$/i.test(exe.name);
+            if (exe.os !== platform && !wine) continue;
+            // A leading ">" means "the file name must be exactly this".
+            const exact = exe.name.startsWith(">");
+            const key = (exact ? exe.name.slice(1) : exe.name).toLowerCase();
+            const e = entryGame.length;
+            entryGame.push(g);
+            entryFlags.push((exact ? EXACT : 0) | (wine ? WINE : 0));
+            if (exe.args !== undefined) entryArgs.set(e, exe.args);
+            const keys = wine ? wineKeys : nativeKeys;
+            let bucket = keys.get(key);
+            if (!bucket) keys.set(key, (bucket = []));
+            bucket.push(e);
+        }
+    }
+    // A key is a single entry (a number) or several (an array), to save memory.
+    const byExe = new Map();
+    const store = (key, bucket) =>
+        byExe.set(key, bucket.length === 1 ? bucket[0] : bucket);
+    for (const [key, bucket] of nativeKeys) store(key, bucket);
+    // A native executable with the same name wins over a Windows one.
+    for (const [key, bucket] of wineKeys)
+        if (!nativeKeys.has(key)) store(key, bucket);
+
+    const entryGameIndex = Int32Array.from(entryGame);
+    const flags = Uint8Array.from(entryFlags);
+    const gameAt = (g) => ({
+        name: names[g],
+        icon: hexIcon[g]
+            ? Buffer.from(
+                  iconBytes.subarray(g * ICON_BYTES, (g + 1) * ICON_BYTES),
+              ).toString("hex")
+            : otherIcons.get(g),
+    });
+    const entryAt = (e) => ({
+        id: ids[entryGameIndex[e]],
+        exact: (flags[e] & EXACT) !== 0,
+        args: entryArgs.get(e),
+        wine: (flags[e] & WINE) !== 0,
+    });
+
+    const byId = {
+        get size() {
+            return gameOf.size;
+        },
+        has: (id) => gameOf.has(id),
+        get(id) {
+            const g = gameOf.get(id);
+            return g === undefined ? undefined : gameAt(g);
+        },
+    };
+    const exeView = {
+        get size() {
+            return byExe.size;
+        },
+        has: (key) => byExe.has(key),
+        get(key) {
+            const found = byExe.get(key);
+            if (found === undefined) return undefined;
+            return (typeof found === "number" ? [found] : found).map(entryAt);
+        },
+    };
+    return { platform, byId, byExe: exeView };
+}
+
 /**
  * `file` is where the compressed list is kept; `fetch` is the download
  * function (Electron's net.fetch, so the proxy setting applies). With no
@@ -60,37 +173,6 @@ function createKnownGames({ file, fetch, now = Date.now, log = () => {} }) {
         } catch {
             return null;
         }
-    }
-
-    function index(games, platform) {
-        const byId = new Map();
-        const byExe = new Map(); // name -> [{ id, exact, args, wine }]
-        // Windows executables on Linux: Steam games run through Wine or Proton
-        // are listed as win32 and run as .exe files.
-        const wineExe = new Map();
-        for (const game of games ?? []) {
-            byId.set(game.id, { name: game.name, icon: game.icon });
-            for (const exe of game.exe) {
-                const wine =
-                    platform === "linux" &&
-                    exe.os === "win32" &&
-                    /\.exe$/i.test(exe.name);
-                if (exe.os !== platform && !wine) continue;
-                // A leading ">" means "the file name must be exactly this".
-                const exact = exe.name.startsWith(">");
-                const key = (
-                    exact ? exe.name.slice(1) : exe.name
-                ).toLowerCase();
-                const into = wine ? wineExe : byExe;
-                let list = into.get(key);
-                if (!list) into.set(key, (list = []));
-                list.push({ id: game.id, exact, args: exe.args, wine });
-            }
-        }
-        // A native executable with the same name wins over a Windows one.
-        for (const [key, list] of wineExe)
-            if (!byExe.has(key)) byExe.set(key, list);
-        return { platform, byId, byExe };
     }
 
     /** Fetch the list now, unless it is fresh or was just tried. */
@@ -139,7 +221,7 @@ function createKnownGames({ file, fetch, now = Date.now, log = () => {} }) {
      */
     async function load(platform = process.platform) {
         if (!cached || cached.platform !== platform) {
-            cached = index(readFile(), platform);
+            cached = indexGames(readFile(), platform);
         }
         void refresh();
         return cached;
@@ -148,4 +230,4 @@ function createKnownGames({ file, fetch, now = Date.now, log = () => {} }) {
     return { load, refresh, status: () => ({ ...status }) };
 }
 
-module.exports = { createKnownGames, parseDetectable };
+module.exports = { createKnownGames, parseDetectable, indexGames };
