@@ -1475,6 +1475,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.download": "Descargar",
     "messageItem.openThread": "Abrir el hilo",
     "messageItem.failedToSend": "No se pudo enviar.",
+    "messageItem.blockedByPolicyServer":
+        "Bloqueado por el servidor de políticas de esta sala ({server})",
     "messageItem.retrying": "Reintentando…",
     "messageItem.showWhoReadThisMessage": "Mostrar quién ha leído este mensaje",
     "messageItem.readThis":
@@ -2254,6 +2256,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "coincide con cualquier secuencia de caracteres,",
     "roomSettings.matchesOneDeniedServersAreRemoved":
         "coincide con uno. Los servidores denegados se eliminan de la federación de esta sala.",
+    "roomSettings.policyServer": "Servidor de políticas",
+    "roomSettings.policyServerNone": "Ninguno",
+    "roomSettings.policyServerHint":
+        "Los servidores domésticos piden a este servidor que apruebe cada mensaje de esta sala. Sus reglas las define quien lo administra.",
     "roomSettings.noServerAclIsSetAll":
         "No hay ninguna ACL de servidores. Todos los servidores pueden participar.",
     "roomSettings.allowedServersOnePerLine":
@@ -4745,8 +4751,14 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Este enlace también lleva un token OpenID de tu cuenta de Matrix. El sitio puede usarlo para conocer tu ID de Matrix y tu servidor base, y verá tu dirección IP.",
     "richPresenceCard.open": "Abrir",
     "richPresenceCard.openFailed": "No se pudo obtener un token OpenID.",
-    "roomTopicSheet.description": "Descripción",
-    "roomTopicSheet.open": "Mostrar la descripción completa de la sala",
+
+    // src/lib/components/layout/RoomInfoBody.svelte
+    "roomInfo.policiesTitle": "Políticas de la sala",
+    "roomInfo.policyServer": "Servidor de políticas: {server}",
+    "roomInfo.aclBlocked": "Servidores bloqueados: {servers}",
+    "roomInfo.aclOnly": "Solo estos servidores: {servers}",
+    "roomInfo.aclNoneAllowed": "No se permite ningún servidor",
+    "roomInfo.aclIpBlocked": "Servidores con dirección IP bloqueados",
     "roomList.clickAgainToLeaveLastMember":
         "Eres el único miembro, así que nadie podrá unirse cuando te vayas. Haz clic de nuevo para salir",
     "spaceSidebar.clickAgainToLeaveLastMember":

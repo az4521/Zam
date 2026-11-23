@@ -145,6 +145,7 @@ import {
 import { isMxcPreviewMedia } from "$lib/utils/linkPreviewPolicy";
 import { serializeServerAcl, type ServerAcl } from "$lib/utils/serverAcl";
 import {
+import { parseRoomPolicy, type RoomPolicyServer } from "$lib/utils/roomPolicy";
     POWER_LEVEL_TAGS_EVENT_TYPE,
     UNSTABLE_POWER_LEVEL_TAGS_EVENT_TYPE,
     parsePowerLevelTags,
@@ -10861,6 +10862,21 @@ export async function setServerAcl(room: Room, acl: ServerAcl): Promise<void> {
         serializeServerAcl(acl),
         "",
     );
+/**
+ * The room's MSC4284 policy server (stable `m.room.policy` wins over the
+ * unstable one), or null when the room names none or the event is malformed.
+ */
+export function getRoomPolicyServer(roomId: string): RoomPolicyServer | null {
+    const state = lookupRoom(roomId)
+        ?.getLiveTimeline()
+        .getState(EventTimeline.FORWARDS);
+    if (!state) return null;
+    return parseRoomPolicy(
+        state.getStateEvents("m.room.policy", "")?.getContent(),
+        state.getStateEvents("org.matrix.msc4284.policy", "")?.getContent(),
+    );
+}
+
 }
 
 const parsedPowerLevelTags = new WeakMap<MatrixEvent, PowerLevelTags>();

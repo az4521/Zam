@@ -1356,6 +1356,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.download": "ダウンロード",
     "messageItem.openThread": "スレッドを開く",
     "messageItem.failedToSend": "送信に失敗しました。",
+    "messageItem.blockedByPolicyServer":
+        "このルームのポリシーサーバーによりブロックされました ({server})",
     "messageItem.retrying": "再試行しています…",
     "messageItem.showWhoReadThisMessage": "このメッセージを読んだ人を表示",
     "messageItem.readThis": "{count, plural, other {#人が読んでいます}}",
@@ -2062,6 +2064,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.matchesAnyCharacters": "は任意の文字列に一致、",
     "roomSettings.matchesOneDeniedServersAreRemoved":
         "は1文字に一致。拒否されたサーバーはこのルームのフェデレーションから除外されます。",
+    "roomSettings.policyServer": "ポリシーサーバー",
+    "roomSettings.policyServerNone": "なし",
+    "roomSettings.policyServerHint":
+        "ホームサーバーは、このルームのすべてのメッセージを承認するようこのサーバーに求めます。ルールは運営者が決めます。",
     "roomSettings.noServerAclIsSetAll":
         "サーバーACLは設定されていません。すべてのサーバーが参加できます。",
     "roomSettings.allowedServersOnePerLine": "許可するサーバー（1行に1つ）",
@@ -4225,8 +4231,14 @@ const messages: Partial<Record<MessageKey, string>> = {
         "このリンクには Matrix アカウントの OpenID トークンも含まれています。サイトはこれを使ってあなたの Matrix ID とホームサーバーを知ることができ、IP アドレスも見えます。",
     "richPresenceCard.open": "開く",
     "richPresenceCard.openFailed": "OpenID トークンを取得できませんでした。",
-    "roomTopicSheet.description": "説明",
-    "roomTopicSheet.open": "ルームの説明をすべて表示",
+
+    // src/lib/components/layout/RoomInfoBody.svelte
+    "roomInfo.policiesTitle": "ルームのポリシー",
+    "roomInfo.policyServer": "ポリシーサーバー: {server}",
+    "roomInfo.aclBlocked": "ブロックされたサーバー: {servers}",
+    "roomInfo.aclOnly": "これらのサーバーのみ: {servers}",
+    "roomInfo.aclNoneAllowed": "許可されているサーバーはありません",
+    "roomInfo.aclIpBlocked": "IPアドレスのサーバーはブロックされています",
     "roomList.clickAgainToLeaveLastMember":
         "メンバーはあなただけなので、退出すると誰も参加できなくなります。もう一度クリックすると退出します",
     "spaceSidebar.clickAgainToLeaveLastMember":

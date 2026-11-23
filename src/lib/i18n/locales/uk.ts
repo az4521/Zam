@@ -1615,6 +1615,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.download": "Завантажити",
     "messageItem.openThread": "Відкрити гілку",
     "messageItem.failedToSend": "Не вдалося надіслати.",
+    "messageItem.blockedByPolicyServer":
+        "Заблоковано сервером політик цієї кімнати ({server})",
     "messageItem.retrying": "Повторна спроба…",
     "messageItem.showWhoReadThisMessage":
         "Показати, хто прочитав це повідомлення",
@@ -2260,9 +2262,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomDirectory.requested": "Запит надіслано",
     "roomDirectory.somethingWentWrong": "Щось пішло не так",
 
-    // src/lib/components/layout/RoomTopicSheet.svelte
-    "roomTopicSheet.description": "Опис",
-    "roomTopicSheet.open": "Показати повний опис кімнати",
+    // src/lib/components/layout/RoomInfoBody.svelte
+    "roomInfo.policiesTitle": "Політики кімнати",
+    "roomInfo.policyServer": "Сервер політик: {server}",
+    "roomInfo.aclBlocked": "Заблоковані сервери: {servers}",
+    "roomInfo.aclOnly": "Лише ці сервери: {servers}",
+    "roomInfo.aclNoneAllowed": "Жоден сервер не дозволений",
+    "roomInfo.aclIpBlocked": "Сервери з IP-адресою заблоковано",
 
     // src/lib/components/layout/RoomHeaderOverflowMenu.svelte
     "roomHeaderOverflowMenu.moreRoomOptions": "Більше параметрів кімнати",
@@ -2396,6 +2402,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.matchesAnyCharacters": "відповідає будь-яким символам,",
     "roomSettings.matchesOneDeniedServersAreRemoved":
         "відповідає одному. Заборонені сервери виключаються з федерації для цієї кімнати.",
+    "roomSettings.policyServer": "Сервер політик",
+    "roomSettings.policyServerNone": "Немає",
+    "roomSettings.policyServerHint":
+        "Домашні сервери просять цей сервер схвалювати кожне повідомлення в кімнаті. Його правила встановлює той, хто ним керує.",
     "roomSettings.noServerAclIsSetAll":
         "ACL сервера не задано. Брати участь можуть усі сервери.",
     "roomSettings.allowedServersOnePerLine":

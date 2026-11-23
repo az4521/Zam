@@ -1457,6 +1457,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.download": "Herunterladen",
     "messageItem.openThread": "Thread öffnen",
     "messageItem.failedToSend": "Senden fehlgeschlagen.",
+    "messageItem.blockedByPolicyServer":
+        "Vom Richtlinienserver dieses Raums blockiert ({server})",
     "messageItem.retrying": "Neuer Versuch…",
     "messageItem.showWhoReadThisMessage":
         "Anzeigen, wer diese Nachricht gelesen hat",
@@ -2237,6 +2239,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.matchesOneDeniedServersAreRemoved":
         "für genau eines. Abgelehnte Server werden für diesen Raum aus der Föderation entfernt.",
     "roomSettings.noServerAclIsSetAll":
+    "roomSettings.policyServer": "Richtlinienserver",
+    "roomSettings.policyServerNone": "Keiner",
+    "roomSettings.policyServerHint":
+        "Homeserver bitten diesen Server, jede Nachricht in diesem Raum zu genehmigen. Seine Regeln legt der Betreiber fest.",
         "Keine Server-ACL festgelegt. Alle Server dürfen teilnehmen.",
     "roomSettings.allowedServersOnePerLine":
         "Erlaubte Server (einer pro Zeile)",
@@ -4794,8 +4800,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "richPresenceCard.open": "Öffnen",
     "richPresenceCard.openFailed":
         "Es konnte kein OpenID-Token abgerufen werden.",
-    "roomTopicSheet.description": "Beschreibung",
-    "roomTopicSheet.open": "Vollständige Raumbeschreibung anzeigen",
+
+    // src/lib/components/layout/RoomInfoBody.svelte
+    "roomInfo.policiesTitle": "Raumrichtlinien",
+    "roomInfo.policyServer": "Richtlinienserver: {server}",
+    "roomInfo.aclBlocked": "Gesperrte Server: {servers}",
+    "roomInfo.aclOnly": "Nur diese Server: {servers}",
+    "roomInfo.aclNoneAllowed": "Keine Server sind erlaubt",
+    "roomInfo.aclIpBlocked": "Server mit IP-Adresse gesperrt",
     "roomList.clickAgainToLeaveLastMember":
         "Du bist das einzige Mitglied, daher kann niemand mehr beitreten, nachdem du gehst. Klicke erneut, um zu gehen",
     "spaceSidebar.clickAgainToLeaveLastMember":

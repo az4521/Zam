@@ -173,7 +173,7 @@
     import ChannelTypeIcon from "$lib/components/ui/ChannelTypeIcon.svelte";
     import { navigateToRoom } from "$lib/stores/rooms.svelte";
     import RoomHeaderOverflowMenu from "$lib/components/layout/RoomHeaderOverflowMenu.svelte";
-    import RoomTopicSheet from "$lib/components/layout/RoomTopicSheet.svelte";
+    import RoomInfoPopup from "$lib/components/layout/RoomInfoPopup.svelte";
     import {
         pluginHeaderButtons,
         pluginHeaderMenuRows,
@@ -551,11 +551,12 @@
         if (interfaceState.modal === "room-topic") closeModal();
     }
 
-    // Mobile only: the header truncates the topic, so tapping it opens the
-    // full text in a sheet. Same shared modal slot (and same stranding
-    // guard, via releaseOverflowSlot) as the overflow menu.
+    // Tapping the room name or topic in the header opens the room info popup
+    // (a bottom sheet on mobile, a centred card on desktop). Same shared modal
+    // slot (and same stranding guard, via releaseOverflowSlot) as the overflow
+    // menu.
     const topicOpen = $derived(interfaceState.modal === "room-topic");
-    function openTopicSheet() {
+    function openRoomInfo() {
         openModal("room-topic", () => {});
     }
 
@@ -3065,16 +3066,21 @@
                 size={20}
                 class="text-zam-textMuted flex-shrink-0"
             />
-            <!-- 5rem floor below md only: the header's buttons cannot shrink, so
-                 without a floor the name and topic each get a proportional share of
-                 the deficit at 412px and neither renders even an ellipsis. Above md
-                 there is ample width, so drop the floor rather than strand short
-                 names (a DM titled "Zam" would sit 50px from the lock icon). -->
-            <h2
-                class="font-semibold text-zam-textPrimary min-w-[5rem] md:min-w-0 truncate"
-                title={roomName}
-            >
-                {@html renderPlainTextWithTwemoji(roomName)}
+            <!-- The name keeps its natural width (flex: 0 1 auto) so it is shown
+                 in full whenever it fits; the topic takes only the space left over
+                 (flex: 1 1 0). The name truncates only when it alone does not fit,
+                 and the header buttons never shrink, so the name cannot push them
+                 off-screen. -->
+            <h2 class="flex-initial min-w-0 font-semibold truncate">
+                <button
+                    type="button"
+                    onclick={openRoomInfo}
+                    aria-haspopup="dialog"
+                    title={roomName}
+                    class="block max-w-full truncate text-start text-zam-textPrimary hover:text-zam-textPrimary"
+                >
+                    {@html renderPlainTextWithTwemoji(roomName)}
+                </button>
             </h2>
             {#if roomEncrypted}
                 <span
@@ -3087,23 +3093,15 @@
             {/if}
             {#if topic}
                 <div class="w-px h-5 bg-zam-divider"></div>
-                {#if isMobile}
-                    <button
-                        type="button"
-                        onclick={openTopicSheet}
-                        aria-label={t("roomTopicSheet.open")}
-                        class="text-sm text-zam-textMuted truncate flex-auto min-w-0 text-start"
-                    >
-                        {topic}
-                    </button>
-                {:else}
-                    <p
-                        class="text-sm text-zam-textMuted truncate flex-auto min-w-0"
-                        title={topic}
-                    >
-                        {topic}
-                    </p>
-                {/if}
+                <button
+                    type="button"
+                    onclick={openRoomInfo}
+                    aria-haspopup="dialog"
+                    title={topic}
+                    class="text-sm text-zam-textMuted hover:text-zam-textPrimary truncate flex-1 basis-0 min-w-0 text-start"
+                >
+                    {topic}
+                </button>
             {/if}
             {#if !topic}<div class="flex-1"></div>{/if}
             <!-- Start voice call button -->
@@ -3906,12 +3904,13 @@
     />
 {/if}
 
-{#if isMobile && topicOpen && topic}
-    <RoomTopicSheet
-        roomId={room.roomId}
+{#if topicOpen}
+    <RoomInfoPopup
+        {room}
         {roomName}
-        avatarSrc={getRoomAvatar(room)}
         {topic}
+        iconKind={headerIconKind}
+        {isMobile}
         onClose={closeModal}
     />
 {/if}

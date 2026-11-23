@@ -101,6 +101,8 @@ const SLIDING_ROOM_STATE: string[][] = [
     ["m.room.history_visibility", ""],
     ["m.room.guest_access", ""],
     ["m.room.server_acl", ""],
+    ["m.room.policy", ""],
+    ["org.matrix.msc4284.policy", ""],
     ["m.space.child", "*"],
     ["m.call.member", "*"],
     ["m.rtc.member", "*"],

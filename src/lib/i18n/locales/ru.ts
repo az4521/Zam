@@ -1591,6 +1591,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.download": "Скачать",
     "messageItem.openThread": "Открыть обсуждение",
     "messageItem.failedToSend": "Не удалось отправить.",
+    "messageItem.blockedByPolicyServer":
+        "Заблокировано сервером политик этой комнаты ({server})",
     "messageItem.retrying": "Повторная попытка…",
     "messageItem.showWhoReadThisMessage":
         "Показать, кто прочитал это сообщение",
@@ -2237,9 +2239,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomDirectory.requested": "Запрос отправлен",
     "roomDirectory.somethingWentWrong": "Что-то пошло не так",
 
-    // src/lib/components/layout/RoomTopicSheet.svelte
-    "roomTopicSheet.description": "Описание",
-    "roomTopicSheet.open": "Показать полное описание комнаты",
+    // src/lib/components/layout/RoomInfoBody.svelte
+    "roomInfo.policiesTitle": "Политики комнаты",
+    "roomInfo.policyServer": "Сервер политик: {server}",
+    "roomInfo.aclBlocked": "Заблокированные серверы: {servers}",
+    "roomInfo.aclOnly": "Только эти серверы: {servers}",
+    "roomInfo.aclNoneAllowed": "Ни один сервер не разрешён",
+    "roomInfo.aclIpBlocked": "Серверы по IP-адресу заблокированы",
 
     // src/lib/components/layout/RoomHeaderOverflowMenu.svelte
     "roomHeaderOverflowMenu.moreRoomOptions": "Другие параметры комнаты",
@@ -2372,6 +2378,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.matchesAnyCharacters": "соответствует любым символам,",
     "roomSettings.matchesOneDeniedServersAreRemoved":
         "соответствует одному. Запрещённые серверы исключаются из федерации для этой комнаты.",
+    "roomSettings.policyServer": "Сервер политик",
+    "roomSettings.policyServerNone": "Нет",
+    "roomSettings.policyServerHint":
+        "Домашние серверы просят этот сервер одобрять каждое сообщение в комнате. Его правила задаёт тот, кто его администрирует.",
     "roomSettings.noServerAclIsSetAll":
         "ACL серверов не задан. Участвовать могут все серверы.",
     "roomSettings.allowedServersOnePerLine":

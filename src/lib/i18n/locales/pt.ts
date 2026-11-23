@@ -1582,6 +1582,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.download": "Baixar",
     "messageItem.openThread": "Abrir tópico",
     "messageItem.failedToSend": "Falha ao enviar.",
+    "messageItem.blockedByPolicyServer":
+        "Bloqueado pelo servidor de políticas desta sala ({server})",
     "messageItem.retrying": "Tentando novamente…",
     "messageItem.showWhoReadThisMessage": "Mostrar quem leu esta mensagem",
     "messageItem.readThis":
@@ -2229,9 +2231,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomDirectory.requested": "Pedido enviado",
     "roomDirectory.somethingWentWrong": "Algo deu errado",
 
-    // src/lib/components/layout/RoomTopicSheet.svelte
-    "roomTopicSheet.description": "Descrição",
-    "roomTopicSheet.open": "Mostrar a descrição completa da sala",
+    // src/lib/components/layout/RoomInfoBody.svelte
+    "roomInfo.policiesTitle": "Políticas da sala",
+    "roomInfo.policyServer": "Servidor de políticas: {server}",
+    "roomInfo.aclBlocked": "Servidores bloqueados: {servers}",
+    "roomInfo.aclOnly": "Apenas estes servidores: {servers}",
+    "roomInfo.aclNoneAllowed": "Nenhum servidor é permitido",
+    "roomInfo.aclIpBlocked": "Servidores com endereço IP bloqueados",
 
     // src/lib/components/layout/RoomHeaderOverflowMenu.svelte
     "roomHeaderOverflowMenu.moreRoomOptions": "Mais opções da sala",
@@ -2366,6 +2372,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.matchesOneDeniedServersAreRemoved":
         "corresponde a um. Servidores negados são removidos da federação para esta sala.",
     "roomSettings.noServerAclIsSetAll":
+    "roomSettings.policyServer": "Servidor de políticas",
+    "roomSettings.policyServerNone": "Nenhum",
+    "roomSettings.policyServerHint":
+        "Os servidores domésticos pedem a este servidor que aprove cada mensagem desta sala. As regras são definidas por quem o administra.",
         "Nenhuma ACL de servidor definida. Todos os servidores podem participar.",
     "roomSettings.allowedServersOnePerLine":
         "Servidores permitidos (um por linha)",

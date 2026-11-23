@@ -1498,6 +1498,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageItem.download": "下载",
     "messageItem.openThread": "打开消息列",
     "messageItem.failedToSend": "发送失败。",
+    "messageItem.blockedByPolicyServer":
+        "已被本房间的策略服务器拦截（{server}）",
     "messageItem.retrying": "正在重试…",
     "messageItem.showWhoReadThisMessage": "显示谁读过这条消息",
     "messageItem.readThis": "{count, plural, other {# 人已读}}",
@@ -2082,9 +2084,13 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomDirectory.requested": "已申请",
     "roomDirectory.somethingWentWrong": "出错了",
 
-    // src/lib/components/layout/RoomTopicSheet.svelte
-    "roomTopicSheet.description": "描述",
-    "roomTopicSheet.open": "显示完整的房间描述",
+    // src/lib/components/layout/RoomInfoBody.svelte
+    "roomInfo.policiesTitle": "房间策略",
+    "roomInfo.policyServer": "策略服务器：{server}",
+    "roomInfo.aclBlocked": "已屏蔽的服务器：{servers}",
+    "roomInfo.aclOnly": "仅允许这些服务器：{servers}",
+    "roomInfo.aclNoneAllowed": "不允许任何服务器",
+    "roomInfo.aclIpBlocked": "已屏蔽 IP 地址服务器",
 
     // src/lib/components/layout/RoomHeaderOverflowMenu.svelte
     "roomHeaderOverflowMenu.moreRoomOptions": "更多房间选项",
@@ -2209,6 +2215,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.matchesAnyCharacters": "匹配任意多个字符，",
     "roomSettings.matchesOneDeniedServersAreRemoved":
         "匹配一个字符。被拒绝的服务器会在此房间中被移出联邦。",
+    "roomSettings.policyServer": "策略服务器",
+    "roomSettings.policyServerNone": "无",
+    "roomSettings.policyServerHint":
+        "主服务器会请求此服务器批准本房间的每条消息。其规则由运营者设定。",
     "roomSettings.noServerAclIsSetAll":
         "未设置服务器 ACL。所有服务器都可以参与。",
     "roomSettings.allowedServersOnePerLine": "允许的服务器（每行一个）",

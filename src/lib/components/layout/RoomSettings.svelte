@@ -67,6 +67,7 @@
         type SpaceChildEntry,
         memberDisplayName,
         getServerAclContent,
+        getRoomPolicyServer,
         setServerAcl,
         isRoomStateHealed,
         getRoomNotificationSetting,
@@ -777,6 +778,11 @@
         (void roomsState.roomsTick, getServerAclContent(room)),
     );
     const aclPresent = $derived(hasServerAcl(aclContent));
+    // Read-only MSC4284 policy server. Re-read on roomsTick so a late-arriving
+    // policy event shows up; the room may not be the one being viewed.
+    const policyServer = $derived(
+        (void roomsState.roomsTick, getRoomPolicyServer(room.roomId)),
+    );
     // Power level for the m.room.server_acl EVENT (falls back to state_default),
     // mirroring canSetCanonicalAlias.
     const canEditServerAcl = $derived(
@@ -2556,6 +2562,28 @@
                                             {t(
                                                 "roomSettings.youDoNotHavePermissionTo",
                                             )}
+                                        </p>
+                                    {/if}
+                                </div>
+
+                                <div>
+                                    <p
+                                        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-2"
+                                    >
+                                        {t("roomSettings.policyServer")}
+                                    </p>
+                                    <p class="text-sm text-zam-textPrimary">
+                                        {policyServer
+                                            ? policyServer.via
+                                            : t(
+                                                  "roomSettings.policyServerNone",
+                                              )}
+                                    </p>
+                                    {#if policyServer}
+                                        <p
+                                            class="text-xs text-zam-textMuted mt-1"
+                                        >
+                                            {t("roomSettings.policyServerHint")}
                                         </p>
                                     {/if}
                                 </div>

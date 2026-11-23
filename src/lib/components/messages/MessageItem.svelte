@@ -127,8 +127,11 @@
         getThreadName,
         getHomeserverBaseUrl,
         getRoomDisplayName,
+        getRoomPolicyServer,
+        canSendMessages,
         EventStatus,
     } from "$lib/matrix/client";
+    import { isPolicyRefusal } from "$lib/utils/roomPolicy";
     import { forwardEventPermalink, readForward } from "$lib/utils/forwarded";
     import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
     import { editableBody } from "$lib/matrix/editMessage";
@@ -903,6 +906,26 @@
     const isPending = $derived.by(() => {
         void messagesState.timelineTick;
         return isPendingSendStatus(event.status);
+    });
+    // Name of the room's policy server when a failed send was refused by it
+    // (MSC4284), else null. Plain sends failing for other reasons keep the
+    // generic "Failed to send" text.
+    const policyRefusalServer = $derived.by(() => {
+        void messagesState.timelineTick;
+        if (!isFailed) return null;
+        const err = event.error as {
+            errcode?: string;
+            message?: string;
+            data?: { error?: string };
+        } | null;
+        const policy = getRoomPolicyServer(room.roomId);
+        const refused = isPolicyRefusal({
+            errcode: err?.errcode,
+            message: err?.data?.error ?? err?.message,
+            roomHasPolicyServer: policy !== null,
+            userCanSend: canSendMessages(room),
+        });
+        return refused && policy ? policy.via : null;
     });
     let isResending = $state(false);
 
@@ -3939,7 +3962,13 @@
                         <line x1="12" y1="8" x2="12" y2="12" />
                         <line x1="12" y1="16" x2="12.01" y2="16" />
                     </svg>
-                    <span>{t("messageItem.failedToSend")}</span>
+                    <span>
+                        {policyRefusalServer
+                            ? t("messageItem.blockedByPolicyServer", {
+                                  server: policyRefusalServer,
+                              })
+                            : t("messageItem.failedToSend")}
+                    </span>
                     <button
                         class="font-semibold underline hover:no-underline disabled:opacity-50"
                         disabled={isResending}
