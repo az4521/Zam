@@ -7,6 +7,7 @@
  * function bodies so the module import is safe in jsdom and SSR.
  */
 import { t } from "$lib/i18n";
+import { openSharedDb } from "./sharedIdb";
 
 /** Same cap as the desktop app's system bank read (electron/main.cjs). */
 export const CUSTOM_SOUND_BANK_MAX_BYTES = 256 * 1024 * 1024;
@@ -58,16 +59,10 @@ const STORE = "banks";
 const RECORD_ID = "custom";
 
 function openDb(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 1);
-        req.onupgradeneeded = () => {
-            const db = req.result;
-            if (!db.objectStoreNames.contains(STORE)) {
-                db.createObjectStore(STORE, { keyPath: "id" });
-            }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
+    return openSharedDb(DB_NAME, 1, (db) => {
+        if (!db.objectStoreNames.contains(STORE)) {
+            db.createObjectStore(STORE, { keyPath: "id" });
+        }
     });
 }
 

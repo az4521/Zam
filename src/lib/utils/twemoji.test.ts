@@ -234,7 +234,7 @@ describe("renderEmoji — cache is bounded", () => {
         const spy = vi.spyOn(twemoji, "parse");
         try {
             renderEmoji("🎉", "evict-base");
-            for (let i = 0; i < 2000; i++) renderEmoji("🎉", `evict-${i}`);
+            for (let i = 0; i < 4000; i++) renderEmoji("🎉", `evict-${i}`);
             const before = spy.mock.calls.length;
             renderEmoji("🎉", "evict-base");
             expect(spy.mock.calls.length - before).toBe(1);

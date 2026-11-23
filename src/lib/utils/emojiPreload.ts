@@ -20,6 +20,9 @@
  * token → 401) just falls back to the normal on-demand render path.
  */
 
+import { trimSetOldest } from "$lib/utils/boundedCollections";
+import { onSessionTeardown } from "$lib/utils/sessionCleanup";
+
 /** Max urls to warm per room open — a pathological pack can hold hundreds. */
 export const EMOJI_PRELOAD_CAP = 200;
 /** Simultaneous warm fetches — kept well under the browser's ~6/host so the
@@ -117,6 +120,15 @@ export async function warmUrls(
 // Session-scoped set of urls already warmed (or in flight). Lives for the life
 // of the page; an account switch reloads the page, so it never crosses accounts.
 const warmedUrls = new Set<string>();
+/** Generous: a normal session never reaches it, so nothing is re-warmed. */
+const WARMED_URLS_MAX = 4000;
+
+onSessionTeardown(() => warmedUrls.clear());
+
+/** Drop the oldest warmed urls past the cap. */
+function trimWarmedUrls(): void {
+    trimSetOldest(warmedUrls, WARMED_URLS_MAX);
+}
 
 export interface PreloadOptions extends WarmOptions {
     cap?: number;
@@ -131,6 +143,7 @@ export function preloadEmojiPacks(
     packs: ReadonlyArray<PreloadablePack>,
     opts: PreloadOptions = {},
 ): string[] {
+    trimWarmedUrls();
     const urls = planEmojiPreload(
         packs,
         warmedUrls,

@@ -15,6 +15,7 @@ import type { EncryptedFileInfo } from "$lib/utils/decryptAttachment";
 import { parseMxc } from "$lib/utils/mxcUri";
 import { safeDimension } from "$lib/utils/mediaDimensions";
 import { extensionForMime, withExtension } from "$lib/utils/saveFile";
+import { onSessionTeardown } from "$lib/utils/sessionCleanup";
 
 export interface EventFavouriteSource {
     roomId: string;
@@ -211,16 +212,32 @@ function eventFileName(content: {
 }
 
 const eventFavourites = new Map<string, Promise<EventFavourite | null>>();
+/** Object URLs of settled loads, revoked on session teardown. */
+const eventFavouriteUrls = new Set<string>();
+/** Bumped on teardown so a load still in flight revokes its own URL. */
+let eventFavouriteGeneration = 0;
+
+onSessionTeardown(() => {
+    eventFavouriteGeneration++;
+    for (const url of eventFavouriteUrls) URL.revokeObjectURL(url);
+    eventFavouriteUrls.clear();
+    eventFavourites.clear();
+});
 
 /** The event a favourite points at: its decrypted GIF and reusable media. Null
  *  when the event is gone or can't be decrypted. Shared across tiles and
- *  picks, so the event is fetched once; failures aren't cached. */
+ *  picks, so the event is fetched once; failures aren't cached.
+ *
+ *  Not size-capped: a tile holds its object URL as an <img> src for as long as
+ *  it is mounted, so evicting (and revoking) an entry could break a visible
+ *  tile. The entries are released on session teardown instead. */
 function loadEventFavourite(
     source: EventFavouriteSource,
 ): Promise<EventFavourite | null> {
     const key = eventFavouriteKey(source);
     let p = eventFavourites.get(key);
     if (!p) {
+        const generation = eventFavouriteGeneration;
         p = (async () => {
             const ev = await fetchSingleEvent(source.roomId, source.eventId);
             const content = ev?.getContent() as
@@ -236,6 +253,13 @@ function loadEventFavourite(
                 content.file,
                 content.info?.mimetype ?? "image/gif",
             );
+            if (generation !== eventFavouriteGeneration) {
+                // The session ended while this was loading: nothing will
+                // release this URL, so release it now.
+                URL.revokeObjectURL(url);
+                return null;
+            }
+            eventFavouriteUrls.add(url);
             return {
                 url,
                 reuse: encryptedReusableMedia(content),
@@ -362,6 +386,20 @@ function homeserverMediaUrl(url: string): string | null {
  *  or null when it names none. For streaming a favourite video's tile. */
 export function favouriteMediaHttpUrl(url: string): string | null {
     return homeserverMediaUrl(url);
+}
+
+/**
+ * The URL a favourite's tile loads `url` from. A Matrix media URL is stored
+ * as it was when starred: on another account's homeserver, or the legacy
+ * unauthenticated `media/v3` path. The service worker only authenticates this
+ * session's `client/v1` media, so such a URL loads as a broken image; it is
+ * rewritten to this homeserver's download URL. Anything else is left alone.
+ */
+export function favouriteTileUrl(url: string): string;
+export function favouriteTileUrl(url: string | undefined): string | undefined;
+export function favouriteTileUrl(url: string | undefined): string | undefined {
+    if (!url) return url;
+    return homeserverMediaUrl(url) ?? url;
 }
 
 /** Whether `url` names Matrix media the picker can fetch through this

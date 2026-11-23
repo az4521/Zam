@@ -13,6 +13,7 @@
  */
 import { t } from "$lib/i18n";
 import { CUSTOM_FONT_FAMILY } from "./messageDisplay";
+import { openSharedDb } from "./sharedIdb";
 
 export const CUSTOM_FONT_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_EXTS = ["woff2", "ttf", "otf"] as const;
@@ -71,16 +72,10 @@ const STORE = "fonts";
 const RECORD_ID = "custom";
 
 function openDb(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 1);
-        req.onupgradeneeded = () => {
-            const db = req.result;
-            if (!db.objectStoreNames.contains(STORE)) {
-                db.createObjectStore(STORE, { keyPath: "id" });
-            }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
+    return openSharedDb(DB_NAME, 1, (db) => {
+        if (!db.objectStoreNames.contains(STORE)) {
+            db.createObjectStore(STORE, { keyPath: "id" });
+        }
     });
 }
 

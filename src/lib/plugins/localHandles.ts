@@ -5,18 +5,14 @@
  * folder. Best-effort IndexedDB: every function degrades to "no handle".
  */
 
+import { openSharedDb } from "$lib/utils/sharedIdb";
+
 const DB_NAME = "zam-plugin-dev";
 const STORE = "handles";
 
 function openDb(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 1);
-        req.onupgradeneeded = () => {
-            if (!req.result.objectStoreNames.contains(STORE))
-                req.result.createObjectStore(STORE);
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
+    return openSharedDb(DB_NAME, 1, (db) => {
+        if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
     });
 }
 
@@ -102,27 +98,21 @@ export async function saveRepoHandle(
 export async function listRepoHandles(): Promise<FileSystemDirectoryHandle[]> {
     try {
         const db = await openDb();
-        try {
-            return await new Promise((resolve, reject) => {
-                const tx = db.transaction(STORE, "readonly");
-                const s = tx.objectStore(STORE);
-                const keys = s.getAllKeys();
-                const values = s.getAll();
-                tx.oncomplete = () => {
-                    const out: FileSystemDirectoryHandle[] = [];
-                    keys.result.forEach((k, i) => {
-                        if (typeof k === "string" && k.startsWith(REPO_PREFIX))
-                            out.push(
-                                values.result[i] as FileSystemDirectoryHandle,
-                            );
-                    });
-                    resolve(out);
-                };
-                tx.onerror = () => reject(tx.error);
-            });
-        } finally {
-            db.close();
-        }
+        return await new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE, "readonly");
+            const s = tx.objectStore(STORE);
+            const keys = s.getAllKeys();
+            const values = s.getAll();
+            tx.oncomplete = () => {
+                const out: FileSystemDirectoryHandle[] = [];
+                keys.result.forEach((k, i) => {
+                    if (typeof k === "string" && k.startsWith(REPO_PREFIX))
+                        out.push(values.result[i] as FileSystemDirectoryHandle);
+                });
+                resolve(out);
+            };
+            tx.onerror = () => reject(tx.error);
+        });
     } catch {
         return [];
     }

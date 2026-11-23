@@ -7,22 +7,17 @@ import {
     partitionQuickReplyStashes,
     type QuickReplyStash,
 } from "./notifActions";
+import { openSharedDb } from "./sharedIdb";
 
 const DB_NAME = "matrix-sw";
 const DB_STORE = "auth";
 
 function openDb(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 1);
-        // Mirror the SW: create the out-of-line store if this context opens the
-        // db before the SW ever has.
-        req.onupgradeneeded = () => {
-            if (!req.result.objectStoreNames.contains(DB_STORE))
-                req.result.createObjectStore(DB_STORE);
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-        req.onblocked = () => reject(new Error("blocked"));
+    // Mirror the SW: create the out-of-line store if this context opens the
+    // db before the SW ever has.
+    return openSharedDb(DB_NAME, 1, (db) => {
+        if (!db.objectStoreNames.contains(DB_STORE))
+            db.createObjectStore(DB_STORE);
     });
 }
 

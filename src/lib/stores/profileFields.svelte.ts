@@ -11,7 +11,9 @@ import {
     readField,
     type ExtendedProfile,
 } from "$lib/utils/extendedProfile";
+import { setBounded } from "$lib/utils/boundedCollections";
 import { pickNameColour } from "$lib/utils/nameColour";
+import { onSessionTeardown } from "$lib/utils/sessionCleanup";
 import { resolveEffectiveColors } from "$lib/utils/themePalette";
 
 // Other users' extended profiles (pronouns, bio, name colour...), fetched
@@ -38,6 +40,20 @@ export const profileFieldsState = new ProfileFieldsState();
 const cache = new Map<string, Entry>();
 const queued: string[] = [];
 const inFlight = new Set<string>();
+
+/** Generous: a normal session never reaches it, so no profile is refetched. */
+const PROFILE_CACHE_MAX = 3000;
+
+/** Insert, evicting the oldest entries past the cap. */
+function putCache(key: string, entry: Entry): void {
+    setBounded(cache, key, entry, PROFILE_CACHE_MAX);
+}
+
+onSessionTeardown(() => {
+    cache.clear();
+    queued.length = 0;
+    profileFieldsState.tick++;
+});
 
 // Scoped to the signed-in account: another account may see different fields.
 const cacheKey = (userId: string) => `${auth.userId ?? ""}|${userId}`;
@@ -107,7 +123,7 @@ export function setCachedProfile(
     userId: string,
     profile: ExtendedProfile | null,
 ): void {
-    cache.set(cacheKey(userId), {
+    putCache(cacheKey(userId), {
         profile: profile ?? {},
         expires: Date.now() + TTL_MS,
         fetched: Date.now(),
@@ -122,7 +138,7 @@ function pump(): void {
         inFlight.add(key);
         fetchExtendedProfile(userId)
             .then((profile) => {
-                cache.set(key, {
+                putCache(key, {
                     profile: profile ?? {},
                     expires: Date.now() + TTL_MS,
                     fetched: Date.now(),
@@ -130,7 +146,7 @@ function pump(): void {
             })
             .catch(() => {
                 // Not found, forbidden or offline: try again later, quietly.
-                cache.set(key, {
+                putCache(key, {
                     profile: {},
                     expires: Date.now() + FAILURE_TTL_MS,
                     fetched: Date.now(),

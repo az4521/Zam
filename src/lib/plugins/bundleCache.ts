@@ -46,20 +46,16 @@ export function isCacheFallbackAllowed(
     return typeof cached.sha !== "string" || cached.sha === sha;
 }
 
+import { openSharedDb } from "$lib/utils/sharedIdb";
+
 const DB_NAME = "zam-plugins";
 const STORE = "bundles";
 
 function openDb(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 1);
-        req.onupgradeneeded = () => {
-            const db = req.result;
-            if (!db.objectStoreNames.contains(STORE)) {
-                db.createObjectStore(STORE, { keyPath: "pluginId" });
-            }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
+    return openSharedDb(DB_NAME, 1, (db) => {
+        if (!db.objectStoreNames.contains(STORE)) {
+            db.createObjectStore(STORE, { keyPath: "pluginId" });
+        }
     });
 }
 

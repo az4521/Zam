@@ -158,6 +158,10 @@ import {
     type PowerLevelTags,
 } from "$lib/utils/powerLevelTags";
 import { requestPersistentStorage } from "$lib/utils/persistentStorage";
+import {
+    onSessionTeardown,
+    runSessionTeardown,
+} from "$lib/utils/sessionCleanup";
 import { bootMark, logBootTimeline } from "$lib/utils/bootTiming";
 import { startSlidingProbe } from "$lib/matrix/slidingProbe";
 import type { OwnKeysVerdict } from "$lib/utils/ownDeviceKeysCheck";
@@ -735,6 +739,7 @@ async function createAuthenticatedClient(opts: {
     // Same reasoning as the media limit below: the outgoing client's memoized
     // space-child lists must not be carried into the incoming account's session.
     spaceChildCache.clear();
+    runSessionTeardown();
     resetRoomListCache();
     resetHierarchyCache();
     // Drop the previous server's cached media-config upload limit — this funnel
@@ -2210,6 +2215,7 @@ export function onSyncReconnected(callback: () => void): () => void {
 
 export async function logout(): Promise<void> {
     forgetSignInPassword();
+    runSessionTeardown();
     usageLimitOwner = null;
     resetUsageLimits();
     const client = matrixClient;
@@ -2323,6 +2329,7 @@ export async function logout(): Promise<void> {
 
 export function stopClient(): void {
     matrixClient?.stopClient();
+    runSessionTeardown();
     // Releasing the slot invalidates every outstanding ownership token: a
     // stopped client's late callback must not run root teardown against its
     // successor (LIFE-02).
@@ -7179,6 +7186,7 @@ export function getLoadedEventCount(roomId: string): number {
 // renders of the same reply share one request; failures aren't cached so
 // a later re-render can retry.
 const singleEventCache = new Map<string, Promise<MatrixEvent | null>>();
+onSessionTeardown(() => singleEventCache.clear());
 
 export function fetchSingleEvent(
     roomId: string,
@@ -7408,6 +7416,7 @@ export function getUnreadAnchor(roomId: string): string | null {
 // Each room's most recent context window set, so findEventById still resolves
 // events that only a jump view holds (reply/edit targets in that view).
 const contextTimelineSets = new Map<string, EventTimelineSet>();
+onSessionTeardown(() => contextTimelineSets.clear());
 
 /** The renderable message events currently held by a context window, filtered
  *  identically to the live timeline so the jump view matches normal rendering. */
