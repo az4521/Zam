@@ -27,6 +27,7 @@ import { fetchDecryptedAttachmentBlob } from "$lib/matrix/media";
 import {
     eventFavouriteFile,
     favouriteFileName,
+    favouriteTileUrl,
     isMatrixMediaUrl,
     matrixMediaMxc,
     mediaUrlFavouriteFile,
@@ -37,6 +38,24 @@ const HS_MEDIA =
     "https://hs.example/_matrix/client/v1/media/download/hs.example/AbC123";
 const OTHER_MEDIA =
     "https://other.example/_matrix/media/v3/download/other.example/AbC123";
+
+describe("favouriteTileUrl", () => {
+    it("rewrites stored media URLs to this homeserver's authed path", () => {
+        // A legacy media/v3 URL on another homeserver: the service worker
+        // would not authenticate it, so it must not reach the <img> as is.
+        expect(favouriteTileUrl(OTHER_MEDIA)).toBe(
+            "https://hs.example/_matrix/client/v1/media/download/other.example/AbC123",
+        );
+        expect(favouriteTileUrl(HS_MEDIA)).toBe(HS_MEDIA);
+    });
+
+    it("leaves non-Matrix URLs and empty values alone", () => {
+        const tenor = "https://media.tenor.com/abc/tenor.gif";
+        expect(favouriteTileUrl(tenor)).toBe(tenor);
+        expect(favouriteTileUrl(undefined)).toBeUndefined();
+        expect(favouriteTileUrl("")).toBe("");
+    });
+});
 
 describe("matrixMediaMxc", () => {
     it("names the media in our own and in another homeserver's URL", () => {
