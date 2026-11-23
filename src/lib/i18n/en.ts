@@ -1535,11 +1535,11 @@ export const en = {
     "messageItem.download": "Download",
     "messageItem.openThread": "Open thread",
     "messageItem.failedToSend": "Failed to send.",
+    "messageItem.blockedByPolicyServer":
+        "Blocked by this room's policy server ({server})",
     "messageItem.retrying": "Retrying…",
     "messageItem.showWhoReadThisMessage": "Show who read this message",
     "messageItem.readThis":
-    "messageItem.blockedByPolicyServer":
-        "Blocked by this room's policy server ({server})",
         "{count, plural, one {# person has read this} other {# people have read this}}",
     "messageItem.readBy": "Read by",
     "messageItem.messageActions": "Message actions",
@@ -2295,13 +2295,13 @@ export const en = {
     "roomSettings.set": "Set",
     "roomSettings.myRoom": "my-room",
     "roomSettings.serverAccessControl": "Server access control",
-    "roomSettings.controlWhichHomeserversMayParticipateIn":
-        "Control which homeservers may participate in this room. Wildcards:",
-    "roomSettings.matchesAnyCharacters": "matches any characters,",
     "roomSettings.policyServer": "Policy server",
     "roomSettings.policyServerNone": "None",
     "roomSettings.policyServerHint":
         "Homeservers ask this server to approve every message in this room. Its rules are set by whoever runs it.",
+    "roomSettings.controlWhichHomeserversMayParticipateIn":
+        "Control which homeservers may participate in this room. Wildcards:",
+    "roomSettings.matchesAnyCharacters": "matches any characters,",
     "roomSettings.matchesOneDeniedServersAreRemoved":
         "matches one. Denied servers are removed from federation for this room.",
     "roomSettings.noServerAclIsSetAll":

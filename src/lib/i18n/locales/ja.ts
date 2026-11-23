@@ -2059,15 +2059,15 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.set": "設定",
     "roomSettings.myRoom": "my-room",
     "roomSettings.serverAccessControl": "サーバーアクセス制御",
+    "roomSettings.policyServer": "ポリシーサーバー",
+    "roomSettings.policyServerNone": "なし",
+    "roomSettings.policyServerHint":
+        "ホームサーバーは、このルームのすべてのメッセージを承認するようこのサーバーに求めます。ルールは運営者が決めます。",
     "roomSettings.controlWhichHomeserversMayParticipateIn":
         "このルームに参加できるホームサーバーを制御します。ワイルドカード:",
     "roomSettings.matchesAnyCharacters": "は任意の文字列に一致、",
     "roomSettings.matchesOneDeniedServersAreRemoved":
         "は1文字に一致。拒否されたサーバーはこのルームのフェデレーションから除外されます。",
-    "roomSettings.policyServer": "ポリシーサーバー",
-    "roomSettings.policyServerNone": "なし",
-    "roomSettings.policyServerHint":
-        "ホームサーバーは、このルームのすべてのメッセージを承認するようこのサーバーに求めます。ルールは運営者が決めます。",
     "roomSettings.noServerAclIsSetAll":
         "サーバーACLは設定されていません。すべてのサーバーが参加できます。",
     "roomSettings.allowedServersOnePerLine": "許可するサーバー（1行に1つ）",

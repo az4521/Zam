@@ -2209,15 +2209,15 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.set": "Définir",
     "roomSettings.myRoom": "mon-salon",
     "roomSettings.serverAccessControl": "Contrôle d'accès des serveurs",
+    "roomSettings.policyServer": "Serveur de politiques",
+    "roomSettings.policyServerNone": "Aucun",
+    "roomSettings.policyServerHint":
+        "Les serveurs d'accueil demandent à ce serveur d'approuver chaque message de ce salon. Ses règles sont définies par son exploitant.",
     "roomSettings.controlWhichHomeserversMayParticipateIn":
         "Choisissez quels serveurs d'accueil peuvent participer à ce salon. Jokers :",
     "roomSettings.matchesAnyCharacters":
         "correspond à n'importe quels caractères,",
     "roomSettings.matchesOneDeniedServersAreRemoved":
-    "roomSettings.policyServer": "Serveur de politiques",
-    "roomSettings.policyServerNone": "Aucun",
-    "roomSettings.policyServerHint":
-        "Les serveurs d'accueil demandent à ce serveur d'approuver chaque message de ce salon. Ses règles sont définies par son exploitant.",
         "correspond à un seul. Les serveurs refusés sont retirés de la fédération pour ce salon.",
     "roomSettings.noServerAclIsSetAll":
         "Aucune ACL de serveurs n'est définie. Tous les serveurs peuvent participer.",

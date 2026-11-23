@@ -2233,16 +2233,16 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.set": "Festlegen",
     "roomSettings.myRoom": "mein-raum",
     "roomSettings.serverAccessControl": "Serverzugriffskontrolle",
+    "roomSettings.policyServer": "Richtlinienserver",
+    "roomSettings.policyServerNone": "Keiner",
+    "roomSettings.policyServerHint":
+        "Homeserver bitten diesen Server, jede Nachricht in diesem Raum zu genehmigen. Seine Regeln legt der Betreiber fest.",
     "roomSettings.controlWhichHomeserversMayParticipateIn":
         "Lege fest, welche Heimserver an diesem Raum teilnehmen dürfen. Platzhalter:",
     "roomSettings.matchesAnyCharacters": "steht für beliebige Zeichen,",
     "roomSettings.matchesOneDeniedServersAreRemoved":
         "für genau eines. Abgelehnte Server werden für diesen Raum aus der Föderation entfernt.",
     "roomSettings.noServerAclIsSetAll":
-    "roomSettings.policyServer": "Richtlinienserver",
-    "roomSettings.policyServerNone": "Keiner",
-    "roomSettings.policyServerHint":
-        "Homeserver bitten diesen Server, jede Nachricht in diesem Raum zu genehmigen. Seine Regeln legt der Betreiber fest.",
         "Keine Server-ACL festgelegt. Alle Server dürfen teilnehmen.",
     "roomSettings.allowedServersOnePerLine":
         "Erlaubte Server (einer pro Zeile)",

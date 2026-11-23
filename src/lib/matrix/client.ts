@@ -144,8 +144,8 @@ import {
 } from "$lib/utils/emotePacks";
 import { isMxcPreviewMedia } from "$lib/utils/linkPreviewPolicy";
 import { serializeServerAcl, type ServerAcl } from "$lib/utils/serverAcl";
-import {
 import { parseRoomPolicy, type RoomPolicyServer } from "$lib/utils/roomPolicy";
+import {
     POWER_LEVEL_TAGS_EVENT_TYPE,
     UNSTABLE_POWER_LEVEL_TAGS_EVENT_TYPE,
     parsePowerLevelTags,
@@ -10853,15 +10853,6 @@ export function getServerAclContent(
     );
 }
 
-/** Write the room's `m.room.server_acl` (federation allow/deny lists). */
-export async function setServerAcl(room: Room, acl: ServerAcl): Promise<void> {
-    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
-    await (matrixClient as any).sendStateEvent(
-        room.roomId,
-        "m.room.server_acl",
-        serializeServerAcl(acl),
-        "",
-    );
 /**
  * The room's MSC4284 policy server (stable `m.room.policy` wins over the
  * unstable one), or null when the room names none or the event is malformed.
@@ -10877,6 +10868,15 @@ export function getRoomPolicyServer(roomId: string): RoomPolicyServer | null {
     );
 }
 
+/** Write the room's `m.room.server_acl` (federation allow/deny lists). */
+export async function setServerAcl(room: Room, acl: ServerAcl): Promise<void> {
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    await (matrixClient as any).sendStateEvent(
+        room.roomId,
+        "m.room.server_acl",
+        serializeServerAcl(acl),
+        "",
+    );
 }
 
 const parsedPowerLevelTags = new WeakMap<MatrixEvent, PowerLevelTags>();

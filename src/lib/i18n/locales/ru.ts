@@ -2373,15 +2373,15 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.set": "Задать",
     "roomSettings.myRoom": "my-room",
     "roomSettings.serverAccessControl": "Управление доступом серверов",
+    "roomSettings.policyServer": "Сервер политик",
+    "roomSettings.policyServerNone": "Нет",
+    "roomSettings.policyServerHint":
+        "Домашние серверы просят этот сервер одобрять каждое сообщение в комнате. Его правила задаёт тот, кто его администрирует.",
     "roomSettings.controlWhichHomeserversMayParticipateIn":
         "Определите, какие домашние серверы могут участвовать в этой комнате. Подстановочные знаки:",
     "roomSettings.matchesAnyCharacters": "соответствует любым символам,",
     "roomSettings.matchesOneDeniedServersAreRemoved":
         "соответствует одному. Запрещённые серверы исключаются из федерации для этой комнаты.",
-    "roomSettings.policyServer": "Сервер политик",
-    "roomSettings.policyServerNone": "Нет",
-    "roomSettings.policyServerHint":
-        "Домашние серверы просят этот сервер одобрять каждое сообщение в комнате. Его правила задаёт тот, кто его администрирует.",
     "roomSettings.noServerAclIsSetAll":
         "ACL серверов не задан. Участвовать могут все серверы.",
     "roomSettings.allowedServersOnePerLine":

@@ -2366,16 +2366,16 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.set": "Definir",
     "roomSettings.myRoom": "minha-sala",
     "roomSettings.serverAccessControl": "Controle de acesso por servidor",
+    "roomSettings.policyServer": "Servidor de políticas",
+    "roomSettings.policyServerNone": "Nenhum",
+    "roomSettings.policyServerHint":
+        "Os servidores domésticos pedem a este servidor que aprove cada mensagem desta sala. As regras são definidas por quem o administra.",
     "roomSettings.controlWhichHomeserversMayParticipateIn":
         "Controle quais servidores domésticos podem participar desta sala. Curingas:",
     "roomSettings.matchesAnyCharacters": "corresponde a quaisquer caracteres,",
     "roomSettings.matchesOneDeniedServersAreRemoved":
         "corresponde a um. Servidores negados são removidos da federação para esta sala.",
     "roomSettings.noServerAclIsSetAll":
-    "roomSettings.policyServer": "Servidor de políticas",
-    "roomSettings.policyServerNone": "Nenhum",
-    "roomSettings.policyServerHint":
-        "Os servidores domésticos pedem a este servidor que aprove cada mensagem desta sala. As regras são definidas por quem o administra.",
         "Nenhuma ACL de servidor definida. Todos os servidores podem participar.",
     "roomSettings.allowedServersOnePerLine":
         "Servidores permitidos (um por linha)",

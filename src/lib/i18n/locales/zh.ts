@@ -2210,15 +2210,15 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomSettings.set": "设置",
     "roomSettings.myRoom": "my-room",
     "roomSettings.serverAccessControl": "服务器访问控制",
+    "roomSettings.policyServer": "策略服务器",
+    "roomSettings.policyServerNone": "无",
+    "roomSettings.policyServerHint":
+        "主服务器会请求此服务器批准本房间的每条消息。其规则由运营者设定。",
     "roomSettings.controlWhichHomeserversMayParticipateIn":
         "控制哪些主服务器可以参与此房间。通配符：",
     "roomSettings.matchesAnyCharacters": "匹配任意多个字符，",
     "roomSettings.matchesOneDeniedServersAreRemoved":
         "匹配一个字符。被拒绝的服务器会在此房间中被移出联邦。",
-    "roomSettings.policyServer": "策略服务器",
-    "roomSettings.policyServerNone": "无",
-    "roomSettings.policyServerHint":
-        "主服务器会请求此服务器批准本房间的每条消息。其规则由运营者设定。",
     "roomSettings.noServerAclIsSetAll":
         "未设置服务器 ACL。所有服务器都可以参与。",
     "roomSettings.allowedServersOnePerLine": "允许的服务器（每行一个）",
