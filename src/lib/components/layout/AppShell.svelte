@@ -132,10 +132,11 @@
         shareInboxState,
         receiveShare,
     } from "$lib/stores/shareInbox.svelte";
+    import { consumeWebShareStash } from "$lib/utils/webShareStash";
     import {
-        consumeWebShareStash,
-        base64ToFile,
-    } from "$lib/utils/webShareStash";
+        nativeStagedFileToFile,
+        type NativeStagedFile,
+    } from "$lib/utils/nativeSharedFile";
     import {
         takeQuickReplyStashes,
         deleteQuickReplyStash,
@@ -2169,20 +2170,19 @@
         // Android share-sheet bridge (MainActivity forwards ACTION_SEND extras
         // here). The JSON is UNTRUSTED — receiveShare only STAGES it into the
         // picker, never sends. Mirrors __matrixOpenRoom.
-        (window as any).__matrixShare = (json: string) => {
+        // Files arrive as staged paths (see nativeSharedFile.ts), read async.
+        (window as any).__matrixShare = async (json: string) => {
             try {
                 const raw = JSON.parse(json) as {
                     text?: string;
                     subject?: string;
-                    files?: {
-                        name?: string;
-                        mimeType?: string;
-                        dataBase64?: string;
-                    }[];
+                    files?: NativeStagedFile[];
                 };
-                const files = (raw.files ?? [])
-                    .map((f) => base64ToFile(f))
-                    .filter((f): f is File => f != null);
+                const files = (
+                    await Promise.all(
+                        (raw.files ?? []).map((f) => nativeStagedFileToFile(f)),
+                    )
+                ).filter((f): f is File => f != null);
                 receiveShare({
                     source: "android",
                     text: raw.text,
@@ -2197,9 +2197,9 @@
         // Android keyboard image insertion (Gboard stickers / Emoji Kitchen,
         // via ComposerWebView). The focused composer picks it up and queues it
         // as an attachment, like a pasted image.
-        (window as any).__matrixKeyboardContent = (json: string) => {
+        (window as any).__matrixKeyboardContent = async (json: string) => {
             try {
-                const file = base64ToFile(JSON.parse(json));
+                const file = await nativeStagedFileToFile(JSON.parse(json));
                 if (file) {
                     window.dispatchEvent(
                         new CustomEvent("matrix-keyboard-content", {

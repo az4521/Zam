@@ -7,7 +7,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
-import android.util.Base64;
 import android.view.WindowManager;
 
 import androidx.core.app.NotificationManagerCompat;
@@ -15,8 +14,6 @@ import androidx.core.app.RemoteInput;
 
 import com.getcapacitor.BridgeActivity;
 
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import org.json.JSONArray;
@@ -25,9 +22,8 @@ import org.json.JSONObject;
 
 public class MainActivity extends BridgeActivity {
 
-    // A shared file is base64'd and passed through evaluateJavascript, so keep
-    // it bounded. Larger files are skipped (device residual — the reliable
-    // path is text/URL; large-file share is verified on-device).
+    // Shared files are streamed into the app cache (SharedIncomingFiles) and the
+    // web layer reads them by path. Larger files are skipped, as before.
     private static final long MAX_SHARE_FILE_BYTES = 25L * 1024L * 1024L;
 
     // How many 500 ms polls the notification-tap bridge makes while waiting
@@ -114,10 +110,13 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(HistoryPrefetchPlugin.class);
         registerPlugin(ScreenSharePlugin.class);
         registerPlugin(PluginSocketsPlugin.class);
+        registerPlugin(SharedFilePlugin.class);
         bridgeStarted = true;
         super.onCreate(savedInstanceState);
         // After the bridge, which sets debugging from the build type.
         DebugToolsPlugin.applySaved(this);
+        // Staged share copies the web layer never released (app killed mid-read).
+        new Thread(() -> SharedIncomingFiles.sweep(this), "shared-sweep").start();
         // Only a FRESH launch carries a fresh action. A recreated activity
         // (savedInstanceState) gets its old intent back, and Recents relaunches
         // with the task's original intent: acting on either again would re-send
@@ -411,70 +410,77 @@ public class MainActivity extends BridgeActivity {
         // Nothing usable → do not disturb the app.
         if ((text == null || text.isEmpty()) && uris.isEmpty()) return;
 
-        final JSONArray files = new JSONArray();
-        for (Uri uri : uris) {
-            String b64 = readUriBase64(uri);
-            if (b64 == null) continue; // unreadable or over the size cap — skip
-            try {
-                JSONObject f = new JSONObject();
-                f.put("name", queryDisplayName(uri));
-                String type = getContentResolver().getType(uri);
-                f.put("mimeType", type != null ? type : "application/octet-stream");
-                f.put("dataBase64", b64);
-                files.put(f);
-            } catch (JSONException e) {
-                /* skip a file we can't encode; text still forwards */
-            }
-        }
+        // Copying a shared file can take a while on a slow provider, so the
+        // copy runs off the UI thread; the bridge call is posted back to it.
+        new Thread(
+            () -> {
+                final JSONArray files = new JSONArray();
+                for (Uri uri : uris) {
+                    SharedIncomingFiles.Staged staged = SharedIncomingFiles.stage(
+                        this,
+                        uri,
+                        MAX_SHARE_FILE_BYTES
+                    );
+                    if (staged == null) continue; // unreadable or over the size cap — skip
+                    try {
+                        JSONObject f = new JSONObject();
+                        f.put("name", queryDisplayName(uri));
+                        String type = getContentResolver().getType(uri);
+                        f.put("mimeType", type != null ? type : "application/octet-stream");
+                        f.put("size", staged.size);
+                        f.put("path", staged.path);
+                        files.put(f);
+                    } catch (JSONException e) {
+                        SharedIncomingFiles.release(this, staged.path);
+                    }
+                }
 
-        final JSONObject payload = new JSONObject();
-        try {
-            payload.put("source", "android");
-            if (text != null && !text.isEmpty()) payload.put("text", text);
-            if (subject != null && !subject.isEmpty())
-                payload.put("subject", subject);
-            if (files.length() > 0) payload.put("files", files);
-        } catch (JSONException e) {
-            return;
-        }
+                final JSONObject payload = new JSONObject();
+                try {
+                    payload.put("source", "android");
+                    if (text != null && !text.isEmpty()) payload.put("text", text);
+                    if (subject != null && !subject.isEmpty())
+                        payload.put("subject", subject);
+                    if (files.length() > 0) payload.put("files", files);
+                } catch (JSONException e) {
+                    releaseStaged(files);
+                    return;
+                }
 
-        // If a file read failed AND there was no text, there's nothing to send.
-        if (payload.length() <= 1) return;
+                // If a file read failed AND there was no text, there's nothing to send.
+                if (payload.length() <= 1) return;
 
-        if (getBridge() == null || getBridge().getWebView() == null) return;
-        final String json = payload.toString();
-        // Defer so the web app has defined window.__matrixShare (same 500ms the
-        // notification bridge uses).
-        getBridge()
-            .getWebView()
-            .postDelayed(
-                () -> {
-                    String js =
-                        "window.__matrixShare && window.__matrixShare(" +
-                        JSONObject.quote(json) +
-                        ")";
-                    getBridge().getWebView().evaluateJavascript(js, null);
-                },
-                500
-            );
+                final String json = payload.toString();
+                runOnUiThread(() -> {
+                    if (getBridge() == null || getBridge().getWebView() == null) {
+                        releaseStaged(files);
+                        return;
+                    }
+                    // Defer so the web app has defined window.__matrixShare (same
+                    // 500ms the notification bridge uses).
+                    getBridge()
+                        .getWebView()
+                        .postDelayed(
+                            () -> {
+                                String js =
+                                    "window.__matrixShare && window.__matrixShare(" +
+                                    JSONObject.quote(json) +
+                                    ")";
+                                getBridge().getWebView().evaluateJavascript(js, null);
+                            },
+                            500
+                        );
+                });
+            },
+            "share-stage"
+        ).start();
     }
 
-    /** Read a content:// URI to base64, or null if unreadable or over the cap. */
-    private String readUriBase64(Uri uri) {
-        try (InputStream in = getContentResolver().openInputStream(uri)) {
-            if (in == null) return null;
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] buf = new byte[8192];
-            int n;
-            long total = 0;
-            while ((n = in.read(buf)) != -1) {
-                total += n;
-                if (total > MAX_SHARE_FILE_BYTES) return null;
-                out.write(buf, 0, n);
-            }
-            return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
-        } catch (Exception e) {
-            return null;
+    /** Delete the staged copies named in a files array the web layer will not read. */
+    private void releaseStaged(JSONArray files) {
+        for (int i = 0; i < files.length(); i++) {
+            JSONObject f = files.optJSONObject(i);
+            if (f != null) SharedIncomingFiles.release(this, f.optString("path", null));
         }
     }
 

@@ -1,10 +1,8 @@
 package moe.crafty.matrix;
 
 import android.content.Context;
-import android.net.Uri;
 import android.os.Build;
 import android.util.AttributeSet;
-import android.util.Base64;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
@@ -16,8 +14,6 @@ import androidx.core.view.inputmethod.InputContentInfoCompat;
 
 import com.getcapacitor.CapacitorWebView;
 
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -37,8 +33,8 @@ import org.json.JSONObject;
  */
 public class ComposerWebView extends CapacitorWebView {
 
-    // Same bound as a shared file: the payload is base64'd through
-    // evaluateJavascript.
+    // Same bound as a shared file. The bytes are streamed to the app cache
+    // (SharedIncomingFiles), so only the path crosses into the web layer.
     private static final long MAX_CONTENT_BYTES = 25L * 1024L * 1024L;
 
     private static final String[] MIME_TYPES = {
@@ -101,13 +97,17 @@ public class ComposerWebView extends CapacitorWebView {
         String mimeType = info.getDescription().getMimeTypeCount() > 0
             ? info.getDescription().getMimeType(0)
             : null;
-        String b64;
+        SharedIncomingFiles.Staged staged;
         try {
-            b64 = readBase64(info.getContentUri());
+            staged = SharedIncomingFiles.stage(
+                getContext(),
+                info.getContentUri(),
+                MAX_CONTENT_BYTES
+            );
         } finally {
             if (needsGrant) info.releasePermission();
         }
-        if (b64 == null) return false;
+        if (staged == null) return false;
         if (mimeType == null || mimeType.contains("*")) {
             String resolved = getContext().getContentResolver().getType(info.getContentUri());
             mimeType = resolved != null ? resolved : "image/png";
@@ -117,8 +117,10 @@ public class ComposerWebView extends CapacitorWebView {
         try {
             payload.put("name", "sticker." + extensionFor(mimeType));
             payload.put("mimeType", mimeType);
-            payload.put("dataBase64", b64);
+            payload.put("size", staged.size);
+            payload.put("path", staged.path);
         } catch (JSONException e) {
+            SharedIncomingFiles.release(getContext(), staged.path);
             return false;
         }
         final String json = payload.toString();
@@ -131,24 +133,6 @@ public class ComposerWebView extends CapacitorWebView {
             )
         );
         return true;
-    }
-
-    private String readBase64(Uri uri) {
-        try (InputStream in = getContext().getContentResolver().openInputStream(uri)) {
-            if (in == null) return null;
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] buf = new byte[8192];
-            int n;
-            long total = 0;
-            while ((n = in.read(buf)) != -1) {
-                total += n;
-                if (total > MAX_CONTENT_BYTES) return null;
-                out.write(buf, 0, n);
-            }
-            return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     private static String extensionFor(String mimeType) {
