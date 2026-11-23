@@ -5,7 +5,9 @@ import {
     type EncryptedFileInfo,
 } from "$lib/utils/decryptAttachment";
 import {
+    DownloadSizeError,
     expectedBodySize,
+    overrunLimit,
     type DownloadProgress,
 } from "$lib/utils/downloadProgress";
 import {
@@ -129,6 +131,15 @@ export async function openAuthedReader(
                 return r;
             }
             loaded += r.value.length;
+            // Past the event's (or Content-Length's) size plus slack: a hostile
+            // or broken server. Stop the stream before buffering more. No
+            // ceiling here: a pure stream does not hold the file in memory.
+            if (total !== null && loaded > overrunLimit(total)) {
+                void streamReader?.cancel().catch(() => {});
+                throw new DownloadSizeError(
+                    `Download delivered more than ${overrunLimit(total)} bytes (received ${loaded})`,
+                );
+            }
             report();
             return r;
         },

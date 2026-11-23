@@ -204,3 +204,42 @@ describe("text-style symbols stay as text", () => {
         expect(out).not.toContain("2122");
     });
 });
+
+describe("isEmojiOnly — ReDoS regression and accepted set", () => {
+    it("rejects a long ZWJ run followed by text in linear time", () => {
+        const input = "‍".repeat(5000) + "x";
+        const start = performance.now();
+        expect(isEmojiOnly(input)).toBe(false);
+        expect(performance.now() - start).toBeLessThan(1000);
+    });
+
+    it("accepts a long run of emoji quickly", () => {
+        const start = performance.now();
+        expect(isEmojiOnly("\u{1F600}".repeat(5000))).toBe(true);
+        expect(performance.now() - start).toBeLessThan(1000);
+    });
+
+    it("accepts keycap sequences", () => {
+        expect(isEmojiOnly("1️⃣")).toBe(true);
+    });
+
+    it("still rejects text mixed into emoji", () => {
+        expect(isEmojiOnly("\u{1F600}x")).toBe(false);
+        expect(isEmojiOnly("x\u{1F600}")).toBe(false);
+    });
+});
+
+describe("renderEmoji — cache is bounded", () => {
+    it("evicts the oldest entry once the cache is full", () => {
+        const spy = vi.spyOn(twemoji, "parse");
+        try {
+            renderEmoji("🎉", "evict-base");
+            for (let i = 0; i < 2000; i++) renderEmoji("🎉", `evict-${i}`);
+            const before = spy.mock.calls.length;
+            renderEmoji("🎉", "evict-base");
+            expect(spy.mock.calls.length - before).toBe(1);
+        } finally {
+            spy.mockRestore();
+        }
+    });
+});

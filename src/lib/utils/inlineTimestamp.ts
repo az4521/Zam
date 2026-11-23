@@ -14,6 +14,12 @@
  * No regex lookbehind (old WebViews), no DOM, no SDK.
  */
 
+import {
+    dateTimeFormat,
+    MAX_RENDERED_TIMESTAMPS,
+    relativeTimeFormat,
+} from "./timestampMarkup";
+
 export const TIMESTAMP_STYLES = ["t", "T", "d", "D", "f", "F", "R"] as const;
 export type TimestampStyle = (typeof TIMESTAMP_STYLES)[number];
 export const DEFAULT_TIMESTAMP_STYLE: TimestampStyle = "f";
@@ -200,21 +206,18 @@ export function formatInlineTimestamp(
     const iso = inlineTimestampIso(seconds);
     if (!iso) return null;
     const date = new Date(seconds * 1000);
-    const title = new Intl.DateTimeFormat(
-        locale,
-        timestampIntlOptions("F"),
-    ).format(date);
+    const title = dateTimeFormat(locale, timestampIntlOptions("F")).format(
+        date,
+    );
     let text: string;
     if (style === "R") {
         const { value, unit } = relativeTimeParts(seconds - nowMs / 1000);
-        text = new Intl.RelativeTimeFormat(locale, {
-            numeric: "auto",
-        }).format(value, unit);
+        text = relativeTimeFormat(locale, { numeric: "auto" }).format(
+            value,
+            unit,
+        );
     } else {
-        text = new Intl.DateTimeFormat(
-            locale,
-            timestampIntlOptions(style),
-        ).format(date);
+        text = dateTimeFormat(locale, timestampIntlOptions(style)).format(date);
     }
     return { text, title, iso };
 }
@@ -231,7 +234,8 @@ function escapeText(s: string): string {
  * Rewrite each sanitized `<time datetime>` into the viewer's localized pill.
  * The output is built only from the parsed instant and fixed attributes, so
  * remote markup never reaches the result. Elements whose datetime is not a
- * date are returned unchanged.
+ * date are returned unchanged, and only the first MAX_RENDERED_TIMESTAMPS
+ * dated elements are localized (the rest are returned unchanged).
  */
 export function renderInlineTimestampsHtml(
     html: string,
@@ -239,6 +243,7 @@ export function renderInlineTimestampsHtml(
     nowMs: number,
 ): string {
     if (!/<time\b/i.test(html)) return html;
+    let rendered = 0;
     return html.replace(
         /<time\b([^>]*)>([\s\S]*?)<\/time>/gi,
         (whole: string, attrs: string) => {
@@ -246,6 +251,8 @@ export function renderInlineTimestampsHtml(
             if (dt === undefined) return whole;
             const ms = Date.parse(dt);
             if (Number.isNaN(ms)) return whole;
+            rendered += 1;
+            if (rendered > MAX_RENDERED_TIMESTAMPS) return whole;
             const seconds = Math.floor(ms / 1000);
             const rawStyle = /\bdata-zam-ts-style="([^"]*)"/i.exec(attrs)?.[1];
             const style = isTimestampStyle(rawStyle)

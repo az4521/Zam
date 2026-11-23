@@ -155,6 +155,29 @@ describe("openAuthedReader with a prefix", () => {
         expect(await readAll(reader)).toEqual(plain);
     });
 
+    it("stops a body that overruns its declared size, and cancels it", async () => {
+        const MiB = 1024 * 1024;
+        let pulled = 0;
+        let cancelled = false;
+        const body = new ReadableStream<Uint8Array>({
+            pull(controller) {
+                if (pulled >= 6) return controller.close();
+                pulled++;
+                controller.enqueue(new Uint8Array(MiB));
+            },
+            cancel() {
+                cancelled = true;
+            },
+        });
+        stubFetch(() => new Response(body, { status: 200 }));
+        const reader = await openAuthedReader(URL_, { expectedSize: 100 });
+        await expect(readAll(reader)).rejects.toMatchObject({
+            name: "DownloadSizeError",
+        });
+        expect(cancelled).toBe(true);
+        expect(pulled).toBeLessThan(6);
+    });
+
     it("sends no Range when there is no prefix to skip", async () => {
         const plain = plaintext(300);
         const seen = stubFetch(() => new Response(plain, { status: 200 }));

@@ -15,6 +15,9 @@ export interface ReactionAnnotation {
     isRedacted: boolean;
 }
 
+/** Longer keys are never real emoji; they are skipped, not rendered. */
+const MAX_REACTION_KEY_LENGTH = 256;
+
 export interface ReactionCount {
     key: string;
     count: number;
@@ -55,27 +58,35 @@ export function countReactions(
 
     for (const e of annotations) {
         if (e.isRedacted) continue;
-        const key = e.key;
-        if (!key) continue;
+        // Keys come from remote events: a non-string would throw during render
+        // and an oversized one is not an emoji, so both are skipped.
+        const key: unknown = e.key;
+        if (
+            typeof key !== "string" ||
+            !key ||
+            key.length > MAX_REACTION_KEY_LENGTH
+        )
+            continue;
         const dedupeKey = `${e.sender} ${key}`;
         const counted = seen.has(dedupeKey);
         seen.add(dedupeKey);
-        const existing = groups.get(key) ?? {
-            count: 0,
-            isMine: false,
-            myEventId: null,
-            reactorIds: [],
-        };
+        let group = groups.get(key);
+        if (!group) {
+            group = {
+                count: 0,
+                isMine: false,
+                myEventId: null,
+                reactorIds: [],
+            };
+            groups.set(key, group);
+        }
         const isOwn = e.sender === ownUserId;
-        groups.set(key, {
-            count: counted ? existing.count : existing.count + 1,
-            isMine: existing.isMine || isOwn,
-            myEventId: isOwn && !e.status ? (e.id ?? null) : existing.myEventId,
-            reactorIds:
-                !counted && e.sender
-                    ? [...existing.reactorIds, e.sender]
-                    : existing.reactorIds,
-        });
+        if (!counted) {
+            group.count += 1;
+            if (e.sender) group.reactorIds.push(e.sender);
+        }
+        group.isMine = group.isMine || isOwn;
+        if (isOwn && !e.status) group.myEventId = e.id ?? null;
     }
 
     return Array.from(groups.entries()).map(

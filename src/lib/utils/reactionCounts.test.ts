@@ -179,3 +179,63 @@ describe("countReactions — spec dedupe + own-reaction bookkeeping", () => {
         expect(out[0].reactorIds).toEqual(["@c:hs"]);
     });
 });
+
+describe("countReactions — hostile or oversized keys", () => {
+    it("skips non-string keys instead of throwing", () => {
+        const out = countReactions(
+            [
+                ann({ sender: "@a:hs", id: "$1", key: 5 as unknown as string }),
+                ann({
+                    sender: "@b:hs",
+                    id: "$2",
+                    key: {} as unknown as string,
+                }),
+                ann({
+                    sender: "@c:hs",
+                    id: "$3",
+                    key: null as unknown as string,
+                }),
+                ann({ sender: "@d:hs", id: "$4" }),
+            ],
+            "@me:hs",
+        );
+        expect(out).toEqual([
+            {
+                key: "👍",
+                count: 1,
+                isMine: false,
+                myEventId: null,
+                reactorIds: ["@d:hs"],
+            },
+        ]);
+    });
+
+    it("skips keys longer than 256 UTF-16 units", () => {
+        const out = countReactions(
+            [
+                ann({ sender: "@a:hs", key: "x".repeat(257) }),
+                ann({ sender: "@b:hs" }),
+            ],
+            "@me:hs",
+        );
+        expect(out.map((r) => r.key)).toEqual(["👍"]);
+        expect(out[0].reactorIds).toEqual(["@b:hs"]);
+    });
+
+    it("keeps a key of exactly 256 UTF-16 units", () => {
+        const k = "x".repeat(256);
+        const out = countReactions([ann({ key: k })], null);
+        expect(out.map((r) => r.key)).toEqual([k]);
+    });
+
+    it("accumulates many reactors without losing any", () => {
+        const anns = Array.from({ length: 5000 }, (_, i) =>
+            ann({ sender: `@u${i}:hs`, id: `$${i}` }),
+        );
+        const out = countReactions(anns, null);
+        expect(out).toHaveLength(1);
+        expect(out[0].count).toBe(5000);
+        expect(out[0].reactorIds).toHaveLength(5000);
+        expect(out[0].reactorIds[4999]).toBe("@u4999:hs");
+    });
+});

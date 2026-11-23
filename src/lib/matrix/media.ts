@@ -41,7 +41,9 @@ import type {
     PreUploadFingerprint,
 } from "$lib/utils/preUploadCache";
 import {
-    readBodyWithProgress,
+    DownloadSizeError,
+    MAX_BUFFERED_BYTES,
+    readBodyBytes,
     type ReadProgressOptions,
 } from "$lib/utils/downloadProgress";
 import {
@@ -894,18 +896,19 @@ export async function fetchAttachmentBlob(
             t("media.failedToFetchAttachment", { status: resp.status }),
         );
     }
-    const chunks = await readBodyWithProgress(resp, opts);
+    const bytes = await readBodyBytes(resp, opts);
     // Same allowlist as a decrypted attachment: the server's sandbox CSP
     // doesn't follow the bytes into a blob URL of our origin.
     const blob = await safeMediaBlob(
-        new Blob(chunks as BlobPart[]),
+        new Blob([bytes]),
         resp.headers.get("content-type"),
     );
     return URL.createObjectURL(blob);
 }
 
 /** Fetch a homeserver media URL (with auth) as bytes, refusing anything over
- *  `maxBytes`. Same same-origin token guard as fetchAttachmentBlob. */
+ *  `maxBytes` (and never buffering past the global ceiling). Same same-origin
+ *  token guard as fetchAttachmentBlob. */
 export async function fetchMediaBytes(
     httpUrl: string,
     maxBytes: number,
@@ -925,13 +928,17 @@ export async function fetchMediaBytes(
             t("media.failedToFetchAttachment", { status: resp.status }),
         );
     }
-    const declared = Number(resp.headers.get("content-length"));
-    if (Number.isFinite(declared) && declared > maxBytes)
-        throw new Error("Media too large");
-    const chunks = await readBodyWithProgress(resp, { signal });
-    const blob = new Blob(chunks as BlobPart[]);
-    if (blob.size > maxBytes) throw new Error("Media too large");
-    return blob.arrayBuffer();
+    // The read itself enforces the caller's limit (and the global ceiling),
+    // aborting as soon as the body passes it rather than after buffering it.
+    const bytes = await readBodyBytes(resp, {
+        signal,
+        maxBytes: Math.min(maxBytes, MAX_BUFFERED_BYTES),
+    }).catch((err: unknown) => {
+        if (err instanceof DownloadSizeError)
+            throw new Error("Media too large");
+        throw err;
+    });
+    return bytes.buffer;
 }
 
 /**
@@ -966,9 +973,9 @@ export async function fetchDecryptedAttachment(
             }),
         );
     }
-    const chunks = await readBodyWithProgress(resp, opts);
-    const ciphertext = await new Blob(chunks as BlobPart[]).arrayBuffer();
-    const plaintext = await decryptAttachment(ciphertext, file);
+    // One contiguous buffer, handed to the decryptor as-is (no second copy).
+    const ciphertext = await readBodyBytes(resp, opts);
+    const plaintext = await decryptAttachment(ciphertext.buffer, file);
     // The sender controls `mimetype`; pin it to an inert-media allowlist so a
     // future open-in-tab/iframe sink can't execute e.g. an image/svg+xml or
     // text/html blob in our origin (audit SEC-L9). SVG is the exception: it is

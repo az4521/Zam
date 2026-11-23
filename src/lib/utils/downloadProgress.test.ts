@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import {
+    DownloadSizeError,
+    MAX_BUFFERED_BYTES,
     expectedBodySize,
+    overrunLimit,
+    readBodyBytes,
     readBodyWithProgress,
     type DownloadProgress,
 } from "./downloadProgress";
@@ -13,6 +17,28 @@ function streamOf(...chunks: number[][]): ReadableStream<Uint8Array> {
         },
     });
 }
+
+/** A stream that pulls `count` chunks of `size` bytes on demand, recording
+ *  how many were pulled and whether the consumer cancelled it. */
+function pulledStream(size: number, count: number) {
+    const state = { pulled: 0, cancelled: false };
+    const stream = new ReadableStream<Uint8Array>({
+        pull(controller) {
+            if (state.pulled >= count) {
+                controller.close();
+                return;
+            }
+            state.pulled++;
+            controller.enqueue(new Uint8Array(size).fill(state.pulled & 0xff));
+        },
+        cancel() {
+            state.cancelled = true;
+        },
+    });
+    return { stream, state };
+}
+
+const MiB = 1024 * 1024;
 
 describe("expectedBodySize", () => {
     it("prefers Content-Length", () => {
@@ -102,5 +128,111 @@ describe("readBodyWithProgress", () => {
                 signal: abort.signal,
             }),
         ).rejects.toMatchObject({ name: "AbortError" });
+    });
+
+    it("aborts and cancels the reader when the body overruns its declared size", async () => {
+        // Declares 10 bytes, then streams 4 MiB of 1 MiB chunks.
+        const { stream, state } = pulledStream(MiB, 4);
+        await expect(
+            readBodyWithProgress(new Response(stream), { expectedSize: 10 }),
+        ).rejects.toBeInstanceOf(DownloadSizeError);
+        expect(state.cancelled).toBe(true);
+        // It stopped at the first chunk past the limit, not at the end.
+        expect(state.pulled).toBeLessThan(4);
+    });
+
+    it("tolerates a body a little past its declared size", async () => {
+        // 1 MiB + 1 byte over a declared 10 bytes: within the 1 MiB slack.
+        const { stream } = pulledStream(MiB + 1, 1);
+        const chunks = await readBodyWithProgress(new Response(stream), {
+            expectedSize: 10,
+        });
+        expect(chunks.reduce((n, c) => n + c.length, 0)).toBe(MiB + 1);
+    });
+
+    it("enforces an absolute ceiling when no size is known", async () => {
+        await expect(
+            readBodyWithProgress(new Response(streamOf([1, 2, 3, 4, 5])), {
+                maxBytes: 4,
+            }),
+        ).rejects.toBeInstanceOf(DownloadSizeError);
+    });
+
+    it("refuses a declared size over the ceiling before reading the body", async () => {
+        const { stream, state } = pulledStream(1024, 8);
+        await expect(
+            readBodyWithProgress(new Response(stream), {
+                expectedSize: 4096,
+                maxBytes: 1024,
+            }),
+        ).rejects.toBeInstanceOf(DownloadSizeError);
+        // The stream may prefill one chunk on construction, but the read
+        // never starts, so it is not drained.
+        expect(state.pulled).toBeLessThanOrEqual(1);
+        expect(state.pulled).toBeLessThan(8);
+    });
+
+    it("uses 1 GiB as the default ceiling", () => {
+        expect(MAX_BUFFERED_BYTES).toBe(1024 * MiB);
+    });
+});
+
+describe("overrunLimit", () => {
+    it("allows the larger of 1 MiB or 5% past the expected size", () => {
+        expect(overrunLimit(100)).toBe(100 + MiB);
+        expect(overrunLimit(100 * MiB)).toBe(100 * MiB + 5 * MiB);
+    });
+});
+
+describe("readBodyBytes", () => {
+    it("returns one buffer holding the whole body, in order", async () => {
+        const bytes = await readBodyBytes(
+            new Response(streamOf([1, 2], [3], [4, 5, 6])),
+        );
+        expect([...bytes]).toEqual([1, 2, 3, 4, 5, 6]);
+        expect(bytes.buffer.byteLength).toBe(bytes.length);
+    });
+
+    it("fills a buffer preallocated from the declared size", async () => {
+        const bytes = await readBodyBytes(
+            new Response(streamOf([1, 2], [3, 4]), {
+                headers: { "content-length": "4" },
+            }),
+        );
+        expect([...bytes]).toEqual([1, 2, 3, 4]);
+        expect(bytes.buffer.byteLength).toBe(4);
+    });
+
+    it("trims the buffer when the body is shorter than declared", async () => {
+        const bytes = await readBodyBytes(
+            new Response(streamOf([1, 2, 3]), { headers: {} }),
+            { expectedSize: 10 },
+        );
+        expect([...bytes]).toEqual([1, 2, 3]);
+        expect(bytes.buffer.byteLength).toBe(3);
+    });
+
+    it("grows past an undeclared size without losing bytes", async () => {
+        const big = Array.from({ length: 200 * 1024 }, (_, i) => i & 0xff);
+        const bytes = await readBodyBytes(new Response(streamOf(big)));
+        expect(bytes.length).toBe(big.length);
+        expect(bytes[12345]).toBe(big[12345]);
+        expect(bytes[big.length - 1]).toBe(big[big.length - 1]);
+    });
+
+    it("rejects a body past its declared size and cancels the reader", async () => {
+        const { stream, state } = pulledStream(MiB, 4);
+        await expect(
+            readBodyBytes(new Response(stream), { expectedSize: 10 }),
+        ).rejects.toBeInstanceOf(DownloadSizeError);
+        expect(state.cancelled).toBe(true);
+    });
+
+    it("rejects a body past the ceiling", async () => {
+        await expect(
+            readBodyBytes(new Response(streamOf([1, 2, 3, 4, 5])), {
+                maxBytes: 4,
+            }),
+        ).rejects.toBeInstanceOf(DownloadSizeError);
     });
 });

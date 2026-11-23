@@ -34,3 +34,48 @@ describe("renderMessageTimestamps", () => {
         expect(out?.text).toMatch(/hour/);
     });
 });
+
+describe("renderMessageTimestamps — per-message cap", () => {
+    it("formats only the first 100 tokens and leaves the rest as text", () => {
+        const html = Array.from(
+            { length: 150 },
+            () => "&lt;t:1700000000&gt;",
+        ).join(" ");
+        const out = renderMessageTimestamps(html);
+        expect(out.split("<time ").length - 1).toBe(100);
+        expect(out.split("&lt;t:").length - 1).toBe(50);
+    });
+
+    it("formats every token of a normal message", () => {
+        const out = renderMessageTimestamps(
+            "a &lt;t:1700000000:d&gt; b &lt;t:1700000000:t&gt; c &lt;t:1700000000:R&gt;",
+        );
+        expect(out.split("<time ").length - 1).toBe(3);
+        expect(out).not.toContain("&lt;t:");
+    });
+});
+
+describe("Intl formatter reuse", () => {
+    it("builds only a couple of Intl formatters for many tokens", () => {
+        const Original = Intl.DateTimeFormat;
+        let built = 0;
+        function Counting(
+            locale?: string | string[],
+            options?: Intl.DateTimeFormatOptions,
+        ) {
+            built += 1;
+            return new Original(locale, options);
+        }
+        Intl.DateTimeFormat = Counting as unknown as typeof Intl.DateTimeFormat;
+        try {
+            const html = Array.from(
+                { length: 100 },
+                () => "&lt;t:1700000000&gt;",
+            ).join(" ");
+            renderMessageTimestamps(html);
+            expect(built).toBeLessThanOrEqual(2);
+        } finally {
+            Intl.DateTimeFormat = Original;
+        }
+    });
+});

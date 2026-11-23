@@ -255,3 +255,34 @@ describe("edit read-back: restoreInlineTimestampTokens", () => {
         expect(restoreInlineTimestampTokens("plain", "<b>x</b>")).toBe("plain");
     });
 });
+
+describe("renderInlineTimestampsHtml — per-message cap and formatter reuse", () => {
+    const el = `<time datetime="2023-11-15T12:00:00Z" data-zam-ts-style="D">2023-11-15 12:00 UTC</time>`;
+
+    it("localizes only the first 100 dated elements", () => {
+        const html = Array.from({ length: 150 }, () => el).join(" ");
+        const out = renderInlineTimestampsHtml(html, "en-US", T0 * 1000);
+        expect(out.split(">November 15, 2023</time>").length - 1).toBe(100);
+        expect(out.split("2023-11-15 12:00 UTC").length - 1).toBe(50);
+    });
+
+    it("builds only a couple of Intl formatters for many elements", () => {
+        const Original = Intl.DateTimeFormat;
+        let built = 0;
+        function Counting(
+            locale?: string | string[],
+            options?: Intl.DateTimeFormatOptions,
+        ) {
+            built += 1;
+            return new Original(locale, options);
+        }
+        Intl.DateTimeFormat = Counting as unknown as typeof Intl.DateTimeFormat;
+        try {
+            const html = Array.from({ length: 100 }, () => el).join(" ");
+            renderInlineTimestampsHtml(html, "en-US", T0 * 1000);
+            expect(built).toBeLessThanOrEqual(2);
+        } finally {
+            Intl.DateTimeFormat = Original;
+        }
+    });
+});
