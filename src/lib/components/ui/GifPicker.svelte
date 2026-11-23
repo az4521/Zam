@@ -4,6 +4,7 @@
     import {
         eventFavouriteFile,
         favouriteMediaHttpUrl,
+        favouriteTileUrl,
         isMatrixMediaUrl,
         mediaUrlFavouriteFile,
         parseEventFavouriteSource,
@@ -28,15 +29,17 @@
         loadGifs,
         queueSearch,
         loadMore,
+        loadMoreWouldTrim,
         type GifSource,
     } from "$lib/stores/gifSearch.svelte";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import { normalizeProviderPage } from "$lib/plugins/pluginGifs";
-    import { untrack } from "svelte";
+    import { tick, untrack } from "svelte";
+    import { SvelteSet } from "svelte/reactivity";
     import { Film, Star } from "lucide-svelte";
     import { authedVideoSrc } from "$lib/actions/authedVideoSrc";
     import { resizeHandle } from "$lib/actions/resizeHandle";
-    import { gifTileVideo } from "$lib/actions/gifTileVideo";
+    import { gifTileSlot, gifTileVideo } from "$lib/actions/gifTileVideo";
     import { COMPOSER_PICKER_SIZE } from "$lib/utils/pickerSize";
     import { safeAspectRatio } from "$lib/utils/mediaDimensions";
     import {
@@ -333,11 +336,56 @@
             });
     }
 
+    // Favourite videos that are granted playback (in view, under the cap).
+    // Keyed by URL; a video that is not in here has no source at all.
+    const playing = new SvelteSet<string>();
+    function setPlaying(url: string, on: boolean) {
+        if (on) playing.add(url);
+        else playing.delete(url);
+    }
+
     function onGridScroll() {
         if (!gridEl || tab === "favourites") return;
         const nearBottom =
             gridEl.scrollTop + gridEl.clientHeight >= gridEl.scrollHeight - 200;
-        if (nearBottom) loadMore();
+        if (nearBottom) void loadMoreKeepingPlace();
+    }
+
+    // Dropping the oldest page removes tiles above the viewport, which moves
+    // everything below them up. Pin the tile at the top of the view to its old
+    // place on screen, so the list does not jump under the user's finger.
+    async function loadMoreKeepingPlace() {
+        const grid = gridEl;
+        if (!grid || !loadMoreWouldTrim()) {
+            loadMore();
+            return;
+        }
+        const anchor = topVisibleTile(grid);
+        const dropped = loadMore();
+        if (!dropped || !anchor) return;
+        await tick();
+        const el = grid.querySelector<HTMLElement>(
+            `[data-tile="${CSS.escape(anchor.id)}"]`,
+        );
+        if (el) {
+            const gridTop = grid.getBoundingClientRect().top;
+            const now = el.getBoundingClientRect().top - gridTop;
+            grid.scrollTop += now - anchor.top;
+        }
+    }
+
+    function topVisibleTile(
+        grid: HTMLElement,
+    ): { id: string; top: number } | null {
+        const gridTop = grid.getBoundingClientRect().top;
+        let best: { id: string; top: number } | null = null;
+        for (const el of grid.querySelectorAll<HTMLElement>("[data-tile]")) {
+            const rect = el.getBoundingClientRect();
+            if (rect.bottom - gridTop <= 0) continue; // scrolled past
+            const top = rect.top - gridTop;
+            if (!best || top < best.top) best = { id: el.dataset.tile!, top };
+        }
+        return best;
     }
 
     // Keep the grid filled. If the results don't overflow the scroll area (few
@@ -651,28 +699,44 @@
                                         class="relative block w-full rounded overflow-hidden hover:opacity-80 transition-opacity"
                                     >
                                         {#if parseEventFavouriteSource(gif.source)}
-                                            <FavouriteFileImg
-                                                source={parseEventFavouriteSource(
-                                                    gif.source,
-                                                )!}
-                                                video={!!gif.video}
-                                                class="w-full h-auto block rounded bg-zam-backgroundTertiary pointer-events-none"
-                                                style={favouriteAspectStyle(
-                                                    gif,
-                                                )}
-                                            />
+                                            {#if gif.video && !playing.has(gif.url)}
+                                                <!-- Held back until the tile is in
+                                                 view and under the playing cap:
+                                                 same box, so nothing shifts. -->
+                                                <div
+                                                    class="w-full block rounded bg-zam-backgroundTertiary"
+                                                    style={favouriteAspectStyle(
+                                                        gif,
+                                                    ) || "aspect-ratio: 1"}
+                                                ></div>
+                                            {:else}
+                                                <FavouriteFileImg
+                                                    source={parseEventFavouriteSource(
+                                                        gif.source,
+                                                    )!}
+                                                    video={!!gif.video}
+                                                    class="w-full h-auto block rounded bg-zam-backgroundTertiary pointer-events-none"
+                                                    style={favouriteAspectStyle(
+                                                        gif,
+                                                    )}
+                                                />
+                                            {/if}
                                         {:else if gif.video}
                                             <!-- A starred plaintext video: streamed
                                              with the session's token, its poster
-                                             shown until the first frame. -->
+                                             shown until the first frame, and
+                                             streamed only while granted playback. -->
                                             <video
                                                 use:authedVideoSrc={{
-                                                    url: favouriteMediaHttpUrl(
-                                                        gif.url,
-                                                    ),
+                                                    url: playing.has(gif.url)
+                                                        ? favouriteMediaHttpUrl(
+                                                              gif.url,
+                                                          )
+                                                        : null,
                                                 }}
-                                                poster={gif.previewUrl ||
-                                                    undefined}
+                                                poster={favouriteTileUrl(
+                                                    gif.previewUrl,
+                                                ) || undefined}
                                                 class="w-full h-auto block rounded bg-zam-backgroundTertiary pointer-events-none"
                                                 style={favouriteAspectStyle(
                                                     gif,
@@ -686,10 +750,14 @@
                                             ></video>
                                         {:else if gif.previewVideoUrl}
                                             <video
-                                                use:gifTileVideo={gif.previewVideoUrl}
+                                                use:gifTileVideo={favouriteTileUrl(
+                                                    gif.previewVideoUrl,
+                                                )}
                                                 poster={gif.previewUrl !==
                                                 gif.previewVideoUrl
-                                                    ? gif.previewUrl
+                                                    ? favouriteTileUrl(
+                                                          gif.previewUrl,
+                                                      )
                                                     : undefined}
                                                 class="w-full h-auto block rounded bg-zam-backgroundTertiary pointer-events-none"
                                                 style={favouriteAspectStyle(
@@ -704,7 +772,9 @@
                                             ></video>
                                         {:else}
                                             <img
-                                                src={gif.previewUrl}
+                                                src={favouriteTileUrl(
+                                                    gif.previewUrl,
+                                                )}
                                                 alt=""
                                                 class="w-full h-auto block rounded bg-zam-backgroundTertiary"
                                                 loading="lazy"
@@ -732,6 +802,16 @@
                                             </span>
                                         {/if}
                                     </button>
+                                    {#if gif.video}
+                                        <!-- Invisible overlay that gates this
+                                         tile's video (view + playing cap). -->
+                                        <span
+                                            class="absolute inset-0 pointer-events-none"
+                                            aria-hidden="true"
+                                            use:gifTileSlot={(on) =>
+                                                setPlaying(gif.url, on)}
+                                        ></span>
+                                    {/if}
                                     <!-- Touchscreens have no hover, so the controls stay
                                  visible there instead of revealing on hover.
                                  focus-within matters too: these stay focusable
@@ -853,7 +933,10 @@
                             {#each column as placed (placed.item.id)}
                                 {@const r = placed.item}
                                 {@const idx = placed.idx}
-                                <div class="relative group/gif mb-1">
+                                <div
+                                    class="relative group/gif mb-1"
+                                    data-tile={r.id}
+                                >
                                     <!-- The <img> is alt="", so without a label this
                                  button announces as bare "button". A normalized
                                  KLIPY result carries no title, slug or tags to

@@ -12,6 +12,7 @@ import {
     canReuseGifResults,
     GIF_CACHE_TTL_MS,
 } from "$lib/utils/gifCache";
+import { GIF_RESULT_CAP, pagesToDrop } from "$lib/utils/gifResultWindow";
 
 const DEBOUNCE_MS = 350;
 
@@ -59,6 +60,27 @@ let requestSeq = 0; // stale-response guard: only the newest request may write
 let cachedKey: string | null = null;
 let cachedAt = 0;
 
+/** Item count of each page held, oldest first. Dropping the oldest pages
+ *  (once past GIF_RESULT_CAP) needs these to cut on page boundaries. */
+let pageLengths: number[] = [];
+
+function resetResults(): void {
+    gifSearchState.items = [];
+    gifSearchState.page = 1;
+    gifSearchState.exhausted = false;
+    pageLengths = [];
+}
+
+/** Drop the `n` oldest pages. Returns how many results went with them. */
+function dropLeadingPages(n: number): number {
+    if (n <= 0) return 0;
+    let count = 0;
+    for (let i = 0; i < n; i++) count += pageLengths[i];
+    pageLengths = pageLengths.slice(n);
+    gifSearchState.items = gifSearchState.items.slice(count);
+    return count;
+}
+
 /** Cache identity: plain `kind` for KLIPY so its keys are unchanged. */
 function sourceKind(kind: GifKind): string {
     return source === KLIPY_SOURCE ? kind : `${source.key}:${kind}`;
@@ -69,9 +91,7 @@ function useSource(next: GifSource | undefined): void {
     if (resolved.key !== source.key) {
         // Another source's tiles must not show under this one while it loads.
         requestSeq++;
-        gifSearchState.items = [];
-        gifSearchState.page = 1;
-        gifSearchState.exhausted = false;
+        resetResults();
         gifSearchState.loading = false;
         cachedKey = null;
     }
@@ -93,18 +113,22 @@ async function run(
     gifSearchState.error = null;
     // Fresh load: drop any stale exhaustion from a prior search so it can't
     // survive into this request's in-flight window or an error.
-    if (!append) gifSearchState.exhausted = false;
+    // A fresh query clears the previous query's results up front.
+    if (!append) resetResults();
     try {
         const { items, hasNext } = await source.fetch(query, page, kind);
         if (seq !== requestSeq) return; // a newer request superseded this one
         if (append) {
             const seen = new Set(gifSearchState.items.map((i) => i.id));
-            gifSearchState.items = [
-                ...gifSearchState.items,
-                ...items.filter((i) => !seen.has(i.id)),
-            ];
+            const fresh = items.filter((i) => !seen.has(i.id));
+            gifSearchState.items = [...gifSearchState.items, ...fresh];
+            pageLengths.push(fresh.length);
+            // loadMore made room for a page of the usual size; a larger one
+            // is trimmed here.
+            dropLeadingPages(pagesToDrop(pageLengths, GIF_RESULT_CAP, 0));
         } else {
             gifSearchState.items = items;
+            pageLengths = [items.length];
         }
         gifSearchState.page = page;
         gifSearchState.exhausted = !hasNext;
@@ -174,12 +198,29 @@ export function queueSearch(
     }, DEBOUNCE_MS);
 }
 
-export function loadMore(): void {
-    if (gifSearchState.loading || gifSearchState.exhausted) return;
+/** Whether the next loadMore() would drop the oldest results to stay capped. */
+export function loadMoreWouldTrim(): boolean {
+    const next = pageLengths[pageLengths.length - 1] ?? 0;
+    return pagesToDrop(pageLengths, GIF_RESULT_CAP, next) > 0;
+}
+
+/**
+ * Fetch the next page. Once the held results would pass GIF_RESULT_CAP, the
+ * oldest whole pages are dropped first so pagination never stops while the
+ * user keeps scrolling. Returns how many results were dropped, so the caller
+ * can keep its scroll position.
+ */
+export function loadMore(): number {
+    if (gifSearchState.loading || gifSearchState.exhausted) return 0;
+    const next = pageLengths[pageLengths.length - 1] ?? 0;
+    const dropped = dropLeadingPages(
+        pagesToDrop(pageLengths, GIF_RESULT_CAP, next),
+    );
     void run(
         gifSearchState.kind,
         gifSearchState.query,
         gifSearchState.page + 1,
         true,
     );
+    return dropped;
 }

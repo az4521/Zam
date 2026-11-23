@@ -1,25 +1,44 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { gifTileVideo } from "./gifTileVideo";
+import { gifTileVideo, MAX_PLAYING_TILES } from "./gifTileVideo";
 import { holdVideoDecoders } from "$lib/stores/videoDecoderHold";
 
-let fire: (isIntersecting: boolean) => void;
+// One fake observer per (root, margin) pool. `fire` reports every target the
+// latest observer watches, so each test that observes a single tile is exact.
+let last: FakeObserver;
 
 class FakeObserver {
+    readonly targets = new Set<Element>();
+    readonly cb: IntersectionObserverCallback;
     constructor(cb: IntersectionObserverCallback) {
-        fire = (isIntersecting) =>
-            cb(
-                [{ isIntersecting } as IntersectionObserverEntry],
-                this as unknown as IntersectionObserver,
-            );
+        this.cb = cb;
+        last = this;
     }
-    observe() {}
-    disconnect() {}
+    observe(el: Element) {
+        this.targets.add(el);
+    }
+    unobserve(el: Element) {
+        this.targets.delete(el);
+    }
+    disconnect() {
+        this.targets.clear();
+    }
 }
+
+function fire(isIntersecting: boolean) {
+    const entries = [...last.targets].map(
+        (target) => ({ target, isIntersecting }) as IntersectionObserverEntry,
+    );
+    last.cb(entries, last as unknown as IntersectionObserver);
+}
+
+const actions: Array<{ destroy?: () => void }> = [];
 
 function tile(url: string) {
     const node = document.createElement("video");
     node.load = vi.fn();
-    return { node, action: gifTileVideo(node, url) };
+    const action = gifTileVideo(node, url);
+    actions.push(action);
+    return { node, action };
 }
 
 describe("gifTileVideo", () => {
@@ -27,6 +46,7 @@ describe("gifTileVideo", () => {
         vi.stubGlobal("IntersectionObserver", FakeObserver);
     });
     afterEach(() => {
+        for (const a of actions.splice(0)) a.destroy?.();
         vi.unstubAllGlobals();
     });
 
@@ -74,5 +94,24 @@ describe("gifTileVideo", () => {
         const release = holdVideoDecoders();
         release();
         expect(node.getAttribute("src")).toBeNull();
+    });
+
+    it("caps how many tiles play at once and starts a waiter when one leaves", () => {
+        // Tiles stay alive for the whole test, so the cap is what stops them.
+        const tiles = Array.from({ length: MAX_PLAYING_TILES + 1 }, (_, i) =>
+            tile(`https://x/${i}.mp4`),
+        );
+        // One observer serves all of them; report each one in view.
+        fire(true);
+        const playing = tiles.filter((t) => t.node.getAttribute("src"));
+        expect(playing).toHaveLength(MAX_PLAYING_TILES);
+        // The overflow tile is the one waiting.
+        const waiting = tiles[MAX_PLAYING_TILES];
+        expect(waiting.node.getAttribute("src")).toBeNull();
+        // Destroying a playing tile hands its slot to the waiter.
+        tiles[0].action.destroy?.();
+        expect(waiting.node.getAttribute("src")).toBe(
+            `https://x/${MAX_PLAYING_TILES}.mp4`,
+        );
     });
 });

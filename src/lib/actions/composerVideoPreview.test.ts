@@ -3,22 +3,42 @@ import { composerVideoPreview } from "./composerVideoPreview";
 
 let fire: (isIntersecting: boolean) => void;
 
+// One shared observer serves every tile (sharedIntersection), so entries
+// must name their target.
 class FakeObserver {
+    private targets = new Set<Element>();
     constructor(cb: IntersectionObserverCallback) {
         fire = (isIntersecting) =>
             cb(
-                [{ isIntersecting } as IntersectionObserverEntry],
+                [...this.targets].map(
+                    (target) =>
+                        ({
+                            isIntersecting,
+                            target,
+                        }) as IntersectionObserverEntry,
+                ),
                 this as unknown as IntersectionObserver,
             );
     }
-    observe() {}
-    disconnect() {}
+    observe(el: Element) {
+        this.targets.add(el);
+    }
+    unobserve(el: Element) {
+        this.targets.delete(el);
+    }
+    disconnect() {
+        this.targets.clear();
+    }
 }
+
+const live: Array<{ destroy?: () => void }> = [];
 
 function preview(url: string) {
     const node = document.createElement("video");
     node.load = vi.fn();
-    return { node, action: composerVideoPreview(node, url) };
+    const action = composerVideoPreview(node, url);
+    live.push(action);
+    return { node, action };
 }
 
 describe("composerVideoPreview", () => {
@@ -26,6 +46,8 @@ describe("composerVideoPreview", () => {
         vi.stubGlobal("IntersectionObserver", FakeObserver);
     });
     afterEach(() => {
+        // Ends the shared observer, so the next test builds a fresh one.
+        for (const a of live.splice(0)) a.destroy?.();
         vi.unstubAllGlobals();
     });
 

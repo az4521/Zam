@@ -169,3 +169,29 @@ describe("gifSearch store", () => {
         expect(gifSearchState.exhausted).toBe(true); // not clobbered by stale write
     });
 });
+
+describe("gifSearch store: result cap", () => {
+    it("keeps paginating past the cap by dropping the oldest page", async () => {
+        // 100-result pages: pages 1-3 fill to 300; page 4 must still load.
+        fetchKlipy.mockResolvedValueOnce(page(100, true, 0));
+        loadGifs("gifs", "");
+        await vi.advanceTimersByTimeAsync(0);
+        for (let p = 1; p < 3; p++) {
+            fetchKlipy.mockResolvedValueOnce(page(100, true, p * 100));
+            loadMore();
+            await vi.advanceTimersByTimeAsync(0);
+        }
+        expect(gifSearchState.items).toHaveLength(300);
+
+        fetchKlipy.mockResolvedValueOnce(page(100, true, 300));
+        const dropped = loadMore();
+        expect(dropped).toBe(100);
+        expect(gifSearchState.items).toHaveLength(200);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(gifSearchState.items).toHaveLength(300);
+        // The oldest page went; the newest kept.
+        expect(gifSearchState.items[0].id).toBe("100");
+        expect(gifSearchState.items.at(-1)!.id).toBe("399");
+        expect(fetchKlipy).toHaveBeenLastCalledWith("trending:gifs:4");
+    });
+});
