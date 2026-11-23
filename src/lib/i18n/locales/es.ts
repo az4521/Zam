@@ -656,6 +656,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.searchIndexBar": "Progreso del índice completo",
     "debugSettings.searchIndexProgress":
         "{done} / {total} salas, {messages} mensajes",
+    "debugSettings.searchIndexPages": "{pages} páginas cargadas",
+    "debugSettings.searchIndexCurrentRoom": "Indexando: {room}",
+    "debugSettings.searchIndexWaitingSync":
+        "Esperando a que la sincronización se actualice",
     "debugSettings.searchIndexComplete":
         "Terminado: todas las salas cifradas están indexadas.",
     "debugSettings.searchIndexPartial":

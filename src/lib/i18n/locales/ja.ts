@@ -609,6 +609,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.searchIndexBar": "完全なインデックスの進捗",
     "debugSettings.searchIndexProgress":
         "{done} / {total} ルーム、{messages} 件のメッセージ",
+    "debugSettings.searchIndexPages": "{pages} ページ取得済み",
+    "debugSettings.searchIndexCurrentRoom": "インデックス中: {room}",
+    "debugSettings.searchIndexWaitingSync": "同期が追いつくのを待っています",
     "debugSettings.searchIndexComplete":
         "完了: すべての暗号化ルームがインデックス化されました。",
     "debugSettings.searchIndexPartial":

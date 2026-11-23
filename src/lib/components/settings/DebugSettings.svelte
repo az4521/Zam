@@ -964,6 +964,25 @@
                     ),
                 })}
             </p>
+            <p class="text-xs text-zam-textMuted">
+                {t("debugSettings.searchIndexPages", {
+                    pages: buildState.progress.pages,
+                })}
+            </p>
+            {#if buildState.progress.currentRoomId}
+                <p class="text-xs text-zam-textMuted break-all">
+                    {t("debugSettings.searchIndexCurrentRoom", {
+                        room:
+                            buildState.progress.currentRoomName ??
+                            buildState.progress.currentRoomId,
+                    })}
+                </p>
+            {/if}
+            {#if buildState.progress.waitingForSync}
+                <p class="text-xs text-zam-textMuted">
+                    {t("debugSettings.searchIndexWaitingSync")}
+                </p>
+            {/if}
         {/if}
         {#if buildResult}
             <p class="text-sm text-zam-textPrimary" aria-live="polite">

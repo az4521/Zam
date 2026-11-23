@@ -1,9 +1,75 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
+    WaitTimeoutError,
     fullIndexPercent,
     groupThousands,
+    raceWithTimeout,
     unfinishedRoomCount,
 } from "./fullIndexProgress";
+
+describe("raceWithTimeout", () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it("resolves with the promise value when it settles in time", async () => {
+        vi.useFakeTimers();
+        const p = raceWithTimeout(Promise.resolve(7), 1000);
+        await expect(p).resolves.toBe(7);
+        expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("passes through the promise's own rejection", async () => {
+        vi.useFakeTimers();
+        const boom = new Error("boom");
+        await expect(raceWithTimeout(Promise.reject(boom), 1000)).rejects.toBe(
+            boom,
+        );
+        expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("rejects with WaitTimeoutError when the promise hangs", async () => {
+        vi.useFakeTimers();
+        const never = new Promise<number>(() => {});
+        const p = raceWithTimeout(never, 60_000);
+        const assertion = expect(p).rejects.toBeInstanceOf(WaitTimeoutError);
+        await vi.advanceTimersByTimeAsync(60_000);
+        await assertion;
+    });
+
+    it("rejects with AbortError as soon as the signal aborts", async () => {
+        vi.useFakeTimers();
+        const ctl = new AbortController();
+        const p = raceWithTimeout(
+            new Promise<void>(() => {}),
+            30_000,
+            ctl.signal,
+        );
+        ctl.abort();
+        await expect(p).rejects.toMatchObject({ name: "AbortError" });
+        expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it("rejects at once when the signal is already aborted", async () => {
+        const ctl = new AbortController();
+        ctl.abort();
+        await expect(
+            raceWithTimeout(Promise.resolve(1), 1000, ctl.signal),
+        ).rejects.toMatchObject({ name: "AbortError" });
+    });
+
+    it("ignores a late result after the timeout", async () => {
+        vi.useFakeTimers();
+        let resolveLate!: (v: number) => void;
+        const late = new Promise<number>((r) => (resolveLate = r));
+        const p = raceWithTimeout(late, 100);
+        const assertion = expect(p).rejects.toBeInstanceOf(WaitTimeoutError);
+        await vi.advanceTimersByTimeAsync(100);
+        await assertion;
+        resolveLate(5);
+        await Promise.resolve();
+    });
+});
 
 describe("fullIndexPercent", () => {
     it("floors the share of rooms done", () => {

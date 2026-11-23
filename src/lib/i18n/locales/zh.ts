@@ -673,6 +673,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.searchIndexBar": "完整索引进度",
     "debugSettings.searchIndexProgress":
         "{done} / {total} 个房间，{messages} 条消息",
+    "debugSettings.searchIndexPages": "已获取 {pages} 页",
+    "debugSettings.searchIndexCurrentRoom": "正在索引：{room}",
+    "debugSettings.searchIndexWaitingSync": "正在等待同步追上",
     "debugSettings.searchIndexComplete": "完成：所有加密房间都已建立索引。",
     "debugSettings.searchIndexPartial":
         "已完成，但仍有 {failed} 个房间未完成，后台会重试。",

@@ -661,6 +661,9 @@ export const en = {
     "debugSettings.searchIndexBar": "Full index progress",
     "debugSettings.searchIndexProgress":
         "{done} / {total} rooms, {messages} messages",
+    "debugSettings.searchIndexPages": "{pages} pages fetched",
+    "debugSettings.searchIndexCurrentRoom": "Indexing: {room}",
+    "debugSettings.searchIndexWaitingSync": "Waiting for sync to catch up",
     "debugSettings.searchIndexComplete":
         "Finished: every encrypted room is indexed.",
     "debugSettings.searchIndexPartial":

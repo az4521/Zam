@@ -50,6 +50,7 @@ import {
 } from "$lib/utils/roomMedia";
 import type { ParsedSearchQuery } from "$lib/utils/messageSearch";
 import {
+    raceWithTimeout,
     unfinishedRoomCount,
     type FullIndexProgress,
     type FullIndexReason,
@@ -102,6 +103,10 @@ const CRAWL_PREFETCH_STEP_DELAY_MS = 100;
 /** The prefetch plan is pushed at most once per this interval while the crawl runs. */
 const PREFETCH_PLAN_THROTTLE_MS = 30_000;
 const CRAWL_DECRYPT_BATCH = 4;
+/** A /messages request that takes longer is treated as failed (the room backs off). */
+const CRAWL_REQUEST_TIMEOUT_MS = 60_000;
+/** Decryption that takes longer stops being waited for; the page goes on without it. */
+const CRAWL_DECRYPT_TIMEOUT_MS = 30_000;
 /** Full build: pause between pages, and between checks while sync is stale. */
 const FULL_BUILD_STEP_DELAY_MS = 150;
 const FULL_BUILD_STALL_MS = 5_000;
@@ -540,16 +545,24 @@ function crawlFailed(roomId: string, e: unknown): void {
     console.warn("[eventIndex] crawl page failed", roomId, e);
 }
 
+/** Options for one crawl step. The full build passes its abort signal and a
+ *  hook told which room is about to be fetched; the background crawler passes none. */
+interface CrawlRun {
+    signal?: AbortSignal;
+    onRoom?: (room: Room) => void;
+}
+
 /** Fetch, decrypt and queue one backwards page. `minTs` is the oldest event
  *  on it (indexable or not), null when the page is empty. A `prefetched` page
- *  (taken from native, same token, filter and page size) replaces the request. */
+ *  (taken from native, same token, filter and page size) replaces the request.
+ *  Throws when the request times out or is aborted; returns null when stopped. */
 async function fetchPage(
     s: Session,
     room: Room,
     from: string | null,
     prefetched: TakenPrefetchPage | null = null,
+    signal?: AbortSignal,
 ): Promise<{ end: string | null; minTs: number | null } | null> {
-    lastCrawledRoomId = room.roomId;
     let chunk: RawPageChunk;
     let end: string | null;
     if (prefetched) {
@@ -558,12 +571,16 @@ async function fetchPage(
     } else {
         const filter = new Filter(s.client.getUserId());
         filter.setDefinition(mediaFilterDefinition(true, CRAWL_PAGE_SIZE));
-        const res = await s.client.createMessagesRequest(
-            room.roomId,
-            from,
-            CRAWL_PAGE_SIZE,
-            Direction.Backward,
-            filter,
+        const res = await raceWithTimeout(
+            s.client.createMessagesRequest(
+                room.roomId,
+                from,
+                CRAWL_PAGE_SIZE,
+                Direction.Backward,
+                filter,
+            ),
+            CRAWL_REQUEST_TIMEOUT_MS,
+            signal,
         );
         if (s.stopped) return null;
         chunk = res.chunk ?? [];
@@ -578,13 +595,22 @@ async function fetchPage(
     // module's size for the rest of the session.
     const encrypted = events.filter((e) => e.getType() === "m.room.encrypted");
     for (let i = 0; i < encrypted.length; i += CRAWL_DECRYPT_BATCH) {
-        if (s.stopped) return null;
-        await Promise.all(
-            encrypted
-                .slice(i, i + CRAWL_DECRYPT_BATCH)
-                .map((e) => s.client.decryptEventIfNeeded(e).catch(() => {})),
-        );
+        if (s.stopped || signal?.aborted) return null;
+        // A batch that hangs is left behind after the timeout. Events still
+        // undecrypted are skipped below, since only m.room.message is indexed.
+        await raceWithTimeout(
+            Promise.all(
+                encrypted
+                    .slice(i, i + CRAWL_DECRYPT_BATCH)
+                    .map((e) =>
+                        s.client.decryptEventIfNeeded(e).catch(() => {}),
+                    ),
+            ),
+            CRAWL_DECRYPT_TIMEOUT_MS,
+            signal,
+        ).catch(() => {});
     }
+    if (s.stopped || signal?.aborted) return null;
     let minTs: number | null = null;
     let maxTs: number | null = null;
     for (const e of events) {
@@ -632,7 +658,11 @@ async function crawlState(
 }
 
 /** One page of a gap walk, if some room has a hole up to the present. */
-async function gapStep(s: Session, db: IDBDatabase): Promise<boolean> {
+async function gapStep(
+    s: Session,
+    db: IDBDatabase,
+    run: CrawlRun = {},
+): Promise<boolean> {
     for (const room of crawlCandidates(s.client)) {
         const id = room.roomId;
         if (backingOff(id)) continue;
@@ -649,9 +679,11 @@ async function gapStep(s: Session, db: IDBDatabase): Promise<boolean> {
             walk = { from: null, up: Date.now(), stopAt: newest };
         }
         let page: Awaited<ReturnType<typeof fetchPage>>;
+        run.onRoom?.(room);
         try {
-            page = await fetchPage(s, room, walk.from);
+            page = await fetchPage(s, room, walk.from, null, run.signal);
         } catch (e) {
+            if (run.signal?.aborted) return false;
             crawlFailed(id, e);
             continue;
         }
@@ -691,11 +723,14 @@ export type CrawlStepResult = "server" | "prefetch" | "held" | false;
 async function crawlStep(
     s: Session,
     serverAllowed: boolean,
+    run: CrawlRun = {},
 ): Promise<CrawlStepResult> {
     const db = await s.db;
-    if (serverAllowed && (await gapStep(s, db))) return "server";
+    if (serverAllowed && (await gapStep(s, db, run))) return "server";
+    if (run.signal?.aborted) return false;
     let held = false;
     for (const room of crawlCandidates(s.client)) {
+        if (run.signal?.aborted) return false;
         if (backingOff(room.roomId)) continue;
         const state = await crawlState(db, room.roomId);
         if (state?.done) continue;
@@ -711,9 +746,12 @@ async function crawlStep(
             continue;
         }
         let page: Awaited<ReturnType<typeof fetchPage>>;
+        run.onRoom?.(room);
         try {
-            page = await fetchPage(s, room, from, prefetched);
+            page = await fetchPage(s, room, from, prefetched, run.signal);
         } catch (e) {
+            // An aborted wait is not a room failure: no backoff for it.
+            if (run.signal?.aborted) return false;
             crawlFailed(room.roomId, e);
             continue;
         }
@@ -822,8 +860,9 @@ let fullBuildRunning = false;
 let fullBuildAbort: AbortController | null = null;
 /** Messages newly queued by crawled pages, for the full build's counter. */
 let crawledMessages = 0;
-/** The room the most recent crawled page was for. */
-let lastCrawledRoomId: string | undefined;
+/** Settles once the previous full build has fully stopped. A new build waits
+ *  for it, so a cancelled run's wind-down never overlaps the new run. */
+let fullBuildSettled: Promise<void> = Promise.resolve();
 
 /** Resolves after `ms`, or as soon as `signal` aborts. */
 function waitOrAbort(ms: number, signal: AbortSignal): Promise<void> {
@@ -861,10 +900,26 @@ async function roomStatus(
  * backfill hold and the hidden page, pauses while sync is stale, and stops
  * when storage is tight. Resolves when every room is done (complete), when
  * some rooms are still failing or backing off (partial), or when stopped.
- * Only one build runs at a time, and the background crawler stays idle while
- * it runs.
+ * Only one build runs at a time: a call made while a previous run is still
+ * winding down (after a cancel) waits for it to stop first. The background
+ * crawler stays idle while a build runs.
  */
 export async function buildFullIndex(opts: {
+    signal: AbortSignal;
+    onProgress: (p: FullIndexProgress) => void;
+}): Promise<FullIndexResult> {
+    const prior = fullBuildSettled;
+    let release!: () => void;
+    fullBuildSettled = new Promise<void>((resolve) => (release = resolve));
+    try {
+        await prior;
+        return await runFullBuild(opts);
+    } finally {
+        release();
+    }
+}
+
+async function runFullBuild(opts: {
     signal: AbortSignal;
     onProgress: (p: FullIndexProgress) => void;
 }): Promise<FullIndexResult> {
@@ -874,11 +929,11 @@ export async function buildFullIndex(opts: {
         roomsTotal: 0,
         pages: 0,
         messagesIndexed: 0,
+        waitingForSync: false,
     };
     if (!s || s.stopped) {
         return { reason: "unavailable", progress, failedRooms: 0 };
     }
-    if (fullBuildRunning) throw new Error("full index build already running");
 
     const abort = new AbortController();
     const forward = () => abort.abort();
@@ -891,6 +946,16 @@ export async function buildFullIndex(opts: {
     const emit = () => {
         progress.messagesIndexed = crawledMessages - startMessages;
         opts.onProgress({ ...progress });
+    };
+    // The crawl reports the room before its request goes out, so a hang shows
+    // which room it is stuck on.
+    const run: CrawlRun = {
+        signal: abort.signal,
+        onRoom: (room) => {
+            progress.currentRoomId = room.roomId;
+            progress.currentRoomName = room.name || undefined;
+            emit();
+        },
     };
     let reason: FullIndexReason = "complete";
     let failedRooms = 0;
@@ -911,13 +976,18 @@ export async function buildFullIndex(opts: {
                 reason = "storage";
                 break;
             }
-            if (isSyncStale()) {
+            const stale = isSyncStale();
+            if (stale !== progress.waitingForSync) {
+                progress.waitingForSync = stale;
+                emit();
+            }
+            if (stale) {
                 await waitOrAbort(FULL_BUILD_STALL_MS, abort.signal);
                 continue;
             }
             let more: boolean;
             try {
-                more = (await crawlStep(s, true)) !== false;
+                more = (await crawlStep(s, true, run)) !== false;
                 errors = 0;
             } catch (e) {
                 errors += 1;
@@ -938,7 +1008,6 @@ export async function buildFullIndex(opts: {
             progress.roomsTotal = status.roomsTotal;
             if (more) {
                 progress.pages += 1;
-                progress.currentRoomId = lastCrawledRoomId;
                 emit();
                 await waitOrAbort(FULL_BUILD_STEP_DELAY_MS, abort.signal);
                 continue;

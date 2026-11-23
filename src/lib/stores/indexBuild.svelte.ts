@@ -63,7 +63,27 @@ export function startFullIndexBuild(): void {
         });
 }
 
-/** Ask the running build to stop. It finishes with reason "aborted". */
+/**
+ * Stop the running build. The panel leaves "running" at once, with reason
+ * "aborted"; the cancelled run's late result is then ignored (controller is
+ * cleared). A new run may start right away: buildFullIndex waits for the
+ * cancelled run to wind down before it begins.
+ */
 export function cancelFullIndexBuild(): void {
-    controller?.abort();
+    const ctl = controller;
+    if (!ctl) return;
+    controller = null;
+    ctl.abort();
+    const cur = indexBuild.value;
+    indexBuild.value = {
+        status: "finished",
+        result: {
+            reason: "aborted",
+            progress:
+                cur.status === "running"
+                    ? { ...cur.progress }
+                    : { ...EMPTY_PROGRESS },
+            failedRooms: 0,
+        },
+    };
 }

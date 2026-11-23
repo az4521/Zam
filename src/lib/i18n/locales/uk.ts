@@ -707,6 +707,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.searchIndexBar": "Прогрес повного індексу",
     "debugSettings.searchIndexProgress":
         "{done} / {total} кімнат, {messages} повідомлень",
+    "debugSettings.searchIndexPages": "Завантажено сторінок: {pages}",
+    "debugSettings.searchIndexCurrentRoom": "Індексується: {room}",
+    "debugSettings.searchIndexWaitingSync": "Очікування синхронізації",
     "debugSettings.searchIndexComplete":
         "Готово: усі зашифровані кімнати проіндексовано.",
     "debugSettings.searchIndexPartial":

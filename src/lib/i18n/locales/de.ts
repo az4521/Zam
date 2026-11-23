@@ -665,6 +665,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.searchIndexBar": "Fortschritt des vollständigen Index",
     "debugSettings.searchIndexProgress":
         "{done} / {total} Räume, {messages} Nachrichten",
+    "debugSettings.searchIndexPages": "{pages} Seiten geladen",
+    "debugSettings.searchIndexCurrentRoom": "Indexiere: {room}",
+    "debugSettings.searchIndexWaitingSync":
+        "Warten, bis die Synchronisierung aufgeholt hat",
     "debugSettings.searchIndexComplete":
         "Fertig: Alle verschlüsselten Räume sind indiziert.",
     "debugSettings.searchIndexPartial":
