@@ -22,40 +22,136 @@ import { readId, readSize } from "./webmProbe";
  * keyframe) still leaves `t` buffered.
  */
 
+/**
+ * One piece of a refill: bytes already in memory, or bytes still in cold
+ * storage, read when the SourceBuffer queue reaches them (see AppendQueue).
+ */
+export type RefillPart =
+    { buffer: ArrayBuffer } | { read: () => Promise<ArrayBuffer> };
+
 /** What to append to a SourceBuffer that was emptied, in order. */
 export type Refill = Array<
-    { buffer: ArrayBuffer } | { reset: true; timestampOffset?: number }
+    RefillPart | { reset: true; timestampOffset?: number }
 >;
 
-/** Every chunk of a byte stream, addressable by absolute offset. */
-class ByteLog {
-    private chunks: ArrayBuffer[] = [];
-    private starts: number[] = [];
+/**
+ * Bytes a log keeps as ArrayBuffers in the JS heap. Past this, the oldest
+ * chunks are batched into a Blob (Chromium spills large Blobs to disk), so a
+ * long download costs a bounded amount of heap however much it is seeked.
+ */
+export const HOT_BYTES = 48 * 1024 * 1024;
+
+/** A flush moves the oldest chunks until this much is hot again, so each
+ *  batch is tens of MB rather than one chunk. */
+const HOT_KEEP_BYTES = 24 * 1024 * 1024;
+
+interface HotChunk {
+    start: number;
+    buffer: ArrayBuffer;
+}
+
+interface ColdBatch {
+    /** Absolute offsets covered: [start, end). */
+    start: number;
+    end: number;
+    blob: Blob;
+}
+
+/**
+ * Every chunk of a byte stream, addressable by absolute offset. The newest
+ * bytes stay in `hot` (ArrayBuffers, no copies); older ones sit in `cold`
+ * (Blob batches, in order, all before `hot`). See HOT_BYTES.
+ */
+export class ByteLog {
+    private cold: ColdBatch[] = [];
+    private hot: HotChunk[] = [];
+    private hotSize = 0;
+    private released = false;
     length = 0;
 
-    push(chunk: ArrayBuffer) {
-        this.chunks.push(chunk);
-        this.starts.push(this.length);
-        this.length += chunk.byteLength;
+    constructor(
+        private hotCap = HOT_BYTES,
+        private keepCap = Math.min(HOT_KEEP_BYTES, hotCap),
+    ) {}
+
+    /** Bytes currently held as ArrayBuffers. Never above the cap after a push. */
+    get hotBytes(): number {
+        return this.hotSize;
     }
 
-    /** The bytes in [from, to): copies only where a chunk is cut. */
-    range(from: number, to = this.length): ArrayBuffer[] {
-        const out: ArrayBuffer[] = [];
-        for (let i = 0; i < this.chunks.length; i++) {
-            const start = this.starts[i];
-            const end = start + this.chunks[i].byteLength;
-            if (end <= from || start >= to) continue;
-            if (start >= from && end <= to) out.push(this.chunks[i]);
+    push(chunk: ArrayBuffer) {
+        if (this.released) return;
+        this.hot.push({ start: this.length, buffer: chunk });
+        this.length += chunk.byteLength;
+        this.hotSize += chunk.byteLength;
+        if (this.hotSize > this.hotCap) this.flush();
+    }
+
+    /** Move the oldest hot chunks into one Blob, until `keepCap` is left. */
+    private flush() {
+        let remaining = this.hotSize;
+        let n = 0;
+        while (n < this.hot.length && remaining > this.keepCap) {
+            remaining -= this.hot[n].buffer.byteLength;
+            n++;
+        }
+        const moved = this.hot.splice(0, n);
+        const start = moved[0].start;
+        const end = start + (this.hotSize - remaining);
+        // The Blob constructor copies the bytes now; the ArrayBuffers are
+        // unreferenced from here on.
+        this.cold.push({
+            start,
+            end,
+            blob: new Blob(moved.map((c) => c.buffer)),
+        });
+        this.hotSize = remaining;
+    }
+
+    /**
+     * What covers [from, to), in order, without reading cold storage: hot
+     * pieces by reference (copies only where a chunk is cut), and one lazy
+     * read per cold batch.
+     */
+    plan(from = 0, to = this.length): RefillPart[] {
+        const out: RefillPart[] = [];
+        for (const c of this.cold) {
+            if (c.end <= from || c.start >= to) continue;
+            const a = Math.max(from, c.start) - c.start;
+            const b = Math.min(to, c.end) - c.start;
+            const blob = c.blob;
+            out.push({ read: () => blob.slice(a, b).arrayBuffer() });
+        }
+        for (const c of this.hot) {
+            const end = c.start + c.buffer.byteLength;
+            if (end <= from || c.start >= to) continue;
+            if (c.start >= from && end <= to) out.push({ buffer: c.buffer });
             else
-                out.push(
-                    this.chunks[i].slice(
-                        Math.max(from, start) - start,
-                        Math.min(to, end) - start,
+                out.push({
+                    buffer: c.buffer.slice(
+                        Math.max(from, c.start) - c.start,
+                        Math.min(to, end) - c.start,
                     ),
-                );
+                });
         }
         return out;
+    }
+
+    /** The bytes in [from, to), reading cold storage as needed. */
+    async range(from = 0, to = this.length): Promise<ArrayBuffer[]> {
+        return Promise.all(
+            this.plan(from, to).map((p) =>
+                "buffer" in p ? p.buffer : p.read(),
+            ),
+        );
+    }
+
+    /** Drop every reference, hot and cold. The log stops accepting bytes. */
+    release() {
+        this.released = true;
+        this.cold = [];
+        this.hot = [];
+        this.hotSize = 0;
     }
 }
 
@@ -204,28 +300,42 @@ export function fragmentTimes(
 
 /** Fragments of one fMP4 track, as appended. See the file header. */
 export class FragmentLog {
-    private buffers: ArrayBuffer[] = [];
+    private log: ByteLog;
+    /** Where each fragment starts in `log`. */
+    private starts: number[] = [];
     /** When playback can start from each fragment: its first keyframe, or
      *  Infinity when it has none (it can only follow its predecessor). */
     private entries: number[] = [];
 
-    constructor(private timescale: number) {}
+    constructor(
+        private timescale: number,
+        hotCap?: number,
+    ) {
+        this.log = new ByteLog(hotCap);
+    }
 
     add(buffer: ArrayBuffer) {
         const times = fragmentTimes(new Uint8Array(buffer), this.timescale);
-        this.buffers.push(buffer);
+        this.starts.push(this.log.length);
+        this.log.push(buffer);
         this.entries.push(times?.sync ?? Infinity);
     }
 
     from(t: number): Refill | null {
-        if (!this.buffers.length) return null;
+        if (!this.entries.length) return null;
         let k = -1;
         for (let i = 0; i < this.entries.length; i++)
             if (this.entries[i] <= t) k = i;
         // Appending begins one fragment early; anything before its keyframe
         // the browser skips by itself.
         k = Math.max(0, k - 1);
-        return this.buffers.slice(k).map((buffer) => ({ buffer }));
+        return this.log.plan(this.starts[k]);
+    }
+
+    release() {
+        this.log.release();
+        this.starts = [];
+        this.entries = [];
     }
 }
 
@@ -281,9 +391,14 @@ export class WebmIndex {
         return [
             // The parser may be mid-element from the last append.
             { reset: true },
-            ...this.log.range(0, this.headerEnd).map((buffer) => ({ buffer })),
-            ...this.log.range(this.offsets[k]).map((buffer) => ({ buffer })),
+            ...this.log.plan(0, this.headerEnd),
+            ...this.log.plan(this.offsets[k]),
         ];
+    }
+
+    release() {
+        this.broken = true;
+        this.log.release();
     }
 
     private scan() {
@@ -396,9 +511,11 @@ export class Mp3Index {
     private time = 0;
     private offsets: number[] = [];
     private times: number[] = [];
+    private released = false;
 
     push(chunk: ArrayBuffer) {
         this.log.push(chunk);
+        if (this.released) return;
         let bytes = new Uint8Array(chunk);
         if (this.skip > 0) {
             const drop = Math.min(this.skip, bytes.length);
@@ -419,8 +536,15 @@ export class Mp3Index {
         return [
             // The SourceBuffer numbers frames from where it is told to.
             { reset: true, timestampOffset: this.times[k] },
-            ...this.log.range(this.offsets[k]).map((buffer) => ({ buffer })),
+            ...this.log.plan(this.offsets[k]),
         ];
+    }
+
+    release() {
+        this.released = true;
+        this.times = [];
+        this.offsets = [];
+        this.log.release();
     }
 
     private scan() {

@@ -1,14 +1,32 @@
 import { describe, it, expect } from "vitest";
 import { fragment } from "./mkvRemux";
 import {
+    ByteLog,
     FragmentLog,
     fragmentTimes,
+    HOT_BYTES,
     initTimescale,
     Mp3Index,
     mp3Frame,
     WebmIndex,
     type Refill,
 } from "./seekIndex";
+
+// Browsers have Blob.arrayBuffer(); jsdom may not, so read through FileReader.
+if (typeof Blob.prototype.arrayBuffer !== "function") {
+    Object.defineProperty(Blob.prototype, "arrayBuffer", {
+        configurable: true,
+        writable: true,
+        value(this: Blob): Promise<ArrayBuffer> {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as ArrayBuffer);
+                reader.onerror = () => reject(reader.error);
+                reader.readAsArrayBuffer(this);
+            });
+        },
+    });
+}
 
 function concat(parts: ArrayBuffer[]): Uint8Array {
     const out = new Uint8Array(parts.reduce((n, p) => n + p.byteLength, 0));
@@ -20,10 +38,14 @@ function concat(parts: ArrayBuffer[]): Uint8Array {
     return out;
 }
 
-function bytesOf(refill: Refill | null): Uint8Array {
-    return concat(
-        (refill ?? []).flatMap((r) => ("buffer" in r ? [r.buffer] : [])),
-    );
+/** The bytes a refill appends, reading any cold parts. */
+async function bytesOf(refill: Refill | null): Promise<Uint8Array> {
+    const parts: ArrayBuffer[] = [];
+    for (const r of refill ?? []) {
+        if ("buffer" in r) parts.push(r.buffer);
+        else if ("read" in r) parts.push(await r.read());
+    }
+    return concat(parts);
 }
 
 function pushChunked(
@@ -114,7 +136,7 @@ describe("Mp3Index", () => {
         expect(f?.seconds).toBeCloseTo(1152 / 44100, 9);
     });
 
-    it("refills from a frame, telling the SourceBuffer its time", () => {
+    it("refills from a frame, telling the SourceBuffer its time", async () => {
         for (const chunk of [7, 400, 5000, file.length]) {
             const index = new Mp3Index();
             pushChunked(index, file, chunk);
@@ -123,7 +145,7 @@ describe("Mp3Index", () => {
             // Entries every ~0.5 s; one step back from the last at <= 2 s.
             expect(reset.timestampOffset).toBeLessThanOrEqual(1.6);
             expect(reset.timestampOffset).toBeGreaterThan(1);
-            const bytes = bytesOf(refill);
+            const bytes = await bytesOf(refill);
             const frame = (file.length - bytes.length - tag.length) / FRAME;
             expect(Number.isInteger(frame)).toBe(true);
             expect(frame * (1152 / 44100)).toBeCloseTo(
@@ -157,18 +179,142 @@ describe("WebmIndex", () => {
     const clusters = [0, 1000, 2000].map(cluster);
     const file = Uint8Array.from([header, ...clusters].flat());
 
-    it("refills with the header, then from a cluster", () => {
+    it("refills with the header, then from a cluster", async () => {
         for (const chunk of [1, 5, 13, file.length]) {
             const index = new WebmIndex();
             pushChunked(index, file, chunk);
             const refill = index.from(2.5)!;
             expect(refill[0]).toEqual({ reset: true });
-            expect(Array.from(bytesOf(refill))).toEqual(
+            expect(Array.from(await bytesOf(refill))).toEqual(
                 [header, ...clusters.slice(1)].flat(),
             );
-            expect(Array.from(bytesOf(index.from(0.5)))).toEqual(
+            expect(Array.from(await bytesOf(index.from(0.5)))).toEqual(
                 Array.from(file),
             );
         }
+    });
+});
+
+describe("ByteLog", () => {
+    const data = Uint8Array.from(
+        { length: 1000 },
+        (_, i) => (i * 7 + 3) & 0xff,
+    );
+
+    /** `data` pushed in chunks of varying sizes. */
+    function filled(hotCap: number, keepCap: number): ByteLog {
+        const log = new ByteLog(hotCap, keepCap);
+        const sizes = [3, 10, 1, 25, 7, 64];
+        let at = 0;
+        for (let n = 0; at < data.length; n++) {
+            const size = Math.min(sizes[n % sizes.length], data.length - at);
+            log.push(data.slice(at, at + size).buffer);
+            at += size;
+        }
+        return log;
+    }
+
+    it("serves the same bytes across the hot/cold boundary", async () => {
+        const log = filled(100, 50);
+        expect(log.length).toBe(data.length);
+        expect(log.hotBytes).toBeLessThanOrEqual(100);
+        expect(log.plan().some((p) => "read" in p)).toBe(true);
+        expect(Array.from(concat(await log.range()))).toEqual(Array.from(data));
+    });
+
+    it("cuts chunks, cold or hot, at any offset", async () => {
+        const log = filled(100, 50);
+        for (const [a, b] of [
+            [0, 1],
+            [2, 4],
+            [5, 130],
+            [333, 777],
+            [900, 1000],
+            [990, 1000],
+            [500, 500],
+        ]) {
+            expect(Array.from(concat(await log.range(a, b)))).toEqual(
+                Array.from(data.subarray(a, b)),
+            );
+        }
+    });
+
+    it("reads a range entirely in cold storage", async () => {
+        const log = filled(100, 50);
+        const parts = log.plan(0, 20);
+        expect(parts.length).toBeGreaterThan(0);
+        expect(parts.every((p) => "read" in p)).toBe(true);
+        expect(Array.from(concat(await log.range(0, 20)))).toEqual(
+            Array.from(data.subarray(0, 20)),
+        );
+    });
+
+    it("keeps the hot window under its cap after many pushes", () => {
+        const log = new ByteLog(4096, 2048);
+        let total = 0;
+        for (let i = 0; i < 5000; i++) {
+            const size = 1 + ((i * 97) % 700);
+            log.push(new ArrayBuffer(size));
+            total += size;
+            expect(log.hotBytes).toBeLessThanOrEqual(4096);
+        }
+        expect(log.length).toBe(total);
+    });
+
+    it("holds the default cap under HOT_BYTES", () => {
+        const log = new ByteLog();
+        const chunk = 1024 * 1024;
+        for (let i = 0; i < 60; i++) log.push(new ArrayBuffer(chunk));
+        expect(log.length).toBe(60 * chunk);
+        expect(log.hotBytes).toBeLessThanOrEqual(HOT_BYTES);
+        expect(log.hotBytes).toBeGreaterThan(0);
+    });
+
+    it("drops every reference on release", async () => {
+        const log = filled(100, 50);
+        log.release();
+        expect(log.hotBytes).toBe(0);
+        expect(log.plan()).toEqual([]);
+        expect(await log.range()).toEqual([]);
+        log.push(new ArrayBuffer(10));
+        expect(log.plan()).toEqual([]);
+    });
+});
+
+describe("FragmentLog cold storage", () => {
+    it("refills the same fragments whether they are hot or cold", async () => {
+        const frags = [
+            frag(0, [KEY, NON_KEY]),
+            frag(200, [NON_KEY, NON_KEY]),
+            frag(400, [NON_KEY, KEY]),
+            frag(600, [KEY, NON_KEY]),
+            frag(800, [NON_KEY]),
+            frag(1000, [KEY]),
+        ];
+        const hot = new FragmentLog(1000);
+        // Room for about two fragments: the rest go to Blob storage.
+        const cold = new FragmentLog(1000, frags[0].byteLength * 2);
+        for (const f of frags) {
+            hot.add(f);
+            cold.add(f);
+        }
+        expect(cold.from(0.1)?.some((r) => "read" in r)).toBe(true);
+        for (const t of [0, 0.1, 0.55, 0.65, 1.2]) {
+            expect(Array.from(await bytesOf(cold.from(t)))).toEqual(
+                Array.from(await bytesOf(hot.from(t))),
+            );
+        }
+        // Keyframes at 0, 0.5, 0.6: t = 0.55 resumes from 0.5's fragment,
+        // one early.
+        expect(Array.from(await bytesOf(cold.from(0.55)))).toEqual(
+            Array.from(concat(frags.slice(1))),
+        );
+    });
+
+    it("releases its fragments", () => {
+        const log = new FragmentLog(1000, 10);
+        log.add(frag(0, [KEY]));
+        log.release();
+        expect(log.from(0)).toBeNull();
     });
 });

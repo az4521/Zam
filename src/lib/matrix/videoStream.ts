@@ -193,6 +193,9 @@ function interleaved(
 
 type QueuedAppend =
     | { buffer: ArrayBuffer; after?: () => void }
+    /** Bytes still in cold storage (seekIndex.ts): read when reached, so a
+     *  refill never holds more than one cold batch at a time. */
+    | { read: () => Promise<ArrayBuffer> }
     /** Empty the SourceBuffer (see AppendQueue.restart). */
     | { removeAll: true }
     /** Reset the parser, and say where the next generated timestamps start. */
@@ -207,6 +210,8 @@ class AppendQueue {
     private waiters: Array<() => void> = [];
     private retryTimer: ReturnType<typeof setTimeout> | null = null;
     private current: QueuedAppend | null = null;
+    /** The `read` item being loaded; nothing behind it goes out first. */
+    private loading: QueuedAppend | null = null;
 
     constructor(
         private sb: SourceBuffer,
@@ -241,18 +246,22 @@ class AppendQueue {
     restart(items: QueuedAppend[]) {
         if (this.retryTimer) clearTimeout(this.retryTimer);
         this.retryTimer = null;
+        // A read still in flight is superseded: its result is ignored.
+        this.loading = null;
         this.queue = [{ removeAll: true }, ...items];
         this.pump();
     }
 
     dispose() {
         if (this.retryTimer) clearTimeout(this.retryTimer);
+        this.loading = null;
         this.queue = [];
         this.waiters = [];
     }
 
     private pump() {
-        if (this.sb.updating || this.current || this.retryTimer) return;
+        if (this.sb.updating || this.current || this.retryTimer || this.loading)
+            return;
         let next = this.queue[0];
         // A reset completes at once, with no updateend to wait for.
         while (next && "reset" in next) {
@@ -271,6 +280,25 @@ class AppendQueue {
             const waiters = this.waiters;
             this.waiters = [];
             for (const w of waiters) w();
+            return;
+        }
+        if ("read" in next) {
+            const item = next;
+            this.loading = item;
+            item.read().then(
+                (buffer) => {
+                    if (this.loading !== item) return;
+                    this.loading = null;
+                    const i = this.queue.indexOf(item);
+                    if (i >= 0) this.queue[i] = { buffer };
+                    this.pump();
+                },
+                (err) => {
+                    if (this.loading !== item) return;
+                    this.loading = null;
+                    this.fail(err);
+                },
+            );
             return;
         }
         try {
@@ -317,6 +345,8 @@ export function attachAuthedVideo(
     const objectUrls: string[] = [];
     let mp4: ISOFile<AppendQueue, unknown> | null = null;
     const queues: AppendQueue[] = [];
+    /** Byte logs kept for refilling; released on dispose so their Blobs go. */
+    const logs: Array<{ release(): void }> = [];
     const cleanups: Array<() => void> = [];
     let disposed = false;
     let failed = false;
@@ -503,6 +533,7 @@ export function attachAuthedVideo(
             const log = new FragmentLog(
                 initTimescale(new Uint8Array(t.init)) ?? 1,
             );
+            logs.push(log);
             return { sb, q, log, refill: (at: number) => log.from(at) };
         });
         const finish = refillOnSeek(ms, tracks);
@@ -577,6 +608,7 @@ export function attachAuthedVideo(
         const log = new FragmentLog(
             initTimescale(new Uint8Array(track.init)) ?? 1,
         );
+        logs.push(log);
         const finish = refillOnSeek(ms, [
             { sb, q, refill: (t) => log.from(t) },
         ]);
@@ -658,8 +690,13 @@ export function attachAuthedVideo(
         held: ArrayBuffer[],
         mime: string | null,
         ended: boolean,
-        index: { push(b: ArrayBuffer): void; from(t: number): Refill | null },
+        index: {
+            push(b: ArrayBuffer): void;
+            from(t: number): Refill | null;
+            release(): void;
+        },
     ) {
+        logs.push(index);
         if (disposed) return;
         if (!mime || !MediaSource.isTypeSupported(mime)) {
             return playAsBlob(ended ? null : reader, held);
@@ -798,13 +835,14 @@ export function attachAuthedVideo(
             ms.duration = movie.duration / movie.timescale;
         }
 
-        const logs = new Map<AppendQueue, FragmentLog>();
+        const byQueue = new Map<AppendQueue, FragmentLog>();
         const refillable = tracks.map((track, i) => {
             const sb = ms.addSourceBuffer(mimes[i]);
             const q = new AppendQueue(sb, video, fail);
             queues.push(q);
             const log = new FragmentLog(track.timescale);
-            logs.set(q, log);
+            logs.push(log);
+            byQueue.set(q, log);
             file.setSegmentOptions(track.id, q, {
                 nbSamples: SAMPLES_PER_SEGMENT,
             });
@@ -812,7 +850,7 @@ export function attachAuthedVideo(
         });
         const finish = refillOnSeek(ms, refillable);
         file.onSegment = (id, q, buffer, nextSample) => {
-            logs.get(q)?.add(buffer);
+            byQueue.get(q)?.add(buffer);
             q.push({
                 buffer,
                 // Let mp4box drop the source samples once MSE has them: the
@@ -847,6 +885,7 @@ export function attachAuthedVideo(
             abort.abort();
             mp4?.stop();
             for (const q of queues) q.dispose();
+            for (const log of logs) log.release();
             for (const cleanup of cleanups) cleanup();
             // Detach before revoking so the element stops decoding.
             video.pause();
