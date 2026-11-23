@@ -4,6 +4,19 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.2
+
+✨ **New**
+
+- **Open a room widget as a call tile**: from the new call controls button or the Widgets panel, a widget joins the call view like a video stream. It sits in the grid, can be spotlighted or made fullscreen, and closes when the call ends.
+- **GIF picker media setting** in Privacy & Safety: favourite Tenor, GIPHY and KLIPY GIFs load straight from those sites by default, so they keep working when your homeserver's media is slow or down. Choose "Homeserver" to load only the copy saved when you starred them.
+
+🐛 **Fixed**
+
+- **Tenor, GIPHY and KLIPY links in chat load straight from those sites** when link preview media is set to "All", instead of waiting on your homeserver's copy. The homeserver's preview is still used if the site gives nothing.
+- **Widgets such as NeoBoard no longer wait forever**: they now receive the room's events and state.
+- **Every visible GIF in the picker plays** instead of waiting behind off-screen ones, a hovered GIF starts at once, and search results show a still frame while loading.
+
 ## v1.67.1
 
 ✨ **New**
