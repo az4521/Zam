@@ -10938,18 +10938,33 @@ export function hasPowerLevelsEvent(room: Room): boolean {
     return !!state?.getStateEvents("m.room.power_levels", "");
 }
 
+/** Whether the user may send an event of `type` in the room: their effective
+ *  level against the level for that type, falling back to `state_default` for
+ *  state events or `events_default` for message events. With no power-levels
+ *  event loaded yet this says yes, so a room whose state is still arriving
+ *  never hides controls. Note `m.reaction` is never encrypted by the SDK, so
+ *  its own level applies even in encrypted rooms. */
+export function canSendEventType(
+    room: Room,
+    type: string,
+    kind: "message" | "state" = "message",
+): boolean {
+    if (!hasPowerLevelsEvent(room)) return true;
+    const pl = getRoomPowerLevels(room);
+    const fallback = kind === "state" ? pl.state_default : pl.events_default;
+    return getMyPowerLevel(room) >= (pl.events[type] ?? fallback);
+}
+
 /** Whether the user may post messages in the room: their effective level
  *  against the level for the event type the composer actually sends
  *  (`m.room.encrypted` in an encrypted room), falling back to
  *  `events_default`. With no power-levels event loaded yet this says yes, so
  *  a room whose state is still arriving never locks the composer. */
 export function canSendMessages(room: Room): boolean {
-    if (!hasPowerLevelsEvent(room)) return true;
-    const pl = getRoomPowerLevels(room);
     const type = room.hasEncryptionStateEvent()
         ? "m.room.encrypted"
         : "m.room.message";
-    return getMyPowerLevel(room) >= (pl.events[type] ?? pl.events_default);
+    return canSendEventType(room, type);
 }
 
 const roomStateFetches = new Map<string, Promise<void>>();

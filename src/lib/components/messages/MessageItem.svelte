@@ -130,6 +130,7 @@
         getRoomDisplayName,
         getRoomPolicyServer,
         canSendMessages,
+        canSendEventType,
         EventStatus,
     } from "$lib/matrix/client";
     import { isPolicyRefusal } from "$lib/utils/roomPolicy";
@@ -383,6 +384,14 @@
         });
     });
 
+    // Whether the user's level allows adding reactions (m.reaction may be set
+    // above events_default). Gates the react button, the menu entry and the
+    // pill row's add path.
+    const mayReact = $derived.by(() => {
+        void roomsState.roomsTick;
+        return canSendEventType(room, "m.reaction");
+    });
+
     // Reaction emoji picker. Local boolean drives this instance's render; the
     // shared modal slot ("reaction-picker") provides mutual exclusion across
     // messages plus central Escape/back dismissal.
@@ -400,6 +409,7 @@
     $effect(() => () => clearModalIfOwner(slotToken));
 
     function openReactionPicker() {
+        if (!mayReact) return;
         // Claim first — a same-id handover runs the outgoing close.
         slotToken = openModal("reaction-picker", () => {
             showEmojiPicker = false;
@@ -2403,7 +2413,7 @@
     });
     const overflowRows = $derived(
         messageActionsMenu({
-            canReact: eventId.startsWith("$") && !isFailed,
+            canReact: eventId.startsWith("$") && !isFailed && mayReact,
             canReply: true,
             canForward:
                 (eventType === "m.room.message" || eventType === "m.sticker") &&
@@ -3971,7 +3981,7 @@
                 class:flex={bubble.alignOwn}
                 class:justify-end={bubble.alignOwn}
             >
-                <Reactions {eventId} {room} {reactionTick} />
+                <Reactions {eventId} {room} {reactionTick} canAdd={mayReact} />
             </div>
 
             <!-- Failed-send indicator: retry or delete a NOT_SENT local echo -->
@@ -4210,63 +4220,69 @@
                 </button>
             {/if}
             <!-- Add reaction -->
-            <div class="relative">
-                <button
-                    data-message-action
-                    bind:this={reactionBtnEl}
-                    onclick={() => {
-                        if (showEmojiPicker) {
-                            closeModal();
-                        } else {
-                            emojiPickerBelow =
-                                (reactionBtnEl?.getBoundingClientRect().top ??
-                                    400) < 400;
-                            openReactionPicker();
-                        }
-                    }}
-                    class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
-                    title={t("messageItem.addReaction")}
-                    aria-label={t("messageItem.addReaction")}
-                    aria-expanded={showEmojiPicker}
-                >
-                    <svg
-                        class="w-4 h-4"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            fill-rule="evenodd"
-                            d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zM8.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM15.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM6.89 13.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5s-4.31-1.46-5.11-3.5z"
-                        />
-                    </svg>
-                </button>
-                {#if showEmojiPicker && !interfaceState.isTouchscreen}
-                    <div
-                        bind:this={emojiPickerEl}
-                        class={emojiPickerBelow
-                            ? "absolute top-full end-0 mt-1 z-50"
-                            : "absolute bottom-full end-0 mb-1 z-50"}
-                    >
-                        <EmojiPicker
-                            {room}
-                            onSelect={async (emoji) => {
-                                await sendReaction(room.roomId, eventId, emoji);
+            {#if mayReact}
+                <div class="relative">
+                    <button
+                        data-message-action
+                        bind:this={reactionBtnEl}
+                        onclick={() => {
+                            if (showEmojiPicker) {
                                 closeModal();
-                            }}
-                            onSelectCustom={async (emoji) => {
-                                await sendReaction(
-                                    room.roomId,
-                                    eventId,
-                                    emoji.mxcUrl,
-                                    emoji.shortcode,
-                                );
-                                closeModal();
-                            }}
-                            onClose={closeModal}
-                        />
-                    </div>
-                {/if}
-            </div>
+                            } else {
+                                emojiPickerBelow =
+                                    (reactionBtnEl?.getBoundingClientRect()
+                                        .top ?? 400) < 400;
+                                openReactionPicker();
+                            }
+                        }}
+                        class="p-1.5 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors"
+                        title={t("messageItem.addReaction")}
+                        aria-label={t("messageItem.addReaction")}
+                        aria-expanded={showEmojiPicker}
+                    >
+                        <svg
+                            class="w-4 h-4"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                fill-rule="evenodd"
+                                d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zM8.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM15.5 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM6.89 13.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5s-4.31-1.46-5.11-3.5z"
+                            />
+                        </svg>
+                    </button>
+                    {#if showEmojiPicker && !interfaceState.isTouchscreen}
+                        <div
+                            bind:this={emojiPickerEl}
+                            class={emojiPickerBelow
+                                ? "absolute top-full end-0 mt-1 z-50"
+                                : "absolute bottom-full end-0 mb-1 z-50"}
+                        >
+                            <EmojiPicker
+                                {room}
+                                onSelect={async (emoji) => {
+                                    await sendReaction(
+                                        room.roomId,
+                                        eventId,
+                                        emoji,
+                                    );
+                                    closeModal();
+                                }}
+                                onSelectCustom={async (emoji) => {
+                                    await sendReaction(
+                                        room.roomId,
+                                        eventId,
+                                        emoji.mxcUrl,
+                                        emoji.shortcode,
+                                    );
+                                    closeModal();
+                                }}
+                                onClose={closeModal}
+                            />
+                        </div>
+                    {/if}
+                </div>
+            {/if}
             <button
                 data-message-action
                 onclick={() => onReply(event)}

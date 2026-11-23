@@ -94,11 +94,19 @@
         type CanonicalAliasContent,
     } from "$lib/utils/roomAliases";
     import { parseMutePowerLevelInput } from "$lib/utils/mutePowerLevel";
+    import { roomVersionHasImmutableCreators } from "$lib/utils/powerLevels";
     import {
-        effectiveCallJoinLevel,
-        mergeCallJoinLevel,
-        roomVersionHasImmutableCreators,
-    } from "$lib/utils/powerLevels";
+        applyEventsDiff,
+        customEventTypes,
+        eventsMapEqual,
+        isLockedByEncryption,
+        rowState,
+        validateCustomType,
+        visibleEntries,
+        withRowLevel,
+        type CustomTypeError,
+        type PermGroup,
+    } from "$lib/utils/permissionCatalog";
     import { getRoomUpgradeState } from "$lib/utils/roomUpgrade";
     import UserPicker from "$lib/components/ui/UserPicker.svelte";
     import { THREAD_NAME_POWER_LEVEL_KEY } from "$lib/utils/threadName";
@@ -1030,6 +1038,18 @@
     }
 
     // ── Permissions tab ────────────────────────────────────────────────────────
+    const PERM_GROUP_ORDER: PermGroup[] = ["messages", "calls", "room"];
+    const PERM_GROUP_LABEL_KEYS: Record<PermGroup, string> = {
+        messages: "roomSettings.perm.groupMessages",
+        calls: "roomSettings.perm.groupCalls",
+        room: "roomSettings.perm.groupRoom",
+    };
+    const CUSTOM_TYPE_ERROR_KEYS: Record<CustomTypeError, string> = {
+        empty: "roomSettings.perm.customTypeEmpty",
+        invalid: "roomSettings.perm.customTypeInvalid",
+        tooLong: "roomSettings.perm.customTypeTooLong",
+        exists: "roomSettings.perm.customTypeExists",
+    };
     let plBan = $state(untrack(() => pl.ban));
     let plKick = $state(untrack(() => pl.kick));
     let plRedact = $state(untrack(() => pl.redact));
@@ -1038,18 +1058,28 @@
     let plStateDefault = $state(untrack(() => pl.state_default));
     let plUsersDefault = $state(untrack(() => pl.users_default));
     let plThreadName = $state(untrack(() => threadNameLevel));
-    // "Power to join voice/video calls" is not a top-level PL field — it lives in
-    // the `events` map (the three call-member state-event types). The effective
-    // level is the min the user must clear to send ANY of them (absent types fall
-    // back to state_default). On save we merge all three back into the events map.
-    let plCallJoin = $state(
-        untrack(() =>
-            effectiveCallJoinLevel({
-                events: pl.events,
-                state_default: pl.state_default,
-            }),
-        ),
+    // Per-event-type levels (the power-levels `events` map). Catalog rows and
+    // custom types edit this draft; save rebases the edits onto the live map.
+    let plEvents = $state<Record<string, number>>(
+        untrack(() => ({ ...pl.events })),
     );
+    let customTypeDraft = $state("");
+    let customLevelDraft = $state(untrack(() => plEventsDefault));
+    let customError = $state<CustomTypeError | null>(null);
+
+    // Catch-all levels, read from the DRAFT so inherited rows follow live edits.
+    const permDefaults = $derived({
+        events_default: plEventsDefault,
+        state_default: plStateDefault,
+    });
+    const permGroups = $derived(
+        PERM_GROUP_ORDER.map((group) => ({
+            group,
+            entries: visibleEntries(isSpace).filter((e) => e.group === group),
+        })),
+    );
+    const customTypes = $derived(customEventTypes(plEvents));
+
     // Frozen snapshot of the levels the editor was seeded with, so a Save can
     // tell whether the user actually changed anything. Without this guard,
     // saving in a room that has NO m.room.power_levels event would materialize a
@@ -1063,10 +1093,7 @@
         state_default: pl.state_default,
         users_default: pl.users_default,
         threadName: threadNameLevel,
-        callJoin: effectiveCallJoinLevel({
-            events: pl.events,
-            state_default: pl.state_default,
-        }),
+        events: { ...pl.events } as Record<string, number>,
     }));
     // Re-seed once the real levels arrive (see stateLoaded), unless the user has
     // already started editing.
@@ -1082,10 +1109,7 @@
                 state_default: pl.state_default,
                 users_default: pl.users_default,
                 threadName: threadNameLevel,
-                callJoin: effectiveCallJoinLevel({
-                    events: pl.events,
-                    state_default: pl.state_default,
-                }),
+                events: { ...pl.events } as Record<string, number>,
             };
             const untouched =
                 plBan === permInitial.ban &&
@@ -1096,7 +1120,7 @@
                 plStateDefault === permInitial.state_default &&
                 plUsersDefault === permInitial.users_default &&
                 plThreadName === permInitial.threadName &&
-                plCallJoin === permInitial.callJoin;
+                eventsMapEqual(plEvents, permInitial.events);
             if (!untouched) return;
             permInitial = fresh;
             plBan = fresh.ban;
@@ -1107,19 +1131,35 @@
             plStateDefault = fresh.state_default;
             plUsersDefault = fresh.users_default;
             plThreadName = fresh.threadName;
-            plCallJoin = fresh.callJoin;
+            plEvents = { ...fresh.events };
         });
     });
     let permSaving = $state(false);
     let permError = $state("");
     let permSuccess = $state(false);
 
+    function addCustomType() {
+        const err = validateCustomType(customTypeDraft, plEvents);
+        customError = err;
+        if (err) return;
+        plEvents = { ...plEvents, [customTypeDraft.trim()]: customLevelDraft };
+        customTypeDraft = "";
+        customLevelDraft = plEventsDefault;
+        customError = null;
+    }
+
+    function removeCustomType(type: string) {
+        const next = { ...plEvents };
+        delete next[type];
+        plEvents = next;
+    }
+
     async function savePermissions() {
         permError = "";
         // No-op save guard: if nothing changed, don't write a PL event (which,
         // in a room with none, would create one from the defaults).
-        const callJoinChanged = plCallJoin !== permInitial.callJoin;
         const threadNameChanged = plThreadName !== permInitial.threadName;
+        const eventsChanged = !eventsMapEqual(plEvents, permInitial.events);
         const changed =
             plBan !== permInitial.ban ||
             plKick !== permInitial.kick ||
@@ -1129,7 +1169,7 @@
             plStateDefault !== permInitial.state_default ||
             plUsersDefault !== permInitial.users_default ||
             threadNameChanged ||
-            callJoinChanged;
+            eventsChanged;
         if (!changed) {
             permSuccess = true;
             setTimeout(() => (permSuccess = false), 2000);
@@ -1146,20 +1186,31 @@
                 state_default: plStateDefault,
                 users_default: plUsersDefault,
             };
-            // Only touch the events map when the call-join level actually
-            // changed, so a normal permissions save never materializes the three
-            // call-member types into a room that inherited state_default. Merge
-            // into the LIVE events map (pl is roomsTick-derived) to preserve every
-            // other event-type override — setRoomPowerLevels replaces `events`
-            // wholesale, so we must pass the full merged object, not a partial.
-            if (callJoinChanged) {
-                updated.events = mergeCallJoinLevel(pl.events, plCallJoin);
-            }
+            // setRoomPowerLevels replaces `events` wholesale, so the edits are
+            // rebased onto the LIVE map (pl is roomsTick-derived) to keep every
+            // type the user did not touch.
+            const savedEvents = eventsChanged
+                ? applyEventsDiff(permInitial.events, plEvents, pl.events)
+                : null;
+            if (savedEvents) updated.events = savedEvents;
             // Likewise: most rooms inherit the default and never carry this key.
             if (threadNameChanged) {
                 updated[THREAD_NAME_POWER_LEVEL_KEY] = plThreadName;
             }
             await setRoomPowerLevels(room, updated);
+            if (savedEvents) plEvents = savedEvents;
+            // Re-baseline on success so a second save is a no-op.
+            permInitial = {
+                ban: plBan,
+                kick: plKick,
+                redact: plRedact,
+                invite: plInvite,
+                events_default: plEventsDefault,
+                state_default: plStateDefault,
+                users_default: plUsersDefault,
+                threadName: plThreadName,
+                events: { ...plEvents },
+            };
             permSuccess = true;
             setTimeout(() => (permSuccess = false), 2000);
         } catch (e: any) {
@@ -2858,6 +2909,65 @@
                         <!-- ── Permissions ─────────────────────────────────────── -->
                     {:else if activeTab === "permissions"}
                         <div class="space-y-4">
+                            {#snippet levelInput(
+                                value: number,
+                                onChange: (v: number) => void,
+                                disabled: boolean,
+                            )}
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    {value}
+                                    oninput={(e) =>
+                                        onChange(
+                                            Number(
+                                                (e.target as HTMLInputElement)
+                                                    .value,
+                                            ),
+                                        )}
+                                    {disabled}
+                                    class="w-16 bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-zam-accent/50 text-center disabled:opacity-50"
+                                />
+                            {/snippet}
+                            {#snippet scalarRow(
+                                label: string,
+                                value: number,
+                                onChange: (v: number) => void,
+                                hint: string | null,
+                            )}
+                                <div class="space-y-1">
+                                    <div
+                                        class="flex flex-wrap items-center gap-x-3 gap-y-2"
+                                    >
+                                        <span
+                                            class="text-sm text-zam-textPrimary"
+                                            >{label}</span
+                                        >
+                                        <div
+                                            class="ml-auto flex items-center gap-2"
+                                        >
+                                            {@render levelInput(
+                                                value,
+                                                onChange,
+                                                !canEditState,
+                                            )}
+                                            <span
+                                                class="text-xs text-zam-textMuted w-16"
+                                                >{plLabel(value)}</span
+                                            >
+                                        </div>
+                                    </div>
+                                    {#if hint}
+                                        <p
+                                            class="text-[11px] text-zam-textMuted"
+                                        >
+                                            {hint}
+                                        </p>
+                                    {/if}
+                                </div>
+                            {/snippet}
+
                             <p class="text-xs text-zam-textMuted">
                                 {t(
                                     "roomSettings.powerLevelRequiredForEachAction",
@@ -2866,81 +2976,301 @@
                             {#if !stateLoaded}
                                 {@render stateLoading()}
                             {:else}
-                                {#each [["Send messages", "plEventsDefault"], ["Change room settings", "plStateDefault"], ["Default member level", "plUsersDefault"], ["Invite members", "plInvite"], ["Kick members", "plKick"], ["Ban members", "plBan"], ["Redact messages", "plRedact"], ...(isSpace ? [] : [[t("roomSettings.nameAnyThread"), "plThreadName"]])] as [label, key]}
-                                    {@const bindings: Record<string, any> = { plEventsDefault, plStateDefault, plUsersDefault, plInvite, plKick, plBan, plRedact, plThreadName }}
-                                    {@const setters: Record<string, (v: number) => void> = {
-								plEventsDefault: (v) => plEventsDefault = v,
-								plStateDefault: (v) => plStateDefault = v,
-								plUsersDefault: (v) => plUsersDefault = v,
-								plInvite: (v) => plInvite = v,
-								plKick: (v) => plKick = v,
-								plBan: (v) => plBan = v,
-								plRedact: (v) => plRedact = v,
-								plThreadName: (v) => plThreadName = v,
-							}}
-                                    <div
-                                        class="flex items-center justify-between gap-4"
+                                {#if encrypted && !isSpace}
+                                    <p
+                                        class="text-xs text-zam-textMuted italic"
                                     >
-                                        <span
-                                            class="text-sm text-zam-textPrimary"
-                                            >{label}</span
-                                        >
-                                        <div class="flex items-center gap-2">
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                max="100"
-                                                value={bindings[key]}
-                                                oninput={(e) =>
-                                                    setters[key](
-                                                        Number(
-                                                            (
-                                                                e.target as HTMLInputElement
-                                                            ).value,
-                                                        ),
-                                                    )}
-                                                disabled={!canEditState}
-                                                class="w-16 bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-zam-accent/50 text-center disabled:opacity-50"
-                                            />
-                                            <span
-                                                class="text-xs text-zam-textMuted w-16"
-                                                >{plLabel(bindings[key])}</span
+                                        {t("roomSettings.perm.encryptedNote")}
+                                    </p>
+                                {/if}
+
+                                {#each permGroups as { group, entries } (group)}
+                                    {#if entries.length > 0}
+                                        <div class="space-y-3">
+                                            <h4
+                                                class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                                             >
+                                                {t(
+                                                    PERM_GROUP_LABEL_KEYS[
+                                                        group
+                                                    ] as any,
+                                                )}
+                                            </h4>
+                                            {#each entries as entry (entry.id)}
+                                                {@const rs = rowState(
+                                                    plEvents,
+                                                    entry,
+                                                    permDefaults,
+                                                )}
+                                                {@const locked =
+                                                    isLockedByEncryption(
+                                                        entry,
+                                                        encrypted,
+                                                    )}
+                                                <div class="space-y-1">
+                                                    <div
+                                                        class="flex flex-wrap items-center gap-x-3 gap-y-2"
+                                                        class:opacity-60={locked}
+                                                    >
+                                                        <span
+                                                            class="text-sm text-zam-textPrimary"
+                                                            title={entry.types
+                                                                .map(
+                                                                    ([type]) =>
+                                                                        type,
+                                                                )
+                                                                .join(", ")}
+                                                            >{t(
+                                                                entry.labelKey as any,
+                                                            )}</span
+                                                        >
+                                                        {#if !locked}
+                                                            {#if rs.inherited}
+                                                                <span
+                                                                    class="text-[11px] text-zam-textMuted"
+                                                                    >{t(
+                                                                        "roomSettings.perm.inherited",
+                                                                    )}</span
+                                                                >
+                                                            {/if}
+                                                            {#if rs.mixed}
+                                                                <span
+                                                                    class="text-[11px] text-zam-textMuted italic"
+                                                                    title={t(
+                                                                        "roomSettings.perm.mixedHint",
+                                                                    )}
+                                                                    >{t(
+                                                                        "roomSettings.perm.mixed",
+                                                                    )}</span
+                                                                >
+                                                            {/if}
+                                                            {#if !rs.inherited && canEditState}
+                                                                <button
+                                                                    type="button"
+                                                                    class="text-[11px] text-zam-accent hover:underline"
+                                                                    onclick={() =>
+                                                                        (plEvents =
+                                                                            withRowLevel(
+                                                                                plEvents,
+                                                                                entry,
+                                                                                null,
+                                                                            ))}
+                                                                    >{t(
+                                                                        "roomSettings.perm.useDefault",
+                                                                    )}</button
+                                                                >
+                                                            {/if}
+                                                        {/if}
+                                                        <div
+                                                            class="ml-auto flex items-center gap-2"
+                                                        >
+                                                            {@render levelInput(
+                                                                rs.level,
+                                                                (v) =>
+                                                                    (plEvents =
+                                                                        withRowLevel(
+                                                                            plEvents,
+                                                                            entry,
+                                                                            v,
+                                                                        )),
+                                                                !canEditState ||
+                                                                    locked,
+                                                            )}
+                                                            <span
+                                                                class="text-xs text-zam-textMuted w-16"
+                                                                >{plLabel(
+                                                                    rs.level,
+                                                                )}</span
+                                                            >
+                                                        </div>
+                                                    </div>
+                                                    {#if locked}
+                                                        <p
+                                                            class="text-[11px] text-zam-textMuted"
+                                                        >
+                                                            {t(
+                                                                "roomSettings.perm.encryptedLocked",
+                                                            )}
+                                                        </p>
+                                                    {/if}
+                                                </div>
+                                            {/each}
                                         </div>
-                                    </div>
+                                    {/if}
                                 {/each}
 
-                                <!-- Call-join lives in the events map (3 call-member
-                            types), not a top-level PL field, so it sits outside
-                            the scalar loop above and binds to plCallJoin. -->
-                                <div
-                                    class="flex items-center justify-between gap-4"
-                                >
-                                    <span class="text-sm text-zam-textPrimary"
-                                        >{t(
-                                            "roomSettings.joinCallsVoiceVideo",
-                                        )}</span
+                                <div class="space-y-3">
+                                    <h4
+                                        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
                                     >
-                                    <div class="flex items-center gap-2">
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            max="100"
-                                            value={plCallJoin}
-                                            oninput={(e) =>
-                                                (plCallJoin = Number(
-                                                    (
-                                                        e.target as HTMLInputElement
-                                                    ).value,
-                                                ))}
-                                            disabled={!canEditState}
-                                            class="w-16 bg-zam-backgroundTertiary text-zam-textPrimary text-sm rounded px-2 py-1 outline-none border border-transparent focus:border-zam-accent/50 text-center disabled:opacity-50"
-                                        />
-                                        <span
-                                            class="text-xs text-zam-textMuted w-16"
-                                            >{plLabel(plCallJoin)}</span
+                                        {t("roomSettings.perm.groupModeration")}
+                                    </h4>
+                                    {@render scalarRow(
+                                        t("roomSettings.perm.invite"),
+                                        plInvite,
+                                        (v) => (plInvite = v),
+                                        null,
+                                    )}
+                                    {@render scalarRow(
+                                        t("roomSettings.perm.kick"),
+                                        plKick,
+                                        (v) => (plKick = v),
+                                        null,
+                                    )}
+                                    {@render scalarRow(
+                                        t("roomSettings.perm.ban"),
+                                        plBan,
+                                        (v) => (plBan = v),
+                                        null,
+                                    )}
+                                    {@render scalarRow(
+                                        t("roomSettings.perm.redactOthers"),
+                                        plRedact,
+                                        (v) => (plRedact = v),
+                                        null,
+                                    )}
+                                    {@render scalarRow(
+                                        t("roomSettings.perm.usersDefault"),
+                                        plUsersDefault,
+                                        (v) => (plUsersDefault = v),
+                                        null,
+                                    )}
+                                    {#if !isSpace}
+                                        {@render scalarRow(
+                                            t("roomSettings.nameAnyThread"),
+                                            plThreadName,
+                                            (v) => (plThreadName = v),
+                                            null,
+                                        )}
+                                    {/if}
+                                </div>
+
+                                <div class="space-y-3">
+                                    <h4
+                                        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
+                                    >
+                                        {t("roomSettings.perm.groupDefaults")}
+                                    </h4>
+                                    {@render scalarRow(
+                                        t("roomSettings.perm.eventsDefault"),
+                                        plEventsDefault,
+                                        (v) => (plEventsDefault = v),
+                                        t(
+                                            "roomSettings.perm.eventsDefaultHint",
+                                        ),
+                                    )}
+                                    {@render scalarRow(
+                                        t("roomSettings.perm.stateDefault"),
+                                        plStateDefault,
+                                        (v) => (plStateDefault = v),
+                                        t("roomSettings.perm.stateDefaultHint"),
+                                    )}
+                                </div>
+
+                                <div class="space-y-3">
+                                    <h4
+                                        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
+                                    >
+                                        {t("roomSettings.perm.groupCustom")}
+                                    </h4>
+                                    <p class="text-xs text-zam-textMuted">
+                                        {t("roomSettings.perm.customHint")}
+                                    </p>
+                                    {#each customTypes as type (type)}
+                                        <div
+                                            class="flex flex-wrap items-center gap-x-3 gap-y-2"
                                         >
-                                    </div>
+                                            <span
+                                                class="font-mono text-xs text-zam-textPrimary break-all min-w-0"
+                                                >{type}</span
+                                            >
+                                            <div
+                                                class="ml-auto flex items-center gap-2"
+                                            >
+                                                {@render levelInput(
+                                                    plEvents[type],
+                                                    (v) =>
+                                                        (plEvents = {
+                                                            ...plEvents,
+                                                            [type]: v,
+                                                        }),
+                                                    !canEditState,
+                                                )}
+                                                <span
+                                                    class="text-xs text-zam-textMuted w-16"
+                                                    >{plLabel(
+                                                        plEvents[type],
+                                                    )}</span
+                                                >
+                                                {#if canEditState}
+                                                    <button
+                                                        type="button"
+                                                        class="text-[11px] text-zam-textMuted hover:text-zam-danger hover:underline"
+                                                        onclick={() =>
+                                                            removeCustomType(
+                                                                type,
+                                                            )}
+                                                        >{t(
+                                                            "roomSettings.perm.removeCustom",
+                                                        )}</button
+                                                    >
+                                                {/if}
+                                            </div>
+                                        </div>
+                                    {/each}
+                                    {#if canEditState}
+                                        <div class="space-y-1">
+                                            <div
+                                                class="flex flex-wrap items-center gap-2"
+                                            >
+                                                <input
+                                                    type="text"
+                                                    value={customTypeDraft}
+                                                    placeholder={t(
+                                                        "roomSettings.perm.customTypePlaceholder",
+                                                    )}
+                                                    oninput={(e) => {
+                                                        customTypeDraft = (
+                                                            e.target as HTMLInputElement
+                                                        ).value;
+                                                        customError = null;
+                                                    }}
+                                                    onkeydown={(e) => {
+                                                        if (e.key === "Enter") {
+                                                            e.preventDefault();
+                                                            addCustomType();
+                                                        }
+                                                    }}
+                                                    class="flex-1 min-w-0 font-mono text-sm bg-zam-backgroundTertiary text-zam-textPrimary rounded px-2 py-1 outline-none border border-transparent focus:border-zam-accent/50"
+                                                />
+                                                {@render levelInput(
+                                                    customLevelDraft,
+                                                    (v) =>
+                                                        (customLevelDraft = v),
+                                                    false,
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onclick={addCustomType}
+                                                    class="px-3 py-1 bg-zam-backgroundTertiary hover:bg-zam-accent/20 text-zam-textPrimary text-sm rounded transition-colors"
+                                                    >{t(
+                                                        "roomSettings.perm.addCustom",
+                                                    )}</button
+                                                >
+                                            </div>
+                                            {#if customError}
+                                                <p
+                                                    class="text-xs text-zam-danger"
+                                                >
+                                                    {t(
+                                                        CUSTOM_TYPE_ERROR_KEYS[
+                                                            customError
+                                                        ] as any,
+                                                    )}
+                                                </p>
+                                            {/if}
+                                        </div>
+                                    {/if}
                                 </div>
 
                                 {#if permError}<p

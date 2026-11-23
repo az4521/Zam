@@ -116,7 +116,7 @@ describe("RoomSettings: thread name level", () => {
 
     it("isn't offered in a space, which has no threads", async () => {
         await openPermissions(true);
-        expect(levelInput("Redact messages")).not.toBeNull();
+        expect(levelInput("Delete others' messages")).not.toBeNull();
         expect(levelInput(ROW)).toBeNull();
     });
 
@@ -132,7 +132,7 @@ describe("RoomSettings: thread name level", () => {
 
     it("doesn't add the key when only another level changed", async () => {
         await openPermissions();
-        setLevel("Redact messages", 75);
+        setLevel("Delete others' messages", 75);
         await save();
         expect(setRoomPowerLevels).toHaveBeenCalledOnce();
         expect(setRoomPowerLevels.mock.calls[0][1]).toMatchObject({

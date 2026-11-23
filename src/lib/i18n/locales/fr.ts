@@ -2264,6 +2264,78 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Niveau de pouvoir requis pour chaque action (0–100).",
     "roomSettings.nameAnyThread": "Nommer n'importe quel fil",
     "roomSettings.joinCallsVoiceVideo": "Rejoindre les appels (voix/vidéo)",
+    "roomSettings.perm.groupMessages": "Messages",
+    "roomSettings.perm.groupCalls": "Appels et localisation",
+    "roomSettings.perm.groupRoom": "Paramètres du salon",
+    "roomSettings.perm.groupModeration": "Membres et modération",
+    "roomSettings.perm.groupDefaults": "Valeurs par défaut globales",
+    "roomSettings.perm.groupCustom": "Types d'événements personnalisés",
+    "roomSettings.perm.sendMessages": "Envoyer des messages",
+    "roomSettings.perm.sendStickers": "Envoyer des autocollants",
+    "roomSettings.perm.react": "Ajouter des réactions",
+    "roomSettings.perm.redactOwn":
+        "Supprimer ses propres messages et réactions",
+    "roomSettings.perm.createPolls": "Créer des sondages",
+    "roomSettings.perm.votePolls": "Voter aux sondages",
+    "roomSettings.perm.endPolls": "Clôturer des sondages",
+    "roomSettings.perm.nameThreads": "Nommer ses propres fils",
+    "roomSettings.perm.offerFiles":
+        "Proposer des transferts de fichiers directs",
+    "roomSettings.perm.ringCalls":
+        "Faire sonner les membres au lancement d'un appel",
+    "roomSettings.perm.disconnectFromCall":
+        "Déconnecter d'autres personnes des appels",
+    "roomSettings.perm.liveLocation": "Partager sa position en direct",
+    "roomSettings.perm.roomName": "Modifier le nom",
+    "roomSettings.perm.roomTopic": "Modifier le sujet",
+    "roomSettings.perm.roomAvatar": "Modifier l'avatar",
+    "roomSettings.perm.roomAddresses": "Modifier les adresses",
+    "roomSettings.perm.joinRules": "Modifier qui peut rejoindre",
+    "roomSettings.perm.historyVisibility":
+        "Modifier la visibilité de l'historique",
+    "roomSettings.perm.guestAccess": "Modifier l'accès invité",
+    "roomSettings.perm.encryption": "Activer le chiffrement",
+    "roomSettings.perm.powerLevels": "Modifier les autorisations et les rôles",
+    "roomSettings.perm.serverAcl": "Modifier la liste d'accès des serveurs",
+    "roomSettings.perm.pins": "Épingler des messages",
+    "roomSettings.perm.spaceChildren": "Gérer les salons de cet espace",
+    "roomSettings.perm.roleTags": "Modifier les étiquettes de rôle",
+    "roomSettings.perm.widgets": "Gérer les widgets",
+    "roomSettings.perm.emotes": "Gérer les émoticônes et autocollants",
+    "roomSettings.perm.soundboard": "Gérer la soundboard",
+    "roomSettings.perm.upgrade": "Mettre à niveau le salon",
+    "roomSettings.perm.invite": "Inviter des membres",
+    "roomSettings.perm.kick": "Expulser des membres",
+    "roomSettings.perm.ban": "Bannir des membres",
+    "roomSettings.perm.redactOthers": "Supprimer les messages des autres",
+    "roomSettings.perm.usersDefault": "Niveau par défaut des membres",
+    "roomSettings.perm.eventsDefault": "Autres événements",
+    "roomSettings.perm.eventsDefaultHint":
+        "Tout type d'événement hors état qui n'a pas de niveau propre ci-dessus.",
+    "roomSettings.perm.stateDefault": "Autres modifications des paramètres",
+    "roomSettings.perm.stateDefaultHint":
+        "Tout type d'événement d'état qui n'a pas de niveau propre ci-dessus.",
+    "roomSettings.perm.inherited": "par défaut",
+    "roomSettings.perm.mixed": "mixte",
+    "roomSettings.perm.mixedHint":
+        "Ces types d'événements ont des niveaux différents. Modifier ceci les définit tous.",
+    "roomSettings.perm.useDefault": "Utiliser la valeur par défaut",
+    "roomSettings.perm.encryptedLocked":
+        "Chiffré ici, donc cela suit Envoyer des messages.",
+    "roomSettings.perm.encryptedNote":
+        "Ce salon est chiffré. Le serveur ne voit la plupart des messages que sous forme d'événements chiffrés, donc les autocollants, sondages, noms de fils et propositions de fichiers suivent Envoyer des messages. Les réactions et suppressions ne sont pas chiffrées et gardent leurs propres niveaux.",
+    "roomSettings.perm.customHint":
+        "Définissez un niveau pour tout autre type d'événement, par exemple un envoyé par un bot ou un autre client.",
+    "roomSettings.perm.customTypePlaceholder":
+        "Type d'événement, par ex. com.example.event",
+    "roomSettings.perm.addCustom": "Ajouter",
+    "roomSettings.perm.removeCustom": "Supprimer",
+    "roomSettings.perm.customTypeEmpty": "Saisissez un type d'événement",
+    "roomSettings.perm.customTypeInvalid":
+        "Les types d'événements ne peuvent pas contenir d'espaces",
+    "roomSettings.perm.customTypeTooLong": "Ce type d'événement est trop long",
+    "roomSettings.perm.customTypeExists":
+        "Ce type d'événement a déjà un niveau",
     "roomSettings.invite": "Inviter",
     "roomSettings.searchMembers": "Rechercher des membres…",
     "roomSettings.banned": "Bannis ({length})",

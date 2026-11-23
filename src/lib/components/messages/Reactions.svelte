@@ -27,9 +27,12 @@
         eventId: string;
         room: Room;
         reactionTick: number; // reactive counter to force re-read
+        /** Whether the user may add a reaction (m.reaction power level). When
+         *  false, only removing the user's own reactions stays clickable. */
+        canAdd?: boolean;
     }
 
-    let { eventId, room, reactionTick }: Props = $props();
+    let { eventId, room, reactionTick, canAdd = true }: Props = $props();
 
     // Optimistic removals: event IDs of reactions the user has removed, pending server confirmation
     let pendingRemovals = $state(new Set<string>());
@@ -107,6 +110,7 @@
                 console.error("Failed to remove reaction:", err);
             }
         } else {
+            if (!canAdd) return; // power level too low to add a reaction
             try {
                 await sendReaction(
                     room.roomId,
@@ -201,7 +205,8 @@
                 class:bg-zam-backgroundTertiary={!group.isMine}
                 class:border-zam-divider={!group.isMine}
                 class:text-zam-textSecondary={!group.isMine}
-                class:hover:border-zam-accent={!group.isMine}
+                class:hover:border-zam-accent={!group.isMine && canAdd}
+                class:cursor-default={!canAdd && !group.isMine}
                 title={name}
             >
                 {#if imgSrc}

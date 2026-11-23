@@ -2308,6 +2308,78 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Nivel de poder necesario para cada acción (0–100).",
     "roomSettings.nameAnyThread": "Nombrar cualquier hilo",
     "roomSettings.joinCallsVoiceVideo": "Unirse a llamadas (voz/vídeo)",
+    "roomSettings.perm.groupMessages": "Mensajes",
+    "roomSettings.perm.groupCalls": "Llamadas y ubicación",
+    "roomSettings.perm.groupRoom": "Ajustes de la sala",
+    "roomSettings.perm.groupModeration": "Miembros y moderación",
+    "roomSettings.perm.groupDefaults": "Valores predeterminados generales",
+    "roomSettings.perm.groupCustom": "Tipos de evento personalizados",
+    "roomSettings.perm.sendMessages": "Enviar mensajes",
+    "roomSettings.perm.sendStickers": "Enviar stickers",
+    "roomSettings.perm.react": "Añadir reacciones",
+    "roomSettings.perm.redactOwn": "Eliminar mensajes y reacciones propios",
+    "roomSettings.perm.createPolls": "Crear encuestas",
+    "roomSettings.perm.votePolls": "Votar en encuestas",
+    "roomSettings.perm.endPolls": "Cerrar encuestas",
+    "roomSettings.perm.nameThreads": "Nombrar hilos propios",
+    "roomSettings.perm.offerFiles":
+        "Ofrecer transferencias directas de archivos",
+    "roomSettings.perm.ringCalls":
+        "Avisar a los miembros al iniciar una llamada",
+    "roomSettings.perm.disconnectFromCall":
+        "Desconectar a otros de las llamadas",
+    "roomSettings.perm.liveLocation": "Compartir ubicación en vivo",
+    "roomSettings.perm.roomName": "Cambiar el nombre",
+    "roomSettings.perm.roomTopic": "Cambiar el tema",
+    "roomSettings.perm.roomAvatar": "Cambiar el avatar",
+    "roomSettings.perm.roomAddresses": "Cambiar las direcciones",
+    "roomSettings.perm.joinRules": "Cambiar quién puede unirse",
+    "roomSettings.perm.historyVisibility":
+        "Cambiar la visibilidad del historial",
+    "roomSettings.perm.guestAccess": "Cambiar el acceso de invitados",
+    "roomSettings.perm.encryption": "Activar el cifrado",
+    "roomSettings.perm.powerLevels": "Cambiar permisos y roles",
+    "roomSettings.perm.serverAcl": "Cambiar la lista de acceso de servidores",
+    "roomSettings.perm.pins": "Fijar mensajes",
+    "roomSettings.perm.spaceChildren": "Gestionar las salas de este espacio",
+    "roomSettings.perm.roleTags": "Editar etiquetas de rol",
+    "roomSettings.perm.widgets": "Gestionar widgets",
+    "roomSettings.perm.emotes": "Gestionar emojis y stickers",
+    "roomSettings.perm.soundboard": "Gestionar soundboard",
+    "roomSettings.perm.upgrade": "Actualizar la sala",
+    "roomSettings.perm.invite": "Invitar miembros",
+    "roomSettings.perm.kick": "Expulsar miembros",
+    "roomSettings.perm.ban": "Vetar miembros",
+    "roomSettings.perm.redactOthers": "Eliminar mensajes de otros",
+    "roomSettings.perm.usersDefault": "Nivel predeterminado de miembro",
+    "roomSettings.perm.eventsDefault": "Otros eventos",
+    "roomSettings.perm.eventsDefaultHint":
+        "Cualquier tipo de evento que no sea de estado y no tenga nivel propio arriba.",
+    "roomSettings.perm.stateDefault": "Otros cambios de ajustes",
+    "roomSettings.perm.stateDefaultHint":
+        "Cualquier tipo de evento de estado que no tenga nivel propio arriba.",
+    "roomSettings.perm.inherited": "predeterminado",
+    "roomSettings.perm.mixed": "mixto",
+    "roomSettings.perm.mixedHint":
+        "Estos tipos de evento tienen niveles distintos. Cambiar esto los establece todos.",
+    "roomSettings.perm.useDefault": "Usar predeterminado",
+    "roomSettings.perm.encryptedLocked":
+        "Cifrado aquí, así que sigue a Enviar mensajes.",
+    "roomSettings.perm.encryptedNote":
+        "Esta sala está cifrada. El servidor ve la mayoría de los mensajes solo como eventos cifrados, así que los stickers, las encuestas, los nombres de hilos y las ofertas de archivos siguen a Enviar mensajes. Las reacciones y las eliminaciones no están cifradas y mantienen sus propios niveles.",
+    "roomSettings.perm.customHint":
+        "Asigna un nivel a cualquier otro tipo de evento, por ejemplo uno que envíe un bot u otro cliente.",
+    "roomSettings.perm.customTypePlaceholder":
+        "Tipo de evento, p. ej. com.example.event",
+    "roomSettings.perm.addCustom": "Añadir",
+    "roomSettings.perm.removeCustom": "Quitar",
+    "roomSettings.perm.customTypeEmpty": "Introduce un tipo de evento",
+    "roomSettings.perm.customTypeInvalid":
+        "Los tipos de evento no pueden contener espacios",
+    "roomSettings.perm.customTypeTooLong":
+        "Ese tipo de evento es demasiado largo",
+    "roomSettings.perm.customTypeExists":
+        "Ese tipo de evento ya tiene un nivel",
     "roomSettings.invite": "Invitar",
     "roomSettings.searchMembers": "Buscar miembros…",
     "roomSettings.banned": "Vetados ({length})",
