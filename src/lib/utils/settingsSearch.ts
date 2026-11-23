@@ -406,6 +406,12 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
     // privacy (notification privacy)
     {
         tab: "privacy",
+        label: t("inviteBlocking.blockAllInvites"),
+        keywords: ["invite", "invites", "block", "spam", "privacy"],
+        anchor: "block-invites",
+    },
+    {
+        tab: "privacy",
         label: t("settingsSearch.privateReadReceipts"),
         keywords: ["hide read status", "privacy"],
         anchor: "notif-privacy",

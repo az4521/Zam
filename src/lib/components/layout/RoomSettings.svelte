@@ -1,11 +1,14 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
+    import { isInviteBlockedError } from "$lib/utils/inviteBlocking";
     import type { Room, RoomMember } from "matrix-js-sdk";
     import { tick, untrack } from "svelte";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import { pluginMount } from "$lib/plugins/pluginMount";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import InvitePanel from "./InvitePanel.svelte";
+    import RoomAuditLog from "./RoomAuditLog.svelte";
+    import NicknameSection from "./NicknameSection.svelte";
     import ImagePackEditor from "./ImagePackEditor.svelte";
     import SoundPackEditor from "$lib/components/settings/SoundPackEditor.svelte";
     import {
@@ -211,6 +214,7 @@
             isSpace,
             selectedTab,
             pluginTabs,
+            auditLog: canViewAuditLog(),
         }),
     );
 
@@ -480,6 +484,11 @@
     );
     const canKick = $derived(myPowerLevel >= pl.kick);
     const canBan = $derived(myPowerLevel >= pl.ban);
+    // Audit log: visible from the room's kick or ban level, whichever is lower.
+    // Gated on loaded state so the zero fallback levels cannot show it early.
+    function canViewAuditLog(): boolean {
+        return stateLoaded && myPowerLevel >= Math.min(pl.kick, pl.ban);
+    }
 
     // ── Members tab: inline invite ─────────────────────────────────────────────
     let showInvite = $state(false);
@@ -1262,7 +1271,9 @@
         try {
             await inviteUser(room.roomId, userId);
         } catch (e: any) {
-            memberError = e?.message ?? t("roomSettings.failed");
+            memberError = isInviteBlockedError(e)
+                ? t("inviteBlocking.userNotAccepting", { user: userId })
+                : (e?.message ?? t("roomSettings.failed"));
         } finally {
             memberActionPending = null;
         }
@@ -1674,7 +1685,9 @@
         }
     }
 
-    const tabs = $derived(roomSettingsTabs({ isSpace, pluginTabs }));
+    const tabs = $derived(
+        roomSettingsTabs({ isSpace, pluginTabs, auditLog: canViewAuditLog() }),
+    );
 </script>
 
 {#snippet stateLoading()}
@@ -1931,6 +1944,7 @@
                                 >
                             {/if}
 
+                            <NicknameSection roomId={room.roomId} {isSpace} />
                             <div
                                 class="pt-4 mt-2 border-t border-zam-backgroundTertiary space-y-3"
                             >
@@ -3692,6 +3706,10 @@
                                 {/if}
                             </div>
                         {/if}
+
+                        <!-- ── Audit log ───────────────────────────────────────── -->
+                    {:else if activeTab === "audit"}
+                        <RoomAuditLog roomId={room.roomId} {isSpace} />
 
                         <!-- ── Rooms (space only) ──────────────────────────────── -->
                     {:else if activeTab === "rooms"}

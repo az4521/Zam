@@ -5,6 +5,7 @@ import {
     type ReactionDetailGroup,
 } from "$lib/utils/reactionDetails";
 import type { SoundPackContent } from "$lib/utils/soundboard";
+import { AUDIT_EVENT_TYPES, type RawAuditEvent } from "$lib/utils/auditLog";
 import type { RecentEmoji } from "$lib/utils/recentEmoji";
 import {
     createClient,
@@ -24,6 +25,7 @@ import {
     UserEvent,
     SetPresence,
     Direction,
+    Filter,
     EventType,
     RoomStateEvent,
     ThreadEvent,
@@ -113,6 +115,7 @@ import {
     installClient,
     matrixClient,
     ownedClient,
+    ownedClientOrThrow,
     readOwner,
     releaseClient,
     retireClientGeneration,
@@ -199,6 +202,11 @@ import {
     snapshotKey,
     type MaterializedCache,
 } from "./roomListCache";
+import {
+    buildEditHistory,
+    type EditHistoryCandidate,
+    type EditVersion,
+} from "$lib/utils/editHistory";
 import { showErrorToast } from "$lib/stores/toasts.svelte";
 import {
     limitWatchingFetch,
@@ -224,6 +232,17 @@ import {
 } from "$lib/stores/settings.svelte";
 import { classifyWellKnown } from "$lib/utils/wellKnown";
 import { hasUnstableFeature } from "$lib/utils/serverCapabilities";
+import {
+    type InviteBlockingSupport,
+    inviteBlockingContent,
+    inviteBlockingSupport,
+    inviteBlockingWriteType,
+    resolveInvitesBlocked,
+    STABLE_INVITE_PERMISSION_TYPE,
+    UNSTABLE_INVITE_PERMISSION_TYPE,
+    buildInviteBlockPushRule,
+    INVITE_BLOCK_PUSH_RULE_ID,
+} from "$lib/utils/inviteBlocking";
 import {
     supportsPasswordUia,
     type DeviceInfo,
@@ -333,7 +352,11 @@ import { buildKnockOpts, knockReasonFromContent } from "$lib/utils/knock";
 import { viaFallbackCandidates } from "$lib/utils/joinFallback";
 import { matrixToUrl } from "../utils/matrixLinks";
 import { extractSubspaceChildren } from "$lib/utils/spaceHierarchy";
-import { collectSpaceDescendantRoomIds } from "$lib/utils/spaceDescendants";
+import {
+    collectSpaceDescendantRoomIds,
+    joinedSpaceDescendants,
+    type NicknameWalkNode,
+} from "$lib/utils/spaceDescendants";
 import { mapWithConcurrency } from "$lib/utils/async";
 import { createBoundedIdMap } from "$lib/utils/notifyDecrypted";
 import { shouldPrimePaginationToken } from "$lib/utils/roomStateHealth";
@@ -2919,7 +2942,8 @@ export function getRoomClassification(
             isSpace: r.isSpaceRoom(),
             // A rejected invite the server never cleared reads as left.
             membership:
-                membership === "invite" && isDismissedInvite(r)
+                membership === "invite" &&
+                (isDismissedInvite(r) || isInviteHiddenByBlock())
                     ? "leave"
                     : membership,
             pendingLeave: pendingLeaves.has(r.roomId),
@@ -5048,6 +5072,119 @@ export async function setOwnDisplayName(name: string): Promise<void> {
     await matrixClient.setDisplayName(name);
 }
 
+// ── Per-room and per-space nicknames ──────────────────────────────────────
+// A room nickname is the `displayname` of the user's own m.room.member event in
+// that room. An empty name resets it to the global profile display name.
+
+/**
+ * The user's own nickname in this room, or null when the room shows the global
+ * name (no per-room displayname, or one equal to the global name).
+ */
+export function getOwnRoomNickname(roomId: string): string | null {
+    const userId = matrixClient?.getUserId();
+    const room = getRoom(roomId);
+    if (!userId || !room) return null;
+    const member = room.currentState.getStateEvents("m.room.member", userId);
+    const name = member?.getContent()?.displayname;
+    if (typeof name !== "string" || !name) return null;
+    return name === getOwnDisplayName() ? null : name;
+}
+
+/** The displayname to write for a nickname: the trimmed name, or the global one when empty. */
+async function resolveNicknameValue(
+    owner: ReturnType<typeof captureClient>,
+    name: string,
+): Promise<string | null> {
+    const trimmed = name.trim();
+    if (trimmed) return trimmed;
+    const client = ownedClientOrThrow(owner);
+    const userId = client.getUserId();
+    if (!userId) throw new Error(t("client.notLoggedIn"));
+    const profile = await client.getProfileInfo(userId);
+    ownedClientOrThrow(owner);
+    return profile.displayname || null;
+}
+
+/** Write the user's own member event for one room with the given displayname. */
+async function writeOwnRoomNickname(
+    owner: ReturnType<typeof captureClient>,
+    roomId: string,
+    displayname: string | null,
+): Promise<void> {
+    const client = ownedClientOrThrow(owner);
+    const userId = client.getUserId();
+    if (!userId) throw new Error(t("client.notLoggedIn"));
+    const room = getRoom(roomId);
+    if (!room || room.getMyMembership() !== "join") {
+        throw new Error(t("nicknameSection.notJoined"));
+    }
+    // Copy the current member content so avatar_url and any other fields survive.
+    const current = room.currentState
+        .getStateEvents("m.room.member", userId)
+        ?.getContent();
+    if ((current?.displayname ?? null) === displayname) return;
+    const content: Record<string, unknown> = {
+        ...(current ?? {}),
+        membership: "join",
+    };
+    // Join-time fields describe the original join, not this profile change.
+    delete content.reason;
+    delete content.join_authorised_via_users_server;
+    if (displayname) content.displayname = displayname;
+    else delete content.displayname;
+    await (client as any).sendStateEvent(
+        roomId,
+        "m.room.member",
+        content,
+        userId,
+    );
+    ownedClientOrThrow(owner);
+}
+
+/** Set (or with an empty name, reset) the user's nickname in one room. */
+export async function setOwnRoomNickname(
+    roomId: string,
+    name: string,
+): Promise<void> {
+    const owner = captureClient();
+    const displayname = await resolveNicknameValue(owner, name);
+    await writeOwnRoomNickname(owner, roomId, displayname);
+}
+
+/**
+ * Set (or reset) the user's nickname on a space and on every joined room and
+ * sub-space below it. Failures are collected rather than aborting the walk;
+ * losing the client mid-walk still aborts.
+ */
+export async function setOwnSpaceNickname(
+    spaceId: string,
+    name: string,
+): Promise<{ total: number; failed: string[] }> {
+    const owner = captureClient();
+    const displayname = await resolveNicknameValue(owner, name);
+    const lookup = (roomId: string): NicknameWalkNode | null => {
+        const room = getRoom(roomId);
+        if (!room) return null;
+        return {
+            childIds: getSpaceChildIds(roomId),
+            joined: room.getMyMembership() === "join",
+        };
+    };
+    const targets = [spaceId, ...joinedSpaceDescendants(spaceId, lookup)];
+    const failed: string[] = [];
+    for (const roomId of targets) {
+        ownedClientOrThrow(owner);
+        try {
+            await writeOwnRoomNickname(owner, roomId, displayname);
+        } catch {
+            // A lost client must abort the walk, not count as a failed room.
+            ownedClientOrThrow(owner);
+            failed.push(roomId);
+        }
+    }
+    return { total: targets.length, failed };
+}
+
 /** Set (mxc URI) or clear (empty string) the logged-in user's avatar. */
 export async function setOwnAvatarMxc(mxc: string): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
@@ -5510,6 +5647,11 @@ export function memberDisplayName(member: RoomMember): string {
 export function getMemberAvatar(room: Room, userId: string): string | null {
     const mxc = room.getMember(userId)?.getMxcAvatarUrl();
     return mxcToHttp(mxc);
+}
+
+/** A user's display name from any room the SDK has seen them in, or null. */
+export function getKnownUserDisplayName(userId: string): string | null {
+    return matrixClient?.getUser(userId)?.displayName ?? null;
 }
 
 export function getRoomMembers(room: Room): RoomMember[] {
@@ -7378,6 +7520,60 @@ export function receiptPrivacyRoomExceptions(): Record<string, boolean> {
     );
 }
 
+/**
+ * One page of a room's state history for the audit log, newest first.
+ *
+ * `from` null starts at the newest point: /messages without a `from` token
+ * starts at the server's current position, which is what the history crawler
+ * already relies on (eventIndex.ts walks from null). Pass the returned `next`
+ * to continue; `next` is null once the room's history is exhausted. Only state
+ * events and redactions come back, as plain JSON (not SDK MatrixEvents).
+ */
+export async function fetchRoomAuditPage(
+    roomId: string,
+    from: string | null,
+    limit = 50,
+): Promise<{ events: RawAuditEvent[]; next: string | null }> {
+    const owner = captureClient();
+    const filter = new Filter(owner.client.getUserId());
+    filter.setDefinition({
+        room: { timeline: { types: [...AUDIT_EVENT_TYPES] } },
+    });
+    const res = await owner.client.createMessagesRequest(
+        roomId,
+        from,
+        limit,
+        Direction.Backward,
+        filter,
+    );
+    ownedClientOrThrow(owner);
+    const chunk = res.chunk ?? [];
+    const events: RawAuditEvent[] = [];
+    for (const raw of chunk) {
+        // The SDK's IRoomEvent omits state_key and redacts, but /messages
+        // returns them; read the raw JSON through RawAuditEvent.
+        const ev = raw as unknown as RawAuditEvent;
+        if (ev.state_key === undefined && ev.type !== "m.room.redaction") {
+            continue;
+        }
+        const content = ev.content ?? {};
+        const prev = ev.unsigned?.prev_content;
+        events.push({
+            type: ev.type,
+            state_key: ev.state_key,
+            sender: ev.sender,
+            origin_server_ts: ev.origin_server_ts,
+            event_id: ev.event_id,
+            content,
+            unsigned: prev ? { prev_content: prev } : {},
+            redacts: ev.redacts ?? (content.redacts as string | undefined),
+        });
+    }
+    const next =
+        chunk.length > 0 && res.end && res.end !== from ? res.end : null;
+    return { events, next };
+}
+
 export async function sendReadReceipt(event: MatrixEvent): Promise<void> {
     if (!matrixClient) return;
     const roomId = event.getRoomId();
@@ -8763,7 +8959,10 @@ export function getInvitedRooms(): Room[] {
     return matrixClient
         .getRooms()
         .filter(
-            (r) => r.getMyMembership() === "invite" && !isDismissedInvite(r),
+            (r) =>
+                r.getMyMembership() === "invite" &&
+                !isDismissedInvite(r) &&
+                !isInviteHiddenByBlock(),
         );
 }
 
@@ -11145,6 +11344,103 @@ export async function setIgnoredUsers(userIds: string[]): Promise<void> {
     await matrixClient.setIgnoredUsers(userIds);
 }
 
+// ── Invite blocking (MSC4380) ──────────────────────────────────────────────
+// Account data that blocks every invite (utils/inviteBlocking.ts). A server
+// that advertises MSC4380 enforces it and rejects invites. Otherwise the app
+// hides pending invites itself (classification, inbox, notifications) and the
+// invites still reach the server.
+
+/** Show invites while blocked: this session only, set from the inbox. */
+let showBlockedInvites = false;
+
+export function setShowBlockedInvites(show: boolean): void {
+    showBlockedInvites = show;
+}
+
+/** Whether pending invites are hidden here: blocked, and not shown anyway. */
+export function isInviteHiddenByBlock(): boolean {
+    return !showBlockedInvites && getInvitesBlocked();
+}
+
+/** Pending invites that the block is hiding, for the inbox note. */
+export function getBlockedInviteCount(): number {
+    if (!matrixClient || !getInvitesBlocked()) return 0;
+    return matrixClient
+        .getRooms()
+        .filter(
+            (r) => r.getMyMembership() === "invite" && !isDismissedInvite(r),
+        ).length;
+}
+
+/** Whether the account currently blocks all invites (synced account data). */
+export function getInvitesBlocked(): boolean {
+    if (!matrixClient) return false;
+    const stable = matrixClient.getAccountData(
+        STABLE_INVITE_PERMISSION_TYPE as never,
+    );
+    const unstable = matrixClient.getAccountData(
+        UNSTABLE_INVITE_PERMISSION_TYPE as never,
+    );
+    return resolveInvitesBlocked(
+        stable ? stable.getContent() : undefined,
+        unstable ? unstable.getContent() : undefined,
+    );
+}
+
+/** What the homeserver does with the setting, from the `/versions` flags. */
+export async function getInviteBlockingSupport(): Promise<InviteBlockingSupport> {
+    if (!matrixClient) return "none";
+    const { unstableFeatures } = await getServerVersions();
+    return inviteBlockingSupport(unstableFeatures);
+}
+
+/** Write the invite block. Uses the stable type unless the server only knows
+ *  the unstable MSC. Rejects on failure; the caller rolls back. */
+export async function setInvitesBlocked(blocked: boolean): Promise<void> {
+    const owner = captureClient();
+    const support = await getInviteBlockingSupport();
+    const client = ownedClientOrThrow(owner);
+    await client.setAccountData(
+        inviteBlockingWriteType(support) as never,
+        inviteBlockingContent(blocked) as never,
+    );
+    ownedClientOrThrow(owner);
+    await syncInviteBlockPushRule(blocked);
+}
+
+/**
+ * Keep the push rule that silences invites in step with the setting, so
+ * blocked invites don't notify on any device. Best-effort: the account data
+ * is the source of truth and a failure here only lets invites notify.
+ */
+async function syncInviteBlockPushRule(blocked: boolean): Promise<void> {
+    const client = matrixClient;
+    const userId = client?.getUserId();
+    if (!client || !userId) return;
+    const present = (client.pushRules?.global?.override ?? []).some(
+        (r) => r.rule_id === INVITE_BLOCK_PUSH_RULE_ID,
+    );
+    try {
+        if (blocked && !present) {
+            const rule = buildInviteBlockPushRule(userId);
+            await client.addPushRule(
+                "global",
+                rule.kind as never,
+                rule.ruleId,
+                rule.body as never,
+            );
+        } else if (!blocked && present) {
+            await client.deletePushRule(
+                "global",
+                "override" as never,
+                INVITE_BLOCK_PUSH_RULE_ID,
+            );
+        }
+    } catch {
+        // Invites keep notifying until the setting is toggled again.
+    }
+}
+
 export function isUserIgnored(userId: string): boolean {
     return matrixClient?.isUserIgnored(userId) ?? false;
 }
@@ -12090,6 +12386,67 @@ export async function fetchPollRelations(
         `Poll ${pollStartId} has more than 10 pages of votes; tallies may be incomplete`,
     );
     return events;
+}
+
+/**
+ * The edit history of a message: the original plus every `m.replace` edit,
+ * oldest first (see `buildEditHistory` for the sender and content rules).
+ * The original must be in the loaded timeline, since its sender decides which
+ * edits count. Pages the relations endpoint until exhausted and decrypts each
+ * edit before reading it. Throws when the ownership of the client changes
+ * mid-fetch, so a stale dialog never shows another account's data.
+ */
+export async function fetchEditHistory(
+    roomId: string,
+    eventId: string,
+): Promise<EditVersion[]> {
+    const owner = captureClient();
+    const room = owner.client.getRoom(roomId);
+    const original = room ? findEventById(room, eventId) : null;
+    if (!original) throw new Error(t("editHistory.originalNotLoaded"));
+
+    const candidates: EditHistoryCandidate[] = [];
+    let from: string | undefined;
+    do {
+        const res = await owner.client.relations(
+            roomId,
+            eventId,
+            "m.replace",
+            null,
+            { from },
+        );
+        ownedClientOrThrow(owner);
+        for (const ev of res.events) {
+            const editId = ev.getId();
+            if (!editId) continue;
+            try {
+                await owner.client.decryptEventIfNeeded(ev);
+            } catch {
+                /* left encrypted below; reported as undecryptable */
+            }
+            ownedClientOrThrow(owner);
+            const undecryptable =
+                ev.isDecryptionFailure() || ev.getType() === "m.room.encrypted";
+            candidates.push({
+                eventId: editId,
+                sender: ev.getSender(),
+                ts: ev.getTs(),
+                content: undecryptable ? undefined : ev.getContent(),
+                undecryptable,
+            });
+        }
+        from = res.nextBatch ?? undefined;
+    } while (from);
+
+    return buildEditHistory(
+        {
+            eventId,
+            sender: original.getSender(),
+            ts: original.getTs(),
+            content: original.getOriginalContent(),
+        },
+        candidates,
+    );
 }
 
 /** Fires when a poll response, end, or start-edit lands on a timeline, so visible polls can re-tally/re-render. */

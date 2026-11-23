@@ -4909,6 +4909,117 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Impossible de se connecter directement à {name}. Votre serveur d'accueil n'offre aucun serveur relais ni STUN, si bien que les connexions à travers les routeurs domestiques échouent généralement. Activer « Utiliser un serveur STUN public » dans les paramètres Voix et vidéo peut aider.",
     "settingsSearch.meshRelayOnly":
         "Exiger un serveur relais pour les appels pair à pair",
+    "messageActionsMenu.viewEditHistory": "Voir l'historique des modifications",
+    "roomSettingsNav.audit": "Journal d'audit",
+    "editHistory.title": "Historique des modifications",
+    "editHistory.open": "Voir l'historique des modifications",
+    "editHistory.current": "Actuelle",
+    "editHistory.original": "Original",
+    "editHistory.loading": "Chargement de l'historique des modifications…",
+    "editHistory.loadFailed":
+        "Impossible de charger l'historique des modifications",
+    "editHistory.empty":
+        "Aucun historique de modifications n'est disponible pour ce message.",
+    "editHistory.undecryptable": "Cette version n'a pas pu être déchiffrée.",
+    "editHistory.noText": "Aucun texte dans cette version.",
+    "editHistory.originalNotLoaded": "Le message original n'est pas chargé.",
+    "nicknameSection.title": "Pseudonyme",
+    "nicknameSection.label": "Votre pseudonyme",
+    "nicknameSection.hint":
+        "Affiché à la place de votre nom d'affichage dans ce salon uniquement. Laissez vide pour utiliser votre nom global.",
+    "nicknameSection.spaceHint":
+        "S'applique à cet espace, ainsi qu'à tous les salons et sous-espaces rejoints qu'il contient. Laissez vide pour utiliser votre nom global.",
+    "nicknameSection.save": "Enregistrer",
+    "nicknameSection.reset": "Réinitialiser",
+    "nicknameSection.saving": "Enregistrement…",
+    "nicknameSection.saved": "Enregistré",
+    "nicknameSection.saveFailed": "Impossible d'enregistrer votre pseudonyme.",
+    "nicknameSection.notJoined": "Vous n'êtes pas dans ce salon.",
+    "nicknameSection.partialFailure":
+        "Impossible de mettre à jour {failed} salon(s) sur {total}.",
+    "auditLog.intro":
+        "Modifications de l'appartenance, de la modération et des paramètres de ce salon, les plus récentes en premier.",
+    "auditLog.introSpace":
+        "Modifications de l'appartenance, de la modération et des paramètres de cet espace, les plus récentes en premier.",
+    "auditLog.filtersLabel": "Filtrer le journal d'audit",
+    "auditLog.filter.all": "Tout",
+    "auditLog.filter.moderation": "Modération",
+    "auditLog.filter.members": "Membres",
+    "auditLog.filter.settings": "Paramètres",
+    "auditLog.loading": "Chargement de l'historique…",
+    "auditLog.loadingMore": "Chargement…",
+    "auditLog.loadMore": "Charger plus",
+    "auditLog.loadFailed": "Impossible de charger le journal d'audit.",
+    "auditLog.retry": "Réessayer",
+    "auditLog.empty": "Rien à afficher pour ce filtre.",
+    "auditLog.reason": "Motif : {reason}",
+    "auditLog.member.join": "{actor} a rejoint le salon",
+    "auditLog.member.leave": "{actor} a quitté le salon",
+    "auditLog.member.kick": "{actor} a expulsé {target}",
+    "auditLog.member.ban": "{actor} a banni {target}",
+    "auditLog.member.unban": "{actor} a levé le bannissement de {target}",
+    "auditLog.member.invite": "{actor} a invité {target}",
+    "auditLog.member.inviteRejected": "{actor} a refusé une invitation",
+    "auditLog.member.inviteRetracted":
+        "{actor} a retiré l'invitation de {target}",
+    "auditLog.member.knock": "{actor} a demandé à rejoindre le salon",
+    "auditLog.member.displayname":
+        "{actor} a changé son nom d'affichage en {value}",
+    "auditLog.member.displaynameChanged":
+        "{actor} a changé son nom d'affichage de {detail} en {value}",
+    "auditLog.member.displaynameRemoved":
+        "{actor} a supprimé son nom d'affichage",
+    "auditLog.member.avatar": "{actor} a changé son avatar",
+    "auditLog.power.user":
+        "{actor} a changé le niveau de droits de {target} de {detail} à {value}",
+    "auditLog.power.defaults":
+        "{actor} a modifié les niveaux de droits par défaut ou par action",
+    "auditLog.acl": "{actor} a modifié la liste d'accès du serveur",
+    "auditLog.redaction": "{actor} a supprimé un message",
+    "auditLog.settings.name": "{actor} a changé le nom du salon en {value}",
+    "auditLog.settings.nameChanged":
+        "{actor} a changé le nom du salon de {detail} en {value}",
+    "auditLog.settings.nameRemoved": "{actor} a supprimé le nom du salon",
+    "auditLog.settings.topic": "{actor} a changé le sujet",
+    "auditLog.settings.avatar": "{actor} a changé l'image du salon",
+    "auditLog.settings.avatarRemoved": "{actor} a supprimé l'image du salon",
+    "auditLog.settings.joinRules":
+        "{actor} a changé la règle d'accès à {value}",
+    "auditLog.settings.historyVisibility":
+        "{actor} a changé la visibilité de l'historique en {value}",
+    "auditLog.settings.guestAccess":
+        "{actor} a changé l'accès des invités en {value}",
+    "auditLog.settings.encryption":
+        "{actor} a activé le chiffrement de bout en bout",
+    "auditLog.settings.pinned": "{actor} a modifié les messages épinglés",
+    "auditLog.settings.canonicalAlias":
+        "{actor} a changé l'adresse principale en {value}",
+    "auditLog.settings.canonicalAliasRemoved":
+        "{actor} a supprimé l'adresse principale",
+    "auditLog.settings.tombstone":
+        "{actor} a mis le salon à niveau vers {value}",
+    "auditLog.settings.spaceChildAdded":
+        "{actor} a ajouté {target} à cet espace",
+    "auditLog.settings.spaceChildRemoved":
+        "{actor} a retiré {target} de cet espace",
+    "auditLog.settings.spaceParentAdded":
+        "{actor} a ajouté cet espace à {target}",
+    "auditLog.settings.spaceParentRemoved":
+        "{actor} a retiré cet espace de {target}",
+    "inviteBlocking.blockAllInvites": "Bloquer toutes les invitations",
+    "inviteBlocking.blockAllInvitesHintServer":
+        "Votre serveur d'accueil l'impose : les invitations de tous sont rejetées.",
+    "inviteBlocking.blockAllInvitesHintClient":
+        "Votre serveur d'accueil ne l'impose pas, donc cette application masque les invitations en attente et ignore leurs notifications. Les invitations parviennent quand même au serveur.",
+    "inviteBlocking.hiddenNote":
+        "Les invitations sont bloquées. {count} masquée(s).",
+    "inviteBlocking.showingAnyway":
+        "Les invitations sont bloquées. Affichage malgré tout.",
+    "inviteBlocking.showAnyway": "Afficher quand même",
+    "inviteBlocking.hide": "Masquer",
+    "inviteBlocking.couldNotSave":
+        "Impossible de modifier le paramètre d'invitation. Réessayez.",
+    "inviteBlocking.userNotAccepting": "{user} n'accepte pas les invitations",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: fr };

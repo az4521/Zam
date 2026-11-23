@@ -17,6 +17,7 @@ export type RoomSettingsTab =
     | "permissions"
     | "members"
     | "emotes"
+    | "audit"
     | "rooms"
     // A plugin's tab (zam.room.addSettingsTab), by registry entry id.
     | `plugin:${number}`;
@@ -37,6 +38,7 @@ const LABELS: Record<string, string> = {
     permissions: t("roomSettingsNav.permissions"),
     members: t("roomSettingsNav.members"),
     emotes: t("roomSettingsNav.emotes"),
+    audit: t("roomSettingsNav.audit"),
     rooms: t("roomSettingsNav.rooms"),
 };
 
@@ -50,6 +52,11 @@ export function roomSettingsTabs(args: {
     isSpace: boolean;
     /** Plugin tabs, after Zam's own. */
     pluginTabs?: readonly RoomSettingsTabEntry[];
+    /**
+     * The Audit log tab. The caller decides whether this user may see it (at
+     * least the room's kick or ban level, whichever is lower).
+     */
+    auditLog?: boolean;
 }): readonly RoomSettingsTabEntry[] {
     const { isSpace } = args;
     const ids: RoomSettingsTab[] = [
@@ -60,6 +67,7 @@ export function roomSettingsTabs(args: {
         "permissions",
         "members",
         "emotes",
+        ...(args.auditLog ? (["audit"] as RoomSettingsTab[]) : []),
         ...(isSpace ? (["rooms"] as RoomSettingsTab[]) : []),
     ];
     return [
@@ -104,9 +112,10 @@ export function roomSettingsNavView(args: {
     isSpace: boolean;
     selectedTab: RoomSettingsTab | null;
     pluginTabs?: readonly RoomSettingsTabEntry[];
+    auditLog?: boolean;
 }): RoomSettingsNavView {
-    const { isMobile, isSpace, selectedTab, pluginTabs } = args;
-    const visible = roomSettingsTabs({ isSpace, pluginTabs }).some(
+    const { isMobile, isSpace, selectedTab, pluginTabs, auditLog } = args;
+    const visible = roomSettingsTabs({ isSpace, pluginTabs, auditLog }).some(
         (t) => t.id === selectedTab,
     );
     const tab = visible ? (selectedTab as RoomSettingsTab) : null;

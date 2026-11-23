@@ -4839,6 +4839,111 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Не вдалося з’єднатися напряму з {name}. Ваш домашній сервер не пропонує ні ретранслятора, ні STUN-сервера, тож з’єднання через домашні маршрутизатори зазвичай не працюють. Може допомогти увімкнення опції «Використовувати публічний STUN-сервер» у налаштуваннях розділу «Голос і відео».",
     "settingsSearch.meshRelayOnly":
         "Вимагати ретранслятор для однорангових дзвінків",
+    "messageActionsMenu.viewEditHistory": "Переглянути історію редагування",
+    "roomSettingsNav.audit": "Журнал аудиту",
+    "editHistory.title": "Історія редагування",
+    "editHistory.open": "Переглянути історію редагування",
+    "editHistory.current": "Поточна",
+    "editHistory.original": "Оригінал",
+    "editHistory.loading": "Завантаження історії редагування...",
+    "editHistory.loadFailed": "Не вдалося завантажити історію редагування",
+    "editHistory.empty":
+        "Для цього повідомлення історія редагування недоступна.",
+    "editHistory.undecryptable": "Не вдалося розшифрувати цю версію.",
+    "editHistory.noText": "У цій версії немає тексту.",
+    "editHistory.originalNotLoaded": "Початкове повідомлення не завантажено.",
+    "nicknameSection.title": "Нікнейм",
+    "nicknameSection.label": "Ваш нікнейм",
+    "nicknameSection.hint":
+        "Показується замість вашого імені лише в цій кімнаті. Залиште поле порожнім, щоб використовувати загальне ім'я.",
+    "nicknameSection.spaceHint":
+        "Застосовується до цього простору та до всіх кімнат і підпросторів, до яких ви приєднані. Залиште поле порожнім, щоб використовувати загальне ім'я.",
+    "nicknameSection.save": "Зберегти",
+    "nicknameSection.reset": "Скинути",
+    "nicknameSection.saving": "Збереження…",
+    "nicknameSection.saved": "Збережено",
+    "nicknameSection.saveFailed": "Не вдалося зберегти нікнейм.",
+    "nicknameSection.notJoined": "Вас немає в цій кімнаті.",
+    "nicknameSection.partialFailure":
+        "Не вдалося оновити кімнати: {failed} з {total}.",
+    "auditLog.intro":
+        "Зміни учасників, модерації та налаштувань цієї кімнати, спочатку нові.",
+    "auditLog.introSpace":
+        "Зміни учасників, модерації та налаштувань цього простору, спочатку нові.",
+    "auditLog.filtersLabel": "Фільтр журналу аудиту",
+    "auditLog.filter.all": "Усі",
+    "auditLog.filter.moderation": "Модерація",
+    "auditLog.filter.members": "Учасники",
+    "auditLog.filter.settings": "Налаштування",
+    "auditLog.loading": "Завантаження історії...",
+    "auditLog.loadingMore": "Завантаження...",
+    "auditLog.loadMore": "Завантажити ще",
+    "auditLog.loadFailed": "Не вдалося завантажити журнал аудиту.",
+    "auditLog.retry": "Спробувати ще раз",
+    "auditLog.empty": "Для цього фільтра нічого показати.",
+    "auditLog.reason": "Причина: {reason}",
+    "auditLog.member.join": "{actor} приєднався до кімнати",
+    "auditLog.member.leave": "{actor} покинув кімнату",
+    "auditLog.member.kick": "{actor} виключив {target}",
+    "auditLog.member.ban": "{actor} заблокував {target}",
+    "auditLog.member.unban": "{actor} розблокував {target}",
+    "auditLog.member.invite": "{actor} запросив {target}",
+    "auditLog.member.inviteRejected": "{actor} відхилив запрошення",
+    "auditLog.member.inviteRetracted":
+        "{actor} відкликав запрошення для {target}",
+    "auditLog.member.knock": "{actor} попросився приєднатися",
+    "auditLog.member.displayname":
+        "{actor} змінив відображуване ім'я на {value}",
+    "auditLog.member.displaynameChanged":
+        "{actor} змінив відображуване ім'я з {detail} на {value}",
+    "auditLog.member.displaynameRemoved": "{actor} видалив відображуване ім'я",
+    "auditLog.member.avatar": "{actor} змінив аватар",
+    "auditLog.power.user":
+        "{actor} змінив рівень повноважень {target} з {detail} на {value}",
+    "auditLog.power.defaults":
+        "{actor} змінив типові або окремі рівні повноважень для дій",
+    "auditLog.acl": "{actor} змінив список доступу сервера",
+    "auditLog.redaction": "{actor} видалив повідомлення",
+    "auditLog.settings.name": "{actor} змінив назву кімнати на {value}",
+    "auditLog.settings.nameChanged":
+        "{actor} змінив назву кімнати з {detail} на {value}",
+    "auditLog.settings.nameRemoved": "{actor} видалив назву кімнати",
+    "auditLog.settings.topic": "{actor} змінив тему",
+    "auditLog.settings.avatar": "{actor} змінив аватар кімнати",
+    "auditLog.settings.avatarRemoved": "{actor} видалив аватар кімнати",
+    "auditLog.settings.joinRules":
+        "{actor} змінив правило приєднання на {value}",
+    "auditLog.settings.historyVisibility":
+        "{actor} змінив видимість історії на {value}",
+    "auditLog.settings.guestAccess":
+        "{actor} змінив доступ для гостей: {value}",
+    "auditLog.settings.encryption": "{actor} увімкнув наскрізне шифрування",
+    "auditLog.settings.pinned": "{actor} змінив закріплені повідомлення",
+    "auditLog.settings.canonicalAlias":
+        "{actor} змінив основну адресу на {value}",
+    "auditLog.settings.canonicalAliasRemoved": "{actor} видалив основну адресу",
+    "auditLog.settings.tombstone": "{actor} оновив кімнату до {value}",
+    "auditLog.settings.spaceChildAdded":
+        "{actor} додав {target} до цього простору",
+    "auditLog.settings.spaceChildRemoved":
+        "{actor} вилучив {target} із цього простору",
+    "auditLog.settings.spaceParentAdded":
+        "{actor} додав цей простір до {target}",
+    "auditLog.settings.spaceParentRemoved":
+        "{actor} вилучив цей простір із {target}",
+    "inviteBlocking.blockAllInvites": "Блокувати всі запрошення",
+    "inviteBlocking.blockAllInvitesHintServer":
+        "Ваш домашній сервер застосовує це правило: запрошення від будь-кого відхиляються.",
+    "inviteBlocking.blockAllInvitesHintClient":
+        "Домашній сервер не застосовує це правило, тож застосунок приховує очікувані запрошення й пропускає їхні сповіщення. Самі запрошення все одно надходять на сервер.",
+    "inviteBlocking.hiddenNote": "Запрошення заблоковано. Приховано: {count}.",
+    "inviteBlocking.showingAnyway":
+        "Запрошення заблоковано. Усе одно показуємо їх.",
+    "inviteBlocking.showAnyway": "Показати все одно",
+    "inviteBlocking.hide": "Приховати",
+    "inviteBlocking.couldNotSave":
+        "Не вдалося змінити налаштування запрошень. Спробуйте ще раз.",
+    "inviteBlocking.userNotAccepting": "{user} не приймає запрошення",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: uk };

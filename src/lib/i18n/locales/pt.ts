@@ -4872,6 +4872,116 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Não foi possível conectar diretamente a {name}. Seu servidor doméstico não oferece servidor de retransmissão nem STUN, então conexões por roteadores domésticos geralmente falham. Ativar “Usar um servidor STUN público” nas configurações de Voz e vídeo pode ajudar.",
     "settingsSearch.meshRelayOnly":
         "Exigir servidor de retransmissão para chamadas ponto a ponto",
+    "messageActionsMenu.viewEditHistory": "Ver histórico de edições",
+    "roomSettingsNav.audit": "Registro de auditoria",
+    "editHistory.title": "Histórico de edições",
+    "editHistory.open": "Ver histórico de edições",
+    "editHistory.current": "Atual",
+    "editHistory.original": "Original",
+    "editHistory.loading": "Carregando histórico de edições…",
+    "editHistory.loadFailed":
+        "Não foi possível carregar o histórico de edições",
+    "editHistory.empty":
+        "Não há histórico de edições disponível para esta mensagem.",
+    "editHistory.undecryptable":
+        "Não foi possível descriptografar esta versão.",
+    "editHistory.noText": "Nenhum texto nesta versão.",
+    "editHistory.originalNotLoaded": "A mensagem original não está carregada.",
+    "nicknameSection.title": "Apelido",
+    "nicknameSection.label": "Seu apelido",
+    "nicknameSection.hint":
+        "Exibido no lugar do seu nome de exibição apenas nesta sala. Deixe em branco para usar seu nome global.",
+    "nicknameSection.spaceHint":
+        "Vale para este espaço e para todas as salas e subespaços dos quais você participa. Deixe em branco para usar seu nome global.",
+    "nicknameSection.save": "Salvar",
+    "nicknameSection.reset": "Redefinir",
+    "nicknameSection.saving": "Salvando…",
+    "nicknameSection.saved": "Salvo",
+    "nicknameSection.saveFailed": "Não foi possível salvar seu apelido.",
+    "nicknameSection.notJoined": "Você não está nesta sala.",
+    "nicknameSection.partialFailure":
+        "Não foi possível atualizar {failed} de {total} salas.",
+    "auditLog.intro":
+        "Alterações de membros, moderação e configurações desta sala, da mais recente para a mais antiga.",
+    "auditLog.introSpace":
+        "Alterações de membros, moderação e configurações deste espaço, da mais recente para a mais antiga.",
+    "auditLog.filtersLabel": "Filtrar o registro de auditoria",
+    "auditLog.filter.all": "Todos",
+    "auditLog.filter.moderation": "Moderação",
+    "auditLog.filter.members": "Membros",
+    "auditLog.filter.settings": "Configurações",
+    "auditLog.loading": "Carregando histórico…",
+    "auditLog.loadingMore": "Carregando…",
+    "auditLog.loadMore": "Carregar mais",
+    "auditLog.loadFailed": "Não foi possível carregar o registro de auditoria.",
+    "auditLog.retry": "Tentar novamente",
+    "auditLog.empty": "Nada para mostrar com este filtro.",
+    "auditLog.reason": "Motivo: {reason}",
+    "auditLog.member.join": "{actor} entrou na sala",
+    "auditLog.member.leave": "{actor} saiu da sala",
+    "auditLog.member.kick": "{actor} removeu {target}",
+    "auditLog.member.ban": "{actor} baniu {target}",
+    "auditLog.member.unban": "{actor} desbaniu {target}",
+    "auditLog.member.invite": "{actor} convidou {target}",
+    "auditLog.member.inviteRejected": "{actor} recusou um convite",
+    "auditLog.member.inviteRetracted":
+        "{actor} cancelou o convite para {target}",
+    "auditLog.member.knock": "{actor} pediu para entrar",
+    "auditLog.member.displayname":
+        "{actor} alterou o nome de exibição para {value}",
+    "auditLog.member.displaynameChanged":
+        "{actor} alterou o nome de exibição de {detail} para {value}",
+    "auditLog.member.displaynameRemoved": "{actor} removeu o nome de exibição",
+    "auditLog.member.avatar": "{actor} alterou o avatar",
+    "auditLog.power.user":
+        "{actor} alterou o nível de permissão de {target} de {detail} para {value}",
+    "auditLog.power.defaults":
+        "{actor} alterou os níveis de permissão padrão ou por ação",
+    "auditLog.acl": "{actor} alterou a lista de acesso do servidor",
+    "auditLog.redaction": "{actor} removeu uma mensagem",
+    "auditLog.settings.name": "{actor} alterou o nome da sala para {value}",
+    "auditLog.settings.nameChanged":
+        "{actor} alterou o nome da sala de {detail} para {value}",
+    "auditLog.settings.nameRemoved": "{actor} removeu o nome da sala",
+    "auditLog.settings.topic": "{actor} alterou o tópico",
+    "auditLog.settings.avatar": "{actor} alterou o avatar da sala",
+    "auditLog.settings.avatarRemoved": "{actor} removeu o avatar da sala",
+    "auditLog.settings.joinRules":
+        "{actor} alterou a regra de entrada para {value}",
+    "auditLog.settings.historyVisibility":
+        "{actor} alterou a visibilidade do histórico para {value}",
+    "auditLog.settings.guestAccess":
+        "{actor} alterou o acesso de convidados para {value}",
+    "auditLog.settings.encryption":
+        "{actor} ativou a criptografia de ponta a ponta",
+    "auditLog.settings.pinned": "{actor} alterou as mensagens fixadas",
+    "auditLog.settings.canonicalAlias":
+        "{actor} alterou o endereço principal para {value}",
+    "auditLog.settings.canonicalAliasRemoved":
+        "{actor} removeu o endereço principal",
+    "auditLog.settings.tombstone": "{actor} atualizou a sala para {value}",
+    "auditLog.settings.spaceChildAdded":
+        "{actor} adicionou {target} a este espaço",
+    "auditLog.settings.spaceChildRemoved":
+        "{actor} removeu {target} deste espaço",
+    "auditLog.settings.spaceParentAdded":
+        "{actor} adicionou este espaço a {target}",
+    "auditLog.settings.spaceParentRemoved":
+        "{actor} removeu este espaço de {target}",
+    "inviteBlocking.blockAllInvites": "Bloquear todos os convites",
+    "inviteBlocking.blockAllInvitesHintServer":
+        "Seu servidor doméstico aplica isto: convites de qualquer pessoa são recusados.",
+    "inviteBlocking.blockAllInvitesHintClient":
+        "Seu servidor doméstico não aplica isto, então este app oculta os convites pendentes e ignora as notificações deles. Os convites ainda chegam ao servidor.",
+    "inviteBlocking.hiddenNote":
+        "Os convites estão bloqueados. {count} oculto(s).",
+    "inviteBlocking.showingAnyway":
+        "Os convites estão bloqueados. Mostrando mesmo assim.",
+    "inviteBlocking.showAnyway": "Mostrar mesmo assim",
+    "inviteBlocking.hide": "Ocultar",
+    "inviteBlocking.couldNotSave":
+        "Não foi possível alterar a configuração de convites. Tente novamente.",
+    "inviteBlocking.userNotAccepting": "{user} não está aceitando convites",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ptBR };

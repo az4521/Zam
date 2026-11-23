@@ -4938,6 +4938,121 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Direkte Verbindung zu {name} nicht möglich. Dein Homeserver bietet keinen Relay- oder STUN-Server, daher scheitern Verbindungen durch Heimrouter meist. Das Aktivieren von „Einen öffentlichen STUN-Server verwenden“ in den Einstellungen unter Sprache und Video kann helfen.",
     "settingsSearch.meshRelayOnly":
         "Relay-Server für Peer-to-Peer-Anrufe verlangen",
+    "messageActionsMenu.viewEditHistory": "Bearbeitungsverlauf anzeigen",
+    "roomSettingsNav.audit": "Aktivitätsprotokoll",
+    "editHistory.title": "Bearbeitungsverlauf",
+    "editHistory.open": "Bearbeitungsverlauf anzeigen",
+    "editHistory.current": "Aktuell",
+    "editHistory.original": "Original",
+    "editHistory.loading": "Bearbeitungsverlauf wird geladen…",
+    "editHistory.loadFailed":
+        "Der Bearbeitungsverlauf konnte nicht geladen werden",
+    "editHistory.empty":
+        "Für diese Nachricht ist kein Bearbeitungsverlauf verfügbar.",
+    "editHistory.undecryptable":
+        "Diese Version konnte nicht entschlüsselt werden.",
+    "editHistory.noText": "Kein Text in dieser Version.",
+    "editHistory.originalNotLoaded": "Die Originalnachricht ist nicht geladen.",
+    "nicknameSection.title": "Spitzname",
+    "nicknameSection.label": "Dein Spitzname",
+    "nicknameSection.hint":
+        "Wird nur in diesem Raum anstelle deines Anzeigenamens angezeigt. Leer lassen, um deinen globalen Namen zu verwenden.",
+    "nicknameSection.spaceHint":
+        "Gilt für diesen Space sowie alle beigetretenen Räume und Unter-Spaces darin. Leer lassen, um deinen globalen Namen zu verwenden.",
+    "nicknameSection.save": "Speichern",
+    "nicknameSection.reset": "Zurücksetzen",
+    "nicknameSection.saving": "Wird gespeichert…",
+    "nicknameSection.saved": "Gespeichert",
+    "nicknameSection.saveFailed":
+        "Dein Spitzname konnte nicht gespeichert werden.",
+    "nicknameSection.notJoined": "Du bist nicht in diesem Raum.",
+    "nicknameSection.partialFailure":
+        "{failed} von {total} Räumen konnten nicht aktualisiert werden.",
+    "auditLog.intro":
+        "Änderungen an Mitgliedschaft, Moderation und Einstellungen dieses Raums, neueste zuerst.",
+    "auditLog.introSpace":
+        "Änderungen an Mitgliedschaft, Moderation und Einstellungen dieses Space, neueste zuerst.",
+    "auditLog.filtersLabel": "Aktivitätsprotokoll filtern",
+    "auditLog.filter.all": "Alle",
+    "auditLog.filter.moderation": "Moderation",
+    "auditLog.filter.members": "Mitglieder",
+    "auditLog.filter.settings": "Einstellungen",
+    "auditLog.loading": "Verlauf wird geladen…",
+    "auditLog.loadingMore": "Wird geladen…",
+    "auditLog.loadMore": "Mehr laden",
+    "auditLog.loadFailed":
+        "Das Aktivitätsprotokoll konnte nicht geladen werden.",
+    "auditLog.retry": "Erneut versuchen",
+    "auditLog.empty": "Für diesen Filter gibt es nichts anzuzeigen.",
+    "auditLog.reason": "Grund: {reason}",
+    "auditLog.member.join": "{actor} ist dem Raum beigetreten",
+    "auditLog.member.leave": "{actor} hat den Raum verlassen",
+    "auditLog.member.kick": "{actor} hat {target} entfernt",
+    "auditLog.member.ban": "{actor} hat {target} gesperrt",
+    "auditLog.member.unban": "{actor} hat die Sperre für {target} aufgehoben",
+    "auditLog.member.invite": "{actor} hat {target} eingeladen",
+    "auditLog.member.inviteRejected": "{actor} hat eine Einladung abgelehnt",
+    "auditLog.member.inviteRetracted":
+        "{actor} hat die Einladung an {target} zurückgezogen",
+    "auditLog.member.knock": "{actor} hat um Beitritt gebeten",
+    "auditLog.member.displayname":
+        "{actor} hat den Anzeigenamen zu {value} geändert",
+    "auditLog.member.displaynameChanged":
+        "{actor} hat den Anzeigenamen von {detail} zu {value} geändert",
+    "auditLog.member.displaynameRemoved":
+        "{actor} hat den Anzeigenamen entfernt",
+    "auditLog.member.avatar": "{actor} hat das Profilbild geändert",
+    "auditLog.power.user":
+        "{actor} hat die Berechtigungsstufe von {target} von {detail} auf {value} geändert",
+    "auditLog.power.defaults":
+        "{actor} hat die Standard- oder aktionsspezifischen Berechtigungsstufen geändert",
+    "auditLog.acl": "{actor} hat die Serverzugriffsliste geändert",
+    "auditLog.redaction": "{actor} hat eine Nachricht entfernt",
+    "auditLog.settings.name": "{actor} hat den Raumnamen zu {value} geändert",
+    "auditLog.settings.nameChanged":
+        "{actor} hat den Raumnamen von {detail} zu {value} geändert",
+    "auditLog.settings.nameRemoved": "{actor} hat den Raumnamen entfernt",
+    "auditLog.settings.topic": "{actor} hat das Thema geändert",
+    "auditLog.settings.avatar": "{actor} hat das Raumbild geändert",
+    "auditLog.settings.avatarRemoved": "{actor} hat das Raumbild entfernt",
+    "auditLog.settings.joinRules":
+        "{actor} hat die Beitrittsregel auf {value} geändert",
+    "auditLog.settings.historyVisibility":
+        "{actor} hat die Sichtbarkeit des Verlaufs auf {value} geändert",
+    "auditLog.settings.guestAccess":
+        "{actor} hat den Gastzugang auf {value} geändert",
+    "auditLog.settings.encryption":
+        "{actor} hat die Ende-zu-Ende-Verschlüsselung aktiviert",
+    "auditLog.settings.pinned":
+        "{actor} hat die angehefteten Nachrichten geändert",
+    "auditLog.settings.canonicalAlias":
+        "{actor} hat die Hauptadresse auf {value} geändert",
+    "auditLog.settings.canonicalAliasRemoved":
+        "{actor} hat die Hauptadresse entfernt",
+    "auditLog.settings.tombstone":
+        "{actor} hat den Raum auf {value} aktualisiert",
+    "auditLog.settings.spaceChildAdded":
+        "{actor} hat {target} diesem Space hinzugefügt",
+    "auditLog.settings.spaceChildRemoved":
+        "{actor} hat {target} aus diesem Space entfernt",
+    "auditLog.settings.spaceParentAdded":
+        "{actor} hat diesen Space zu {target} hinzugefügt",
+    "auditLog.settings.spaceParentRemoved":
+        "{actor} hat diesen Space aus {target} entfernt",
+    "inviteBlocking.blockAllInvites": "Alle Einladungen blockieren",
+    "inviteBlocking.blockAllInvitesHintServer":
+        "Dein Heimserver erzwingt dies: Einladungen von allen werden abgelehnt.",
+    "inviteBlocking.blockAllInvitesHintClient":
+        "Dein Heimserver erzwingt dies nicht, daher blendet diese App ausstehende Einladungen aus und unterdrückt ihre Benachrichtigungen. Die Einladungen erreichen weiterhin den Server.",
+    "inviteBlocking.hiddenNote":
+        "Einladungen sind blockiert. {count} ausgeblendet.",
+    "inviteBlocking.showingAnyway":
+        "Einladungen sind blockiert. Sie werden trotzdem angezeigt.",
+    "inviteBlocking.showAnyway": "Trotzdem anzeigen",
+    "inviteBlocking.hide": "Ausblenden",
+    "inviteBlocking.couldNotSave":
+        "Die Einladungseinstellung konnte nicht geändert werden. Versuche es erneut.",
+    "inviteBlocking.userNotAccepting": "{user} nimmt keine Einladungen an",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: de };

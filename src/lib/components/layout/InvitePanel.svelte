@@ -10,6 +10,8 @@
         getIdentityServer,
     } from "$lib/matrix/client";
     import { matrixErrorMessage } from "$lib/utils/knock";
+    import { isInviteBlockedError } from "$lib/utils/inviteBlocking";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
     import {
         isValidEmail,
         getThreePidInviteState,
@@ -81,6 +83,14 @@
                 await inviteUser(roomId, userId);
                 done.push({ userId, ok: true });
             } catch (e) {
+                if (isInviteBlockedError(e)) {
+                    const message = t("inviteBlocking.userNotAccepting", {
+                        user: userId,
+                    });
+                    showErrorToast(message);
+                    done.push({ userId, ok: false, error: message });
+                    continue;
+                }
                 done.push({
                     userId,
                     ok: false,

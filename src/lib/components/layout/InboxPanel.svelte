@@ -9,9 +9,14 @@
         rejectInvite,
         cancelKnock,
         getInviteSender,
+        getBlockedInviteCount,
     } from "$lib/matrix/client";
     import { roomsState, setActiveRoom } from "$lib/stores/rooms.svelte";
     import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import {
+        inviteBlockingState,
+        setShowAnyway,
+    } from "$lib/stores/inviteBlocking.svelte";
     import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
 
     interface Props {
@@ -22,6 +27,15 @@
     let { isMobile = false, onMenuOpen }: Props = $props();
 
     let busyIds = $state(new Set<string>());
+
+    // Invites the block hides right now; the note shows while blocked.
+    const blockedCount = $derived.by(() => {
+        void roomsState.roomsTick;
+        void inviteBlockingState.blocked;
+        if (!inviteBlockingState.blocked || inviteBlockingState.showAnyway)
+            return 0;
+        return getBlockedInviteCount();
+    });
 
     async function accept(roomId: string) {
         busyIds = new Set([...busyIds, roomId]);
@@ -82,6 +96,29 @@
     </div>
 
     <div class="flex-1 overflow-y-auto p-4">
+        {#if inviteBlockingState.blocked && (blockedCount > 0 || inviteBlockingState.showAnyway)}
+            <div
+                class="max-w-lg mx-auto mb-3 flex items-center gap-3 p-3 rounded-lg bg-zam-backgroundSecondary border border-zam-divider"
+            >
+                <p class="flex-1 text-sm text-zam-textMuted">
+                    {inviteBlockingState.showAnyway
+                        ? t("inviteBlocking.showingAnyway")
+                        : t("inviteBlocking.hiddenNote", {
+                              count: blockedCount,
+                          })}
+                </p>
+                <button
+                    type="button"
+                    onclick={() =>
+                        setShowAnyway(!inviteBlockingState.showAnyway)}
+                    class="text-sm font-medium text-zam-accent hover:underline flex-shrink-0"
+                >
+                    {inviteBlockingState.showAnyway
+                        ? t("inviteBlocking.hide")
+                        : t("inviteBlocking.showAnyway")}
+                </button>
+            </div>
+        {/if}
         {#if roomsState.invitedRooms.length === 0 && roomsState.knockedRooms.length === 0}
             <div
                 class="flex flex-col items-center justify-center h-full text-center py-16"

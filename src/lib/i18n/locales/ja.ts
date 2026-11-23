@@ -4364,6 +4364,114 @@ const messages: Partial<Record<MessageKey, string>> = {
         "{name}への直接接続に失敗しました。ホームサーバーには中継サーバーもSTUNサーバーもないため、家庭用ルーターを経由する接続は通常失敗します。「音声と映像」設定で「公開STUNサーバーを使用する」をオンにすると改善する場合があります。",
     "settingsSearch.meshRelayOnly":
         "ピアツーピア通話に中継サーバーを必須にする",
+    "messageActionsMenu.viewEditHistory": "編集履歴を表示",
+    "roomSettingsNav.audit": "監査ログ",
+    "editHistory.title": "編集履歴",
+    "editHistory.open": "編集履歴を表示",
+    "editHistory.current": "現在",
+    "editHistory.original": "元のメッセージ",
+    "editHistory.loading": "編集履歴を読み込み中...",
+    "editHistory.loadFailed": "編集履歴を読み込めませんでした",
+    "editHistory.empty": "このメッセージの編集履歴はありません。",
+    "editHistory.undecryptable": "このバージョンを復号できませんでした。",
+    "editHistory.noText": "このバージョンにはテキストがありません。",
+    "editHistory.originalNotLoaded": "元のメッセージが読み込まれていません。",
+    "nicknameSection.title": "ニックネーム",
+    "nicknameSection.label": "あなたのニックネーム",
+    "nicknameSection.hint":
+        "このルームでのみ表示名の代わりに表示されます。空欄にすると全体の名前を使用します。",
+    "nicknameSection.spaceHint":
+        "このスペースと、その中で参加しているすべてのルームおよびサブスペースに適用されます。空欄にすると全体の名前を使用します。",
+    "nicknameSection.save": "保存",
+    "nicknameSection.reset": "リセット",
+    "nicknameSection.saving": "保存中…",
+    "nicknameSection.saved": "保存しました",
+    "nicknameSection.saveFailed": "ニックネームを保存できませんでした。",
+    "nicknameSection.notJoined": "このルームに参加していません。",
+    "nicknameSection.partialFailure":
+        "{total} 件中 {failed} 件のルームを更新できませんでした。",
+    "auditLog.intro":
+        "このルームのメンバー、モデレーション、設定の変更を新しい順に表示します。",
+    "auditLog.introSpace":
+        "このスペースのメンバー、モデレーション、設定の変更を新しい順に表示します。",
+    "auditLog.filtersLabel": "監査ログを絞り込む",
+    "auditLog.filter.all": "すべて",
+    "auditLog.filter.moderation": "モデレーション",
+    "auditLog.filter.members": "メンバー",
+    "auditLog.filter.settings": "設定",
+    "auditLog.loading": "履歴を読み込み中...",
+    "auditLog.loadingMore": "読み込み中...",
+    "auditLog.loadMore": "さらに読み込む",
+    "auditLog.loadFailed": "監査ログを読み込めませんでした。",
+    "auditLog.retry": "再試行",
+    "auditLog.empty": "この条件に一致する項目はありません。",
+    "auditLog.reason": "理由: {reason}",
+    "auditLog.member.join": "{actor} がルームに参加しました",
+    "auditLog.member.leave": "{actor} がルームを退出しました",
+    "auditLog.member.kick": "{actor} が {target} をキックしました",
+    "auditLog.member.ban": "{actor} が {target} をBANしました",
+    "auditLog.member.unban": "{actor} が {target} のBANを解除しました",
+    "auditLog.member.invite": "{actor} が {target} を招待しました",
+    "auditLog.member.inviteRejected": "{actor} が招待を辞退しました",
+    "auditLog.member.inviteRetracted":
+        "{actor} が {target} への招待を取り消しました",
+    "auditLog.member.knock": "{actor} が参加を希望しました",
+    "auditLog.member.displayname": "{actor} が表示名を {value} に変更しました",
+    "auditLog.member.displaynameChanged":
+        "{actor} が表示名を {detail} から {value} に変更しました",
+    "auditLog.member.displaynameRemoved": "{actor} が表示名を削除しました",
+    "auditLog.member.avatar": "{actor} がアバターを変更しました",
+    "auditLog.power.user":
+        "{actor} が {target} の権限レベルを {detail} から {value} に変更しました",
+    "auditLog.power.defaults":
+        "{actor} がデフォルトまたは操作ごとの権限レベルを変更しました",
+    "auditLog.acl": "{actor} がサーバーのアクセスリストを変更しました",
+    "auditLog.redaction": "{actor} がメッセージを削除しました",
+    "auditLog.settings.name": "{actor} がルーム名を {value} に変更しました",
+    "auditLog.settings.nameChanged":
+        "{actor} がルーム名を {detail} から {value} に変更しました",
+    "auditLog.settings.nameRemoved": "{actor} がルーム名を削除しました",
+    "auditLog.settings.topic": "{actor} がトピックを変更しました",
+    "auditLog.settings.avatar": "{actor} がルームのアバターを変更しました",
+    "auditLog.settings.avatarRemoved":
+        "{actor} がルームのアバターを削除しました",
+    "auditLog.settings.joinRules":
+        "{actor} が参加ルールを {value} に変更しました",
+    "auditLog.settings.historyVisibility":
+        "{actor} が履歴の公開範囲を {value} に変更しました",
+    "auditLog.settings.guestAccess":
+        "{actor} がゲストアクセスを {value} に変更しました",
+    "auditLog.settings.encryption":
+        "{actor} がエンドツーエンド暗号化を有効にしました",
+    "auditLog.settings.pinned": "{actor} がピン留めメッセージを変更しました",
+    "auditLog.settings.canonicalAlias":
+        "{actor} がメインアドレスを {value} に変更しました",
+    "auditLog.settings.canonicalAliasRemoved":
+        "{actor} がメインアドレスを削除しました",
+    "auditLog.settings.tombstone":
+        "{actor} がルームを {value} にアップグレードしました",
+    "auditLog.settings.spaceChildAdded":
+        "{actor} が {target} をこのスペースに追加しました",
+    "auditLog.settings.spaceChildRemoved":
+        "{actor} が {target} をこのスペースから削除しました",
+    "auditLog.settings.spaceParentAdded":
+        "{actor} がこのスペースを {target} に追加しました",
+    "auditLog.settings.spaceParentRemoved":
+        "{actor} がこのスペースを {target} から削除しました",
+    "inviteBlocking.blockAllInvites": "すべての招待をブロック",
+    "inviteBlocking.blockAllInvitesHintServer":
+        "ホームサーバーで強制されています。誰からの招待も拒否されます。",
+    "inviteBlocking.blockAllInvitesHintClient":
+        "ホームサーバーでは強制されていないため、このアプリは保留中の招待を非表示にし、その通知をスキップします。招待はサーバーに届きます。",
+    "inviteBlocking.hiddenNote":
+        "招待はブロックされています。{count} 件を非表示にしました。",
+    "inviteBlocking.showingAnyway":
+        "招待はブロックされていますが、表示しています。",
+    "inviteBlocking.showAnyway": "表示する",
+    "inviteBlocking.hide": "非表示",
+    "inviteBlocking.couldNotSave":
+        "招待の設定を変更できませんでした。もう一度お試しください。",
+    "inviteBlocking.userNotAccepting": "{user} は招待を受け付けていません",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ja };

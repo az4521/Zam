@@ -26,3 +26,41 @@ export function collectSpaceDescendantRoomIds(
     walk(rootSpaceId);
     return [...rooms];
 }
+
+/** One node in a nickname walk: its m.space.child ids and whether the user is joined. */
+export interface NicknameWalkNode {
+    childIds: string[];
+    joined: boolean;
+}
+
+/**
+ * Joined descendants of a space, for applying a per-space nickname: every
+ * joined room and sub-space below `rootSpaceId`, depth-first, excluding the
+ * root itself.
+ *
+ * Unjoined children are neither returned nor walked into, since the client has
+ * no reliable child state for a space the user is not in. A child the lookup
+ * cannot resolve (null) is skipped. Each id is visited once, so cycles and a
+ * room reachable through two sub-spaces are handled.
+ */
+export function joinedSpaceDescendants(
+    rootSpaceId: string,
+    lookup: (roomId: string) => NicknameWalkNode | null,
+): string[] {
+    const out: string[] = [];
+    const visited = new Set<string>([rootSpaceId]);
+    const walk = (spaceId: string) => {
+        const node = lookup(spaceId);
+        if (!node) return;
+        for (const childId of node.childIds) {
+            if (visited.has(childId)) continue;
+            visited.add(childId);
+            const child = lookup(childId);
+            if (!child?.joined) continue;
+            out.push(childId);
+            walk(childId);
+        }
+    };
+    walk(rootSpaceId);
+    return out;
+}

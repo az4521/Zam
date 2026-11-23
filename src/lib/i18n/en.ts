@@ -3983,6 +3983,7 @@ export const en = {
     "messageActionsMenu.viewReactions": "View reactions",
     "messageActionsMenu.markUnread": "Mark as unread",
     "messageActionsMenu.couldNotMarkUnread": "Couldn't mark as unread",
+    "messageActionsMenu.viewEditHistory": "View edit history",
     "messageActionsMenu.report": "Report",
     "roomSettings.readReceipts": "Read receipts",
     "roomSettings.readReceiptsRoomHelp":
@@ -4151,6 +4152,7 @@ export const en = {
     "roomSettingsNav.permissions": "Permissions",
     "roomSettingsNav.members": "Members",
     "roomSettingsNav.emotes": "Emotes",
+    "roomSettingsNav.audit": "Audit log",
     "roomSettingsNav.rooms": "Rooms",
 
     // src/lib/utils/roomStateTrust.ts
@@ -4684,6 +4686,112 @@ export const en = {
         'Couldn\'t connect directly to {name}. Your homeserver offers no relay or STUN server, so connections through home routers usually fail. Turning on "Use a public STUN server" in Voice & Video settings may help.',
     "settingsSearch.meshRelayOnly":
         "Require a relay server for peer-to-peer calls",
+
+    // src/lib/components/messages/EditHistoryDialog.svelte
+    "editHistory.title": "Edit history",
+    "editHistory.open": "View edit history",
+    "editHistory.current": "Current",
+    "editHistory.original": "Original",
+    "editHistory.loading": "Loading edit history...",
+    "editHistory.loadFailed": "Couldn't load the edit history",
+    "editHistory.empty": "No edit history is available for this message.",
+    "editHistory.undecryptable": "This version could not be decrypted.",
+    "editHistory.noText": "No text in this version.",
+    "editHistory.originalNotLoaded": "The original message isn't loaded.",
+    // src/lib/components/layout/NicknameSection.svelte
+    "nicknameSection.title": "Nickname",
+    "nicknameSection.label": "Your nickname",
+    "nicknameSection.hint":
+        "Shown in place of your display name in this room only. Leave empty to use your global name.",
+    "nicknameSection.spaceHint":
+        "Applies to this space and every joined room and sub-space in it. Leave empty to use your global name.",
+    "nicknameSection.save": "Save",
+    "nicknameSection.reset": "Reset",
+    "nicknameSection.saving": "Saving…",
+    "nicknameSection.saved": "Saved",
+    "nicknameSection.saveFailed": "Couldn't save your nickname.",
+    "nicknameSection.notJoined": "You're not in this room.",
+    "nicknameSection.partialFailure":
+        "{failed} of {total} rooms couldn't be updated.",
+
+    // src/lib/components/layout/RoomAuditLog.svelte
+    "auditLog.intro":
+        "Changes to this room's membership, moderation and settings, newest first.",
+    "auditLog.introSpace":
+        "Changes to this space's membership, moderation and settings, newest first.",
+    "auditLog.filtersLabel": "Filter the audit log",
+    "auditLog.filter.all": "All",
+    "auditLog.filter.moderation": "Moderation",
+    "auditLog.filter.members": "Members",
+    "auditLog.filter.settings": "Settings",
+    "auditLog.loading": "Loading history...",
+    "auditLog.loadingMore": "Loading...",
+    "auditLog.loadMore": "Load more",
+    "auditLog.loadFailed": "Couldn't load the audit log.",
+    "auditLog.retry": "Try again",
+    "auditLog.empty": "Nothing to show for this filter.",
+    "auditLog.reason": "Reason: {reason}",
+    "auditLog.member.join": "{actor} joined the room",
+    "auditLog.member.leave": "{actor} left the room",
+    "auditLog.member.kick": "{actor} kicked {target}",
+    "auditLog.member.ban": "{actor} banned {target}",
+    "auditLog.member.unban": "{actor} unbanned {target}",
+    "auditLog.member.invite": "{actor} invited {target}",
+    "auditLog.member.inviteRejected": "{actor} declined an invite",
+    "auditLog.member.inviteRetracted":
+        "{actor} withdrew the invite to {target}",
+    "auditLog.member.knock": "{actor} asked to join",
+    "auditLog.member.displayname":
+        "{actor} changed their display name to {value}",
+    "auditLog.member.displaynameChanged":
+        "{actor} changed their display name from {detail} to {value}",
+    "auditLog.member.displaynameRemoved": "{actor} removed their display name",
+    "auditLog.member.avatar": "{actor} changed their avatar",
+    "auditLog.power.user":
+        "{actor} changed the power level of {target} from {detail} to {value}",
+    "auditLog.power.defaults":
+        "{actor} changed the default or per-action power levels",
+    "auditLog.acl": "{actor} changed the server access list",
+    "auditLog.redaction": "{actor} removed a message",
+    "auditLog.settings.name": "{actor} changed the room name to {value}",
+    "auditLog.settings.nameChanged":
+        "{actor} changed the room name from {detail} to {value}",
+    "auditLog.settings.nameRemoved": "{actor} removed the room name",
+    "auditLog.settings.topic": "{actor} changed the topic",
+    "auditLog.settings.avatar": "{actor} changed the room avatar",
+    "auditLog.settings.avatarRemoved": "{actor} removed the room avatar",
+    "auditLog.settings.joinRules": "{actor} changed the join rule to {value}",
+    "auditLog.settings.historyVisibility":
+        "{actor} changed history visibility to {value}",
+    "auditLog.settings.guestAccess": "{actor} changed guest access to {value}",
+    "auditLog.settings.encryption": "{actor} turned on end-to-end encryption",
+    "auditLog.settings.pinned": "{actor} changed the pinned messages",
+    "auditLog.settings.canonicalAlias":
+        "{actor} changed the main address to {value}",
+    "auditLog.settings.canonicalAliasRemoved":
+        "{actor} removed the main address",
+    "auditLog.settings.tombstone": "{actor} upgraded the room to {value}",
+    "auditLog.settings.spaceChildAdded": "{actor} added {target} to this space",
+    "auditLog.settings.spaceChildRemoved":
+        "{actor} removed {target} from this space",
+    "auditLog.settings.spaceParentAdded":
+        "{actor} added this space to {target}",
+    "auditLog.settings.spaceParentRemoved":
+        "{actor} removed this space from {target}",
+
+    // invite blocking
+    "inviteBlocking.blockAllInvites": "Block all invites",
+    "inviteBlocking.blockAllInvitesHintServer":
+        "Your homeserver enforces this: invites from anyone are rejected.",
+    "inviteBlocking.blockAllInvitesHintClient":
+        "Your homeserver doesn't enforce this, so this app hides pending invites and skips their notifications. The invites still reach the server.",
+    "inviteBlocking.hiddenNote": "Invites are blocked. {count} hidden.",
+    "inviteBlocking.showingAnyway": "Invites are blocked. Showing them anyway.",
+    "inviteBlocking.showAnyway": "Show anyway",
+    "inviteBlocking.hide": "Hide",
+    "inviteBlocking.couldNotSave":
+        "Couldn't change the invite setting. Try again.",
+    "inviteBlocking.userNotAccepting": "{user} isn't accepting invites",
 };
 
 export type MessageKey = keyof typeof en;

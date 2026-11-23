@@ -22,6 +22,10 @@
     import { syncNativeNotificationPrivacy } from "$lib/nativeSession";
     import { mirrorReceiptPrivacy } from "$lib/receiptPrivacySync";
     import { auth } from "$lib/stores/auth.svelte";
+    import {
+        inviteBlockingState,
+        setInvitesBlockedOptimistic,
+    } from "$lib/stores/inviteBlocking.svelte";
 
     const linkPreviewOptions: Array<{
         value: LinkPreviewMedia;
@@ -183,6 +187,26 @@
                 options={linkPreviewOptions}
                 onChange={setLinkPreviewMedia}
                 ariaLabel={t("privacySafetySettings.linkPreviewMedia")}
+            />
+        </div>
+    </section>
+
+    <section data-setting-anchor="block-invites">
+        <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-zam-textPrimary">
+                    {t("inviteBlocking.blockAllInvites")}
+                </p>
+                <p class="text-xs text-zam-textMuted">
+                    {inviteBlockingState.support === "none"
+                        ? t("inviteBlocking.blockAllInvitesHintClient")
+                        : t("inviteBlocking.blockAllInvitesHintServer")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={inviteBlockingState.blocked}
+                onChange={setInvitesBlockedOptimistic}
+                label={t("inviteBlocking.blockAllInvites")}
             />
         </div>
     </section>

@@ -162,6 +162,7 @@
     import { initRecentEmoji } from "$lib/stores/recentEmoji.svelte";
     import { initCustomizationSync } from "$lib/stores/customizationSync.svelte";
     import { initIgnoredUsers } from "$lib/stores/ignoredUsers.svelte";
+    import { initInviteBlocking } from "$lib/stores/inviteBlocking.svelte";
     import { initPresence } from "$lib/stores/presence.svelte";
     import { initLiveLocation } from "$lib/stores/liveLocation.svelte";
     import { initOutbox } from "$lib/stores/outbox.svelte";
@@ -2639,6 +2640,8 @@
         const unsubRecentEmoji = initRecentEmoji();
         const unsubCustomization = initCustomizationSync();
         const unsubIgnored = initIgnoredUsers();
+        // Hidden invites follow the block (stores/inviteBlocking.svelte.ts).
+        const unsubInviteBlocking = initInviteBlocking(() => refreshRooms());
         const unsubServerNotices = watchServerNotices();
         const unsubPresence = initPresence();
         const unsubVoice = initVoiceCall();
@@ -2773,6 +2776,7 @@
             unsubRecentEmoji();
             unsubCustomization();
             unsubIgnored();
+            unsubInviteBlocking();
             unsubServerNotices();
             unsubPresence();
             unsubVoice();

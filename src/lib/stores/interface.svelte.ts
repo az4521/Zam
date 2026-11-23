@@ -91,7 +91,9 @@ export type ModalId =
     | "quick-switcher"
     | "keyboard-shortcuts"
     // Call connection stats (CallStatsPanel, opened from VoiceCallPanel).
-    | "call-stats";
+    | "call-stats"
+    // Every version of an edited message (EditHistoryDialog, MessageItem).
+    | "edit-history";
 
 export type SidebarId =
     | "members"

@@ -55,6 +55,7 @@
     import VoiceMessagePlayer from "$lib/components/messages/VoiceMessagePlayer.svelte";
     import MidiPlayer from "$lib/components/ui/MidiPlayer.svelte";
     import ForwardMessageDialog from "$lib/components/messages/ForwardMessageDialog.svelte";
+    import EditHistoryDialog from "$lib/components/messages/EditHistoryDialog.svelte";
     import MessageReportAction from "$lib/components/messages/MessageReportAction.svelte";
     import MessageRedactAction from "$lib/components/messages/MessageRedactAction.svelte";
     import MessageActionsSheet from "$lib/components/messages/MessageActionsSheet.svelte";
@@ -428,6 +429,7 @@
     let pinning = $state(false);
     let showForwardDialog = $state(false);
     let showViewSourceDialog = $state(false);
+    let showEditHistory = $state(false);
     let showReactionsViewer = $state(false);
 
     // Elements that own their own tap/gesture — a row tap/hold must defer to
@@ -1294,6 +1296,20 @@
         showViewSourceDialog = true;
     }
 
+    function openEditHistoryDialog() {
+        slotToken = openModal("edit-history", () => {
+            showEditHistory = false;
+        });
+        showEditHistory = true;
+    }
+
+    // The "(edited)" label is a button inside the message row; stop the click
+    // so the row's tap gesture (select / double-tap) does not also fire.
+    function onEditedLabelClick(e: MouseEvent) {
+        e.stopPropagation();
+        openEditHistoryDialog();
+    }
+
     function openReactionsViewer() {
         slotToken = openModal("reactions-viewer", () => {
             showReactionsViewer = false;
@@ -1339,6 +1355,9 @@
                 break;
             case "view-source":
                 openViewSourceDialog();
+                break;
+            case "view-edit-history":
+                openEditHistoryDialog();
                 break;
             case "view-reactions":
                 openReactionsViewer();
@@ -2398,6 +2417,7 @@
             canMarkUnread:
                 eventId.startsWith("$") && !isFailed && !isThreadReply,
             canViewSource: true,
+            canViewEditHistory: isEdited,
             canViewReactions: hasReactions,
             canReport: !isOwnMessage && !isFailed,
             canRedact: !isOwnMessage && !isFailed && canRedact,
@@ -3186,8 +3206,13 @@
                             {@html withTwemoji(plainToHtml(body()))}
                         {/if}
                         {#if isEdited}
-                            <span class="text-xs text-zam-textMuted ms-1"
-                                >{t("messageItem.edited")}</span
+                            <button
+                                type="button"
+                                class="ms-1 cursor-pointer bg-transparent p-0 text-xs text-zam-textMuted hover:underline"
+                                title={t("editHistory.open")}
+                                aria-label={t("editHistory.open")}
+                                onclick={onEditedLabelClick}
+                                >{t("messageItem.edited")}</button
                             >
                         {/if}
                     </div>
@@ -3751,8 +3776,13 @@
                                 {@html withTwemoji(plainToHtml(body()))}
                             {/if}
                             {#if isEdited}
-                                <span class="text-xs text-zam-textMuted ms-1"
-                                    >{t("messageItem.edited")}</span
+                                <button
+                                    type="button"
+                                    class="ms-1 cursor-pointer bg-transparent p-0 text-xs text-zam-textMuted hover:underline"
+                                    title={t("editHistory.open")}
+                                    aria-label={t("editHistory.open")}
+                                    onclick={onEditedLabelClick}
+                                    >{t("messageItem.edited")}</button
                                 >
                             {/if}
                             {#if receiptSpacerWidth > 0}
@@ -4550,8 +4580,12 @@
             {@html withTwemoji(plainToHtml(body()))}
         {/if}
         {#if isEdited}
-            <span class="text-xs text-zam-textMuted ms-1"
-                >{t("messageItem.edited")}</span
+            <button
+                type="button"
+                class="ms-1 cursor-pointer bg-transparent p-0 text-xs text-zam-textMuted hover:underline"
+                title={t("editHistory.open")}
+                aria-label={t("editHistory.open")}
+                onclick={onEditedLabelClick}>{t("messageItem.edited")}</button
             >
         {/if}
     </div>
@@ -4587,6 +4621,10 @@
 
 {#if showViewSourceDialog}
     <ViewSourceDialog {event} />
+{/if}
+
+{#if showEditHistory}
+    <EditHistoryDialog roomId={room.roomId} {eventId} />
 {/if}
 
 <style>

@@ -202,6 +202,7 @@
     import { isFileTooLargeError } from "$lib/utils/uploadLimits";
     import { discardRoomSession } from "$lib/matrix/crypto";
     import { matrixErrorMessage } from "$lib/utils/knock";
+    import { isInviteBlockedError } from "$lib/utils/inviteBlocking";
     import { scrollBehavior } from "$lib/utils/motionPreference";
     import { suppressNextClick } from "$lib/utils/suppressNextClick";
     import {
@@ -1222,9 +1223,22 @@
             case "part":
                 await leaveRoom(roomId);
                 break;
-            case "invite":
-                await inviteUser(roomId, resolveUserOrThrow(arg.trim()));
+            case "invite": {
+                const invitee = resolveUserOrThrow(arg.trim());
+                try {
+                    await inviteUser(roomId, invitee);
+                } catch (err) {
+                    // The caller shows an Error's message as is.
+                    if (isInviteBlockedError(err))
+                        throw new Error(
+                            t("inviteBlocking.userNotAccepting", {
+                                user: invitee,
+                            }),
+                        );
+                    throw err;
+                }
                 break;
+            }
             case "topic":
                 await setRoomTopic(roomId, arg);
                 break;
