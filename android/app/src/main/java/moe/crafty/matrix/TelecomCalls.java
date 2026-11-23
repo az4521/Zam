@@ -362,6 +362,7 @@ final class TelecomCalls {
         Intent intent = new Intent(conn.context, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
             | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        TrustedIntent.stamp(conn.context, intent);
         intent.putExtra("incoming_call", true);
         if (!delivered && conn.postedBy != null) {
             intent.putExtra("room_id", conn.roomId);

@@ -52,6 +52,8 @@ public class MessageActionReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         if (intent == null) return;
+        // Not exported, but cheap to keep the same rule: only Zam-built intents.
+        if (!TrustedIntent.isTrusted(context, intent)) return;
         final boolean decline = ACTION_DECLINE_INVITE.equals(intent.getAction());
         if (!decline && !ACTION_MARK_READ.equals(intent.getAction())) return;
         final String roomId = intent.getStringExtra("room_id");

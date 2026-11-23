@@ -1265,6 +1265,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         createChannel(ctx);
         Intent intent = new Intent(ctx, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        TrustedIntent.stamp(ctx, intent);
         // Same attribution guard as showNotification() (audit PRIV-02).
         if (postedBy != null && !postedBy.isEmpty()) {
             intent.putExtra("room_id", roomId);
@@ -1289,6 +1290,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             Intent accept = new Intent(ctx, MainActivity.class);
             accept.setAction(MessageActionReceiver.ACTION_ACCEPT_INVITE);
             accept.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            TrustedIntent.stamp(ctx, accept);
             accept.putExtra("room_id", roomId);
             accept.putExtra("user_id", postedBy);
             builder.addAction(0, "Accept", PendingIntent.getActivity(
@@ -1296,6 +1298,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
             Intent decline = new Intent(ctx, MessageActionReceiver.class);
             decline.setAction(MessageActionReceiver.ACTION_DECLINE_INVITE);
+            TrustedIntent.stamp(ctx, decline);
             decline.putExtra("room_id", roomId);
             decline.putExtra("user_id", postedBy);
             builder.addAction(0, "Decline", PendingIntent.getBroadcast(
@@ -1818,6 +1821,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
         Intent intent = new Intent(ctx, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        TrustedIntent.stamp(ctx, intent);
 
         // Stamp the account this was posted under so the web layer can refuse
         // to open it in a different session (audit PRIV-02), or switch to it.
@@ -1882,6 +1886,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             Intent replyIntent = new Intent(ctx, MainActivity.class);
             replyIntent.setAction(MessageActionReceiver.ACTION_REPLY);
             replyIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            TrustedIntent.stamp(ctx, replyIntent);
             replyIntent.putExtra("room_id", roomId);
             replyIntent.putExtra("user_id", postedBy);
             // One reply per posted notification: MainActivity remembers the
@@ -1905,6 +1910,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             // sends the read marker itself, without opening the app.
             Intent markReadIntent = new Intent(ctx, MessageActionReceiver.class);
             markReadIntent.setAction(MessageActionReceiver.ACTION_MARK_READ);
+            TrustedIntent.stamp(ctx, markReadIntent);
             markReadIntent.putExtra("room_id", roomId);
             markReadIntent.putExtra("user_id", postedBy);
             if (eventId != null && !eventId.isEmpty()) {
@@ -2125,6 +2131,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             Intent open = new Intent(ctx, MainActivity.class);
             open.setAction(Intent.ACTION_VIEW);
             open.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            TrustedIntent.stamp(ctx, open);
             open.putExtra("room_id", roomId);
             open.putExtra("user_id", postedBy);
             ShortcutInfoCompat.Builder sc = new ShortcutInfoCompat.Builder(ctx, roomId)

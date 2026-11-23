@@ -23,6 +23,7 @@ public class CallActionReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         if (intent == null || !ACTION_DECLINE.equals(intent.getAction())) return;
+        if (!TrustedIntent.isTrusted(context, intent)) return;
         int id = intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0);
         try {
             NotificationManagerCompat.from(context).cancel(id);

@@ -90,6 +90,7 @@ final class IncomingCallNotification {
         // Accept: open the app to the room AND join the call.
         Intent answerIntent = new Intent(context, MainActivity.class);
         answerIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        TrustedIntent.stamp(context, answerIntent);
         if (routable) {
             answerIntent.putExtra("room_id", roomId);
             answerIntent.putExtra("user_id", postedBy);
@@ -102,6 +103,7 @@ final class IncomingCallNotification {
         // Body tap (not a button): open the room; the in-app ringer offers Accept.
         Intent openIntent = new Intent(context, MainActivity.class);
         openIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        TrustedIntent.stamp(context, openIntent);
         if (routable) {
             openIntent.putExtra("room_id", roomId);
             openIntent.putExtra("user_id", postedBy);
@@ -113,6 +115,7 @@ final class IncomingCallNotification {
         // Decline: reject the call without opening the app.
         Intent declineIntent = new Intent(context, CallActionReceiver.class);
         declineIntent.setAction(CallActionReceiver.ACTION_DECLINE);
+        TrustedIntent.stamp(context, declineIntent);
         declineIntent.putExtra(CallActionReceiver.EXTRA_NOTIFICATION_ID, notificationId);
         if (roomId != null) declineIntent.putExtra(CallActionReceiver.EXTRA_ROOM_ID, roomId);
         PendingIntent declinePending = PendingIntent.getBroadcast(
@@ -126,6 +129,7 @@ final class IncomingCallNotification {
         // takes over; MainActivity does not cancel it for this intent.
         Intent fullScreenIntent = new Intent(context, MainActivity.class);
         fullScreenIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        TrustedIntent.stamp(context, fullScreenIntent);
         fullScreenIntent.putExtra("incoming_call", true);
         if (routable) {
             fullScreenIntent.putExtra("room_id", roomId);

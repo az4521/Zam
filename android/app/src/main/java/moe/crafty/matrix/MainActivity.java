@@ -196,6 +196,11 @@ public class MainActivity extends BridgeActivity {
      */
     private void handleRoomIntent(Intent intent) {
         if (intent == null) return;
+        // MainActivity is exported: any app can send these extras. Act on them
+        // only when Zam built the intent (carries the install secret). An
+        // untrusted intent opens the app normally and nothing else: no room,
+        // no call join, no reply, no mark-read, no lock-screen wake.
+        if (!TrustedIntent.isTrusted(this, intent)) return;
         // Full-screen launch of a ringing DM call (screen off / locked): come
         // up over the lock screen so the in-app Accept / Decline card is
         // reachable. Checked before the room id, which an unattributed
