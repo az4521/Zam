@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MatrixEvent, MatrixEventEvent } from "matrix-js-sdk";
+import { MatrixEvent, MatrixEventEvent, RoomEvent } from "matrix-js-sdk";
+import { decodeBlock } from "$lib/utils/eventIndex";
 import {
     crawlOnceForTests,
     deleteEventIndex,
@@ -413,6 +414,147 @@ describe("crawler decrypts history through the event mapper", () => {
 
         client.releaseKey("$late");
         expect(await eventIdsIn(ENC_ROOM)).toEqual(["$late"]);
+    });
+});
+
+/** Every body this account's index still holds on disk: tails, and blocks
+ *  decoded from their compressed form. */
+async function storedBodies(): Promise<string[]> {
+    const factory = globalThis.indexedDB as unknown as ReturnType<
+        typeof makeFakeIdb
+    >;
+    const stores = factory.dbs.get(eventIndexDbName(USER, DEVICE))!.stores;
+    const bodies: string[] = [];
+    for (const row of stores.get("tails")!.rows.values())
+        for (const e of row.entries as { b: string }[]) bodies.push(e.b);
+    for (const row of stores.get("blocks")!.rows.values())
+        for (const e of await decodeBlock(row as never)) bodies.push(e.b);
+    return bodies;
+}
+
+function redactionOf(target: string, roomId: string) {
+    return new MatrixEvent({
+        type: "m.room.redaction",
+        event_id: `$redact-${target}`,
+        room_id: roomId,
+        sender: "@alice:x",
+        origin_server_ts: 2000,
+        redacts: target,
+        content: {},
+    });
+}
+
+describe("a redaction removes the stored body", () => {
+    it("removes a body from a block when its target is not loaded", async () => {
+        addRoom(ENC_ROOM, 1000);
+        // 255 messages: the first 250 become a block, the rest stay in the tail.
+        const chunk = Array.from({ length: 255 }, (_, i) =>
+            plainRaw(
+                `$m${i}`,
+                ENC_ROOM,
+                500 + i,
+                i === 3 ? "hunter2 secret" : `message ${i}`,
+            ),
+        );
+        client.script.set(ENC_ROOM, [{ chunk, end: null }]);
+        startEventIndex();
+        expect(await crawlOnceForTests()).toBe(true);
+        expect(await storedBodies()).toContain("hunter2 secret");
+
+        // The SDK raises RoomEvent.Redaction only for a loaded target; the
+        // redaction still reaches the timeline, and that is what is watched.
+        client.emit(RoomEvent.Timeline, redactionOf("$m3", ENC_ROOM), {
+            roomId: ENC_ROOM,
+        });
+        const ids = await eventIdsIn(ENC_ROOM);
+        expect(ids).toHaveLength(254);
+        expect(ids).not.toContain("$m3");
+        expect(await storedBodies()).not.toContain("hunter2 secret");
+    });
+
+    it("never stores the body of a message redacted before it was indexed", async () => {
+        addRoom(ENC_ROOM, 1000);
+        startEventIndex();
+        client.emit(RoomEvent.Timeline, redactionOf("$early", ENC_ROOM), {
+            roomId: ENC_ROOM,
+        });
+        client.script.set(ENC_ROOM, [
+            {
+                chunk: [plainRaw("$early", ENC_ROOM, 500, "too late to hide")],
+                end: null,
+            },
+        ]);
+        expect(await crawlOnceForTests()).toBe(true);
+        expect(await eventIdsIn(ENC_ROOM)).toEqual([]);
+        expect(await storedBodies()).not.toContain("too late to hide");
+    });
+
+    it("scrubs bodies stored before the scrub existed, once, on the next start", async () => {
+        const name = eventIndexDbName(USER, DEVICE);
+        const factory = globalThis.indexedDB as unknown as ReturnType<
+            typeof makeFakeIdb
+        >;
+        // A v3 index with a tail holding a redacted body and its tombstone.
+        await new Promise<void>((resolve) => {
+            const open = factory.open(name, 3) as unknown as {
+                result: {
+                    createObjectStore(
+                        n: string,
+                        o: object,
+                    ): { createIndex(i: string, k: string): unknown };
+                    transaction(n: string[], m?: string): IDBTransaction;
+                };
+                onupgradeneeded: () => void;
+                onsuccess: () => void;
+            };
+            open.onupgradeneeded = () => {
+                const db = open.result;
+                db.createObjectStore("blocks", {
+                    keyPath: "id",
+                    autoIncrement: true,
+                }).createIndex("room", "roomId");
+                db.createObjectStore("tails", { keyPath: "roomId" });
+                db.createObjectStore("media", { keyPath: "eventId" });
+                db.createObjectStore("crawl", { keyPath: "roomId" });
+                db.createObjectStore("redacted", {
+                    keyPath: "eventId",
+                }).createIndex("room", "roomId");
+                db.createObjectStore("coverage", { keyPath: "roomId" });
+            };
+            open.onsuccess = () => {
+                const tx = open.result.transaction(
+                    ["tails", "redacted"],
+                    "readwrite",
+                );
+                tx.objectStore("tails").put({
+                    roomId: ENC_ROOM,
+                    entries: [
+                        {
+                            e: "$gone",
+                            s: "@a:x",
+                            t: 1,
+                            m: "m.text",
+                            b: "old secret",
+                        },
+                        { e: "$kept", s: "@a:x", t: 2, m: "m.text", b: "kept" },
+                    ],
+                });
+                tx.objectStore("redacted").put({
+                    eventId: "$gone",
+                    roomId: ENC_ROOM,
+                });
+                tx.oncomplete = () => resolve();
+            };
+        });
+
+        addRoom(ENC_ROOM, 1000);
+        startEventIndex();
+        await vi.waitFor(async () =>
+            expect(await storedBodies()).not.toContain("old secret"),
+        );
+        expect(await storedBodies()).toContain("kept");
+        const meta = factory.dbs.get(name)!.stores.get("meta")!;
+        expect(meta.rows.has("redaction-scrub")).toBe(true);
     });
 });
 

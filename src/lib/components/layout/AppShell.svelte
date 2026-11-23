@@ -227,7 +227,9 @@
         clearReadNotifications,
         reloadNotificationsFromStorage,
         getNotificationCount,
+        queueNotificationForget,
     } from "$lib/stores/notifications.svelte";
+    import { queueRedactedForget } from "$lib/matrix/roomListCache";
     import {
         accountsState,
         updateAccountProfile,
@@ -2299,6 +2301,21 @@
         // this subscription (e.g. state seeding right after PREPARED) would
         // otherwise never re-derive the lists — catch up once.
         scheduleRefreshRooms();
+        // A redacted message's body must not outlive the redaction: its inbox
+        // entry and its cached room-list copy are forgotten. Both are batched in
+        // their stores, so a burst of redactions costs one write each.
+        const unsubRedactionForget = onTimelineEvent((event, room) => {
+            if (event.getType() !== "m.room.redaction") return;
+            const target =
+                (event.event as { redacts?: string }).redacts ??
+                (event.getContent().redacts as string | undefined);
+            if (!target) return;
+            queueNotificationForget(room.roomId, target);
+            const userId = getOwnUserId();
+            const deviceId = getOwnDeviceId();
+            if (userId && deviceId)
+                queueRedactedForget(userId, deviceId, target);
+        });
         const unsubTimeline = onTimelineEvent((event, room, isLiveAppend) => {
             // Commands (com.zam.call.kick) are not messages: no unread, no alert.
             if (isSilentZamEvent(event.getType())) return;
@@ -2764,6 +2781,7 @@
             unregisterNativeSurface();
             stopPushDecrypt();
             unsubRooms();
+            unsubRedactionForget();
             unsubTimeline();
             unsubDecryptedNotify();
             unsubThreadNotify();

@@ -85,6 +85,56 @@ export interface RoomListSnapshot {
     rooms: CachedRoom[];
     /** Last /hierarchy result per space (client.ts owns the shape). */
     hierarchies?: Record<string, SpaceChildInfo[]>;
+    /**
+     * Event ids known to be redacted. Never written into the snapshot record
+     * itself: it lives in its own record (see forgetRedactedInCache), so a later
+     * snapshot save cannot bring a redacted event's plaintext back. loadSnapshot
+     * fills it in.
+     */
+    redacted?: string[];
+}
+
+/**
+ * The timeline tail with every event that must not be shown or decrypted
+ * removed: the known-redacted ids, the targets of redactions the tail holds,
+ * and redacted stubs (no content left to show).
+ */
+function prunedTimeline(
+    timeline: readonly Partial<IEvent>[] | undefined,
+    known: ReadonlySet<string>,
+): Partial<IEvent>[] {
+    if (!timeline?.length) return [];
+    const gone = new Set(known);
+    for (const raw of timeline) {
+        if (raw.type !== "m.room.redaction") continue;
+        const target = (raw as { redacts?: string }).redacts;
+        if (target) gone.add(target);
+    }
+    return timeline.filter((raw) => {
+        if (raw.event_id && gone.has(raw.event_id)) return false;
+        const unsigned = (raw as { unsigned?: { redacted_because?: unknown } })
+            .unsigned;
+        return !unsigned?.redacted_because;
+    });
+}
+
+/**
+ * The snapshot with the given events removed from every room's timeline. The
+ * same object comes back when none of them is cached, so callers skip the write.
+ */
+export function dropRedactedFromSnapshot(
+    snapshot: RoomListSnapshot,
+    eventIds: ReadonlySet<string>,
+): RoomListSnapshot {
+    let changed = false;
+    const rooms = snapshot.rooms.map((room) => {
+        if (!room.timeline?.length) return room;
+        const timeline = prunedTimeline(room.timeline, eventIds);
+        if (timeline.length === room.timeline.length) return room;
+        changed = true;
+        return { ...room, timeline: timeline.length ? timeline : undefined };
+    });
+    return changed ? { ...snapshot, rooms } : snapshot;
 }
 
 export interface MaterializedCache {
@@ -143,10 +193,12 @@ export function buildSnapshot(
         // Newest 40 non-state events. A detached timeline replay is only worth
         // having if it looks like the conversation did, so this is the live
         // timeline's tail rather than a sample.
+        // A redacted event is kept out: its stub has nothing to show, and the
+        // plaintext it replaced must not be written back on a later boot.
         const timeline = room
             .getLiveTimeline()
             .getEvents()
-            .filter((e) => !e.isState())
+            .filter((e) => !e.isState() && !e.isRedacted())
             .slice(-MAX_CACHED_EVENTS)
             .map(rawOf);
         rooms.push({
@@ -174,6 +226,7 @@ export function materializeSnapshot(
     const toEvent = (raw: Partial<IEvent>) => new MatrixEvent(raw);
     const userId = client.getUserId() ?? "";
     const rooms = new Map<string, Room>();
+    const knownRedacted = new Set(snapshot.redacted ?? []);
     for (const cached of snapshot.rooms) {
         try {
             const room = new Room(cached.roomId, client, userId, {
@@ -188,9 +241,12 @@ export function materializeSnapshot(
             // Replay the cached conversation onto the live timeline so a room
             // opened with no network is not an empty pane. Latest events last,
             // and state resolution is skipped: the state above is the snapshot.
-            if (cached.timeline?.length) {
+            // Redacted events are never replayed, so they never reach decryption
+            // or the screen. client.ts decrypts only what is replayed here.
+            const replay = prunedTimeline(cached.timeline, knownRedacted);
+            if (replay.length) {
                 const timeline = room.getLiveTimeline();
-                for (const raw of cached.timeline) {
+                for (const raw of replay) {
                     timeline.addEvent(toEvent(raw), {
                         toStartOfTimeline: false,
                         addToState: false,
@@ -273,6 +329,13 @@ export function snapshotKey(userId: string, deviceId: string): string {
     return `${userId}|${deviceId}`;
 }
 
+// Redacted event ids for an account. A record of its own, beside the snapshot:
+// the snapshot is rewritten on a timer from live state, and a save built before
+// a redaction must not undo the forgetting when it lands.
+const REDACTED_RECORD_VERSION = 1;
+const REDACTED_RECORD_MAX = 500;
+const redactedRecordKey = (key: string) => `${key}|redacted`;
+
 export async function loadSnapshot(
     key: string,
 ): Promise<RoomListSnapshot | null> {
@@ -281,10 +344,97 @@ export async function loadSnapshot(
             "readonly",
             (s) => s.get(key),
         );
-        return snap && snap.v === SNAPSHOT_VERSION ? snap : null;
+        if (!snap || snap.v !== SNAPSHOT_VERSION) return null;
+        const rec = await withStore<{ v: number; ids: string[] } | undefined>(
+            "readonly",
+            (s) => s.get(redactedRecordKey(key)),
+        ).catch(() => undefined);
+        return rec?.v === REDACTED_RECORD_VERSION
+            ? { ...snap, redacted: rec.ids }
+            : snap;
     } catch {
         return null;
     }
+}
+
+/**
+ * Forget redacted events in the stored snapshot: remove them from the cached
+ * timelines and remember their ids. The snapshot and the record are read and
+ * written in ONE readwrite transaction, so a concurrent save cannot interleave.
+ */
+export async function forgetRedactedInCache(
+    key: string,
+    eventIds: readonly string[],
+): Promise<void> {
+    if (eventIds.length === 0) return;
+    try {
+        const db = await openDb();
+        try {
+            await new Promise<void>((resolve, reject) => {
+                const tx = db.transaction(STORE, "readwrite");
+                const store = tx.objectStore(STORE);
+                const snapReq = store.get(key);
+                const recReq = store.get(redactedRecordKey(key));
+                // Requests on one store run in order, so the snapshot is read
+                // by the time the record's handler runs.
+                recReq.onsuccess = () => {
+                    const rec = recReq.result as
+                        { v: number; ids: string[] } | undefined;
+                    const known =
+                        rec?.v === REDACTED_RECORD_VERSION ? rec.ids : [];
+                    const all = [...new Set([...known, ...eventIds])].slice(
+                        -REDACTED_RECORD_MAX,
+                    );
+                    store.put(
+                        { v: REDACTED_RECORD_VERSION, ids: all },
+                        redactedRecordKey(key),
+                    );
+                    const snap = snapReq.result as RoomListSnapshot | undefined;
+                    if (snap && snap.v === SNAPSHOT_VERSION) {
+                        const next = dropRedactedFromSnapshot(
+                            snap,
+                            new Set(all),
+                        );
+                        if (next !== snap) store.put(next, key);
+                    }
+                };
+                tx.oncomplete = () => resolve();
+                tx.onabort = tx.onerror = () =>
+                    reject(tx.error ?? recReq.error);
+            });
+        } finally {
+            db.close();
+        }
+    } catch (err) {
+        console.warn("[roomListCache] redaction forget failed", err);
+    }
+}
+
+// Redactions arrive one at a time; batch them per account into one transaction.
+const FORGET_BATCH_MS = 500;
+const forgetBatch = new Map<string, Set<string>>();
+let forgetBatchTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Queue a redacted event for forgetting in the account's cached snapshot. */
+export function queueRedactedForget(
+    userId: string,
+    deviceId: string,
+    eventId: string,
+): void {
+    const key = snapshotKey(userId, deviceId);
+    let ids = forgetBatch.get(key);
+    if (!ids) {
+        ids = new Set();
+        forgetBatch.set(key, ids);
+    }
+    ids.add(eventId);
+    if (forgetBatchTimer) return;
+    forgetBatchTimer = setTimeout(() => {
+        forgetBatchTimer = null;
+        const batch = [...forgetBatch];
+        forgetBatch.clear();
+        for (const [k, set] of batch) void forgetRedactedInCache(k, [...set]);
+    }, FORGET_BATCH_MS);
 }
 
 export async function saveSnapshot(
@@ -350,6 +500,7 @@ export async function deleteHierarchies(key: string): Promise<void> {
 export async function deleteSnapshot(key: string): Promise<void> {
     try {
         await withStore("readwrite", (s) => s.delete(key));
+        await withStore("readwrite", (s) => s.delete(redactedRecordKey(key)));
     } catch {
         // Nothing stored or no IndexedDB: nothing to wipe.
     }

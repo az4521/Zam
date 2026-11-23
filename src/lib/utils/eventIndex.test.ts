@@ -3,6 +3,7 @@ import {
     entryFromEvent,
     encodeBlock,
     decodeBlock,
+    dropRedactedEntries,
     resolveEntries,
     searchEntries,
     normalizeForSearch,
@@ -127,6 +128,33 @@ describe("resolveEntries", () => {
             new Set(["$2"]),
         );
         expect(out.map((x) => x.e)).toEqual(["$1"]);
+    });
+
+    it("drops the stored body of a redacted message, and of its edits", () => {
+        const kept = dropRedactedEntries(
+            [
+                e("$1", 1, "keep"),
+                e("$2", 2, "secret"),
+                e("$3", 3, "secret edit", "$2"),
+                e("$4", 4, "edit of kept", "$1"),
+            ],
+            new Set(["$2"]),
+        );
+        expect(kept.map((x) => x.b)).toEqual(["keep", "edit of kept"]);
+    });
+
+    it("drops a redacted edit by its own id and leaves the original", () => {
+        const kept = dropRedactedEntries(
+            [e("$1", 1, "orig"), e("$5", 5, "edit text", "$1")],
+            new Set(["$5"]),
+        );
+        expect(kept.map((x) => x.e)).toEqual(["$1"]);
+    });
+
+    it("returns the same array when no stored entry is redacted", () => {
+        const entries = [e("$1", 1, "a")];
+        expect(dropRedactedEntries(entries, new Set(["$9"]))).toBe(entries);
+        expect(dropRedactedEntries(entries, new Set())).toBe(entries);
     });
 
     it("shows an edit whose original isn't indexed as the original", () => {

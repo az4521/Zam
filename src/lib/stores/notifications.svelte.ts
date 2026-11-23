@@ -3,6 +3,7 @@ import { getRoom, getRoomsInSpace, getSpaceChildIds } from "$lib/matrix/client";
 import { auth } from "./auth.svelte";
 import { readScoped, writeScoped } from "$lib/utils/scopedStorage";
 import { isLoudNotificationRead } from "$lib/utils/loudNotifications";
+import { capInbox, removeInboxEvents } from "$lib/utils/notificationInbox";
 
 export interface LoudNotification {
     roomId: string;
@@ -45,8 +46,12 @@ export const notificationsState = $state({
 
 /** (Re)load the active account's persisted notifications. App-boot call. */
 export function reloadNotificationsFromStorage(): void {
-    notificationsState.byRoom = loadFromStorage();
+    const loaded = loadFromStorage();
+    const capped = capInbox(loaded);
+    notificationsState.byRoom = capped ?? loaded;
     notificationsState.tick++;
+    // Trimmed on load so an oversized stash from an older build shrinks once.
+    if (capped) persist(notificationsState.byRoom);
 }
 
 function bump() {
@@ -58,7 +63,40 @@ export function markNotification(n: LoudNotification): void {
     const existing = notificationsState.byRoom[n.roomId] ?? [];
     if (existing.some((e) => e.eventId === n.eventId)) return;
     notificationsState.byRoom[n.roomId] = [...existing, n];
+    // Bounded: the oldest bodies go once the inbox is full.
+    const capped = capInbox(notificationsState.byRoom);
+    if (capped) notificationsState.byRoom = capped;
     bump();
+}
+
+/**
+ * Drop the inbox entries for events that were redacted. One persist for the
+ * whole batch, however many events it names.
+ */
+export function forgetNotificationEvents(
+    refs: readonly { roomId: string; eventId: string }[],
+): void {
+    const next = removeInboxEvents(notificationsState.byRoom, refs);
+    if (!next) return;
+    notificationsState.byRoom = next;
+    bump();
+}
+
+// Redactions arrive one at a time; batch them into one forget (one write).
+const FORGET_BATCH_MS = 250;
+let forgetQueue: { roomId: string; eventId: string }[] = [];
+let forgetTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Queue a redacted event for removal from the inbox (batched). */
+export function queueNotificationForget(roomId: string, eventId: string): void {
+    forgetQueue.push({ roomId, eventId });
+    if (forgetTimer) return;
+    forgetTimer = setTimeout(() => {
+        forgetTimer = null;
+        const batch = forgetQueue;
+        forgetQueue = [];
+        forgetNotificationEvents(batch);
+    }, FORGET_BATCH_MS);
 }
 
 export function clearReadNotifications(room: Room, userId: string): void {

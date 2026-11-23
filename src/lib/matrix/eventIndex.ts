@@ -15,6 +15,7 @@
  */
 import {
     Direction,
+    EventType,
     Filter,
     MatrixEvent,
     MatrixEventEvent,
@@ -36,6 +37,7 @@ import {
 import {
     BLOCK_SIZE,
     decodeBlock,
+    dropRedactedEntries,
     encodeBlock,
     entryFromEvent,
     resolveEntries,
@@ -82,13 +84,16 @@ export type {
     FullIndexResult,
 } from "$lib/utils/fullIndexProgress";
 
-const DB_VERSION = 3;
+// v4: META holds one-off migration flags (see scrubPriorRedactions).
+const DB_VERSION = 4;
 const BLOCKS = "blocks";
 const TAILS = "tails";
 const MEDIA = "media";
 const CRAWL = "crawl";
 const REDACTED = "redacted";
 const COVERAGE = "coverage";
+const META = "meta";
+const REDACTION_SCRUB_KEY = "redaction-scrub";
 
 /** How long new messages wait before being written (batches a busy sync). */
 const FLUSH_DELAY_MS = 2_000;
@@ -212,6 +217,8 @@ function openDb(name: string): Promise<IDBDatabase> {
             }
             if (ev.oldVersion < 2)
                 db.createObjectStore(COVERAGE, { keyPath: "roomId" });
+            if (ev.oldVersion < 4)
+                db.createObjectStore(META, { keyPath: "key" });
             // Repair (v3): crawls before the mapper fix marked rooms done and
             // claimed ranges whose messages decrypted late and were never
             // indexed. Dropping CRAWL and COVERAGE makes the crawler walk the
@@ -322,15 +329,62 @@ function flush(): Promise<void> {
     return writeChain;
 }
 
+/** Blocks of a room with the given events' bodies removed: each rewritten in
+ *  place, or deleted once empty. Only blocks that actually change are returned.
+ *  Decoding and compression happen here, outside any transaction. */
+async function planBlockScrub(
+    db: IDBDatabase,
+    roomId: string,
+    ids: ReadonlySet<string>,
+): Promise<{ puts: StoredBlock[]; deletes: number[] }> {
+    const blocks = (await req(
+        db.transaction(BLOCKS).objectStore(BLOCKS).index("room").getAll(roomId),
+    )) as StoredBlock[];
+    const puts: StoredBlock[] = [];
+    const deletes: number[] = [];
+    for (const block of blocks) {
+        const entries = await decodeBlock(block);
+        const kept = dropRedactedEntries(entries, ids);
+        if (kept.length === entries.length) continue;
+        if (kept.length === 0) {
+            if (block.id !== undefined) deletes.push(block.id);
+            continue;
+        }
+        const ts = kept.map((e) => e.t);
+        puts.push({
+            ...(await encodeBlock(kept)),
+            id: block.id,
+            roomId,
+            count: kept.length,
+            minTs: Math.min(...ts),
+            maxTs: Math.max(...ts),
+        });
+    }
+    return { puts, deletes };
+}
+
 async function writeRoom(
     db: IDBDatabase,
     roomId: string,
     b: { entries: IndexEntry[]; media: StoredMedia[]; redacted: string[] },
 ): Promise<void> {
-    const read = db.transaction(TAILS, "readonly");
-    const tail = ((await req(read.objectStore(TAILS).get(roomId))) as
-        StoredTail | undefined) ?? { roomId, entries: [] };
-    let entries = [...tail.entries, ...b.entries];
+    // Every tombstone this room has, plus the ones in this batch: an event
+    // redacted before it was indexed is never stored.
+    const read = db.transaction([TAILS, REDACTED], "readonly");
+    const [tail, tombRows] = await Promise.all([
+        req(read.objectStore(TAILS).get(roomId)) as Promise<
+            StoredTail | undefined
+        >,
+        req(read.objectStore(REDACTED).index("room").getAll(roomId)) as Promise<
+            { eventId: string }[]
+        >,
+    ]);
+    const gone = new Set(tombRows.map((r) => r.eventId));
+    for (const id of b.redacted) gone.add(id);
+    let entries = dropRedactedEntries(
+        [...(tail?.entries ?? []), ...b.entries],
+        gone,
+    );
     // Compress outside the transaction: an IndexedDB transaction closes as
     // soon as it waits on anything that isn't IndexedDB.
     const blocks: StoredBlock[] = [];
@@ -346,15 +400,80 @@ async function writeRoom(
             maxTs: Math.max(...ts),
         });
     }
+    // The stored bodies of events redacted in this batch are removed from
+    // their blocks, in the same transaction as the tombstone, so a tombstone
+    // never outlives the plaintext it names.
+    const scrub =
+        b.redacted.length > 0
+            ? await planBlockScrub(db, roomId, new Set(b.redacted))
+            : { puts: [], deletes: [] };
     const tx = db.transaction([TAILS, BLOCKS, MEDIA, REDACTED], "readwrite");
     tx.objectStore(TAILS).put({ roomId, entries } satisfies StoredTail);
+    for (const block of scrub.puts) tx.objectStore(BLOCKS).put(block);
+    for (const id of scrub.deletes) tx.objectStore(BLOCKS).delete(id);
     for (const block of blocks) tx.objectStore(BLOCKS).add(block);
-    for (const m of b.media) tx.objectStore(MEDIA).put(m);
+    for (const m of b.media) {
+        if (!gone.has(m.eventId)) tx.objectStore(MEDIA).put(m);
+    }
     for (const eventId of b.redacted) {
         tx.objectStore(REDACTED).put({ eventId, roomId });
         tx.objectStore(MEDIA).delete(eventId);
     }
     await done(tx);
+}
+
+/** Run a write after the ones already queued (every index write goes through
+ *  this chain, so two writers never touch the same rows at once). */
+function serialWrite(fn: () => Promise<void>): Promise<void> {
+    writeChain = writeChain.then(fn).catch((e) => {
+        reportStorageError(e, { fromIndexedDB: true });
+        console.warn("[eventIndex] write failed", e);
+    });
+    return writeChain;
+}
+
+/**
+ * Once per index: a redaction stored before the scrub existed left its body
+ * in a block. Walk every room with a tombstone and remove those bodies. Runs
+ * on the write chain; a flag in META means it never runs again.
+ */
+async function scrubPriorRedactions(s: Session): Promise<void> {
+    const db = await s.db;
+    const flag = await req(
+        db.transaction(META).objectStore(META).get(REDACTION_SCRUB_KEY),
+    );
+    if (flag) return;
+    const tombs = (await req(
+        db.transaction(REDACTED).objectStore(REDACTED).getAll(),
+    )) as { eventId: string; roomId: string }[];
+    const byRoom = new Map<string, Set<string>>();
+    for (const t of tombs) {
+        let ids = byRoom.get(t.roomId);
+        if (!ids) {
+            ids = new Set();
+            byRoom.set(t.roomId, ids);
+        }
+        ids.add(t.eventId);
+    }
+    for (const [roomId, ids] of byRoom) {
+        if (s.stopped) return;
+        const tail = (await req(
+            db.transaction(TAILS).objectStore(TAILS).get(roomId),
+        )) as StoredTail | undefined;
+        const plan = await planBlockScrub(db, roomId, ids);
+        const kept = tail ? dropRedactedEntries(tail.entries, ids) : null;
+        const tx = db.transaction([TAILS, BLOCKS], "readwrite");
+        if (tail && kept && kept !== tail.entries)
+            tx.objectStore(TAILS).put({ roomId, entries: kept });
+        for (const block of plan.puts) tx.objectStore(BLOCKS).put(block);
+        for (const id of plan.deletes) tx.objectStore(BLOCKS).delete(id);
+        await done(tx);
+    }
+    const flagTx = db.transaction(META, "readwrite");
+    flagTx
+        .objectStore(META)
+        .put({ key: REDACTION_SCRUB_KEY, done: true, at: Date.now() });
+    await done(flagTx);
 }
 
 // ── Live feed ──────────────────────────────────────────────────────────────
@@ -379,8 +498,11 @@ function liveEvent(ev: MatrixEvent, room: Room | null | undefined): void {
         scheduleFlush();
 }
 
-function liveRedaction(ev: MatrixEvent, room: Room): void {
-    if (!isRoomEncrypted(room)) return;
+/** A redaction event on the timeline. Fed from RoomEvent.Timeline, not
+ *  RoomEvent.Redaction: the SDK raises that only when the target is loaded, and
+ *  an older message's body may be indexed while it is not. */
+function liveRedaction(ev: MatrixEvent, room: Room | null | undefined): void {
+    if (!room || !isRoomEncrypted(room)) return;
     const target =
         (ev.event as { redacts?: string }).redacts ??
         (ev.getContent().redacts as string | undefined);
@@ -638,6 +760,10 @@ async function fetchPage(
     for (const e of events) {
         const eventId = e.getId();
         const sender = e.getSender();
+        // The server hands a redacted event back as a stub: whatever this
+        // device still holds of its body goes too.
+        if (eventId && e.isRedacted())
+            bucket(room.roomId).redacted.push(eventId);
         if (!eventId || !sender || e.isDecryptionFailure()) continue;
         if (known.has(eventId)) continue;
         queueEvent(room.roomId, {
@@ -1055,6 +1181,7 @@ async function runFullBuild(opts: {
 }
 
 async function runCrawler(s: Session): Promise<void> {
+    await serialWrite(() => scrubPriorRedactions(s));
     await seedCoverage(s).catch((e) =>
         console.warn("[eventIndex] coverage seed failed", e),
     );
@@ -1105,15 +1232,14 @@ export function startEventIndex(): () => void {
     const deviceId = client?.getDeviceId();
     if (!client || !userId || !deviceId || !idbFactory()) return () => {};
     stopEventIndex();
-    const onTimeline = (ev: MatrixEvent, room: Room | undefined) =>
-        liveEvent(ev, room);
+    const onTimeline = (ev: MatrixEvent, room: Room | undefined) => {
+        if (ev.getType() === EventType.RoomRedaction) liveRedaction(ev, room);
+        else liveEvent(ev, room);
+    };
     const onDecrypted = (ev: MatrixEvent) =>
         liveEvent(ev, client.getRoom(ev.getRoomId() ?? ""));
-    const onRedaction = (ev: MatrixEvent, room: Room) =>
-        liveRedaction(ev, room);
     client.on(RoomEvent.Timeline, onTimeline as never);
     client.on(MatrixEventEvent.Decrypted, onDecrypted as never);
-    client.on(RoomEvent.Redaction, onRedaction as never);
     const detachSync = attachIndexSync(client);
     const s: Session = {
         client,
@@ -1124,7 +1250,6 @@ export function startEventIndex(): () => void {
             detachSync();
             client.off(RoomEvent.Timeline, onTimeline as never);
             client.off(MatrixEventEvent.Decrypted, onDecrypted as never);
-            client.off(RoomEvent.Redaction, onRedaction as never);
         },
     };
     s.db.catch((e) => {

@@ -137,6 +137,22 @@ export async function decodeBlock(block: EncodedBlock): Promise<IndexEntry[]> {
     return Array.isArray(parsed) ? (parsed as IndexEntry[]) : [];
 }
 
+/**
+ * The entries left once the redacted events are gone: the event itself, and any
+ * edit that replaces it. The same array comes back when nothing matches, so
+ * callers can skip rewriting a block.
+ */
+export function dropRedactedEntries(
+    entries: IndexEntry[],
+    redacted: ReadonlySet<string>,
+): IndexEntry[] {
+    if (redacted.size === 0) return entries;
+    const kept = entries.filter(
+        (e) => !redacted.has(e.e) && !(e.o !== undefined && redacted.has(e.o)),
+    );
+    return kept.length === entries.length ? entries : kept;
+}
+
 /** Case- and accent-insensitive form for matching. */
 export function normalizeForSearch(s: string): string {
     return s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();

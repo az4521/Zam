@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { createClient, EventType, MatrixEvent, Room } from "matrix-js-sdk";
-import { buildSnapshot, materializeSnapshot } from "./roomListCache";
+import {
+    buildSnapshot,
+    dropRedactedFromSnapshot,
+    materializeSnapshot,
+    type RoomListSnapshot,
+} from "./roomListCache";
 
 const ME = "@me:example.org";
 const BOB = "@bob:example.org";
@@ -142,5 +147,127 @@ describe("roomListCache", () => {
         expect(bodies).toHaveLength(40);
         expect(bodies.at(0)).toBe("message 5");
         expect(bodies.at(-1)).toBe("message 44");
+    });
+
+    it("never caches a redacted message's plaintext", () => {
+        const { client, add } = makeClient();
+        const room = add("!chan", [
+            stateEvent("!chan", "m.room.create", "", {}),
+            stateEvent("!chan", "m.room.member", ME, { membership: "join" }),
+        ]);
+        const secret = new MatrixEvent({
+            type: EventType.RoomMessage,
+            room_id: "!chan",
+            sender: BOB,
+            event_id: "$secret",
+            origin_server_ts: 1001,
+            content: { msgtype: "m.text", body: "hunter2" },
+        });
+        room.getLiveTimeline().addEvent(secret, {
+            toStartOfTimeline: false,
+            addToState: false,
+        });
+        secret.makeRedacted(
+            new MatrixEvent({
+                type: "m.room.redaction",
+                room_id: "!chan",
+                sender: ME,
+                event_id: "$redaction",
+                origin_server_ts: 1002,
+                redacts: "$secret",
+                content: {},
+            }),
+            room,
+        );
+
+        const json = JSON.stringify(buildSnapshot(client));
+        expect(json).not.toContain("hunter2");
+        expect(json).not.toContain('"$secret"');
+    });
+
+    it("replays nothing that is known redacted", () => {
+        const { client, add } = makeClient();
+        const room = add("!chan", [
+            stateEvent("!chan", "m.room.create", "", {}),
+            stateEvent("!chan", "m.room.member", ME, { membership: "join" }),
+        ]);
+        const message = (id: string, body: string) =>
+            new MatrixEvent({
+                type: EventType.RoomMessage,
+                room_id: "!chan",
+                sender: BOB,
+                event_id: id,
+                origin_server_ts: 1001,
+                content: { msgtype: "m.text", body },
+            });
+        for (const [id, body] of [
+            ["$known", "known gone"],
+            ["$target", "redacted by tail"],
+            ["$kept", "kept"],
+            ["$stub", "stub gone"],
+        ] as const)
+            room.getLiveTimeline().addEvent(message(id, body), {
+                toStartOfTimeline: false,
+                addToState: false,
+            });
+
+        const snap = JSON.parse(JSON.stringify(buildSnapshot(client)));
+        // A redaction the tail holds removes its target, and a stub carrying
+        // redacted_because is dropped whatever the record says.
+        snap.rooms[0].timeline.push({
+            type: "m.room.redaction",
+            event_id: "$r",
+            redacts: "$target",
+            content: {},
+        });
+        snap.rooms[0].timeline.find(
+            (e: { event_id: string }) => e.event_id === "$stub",
+        ).unsigned = { redacted_because: { event_id: "$r" } };
+        snap.redacted = ["$known"];
+
+        const fresh = makeClient().client;
+        const { rooms } = materializeSnapshot(fresh, snap);
+        const bodies = rooms
+            .get("!chan")!
+            .getLiveTimeline()
+            .getEvents()
+            .map((e) => e.getContent().body)
+            .filter(Boolean);
+        expect(bodies).toEqual(["kept"]);
+    });
+});
+
+describe("dropRedactedFromSnapshot", () => {
+    const snap = (): RoomListSnapshot => ({
+        v: 1,
+        savedAt: 0,
+        accountData: [],
+        rooms: [
+            {
+                roomId: "!a",
+                state: [],
+                accountData: [],
+                timeline: [
+                    { event_id: "$1", type: "m.room.message" },
+                    { event_id: "$2", type: "m.room.message" },
+                ],
+            },
+            { roomId: "!b", state: [], accountData: [] },
+        ],
+    });
+
+    it("removes the named events and leaves the rest", () => {
+        const next = dropRedactedFromSnapshot(snap(), new Set(["$1"]));
+        expect(next.rooms[0].timeline?.map((e) => e.event_id)).toEqual(["$2"]);
+    });
+
+    it("drops an emptied timeline entirely", () => {
+        const next = dropRedactedFromSnapshot(snap(), new Set(["$1", "$2"]));
+        expect(next.rooms[0].timeline).toBeUndefined();
+    });
+
+    it("returns the same snapshot when nothing it names is cached", () => {
+        const before = snap();
+        expect(dropRedactedFromSnapshot(before, new Set(["$9"]))).toBe(before);
     });
 });
