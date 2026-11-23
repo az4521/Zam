@@ -35,16 +35,52 @@ export function editorText(root: HTMLElement): string {
     return raw.replace(/\n$/, "");
 }
 
+/**
+ * `modelLength(range.cloneContents())`, computed on the live DOM.
+ *
+ * Cloning copies every node the range touches just to count characters on each
+ * keystroke. This walks the range's common ancestor instead and applies the
+ * same rules the clone produces:
+ *  - a text node counts the characters inside the range (clipped where the
+ *    range starts or ends inside it);
+ *  - a <br> the range touches counts 1 (cloneContents keeps a partially
+ *    selected element as an empty copy, so a boundary inside a <br> counts it);
+ *  - other elements add nothing themselves, only what they contain.
+ * `Range.intersectsNode` gives the touched test, so the walk skips subtrees
+ * outside the range without visiting them.
+ */
+function rangeModelLength(range: Range): number {
+    if (range.collapsed) return 0;
+    return touchedLength(range.commonAncestorContainer, range);
+}
+
+function touchedLength(node: Node, range: Range): number {
+    if (node.nodeType === Node.TEXT_NODE) {
+        const from = node === range.startContainer ? range.startOffset : 0;
+        const to =
+            node === range.endContainer
+                ? range.endOffset
+                : (node.textContent?.length ?? 0);
+        return Math.max(0, to - from);
+    }
+    if ((node as Element).tagName === "BR") return 1;
+    let length = 0;
+    for (let child = node.firstChild; child; child = child.nextSibling) {
+        if (range.intersectsNode(child)) length += touchedLength(child, range);
+    }
+    return length;
+}
+
 /** The caret's model offset in `root`, or `fallback` when it isn't inside. */
 export function caretOffset(root: HTMLElement, fallback: number): number {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return fallback;
     const range = selection.getRangeAt(0);
     if (!root.contains(range.endContainer)) return fallback;
-    const preCaret = range.cloneRange();
-    preCaret.selectNodeContents(root);
+    const preCaret = document.createRange();
+    preCaret.setStart(root, 0);
     preCaret.setEnd(range.endContainer, range.endOffset);
-    return modelLength(preCaret.cloneContents());
+    return rangeModelLength(preCaret);
 }
 
 /** Model length of the selection inside `root` (0 when collapsed or outside). */
@@ -53,7 +89,7 @@ export function selectedLength(root: HTMLElement): number {
     if (!selection || selection.rangeCount === 0) return 0;
     const range = selection.getRangeAt(0);
     if (!root.contains(range.endContainer)) return 0;
-    return modelLength(range.cloneContents());
+    return rangeModelLength(range);
 }
 
 /** Put a collapsed caret at model `offset` in `root` (clamped to its text). */

@@ -43,6 +43,7 @@ import type {
 import {
     DownloadSizeError,
     MAX_BUFFERED_BYTES,
+    expectedBodySize,
     readBodyBytes,
     type ReadProgressOptions,
 } from "$lib/utils/downloadProgress";
@@ -928,11 +929,19 @@ export async function fetchMediaBytes(
             t("media.failedToFetchAttachment", { status: resp.status }),
         );
     }
-    // The read itself enforces the caller's limit (and the global ceiling),
-    // aborting as soon as the body passes it rather than after buffering it.
+    const cap = Math.min(maxBytes, MAX_BUFFERED_BYTES);
+    // A declared size over the cap is refused before any of the body is read,
+    // and the unread body is cancelled rather than left to the GC.
+    const declared = expectedBodySize(resp);
+    if (declared !== null && declared > cap) {
+        void resp.body?.cancel().catch(() => {});
+        throw new Error("Media too large");
+    }
+    // Undeclared (or chunked) bodies are cut off by the read itself as soon as
+    // they pass the cap, rather than after buffering it.
     const bytes = await readBodyBytes(resp, {
         signal,
-        maxBytes: Math.min(maxBytes, MAX_BUFFERED_BYTES),
+        maxBytes: cap,
     }).catch((err: unknown) => {
         if (err instanceof DownloadSizeError)
             throw new Error("Media too large");

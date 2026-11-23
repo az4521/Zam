@@ -232,7 +232,12 @@ export async function createStreamDecryptor(
         async push(chunk) {
             if (finished) throw new Error("Stream decryptor already finished");
             seen.push(chunk);
-            const data = concat(carry, chunk);
+            // Joining copies the whole chunk, so only do it when a partial
+            // block is actually held back from the previous push. Otherwise
+            // the caller's bytes are decrypted in place.
+            const data: Uint8Array<ArrayBuffer> = carry.length
+                ? concat(carry, chunk)
+                : (chunk as Uint8Array<ArrayBuffer>);
             const usable = data.length - (data.length % AES_BLOCK);
             carry = data.slice(usable);
             if (usable === 0) return new Uint8Array(0);

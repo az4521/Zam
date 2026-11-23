@@ -189,5 +189,6 @@ export async function safeMediaBlob(
         if (svg) return svg;
     }
     const type = safeAttachmentMimeType(mimetype);
-    return type === blob.type ? blob : new Blob([blob], { type });
+    // slice() re-types without copying the bytes.
+    return type === blob.type ? blob : blob.slice(0, blob.size, type);
 }

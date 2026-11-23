@@ -87,26 +87,23 @@ function imageChunks(webp: Uint8Array): RiffChunk[] {
     return frame;
 }
 
-/** Serialises one RIFF chunk, with the pad byte for odd sizes. */
-function makeChunk(fourcc: string, data: Uint8Array): Uint8Array {
-    const padded = data.byteLength & 1;
-    const out = new Uint8Array(8 + data.byteLength + padded);
-    for (let i = 0; i < 4; i++) out[i] = fourcc.charCodeAt(i);
-    const view = new DataView(out.buffer);
-    view.setUint32(4, data.byteLength, true);
-    out.set(data, 8);
-    return out;
+/** Bytes one RIFF chunk with `size` payload bytes takes, pad byte included. */
+function chunkBytes(size: number): number {
+    return 8 + size + (size & 1);
 }
 
-function concat(parts: Uint8Array[]): Uint8Array {
-    const total = parts.reduce((sum, part) => sum + part.byteLength, 0);
-    const out = new Uint8Array(total);
-    let offset = 0;
-    for (const part of parts) {
-        out.set(part, offset);
-        offset += part.byteLength;
-    }
-    return out;
+/** Writes a chunk header at `pos` and returns the offset of its payload. The
+ *  output is zero-filled, so a pad byte (odd sizes) needs no write. */
+function putChunkHeader(
+    out: Uint8Array,
+    view: DataView,
+    pos: number,
+    fourcc: string,
+    size: number,
+): number {
+    for (let i = 0; i < 4; i++) out[pos + i] = fourcc.charCodeAt(i);
+    view.setUint32(pos + 4, size, true);
+    return pos + 8;
 }
 
 function writeU24(view: DataView, offset: number, value: number): void {
@@ -121,34 +118,54 @@ function checkDimension(name: string, value: number): void {
     }
 }
 
-function frameChunk(
-    webp: Uint8Array,
-    delayMs: number,
+interface PlannedFrame {
+    chunks: RiffChunk[];
+    delayMs: number;
+    /** ANMF payload size: the 16 header bytes plus the image chunks. */
+    payload: number;
+}
+
+/** Writes one ANMF chunk at `pos`; returns the offset after it. Each image
+ *  chunk's bytes are copied into `out` once, straight from the input view. */
+function writeFrame(
+    out: Uint8Array,
+    view: DataView,
+    pos: number,
+    frame: PlannedFrame,
     width: number,
     height: number,
-): Uint8Array {
-    const header = new Uint8Array(16);
-    const view = new DataView(header.buffer);
-    // X and Y are 0, so their /2 encoding is 0 as well.
-    writeU24(view, 0, 0);
-    writeU24(view, 3, 0);
-    writeU24(view, 6, width - 1);
-    writeU24(view, 9, height - 1);
-    const duration = Number.isFinite(delayMs)
-        ? Math.round(delayMs)
+): number {
+    const at = putChunkHeader(out, view, pos, "ANMF", frame.payload);
+    // X and Y are 0 (already zero in `out`), so their /2 encoding is 0 too.
+    writeU24(view, at + 6, width - 1);
+    writeU24(view, at + 9, height - 1);
+    const duration = Number.isFinite(frame.delayMs)
+        ? Math.round(frame.delayMs)
         : MAX_DURATION_MS;
-    writeU24(view, 12, Math.min(MAX_DURATION_MS, Math.max(1, duration)));
-    header[15] = ANMF_FLAGS;
-    const payload = concat(
-        imageChunks(webp).map((chunk) => makeChunk(chunk.fourcc, chunk.data)),
-    );
-    return makeChunk("ANMF", concat([header, payload]));
+    writeU24(view, at + 12, Math.min(MAX_DURATION_MS, Math.max(1, duration)));
+    out[at + 15] = ANMF_FLAGS;
+    let next = at + 16;
+    for (const chunk of frame.chunks) {
+        next = putChunkHeader(
+            out,
+            view,
+            next,
+            chunk.fourcc,
+            chunk.data.byteLength,
+        );
+        out.set(chunk.data, next);
+        next += chunk.data.byteLength + (chunk.data.byteLength & 1);
+    }
+    return pos + chunkBytes(frame.payload);
 }
 
 /**
  * Muxes still WebP frames into one animated WebP. `loopCount` 0 loops
  * forever. Throws on an empty frame list, bad dimensions, or input that is
  * not a WebP file with image data.
+ *
+ * The output is sized up front and written once: no per-chunk or per-frame
+ * intermediate buffers, so each frame's bytes are copied a single time.
  */
 export function muxAnimatedWebp(
     frames: AwebpFrame[],
@@ -167,30 +184,39 @@ export function muxAnimatedWebp(
         throw new Error("awebp: loop count must be an integer from 0 to 65535");
     }
 
-    const vp8x = new Uint8Array(10);
-    const vp8xView = new DataView(vp8x.buffer);
-    vp8x[0] = VP8X_FLAGS;
-    writeU24(vp8xView, 4, width - 1);
-    writeU24(vp8xView, 7, height - 1);
+    const planned: PlannedFrame[] = frames.map((frame) => {
+        const chunks = imageChunks(frame.webp);
+        let payload = 16;
+        for (const chunk of chunks) {
+            payload += chunkBytes(chunk.data.byteLength);
+        }
+        return { chunks, delayMs: frame.delayMs, payload };
+    });
 
-    const anim = new Uint8Array(6);
-    new DataView(anim.buffer).setUint16(4, loopCount, true);
+    let size = 12 + chunkBytes(10) + chunkBytes(6);
+    for (const frame of planned) size += chunkBytes(frame.payload);
 
-    const parts: Uint8Array[] = [
-        makeChunk("VP8X", vp8x),
-        makeChunk("ANIM", anim),
-    ];
-    for (const frame of frames) {
-        parts.push(frameChunk(frame.webp, frame.delayMs, width, height));
-    }
-    const body = concat(parts);
-    const out = new Uint8Array(12 + body.byteLength);
+    const out = new Uint8Array(size);
+    const view = new DataView(out.buffer);
     for (let i = 0; i < 4; i++) {
         out[i] = "RIFF".charCodeAt(i);
         out[8 + i] = "WEBP".charCodeAt(i);
     }
-    const view = new DataView(out.buffer);
-    view.setUint32(4, out.byteLength - 8, true);
-    out.set(body, 12);
+    view.setUint32(4, size - 8, true);
+
+    let pos = 12;
+    const vp8x = putChunkHeader(out, view, pos, "VP8X", 10);
+    out[vp8x] = VP8X_FLAGS;
+    writeU24(view, vp8x + 4, width - 1);
+    writeU24(view, vp8x + 7, height - 1);
+    pos += chunkBytes(10);
+
+    const anim = putChunkHeader(out, view, pos, "ANIM", 6);
+    view.setUint16(anim + 4, loopCount, true);
+    pos += chunkBytes(6);
+
+    for (const frame of planned) {
+        pos = writeFrame(out, view, pos, frame, width, height);
+    }
     return out;
 }

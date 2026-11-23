@@ -249,3 +249,208 @@ describe("muxAnimatedWebp", () => {
         expect(u24(0xffffff)).toEqual([0xff, 0xff, 0xff]);
     });
 });
+
+/*
+ * The muxer as it was before the single-allocation rewrite (per-chunk and
+ * per-frame buffers plus a concatenating copy of the whole file). Kept only as
+ * the reference the new output must match byte for byte.
+ */
+function legacyFourcc(bytes: Uint8Array, offset: number): string {
+    return String.fromCharCode(
+        bytes[offset],
+        bytes[offset + 1],
+        bytes[offset + 2],
+        bytes[offset + 3],
+    );
+}
+
+function legacyReadChunks(
+    bytes: Uint8Array,
+): { fourcc: string; data: Uint8Array }[] {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const riffSize = view.getUint32(4, true);
+    const end = riffSize + 8;
+    const chunks: { fourcc: string; data: Uint8Array }[] = [];
+    let pos = 12;
+    while (pos < end) {
+        const size = view.getUint32(pos + 4, true);
+        chunks.push({
+            fourcc: legacyFourcc(bytes, pos),
+            data: bytes.subarray(pos + 8, pos + 8 + size),
+        });
+        pos = pos + 8 + size + (size & 1);
+    }
+    return chunks;
+}
+
+function legacyImageChunks(webp: Uint8Array) {
+    const skip = new Set(["VP8X", "EXIF", "XMP ", "ICCP"]);
+    return legacyReadChunks(webp).filter((c) => !skip.has(c.fourcc));
+}
+
+function legacyMakeChunk(fourcc: string, data: Uint8Array): Uint8Array {
+    const padded = data.byteLength & 1;
+    const out = new Uint8Array(8 + data.byteLength + padded);
+    for (let i = 0; i < 4; i++) out[i] = fourcc.charCodeAt(i);
+    const view = new DataView(out.buffer);
+    view.setUint32(4, data.byteLength, true);
+    out.set(data, 8);
+    return out;
+}
+
+function legacyConcat(parts: Uint8Array[]): Uint8Array {
+    const total = parts.reduce((sum, part) => sum + part.byteLength, 0);
+    const out = new Uint8Array(total);
+    let offset = 0;
+    for (const part of parts) {
+        out.set(part, offset);
+        offset += part.byteLength;
+    }
+    return out;
+}
+
+function legacyWriteU24(view: DataView, offset: number, value: number): void {
+    view.setUint8(offset, value & 0xff);
+    view.setUint8(offset + 1, (value >>> 8) & 0xff);
+    view.setUint8(offset + 2, (value >>> 16) & 0xff);
+}
+
+function legacyFrameChunk(
+    webp: Uint8Array,
+    delayMs: number,
+    width: number,
+    height: number,
+): Uint8Array {
+    const header = new Uint8Array(16);
+    const view = new DataView(header.buffer);
+    legacyWriteU24(view, 0, 0);
+    legacyWriteU24(view, 3, 0);
+    legacyWriteU24(view, 6, width - 1);
+    legacyWriteU24(view, 9, height - 1);
+    const duration = Number.isFinite(delayMs) ? Math.round(delayMs) : 0xffffff;
+    legacyWriteU24(view, 12, Math.min(0xffffff, Math.max(1, duration)));
+    header[15] = 0x02 | 0x01;
+    const payload = legacyConcat(
+        legacyImageChunks(webp).map((c) => legacyMakeChunk(c.fourcc, c.data)),
+    );
+    return legacyMakeChunk("ANMF", legacyConcat([header, payload]));
+}
+
+function legacyMuxAnimatedWebp(
+    frames: AwebpFrame[],
+    width: number,
+    height: number,
+    loopCount = 0,
+): Uint8Array {
+    const vp8x = new Uint8Array(10);
+    const vp8xView = new DataView(vp8x.buffer);
+    vp8x[0] = 0x10 | 0x02;
+    legacyWriteU24(vp8xView, 4, width - 1);
+    legacyWriteU24(vp8xView, 7, height - 1);
+    const anim = new Uint8Array(6);
+    new DataView(anim.buffer).setUint16(4, loopCount, true);
+    const parts: Uint8Array[] = [
+        legacyMakeChunk("VP8X", vp8x),
+        legacyMakeChunk("ANIM", anim),
+    ];
+    for (const frame of frames) {
+        parts.push(legacyFrameChunk(frame.webp, frame.delayMs, width, height));
+    }
+    const body = legacyConcat(parts);
+    const out = new Uint8Array(12 + body.byteLength);
+    for (let i = 0; i < 4; i++) {
+        out[i] = "RIFF".charCodeAt(i);
+        out[8 + i] = "WEBP".charCodeAt(i);
+    }
+    new DataView(out.buffer).setUint32(4, out.byteLength - 8, true);
+    out.set(body, 12);
+    return out;
+}
+
+/** Deterministic pseudo-random bytes, so failures reproduce. */
+function noise(length: number, seed: number): Uint8Array {
+    const out = new Uint8Array(length);
+    let x = seed | 0 || 1;
+    for (let i = 0; i < length; i++) {
+        x ^= x << 13;
+        x ^= x >>> 17;
+        x ^= x << 5;
+        out[i] = x & 0xff;
+    }
+    return out;
+}
+
+/** A simple VP8L still whose payload is `size` bytes (odd sizes pad). */
+function stillVp8l(size: number, seed: number): Uint8Array {
+    return riff([["VP8L", Array.from(noise(size, seed))]]);
+}
+
+/** An extended still: VP8X + ALPH + VP8 + EXIF, so the filter path runs. */
+function stillExtended(size: number, seed: number): Uint8Array {
+    return riff([
+        ["VP8X", [0x10, 0, 0, 0, 3, 0, 0, 2, 0, 0]],
+        ["ALPH", Array.from(noise((size % 7) + 1, seed))],
+        ["VP8 ", Array.from(noise(size, seed + 1))],
+        ["EXIF", [1, 2, 3]],
+    ]);
+}
+
+describe("muxAnimatedWebp output is byte-identical to the previous muxer", () => {
+    const cases: {
+        name: string;
+        frames: AwebpFrame[];
+        w: number;
+        h: number;
+        loop?: number;
+    }[] = [
+        {
+            name: "one simple frame",
+            frames: [{ webp: simpleLossless, delayMs: 100 }],
+            w: 4,
+            h: 3,
+        },
+        {
+            name: "mixed simple and extended stills with odd payloads",
+            frames: [
+                { webp: stillVp8l(1, 1), delayMs: 10 },
+                { webp: stillExtended(5, 2), delayMs: 33.4 },
+                { webp: stillVp8l(2, 3), delayMs: 0 },
+                { webp: stillVp8l(17, 4), delayMs: 1e9 },
+                { webp: stillExtended(64, 5), delayMs: NaN },
+            ],
+            w: 640,
+            h: 480,
+            loop: 7,
+        },
+        {
+            name: "many frames of realistic size",
+            frames: Array.from({ length: 40 }, (_, i) => ({
+                webp: stillVp8l(4096 + (i % 3), 100 + i),
+                delayMs: 40 + i,
+            })),
+            w: 1280,
+            h: 720,
+            loop: 65535,
+        },
+        {
+            name: "single pixel canvas with a non-finite delay",
+            frames: [{ webp: simpleLossless, delayMs: Infinity }],
+            w: 1,
+            h: 1,
+        },
+    ];
+
+    it.each(cases)("$name", ({ frames, w, h, loop }) => {
+        const expected = legacyMuxAnimatedWebp(frames, w, h, loop ?? 0);
+        const actual = muxAnimatedWebp(frames, w, h, loop ?? 0);
+        expect(actual.byteLength).toBe(expected.byteLength);
+        expect(Array.from(actual)).toEqual(Array.from(expected));
+    });
+
+    it("keeps the output's input views untouched", () => {
+        const frame = stillVp8l(9, 42);
+        const before = Array.from(frame);
+        muxAnimatedWebp([{ webp: frame, delayMs: 5 }], 4, 3);
+        expect(Array.from(frame)).toEqual(before);
+    });
+});
