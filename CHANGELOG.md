@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.22
+
+✨ **New**
+
+- **Turn on encrypted favourite GIFs without your recovery key** on a verified session. Your other sessions unlock the list automatically.
+- **No recovery key at hand? Choose "Get it from another device"** when the app asks for it. On a session that isn't verified yet, you can verify it from there and pick up where you left off.
+
+🐛 **Fixed**
+
+- **Favourite GIFs no longer get stuck on an old encryption key** that no longer matches what's on the server.
+- **The room header icons now match**: search, threads, pins and notifications use the same outline style as the rest, on desktop and in the mobile menu.
+
 ## v1.66.21
 
 ✨ **New**
