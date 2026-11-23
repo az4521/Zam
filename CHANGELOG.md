@@ -4,6 +4,21 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.21
+
+✨ **New**
+
+- **Click a room's name or topic to see its full details**: the whole name and topic plus the room's policies (policy server and server ACL). It opens as a bottom sheet on mobile.
+- **The room header gives the name its full width**, and the topic uses whatever space is left.
+- **Room settings show the room's policy server**, and a message refused by the policy server now says so.
+
+🐛 **Fixed**
+
+- **New messages show up promptly after switching back to the app** or changing between Wi-Fi and mobile data. On Android they could take minutes.
+- **Android notifications show the actual message more often**: if a push wakes the phone before the network is ready, the app now waits for it instead of posting "You have a new message", and repeated pushes no longer stack duplicate lines.
+- **Building the full search index no longer hangs.** Slow history requests and decryption time out and move on, Cancel stops the build at once, and the progress line shows the room being indexed and when it is waiting for sync.
+- **Custom emojis no longer blink** when you reopen the emoji picker or type in the composer.
+
 ## v1.66.20
 
 ✨ **New**
