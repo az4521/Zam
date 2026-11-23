@@ -55,6 +55,7 @@ import type {
 } from "matrix-js-sdk";
 import { VerificationMethod } from "matrix-js-sdk/lib/types";
 import { DecryptionFailureCode } from "matrix-js-sdk/lib/crypto-api";
+import { installSharedReEmitter } from "$lib/matrix/sharedReEmitter";
 import {
     shouldKickSync,
     watchdogOverdueMs,
@@ -477,6 +478,9 @@ export type {
     ServerNotification,
     ServerNotificationResult,
 } from "$lib/matrix/notifications";
+
+// Must run before any MatrixClient is created; see sharedReEmitter.ts.
+installSharedReEmitter();
 
 // The SDK (>=v35) strongly-types account-data methods against the
 // `AccountDataEvents` interface. Declare the custom, app-specific account-data
