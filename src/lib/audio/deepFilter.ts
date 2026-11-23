@@ -65,6 +65,13 @@ function modelAsset(): ModelAsset {
 
 let modulePromise: Promise<WebAssembly.Module> | null = null;
 
+/** Drops the compiled module from memory; the next use reloads it (from
+ *  the model cache on disk, not the network). Nodes already built keep
+ *  their own copy. Called by voiceFilterLifetime. */
+export function releaseDeepFilter(): void {
+    modulePromise = null;
+}
+
 function loadModule(): Promise<WebAssembly.Module> {
     if (!modulePromise) {
         modulePromise = modelAssetBytes(modelAsset(), !modelIsBundled()).then(

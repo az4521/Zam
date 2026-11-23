@@ -63,6 +63,12 @@ export function fastEnhancerDims(model: FastEnhancerModel) {
     return MODELS[model].dims;
 }
 
+/** Drops the fetched engine module and weights from memory; the next use
+ *  fetches them again (HTTP cache). Called by voiceFilterLifetime. */
+export function releaseFastEnhancer(): void {
+    files.clear();
+}
+
 /** Adds the worklet module to `ctx` (once). */
 export function loadFastEnhancerWorklet(ctx: BaseAudioContext): Promise<void> {
     let ready = loaded.get(ctx);

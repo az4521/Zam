@@ -30,7 +30,9 @@ export type FeGpuWorkerMessage =
           weights: ArrayBuffer;
           dims: FeDims;
       }
-    | { type: "connect"; model: string };
+    | { type: "connect"; model: string }
+    /** Free the GPU and end the worker (see releaseFastEnhancerGpu). */
+    | { type: "release" };
 
 export type FeGpuWorkerEvent =
     | { type: "engine-ready"; model: string; detail: string; snrDb: number }
@@ -203,9 +205,36 @@ function serve(port: MessagePort, enginePromise: Promise<Engine>): void {
     };
 }
 
+/** Frees the engines and the GPU device, then ends the worker. The page
+ *  only asks once no chain is left using it. */
+function releaseAll(): void {
+    for (const e of live) {
+        e.dead = true;
+        try {
+            e.model.destroy();
+        } catch {
+            /* already gone with the device */
+        }
+    }
+    live.clear();
+    engines.clear();
+    const pending = device;
+    device = null;
+    const done = () => self.close();
+    if (!pending) return done();
+    pending
+        .then(
+            ({ device: d }) => d.destroy(),
+            () => {},
+        )
+        .then(done);
+}
+
 self.onmessage = (e: MessageEvent<FeGpuWorkerMessage>) => {
     const m = e.data;
-    if (m.type === "engine") {
+    if (m.type === "release") {
+        releaseAll();
+    } else if (m.type === "engine") {
         let p = engines.get(m.model);
         if (!p) {
             const started = startEngine(m);

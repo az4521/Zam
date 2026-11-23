@@ -24,6 +24,11 @@ function loadWasm(): Promise<ArrayBuffer> {
     return wasmBytes;
 }
 
+/** Drops the fetched wasm bytes from memory. Called by voiceFilterLifetime. */
+export function releaseAgc2(): void {
+    wasmBytes = null;
+}
+
 export async function createAgc2Node(
     ctx: BaseAudioContext,
 ): Promise<AudioWorkletNode> {

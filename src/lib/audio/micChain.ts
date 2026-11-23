@@ -49,6 +49,7 @@ import {
 } from "./voiceNormalization";
 import { rememberLevel, rememberedLevel } from "./normalizerMemory";
 import { createAgc2Node } from "./agc2";
+import { acquireVoiceFilters } from "./voiceFilterLifetime";
 import { createSoftClipper } from "./softClip";
 import { createDeepFilterNode } from "./deepFilter";
 import { createRnnoiseNode } from "./rnnoise";
@@ -125,6 +126,9 @@ export function createMicChain(
     ctx: AudioContext,
     opts: MicChainOptions,
 ): MicChain {
+    // The filters stay loaded while this chain lives; destroy() gives the
+    // lease back (every path that ends a chain goes through destroy).
+    const releaseFilters = acquireVoiceFilters();
     const input = ctx.createGain();
     // Where the noise model's output meets AGC2 (or the clipper, until AGC2
     // has loaded or when it's off).
@@ -468,6 +472,7 @@ export function createMicChain(
         destroy() {
             if (destroyed) return;
             destroyed = true;
+            releaseFilters();
             if (driveTimer !== null) clearInterval(driveTimer);
             if (normTimer !== null) clearInterval(normTimer);
             if (state) rememberLevel(SELF_LEVEL_KEY, state, true);

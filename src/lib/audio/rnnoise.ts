@@ -57,6 +57,11 @@ export async function createRnnoiseNode(
     });
 }
 
+/** Drops the fetched wasm bytes from memory. Called by voiceFilterLifetime. */
+export function releaseRnnoise(): void {
+    wasmBytes = null;
+}
+
 /** Fetch the module ahead of a call, so the mic goes live without waiting. */
 export function prepareRnnoise(): Promise<boolean> {
     if (!rnnoiseSupported()) return Promise.resolve(false);

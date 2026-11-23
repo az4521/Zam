@@ -9,6 +9,7 @@ import { prepareFastEnhancer } from "./fastenhancer";
 import { prepareFastEnhancerGpu } from "./fastenhancerGpu";
 import { micFilterUsable, waitForMicFilter } from "./micFilters";
 import type { DenoiseEngine } from "./micChain";
+import { acquireVoiceFilters } from "./voiceFilterLifetime";
 
 /** How long a join waits for the filter's plugin to finish loading. */
 const PLUGIN_LOAD_WAIT_MS = 3000;
@@ -17,11 +18,25 @@ const feModel = (engine: DenoiseEngine) =>
     engine === "fastenhancer-tiny" ? "tiny" : "base";
 
 /** Resolves true once the engine the chain will use is ready, false after
- *  `timeoutMs` or when nothing can be. */
+ *  `timeoutMs` or when nothing can be. Holds the voice filters while it
+ *  works, so a prepare with no call after it is released after the grace. */
 export async function prepareDenoiser(
     engine: DenoiseEngine,
     timeoutMs: number,
     gpu = false,
+): Promise<boolean> {
+    const release = acquireVoiceFilters();
+    try {
+        return await prepareDenoiserNow(engine, timeoutMs, gpu);
+    } finally {
+        release();
+    }
+}
+
+async function prepareDenoiserNow(
+    engine: DenoiseEngine,
+    timeoutMs: number,
+    gpu: boolean,
 ): Promise<boolean> {
     if (engine === "fastenhancer" || engine === "fastenhancer-tiny") {
         // The GPU first where asked for; the chain falls back to the CPU
@@ -46,8 +61,19 @@ export async function prepareDenoiser(
     return prepareDeepFilter(timeoutMs);
 }
 
-/** Background download of whatever the chosen mode will need. */
+/** Background download of whatever the chosen mode will need. Holds the
+ *  voice filters while it runs; with no call after it they are released
+ *  after the grace (the disk copy stays). */
 export async function prefetchDenoiser(engine: DenoiseEngine): Promise<void> {
+    const release = acquireVoiceFilters();
+    try {
+        await prefetchDenoiserNow(engine);
+    } finally {
+        release();
+    }
+}
+
+async function prefetchDenoiserNow(engine: DenoiseEngine): Promise<void> {
     if (engine === "fastenhancer" || engine === "fastenhancer-tiny") {
         await prepareFastEnhancer(feModel(engine));
         return;

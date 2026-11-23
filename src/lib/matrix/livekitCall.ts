@@ -240,6 +240,7 @@ import {
 } from "$lib/audio/micProcessor";
 import { deepFilterSupported } from "$lib/audio/deepFilter";
 import { prepareDenoiser } from "$lib/audio/prepareDenoiser";
+import { acquireVoiceFilters } from "$lib/audio/voiceFilterLifetime";
 import type { MicGainMode } from "$lib/utils/micGainMode";
 import {
     noiseSuppressionUsesGpu,
@@ -418,6 +419,10 @@ interface ActiveVoiceCall {
 const sfuUrlOf = new WeakMap<LivekitRoom, string>();
 
 let activeVoice: ActiveVoiceCall | null = null;
+
+/** The call's lease on the voice filters (audio/voiceFilterLifetime): held
+ *  from join until leave, so they stay loaded for the whole call. */
+let callFilterLease: (() => void) | null = null;
 
 /** Every LiveKit connection of a call: the publishing one first. */
 function callLkRooms(call: ActiveVoiceCall): LivekitRoom[] {
@@ -2902,6 +2907,8 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
     // Who was asked about at join counts as asked.
     for (const m of session.memberships) call.meshAsked.add(m.memberId);
     activeVoice = call;
+    callFilterLease?.();
+    callFilterLease = acquireVoiceFilters();
     installDecodePreferences();
     ensureLocalSpeaking(call);
     startUploadSampling(call);
@@ -3308,6 +3315,8 @@ async function leaveVoiceCallInternal(): Promise<void> {
     if (!call) return;
     const run = (async () => {
         activeVoice = null;
+        callFilterLease?.();
+        callFilterLease = null;
         // Ends plugins' data tracks while the rooms are still up to unpublish.
         bindPluginCallHost(null);
         cancelGpuReconnect();

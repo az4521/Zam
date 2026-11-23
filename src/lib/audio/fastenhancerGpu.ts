@@ -58,6 +58,19 @@ function getWorker(): Worker {
     return worker;
 }
 
+/** Frees the GPU: the worker destroys its engines and GPU device and ends
+ *  itself (terminate is the fallback). Only called with no chain using the
+ *  GPU, so nothing is left waiting on an answer; the next start builds
+ *  everything again. Called by voiceFilterLifetime. */
+export function releaseFastEnhancerGpu(): void {
+    const w = worker;
+    worker = null;
+    engines.clear();
+    if (!w) return;
+    w.postMessage({ type: "release" } satisfies FeGpuWorkerMessage);
+    setTimeout(() => w.terminate(), 5000);
+}
+
 /** Starts `model` on the GPU, once per page (again after a failure). */
 function startEngine(model: FastEnhancerModel): Promise<void> {
     let p = engines.get(model);
