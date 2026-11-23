@@ -1370,6 +1370,7 @@ export const en = {
 
     // src/lib/components/layout/MemberList.svelte
     "memberList.members": "Members: {length}",
+    "memberList.activeOnly": "Showing active members",
     "memberList.creators": "Creators: {length}",
     "memberList.admins": "Admins: {length}",
     "memberList.admin": "Admin",

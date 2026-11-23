@@ -63,6 +63,10 @@ import { logSync } from "$lib/matrix/syncLog";
 import { isDesktopTray } from "$lib/desktopTray";
 import { applyTimelineMemberEvent } from "$lib/matrix/slidingMemberState";
 import {
+    isLargeRoomCount,
+    missingMemberIds,
+} from "$lib/utils/largeRoomMembers";
+import {
     isSlidingSyncEnabled,
     setSlidingSyncEnabled,
 } from "$lib/matrix/slidingSyncPref";
@@ -5571,6 +5575,168 @@ export async function loadRoomMembersIfNeeded(room: Room): Promise<void> {
         load.catch(() => freshMemberLoads.delete(room));
     }
     await load;
+}
+
+/** True when the room is big enough that its full roster is never loaded. */
+export function isLargeRoom(room: Room): boolean {
+    return isLargeRoomCount(room.getJoinedMemberCount());
+}
+
+/** Distinct senders of the newest live-timeline events, newest first. */
+export function recentSenderIds(room: Room, limit = 200): string[] {
+    const events = room.getLiveTimeline().getEvents();
+    const seen = new Set<string>();
+    for (let i = events.length - 1; i >= 0 && seen.size < limit; i--) {
+        const sender = events[i]!.getSender();
+        if (sender) seen.add(sender);
+    }
+    return [...seen];
+}
+
+/** User ids whose power level is above the room's `users_default` (0 if unset). */
+export function roleHolderIds(room: Room): string[] {
+    const content = room.currentState
+        .getStateEvents("m.room.power_levels", "")
+        ?.getContent() as
+        | { users?: Record<string, unknown>; users_default?: unknown }
+        | undefined;
+    const users = content?.users;
+    if (!users || typeof users !== "object") return [];
+    const def =
+        typeof content?.users_default === "number" ? content.users_default : 0;
+    return Object.entries(users)
+        .filter(([, level]) => typeof level === "number" && level > def)
+        .map(([userId]) => userId);
+}
+
+/** Member fetches allowed in flight at once, across all rooms. */
+const MEMBER_FETCH_CONCURRENCY = 4;
+let memberFetchActive = 0;
+const memberFetchWaiting: Array<() => void> = [];
+
+function acquireMemberFetchSlot(): Promise<void> {
+    if (memberFetchActive < MEMBER_FETCH_CONCURRENCY) {
+        memberFetchActive++;
+        return Promise.resolve();
+    }
+    return new Promise((resolve) =>
+        memberFetchWaiting.push(() => {
+            memberFetchActive++;
+            resolve();
+        }),
+    );
+}
+
+function releaseMemberFetchSlot(): void {
+    memberFetchActive--;
+    memberFetchWaiting.shift()?.();
+}
+
+/**
+ * Per Room object: user id → the one fetch for that member. A 404/403 (not a
+ * member, or not visible) is remembered and never retried for this Room; other
+ * failures drop out of the map so a later call can retry.
+ */
+const roomMemberFetches = new WeakMap<Room, Map<string, Promise<void>>>();
+
+async function fetchOneRoomMember(
+    room: Room,
+    userId: string,
+    owner: ReturnType<typeof captureClient>,
+): Promise<boolean> {
+    await acquireMemberFetchSlot();
+    try {
+        if (!ownedClient(owner)) return false;
+        let content: Record<string, unknown>;
+        try {
+            content = (await owner.client.getStateEvent(
+                room.roomId,
+                "m.room.member",
+                userId,
+            )) as Record<string, unknown>;
+        } catch (err) {
+            // 404/403: not a member (or never visible to us); remembered. Any
+            // other failure may be transient, so let a later call retry it.
+            const status = (err as { httpStatus?: number })?.httpStatus;
+            return status !== 404 && status !== 403;
+        }
+        if (!ownedClient(owner)) return false;
+        const ev = new MatrixEvent({
+            type: "m.room.member",
+            state_key: userId,
+            sender: userId,
+            content,
+            event_id: "$zam-member-" + userId,
+            // 0 so any real member event that arrives later wins.
+            origin_server_ts: 0,
+            room_id: room.roomId,
+        });
+        // Never overwrite a member event the live state already has.
+        const state = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
+        if (state && !state.getStateEvents("m.room.member", userId)) {
+            state.setStateEvents([ev]);
+        }
+        return false;
+    } catch {
+        // Ignored: this member just keeps its placeholder.
+        return false;
+    } finally {
+        releaseMemberFetchSlot();
+    }
+}
+
+/**
+ * Load only the named members of a room (state fetch per user, at most once
+ * per Room object). Never throws; ids it cannot load are skipped.
+ */
+export async function ensureRoomMembers(
+    room: Room,
+    userIds: readonly string[],
+): Promise<void> {
+    let owner: ReturnType<typeof captureClient>;
+    try {
+        owner = captureClient();
+    } catch {
+        return;
+    }
+    try {
+        let fetches = roomMemberFetches.get(room);
+        if (!fetches) {
+            fetches = new Map();
+            roomMemberFetches.set(room, fetches);
+        }
+        const pending = fetches;
+        const ids = missingMemberIds(
+            userIds,
+            (id) => !!room.getMember(id) || pending.has(id),
+            100,
+        );
+        const work = ids.map((id) => {
+            const p = fetchOneRoomMember(room, id, owner).then((retry) => {
+                if (retry) pending.delete(id);
+            });
+            pending.set(id, p);
+            return p;
+        });
+        await Promise.all(work);
+    } catch {
+        // Never surfaced to callers.
+    }
+}
+
+/**
+ * Member loading for opening a room: a large room gets only its role holders
+ * and recent senders; a small room gets the full roster as before.
+ */
+export async function loadRoomMembersForView(room: Room): Promise<void> {
+    if (isLargeRoom(room)) {
+        await ensureRoomMembers(room, [
+            ...roleHolderIds(room),
+            ...recentSenderIds(room),
+        ]);
+        return;
+    }
+    await loadRoomMembersIfNeeded(room);
 }
 
 export function getRoomTopic(room: Room): string | null {

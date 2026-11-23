@@ -14,6 +14,9 @@
         getMemberAvatar,
         getRoomMembers,
         loadRoomMembersIfNeeded,
+        isLargeRoom,
+        ensureRoomMembers,
+        searchUserDirectory,
         getCustomEmojis,
         mxcToHttp,
         sendTyping,
@@ -489,9 +492,50 @@
     $effect(() => {
         if (mentionQuery === null || !room) return;
         const r = room;
+        // Large rooms never load the full roster; the directory search below
+        // fetches just the matches instead.
+        if (isLargeRoom(r)) return;
         loadRoomMembersIfNeeded(r)
             .then(() => untrack(() => memberTick++))
             .catch(() => {});
+    });
+
+    // Large rooms: after a short pause, search the user directory for the
+    // typed text and load any hits as members. Hits that are not in the room
+    // are filtered out by mentionCandidates, so only real members show.
+    let mentionSearchTimer: ReturnType<typeof setTimeout> | null = null;
+    $effect(() => {
+        const q = mentionQuery;
+        const r = room;
+        if (mentionSearchTimer !== null) {
+            clearTimeout(mentionSearchTimer);
+            mentionSearchTimer = null;
+        }
+        if (q === null || !r || q.length < 2 || !isLargeRoom(r)) return;
+        const timer = setTimeout(() => {
+            if (mentionSearchTimer === timer) mentionSearchTimer = null;
+            untrack(() => {
+                if (mentionQuery !== q || room !== r) return;
+                if (mentionCandidates.length >= 8) return;
+                searchUserDirectory(q, 10)
+                    .then(({ users }) =>
+                        ensureRoomMembers(
+                            r,
+                            users.map((u) => u.userId),
+                        ),
+                    )
+                    .then(() => {
+                        if (mentionQuery !== q || room !== r) return;
+                        untrack(() => memberTick++);
+                    })
+                    .catch(() => {});
+            });
+        }, 300);
+        mentionSearchTimer = timer;
+        return () => {
+            clearTimeout(timer);
+            if (mentionSearchTimer === timer) mentionSearchTimer = null;
+        };
     });
 
     const mentionCandidates = $derived.by(() => {

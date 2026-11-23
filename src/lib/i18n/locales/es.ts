@@ -1308,6 +1308,7 @@ const messages: Partial<Record<MessageKey, string>> = {
 
     // src/lib/components/layout/MemberList.svelte
     "memberList.members": "Miembros: {length}",
+    "memberList.activeOnly": "Solo se muestran los miembros activos",
     "memberList.creators": "Creadores: {length}",
     "memberList.admins": "Administradores: {length}",
     "memberList.admin": "Administrador",

@@ -4,23 +4,40 @@
     import type { Room, RoomMember } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import {
+        getOwnUserId,
         getRoomMembers,
         getUserPowerLevel,
+        getUserPresence,
         hasImmutableCreatorPower,
-        loadRoomMembersIfNeeded,
+        isLargeRoom,
+        loadRoomMembersForView,
         mxcToHttp,
         memberDisplayName,
         onRoomMembersChanged,
+        recentSenderIds,
+        roleHolderIds,
     } from "$lib/matrix/client";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import { openProfileCard } from "$lib/stores/profileCard.svelte";
     import { presenceFor } from "$lib/stores/presence.svelte";
-    import { cachedNameColourFor } from "$lib/stores/profileFields.svelte";
+    import {
+        cachedNameColourFor,
+        getCachedProfile,
+        requestProfile,
+    } from "$lib/stores/profileFields.svelte";
     import {
         presenceDot,
         presenceDotClass,
         presenceLabel,
+        normalizePresence,
     } from "$lib/utils/presence";
+    import { parseProfilePresence } from "$lib/utils/profilePresence";
+    import { PROFILE_FIELDS, readField } from "$lib/utils/extendedProfile";
+    import { parseRpcField } from "$lib/utils/richPresence";
+    import {
+        activityRank,
+        pickLargeRoomMembers,
+    } from "$lib/utils/largeRoomMembers";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import { collectMemberDecorations } from "$lib/plugins/pluginMembers";
     import PowerLevelTagBadge from "$lib/components/ui/PowerLevelTagBadge.svelte";
@@ -40,6 +57,11 @@
 
     let { room }: Props = $props();
     let memberTick = $state(0);
+    // Bumped every 30 s so the activity ordering follows presence changes
+    // without subscribing to every member's presence.
+    let activityTick = $state(0);
+    const ACTIVITY_REFRESH_MS = 30_000;
+    const PROFILE_MAX_AGE_MS = 5 * 60_000;
 
     // Row geometry for the windowed list (px).
     const HEADER_H = 24;
@@ -55,7 +77,7 @@
     $effect(() => {
         const r = room;
         let live = true;
-        loadRoomMembersIfNeeded(r)
+        loadRoomMembersForView(r)
             .then(() => {
                 if (live) memberTick++;
             })
@@ -77,12 +99,76 @@
         };
     });
 
-    const members = $derived.by(() => {
+    // Refresh the activity ordering on a timer (see activityTick).
+    $effect(() => {
+        const timer = setInterval(() => activityTick++, ACTIVITY_REFRESH_MS);
+        return () => clearInterval(timer);
+    });
+
+    // Presence as a row sees it, read without subscribing: the server's value,
+    // or the one a client published in the profile when the server has none.
+    // Mirrors presenceFor, minus the watcher and the fetches.
+    function presenceStateOf(userId: string) {
+        const raw = getUserPresence(userId);
+        const server = raw ? normalizePresence(raw.presence) : null;
+        if (server !== null && server !== "offline") return server;
+        const published = parseProfilePresence(
+            getCachedProfile(userId),
+            Date.now(),
+        );
+        return published ? published.state : server;
+    }
+
+    function hasRichPresence(userId: string): boolean {
+        const entries = parseRpcField(
+            readField(getCachedProfile(userId), PROFILE_FIELDS.rpc),
+            Date.now(),
+        );
+        return entries.length > 0;
+    }
+
+    // The roster to show, plus the activity rank of each member (memoised for
+    // this run). Large rooms only load part of the roster, so they show the
+    // active members; everything else shows the full joined list.
+    const roster = $derived.by(() => {
         void memberTick;
+        void activityTick;
         // Live SDK Room objects mutate in place, so this is re-read whenever
         // memberTick bumps (kicks/bans/joins from other sessions included).
-        return getRoomMembers(room);
+        // Ranks are read untracked: the profile cache is reactive, and every
+        // profile landing would otherwise re-sort the whole list. activityTick
+        // picks up changes instead.
+        const rankCache = new Map<string, number>();
+        const rank = (userId: string): number => {
+            let value = rankCache.get(userId);
+            if (value === undefined) {
+                value = untrack(() =>
+                    activityRank(
+                        presenceStateOf(userId),
+                        hasRichPresence(userId),
+                    ),
+                );
+                rankCache.set(userId, value);
+            }
+            return value;
+        };
+        const all = getRoomMembers(room);
+        const large = isLargeRoom(room);
+        if (!large) return { members: all, rank, large };
+        const roleHolders = new Set(roleHolderIds(room));
+        const picked = pickLargeRoomMembers({
+            members: all,
+            isRoleHolder: (userId) =>
+                roleHolders.has(userId) ||
+                hasImmutableCreatorPower(room, userId),
+            rank,
+            recentSenders: new Set(recentSenderIds(room)),
+            selfId: getOwnUserId(),
+        });
+        return { members: picked, rank, large };
     });
+
+    const members = $derived(roster.members);
 
     // One pass and a shared collator: a big room's three filters (each looking
     // up every member's power level) plus three localeCompare sorts were tens
@@ -112,8 +198,10 @@
             if (resolved) byLevel.get(resolved.level)?.push(m);
             else untitled.push(m);
         }
+        // Activity first (rich presence, online, busy, away, offline), then name.
+        const { rank } = roster;
         const byName = (a: RoomMember, b: RoomMember) =>
-            collator.compare(a.name, b.name);
+            rank(a.userId) - rank(b.userId) || collator.compare(a.name, b.name);
         creators.sort(byName);
         untitled.sort(byName);
         const tagged = levels.map((level) => {
@@ -317,6 +405,19 @@
         }
         return out;
     });
+
+    // Rich presence (MSC4544) is only known from profiles some view has
+    // loaded, so rows on screen ask for theirs. It goes stale in minutes, hence
+    // the max age. Idempotent: requestProfile skips users that are fresh, in
+    // flight or queued. Untracked so the fetches can't re-enter this effect.
+    $effect(() => {
+        const ids = visibleRows.flatMap((row) =>
+            row.kind === "member" ? [row.member.userId] : [],
+        );
+        untrack(() => {
+            for (const id of ids) requestProfile(id, PROFILE_MAX_AGE_MS);
+        });
+    });
 </script>
 
 {#snippet memberRow(
@@ -395,13 +496,22 @@
         : 'w-72'} h-full bg-zam-backgroundSecondary flex flex-col flex-shrink-0 overflow-hidden border-l border-zam-divider"
 >
     <div
-        class="h-12 px-4 flex items-center border-b border-zam-divider flex-shrink-0"
+        class="min-h-[3rem] py-2 px-4 flex flex-col justify-center border-b border-zam-divider flex-shrink-0"
     >
         <h3
             class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
         >
-            {t("memberList.members", { length: members.length })}
+            {t("memberList.members", {
+                length: roster.large
+                    ? room.getJoinedMemberCount()
+                    : members.length,
+            })}
         </h3>
+        {#if roster.large}
+            <p class="text-xs leading-4 text-zam-textMuted">
+                {t("memberList.activeOnly")}
+            </p>
+        {/if}
     </div>
 
     <div

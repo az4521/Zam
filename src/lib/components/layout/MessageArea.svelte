@@ -51,7 +51,10 @@
         getRoomCallMemberships,
         getRoomThreads,
         isVideoRoom,
-        loadRoomMembersIfNeeded,
+        loadRoomMembersForView,
+        ensureRoomMembers,
+        recentSenderIds,
+        isLargeRoom,
         getCallSummaries,
         getContextCallSummaries,
         getOwnUserId,
@@ -305,17 +308,37 @@
 
     // Bridged/quiet senders whose m.room.member event wasn't lazy-loaded render
     // as their raw MXID (no display name, no avatar) until the member arrives.
-    // Fetch the full roster on room open so every sender resolves, then bump
+    // On room open, a small room loads its full roster; a large room loads only
+    // its role holders and recent senders (loadRoomMembersForView). Then bump
     // roomsTick so already-rendered rows re-derive their name/avatar — the
     // getMember reads don't re-run on their own when the member mutates in
-    // place. Idempotent (loadMembersIfNeeded caches); the bump is untracked so
+    // place. Idempotent (both loaders cache per Room); the bump is untracked so
     // it can't re-enter this effect.
     $effect(() => {
         const r = room;
         void r.roomId;
-        loadRoomMembersIfNeeded(r)
-            .then(() => untrack(() => roomsState.roomsTick++))
-            .catch(() => {});
+        untrack(() =>
+            loadRoomMembersForView(r)
+                .then(() => untrack(() => roomsState.roomsTick++))
+                .catch(() => {}),
+        );
+    });
+
+    // Large rooms only: senders that show up as the timeline grows get their
+    // member fetched as they appear. Keyed on the timeline tick; the per-Room
+    // dedupe in ensureRoomMembers makes repeat calls cheap.
+    $effect(() => {
+        const r = room;
+        void r.roomId;
+        void messagesState.timelineTick;
+        untrack(() => {
+            if (!isLargeRoom(r)) return;
+            const senders = recentSenderIds(r);
+            if (!senders.some((id) => !r.getMember(id))) return;
+            ensureRoomMembers(r, senders)
+                .then(() => untrack(() => roomsState.roomsTick++))
+                .catch(() => {});
+        });
     });
 
     // Warm this room's custom emoji in the background on open so the picker and

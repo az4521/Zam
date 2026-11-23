@@ -1198,6 +1198,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "registration.openStepPage": "ページを開く",
     "registration.stepDone": "完了しました",
     "memberList.members": "メンバー: {length}",
+    "memberList.activeOnly": "アクティブなメンバーのみ表示しています",
     "memberList.creators": "作成者: {length}",
     "memberList.admins": "管理者: {length}",
     "memberList.admin": "管理者",
