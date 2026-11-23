@@ -5,10 +5,17 @@ import {
     builtInRefreshServiceUrl,
     DEFAULT_DISCORD_REFRESH_URL,
     effectiveRefreshServiceUrl,
+    copiesByDiscordUrl,
+    createHashMatcher,
+    hashCandidates,
     normaliseRefreshServiceUrl,
+    parseMediaHashes,
+    serialiseMediaHashes,
+    sha256Hex,
     parseUploadedAttachments,
     serialiseUploadedAttachments,
 } from "./discordAttachmentImport";
+import type { FavouriteGif } from "$lib/matrix/client";
 
 describe("normaliseRefreshServiceUrl", () => {
     it("accepts https and strips trailing slashes, query and hash", () => {
@@ -69,6 +76,7 @@ describe("attachmentFavourite", () => {
         mxc: "mxc://hs.example/abc",
         httpUrl:
             "https://hs.example/_matrix/client/v1/media/download/hs.example/abc",
+        discordUrl: "https://cdn.discordapp.com/attachments/1/2/cat.gif",
     };
     it("builds an image favourite with size and name", () => {
         expect(
@@ -83,6 +91,7 @@ describe("attachmentFavourite", () => {
             url: base.httpUrl,
             previewUrl: base.httpUrl,
             mxc: base.mxc,
+            discordUrl: base.discordUrl,
             name: "cat.gif",
             width: 200,
             height: 100,
@@ -95,6 +104,7 @@ describe("attachmentFavourite", () => {
             url: base.httpUrl,
             previewUrl: "",
             mxc: base.mxc,
+            discordUrl: base.discordUrl,
             video: true,
         });
     });
@@ -172,5 +182,88 @@ describe("effectiveRefreshServiceUrl", () => {
                 "https://built.example",
             ),
         ).toBe(null);
+    });
+});
+
+describe("existing copies", () => {
+    const D = "https://cdn.discordapp.com/attachments/1/2/a.gif";
+    const fav = (extra: Partial<FavouriteGif>): FavouriteGif => ({
+        url: "https://hs/x",
+        previewUrl: "",
+        addedAt: 1,
+        ...extra,
+    });
+
+    it("indexes favourites by their Discord link", () => {
+        const map = copiesByDiscordUrl([
+            fav({ mxc: "mxc://hs/a", discordUrl: D, video: true }),
+            fav({ mxc: "https://not-mxc", discordUrl: D + "2" }),
+            fav({ mxc: "mxc://hs/c" }),
+        ]);
+        expect([...map]).toEqual([[D, { mxc: "mxc://hs/a", video: true }]]);
+    });
+
+    it("hashes only plain homeserver media without a Discord link", () => {
+        expect(
+            hashCandidates([
+                fav({ mxc: "mxc://hs/a" }),
+                fav({ mxc: "mxc://hs/a" }),
+                fav({ mxc: "mxc://hs/b", discordUrl: D }),
+                fav({
+                    mxc: "mxc://hs/c",
+                    source: { roomId: "!r", eventId: "$e" },
+                }),
+                fav({}),
+            ]),
+        ).toEqual([{ mxc: "mxc://hs/a", video: false }]);
+    });
+});
+
+describe("sha256Hex", () => {
+    it("hashes bytes", async () => {
+        expect(await sha256Hex(new TextEncoder().encode("abc"))).toBe(
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        );
+    });
+});
+
+describe("media hash cache", () => {
+    it("round-trips and drops malformed entries", () => {
+        const h = "a".repeat(64);
+        const map = parseMediaHashes(
+            JSON.stringify({ "mxc://hs/a": h, "mxc://hs/b": "nope", x: h }),
+        );
+        expect([...map]).toEqual([["mxc://hs/a", h]]);
+        expect(parseMediaHashes(serialiseMediaHashes(map))).toEqual(map);
+        expect(parseMediaHashes("{")).toEqual(new Map());
+    });
+});
+
+describe("createHashMatcher", () => {
+    it("fetches nothing until asked, then each candidate once", async () => {
+        const fetched: string[] = [];
+        const known = new Map([["mxc://hs/a", "ha"]]);
+        let hashed = 0;
+        const match = createHashMatcher({
+            candidates: [
+                { mxc: "mxc://hs/a", video: false },
+                { mxc: "mxc://hs/b", video: true },
+                { mxc: "mxc://hs/c", video: false },
+            ],
+            known,
+            fetchHash: async (mxc) => {
+                fetched.push(mxc);
+                if (mxc === "mxc://hs/c") throw new Error("gone");
+                return "hb";
+            },
+            onHashed: () => hashed++,
+        });
+        expect(fetched).toEqual([]);
+        expect(await match("hb")).toEqual({ mxc: "mxc://hs/b", video: true });
+        expect(await match("ha")).toEqual({ mxc: "mxc://hs/a", video: false });
+        expect(await match("zz")).toBe(null);
+        expect(fetched.sort()).toEqual(["mxc://hs/b", "mxc://hs/c"]);
+        expect(known.get("mxc://hs/b")).toBe("hb");
+        expect(hashed).toBe(1);
     });
 });

@@ -394,14 +394,15 @@ export function upgradeFavouriteGifs(
 }
 
 /**
- * Add favourites imported from another app (Discord). Entries whose link is
- * already a favourite are skipped. Resolves to how many were new here.
+ * Add favourites imported from another app (Discord). Entries already in the
+ * list are skipped (and give an older copy its Discord link). Resolves to how
+ * many were new here.
  */
 export function importFavouriteGifs(entries: FavouriteGif[]): Promise<number> {
     const current = favouritesState.gifs;
-    const added =
-        mergeImportedFavourites(current, entries).length - current.length;
-    if (added === 0) return Promise.resolve(0);
+    const merged = mergeImportedFavourites(current, entries);
+    if (merged === current) return Promise.resolve(0);
+    const added = merged.length - current.length;
     return mutate((gifs) => mergeImportedFavourites(gifs, entries)).then(
         () => added,
     );

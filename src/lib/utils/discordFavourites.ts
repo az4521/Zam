@@ -82,24 +82,39 @@ export function discordItemsToFavourites(
 }
 
 /**
- * Append imported favourites whose URL is not already in `base`, after the
- * existing ones. Returns `base` itself when nothing is added, so applying it
- * twice is the same as applying it once.
+ * Append imported favourites that are not already in `base`, after the
+ * existing ones. An imported GIF that matches an existing favourite lacking
+ * its Discord link gives it that link (favourites imported before the link
+ * was saved), so later imports on any device match it directly. Returns
+ * `base` itself when nothing changes, so applying it twice is the same as
+ * applying it once.
  */
 export function mergeImportedFavourites(
     base: FavouriteGif[],
     imported: readonly FavouriteGif[],
 ): FavouriteGif[] {
-    const seen = new Set<string>();
-    for (const g of base) for (const k of favouriteDedupeKeys(g)) seen.add(k);
+    const owner = new Map<string, number>();
+    base.forEach((g, i) => {
+        for (const k of favouriteDedupeKeys(g)) owner.set(k, i);
+    });
+    let out = base;
     const added: FavouriteGif[] = [];
     for (const g of imported) {
         const keys = favouriteDedupeKeys(g);
-        if (keys.some((k) => seen.has(k))) continue;
-        for (const k of keys) seen.add(k);
+        const hit = keys.find((k) => owner.has(k));
+        if (hit !== undefined) {
+            const i = owner.get(hit)!;
+            if (i < base.length && g.discordUrl && !out[i].discordUrl) {
+                if (out === base) out = [...base];
+                out[i] = { ...out[i], discordUrl: g.discordUrl };
+                owner.set("discord:" + g.discordUrl, i);
+            }
+            continue;
+        }
+        for (const k of keys) owner.set(k, base.length + added.length);
         added.push(g);
     }
-    return added.length === 0 ? base : [...base, ...added];
+    return added.length === 0 ? out : [...out, ...added];
 }
 
 /** Query parameters that only track where a link was shared from. */
@@ -137,6 +152,12 @@ export function canonicalFavouriteUrl(url: string): string {
  */
 export function favouriteDedupeKeys(g: FavouriteGif): string[] {
     const keys = ["link:" + canonicalFavouriteUrl(g.url)];
+    // Untrusted on read: used only as a string key.
+    if (typeof g.discordUrl === "string" && g.discordUrl)
+        keys.push("discord:" + g.discordUrl);
+    // The same media under another download URL (a different homeserver
+    // address on another device) is still the same favourite.
+    if (typeof g.mxc === "string" && g.mxc) keys.push("mxc:" + g.mxc);
     if (g.previewVideoUrl) keys.push("media:" + g.previewVideoUrl);
     else if (g.previewUrl) keys.push("media:" + g.previewUrl);
     return keys;

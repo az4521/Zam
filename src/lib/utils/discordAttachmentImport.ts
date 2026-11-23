@@ -97,6 +97,7 @@ export function attachmentFavourite(opts: {
     mxc: string;
     httpUrl: string;
     video: boolean;
+    discordUrl: string;
     name?: string;
     width?: number;
     height?: number;
@@ -107,6 +108,7 @@ export function attachmentFavourite(opts: {
         url: opts.httpUrl,
         previewUrl: opts.video ? "" : opts.httpUrl,
         mxc: opts.mxc,
+        discordUrl: opts.discordUrl,
         ...(opts.video ? { video: true } : {}),
         ...(opts.name ? { name: opts.name } : {}),
         ...(w !== null && h !== null ? { width: w, height: h } : {}),
@@ -153,4 +155,146 @@ export function writeUploadedAttachments(
     map: Map<string, string>,
 ): void {
     writeScoped(UPLOADED_KEY, userId, serialiseUploadedAttachments(map));
+}
+
+/** An existing favourite's media, for re-using it instead of uploading. */
+export interface ExistingCopy {
+    mxc: string;
+    video: boolean;
+}
+
+function copyOf(g: FavouriteGif): ExistingCopy | null {
+    if (typeof g.mxc !== "string" || !g.mxc.startsWith("mxc://")) return null;
+    return { mxc: g.mxc, video: !!g.video };
+}
+
+/** Favourites that already hold a Discord upload, by its canonical link. */
+export function copiesByDiscordUrl(
+    gifs: readonly FavouriteGif[],
+): Map<string, ExistingCopy> {
+    const out = new Map<string, ExistingCopy>();
+    for (const g of gifs) {
+        if (typeof g.discordUrl !== "string" || !g.discordUrl) continue;
+        const copy = copyOf(g);
+        if (copy && !out.has(g.discordUrl)) out.set(g.discordUrl, copy);
+    }
+    return out;
+}
+
+/**
+ * Favourites that may be an earlier import of a Discord upload but carry no
+ * Discord link (imported before it was saved): plain homeserver media, not
+ * encrypted (`source`), no Discord link yet. Matched by file hash.
+ */
+export function hashCandidates(gifs: readonly FavouriteGif[]): ExistingCopy[] {
+    const seen = new Set<string>();
+    const out: ExistingCopy[] = [];
+    for (const g of gifs) {
+        if (g.source || g.discordUrl) continue;
+        const copy = copyOf(g);
+        if (!copy || seen.has(copy.mxc)) continue;
+        seen.add(copy.mxc);
+        out.push(copy);
+    }
+    return out;
+}
+
+/** SHA-256 of `data` as lowercase hex. */
+export async function sha256Hex(data: BufferSource): Promise<string> {
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", data));
+    let hex = "";
+    for (const b of digest) hex += b.toString(16).padStart(2, "0");
+    return hex;
+}
+
+/** mxc -> SHA-256 of its bytes. Media behind an mxc never changes, so a hash
+ *  once taken stays right. */
+const HASHES_KEY = "zam_favourite_mxc_sha256";
+const MAX_HASHES = 5000;
+
+export function parseMediaHashes(raw: string | null): Map<string, string> {
+    const out = new Map<string, string>();
+    if (!raw) return out;
+    let data: unknown;
+    try {
+        data = JSON.parse(raw);
+    } catch {
+        return out;
+    }
+    if (!data || typeof data !== "object" || Array.isArray(data)) return out;
+    for (const [k, v] of Object.entries(data as Record<string, unknown>)) {
+        if (
+            k.startsWith("mxc://") &&
+            typeof v === "string" &&
+            /^[0-9a-f]{64}$/.test(v)
+        )
+            out.set(k, v);
+    }
+    return out;
+}
+
+export function serialiseMediaHashes(map: Map<string, string>): string {
+    return JSON.stringify(Object.fromEntries([...map].slice(-MAX_HASHES)));
+}
+
+export function readMediaHashes(userId: string | null): Map<string, string> {
+    return parseMediaHashes(readScoped(HASHES_KEY, userId));
+}
+
+export function writeMediaHashes(
+    userId: string | null,
+    map: Map<string, string>,
+): void {
+    writeScoped(HASHES_KEY, userId, serialiseMediaHashes(map));
+}
+
+/**
+ * Lazily hashes the candidates (each fetched once, `limit` at a time, hashes
+ * cached in `known`) and answers which one holds the given bytes. A candidate
+ * that fails to fetch is left out. The index is built on the first lookup
+ * only, so an import that never needs it fetches nothing.
+ */
+export function createHashMatcher(opts: {
+    candidates: readonly ExistingCopy[];
+    known: Map<string, string>;
+    fetchHash: (mxc: string) => Promise<string>;
+    limit?: number;
+    onHashed?: () => void;
+}): (hash: string) => Promise<ExistingCopy | null> {
+    let index: Promise<Map<string, ExistingCopy>> | null = null;
+    const build = async () => {
+        const byHash = new Map<string, ExistingCopy>();
+        const todo: ExistingCopy[] = [];
+        for (const c of opts.candidates) {
+            const h = opts.known.get(c.mxc);
+            if (h) {
+                if (!byHash.has(h)) byHash.set(h, c);
+            } else todo.push(c);
+        }
+        let next = 0;
+        const worker = async () => {
+            while (next < todo.length) {
+                const c = todo[next++];
+                try {
+                    const h = await opts.fetchHash(c.mxc);
+                    opts.known.set(c.mxc, h);
+                    if (!byHash.has(h)) byHash.set(h, c);
+                } catch {
+                    // Unreachable media cannot be matched; upload instead.
+                }
+            }
+        };
+        await Promise.all(
+            Array.from(
+                { length: Math.min(opts.limit ?? 4, todo.length) },
+                worker,
+            ),
+        );
+        if (todo.length > 0) opts.onHashed?.();
+        return byHash;
+    };
+    return async (hash) => {
+        index ??= build();
+        return (await index).get(hash) ?? null;
+    };
 }

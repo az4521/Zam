@@ -39,6 +39,7 @@
     } from "$lib/utils/customSoundBank";
     import { formatMediaSize } from "$lib/utils/roomMedia";
     import {
+        favouritesState,
         importFavouriteGifs,
         setFavouritesEncrypted,
     } from "$lib/stores/favourites.svelte";
@@ -62,12 +63,23 @@
         attachmentFavourite,
         attachmentMediaType,
         builtInRefreshServiceUrl,
+        copiesByDiscordUrl,
+        createHashMatcher,
         effectiveRefreshServiceUrl,
+        hashCandidates,
         normaliseRefreshServiceUrl,
+        readMediaHashes,
         readUploadedAttachments,
+        sha256Hex,
+        writeMediaHashes,
         writeUploadedAttachments,
     } from "$lib/utils/discordAttachmentImport";
-    import { getOwnUserId, mxcToHttp, uploadContent } from "$lib/matrix/client";
+    import {
+        fetchMediaBytes,
+        getOwnUserId,
+        mxcToHttp,
+        uploadContent,
+    } from "$lib/matrix/client";
 
     const gifTabOptions: Array<{ value: GifTab; label: string }> = [
         { value: "gifs", label: "GIFs" },
@@ -90,6 +102,8 @@
     const discordImportAvailable =
         typeof window !== "undefined" && !!window.desktop?.discordFavourites;
     let discordBusy = $state(false);
+    // Same cap as a Discord download (electron/discordAttachments.cjs).
+    const MAX_HASHED_BYTES = 100 * 1024 * 1024;
     // The refresh service for GIFs uploaded to Discord: the built-in one, or
     // the user's own. Saved only once it is a usable address (or cleared;
     // empty means the built-in one).
@@ -182,11 +196,33 @@
             const canCopy =
                 !!serviceUrl && !!bridge.refresh && !!bridge.download;
             const uploaded = readUploadedAttachments(userId);
+            // Copies already in the (synced) favourites: by the Discord link
+            // they were imported from, or, for imports from before that link
+            // was saved, by the file's hash.
+            const bySource = copiesByDiscordUrl(favouritesState.gifs);
+            const hashes = readMediaHashes(userId);
+            let hashesChanged = false;
+            const matchHash = createHashMatcher({
+                candidates: hashCandidates(favouritesState.gifs),
+                known: hashes,
+                fetchHash: async (mxc) => {
+                    const httpUrl = mxcToHttp(mxc);
+                    if (!httpUrl) throw new Error("bad mxc");
+                    return sha256Hex(
+                        await fetchMediaBytes(httpUrl, MAX_HASHED_BYTES),
+                    );
+                },
+                onHashed: () => {
+                    hashesChanged = true;
+                },
+            });
+            const haveCopy = (url: string) =>
+                uploaded.has(url) || bySource.has(url);
             let refreshed: Record<string, string> = {};
             let skippedAttachments = 0;
             let failedAttachments = 0;
             const pending = items
-                .filter((i) => i.attachment && !uploaded.has(i.url))
+                .filter((i) => i.attachment && !haveCopy(i.url))
                 .map((i) => i.url);
             if (serviceUrl && canCopy && pending.length > 0 && bridge.refresh) {
                 // Same shared key as the Telegram proxy. Empty sends none.
@@ -196,11 +232,13 @@
                 else showErrorToast(refreshErrorMessage(r.error, r.status));
             }
             const sameAccount = () => getOwnUserId() === userId;
-            // One attachment: re-use an earlier copy, or download and upload.
+            // One attachment: re-use an earlier copy, or download it and
+            // upload it unless a favourite already holds the same file.
             const copyAttachment = async (item: DiscordFavouriteItem) => {
-                let mxc = uploaded.get(item.url);
+                const prior = bySource.get(item.url);
+                let mxc = uploaded.get(item.url) ?? prior?.mxc;
                 let name: string | undefined;
-                let video = item.video;
+                let video = prior?.video ?? item.video;
                 if (!mxc) {
                     const fresh = refreshed[item.url];
                     if (!fresh || !bridge.download) return null;
@@ -211,12 +249,23 @@
                         file.contentType,
                     );
                     if (!type) return null;
+                    const hash = await sha256Hex(file.data as BufferSource);
+                    const match = await matchHash(hash);
                     if (!sameAccount()) throw new Error("account changed");
-                    name = file.name;
-                    video = type.startsWith("video/");
-                    mxc = await uploadContent(
-                        new File([file.data as BlobPart], file.name, { type }),
-                    );
+                    if (match) {
+                        mxc = match.mxc;
+                        video = match.video;
+                    } else {
+                        name = file.name;
+                        video = type.startsWith("video/");
+                        mxc = await uploadContent(
+                            new File([file.data as BlobPart], file.name, {
+                                type,
+                            }),
+                        );
+                        hashes.set(mxc, hash);
+                        hashesChanged = true;
+                    }
                     uploaded.set(item.url, mxc);
                     writeUploadedAttachments(userId, uploaded);
                 }
@@ -226,6 +275,7 @@
                     mxc,
                     httpUrl,
                     video,
+                    discordUrl: item.url,
                     name,
                     width: item.width,
                     height: item.height,
@@ -238,7 +288,7 @@
                 4,
                 async (item) => {
                     if (item.attachment) {
-                        if (!canCopy && !uploaded.has(item.url)) {
+                        if (!canCopy && !haveCopy(item.url)) {
                             skippedAttachments++;
                             return null;
                         }
@@ -273,6 +323,8 @@
             const entries = built.filter(
                 (e): e is NonNullable<typeof e> => e !== null,
             );
+            if (hashesChanged && sameAccount())
+                writeMediaHashes(userId, hashes);
             if (failedAttachments > 0)
                 showErrorToast(
                     t("messagesMediaSettings.discordImportCopyFailed", {

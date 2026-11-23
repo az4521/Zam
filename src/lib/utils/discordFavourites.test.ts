@@ -221,3 +221,52 @@ describe("mapWithLimit", () => {
         expect(await mapWithLimit([], 4, async (n: number) => n)).toEqual([]);
     });
 });
+
+describe("mergeImportedFavourites with Discord uploads", () => {
+    const upload = (
+        url: string,
+        mxc: string,
+        discordUrl?: string,
+    ): FavouriteGif => ({
+        url,
+        previewUrl: url,
+        mxc,
+        addedAt: 1,
+        ...(discordUrl ? { discordUrl } : {}),
+    });
+    const D = "https://cdn.discordapp.com/attachments/1/2/a.gif";
+
+    it("skips an upload whose Discord link is already a favourite", () => {
+        const base = [upload("https://hs/a", "mxc://hs/a", D)];
+        expect(
+            mergeImportedFavourites(base, [
+                upload("https://hs/b", "mxc://hs/b", D),
+            ]),
+        ).toBe(base);
+    });
+
+    it("gives an older copy of the same media its Discord link", () => {
+        const base = [gif("https://x"), upload("https://hs/a", "mxc://hs/a")];
+        const out = mergeImportedFavourites(base, [
+            upload("https://other-host/a", "mxc://hs/a", D),
+        ]);
+        expect(out).toHaveLength(2);
+        expect(out[1]).toEqual({ ...base[1], discordUrl: D });
+        expect(base[1].discordUrl).toBeUndefined();
+        // Idempotent once backfilled.
+        expect(
+            mergeImportedFavourites(out, [
+                upload("https://other-host/a", "mxc://hs/a", D),
+            ]),
+        ).toBe(out);
+    });
+
+    it("does not overwrite an existing Discord link", () => {
+        const base = [upload("https://hs/a", "mxc://hs/a", D)];
+        expect(
+            mergeImportedFavourites(base, [
+                upload("https://hs/a", "mxc://hs/a", D + "x"),
+            ]),
+        ).toBe(base);
+    });
+});

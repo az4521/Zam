@@ -510,6 +510,7 @@ export {
     mxcToHttp,
     fetchAttachmentBlob,
     fetchDecryptedAttachmentBlob,
+    fetchMediaBytes,
     getContentType,
     fetchRoomMediaPage,
     uploadContent,
@@ -1993,6 +1994,11 @@ export interface FavouriteGif {
      *  so a GIF sent from the picker keeps it. Untrusted on read (account
      *  data): favouriteFile.ts cleans it before use. */
     name?: string;
+    /** For a GIF imported from Discord that had been uploaded to Discord: the
+     *  canonical attachment link (no query), so an import on another device
+     *  re-uses this copy instead of uploading again. Untrusted on read:
+     *  compared as a string only. */
+    discordUrl?: string;
     tags?: string[];
     /** Set for a starred video: the picker plays it as a muted looping tile
      *  and it is sent back as m.video. `previewUrl` is then its poster's
