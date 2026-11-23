@@ -72,6 +72,11 @@ const messages: Partial<Record<MessageKey, string>> = {
         "作者 {author}，基于 {original} 的 Phoenix。采用 CC BY 许可；已重新映射为 General MIDI 并为 Zam 压缩。",
     "aboutSettings.creditsSoundFontGaps":
         "MT-32 所缺的乐器：{microgm}，作者 {microgmAuthor}（WTFPL）；以及 {generalUser}，作者 {generalUserAuthor}。",
+    "aboutSettings.installApp": "安装应用",
+    "aboutSettings.installAppDesc":
+        "将 Zam 添加到主屏幕或程序坞，获得全屏应用体验。",
+    "aboutSettings.installIosHint": "点按“分享”，然后选择“添加到主屏幕”。",
+    "aboutSettings.install": "安装",
     "aboutSettings.troubleshooting": "故障排除",
     "aboutSettings.clearCacheAndResync": "清除缓存并重新同步",
     "aboutSettings.reDownloadsYourRoomsFromThe":

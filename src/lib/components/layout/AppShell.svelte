@@ -218,6 +218,7 @@
     import UpdateBanner from "$lib/components/layout/UpdateBanner.svelte";
     import UpdateToastWatch from "$lib/components/layout/UpdateToastWatch.svelte";
     import IdentityChangeBanner from "$lib/components/layout/IdentityChangeBanner.svelte";
+    import PwaIntegration from "$lib/components/layout/PwaIntegration.svelte";
     import { checkRoomIdentities } from "$lib/matrix/crypto";
     import {
         markNotification,
@@ -3270,3 +3271,4 @@
 <IdentityChangeBanner />
 <JoinConsentDialog />
 <MeshConsentDialog />
+<PwaIntegration />

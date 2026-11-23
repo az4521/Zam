@@ -48,6 +48,12 @@
         updateBannerState,
     } from "$lib/stores/updateBanner.svelte";
     import { webBundleApply, webBundleSetAuto } from "$lib/androidWebBundle";
+    import {
+        installPrompt,
+        promptInstall,
+    } from "$lib/stores/installPrompt.svelte";
+
+    let installing = $state(false);
 
     let checking = $state(false);
     let info = $state<UpdateInfo | null>(null);
@@ -300,6 +306,15 @@
         }
     }
 
+    async function installApp() {
+        installing = true;
+        try {
+            await promptInstall();
+        } finally {
+            installing = false;
+        }
+    }
+
     async function apply(update: UpdateInfo) {
         if (CAN_INSTALL_UPDATE) {
             openReleasePage(update.url);
@@ -423,6 +438,34 @@
             )}
         {/if}
     </section>
+
+    {#if installPrompt.canPrompt || installPrompt.iosManualHint}
+        <section>
+            <div
+                class="flex items-center gap-3 py-2 border-b border-zam-divider"
+            >
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-zam-textPrimary">
+                        {t("aboutSettings.installApp")}
+                    </p>
+                    <p class="text-xs text-zam-textMuted">
+                        {installPrompt.iosManualHint
+                            ? t("aboutSettings.installIosHint")
+                            : t("aboutSettings.installAppDesc")}
+                    </p>
+                </div>
+                {#if installPrompt.canPrompt}
+                    <button
+                        onclick={installApp}
+                        disabled={installing}
+                        class="px-3 py-1.5 rounded text-sm font-medium bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-50 flex-shrink-0"
+                    >
+                        {t("aboutSettings.install")}
+                    </button>
+                {/if}
+            </div>
+        </section>
+    {/if}
 
     {#if !isDesktopUpdater() && !isAndroidUpdater()}
         {#if error}

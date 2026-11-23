@@ -69,6 +69,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "{author} 作。{original} の Phoenix を基にしています。CC BY でライセンスされ、General MIDI に再マッピングして Zam 用に圧縮しています。",
     "aboutSettings.creditsSoundFontGaps":
         "MT-32 にない音色: {microgmAuthor} 作の {microgm}（WTFPL）と、{generalUserAuthor} 作の {generalUser}。",
+    "aboutSettings.installApp": "アプリをインストール",
+    "aboutSettings.installAppDesc":
+        "Zam をホーム画面または Dock に追加すると、全画面のアプリとして使えます。",
+    "aboutSettings.installIosHint":
+        "共有をタップし、「ホーム画面に追加」を選択してください。",
+    "aboutSettings.install": "インストール",
     "aboutSettings.troubleshooting": "トラブルシューティング",
     "aboutSettings.clearCacheAndResync": "キャッシュを消去して再同期",
     "aboutSettings.reDownloadsYourRoomsFromThe":

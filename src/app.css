@@ -27,9 +27,12 @@
     src: url("/fonts/atkinson-700.woff2") format("woff2");
 }
 
+/* Root-level only: stops browser overscroll and pull-to-refresh on both axes
+   (Chrome Android pull-to-refresh in the installed PWA). Inner scrollers keep
+   their own overscroll behaviour. */
 html,
 body {
-    overscroll-behavior-x: none;
+    overscroll-behavior: none;
 }
 
 /* Physical side names for the rare value that has no logical form, such as a

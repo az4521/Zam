@@ -74,6 +74,12 @@ const messages: Partial<Record<MessageKey, string>> = {
         "por {author}, baseado em Phoenix, de {original}. Licenciado sob CC BY; remapeado para General MIDI e comprimido para o Zam.",
     "aboutSettings.creditsSoundFontGaps":
         "Instrumentos que o MT-32 não tem: {microgm}, de {microgmAuthor} (WTFPL), e {generalUser}, de {generalUserAuthor}.",
+    "aboutSettings.installApp": "Instalar aplicativo",
+    "aboutSettings.installAppDesc":
+        "Adicione o Zam à tela inicial ou ao Dock para uma experiência de aplicativo em tela cheia.",
+    "aboutSettings.installIosHint":
+        "Toque em Compartilhar e depois em Adicionar à Tela de Início.",
+    "aboutSettings.install": "Instalar",
     "aboutSettings.troubleshooting": "Solução de problemas",
     "aboutSettings.clearCacheAndResync": "Limpar cache e ressincronizar",
     "aboutSettings.reDownloadsYourRoomsFromThe":

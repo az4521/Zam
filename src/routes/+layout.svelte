@@ -4,12 +4,15 @@
     import { onMount } from "svelte";
     import { Capacitor } from "@capacitor/core";
     import { openInAppBrowser } from "$lib/matrix/loginRedirect";
+    import { initInstallPrompt } from "$lib/stores/installPrompt.svelte";
 
     let { children } = $props();
 
     // <html lang dir> for the active language (app.html sets it pre-paint;
     // this keeps it right if that inline script was skipped).
     applyDocumentLocale();
+    // Capture beforeinstallprompt early; it can fire before any page mounts.
+    initInstallPrompt();
 
     function anchorUrl(target: EventTarget | null): URL | null {
         const anchor = (target as Element | null)?.closest?.("a");

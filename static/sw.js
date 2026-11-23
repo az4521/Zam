@@ -931,6 +931,36 @@ function notificationData(roomId, isCall, eventId, postedBy, built) {
 	return d;
 }
 
+/**
+ * Whether a displayed notification counts toward the app icon badge. Message
+ * and mention notifications count (one per room). Call rings, invites and the
+ * silent placeholders do not.
+ */
+function isBadgeCounted(n) {
+	if (!n) return false;
+	if (typeof n.tag === "string" && /^(silent:|call:)/.test(n.tag)) return false;
+	const d = n.data;
+	return !(d && typeof d === "object" && (d.isCall === true || d.invite === true));
+}
+
+/**
+ * Sets the app icon badge from the message notifications still on screen, or
+ * clears it at zero. Best effort: feature-checked and error-swallowing, so a
+ * badge failure never throws or holds up a notification.
+ */
+async function updateAppBadgeFromNotifications() {
+	try {
+		const nav = self.navigator;
+		if (!nav || !("setAppBadge" in nav) || !("clearAppBadge" in nav)) return;
+		const list = await self.registration.getNotifications();
+		const count = list.filter(isBadgeCounted).length;
+		if (count > 0) await nav.setAppBadge(count);
+		else await nav.clearAppBadge();
+	} catch {
+		/* the badge is cosmetic */
+	}
+}
+
 // Set once the activate handler has run — i.e. this worker now controls its
 // clients and its fetch handler will intercept their <img> media requests.
 let swActivated = false;
@@ -2052,32 +2082,98 @@ async function shouldStayQuiet(session) {
 // push has no "call ended" signal, so without this the ring lingers forever.
 const RING_AUTO_DISMISS_MS = 45000;
 
-// After a call notification is shown, take it down after the ring timeout so an
-// unanswered call reads as "missed" instead of lingering. Keeps the push event
-// alive (via the push handler's waitUntil) for the wait; if the SW is killed
-// first the notification just lingers as it did before — no regression. Never
-// throws: a failed auto-dismiss must degrade to "lingers as today".
-function scheduleRingAutoDismiss(roomId, eventId) {
-	if (!roomId) return Promise.resolve();
-	return new Promise((resolve) => {
-		setTimeout(() => {
-			Promise.resolve()
-				.then(() =>
-					self.registration.getNotifications({ tag: ringNotificationTag(roomId) }),
-				)
-				.then((list) => {
-					for (const notification of list) {
-						// Only take down THIS ring (matching eventId) — a newer ring
-						// or a same-room message notification must not be closed.
-						if (isRingToDismiss(notification.data, eventId)) {
-							notification.close();
-						}
-					}
-				})
-				.catch(() => {})
-				.then(resolve);
-		}, RING_AUTO_DISMISS_MS);
-	});
+// While a call rings, the worker re-shows its notification this often. A web
+// notification alerts (sound, vibration) only when it is shown, so showing it
+// again is what makes the device ring on and on, like Android does.
+const RING_REPEAT_MS = 4000;
+
+// Vibration pattern, for call notifications only.
+const RING_VIBRATE = [500, 250, 500, 250, 500];
+
+// Rings that have ended (answered, declined, closed or timed out), keyed by
+// room and event. The repeat loop checks this right before each re-show, so a
+// tap that lands while it awaits cannot be followed by a fresh alert. In memory
+// and capped; the loop lives in this worker, so a restart stops it too.
+const ENDED_RING_MAX = 100;
+const endedRings = new Set();
+
+function ringKey(roomId, eventId) {
+	return `${roomId}\n${eventId}`;
+}
+
+function markRingEnded(key) {
+	endedRings.add(key);
+	// Set iteration is insertion order, so the oldest entries go first.
+	while (endedRings.size > ENDED_RING_MAX) {
+		endedRings.delete(endedRings.values().next().value);
+	}
+}
+
+// Whether this ring's notification is still on screen. Gone (dismissed by the
+// user, or closed by another path) ends the repeat. A failed lookup also counts
+// as gone, so a broken lookup stops the ring instead of ringing forever.
+async function isRingShowing(roomId, eventId) {
+	try {
+		const list = await self.registration.getNotifications({
+			tag: ringNotificationTag(roomId),
+		});
+		return list.some((n) => isRingToDismiss(n.data, eventId));
+	} catch {
+		return false;
+	}
+}
+
+// Takes down THIS ring (matching eventId) if it is still up. A newer ring or a
+// same-room message notification must not be closed.
+async function closeRing(roomId, eventId) {
+	try {
+		const list = await self.registration.getNotifications({
+			tag: ringNotificationTag(roomId),
+		});
+		for (const notification of list) {
+			if (isRingToDismiss(notification.data, eventId)) {
+				notification.close();
+			}
+		}
+	} catch {
+		/* no lookup: it lingers as it did before */
+	}
+}
+
+// Keeps a call notification that was just shown by `show` ringing: it is shown
+// again every RING_REPEAT_MS until the first of the RING_AUTO_DISMISS_MS timeout
+// (then it is closed, so an unanswered call reads as "missed"), the notification
+// no longer being on screen, or the ring being answered, declined or closed.
+// The push event's waitUntil keeps this alive for the wait; if the worker is
+// killed first the ring just stops, no worse than an unanswered ring before.
+// Never rejects.
+async function repeatCallRing(show, roomId, eventId) {
+	// Without a room there is no tag to look the ring up by, so it cannot repeat.
+	if (!roomId) return;
+	const key = ringKey(roomId, eventId);
+	const deadline = Date.now() + RING_AUTO_DISMISS_MS;
+	try {
+		for (;;) {
+			const remaining = deadline - Date.now();
+			if (remaining <= 0) break;
+			await new Promise((resolve) =>
+				setTimeout(resolve, Math.min(RING_REPEAT_MS, remaining)),
+			);
+			if (Date.now() >= deadline) break;
+			if (endedRings.has(key) || !(await isRingShowing(roomId, eventId))) {
+				return;
+			}
+			// Checked again synchronously, so nothing can end the ring between
+			// this check and the show below.
+			if (endedRings.has(key)) return;
+			await show();
+		}
+		await closeRing(roomId, eventId);
+	} catch {
+		/* a failed re-show ends the ring; the push event must not reject */
+	} finally {
+		markRingEnded(key);
+	}
 }
 
 // ── Duplicate and silent pushes ───────────────────────────────────────────
@@ -2164,7 +2260,7 @@ self.addEventListener("push", (event) => {
 								})
 								.catch(() => {}),
 						),
-					),
+					).then(() => updateAppBadgeFromNotifications()),
 				);
 			} catch {
 				// Nothing we can close; fall through to the return.
@@ -2215,7 +2311,8 @@ self.addEventListener("push", (event) => {
 				await showAndCloseSilently();
 				return;
 			}
-			await self.registration.showNotification(n.title, {
+			const show = () =>
+					self.registration.showNotification(n.title, {
 				body: n.body,
 				icon: n.icon,
 				badge: "/favicon_foreground.png",
@@ -2236,6 +2333,7 @@ self.addEventListener("push", (event) => {
 				...(n.isCall
 					? {
 							requireInteraction: true,
+								vibrate: RING_VIBRATE,
 							actions: [
 								{ action: "accept", title: "Accept" },
 								{ action: "decline", title: "Decline" },
@@ -2264,12 +2362,15 @@ self.addEventListener("push", (event) => {
 							}
 						: {}),
 			});
-			// An unanswered ring must not linger forever (a closed-device call
-			// push carries no "call ended" signal); a message notification is
-			// transient already, so only a call gets the auto-dismiss timer.
+			await show();
+			// A call keeps ringing (re-shown) until it ends, so an unanswered
+			// one does not linger forever (see repeatCallRing). A message
+			// notification is transient already; it only refreshes the badge.
 			if (n.isCall) {
-				await scheduleRingAutoDismiss(n.roomId, n.eventId);
+				await repeatCallRing(show, n.roomId, n.eventId);
+				return;
 			}
+			void updateAppBadgeFromNotifications();
 			return;
 		})(),
 	);
@@ -2517,6 +2618,8 @@ self.addEventListener("notificationclick", (event) => {
 	// The account this notification was posted under, so the page can refuse
 	// to open the room in a session that is not the one that posted it.
 	const postedBy = data.userId;
+	// Any action or tap on a call ends its ring, so the repeat stops.
+	if (data.isCall) markRingEnded(ringKey(data.roomId, data.eventId));
 	// Decline on a call notification just takes it down — open nothing.
 	if (event.action === "decline") return;
 	if (event.action === "invite-accept" || event.action === "invite-decline") {
@@ -2528,14 +2631,18 @@ self.addEventListener("notificationclick", (event) => {
 	// Quick-reply: routes to page postMessage when open+text, else opens room.
 	if (event.action === "reply") {
 		event.waitUntil(
-			handleQuickReply(roomId, event.reply, data.eventId, postedBy),
+			handleQuickReply(roomId, event.reply, data.eventId, postedBy).then(() =>
+					updateAppBadgeFromNotifications(),
+				),
 		);
 		return;
 	}
 	// Quick-mark-read: silent dismiss (postMessage to page if open, else HTTP).
 	if (event.action === "markread") {
 		event.waitUntil(
-			handleQuickMarkRead(roomId, data.eventId, postedBy),
+			handleQuickMarkRead(roomId, data.eventId, postedBy).then(() =>
+					updateAppBadgeFromNotifications(),
+				),
 		);
 		return;
 	}
@@ -2593,6 +2700,14 @@ self.addEventListener("notificationclick", (event) => {
 					);
 				}),
 		);
+});
+
+// A notification closed without a tap (swiped away, or closed by this worker)
+// ends its call ring, and the badge follows the notifications still up.
+self.addEventListener("notificationclose", (event) => {
+	const data = event.notification.data || {};
+	if (data.isCall) markRingEnded(ringKey(data.roomId, data.eventId));
+	event.waitUntil(updateAppBadgeFromNotifications());
 });
 
 self.addEventListener("install", (event) => {

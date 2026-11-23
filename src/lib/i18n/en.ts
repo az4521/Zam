@@ -64,6 +64,11 @@ export const en = {
     "aboutSettings.update": "Update",
     "aboutSettings.reloadToUpdate": "Reload to update",
     "aboutSettings.youReOnTheLatestVersion": "You’re on the latest version.",
+    "aboutSettings.installApp": "Install app",
+    "aboutSettings.installAppDesc":
+        "Add Zam to your home screen or dock for a full-screen app experience.",
+    "aboutSettings.installIosHint": "Tap Share, then Add to Home Screen.",
+    "aboutSettings.install": "Install",
     "aboutSettings.credits": "Credits",
     "aboutSettings.creditsMidiInstruments": "MIDI instruments",
     "aboutSettings.creditsSoundFont":
