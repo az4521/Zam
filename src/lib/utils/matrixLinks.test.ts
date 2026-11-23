@@ -73,6 +73,23 @@ describe("parseMatrixLink — matrix.to URLs", () => {
         });
     });
 
+    it("caps a room-id link at five via servers", () => {
+        const vias = ["a", "b", "c", "d", "e", "f", "g"]
+            .map((s) => `via=${s}.org`)
+            .join("&");
+        const target = parseMatrixLink(
+            `https://matrix.to/#/!abc:example.org?${vias}`,
+        );
+        expect(target).toMatchObject({ kind: "room" });
+        expect(target && "via" in target ? target.via : []).toEqual([
+            "a.org",
+            "b.org",
+            "c.org",
+            "d.org",
+            "e.org",
+        ]);
+    });
+
     it("collects via parameters that follow an event id", () => {
         expect(
             parseMatrixLink(

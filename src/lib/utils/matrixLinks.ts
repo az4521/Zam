@@ -40,11 +40,19 @@ function splitQuery(rest: string): [string, string] {
     return [rest.slice(0, qIdx), rest.slice(qIdx + 1).split("#")[0]];
 }
 
+/**
+ * Most `via` servers a permalink may carry, for room ids and aliases alike.
+ * Capped here at parse time: a room-id link's vias go straight into the join
+ * request, and an uncapped list would make it as large as a hostile link wants.
+ */
+export const MAX_LINK_VIA = 5;
+
 function parseVia(query: string): string[] {
     return new URLSearchParams(query)
         .getAll("via")
         .map((s) => s.trim())
-        .filter(Boolean);
+        .filter(Boolean)
+        .slice(0, MAX_LINK_VIA);
 }
 
 function targetFromIdentifier(
@@ -175,7 +183,7 @@ export function matrixToUrl(
     const wantsVia = idOrAlias.startsWith("!") || Boolean(eventId);
     if (wantsVia && via.length) {
         const qs = via
-            .slice(0, 5)
+            .slice(0, MAX_LINK_VIA)
             .map((s) => `via=${encodeURIComponent(s)}`)
             .join("&");
         return `${base}?${qs}`;

@@ -12,6 +12,7 @@
 // `{ order }`, a flat sort string. No folders.
 
 import type { SpaceFolder, SpaceLayout } from "./client";
+import { isUnsafeKey } from "../utils/unsafeKeys";
 
 export const COMMET_ORDER_KEY = "chat.commet.sidebar_ordering";
 export const ELEMENT_SPACE_ORDER_KEY = "org.matrix.msc3230.space_order";
@@ -104,6 +105,7 @@ export function layoutToCommet(
         isRecord(existing) && isRecord(existing.spaces) ? existing.spaces : {};
     const kept: NonNullable<CommetOrdering["spaces"]> = {};
     for (const [id, v] of Object.entries(prior)) {
+        if (isUnsafeKey(id)) continue;
         if (!(id in spaces) && isRecord(v)) {
             kept[id] = v as { group?: string; order?: string };
         }

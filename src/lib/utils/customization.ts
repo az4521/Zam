@@ -10,6 +10,7 @@
 
 import { sanitizeThemeColors } from "./themePalette";
 import { sanitizeCustomPreset, type CustomPreset } from "./themePreset";
+import { isUnsafeKey } from "./unsafeKeys";
 
 export interface ClientCustomization {
     theme?: string;
@@ -45,6 +46,7 @@ function themePresetsMap(v: unknown): Record<string, CustomPreset> | undefined {
 
     for (const [key, value] of entries) {
         if (count >= 50) break;
+        if (isUnsafeKey(key)) continue;
         const sanitized = sanitizeCustomPreset(value);
         if (sanitized !== null) {
             result[key] = sanitized;

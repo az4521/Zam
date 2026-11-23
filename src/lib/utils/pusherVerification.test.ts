@@ -18,7 +18,13 @@ describe("checkPusherGateway — verify the homeserver routes pushes to our gate
         const r = checkPusherGateway(
             EXPECTED,
             [OURS],
-            [{ app_id: "im.other.app", url: "https://evil.example/notify" }],
+            [
+                {
+                    app_id: "im.other.app",
+                    url: "https://evil.example/notify",
+                    format: "event_id_only",
+                },
+            ],
         );
         // Not our pusher, so it neither counts nor trips a mismatch.
         expect(r.status).toBe("none");
@@ -29,7 +35,7 @@ describe("checkPusherGateway — verify the homeserver routes pushes to our gate
         const r = checkPusherGateway(
             EXPECTED,
             [OURS, OURS_WEB],
-            [{ app_id: OURS, url: EXPECTED }],
+            [{ app_id: OURS, url: EXPECTED, format: "event_id_only" }],
         );
         expect(r.status).toBe("verified");
         expect(r.ours).toBe(1);
@@ -41,9 +47,13 @@ describe("checkPusherGateway — verify the homeserver routes pushes to our gate
             EXPECTED,
             [OURS, OURS_WEB],
             [
-                { app_id: OURS, url: EXPECTED },
-                { app_id: OURS_WEB, url: EXPECTED },
-                { app_id: "im.other.app", url: "https://elsewhere/notify" },
+                { app_id: OURS, url: EXPECTED, format: "event_id_only" },
+                { app_id: OURS_WEB, url: EXPECTED, format: "event_id_only" },
+                {
+                    app_id: "im.other.app",
+                    url: "https://elsewhere/notify",
+                    format: "event_id_only",
+                },
             ],
         );
         expect(r.status).toBe("verified");
@@ -55,7 +65,7 @@ describe("checkPusherGateway — verify the homeserver routes pushes to our gate
         const r = checkPusherGateway(
             EXPECTED,
             [OURS],
-            [{ app_id: OURS, url: rogue }],
+            [{ app_id: OURS, url: rogue, format: "event_id_only" }],
         );
         expect(r.status).toBe("mismatch");
         expect(r.ours).toBe(1);
@@ -66,7 +76,7 @@ describe("checkPusherGateway — verify the homeserver routes pushes to our gate
         const r = checkPusherGateway(
             EXPECTED,
             [OURS],
-            [{ app_id: OURS, url: undefined }],
+            [{ app_id: OURS, url: undefined, format: "event_id_only" }],
         );
         expect(r.status).toBe("mismatch");
         expect(r.mismatchedUrls.length).toBe(1);
@@ -80,8 +90,8 @@ describe("checkPusherGateway — verify the homeserver routes pushes to our gate
             EXPECTED,
             [OURS, OURS_WEB],
             [
-                { app_id: OURS, url: EXPECTED },
-                { app_id: OURS_WEB, url: rogue },
+                { app_id: OURS, url: EXPECTED, format: "event_id_only" },
+                { app_id: OURS_WEB, url: rogue, format: "event_id_only" },
             ],
         );
         expect(r.status).toBe("mismatch");
@@ -95,8 +105,8 @@ describe("checkPusherGateway — verify the homeserver routes pushes to our gate
             EXPECTED,
             [OURS],
             [
-                { app_id: OURS, url: rogue },
-                { app_id: OURS, url: rogue },
+                { app_id: OURS, url: rogue, format: "event_id_only" },
+                { app_id: OURS, url: rogue, format: "event_id_only" },
             ],
         );
         expect(r.status).toBe("mismatch");
@@ -107,9 +117,79 @@ describe("checkPusherGateway — verify the homeserver routes pushes to our gate
         const r = checkPusherGateway(
             EXPECTED,
             [OURS],
-            [{ app_id: OURS, url: EXPECTED + "/" }],
+            [{ app_id: OURS, url: EXPECTED + "/", format: "event_id_only" }],
         );
         expect(r.status).toBe("mismatch");
+    });
+});
+
+describe("checkPusherGateway — format and payload are checked, not just the URL", () => {
+    const TAG = "abcdefghijklmnopqrstuv";
+    const good = {
+        app_id: OURS,
+        url: EXPECTED,
+        format: "event_id_only",
+        default_payload: { zam_tag: TAG },
+    };
+
+    it("verifies when URL, format and tag all match", () => {
+        const r = checkPusherGateway(EXPECTED, [OURS], [good], TAG);
+        expect(r.status).toBe("verified");
+    });
+
+    it("flags a homeserver that keeps the URL but drops event_id_only", () => {
+        const r = checkPusherGateway(
+            EXPECTED,
+            [OURS],
+            [{ ...good, format: undefined }],
+            TAG,
+        );
+        expect(r.status).toBe("mismatch");
+        expect(r.mismatchedUrls.length).toBe(1);
+    });
+
+    it("flags a format other than event_id_only", () => {
+        const r = checkPusherGateway(
+            EXPECTED,
+            [OURS],
+            [{ ...good, format: "full" }],
+            TAG,
+        );
+        expect(r.status).toBe("mismatch");
+    });
+
+    it("flags a rewritten default_payload tag when one is expected", () => {
+        const r = checkPusherGateway(
+            EXPECTED,
+            [OURS],
+            [
+                {
+                    ...good,
+                    default_payload: { zam_tag: "someoneelsestagvalue1" },
+                },
+            ],
+            TAG,
+        );
+        expect(r.status).toBe("mismatch");
+    });
+
+    it("flags a missing default_payload tag when one is expected", () => {
+        const r = checkPusherGateway(
+            EXPECTED,
+            [OURS],
+            [{ ...good, default_payload: undefined }],
+            TAG,
+        );
+        expect(r.status).toBe("mismatch");
+    });
+
+    it("does not look at the tag when none is expected", () => {
+        const r = checkPusherGateway(
+            EXPECTED,
+            [OURS],
+            [{ ...good, default_payload: undefined }],
+        );
+        expect(r.status).toBe("verified");
     });
 });
 
@@ -121,9 +201,13 @@ describe("mergeGatewayStatus", () => {
             checkPusherGateway(
                 EXPECTED,
                 [OURS],
-                [{ app_id: OURS, url: EXPECTED }],
+                [{ app_id: OURS, url: EXPECTED, format: "event_id_only" }],
             ),
-            checkPusherGateway(UP, [OURS], [{ app_id: OURS, url: UP }]),
+            checkPusherGateway(
+                UP,
+                [OURS],
+                [{ app_id: OURS, url: UP, format: "event_id_only" }],
+            ),
         );
         expect(r).toEqual({
             status: "verified",
@@ -138,12 +222,18 @@ describe("mergeGatewayStatus", () => {
             checkPusherGateway(
                 EXPECTED,
                 [OURS],
-                [{ app_id: OURS, url: EXPECTED }],
+                [{ app_id: OURS, url: EXPECTED, format: "event_id_only" }],
             ),
             checkPusherGateway(
                 UP,
                 [OURS],
-                [{ app_id: OURS, url: "https://evil.example/notify" }],
+                [
+                    {
+                        app_id: OURS,
+                        url: "https://evil.example/notify",
+                        format: "event_id_only",
+                    },
+                ],
             ),
         );
         expect(r.status).toBe("mismatch");

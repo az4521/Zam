@@ -147,6 +147,7 @@ import {
     type PackMetaUpdate,
 } from "$lib/utils/emotePacks";
 import { isMxcPreviewMedia } from "$lib/utils/linkPreviewPolicy";
+import { safePreviewCanonicalUrl } from "$lib/utils/previewCanonicalUrl";
 import { serializeServerAcl, type ServerAcl } from "$lib/utils/serverAcl";
 import { parseRoomPolicy, type RoomPolicyServer } from "$lib/utils/roomPolicy";
 import {
@@ -4945,8 +4946,9 @@ export async function getUrlPreview(url: string): Promise<UrlPreview | null> {
             videoWidth: parseDim(data["og:video:width"]),
             videoHeight: parseDim(data["og:video:height"]),
             siteName: data["og:site_name"] as string | undefined,
-            // Some previews return an empty og:url — fall back to the source URL.
-            canonicalUrl: (data["og:url"] as string | undefined) || url,
+            // Some previews return an empty og:url, and a hostile page can set
+            // a non-web one: both fall back to the source URL (http/https only).
+            canonicalUrl: safePreviewCanonicalUrl(data["og:url"]) ?? url,
             contentType: data["og:type"] as string | undefined,
         };
     } catch {

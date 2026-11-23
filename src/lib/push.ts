@@ -585,18 +585,35 @@ export async function verifyPushGateways(
         const pushers = ((res?.pushers ?? []) as any[]).map((p) => ({
             app_id: p.app_id as string,
             url: p.data?.url as string | undefined,
+            format: p.data?.format as string | undefined,
+            default_payload: p.data?.default_payload as unknown,
+            device_display_name: p.device_display_name as string | undefined,
             pushkey: typeof p.pushkey === "string" ? p.pushkey : "",
         }));
+        const ownDevice = `Android (${matrixClient.getDeviceId()})`;
+        // A UnifiedPush pusher has a URL as its pushkey. Only this device's own
+        // one (the current endpoint, or one under our device name) is verified
+        // here. Other devices' UnifiedPush pushers route through a gateway only
+        // their own device knows, so they are left out. Excluding every APP_ID
+        // pusher with a URL-shaped pushkey would also hide a rerouted pusher of
+        // ours.
         const isUnifiedPush = (p: { app_id: string; pushkey: string }) =>
             p.app_id === APP_ID && /^https?:\/\//.test(p.pushkey);
+        const ownUp = pushers.filter(
+            (p) =>
+                isUnifiedPush(p) &&
+                (p.pushkey === pushDebug.upEndpoint ||
+                    p.device_display_name === ownDevice),
+        );
         const sygnal = checkPusherGateway(
             PUSH_GATEWAY_URL,
             [APP_ID, WEBPUSH_APP_ID],
             pushers.filter((p) => !isUnifiedPush(p)),
         );
-        const ownUp = pushers.filter(
-            (p) => isUnifiedPush(p) && p.pushkey === pushDebug.upEndpoint,
-        );
+        // The pushers list is account-wide and each device keeps its own
+        // zam_tag, so the tag is not compared here (it would flag every other
+        // device). Our UnifiedPush pushers are only checkable once this device
+        // knows the gateway paired with its endpoint.
         if (!ownUp.length || !pushDebug.upGateway) return sygnal;
         return mergeGatewayStatus(
             sygnal,

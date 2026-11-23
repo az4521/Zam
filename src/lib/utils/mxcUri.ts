@@ -14,7 +14,13 @@ export function parseMxc(
     uri: string,
 ): { serverName: string; mediaId: string } | null {
     const m = MXC_RE.exec(uri);
-    return m ? { serverName: m[1], mediaId: m[2] } : null;
+    if (!m) return null;
+    const serverName = m[1];
+    // The hostname charset admits dots alone: `.` and `..` would resolve to
+    // a path segment in the media URL built from them. A slash never gets
+    // this far (the pattern excludes it), but refuse it explicitly too.
+    if (/^\.+$/.test(serverName) || serverName.includes("/")) return null;
+    return { serverName, mediaId: m[2] };
 }
 
 // True only when `url` has the SAME origin (scheme + host + port) as `baseUrl`.

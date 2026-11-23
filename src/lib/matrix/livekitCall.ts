@@ -2207,11 +2207,38 @@ async function syncRemoteSfus(call: ActiveVoiceCall): Promise<void> {
                 // transport, until its kick window ends.
                 !isCallDeviceKicked(call.roomId, m.userId, m.deviceId),
         );
-    const wanted = remoteLivekitTargets(
-        others.map(({ transport }) => transport),
-        call.publishKey,
-        call.roomId,
+    // Connecting to an SFU sends our OpenID token to it, so a member may only
+    // name one its own homeserver advertises (sfuAdvertisedBy). Any other
+    // named SFU is dropped, and we listen on our own SFU in its place.
+    const checks = await Promise.all(
+        others.map(async ({ m, transport }) => {
+            const named = pickLivekitTransport([transport], [], call.roomId);
+            if (!named) return true; // not an SFU; remoteLivekitTargets skips it
+            return sfuAdvertisedBy(m.userId, named.serviceUrl);
+        }),
     );
+    if (
+        activeVoice !== call ||
+        !matrixClient ||
+        remoteSyncRun.get(call) !== run
+    )
+        return;
+    const verified = others.map(({ transport }, i) =>
+        checks[i] ? transport : null,
+    );
+    const wanted = remoteLivekitTargets(verified, call.publishKey, call.roomId);
+    if (checks.some((ok) => !ok)) {
+        const own = pickOwnLivekitTransport(
+            await configuredRtcFoci(),
+            call.roomId,
+        );
+        if (activeVoice !== call || remoteSyncRun.get(call) !== run) return;
+        if (own) {
+            const key = livekitTargetKey(own);
+            if (key !== call.publishKey && !wanted.has(key))
+                wanted.set(key, own);
+        }
+    }
     for (const [key, lkRoom] of call.remotes) {
         if (wanted.has(key)) continue;
         call.remotes.delete(key);

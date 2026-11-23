@@ -852,7 +852,10 @@ export async function isRoomEncryptedForSend(roomId: string): Promise<boolean> {
             true
         );
     } catch {
-        return false;
+        // Fail closed: an encrypted attachment in a plaintext room still
+        // decrypts for everyone (the key rides in the event), but a plaintext
+        // `url` in an encrypted room leaks the file (PRIV-E1).
+        return true;
     }
 }
 

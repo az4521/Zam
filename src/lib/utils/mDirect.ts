@@ -1,3 +1,5 @@
+import { isUnsafeKey } from "./unsafeKeys";
+
 /**
  * Add a room to the `m.direct` account-data mapping under a given partner,
  * returning a NEW object (no mutation of the input). Creates the map and the
@@ -13,7 +15,7 @@ export function addToMDirect(
 ): Record<string, string[]> {
     const out: Record<string, string[]> = {};
     for (const [k, v] of Object.entries(existing ?? {}))
-        out[k] = [...(Array.isArray(v) ? v : [])];
+        if (!isUnsafeKey(k)) out[k] = [...(Array.isArray(v) ? v : [])];
     const list = (out[partnerId] ??= []);
     if (!list.includes(roomId)) list.push(roomId);
     return out;

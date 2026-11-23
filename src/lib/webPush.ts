@@ -218,6 +218,8 @@ async function registerWebPusher(
             const list = ((res?.pushers ?? []) as any[]).map((p) => ({
                 app_id: p.app_id as string,
                 url: p.data?.url as string | undefined,
+                format: p.data?.format as string | undefined,
+                default_payload: p.data?.default_payload as unknown,
             }));
             const status = checkPusherGateway(PUSH_GATEWAY_URL, [APP_ID], list);
             if (status.status === "mismatch") {

@@ -42,6 +42,23 @@ describe("parseMxc", () => {
         expect(parseMxc("mxc:///abc")).toBeNull();
         expect(parseMxc("")).toBeNull();
     });
+
+    it("rejects dot-only server names that would traverse a path", () => {
+        expect(parseMxc("mxc://../abc")).toBeNull();
+        expect(parseMxc("mxc://./abc")).toBeNull();
+        expect(parseMxc("mxc://.../abc")).toBeNull();
+        // A dotted name that is a real hostname still parses.
+        expect(parseMxc("mxc://a..b/abc")).toEqual({
+            serverName: "a..b",
+            mediaId: "abc",
+        });
+    });
+
+    it("rejects media ids outside [A-Za-z0-9_-]", () => {
+        expect(parseMxc("mxc://hs/a.b")).toBeNull();
+        expect(parseMxc("mxc://hs/..")).toBeNull();
+        expect(parseMxc("mxc://hs/a%2Fb")).toBeNull();
+    });
 });
 
 describe("isSameOrigin", () => {
