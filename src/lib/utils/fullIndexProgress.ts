@@ -16,6 +16,14 @@ export interface FullIndexProgress {
     currentRoomName?: string;
     /** True while the build pauses because sync has not caught up. */
     waitingForSync?: boolean;
+    /** "recent": filling the stretch between the present and what the index
+     *  already has; "history": walking back towards the room's first message. */
+    currentPass?: "recent" | "history";
+    /** How far back the current room's pass has reached (ms); 0 when it hit
+     *  the start of the room; undefined before its first page. */
+    currentReachedTs?: number;
+    /** Rooms skipped for now after a failed page (retried later). */
+    roomsRetrying?: number;
 }
 
 export type FullIndexReason =
@@ -26,6 +34,31 @@ export interface FullIndexResult {
     progress: FullIndexProgress;
     /** Rooms still not done when the run ended (only meaningful for partial). */
     failedRooms: number;
+}
+
+/** Which line describes the room being indexed, for the debug panel. */
+export type CurrentRoomLine =
+    | { kind: "none" }
+    | { kind: "room"; room: string }
+    | { kind: "recent"; room: string }
+    | { kind: "history"; room: string; reachedTs: number }
+    | { kind: "start"; room: string };
+
+/**
+ * The current-room line: a "recent" pass is catching up between the present
+ * and what the index already held; a "history" pass names how far back it has
+ * reached, or that it hit the room's first message (0).
+ */
+export function currentRoomLine(p: FullIndexProgress): CurrentRoomLine {
+    if (!p.currentRoomId) return { kind: "none" };
+    const room = p.currentRoomName ?? p.currentRoomId;
+    if (p.currentPass === "recent") return { kind: "recent", room };
+    if (p.currentPass === "history" && p.currentReachedTs !== undefined) {
+        return p.currentReachedTs <= 0
+            ? { kind: "start", room }
+            : { kind: "history", room, reachedTs: p.currentReachedTs };
+    }
+    return { kind: "room", room };
 }
 
 /** Whole-number percent of rooms done. No candidate rooms counts as done. */

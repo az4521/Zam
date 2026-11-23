@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
     WaitTimeoutError,
+    currentRoomLine,
     fullIndexPercent,
     groupThousands,
     raceWithTimeout,
@@ -115,5 +116,61 @@ describe("groupThousands", () => {
         expect(groupThousands(1234.9)).toBe("1,234");
         expect(groupThousands(-5)).toBe("0");
         expect(groupThousands(Number.NaN)).toBe("0");
+    });
+});
+
+describe("currentRoomLine", () => {
+    const base = { roomsDone: 0, roomsTotal: 3, pages: 0, messagesIndexed: 0 };
+
+    it("is empty before any room", () => {
+        expect(currentRoomLine(base)).toEqual({ kind: "none" });
+    });
+
+    it("names the catch-up pass", () => {
+        expect(
+            currentRoomLine({
+                ...base,
+                currentRoomId: "!a:x",
+                currentRoomName: "A",
+                currentPass: "recent",
+                currentReachedTs: 5,
+            }),
+        ).toEqual({ kind: "recent", room: "A" });
+    });
+
+    it("gives how far back a history pass reached", () => {
+        expect(
+            currentRoomLine({
+                ...base,
+                currentRoomId: "!a:x",
+                currentPass: "history",
+                currentReachedTs: 1_700_000_000_000,
+            }),
+        ).toEqual({
+            kind: "history",
+            room: "!a:x",
+            reachedTs: 1_700_000_000_000,
+        });
+    });
+
+    it("says when the start of the room was reached", () => {
+        expect(
+            currentRoomLine({
+                ...base,
+                currentRoomId: "!a:x",
+                currentPass: "history",
+                currentReachedTs: 0,
+            }),
+        ).toEqual({ kind: "start", room: "!a:x" });
+    });
+
+    it("falls back to the room alone before its first page", () => {
+        expect(
+            currentRoomLine({
+                ...base,
+                currentRoomId: "!a:x",
+                currentPass: "history",
+            }),
+        ).toEqual({ kind: "room", room: "!a:x" });
     });
 });

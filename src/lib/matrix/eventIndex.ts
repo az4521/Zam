@@ -289,6 +289,7 @@ function queueEvent(
     if (!entry) return false;
     seen.add(ev.eventId);
     if (seen.size > 20_000) seen.clear();
+    queuedMessages += 1;
     const b = bucket(roomId);
     b.entries.push(entry);
     const media = mediaItemsFromEvent(ev);
@@ -549,8 +550,14 @@ function crawlFailed(roomId: string, e: unknown): void {
  *  hook told which room is about to be fetched; the background crawler passes none. */
 interface CrawlRun {
     signal?: AbortSignal;
-    onRoom?: (room: Room) => void;
+    /** Before a request: the room, which pass ("recent" fills a gap up to the
+     *  present, "history" walks back from the oldest point reached), and the
+     *  moment that pass has reached so far (undefined before its first page). */
+    onRoom?: (room: Room, pass: CrawlPass, reachedTs?: number) => void;
+    /** After a page landed: how far back that pass has now reached. */
+    onPage?: (room: Room, pass: CrawlPass, reachedTs: number) => void;
 }
+export type CrawlPass = "recent" | "history";
 
 /** Fetch, decrypt and queue one backwards page. `minTs` is the oldest event
  *  on it (indexable or not), null when the page is empty. A `prefetched` page
@@ -633,17 +640,14 @@ async function fetchPage(
         const sender = e.getSender();
         if (!eventId || !sender || e.isDecryptionFailure()) continue;
         if (known.has(eventId)) continue;
-        if (
-            queueEvent(room.roomId, {
-                eventId,
-                sender,
-                ts: e.getTs(),
-                type: e.getType(),
-                content: e.getContent(),
-                redacted: e.isRedacted(),
-            })
-        )
-            crawledMessages += 1;
+        queueEvent(room.roomId, {
+            eventId,
+            sender,
+            ts: e.getTs(),
+            type: e.getType(),
+            content: e.getContent(),
+            redacted: e.isRedacted(),
+        });
     }
     await flush();
     return { end, minTs };
@@ -679,7 +683,7 @@ async function gapStep(
             walk = { from: null, up: Date.now(), stopAt: newest };
         }
         let page: Awaited<ReturnType<typeof fetchPage>>;
-        run.onRoom?.(room);
+        run.onRoom?.(room, "recent", walk.from === null ? undefined : walk.up);
         try {
             page = await fetchPage(s, room, walk.from, null, run.signal);
         } catch (e) {
@@ -697,6 +701,7 @@ async function gapStep(
             ? walk.stopAt
             : Math.min(page.minTs ?? walk.up, walk.up);
         await addCoverage(id, [low, walk.up]);
+        run.onPage?.(room, "recent", low);
         const tx = db.transaction(CRAWL, "readwrite");
         tx.objectStore(CRAWL).put({
             roomId: id,
@@ -746,7 +751,7 @@ async function crawlStep(
             continue;
         }
         let page: Awaited<ReturnType<typeof fetchPage>>;
-        run.onRoom?.(room);
+        run.onRoom?.(room, "history", state?.upTs);
         try {
             page = await fetchPage(s, room, from, prefetched, run.signal);
         } catch (e) {
@@ -763,6 +768,7 @@ async function crawlStep(
         const finished = end === null || end === from;
         const low = finished ? 0 : Math.min(page.minTs ?? up, up);
         await addCoverage(room.roomId, [low, up]);
+        run.onPage?.(room, "history", low);
         const next: CrawlState = {
             roomId: room.roomId,
             from: end,
@@ -858,8 +864,9 @@ let crawlerStep: Promise<CrawlStepResult> | null = null;
 let fullBuildRunning = false;
 /** Aborts the running full build (stopEventIndex calls it). */
 let fullBuildAbort: AbortController | null = null;
-/** Messages newly queued by crawled pages, for the full build's counter. */
-let crawledMessages = 0;
+/** Messages newly queued into the index (crawled pages, and late decryptions
+ *  and live messages through liveEvent), for the full build's counter. */
+let queuedMessages = 0;
 /** Settles once the previous full build has fully stopped. A new build waits
  *  for it, so a cancelled run's wind-down never overlaps the new run. */
 let fullBuildSettled: Promise<void> = Promise.resolve();
@@ -942,19 +949,31 @@ async function runFullBuild(opts: {
     fullBuildAbort = abort;
     fullBuildRunning = true;
 
-    const startMessages = crawledMessages;
+    const startMessages = queuedMessages;
     const emit = () => {
-        progress.messagesIndexed = crawledMessages - startMessages;
+        progress.messagesIndexed = queuedMessages - startMessages;
+        progress.roomsRetrying = s.stopped
+            ? 0
+            : crawlCandidates(s.client).filter((r) => backingOff(r.roomId))
+                  .length;
         opts.onProgress({ ...progress });
     };
     // The crawl reports the room before its request goes out, so a hang shows
-    // which room it is stuck on.
+    // which room it is stuck on, and after each page how far back it got.
     const run: CrawlRun = {
         signal: abort.signal,
-        onRoom: (room) => {
+        onRoom: (room, pass, reachedTs) => {
             progress.currentRoomId = room.roomId;
             progress.currentRoomName = room.name || undefined;
+            progress.currentPass = pass;
+            progress.currentReachedTs = reachedTs;
             emit();
+        },
+        onPage: (room, pass, reachedTs) => {
+            if (progress.currentRoomId !== room.roomId) return;
+            progress.currentPass = pass;
+            // 0 is "reached the start of the room".
+            progress.currentReachedTs = reachedTs;
         },
     };
     let reason: FullIndexReason = "complete";

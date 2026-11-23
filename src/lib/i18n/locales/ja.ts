@@ -608,9 +608,16 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.searchIndexCancel": "キャンセル",
     "debugSettings.searchIndexBar": "完全なインデックスの進捗",
     "debugSettings.searchIndexProgress":
-        "{done} / {total} ルーム、{messages} 件のメッセージ",
+        "{total} ルーム中 {done} 完了、{messages} 件のメッセージを追加",
     "debugSettings.searchIndexPages": "{pages} ページ取得済み",
     "debugSettings.searchIndexCurrentRoom": "インデックス中: {room}",
+    "debugSettings.searchIndexRecentRoom": "{room} の最近のメッセージを取得中",
+    "debugSettings.searchIndexHistoryRoom":
+        "{room} をインデックス中、{date} まで",
+    "debugSettings.searchIndexStartRoom":
+        "{room} をインデックス中、最初のメッセージに到達",
+    "debugSettings.searchIndexRetrying":
+        "{count, plural, other {# 件のルームでエラーが発生しました。後で再試行します}}",
     "debugSettings.searchIndexWaitingSync": "同期が追いつくのを待っています",
     "debugSettings.searchIndexComplete":
         "完了: すべての暗号化ルームがインデックス化されました。",

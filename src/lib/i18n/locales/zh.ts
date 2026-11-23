@@ -672,9 +672,14 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.searchIndexCancel": "取消",
     "debugSettings.searchIndexBar": "完整索引进度",
     "debugSettings.searchIndexProgress":
-        "{done} / {total} 个房间，{messages} 条消息",
+        "已完成 {done} / {total} 个房间，新增 {messages} 条消息",
     "debugSettings.searchIndexPages": "已获取 {pages} 页",
     "debugSettings.searchIndexCurrentRoom": "正在索引：{room}",
+    "debugSettings.searchIndexRecentRoom": "正在补齐 {room} 的最新消息",
+    "debugSettings.searchIndexHistoryRoom": "正在索引 {room}，已回溯到 {date}",
+    "debugSettings.searchIndexStartRoom": "正在索引 {room}，已到达第一条消息",
+    "debugSettings.searchIndexRetrying":
+        "{count, plural, other {# 个房间出错，稍后会重试}}",
     "debugSettings.searchIndexWaitingSync": "正在等待同步追上",
     "debugSettings.searchIndexComplete": "完成：所有加密房间都已建立索引。",
     "debugSettings.searchIndexPartial":

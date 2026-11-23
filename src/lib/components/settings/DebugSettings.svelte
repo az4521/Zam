@@ -72,6 +72,7 @@
         startFullIndexBuild,
     } from "$lib/stores/indexBuild.svelte";
     import {
+        currentRoomLine,
         fullIndexPercent,
         groupThousands,
     } from "$lib/utils/fullIndexProgress";
@@ -268,6 +269,11 @@
                   buildState.progress.roomsTotal,
               )
             : 0,
+    );
+    const roomLine = $derived(
+        buildState.status === "running"
+            ? currentRoomLine(buildState.progress)
+            : ({ kind: "none" } as const),
     );
     const buildResult = $derived.by(() => {
         if (buildState.status !== "finished") return null;
@@ -775,7 +781,7 @@
                 min={MIN_ATTENUATION_DB}
                 max={MAX_ATTENUATION_DB}
                 step="1"
-                class="w-40 flex-shrink-0"
+                class="w-40 flex-shrink-0 accent-zam-accent"
                 value={settingsState.dfAttenuationDb}
                 oninput={(e) =>
                     setDfAttenuationDb(Number(e.currentTarget.value))}
@@ -802,7 +808,7 @@
                 min="0"
                 max="5000"
                 step="100"
-                class="w-40 flex-shrink-0"
+                class="w-40 flex-shrink-0 accent-zam-accent"
                 value={settingsState.soundIntervalMs}
                 oninput={(e) =>
                     setSoundIntervalMs(Number(e.currentTarget.value))}
@@ -969,12 +975,38 @@
                     pages: buildState.progress.pages,
                 })}
             </p>
-            {#if buildState.progress.currentRoomId}
+            {#if roomLine.kind !== "none"}
                 <p class="text-xs text-zam-textMuted break-all">
-                    {t("debugSettings.searchIndexCurrentRoom", {
-                        room:
-                            buildState.progress.currentRoomName ??
-                            buildState.progress.currentRoomId,
+                    {#if roomLine.kind === "recent"}
+                        {t("debugSettings.searchIndexRecentRoom", {
+                            room: roomLine.room,
+                        })}
+                    {:else if roomLine.kind === "history"}
+                        {t("debugSettings.searchIndexHistoryRoom", {
+                            room: roomLine.room,
+                            date: new Date(
+                                roomLine.reachedTs,
+                            ).toLocaleDateString(undefined, {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                            }),
+                        })}
+                    {:else if roomLine.kind === "start"}
+                        {t("debugSettings.searchIndexStartRoom", {
+                            room: roomLine.room,
+                        })}
+                    {:else}
+                        {t("debugSettings.searchIndexCurrentRoom", {
+                            room: roomLine.room,
+                        })}
+                    {/if}
+                </p>
+            {/if}
+            {#if buildState.progress.roomsRetrying}
+                <p class="text-xs text-zam-textMuted">
+                    {t("debugSettings.searchIndexRetrying", {
+                        count: buildState.progress.roomsRetrying,
                     })}
                 </p>
             {/if}

@@ -655,9 +655,16 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.searchIndexCancel": "Cancelar",
     "debugSettings.searchIndexBar": "Progreso del índice completo",
     "debugSettings.searchIndexProgress":
-        "{done} / {total} salas, {messages} mensajes",
+        "{done} de {total} salas terminadas, {messages} mensajes añadidos",
     "debugSettings.searchIndexPages": "{pages} páginas cargadas",
     "debugSettings.searchIndexCurrentRoom": "Indexando: {room}",
+    "debugSettings.searchIndexRecentRoom":
+        "Poniéndose al día con los mensajes recientes de {room}",
+    "debugSettings.searchIndexHistoryRoom": "Indexando {room}, hasta {date}",
+    "debugSettings.searchIndexStartRoom":
+        "Indexando {room}, se llegó a su primer mensaje",
+    "debugSettings.searchIndexRetrying":
+        "{count, plural, one {# sala tuvo un error y se reintentará más tarde} other {# salas tuvieron un error y se reintentarán más tarde}}",
     "debugSettings.searchIndexWaitingSync":
         "Esperando a que la sincronización se actualice",
     "debugSettings.searchIndexComplete":

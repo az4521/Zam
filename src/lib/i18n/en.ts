@@ -660,9 +660,16 @@ export const en = {
     "debugSettings.searchIndexCancel": "Cancel",
     "debugSettings.searchIndexBar": "Full index progress",
     "debugSettings.searchIndexProgress":
-        "{done} / {total} rooms, {messages} messages",
+        "{done} of {total} rooms finished, {messages} messages added",
     "debugSettings.searchIndexPages": "{pages} pages fetched",
     "debugSettings.searchIndexCurrentRoom": "Indexing: {room}",
+    "debugSettings.searchIndexRecentRoom":
+        "Catching up recent messages in {room}",
+    "debugSettings.searchIndexHistoryRoom": "Indexing {room}, back to {date}",
+    "debugSettings.searchIndexStartRoom":
+        "Indexing {room}, reached its first message",
+    "debugSettings.searchIndexRetrying":
+        "{count, plural, one {# room hit an error and will be retried later} other {# rooms hit an error and will be retried later}}",
     "debugSettings.searchIndexWaitingSync": "Waiting for sync to catch up",
     "debugSettings.searchIndexComplete":
         "Finished: every encrypted room is indexed.",

@@ -706,9 +706,16 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.searchIndexCancel": "Скасувати",
     "debugSettings.searchIndexBar": "Прогрес повного індексу",
     "debugSettings.searchIndexProgress":
-        "{done} / {total} кімнат, {messages} повідомлень",
+        "Готово кімнат: {done} з {total}, додано повідомлень: {messages}",
     "debugSettings.searchIndexPages": "Завантажено сторінок: {pages}",
     "debugSettings.searchIndexCurrentRoom": "Індексується: {room}",
+    "debugSettings.searchIndexRecentRoom":
+        "Наздоганяємо нещодавні повідомлення в {room}",
+    "debugSettings.searchIndexHistoryRoom": "Індексація {room}, до {date}",
+    "debugSettings.searchIndexStartRoom":
+        "Індексація {room}, досягнуто першого повідомлення",
+    "debugSettings.searchIndexRetrying":
+        "{count, plural, one {# кімната завершилася з помилкою і буде повторена пізніше} few {# кімнати завершилися з помилкою і будуть повторені пізніше} many {# кімнат завершилися з помилкою і будуть повторені пізніше} other {# кімнати завершилися з помилкою і будуть повторені пізніше}}",
     "debugSettings.searchIndexWaitingSync": "Очікування синхронізації",
     "debugSettings.searchIndexComplete":
         "Готово: усі зашифровані кімнати проіндексовано.",
