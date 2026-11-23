@@ -4,6 +4,26 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.66.20
+
+✨ **New**
+
+- **Install Zam as an app** from Settings > About in supported browsers (or see how to add it to your Home Screen on iOS).
+- **The app icon shows an unread badge**, and an incoming call keeps ringing and vibrating until you answer or dismiss it.
+- **Your screen stays on during video calls.**
+- **Large rooms (500+ members) behave like Discord**: the member list shows active members with the room's real member count, and mentions search the user directory.
+- **Discord favourite GIFs refresh out of the box** through a built-in service; you can still use your own.
+
+⚡ **Faster**
+
+- **Unread rooms are prefetched at your read position**, so opening one jumps straight to where you left off.
+- **Quicker startup**: settings, pickers, emoji data and other dialogs now load when you first open them.
+- **Lower memory use**, especially in big rooms and in the desktop app while it's in the background.
+
+🐛 **Fixed**
+
+- **Discord favourites imported on another device are no longer uploaded twice.**
+
 ## v1.66.19
 
 ⚡ **Faster**
