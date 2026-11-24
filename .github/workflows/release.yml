@@ -657,10 +657,9 @@ jobs:
         permissions:
             pages: write
             id-token: write
-            actions: read
         environment:
             name: github-pages
-            url: ${{ steps.deploy.outputs.page_url }}
+            url: ${{ steps.deploy_first.outputs.page_url || steps.deploy_retry.outputs.page_url }}
         env:
             # Per attempt: artifacts outlive a re-run in the same run, and
             # deploy-pages fails when two share a name.
@@ -675,20 +674,22 @@ jobs:
               with:
                   name: ${{ env.PAGES_ARTIFACT }}
                   path: parts
-            # The run's artifact list can lag the upload; deploy-pages does not
-            # retry and fails with "No artifacts named ... were found".
-            - name: Wait for the Pages artifact to be listed
-              shell: bash
-              env:
-                  GH_TOKEN: ${{ github.token }}
-              run: |
-                  for i in $(seq 1 30); do
-                    n=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$PAGES_ARTIFACT" --jq '.total_count')
-                    [ "$n" -ge 1 ] && exit 0
-                    sleep 2
-                  done
-                  echo "::warning::$PAGES_ARTIFACT not listed after 60s; trying the deploy anyway"
-            - id: deploy
+            # deploy-pages finds the artifact through the results service's
+            # ListArtifacts, which can lag the upload by a while after a
+            # multi-GB upload (the REST artifacts API already lists it, so
+            # polling that proves nothing). It does not retry and fails with
+            # "No artifacts named ... were found" before creating a
+            # deployment, so a failed try is safe to repeat.
+            - id: deploy_first
+              continue-on-error: true
+              uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+              with:
+                  artifact_name: ${{ env.PAGES_ARTIFACT }}
+            - name: Give the artifact listing time to catch up
+              if: steps.deploy_first.outcome == 'failure'
+              run: sleep 90
+            - id: deploy_retry
+              if: steps.deploy_first.outcome == 'failure'
               uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
               with:
                   artifact_name: ${{ env.PAGES_ARTIFACT }}
