@@ -2,9 +2,26 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // The "homeserver" copy of the favourites, as the encrypted layer hands it back.
 const server = { gifs: [] as unknown[] };
+const hooks = vi.hoisted(() => ({
+    secretReady: [] as (() => void)[],
+    syncPrepared: [] as (() => void)[],
+    unlocked: false,
+    mode: { mode: "encrypted", switching: false },
+    writes: 0,
+}));
+vi.mock("$lib/matrix/crypto", () => ({
+    onSecretStorageReady: (cb: () => void) => {
+        hooks.secretReady.push(cb);
+        return () => {};
+    },
+    isSecretStorageUnlocked: async () => hooks.unlocked,
+}));
 vi.mock("$lib/matrix/client", () => ({
     onAccountData: () => () => {},
-    onSyncPrepared: () => () => {},
+    onSyncPrepared: (cb: () => void) => {
+        hooks.syncPrepared.push(cb);
+        return () => {};
+    },
     persistPrivateAccountData: async () => {},
 }));
 vi.mock("$lib/matrix/runtime", () => ({
@@ -21,18 +38,22 @@ vi.mock("$lib/matrix/privateAccountData.svelte", () => ({
         source: "encrypted",
     }),
     writePrivate: async (_type: string, value: { gifs: unknown[] }) => {
+        hooks.writes++;
         server.gifs = value.gifs;
     },
     hasPrivateKey: () => true,
     onPrivateKeyChange: () => () => {},
     preparePrivateKey: async () => "ready",
     restorePrivateKeyFromBackup: async () => false,
-    setPrivateMode: () => {},
-    privateModeState: { mode: "encrypted", switching: false },
+    setPrivateMode: (mode: string) => {
+        hooks.mode.mode = mode;
+    },
+    privateModeState: hooks.mode,
     PrivateAccountDataLockedError: class extends Error {},
 }));
 
 import {
+    initFavourites,
     favouriteSize,
     favouriteUrlForMxc,
     favouritesState,
@@ -177,5 +198,58 @@ describe("favouriteSize", () => {
         expect(favouriteSize(0, 270)).toEqual({});
         expect(favouriteSize([480], 270)).toEqual({});
         expect(favouriteSize(Number.NaN, Number.NaN)).toEqual({});
+    });
+});
+
+describe("encrypted favourites turn on with the recovery key", () => {
+    const settle = () => new Promise((r) => setTimeout(r, 0));
+    beforeEach(() => {
+        hooks.secretReady.length = 0;
+        hooks.syncPrepared.length = 0;
+        hooks.unlocked = false;
+        hooks.writes = 0;
+    });
+
+    it("encrypts a plain list when secret storage is unlocked", async () => {
+        hooks.mode.mode = "plain";
+        const stop = initFavourites();
+        await settle();
+        expect(hooks.mode.mode).toBe("plain");
+        hooks.secretReady.forEach((cb) => cb());
+        await settle();
+        expect(hooks.mode.mode).toBe("encrypted");
+        stop();
+    });
+
+    it("waits for the first sync when the mode is still unknown", async () => {
+        hooks.mode.mode = "unknown";
+        const stop = initFavourites();
+        hooks.secretReady.forEach((cb) => cb());
+        await settle();
+        expect(hooks.mode.mode).toBe("unknown");
+        hooks.mode.mode = "plain";
+        hooks.syncPrepared.forEach((cb) => cb());
+        await settle();
+        expect(hooks.mode.mode).toBe("encrypted");
+        stop();
+    });
+
+    it("catches an unlock that happened before it mounted", async () => {
+        hooks.mode.mode = "plain";
+        hooks.unlocked = true;
+        const stop = initFavourites();
+        await settle();
+        await settle();
+        expect(hooks.mode.mode).toBe("encrypted");
+        stop();
+    });
+
+    it("leaves an already encrypted list alone", async () => {
+        hooks.mode.mode = "encrypted";
+        const stop = initFavourites();
+        hooks.secretReady.forEach((cb) => cb());
+        await settle();
+        expect(hooks.writes).toBe(0);
+        stop();
     });
 });

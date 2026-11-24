@@ -17,6 +17,10 @@ import {
     writePrivate,
     type PrivateRead,
 } from "$lib/matrix/privateAccountData.svelte";
+import {
+    isSecretStorageUnlocked,
+    onSecretStorageReady,
+} from "$lib/matrix/crypto";
 import { captureClient, ownedClient } from "$lib/matrix/runtime";
 import { matrixMediaMxc } from "$lib/matrix/favouriteFile";
 import { disableStep, enableStep } from "$lib/utils/favouritesMode";
@@ -489,8 +493,33 @@ export function initFavourites(): () => void {
     // Load immediately in case sync already completed before this was called
     void refresh();
 
+    // Entering or generating the recovery key turns encrypted favourites on,
+    // as it does offline messages (crypto.ts runDehydration): it is the moment
+    // this session can certainly reach secret storage. Before the first sync
+    // the mode is unknown, so it waits for the sync.
+    let autoEncryptPending = false;
+    const autoEncrypt = (): void => {
+        if (privateModeState.mode === "unknown") {
+            autoEncryptPending = true;
+            return;
+        }
+        autoEncryptPending = false;
+        if (privateModeState.mode === "plain") {
+            void setFavouritesEncrypted(true);
+        }
+    };
+    const unsubSecret = onSecretStorageReady(autoEncrypt);
+    // Unlocked before this mounted (the key is only ever held in memory, so
+    // that was this run).
+    void isSecretStorageUnlocked().then((unlocked) => {
+        if (unlocked) autoEncrypt();
+    });
+
     // Also reload on sync PREPARED in case we registered before the first sync finished
-    const unsubSync = onSyncPrepared(() => void refresh());
+    const unsubSync = onSyncPrepared(() => {
+        void refresh();
+        if (autoEncryptPending) autoEncrypt();
+    });
     const unsubAccount = onAccountData((type) => {
         // Our own encrypted type, and the legacy plaintext types a pre-encryption
         // device may still write.
@@ -504,6 +533,7 @@ export function initFavourites(): () => void {
     // The key arriving (unlock, gossip) or changing makes the list readable.
     const unsubKey = onPrivateKeyChange(() => void refresh());
     return () => {
+        unsubSecret();
         unsubSync();
         unsubAccount();
         unsubKey();
