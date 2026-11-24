@@ -365,6 +365,9 @@ export const settingsState = $state({
      *  its rich presence line, read through Steam's local debugging port.
      *  Needs richPresenceEnabled. Default OFF. */
     richPresenceSteam: readBool("richPresenceSteam", false),
+    /** Matrix widgets: show the name of an open room widget in rich presence.
+     *  Default ON. Needs no desktop app; the room is never shared. */
+    richPresenceWidgets: readBool("richPresenceWidgets", true),
     /** Device-global: render the read-receipt avatars under messages. Default
      *  ON (existing behaviour). Display only — it does not change whether we
      *  SEND receipts; that is `privateReadReceipts`. */
@@ -1187,6 +1190,11 @@ export function setRichPresenceScan(value: boolean): void {
 export function setRichPresenceMedia(value: boolean): void {
     settingsState.richPresenceMedia = value;
     writeBool("richPresenceMedia", value);
+}
+
+export function setRichPresenceWidgets(value: boolean): void {
+    settingsState.richPresenceWidgets = value;
+    writeBool("richPresenceWidgets", value);
 }
 
 export function setRichPresenceSteam(value: boolean): void {

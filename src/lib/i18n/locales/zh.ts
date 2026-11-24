@@ -979,6 +979,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "richPresence.viaRpc": "Discord Rich Presence",
     "richPresence.viaMedia": "媒体播放器",
     "richPresence.viaPlugin": "插件",
+    "richPresence.viaWidget": "Matrix 小组件",
+    "richPresence.widgetsTitle": "Matrix 小组件",
+    "richPresence.widgetsToggle": "分享你打开的小组件",
+    "richPresence.widgetsHint":
+        "显示已打开的房间小组件的名称，例如游戏或白板。房间本身从不会被分享。",
     "richPresence.blocked": "已屏蔽",
     "richPresence.allowed": "已允许",
 

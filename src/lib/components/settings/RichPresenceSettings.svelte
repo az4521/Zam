@@ -8,6 +8,7 @@
         setRichPresenceEnabled,
         setRichPresenceFakeDiscord,
         setRichPresenceMedia,
+        setRichPresenceWidgets,
         setRichPresenceScan,
         settingsState,
     } from "$lib/stores/settings.svelte";
@@ -23,6 +24,7 @@
         richPresenceState,
         setAppAllowed,
         syncRichPresence,
+        syncWidgetPresence,
         type SteamDebugOutcome,
     } from "$lib/stores/richPresence.svelte";
 
@@ -37,8 +39,11 @@
     );
     const status = $derived(richPresenceState.status);
     const desktop = richPresenceAvailable();
-    // Off the desktop app only plugins publish, so only they are listed.
-    const hasPlugins = $derived(apps.some(([, a]) => a.source === "plugin"));
+    // Off the desktop app only plugins and open widgets publish, so only they
+    // are listed.
+    const hasClientApps = $derived(
+        apps.some(([, a]) => a.source === "plugin" || a.source === "widget"),
+    );
 
     function onToggleShare(next: boolean): void {
         setRichPresenceEnabled(next);
@@ -48,6 +53,11 @@
     function onToggleScan(next: boolean): void {
         setRichPresenceScan(next);
         void syncRichPresence();
+    }
+
+    function onToggleWidgets(next: boolean): void {
+        setRichPresenceWidgets(next);
+        syncWidgetPresence();
     }
 
     function onToggleMedia(next: boolean): void {
@@ -234,7 +244,30 @@
     };
 </script>
 
-{#if desktop || hasPlugins}
+<section data-setting-anchor="cust-rich-presence-widgets">
+    <p
+        class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
+    >
+        {t("richPresence.widgetsTitle")}
+    </p>
+    <div class="flex items-center gap-3 py-2 border-b border-zam-divider">
+        <div class="flex-1 min-w-0">
+            <p class="text-sm text-zam-textPrimary">
+                {t("richPresence.widgetsToggle")}
+            </p>
+            <p class="text-xs text-zam-textMuted">
+                {t("richPresence.widgetsHint")}
+            </p>
+        </div>
+        <ToggleSwitch
+            checked={settingsState.richPresenceWidgets}
+            onChange={onToggleWidgets}
+            label={t("richPresence.widgetsToggle")}
+        />
+    </div>
+</section>
+
+{#if desktop || hasClientApps}
     <section data-setting-anchor="cust-rich-presence">
         <p
             class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide mb-3"
@@ -629,30 +662,32 @@
                                 <p class="text-xs text-zam-textMuted">
                                     {app.source === "plugin"
                                         ? t("richPresence.viaPlugin")
-                                        : app.source !== "arrpc"
-                                          ? t("richPresence.viaMatrix")
-                                          : app.viaMedia
-                                            ? t("richPresence.viaMedia")
-                                            : app.viaScan ||
-                                                app.viaRpc ||
-                                                app.viaSteam
-                                              ? [
-                                                    app.viaRpc &&
-                                                        t(
-                                                            "richPresence.viaRpc",
-                                                        ),
-                                                    app.viaScan &&
-                                                        t(
-                                                            "richPresence.viaScan",
-                                                        ),
-                                                    app.viaSteam &&
-                                                        t(
-                                                            "richPresence.viaSteam",
-                                                        ),
-                                                ]
-                                                    .filter(Boolean)
-                                                    .join(" + ")
-                                              : t("richPresence.viaDiscord")}
+                                        : app.source === "widget"
+                                          ? t("richPresence.viaWidget")
+                                          : app.source !== "arrpc"
+                                            ? t("richPresence.viaMatrix")
+                                            : app.viaMedia
+                                              ? t("richPresence.viaMedia")
+                                              : app.viaScan ||
+                                                  app.viaRpc ||
+                                                  app.viaSteam
+                                                ? [
+                                                      app.viaRpc &&
+                                                          t(
+                                                              "richPresence.viaRpc",
+                                                          ),
+                                                      app.viaScan &&
+                                                          t(
+                                                              "richPresence.viaScan",
+                                                          ),
+                                                      app.viaSteam &&
+                                                          t(
+                                                              "richPresence.viaSteam",
+                                                          ),
+                                                  ]
+                                                      .filter(Boolean)
+                                                      .join(" + ")
+                                                : t("richPresence.viaDiscord")}
                                     · {lastPlayed(app.lastSeen)}
                                 </p>
                             {/if}

@@ -18,6 +18,11 @@ import {
     writeRichPresenceImages,
 } from "$lib/stores/settings.svelte";
 import { PROFILE_FIELDS } from "$lib/utils/extendedProfile";
+import type { RoomWidget } from "$lib/utils/widgets";
+import {
+    widgetPresenceEntry,
+    widgetPresenceKey,
+} from "$lib/utils/widgetPresence";
 import {
     GAME_INVITE_LIMITS,
     gameInvitePayload,
@@ -53,7 +58,7 @@ const PUBLISH_DEBOUNCE_MS = 1500;
 
 export interface KnownApp {
     name: string;
-    source: "msc4544" | "arrpc" | "plugin";
+    source: "msc4544" | "arrpc" | "plugin" | "widget";
     allowed: boolean;
     lastSeen: number;
     /** Found by the process scanner. */
@@ -122,7 +127,9 @@ function loadApps(): Record<string, KnownApp> {
             out[key] = {
                 name: a.name,
                 source:
-                    a.source === "arrpc" || a.source === "plugin"
+                    a.source === "arrpc" ||
+                    a.source === "plugin" ||
+                    a.source === "widget"
                         ? a.source
                         : "msc4544",
                 allowed: a.allowed === true,
@@ -231,10 +238,10 @@ export function richPresenceAvailable(): boolean {
     return bridge() != null;
 }
 
-/** Whether a plugin has published here, so its switch has a page to be on. */
-export function pluginPresenceKnown(): boolean {
+/** Whether a plugin or widget has published here, so its switch has a page to be on. */
+export function clientPresenceKnown(): boolean {
     return Object.values(richPresenceState.apps).some(
-        (a) => a.source === "plugin",
+        (a) => a.source === "plugin" || a.source === "widget",
     );
 }
 
@@ -510,15 +517,14 @@ export async function clearRichPresenceForSignOut(
 function clearHeld(): void {
     held.clear();
     blocked.clear();
-    pluginWanted.clear();
+    clientWanted.clear();
     dropInvites(() => true);
     schedulePublish();
 }
 
-/** Sharing from this computer went off: plugins have their own switches. */
+/** Sharing from this computer went off: plugins and widgets have their own switches. */
 function clearLocal(): void {
-    for (const [k, h] of held)
-        if (!h.appKey.startsWith("plugin:")) held.delete(k);
+    for (const [k, h] of held) if (!isClientAppKey(h.appKey)) held.delete(k);
     blocked.clear();
     dropInvites(() => true);
     schedulePublish();
@@ -541,7 +547,7 @@ export function setAppAllowed(appKey: string, allowed: boolean): void {
         blocked.delete(k);
         handleEvent(ev);
     }
-    for (const [k, w] of pluginWanted) if (w.appKey === appKey) holdPlugin(k);
+    for (const [k, w] of clientWanted) if (w.appKey === appKey) holdClient(k);
 }
 
 export function forgetApp(appKey: string): void {
@@ -551,8 +557,8 @@ export function forgetApp(appKey: string): void {
     for (const [k, h] of held) if (h.appKey === appKey) held.delete(k);
     for (const [k, ev] of blocked)
         if (`${ev.source}:${ev.app.id}` === appKey) blocked.delete(k);
-    for (const [k, w] of pluginWanted)
-        if (w.appKey === appKey) pluginWanted.delete(k);
+    for (const [k, w] of clientWanted)
+        if (w.appKey === appKey) clientWanted.delete(k);
     schedulePublish();
 }
 
@@ -608,35 +614,45 @@ export async function disableSteam(): Promise<SteamDebugOutcome> {
     return res;
 }
 
-// ── Plugins ────────────────────────────────────────────────────────────────
-// A plugin (zam.presence) is one more app: listed in Settings, allowed when
-// first seen, and switchable. It needs no desktop listener, so it works on
-// every build and does not wait for "share from this computer".
+// ── Plugins and widgets ────────────────────────────────────────────────────
+// A plugin (zam.presence) and an open Matrix widget are each one more app:
+// listed in Settings, allowed when first seen, and switchable. They need no
+// desktop listener, so they work on every build and do not wait for "share
+// from this computer".
 
-/** What each plugin asked for, allowed or not, by held key. */
-const pluginWanted = new Map<
+/** Apps the client publishes itself, rather than a desktop app. */
+type ClientSource = "plugin" | "widget";
+
+/** Whether an app is one the client publishes itself. */
+function isClientAppKey(appKey: string): boolean {
+    return appKey.startsWith("plugin:") || appKey.startsWith("widget:");
+}
+
+/** What each client entry asked for, allowed or not, by held key. */
+const clientWanted = new Map<
     string,
     { appKey: string; name: string; entry: RpcEntry; renewable: boolean }
 >();
 
 /**
- * Publish `entry` for a plugin, replacing its earlier entry with the same id.
- * Without an expiry it is renewed until cleared.
+ * Publish `entry` for a client app, replacing its earlier entry with the same
+ * id. `idPrefix` is put in front of the entry's id on the profile. Without an
+ * expiry the entry is renewed until cleared.
  */
-export function setPluginPresence(
-    pluginId: string,
-    pluginName: string,
+function publishClientEntry(
+    source: ClientSource,
+    appKey: string,
+    name: string,
+    idPrefix: string,
     entry: RpcEntry,
     hasExpiry: boolean,
 ): void {
-    const appKey = `plugin:${pluginId}`;
-    const name = pluginName.trim().slice(0, 64) || pluginId;
     const now = Date.now();
     const known = richPresenceState.apps[appKey];
     if (!known) {
         richPresenceState.apps[appKey] = {
             name,
-            source: "plugin",
+            source,
             allowed: true,
             lastSeen: now,
         };
@@ -647,38 +663,37 @@ export function setPluginPresence(
         saveApps();
     }
     const heldKey = `${appKey}|${entry.id}`;
-    const own = { ...entry, id: `${pluginId}-${entry.id}`.slice(0, 128) };
+    const own = { ...entry, id: `${idPrefix}${entry.id}`.slice(0, 128) };
     own.expiry = hasExpiry
         ? Math.min(own.expiry, now + MAX_TTL_MS)
         : now + RENEWABLE_TTL_MS;
     if (own.expiry <= now) {
-        clearPluginPresence(pluginId, entry.id);
+        clearClientEntry(appKey, entry.id);
         return;
     }
-    pluginWanted.set(heldKey, {
+    clientWanted.set(heldKey, {
         appKey,
         name,
         entry: own,
         renewable: !hasExpiry,
     });
-    holdPlugin(heldKey);
+    holdClient(heldKey);
 }
 
-/** Take a plugin's entry (or, with no id, all of them) off the profile. */
-export function clearPluginPresence(pluginId: string, id?: string): void {
-    const appKey = `plugin:${pluginId}`;
+/** Take a client app's entry (or, with no id, all of its entries) off the profile. */
+function clearClientEntry(appKey: string, id?: string): void {
     const matches = (k: string) =>
         id === undefined ? k.startsWith(`${appKey}|`) : k === `${appKey}|${id}`;
     let dropped = false;
-    for (const k of [...pluginWanted.keys()])
-        if (matches(k)) pluginWanted.delete(k);
+    for (const k of [...clientWanted.keys()])
+        if (matches(k)) clientWanted.delete(k);
     for (const k of [...held.keys()])
         if (matches(k)) dropped = held.delete(k) || dropped;
     if (dropped) schedulePublish();
 }
 
-function holdPlugin(heldKey: string): void {
-    const w = pluginWanted.get(heldKey);
+function holdClient(heldKey: string): void {
+    const w = clientWanted.get(heldKey);
     if (!w || !richPresenceState.apps[w.appKey]?.allowed) {
         held.delete(heldKey);
     } else {
@@ -696,6 +711,113 @@ function holdPlugin(heldKey: string): void {
             updated: Date.now(),
             raw: "",
         });
+    }
+    schedulePublish();
+}
+
+/**
+ * Publish `entry` for a plugin, replacing its earlier entry with the same id.
+ * Without an expiry it is renewed until cleared.
+ */
+export function setPluginPresence(
+    pluginId: string,
+    pluginName: string,
+    entry: RpcEntry,
+    hasExpiry: boolean,
+): void {
+    publishClientEntry(
+        "plugin",
+        `plugin:${pluginId}`,
+        pluginName.trim().slice(0, 64) || pluginId,
+        `${pluginId}-`,
+        entry,
+        hasExpiry,
+    );
+}
+
+/** Take a plugin's entry (or, with no id, all of them) off the profile. */
+export function clearPluginPresence(pluginId: string, id?: string): void {
+    clearClientEntry(`plugin:${pluginId}`, id);
+}
+
+// ── Widgets ────────────────────────────────────────────────────────────────
+// An open Matrix widget is shown as an app named after the widget. Each mount
+// counts, so a widget mounted twice (a panel remount) is shown once and only
+// leaves the profile when its last mount closes.
+
+/** Open widgets by key: how many mounts are open, when the first opened, and
+ *  what to show. Kept while the setting is off, so turning it back on can
+ *  publish a widget that is already open. */
+const openWidgets = new Map<
+    string,
+    { count: number; since: number; name: string; avatarUrl: string | null }
+>();
+
+/** Whether the user lets open widgets show (Settings > Rich presence). */
+function widgetsOn(): boolean {
+    return settingsState.richPresenceWidgets;
+}
+
+/** Publish one open widget, if the setting allows it. */
+function publishWidget(key: string): void {
+    const open = openWidgets.get(key);
+    if (!open || !widgetsOn()) return;
+    const entry = widgetPresenceEntry(
+        open,
+        key,
+        open.since,
+        open.since + RENEWABLE_TTL_MS,
+    );
+    if (!entry) return;
+    publishClientEntry(
+        "widget",
+        `widget:${key}`,
+        open.name.trim().slice(0, 64),
+        "",
+        entry,
+        false,
+    );
+}
+
+/** A widget was mounted in `roomId`. Publishes on the first open of it. */
+export function widgetOpened(
+    roomId: string,
+    widget: Pick<RoomWidget, "id" | "name" | "avatarUrl">,
+): void {
+    const key = widgetPresenceKey(roomId, widget.id);
+    const open = openWidgets.get(key);
+    if (open) {
+        open.count++;
+        return;
+    }
+    openWidgets.set(key, {
+        count: 1,
+        since: Date.now(),
+        name: widget.name,
+        avatarUrl: widget.avatarUrl,
+    });
+    publishWidget(key);
+}
+
+/** A mount of the widget closed. Clears its entry when the last one closes. */
+export function widgetClosed(roomId: string, widgetId: string): void {
+    const key = widgetPresenceKey(roomId, widgetId);
+    const open = openWidgets.get(key);
+    if (!open) return;
+    open.count--;
+    if (open.count > 0) return;
+    openWidgets.delete(key);
+    clearClientEntry(`widget:${key}`);
+}
+
+/**
+ * The Matrix widgets setting changed: publish every open widget when it is on,
+ * take them all off the profile when it is off. Plugins are not touched.
+ */
+export function syncWidgetPresence(): void {
+    for (const key of openWidgets.keys()) {
+        clearClientEntry(`widget:${key}`);
+        publishWidget(key);
     }
     schedulePublish();
 }
@@ -995,7 +1117,7 @@ async function publish(): Promise<void> {
     for (const [k, h] of held)
         if (h.entry.expiry <= now) {
             held.delete(k);
-            pluginWanted.delete(k);
+            clientWanted.delete(k);
         }
     richPresenceState.heldCount = held.size;
 
@@ -1072,7 +1194,8 @@ function renew(): void {
 export function resetRichPresenceForTests(): void {
     held.clear();
     blocked.clear();
-    pluginWanted.clear();
+    clientWanted.clear();
+    openWidgets.clear();
     dropInvites(() => true);
     published = false;
     deleteOnUnload = null;

@@ -312,6 +312,13 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
         available: (p) => p.richPresence,
     },
     {
+        tab: "rich-presence",
+        label: t("richPresence.widgetsToggle"),
+        keywords: ["matrix widget", "widget", "whiteboard", "game", "activity"],
+        anchor: "cust-rich-presence-widgets",
+        available: (p) => p.richPresence,
+    },
+    {
         tab: "general",
         label: t("settingsSearch.proxy"),
         keywords: ["proxy", "socks", "tor", "pac", "bypass", "network"],

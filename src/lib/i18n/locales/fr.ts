@@ -4806,6 +4806,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "richPresence.viaRpc": "Discord Rich Presence",
     "richPresence.viaMedia": "Lecteur multimédia",
     "richPresence.viaPlugin": "Plugin",
+    "richPresence.viaWidget": "Widget Matrix",
+    "richPresence.widgetsTitle": "Widgets Matrix",
+    "richPresence.widgetsToggle": "Partager le widget ouvert",
+    "richPresence.widgetsHint":
+        "Affiche le nom d'un widget de salon ouvert, comme un jeu ou un tableau blanc. Le salon n'est jamais partagé.",
     "richPresence.media": "Signaler la lecture multimédia",
     "richPresence.mediaHint":
         "Affiche le titre ou la vidéo qu’un lecteur multimédia de cet ordinateur joue, d’après les informations de lecture du système. Chaque lecteur est autorisé par défaut une fois ceci activé ; désactivez ci-dessous ceux que vous ne voulez pas.",

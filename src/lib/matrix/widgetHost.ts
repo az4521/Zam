@@ -62,6 +62,7 @@ import {
     type RoomWidget,
     type WidgetUrlContext,
 } from "$lib/utils/widgets";
+import { widgetClosed, widgetOpened } from "$lib/stores/richPresence.svelte";
 import {
     STICKY_MAX_DURATION_MS,
     activeStickyEvents,
@@ -971,6 +972,9 @@ export function mountWidget(opts: MountWidgetOptions): MountedWidget {
         return noop;
     }
     const client = owner.client;
+    // A widget the user has open shows in rich presence. A modal of another
+    // widget is part of that one, so it does not count again.
+    if (!opts.modal) widgetOpened(opts.roomId, opts.widget);
 
     const widget = new Widget({
         id: opts.widget.id,
@@ -1210,6 +1214,7 @@ export function mountWidget(opts: MountWidgetOptions): MountedWidget {
             if (disposed) return;
             disposed = true;
             ready = false;
+            if (!modal) widgetClosed(opts.roomId, opts.widget.id);
             for (const off of unsubs) off();
             try {
                 api.stop();

@@ -4263,6 +4263,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "richPresence.viaRpc": "Discord リッチプレゼンス",
     "richPresence.viaMedia": "メディアプレーヤー",
     "richPresence.viaPlugin": "プラグイン",
+    "richPresence.viaWidget": "Matrixウィジェット",
+    "richPresence.widgetsTitle": "Matrixウィジェット",
+    "richPresence.widgetsToggle": "開いているウィジェットを共有",
+    "richPresence.widgetsHint":
+        "ゲームやホワイトボードなど、開いているルームウィジェットの名前を表示します。ルームは共有されません。",
     "richPresence.media": "メディア再生を共有",
     "richPresence.mediaHint":
         "このコンピューターのメディアプレーヤーで再生中の曲や動画を、システムの再生情報から表示します。オンにすると各プレーヤーは既定で許可されます。不要なものは下でオフにできます。",

@@ -1033,6 +1033,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "richPresence.viaRpc": "Discord Rich Presence",
     "richPresence.viaMedia": "Медіапрогравач",
     "richPresence.viaPlugin": "Плагін",
+    "richPresence.viaWidget": "Віджет Matrix",
+    "richPresence.widgetsTitle": "Віджети Matrix",
+    "richPresence.widgetsToggle": "Ділитися відкритим віджетом",
+    "richPresence.widgetsHint":
+        "Показує назву відкритого віджета кімнати, наприклад гри або дошки. Кімната ніколи не передається.",
     "richPresence.blocked": "Заблоковано",
     "richPresence.allowed": "Дозволено",
 

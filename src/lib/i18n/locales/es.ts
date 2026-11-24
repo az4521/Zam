@@ -4787,6 +4787,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "richPresence.viaRpc": "Discord Rich Presence",
     "richPresence.viaMedia": "Reproductor multimedia",
     "richPresence.viaPlugin": "Plugin",
+    "richPresence.viaWidget": "Widget de Matrix",
+    "richPresence.widgetsTitle": "Widgets de Matrix",
+    "richPresence.widgetsToggle": "Compartir el widget que tienes abierto",
+    "richPresence.widgetsHint":
+        "Muestra el nombre de un widget de sala abierto, como un juego o una pizarra. La sala nunca se comparte.",
     "richPresence.media": "Informar de la reproducción multimedia",
     "richPresence.mediaHint":
         "Muestra la canción o el vídeo que reproduce un reproductor multimedia de este equipo, a partir de la información de reproducción del sistema. Cada reproductor está permitido por defecto una vez activado; desactiva abajo los que no quieras.",

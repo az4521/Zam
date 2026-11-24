@@ -7,6 +7,7 @@ import {
     beforeEach,
     afterEach,
 } from "vitest";
+import { widgetPresenceKey } from "$lib/utils/widgetPresence";
 
 const setOwnProfileField = vi.fn(async (..._a: unknown[]) => {});
 const uploadContent = vi.fn(async (..._a: unknown[]) => "mxc://srv/uploaded");
@@ -733,7 +734,7 @@ describe("rich presence store", () => {
                 source: "plugin",
                 allowed: true,
             });
-            expect(rp.pluginPresenceKnown()).toBe(true);
+            expect(rp.clientPresenceKnown()).toBe(true);
         });
 
         it("renews an entry set without an expiry", async () => {
@@ -787,6 +788,136 @@ describe("rich presence store", () => {
             settings.setRichPresenceEnabled(true);
             await rp.syncRichPresence();
             rp.setPluginPresence("com.x", "X", entry(), false);
+            settings.setRichPresenceEnabled(false);
+            await rp.syncRichPresence();
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toHaveLength(1);
+        });
+    });
+
+    describe("widgets", () => {
+        const ROOM = "!room:srv";
+        const widget = (over: Partial<{ name: string }> = {}) => ({
+            id: "w1",
+            name: "Chess",
+            avatarUrl: null,
+            ...over,
+        });
+        const appKey = () => `widget:${widgetPresenceKey(ROOM, "w1")}`;
+        const lastValue = () =>
+            setOwnProfileField.mock.lastCall?.[1] as Array<{
+                id: string;
+                name: string;
+                expiry: number;
+            }> | null;
+
+        it("publishes the widget while it is open", async () => {
+            const { rp } = await load();
+            rp.widgetOpened(ROOM, widget());
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toEqual([
+                expect.objectContaining({
+                    id: `widget-${widgetPresenceKey(ROOM, "w1")}`,
+                    name: "Chess",
+                }),
+            ]);
+            expect(rp.richPresenceState.apps[appKey()]).toMatchObject({
+                name: "Chess",
+                source: "widget",
+                allowed: true,
+            });
+            expect(rp.clientPresenceKnown()).toBe(true);
+        });
+
+        it("never puts the room id on the profile", async () => {
+            const { rp } = await load();
+            rp.widgetOpened(ROOM, widget());
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(JSON.stringify(lastValue())).not.toContain("room");
+        });
+
+        it("publishes nothing for a widget with no name", async () => {
+            const { rp } = await load();
+            rp.widgetOpened(ROOM, widget({ name: "   " }));
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(setOwnProfileField).not.toHaveBeenCalled();
+        });
+
+        it("keeps the entry while one of two opens remains", async () => {
+            const { rp } = await load();
+            rp.widgetOpened(ROOM, widget());
+            rp.widgetOpened(ROOM, widget());
+            rp.widgetClosed(ROOM, "w1");
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toHaveLength(1);
+        });
+
+        it("clears the entry when the last open closes", async () => {
+            const { rp } = await load();
+            rp.widgetOpened(ROOM, widget());
+            await vi.advanceTimersByTimeAsync(2000);
+            rp.widgetOpened(ROOM, widget());
+            rp.widgetClosed(ROOM, "w1");
+            rp.widgetClosed(ROOM, "w1");
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toBeNull();
+        });
+
+        it("holds nothing while its app is blocked, and publishes when allowed", async () => {
+            const { rp } = await load();
+            rp.widgetOpened(ROOM, widget());
+            await vi.advanceTimersByTimeAsync(2000);
+            rp.widgetClosed(ROOM, "w1");
+            await vi.advanceTimersByTimeAsync(2000);
+            rp.setAppAllowed(appKey(), false);
+            rp.widgetOpened(ROOM, widget());
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toBeNull();
+            rp.setAppAllowed(appKey(), true);
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toHaveLength(1);
+        });
+
+        it("takes an open widget off when the setting goes off, and publishes it again when on", async () => {
+            const { settings, rp } = await load();
+            rp.widgetOpened(ROOM, widget());
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toHaveLength(1);
+            settings.setRichPresenceWidgets(false);
+            rp.syncWidgetPresence();
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toBeNull();
+            settings.setRichPresenceWidgets(true);
+            rp.syncWidgetPresence();
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toHaveLength(1);
+        });
+
+        it("holds a widget opened while the setting is off until it is on", async () => {
+            const { settings, rp } = await load();
+            settings.setRichPresenceWidgets(false);
+            rp.widgetOpened(ROOM, widget());
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(setOwnProfileField).not.toHaveBeenCalled();
+            settings.setRichPresenceWidgets(true);
+            rp.syncWidgetPresence();
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(lastValue()).toHaveLength(1);
+        });
+
+        it("renews an open widget without an expiry", async () => {
+            const { rp } = await load();
+            rp.widgetOpened(ROOM, widget());
+            await vi.advanceTimersByTimeAsync(20 * 60_000);
+            expect(lastValue()).toHaveLength(1);
+            expect(lastValue()![0].expiry).toBeGreaterThan(Date.now());
+        });
+
+        it("survives sharing from this computer going off", async () => {
+            const { settings, rp } = await load();
+            settings.setRichPresenceEnabled(true);
+            await rp.syncRichPresence();
+            rp.widgetOpened(ROOM, widget());
             settings.setRichPresenceEnabled(false);
             await rp.syncRichPresence();
             await vi.advanceTimersByTimeAsync(2000);

@@ -44,10 +44,6 @@
         type SettingsSearchEntry,
     } from "$lib/utils/settingsSearch";
     import { isDesktopTray } from "$lib/desktopTray";
-    import {
-        pluginPresenceKnown,
-        richPresenceAvailable,
-    } from "$lib/stores/richPresence.svelte";
     import RichPresenceSettings from "$lib/components/settings/RichPresenceSettings.svelte";
     import { Capacitor } from "@capacitor/core";
     import { scrollBehavior } from "$lib/utils/motionPreference";
@@ -87,7 +83,8 @@
     const platform = {
         desktopTray: isDesktopTray(),
         nativeApp: Capacitor.isNativePlatform(),
-        richPresence: richPresenceAvailable() || pluginPresenceKnown(),
+        // Always: the Matrix widgets switch is on the page on every build.
+        richPresence: true,
     };
     const coreGroups = visibleSettingsGroups(platform);
     // Plugin pages (zam.ui.addSettingsPage) get a group of their own.

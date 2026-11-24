@@ -1011,6 +1011,11 @@ export const en = {
     "richPresence.viaRpc": "Discord Rich Presence",
     "richPresence.viaMedia": "Media player",
     "richPresence.viaPlugin": "Plugin",
+    "richPresence.viaWidget": "Matrix widget",
+    "richPresence.widgetsTitle": "Matrix widgets",
+    "richPresence.widgetsToggle": "Share the widget you have open",
+    "richPresence.widgetsHint":
+        "Shows the name of an open room widget, such as a game or whiteboard. The room is never shared.",
     "richPresence.blocked": "Blocked",
     "richPresence.allowed": "Allowed",
 

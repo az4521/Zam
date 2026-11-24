@@ -1007,6 +1007,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "richPresence.viaRpc": "Discord Rich Presence",
     "richPresence.viaMedia": "Player de mídia",
     "richPresence.viaPlugin": "Plugin",
+    "richPresence.viaWidget": "Widget do Matrix",
+    "richPresence.widgetsTitle": "Widgets do Matrix",
+    "richPresence.widgetsToggle": "Compartilhar o widget que você tem aberto",
+    "richPresence.widgetsHint":
+        "Mostra o nome de um widget de sala aberto, como um jogo ou quadro branco. A sala nunca é compartilhada.",
     "richPresence.blocked": "Bloqueado",
     "richPresence.allowed": "Permitido",
 

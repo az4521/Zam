@@ -4830,6 +4830,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "richPresence.viaRpc": "Discord Rich Presence",
     "richPresence.viaMedia": "Medienplayer",
     "richPresence.viaPlugin": "Plugin",
+    "richPresence.viaWidget": "Matrix-Widget",
+    "richPresence.widgetsTitle": "Matrix-Widgets",
+    "richPresence.widgetsToggle": "Das geöffnete Widget teilen",
+    "richPresence.widgetsHint":
+        "Zeigt den Namen eines geöffneten Raum-Widgets, etwa eines Spiels oder Whiteboards. Der Raum wird nie geteilt.",
     "richPresence.media": "Medienwiedergabe melden",
     "richPresence.mediaHint":
         "Zeigt den Titel oder das Video, das ein Medienplayer auf diesem Computer abspielt, aus den Wiedergabeinformationen des Systems. Jeder Player ist standardmäßig erlaubt, sobald dies eingeschaltet ist; unten kannst du die nicht gewünschten ausschalten.",
