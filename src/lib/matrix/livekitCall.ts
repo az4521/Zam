@@ -239,6 +239,7 @@ import {
     type MicProcessor,
 } from "$lib/audio/micProcessor";
 import { deepFilterSupported } from "$lib/audio/deepFilter";
+import { contextNeedsResume } from "$lib/audio/keepContextRunning";
 import { prepareDenoiser } from "$lib/audio/prepareDenoiser";
 import { acquireVoiceFilters } from "$lib/audio/voiceFilterLifetime";
 import type { MicGainMode } from "$lib/utils/micGainMode";
@@ -513,6 +514,16 @@ function enforceMicGate(call: ActiveVoiceCall): void {
         };
         track.on(call.lk.TrackEvent.Restarted, resync);
         track.on(call.lk.TrackEvent.TrackProcessorUpdate, resync);
+        // LiveKit pauses the upstream once the raw mic has been muted for 5s
+        // (iOS mutes it whenever the app is in the background) and resumes it
+        // by sending the RAW track, which bypasses Zam's mic chain and the
+        // push-to-talk gate. Put the chain's output back once it has.
+        track.on(call.lk.TrackEvent.UpstreamResumed, () => {
+            setTimeout(() => {
+                if (activeVoice !== call) return;
+                void restoreProcessedUpstream(track);
+            }, UPSTREAM_RESTORE_DELAY_MS);
+        });
     }
     if (!micGateOpen) syncMicSending(track, false);
 }
@@ -1419,6 +1430,14 @@ function localMicLoud(call: ActiveVoiceCall): boolean {
     }
     const analyser = localSpeaking.analyser;
     if (!analyser) return false;
+    // iOS stops the context in the background; a stopped one reads silence.
+    const speakCtx = localSpeaking.ctx;
+    if (
+        speakCtx &&
+        contextNeedsResume(speakCtx.state) &&
+        document.visibilityState === "visible"
+    )
+        void speakCtx.resume().catch(() => {});
     const samples = new Float32Array(analyser.fftSize);
     analyser.getFloatTimeDomainData(samples);
     let sum = 0;
@@ -3391,6 +3410,36 @@ async function leaveVoiceCallInternal(): Promise<void> {
 // The first-mic-track creation in flight, so a double unmute can't publish
 // two microphones.
 let micCreation: Promise<unknown> | null = null;
+
+/** How long after LiveKit resumes the upstream to swap the chain back in:
+ *  it emits the event before its own replaceTrack(raw) has run. */
+const UPSTREAM_RESTORE_DELAY_MS = 250;
+
+/** Send the mic chain's output again where LiveKit swapped the raw mic in. */
+async function restoreProcessedUpstream(
+    track: LivekitClient.LocalTrack,
+): Promise<void> {
+    const processed = (
+        track as unknown as {
+            processor?: { processedTrack?: MediaStreamTrack };
+        }
+    ).processor?.processedTrack;
+    const sender = track.sender;
+    if (
+        !processed ||
+        processed.readyState !== "live" ||
+        !sender ||
+        sender.track === processed ||
+        track.isUpstreamPaused
+    )
+        return;
+    try {
+        await sender.replaceTrack(processed);
+    } catch (err) {
+        console.warn("Couldn't restore the processed mic:", err);
+    }
+    syncMicSending(track, micSending());
+}
 
 /** LiveKit mutes a mic by disabling its raw track only. A mic with Zam's chain
  *  sends `processedTrack` instead, so that is disabled too (and must start

@@ -19,6 +19,7 @@ import {
 } from "./voiceNormalization";
 import { rememberLevel, rememberedLevel } from "./normalizerMemory";
 import { createSoftClipper } from "./softClip";
+import { contextNeedsResume, keepContextRunning } from "./keepContextRunning";
 
 const NORMALIZE_TICK_MS = 100;
 
@@ -151,13 +152,15 @@ export function createCallAudioGraph(opts: {
 
     const start = async () => {
         try {
-            if (ctx.state === "suspended") await ctx.resume();
+            if (contextNeedsResume(ctx.state)) await ctx.resume();
         } catch {
             /* stays suspended; surfaced via `suspended` */
         }
         void out?.play().catch(() => {});
     };
     ctx.onstatechange = () => opts.onSuspendedChange();
+    // iOS interrupts the context in the background; resume it on return.
+    const stopKeepAlive = keepContextRunning(ctx);
     void start();
 
     return {
@@ -278,7 +281,7 @@ export function createCallAudioGraph(opts: {
             deafen.gain.value = muted ? 0 : 1;
         },
         get suspended() {
-            return !closed && ctx.state === "suspended";
+            return !closed && contextNeedsResume(ctx.state);
         },
         resume: start,
         close() {
@@ -290,6 +293,7 @@ export function createCallAudioGraph(opts: {
                     if (r.key) rememberLevel(r.key, r.state, true);
             routed.clear();
             ctx.onstatechange = null;
+            stopKeepAlive();
             if (out) {
                 out.pause();
                 out.srcObject = null;

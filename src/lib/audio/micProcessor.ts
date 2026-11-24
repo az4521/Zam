@@ -26,6 +26,7 @@ import {
     type MicChainOptions,
 } from "./micChain";
 import { DEEP_FILTER_SAMPLE_RATE } from "./deepFilter";
+import { keepContextRunning } from "./keepContextRunning";
 
 /** How long to wait for a suspended context before sending the raw mic. */
 const RESUME_WAIT_MS = 300;
@@ -56,8 +57,13 @@ export function createMicProcessor(initial: MicChainOptions): MicProcessor {
     let chain: MicChain | null = null;
     let dest: MediaStreamAudioDestinationNode | null = null;
     let source: MediaStreamAudioSourceNode | null = null;
+    // iOS stops the context when the app is backgrounded; a stopped chain
+    // sends silence, so it is resumed on return (see keepContextRunning).
+    let stopKeepAlive: (() => void) | null = null;
 
     const teardown = () => {
+        stopKeepAlive?.();
+        stopKeepAlive = null;
         source?.disconnect();
         source = null;
         chain?.destroy();
@@ -81,6 +87,7 @@ export function createMicProcessor(initial: MicChainOptions): MicProcessor {
             // A context that won't run would send silence; with no
             // processedTrack LiveKit sends the raw mic instead.
             if (ctx.state !== "running") throw new Error("context suspended");
+            stopKeepAlive = keepContextRunning(ctx);
             chain = createMicChain(ctx, config);
             dest = ctx.createMediaStreamDestination();
             chain.output.connect(dest);
