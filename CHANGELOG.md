@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.3
+
+✨ **New**
+
+- **More of the widget API**: widgets can open their own dialogs, send stickers, open Matrix links in Zam, read this room's account data and see Matrix error codes. They also follow your language.
+- **Resizable widgets panel** on desktop: drag its left edge, and the width is remembered. On mobile the panel now opens full-screen.
+
+🐛 **Fixed**
+
+- **NeoBoard no longer wipes the board when someone opens it in Zam.** Zam couldn't see the board's saved record, so NeoBoard started a new, empty board each time. Boards wiped before this update can't be brought back.
+- **Widgets stop asking for the same permissions over and over.** Permissions you refuse are remembered too, you're only asked about new ones, and closing a prompt no longer counts as refusing.
+
 ## v1.67.2
 
 ✨ **New**
