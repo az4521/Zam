@@ -83,6 +83,28 @@ export function caretOffset(root: HTMLElement, fallback: number): number {
     return rangeModelLength(preCaret);
 }
 
+/**
+ * The selection's model offsets in `root`, or null when the selection isn't
+ * inside it (both ends must be, so a drag that left the composer is ignored).
+ */
+export function selectionOffsets(
+    root: HTMLElement,
+): { start: number; end: number } | null {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return null;
+    const range = selection.getRangeAt(0);
+    if (
+        !root.contains(range.startContainer) ||
+        !root.contains(range.endContainer)
+    )
+        return null;
+    const pre = document.createRange();
+    pre.setStart(root, 0);
+    pre.setEnd(range.startContainer, range.startOffset);
+    const start = rangeModelLength(pre);
+    return { start, end: start + rangeModelLength(range) };
+}
+
 /** Model length of the selection inside `root` (0 when collapsed or outside). */
 export function selectedLength(root: HTMLElement): number {
     const selection = window.getSelection();

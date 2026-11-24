@@ -78,7 +78,11 @@
         prepareComposerPreviews,
         readyBundledPreviews,
     } from "$lib/matrix/previewBundling";
-    import { composerInsertText } from "$lib/utils/composerInsert";
+    import {
+        composerInsertText,
+        insertAtSelection,
+        type ComposerSelection,
+    } from "$lib/utils/composerInsert";
     import {
         applyTextTransforms,
         applyContentTransforms,
@@ -100,6 +104,7 @@
         pastedPlainText,
         replaceKeepingImages,
         selectedLength,
+        selectionOffsets,
         setCaretOffset as setCaretOffsetIn,
     } from "$lib/utils/composerDom";
     import { decorateComposerText } from "$lib/utils/composerDecorate";
@@ -430,7 +435,8 @@
         (window as any).MatrixKeyboard?.setComposerFocused(focused);
     }
 
-    // Plugin composer.insertText → append to THIS (main) composer's text.
+    // Plugin composer.insertText → insert at THIS (main) composer's caret
+    // (appends when it has none).
     // Only the main composer claims the global slot (mirrors focusComposer).
     // roomId-guarded so a stale handler from a previous room drops silently.
     // `text` is read inside the handler (a user-action callback), NOT the
@@ -441,7 +447,7 @@
         const rid = roomId;
         const handler = (ctx: { roomId: string; text: string }) => {
             if (ctx.roomId !== rid) return false;
-            setComposerText(composerInsertText(text, ctx.text));
+            insertIntoComposer(ctx.text, true);
             textareaEl?.focus();
             return true;
         };
@@ -616,6 +622,43 @@
 
     function getCaretOffset(): number {
         return textareaEl ? caretOffset(textareaEl, text.length) : text.length;
+    }
+
+    // The composer's last selection while it had focus. Opening a picker moves
+    // focus (and the selection) away, so picker inserts land here instead of
+    // the end. Tagged with the text it was taken on; any later change to the
+    // text (draft load, send) makes it stale and inserts fall back to appending.
+    let savedSelection: (ComposerSelection & { text: string }) | null = null;
+
+    // Recorded on selectionchange, keyup, pointerup and blur: selectionchange
+    // alone was seen to miss caret moves. During blur activeElement has
+    // already left the composer, so blur skips the focus check.
+    function rememberSelection(requireFocus = true): void {
+        if (!textareaEl) return;
+        if (requireFocus && document.activeElement !== textareaEl) return;
+        const sel = selectionOffsets(textareaEl);
+        if (sel) savedSelection = { ...sel, text };
+    }
+
+    onMount(() => {
+        const onChange = () => rememberSelection();
+        document.addEventListener("selectionchange", onChange);
+        return () => document.removeEventListener("selectionchange", onChange);
+    });
+
+    function insertionSelection(): ComposerSelection | null {
+        if (textareaEl && document.activeElement === textareaEl) {
+            const live = selectionOffsets(textareaEl);
+            if (live) return live;
+        }
+        return savedSelection?.text === text ? savedSelection : null;
+    }
+
+    // Insert at the caret (or over the selection) the composer last had.
+    function insertIntoComposer(insert: string, pad = false): void {
+        const next = insertAtSelection(text, insert, insertionSelection(), pad);
+        savedSelection = null;
+        setComposerText(next.text, next.caret);
     }
 
     function setCaretOffset(offset: number): void {
@@ -1014,10 +1057,8 @@
         openComposerPicker("timestamp", effComposerKey);
     }
 
-    // Appends the token like the emoji and GIF inserts do (the composer has
-    // no caret-position insert helper).
     function insertTimestamp(token: string) {
-        setComposerText(composerInsertText(text, token));
+        insertIntoComposer(token, true);
         closeModal();
         textareaEl?.focus();
     }
@@ -2445,20 +2486,19 @@
     }
 
     function insertEmoji(emoji: string) {
-        setComposerText(text + textSymbolPresentation(emoji));
+        insertIntoComposer(textSymbolPresentation(emoji));
         closeModal();
         textareaEl?.focus();
     }
 
     function insertCustomEmoji(emoji: CustomEmoji) {
-        setComposerText(text + `:${emoji.shortcode}:`);
+        insertIntoComposer(`:${emoji.shortcode}:`);
         closeModal();
         textareaEl?.focus();
     }
 
     function insertGif(url: string) {
-        const next = text ? text + " " + url : url;
-        setComposerText(next);
+        insertIntoComposer(url, true);
         closeModal();
         textareaEl?.focus();
     }
@@ -3343,7 +3383,12 @@
                 onbeforeinput={onBeforeInput}
                 onpaste={onPaste}
                 onfocus={() => setKeyboardImageTarget(true)}
-                onblur={() => setKeyboardImageTarget(false)}
+                onkeyup={() => rememberSelection()}
+                onpointerup={() => rememberSelection()}
+                onblur={() => {
+                    rememberSelection(false);
+                    setKeyboardImageTarget(false);
+                }}
                 onclick={() => {
                     detectMentionQuery();
                     detectEmojiQuery();
