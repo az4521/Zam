@@ -657,9 +657,14 @@ jobs:
         permissions:
             pages: write
             id-token: write
+            actions: read
         environment:
             name: github-pages
             url: ${{ steps.deploy.outputs.page_url }}
+        env:
+            # Per attempt: artifacts outlive a re-run in the same run, and
+            # deploy-pages fails when two share a name.
+            PAGES_ARTIFACT: github-pages-${{ github.run_attempt }}
         steps:
             - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
               with:
@@ -668,6 +673,22 @@ jobs:
                   merge-multiple: true
             - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
               with:
+                  name: ${{ env.PAGES_ARTIFACT }}
                   path: parts
+            # The run's artifact list can lag the upload; deploy-pages does not
+            # retry and fails with "No artifacts named ... were found".
+            - name: Wait for the Pages artifact to be listed
+              shell: bash
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  for i in $(seq 1 30); do
+                    n=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$PAGES_ARTIFACT" --jq '.total_count')
+                    [ "$n" -ge 1 ] && exit 0
+                    sleep 2
+                  done
+                  echo "::warning::$PAGES_ARTIFACT not listed after 60s; trying the deploy anyway"
             - id: deploy
               uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+              with:
+                  artifact_name: ${{ env.PAGES_ARTIFACT }}
