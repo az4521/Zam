@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.7
+
+✨ **New**
+
+- **Widgets are reachable from a video room before you join the call.** The call view's header now has a widgets button that opens the chat with the widgets panel.
+- **Favourites switch to encrypted on their own** when you enter or generate your recovery key, the same way offline messages turn on.
+
+🐛 **Fixed**
+
+- **Emoji from the picker go where your cursor is** instead of at the end of the message, and replace any selected text. The same goes for custom emoji, GIFs and timestamps. ([#67](https://github.com/az4521/Zam/issues/67))
+
 ## v1.67.6
 
 ✨ **New**
