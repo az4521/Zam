@@ -24,6 +24,7 @@
         Bluetooth,
         ExternalLink,
         PictureInPicture2,
+        LayoutGrid,
     } from "lucide-svelte";
     import { longPress } from "$lib/actions/longPress";
     import Avatar from "$lib/components/ui/Avatar.svelte";
@@ -82,6 +83,7 @@
     import { screenShareSupportedHere } from "$lib/utils/videoTiles";
     import { widgetIdFromTileKey } from "$lib/utils/callWidgets";
     import {
+        canManageWidgets,
         listRoomWidgets,
         onRoomWidgetsChange,
     } from "$lib/matrix/widgetHost";
@@ -92,6 +94,7 @@
     } from "$lib/stores/callPopout.svelte";
     import {
         showChatView,
+        openSidebar,
         openModal,
         clearModalIfOwner,
         interfaceState,
@@ -235,6 +238,23 @@
         if (!inThisCall || popout || ids.length === 0) return [];
         return listRoomWidgets(room.roomId).filter((w) => ids.includes(w.id));
     });
+    // Before joining, the call controls (and their widgets button) are not
+    // shown, so the header offers the room's widgets instead: it switches to
+    // the chat with the widgets panel open. Same visibility rule as the chat
+    // header's button: the room has widgets or the user may add one.
+    const showHeaderWidgets = $derived.by(() => {
+        void widgetTick;
+        void roomsState.roomsTick;
+        if (inThisCall) return false;
+        return (
+            listRoomWidgets(room.roomId).length > 0 ||
+            canManageWidgets(room.roomId)
+        );
+    });
+    function openWidgetsInChat(): void {
+        showChatView();
+        openSidebar("widgets", () => {});
+    }
     // Every widget tile in this call's layout, in grid and filmstrip order.
     const tileWidgetIds = $derived(
         popout
@@ -489,6 +509,16 @@
                     aria-label={t("callPopout.popOut")}
                 >
                     <ExternalLink size={20} />
+                </button>
+            {/if}
+            {#if showHeaderWidgets}
+                <button
+                    onclick={openWidgetsInChat}
+                    class="p-1.5 rounded transition-colors text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover"
+                    title={t("messageArea.widgets")}
+                    aria-label={t("messageArea.widgets")}
+                >
+                    <LayoutGrid size={20} />
                 </button>
             {/if}
             <button
