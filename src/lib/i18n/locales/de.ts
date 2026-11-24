@@ -5162,6 +5162,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.add": "Widget hinzufügen",
     "widgets.empty": "Keine Widgets in diesem Raum.",
     "widgets.back": "Zurück zu den Widgets",
+    "widgets.resizePanel": "Größe des Widget-Bereichs ändern",
+    "widgets.close": "Widgets schließen",
     "widgets.openInBrowser": "Im Browser öffnen",
     "widgets.remove": "Entfernen",
     "widgets.confirmRemove": "{name} aus diesem Raum entfernen?",
@@ -5170,6 +5172,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.unsafeUrl":
         "Die Adresse dieses Widgets ist nicht erlaubt, daher wurde es nicht geladen.",
     "widgets.unavailable": "Melde dich erneut an, um dieses Widget zu öffnen.",
+    "widgets.modal.fallbackTitle": "Widget",
     "widgets.consent.body":
         "Dieses Widget wurde von {user} hinzugefügt. Beim Laden werden deine Nutzer-ID, dein Anzeigename, dein Avatar und die ID dieses Raums an {host} übermittelt.",
     "widgets.consent.allow": "Erlauben",
@@ -5230,6 +5233,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.cap.receiveSticky":
         "Ereignisse empfangen, die eine Weile aktuell bleiben",
     "widgets.cap.rtcTransports": "Den Anrufserver deines Homeservers abfragen",
+    "widgets.cap.sticker": "Sticker in diesem Raum senden",
+    "widgets.cap.receiveAccountData":
+        "Die Raum-Kontodaten vom Typ {eventType} lesen",
     "widgets.unsupportedCapabilities":
         "{widget} benötigt Funktionen, die Zam noch nicht unterstützt, und funktioniert daher eventuell nicht: {features}",
 };

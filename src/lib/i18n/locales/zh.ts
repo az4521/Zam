@@ -4604,6 +4604,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.add": "添加小组件",
     "widgets.empty": "此房间没有小组件。",
     "widgets.back": "返回小组件列表",
+    "widgets.resizePanel": "调整小组件面板大小",
+    "widgets.close": "关闭小组件",
     "widgets.openInBrowser": "在浏览器中打开",
     "widgets.remove": "移除",
     "widgets.confirmRemove": "从此房间移除 {name}？",
@@ -4611,6 +4613,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.removeFailed": "无法移除小组件",
     "widgets.unsafeUrl": "此小组件的地址不被允许，因此未加载。",
     "widgets.unavailable": "请重新登录以打开此小组件。",
+    "widgets.modal.fallbackTitle": "小组件",
     "widgets.consent.body":
         "此小组件由 {user} 添加。加载时，你的用户 ID、显示名称、头像和此房间的 ID 将与 {host} 共享。",
     "widgets.consent.allow": "允许",
@@ -4658,6 +4661,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.cap.sendSticky": "发送在一段时间内保持有效的事件",
     "widgets.cap.receiveSticky": "接收在一段时间内保持有效的事件",
     "widgets.cap.rtcTransports": "查询你的主服务器的通话服务器",
+    "widgets.cap.sticker": "在此房间发送贴纸",
+    "widgets.cap.receiveAccountData": "读取此房间的 {eventType} 账户数据",
     "widgets.unsupportedCapabilities":
         "{widget} 需要 Zam 尚不支持的功能，因此可能无法正常工作：{features}",
 };

@@ -5058,6 +5058,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.add": "Добавить виджет",
     "widgets.empty": "В этой комнате нет виджетов.",
     "widgets.back": "Назад к виджетам",
+    "widgets.resizePanel": "Изменить ширину панели виджетов",
+    "widgets.close": "Закрыть виджеты",
     "widgets.openInBrowser": "Открыть в браузере",
     "widgets.remove": "Удалить",
     "widgets.confirmRemove": "Удалить {name} из этой комнаты?",
@@ -5066,6 +5068,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.unsafeUrl":
         "Адрес этого виджета не разрешён, поэтому он не был загружен.",
     "widgets.unavailable": "Войдите снова, чтобы открыть этот виджет.",
+    "widgets.modal.fallbackTitle": "Виджет",
     "widgets.consent.body":
         "Этот виджет добавил {user}. При загрузке ваш ID пользователя, отображаемое имя, аватар и ID этой комнаты будут переданы {host}.",
     "widgets.consent.allow": "Разрешить",
@@ -5126,6 +5129,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Получать события, которые остаются актуальными какое-то время",
     "widgets.cap.rtcTransports":
         "Узнавать сервер звонков вашего домашнего сервера",
+    "widgets.cap.sticker": "Отправлять стикеры в этой комнате",
+    "widgets.cap.receiveAccountData":
+        "Читать данные учётной записи комнаты типа {eventType}",
     "widgets.unsupportedCapabilities":
         "{widget} нужны функции, которые Zam пока не поддерживает, поэтому он может не работать: {features}",
 };

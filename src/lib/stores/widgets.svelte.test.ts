@@ -41,11 +41,13 @@ describe("widget approvals", () => {
         setWidgetApproval(USER, ROOM, w, {
             load: true,
             capabilities: ["m.always_on_screen"],
+            denied: [],
             openId: false,
         });
         expect(getWidgetApproval(USER, ROOM, w)).toEqual({
             load: true,
             capabilities: ["m.always_on_screen"],
+            denied: [],
             openId: false,
         });
     });
@@ -55,6 +57,7 @@ describe("widget approvals", () => {
         setWidgetApproval(USER, ROOM, w, {
             load: true,
             capabilities: [],
+            denied: [],
             openId: null,
         });
         expect(getWidgetApproval(USER, "!other:example.org", w)).toBeNull();
@@ -67,6 +70,7 @@ describe("widget approvals", () => {
         setWidgetApproval(USER, ROOM, w, {
             load: true,
             capabilities: ["x"],
+            denied: [],
             openId: true,
         });
         const changed = widget({ url: "https://widgets.example.org/poll-v2" });
@@ -79,6 +83,7 @@ describe("widget approvals", () => {
         setWidgetApproval(USER, ROOM, w, {
             load: false,
             capabilities: [],
+            denied: [],
             openId: null,
         });
         forgetWidgetApproval(USER, ROOM, w);
@@ -96,6 +101,7 @@ describe("widget approvals", () => {
         setWidgetApproval(USER, ROOM, widget(), {
             load: true,
             capabilities: [],
+            denied: [],
             openId: null,
         });
         expect(getWidgetApproval(USER, ROOM, widget())).not.toBeNull();
@@ -103,7 +109,7 @@ describe("widget approvals", () => {
 
     it("drops malformed entries but keeps valid ones", () => {
         const w = widget();
-        const good = { load: true, capabilities: [], openId: null };
+        const good = { load: true, capabilities: [], denied: [], openId: null };
         localStorage.setItem(
             `zam_widget_approvals:${USER}`,
             JSON.stringify({
@@ -122,10 +128,64 @@ describe("widget approvals", () => {
         setWidgetApproval(null, ROOM, widget(), {
             load: true,
             capabilities: [],
+            denied: [],
             openId: null,
         });
         expect(localStorage.getItem("zam_widget_approvals")).not.toBeNull();
         expect(getWidgetApproval(null, ROOM, widget())).not.toBeNull();
+    });
+});
+
+describe("widget approval storage shape", () => {
+    beforeEach(() => {
+        localStorage.clear();
+    });
+
+    it("reads a legacy record without denied as having no refusals", () => {
+        const w = widget();
+        localStorage.setItem(
+            `zam_widget_approvals:${USER}`,
+            JSON.stringify({
+                [`${ROOM}|${w.id}|${w.url}`]: {
+                    load: true,
+                    capabilities: ["m.always_on_screen"],
+                    openId: null,
+                },
+            }),
+        );
+        expect(getWidgetApproval(USER, ROOM, w)).toEqual({
+            load: true,
+            capabilities: ["m.always_on_screen"],
+            denied: [],
+            openId: null,
+        });
+    });
+
+    it("persists refusals alongside approvals", () => {
+        const w = widget();
+        setWidgetApproval(USER, ROOM, w, {
+            load: true,
+            capabilities: ["a"],
+            denied: ["b"],
+            openId: null,
+        });
+        expect(getWidgetApproval(USER, ROOM, w)?.denied).toEqual(["b"]);
+    });
+
+    it("drops a refusal that is also an approval on read", () => {
+        const w = widget();
+        localStorage.setItem(
+            `zam_widget_approvals:${USER}`,
+            JSON.stringify({
+                [`${ROOM}|${w.id}|${w.url}`]: {
+                    load: true,
+                    capabilities: ["a"],
+                    denied: ["a", "b"],
+                    openId: null,
+                },
+            }),
+        );
+        expect(getWidgetApproval(USER, ROOM, w)?.denied).toEqual(["b"]);
     });
 });
 

@@ -27,16 +27,25 @@
     } from "$lib/matrix/widgetHost";
     import { widgetOrigin, type RoomWidget } from "$lib/utils/widgets";
     import { matrixErrorMessage } from "$lib/utils/knock";
-    import WidgetFrame, {
-        templatedWidgetUrl,
-    } from "$lib/components/layout/WidgetFrame.svelte";
+    import WidgetFrame from "$lib/components/layout/WidgetFrame.svelte";
+    import { templatedWidgetUrl } from "$lib/stores/widgetBridge";
     import AddWidgetDialog from "$lib/components/layout/AddWidgetDialog.svelte";
+    import { auth } from "$lib/stores/auth.svelte";
+    import { readScoped, writeScoped } from "$lib/utils/scopedStorage";
+    import {
+        WIDGETS_PANEL_DEFAULT_W,
+        WIDGETS_PANEL_MIN_W,
+        clampWidgetsPanelWidth,
+        parseStoredWidgetsPanelWidth,
+        widgetsPanelMaxWidth,
+    } from "$lib/utils/widgetsPanelWidth";
     import {
         ArrowLeft,
         ExternalLink,
         LayoutGrid,
         Plus,
         Trash2,
+        X,
     } from "lucide-svelte";
 
     // The room's widgets, in the right-hand panel. The list and the open
@@ -48,6 +57,99 @@
     }
 
     let { room, onClose }: Props = $props();
+
+    // Desktop width. The panel is resized from its left edge and the width is
+    // kept per account. On mobile the panel is a full-screen view (MessageArea
+    // sizes it), so the width is not used there.
+    const WIDTH_KEY = "layout.widgetsPanelWidth";
+    let width = $state(
+        parseStoredWidgetsPanelWidth(readScoped(WIDTH_KEY, auth.userId)) ??
+            WIDGETS_PANEL_DEFAULT_W,
+    );
+    // The room column this panel sits in (timeline plus panel). Its width caps
+    // the panel so the timeline keeps its minimum. The panel's parent is that
+    // column, so it is measured there and kept current with a ResizeObserver.
+    let rootEl = $state<HTMLDivElement | undefined>();
+    let columnWidth = $state(0);
+    $effect(() => {
+        // Skip `display: contents` wrappers: they have no box, so their
+        // width reads 0 and the cap fell back to the whole window.
+        let column = rootEl?.parentElement ?? null;
+        while (column && getComputedStyle(column).display === "contents")
+            column = column.parentElement;
+        if (!column || interfaceState.isMobile) return;
+        columnWidth = column.clientWidth;
+        const measured = column;
+        const ro = new ResizeObserver(() => {
+            columnWidth = measured.clientWidth;
+        });
+        ro.observe(column);
+        return () => ro.disconnect();
+    });
+    const columnOrViewport = () => columnWidth || window.innerWidth;
+    const maxWidth = $derived(widgetsPanelMaxWidth(columnOrViewport()));
+    const shownWidth = $derived(
+        clampWidgetsPanelWidth(width, columnOrViewport()),
+    );
+
+    function saveWidth() {
+        writeScoped(WIDTH_KEY, auth.userId, String(width));
+    }
+
+    // True while a drag is in progress. An overlay then covers the widget
+    // iframes, which would otherwise take the pointer and end the drag.
+    let resizing = $state(false);
+
+    function startResize(e: PointerEvent) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        const grip = e.currentTarget as HTMLElement;
+        // Capture keeps the moves on the grip even when the pointer crosses
+        // the iframe, which would otherwise receive them.
+        grip.setPointerCapture(e.pointerId);
+        const startX = e.clientX;
+        const startW = shownWidth;
+        resizing = true;
+        const move = (ev: PointerEvent) => {
+            // The grip is on the left edge, so dragging left widens the panel.
+            width = clampWidgetsPanelWidth(
+                startW + startX - ev.clientX,
+                columnOrViewport(),
+            );
+        };
+        const up = () => {
+            grip.removeEventListener("pointermove", move);
+            grip.removeEventListener("pointerup", up);
+            grip.removeEventListener("pointercancel", up);
+            resizing = false;
+            saveWidth();
+        };
+        grip.addEventListener("pointermove", move);
+        grip.addEventListener("pointerup", up);
+        grip.addEventListener("pointercancel", up);
+    }
+
+    function onResizeKey(e: KeyboardEvent) {
+        const step = e.shiftKey ? 96 : 24;
+        if (e.key === "ArrowLeft")
+            width = clampWidgetsPanelWidth(
+                shownWidth + step,
+                columnOrViewport(),
+            );
+        else if (e.key === "ArrowRight")
+            width = clampWidgetsPanelWidth(
+                shownWidth - step,
+                columnOrViewport(),
+            );
+        else return;
+        e.preventDefault();
+        saveWidth();
+    }
+
+    function resetWidth() {
+        width = WIDGETS_PANEL_DEFAULT_W;
+        saveWidth();
+    }
 
     // Re-derive when the widget state event changes (bumpWidgetsTick) or the
     // room's power levels do (roomsTick, for the manage actions).
@@ -140,10 +242,31 @@
 </script>
 
 <div
+    bind:this={rootEl}
+    style={interfaceState.isMobile ? undefined : `width: ${shownWidth}px;`}
     class="{interfaceState.isMobile
         ? ''
-        : 'w-[28rem] max-w-[60vw]'} h-full flex flex-col bg-zam-backgroundSecondary border-l border-zam-divider"
+        : 'relative flex-shrink-0 border-l border-zam-divider'} h-full flex flex-col bg-zam-backgroundSecondary"
 >
+    {#if !interfaceState.isMobile}
+        <!-- Resize grip on the left edge. A focusable separator is the ARIA
+             window-splitter pattern, as on the room list. -->
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+        <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t("widgets.resizePanel")}
+            aria-valuenow={shownWidth}
+            aria-valuemin={WIDGETS_PANEL_MIN_W}
+            aria-valuemax={maxWidth}
+            tabindex="0"
+            title={t("widgets.resizePanel")}
+            class="absolute inset-y-0 -left-1 w-2 z-20 cursor-col-resize touch-none hover:bg-zam-accent/40 focus-visible:bg-zam-accent/40 transition-colors"
+            onpointerdown={startResize}
+            ondblclick={resetWidth}
+            onkeydown={onResizeKey}
+        ></div>
+    {/if}
     <div
         class="h-12 flex items-center gap-2 px-4 py-3 border-b border-zam-divider flex-shrink-0"
     >
@@ -234,6 +357,19 @@
                 </button>
             {/if}
         {/if}
+        {#if interfaceState.isMobile}
+            <!-- Full-screen on mobile: the close control is the way out (the
+                 Android back button and Escape also close it). -->
+            <button
+                type="button"
+                onclick={onClose}
+                class="p-1 rounded text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover flex-shrink-0"
+                title={t("widgets.close")}
+                aria-label={t("widgets.close")}
+            >
+                <X size={20} />
+            </button>
+        {/if}
     </div>
 
     <div class="flex-1 min-h-0 flex flex-col overflow-y-auto">
@@ -299,6 +435,11 @@
         {/if}
     </div>
 </div>
+
+{#if resizing}
+    <!-- Covers the widget iframes for the length of a width drag. -->
+    <div class="fixed inset-0 z-50 cursor-col-resize" aria-hidden="true"></div>
+{/if}
 
 {#if adding && interfaceState.modal === "add-widget"}
     <AddWidgetDialog roomId={room.roomId} />

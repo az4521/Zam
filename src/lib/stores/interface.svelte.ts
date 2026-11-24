@@ -97,6 +97,10 @@ export type ModalId =
     // Approve a room widget's requested capabilities or OpenID access
     // (WidgetCapabilityDialog, mounted by WidgetFrame). Escape denies.
     | "widget-capabilities"
+    // A modal widget a room widget opened over the app (MSC2790,
+    // WidgetModalDialog, rendered by the opening WidgetFrame). Escape and
+    // backdrop dismiss it as m.exited through the slot's close handler.
+    | "widget-modal"
     // Add a widget to the room by URL (AddWidgetDialog, WidgetsPanel).
     | "add-widget";
 

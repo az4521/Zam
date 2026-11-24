@@ -30,6 +30,8 @@ export interface WidgetApproval {
     load: boolean;
     /** Capabilities the user approved. */
     capabilities: string[];
+    /** Capabilities the user refused. Refused ones are not asked again. */
+    denied: string[];
     /** Identity (OpenID) decision, or null when not asked yet. */
     openId: boolean | null;
 }
@@ -46,15 +48,31 @@ function approvalKey(
     return `${roomId}|${w.id}|${w.url}`;
 }
 
-function isApproval(value: unknown): value is WidgetApproval {
-    if (typeof value !== "object" || value === null) return false;
+/** Reads one stored record. Records written before `denied` existed read as
+ *  having no refusals. Returns null for anything malformed. */
+function normalizeApproval(value: unknown): WidgetApproval | null {
+    if (typeof value !== "object" || value === null) return null;
     const a = value as Record<string, unknown>;
-    return (
-        typeof a.load === "boolean" &&
-        Array.isArray(a.capabilities) &&
-        a.capabilities.every((c) => typeof c === "string") &&
-        (a.openId === null || typeof a.openId === "boolean")
-    );
+    if (
+        typeof a.load !== "boolean" ||
+        !Array.isArray(a.capabilities) ||
+        !a.capabilities.every((c) => typeof c === "string") ||
+        !(a.openId === null || typeof a.openId === "boolean")
+    )
+        return null;
+    const capabilities = a.capabilities as string[];
+    const denied = Array.isArray(a.denied)
+        ? a.denied.filter(
+              (c): c is string =>
+                  typeof c === "string" && !capabilities.includes(c),
+          )
+        : [];
+    return {
+        load: a.load,
+        capabilities: [...capabilities],
+        denied,
+        openId: a.openId as boolean | null,
+    };
 }
 
 function readApprovals(userId: string | null): ApprovalMap {
@@ -72,7 +90,8 @@ function readApprovals(userId: string | null): ApprovalMap {
         for (const [key, value] of Object.entries(
             parsed as Record<string, unknown>,
         )) {
-            if (isApproval(value)) out[key] = value;
+            const approval = normalizeApproval(value);
+            if (approval) out[key] = approval;
         }
         return out;
     } catch {
@@ -102,6 +121,7 @@ export function setWidgetApproval(
     map[approvalKey(roomId, w)] = {
         load: a.load,
         capabilities: [...a.capabilities],
+        denied: [...a.denied],
         openId: a.openId,
     };
     writeApprovals(userId, map);

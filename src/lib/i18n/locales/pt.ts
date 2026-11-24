@@ -5089,6 +5089,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.add": "Adicionar widget",
     "widgets.empty": "Não há widgets nesta sala.",
     "widgets.back": "Voltar aos widgets",
+    "widgets.resizePanel": "Redimensionar painel de widgets",
+    "widgets.close": "Fechar widgets",
     "widgets.openInBrowser": "Abrir no navegador",
     "widgets.remove": "Remover",
     "widgets.confirmRemove": "Remover {name} desta sala?",
@@ -5097,6 +5099,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.unsafeUrl":
         "O endereço deste widget não é permitido, por isso ele não foi carregado.",
     "widgets.unavailable": "Entre novamente para abrir este widget.",
+    "widgets.modal.fallbackTitle": "Widget",
     "widgets.consent.body":
         "Este widget foi adicionado por {user}. Ao carregá-lo, seu ID de usuário, nome de exibição, avatar e o ID desta sala serão compartilhados com {host}.",
     "widgets.consent.allow": "Permitir",
@@ -5158,6 +5161,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Receber eventos que continuam valendo por um tempo",
     "widgets.cap.rtcTransports":
         "Consultar o servidor de chamadas do seu servidor",
+    "widgets.cap.sticker": "Enviar figurinhas nesta sala",
+    "widgets.cap.receiveAccountData":
+        "Ler os dados de conta da sala do tipo {eventType}",
     "widgets.unsupportedCapabilities":
         "{widget} precisa de recursos que o Zam ainda não suporta, então pode não funcionar: {features}",
 };

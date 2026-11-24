@@ -1,44 +1,17 @@
-<script module lang="ts">
-    import { getLocale } from "$lib/i18n";
-    import { settingsState } from "$lib/stores/settings.svelte";
-    import { buildWidgetUrl, type RoomWidget } from "$lib/utils/widgets";
-    import { widgetUrlContext } from "$lib/matrix/widgetHost";
-
-    /** The app's base theme as a widget theme. Amoled is a dark theme. */
-    export function currentWidgetTheme(): "light" | "dark" {
-        return settingsState.theme === "light" ? "light" : "dark";
-    }
-
-    /**
-     * The widget's URL with its `$placeholders` filled in for the current user
-     * and room, or null when there is no signed-in client to fill them from.
-     * Used both for the iframe and for the "open in browser" link.
-     */
-    export function templatedWidgetUrl(
-        roomId: string,
-        w: RoomWidget,
-    ): string | null {
-        const ctx = widgetUrlContext(roomId, currentWidgetTheme(), getLocale());
-        if (!ctx) return null;
-        return buildWidgetUrl(w, ctx, location.origin + location.pathname);
-    }
-</script>
-
 <script lang="ts">
-    // Imports shared with the module script above (getLocale, settingsState,
-    // buildWidgetUrl, widgetUrlContext, RoomWidget) are not repeated here:
-    // both scripts share one module scope.
-    import { t, type MessageKey } from "$lib/i18n";
+    import { t, getLocale, type MessageKey } from "$lib/i18n";
     import { untrack } from "svelte";
     import { showToast } from "$lib/stores/toasts.svelte";
     import type { Room } from "matrix-js-sdk";
     import { auth } from "$lib/stores/auth.svelte";
+    import { settingsState } from "$lib/stores/settings.svelte";
     import { getMemberName } from "$lib/matrix/client";
     import { mountWidget, type MountedWidget } from "$lib/matrix/widgetHost";
     import {
         widgetOrigin,
         isUnsafeWidgetUrl,
         describeCapability,
+        type RoomWidget,
     } from "$lib/utils/widgets";
     import {
         widgetPrompts,
@@ -48,12 +21,24 @@
         resolveOpenIdRequest,
         dismissWidgetPrompt,
     } from "$lib/stores/widgetPrompts.svelte";
+    import {
+        closeWidgetModalFor,
+        openWidgetModal,
+        widgetModal,
+    } from "$lib/stores/widgetModal.svelte";
+    import {
+        navigateWidgetLink,
+        templatedWidgetUrl,
+    } from "$lib/stores/widgetBridge";
     import { interfaceState } from "$lib/stores/interface.svelte";
     import WidgetCapabilityDialog from "$lib/components/layout/WidgetCapabilityDialog.svelte";
+    import WidgetModalDialog from "$lib/components/layout/WidgetModalDialog.svelte";
 
     // One widget, sandboxed in an iframe. Owns the load consent card, the
     // capability/OpenID prompts it raises, and the postMessage bridge (via
-    // mountWidget). Mounted by WidgetsPanel while a widget is active.
+    // mountWidget). Mounted by WidgetsPanel while a widget is active. It also
+    // renders any modal widget this widget opened: that modal lives exactly as
+    // long as this frame, and tearing the frame down closes it.
     interface Props {
         room: Room;
         widget: RoomWidget;
@@ -100,7 +85,7 @@
         const w = widget;
         const rid = roomId;
         const u = url;
-        const m = untrack(() =>
+        const m: MountedWidget = untrack(() =>
             mountWidget({
                 iframe: el,
                 widget: w,
@@ -122,11 +107,24 @@
                         }),
                         { tone: "danger" },
                     ),
+                onNavigate: navigateWidgetLink,
+                // The modal is opened from this very handle, so it is named
+                // by `m`; the call happens only after mount, when `m` is set.
+                onOpenModal: (data) =>
+                    openWidgetModal({
+                        roomId: rid,
+                        opener: w,
+                        openerHandle: m,
+                        data,
+                    }),
             }),
         );
         mounted = m;
         frameSrc = u;
         return () => {
+            // Close the modal first, while the handle is still live, so the
+            // opener hears about it.
+            closeWidgetModalFor(m);
             m.dispose();
             mounted = null;
             frameSrc = null;
@@ -138,6 +136,15 @@
         const theme = settingsState.theme === "light" ? "light" : "dark";
         const m = mounted;
         if (m) untrack(() => m.setTheme(theme));
+    });
+
+    // The language is sent once the widget is up, and again whenever this
+    // handle is replaced. The locale itself is fixed for the page's life
+    // (changing it reloads the app, see i18n/index.ts), so there is no
+    // reactive source to track beyond the mount.
+    $effect(() => {
+        const m = mounted;
+        if (m) untrack(() => m.setLanguage(getLocale()));
     });
 
     // A prompt belongs to this frame. If the frame goes away while the user is
@@ -159,6 +166,15 @@
     const showPrompt = $derived(
         widgetPrompts.current !== null &&
             interfaceState.modal === "widget-capabilities",
+    );
+
+    // The modal this frame opened, while its slot is still ours.
+    const ownModal = $derived(
+        widgetModal.current !== null &&
+            widgetModal.current.openerHandle === mounted &&
+            interfaceState.modal === "widget-modal"
+            ? widgetModal.current
+            : null,
     );
 </script>
 
@@ -212,5 +228,11 @@
 {#if showPrompt && widgetPrompts.current}
     {#key widgetPrompts.current.id}
         <WidgetCapabilityDialog prompt={widgetPrompts.current} />
+    {/key}
+{/if}
+
+{#if ownModal}
+    {#key ownModal.token}
+        <WidgetModalDialog modal={ownModal} />
     {/key}
 {/if}

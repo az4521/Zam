@@ -4578,6 +4578,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.add": "ウィジェットを追加",
     "widgets.empty": "このルームにウィジェットはありません。",
     "widgets.back": "ウィジェット一覧に戻る",
+    "widgets.resizePanel": "ウィジェットパネルのサイズを変更",
+    "widgets.close": "ウィジェットを閉じる",
     "widgets.openInBrowser": "ブラウザで開く",
     "widgets.remove": "削除",
     "widgets.confirmRemove": "このルームから {name} を削除しますか？",
@@ -4587,6 +4589,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "このウィジェットのアドレスは許可されていないため、読み込まれませんでした。",
     "widgets.unavailable":
         "このウィジェットを開くには、再度サインインしてください。",
+    "widgets.modal.fallbackTitle": "ウィジェット",
     "widgets.consent.body":
         "このウィジェットは {user} が追加しました。読み込むと、ユーザーID、表示名、アバター、このルームのIDが {host} に共有されます。",
     "widgets.consent.allow": "許可",
@@ -4641,6 +4644,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.cap.sendSticky": "しばらく有効なイベントを送信する",
     "widgets.cap.receiveSticky": "しばらく有効なイベントを受信する",
     "widgets.cap.rtcTransports": "ホームサーバーの通話サーバーを調べる",
+    "widgets.cap.sticker": "このルームにステッカーを送信する",
+    "widgets.cap.receiveAccountData":
+        "ルームのアカウントデータ（{eventType}）を読む",
     "widgets.unsupportedCapabilities":
         "{widget} には Zam がまだ対応していない機能が必要なため、動作しない可能性があります: {features}",
 };

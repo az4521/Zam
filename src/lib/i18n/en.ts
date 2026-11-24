@@ -4898,6 +4898,8 @@ export const en = {
     "widgets.add": "Add widget",
     "widgets.empty": "No widgets in this room.",
     "widgets.back": "Back to widgets",
+    "widgets.resizePanel": "Resize widgets panel",
+    "widgets.close": "Close widgets",
     "widgets.openInBrowser": "Open in browser",
     "widgets.remove": "Remove",
     "widgets.confirmRemove": "Remove {name} from this room?",
@@ -4906,6 +4908,7 @@ export const en = {
     "widgets.unsafeUrl":
         "This widget's address is not allowed, so it was not loaded.",
     "widgets.unavailable": "Sign in again to open this widget.",
+    "widgets.modal.fallbackTitle": "Widget",
     "widgets.consent.body":
         "This widget was added by {user}. Loading it will share your user ID, display name, avatar and this room's ID with {host}.",
     "widgets.consent.allow": "Allow",
@@ -4956,6 +4959,9 @@ export const en = {
     "widgets.cap.sendSticky": "Send events that stay current for a while",
     "widgets.cap.receiveSticky": "Receive events that stay current for a while",
     "widgets.cap.rtcTransports": "Look up your homeserver's call server",
+    "widgets.cap.sticker": "Send stickers in this room",
+    "widgets.cap.receiveAccountData":
+        "Read this room's {eventType} account data",
     "widgets.unsupportedCapabilities":
         "{widget} needs features Zam does not support yet, so it may not work: {features}",
 };

@@ -238,6 +238,7 @@ const SIMPLE_CAPABILITY_KEYS: Record<string, string> = {
     "org.matrix.msc4407.send.sticky_event": "widgets.cap.sendSticky",
     "org.matrix.msc4407.receive.sticky_event": "widgets.cap.receiveSticky",
     "org.matrix.msc4515.rtc_transports": "widgets.cap.rtcTransports",
+    "m.sticker": "widgets.cap.sticker",
 };
 
 const TIMELINE_PREFIX = "org.matrix.msc2762.timeline:";
@@ -256,6 +257,8 @@ export const WIDGET_CAP_KEYS: string[] = [
     "widgets.cap.sendSticky",
     "widgets.cap.receiveSticky",
     "widgets.cap.rtcTransports",
+    "widgets.cap.sticker",
+    "widgets.cap.receiveAccountData",
     "widgets.cap.timelineAll",
     "widgets.cap.timelineRoom",
     "widgets.cap.sendState",
@@ -284,7 +287,13 @@ export function describeCapability(cap: string): CapabilityDescription {
     }
 
     const [parsed] = WidgetEventCapability.findEventCapabilities([cap]);
-    if (parsed && parsed.kind !== EventKind.RoomAccount) {
+    if (parsed?.kind === EventKind.RoomAccount) {
+        return {
+            key: "widgets.cap.receiveAccountData",
+            params: { eventType: parsed.eventType },
+        };
+    }
+    if (parsed) {
         const send = parsed.direction === EventDirection.Send;
         const eventType = parsed.eventType;
         if (parsed.kind === EventKind.State) {

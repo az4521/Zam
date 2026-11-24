@@ -20,7 +20,7 @@
     // Seeded once: each prompt is its own keyed instance, and the dialog is
     // modal, so the requested list cannot change under the user.
     let picked = $state<string[]>(untrack(() => [...prompt.capabilities]));
-    let remember = $state(false);
+    let remember = $state(true);
 
     const isOpenId = untrack(() => prompt.mode === "openid");
 
@@ -30,7 +30,15 @@
         closeModal();
     }
 
+    // The Deny button is an explicit refusal, recorded with the remember flag.
     function deny() {
+        prompt.settle({ approved: [], remember });
+        closeModal();
+    }
+
+    // Escape, backdrop and back dismiss: the prompt settles as dismissed and
+    // nothing is recorded.
+    function dismiss() {
         closeModal();
     }
 
@@ -42,7 +50,7 @@
 
 <Portal>
     <ModalDialog
-        onClose={deny}
+        onClose={dismiss}
         labelledBy="widget-capabilities-title"
         panelClass="relative flex max-h-[min(640px,90dvh)] w-full max-w-md flex-col overflow-hidden rounded-lg bg-zam-backgroundSecondary shadow-xl"
     >

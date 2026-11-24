@@ -3713,7 +3713,16 @@
         <UserProfileCard {room} />
 
         <!-- Right panel (pinned or notifications inbox) -->
-        {#if isMobile}
+        {#if isMobile && showWidgetsPanel}
+            <!-- Widgets take the whole room view on mobile: the 280px drawer
+                 below is too narrow for a widget. -->
+            <div
+                class="absolute inset-0 z-40 flex flex-col bg-zam-backgroundSecondary"
+                style="padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);"
+            >
+                <WidgetsPanel {room} onClose={closeSidebar} />
+            </div>
+        {:else if isMobile}
             <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
             <div
                 class="absolute inset-0 z-30"
@@ -3756,8 +3765,6 @@
                     />
                 {:else if showMediaPanel}
                     <RoomMediaPanel {room} onClose={closeSidebar} />
-                {:else if showWidgetsPanel}
-                    <WidgetsPanel {room} onClose={closeSidebar} />
                 {:else}
                     <PinnedMessagesPanel
                         {room}

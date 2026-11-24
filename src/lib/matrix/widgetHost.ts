@@ -8,6 +8,8 @@
  */
 import {
     ClientEvent,
+    Direction,
+    MatrixError,
     MatrixEventEvent,
     RoomEvent,
     RoomStateEvent,
@@ -18,15 +20,17 @@ import {
 } from "matrix-js-sdk";
 import {
     ClientWidgetApi,
-    EventKind,
     OpenIDRequestState,
     SimpleObservable,
     Widget,
     WidgetDriver,
-    WidgetEventCapability,
     type Capability,
     type IGetMediaConfigResult,
+    type IMatrixApiError,
+    type IModalWidgetOpenRequestData,
+    type IModalWidgetReturnData,
     type IOpenIDUpdate,
+    type IReadEventRelationsResult,
     type IRoomAccountData,
     type IRoomEvent,
     type ISearchUserDirectoryResult,
@@ -34,8 +38,13 @@ import {
     type IRtcTransportsResult,
     type ISendDelayedEventDetails,
     type ISendEventDetails,
+    type IStickerActionRequestData,
+    type IStickyActionResponseData,
     type ITurnServer,
+    type IWidgetApiErrorResponseDataDetails,
+    type IWidgetApiRequest,
 } from "matrix-widget-api";
+import { parseMatrixLink } from "$lib/utils/matrixLinks";
 import {
     captureClient,
     getClient,
@@ -54,6 +63,13 @@ import {
     type WidgetUrlContext,
 } from "$lib/utils/widgets";
 
+export type {
+    IModalWidgetOpenRequestData,
+    IModalWidgetOpenRequestDataButton,
+    IModalWidgetReturnData,
+    ModalButtonID,
+} from "matrix-widget-api";
+
 const WIDGET_STATE_TYPE = "im.vector.modular.widgets";
 const APP_CLIENT_ID = "moe.crafty.zam";
 /** Upper bound for a widget-initiated media download. */
@@ -68,15 +84,13 @@ function isWidgetStateType(type: string): boolean {
 /**
  * Capabilities Zam does not implement are dropped before the user is asked,
  * so a prompt never offers something the driver would then reject: LiveKit
- * tokens and delegated leave (MSC4533), and room account data.
+ * tokens and delegated leave (MSC4533). Room account data is supported for
+ * the widget's own room only.
  */
 const UNSUPPORTED_CAPABILITY_PREFIXES = ["org.matrix.msc4533."];
 
 export function isSupportedCapability(cap: string): boolean {
-    if (UNSUPPORTED_CAPABILITY_PREFIXES.some((p) => cap.startsWith(p)))
-        return false;
-    const [parsed] = WidgetEventCapability.findEventCapabilities([cap]);
-    return parsed?.kind !== EventKind.RoomAccount;
+    return !UNSUPPORTED_CAPABILITY_PREFIXES.some((p) => cap.startsWith(p));
 }
 
 function rememberId(set: Set<string>, id: string): void {
@@ -90,6 +104,71 @@ function rememberId(set: Set<string>, id: string): void {
 function toRaw(event: MatrixEvent): IRoomEvent {
     return event.getEffectiveEvent() as unknown as IRoomEvent;
 }
+
+/** A state event as GET /rooms/{id}/state returns it (no room_id). */
+export interface ServerStateEvent {
+    type: string;
+    state_key: string;
+    event_id?: string;
+    sender?: string;
+    origin_server_ts?: number;
+    content: Record<string, unknown>;
+    unsigned?: Record<string, unknown>;
+}
+
+/**
+ * The state events of one type (and, when given, one state key), shaped as
+ * widget-API room events for `roomId`. Pure, so the widget read path is testable.
+ */
+export function filterStateEvents(
+    events: readonly ServerStateEvent[],
+    roomId: string,
+    eventType: string,
+    stateKey: string | undefined,
+): IRoomEvent[] {
+    return events
+        .filter(
+            (e) =>
+                e.type === eventType &&
+                (stateKey === undefined || e.state_key === stateKey),
+        )
+        .map((e) => ({
+            type: e.type,
+            state_key: e.state_key,
+            event_id: e.event_id ?? "",
+            sender: e.sender ?? "",
+            origin_server_ts: e.origin_server_ts ?? 0,
+            content: e.content,
+            unsigned: e.unsigned ?? {},
+            room_id: roomId,
+        }));
+}
+
+/**
+ * Wraps `fetch` so calls within `ttlMs` of the last one share its promise.
+ * A failed fetch is forgotten at once, so the next call retries.
+ */
+export function coalescedFetch<T>(
+    fetch: () => Promise<T>,
+    ttlMs: number,
+    now: () => number = Date.now,
+): () => Promise<T> {
+    let last: { at: number; promise: Promise<T> } | null = null;
+    return () => {
+        const t = now();
+        if (last && t - last.at < ttlMs) return last.promise;
+        const promise = fetch();
+        const entry = { at: t, promise };
+        last = entry;
+        promise.catch(() => {
+            if (last === entry) last = null;
+        });
+        return promise;
+    };
+}
+
+/** How long one server state read is shared by the reads around it. */
+const STATE_FETCH_TTL_MS = 2000;
 
 // ---------------------------------------------------------------------------
 // Room state: reading, watching and writing widget entries.
@@ -269,6 +348,7 @@ interface DriverDeps {
     requestCapabilities(requested: Set<string>): Promise<Set<string>>;
     requestOpenId(): Promise<boolean>;
     onUnsupportedCapabilities?(caps: string[]): void;
+    onNavigate?(uri: string): Promise<void>;
 }
 
 /**
@@ -288,6 +368,15 @@ class ZamWidgetDriver extends WidgetDriver {
         return ownedClientOrThrow(this.deps.owner);
     }
 
+    /**
+     * The whole room state from the server, shared across rapid reads. A
+     * widget reads several types at startup; this makes that one request.
+     */
+    private readonly fetchRoomState = coalescedFetch(
+        () => this.client().roomState(this.deps.roomId),
+        STATE_FETCH_TTL_MS,
+    );
+
     /** The bound room only: a widget may not act on another room. */
     private resolveRoom(requested: string | null | undefined): string {
         if (!requested || requested === this.deps.roomId)
@@ -297,6 +386,24 @@ class ZamWidgetDriver extends WidgetDriver {
 
     override getKnownRooms(): string[] {
         return [this.deps.roomId];
+    }
+
+    /**
+     * A Matrix API error from the driver reaches the widget with its status and
+     * errcode (rate limits are read this way), as Element passes them on.
+     */
+    override processError(
+        error: unknown,
+    ): IWidgetApiErrorResponseDataDetails | undefined {
+        if (!(error instanceof MatrixError)) return undefined;
+        return {
+            matrix_api_error: {
+                http_status: error.httpStatus ?? 0,
+                http_headers: {},
+                url: error.url ?? "",
+                response: error.data as unknown as IMatrixApiError["response"],
+            },
+        };
     }
 
     override async validateCapabilities(
@@ -540,13 +647,72 @@ class ZamWidgetDriver extends WidgetDriver {
         );
     }
 
+    /**
+     * Pages the server's relations of `eventId`. The library default answers
+     * with an empty list, which widgets that keep their data as related events
+     * (NeoBoard's snapshots and chunks) read as "nothing saved yet": NeoBoard
+     * then started from a blank board and saved it over the real one.
+     */
+    override async readEventRelations(
+        eventId: string,
+        roomId?: string,
+        relationType?: string,
+        eventType?: string,
+        from?: string,
+        to?: string,
+        limit?: number,
+        direction?: "f" | "b",
+    ): Promise<IReadEventRelationsResult> {
+        const target = this.resolveRoom(roomId);
+        const { events, nextBatch, prevBatch } = await this.client().relations(
+            target,
+            eventId,
+            relationType ?? null,
+            eventType ?? null,
+            {
+                from,
+                to,
+                limit,
+                dir:
+                    direction === "f"
+                        ? Direction.Forward
+                        : direction === "b"
+                          ? Direction.Backward
+                          : undefined,
+            },
+        );
+        return {
+            chunk: events.map(toRaw),
+            nextBatch: nextBatch ?? undefined,
+            prevBatch: prevBatch ?? undefined,
+        };
+    }
+
+    /**
+     * Answers from the server, not the local state. Sliding sync loads only the
+     * state types in SLIDING_ROOM_STATE, so a widget's own types (NeoBoard's
+     * `net.nordeck.whiteboard`) are never in `room.currentState`. An empty answer
+     * made NeoBoard create a new board over the existing one. Local state is the
+     * fallback when the server cannot be reached. Live changes still arrive via
+     * feedStateUpdate.
+     */
     override async readRoomState(
         roomId: string,
         eventType: string,
         stateKey: string | undefined,
     ): Promise<IRoomEvent[]> {
         if (roomId !== this.deps.roomId) return [];
-        const room = this.client().getRoom(roomId);
+        this.client();
+        let fetched: ServerStateEvent[] | null = null;
+        try {
+            fetched = await this.fetchRoomState();
+        } catch (e) {
+            console.warn("[zam] widget state read fell back to local state", e);
+        }
+        const client = ownedClientOrThrow(this.deps.owner);
+        if (fetched)
+            return filterStateEvents(fetched, roomId, eventType, stateKey);
+        const room = client.getRoom(roomId);
         if (!room) return [];
         if (stateKey === undefined)
             return room.currentState.getStateEvents(eventType).map(toRaw);
@@ -563,12 +729,16 @@ class ZamWidgetDriver extends WidgetDriver {
         return this.readRoomState(this.deps.roomId, eventType, stateKey);
     }
 
+    /** The widget's own room's account data of one type. `_roomIds` is ignored: other rooms are never read. */
     override async readRoomAccountData(
-        _eventType: string,
+        eventType: string,
         _roomIds?: string[] | null,
     ): Promise<IRoomAccountData[]> {
-        // Not offered: room account data is filtered out of the capability prompt.
-        return [];
+        const roomId = this.deps.roomId;
+        const room = this.client().getRoom(roomId);
+        const ev = room?.getAccountData(eventType);
+        if (!ev) return [];
+        return [{ type: eventType, room_id: roomId, content: ev.getContent() }];
     }
 
     override askOpenID(observer: SimpleObservable<IOpenIDUpdate>): void {
@@ -606,12 +776,13 @@ class ZamWidgetDriver extends WidgetDriver {
         }
     }
 
+    /** Opens a matrix link in Zam. Other urls are refused. */
     override async navigate(uri: string): Promise<void> {
-        // Only matrix.to permalinks. Zam does not route widget navigation yet,
-        // so the request is accepted and nothing happens.
-        if (!uri.startsWith("https://matrix.to/#/")) {
-            throw new Error("widget navigation is limited to matrix.to links");
-        }
+        this.client();
+        if (!parseMatrixLink(uri))
+            throw new Error("widget navigation needs a matrix link");
+        if (!this.deps.onNavigate) throw new Error("navigation not available");
+        await this.deps.onNavigate(uri);
     }
 
     override async *getTurnServers(): AsyncGenerator<ITurnServer> {
@@ -674,6 +845,11 @@ class ZamWidgetDriver extends WidgetDriver {
 export interface MountedWidget {
     dispose(): void;
     setTheme(theme: "light" | "dark"): void;
+    setLanguage(code: string): void;
+    /** Opener side: tells the modal widget it was closed with `data`. */
+    notifyModalClosed(data: IModalWidgetReturnData): void;
+    /** Modal side: tells the opener that the button `id` was clicked. */
+    notifyButtonClicked(id: string): void;
 }
 
 export interface MountWidgetOptions {
@@ -688,6 +864,20 @@ export interface MountWidgetOptions {
     requestOpenId(): Promise<boolean>;
     /** Told which requested capabilities Zam cannot provide (never asked about). */
     onUnsupportedCapabilities?(caps: string[]): void;
+    /** Opens a matrix link the widget navigated to. Without it navigation is refused. */
+    onNavigate?(uri: string): Promise<void>;
+    /**
+     * Opener side: the widget asks to open a modal. Return false when one is
+     * already open; the widget is then told so. Without it the library refuses.
+     */
+    onOpenModal?(data: IModalWidgetOpenRequestData): boolean;
+    /** Set when this widget is itself shown as a modal of another widget. */
+    modal?: {
+        /** Sent to the modal widget as its widget_config once it is ready. */
+        config: IModalWidgetOpenRequestData;
+        onClose(data: IModalWidgetReturnData): void;
+        onSetButtonEnabled(id: string, enabled: boolean): void;
+    };
     onReady?(): void;
 }
 
@@ -697,7 +887,13 @@ export interface MountWidgetOptions {
  * Returns a no-op handle when no client is logged in.
  */
 export function mountWidget(opts: MountWidgetOptions): MountedWidget {
-    const noop: MountedWidget = { dispose() {}, setTheme() {} };
+    const noop: MountedWidget = {
+        dispose() {},
+        setTheme() {},
+        setLanguage() {},
+        notifyModalClosed() {},
+        notifyButtonClicked() {},
+    };
     let owner: ClientOwnership<MatrixClient>;
     try {
         owner = captureClient();
@@ -722,6 +918,7 @@ export function mountWidget(opts: MountWidgetOptions): MountedWidget {
         requestCapabilities: opts.requestCapabilities,
         requestOpenId: opts.requestOpenId,
         onUnsupportedCapabilities: opts.onUnsupportedCapabilities,
+        onNavigate: opts.onNavigate,
     });
     const api = new ClientWidgetApi(widget, opts.iframe, driver);
     // Without a viewed room the API drops every fed event and state update
@@ -736,6 +933,8 @@ export function mountWidget(opts: MountWidgetOptions): MountedWidget {
     let disposed = false;
     let ready = false;
     let theme: "light" | "dark" | null = null;
+    let language: string | null = null;
+    const modal = opts.modal;
     const unsubs: Array<() => void> = [];
     // Live encrypted events waiting for their decryption, and the ids already fed.
     const pendingEncrypted = new Set<string>();
@@ -818,15 +1017,122 @@ export function mountWidget(opts: MountWidgetOptions): MountedWidget {
         ready = true;
         attachFeeds();
         if (theme) applyTheme(theme);
+        if (language !== null) applyLanguage(language);
+        if (modal) {
+            api.sendWidgetConfig(modal.config).catch((e) =>
+                console.warn("[zam] widget config failed", e),
+            );
+        }
         opts.onReady?.();
     });
     api.on("error:preparing", (e: unknown) => {
         console.warn("[zam] widget failed to prepare", e);
     });
 
+    // Sticker sending: the widget's own room only, through the owned client.
+    api.on("action:m.sticker", (ev: CustomEvent<IWidgetApiRequest>) => {
+        if (!api.hasCapability("m.sticker")) return;
+        ev.preventDefault();
+        const data = ev.detail.data as Partial<IStickerActionRequestData>;
+        const url = data.content?.url;
+        if (typeof url !== "string" || !url.startsWith("mxc://")) {
+            api.transport.reply(ev.detail, {
+                error: { message: "a sticker needs an mxc url" },
+            });
+            return;
+        }
+        void (async () => {
+            try {
+                await ownedClientOrThrow(owner).sendEvent(
+                    opts.roomId,
+                    "m.sticker" as never,
+                    {
+                        body: data.description || data.name || "",
+                        url,
+                        info: data.content?.info ?? {},
+                    } as never,
+                );
+                api.transport.reply(ev.detail, {});
+            } catch (e) {
+                api.transport.reply(ev.detail, {
+                    error: {
+                        message:
+                            e instanceof Error ? e.message : "sticker not sent",
+                        ...driver.processError(e),
+                    },
+                });
+            }
+        })();
+    });
+
+    // Always on screen: widgets stay mounted while open, so this is acknowledged.
+    api.on(
+        "action:set_always_on_screen",
+        (ev: CustomEvent<IWidgetApiRequest>) => {
+            if (
+                !api.hasCapability("m.always_on_screen") &&
+                !api.hasCapability("org.matrix.msc2931.always_on_screen")
+            )
+                return;
+            ev.preventDefault();
+            const res: IStickyActionResponseData = { success: true };
+            api.transport.reply(ev.detail, res);
+        },
+    );
+
+    // Modal widgets (MSC2790). The opener side asks to open one; the modal
+    // side answers its close and button-state requests.
+    api.on("action:open_modal", (ev: CustomEvent<IWidgetApiRequest>) => {
+        if (!opts.onOpenModal) return;
+        ev.preventDefault();
+        const opened = opts.onOpenModal(
+            ev.detail.data as IModalWidgetOpenRequestData,
+        );
+        api.transport.reply(
+            ev.detail,
+            opened ? {} : { error: { message: "a modal is already open" } },
+        );
+    });
+    api.on("action:close_modal", (ev: CustomEvent<IWidgetApiRequest>) => {
+        if (!modal) return;
+        ev.preventDefault();
+        api.transport.reply(ev.detail, {});
+        modal.onClose(ev.detail.data as IModalWidgetReturnData);
+    });
+    api.on(
+        "action:set_button_enabled",
+        (ev: CustomEvent<IWidgetApiRequest>) => {
+            if (!modal) return;
+            ev.preventDefault();
+            const data = ev.detail.data as {
+                button?: unknown;
+                enabled?: unknown;
+            };
+            if (
+                typeof data.button !== "string" ||
+                typeof data.enabled !== "boolean"
+            ) {
+                api.transport.reply(ev.detail, {
+                    error: {
+                        message: "set_button_enabled needs button and enabled",
+                    },
+                });
+                return;
+            }
+            api.transport.reply(ev.detail, {});
+            modal.onSetButtonEnabled(data.button, data.enabled);
+        },
+    );
+
     const applyTheme = (next: "light" | "dark") => {
         api.updateTheme({ name: next }).catch((e) =>
             console.warn("[zam] widget theme update failed", e),
+        );
+    };
+
+    const applyLanguage = (code: string) => {
+        api.updateLanguage(code).catch((e) =>
+            console.warn("[zam] widget language update failed", e),
         );
     };
 
@@ -846,6 +1152,22 @@ export function mountWidget(opts: MountWidgetOptions): MountedWidget {
         setTheme(next) {
             theme = next;
             if (!disposed && ready) applyTheme(next);
+        },
+        setLanguage(next) {
+            language = next;
+            if (!disposed && ready) applyLanguage(next);
+        },
+        notifyModalClosed(data) {
+            if (disposed || !ready) return;
+            api.notifyModalWidgetClose(data).catch((e) =>
+                console.warn("[zam] widget modal close failed", e),
+            );
+        },
+        notifyButtonClicked(id) {
+            if (disposed || !ready) return;
+            api.notifyModalWidgetButtonClicked(id).catch((e) =>
+                console.warn("[zam] widget button notify failed", e),
+            );
         },
     };
 }

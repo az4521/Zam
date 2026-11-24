@@ -516,6 +516,21 @@ describe("describeCapability", () => {
         });
     });
 
+    it("maps room account data and sticker capabilities", () => {
+        expect(
+            describeCapability(
+                "com.beeper.capabilities.receive.room_account_data:com.example.x",
+            ),
+        ).toEqual({
+            key: "widgets.cap.receiveAccountData",
+            params: { eventType: "com.example.x" },
+        });
+        expect(describeCapability("m.sticker")).toEqual({
+            key: "widgets.cap.sticker",
+            params: {},
+        });
+    });
+
     it("falls back to unknown with the raw capability", () => {
         expect(describeCapability("com.example.mystery")).toEqual({
             key: "widgets.cap.unknown",
@@ -550,6 +565,8 @@ describe("describeCapability", () => {
                 "org.matrix.msc2762.receive.event:m.room.message#m.text",
                 "org.matrix.msc3819.send.to_device:a",
                 "org.matrix.msc3819.receive.to_device:a",
+                "com.beeper.capabilities.receive.room_account_data:a",
+                "m.sticker",
                 "x.unknown",
             ].map((c) => describeCapability(c).key),
         );

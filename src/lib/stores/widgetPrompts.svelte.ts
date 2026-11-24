@@ -21,6 +21,12 @@ export interface WidgetPromptDecision {
     approved: string[];
     /** Persist the decision across sessions, not just this one. */
     remember: boolean;
+    /**
+     * The prompt went away without an answer (Escape, backdrop, back, the
+     * widget unmounting, or a newer prompt superseding it). Nothing is
+     * recorded for a dismissal: the user never decided.
+     */
+    dismissed?: boolean;
 }
 
 export interface WidgetPromptRequest {
@@ -36,7 +42,11 @@ export interface WidgetPrompt extends WidgetPromptRequest {
     settle(decision: WidgetPromptDecision): void;
 }
 
-const DENY: WidgetPromptDecision = { approved: [], remember: false };
+const DISMISSED: WidgetPromptDecision = {
+    approved: [],
+    remember: false,
+    dismissed: true,
+};
 
 /**
  * `current` is $state, so the dialog re-renders when a prompt appears. The
@@ -73,17 +83,17 @@ export function askWidgetPermission(
                 resolve(decision);
             },
         };
-        // A prompt superseded by a newer one is denied, as if dismissed.
-        widgetPrompts.current?.settle(DENY);
+        // A prompt superseded by a newer one is dismissed, not refused.
+        widgetPrompts.current?.settle(DISMISSED);
         widgetPrompts.current = prompt;
-        openModal("widget-capabilities", () => prompt.settle(DENY));
+        openModal("widget-capabilities", () => prompt.settle(DISMISSED));
     });
 }
 
-/** Deny any pending prompt and close its dialog. Called when the widget that
+/** Dismiss any pending prompt and close its dialog. Called when the widget that
  *  asked goes away. */
 export function dismissWidgetPrompt(): void {
-    widgetPrompts.current?.settle(DENY);
+    widgetPrompts.current?.settle(DISMISSED);
     if (interfaceState.modal === "widget-capabilities") closeModal();
 }
 
@@ -101,25 +111,33 @@ function approvalKey(
     return [userId ?? "", roomId, w.id, w.url].join("\u0000");
 }
 
-function mergeApproval(
+/**
+ * Layer `delta` on top of `base`. The latest decision wins: a capability
+ * approved in `delta` leaves `denied`, and one refused in `delta` leaves
+ * `capabilities`.
+ */
+export function mergeApproval(
     base: WidgetApproval | null | undefined,
     delta: Partial<WidgetApproval>,
 ): WidgetApproval {
+    const approve = delta.capabilities ?? [];
+    const refuse = delta.denied ?? [];
+    const capabilities = new Set([...(base?.capabilities ?? []), ...approve]);
+    const denied = new Set([...(base?.denied ?? []), ...refuse]);
+    for (const c of refuse) capabilities.delete(c);
+    for (const c of approve) denied.delete(c);
     return {
         load: !!(base?.load || delta.load),
-        capabilities: [
-            ...new Set([
-                ...(base?.capabilities ?? []),
-                ...(delta.capabilities ?? []),
-            ]),
-        ],
+        capabilities: [...capabilities],
+        denied: [...denied],
         openId: delta.openId ?? base?.openId ?? null,
     };
 }
 
 /**
  * The approval in force for this widget: the persisted one merged with the
- * session-only one. Null when nothing was ever granted or denied.
+ * session-only one (the session one is newer). Null when nothing was ever
+ * granted or denied.
  */
 export function effectiveApproval(
     userId: string | null,
@@ -130,10 +148,45 @@ export function effectiveApproval(
     const persisted = getWidgetApproval(userId, roomId, w);
     const session = sessionApprovals.get(approvalKey(userId, roomId, w));
     if (!persisted && !session) return null;
+    return mergeApproval(persisted, session ?? {});
+}
+
+/** How a capability request splits against the approval in force. */
+export interface CapabilityPlan {
+    /** Requested and already approved: granted without asking. */
+    granted: string[];
+    /** Requested and neither approved nor refused: the user must be asked. */
+    undecided: string[];
+}
+
+/**
+ * Split `requested` into what is already decided. Refused capabilities are
+ * neither granted nor asked again.
+ */
+export function planCapabilityRequest(
+    requested: readonly string[],
+    approval: Pick<WidgetApproval, "capabilities" | "denied"> | null,
+): CapabilityPlan {
+    const approved = new Set(approval?.capabilities ?? []);
+    const refused = new Set(approval?.denied ?? []);
     return {
-        load: !!(persisted?.load || session?.load),
-        capabilities: mergeApproval(persisted, session ?? {}).capabilities,
-        openId: session?.openId ?? persisted?.openId ?? null,
+        granted: requested.filter((c) => approved.has(c)),
+        undecided: requested.filter((c) => !approved.has(c) && !refused.has(c)),
+    };
+}
+
+/**
+ * The stored change for a prompt over `undecided`: the ticked ones are
+ * approved, the rest of the undecided ones refused.
+ */
+export function capabilityDecisionDelta(
+    undecided: readonly string[],
+    ticked: readonly string[],
+): { capabilities: string[]; denied: string[] } {
+    const picked = new Set(ticked);
+    return {
+        capabilities: undecided.filter((c) => picked.has(c)),
+        denied: undecided.filter((c) => !picked.has(c)),
     };
 }
 
@@ -167,9 +220,10 @@ export function recordWidgetApproval(
 }
 
 /**
- * Answer a widget's capability request. Silent when the approval in force
- * already covers every requested capability; otherwise asks the user. Resolves
- * with only the requested capabilities the user approved.
+ * Answer a widget's capability request. Capabilities already approved are
+ * granted silently and refused ones are dropped without asking. Only the
+ * undecided ones prompt the user. Every answer is recorded: session-only
+ * unless the user chose to remember it.
  */
 export async function resolveCapabilityRequest(
     userId: string | null,
@@ -177,33 +231,29 @@ export async function resolveCapabilityRequest(
     w: RoomWidget,
     requested: Set<string>,
 ): Promise<Set<string>> {
-    const want = [...requested];
     const have = effectiveApproval(userId, roomId, w);
-    if (want.every((c) => have?.capabilities.includes(c))) {
-        return new Set(want);
-    }
+    const { granted, undecided } = planCapabilityRequest([...requested], have);
+    if (undecided.length === 0) return new Set(granted);
     const decision = await askWidgetPermission({
         mode: "capabilities",
         widgetName: w.name,
         host: widgetOrigin(w.url) ?? w.url,
-        capabilities: want,
+        capabilities: undecided,
     });
-    const approved = decision.approved.filter((c) => requested.has(c));
-    if (approved.length > 0 || decision.remember) {
-        recordWidgetApproval(
-            userId,
-            roomId,
-            w,
-            { capabilities: approved },
-            decision.remember,
-        );
-    }
-    return new Set(approved);
+    // A dismissal is not a decision: record nothing, grant only what was
+    // already approved.
+    if (decision.dismissed) return new Set(granted);
+    const undecidedSet = new Set(undecided);
+    const ticked = decision.approved.filter((c) => undecidedSet.has(c));
+    const delta = capabilityDecisionDelta(undecided, ticked);
+    recordWidgetApproval(userId, roomId, w, delta, decision.remember);
+    return new Set([...granted, ...ticked]);
 }
 
 /**
- * Answer a widget's OpenID request. A stored answer (yes or no) is returned
- * without asking. A refusal is only remembered when the user asked to.
+ * Answer a widget's OpenID request. A stored or session answer (yes or no) is
+ * returned without asking. Every answer is recorded, session-only unless the
+ * user chose to remember it.
  */
 export async function resolveOpenIdRequest(
     userId: string | null,
@@ -218,15 +268,9 @@ export async function resolveOpenIdRequest(
         host: widgetOrigin(w.url) ?? w.url,
         capabilities: [],
     });
+    // A dismissal is not a decision: record nothing and refuse this time.
+    if (decision.dismissed) return false;
     const ok = decision.approved.includes("openid");
-    if (ok || decision.remember) {
-        recordWidgetApproval(
-            userId,
-            roomId,
-            w,
-            { openId: ok },
-            decision.remember,
-        );
-    }
+    recordWidgetApproval(userId, roomId, w, { openId: ok }, decision.remember);
     return ok;
 }

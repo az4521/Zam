@@ -5051,6 +5051,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.add": "Додати віджет",
     "widgets.empty": "У цій кімнаті немає віджетів.",
     "widgets.back": "Назад до віджетів",
+    "widgets.resizePanel": "Змінити розмір панелі віджетів",
+    "widgets.close": "Закрити віджети",
     "widgets.openInBrowser": "Відкрити в браузері",
     "widgets.remove": "Видалити",
     "widgets.confirmRemove": "Видалити {name} з цієї кімнати?",
@@ -5059,6 +5061,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.unsafeUrl":
         "Адреса цього віджета не дозволена, тому його не завантажено.",
     "widgets.unavailable": "Увійдіть знову, щоб відкрити цей віджет.",
+    "widgets.modal.fallbackTitle": "Віджет",
     "widgets.consent.body":
         "Цей віджет додав {user}. Під час завантаження ваш ID користувача, відображуване ім'я, аватар і ID цієї кімнати буде передано {host}.",
     "widgets.consent.allow": "Дозволити",
@@ -5119,6 +5122,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Отримувати події, що залишаються актуальними деякий час",
     "widgets.cap.rtcTransports":
         "Дізнаватися сервер дзвінків вашого домашнього сервера",
+    "widgets.cap.sticker": "Надсилати стікери в цій кімнаті",
+    "widgets.cap.receiveAccountData":
+        "Читати дані облікового запису кімнати типу {eventType}",
     "widgets.unsupportedCapabilities":
         "{widget} потрібні функції, які Zam ще не підтримує, тому він може не працювати: {features}",
 };

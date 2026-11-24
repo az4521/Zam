@@ -20,7 +20,13 @@ vi.mock("$lib/matrix/media", () => ({
     uploadContent: async () => "mxc://x/y",
 }));
 
-import { mountWidget } from "./widgetHost";
+import {
+    coalescedFetch,
+    filterStateEvents,
+    isSupportedCapability,
+    mountWidget,
+    type ServerStateEvent,
+} from "./widgetHost";
 import type { RoomWidget } from "$lib/utils/widgets";
 
 const ROOM = "!room:example.org";
@@ -50,6 +56,133 @@ function mount() {
         requestOpenId: async () => false,
     });
 }
+
+describe("isSupportedCapability", () => {
+    it("accepts room account data for the widget's own room", () => {
+        expect(
+            isSupportedCapability(
+                "com.beeper.capabilities.receive.room_account_data:com.example.x",
+            ),
+        ).toBe(true);
+    });
+
+    it("refuses the MSC4533 LiveKit capabilities", () => {
+        expect(
+            isSupportedCapability("org.matrix.msc4533.rtc.livekit.get_token"),
+        ).toBe(false);
+    });
+
+    it("accepts ordinary capabilities", () => {
+        expect(isSupportedCapability("m.sticker")).toBe(true);
+        expect(isSupportedCapability("org.matrix.msc2762.timeline:*")).toBe(
+            true,
+        );
+    });
+});
+
+describe("filterStateEvents", () => {
+    const events: ServerStateEvent[] = [
+        {
+            type: "net.nordeck.whiteboard",
+            state_key: "board",
+            event_id: "$b",
+            sender: "@a:example.org",
+            origin_server_ts: 10,
+            content: { title: "one" },
+        },
+        {
+            type: "net.nordeck.whiteboard",
+            state_key: "other",
+            event_id: "$o",
+            sender: "@b:example.org",
+            origin_server_ts: 11,
+            content: {},
+        },
+        {
+            type: "m.room.name",
+            state_key: "",
+            event_id: "$n",
+            sender: "@a:example.org",
+            origin_server_ts: 12,
+            content: { name: "Room" },
+        },
+    ];
+
+    it("keeps only the requested type when no state key is given", () => {
+        const out = filterStateEvents(
+            events,
+            ROOM,
+            "net.nordeck.whiteboard",
+            undefined,
+        );
+        expect(out.map((e) => e.state_key)).toEqual(["board", "other"]);
+    });
+
+    it("narrows to one state key", () => {
+        const out = filterStateEvents(
+            events,
+            ROOM,
+            "net.nordeck.whiteboard",
+            "board",
+        );
+        expect(out).toHaveLength(1);
+        expect(out[0]).toMatchObject({
+            type: "net.nordeck.whiteboard",
+            state_key: "board",
+            event_id: "$b",
+            sender: "@a:example.org",
+            origin_server_ts: 10,
+            content: { title: "one" },
+            room_id: ROOM,
+            unsigned: {},
+        });
+    });
+
+    it("returns nothing for a type the room does not have", () => {
+        expect(
+            filterStateEvents(events, ROOM, "im.vector.modular.widgets", ""),
+        ).toEqual([]);
+    });
+
+    it("treats an empty state key as a real key, not a wildcard", () => {
+        const out = filterStateEvents(events, ROOM, "m.room.name", "");
+        expect(out.map((e) => e.event_id)).toEqual(["$n"]);
+    });
+});
+
+describe("coalescedFetch", () => {
+    it("shares one fetch between calls inside the window", async () => {
+        let t = 1000;
+        const fetch = vi.fn(async () => "state");
+        const get = coalescedFetch(fetch, 2000, () => t);
+        await expect(get()).resolves.toBe("state");
+        t += 1500;
+        await expect(get()).resolves.toBe("state");
+        expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("fetches again once the window has passed", async () => {
+        let t = 1000;
+        const fetch = vi.fn(async () => "state");
+        const get = coalescedFetch(fetch, 2000, () => t);
+        await get();
+        t += 2000;
+        await get();
+        expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("forgets a failed fetch so the next call retries", async () => {
+        const t = 1000;
+        const fetch = vi
+            .fn<() => Promise<string>>()
+            .mockRejectedValueOnce(new Error("offline"))
+            .mockResolvedValueOnce("state");
+        const get = coalescedFetch(fetch, 2000, () => t);
+        await expect(get()).rejects.toThrow("offline");
+        await expect(get()).resolves.toBe("state");
+        expect(fetch).toHaveBeenCalledTimes(2);
+    });
+});
 
 describe("mountWidget", () => {
     beforeEach(() => fakeClient.removeAllListeners());

@@ -5132,6 +5132,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.add": "Ajouter un widget",
     "widgets.empty": "Aucun widget dans ce salon.",
     "widgets.back": "Retour aux widgets",
+    "widgets.resizePanel": "Redimensionner le panneau des widgets",
+    "widgets.close": "Fermer les widgets",
     "widgets.openInBrowser": "Ouvrir dans le navigateur",
     "widgets.remove": "Retirer",
     "widgets.confirmRemove": "Retirer {name} de ce salon ?",
@@ -5140,6 +5142,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.unsafeUrl":
         "L'adresse de ce widget n'est pas autorisée, il n'a donc pas été chargé.",
     "widgets.unavailable": "Reconnectez-vous pour ouvrir ce widget.",
+    "widgets.modal.fallbackTitle": "Widget",
     "widgets.consent.body":
         "Ce widget a été ajouté par {user}. Le charger partagera votre identifiant utilisateur, votre nom affiché, votre avatar et l'identifiant de ce salon avec {host}.",
     "widgets.consent.allow": "Autoriser",
@@ -5201,6 +5204,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Recevoir des événements qui restent actuels un moment",
     "widgets.cap.rtcTransports":
         "Consulter le serveur d'appels de votre serveur d'accueil",
+    "widgets.cap.sticker": "Envoyer des autocollants dans ce salon",
+    "widgets.cap.receiveAccountData":
+        "Lire les données de compte du salon de type {eventType}",
     "widgets.unsupportedCapabilities":
         "{widget} a besoin de fonctionnalités que Zam ne prend pas encore en charge, il risque de ne pas fonctionner : {features}",
 };
