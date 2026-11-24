@@ -797,11 +797,15 @@ function accountOfPush(data) {
 }
 
 // The session for the account a push names: the active one when it names
-// that account or none (a pusher not yet tagged), else that account's entry.
+// that account, or none while it is the only account here; else that
+// account's entry.
 // Null for an account no longer signed in here: generic text, unattributed.
 function sessionForAccount(account) {
 	const active = activeSessionRecord();
-	if (!account) return active;
+	// A push naming no account is the active one's only when it is the only
+	// account here: with several, it is left unattributed rather than shown
+	// under whichever account is active (MatrixMessagingService.resolveSession).
+	if (!account) return Object.keys(accountSessions).length > 1 ? null : active;
 	if (active && active.userId === account) return active;
 	return accountSessions[account] || null;
 }

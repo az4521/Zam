@@ -61,7 +61,7 @@ public class CallServicePlugin extends Plugin {
         String title = call.getString("title", "");
         boolean isDm = Boolean.TRUE.equals(call.getBoolean("isDm", false));
         if (telecom() && roomId != null && !roomId.isEmpty()) {
-            TelecomCalls.startCall(getContext(), roomId, title, isDm);
+            TelecomCalls.startCall(getContext(), call.getString("userId"), roomId, title, isDm);
         }
         try {
             CallService.start(getContext(), title);
@@ -88,10 +88,12 @@ public class CallServicePlugin extends Plugin {
     @PluginMethod
     public void dismissIncomingCall(PluginCall call) {
         String roomId = call.getString("roomId");
+        // The web layer's own account: only its ring in the room is over.
+        String userId = call.getString("userId");
         boolean declined = Boolean.TRUE.equals(call.getBoolean("declined", false));
         if (roomId != null && !roomId.isEmpty()) {
-            if (telecom()) TelecomCalls.dismissRing(getContext(), roomId, declined);
-            else IncomingCallNotification.cancel(getContext(), roomId);
+            if (telecom()) TelecomCalls.dismissRing(getContext(), userId, roomId, declined);
+            else IncomingCallNotification.cancel(getContext(), userId, roomId);
         }
         call.resolve();
     }
@@ -118,7 +120,8 @@ public class CallServicePlugin extends Plugin {
      *  system call ringing, so a headset can still answer it. */
     @PluginMethod
     public void silenceIncomingCall(PluginCall call) {
-        IncomingCallNotification.cancel(getContext(), call.getString("roomId"));
+        IncomingCallNotification.cancel(getContext(), call.getString("userId"),
+            call.getString("roomId"));
         call.resolve();
     }
 

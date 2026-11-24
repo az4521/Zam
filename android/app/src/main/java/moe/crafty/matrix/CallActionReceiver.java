@@ -19,6 +19,7 @@ public class CallActionReceiver extends BroadcastReceiver {
     static final String ACTION_DECLINE = "moe.crafty.matrix.CALL_DECLINE";
     static final String EXTRA_NOTIFICATION_ID = "notification_id";
     static final String EXTRA_ROOM_ID = "room_id";
+    static final String EXTRA_USER_ID = "user_id";
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -30,14 +31,17 @@ public class CallActionReceiver extends BroadcastReceiver {
         } catch (Throwable ignored) {}
 
         String roomId = intent.getStringExtra(EXTRA_ROOM_ID);
+        String userId = intent.getStringExtra(EXTRA_USER_ID);
         if (roomId == null || roomId.isEmpty()) return;
         // End the ringing system call, if it was reported to Telecom.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            TelecomCalls.dismissRing(context, roomId, true);
+            TelecomCalls.dismissRing(context, userId, roomId, true);
         }
         // A running web layer hides its own card and stops its ringer too.
         JSObject data = new JSObject();
         data.put("roomId", roomId);
+        // The account the ring was for: another account's web layer ignores it.
+        data.put("userId", userId);
         CallServicePlugin.emit("decline", data);
     }
 }

@@ -722,7 +722,13 @@ public class MatrixMessagingService extends FirebaseMessagingService {
      */
     static SessionRecord resolveSession(SharedPreferences prefs, SessionRecord active,
             String accountId) {
-        if (accountId == null || accountId.isEmpty()) return active;
+        if (accountId == null || accountId.isEmpty()) {
+            // A push that names no account (a pusher from before pushes named
+            // one) is the active account's only when it is the only account:
+            // with several, crediting it to whichever is active would put
+            // another account's message under it. Unattributed instead.
+            return accountCount(prefs) > 1 ? null : active;
+        }
         if (active != null && accountId.equals(active.userId)) return active;
         try {
             String raw = prefs.getString(KEY_SESSION_ACCOUNTS, null);
@@ -734,6 +740,16 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             return record != null && accountId.equals(record.userId) ? record : null;
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    /** How many accounts are signed in on this device (the all-accounts map). */
+    static int accountCount(SharedPreferences prefs) {
+        try {
+            String raw = prefs.getString(KEY_SESSION_ACCOUNTS, null);
+            return raw == null ? 0 : new JSONObject(raw).length();
+        } catch (Exception e) {
+            return 0;
         }
     }
 
@@ -1863,7 +1879,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         // One channel per conversation (Android 11+): the system lists it under
         // Conversations, where the user sets sound, priority and bubbles for
         // that person or room alone. Older Androids use the shared channel.
-        String channelId = conversationChannel(ctx, roomId, title);
+        String channelId = conversationChannel(ctx, roomId, title, postedBy);
 
         Intent intent = new Intent(ctx, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -2141,21 +2157,33 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     }
 
     /**
-     * The per-conversation channel for a room, created on first use (API 30+,
-     * where a channel can be tied to a conversation). Falls back to the shared
-     * channel on older Androids or on any failure.
+     * The per-conversation channel for an account's room, created on first use
+     * (API 30+, where a channel can be tied to a conversation). Keyed like the
+     * notification and its shortcut (notificationKey), so two accounts in one
+     * room have their own settings, and the conversation id matches the
+     * shortcut id as the system requires. Falls back to the shared channel on
+     * older Androids or on any failure.
      */
-    private static String conversationChannel(Context ctx, String roomId, String title) {
+    private static String conversationChannel(Context ctx, String roomId, String title,
+            String postedBy) {
         if (roomId == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return CHANNEL_ID;
         try {
             NotificationManager manager = ctx.getSystemService(NotificationManager.class);
             if (manager == null) return CHANNEL_ID;
-            String id = CHANNEL_ID + ":" + roomId;
+            String key = notificationKey(postedBy, roomId);
+            String id = CHANNEL_ID + ":" + key;
             NotificationChannel existing = manager.getNotificationChannel(id);
             if (existing == null) {
                 NotificationChannel channel = new NotificationChannel(
                     id, title, NotificationManager.IMPORTANCE_HIGH);
-                channel.setConversationId(CHANNEL_ID, roomId);
+                channel.setConversationId(CHANNEL_ID, key);
+                // Says which account it is in the system's channel settings.
+                if (postedBy != null) channel.setDescription(postedBy);
+                // Settings the user chose on the room's channel from before
+                // channels were per account carry over.
+                NotificationChannel legacy = key.equals(roomId)
+                    ? null : manager.getNotificationChannel(CHANNEL_ID + ":" + roomId);
+                if (legacy != null) copyChannelSettings(legacy, channel);
                 manager.createNotificationChannel(channel);
             } else if (!title.contentEquals(existing.getName())) {
                 // Renamed room / person: keep the label current. The user's own
@@ -2167,6 +2195,20 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         } catch (Throwable t) {
             return CHANNEL_ID;
         }
+    }
+
+    /** The user-adjustable settings of a channel, onto a new one. */
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.R)
+    private static void copyChannelSettings(NotificationChannel from, NotificationChannel to) {
+        to.setImportance(from.getImportance());
+        to.setSound(from.getSound(), from.getAudioAttributes());
+        to.enableVibration(from.shouldVibrate());
+        if (from.getVibrationPattern() != null) to.setVibrationPattern(from.getVibrationPattern());
+        to.enableLights(from.shouldShowLights());
+        to.setLightColor(from.getLightColor());
+        to.setShowBadge(from.canShowBadge());
+        to.setLockscreenVisibility(from.getLockscreenVisibility());
+        to.setBypassDnd(from.canBypassDnd());
     }
 
     /**

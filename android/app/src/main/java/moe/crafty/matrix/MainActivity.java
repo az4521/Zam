@@ -224,11 +224,11 @@ public class MainActivity extends BridgeActivity {
         // launch deliberately does NOT cancel here — the web layer dismisses
         // it once its own ringer is up (see src/lib/nativeCall.ts).
         if (intent.getBooleanExtra("call_notification", false)) {
-            IncomingCallNotification.cancel(this, roomId);
+            IncomingCallNotification.cancel(this, userId, roomId);
             // Accept: the system call (if the ring went through Telecom) is
             // now answered; the web layer is told to join just below.
             if (joinCall && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                TelecomCalls.answeredFromUi(this, roomId);
+                TelecomCalls.answeredFromUi(this, userId, roomId);
             }
         }
         // The message this notification named, so the tap jumps to the exact

@@ -8,6 +8,8 @@
 
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import type { PluginListenerHandle } from "@capacitor/core";
+import { auth } from "$lib/stores/auth.svelte";
+import { isForOtherAccount } from "$lib/utils/nativeCallAccount";
 
 export type NativeAudioRoute = "earpiece" | "speaker" | "bluetooth" | "wired";
 
@@ -20,11 +22,11 @@ export interface NativeAudioRouteInfo {
 /** Events native raises for the web layer, which owns the call, to carry out. */
 export interface NativeCallEvents {
     /** Hang up from the ongoing-call notification, a headset or the car. */
-    hangUp: { roomId?: string };
+    hangUp: { roomId?: string; userId?: string | null };
     /** A ringing call answered from a headset / car / watch. */
     answer: { roomId: string; userId?: string | null };
     /** A ringing call declined from the notification or the system. */
-    decline: { roomId: string };
+    decline: { roomId: string; userId?: string | null };
     /** The system held the call (e.g. a cellular call was answered). */
     hold: { held: boolean };
     /** Mute toggled from a headset / car. */
@@ -38,13 +40,18 @@ interface CallServicePlugin {
         roomId: string;
         title: string;
         isDm: boolean;
+        userId: string | null;
     }): Promise<void>;
     stop(): Promise<void>;
     dismissIncomingCall(options: {
         roomId: string;
         declined: boolean;
+        userId: string | null;
     }): Promise<void>;
-    silenceIncomingCall(options: { roomId: string }): Promise<void>;
+    silenceIncomingCall(options: {
+        roomId: string;
+        userId: string | null;
+    }): Promise<void>;
     reportIncomingCall(options: {
         roomId: string;
         callerName: string;
@@ -79,8 +86,10 @@ export function startNativeCall(
     isDm: boolean,
 ): void {
     if (!hasNativeCallService()) return;
-    CallService.start({ roomId, title, isDm }).catch((err) =>
-        console.warn("Call service did not start:", err),
+    // Native tracks calls per account and room (TelecomCalls.key), so it is
+    // told whose call this is: this window's account.
+    CallService.start({ roomId, title, isDm, userId: auth.userId }).catch(
+        (err) => console.warn("Call service did not start:", err),
     );
 }
 
@@ -96,14 +105,20 @@ export function dismissNativeIncomingCall(
     declined = false,
 ): void {
     if (!hasNativeCallService()) return;
-    CallService.dismissIncomingCall({ roomId, declined }).catch(() => {});
+    CallService.dismissIncomingCall({
+        roomId,
+        declined,
+        userId: auth.userId,
+    }).catch(() => {});
 }
 
 /** The in-app card has the ring now: drop the native notification (and its
  *  ringtone) but keep the system call ringing for a headset to answer. */
 export function silenceNativeIncomingCall(roomId: string): void {
     if (!hasNativeCallService()) return;
-    CallService.silenceIncomingCall({ roomId }).catch(() => {});
+    CallService.silenceIncomingCall({ roomId, userId: auth.userId }).catch(
+        () => {},
+    );
 }
 
 /** A DM call arrived while the app is hidden (or the screen is off): ring
@@ -171,7 +186,20 @@ export function onNativeCallEvent<E extends keyof NativeCallEvents>(
     if (!hasNativeCallService()) return () => {};
     let handle: PluginListenerHandle | null = null;
     let disposed = false;
-    void CallService.addListener(event, cb).then((h) => {
+    // A ring declined, or a call hung up, for another account on this device
+    // (two accounts in one room) is not this window's to act on.
+    const filtered = (data: NativeCallEvents[E]) => {
+        if (
+            (event === "decline" || event === "hangUp") &&
+            isForOtherAccount(
+                (data as { userId?: string | null }).userId,
+                auth.userId,
+            )
+        )
+            return;
+        cb(data);
+    };
+    void CallService.addListener(event, filtered).then((h) => {
         if (disposed) void h.remove();
         else handle = h;
     });

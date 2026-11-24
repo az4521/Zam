@@ -65,16 +65,16 @@ final class TelecomCalls {
     private static final String ACCOUNT_ID = "matrix";
 
     private static final Handler main = new Handler(Looper.getMainLooper());
-    /** Room id → its connection, ringing or in progress. */
+    /** Account and room key (key()) → its connection, ringing or in progress. */
     private static final Map<String, MatrixConnection> connections = new ConcurrentHashMap<>();
     /** Caller avatars waiting for onCreateIncomingConnection: a Bitmap is too
      *  big to ride Telecom's extras, and the service runs in this process. */
     private static final Map<String, Bitmap> pendingIcons = new ConcurrentHashMap<>();
-    /** Rooms with a placeCall in flight, so a repeated start() never places
+    /** Calls (account and room keys) with a placeCall in flight, so a repeated start() never places
      *  a second one before Telecom answers the first. */
     private static final Set<String> pendingOutgoing = ConcurrentHashMap.newKeySet();
-    /** The room the web layer is in a call in, or null. */
-    private static volatile String activeRoomId = null;
+    /** The call (account and room key) the web layer is in, or null. */
+    private static volatile String activeKey = null;
     private static volatile boolean accountRegistered = false;
     private static PowerManager.WakeLock proximityLock;
 
@@ -83,7 +83,7 @@ final class TelecomCalls {
     /** Whether a call is ringing or in progress here (the web UI must not be
      *  reloaded under it). */
     static boolean hasCall() {
-        return activeRoomId != null || !connections.isEmpty() || !pendingOutgoing.isEmpty();
+        return activeKey != null || !connections.isEmpty() || !pendingOutgoing.isEmpty();
     }
 
     // ── Availability / account ──────────────────────────────────────────────
@@ -125,6 +125,16 @@ final class TelecomCalls {
         }
     }
 
+    /** Calls are tracked per account and room, like their notifications:
+     *  two accounts in one room ring and connect separately. */
+    private static String key(String userId, String roomId) {
+        return MatrixMessagingService.notificationKey(userId, roomId);
+    }
+
+    private static String keyOf(MatrixConnection conn) {
+        return key(conn.postedBy, conn.roomId);
+    }
+
     private static Uri address(String roomId) {
         return Uri.fromParts(URI_SCHEME, roomId, null);
     }
@@ -140,8 +150,9 @@ final class TelecomCalls {
                                   String postedBy, Bitmap icon) {
         Context app = context.getApplicationContext();
         if (!ensureAccount(app)) return false;
+        final String k = key(postedBy, roomId);
         // Already ringing (a duplicate push) or already in this call.
-        if (connections.containsKey(roomId)) return true;
+        if (connections.containsKey(k)) return true;
         try {
             TelecomManager tm = telecom(app);
             PhoneAccountHandle h = handle(app);
@@ -159,11 +170,11 @@ final class TelecomCalls {
             extras.putParcelable(TelecomManager.EXTRA_INCOMING_CALL_ADDRESS, address(roomId));
             extras.putBundle(TelecomManager.EXTRA_INCOMING_CALL_EXTRAS, ours);
 
-            if (icon != null) pendingIcons.put(roomId, icon);
+            if (icon != null) pendingIcons.put(k, icon);
             tm.addNewIncomingCall(h, extras);
             return true;
         } catch (Throwable t) {
-            pendingIcons.remove(roomId);
+            pendingIcons.remove(k);
             return false;
         }
     }
@@ -173,18 +184,20 @@ final class TelecomCalls {
         String roomId = extra(request, EXTRA_ROOM_ID);
         if (roomId == null) return Connection.createFailedConnection(new DisconnectCause(DisconnectCause.ERROR));
         String caller = extra(request, EXTRA_CALLER_NAME);
+        String postedBy = extra(request, EXTRA_POSTED_BY);
+        final String k = key(postedBy, roomId);
         MatrixConnection conn = new MatrixConnection(
-            app, roomId, true, true, caller, extra(request, EXTRA_POSTED_BY), pendingIcons.remove(roomId));
+            app, roomId, true, true, caller, postedBy, pendingIcons.remove(k));
         conn.setAddress(address(roomId), TelecomManager.PRESENTATION_ALLOWED);
         conn.setCallerDisplayName(
             caller != null && !caller.trim().isEmpty() ? caller.trim() : "Someone",
             TelecomManager.PRESENTATION_ALLOWED);
         conn.setRinging();
-        connections.put(roomId, conn);
+        connections.put(k, conn);
         // Same lifetime as the notification's own timeout: a ring nobody
         // answers becomes a missed call rather than ringing in Telecom forever.
         main.postDelayed(() -> {
-            if (conn.getState() == Connection.STATE_RINGING && connections.get(roomId) == conn) {
+            if (conn.getState() == Connection.STATE_RINGING && connections.get(k) == conn) {
                 end(conn, DisconnectCause.MISSED);
             }
         }, IncomingCallNotification.CALL_RING_TIMEOUT_MS);
@@ -194,7 +207,8 @@ final class TelecomCalls {
     /** Telecom refused the call after all: ring the plain way. */
     static void incomingFailed(Context context, ConnectionRequest request) {
         String roomId = extra(request, EXTRA_ROOM_ID);
-        Bitmap icon = roomId != null ? pendingIcons.remove(roomId) : null;
+        Bitmap icon = roomId != null
+            ? pendingIcons.remove(key(extra(request, EXTRA_POSTED_BY), roomId)) : null;
         if (MainActivity.isInForeground()) return;
         IncomingCallNotification.show(context.getApplicationContext(),
             extra(request, EXTRA_CALLER_NAME), roomId, extra(request, EXTRA_POSTED_BY), icon);
@@ -202,28 +216,28 @@ final class TelecomCalls {
 
     /** Accept pressed on our own notification: MainActivity is already
      *  routing the join, so only Telecom needs telling. */
-    static void answeredFromUi(Context context, String roomId) {
+    static void answeredFromUi(Context context, String userId, String roomId) {
         Context app = context.getApplicationContext();
         main.post(() -> {
-            MatrixConnection conn = connections.get(roomId);
+            MatrixConnection conn = connections.get(key(userId, roomId));
             if (conn != null && conn.getState() == Connection.STATE_RINGING) {
                 conn.setActive();
                 applyDefaultRoute(conn);
             }
-            IncomingCallNotification.cancel(app, roomId);
+            IncomingCallNotification.cancel(app, userId, roomId);
         });
     }
 
     /** The ring is over without being answered here (declined in-app, the
      *  caller gave up, answered on another device). */
-    static void dismissRing(Context context, String roomId, boolean declined) {
+    static void dismissRing(Context context, String userId, String roomId, boolean declined) {
         Context app = context.getApplicationContext();
         main.post(() -> {
-            MatrixConnection conn = connections.get(roomId);
+            MatrixConnection conn = connections.get(key(userId, roomId));
             if (conn != null && conn.getState() == Connection.STATE_RINGING) {
                 end(conn, declined ? DisconnectCause.REJECTED : DisconnectCause.MISSED);
             }
-            IncomingCallNotification.cancel(app, roomId);
+            IncomingCallNotification.cancel(app, userId, roomId);
         });
     }
 
@@ -234,20 +248,21 @@ final class TelecomCalls {
      * connection if there is one (accepted in-app), else register an
      * outgoing self-managed call. Idempotent — called on every state change.
      */
-    static void startCall(Context context, String roomId, String title, boolean isDm) {
+    static void startCall(Context context, String userId, String roomId, String title, boolean isDm) {
         Context app = context.getApplicationContext();
+        final String k = key(userId, roomId);
         main.post(() -> {
-            activeRoomId = roomId;
-            MatrixConnection conn = connections.get(roomId);
+            activeKey = k;
+            MatrixConnection conn = connections.get(k);
             if (conn != null) {
                 if (conn.getState() == Connection.STATE_RINGING) {
                     conn.setActive();
                     applyDefaultRoute(conn);
-                    IncomingCallNotification.cancel(app, roomId);
+                    IncomingCallNotification.cancel(app, userId, roomId);
                 }
                 return;
             }
-            if (pendingOutgoing.contains(roomId) || !ensureAccount(app)) return;
+            if (pendingOutgoing.contains(k) || !ensureAccount(app)) return;
             try {
                 TelecomManager tm = telecom(app);
                 PhoneAccountHandle h = handle(app);
@@ -256,18 +271,19 @@ final class TelecomCalls {
                 Bundle ours = new Bundle();
                 ours.putString(EXTRA_ROOM_ID, roomId);
                 ours.putString(EXTRA_TITLE, title);
+                ours.putString(EXTRA_POSTED_BY, userId);
                 ours.putBoolean(EXTRA_IS_DM, isDm);
                 Bundle extras = new Bundle();
                 extras.putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, h);
                 extras.putBundle(TelecomManager.EXTRA_OUTGOING_CALL_EXTRAS, ours);
-                pendingOutgoing.add(roomId);
+                pendingOutgoing.add(k);
                 tm.placeCall(address(roomId), extras);
             } catch (SecurityException e) {
                 // MANAGE_OWN_CALLS missing (should not happen: it is a normal,
                 // install-time permission): the call runs without Telecom.
-                pendingOutgoing.remove(roomId);
+                pendingOutgoing.remove(k);
             } catch (Throwable t) {
-                pendingOutgoing.remove(roomId);
+                pendingOutgoing.remove(k);
             }
         });
     }
@@ -275,14 +291,16 @@ final class TelecomCalls {
     static Connection createOutgoing(Context context, ConnectionRequest request) {
         Context app = context.getApplicationContext();
         String roomId = extra(request, EXTRA_ROOM_ID);
-        if (roomId != null) pendingOutgoing.remove(roomId);
+        String userId = extra(request, EXTRA_POSTED_BY);
+        String k = roomId != null ? key(userId, roomId) : null;
+        if (k != null) pendingOutgoing.remove(k);
         // The web layer left (or switched rooms) before Telecom got here.
-        if (roomId == null || !roomId.equals(activeRoomId) || connections.containsKey(roomId)) {
+        if (k == null || !k.equals(activeKey) || connections.containsKey(k)) {
             return Connection.createFailedConnection(new DisconnectCause(DisconnectCause.LOCAL));
         }
         String title = extra(request, EXTRA_TITLE);
         boolean isDm = extraBool(request, EXTRA_IS_DM);
-        MatrixConnection conn = new MatrixConnection(app, roomId, false, isDm, title, null, null);
+        MatrixConnection conn = new MatrixConnection(app, roomId, false, isDm, title, userId, null);
         conn.setAddress(address(roomId), TelecomManager.PRESENTATION_ALLOWED);
         conn.setCallerDisplayName(
             title != null && !title.trim().isEmpty() ? title.trim() : "Call",
@@ -290,19 +308,19 @@ final class TelecomCalls {
         // The web layer is already connecting to the room: there is no
         // "dialing" phase worth showing.
         conn.setActive();
-        connections.put(roomId, conn);
+        connections.put(k, conn);
         return conn;
     }
 
     static void outgoingFailed(ConnectionRequest request) {
         String roomId = extra(request, EXTRA_ROOM_ID);
-        if (roomId != null) pendingOutgoing.remove(roomId);
+        if (roomId != null) pendingOutgoing.remove(key(extra(request, EXTRA_POSTED_BY), roomId));
     }
 
     /** The web layer left its call: end every non-ringing connection. */
     static void endCall() {
         main.post(() -> {
-            activeRoomId = null;
+            activeKey = null;
             for (MatrixConnection conn : connections.values()) {
                 if (conn.getState() != Connection.STATE_RINGING) end(conn, DisconnectCause.LOCAL);
             }
@@ -337,8 +355,8 @@ final class TelecomCalls {
     }
 
     private static MatrixConnection activeConnection() {
-        String roomId = activeRoomId;
-        return roomId != null ? connections.get(roomId) : null;
+        String k = activeKey;
+        return k != null ? connections.get(k) : null;
     }
 
     // ── Connection callbacks (main thread) ──────────────────────────────────
@@ -347,7 +365,7 @@ final class TelecomCalls {
         if (conn.getState() != Connection.STATE_RINGING) return;
         conn.setActive();
         applyDefaultRoute(conn);
-        IncomingCallNotification.cancel(conn.context, conn.roomId);
+        IncomingCallNotification.cancel(conn.context, conn.postedBy, conn.roomId);
 
         // Answered from a headset / car / watch: the web layer has to join.
         JSObject data = new JSObject();
@@ -383,7 +401,7 @@ final class TelecomCalls {
 
     static void onReject(MatrixConnection conn) {
         end(conn, DisconnectCause.REJECTED);
-        emitDecline(conn.roomId);
+        emitDecline(conn.roomId, conn.postedBy);
     }
 
     /** Hung up from outside the app (headset, car, system UI). */
@@ -391,11 +409,12 @@ final class TelecomCalls {
         boolean wasRinging = conn.getState() == Connection.STATE_RINGING;
         end(conn, DisconnectCause.LOCAL);
         if (wasRinging) {
-            emitDecline(conn.roomId);
+            emitDecline(conn.roomId, conn.postedBy);
             return;
         }
         JSObject data = new JSObject();
         data.put("roomId", conn.roomId);
+        data.put("userId", conn.postedBy);
         if (!CallServicePlugin.emit("hangUp", data)) {
             // No web layer, so no call left to leave: just drop the service.
             CallService.stop(conn.context);
@@ -442,8 +461,8 @@ final class TelecomCalls {
             conn.setDisconnected(new DisconnectCause(cause));
             conn.destroy();
         } catch (Throwable ignored) {}
-        connections.remove(conn.roomId, conn);
-        if (wasRinging) IncomingCallNotification.cancel(conn.context, conn.roomId);
+        connections.remove(keyOf(conn), conn);
+        if (wasRinging) IncomingCallNotification.cancel(conn.context, conn.postedBy, conn.roomId);
         updateProximity();
     }
 
@@ -496,9 +515,11 @@ final class TelecomCalls {
         CallServicePlugin.emit("hold", data);
     }
 
-    private static void emitDecline(String roomId) {
+    private static void emitDecline(String roomId, String userId) {
         JSObject data = new JSObject();
         data.put("roomId", roomId);
+        // The account the ring was for: another account's web layer ignores it.
+        data.put("userId", userId);
         CallServicePlugin.emit("decline", data);
     }
 

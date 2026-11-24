@@ -48,16 +48,25 @@ final class IncomingCallNotification {
 
     private IncomingCallNotification() {}
 
-    /** The notification id for a room's ring. MainActivity, CallActionReceiver
-     *  and CallServicePlugin cancel by this same scheme. */
-    static int idFor(String roomId) {
-        return roomId != null ? roomId.hashCode() : (int) System.currentTimeMillis();
+    /** The notification id for an account's ring in a room: the same per
+     *  account and room key as its message notification
+     *  (MatrixMessagingService.notificationKey), so two accounts in one room
+     *  ring separately. MainActivity, CallActionReceiver and CallServicePlugin
+     *  cancel by this same scheme. */
+    static int idFor(String userId, String roomId) {
+        return roomId != null
+            ? MatrixMessagingService.notificationId(userId, roomId)
+            : (int) System.currentTimeMillis();
     }
 
-    static void cancel(Context context, String roomId) {
+    /** Take down an account's ring for a room (and the room-only id a ring
+     *  posted before ids were per account used). */
+    static void cancel(Context context, String userId, String roomId) {
         if (roomId == null) return;
         try {
-            NotificationManagerCompat.from(context).cancel(idFor(roomId));
+            NotificationManagerCompat nm = NotificationManagerCompat.from(context);
+            nm.cancel(idFor(userId, roomId));
+            nm.cancel(roomId.hashCode());
         } catch (Throwable ignored) {}
     }
 
@@ -80,7 +89,7 @@ final class IncomingCallNotification {
             ? callerName.trim() : "Someone";
 
         boolean routable = roomId != null && postedBy != null && !postedBy.isEmpty();
-        int notificationId = idFor(roomId);
+        int notificationId = idFor(postedBy, roomId);
 
         int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -118,6 +127,7 @@ final class IncomingCallNotification {
         TrustedIntent.stamp(context, declineIntent);
         declineIntent.putExtra(CallActionReceiver.EXTRA_NOTIFICATION_ID, notificationId);
         if (roomId != null) declineIntent.putExtra(CallActionReceiver.EXTRA_ROOM_ID, roomId);
+        if (postedBy != null) declineIntent.putExtra(CallActionReceiver.EXTRA_USER_ID, postedBy);
         PendingIntent declinePending = PendingIntent.getBroadcast(
             context, notificationId + 2, declineIntent, piFlags);
 
