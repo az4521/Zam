@@ -35,3 +35,20 @@ export function parseDeepLinkHash(
         ...(userId && userId.startsWith("@") ? { userId } : {}),
     };
 }
+
+/**
+ * The account to boot for a cold-start deep link: the one the notification
+ * was posted under, when it is signed in here and is not already the active
+ * account. Booting it directly avoids starting the active account only to
+ * switch (a second full start), and a second window never waits on the
+ * active account's session held by the first one.
+ */
+export function deepLinkBootAccount(
+    hash: string | null | undefined,
+    signedIn: readonly string[],
+    activeUserId: string | null,
+): string | null {
+    const userId = parseDeepLinkHash(hash)?.userId;
+    if (!userId || userId === activeUserId) return null;
+    return signedIn.includes(userId) ? userId : null;
+}

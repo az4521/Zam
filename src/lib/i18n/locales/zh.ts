@@ -225,6 +225,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     // src/lib/components/layout/AppShell.svelte
     "appShell.zam": "({notificationCount}) Zam",
     "appShell.redirecting": "正在跳转…",
+    "appShell.notificationAccountNotSignedIn":
+        "这条通知属于 {userId}，但该账号未在此设备上登录。",
+    "appShell.notificationInThread": "{room} › {thread}",
+    "appShell.notificationThread": "话题",
     "appShell.noRoomsYet": "还没有房间",
     "appShell.resizeRoomList": "调整房间列表大小",
     "appShell.createARoomOrStartA": "创建房间或开始私信，即可上手。",

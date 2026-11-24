@@ -211,6 +211,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "appSettings.resultCount": "{count, plural, other {#件の結果}}",
     "appShell.zam": "({notificationCount}) Zam",
     "appShell.redirecting": "リダイレクト中…",
+    "appShell.notificationAccountNotSignedIn":
+        "この通知は {userId} 宛てですが、この端末ではサインインしていません。",
+    "appShell.notificationInThread": "{room} › {thread}",
+    "appShell.notificationThread": "スレッド",
     "appShell.noRoomsYet": "ルームがまだありません",
     "appShell.resizeRoomList": "ルーム一覧のサイズを変更",
     "appShell.createARoomOrStartA":

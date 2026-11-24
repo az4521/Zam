@@ -45,6 +45,7 @@
         switchActive,
     } from "$lib/stores/accounts.svelte";
     import { getLastOpenedRoomId } from "$lib/stores/rooms.svelte";
+    import { deepLinkBootAccount } from "$lib/utils/deepLinkHash";
     import { rootView, shouldRestoreSession } from "$lib/utils/sessionView";
     import { bootMark, scheduleBootLog } from "$lib/utils/bootTiming";
     import {
@@ -344,6 +345,17 @@
             // for the first paint; here we run the actual async restore when it
             // applies.
             if (!restoring) return;
+            // A notification tapped with no window open arrives as a deep link
+            // naming its account: boot that account straight away.
+            const bootAs = deepLinkBootAccount(
+                window.location.hash,
+                accountsState.registry.accounts.map((a) => a.userId),
+                accountsState.registry.activeUserId,
+            );
+            if (bootAs) {
+                console.info("[notifications] booting the tapped account");
+                switchActive(bootAs);
+            }
             const stored = loadStoredSession();
             if (!stored) {
                 restoring = false;

@@ -120,8 +120,15 @@
     });
 
     function jump(roomId: string, eventId: string) {
-        navigateToRoom(roomId);
-        onJumpTo(roomId, eventId);
+        // Queued like a notification tap: MessageArea runs it once its room
+        // is this one. Calling onJumpTo straight after the room switch ran it
+        // against the room still on screen, so a mention elsewhere never
+        // jumped. A thread reply opens its thread (MessageArea.scrollToMessage).
+        if (eventId) navigateToRoom(roomId, eventId);
+        else {
+            navigateToRoom(roomId);
+            onJumpTo(roomId, eventId);
+        }
         onClose();
     }
 

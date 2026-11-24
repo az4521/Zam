@@ -254,6 +254,10 @@ export const en = {
     // src/lib/components/layout/AppShell.svelte
     "appShell.zam": "({notificationCount}) Zam",
     "appShell.redirecting": "Redirecting…",
+    "appShell.notificationAccountNotSignedIn":
+        "That notification is for {userId}, which isn't signed in on this device.",
+    "appShell.notificationInThread": "{room} › {thread}",
+    "appShell.notificationThread": "Thread",
     "appShell.noRoomsYet": "No rooms yet",
     "appShell.resizeRoomList": "Resize room list",
     "appShell.createARoomOrStartA":

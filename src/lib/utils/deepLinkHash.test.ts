@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDeepLinkHash } from "./deepLinkHash";
+import { deepLinkBootAccount, parseDeepLinkHash } from "./deepLinkHash";
 
 describe("parseDeepLinkHash", () => {
     it("parses room + event with the leading #", () => {
@@ -73,5 +73,26 @@ describe("parseDeepLinkHash", () => {
         expect(parseDeepLinkHash("#room=!a:h&user=bob")).toEqual({
             roomId: "!a:h",
         });
+    });
+});
+
+describe("deepLinkBootAccount", () => {
+    const hash = "#room=!r:hs&user=%40b%3Ahs";
+    it("boots the notification's account when it is signed in and not active", () => {
+        expect(deepLinkBootAccount(hash, ["@a:hs", "@b:hs"], "@a:hs")).toBe(
+            "@b:hs",
+        );
+    });
+    it("leaves the active account alone", () => {
+        expect(deepLinkBootAccount(hash, ["@a:hs", "@b:hs"], "@b:hs")).toBe(
+            null,
+        );
+        expect(deepLinkBootAccount("#room=!r:hs", ["@a:hs"], "@a:hs")).toBe(
+            null,
+        );
+        expect(deepLinkBootAccount("", ["@a:hs"], "@a:hs")).toBe(null);
+    });
+    it("ignores an account not signed in here", () => {
+        expect(deepLinkBootAccount(hash, ["@a:hs"], "@a:hs")).toBe(null);
     });
 });

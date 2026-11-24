@@ -37,6 +37,11 @@
         fullscreen?: boolean;
         /** Desktop only: show an expand/collapse toggle that flips fullscreen. */
         onToggleFullscreen?: () => void;
+        /** A reply to scroll to and highlight once it loads (a notification
+         *  tap or an inbox click on a thread message). */
+        jumpToEventId?: string | null;
+        /** Called once the jump landed or was given up, so it runs once. */
+        onJumped?: () => void;
     }
 
     let {
@@ -45,6 +50,8 @@
         onClose,
         fullscreen = false,
         onToggleFullscreen,
+        jumpToEventId = null,
+        onJumped,
     }: Props = $props();
 
     let scrollEl: HTMLDivElement | undefined = $state();
@@ -216,6 +223,43 @@
         el.classList.add("message-highlight");
         setTimeout(() => el.classList.remove("message-highlight"), 2000);
     }
+
+    // Jump to a requested reply: wait for it to render, loading older replies
+    // until it is there (bounded), after the open-at-bottom scroll has run.
+    let jumpPages = 0;
+    $effect(() => {
+        const target = jumpToEventId;
+        void messages;
+        if (!target) {
+            jumpPages = 0;
+            return;
+        }
+        untrack(() => {
+            void (async () => {
+                await tick();
+                await tick();
+                if (jumpToEventId !== target) return;
+                const found = scrollEl?.querySelector(
+                    `[data-event-id="${CSS.escape(target)}"]`,
+                );
+                if (found) {
+                    // After the bottom scroll queued by the effect above.
+                    setTimeout(() => {
+                        jumpToReply(target);
+                        atBottom = false;
+                    }, 50);
+                    jumpPages = 0;
+                    onJumped?.();
+                } else if (!noMoreOlder && !loadingOlder && jumpPages < 20) {
+                    jumpPages++;
+                    await loadOlder();
+                } else if (noMoreOlder || jumpPages >= 20) {
+                    jumpPages = 0;
+                    onJumped?.();
+                }
+            })();
+        });
+    });
 
     function shouldShowHeader(events: MatrixEvent[], index: number): boolean {
         if (index === 0) return true;

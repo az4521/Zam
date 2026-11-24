@@ -1916,6 +1916,12 @@ async function fetchInvite(roomId, session) {
 }
 
 // `session` is the account the push is for; null → the generic text.
+// Whether event content is a reply in a thread (m.thread relation).
+function isThreadReplyContent(content) {
+	const rel = content && content["m.relates_to"];
+	return !!rel && rel.rel_type === "m.thread" && typeof rel.event_id === "string";
+}
+
 async function buildNotification(data, session) {
 	// Never compose a body before the privacy flag has been hydrated from
 	// IndexedDB — reading it early would default to "show bodies".
@@ -1940,6 +1946,10 @@ async function buildNotification(data, session) {
 			`/_matrix/client/v3/rooms/${rid}/event/${encodeURIComponent(eventId)}`,
 			session,
 		);
+		// A thread reply, read from the wire content: the relation stays
+		// outside the encryption, so it is there before any decryption.
+		// Mirrors isThreadReplyContent in src/lib/utils/threadNotification.ts.
+		const threadReply = isThreadReplyContent(event && event.content);
 		// The sender sits in the clear on the event envelope, so this check
 		// needs no keys. A message the account sent itself (another device, or
 		// this one) is not something to alert on: the push handler stays silent
@@ -2085,6 +2095,9 @@ async function buildNotification(data, session) {
 				else if (name) body = `${name} sent a message`;
 			}
 		}
+
+		// Say a thread reply is one, as the app's own notifications do.
+		if (threadReply) title = `${title} \u203a Thread`;
 
 		const avatarRes = await mxGet(
 			`/_matrix/client/v3/rooms/${rid}/state/m.room.avatar/`,

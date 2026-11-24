@@ -240,6 +240,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     // src/lib/components/layout/AppShell.svelte
     "appShell.zam": "({notificationCount}) Zam",
     "appShell.redirecting": "Перенаправление…",
+    "appShell.notificationAccountNotSignedIn":
+        "Это уведомление для {userId}, но этот аккаунт не вошёл на этом устройстве.",
+    "appShell.notificationInThread": "{room} › {thread}",
+    "appShell.notificationThread": "Ветка",
     "appShell.noRoomsYet": "Комнат пока нет",
     "appShell.resizeRoomList": "Изменить ширину списка комнат",
     "appShell.createARoomOrStartA":

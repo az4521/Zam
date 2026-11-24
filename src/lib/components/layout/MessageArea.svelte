@@ -13,6 +13,7 @@
     import {
         getTimelineMessages,
         getLatestTimelineEvent,
+        resolveQuickReplyThreadRoot,
         onTimelineEvent,
         onEventDecrypted,
         onDecryptedTimelineEvent,
@@ -300,12 +301,15 @@
     // across threads; reset on room switch. Mobile always renders fullscreen.
     let threadFullscreen = $state(false);
 
+    // A reply the open thread should scroll to (see scrollToMessage).
+    let threadJumpEventId = $state<string | null>(null);
     function openThread(rootEventId: string) {
         threadRootId = rootEventId;
         closeSidebar();
     }
     function closeThread() {
         threadRootId = null;
+        threadJumpEventId = null;
     }
     // Blocked-message placeholders the user chose to reveal, by event id.
     let revealedBlockedIds = $state<Record<string, boolean>>({});
@@ -314,6 +318,7 @@
     $effect(() => {
         void room.roomId;
         threadRootId = null;
+        threadJumpEventId = null;
         threadFullscreen = false;
         revealedBlockedIds = {};
     });
@@ -664,6 +669,20 @@
     }
 
     async function scrollToMessage(eventId: string) {
+        // A thread reply is not in the room's timeline: open its thread and
+        // jump there instead (notification taps, inbox and search results).
+        // Resolved first, from the event itself, so the waits below (which
+        // watch the main timeline) never hold up a thread jump.
+        {
+            const rid = room.roomId;
+            const threadRoot = await resolveQuickReplyThreadRoot(rid, eventId);
+            if (room.roomId !== rid) return;
+            if (threadRoot && threadRoot !== eventId) {
+                openThread(threadRoot);
+                threadJumpEventId = eventId;
+                return;
+            }
+        }
         const query = () => revealRow(eventId);
         let el: Element | null = await query();
         if (!el) {
@@ -3902,6 +3921,8 @@
                     <ThreadPanel
                         {room}
                         rootEventId={threadRootId}
+                        jumpToEventId={threadJumpEventId}
+                        onJumped={() => (threadJumpEventId = null)}
                         onClose={closeThread}
                         fullscreen
                     />
@@ -3911,6 +3932,8 @@
                     <ThreadPanel
                         {room}
                         rootEventId={threadRootId}
+                        jumpToEventId={threadJumpEventId}
+                        onJumped={() => (threadJumpEventId = null)}
                         onClose={closeThread}
                         fullscreen
                         onToggleFullscreen={() =>
@@ -3921,6 +3944,8 @@
                 <ThreadPanel
                     {room}
                     rootEventId={threadRootId}
+                    jumpToEventId={threadJumpEventId}
+                    onJumped={() => (threadJumpEventId = null)}
                     onClose={closeThread}
                     onToggleFullscreen={() =>
                         (threadFullscreen = !threadFullscreen)}

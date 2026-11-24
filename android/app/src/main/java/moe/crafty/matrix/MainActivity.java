@@ -210,6 +210,10 @@ public class MainActivity extends BridgeActivity {
         final String roomId = intent.getStringExtra("room_id");
         if (roomId == null || roomId.isEmpty()) return;
         final String userId = intent.getStringExtra("user_id");
+        // Logged so an exported log shows the tap reached the app and whether
+        // it named its account (the web layer logs what it did with it).
+        PushLog.log(this, "tap room " + PushLog.shortId(roomId)
+            + (userId == null || userId.isEmpty() ? " (no account)" : " (account stamped)"));
         // Accept on an incoming-call notification: open the room AND join the
         // call. Passed as a third argument so a plain notification tap (no
         // extra) keeps the two-argument open-only behaviour.

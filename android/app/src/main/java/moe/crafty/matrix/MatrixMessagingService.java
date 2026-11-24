@@ -257,6 +257,8 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         // Defaults (used if enrichment fails).
         String title = DEFAULT_TITLE;
         String text = "You have a new message";
+        // The message is a reply in a thread (said in the title, below).
+        boolean threadReply = false;
         Bitmap largeIcon = null;
         // MSC4075 m.call.notify → render an incoming CALL, not a message.
         boolean isCall = false;
@@ -376,6 +378,9 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     sender = event.optString("sender", "");
                     long originTs = event.optLong("origin_server_ts", 0L);
                     if (originTs > 0) msgTs = originTs;
+                    // Read before decryption replaces the content: a thread
+                    // relation stays outside the encryption.
+                    threadReply = isThreadReply(event.optJSONObject("content"));
                     // This service holds no E2EE keys, so an encrypted
                     // message is still m.room.encrypted here. Ask the web
                     // layer to decrypt it when the app is running (see
@@ -430,6 +435,8 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     if (direct == null) direct = isDirectRoom(hs, token, selfUserId, roomId);
                     final boolean dm = direct;
                     if (dm && !name.isEmpty()) title = name;
+                    // Like the app's own notifications: a thread reply says so.
+                    if (threadReply) title = title + " \u203a Thread";
                     msgSenderId = sender;
                     msgSenderName = name.isEmpty() ? sender : name;
                     msgDm = dm;
@@ -766,6 +773,13 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             }
         } catch (Exception ignored) {}
         return field;
+    }
+
+    /** Whether event content is a reply in a thread (an m.thread relation). */
+    static boolean isThreadReply(JSONObject content) {
+        JSONObject rel = content != null ? content.optJSONObject("m.relates_to") : null;
+        return rel != null && "m.thread".equals(rel.optString("rel_type", ""))
+            && !rel.optString("event_id", "").isEmpty();
     }
 
     /** Strict parse of one stored record string; see readSessionRecord. */

@@ -5,8 +5,9 @@
 
 export const PENDING_ROUTE_KEY = "zam:pendingNotificationRoute";
 
-/** How long a pending route stays usable: the switch is a single reload. */
-export const PENDING_ROUTE_TTL_MS = 2 * 60 * 1000;
+/** How long a pending route stays usable: the switch is a single reload, but
+ *  a cold Android start can take minutes before the app reads it. */
+export const PENDING_ROUTE_TTL_MS = 10 * 60 * 1000;
 
 export interface PendingNotificationRoute {
     userId: string;

@@ -252,6 +252,7 @@
         getRoom,
         getLiveRoom,
         getRoomDisplayName,
+        getThreadName,
         getMemberName,
         getDMPartnerId,
         logout,
@@ -865,6 +866,13 @@
             { roomId, userId: postedBy, eventId },
             { userId: auth.userId },
         );
+        // Every tap is logged with its outcome: a tap that went nowhere left
+        // nothing to go on in past reports (log export captures the console).
+        console.info(
+            "[notifications] tap",
+            decision.action === "navigate" ? "open" : decision.reason,
+            { roomId, eventId: eventId ?? null, stamped: !!postedBy },
+        );
         if (decision.action !== "navigate") {
             if (decision.reason === "other-account" && postedBy)
                 switchAccountForNotification(postedBy, roomId, eventId);
@@ -885,8 +893,15 @@
         roomId: string,
         eventId?: string | null,
     ) {
-        if (!accountsState.registry.accounts.some((a) => a.userId === userId))
+        if (!accountsState.registry.accounts.some((a) => a.userId === userId)) {
+            // Say so rather than leave the tap looking ignored.
+            console.warn(
+                "[notifications] tap for an account not on this device",
+            );
+            showToast(t("appShell.notificationAccountNotSignedIn", { userId }));
             return;
+        }
+        console.info("[notifications] switching account for a tap");
         savePendingRoute(localStorage, {
             userId,
             roomId,
@@ -925,7 +940,17 @@
         // The account this popup belongs to, captured at POST time: the click
         // can land in a completely different session.
         const postedBy = auth.userId;
-        const title = getRoomDisplayName(room);
+        // A thread reply names its thread, so the popup says where it is.
+        const threadRoot = event.threadRootId;
+        const title =
+            threadRoot && threadRoot !== eventId
+                ? t("appShell.notificationInThread", {
+                      room: getRoomDisplayName(room),
+                      thread:
+                          getThreadName(room, threadRoot) ??
+                          t("appShell.notificationThread"),
+                  })
+                : getRoomDisplayName(room);
         const text = notificationBody({
             sender,
             body,
