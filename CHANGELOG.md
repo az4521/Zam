@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.4
+
+🐛 **Fixed**
+
+- **New messages no longer arrive minutes late on a patchy connection** (mostly on Android). When the network dropped an answer from the server, Zam waited longer and longer before asking again, up to five minutes. It now asks again straight away, and a download that stalls part-way is restarted instead of holding up sync until the app is reopened.
+
 ## v1.67.3
 
 ✨ **New**
