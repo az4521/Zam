@@ -2629,6 +2629,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "securitySettings.recoveryPassphrase2": "Wiederherstellungs-Passphrase",
     "securitySettings.toVerifyThisSessionAndRestore":
         "- damit wird diese Sitzung verifiziert und dein verschlüsselter Nachrichtenverlauf wiederhergestellt.",
+    "securitySettings.offlineMessages": "Offline-Nachrichten",
+    "securitySettings.offlineMessagesOn": "An",
+    "securitySettings.offlineMessagesOff": "Aus",
+    "securitySettings.offlineMessagesHelp":
+        "Hält eine Stellvertreter-Sitzung auf deinem Server bereit, damit eine neue Anmeldung Nachrichten lesen kann, die gesendet wurden, während alle deine Sitzungen offline waren.",
+    "securitySettings.turnOnOfflineMessages": "Offline-Nachrichten einschalten",
+    "securitySettings.enterYourToTurnOnOffline": "Gib Folgendes ein:",
+    "securitySettings.toTurnOnOfflineMessages":
+        "- damit werden Offline-Nachrichten eingeschaltet.",
+    "securitySettings.offlineMessagesTurnedOn":
+        "Offline-Nachrichten sind eingeschaltet.",
+    "securitySettings.offlineMessagesFailed":
+        "Offline-Nachrichten konnten nicht eingeschaltet werden. Versuche es später erneut.",
     "securitySettings.thisSessionIsNowVerified":
         "Diese Sitzung ist jetzt verifiziert",
     "securitySettings.encryptedHistoryRestored":

@@ -12,6 +12,9 @@
         getBackupStatus,
         unlockWithRecoveryKey,
         unlockWithPassphrase,
+        getDehydrationStatus,
+        dehydrationSettled,
+        type DehydrationStatus,
         type SecurityStatus,
         type BackupStatus,
         type UnlockResult,
@@ -261,13 +264,30 @@
     // case: re-marking a good read as failed and hiding the panel).
     let loadSeq = 0;
 
+    // MSC3814 dehydrated device on the server ("offline messages"). Null until
+    // read, and kept on a failed read rather than flipping the row.
+    let offline = $state<DehydrationStatus | null>(null);
+    type UnlockPurpose = "verify" | "offline";
+    let unlockPurpose = $state<UnlockPurpose>("verify");
+    const showOffline = $derived(
+        panel.authoritative &&
+            recoverySetUp &&
+            (offline === "on" || offline === "off"),
+    );
+    // A session that still needs unlocking turns it on through that unlock.
+    const canTurnOnOffline = $derived(
+        showOffline && offline === "off" && !needsUnlock,
+    );
+
     async function loadStatus() {
         const seq = ++loadSeq;
-        const [nextStatus, nextBackup] = await Promise.all([
+        const [nextStatus, nextBackup, nextOffline] = await Promise.all([
             getSecurityStatus(),
             getBackupStatus(),
+            getDehydrationStatus(),
         ]);
         if (seq !== loadSeq) return;
+        if (nextOffline) offline = nextOffline;
         statusRead = nextStatus.read;
         backupRead = nextBackup.read;
         // Only a successful read may replace what's on screen. On "error" the
@@ -479,7 +499,8 @@
         advanceReset({ type: "cancel" });
     }
 
-    function beginUnlock() {
+    function beginUnlock(purpose: UnlockPurpose = "verify") {
+        unlockPurpose = purpose;
         unlockError = "";
         unlockKey = "";
         unlockPassphrase = "";
@@ -500,6 +521,15 @@
                     : await unlockWithPassphrase(unlockPassphrase);
             unlockKey = "";
             unlockPassphrase = "";
+            if (unlockPurpose === "offline") {
+                // The unlock starts dehydration in the background; wait for it
+                // and read the server back rather than claim it worked.
+                await dehydrationSettled();
+                offline = await getDehydrationStatus();
+                if (offline !== "on") {
+                    unlockError = t("securitySettings.offlineMessagesFailed");
+                }
+            }
             unlockResult = result;
             unlockStep = "done";
             loadStatus();
@@ -514,6 +544,7 @@
     }
 
     function cancelUnlock() {
+        unlockPurpose = "verify";
         unlockKey = "";
         unlockPassphrase = "";
         unlockError = "";
@@ -521,6 +552,8 @@
     }
 
     function finishUnlock() {
+        unlockPurpose = "verify";
+        unlockError = "";
         unlockResult = null;
         unlockStep = "idle";
     }
@@ -578,6 +611,90 @@
     <p class="text-xs text-zam-textMuted py-1.5">
         {t("securitySettings.showingTheLastReadingThatLoaded")}
     </p>
+{/snippet}
+
+{#snippet unlockForm(prefixText: string, purposeText: string)}
+    {#if unlockStep === "entry"}
+        <div class="space-y-2">
+            {#if canUnlockByPassphrase}
+                <div class="flex gap-2 text-xs">
+                    <button
+                        onclick={() => (unlockMode = "key")}
+                        class="px-2 py-1 rounded {unlockMode === 'key'
+                            ? 'bg-zam-accent text-white'
+                            : 'bg-zam-messageHover text-zam-textPrimary'}"
+                        >{t("securitySettings.recoveryKey2")}</button
+                    >
+                    <button
+                        onclick={() => (unlockMode = "passphrase")}
+                        class="px-2 py-1 rounded {unlockMode === 'passphrase'
+                            ? 'bg-zam-accent text-white'
+                            : 'bg-zam-messageHover text-zam-textPrimary'}"
+                        >{t("securitySettings.passphrase")}</button
+                    >
+                </div>
+            {/if}
+            <p class="text-xs text-zam-textMuted">
+                {prefixText}
+                <strong
+                    >{effectiveUnlockMode === "key"
+                        ? t("securitySettings.recoveryKey")
+                        : t("securitySettings.recoveryPassphrase2")}</strong
+                >
+                {purposeText}
+            </p>
+            {#if effectiveUnlockMode === "key"}
+                <input
+                    type="text"
+                    bind:value={unlockKey}
+                    placeholder={t("securitySettings.recoveryKey2")}
+                    autocomplete="off"
+                    autocapitalize="none"
+                    spellcheck="false"
+                    onkeydown={(e) =>
+                        e.key === "Enter" && unlockReady && runUnlock()}
+                    class="w-full bg-zam-backgroundDark text-zam-textPrimary font-mono text-sm rounded px-3 py-1.5 outline-none"
+                />
+            {:else}
+                <input
+                    type="password"
+                    bind:value={unlockPassphrase}
+                    placeholder={t("securitySettings.recoveryPassphrase")}
+                    autocomplete="current-password"
+                    onkeydown={(e) =>
+                        e.key === "Enter" && unlockReady && runUnlock()}
+                    class="w-full bg-zam-backgroundDark text-zam-textPrimary text-sm rounded px-3 py-1.5 outline-none"
+                />
+            {/if}
+            <div class="flex gap-2">
+                <button
+                    onclick={runUnlock}
+                    disabled={!unlockReady}
+                    class="px-3 py-1.5 bg-zam-accent text-white rounded text-sm disabled:opacity-50"
+                    >{t("securitySettings.continue")}</button
+                >
+                <button
+                    onclick={cancelUnlock}
+                    class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-sm"
+                    >{t("common.cancel")}</button
+                >
+            </div>
+        </div>
+    {:else if unlockStep === "working"}
+        <div class="space-y-2">
+            <p class="text-sm text-zam-textPrimary">
+                {t("keyBackup.preparing")}
+            </p>
+            <div
+                class="h-1.5 w-full rounded bg-zam-backgroundDark overflow-hidden"
+            >
+                <div
+                    class="h-full bg-zam-accent transition-all"
+                    style="width: 15%"
+                ></div>
+            </div>
+        </div>
+    {/if}
 {/snippet}
 
 {#snippet statusRow(
@@ -691,6 +808,50 @@
 
     {#if panel.notice}
         <p class="text-xs text-zam-textMuted">{panel.notice}</p>
+    {/if}
+
+    <!-- MSC3814 dehydrated device. Turning it on needs the recovery key (the
+         dehydration key lives in secret storage), so it reuses the unlock form. -->
+    {#if showOffline || (unlockPurpose === "offline" && unlockStep !== "idle")}
+        <section class="rounded bg-zam-backgroundTertiary px-4 py-3 space-y-2">
+            {@render statusRow(
+                t("securitySettings.offlineMessages"),
+                offline === "on",
+                t("securitySettings.offlineMessagesOn"),
+                t("securitySettings.offlineMessagesOff"),
+            )}
+            <p class="text-xs text-zam-textMuted">
+                {t("securitySettings.offlineMessagesHelp")}
+            </p>
+            {#if unlockPurpose === "offline" && unlockStep !== "idle"}
+                {#if unlockStep === "done"}
+                    {#if offline === "on"}
+                        <p class="text-sm font-medium text-zam-online">
+                            {t("securitySettings.offlineMessagesTurnedOn")}
+                        </p>
+                    {/if}
+                    <button
+                        onclick={finishUnlock}
+                        class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-sm"
+                        >{t("securitySettings.done")}</button
+                    >
+                {:else}
+                    {@render unlockForm(
+                        t("securitySettings.enterYourToTurnOnOffline"),
+                        t("securitySettings.toTurnOnOfflineMessages"),
+                    )}
+                {/if}
+                {#if unlockError}
+                    <p class="text-sm text-zam-danger">{unlockError}</p>
+                {/if}
+            {:else if canTurnOnOffline && unlockStep === "idle"}
+                <button
+                    onclick={() => beginUnlock("offline")}
+                    class="px-3 py-1.5 bg-zam-accent text-white rounded text-sm font-medium"
+                    >{t("securitySettings.turnOnOfflineMessages")}</button
+                >
+            {/if}
+        </section>
     {/if}
 
     <!-- Set-up-recovery wizard -->
@@ -1166,7 +1327,7 @@
                 {#if unlockStep === "idle"}
                     <div class="flex flex-wrap gap-2">
                         <button
-                            onclick={beginUnlock}
+                            onclick={() => beginUnlock()}
                             class="px-3 py-1.5 bg-zam-accent text-white rounded text-sm font-medium"
                             >{t(
                                 "securitySettings.verifyThisSessionRestoreHistory",
@@ -1182,100 +1343,11 @@
                             >
                         {/if}
                     </div>
-                {:else if unlockStep === "entry"}
-                    <div class="space-y-2">
-                        {#if canUnlockByPassphrase}
-                            <div class="flex gap-2 text-xs">
-                                <button
-                                    onclick={() => (unlockMode = "key")}
-                                    class="px-2 py-1 rounded {unlockMode ===
-                                    'key'
-                                        ? 'bg-zam-accent text-white'
-                                        : 'bg-zam-messageHover text-zam-textPrimary'}"
-                                    >{t(
-                                        "securitySettings.recoveryKey2",
-                                    )}</button
-                                >
-                                <button
-                                    onclick={() => (unlockMode = "passphrase")}
-                                    class="px-2 py-1 rounded {unlockMode ===
-                                    'passphrase'
-                                        ? 'bg-zam-accent text-white'
-                                        : 'bg-zam-messageHover text-zam-textPrimary'}"
-                                    >{t("securitySettings.passphrase")}</button
-                                >
-                            </div>
-                        {/if}
-                        <p class="text-xs text-zam-textMuted">
-                            {t("securitySettings.enterYour")}
-                            <strong
-                                >{effectiveUnlockMode === "key"
-                                    ? t("securitySettings.recoveryKey")
-                                    : t(
-                                          "securitySettings.recoveryPassphrase2",
-                                      )}</strong
-                            >
-                            {t(
-                                "securitySettings.toVerifyThisSessionAndRestore",
-                            )}
-                        </p>
-                        {#if effectiveUnlockMode === "key"}
-                            <input
-                                type="text"
-                                bind:value={unlockKey}
-                                placeholder={t("securitySettings.recoveryKey2")}
-                                autocomplete="off"
-                                autocapitalize="none"
-                                spellcheck="false"
-                                onkeydown={(e) =>
-                                    e.key === "Enter" &&
-                                    unlockReady &&
-                                    runUnlock()}
-                                class="w-full bg-zam-backgroundDark text-zam-textPrimary font-mono text-sm rounded px-3 py-1.5 outline-none"
-                            />
-                        {:else}
-                            <input
-                                type="password"
-                                bind:value={unlockPassphrase}
-                                placeholder={t(
-                                    "securitySettings.recoveryPassphrase",
-                                )}
-                                autocomplete="current-password"
-                                onkeydown={(e) =>
-                                    e.key === "Enter" &&
-                                    unlockReady &&
-                                    runUnlock()}
-                                class="w-full bg-zam-backgroundDark text-zam-textPrimary text-sm rounded px-3 py-1.5 outline-none"
-                            />
-                        {/if}
-                        <div class="flex gap-2">
-                            <button
-                                onclick={runUnlock}
-                                disabled={!unlockReady}
-                                class="px-3 py-1.5 bg-zam-accent text-white rounded text-sm disabled:opacity-50"
-                                >{t("securitySettings.continue")}</button
-                            >
-                            <button
-                                onclick={cancelUnlock}
-                                class="px-3 py-1.5 bg-zam-messageHover text-zam-textPrimary rounded text-sm"
-                                >{t("common.cancel")}</button
-                            >
-                        </div>
-                    </div>
-                {:else if unlockStep === "working"}
-                    <div class="space-y-2">
-                        <p class="text-sm text-zam-textPrimary">
-                            {t("keyBackup.preparing")}
-                        </p>
-                        <div
-                            class="h-1.5 w-full rounded bg-zam-backgroundDark overflow-hidden"
-                        >
-                            <div
-                                class="h-full bg-zam-accent transition-all"
-                                style="width: 15%"
-                            ></div>
-                        </div>
-                    </div>
+                {:else if unlockPurpose === "verify"}
+                    {@render unlockForm(
+                        t("securitySettings.enterYour"),
+                        t("securitySettings.toVerifyThisSessionAndRestore"),
+                    )}
                 {/if}
             {:else if canVerifyWithDevice}
                 <button
@@ -1285,7 +1357,7 @@
                 >
             {/if}
 
-            {#if unlockStep === "done" && unlockResult}
+            {#if unlockPurpose === "verify" && unlockStep === "done" && unlockResult}
                 <div class="space-y-2">
                     <p class="text-sm font-medium text-zam-online">
                         {unlockResult.sessionVerified
@@ -1307,7 +1379,7 @@
                 </div>
             {/if}
 
-            {#if unlockError}
+            {#if unlockPurpose === "verify" && unlockError}
                 <p class="text-sm text-zam-danger">{unlockError}</p>
             {/if}
         </section>

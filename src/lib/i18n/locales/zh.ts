@@ -2577,6 +2577,16 @@ const messages: Partial<Record<MessageKey, string>> = {
     "securitySettings.recoveryPassphrase2": "恢复密码短语",
     "securitySettings.toVerifyThisSessionAndRestore":
         "以验证此会话并恢复你的加密消息历史。",
+    "securitySettings.offlineMessages": "离线消息",
+    "securitySettings.offlineMessagesOn": "开",
+    "securitySettings.offlineMessagesOff": "关",
+    "securitySettings.offlineMessagesHelp":
+        "在服务器上保留一个替身会话，让新登录的设备能读取你所有会话离线期间收到的消息。",
+    "securitySettings.turnOnOfflineMessages": "开启离线消息",
+    "securitySettings.enterYourToTurnOnOffline": "输入你的",
+    "securitySettings.toTurnOnOfflineMessages": "以开启离线消息。",
+    "securitySettings.offlineMessagesTurnedOn": "离线消息已开启。",
+    "securitySettings.offlineMessagesFailed": "无法开启离线消息，请稍后再试。",
     "securitySettings.thisSessionIsNowVerified": "此会话现已验证",
     "securitySettings.encryptedHistoryRestored": "加密历史已恢复",
     "securitySettings.couldNotSetUpRecovery": "无法设置恢复",

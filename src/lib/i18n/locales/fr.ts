@@ -2607,6 +2607,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "securitySettings.recoveryPassphrase2": "phrase secrète de récupération",
     "securitySettings.toVerifyThisSessionAndRestore":
         "pour vérifier cette session et restaurer l'historique de vos messages chiffrés.",
+    "securitySettings.offlineMessages": "Messages hors ligne",
+    "securitySettings.offlineMessagesOn": "Activé",
+    "securitySettings.offlineMessagesOff": "Désactivé",
+    "securitySettings.offlineMessagesHelp":
+        "Garde une session de remplacement sur votre serveur, pour qu'une nouvelle connexion puisse lire les messages envoyés pendant que toutes vos sessions étaient hors ligne.",
+    "securitySettings.turnOnOfflineMessages": "Activer les messages hors ligne",
+    "securitySettings.enterYourToTurnOnOffline": "Saisissez votre",
+    "securitySettings.toTurnOnOfflineMessages":
+        "pour activer les messages hors ligne.",
+    "securitySettings.offlineMessagesTurnedOn":
+        "Les messages hors ligne sont activés.",
+    "securitySettings.offlineMessagesFailed":
+        "Impossible d'activer les messages hors ligne. Réessayez plus tard.",
     "securitySettings.thisSessionIsNowVerified":
         "Cette session est maintenant vérifiée",
     "securitySettings.encryptedHistoryRestored": "Historique chiffré restauré",

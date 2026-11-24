@@ -30,6 +30,7 @@ import {
     ClientEvent,
     EventTimeline,
     MatrixEventEvent,
+    Method,
     RoomMemberEvent,
     RoomStateEvent,
 } from "matrix-js-sdk";
@@ -579,10 +580,43 @@ function runDehydration(client: MatrixClient, trigger: DehydrationTrigger) {
                 return;
             if (getClient() !== client) return;
             await crypto.startDehydration(dehydrationOptions(trigger));
+            bumpSecurityTick();
         } catch (e) {
             console.warn(`[matrix] device dehydration (${trigger}) failed`, e);
         }
     });
+}
+
+/** Resolves once every dehydration run started so far has finished. */
+export function dehydrationSettled(): Promise<void> {
+    return dehydrationChain;
+}
+
+export type DehydrationStatus = "unsupported" | "off" | "on";
+
+/**
+ * Whether the account has a dehydrated device on the server: `on` when one
+ * exists, `off` when the server supports them but holds none, `unsupported`
+ * when it does not know the endpoint. Null when it can't be read.
+ */
+export async function getDehydrationStatus(): Promise<DehydrationStatus | null> {
+    const client = getClient();
+    if (!client) return null;
+    try {
+        await client.http.authedRequest(
+            Method.Get,
+            "/dehydrated_device",
+            undefined,
+            undefined,
+            { prefix: "/_matrix/client/unstable/org.matrix.msc3814.v1" },
+        );
+        return "on";
+    } catch (e) {
+        const code = (e as MatrixError).errcode;
+        if (code === "M_UNRECOGNIZED") return "unsupported";
+        if (code === "M_NOT_FOUND") return "off";
+        return null;
+    }
 }
 
 /** Refresh the dehydrated device a little after boot, off the critical path. */

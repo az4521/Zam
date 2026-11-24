@@ -2771,6 +2771,18 @@ const messages: Partial<Record<MessageKey, string>> = {
     "securitySettings.recoveryPassphrase2": "парольную фразу восстановления",
     "securitySettings.toVerifyThisSessionAndRestore":
         ", чтобы подтвердить этот сеанс и восстановить историю зашифрованных сообщений.",
+    "securitySettings.offlineMessages": "Офлайн-сообщения",
+    "securitySettings.offlineMessagesOn": "Вкл.",
+    "securitySettings.offlineMessagesOff": "Выкл.",
+    "securitySettings.offlineMessagesHelp":
+        "Держит на сервере сеанс-заместитель, чтобы новый вход мог прочитать сообщения, отправленные, пока все ваши сеансы были не в сети.",
+    "securitySettings.turnOnOfflineMessages": "Включить офлайн-сообщения",
+    "securitySettings.enterYourToTurnOnOffline": "Введите вашу",
+    "securitySettings.toTurnOnOfflineMessages":
+        ", чтобы включить офлайн-сообщения.",
+    "securitySettings.offlineMessagesTurnedOn": "Офлайн-сообщения включены.",
+    "securitySettings.offlineMessagesFailed":
+        "Не удалось включить офлайн-сообщения. Попробуйте позже.",
     "securitySettings.thisSessionIsNowVerified":
         "Этот сеанс теперь подтверждён",
     "securitySettings.encryptedHistoryRestored":

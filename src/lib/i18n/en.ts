@@ -2678,6 +2678,17 @@ export const en = {
     "securitySettings.recoveryPassphrase2": "recovery passphrase",
     "securitySettings.toVerifyThisSessionAndRestore":
         "to verify this session and restore your encrypted message history.",
+    "securitySettings.offlineMessages": "Offline messages",
+    "securitySettings.offlineMessagesOn": "On",
+    "securitySettings.offlineMessagesOff": "Off",
+    "securitySettings.offlineMessagesHelp":
+        "Keeps a stand-in session on your server, so a new sign-in can read messages sent while all your sessions were offline.",
+    "securitySettings.turnOnOfflineMessages": "Turn on offline messages",
+    "securitySettings.enterYourToTurnOnOffline": "Enter your",
+    "securitySettings.toTurnOnOfflineMessages": "to turn on offline messages.",
+    "securitySettings.offlineMessagesTurnedOn": "Offline messages are on.",
+    "securitySettings.offlineMessagesFailed":
+        "Couldn't turn on offline messages. Try again later.",
     "securitySettings.thisSessionIsNowVerified": "This session is now verified",
     "securitySettings.encryptedHistoryRestored": "Encrypted history restored",
     "securitySettings.couldNotSetUpRecovery": "Could not set up recovery",

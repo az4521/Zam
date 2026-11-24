@@ -2437,6 +2437,20 @@ const messages: Partial<Record<MessageKey, string>> = {
         "このセッションを検証し、暗号化されたメッセージ履歴を復元するには、",
     "securitySettings.recoveryPassphrase2": "リカバリーパスフレーズ",
     "securitySettings.toVerifyThisSessionAndRestore": "を入力してください。",
+    "securitySettings.offlineMessages": "オフラインメッセージ",
+    "securitySettings.offlineMessagesOn": "オン",
+    "securitySettings.offlineMessagesOff": "オフ",
+    "securitySettings.offlineMessagesHelp":
+        "サーバー上に代理セッションを保持し、すべてのセッションがオフラインの間に送られたメッセージを新しくサインインした端末で読めるようにします。",
+    "securitySettings.turnOnOfflineMessages":
+        "オフラインメッセージをオンにする",
+    "securitySettings.enterYourToTurnOnOffline":
+        "オフラインメッセージをオンにするには、",
+    "securitySettings.toTurnOnOfflineMessages": "を入力してください。",
+    "securitySettings.offlineMessagesTurnedOn":
+        "オフラインメッセージがオンになりました。",
+    "securitySettings.offlineMessagesFailed":
+        "オフラインメッセージをオンにできませんでした。しばらくしてからもう一度お試しください。",
     "securitySettings.thisSessionIsNowVerified":
         "このセッションは検証済みになりました",
     "securitySettings.encryptedHistoryRestored":

@@ -2793,6 +2793,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "securitySettings.recoveryPassphrase2": "парольну фразу відновлення",
     "securitySettings.toVerifyThisSessionAndRestore":
         "щоб верифікувати цей сеанс і відновити вашу історію зашифрованих повідомлень.",
+    "securitySettings.offlineMessages": "Офлайн-повідомлення",
+    "securitySettings.offlineMessagesOn": "Увімк.",
+    "securitySettings.offlineMessagesOff": "Вимк.",
+    "securitySettings.offlineMessagesHelp":
+        "Тримає на сервері сеанс-замісник, щоб новий вхід міг прочитати повідомлення, надіслані, поки всі ваші сеанси були офлайн.",
+    "securitySettings.turnOnOfflineMessages": "Увімкнути офлайн-повідомлення",
+    "securitySettings.enterYourToTurnOnOffline": "Введіть",
+    "securitySettings.toTurnOnOfflineMessages":
+        "щоб увімкнути офлайн-повідомлення.",
+    "securitySettings.offlineMessagesTurnedOn":
+        "Офлайн-повідомлення увімкнено.",
+    "securitySettings.offlineMessagesFailed":
+        "Не вдалося увімкнути офлайн-повідомлення. Спробуйте пізніше.",
     "securitySettings.thisSessionIsNowVerified": "Цей сеанс верифіковано",
     "securitySettings.encryptedHistoryRestored":
         "Зашифровану історію відновлено",

@@ -2644,6 +2644,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "securitySettings.recoveryPassphrase2": "frase de recuperación",
     "securitySettings.toVerifyThisSessionAndRestore":
         "para verificar esta sesión y restaurar tu historial de mensajes cifrados.",
+    "securitySettings.offlineMessages": "Mensajes sin conexión",
+    "securitySettings.offlineMessagesOn": "Activado",
+    "securitySettings.offlineMessagesOff": "Desactivado",
+    "securitySettings.offlineMessagesHelp":
+        "Mantiene una sesión suplente en tu servidor para que un nuevo inicio de sesión pueda leer los mensajes enviados mientras todas tus sesiones estaban desconectadas.",
+    "securitySettings.turnOnOfflineMessages": "Activar mensajes sin conexión",
+    "securitySettings.enterYourToTurnOnOffline": "Introduce tu",
+    "securitySettings.toTurnOnOfflineMessages":
+        "para activar los mensajes sin conexión.",
+    "securitySettings.offlineMessagesTurnedOn":
+        "Los mensajes sin conexión están activados.",
+    "securitySettings.offlineMessagesFailed":
+        "No se pudieron activar los mensajes sin conexión. Inténtalo más tarde.",
     "securitySettings.thisSessionIsNowVerified":
         "Esta sesión ya está verificada",
     "securitySettings.encryptedHistoryRestored": "Historial cifrado restaurado",
