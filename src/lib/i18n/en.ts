@@ -4,6 +4,35 @@
 // Other languages (see ./aii.ts) must use the same keys and placeholders.
 
 export const en = {
+    // Scheduled send (stores/scheduledMessages, matrix/client)
+    "scheduledMessages.cannotEncrypt":
+        "Couldn't encrypt this message for scheduling.",
+    "scheduledMessages.tooFarAheadDays":
+        "That's further ahead than this server allows. The limit is {days} days.",
+    "scheduledMessages.tooFarAhead":
+        "That's further ahead than this server allows.",
+    "composerActionsMenu.scheduleMessage": "Schedule message",
+    "schedulePicker.title": "Schedule message",
+    "schedulePicker.inOneHour": "In one hour",
+    "schedulePicker.thisEvening": "This evening",
+    "schedulePicker.tomorrowMorning": "Tomorrow morning",
+    "schedulePicker.mondayMorning": "Monday morning",
+    "schedulePicker.customTime": "Pick a date and time",
+    "schedulePicker.setTime": "Set time",
+    "messageInput.scheduledFor": "Scheduled for {when}",
+    "messageInput.cancelSchedule": "Cancel schedule",
+    "messageInput.scheduleSend": "Schedule message",
+    "messageInput.cannotScheduleAttachments":
+        "Scheduled messages can't include attachments. Send them now, or remove them to schedule the text.",
+    "messageInput.messageScheduled": "Message scheduled for {when}",
+    "messageInput.failedToSchedule": "Couldn't schedule the message",
+    "scheduledMessages.count":
+        "{count, plural, one {# scheduled message} other {# scheduled messages}}",
+    "scheduledMessages.encryptedPreview": "Encrypted message",
+    "scheduledMessages.sendNow": "Send now",
+    "scheduledMessages.cancel": "Cancel",
+    "scheduledMessages.confirmCancel": "Confirm cancel",
+    "scheduledMessages.actionFailed": "Couldn't update the scheduled message",
     // Shared
     "common.turnOffCamera": "Turn off camera",
     "common.turnOnCamera": "Turn on camera",

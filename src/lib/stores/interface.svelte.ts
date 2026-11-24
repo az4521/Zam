@@ -130,7 +130,8 @@ export const interfaceState = $state({
     /** Dev DebugPanel visibility (the toggleDebug keybind). */
     debugOpen: false,
     /** Which composer picker the "composer-picker" modal is showing. */
-    composerPicker: null as "emoji" | "sticker" | "gif" | "timestamp" | null,
+    composerPicker: null as
+        "emoji" | "sticker" | "gif" | "timestamp" | "schedule" | null,
     /** Which composer instance owns the open picker (its `composerKey`). Lets
      *  a thread composer and the main composer coexist without both rendering
      *  the single global picker slot. Defaults to "main" for the sole composer. */
@@ -190,7 +191,7 @@ let sidebarToken: SlotToken = 0;
  *  kind switches ownership (so a thread composer opening emoji while the main
  *  composer's emoji is open moves the picker to the thread, not closes it). */
 export function openComposerPicker(
-    kind: "emoji" | "sticker" | "gif" | "timestamp",
+    kind: "emoji" | "sticker" | "gif" | "timestamp" | "schedule",
     owner: string = "main",
 ): void {
     if (

@@ -5146,6 +5146,34 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Читать данные учётной записи комнаты типа {eventType}",
     "widgets.unsupportedCapabilities":
         "{widget} нужны функции, которые Zam пока не поддерживает, поэтому он может не работать: {features}",
+    "scheduledMessages.cannotEncrypt":
+        "Не удалось зашифровать это сообщение для планирования.",
+    "scheduledMessages.tooFarAheadDays":
+        "Это дальше, чем разрешает этот сервер. Предел: {days} дн.",
+    "scheduledMessages.tooFarAhead": "Это дальше, чем разрешает этот сервер.",
+    "composerActionsMenu.scheduleMessage": "Запланировать сообщение",
+    "schedulePicker.title": "Запланировать сообщение",
+    "schedulePicker.inOneHour": "Через час",
+    "schedulePicker.thisEvening": "Сегодня вечером",
+    "schedulePicker.tomorrowMorning": "Завтра утром",
+    "schedulePicker.mondayMorning": "В понедельник утром",
+    "schedulePicker.customTime": "Выберите дату и время",
+    "schedulePicker.setTime": "Задать время",
+    "messageInput.scheduledFor": "Запланировано на {when}",
+    "messageInput.cancelSchedule": "Отменить планирование",
+    "messageInput.scheduleSend": "Запланировать сообщение",
+    "messageInput.cannotScheduleAttachments":
+        "Запланированные сообщения не могут содержать вложения. Отправьте их сейчас или уберите, чтобы запланировать только текст.",
+    "messageInput.messageScheduled": "Сообщение запланировано на {when}",
+    "messageInput.failedToSchedule": "Не удалось запланировать сообщение",
+    "scheduledMessages.count":
+        "{count, plural, one {# запланированное сообщение} few {# запланированных сообщения} many {# запланированных сообщений} other {# запланированного сообщения}}",
+    "scheduledMessages.encryptedPreview": "Зашифрованное сообщение",
+    "scheduledMessages.sendNow": "Отправить сейчас",
+    "scheduledMessages.cancel": "Отменить",
+    "scheduledMessages.confirmCancel": "Подтвердить отмену",
+    "scheduledMessages.actionFailed":
+        "Не удалось изменить запланированное сообщение",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ru };

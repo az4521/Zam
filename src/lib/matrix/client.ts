@@ -6,6 +6,7 @@ import {
 } from "$lib/utils/reactionDetails";
 import type { SoundPackContent } from "$lib/utils/soundboard";
 import { AUDIT_EVENT_TYPES, type RawAuditEvent } from "$lib/utils/auditLog";
+import type { DelayedEventItem } from "$lib/utils/scheduledMessages";
 import type { RecentEmoji } from "$lib/utils/recentEmoji";
 import {
     createClient,
@@ -5402,6 +5403,104 @@ export async function delayedEventsAdvertised(): Promise<boolean> {
     ]).then(
         ([fromVersions, fromCapabilities]) => fromVersions || fromCapabilities,
     );
+}
+
+// ── Scheduled send (MSC4140 delayed events) ────────────────────────────────
+
+/**
+ * Schedule a room message: the server holds it and sends it after `delayMs`.
+ * Returns the delay id that lists, cancels or sends it early.
+ *
+ * The SDK sends delayed events as given, without encrypting them, so an
+ * encrypted room's message is encrypted here first, with the room's current
+ * outbound session, exactly as a normal send would. Members who join before it
+ * goes out therefore can't read it (they never got that session's key).
+ */
+export async function scheduleRoomMessage(
+    roomId: string,
+    content: Record<string, unknown>,
+    delayMs: number,
+): Promise<string> {
+    const owner = captureClient();
+    const client = owner.client;
+    const room = client.getRoom(roomId);
+    const crypto = client.getCrypto();
+    let type = "m.room.message";
+    let wire = content;
+    if (crypto && (await crypto.isEncryptionEnabledInRoom(roomId))) {
+        if (!room) throw new Error(t("scheduledMessages.cannotEncrypt"));
+        const backend = (
+            client as unknown as {
+                cryptoBackend?: {
+                    encryptEvent(event: MatrixEvent, room: Room): Promise<void>;
+                };
+            }
+        ).cryptoBackend;
+        if (!backend) throw new Error(t("scheduledMessages.cannotEncrypt"));
+        await ensureRoomCryptoConfigured(room);
+        ownedClientOrThrow(owner);
+        const event = new MatrixEvent({
+            type,
+            content,
+            room_id: roomId,
+            sender: client.getUserId() ?? undefined,
+            event_id: `~${roomId}:scheduled-${client.makeTxnId()}`,
+            origin_server_ts: Date.now(),
+        });
+        await backend.encryptEvent(event, room);
+        ownedClientOrThrow(owner);
+        type = event.getWireType();
+        wire = event.getWireContent();
+    }
+    const res = await client._unstable_sendDelayedEvent(
+        roomId,
+        delayMs,
+        null,
+        type as never,
+        wire as never,
+    );
+    return res.delay_id;
+}
+
+/** Every delayed event this account has scheduled, across all pages. */
+export async function listScheduledEvents(): Promise<DelayedEventItem[]> {
+    const owner = captureClient();
+    const out: DelayedEventItem[] = [];
+    let from: string | undefined;
+    for (let page = 0; page < 50; page++) {
+        const res = await ownedClientOrThrow(owner)._unstable_getDelayedEvents(
+            "scheduled",
+            undefined,
+            from,
+        );
+        for (const item of res.scheduled ?? []) {
+            out.push({
+                delayId: item.delay_id,
+                roomId: item.room_id,
+                type: item.type,
+                content: item.content as Record<string, unknown>,
+                stateKey:
+                    "state_key" in item
+                        ? (item as { state_key: string }).state_key
+                        : undefined,
+                delay: "delay" in item ? (item.delay ?? 0) : 0,
+                runningSince: item.running_since,
+            });
+        }
+        if (!res.next_batch || res.next_batch === from) break;
+        from = res.next_batch;
+    }
+    return out;
+}
+
+export async function cancelScheduledEvent(delayId: string): Promise<void> {
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    await matrixClient._unstable_cancelScheduledDelayedEvent(delayId);
+}
+
+export async function sendScheduledEventNow(delayId: string): Promise<void> {
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    await matrixClient._unstable_sendScheduledDelayedEvent(delayId);
 }
 
 /** Whether the homeserver advertises sticky events (MSC4354) in `/versions`

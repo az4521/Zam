@@ -5179,6 +5179,35 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Ler os dados de conta da sala do tipo {eventType}",
     "widgets.unsupportedCapabilities":
         "{widget} precisa de recursos que o Zam ainda não suporta, então pode não funcionar: {features}",
+    "scheduledMessages.cannotEncrypt":
+        "Não foi possível criptografar esta mensagem para agendamento.",
+    "scheduledMessages.tooFarAheadDays":
+        "Isso está mais distante do que este servidor permite. O limite é de {days} dias.",
+    "scheduledMessages.tooFarAhead":
+        "Isso está mais distante do que este servidor permite.",
+    "composerActionsMenu.scheduleMessage": "Agendar mensagem",
+    "schedulePicker.title": "Agendar mensagem",
+    "schedulePicker.inOneHour": "Daqui a uma hora",
+    "schedulePicker.thisEvening": "Hoje à noite",
+    "schedulePicker.tomorrowMorning": "Amanhã de manhã",
+    "schedulePicker.mondayMorning": "Segunda-feira de manhã",
+    "schedulePicker.customTime": "Escolha a data e a hora",
+    "schedulePicker.setTime": "Definir hora",
+    "messageInput.scheduledFor": "Agendada para {when}",
+    "messageInput.cancelSchedule": "Cancelar agendamento",
+    "messageInput.scheduleSend": "Agendar mensagem",
+    "messageInput.cannotScheduleAttachments":
+        "Mensagens agendadas não podem incluir anexos. Envie-os agora ou remova-os para agendar só o texto.",
+    "messageInput.messageScheduled": "Mensagem agendada para {when}",
+    "messageInput.failedToSchedule": "Não foi possível agendar a mensagem",
+    "scheduledMessages.count":
+        "{count, plural, one {# mensagem agendada} other {# mensagens agendadas}}",
+    "scheduledMessages.encryptedPreview": "Mensagem criptografada",
+    "scheduledMessages.sendNow": "Enviar agora",
+    "scheduledMessages.cancel": "Cancelar",
+    "scheduledMessages.confirmCancel": "Confirmar cancelamento",
+    "scheduledMessages.actionFailed":
+        "Não foi possível atualizar a mensagem agendada",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ptBR };

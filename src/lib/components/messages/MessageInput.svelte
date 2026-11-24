@@ -1,7 +1,7 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
     import { keybindsState, pickerForKey } from "$lib/stores/keybinds.svelte";
-    import { tick, untrack } from "svelte";
+    import { onMount, tick, untrack } from "svelte";
     import type { MatrixEvent, Room } from "matrix-js-sdk";
     import {
         sendTextMessage,
@@ -134,6 +134,15 @@
     } from "$lib/stores/interface.svelte";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
     import ComposerActionsMenu from "$lib/components/messages/ComposerActionsMenu.svelte";
+    import SchedulePicker from "$lib/components/messages/SchedulePicker.svelte";
+    import ScheduledMessagesBar from "$lib/components/messages/ScheduledMessagesBar.svelte";
+    import {
+        ensureScheduleSupport,
+        scheduledForRoom,
+        scheduleMessage,
+        scheduledState,
+    } from "$lib/stores/scheduledMessages.svelte";
+    import { compactDateTime } from "$lib/utils/timeFormat";
     import RenameAttachmentDialog from "$lib/components/messages/RenameAttachmentDialog.svelte";
     import VoiceRecorder from "$lib/components/messages/VoiceRecorder.svelte";
     import OutboxStrip from "$lib/components/messages/OutboxStrip.svelte";
@@ -277,6 +286,13 @@
 
     let text = $state("");
     let isSending = $state(false);
+    // Scheduled send: when set, the next text message is held by the server
+    // until this time instead of being sent now.
+    let scheduleAt = $state<number | null>(null);
+    // Checks once per session whether the homeserver can hold scheduled sends.
+    onMount(() => {
+        void ensureScheduleSupport();
+    });
     // Edit mode. `activeEdit` is the edit target when it belongs to this room
     // (a target from another room is ignored). While editing, the composer
     // holds the edit text and the draft the user had typed waits in
@@ -884,6 +900,28 @@
             interfaceState.composerPicker === "timestamp" &&
             interfaceState.composerPickerOwner === effComposerKey,
     );
+    // Scheduled send: the schedule picker shares the composer picker slot.
+    const showSchedulePicker = $derived(
+        composerPickerOpen &&
+            interfaceState.composerPicker === "schedule" &&
+            interfaceState.composerPickerOwner === effComposerKey,
+    );
+    // Scheduling needs server support and a plain composer (not a thread or edit).
+    const scheduleAvailable = $derived(
+        scheduledState.supported === true && !isThread && !activeEdit,
+    );
+    const scheduledCount = $derived(
+        isThread ? 0 : scheduledForRoom(roomId).length,
+    );
+    function openSchedulePicker() {
+        openComposerPicker("schedule", effComposerKey);
+    }
+    function pickSchedule(at: number) {
+        scheduleAt = at;
+        closeModal();
+        textareaEl?.focus();
+    }
+
     // Read-only room: the user's power level is below what posting needs
     // (announcement channels). Locks the composer like `disabled` does.
     const noSendPermission = $derived(
@@ -1109,6 +1147,8 @@
         voiceRecorderOpen = false;
         // An armed "create thread" must not carry over to another room either.
         createThreadArmed = false;
+        // Nor a scheduled send: it was picked for the room being left.
+        scheduleAt = null;
         untrack(() => {
             const draft = getDraft(key);
             text = draft?.text ?? "";
@@ -1629,6 +1669,62 @@
         return body.length > 80 ? body.slice(0, 80) + "…" : body;
     }
 
+    /** Hold a text message for the server to send at `at` (scheduled send).
+     *  The composer keeps its text until the server accepts the schedule, so a
+     *  failure loses nothing, and the schedule stays set so the user can retry. */
+    async function scheduleText(sourceText: string, plain: string, at: number) {
+        const targetRoomId = roomId;
+        const targetComposerKey = effComposerKey;
+        const textAtSend = text;
+        const formatted = buildFormattedBody(sourceText);
+        const { html } = formatted;
+        const mentions = withReplyMention(
+            mentionsFromFormatted(formatted),
+            replyToEvent?.getSender(),
+            replyPing,
+            auth.userId,
+        );
+        const replyId = replyToEvent?.getId() ?? undefined;
+        const baseContent: Record<string, unknown> = replyId
+            ? (buildReplyContent({
+                  replyEventId: replyId,
+                  text: plain,
+                  formattedText: html ?? undefined,
+                  mentions,
+              }) as unknown as Record<string, unknown>)
+            : html
+              ? buildFormattedContent(plain, html, mentions)
+              : buildTextContent(plain, mentions);
+        const content = applyContentTransforms(
+            baseContent,
+            pluginRegistry.outgoingContentTransforms.map((e) => e.value),
+            { roomId: targetRoomId },
+        );
+        isSending = true;
+        try {
+            await scheduleMessage(targetRoomId, content, at, plain);
+            if (scheduleAt === at) scheduleAt = null;
+            clearComposerAfterSend(targetComposerKey, textAtSend);
+            if (replyId) onCancelReply?.();
+            showToast(
+                t("messageInput.messageScheduled", {
+                    when: compactDateTime(at),
+                }),
+                { tone: "accent" },
+            );
+        } catch (err) {
+            console.error("Failed to schedule message:", err);
+            showErrorToast(
+                err instanceof Error
+                    ? err.message
+                    : t("messageInput.failedToSchedule"),
+            );
+        } finally {
+            isSending = false;
+        }
+        textareaEl?.focus();
+    }
+
     async function send() {
         // Edit mode: Enter and the send button save the edit. Nothing else
         // (commands, sed, attachments, replies, threads) applies to it.
@@ -1720,6 +1816,18 @@
         // Reset the refresh gate so the next keystroke re-broadcasts typing
         // immediately rather than waiting out the 20s window.
         lastTypingSentAt = 0;
+
+        // Scheduled send: the server holds the text instead of sending it now.
+        // Attachments cannot be scheduled, so they stop here, before the queue
+        // or the composer text is touched.
+        if (scheduleAt !== null) {
+            if (fileQueue.length > 0) {
+                showErrorToast(t("messageInput.cannotScheduleAttachments"));
+                return;
+            }
+            await scheduleText(sourceText, trimmed, scheduleAt);
+            return;
+        }
 
         isSending = true;
         // Everything below targets the room the user pressed Send in — a room
@@ -2988,9 +3096,49 @@
             onClose={() => (voiceRecorderOpen = false)}
         />
     {:else}
+        {#if scheduledCount > 0}
+            <ScheduledMessagesBar {roomId} />
+        {/if}
+        {#if scheduleAt !== null}
+            <div
+                class="flex items-center gap-2 mb-1 px-3 py-1.5 bg-zam-backgroundTertiary rounded-t-lg border-s-2 border-zam-accent text-xs"
+            >
+                <svg
+                    class="w-4 h-4 text-zam-accent flex-shrink-0"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                    ><path
+                        d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"
+                    /></svg
+                >
+                <span class="flex-1 min-w-0 truncate text-zam-textPrimary"
+                    >{t("messageInput.scheduledFor", {
+                        when: compactDateTime(scheduleAt),
+                    })}</span
+                >
+                <button
+                    type="button"
+                    onclick={() => (scheduleAt = null)}
+                    title={t("messageInput.cancelSchedule")}
+                    aria-label={t("messageInput.cancelSchedule")}
+                    class="flex-shrink-0 p-0.5 rounded text-zam-textMuted hover:text-zam-textPrimary transition-colors"
+                >
+                    <svg
+                        class="w-3.5 h-3.5"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                        ><path
+                            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                        /></svg
+                    >
+                </button>
+            </div>
+        {/if}
         <div
             class="input-box relative flex items-end gap-2 bg-zam-backgroundSecondary rounded-lg px-2.5 py-2.5 border border-transparent transition-colors"
-            class:rounded-ss-none={!!replyToEvent || !!activeEdit}
+            class:rounded-ss-none={!!replyToEvent ||
+                !!activeEdit ||
+                scheduleAt !== null}
         >
             <!-- "+" actions menu -->
             <div class="flex-shrink-0 relative">
@@ -3055,6 +3203,9 @@
                                 onInviteToGame={() =>
                                     openGameInviteDialog(roomId)}
                                 onInsertTimestamp={openTimestampPicker}
+                                onScheduleMessage={scheduleAvailable
+                                    ? openSchedulePicker
+                                    : undefined}
                             />
                         </div>
                     {:else}
@@ -3089,6 +3240,9 @@
                                 onInviteToGame={() =>
                                     openGameInviteDialog(roomId)}
                                 onInsertTimestamp={openTimestampPicker}
+                                onScheduleMessage={scheduleAvailable
+                                    ? openSchedulePicker
+                                    : undefined}
                             />
                         </div>
                     {/if}
@@ -3111,6 +3265,29 @@
                         <div class="absolute bottom-full start-0 mb-2 z-50">
                             <TimestampPicker
                                 onInsert={insertTimestamp}
+                                onClose={closeModal}
+                            />
+                        </div>
+                    {/if}
+                {/if}
+                {#if showSchedulePicker}
+                    {#if interfaceState.isTouchscreen}
+                        <PickerDock onClose={closeModal} {keyboardOffset}>
+                            <SchedulePicker
+                                onPick={pickSchedule}
+                                onClose={closeModal}
+                            />
+                        </PickerDock>
+                    {:else}
+                        <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+                        <div
+                            class="fixed inset-0 z-40"
+                            onclick={closeModal}
+                            onkeydown={closeModal}
+                        ></div>
+                        <div class="absolute bottom-full start-0 mb-2 z-50">
+                            <SchedulePicker
+                                onPick={pickSchedule}
                                 onClose={closeModal}
                             />
                         </div>
@@ -3365,7 +3542,12 @@
                 class="flex-shrink-0 p-1.5 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed {canSend
                     ? 'text-zam-accent hover:text-zam-accentHover hover:bg-zam-messageHover'
                     : 'text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover'}"
-                title={t("messageInput.sendMessage")}
+                title={scheduleAt !== null
+                    ? t("messageInput.scheduleSend")
+                    : t("messageInput.sendMessage")}
+                aria-label={scheduleAt !== null
+                    ? t("messageInput.scheduleSend")
+                    : t("messageInput.sendMessage")}
             >
                 {#if isSending || isSavingEdit}
                     <div

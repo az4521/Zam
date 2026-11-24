@@ -5222,6 +5222,35 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Lire les données de compte du salon de type {eventType}",
     "widgets.unsupportedCapabilities":
         "{widget} a besoin de fonctionnalités que Zam ne prend pas encore en charge, il risque de ne pas fonctionner : {features}",
+    "scheduledMessages.cannotEncrypt":
+        "Impossible de chiffrer ce message pour la programmation.",
+    "scheduledMessages.tooFarAheadDays":
+        "C'est plus loin que ce que ce serveur permet. La limite est de {days} jours.",
+    "scheduledMessages.tooFarAhead":
+        "C'est plus loin que ce que ce serveur permet.",
+    "composerActionsMenu.scheduleMessage": "Programmer le message",
+    "schedulePicker.title": "Programmer le message",
+    "schedulePicker.inOneHour": "Dans une heure",
+    "schedulePicker.thisEvening": "Ce soir",
+    "schedulePicker.tomorrowMorning": "Demain matin",
+    "schedulePicker.mondayMorning": "Lundi matin",
+    "schedulePicker.customTime": "Choisir la date et l'heure",
+    "schedulePicker.setTime": "Définir l'heure",
+    "messageInput.scheduledFor": "Programmé pour {when}",
+    "messageInput.cancelSchedule": "Annuler la programmation",
+    "messageInput.scheduleSend": "Programmer le message",
+    "messageInput.cannotScheduleAttachments":
+        "Les messages programmés ne peuvent pas contenir de pièces jointes. Envoyez-les maintenant ou retirez-les pour programmer le texte seul.",
+    "messageInput.messageScheduled": "Message programmé pour {when}",
+    "messageInput.failedToSchedule": "Impossible de programmer le message",
+    "scheduledMessages.count":
+        "{count, plural, one {# message programmé} other {# messages programmés}}",
+    "scheduledMessages.encryptedPreview": "Message chiffré",
+    "scheduledMessages.sendNow": "Envoyer maintenant",
+    "scheduledMessages.cancel": "Annuler",
+    "scheduledMessages.confirmCancel": "Confirmer l'annulation",
+    "scheduledMessages.actionFailed":
+        "Impossible de modifier le message programmé",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: fr };

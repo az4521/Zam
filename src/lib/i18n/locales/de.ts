@@ -5251,6 +5251,35 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Die Raum-Kontodaten vom Typ {eventType} lesen",
     "widgets.unsupportedCapabilities":
         "{widget} benötigt Funktionen, die Zam noch nicht unterstützt, und funktioniert daher eventuell nicht: {features}",
+    "scheduledMessages.cannotEncrypt":
+        "Diese Nachricht konnte für die Planung nicht verschlüsselt werden.",
+    "scheduledMessages.tooFarAheadDays":
+        "Das liegt weiter in der Zukunft, als dieser Server erlaubt. Das Limit beträgt {days} Tage.",
+    "scheduledMessages.tooFarAhead":
+        "Das liegt weiter in der Zukunft, als dieser Server erlaubt.",
+    "composerActionsMenu.scheduleMessage": "Nachricht planen",
+    "schedulePicker.title": "Nachricht planen",
+    "schedulePicker.inOneHour": "In einer Stunde",
+    "schedulePicker.thisEvening": "Heute Abend",
+    "schedulePicker.tomorrowMorning": "Morgen früh",
+    "schedulePicker.mondayMorning": "Montagmorgen",
+    "schedulePicker.customTime": "Datum und Uhrzeit wählen",
+    "schedulePicker.setTime": "Zeit festlegen",
+    "messageInput.scheduledFor": "Geplant für {when}",
+    "messageInput.cancelSchedule": "Planung abbrechen",
+    "messageInput.scheduleSend": "Nachricht planen",
+    "messageInput.cannotScheduleAttachments":
+        "Geplante Nachrichten können keine Anhänge enthalten. Sende sie jetzt oder entferne sie, um nur den Text zu planen.",
+    "messageInput.messageScheduled": "Nachricht geplant für {when}",
+    "messageInput.failedToSchedule": "Nachricht konnte nicht geplant werden",
+    "scheduledMessages.count":
+        "{count, plural, one {# geplante Nachricht} other {# geplante Nachrichten}}",
+    "scheduledMessages.encryptedPreview": "Verschlüsselte Nachricht",
+    "scheduledMessages.sendNow": "Jetzt senden",
+    "scheduledMessages.cancel": "Abbrechen",
+    "scheduledMessages.confirmCancel": "Abbruch bestätigen",
+    "scheduledMessages.actionFailed":
+        "Geplante Nachricht konnte nicht geändert werden",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: de };

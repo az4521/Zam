@@ -5140,6 +5140,34 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Читати дані облікового запису кімнати типу {eventType}",
     "widgets.unsupportedCapabilities":
         "{widget} потрібні функції, які Zam ще не підтримує, тому він може не працювати: {features}",
+    "scheduledMessages.cannotEncrypt":
+        "Не вдалося зашифрувати це повідомлення для планування.",
+    "scheduledMessages.tooFarAheadDays":
+        "Це далі, ніж дозволяє цей сервер. Ліміт: {days} дн.",
+    "scheduledMessages.tooFarAhead": "Це далі, ніж дозволяє цей сервер.",
+    "composerActionsMenu.scheduleMessage": "Запланувати повідомлення",
+    "schedulePicker.title": "Запланувати повідомлення",
+    "schedulePicker.inOneHour": "Через годину",
+    "schedulePicker.thisEvening": "Сьогодні ввечері",
+    "schedulePicker.tomorrowMorning": "Завтра вранці",
+    "schedulePicker.mondayMorning": "У понеділок вранці",
+    "schedulePicker.customTime": "Виберіть дату й час",
+    "schedulePicker.setTime": "Встановити час",
+    "messageInput.scheduledFor": "Заплановано на {when}",
+    "messageInput.cancelSchedule": "Скасувати планування",
+    "messageInput.scheduleSend": "Запланувати повідомлення",
+    "messageInput.cannotScheduleAttachments":
+        "Заплановані повідомлення не можуть містити вкладення. Надішліть їх зараз або приберіть, щоб запланувати лише текст.",
+    "messageInput.messageScheduled": "Повідомлення заплановано на {when}",
+    "messageInput.failedToSchedule": "Не вдалося запланувати повідомлення",
+    "scheduledMessages.count":
+        "{count, plural, one {# заплановане повідомлення} few {# заплановані повідомлення} many {# запланованих повідомлень} other {# заплановане повідомлення}}",
+    "scheduledMessages.encryptedPreview": "Зашифроване повідомлення",
+    "scheduledMessages.sendNow": "Надіслати зараз",
+    "scheduledMessages.cancel": "Скасувати",
+    "scheduledMessages.confirmCancel": "Підтвердити скасування",
+    "scheduledMessages.actionFailed":
+        "Не вдалося змінити заплановане повідомлення",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: uk };

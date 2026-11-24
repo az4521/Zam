@@ -5203,6 +5203,35 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Leer los datos de cuenta de la sala de tipo {eventType}",
     "widgets.unsupportedCapabilities":
         "{widget} necesita funciones que Zam aún no admite, así que puede que no funcione: {features}",
+    "scheduledMessages.cannotEncrypt":
+        "No se pudo cifrar este mensaje para programarlo.",
+    "scheduledMessages.tooFarAheadDays":
+        "Esa fecha está más lejos de lo que permite este servidor. El límite es de {days} días.",
+    "scheduledMessages.tooFarAhead":
+        "Esa fecha está más lejos de lo que permite este servidor.",
+    "composerActionsMenu.scheduleMessage": "Programar mensaje",
+    "schedulePicker.title": "Programar mensaje",
+    "schedulePicker.inOneHour": "En una hora",
+    "schedulePicker.thisEvening": "Esta noche",
+    "schedulePicker.tomorrowMorning": "Mañana por la mañana",
+    "schedulePicker.mondayMorning": "El lunes por la mañana",
+    "schedulePicker.customTime": "Elige fecha y hora",
+    "schedulePicker.setTime": "Establecer hora",
+    "messageInput.scheduledFor": "Programado para {when}",
+    "messageInput.cancelSchedule": "Cancelar programación",
+    "messageInput.scheduleSend": "Programar mensaje",
+    "messageInput.cannotScheduleAttachments":
+        "Los mensajes programados no pueden incluir archivos adjuntos. Envíalos ahora o quítalos para programar solo el texto.",
+    "messageInput.messageScheduled": "Mensaje programado para {when}",
+    "messageInput.failedToSchedule": "No se pudo programar el mensaje",
+    "scheduledMessages.count":
+        "{count, plural, one {# mensaje programado} other {# mensajes programados}}",
+    "scheduledMessages.encryptedPreview": "Mensaje cifrado",
+    "scheduledMessages.sendNow": "Enviar ahora",
+    "scheduledMessages.cancel": "Cancelar",
+    "scheduledMessages.confirmCancel": "Confirmar cancelación",
+    "scheduledMessages.actionFailed":
+        "No se pudo actualizar el mensaje programado",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: es };

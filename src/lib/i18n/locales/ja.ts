@@ -4663,6 +4663,33 @@ const messages: Partial<Record<MessageKey, string>> = {
         "ルームのアカウントデータ（{eventType}）を読む",
     "widgets.unsupportedCapabilities":
         "{widget} には Zam がまだ対応していない機能が必要なため、動作しない可能性があります: {features}",
+    "scheduledMessages.cannotEncrypt":
+        "このメッセージを予約用に暗号化できませんでした。",
+    "scheduledMessages.tooFarAheadDays":
+        "このサーバーの上限より先の日時です。上限は {days} 日です。",
+    "scheduledMessages.tooFarAhead": "このサーバーの上限より先の日時です。",
+    "composerActionsMenu.scheduleMessage": "メッセージを予約",
+    "schedulePicker.title": "メッセージを予約",
+    "schedulePicker.inOneHour": "1時間後",
+    "schedulePicker.thisEvening": "今晩",
+    "schedulePicker.tomorrowMorning": "明日の朝",
+    "schedulePicker.mondayMorning": "月曜日の朝",
+    "schedulePicker.customTime": "日時を選択",
+    "schedulePicker.setTime": "時刻を設定",
+    "messageInput.scheduledFor": "{when} に予約済み",
+    "messageInput.cancelSchedule": "予約をキャンセル",
+    "messageInput.scheduleSend": "メッセージを予約",
+    "messageInput.cannotScheduleAttachments":
+        "予約メッセージには添付ファイルを含められません。今すぐ送信するか、添付を外してテキストだけ予約してください。",
+    "messageInput.messageScheduled": "{when} に送信するよう予約しました",
+    "messageInput.failedToSchedule": "メッセージを予約できませんでした",
+    "scheduledMessages.count":
+        "{count, plural, other {予約済みのメッセージ #件}}",
+    "scheduledMessages.encryptedPreview": "暗号化されたメッセージ",
+    "scheduledMessages.sendNow": "今すぐ送信",
+    "scheduledMessages.cancel": "キャンセル",
+    "scheduledMessages.confirmCancel": "キャンセルを確定",
+    "scheduledMessages.actionFailed": "予約メッセージを更新できませんでした",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: ja };

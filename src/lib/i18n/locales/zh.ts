@@ -4675,6 +4675,31 @@ const messages: Partial<Record<MessageKey, string>> = {
     "widgets.cap.receiveAccountData": "读取此房间的 {eventType} 账户数据",
     "widgets.unsupportedCapabilities":
         "{widget} 需要 Zam 尚不支持的功能，因此可能无法正常工作：{features}",
+    "scheduledMessages.cannotEncrypt": "无法为定时发送加密此消息。",
+    "scheduledMessages.tooFarAheadDays":
+        "这个时间超出了本服务器允许的范围。上限为 {days} 天。",
+    "scheduledMessages.tooFarAhead": "这个时间超出了本服务器允许的范围。",
+    "composerActionsMenu.scheduleMessage": "定时发送消息",
+    "schedulePicker.title": "定时发送",
+    "schedulePicker.inOneHour": "一小时后",
+    "schedulePicker.thisEvening": "今晚",
+    "schedulePicker.tomorrowMorning": "明天早上",
+    "schedulePicker.mondayMorning": "周一早上",
+    "schedulePicker.customTime": "选择日期和时间",
+    "schedulePicker.setTime": "设置时间",
+    "messageInput.scheduledFor": "定时于 {when} 发送",
+    "messageInput.cancelSchedule": "取消定时",
+    "messageInput.scheduleSend": "定时发送",
+    "messageInput.cannotScheduleAttachments":
+        "定时消息不能包含附件。请立即发送，或移除附件后仅定时发送文本。",
+    "messageInput.messageScheduled": "消息已定时于 {when} 发送",
+    "messageInput.failedToSchedule": "无法定时发送消息",
+    "scheduledMessages.count": "{count, plural, other {# 条定时消息}}",
+    "scheduledMessages.encryptedPreview": "加密消息",
+    "scheduledMessages.sendNow": "立即发送",
+    "scheduledMessages.cancel": "取消",
+    "scheduledMessages.confirmCancel": "确认取消",
+    "scheduledMessages.actionFailed": "无法更新定时消息",
 };
 
 const catalogue: LocaleCatalogue = { messages, dateLocale: zhCN };
