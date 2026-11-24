@@ -20,6 +20,7 @@ import {
     type PusherGatewayStatus,
 } from "$lib/utils/pusherVerification";
 import { WEBPUSH_APP_ID } from "$lib/webPush";
+import { nativeNotificationIds } from "$lib/utils/nativeNotificationId";
 import { ensurePushTag } from "$lib/stores/accounts.svelte";
 import { pushTagPayload } from "$lib/utils/pushTag";
 import { navigateToRoom } from "$lib/stores/rooms.svelte";
@@ -497,26 +498,24 @@ export function clearDeliveredNativeNotifications(): void {
     PushNotifications.removeAllDeliveredNotifications().catch(() => {});
 }
 
-/** Java's String.hashCode(): the native service ids a room's notification with it. */
-function javaStringHash(s: string): number {
-    let h = 0;
-    for (let i = 0; i < s.length; i++)
-        h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
-    return h;
-}
-
 /**
- * Take down the Android notifications of rooms that have been read (here or on
- * another device). MatrixMessagingService posts one per room, with the room id's
- * hash as its id; a server that sends no "clear" push would otherwise leave
- * them up after the messages were read.
+ * Take down `userId`'s Android notifications of rooms that have been read
+ * (here or on another device). MatrixMessagingService posts one per account
+ * and room (nativeNotificationId.ts); a server that sends no "clear" push
+ * would otherwise leave them up after the messages were read. Another
+ * account's notification for the same room stays up.
  */
 export async function dismissNativeRoomNotifications(
+    userId: string | null,
     roomIds: readonly string[],
 ): Promise<void> {
     if (!Capacitor.isNativePlatform() || roomIds.length === 0) return;
     try {
-        const wanted = new Set(roomIds.map((r) => String(javaStringHash(r))));
+        const wanted = new Set(
+            roomIds.flatMap((r) =>
+                nativeNotificationIds(userId, r).map((id) => String(id)),
+            ),
+        );
         const { notifications } =
             await PushNotifications.getDeliveredNotifications();
         const hits = notifications.filter((n) => wanted.has(String(n.id)));

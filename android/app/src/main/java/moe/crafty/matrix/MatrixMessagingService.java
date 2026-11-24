@@ -195,10 +195,9 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     if (roomId != null) {
                         // Must match showNotification()'s id scheme exactly, or
                         // we cancel nothing.
-                        try {
-                            NotificationManagerCompat.from(ctx)
-                                .cancel(roomId.hashCode());
-                        } catch (Throwable ignored) {}
+                        SessionRecord cleared = sessionForAccount(ctx, accountId);
+                        cancelRoomNotification(ctx,
+                            cleared != null ? cleared.userId : null, roomId);
                         PushLog.log(ctx, tag + "clear push (room read), notification removed");
                     } else {
                         // Badge-only push from a receipt change (no room): every
@@ -775,6 +774,34 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         return field;
     }
 
+    /**
+     * What a room's notification is keyed by for the account it was posted
+     * under: "@user|!room", or the bare room id when the account is unknown.
+     * Its hashCode() is the notification id, so two accounts in one room get
+     * separate notifications. src/lib/utils/nativeNotificationId.ts mirrors
+     * this for the web layer, which takes read rooms' notifications down.
+     */
+    static String notificationKey(String userId, String roomId) {
+        return userId == null || userId.isEmpty() ? roomId : userId + "|" + roomId;
+    }
+
+    static int notificationId(String userId, String roomId) {
+        return notificationKey(userId, roomId).hashCode();
+    }
+
+    /**
+     * Take down an account's notification for a room, and the room-only id
+     * notifications posted before ids were per account used.
+     */
+    static void cancelRoomNotification(Context ctx, String userId, String roomId) {
+        if (roomId == null) return;
+        try {
+            NotificationManagerCompat nm = NotificationManagerCompat.from(ctx);
+            nm.cancel(notificationId(userId, roomId));
+            nm.cancel(roomId.hashCode());
+        } catch (Throwable ignored) {}
+    }
+
     /** Whether event content is a reply in a thread (an m.thread relation). */
     static boolean isThreadReply(JSONObject content) {
         JSONObject rel = content != null ? content.optJSONObject("m.relates_to") : null;
@@ -1287,7 +1314,8 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         }
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
-        PendingIntent pending = PendingIntent.getActivity(ctx, roomId.hashCode(), intent, flags);
+        final String key = notificationKey(postedBy, roomId);
+        PendingIntent pending = PendingIntent.getActivity(ctx, key.hashCode(), intent, flags);
         NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_notify)
             .setContentTitle(title)
@@ -1308,7 +1336,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             accept.putExtra("room_id", roomId);
             accept.putExtra("user_id", postedBy);
             builder.addAction(0, "Accept", PendingIntent.getActivity(
-                ctx, (roomId + ":accept").hashCode(), accept, flags));
+                ctx, (key + ":accept").hashCode(), accept, flags));
 
             Intent decline = new Intent(ctx, MessageActionReceiver.class);
             decline.setAction(MessageActionReceiver.ACTION_DECLINE_INVITE);
@@ -1316,10 +1344,10 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             decline.putExtra("room_id", roomId);
             decline.putExtra("user_id", postedBy);
             builder.addAction(0, "Decline", PendingIntent.getBroadcast(
-                ctx, (roomId + ":decline").hashCode(), decline, flags));
+                ctx, (key + ":decline").hashCode(), decline, flags));
         }
         try {
-            NotificationManagerCompat.from(ctx).notify(roomId.hashCode(), builder.build());
+            NotificationManagerCompat.from(ctx).notify(key.hashCode(), builder.build());
             PushLog.log(ctx, "posted invite for room " + PushLog.shortId(roomId)
                 + describeDelivery(ctx, CHANNEL_ID));
         } catch (SecurityException e) {
@@ -1730,7 +1758,8 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             for (StatusBarNotification sbn : nm.getActiveNotifications()) {
                 if (!isAccountMessage(sbn, session.userId)) continue;
                 String room = notificationRoomId(sbn.getNotification());
-                if (room != null && room.hashCode() == sbn.getId()) idByRoom.put(room, sbn.getId());
+                if (room != null && (notificationId(session.userId, room) == sbn.getId()
+                        || room.hashCode() == sbn.getId())) idByRoom.put(room, sbn.getId());
             }
             if (idByRoom.isEmpty()) return 0;
             String json = fetchRoomCounts(session.homeserverUrl, session.accessToken,
@@ -1789,6 +1818,9 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         String room = n.extras != null ? n.extras.getString(NOTIF_ROOM_ID) : null;
         if (room == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             room = n.getShortcutId();
+            // notificationKey(): "@user|!room" when posted for an account.
+            int bar = room != null ? room.lastIndexOf('|') : -1;
+            if (bar >= 0) room = room.substring(bar + 1);
         }
         return room != null && room.startsWith("!") ? room : null;
     }
@@ -1859,8 +1891,11 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             flags |= PendingIntent.FLAG_IMMUTABLE;
         }
+        // One notification per account and room: two accounts in the same
+        // room each get their own, and a tap opens the one it was posted for.
+        final String key = roomId != null ? notificationKey(postedBy, roomId) : "";
         PendingIntent pending = PendingIntent.getActivity(
-            ctx, roomId != null ? roomId.hashCode() : 0, intent, flags);
+            ctx, roomId != null ? key.hashCode() : 0, intent, flags);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, channelId)
             // Small (status-bar) icon: Android renders it from the alpha channel
@@ -1912,7 +1947,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 replyIntent.putExtra("event_id", eventId);
             }
             PendingIntent replyPending = PendingIntent.getActivity(
-                ctx, (roomId + ":reply").hashCode(), replyIntent, replyFlags);
+                ctx, (key + ":reply").hashCode(), replyIntent, replyFlags);
 
             NotificationCompat.Action replyAction = new NotificationCompat.Action.Builder(
                 0, "Reply", replyPending)
@@ -1931,7 +1966,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 markReadIntent.putExtra("event_id", eventId);
             }
             PendingIntent markReadPending = PendingIntent.getBroadcast(
-                ctx, (roomId + ":markread").hashCode(), markReadIntent, flags);
+                ctx, (key + ":markread").hashCode(), markReadIntent, flags);
 
             builder.addAction(replyAction);
             builder.addAction(0, "Mark as read", markReadPending);
@@ -1939,7 +1974,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
 
         if (largeIcon != null) builder.setLargeIcon(largeIcon);
 
-        int notificationId = roomId != null ? roomId.hashCode() : (int) System.currentTimeMillis();
+        int notificationId = roomId != null ? key.hashCode() : (int) System.currentTimeMillis();
 
         // Conversation style: every unread message from this room stays in the
         // one notification, each with its author. The messages already showing
@@ -2141,14 +2176,18 @@ public class MatrixMessagingService extends FirebaseMessagingService {
      */
     private static String publishShortcut(Context ctx, String roomId, String title,
             Bitmap icon, Person person, String postedBy) {
+        String shortcutId = roomId;
         try {
             Intent open = new Intent(ctx, MainActivity.class);
             open.setAction(Intent.ACTION_VIEW);
             open.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             TrustedIntent.stamp(ctx, open);
+            // Per account, like the notification: a room two accounts share
+            // must not share one conversation entry (and its tap target).
+            shortcutId = notificationKey(postedBy, roomId);
             open.putExtra("room_id", roomId);
             open.putExtra("user_id", postedBy);
-            ShortcutInfoCompat.Builder sc = new ShortcutInfoCompat.Builder(ctx, roomId)
+            ShortcutInfoCompat.Builder sc = new ShortcutInfoCompat.Builder(ctx, shortcutId)
                 .setShortLabel(title)
                 .setLongLived(true)
                 .setIntent(open)
@@ -2158,7 +2197,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             if (icon != null) sc.setIcon(IconCompat.createWithBitmap(icon));
             ShortcutManagerCompat.pushDynamicShortcut(ctx, sc.build());
         } catch (Throwable ignored) {}
-        return roomId;
+        return shortcutId;
     }
 
     private static void createChannel(Context ctx) {

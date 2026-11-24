@@ -62,9 +62,7 @@ public class MessageActionReceiver extends BroadcastReceiver {
         if (roomId == null) return;
 
         // The user acted on it: take it down right away.
-        try {
-            NotificationManagerCompat.from(context).cancel(roomId.hashCode());
-        } catch (Throwable ignored) {}
+        MatrixMessagingService.cancelRoomNotification(context, userId, roomId);
 
         final Context app = context.getApplicationContext();
         final PendingResult pending = goAsync();

@@ -2501,7 +2501,7 @@
                     .getRooms()
                     .filter((r) => r.getUnreadNotificationCount() === 0)
                     .map((r) => r.roomId);
-                void dismissNativeRoomNotifications(read);
+                void dismissNativeRoomNotifications(client.getUserId(), read);
             }, 400);
         };
         // A room marked (or no longer marked) unread, from any device.

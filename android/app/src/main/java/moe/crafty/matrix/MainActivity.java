@@ -255,11 +255,9 @@ public class MainActivity extends BridgeActivity {
                 // notification alone.
                 return;
             }
-            // Acted on: take the message notification down (id = room hash,
-            // as MatrixMessagingService.showNotification() posts it).
-            try {
-                NotificationManagerCompat.from(this).cancel(roomId.hashCode());
-            } catch (Throwable ignored) {}
+            // Acted on: take the message notification down (keyed by account
+            // and room, as MatrixMessagingService.showNotification() posts it).
+            MatrixMessagingService.cancelRoomNotification(this, userId, roomId);
         }
         final String replyText = typedReply;
         // Mark-read action: silent receipt send, no window focus.
@@ -269,9 +267,7 @@ public class MainActivity extends BridgeActivity {
         final boolean acceptInvite =
             MessageActionReceiver.ACTION_ACCEPT_INVITE.equals(intent.getAction());
         if (acceptInvite) {
-            try {
-                NotificationManagerCompat.from(this).cancel(roomId.hashCode());
-            } catch (Throwable ignored) {}
+            MatrixMessagingService.cancelRoomNotification(this, userId, roomId);
         }
         if (getBridge() == null || getBridge().getWebView() == null) return;
         // Defer so the web app has a chance to define the hook / finish loading.
