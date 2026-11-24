@@ -5426,15 +5426,33 @@ export function getOwnDeviceId(): string | null {
 export async function getOwnDevices(): Promise<DeviceInfo[]> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
     const { devices } = await matrixClient.getDevices();
-    return devices.map((d) => ({
-        deviceId: d.device_id,
-        displayName: d.display_name,
-        lastSeenIp: d.last_seen_ip,
-        lastSeenTs: d.last_seen_ts,
-        // Not in the SDK's IMyDevice type since v42, but servers still send it.
-        lastSeenUserAgent: (d as { last_seen_user_agent?: string })
-            .last_seen_user_agent,
-    }));
+    // Servers may list the MSC3814 dehydrated device here too; it is the
+    // account's offline stand-in, not a session, so drop it. Only the crypto
+    // device list carries the `dehydrated` flag.
+    const dehydrated = new Set<string>();
+    const crypto = matrixClient.getCrypto();
+    const me = matrixClient.getUserId();
+    if (crypto && me) {
+        try {
+            const own = (await crypto.getUserDeviceInfo([me])).get(me);
+            for (const d of own?.values() ?? []) {
+                if (d.dehydrated) dehydrated.add(d.deviceId);
+            }
+        } catch {
+            // Keep the full list rather than fail the sessions view.
+        }
+    }
+    return devices
+        .filter((d) => !dehydrated.has(d.device_id))
+        .map((d) => ({
+            deviceId: d.device_id,
+            displayName: d.display_name,
+            lastSeenIp: d.last_seen_ip,
+            lastSeenTs: d.last_seen_ts,
+            // Not in the SDK's IMyDevice type since v42, but servers still send it.
+            lastSeenUserAgent: (d as { last_seen_user_agent?: string })
+                .last_seen_user_agent,
+        }));
 }
 
 export async function renameDevice(

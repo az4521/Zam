@@ -1119,11 +1119,21 @@ describe("unlockWithRecoveryKey", () => {
         vi.clearAllMocks();
     });
 
-    async function makeUnlockClient(restoreKeyBackup: () => Promise<unknown>) {
+    async function makeUnlockClient(
+        restoreKeyBackup: () => Promise<unknown>,
+        { verifiedBefore = false } = {},
+    ) {
         const { encodeRecoveryKey } =
             await import("matrix-js-sdk/lib/crypto-api");
         const calls: string[] = [];
         const crypto = {
+            getDeviceVerificationStatus: vi.fn(() =>
+                Promise.resolve({ crossSigningVerified: verifiedBefore }),
+            ),
+            isDehydrationSupported: vi.fn(() => Promise.resolve(true)),
+            isCrossSigningReady: vi.fn(() => Promise.resolve(true)),
+            isSecretStorageReady: vi.fn(() => Promise.resolve(true)),
+            startDehydration: vi.fn(() => Promise.resolve()),
             getKeyBackupInfo: vi.fn(() => Promise.resolve({ version: "1" })),
             loadSessionBackupPrivateKeyFromSecretStorage: vi.fn(() =>
                 Promise.resolve(),
@@ -1139,14 +1149,53 @@ describe("unlockWithRecoveryKey", () => {
         };
         const client = {
             getCrypto: () => crypto,
+            getUserId: () => "@me:example.org",
+            getDeviceId: () => "THISDEVICE",
             secretStorage: {
                 getKey: () => Promise.resolve(["KEYID", {}]),
                 checkKey: () => Promise.resolve(true),
             },
         };
         const key = encodeRecoveryKey(new Uint8Array(32)) as string;
-        return { client, calls, key };
+        return { client, crypto, calls, key };
     }
+
+    // MSC3814: a session the recovery key just verified is a fresh login and
+    // picks up what the dehydrated device received while all were offline.
+    it("rehydrates when the unlock verified a fresh session", async () => {
+        const mod = await import("./crypto");
+        const { client, crypto, key } = await makeUnlockClient(() =>
+            Promise.resolve({ total: 0, imported: 0 }),
+        );
+        h.getClient.mockReturnValue(client);
+
+        await mod.unlockWithRecoveryKey(key);
+        await vi.waitFor(() =>
+            expect(crypto.startDehydration).toHaveBeenCalledWith({
+                createNewKey: false,
+                onlyIfKeyCached: false,
+                rehydrate: true,
+            }),
+        );
+    });
+
+    it("does not rehydrate on a session that was already verified", async () => {
+        const mod = await import("./crypto");
+        const { client, crypto, key } = await makeUnlockClient(
+            () => Promise.resolve({ total: 0, imported: 0 }),
+            { verifiedBefore: true },
+        );
+        h.getClient.mockReturnValue(client);
+
+        await mod.unlockWithRecoveryKey(key);
+        await vi.waitFor(() =>
+            expect(crypto.startDehydration).toHaveBeenCalledWith({
+                createNewKey: false,
+                onlyIfKeyCached: false,
+                rehydrate: false,
+            }),
+        );
+    });
 
     // A large backup can take minutes or fail part way; the session must not
     // stay unverified because of it.

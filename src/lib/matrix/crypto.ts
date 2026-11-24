@@ -22,6 +22,11 @@ import {
 } from "$lib/utils/ownDeviceKeysCheck";
 import { decryptedBlobs } from "$lib/utils/decryptedBlobCache";
 import {
+    dehydrationOptions,
+    STARTUP_DEHYDRATION_DELAY_MS,
+    type DehydrationTrigger,
+} from "$lib/utils/dehydration";
+import {
     ClientEvent,
     EventTimeline,
     MatrixEventEvent,
@@ -525,6 +530,7 @@ export async function initCrypto(
         if (!(await installRekeyRepair(cryptoApi, { userId, deviceId })))
             console.warn("[matrix] can't watch for re-keyed sessions");
         bootMark("rekey-repair-done");
+        scheduleStartupDehydration(client);
     } catch (err) {
         cryptoInitError = describeError(err);
         console.error(
@@ -540,6 +546,52 @@ export async function initCrypto(
             detail: cryptoInitError,
         });
     }
+}
+
+// ─── MSC3814 dehydrated devices ──────────────────────────────────────────────
+//
+// A dehydrated device is an offline stand-in the server holds for the account:
+// senders share room keys with it like any other device, so a session that
+// logs in after every other device went away can rehydrate it and read what
+// arrived meanwhile. The SDK does the work (key in 4S as `org.matrix.msc3814`,
+// weekly rotation); we only decide when to start it (utils/dehydration.ts).
+
+let dehydrationChain: Promise<void> = Promise.resolve();
+let startupDehydrationTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Start (or refresh) device dehydration for `client`. Runs are serialised so
+ * two triggers never upload two devices at once. Best-effort: an unsupporting
+ * server, missing cross-signing or 4S, or any failure only logs.
+ */
+function runDehydration(client: MatrixClient, trigger: DehydrationTrigger) {
+    dehydrationChain = dehydrationChain.then(async () => {
+        const crypto = client.getCrypto();
+        if (!crypto || getClient() !== client) return;
+        try {
+            if (!(await crypto.isDehydrationSupported())) return;
+            // startDehydration throws without these; on startup that is the
+            // ordinary state of an account without recovery, so skip quietly.
+            if (
+                !(await crypto.isCrossSigningReady()) ||
+                !(await crypto.isSecretStorageReady())
+            )
+                return;
+            if (getClient() !== client) return;
+            await crypto.startDehydration(dehydrationOptions(trigger));
+        } catch (e) {
+            console.warn(`[matrix] device dehydration (${trigger}) failed`, e);
+        }
+    });
+}
+
+/** Refresh the dehydrated device a little after boot, off the critical path. */
+function scheduleStartupDehydration(client: MatrixClient): void {
+    if (startupDehydrationTimer) clearTimeout(startupDehydrationTimer);
+    startupDehydrationTimer = setTimeout(() => {
+        startupDehydrationTimer = null;
+        runDehydration(client, "startup");
+    }, STARTUP_DEHYDRATION_DELAY_MS);
 }
 
 /**
@@ -2009,7 +2061,9 @@ export async function getKnownDevices(
     const devices = (await crypto.getUserDeviceInfo([userId], true)).get(
         userId,
     );
-    const list = [...(devices?.values() ?? [])];
+    // A dehydrated device (MSC3814) is the account's offline stand-in, not a
+    // session anyone uses: never list it.
+    const list = [...(devices?.values() ?? [])].filter((d) => !d.dehydrated);
     const readTrust = () =>
         Promise.all(list.map((d) => getDeviceTrust(userId, d.deviceId)));
     let trust = await readTrust();
@@ -2557,6 +2611,7 @@ export async function setupRecovery(
 
     bumpSecurityTick();
     notifySecretStorageReady();
+    runDehydration(client, "recovery-created");
     return {
         recoveryKey: encoded,
         hasPassphrase: generated.keyInfo?.passphrase != null,
@@ -3095,6 +3150,7 @@ async function completeUnlock(
     // cross-signing private keys are now readable from 4S, so this doesn't
     // create new keys and never hits the UIA-guarded upload. Best-effort: a
     // failure here shouldn't stop history from restoring.
+    const verifiedBefore = await isThisDeviceCrossSigned();
     let sessionVerified = false;
     try {
         await crypto.bootstrapCrossSigning({});
@@ -3106,6 +3162,16 @@ async function completeUnlock(
         );
     }
     bumpSecurityTick();
+
+    // Needs cross-signing in place, hence after the bootstrap. A session the
+    // recovery key just verified is a fresh login: rehydrate first.
+    const unlockedClient = getClient();
+    if (sessionVerified && unlockedClient) {
+        runDehydration(
+            unlockedClient,
+            verifiedBefore ? "unlock" : "unlock-new-session",
+        );
+    }
 
     // Restore message-history keys, but only if the server actually holds a
     // backup — an account may have cross-signing/4S without a message backup.
