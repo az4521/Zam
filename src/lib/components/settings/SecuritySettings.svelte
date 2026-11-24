@@ -284,7 +284,8 @@
         const [nextStatus, nextBackup, nextOffline] = await Promise.all([
             getSecurityStatus(),
             getBackupStatus(),
-            getDehydrationStatus(),
+            // Never allowed to fail the whole read: the row just stays hidden.
+            getDehydrationStatus().catch(() => null),
         ]);
         if (seq !== loadSeq) return;
         if (nextOffline) offline = nextOffline;

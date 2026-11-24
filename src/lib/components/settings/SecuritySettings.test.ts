@@ -43,6 +43,10 @@ vi.mock("$lib/matrix/crypto", () => ({
         e instanceof h.RecoverySetupIncompleteError,
     unlockWithRecoveryKey: vi.fn(),
     unlockWithPassphrase: vi.fn(),
+    // Plain functions for the same reason: the offline-messages row reads
+    // these on every status load.
+    getDehydrationStatus: () => Promise.resolve(null),
+    dehydrationSettled: () => Promise.resolve(),
 }));
 
 import SecuritySettings from "./SecuritySettings.svelte";
