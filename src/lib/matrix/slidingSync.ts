@@ -364,6 +364,10 @@ export async function buildSlidingSync(
             logSync(
                 `request timed out, next allows ${Math.round(nextMs / 1000)}s`,
             ),
+        onLostResponse: (waitedMs) =>
+            logSync(
+                `no answer after ${Math.round(waitedMs / 1000)}s, retrying now`,
+            ),
     });
 
     const roomSubscription = {

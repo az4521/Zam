@@ -1,15 +1,35 @@
 import type { MatrixClient } from "matrix-js-sdk";
 
 /**
- * Let sliding-sync requests outlast a slow connection.
+ * Guard client.slidingSync against lost and stalled responses.
  *
- * SlidingSync gives every request a hard local timeout of its long-poll
- * timeout + 10s (40s here), covering the whole download, and retries the
- * identical request with the same limit after a failure. A catch-up response
- * that takes longer than that to arrive (a resumed app on a weak mobile link,
- * a big room list) is cut off every time, so sync sits on "Reconnecting"
- * forever. This wraps client.slidingSync so each timed-out request doubles the
- * next one's allowance (up to `maxMs`), and a success puts it back.
+ * SlidingSync gives every request a local timeout of its long-poll timeout +
+ * 10s (40s here). In the SDK's fetch that timeout, and the abort signal
+ * resend() uses, only cover the wait for the response HEADERS: both are
+ * detached once headers arrive (FetchHttpApi.requestOtherUrl), so the body
+ * download is never cut off by either.
+ *
+ * So a timeout on a request that carries a `pos` (an ordinary long-poll) means
+ * the server's answer never arrived: a mobile network dropping a connection
+ * that sat idle through the long-poll, or a Wi-Fi/cellular handover. The SDK
+ * retries at once, and the retry, carrying the same pos, is answered straight
+ * away with whatever arrived meanwhile. Waiting longer only delays messages:
+ * this wrapper used to double the next allowance on every timeout (up to 5
+ * minutes), and the watchdog deferred to it, so a lost response or two left
+ * new messages minutes late until the user switched rooms (whose resend()
+ * makes a fresh request) or restarted the app (issue #61).
+ *
+ * A request WITHOUT a pos (a new connection, or one the server reset) asks the
+ * server to build the whole initial response, which on a big account can take
+ * longer than 40s before the first byte. Retrying it with the same limit would
+ * be cut off every time, so only those raise the next allowance (doubling, up
+ * to `maxMs`), and a success puts it back.
+ *
+ * Also makes the SDK's abort signal end the call at any point, including
+ * during the body download, which the SDK's own fetch no longer listens to by
+ * then. Without that a body stalled on a dead connection held the sync loop
+ * until the socket timed out, minutes later, and neither resend() nor the
+ * watchdog could free it.
  *
  * Returns the allowance the next request gets, so the stuck-sync watchdog can
  * stay out of the way of a request that is still within it. Call
@@ -21,17 +41,25 @@ export function adaptSlidingSyncTimeout(
     {
         maxMs = 5 * 60_000,
         onTimeout,
-    }: { maxMs?: number; onTimeout?: (nextTimeoutMs: number) => void } = {},
+        onLostResponse,
+    }: {
+        maxMs?: number;
+        /** An initial request timed out; the next one is allowed `nextTimeoutMs`. */
+        onTimeout?: (nextTimeoutMs: number) => void;
+        /** A long-poll's answer never arrived; the SDK retries it at once. */
+        onLostResponse?: (waitedMs: number) => void;
+    } = {},
 ): () => number {
     const existing = adapted.get(client);
     if (existing) return existing.allowance;
-    type Request = { clientTimeout?: number };
+    type Request = { clientTimeout?: number; pos?: string };
     const send = client.slidingSync.bind(client) as (
         req: Request,
         proxyBaseUrl?: string,
         abortSignal?: AbortSignal,
     ) => Promise<unknown>;
-    // 0 = use the SDK's own value; raised only after a request times out.
+    // 0 = use the SDK's own value; raised only after an initial request
+    // timed out.
     let raisedMs = 0;
     let lastUsedMs = 0;
 
@@ -40,12 +68,20 @@ export function adaptSlidingSyncTimeout(
         proxyBaseUrl,
         abortSignal,
     ) => {
-        const timeoutMs = Math.max(req.clientTimeout ?? 0, raisedMs);
+        // Read before sending: the SDK moves pos into the query string and
+        // deletes it from the request.
+        const isLongPoll = !!req.pos;
+        const timeoutMs = isLongPoll
+            ? (req.clientTimeout ?? 0)
+            : Math.max(req.clientTimeout ?? 0, raisedMs);
         if (timeoutMs > 0) req.clientTimeout = timeoutMs;
         lastUsedMs = timeoutMs;
         const startedAt = Date.now();
         try {
-            const res = await send(req, proxyBaseUrl, abortSignal);
+            const res = await abortable(
+                send(req, proxyBaseUrl, abortSignal),
+                abortSignal,
+            );
             raisedMs = 0;
             return res;
         } catch (err) {
@@ -57,8 +93,12 @@ export function adaptSlidingSyncTimeout(
                 timeoutMs > 0 &&
                 Date.now() - startedAt >= timeoutMs - 1000;
             if (timedOut) {
-                raisedMs = Math.min(timeoutMs * 2, maxMs);
-                onTimeout?.(raisedMs);
+                if (isLongPoll) {
+                    onLostResponse?.(Date.now() - startedAt);
+                } else {
+                    raisedMs = Math.min(timeoutMs * 2, maxMs);
+                    onTimeout?.(raisedMs);
+                }
             }
             throw err;
         }
@@ -70,6 +110,37 @@ export function adaptSlidingSyncTimeout(
     };
     adapted.set(client, { allowance, reset });
     return allowance;
+}
+
+/**
+ * `request`, rejected with an AbortError as soon as `signal` aborts, whatever
+ * stage the request is at. A request abandoned this way is left to settle on
+ * its own; its result is ignored.
+ */
+function abortable<T>(request: Promise<T>, signal?: AbortSignal): Promise<T> {
+    if (!signal) return request;
+    request.catch(() => {}); // abandoned on abort: never an unhandled rejection
+    return new Promise<T>((resolve, reject) => {
+        const onAbort = () =>
+            reject(
+                new DOMException("The operation was aborted.", "AbortError"),
+            );
+        if (signal.aborted) {
+            onAbort();
+            return;
+        }
+        signal.addEventListener("abort", onAbort, { once: true });
+        request.then(
+            (value) => {
+                signal.removeEventListener("abort", onAbort);
+                resolve(value);
+            },
+            (err) => {
+                signal.removeEventListener("abort", onAbort);
+                reject(err);
+            },
+        );
+    });
 }
 
 /**

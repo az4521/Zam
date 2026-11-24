@@ -27,9 +27,14 @@ function fakeClient(durationMs: () => number) {
     return { client: client as unknown as MatrixClient, seen };
 }
 
-async function request(client: MatrixClient, clientTimeout = 40_000) {
+// An initial request (no pos) unless `pos` is given.
+async function request(
+    client: MatrixClient,
+    clientTimeout = 40_000,
+    pos?: string,
+) {
     const p = client
-        .slidingSync({ clientTimeout } as never)
+        .slidingSync({ clientTimeout, pos } as never)
         .then(() => "ok" as const)
         .catch(() => "failed" as const);
     await vi.runAllTimersAsync();
@@ -40,7 +45,7 @@ describe("adaptSlidingSyncTimeout", () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
-    it("lets a slow response through after timeouts instead of looping forever", async () => {
+    it("lets a slow initial response through after timeouts instead of looping forever", async () => {
         // Every response takes 100s to download over this link.
         const { client, seen } = fakeClient(() => 100_000);
         adaptSlidingSyncTimeout(client);
@@ -109,5 +114,84 @@ describe("adaptSlidingSyncTimeout", () => {
         await request(client);
         expect(seen).toEqual([40_000]);
         expect(first()).toBe(80_000);
+    });
+
+    it("retries a lost long-poll answer with the normal allowance", async () => {
+        // The response to a request with a pos never arrives (the connection
+        // was dropped). Waiting longer for the next one only delays messages.
+        const { client, seen } = fakeClient(() => Infinity);
+        const lost: number[] = [];
+        const raised: number[] = [];
+        const allowance = adaptSlidingSyncTimeout(client, {
+            onLostResponse: (ms) => lost.push(ms),
+            onTimeout: (ms) => raised.push(ms),
+        });
+        for (let i = 0; i < 3; i++) await request(client, 40_000, "p1");
+        expect(seen).toEqual([40_000, 40_000, 40_000]);
+        expect(allowance()).toBe(40_000);
+        expect(lost).toEqual([40_000, 40_000, 40_000]);
+        expect(raised).toEqual([]);
+    });
+
+    it("a long-poll ignores an allowance raised by an initial request", async () => {
+        const { client, seen } = fakeClient(() => Infinity);
+        adaptSlidingSyncTimeout(client);
+        await request(client); // initial, times out: next initial gets 80s
+        await request(client, 40_000, "p1");
+        await request(client);
+        expect(seen).toEqual([40_000, 40_000, 80_000]);
+    });
+
+    it("an abort ends the call even after the SDK stopped listening", async () => {
+        // The SDK's fetch drops its abort listener once headers arrive, so a
+        // body stalled on a dead socket never settles on its own.
+        const stalled = new Promise(() => {});
+        const client = {
+            slidingSync: () => stalled,
+        } as unknown as MatrixClient;
+        adaptSlidingSyncTimeout(client);
+        const controller = new AbortController();
+        const p = client.slidingSync(
+            { clientTimeout: 40_000, pos: "p1" } as never,
+            undefined,
+            controller.signal,
+        );
+        controller.abort();
+        await expect(p).rejects.toMatchObject({ name: "AbortError" });
+    });
+
+    it("an abort does not count as a lost answer", async () => {
+        const client = {
+            slidingSync: () => new Promise(() => {}),
+        } as unknown as MatrixClient;
+        const lost: number[] = [];
+        adaptSlidingSyncTimeout(client, {
+            onLostResponse: (ms) => lost.push(ms),
+        });
+        const controller = new AbortController();
+        const p = client
+            .slidingSync(
+                { clientTimeout: 40_000, pos: "p1" } as never,
+                undefined,
+                controller.signal,
+            )
+            .catch(() => "aborted");
+        await vi.advanceTimersByTimeAsync(45_000);
+        controller.abort();
+        expect(await p).toBe("aborted");
+        expect(lost).toEqual([]);
+    });
+
+    it("passes results through untouched when given a signal", async () => {
+        const client = {
+            slidingSync: () => Promise.resolve({ pos: "2" }),
+        } as unknown as MatrixClient;
+        adaptSlidingSyncTimeout(client);
+        const res = await client.slidingSync(
+            { clientTimeout: 40_000, pos: "1" } as never,
+            undefined,
+            new AbortController().signal,
+        );
+        expect(res).toEqual({ pos: "2" });
     });
 });
