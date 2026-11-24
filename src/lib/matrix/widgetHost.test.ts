@@ -224,4 +224,37 @@ describe("mountWidget", () => {
         expect(feed.mock.calls[0][0]).toMatchObject({ event_id: "$s1" });
         m.dispose();
     });
+
+    it("marks fallback sticky events as sticky for the widget", () => {
+        // NeoBoard ignores RTC members without the marker, and with them all
+        // their LiveKit data, on a server without MSC4354.
+        const feed = vi
+            .spyOn(ClientWidgetApi.prototype, "feedEvent")
+            .mockResolvedValue(undefined);
+        let api: ClientWidgetApi | null = null;
+        const orig = ClientWidgetApi.prototype.setViewedRoomId;
+        vi.spyOn(
+            ClientWidgetApi.prototype,
+            "setViewedRoomId",
+        ).mockImplementation(function (this: ClientWidgetApi, id) {
+            api = this;
+            return orig.call(this, id);
+        });
+        const m = mount();
+        api!.emit("ready");
+        const ev = new MatrixEvent({
+            type: "org.matrix.msc4143.rtc.member",
+            room_id: ROOM,
+            event_id: "$r1",
+            sender: "@me:example.org",
+            origin_server_ts: Date.now(),
+            content: { msc4354_sticky_key: "member1" },
+        });
+        fakeClient.emit(RoomEvent.Timeline, ev, { roomId: ROOM }, false, false);
+        expect(feed.mock.calls[0][0]).toMatchObject({
+            msc4354_sticky: { duration_ms: 3_600_000 },
+        });
+        expect(ev.event).not.toHaveProperty("msc4354_sticky");
+        m.dispose();
+    });
 });

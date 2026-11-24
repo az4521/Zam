@@ -62,6 +62,11 @@ import {
     type RoomWidget,
     type WidgetUrlContext,
 } from "$lib/utils/widgets";
+import {
+    STICKY_MAX_DURATION_MS,
+    activeStickyEvents,
+    emulateStickyMarker,
+} from "$lib/utils/stickyEmulation";
 
 export type {
     IModalWidgetOpenRequestData,
@@ -76,6 +81,9 @@ const APP_CLIENT_ID = "moe.crafty.zam";
 const MAX_WIDGET_DOWNLOAD_BYTES = 100 * 1024 * 1024;
 /** Bounded memory for the event ids a live feed has already delivered. */
 const FED_ID_LIMIT = 500;
+/** History pages read to rebuild sticky state on a server without MSC4354. */
+const STICKY_HISTORY_PAGES = 10;
+const STICKY_HISTORY_PAGE_SIZE = 100;
 
 function isWidgetStateType(type: string): boolean {
     return (WIDGET_STATE_TYPES as readonly string[]).includes(type);
@@ -101,8 +109,14 @@ function rememberId(set: Set<string>, id: string): void {
     }
 }
 
+/**
+ * The event as a widget sees it. getEffectiveEvent returns a fresh object, so
+ * the emulated sticky marker never touches the SDK's own event.
+ */
 function toRaw(event: MatrixEvent): IRoomEvent {
-    return event.getEffectiveEvent() as unknown as IRoomEvent;
+    return emulateStickyMarker(
+        event.getEffectiveEvent() as unknown as IRoomEvent,
+    );
 }
 
 /** A state event as GET /rooms/{id}/state returns it (no room_id). */
@@ -559,13 +573,68 @@ class ZamWidgetDriver extends WidgetDriver {
         await this.client()._unstable_sendScheduledDelayedEvent(delayId);
     }
 
-    /** The room's active sticky events (none on a server without them). */
+    /**
+     * The room's active sticky events. A server without MSC4354 keeps no
+     * sticky state, so it is rebuilt from the last hour of room history (the
+     * longest a sticky event lives): without it a widget opened late never
+     * learns who is already there (NeoBoard ignores their live data).
+     */
     override async readStickyEvents(roomId: string): Promise<IRoomEvent[]> {
-        const room = this.client().getRoom(this.resolveRoom(roomId));
+        const target = this.resolveRoom(roomId);
+        const client = this.client();
+        const room = client.getRoom(target);
         if (!room) return [];
-        return [...room._unstable_getStickyEvents()].map((e) =>
-            toRaw(e as unknown as MatrixEvent),
+        if (await client.doesServerSupportUnstableFeature("org.matrix.msc4354"))
+            return [...room._unstable_getStickyEvents()].map((e) =>
+                toRaw(e as unknown as MatrixEvent),
+            );
+        return activeStickyEvents(
+            await this.readRecentHistory(target, STICKY_MAX_DURATION_MS),
+            Date.now(),
         );
+    }
+
+    /**
+     * The room's events from the last `windowMs`, decrypted where possible,
+     * read from the server so the room's own timeline is not paginated.
+     * Bounded by STICKY_HISTORY_PAGES.
+     */
+    private async readRecentHistory(
+        roomId: string,
+        windowMs: number,
+    ): Promise<IRoomEvent[]> {
+        const since = Date.now() - windowMs;
+        const out: IRoomEvent[] = [];
+        let from: string | null = null;
+        for (let page = 0; page < STICKY_HISTORY_PAGES; page++) {
+            const res = await this.client().createMessagesRequest(
+                roomId,
+                from,
+                STICKY_HISTORY_PAGE_SIZE,
+                Direction.Backward,
+            );
+            const client = this.client();
+            // Not re-emitted: these old events must not reach the app's own
+            // decryption listeners (unread counts and the like).
+            const mapper = client.getEventMapper({ preventReEmit: true });
+            let reachedStart = false;
+            for (const raw of res.chunk) {
+                if ((raw.origin_server_ts ?? 0) < since) {
+                    reachedStart = true;
+                    break;
+                }
+                const event = mapper({ ...raw, room_id: roomId });
+                if (event.isEncrypted()) {
+                    await client.decryptEventIfNeeded(event);
+                    this.client();
+                    if (event.isDecryptionFailure()) continue;
+                }
+                out.push(toRaw(event));
+            }
+            if (reachedStart || !res.end || res.chunk.length === 0) break;
+            from = res.end;
+        }
+        return out;
     }
 
     /** MSC4143 call transports: the same discovery Zam's own calls use. */
