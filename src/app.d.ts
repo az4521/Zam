@@ -197,6 +197,23 @@ declare global {
                       }
                 >;
             };
+            /** Link previews, fetched in main with a bot-style User-Agent
+             *  (electron/linkPage.cjs). Null on any failure or non-public host. */
+            linkPage?: {
+                fetch(
+                    url: string,
+                    mode: "page" | "image",
+                ): Promise<
+                    | { kind: "html"; finalUrl: string; html: string }
+                    | {
+                          kind: "image";
+                          finalUrl: string;
+                          contentType: string;
+                          base64: string;
+                      }
+                    | null
+                >;
+            };
             /** Settings > General > Network (electron/proxy.cjs). */
             proxy?: {
                 info: () => Promise<DesktopProxyInfo>;

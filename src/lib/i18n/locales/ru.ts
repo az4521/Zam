@@ -1713,6 +1713,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messagesMediaSettings.linkPreviews": "Предпросмотр ссылок",
     "messagesMediaSettings.whenOffNoLinkPreviewIs":
         "Когда выключено, предпросмотр ссылок не загружается, а ваш домашний сервер никогда не запрашивает страницу по ссылке от вашего имени. Откуда загружать медиа предпросмотра, настраивается в разделе «Конфиденциальность и безопасность».",
+    "messagesMediaSettings.sendLinkPreviews":
+        "Прикреплять предпросмотр ссылок к отправляемым сообщениям",
+    "messagesMediaSettings.sendLinkPreviewsDescription":
+        "Создаёт предпросмотр каждой ссылки и отправляет его вместе с сообщением, чтобы другие клиенты могли показать его без загрузки страницы. На компьютере и Android страница загружается с этого устройства, поэтому сайт по ссылке видит ваш IP-адрес; в браузере её загружает ваш домашний сервер.",
     "messagesMediaSettings.pauseVideosOffScreen":
         "Приостанавливать видео вне экрана",
     "messagesMediaSettings.pauseAPlayingVideoWhenIt":

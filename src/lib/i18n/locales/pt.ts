@@ -1707,6 +1707,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messagesMediaSettings.linkPreviews": "Prévias de links",
     "messagesMediaSettings.whenOffNoLinkPreviewIs":
         "Desativado, nenhuma prévia de link é carregada e seu servidor doméstico nunca busca a página do link em seu nome. Controle de onde a mídia da prévia é carregada em Privacidade e segurança.",
+    "messagesMediaSettings.sendLinkPreviews":
+        "Anexar prévias de links às mensagens que eu envio",
+    "messagesMediaSettings.sendLinkPreviewsDescription":
+        "Cria uma prévia de cada link e a envia junto com a mensagem, para que outros clientes possam exibi-la sem buscar a página. No desktop e no Android, a página é buscada a partir deste dispositivo, então o site do link vê seu endereço IP; na web, quem busca é seu servidor doméstico.",
     "messagesMediaSettings.pauseVideosOffScreen": "Pausar vídeos fora da tela",
     "messagesMediaSettings.pauseAPlayingVideoWhenIt":
         "Pausa um vídeo em reprodução quando ele sai da área visível, para economizar bateria. Você o reinicia por conta própria ao rolar de volta.",

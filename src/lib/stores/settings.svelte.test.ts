@@ -5,6 +5,7 @@ import {
     setReduceMotion,
     setLinkPreviewMedia,
     setLinkPreviewsEnabled,
+    setSendLinkPreviews,
     saveThemePreset,
     deleteThemePreset,
     setActivePreset,
@@ -256,6 +257,41 @@ describe("linkPreviewsEnabled", () => {
             k.includes("linkPreviewsEnabled"),
         );
         expect(keys).toEqual([LPE_KEY]);
+    });
+});
+
+describe("sendLinkPreviews", () => {
+    const SLP_KEY = "settings:sendLinkPreviews";
+
+    afterEach(() => {
+        setSendLinkPreviews(true);
+        localStorage.removeItem(SLP_KEY);
+    });
+
+    async function bootSendLinkPreviewsWith(stored: string | null) {
+        if (stored === null) localStorage.removeItem(SLP_KEY);
+        else localStorage.setItem(SLP_KEY, stored);
+        vi.resetModules();
+        return await import("./settings.svelte");
+    }
+
+    it("defaults to true so outgoing link previews are attached by default", async () => {
+        const fresh = await bootSendLinkPreviewsWith(null);
+        expect(fresh.settingsState.sendLinkPreviews).toBe(true);
+    });
+
+    it("reads a stored 'false' back at boot, so the toggle survives a reload", async () => {
+        const fresh = await bootSendLinkPreviewsWith("false");
+        expect(fresh.settingsState.sendLinkPreviews).toBe(false);
+    });
+
+    it("writes the value to localStorage and updates the store state", () => {
+        setSendLinkPreviews(false);
+        expect(localStorage.getItem(SLP_KEY)).toBe("false");
+        expect(settingsState.sendLinkPreviews).toBe(false);
+        setSendLinkPreviews(true);
+        expect(localStorage.getItem(SLP_KEY)).toBe("true");
+        expect(settingsState.sendLinkPreviews).toBe(true);
     });
 });
 

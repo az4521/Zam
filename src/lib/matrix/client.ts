@@ -127,6 +127,7 @@ import {
     type ClientCustomization,
 } from "$lib/utils/customization";
 import { parseMarkdown } from "$lib/utils/markdown";
+import { withUrlPreviewHints } from "$lib/utils/urlPreviews";
 import { preloadEmojiPacks } from "$lib/utils/emojiPreload";
 import {
     applyPackMeta,
@@ -3536,9 +3537,12 @@ export async function sendThreadReply(
         formattedText: resolvedFormatted,
         mentions,
     });
+    // The composer's transform adds the preview list itself (with its
+    // bundled previews); adding one here first would make it skip them.
+    const base = content as unknown as Record<string, unknown>;
     const outgoing = transformContent
-        ? transformContent(content as unknown as Record<string, unknown>)
-        : content;
+        ? transformContent(base)
+        : withUrlPreviewHints(base);
     // 2-arg form only (⚑2 — the threadId overload mangles $-prefixed strings).
     await matrixClient.sendMessage(roomId, outgoing as never);
 }
@@ -4464,12 +4468,14 @@ export async function sendNotificationQuickReply(
             (room && getThreadSummary(room, threadRootId).latestEventId) ||
             threadRootId;
         const { formattedBody, hasFormatting } = parseMarkdown(text);
-        content = buildThreadReplyContent({
-            rootEventId: threadRootId,
-            latestEventId,
-            text,
-            formattedText: hasFormatting ? formattedBody : undefined,
-        }) as unknown as Record<string, unknown>;
+        content = withUrlPreviewHints(
+            buildThreadReplyContent({
+                rootEventId: threadRootId,
+                latestEventId,
+                text,
+                formattedText: hasFormatting ? formattedBody : undefined,
+            }) as unknown as Record<string, unknown>,
+        );
     } else {
         content = { msgtype: "m.text", body: text, "m.mentions": {} };
     }
@@ -4513,13 +4519,16 @@ export async function sendFormattedMessage(
     mentions?: { user_ids?: string[]; room?: boolean },
 ): Promise<string> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
-    const res = await matrixClient.sendMessage(roomId, {
-        msgtype: "m.text",
-        body,
-        format: "org.matrix.custom.html",
-        formatted_body: formattedBody,
-        "m.mentions": mentions ?? {},
-    } as never);
+    const res = await matrixClient.sendMessage(
+        roomId,
+        withUrlPreviewHints({
+            msgtype: "m.text",
+            body,
+            format: "org.matrix.custom.html",
+            formatted_body: formattedBody,
+            "m.mentions": mentions ?? {},
+        }) as never,
+    );
     return res.event_id;
 }
 
@@ -4574,7 +4583,7 @@ export async function sendEmote(
     thread?: { rootEventId: string },
 ): Promise<void> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
-    const content: Record<string, unknown> = {
+    const content: Record<string, unknown> = withUrlPreviewHints({
         msgtype: "m.emote",
         body,
         ...(formattedBody
@@ -4584,7 +4593,7 @@ export async function sendEmote(
               }
             : {}),
         "m.mentions": mentions ?? {},
-    };
+    });
     const finalContent = thread
         ? withThreadRelation(
               content,
@@ -7135,7 +7144,7 @@ export async function sendEdit(
     await matrixClient.sendEvent(
         roomId,
         "m.room.message" as never,
-        {
+        withUrlPreviewHints({
             ...(mediaBase ?? { msgtype: "m.text" }),
             body: `* ${newText}`,
             ...(formattedBody
@@ -7147,7 +7156,7 @@ export async function sendEdit(
             "m.mentions": topLevel,
             "m.new_content": newContent,
             "m.relates_to": { rel_type: "m.replace", event_id: eventId },
-        } as never,
+        }) as never,
     );
 }
 

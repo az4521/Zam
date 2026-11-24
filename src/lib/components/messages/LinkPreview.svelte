@@ -32,6 +32,7 @@
 </script>
 
 <script lang="ts">
+    import { untrack } from "svelte";
     import { t } from "$lib/i18n";
     import { getHomeserverBaseUrl, type UrlPreview } from "$lib/matrix/client";
     import LazyLightbox from "$lib/components/ui/LazyLightbox.svelte";
@@ -79,6 +80,13 @@
     import { isInstagramUrl } from "$lib/utils/instagramUrl";
     import { linkPreviewFavourite } from "$lib/utils/linkPreviewFavourite";
     import { pluginRegistry } from "$lib/stores/plugins.svelte";
+    import type { BundledPreview } from "$lib/utils/bundledPreview";
+    import { isGifHostLink } from "$lib/utils/gifEmbed";
+    import { fetchDecryptedAttachment, mxcToHttp } from "$lib/matrix/media";
+    import {
+        decryptedBlobs,
+        type HeldBlob,
+    } from "$lib/utils/decryptedBlobCache";
     import { resolveEmbed, mountEmbed } from "$lib/plugins/embeds";
     import {
         parseYoutubeUrl,
@@ -90,9 +98,14 @@
 
     interface Props {
         url: string;
+        /** The preview the sender bundled for this link (MSC4095), if any. */
+        bundled?: BundledPreview | null;
     }
 
-    let { url }: Props = $props();
+    let { url, bundled = null }: Props = $props();
+    // The bundled preview is rebuilt from the event on every timeline tick;
+    // the preview reloads only when what it says changes.
+    const bundledKey = $derived(bundled ? JSON.stringify(bundled) : "");
 
     // The homeserver we would proxy media through. Read once: the app hard-
     // reloads on account switch, so this cannot go stale under us.
@@ -120,7 +133,18 @@
         return resolveEmbed(pluginRegistry.embeds, url);
     });
 
+    // A bundled encrypted image, decrypted into an object URL. It is loaded
+    // under the same rule as its ciphertext on the homeserver.
+    let bundledImage = $state<{ held: HeldBlob; source: string } | null>(null);
+    function releaseBundledImage() {
+        bundledImage?.held.release();
+        bundledImage = null;
+    }
+    $effect(() => releaseBundledImage);
+
     function canLoad(mediaUrl: string | null | undefined): boolean {
+        if (bundledImage && mediaUrl === bundledImage.held.url)
+            return canLoad(bundledImage.source);
         return (
             allowsMediaAutoLoad(policy, mediaUrl, hsBaseUrl) ||
             (embedsAllowed && isGifHostMediaUrl(mediaUrl))
@@ -202,9 +226,53 @@
         return yt ? `https://www.youtube.com/embed/${yt.id}` : null;
     }
 
+    function showBundled(
+        b: BundledPreview,
+        currentUrl: string,
+        isCancelled: () => boolean,
+    ) {
+        const base: UrlPreview = {
+            title: b.title,
+            description: b.description,
+            siteName: b.siteName,
+            canonicalUrl: b.canonicalUrl ?? currentUrl,
+            imageWidth: b.imageWidth,
+            imageHeight: b.imageHeight,
+            imageUrl: b.imageMxc
+                ? (mxcToHttp(b.imageMxc) ?? undefined)
+                : undefined,
+        };
+        preview = base;
+        pending = false;
+        const file = b.imageFile;
+        const source = file ? mxcToHttp(file.url) : null;
+        if (!file || !source || !untrack(() => canLoad(source))) return;
+        const show = (held: HeldBlob) => {
+            if (isCancelled()) {
+                held.release();
+                return;
+            }
+            releaseBundledImage();
+            bundledImage = { held, source };
+            preview = { ...base, imageUrl: held.url };
+        };
+        const hit = decryptedBlobs.get(file.url);
+        if (hit) {
+            show(hit);
+            return;
+        }
+        fetchDecryptedAttachment(file, b.imageType ?? "image/jpeg")
+            .then((blob) => show(decryptedBlobs.hold(file.url, blob)))
+            .catch((err) =>
+                console.warn("Bundled preview image failed to decrypt:", err),
+            );
+    }
+
     $effect(() => {
         const currentUrl = url;
         const allowEmbeds = embedsAllowed;
+        void bundledKey;
+        const currentBundled = untrack(() => bundled);
         preview = null;
         pending = true;
         gifHostHeld = false;
@@ -217,6 +285,7 @@
         youtubePlaying = false;
         youtubeResumeAt = 0;
         youtubeTitle = null;
+        untrack(releaseBundledImage);
 
         // A response that lands after the URL or the policy moved on must not
         // write itself back into state — otherwise flipping the setting to a
@@ -273,6 +342,13 @@
         // The homeserver's own preview endpoint, shared with the Discord
         // favourites import (utils/linkPreviewFetch). Only its MEDIA is gated.
         const loadHomeserverPreview = () => {
+            // The sender's bundled preview (MSC4095) is preferred over asking
+            // the homeserver, except for GIF sites while their own embeds are
+            // allowed, which have one of their own.
+            if (currentBundled && !(allowEmbeds && isGifHostLink(currentUrl))) {
+                showBundled(currentBundled, currentUrl, () => cancelled);
+                return;
+            }
             const previewUrl = homeserverPreviewUrl(currentUrl);
             const cacheKey = `${allowEmbeds ? 1 : 0} ${currentUrl} ${previewUrl}`;
             const known = resolvedPreviews.get(cacheKey);

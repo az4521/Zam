@@ -68,6 +68,9 @@ export function mediaEditBase(
         "m.mentions": _mentions,
         "m.relates_to": _relatesTo,
         "m.new_content": _newContent,
+        // MSC4095 preview lists describe the old caption's URLs.
+        "m.url_previews": _previews,
+        "com.beeper.linkpreviews": _beeperPreviews,
         ...rest
     } = content;
     return rest;

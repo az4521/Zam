@@ -475,6 +475,7 @@ export const settingsState = $state({
      *  (SEC-L2). Default ON. Same device-global storage rule as linkPreviewMedia:
      *  must stay readBool/writeBool, never the scoped reader. */
     linkPreviewsEnabled: readBool("linkPreviewsEnabled", true),
+    sendLinkPreviews: readBool("sendLinkPreviews", true),
     /** Device-global: which link-preview media may load automatically.
      *  "proxied" (default) loads only the copies our own homeserver serves, so
      *  third-party hosts never learn the reader's IP or when they read a message;
@@ -1404,6 +1405,11 @@ export function setSpellCheckEnabled(value: boolean): void {
 export function setLinkPreviewsEnabled(value: boolean): void {
     settingsState.linkPreviewsEnabled = value;
     writeBool("linkPreviewsEnabled", value);
+}
+
+export function setSendLinkPreviews(value: boolean): void {
+    settingsState.sendLinkPreviews = value;
+    writeBool("sendLinkPreviews", value);
 }
 
 export function setLinkPreviewMedia(value: LinkPreviewMedia): void {

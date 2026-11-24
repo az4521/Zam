@@ -1610,6 +1610,9 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messagesMediaSettings.linkPreviews": "链接预览",
     "messagesMediaSettings.whenOffNoLinkPreviewIs":
         "关闭后，不会加载任何链接预览，你的主服务器也不会代你获取链接的页面。可在“隐私与安全”中控制预览媒体的加载来源。",
+    "messagesMediaSettings.sendLinkPreviews": "为我发送的消息附加链接预览",
+    "messagesMediaSettings.sendLinkPreviewsDescription":
+        "为消息中的每个链接生成预览并随消息一起发送，其他客户端无需访问网页即可显示。在桌面端和 Android 上，网页由本设备获取，因此链接网站会看到你的 IP 地址；在网页版中，由你的主服务器获取。",
     "messagesMediaSettings.pauseVideosOffScreen": "视频移出屏幕时暂停",
     "messagesMediaSettings.pauseAPlayingVideoWhenIt":
         "正在播放的视频滚出视野时将其暂停，以节省电量。滚回来后需要你自己重新播放。",

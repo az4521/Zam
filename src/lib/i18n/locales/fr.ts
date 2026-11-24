@@ -1566,6 +1566,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messagesMediaSettings.linkPreviews": "Aperçus des liens",
     "messagesMediaSettings.whenOffNoLinkPreviewIs":
         "Désactivé, aucun aperçu de lien n'est chargé et votre serveur d'accueil ne récupère jamais la page liée pour vous. Choisissez d'où proviennent les médias des aperçus dans Confidentialité et sécurité.",
+    "messagesMediaSettings.sendLinkPreviews":
+        "Joindre les aperçus de liens aux messages que j'envoie",
+    "messagesMediaSettings.sendLinkPreviewsDescription":
+        "Crée un aperçu de chaque lien et l'envoie avec le message, afin que les autres clients puissent l'afficher sans récupérer la page. Sur ordinateur et Android, la page est récupérée depuis cet appareil, donc le site lié voit votre adresse IP ; sur le web, c'est votre serveur d'accueil qui la récupère.",
     "messagesMediaSettings.pauseVideosOffScreen":
         "Mettre en pause les vidéos hors écran",
     "messagesMediaSettings.pauseAPlayingVideoWhenIt":

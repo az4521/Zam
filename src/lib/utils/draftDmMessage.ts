@@ -13,6 +13,7 @@ import {
     buildFormattedContent,
     buildTextContent,
 } from "$lib/utils/messageContent";
+import { withUrlPreviewHints } from "$lib/utils/urlPreviews";
 
 /** Content for the draft's first message, or null when there is nothing to send. */
 export function buildDraftDmContent(
@@ -27,7 +28,9 @@ export function buildDraftDmContent(
         memberIds: new Set([peerUserId]),
     });
     const mentions = mentionsFromFormatted(formatted);
-    return formatted.html
-        ? buildFormattedContent(trimmed, formatted.html, mentions)
-        : buildTextContent(trimmed, mentions);
+    return withUrlPreviewHints(
+        formatted.html
+            ? buildFormattedContent(trimmed, formatted.html, mentions)
+            : buildTextContent(trimmed, mentions),
+    );
 }

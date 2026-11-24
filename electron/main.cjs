@@ -61,6 +61,8 @@ const {
     refreshAttachmentUrls,
     downloadAttachment,
 } = require("./discordAttachments.cjs");
+const { fetchLinkPage, netRequestFetch } = require("./linkPage.cjs");
+const dns = require("dns");
 const { createUpdateGuard } = require("./updateGuard.cjs");
 const {
     createFlatpakShellUpdate,
@@ -1341,6 +1343,16 @@ ipcMain.handle("discord-favourites:download", (_e, url) =>
     typeof url === "string"
         ? downloadAttachment(url, (u, o) => net.fetch(u, o))
         : { ok: false, error: "bad-url" },
+);
+
+// Link previews (linkPage.cjs): fetched here with a bot-style User-Agent and
+// the user's proxy applied. Never throws; any failure is null.
+const linkPageFetch = netRequestFetch(net);
+ipcMain.handle("link-page:fetch", (_e, url, mode) =>
+    fetchLinkPage(String(url), String(mode), {
+        fetch: linkPageFetch,
+        lookup: (h, o) => dns.promises.lookup(h, o),
+    }),
 );
 
 // --- Call priority -------------------------------------------------------

@@ -1599,6 +1599,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messagesMediaSettings.linkPreviews": "Vistas previas de enlaces",
     "messagesMediaSettings.whenOffNoLinkPreviewIs":
         "Si está desactivado, no se carga ninguna vista previa de enlaces y tu servidor base nunca obtiene la página enlazada en tu nombre. Controla desde dónde se carga el contenido de las vistas previas en Privacidad y seguridad.",
+    "messagesMediaSettings.sendLinkPreviews":
+        "Adjuntar vistas previas de enlaces a los mensajes que envío",
+    "messagesMediaSettings.sendLinkPreviewsDescription":
+        "Crea una vista previa de cada enlace y la envía con el mensaje, para que otros clientes puedan mostrarla sin obtener la página. En el escritorio y en Android la página se obtiene desde este dispositivo, así que el sitio enlazado ve tu dirección IP; en la web la obtiene tu servidor base.",
     "messagesMediaSettings.pauseVideosOffScreen":
         "Pausar los vídeos fuera de la pantalla",
     "messagesMediaSettings.pauseAPlayingVideoWhenIt":

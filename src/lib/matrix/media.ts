@@ -1186,3 +1186,21 @@ export async function uploadContent(file: File): Promise<string> {
 export function resetMediaUploadSizeLimit(): void {
     mediaUploadSizePromise = null;
 }
+
+/**
+ * Upload a link preview's image into `roomId` for a bundled preview (MSC4095):
+ * encrypted in an encrypted room, as the room's other media are.
+ */
+export async function uploadPreviewImage(
+    roomId: string,
+    bytes: Uint8Array,
+    type: string,
+): Promise<UploadedAttachment> {
+    const owner = captureClient();
+    const blob = new Blob([bytes as BlobPart], { type });
+    return uploadAttachment(owner, roomId, blob, {
+        name: "preview",
+        type,
+        msgtype: "m.image",
+    });
+}

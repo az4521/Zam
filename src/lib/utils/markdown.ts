@@ -11,6 +11,7 @@
  *   1. ordered list item
  *   -# subtext (smaller muted text)
  *   <t:UNIX> / <t:UNIX:STYLE> inline timestamps (see inlineTimestamp.ts)
+ *   <https://url> link without a preview (see urlPreviews.ts)
  */
 
 import { inlineTimestampHtml, timestampTokenPattern } from "./inlineTimestamp";
@@ -37,6 +38,12 @@ function processInline(raw: string): { html: string; changed: boolean } {
         const html = inlineTimestampHtml(Number(secs), style);
         if (html === null) return token;
         spans.push(html);
+        return `\x02${spans.length - 1}\x03`;
+    });
+    // `<https://...>` is a markdown autolink: a link without the brackets.
+    // The brackets also mean "no preview" (see utils/urlPreviews.ts).
+    s = s.replace(/<(https?:\/\/[^\s<>\x02]+)>/g, (_, url: string) => {
+        spans.push(`<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`);
         return `\x02${spans.length - 1}\x03`;
     });
     // \x02 is excluded so a URL stops before a stashed span placeholder.

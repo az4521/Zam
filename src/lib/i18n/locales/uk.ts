@@ -1740,6 +1740,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messagesMediaSettings.linkPreviews": "Попередній перегляд посилань",
     "messagesMediaSettings.whenOffNoLinkPreviewIs":
         "Коли вимкнено, попередній перегляд посилань не завантажується, а ваш домашній сервер ніколи не отримує сторінку за посиланням від вашого імені. Де завантажувати медіа попереднього перегляду, керується в розділі «Приватність і безпека».",
+    "messagesMediaSettings.sendLinkPreviews":
+        "Додавати попередній перегляд посилань до надсиланих повідомлень",
+    "messagesMediaSettings.sendLinkPreviewsDescription":
+        "Створює попередній перегляд кожного посилання і надсилає його разом із повідомленням, щоб інші клієнти могли показати його без завантаження сторінки. На комп'ютері та Android сторінка завантажується з цього пристрою, тож сайт за посиланням бачить вашу IP-адресу; у вебі її завантажує ваш домашній сервер.",
     "messagesMediaSettings.pauseVideosOffScreen":
         "Призупиняти відео поза екраном",
     "messagesMediaSettings.pauseAPlayingVideoWhenIt":

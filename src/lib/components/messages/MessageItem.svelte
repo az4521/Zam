@@ -138,6 +138,8 @@
     import { saveObjectUrl, revokeLater } from "$lib/utils/saveFile";
     import { editableBody } from "$lib/matrix/editMessage";
     import { displayContent } from "$lib/utils/displayContent";
+    import { urlsToPreview } from "$lib/utils/urlPreviews";
+    import { readBundledPreview } from "$lib/utils/bundledPreview";
     import { resolveBubbleLayout } from "$lib/utils/bubbleLayout";
     import {
         parseMatrixLink,
@@ -2512,10 +2514,11 @@
         return extractEventPermalinks(body(), formattedBody());
     });
 
-    /** The http/https URLs in `text` worth a link preview. */
+    /** The URLs this message shows link previews for: the sender's MSC4095
+     *  list when it sent one, else the body minus code and `<url>` links.
+     *  Message permalinks are left to the embed above. */
     function previewableUrls(text: string): string[] {
-        const matches = text.match(/https?:\/\/[^\s<>"')\]]+/g) ?? [];
-        return [...new Set(matches)].filter((url) => {
+        return urlsToPreview(content, text, formattedBody()).filter((url) => {
             const target = parseMatrixLink(url);
             return !(target && target.kind !== "user" && target.eventId);
         });
@@ -3228,7 +3231,10 @@
                     </div>
                     {#if settingsState.linkPreviewsEnabled}
                         {#each captionLinkedUrls as url (url)}
-                            <LinkPreview {url} />
+                            <LinkPreview
+                                {url}
+                                bundled={readBundledPreview(content, url)}
+                            />
                         {/each}
                     {/if}
                 {/if}
@@ -3817,7 +3823,10 @@
                     {/each}
                     {#if settingsState.linkPreviewsEnabled}
                         {#each linkedUrls as url (url)}
-                            <LinkPreview {url} />
+                            <LinkPreview
+                                {url}
+                                bundled={readBundledPreview(content, url)}
+                            />
                         {/each}
                     {/if}
                 {/if}

@@ -8,6 +8,7 @@
         setHoldToOpenMessageMenu,
         setSpellCheckEnabled,
         setLinkPreviewsEnabled,
+        setSendLinkPreviews,
         setPauseVideoOnScrollOff,
         setFaststartVideos,
         setProgressiveJpegs,
@@ -582,6 +583,23 @@
                 checked={settingsState.linkPreviewsEnabled}
                 onChange={setLinkPreviewsEnabled}
                 label={t("messagesMediaSettings.linkPreviews")}
+            />
+        </div>
+        <div
+            class="flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between"
+        >
+            <div class="flex-1 min-w-0">
+                <span class="text-sm text-zam-textPrimary"
+                    >{t("messagesMediaSettings.sendLinkPreviews")}</span
+                >
+                <p class="text-xs text-zam-textMuted">
+                    {t("messagesMediaSettings.sendLinkPreviewsDescription")}
+                </p>
+            </div>
+            <ToggleSwitch
+                checked={settingsState.sendLinkPreviews}
+                onChange={setSendLinkPreviews}
+                label={t("messagesMediaSettings.sendLinkPreviews")}
             />
         </div>
         <div class="flex items-center gap-3 py-2">

@@ -88,6 +88,11 @@ contextBridge.exposeInMainWorld("desktop", {
         download: (url) =>
             ipcRenderer.invoke("discord-favourites:download", url),
     },
+    // Link previews fetched in main with a bot-style UA (linkPage.cjs).
+    linkPage: {
+        fetch: (url, mode) =>
+            ipcRenderer.invoke("link-page:fetch", String(url), String(mode)),
+    },
     // The call's pop-out window (main.cjs, CALL_PIP_FRAME). Main moves it with
     // the cursor during a drag and reports a drop back over the app's window.
     callPip: {

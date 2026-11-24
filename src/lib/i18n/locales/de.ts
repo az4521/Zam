@@ -1584,6 +1584,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messagesMediaSettings.linkPreviews": "Linkvorschauen",
     "messagesMediaSettings.whenOffNoLinkPreviewIs":
         "Wenn aus, wird keine Linkvorschau geladen und dein Heimserver ruft die verlinkte Seite nie für dich ab. Woher Vorschaumedien geladen werden, legst du unter Privatsphäre und Sicherheit fest.",
+    "messagesMediaSettings.sendLinkPreviews":
+        "Link-Vorschauen an gesendete Nachrichten anhängen",
+    "messagesMediaSettings.sendLinkPreviewsDescription":
+        "Erstellt für jeden Link eine Vorschau und sendet sie mit der Nachricht, damit andere Clients sie anzeigen können, ohne die Seite abzurufen. Auf Desktop und Android wird die Seite von diesem Gerät abgerufen, daher sieht die verlinkte Website deine IP-Adresse; im Web ruft dein Heimserver sie ab.",
     "messagesMediaSettings.pauseVideosOffScreen":
         "Videos außerhalb des Bildschirms pausieren",
     "messagesMediaSettings.pauseAPlayingVideoWhenIt":

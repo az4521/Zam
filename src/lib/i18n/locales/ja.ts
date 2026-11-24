@@ -1467,6 +1467,10 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messagesMediaSettings.linkPreviews": "リンクプレビュー",
     "messagesMediaSettings.whenOffNoLinkPreviewIs":
         "オフのときはリンクプレビューを読み込まず、ホームサーバーが代わりにリンク先を取得することもありません。プレビューのメディアをどこから読み込むかはプライバシーと安全で設定できます。",
+    "messagesMediaSettings.sendLinkPreviews":
+        "送信するメッセージにリンクプレビューを添付",
+    "messagesMediaSettings.sendLinkPreviewsDescription":
+        "各リンクのプレビューを作成してメッセージと一緒に送信するため、他のクライアントはページを取得せずに表示できます。デスクトップとAndroidでは、このデバイスからページを取得するため、リンク先のサイトにあなたのIPアドレスが知られます。Webでは、ホームサーバーがページを取得します。",
     "messagesMediaSettings.pauseVideosOffScreen": "画面外の動画を一時停止",
     "messagesMediaSettings.pauseAPlayingVideoWhenIt":
         "再生中の動画が画面外にスクロールしたら一時停止してバッテリーを節約します。戻ったときにご自身で再開してください。",

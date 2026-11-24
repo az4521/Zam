@@ -1683,6 +1683,10 @@ export const en = {
     "messagesMediaSettings.linkPreviews": "Link previews",
     "messagesMediaSettings.whenOffNoLinkPreviewIs":
         "When off, no link preview is loaded and your homeserver never fetches the linked page on your behalf. Control where preview media loads from in Privacy & Safety.",
+    "messagesMediaSettings.sendLinkPreviews":
+        "Attach link previews to messages I send",
+    "messagesMediaSettings.sendLinkPreviewsDescription":
+        "Builds a preview of each link and sends it with the message, so other clients can show it without fetching the page. On desktop and Android the page is fetched from this device, so the linked site sees your IP address; on the web your homeserver fetches it.",
     "messagesMediaSettings.pauseVideosOffScreen": "Pause videos off-screen",
     "messagesMediaSettings.pauseAPlayingVideoWhenIt":
         "Pause a playing video when it scrolls out of view to save battery. You restart it yourself when you scroll back.",

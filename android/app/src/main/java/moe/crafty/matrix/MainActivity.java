@@ -111,6 +111,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ScreenSharePlugin.class);
         registerPlugin(PluginSocketsPlugin.class);
         registerPlugin(SharedFilePlugin.class);
+        registerPlugin(LinkPagePlugin.class);
         bridgeStarted = true;
         super.onCreate(savedInstanceState);
         // After the bridge, which sets debugging from the build type.

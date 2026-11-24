@@ -72,6 +72,12 @@
         buildTextContent,
         buildFormattedContent,
     } from "$lib/utils/messageContent";
+    import { withUrlPreviewHints } from "$lib/utils/urlPreviews";
+    import {
+        collectBundledPreviews,
+        prepareComposerPreviews,
+        readyBundledPreviews,
+    } from "$lib/matrix/previewBundling";
     import { composerInsertText } from "$lib/utils/composerInsert";
     import {
         applyTextTransforms,
@@ -300,6 +306,20 @@
     const activeEdit = $derived(
         editEvent && editEvent.getRoomId() === roomId ? editEvent : null,
     );
+    // Links being typed are prepared for bundling (MSC4095) in the
+    // background, image upload included, so Send can attach them without
+    // waiting (matrix/previewBundling.ts). Not while editing: edits carry no
+    // bundled previews.
+    $effect(() => {
+        const current = text;
+        const target = roomId;
+        if (!target || activeEdit || !/https?:\/\//i.test(current)) return;
+        const timer = setTimeout(
+            () => untrack(() => prepareComposerPreviews(current, target)),
+            800,
+        );
+        return () => clearTimeout(timer);
+    });
     let editStash: {
         key: string;
         text: string;
@@ -1493,16 +1513,17 @@
                     replyId,
                 );
             } else if (replyId) {
+                const replyContent = buildReplyContent({
+                    replyEventId: replyId,
+                    text: plainBody,
+                    formattedText: usePlain
+                        ? undefined
+                        : (formatted?.html ?? undefined),
+                    mentions,
+                }) as unknown as Record<string, unknown>;
                 await sendEventContent(
                     roomId,
-                    buildReplyContent({
-                        replyEventId: replyId,
-                        text: plainBody,
-                        formattedText: usePlain
-                            ? undefined
-                            : (formatted?.html ?? undefined),
-                        mentions,
-                    }) as unknown as Record<string, unknown>,
+                    usePlain ? replyContent : withUrlPreviewHints(replyContent),
                 );
             } else if (usePlain) {
                 await sendTextMessage(roomId, body);
@@ -1695,13 +1716,18 @@
             : html
               ? buildFormattedContent(plain, html, mentions)
               : buildTextContent(plain, mentions);
-        const content = applyContentTransforms(
-            baseContent,
-            pluginRegistry.outgoingContentTransforms.map((e) => e.value),
-            { roomId: targetRoomId },
-        );
+        // Set before the wait for bundled previews, so a second Enter in
+        // the meantime cannot schedule the message twice.
         isSending = true;
         try {
+            const content = applyContentTransforms(
+                withUrlPreviewHints(
+                    baseContent,
+                    await collectBundledPreviews(baseContent, targetRoomId),
+                ),
+                pluginRegistry.outgoingContentTransforms.map((e) => e.value),
+                { roomId: targetRoomId },
+            );
             await scheduleMessage(targetRoomId, content, at, plain);
             if (scheduleAt === at) scheduleAt = null;
             clearComposerAfterSend(targetComposerKey, textAtSend);
@@ -1839,7 +1865,10 @@
         // event this send produces: text, reply, thread reply, caption.
         const transformOutgoingContent = (content: Record<string, unknown>) =>
             applyContentTransforms(
-                content,
+                withUrlPreviewHints(
+                    content,
+                    readyBundledPreviews(content, targetRoomId),
+                ),
                 pluginRegistry.outgoingContentTransforms.map((e) => e.value),
                 { roomId: targetRoomId },
             );
