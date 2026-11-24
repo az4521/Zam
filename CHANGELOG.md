@@ -4,6 +4,21 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.5
+
+✨ **New**
+
+- **Scheduled messages**: choose "Schedule message" in the composer's + menu and pick a time. Your homeserver holds the message and sends it then, even with Zam closed. A bar above the composer lists the room's scheduled messages, with Send now and Cancel. Text only for now. In encrypted rooms the message is encrypted when you schedule it, so people who join the room before it goes out can't read it.
+- **Offline messages** (Settings > Security): Zam keeps a stand-in session on your homeserver, so a new sign-in can read messages sent while all your sessions were offline. It turns on when you set up recovery or enter your recovery key, or with the new "Turn on" button. It needs a homeserver that supports it.
+
+🐛 **Fixed**
+
+- **Tapping a notification for a message in a thread opens that thread** and highlights the message, instead of just the room. The same goes for thread mentions in your inbox and thread results in search. Notifications for thread replies now say they're in a thread.
+- **Clicking a mention in your inbox jumps to the message** when it's in another room. It used to only open the room.
+- **Two accounts in the same room no longer share one Android notification.** Each account gets its own notification, call ring and notification settings for the room, and tapping one opens the account it's for. Before, one account's notification replaced the other's, so a tap could open the wrong account.
+- **Tapping a notification for another signed-in account is more reliable**: opening the app from a notification starts that account directly, the room still opens if switching accounts takes a few minutes, and a notification for an account that isn't signed in on the device now says so.
+- **Pushes that don't say which account they're for** no longer show under whichever account is open when several accounts are signed in.
+
 ## v1.67.4
 
 🐛 **Fixed**
