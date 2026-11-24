@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.6
+
+✨ **New**
+
+- **Link previews travel with your message.** When you paste a link, Zam prepares its preview while you type and sends it along with the message, so others see the same preview without their homeserver fetching the page. Previews from other clients that do this show up too. To stop attaching them, turn off "Attach link previews to messages I send" in Settings > Messages & Media.
+- **Wrap a link in `<` `>` to send it without a preview**, as in `<https://example.com>`.
+
+🐛 **Fixed**
+
+- **No more link previews for links inside code** (inline code and code blocks).
+- **NeoBoard updates live for everyone on the board again.** On homeservers without sticky events, NeoBoard couldn't see who else had the board open and threw away their live drawing, so changes only showed up after a delay.
+
 ## v1.67.5
 
 ✨ **New**
