@@ -342,7 +342,6 @@ final class NotificationService: UNNotificationServiceExtension {
                 if ringEnabled {
                     var c = msg
                     c.isDM = true
-                    c.isCall = true
                     c.title = name.isEmpty ? "Incoming call" : name
                     c.body = "Incoming call"
                     return .call(c)

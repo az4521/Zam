@@ -285,7 +285,7 @@ public class ProxyPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     private static func systemProxyEnabled() -> Bool {
-        guard let settings = CFNetworkCopySystemProxySettings() as? [String: Any] else {
+        guard let settings = CFNetworkCopySystemProxySettings()?.takeRetainedValue() as? [String: Any] else {
             return false
         }
         for key in ["HTTPEnable", "HTTPSEnable", "SOCKSEnable", "ProxyAutoConfigEnable"] {

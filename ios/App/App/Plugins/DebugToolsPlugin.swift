@@ -45,9 +45,7 @@ public class DebugToolsPlugin: CAPPlugin, CAPBridgedPlugin {
             applyInspectable(webView, enabled: enabled)
         } else {
             DispatchQueue.main.async {
-                if #available(iOS 16.4, *) {
-                    applyInspectable(webView, enabled: enabled)
-                }
+                applyInspectable(webView, enabled: enabled)
             }
         }
     }
@@ -70,10 +68,10 @@ public class DebugToolsPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("WebView debugging needs iOS 16.4 or later", "UNSUPPORTED")
             return
         }
-        let enabled = call.getBool("enabled", false) ?? false
+        let enabled = call.getBool("enabled", false)
         UserDefaults.standard.set(enabled, forKey: DebugToolsPlugin.webViewDebuggingKey)
         DispatchQueue.main.async { [weak self] in
-            if #available(iOS 16.4, *), let webView = self?.bridge?.webView {
+            if let webView = self?.bridge?.webView {
                 DebugToolsPlugin.applyInspectable(webView, enabled: enabled)
             }
             call.resolve(["enabled": enabled])
