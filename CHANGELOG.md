@@ -4,6 +4,20 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.8
+
+✨ **New**
+
+- **Rich presence can show the widget you have open**, with its name and icon (never the room or widget link). Turn it off per widget, or for all widgets under Settings > Rich presence > Matrix widgets.
+
+🐛 **Fixed**
+
+- **No popup flood after a long time away.** Old unread messages that arrive while the app catches up still land in your inbox, but no longer pop up or ping one by one.
+- **Windows notifications replace each other per room** instead of stacking up once an earlier one has moved to Action Center.
+- **Media playback shows in rich presence on macOS again.** ([#68](https://github.com/az4521/Zam/issues/68))
+- **Call audio comes back after iOS puts the app in the background**, instead of leaving you effectively muted.
+- **Edge swipes in the iOS Home Screen app no longer navigate back or forward** while you open the side drawers.
+
 ## v1.67.7
 
 ✨ **New**
