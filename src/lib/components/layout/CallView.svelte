@@ -1086,8 +1086,12 @@
             </div>
         {/if}
         {#if controlMode === "controls"}
+            <!-- Wraps onto more rows when the buttons outgrow the width (a
+                 phone with every control showing). The radius is half of one
+                 row's height (44px button + 16px padding), so a single row
+                 is still a pill. -->
             <div
-                class="flex items-center gap-2 px-2 py-2 rounded-full bg-zam-backgroundSecondary"
+                class="flex flex-wrap items-center justify-center gap-2 max-w-full px-2 py-2 rounded-[30px] bg-zam-backgroundSecondary"
             >
                 <button
                     onclick={toggleCallMute}
