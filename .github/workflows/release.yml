@@ -279,7 +279,12 @@ jobs:
     # target's entitlements so the sideloading tool sees what the app asks
     # for (the App Group the extensions share). Not a release gate: a failed
     # iOS build leaves the release without an IPA.
+    # Disabled: a sideloaded IPA is re-signed under the installer's team, so
+    # APNs push from our gateway cannot reach it, and push is a must-have. With
+    # this skipped, `altstore` skips too and the release table falls back to the
+    # web-app row. ios.yml can still be run by hand to check the project builds.
     ios:
+        if: false
         needs: [check, verify]
         uses: ./.github/workflows/ios.yml
         with:
