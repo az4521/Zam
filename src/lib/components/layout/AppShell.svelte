@@ -302,6 +302,7 @@
     import {
         shouldNotifyDecrypted,
         isAlreadyReadEvent,
+        isTooOldToAlert,
         createBoundedIdSet,
     } from "$lib/utils/notifyDecrypted";
     import {
@@ -703,8 +704,13 @@
     // only needed in the browser.
     // Keep a history "guard" entry on the stack whenever there's something the
     // back button should intercept (a modal, a sidebar, or the closed drawer).
+    // The iOS Home Screen app has no back button: "back" is the system edge
+    // swipe, which lands on top of the drawer swipes and plays the
+    // page-snapshot transition. A guard entry is what arms that gesture, so the
+    // installed iOS app gets none. Safari tabs keep it (browser back works).
+    const useBackGuard = !Capacitor.isNativePlatform() && !isIosHomeScreenApp();
     function ensureBackGuard() {
-        if (Capacitor.isNativePlatform()) return;
+        if (!useBackGuard) return;
         if (!interfaceState.isMobile) return;
         if ((history.state as { matrixBackGuard?: boolean })?.matrixBackGuard)
             return;
@@ -1171,7 +1177,14 @@
                 })
             )
                 return;
-            emitNotificationNow(event, room, loud, live);
+            // Catch-up backlog (a long time away, then the app opened) still
+            // gets its inbox rows, but no ping and no popup per old message.
+            emitNotificationNow(
+                event,
+                room,
+                loud,
+                live && !isTooOldToAlert(event.getTs(), Date.now()),
+            );
         }, 0);
         pendingNotifyTimers.add(timer);
     }
@@ -2763,7 +2776,7 @@
                 if (handleBack()) return;
                 App.exitApp();
             }).then((h) => (nativeBackHandle = h));
-        } else {
+        } else if (useBackGuard) {
             let lastBackTs = 0;
             onPopState = () => {
                 if (!interfaceState.isMobile) return;
@@ -2921,7 +2934,7 @@
         ]);
         // Clear local session and leave.
         clearSession();
-        window.location.assign("/");
+        window.location.replace("/");
     }
 
     // Derive directly from activeRoomId (a stable string) rather than the room arrays,

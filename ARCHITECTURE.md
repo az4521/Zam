@@ -268,7 +268,10 @@ arranged not to swallow the back-button `popstate`).
 Mobile **back button** (`popstate` plus a pushed history "guard" entry, or Capacitor's
 `App.backButton` on Android): dismiss the topmost slot → open the left drawer → real back
 navigation. A reactive `$effect` keeps the guard entry present whenever there is something to
-intercept.
+intercept. The iOS Home Screen app (not Safari tabs) gets no guard entry: its only "back" is the system edge swipe, which a history entry
+arms and which collides with the drawer swipes. For the same reason full reloads (account switch,
+logout, add account) use `location.replace` / `goto(..., { replaceState: true })` so they never
+stack history.
 
 ## Subsystems
 
@@ -448,7 +451,7 @@ Under OAuth the homeserver no longer owns passwords, devices or deactivation:
 
 `stores/accounts.svelte.ts` holds the registry; `utils/scopedStorage.ts` namespaces per-account
 keys; each account gets its own rust-crypto database. Switching accounts leaves any active call and
-then navigates to `/` with `location.assign`, tearing down the whole module graph — so no
+then navigates to `/` with `location.replace`, tearing down the whole module graph — so no
 cross-account store state can survive. One account syncs at a time.
 
 ### Settings

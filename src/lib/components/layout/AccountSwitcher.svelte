@@ -161,7 +161,7 @@
 
     function addAccount(): void {
         onClose();
-        goto("/?add");
+        goto("/?add", { replaceState: true });
     }
 
     async function signOut(userId: string): Promise<void> {

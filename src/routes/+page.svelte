@@ -469,7 +469,7 @@
             // No sync starts in this document: persisting and reloading IS the
             // switch, and the reload's restore path is the transaction.
             saveSession(sessionToSave());
-            window.location.assign("/");
+            window.location.replace("/");
             return;
         }
 
@@ -494,18 +494,18 @@
     // Switch to a dormant account: full reload boots it with clean stores.
     function continueAs(userId: string): void {
         switchActive(userId);
-        window.location.assign("/");
+        window.location.replace("/");
     }
 
     function backToActive(): void {
         if (auth.isAuthenticated) {
             // SPA-entered add mode: the session is still running — drop "?add"
             // in place and the reactive view swaps back to the shell.
-            goto("/");
+            goto("/", { replaceState: true });
         } else {
             // Full-page load of /?add: restore was skipped, so boot the active
             // account through the normal "/" restore path.
-            window.location.assign("/");
+            window.location.replace("/");
         }
     }
 </script>

@@ -28,5 +28,5 @@ export async function switchToAccount(userId: string): Promise<void> {
     switchActive(userId);
     // Full reload: the session-restore path boots the account with
     // clean stores (no cross-account state survives).
-    window.location.assign("/");
+    window.location.replace("/");
 }
