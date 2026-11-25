@@ -3853,6 +3853,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "roomUpgrade.youDonTHavePermissionTo":
         "このルームをアップグレードする権限がありません。",
     "saveFile.savedToDownloads": "ダウンロードに保存しました",
+    "saveFile.savedToPhotos": "写真に保存しました",
     "securityStatusView.couldnTReadThisAccountS":
         "このアカウントの暗号化状態を読み取れませんでした。読み込まれるまでここに表示される内容は信頼できません - リカバリーの設定やリセットはまだ行わないでください。",
     "securityStatusView.encryptionIsnTReadyOnThis":

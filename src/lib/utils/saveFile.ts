@@ -108,12 +108,21 @@ export async function saveObjectUrl(
         return;
     }
     if (isAndroid() && blob) {
-        await MediaSaver.save({
+        const { location } = await MediaSaver.save({
             data: await blobToBase64(blob),
             filename: name,
             mimeType: blob.type || "application/octet-stream",
         });
-        showToast(t("saveFile.savedToDownloads"), { tone: "accent" });
+        // iOS puts images and videos in the photo library (location "Photos")
+        // and everything else in Files under Zam/Downloads.
+        showToast(
+            t(
+                location === "Photos"
+                    ? "saveFile.savedToPhotos"
+                    : "saveFile.savedToDownloads",
+            ),
+            { tone: "accent" },
+        );
         return;
     }
     downloadObjectUrl(objectUrl, name);

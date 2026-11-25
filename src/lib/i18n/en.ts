@@ -4320,6 +4320,7 @@ export const en = {
 
     // src/lib/utils/saveFile.ts
     "saveFile.savedToDownloads": "Saved to Downloads",
+    "saveFile.savedToPhotos": "Saved to Photos",
 
     // src/lib/utils/securityStatusView.ts
     "securityStatusView.couldnTReadThisAccountS":

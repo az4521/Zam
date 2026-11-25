@@ -4411,6 +4411,7 @@ const messages: Partial<Record<MessageKey, string>> = {
 
     // src/lib/utils/saveFile.ts
     "saveFile.savedToDownloads": "Сохранено в «Загрузки»",
+    "saveFile.savedToPhotos": "Сохранено в «Фото»",
 
     // src/lib/utils/securityStatusView.ts
     "securityStatusView.couldnTReadThisAccountS":

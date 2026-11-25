@@ -4030,6 +4030,7 @@ const messages: Partial<Record<MessageKey, string>> = {
 
     // src/lib/utils/saveFile.ts
     "saveFile.savedToDownloads": "已保存到“下载”",
+    "saveFile.savedToPhotos": "已保存到“照片”",
 
     // src/lib/utils/securityStatusView.ts
     "securityStatusView.couldnTReadThisAccountS":
