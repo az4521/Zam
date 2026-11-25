@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
     shouldNotifyDecrypted,
     isAlreadyReadEvent,
+    isTooOldToAlert,
+    MAX_ALERT_AGE_MS,
     createBoundedIdSet,
     createBoundedIdMap,
     NOTIFIED_ID_CAP,
@@ -370,5 +372,33 @@ describe("createBoundedIdMap", () => {
         expect(map.size).toBe(2);
         expect(map.has("a")).toBe(false);
         expect(map.get("c")).toBe(3);
+    });
+});
+
+describe("isTooOldToAlert", () => {
+    const now = 1_800_000_000_000;
+
+    it("alerts for a message from just now", () => {
+        expect(isTooOldToAlert(now - 1000, now)).toBe(false);
+    });
+
+    it("alerts right up to the window", () => {
+        expect(isTooOldToAlert(now - MAX_ALERT_AGE_MS, now)).toBe(false);
+    });
+
+    it("stays quiet for backlog older than the window", () => {
+        expect(isTooOldToAlert(now - MAX_ALERT_AGE_MS - 1, now)).toBe(true);
+        expect(isTooOldToAlert(now - 3 * 24 * 3600_000, now)).toBe(true);
+    });
+
+    it("fails open on a missing or junk timestamp", () => {
+        expect(isTooOldToAlert(undefined, now)).toBe(false);
+        expect(isTooOldToAlert(null, now)).toBe(false);
+        expect(isTooOldToAlert(Number.NaN, now)).toBe(false);
+        expect(isTooOldToAlert(0, now)).toBe(false);
+    });
+
+    it("alerts for a timestamp from the future (clock skew)", () => {
+        expect(isTooOldToAlert(now + 60_000, now)).toBe(false);
     });
 });

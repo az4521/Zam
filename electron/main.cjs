@@ -1074,6 +1074,18 @@ function forgetNotification(id) {
         if (tagId === id) notificationIdByTag.delete(tag);
 }
 
+// Platforms where a Notification `id` is the OS's replace key (Windows toast
+// Tag, macOS request identifier).
+const NATIVE_TAG_PLATFORMS = new Set(["win32", "darwin"]);
+
+function nativeTagId(tag) {
+    return require("crypto")
+        .createHash("sha256")
+        .update(tag)
+        .digest("hex")
+        .slice(0, 32);
+}
+
 function clampText(v, max) {
     return typeof v === "string" ? v.slice(0, max) : "";
 }
@@ -1096,6 +1108,15 @@ ipcMain.on("notify:show", (_e, payload) => {
     }
     const icon = nativeImage.createFromPath(path.join(ICONS_DIR, "icon.png"));
     const n = new Notification({
+        // The OS's own replace-by-tag. Closing the previous popup above is not
+        // enough on Windows: a toast that timed out into Action Center reports
+        // "close" and drops out of our map, so the next one for that room
+        // stacked beside it, and a catch-up burst filled the tray. Windows
+        // replaces a toast with the same Tag + Group itself. Hashed, since a
+        // Tag is capped at 64 characters and a room id can be longer.
+        ...(tagStr && NATIVE_TAG_PLATFORMS.has(process.platform)
+            ? { id: nativeTagId(tagStr), groupId: "zam" }
+            : {}),
         title: clampText(title, 256),
         body: clampText(body, 1024),
         // Windows plays its own toast chime unless silenced; the app already
@@ -1113,7 +1134,10 @@ ipcMain.on("notify:show", (_e, payload) => {
         showWindow();
         report("click");
     });
-    n.on("close", () => {
+    n.on("close", (details) => {
+        // A Windows toast that timed out has only moved into Action Center:
+        // keep it, so reading the room can still take it down there.
+        if (details?.reason === "timedOut") return;
         forgetNotification(id);
         report("close");
     });

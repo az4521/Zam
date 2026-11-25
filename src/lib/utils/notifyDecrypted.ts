@@ -193,3 +193,32 @@ export function isAlreadyReadEvent({
         return false;
     }
 }
+
+/**
+ * How old a message may be and still pop a desktop notification or play the
+ * ping. Older ones still get their inbox row; they just do not interrupt.
+ */
+export const MAX_ALERT_AGE_MS = 30 * 60_000;
+
+/**
+ * Is this message too old to alert for?
+ *
+ * Opening the app after a long time away catches up on everything it missed,
+ * and some of that arrives as live traffic after the initial sync: rooms the
+ * sliding-sync lists page in later, and the messages a timeline gap skipped
+ * (fetched back for their alerts). Each of those passed every other gate, so
+ * the tray filled with one popup per old message. A message from before the
+ * window is backlog, not news.
+ *
+ * Fails OPEN: an event with no usable timestamp, or one from the future
+ * (clock skew), still alerts.
+ */
+export function isTooOldToAlert(
+    eventTs: number | null | undefined,
+    now: number,
+    maxAgeMs: number = MAX_ALERT_AGE_MS,
+): boolean {
+    if (typeof eventTs !== "number" || !Number.isFinite(eventTs)) return false;
+    if (eventTs <= 0) return false;
+    return now - eventTs > maxAgeMs;
+}
