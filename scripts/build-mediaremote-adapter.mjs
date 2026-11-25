@@ -39,12 +39,20 @@ const buildDir = join(outDir, "build");
 const framework = join(outDir, "MediaRemoteAdapter.framework");
 const script = join(outDir, "mediaremote-adapter.pl");
 const versionFile = join(outDir, "VERSION");
+// The binary the Perl script loads. In a framework bundle it is a relative
+// symlink into Versions/Current; existsSync follows it, so a dangling link
+// counts as missing.
+const frameworkBinary = join(framework, "MediaRemoteAdapter");
 
-// Only a build of this exact tag is reused; a stale one is replaced.
+// Only a build of this exact tag is reused; a stale or broken one is replaced.
 const builtVersion = existsSync(versionFile)
     ? readFileSync(versionFile, "utf8").trim()
     : null;
-if (builtVersion === VERSION && existsSync(framework) && existsSync(script)) {
+if (
+    builtVersion === VERSION &&
+    existsSync(frameworkBinary) &&
+    existsSync(script)
+) {
     console.log("build-mediaremote-adapter: already built");
     process.exit(0);
 }
@@ -86,12 +94,26 @@ const built = [
 ].find((p) => existsSync(p));
 if (!built) throw new Error("build-mediaremote-adapter: framework not built");
 
-// Keep the bundle's symlinks (Versions/Current) as they are.
-cpSync(built, framework, { recursive: true, dereference: false });
+// Keep the bundle's symlinks (Versions/Current) exactly as they are. Without
+// verbatimSymlinks, cpSync rewrites relative targets into absolute paths into
+// build/, which is deleted below, so the packed app shipped dangling links
+// ("Framework not found at .../MediaRemoteAdapter").
+cpSync(built, framework, {
+    recursive: true,
+    dereference: false,
+    verbatimSymlinks: true,
+});
 cpSync(join(srcDir, "bin", "mediaremote-adapter.pl"), script);
-writeFileSync(versionFile, `${VERSION}\n`);
 
 // Leave no build tree behind for electron-builder to pack.
 rmSync(srcDir, { recursive: true, force: true });
 rmSync(buildDir, { recursive: true, force: true });
+
+// Checked after build/ is gone, so a link that only resolved into it fails here.
+if (!existsSync(frameworkBinary)) {
+    throw new Error(
+        `build-mediaremote-adapter: ${frameworkBinary} does not resolve`,
+    );
+}
+writeFileSync(versionFile, `${VERSION}\n`);
 console.log(`build-mediaremote-adapter: built ${framework}`);

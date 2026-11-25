@@ -681,7 +681,12 @@ function startMacos({ diff, status, log, mediaDir }) {
     let restarts = 0;
     let state = {};
 
-    if (!fs.existsSync(script) || !fs.existsSync(framework)) {
+    // The framework's binary, not just its folder: a dangling symlink there
+    // (1.67.7 and earlier) means the adapter cannot load.
+    if (
+        !fs.existsSync(script) ||
+        !fs.existsSync(path.join(framework, "MediaRemoteAdapter"))
+    ) {
         log(
             "media",
             "MediaRemote adapter not built; run npm run build:mediaremote",
