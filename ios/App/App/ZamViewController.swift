@@ -28,6 +28,7 @@ class ZamViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(PluginSocketsPlugin())
         bridge?.registerPluginInstance(ProxyPlugin())
         bridge?.registerPluginInstance(CallServicePlugin())
+        bridge?.registerPluginInstance(PushKeysPlugin())
 
         DebugToolsPlugin.applySaved(to: webView)
         ProxyPlugin.applySaved(to: webView)

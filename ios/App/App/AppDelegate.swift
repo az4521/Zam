@@ -6,6 +6,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
     private var defaultsObserver: NSObjectProtocol?
+    private var sweptAtLaunch = false
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // BGTaskScheduler handlers must be registered before launch finishes.
@@ -29,15 +30,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private func mirrorSharedPreferences() {
         let source = UserDefaults.standard
         let target = AppGroup.defaults
+        var accountsChanged = false
         for key in AppGroup.mirroredKeys {
             let value = source.string(forKey: "CapacitorStorage." + key)
             if target.string(forKey: key) != value {
+                if key == MatrixSession.recordKey || key == MatrixSession.accountsKey {
+                    accountsChanged = true
+                }
                 if let value = value {
                     target.set(value, forKey: key)
                 } else {
                     target.removeObject(forKey: key)
                 }
             }
+        }
+        if accountsChanged || !sweptAtLaunch {
+            sweptAtLaunch = true
+            // Signed out accounts take their mirrored room keys with them.
+            PushKeysPlugin.sweep(signedIn: MatrixSession.signedInUserIds())
         }
     }
 

@@ -538,7 +538,9 @@ the app's plugins, the iOS counterpart of `MainActivity.java`. Layout, build and
   (Sygnal needs an `apns` app entry for it), and its `default_payload` carries an `aps` block with
   `mutable-content` and a placeholder alert (`apnsPayload` in `push.ts`). The extension replaces the
   placeholder with sender, room, text, sender avatar (as a communication notification) and an image
-  thumbnail. It cannot decrypt E2EE events, so those show "Encrypted message". A push the app
+  thumbnail. It decrypts E2EE events with copies of the room keys the app mirrors into the App Group
+  (`matrix/pushKeyMirror.ts` → `PushKeysPlugin` → `RoomKeyStore.swift`, decrypted by `Megolm.swift`),
+  falling back to server-side key backup; without a key they show "Encrypted message". A push the app
   suppresses is delivered with empty content, since there is no notification filtering entitlement.
 - **Notification actions.** Mark as read and invite decline run natively (`NotificationActions.swift`).
   Reply, accept and join open the app: `pushNotificationActionPerformed` reaches

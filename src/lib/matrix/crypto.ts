@@ -67,6 +67,7 @@ import { VerificationPhaseValue } from "$lib/utils/verification";
 import { getClient } from "$lib/matrix/runtime";
 import { attachKeyBackfill } from "$lib/matrix/keyBackfill";
 import { attachFileTransfer } from "$lib/matrix/fileTransfer";
+import { attachPushKeyMirror } from "$lib/matrix/pushKeyMirror";
 import { installRekeyRepair } from "$lib/matrix/rekeyRepair";
 import {
     ROOM_ENCRYPTION_EVENT_TYPE,
@@ -187,6 +188,8 @@ export async function waitForCryptoEngineIdle(
 // Teardown for the key backfill attached to the running engine's client.
 let detachKeyBackfill: (() => void) | null = null;
 let detachFileTransfer: (() => void) | null = null;
+// iOS: copies of room keys for the notification extension (pushKeyMirror.ts).
+let detachPushKeyMirror: (() => void) | null = null;
 
 // How many times initCrypto tries to start the engine, and the pause before
 // each retry. Most failures are passing (the WASM download, an IndexedDB
@@ -450,6 +453,8 @@ export async function initCrypto(
     detachKeyBackfill = null;
     detachFileTransfer?.();
     detachFileTransfer = null;
+    detachPushKeyMirror?.();
+    detachPushKeyMirror = null;
     // Session expiry drops back to the login view in place (no reload), so a
     // re-login re-enters here in the same JS context — against a fresh crypto
     // store that knows nothing about sender devices. Verdicts memoised for the
@@ -528,6 +533,7 @@ export async function initCrypto(
         attachSecurityListeners(client);
         detachKeyBackfill = attachKeyBackfill(client);
         detachFileTransfer = attachFileTransfer(client);
+        detachPushKeyMirror = attachPushKeyMirror(client, userId);
         if (!(await installRekeyRepair(cryptoApi, { userId, deviceId })))
             console.warn("[matrix] can't watch for re-keyed sessions");
         bootMark("rekey-repair-done");

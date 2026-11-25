@@ -54,6 +54,15 @@ enum MatrixSession {
         return resolve(userId: nil)
     }
 
+    /// Every signed-in user id: the active record and the account registry.
+    static func signedInUserIds() -> Set<String> {
+        var ids = Set((accountsMap() ?? [:]).keys)
+        if let active = activeRecord() {
+            ids.insert(active.userId)
+        }
+        return ids
+    }
+
     static func accountCount() -> Int {
         accountsMap()?.count ?? 0
     }

@@ -38,6 +38,10 @@
 		3FE7FE13A1284C3CB050B576 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57A677163ADD4B8A9280ABC0 /* ShareViewController.swift */; };
 		FEA62368F6DD44AAAAB20290 /* AppGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79A0E166776A455C935F6C37 /* AppGroup.swift */; };
 		158F833852174766AAD15365 /* MatrixSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAB28EDBD59D4BF6A305B25B /* MatrixSession.swift */; };
+		C090212086AB43B1BEF541E0 /* PushKeysPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4084EEAB5CDD4896861FD8C7 /* PushKeysPlugin.swift */; };
+		DC2D7C3EFC494129A93C6F67 /* Megolm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 045C8BD5C5004238AFCA7BA5 /* Megolm.swift */; };
+		A1EA0E01716645389A2FA8FA /* RoomKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D0A200DD6694370B4643104 /* RoomKeyStore.swift */; };
+		B1B73CF60B1947E287436150 /* RoomKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D0A200DD6694370B4643104 /* RoomKeyStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -73,6 +77,9 @@
 		148699AB23274EF6868F7B69 /* ShareExtension.appex */ = {isa = PBXFileReference; name = "ShareExtension.appex"; path = "ShareExtension.appex"; sourceTree = BUILT_PRODUCTS_DIR; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; };
 		57A677163ADD4B8A9280ABC0 /* ShareViewController.swift */ = {isa = PBXFileReference; name = "ShareViewController.swift"; path = "ShareViewController.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; includeInIndex = 0; };
 		799429EF2D0F40EEBC2744F3 /* ShareExtension.entitlements */ = {isa = PBXFileReference; name = "ShareExtension.entitlements"; path = "ShareExtension.entitlements"; sourceTree = "<group>"; lastKnownFileType = unknown; includeInIndex = 0; };
+		4084EEAB5CDD4896861FD8C7 /* PushKeysPlugin.swift */ = {isa = PBXFileReference; name = "PushKeysPlugin.swift"; path = "PushKeysPlugin.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; includeInIndex = 0; };
+		045C8BD5C5004238AFCA7BA5 /* Megolm.swift */ = {isa = PBXFileReference; name = "Megolm.swift"; path = "Megolm.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; includeInIndex = 0; };
+		6D0A200DD6694370B4643104 /* RoomKeyStore.swift */ = {isa = PBXFileReference; name = "RoomKeyStore.swift"; path = "RoomKeyStore.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -152,6 +159,7 @@
 				7898333862204EAC98635277 /* HistoryPrefetchPlugin.swift */,
 				895E88407B0C46139A625CD4 /* HistoryPrefetchStore.swift */,
 				E512BEC30F774B1EA0DBF0FD /* LinkPagePlugin.swift */,
+				4084EEAB5CDD4896861FD8C7 /* PushKeysPlugin.swift */,
 				C4AF8F2BF4A0450A997E34E0 /* MediaSaverPlugin.swift */,
 				89A7347A872F4E2C90AABD2E /* PluginSocketsPlugin.swift */,
 				42546608B4CE417F92C15FCC /* ProxyPlugin.swift */,
@@ -166,6 +174,7 @@
 			children = (
 				79A0E166776A455C935F6C37 /* AppGroup.swift */,
 				CAB28EDBD59D4BF6A305B25B /* MatrixSession.swift */,
+				6D0A200DD6694370B4643104 /* RoomKeyStore.swift */,
 			);
 			name = Shared;
 			sourceTree = "<group>";
@@ -175,6 +184,7 @@
 			isa = "PBXGroup";
 			children = (
 				65495F8275484A60AABD38AD /* NotificationService.swift */,
+				045C8BD5C5004238AFCA7BA5 /* Megolm.swift */,
 				C26DB4B65867498CBAD6BE1B /* NotificationService.entitlements */,
 			);
 			name = NotificationService;
@@ -332,6 +342,8 @@
 				8F6B2EE30D324C92A21092B8 /* HistoryPrefetchPlugin.swift in Sources */,
 				CF6178DAC38F4DE0A2E2A9AD /* HistoryPrefetchStore.swift in Sources */,
 				3D2A592FC4B74E2586855328 /* LinkPagePlugin.swift in Sources */,
+				A1EA0E01716645389A2FA8FA /* RoomKeyStore.swift in Sources */,
+				C090212086AB43B1BEF541E0 /* PushKeysPlugin.swift in Sources */,
 				5BAED6A6A9C04A2E9290332E /* MediaSaverPlugin.swift in Sources */,
 				1C4EE50A12BC4EB9BAF5FC74 /* PluginSocketsPlugin.swift in Sources */,
 				1EADE051949A45D68947F55E /* ProxyPlugin.swift in Sources */,
@@ -349,6 +361,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				D305B663F2F94169BD713B2A /* NotificationService.swift in Sources */,
+				B1B73CF60B1947E287436150 /* RoomKeyStore.swift in Sources */,
+				DC2D7C3EFC494129A93C6F67 /* Megolm.swift in Sources */,
 				F0B4D606C55943419875607D /* AppGroup.swift in Sources */,
 				E367B6F17A3C4614AB4AC58D /* MatrixSession.swift in Sources */,
 			);

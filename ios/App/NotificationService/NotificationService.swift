@@ -2,7 +2,9 @@
 // notification: fetches the event and room through the homeserver, applies the
 // same suppression rules as MatrixMessagingService.java, and attaches the
 // sender's avatar (as a Communication notification) and unencrypted images.
-// Encrypted events cannot be decrypted here, so they show "Encrypted message".
+// Encrypted events are decrypted with the room keys the app mirrors into the
+// App Group (RoomKeyStore, Megolm.swift), falling back to server-side key
+// backup; when neither has the key they show "Encrypted message".
 import UserNotifications
 import Intents
 import Foundation
@@ -283,7 +285,18 @@ final class NotificationService: UNNotificationServiceExtension {
             return .invite(text.title, text.text)
         }
 
-        guard let ev = event else { return .message(msg) }
+        guard var ev = event else { return .message(msg) }
+
+        // Read before decryption replaces the content: a thread relation
+        // stays outside the encryption.
+        let threadReply = Self.isThreadReply((ev["content"] as? [String: Any]) ?? [:])
+        var decrypted = false
+        if (ev["type"] as? String) == "m.room.encrypted",
+           let clear = await decrypt(s, roomId: roomId, event: ev, log: lp) {
+            ev["type"] = clear.type
+            ev["content"] = clear.content
+            decrypted = true
+        }
 
         let sender = Self.text(ev["sender"]) ?? ""
         let type = (ev["type"] as? String) ?? ""
@@ -294,9 +307,19 @@ final class NotificationService: UNNotificationServiceExtension {
         }
 
         let encrypted = type == "m.room.encrypted"
-        if encrypted, await mentionsRuleEnabled(s, roomId) {
-            // Undecryptable here, and the room only notifies for mentions.
-            return .suppress("undecryptable message in a mentions-only room")
+        // A mentions-only room gets every encrypted message pushed (via the
+        // e2ee_mentions override), so notify only for a real mention.
+        if encrypted || decrypted, await mentionsRuleEnabled(s, roomId) {
+            if encrypted {
+                return .suppress("undecryptable message in a mentions-only room")
+            }
+            var ownName: String? = nil
+            if (content["m.mentions"] as? [String: Any]) == nil {
+                ownName = await ownDisplayName(s, roomId, s.userId)
+            }
+            if !Self.isMention(content, userId: s.userId, displayName: ownName) {
+                return .suppress("not a mention in a mentions-only room")
+            }
         }
 
         var rawName = sender
@@ -314,7 +337,7 @@ final class NotificationService: UNNotificationServiceExtension {
         if !dm, !name.isEmpty {
             msg.subtitle = name
         }
-        if Self.isThreadReply(content) {
+        if threadReply {
             msg.title += " \u{203A} Thread"
         }
 
@@ -390,6 +413,79 @@ final class NotificationService: UNNotificationServiceExtension {
             msg.senderAvatar = await thumbnail(s, senderMxc, size: 96, method: "crop")
         }
         return .message(msg)
+    }
+
+    // MARK: - Decryption
+
+    /// Decrypts an m.megolm.v1.aes-sha2 event with the mirrored room key, or
+    /// with the key from server-side key backup when the mirror has none (or
+    /// only one that starts after this message). Nil when neither works.
+    private func decrypt(_ s: MatrixSession.Record, roomId: String, event: [String: Any],
+                         log lp: String) async -> (type: String, content: [String: Any])? {
+        guard let wrapped = event["content"] as? [String: Any],
+              (wrapped["algorithm"] as? String) == "m.megolm.v1.aes-sha2",
+              let sessionId = wrapped["session_id"] as? String,
+              let ciphertext = wrapped["ciphertext"] as? String else {
+            PushLog.append(lp + "decrypt: unsupported algorithm")
+            return nil
+        }
+        let index = Megolm.messageIndex(ciphertext: ciphertext)
+        func usable(_ key: RoomKeyStore.Key?) -> RoomKeyStore.Key? {
+            guard let key = key, let first = RoomKeyStore.firstIndex(key.sessionKey) else { return nil }
+            if let index = index, index < first { return nil }
+            return key
+        }
+        var source = "mirror"
+        var key = usable(RoomKeyStore.key(userId: s.userId, roomId: roomId, sessionId: sessionId))
+        if key == nil {
+            key = usable(await backedUpKey(s, roomId: roomId, sessionId: sessionId, log: lp))
+            source = "backup"
+        }
+        guard let found = key else {
+            PushLog.append(lp + "decrypt: no key")
+            return nil
+        }
+        do {
+            let session = try Megolm.Session(exportedKey: found.sessionKey)
+            let plain = try Megolm.decrypt(ciphertext: ciphertext, session: session)
+            guard (plain["room_id"] as? String) == roomId,
+                  let type = plain["type"] as? String,
+                  let content = plain["content"] as? [String: Any] else {
+                PushLog.append(lp + "decrypt: plaintext does not match the room")
+                return nil
+            }
+            PushLog.append(lp + "decrypted (key from " + source + ")")
+            return (type, content)
+        } catch let error as Megolm.DecryptError {
+            PushLog.append(lp + "decrypt failed: " + error.reason)
+            return nil
+        } catch {
+            PushLog.append(lp + "decrypt failed")
+            return nil
+        }
+    }
+
+    /// One session from server-side key backup, decrypted with the backup key
+    /// the app mirrored. Cached in the mirror for the next push.
+    private func backedUpKey(_ s: MatrixSession.Record, roomId: String, sessionId: String,
+                             log lp: String) async -> RoomKeyStore.Key? {
+        guard let backup = RoomKeyStore.backupKey(userId: s.userId) else { return nil }
+        let path = "/_matrix/client/v3/room_keys/keys/" + MatrixSession.enc(roomId) + "/"
+            + MatrixSession.enc(sessionId) + "?version=" + MatrixSession.enc(backup.version)
+        guard let obj = await getJSON(s, path),
+              let data = obj["session_data"] as? [String: Any] else {
+            PushLog.append(lp + "decrypt: key not in backup")
+            return nil
+        }
+        guard let plain = try? Megolm.decryptBackup(sessionData: data, privateKey: backup.privateKey),
+              let sessionKey = plain["session_key"] as? String else {
+            PushLog.append(lp + "decrypt: backup data unreadable")
+            return nil
+        }
+        let key = RoomKeyStore.Key(roomId: roomId, sessionId: sessionId, sessionKey: sessionKey,
+                                   senderKey: plain["sender_key"] as? String)
+        RoomKeyStore.store(key, userId: s.userId)
+        return key
     }
 
     // MARK: - Homeserver queries

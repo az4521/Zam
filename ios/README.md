@@ -76,6 +76,7 @@ in standard defaults, where `declinedInvites.ts` reads it.
 | PluginSocketsPlugin   | `Plugins/PluginSocketsPlugin.swift`                                    | plugin raw sockets                                          |
 | ProxyPlugin           | `Plugins/ProxyPlugin.swift`                                            | proxy, iOS 17+                                              |
 | CallServicePlugin     | `Plugins/CallServicePlugin.swift`                                      | CallKit                                                     |
+| PushKeysPlugin        | `Plugins/PushKeysPlugin.swift`                                         | room key copies for push decryption (`iosPushKeys.ts`)      |
 
 Plus `@capacitor/app`, `@capacitor/browser`, `@capacitor/preferences` and `@capacitor/push-notifications`
 from the npm packages.
@@ -95,12 +96,33 @@ platforms, `isIos()` for iOS-only branches. Android-only features keep checking 
   placeholder is required.
 - The extension fetches the event and room through the homeserver with the account named by
   `zam_tag`, applies the same suppression rules as `MatrixMessagingService.java`, and replaces the
-  placeholder. Encrypted events show "Encrypted message". The extension cannot decrypt, so in a
-  mentions-only encrypted room it suppresses the push instead.
-- Decisions are logged to `push-log.txt` in the App Group, read by `DebugToolsPlugin`.
+  placeholder.
+- Encrypted events are decrypted in the extension (see "Push decryption" below). When it has no key,
+  the push shows "Encrypted message", and in a mentions-only encrypted room it is suppressed.
+- Decisions are logged to `push-log.txt` in the App Group, read by `DebugToolsPlugin`. Never keys or text.
 - `MAX_FUTURE_SKEW_MS` and `MAX_GRACE_MS` are mirrored in `NotificationService.swift`. The build guard
   `scripts/check-active-session-sync.mjs` checks them along with `activeSession.ts`, `sw.js` and the
   Java service.
+
+### Push decryption
+
+Android decrypts a push by opening the crypto store itself. The iOS extension can't: the store is in
+WebKit's IndexedDB, private to the app, and the extension can't run the crypto WASM. So the app hands it
+copies:
+
+- `src/lib/matrix/pushKeyMirror.ts` (attached in `initCrypto`) exports every room key the engine learns
+  about with `exportRoomKeys` (read-only) and sends it through `PushKeysPlugin` to
+  `Shared/RoomKeyStore.swift`, one file per session in `<group>/RoomKeys/<sha256(userId)>/`. The first
+  run copies every key the engine already holds. It also mirrors the key backup's decryption key.
+- `NotificationService/Megolm.swift` decrypts `m.megolm.v1.aes-sha2` events with those copies. When the
+  mirror has no key (it arrived while the app was suspended), the extension fetches that one session from
+  server-side key backup, decrypts it with the mirrored backup key, and caches it.
+- Nothing here writes to the crypto store, so it can't be corrupted from outside the app. The copies are
+  App Group files with complete-until-first-unlock protection, next to the access token the extensions
+  already read. `AppDelegate` deletes the folder of an account that signs out.
+- `sh ios/MegolmTests/run.sh` checks `Megolm.swift` against vectors made by the crypto WASM.
+- Not covered: Olm (to-device) messages, encrypted image thumbnails, and checking that the session belongs
+  to a device of the event's sender (the homeserver vouches for `sender`).
 
 ### Notification actions
 
