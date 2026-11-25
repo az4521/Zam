@@ -134,6 +134,10 @@ the app is in the background.
 Below 17 the settings are saved and the plugin reports "Proxy needs iOS 17 or later". The call proxy
 bypass that Android has is not implemented on iOS.
 
+The app's own native requests go through the same proxy: `LinkPagePlugin` and `HistoryPrefetchPlugin`
+call `ProxyPlugin.configure(_:)` on their `URLSessionConfiguration` (manual mode, iOS 17+). The
+notification service extension runs in its own process and uses the system proxy settings.
+
 ## CI and distribution
 
 `.github/workflows/ios.yml` is reusable (`workflow_call`) and runnable by hand on any branch

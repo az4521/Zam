@@ -187,7 +187,21 @@ public class ProxyPlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     /// Main thread only (plugin calls and applySaved both run there).
-    private static var prefs: ProxyPrefs = loadSavedPrefs()
+    private static var savedPrefs: ProxyPrefs = loadSavedPrefs()
+    /// Guards savedPrefs: the history prefetch reads it off the main thread.
+    private static let prefsLock = NSLock()
+    private static var prefs: ProxyPrefs {
+        get {
+            prefsLock.lock()
+            defer { prefsLock.unlock() }
+            return savedPrefs
+        }
+        set {
+            prefsLock.lock()
+            savedPrefs = newValue
+            prefsLock.unlock()
+        }
+    }
     /// Shown as `error` in info(). Nil when the setting is in force.
     private static var lastError: String? = nil
 
@@ -209,6 +223,17 @@ public class ProxyPlugin: CAPPlugin, CAPBridgedPlugin {
         } catch {
             lastError = errorText(error)
         }
+    }
+
+    /// Zam's proxy for the app's own native requests (link previews, history
+    /// prefetch), as Android sends them through ZamProxy. Manual mode gets the
+    /// same proxy list as the web view; system and direct leave the session on
+    /// the system proxy settings, as WebKit does. Needs iOS 17, like the web
+    /// view's proxy.
+    public static func configure(_ config: URLSessionConfiguration) {
+        guard #available(iOS 17.0, *) else { return }
+        guard let configs = try? proxyConfigurations(for: prefs), !configs.isEmpty else { return }
+        config.proxyConfigurations = configs
     }
 
     // MARK: - Plugin methods

@@ -901,7 +901,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "此版本的 Android System WebView 无法设置代理。请从 Play 商店更新。",
     "proxySettings.unsupportedIos": "在此设置代理需要 iOS 17 或更高版本。",
     "proxySettings.iosBackgroundHint":
-        "通知、链接预览以及在应用 Web 视图之外发出的其他请求使用系统代理设置，而不是此设置。",
+        "通知在后台获取，使用系统代理设置，而不是此设置。",
     "proxySettings.callsDirectAddresses": "直连发送：",
     "proxySettings.save": "保存",
     "proxySettings.saved": "已保存",

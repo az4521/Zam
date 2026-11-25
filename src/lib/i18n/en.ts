@@ -932,7 +932,7 @@ export const en = {
     "proxySettings.unsupportedIos":
         "Setting a proxy here needs iOS 17 or later.",
     "proxySettings.iosBackgroundHint":
-        "Notifications, link previews and other requests made outside the app's web view use the system proxy settings, not this one.",
+        "Notifications are fetched in the background and use the system proxy settings, not this one.",
     "proxySettings.callsDirectAddresses": "Sent direct:",
     "proxySettings.save": "Save",
     "proxySettings.saved": "Saved",

@@ -551,7 +551,9 @@ the app's plugins, the iOS counterpart of `MainActivity.java`. Layout, build and
   calls arrive as time-sensitive notifications, and CallKit rings only while the app is in the
   background.
 - **Proxy.** `ProxyPlugin` needs iOS 17 (`WKWebsiteDataStore.proxyConfigurations`). Below 17 the
-  settings are stored and the proxy reports "Proxy needs iOS 17 or later".
+  settings are stored and the proxy reports "Proxy needs iOS 17 or later". Link previews and history
+  prefetch use the same proxy through `ProxyPlugin.configure(_:)`; the notification extension uses the
+  system proxy.
 - **Not on iOS.** Screen share, UnifiedPush, APK and web-bundle updates, the Android-only plugins, and
   native code inside Zam plugins (`PluginNative`).
 - **Build and CI.** `npx cap sync ios`, then open `ios/App/App.xcodeproj`. New Swift files must be added

@@ -911,7 +911,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "proxySettings.unsupportedIos":
         "Configurar un proxy aquí requiere iOS 17 o posterior.",
     "proxySettings.iosBackgroundHint":
-        "Las notificaciones, las vistas previas de enlaces y otras solicitudes hechas fuera de la vista web de la app usan la configuración de proxy del sistema, no esta.",
+        "Las notificaciones se obtienen en segundo plano y usan la configuración de proxy del sistema, no esta.",
     "proxySettings.callsDirectAddresses": "Enviado directo:",
     "proxySettings.save": "Guardar",
     "proxySettings.saved": "Guardado",

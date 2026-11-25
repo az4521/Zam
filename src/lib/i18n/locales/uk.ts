@@ -952,7 +952,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "proxySettings.unsupportedIos":
         "Щоб налаштувати проксі тут, потрібна iOS 17 або новіша.",
     "proxySettings.iosBackgroundHint":
-        "Сповіщення, попередній перегляд посилань та інші запити поза веб-переглядом застосунку використовують системні налаштування проксі, а не ці.",
+        "Сповіщення завантажуються у фоновому режимі й використовують системні налаштування проксі, а не ці.",
     "proxySettings.callsDirectAddresses": "Надсилається напряму:",
     "proxySettings.save": "Зберегти",
     "proxySettings.saved": "Збережено",

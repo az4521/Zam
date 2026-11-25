@@ -841,7 +841,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "proxySettings.unsupportedIos":
         "ここでプロキシを設定するには iOS 17 以降が必要です。",
     "proxySettings.iosBackgroundHint":
-        "通知、リンクのプレビュー、アプリの Web ビュー外で行われるその他のリクエストは、この設定ではなくシステムのプロキシ設定を使用します。",
+        "通知はバックグラウンドで取得され、この設定ではなくシステムのプロキシ設定を使用します。",
     "proxySettings.callsDirectAddresses": "直接送信:",
     "proxySettings.save": "保存",
     "proxySettings.saved": "保存しました",

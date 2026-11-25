@@ -529,6 +529,7 @@ enum HistoryPrefetchWorker {
         config.timeoutIntervalForRequest = readTimeout
         config.httpShouldSetCookies = false
         config.urlCache = nil
+        ProxyPlugin.configure(config)
         return URLSession(configuration: config, delegate: NoRedirectDelegate(), delegateQueue: nil)
     }
 

@@ -82,6 +82,7 @@ final class LinkPageFetcher: NSObject, URLSessionDataDelegate {
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         config.timeoutIntervalForRequest = 5
         config.timeoutIntervalForResource = LinkPageFetcher.deadlineSeconds
+        ProxyPlugin.configure(config)
 
         let queue = OperationQueue()
         queue.maxConcurrentOperationCount = 1
