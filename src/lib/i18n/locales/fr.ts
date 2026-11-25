@@ -690,7 +690,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Terminé, mais {failed} salles ne sont pas encore prêtes. Le robot d'arrière-plan réessaiera.",
     "debugSettings.searchIndexStorage":
         "Arrêté : le stockage est presque plein.",
-    "debugSettings.prefetchTitle": "Téléchargement en arrière-plan (Android)",
+    "debugSettings.prefetchTitle": "Téléchargement en arrière-plan",
     "debugSettings.prefetchHint":
         "Télécharge des pages d'historique chiffrées en arrière-plan lorsque l'application n'est pas au premier plan. Elles restent chiffrées jusqu'à leur lecture par l'index.",
     "debugSettings.prefetchPages": "Pages en attente",
@@ -815,6 +815,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.appId2": "ID de l'application",
     "debugSettings.notificationPermission": "Autorisation des notifications",
     "debugSettings.fcmToken": "Jeton FCM",
+    "debugSettings.apnsToken": "Jeton APNs",
     "debugSettings.pushProvider": "Fournisseur push",
     "debugSettings.unifiedPushDistributor": "Distributeur UnifiedPush",
     "debugSettings.unifiedPushEndpoint": "Point de terminaison UnifiedPush",
@@ -906,6 +907,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Les notifications et réponses rapides sont récupérées hors de la WebView et ne fonctionnent qu'avec des proxys socks5:// ou http://.",
     "proxySettings.unsupported":
         "Cette version d'Android System WebView ne peut pas définir de proxy. Mettez-la à jour depuis le Play Store.",
+    "proxySettings.unsupportedIos":
+        "Définir un proxy ici nécessite iOS 17 ou une version ultérieure.",
+    "proxySettings.iosBackgroundHint":
+        "Les notifications, les aperçus de liens et les autres requêtes faites hors de la vue web de l'app utilisent les réglages de proxy du système, pas celui-ci.",
     "proxySettings.callsDirectAddresses": "Envoyé en direct :",
     "proxySettings.save": "Enregistrer",
     "proxySettings.saved": "Enregistré",

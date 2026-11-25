@@ -697,7 +697,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Fertig, aber {failed} Räume sind noch nicht fertig. Der Hintergrunddienst versucht es erneut.",
     "debugSettings.searchIndexStorage":
         "Angehalten: Der Speicher ist fast voll.",
-    "debugSettings.prefetchTitle": "Hintergrund-Download (Android)",
+    "debugSettings.prefetchTitle": "Hintergrund-Download",
     "debugSettings.prefetchHint":
         "Lädt verschlüsselte Verlaufsseiten im Hintergrund, solange die App nicht im Vordergrund ist. Sie bleiben verschlüsselt, bis der Index sie liest.",
     "debugSettings.prefetchPages": "Wartende Seiten",
@@ -821,6 +821,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.appId2": "App-ID",
     "debugSettings.notificationPermission": "Benachrichtigungsberechtigung",
     "debugSettings.fcmToken": "FCM-Token",
+    "debugSettings.apnsToken": "APNs-Token",
     "debugSettings.pushProvider": "Push-Anbieter",
     "debugSettings.unifiedPushDistributor": "UnifiedPush-Verteiler",
     "debugSettings.unifiedPushEndpoint": "UnifiedPush-Endpunkt",
@@ -912,6 +913,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Benachrichtigungen und Schnellantworten werden außerhalb der WebView abgerufen und funktionieren nur über socks5://- oder http://-Proxys.",
     "proxySettings.unsupported":
         "Diese Version von Android System WebView kann keinen Proxy setzen. Aktualisiere sie im Play Store.",
+    "proxySettings.unsupportedIos":
+        "Einen Proxy hier festzulegen erfordert iOS 17 oder neuer.",
+    "proxySettings.iosBackgroundHint":
+        "Benachrichtigungen, Linkvorschauen und andere Anfragen außerhalb der Web-Ansicht der App verwenden die Proxy-Einstellungen des Systems, nicht diesen.",
     "proxySettings.callsDirectAddresses": "Direkt gesendet:",
     "proxySettings.save": "Speichern",
     "proxySettings.saved": "Gespeichert",

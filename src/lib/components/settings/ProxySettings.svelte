@@ -2,6 +2,7 @@
     import { t } from "$lib/i18n";
     import { onMount } from "svelte";
     import { proxyBridge } from "$lib/proxyBridge";
+    import { isIos } from "$lib/utils/mobileNative";
 
     // Zam's own proxy and how calls treat it: electron/proxy.cjs on desktop,
     // ZamProxy.java on Android (no PAC, no "proxy" call mode there). Applied
@@ -81,6 +82,9 @@
     // Only Android limits modes, and only Android proxies native requests
     // from Java, which can't use every proxy scheme.
     const android = $derived(!!info?.modes);
+    // iOS reports the same limited modes; its WebKit needs iOS 17 for a
+    // proxy, and its native requests follow the system proxy settings.
+    const ios = isIos();
 
     const bypassUnavailable = $derived(
         draft.calls === "direct" &&
@@ -97,7 +101,9 @@
             {t("proxySettings.network")}
         </p>
         <p class="text-sm text-zam-textMuted">
-            {t("proxySettings.unsupported")}
+            {ios
+                ? t("proxySettings.unsupportedIos")
+                : t("proxySettings.unsupported")}
         </p>
     </section>
 {:else if bridge}
@@ -143,7 +149,11 @@
                     bind:value={draft.rules}
                 />
                 <p class={hintClass}>{t("proxySettings.serverHint")}</p>
-                {#if android}
+                {#if ios}
+                    <p class={hintClass}>
+                        {t("proxySettings.iosBackgroundHint")}
+                    </p>
+                {:else if android}
                     <p class={hintClass}>
                         {t("proxySettings.androidBackgroundHint")}
                     </p>

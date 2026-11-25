@@ -719,7 +719,7 @@ export const en = {
     "debugSettings.searchIndexPartial":
         "Finished, but {failed} rooms are not done yet. The background crawler will retry them.",
     "debugSettings.searchIndexStorage": "Stopped: storage is nearly full.",
-    "debugSettings.prefetchTitle": "Background download (Android)",
+    "debugSettings.prefetchTitle": "Background download",
     "debugSettings.prefetchHint":
         "Downloads encrypted history pages in the background while the app is not in front. They stay encrypted until the index reads them.",
     "debugSettings.prefetchPages": "Pages waiting",
@@ -839,6 +839,7 @@ export const en = {
     "debugSettings.appId2": "App ID",
     "debugSettings.notificationPermission": "Notification permission",
     "debugSettings.fcmToken": "FCM token",
+    "debugSettings.apnsToken": "APNs token",
     "debugSettings.pushProvider": "Push provider",
     "debugSettings.unifiedPushDistributor": "UnifiedPush distributor",
     "debugSettings.unifiedPushEndpoint": "UnifiedPush endpoint",
@@ -928,6 +929,10 @@ export const en = {
         "Notifications and quick replies are fetched outside the WebView and only work through socks5:// or http:// proxies.",
     "proxySettings.unsupported":
         "This version of Android System WebView can't set a proxy. Update it from the Play Store.",
+    "proxySettings.unsupportedIos":
+        "Setting a proxy here needs iOS 17 or later.",
+    "proxySettings.iosBackgroundHint":
+        "Notifications, link previews and other requests made outside the app's web view use the system proxy settings, not this one.",
     "proxySettings.callsDirectAddresses": "Sent direct:",
     "proxySettings.save": "Save",
     "proxySettings.saved": "Saved",

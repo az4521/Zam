@@ -687,7 +687,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Terminado, pero {failed} salas aún no están listas. El rastreador en segundo plano las reintentará.",
     "debugSettings.searchIndexStorage":
         "Detenido: el almacenamiento está casi lleno.",
-    "debugSettings.prefetchTitle": "Descarga en segundo plano (Android)",
+    "debugSettings.prefetchTitle": "Descarga en segundo plano",
     "debugSettings.prefetchHint":
         "Descarga páginas cifradas del historial en segundo plano mientras la app no está en primer plano. Siguen cifradas hasta que el índice las lee.",
     "debugSettings.prefetchPages": "Páginas en espera",
@@ -814,6 +814,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.appId2": "ID de la aplicación",
     "debugSettings.notificationPermission": "Permiso de notificaciones",
     "debugSettings.fcmToken": "Token de FCM",
+    "debugSettings.apnsToken": "Token de APNs",
     "debugSettings.pushProvider": "Proveedor de notificaciones push",
     "debugSettings.unifiedPushDistributor": "Distribuidor de UnifiedPush",
     "debugSettings.unifiedPushEndpoint": "Endpoint de UnifiedPush",
@@ -907,6 +908,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Las notificaciones y respuestas rápidas se obtienen fuera del WebView y solo funcionan a través de proxies socks5:// o http://.",
     "proxySettings.unsupported":
         "Esta versión de Android System WebView no puede configurar un proxy. Actualízala desde Play Store.",
+    "proxySettings.unsupportedIos":
+        "Configurar un proxy aquí requiere iOS 17 o posterior.",
+    "proxySettings.iosBackgroundHint":
+        "Las notificaciones, las vistas previas de enlaces y otras solicitudes hechas fuera de la vista web de la app usan la configuración de proxy del sistema, no esta.",
     "proxySettings.callsDirectAddresses": "Enviado directo:",
     "proxySettings.save": "Guardar",
     "proxySettings.saved": "Guardado",

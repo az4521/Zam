@@ -699,7 +699,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.searchIndexPartial":
         "已完成，但仍有 {failed} 个房间未完成，后台会重试。",
     "debugSettings.searchIndexStorage": "已停止：存储空间快满了。",
-    "debugSettings.prefetchTitle": "后台下载（Android）",
+    "debugSettings.prefetchTitle": "后台下载",
     "debugSettings.prefetchHint":
         "应用不在前台时，在后台下载加密的历史消息页。索引读取之前，它们保持加密。",
     "debugSettings.prefetchPages": "等待中的页面",
@@ -816,6 +816,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.appId2": "应用 ID",
     "debugSettings.notificationPermission": "通知权限",
     "debugSettings.fcmToken": "FCM 令牌",
+    "debugSettings.apnsToken": "APNs 令牌",
     "debugSettings.pushProvider": "推送提供方",
     "debugSettings.unifiedPushDistributor": "UnifiedPush 分发器",
     "debugSettings.unifiedPushEndpoint": "UnifiedPush 端点",
@@ -898,6 +899,9 @@ const messages: Partial<Record<MessageKey, string>> = {
         "通知和快速回复在 WebView 之外获取，只能通过 socks5:// 或 http:// 代理工作。",
     "proxySettings.unsupported":
         "此版本的 Android System WebView 无法设置代理。请从 Play 商店更新。",
+    "proxySettings.unsupportedIos": "在此设置代理需要 iOS 17 或更高版本。",
+    "proxySettings.iosBackgroundHint":
+        "通知、链接预览以及在应用 Web 视图之外发出的其他请求使用系统代理设置，而不是此设置。",
     "proxySettings.callsDirectAddresses": "直连发送：",
     "proxySettings.save": "保存",
     "proxySettings.saved": "已保存",

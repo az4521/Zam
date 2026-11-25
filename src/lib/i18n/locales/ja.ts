@@ -639,7 +639,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "完了しましたが、{failed} 件のルームはまだ完了していません。バックグラウンドで再試行されます。",
     "debugSettings.searchIndexStorage":
         "停止: ストレージの空きがほとんどありません。",
-    "debugSettings.prefetchTitle": "バックグラウンドダウンロード (Android)",
+    "debugSettings.prefetchTitle": "バックグラウンドダウンロード",
     "debugSettings.prefetchHint":
         "アプリが前面にないとき、暗号化された履歴ページをバックグラウンドで取得します。インデックスが読むまで暗号化されたままです。",
     "debugSettings.prefetchPages": "待機中のページ",
@@ -760,6 +760,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.appId2": "アプリ ID",
     "debugSettings.notificationPermission": "通知の権限",
     "debugSettings.fcmToken": "FCM トークン",
+    "debugSettings.apnsToken": "APNs トークン",
     "debugSettings.pushProvider": "プッシュプロバイダ",
     "debugSettings.unifiedPushDistributor": "UnifiedPush ディストリビュータ",
     "debugSettings.unifiedPushEndpoint": "UnifiedPush エンドポイント",
@@ -837,6 +838,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "通知とクイック返信は WebView の外で取得され、socks5:// または http:// プロキシ経由でのみ動作します。",
     "proxySettings.unsupported":
         "このバージョンの Android System WebView ではプロキシを設定できません。Play ストアから更新してください。",
+    "proxySettings.unsupportedIos":
+        "ここでプロキシを設定するには iOS 17 以降が必要です。",
+    "proxySettings.iosBackgroundHint":
+        "通知、リンクのプレビュー、アプリの Web ビュー外で行われるその他のリクエストは、この設定ではなくシステムのプロキシ設定を使用します。",
     "proxySettings.callsDirectAddresses": "直接送信:",
     "proxySettings.save": "保存",
     "proxySettings.saved": "保存しました",

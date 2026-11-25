@@ -716,7 +716,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Готово, но {failed} комнат ещё не обработаны. Фоновый процесс повторит попытку.",
     "debugSettings.searchIndexStorage":
         "Остановлено: хранилище почти заполнено.",
-    "debugSettings.prefetchTitle": "Фоновая загрузка (Android)",
+    "debugSettings.prefetchTitle": "Фоновая загрузка",
     "debugSettings.prefetchHint":
         "Загружает зашифрованные страницы истории в фоне, пока приложение не на переднем плане. Они остаются зашифрованными, пока индекс их не прочитает.",
     "debugSettings.prefetchPages": "Страниц в очереди",
@@ -838,6 +838,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.appId2": "ID приложения",
     "debugSettings.notificationPermission": "Разрешение на уведомления",
     "debugSettings.fcmToken": "Токен FCM",
+    "debugSettings.apnsToken": "Токен APNs",
     "debugSettings.pushProvider": "Провайдер push-уведомлений",
     "debugSettings.unifiedPushDistributor": "Дистрибьютор UnifiedPush",
     "debugSettings.unifiedPushEndpoint": "Конечная точка UnifiedPush",
@@ -929,6 +930,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Уведомления и быстрые ответы загружаются вне WebView и работают только через прокси socks5:// или http://.",
     "proxySettings.unsupported":
         "Эта версия Android System WebView не умеет задавать прокси. Обновите её в Play Маркете.",
+    "proxySettings.unsupportedIos":
+        "Для настройки прокси здесь нужна iOS 17 или новее.",
+    "proxySettings.iosBackgroundHint":
+        "Уведомления, предпросмотр ссылок и другие запросы вне веб-представления приложения используют системные настройки прокси, а не эти.",
     "proxySettings.callsDirectAddresses": "Отправляется напрямую:",
     "proxySettings.save": "Сохранить",
     "proxySettings.saved": "Сохранено",

@@ -736,7 +736,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.searchIndexPartial":
         "Готово, але {failed} кімнат ще не оброблено. Фоновий процес повторить спробу.",
     "debugSettings.searchIndexStorage": "Зупинено: сховище майже заповнене.",
-    "debugSettings.prefetchTitle": "Фонове завантаження (Android)",
+    "debugSettings.prefetchTitle": "Фонове завантаження",
     "debugSettings.prefetchHint":
         "Завантажує зашифровані сторінки історії у фоні, коли застосунок не на передньому плані. Вони залишаються зашифрованими, доки індекс їх не прочитає.",
     "debugSettings.prefetchPages": "Сторінок в очікуванні",
@@ -858,6 +858,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "debugSettings.appId2": "ID застосунку",
     "debugSettings.notificationPermission": "Дозвіл на сповіщення",
     "debugSettings.fcmToken": "Токен FCM",
+    "debugSettings.apnsToken": "Токен APNs",
     "debugSettings.pushProvider": "Постачальник push",
     "debugSettings.unifiedPushDistributor": "Дистриб’ютор UnifiedPush",
     "debugSettings.unifiedPushEndpoint": "Кінцева точка UnifiedPush",
@@ -948,6 +949,10 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Сповіщення та швидкі відповіді завантажуються поза WebView і працюють лише через проксі socks5:// або http://.",
     "proxySettings.unsupported":
         "Ця версія Android System WebView не вміє задавати проксі. Оновіть її в Play Маркеті.",
+    "proxySettings.unsupportedIos":
+        "Щоб налаштувати проксі тут, потрібна iOS 17 або новіша.",
+    "proxySettings.iosBackgroundHint":
+        "Сповіщення, попередній перегляд посилань та інші запити поза веб-переглядом застосунку використовують системні налаштування проксі, а не ці.",
     "proxySettings.callsDirectAddresses": "Надсилається напряму:",
     "proxySettings.save": "Зберегти",
     "proxySettings.saved": "Збережено",

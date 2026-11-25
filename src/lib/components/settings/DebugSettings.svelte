@@ -1,5 +1,6 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
+    import { isIos } from "$lib/utils/mobileNative";
     import ExtendedProfileDebug from "$lib/components/settings/ExtendedProfileDebug.svelte";
     import GpuDebug from "$lib/components/settings/GpuDebug.svelte";
     import ToggleSwitch from "$lib/components/ui/ToggleSwitch.svelte";
@@ -417,7 +418,7 @@
         [t("debugSettings.appId2"), PUSH_APP_ID],
         [t("debugSettings.notificationPermission"), pushDebug.permission],
         [
-            t("debugSettings.fcmToken"),
+            t(isIos() ? "debugSettings.apnsToken" : "debugSettings.fcmToken"),
             pushDebug.fcmToken
                 ? `${pushDebug.fcmToken.slice(0, 12)}…${pushDebug.fcmToken.slice(-6)}`
                 : "(none)",
