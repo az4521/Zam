@@ -10,6 +10,7 @@
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
+import { isIos } from "$lib/utils/mobileNative";
 
 /** Custom URL scheme the Android app owns (AndroidManifest.xml). */
 export const NATIVE_SCHEME = "moe.crafty.matrix";
@@ -76,7 +77,12 @@ export function listenForLoginCallbacks(
             })
             .catch(() => {});
         const handle = App.addListener("appUrlOpen", (e) => {
-            if (isOurs(e.url)) cb(e.url);
+            if (!isOurs(e.url)) return;
+            // iOS presents the provider page in a modal Safari view that stays
+            // on top of the app after the redirect; Android's custom tab is
+            // left behind by the activity coming to the front.
+            if (isIos()) void Browser.close().catch(() => {});
+            cb(e.url);
         });
         disposers.push(() => {
             disposed = true;

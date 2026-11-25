@@ -24,6 +24,9 @@ import { nativeNotificationIds } from "$lib/utils/nativeNotificationId";
 import { ensurePushTag } from "$lib/stores/accounts.svelte";
 import { pushTagPayload } from "$lib/utils/pushTag";
 import { navigateToRoom } from "$lib/stores/rooms.svelte";
+import { isIos } from "$lib/utils/mobileNative";
+import { iosNotificationHookCall } from "$lib/utils/iosNotificationAction";
+import { t } from "$lib/i18n";
 import {
     getPushProviderPref,
     getUnifiedPushStatus,
@@ -50,8 +53,14 @@ const PUSH_GATEWAY_URL =
     "https://sygnal.crafty.moe/_matrix/push/v1/notify";
 
 // Must match the app_id configured for this app in Sygnal. UnifiedPush pushers
-// use it too: Matrix gateways for UnifiedPush ignore the app_id.
-const APP_ID = "moe.crafty.matrix";
+// use it too: Matrix gateways for UnifiedPush ignore the app_id. The iOS app
+// pushes through APNs, a separate Sygnal `apns` app entry (bundle id
+// moe.crafty.matrix, with the APNs key), so it needs its own app_id.
+const APP_ID = isIos() ? "moe.crafty.matrix.ios" : "moe.crafty.matrix";
+
+// Prefix of the pusher's device_display_name; stale-pusher cleanup and the
+// debug check match on it.
+const DEVICE_LABEL = isIos() ? "iOS" : "Android";
 
 // FCM push is only attempted when a real gateway is configured. Builds shipped
 // WITHOUT a Firebase google-services.json are caught natively instead
@@ -140,12 +149,14 @@ export async function initPush(
             return;
         }
 
+        // iOS has one transport: APNs through @capacitor/push-notifications
+        // (the "fcm" path below; the plugin hands back an APNs token there).
         const status = await getUnifiedPushStatus();
-        const provider = resolvePushProvider(
-            getPushProviderPref(),
-            status,
-            PUSH_ENABLED,
-        );
+        const provider = isIos()
+            ? PUSH_ENABLED
+                ? ({ kind: "fcm" } as const)
+                : ({ kind: "none" } as const)
+            : resolvePushProvider(getPushProviderPref(), status, PUSH_ENABLED);
         pushDebug.provider = provider.kind;
         if (provider.kind === "unifiedpush") {
             await initUnifiedPush(matrixClient, provider.distributor, status);
@@ -199,6 +210,14 @@ async function initFcm(
     PushNotifications.addListener(
         "pushNotificationActionPerformed",
         (action) => {
+            if (isIos()) {
+                runIosNotificationAction(
+                    action.actionId,
+                    action.notification.data,
+                    action.inputValue,
+                );
+                return;
+            }
             const roomId = action.notification.data?.room_id;
             // event_id_only FCM data carries the event; thread it so the tap
             // jumps to the exact message, not just the room.
@@ -268,6 +287,55 @@ async function initUnifiedPush(
     await registerUnifiedPush(distributor);
 }
 
+/**
+ * iOS: Sygnal sends `default_payload` as the APNs payload base. The
+ * notification service extension (ios/App/NotificationService) only runs for
+ * a visible alert with mutable-content, so the pusher carries a placeholder
+ * alert that the extension replaces with the real sender and text.
+ */
+function apnsPayload<T extends object>(
+    tagPayload: T,
+): T | Record<string, unknown> {
+    if (!isIos()) return tagPayload;
+    const base =
+        (tagPayload as { default_payload?: Record<string, unknown> })
+            .default_payload ?? {};
+    return {
+        default_payload: {
+            ...base,
+            aps: {
+                "mutable-content": 1,
+                alert: { body: t("notificationPrivacy.newMessage") },
+                sound: "default",
+            },
+        },
+    };
+}
+
+/**
+ * iOS notification taps and actions reach the same window hooks the Android
+ * MainActivity calls. On a cold start AppShell may not have defined them yet,
+ * so wait for the hook (every 500 ms, up to 3 minutes, like MainActivity).
+ */
+function runIosNotificationAction(
+    actionId: string,
+    data: Record<string, unknown> | undefined,
+    inputValue: string | undefined,
+): void {
+    const call = iosNotificationHookCall(actionId, data, inputValue);
+    if (!call) return;
+    let attempts = 0;
+    const attempt = () => {
+        const hook = (window as any)[call.hook];
+        if (typeof hook === "function") {
+            hook(...call.args);
+        } else if (++attempts < 360) {
+            setTimeout(attempt, 500);
+        }
+    };
+    attempt();
+}
+
 async function registerPusher(
     matrixClient: import("matrix-js-sdk").MatrixClient,
     pushkey: string,
@@ -284,7 +352,7 @@ async function registerPusher(
             kind: "http",
             app_id: APP_ID,
             app_display_name: "Zam",
-            device_display_name: `Android (${deviceId})`,
+            device_display_name: `${DEVICE_LABEL} (${deviceId})`,
             pushkey,
             lang: navigator.language || "en",
             data: {
@@ -295,7 +363,7 @@ async function registerPusher(
                 // matching session by this (MatrixMessagingService.PUSH_TAG_KEY).
                 // A random per-account tag, not the user id: everything in
                 // `data` reaches the gateway, and from there FCM (pushTag.ts).
-                ...pushTagPayload(ensurePushTag(userId)),
+                ...apnsPayload(pushTagPayload(ensurePushTag(userId))),
             },
             // multi-account: false would delete other users' pushers for this token
             append: true,
@@ -345,7 +413,7 @@ async function removeStaleDevicePushers(
         for (const p of (res?.pushers ?? []) as any[]) {
             if (
                 p.app_id === APP_ID &&
-                p.device_display_name === `Android (${deviceId})` &&
+                p.device_display_name === `${DEVICE_LABEL} (${deviceId})` &&
                 typeof p.pushkey === "string" &&
                 p.pushkey &&
                 p.pushkey !== keep
@@ -518,7 +586,16 @@ export async function dismissNativeRoomNotifications(
         );
         const { notifications } =
             await PushNotifications.getDeliveredNotifications();
-        const hits = notifications.filter((n) => wanted.has(String(n.id)));
+        // iOS: APNs picks the request ids, so match the room and account the
+        // notification service extension put in userInfo instead.
+        const rooms = new Set(roomIds);
+        const hits = isIos()
+            ? notifications.filter(
+                  (n) =>
+                      rooms.has(n.data?.room_id) &&
+                      (!userId || n.data?.user_id === userId),
+              )
+            : notifications.filter((n) => wanted.has(String(n.id)));
         if (hits.length > 0)
             await PushNotifications.removeDeliveredNotifications({
                 notifications: hits,
@@ -589,7 +666,7 @@ export async function verifyPushGateways(
             device_display_name: p.device_display_name as string | undefined,
             pushkey: typeof p.pushkey === "string" ? p.pushkey : "",
         }));
-        const ownDevice = `Android (${matrixClient.getDeviceId()})`;
+        const ownDevice = `${DEVICE_LABEL} (${matrixClient.getDeviceId()})`;
         // A UnifiedPush pusher has a URL as its pushkey. Only this device's own
         // one (the current endpoint, or one under our device name) is verified
         // here. Other devices' UnifiedPush pushers route through a gateway only

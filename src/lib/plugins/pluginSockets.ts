@@ -6,6 +6,7 @@
  * Every socket a plugin opened closes when it unloads (`closeAll`).
  */
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import { isMobileNative } from "../utils/mobileNative";
 import type { PluginListenerHandle } from "@capacitor/core";
 import type { Disposable, PluginTcpSocket, PluginUdpSocket } from "./types";
 import {
@@ -131,10 +132,7 @@ const androidBridge: Bridge = {
 };
 
 function onAndroid(): boolean {
-    return (
-        Capacitor.getPlatform() === "android" &&
-        Capacitor.isPluginAvailable("PluginSockets")
-    );
+    return isMobileNative() && Capacitor.isPluginAvailable("PluginSockets");
 }
 
 function bridge(): Bridge | undefined {

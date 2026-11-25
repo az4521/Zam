@@ -7,6 +7,9 @@ overnight/
 handoffs/
 .playwright-mcp/
 android/app/src/main/assets/
+# Web build copied in by `npx cap sync ios`
+ios/App/App/public/
+ios/App/App/capacitor.config.json
 .omp/
 memory/
 CLAUDE.md

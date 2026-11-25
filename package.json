@@ -154,6 +154,7 @@
         "@capacitor/app": "^8.1.0",
         "@capacitor/browser": "^8.0.5",
         "@capacitor/core": "^8.3.0",
+        "@capacitor/ios": "^8.6.2",
         "@capacitor/preferences": "^8.0.1",
         "@capacitor/push-notifications": "^8.0.3",
         "@homebridge/dbus-native": "^0.7.9",

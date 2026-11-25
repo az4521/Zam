@@ -2,6 +2,7 @@
 // DebugToolsPlugin.java. Lets a release APK be inspected from
 // chrome://inspect, which Capacitor otherwise only allows for debug builds.
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import { isMobileNative } from "./utils/mobileNative";
 
 interface DebugToolsPlugin {
     getWebViewDebugging(): Promise<{ enabled: boolean }>;
@@ -13,11 +14,9 @@ interface DebugToolsPlugin {
 
 const DebugTools = registerPlugin<DebugToolsPlugin>("DebugTools");
 
-/** Only the Android app has a switch; elsewhere devtools are always there. */
+/** Only the Android and iOS apps have a switch; elsewhere devtools are always there. */
 export function canToggleWebViewDebugging(): boolean {
-    return (
-        Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
-    );
+    return Capacitor.isNativePlatform() && isMobileNative();
 }
 
 export async function getWebViewDebugging(): Promise<boolean> {

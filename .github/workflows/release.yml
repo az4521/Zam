@@ -274,6 +274,56 @@ jobs:
                       dist-electron/latest*.yml
                       dist-electron/*.blockmap
 
+    # iOS: an IPA for AltStore / SideStore, which re-sign it under the
+    # installer's Apple ID. Built without signing, then signed ad hoc with each
+    # target's entitlements so the sideloading tool sees what the app asks
+    # for (the App Group the extensions share). Not a release gate: a failed
+    # iOS build leaves the release without an IPA.
+    ios:
+        needs: [check, verify]
+        uses: ./.github/workflows/ios.yml
+        with:
+            version: ${{ needs.check.outputs.version }}
+        secrets: inherit
+
+    # The AltStore / SideStore source (Pages: /altstore/source.json), pointing
+    # at this release's IPA. Published by the `pages` job with the rest of the
+    # site; users add the source URL once and get updates from it.
+    altstore:
+        needs: [check, ios]
+        if: needs.check.outputs.release == 'true'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+            - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+              with:
+                  name: ios
+                  path: ipa
+            - name: Write the source
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  VER="${{ needs.check.outputs.version }}"
+                  IPA="ipa/Zam-$VER.ipa"
+                  PAGES="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}"
+                  awk -v h="## v$VER" \
+                    'index($0,h)==1 && substr($0,length(h)+1,1) !~ /[0-9]/ {f=1;next} /^## /{f=0} f{print}' \
+                    CHANGELOG.md > "$RUNNER_TEMP/notes.md" || true
+                  mkdir -p site-altstore/altstore
+                  cp altstore/icon.png site-altstore/altstore/icon.png
+                  node scripts/gen-altstore-source.mjs \
+                    --version "$VER" \
+                    --build "${{ github.run_number }}" \
+                    --ipa-url "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VER/Zam-$VER.ipa" \
+                    --size "$(stat -c %s "$IPA")" \
+                    --base "$PAGES" \
+                    --notes "$RUNNER_TEMP/notes.md" \
+                    --out site-altstore/altstore/source.json
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: pages-altstore
+                  path: site-altstore
+
     # Flatpak: our own signed repo (served from GitHub Pages by the `pages` job
     # below), not Flathub. Built on every master push like the other desktop
     # builds; the repo is only published when the version is unreleased.
@@ -555,7 +605,7 @@ jobs:
         # fdroid is only waited for, to know whether to link its repo; a failed
         # F-Droid build must not stop the release, so every other job is checked
         # by hand (a plain needs would skip the release when any of them fail).
-        needs: [check, android, desktop, flatpak, bundle, fdroid]
+        needs: [check, android, desktop, flatpak, bundle, fdroid, ios]
         if: >-
             !cancelled() && needs.check.outputs.release == 'true' &&
             needs.android.result == 'success' && needs.desktop.result == 'success' &&
@@ -588,7 +638,7 @@ jobs:
               with:
                   path: artifacts
                   # Not the github-pages artifact (the Flatpak repo tarball).
-                  pattern: "{android,desktop-*,flatpak,web-bundle}"
+                  pattern: "{android,desktop-*,flatpak,web-bundle,ios}"
             # A friendly platform table placed above the changelog, so nobody
             # has to pick through the update manifests (latest*.yml), blockmaps
             # and web bundles. Files are found by pattern because electron-builder
@@ -625,7 +675,11 @@ jobs:
                     echo "| 🪟 **Windows** | $(join "$(link "**Installer**" '*Setup*.exe')" "$(link 'Portable' '*Portable*.exe')") |"
                     echo "| 🍎 **macOS** | $(join "$(link "**DMG**" '*.dmg')") |"
                     echo "| 🤖 **Android** | $(join "$(link "**APK**" '*.apk')" "$([ "$FDROID_PUBLISHED" = true ] && printf '[F-Droid repository](%s/fdroid/)' "$PAGES")") |"
-                    echo "| 📱 **iOS** | [**Open the web app**](https://matrix.crafty.moe) and use Share > Add to Home Screen |"
+                    if [ -n "$(find artifacts -type f -name '*.ipa')" ]; then
+                      echo "| 📱 **iOS** | $(join "$(link "**IPA**" '*.ipa')" "AltStore / SideStore source: \`$PAGES/altstore/source.json\`" "[Web app](https://matrix.crafty.moe)") |"
+                    else
+                      echo "| 📱 **iOS** | [**Open the web app**](https://matrix.crafty.moe) and use Share > Add to Home Screen |"
+                    fi
                     echo
                     echo "The other files below (\`.yml\`, \`.blockmap\`, \`.zbundle\`) are used by Zam's built-in updater. You don't need them."
                     echo
@@ -650,7 +704,7 @@ jobs:
     # Publish the Flatpak repo to GitHub Pages, only once the release exists.
     # Needs Settings -> Pages -> Source: "GitHub Actions".
     pages:
-        needs: [check, flatpak, fdroid, release]
+        needs: [check, flatpak, fdroid, altstore, release]
         # A failed or skipped F-Droid build still lets the Flatpak site deploy.
         if: >-
             !cancelled() && needs.check.outputs.release == 'true' &&

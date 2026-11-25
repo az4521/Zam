@@ -58,6 +58,7 @@
     import AccountAvatar from "$lib/components/layout/AccountAvatar.svelte";
     import { Capacitor } from "@capacitor/core";
     import { CAN_INSTALL_UPDATE } from "$lib/update";
+    import { isMobileNative } from "$lib/utils/mobileNative";
     import { DOWNLOAD_URL, GITHUB_URL, WEBSITE_URL } from "$lib/links";
 
     interface Props {
@@ -1417,7 +1418,7 @@
                 {t("loginView.yourCredentialsAreSentDirectlyTo")}
             </p>
 
-            {#if !CAN_INSTALL_UPDATE}
+            {#if !CAN_INSTALL_UPDATE && !isMobileNative()}
                 <p
                     class="flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs mt-3"
                 >
