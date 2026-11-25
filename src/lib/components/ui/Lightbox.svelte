@@ -1518,7 +1518,7 @@
                  Only the buttons take pointer events, so the rest of this
                  strip still reaches the backdrop and closes the viewer. -->
             <div
-                class="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 p-1 rounded-full bg-black/50 text-white pointer-events-auto opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                class="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 p-1 rounded-full bg-black/50 text-white pointer-events-auto opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 ios-touch:opacity-100"
             >
                 <button
                     type="button"

@@ -254,7 +254,7 @@
         <button
             onclick={() => port?.postMessage({ type: "suspend" })}
             title={t("flashEmbed.suspend")}
-            class="absolute top-1.5 end-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/flash:opacity-100 transition-opacity hover:bg-black/70"
+            class="absolute top-1.5 end-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/flash:opacity-100 ios-touch:opacity-100 transition-opacity hover:bg-black/70"
         >
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
@@ -274,7 +274,7 @@
             ondblclick={resetSize}
             title={t("flashEmbed.resizeHint")}
             aria-label={t("flashEmbed.resize")}
-            class="absolute bottom-1 end-1 z-10 p-1 rounded bg-black/50 text-white cursor-nwse-resize mirror:cursor-nesw-resize opacity-0 group-hover/flash:opacity-100 focus-visible:opacity-100 transition-opacity hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            class="absolute bottom-1 end-1 z-10 p-1 rounded bg-black/50 text-white cursor-nwse-resize mirror:cursor-nesw-resize opacity-0 group-hover/flash:opacity-100 focus-visible:opacity-100 ios-touch:opacity-100 transition-opacity hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
         >
             <svg
                 viewBox="0 0 16 16"

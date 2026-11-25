@@ -3523,7 +3523,7 @@
                                         {@render favouriteStar(
                                             mediaIsFavourited,
                                             toggleMediaFavourite,
-                                            "top-1.5 end-1.5 opacity-0 group-hover/img:opacity-100",
+                                            "top-1.5 end-1.5 opacity-0 group-hover/img:opacity-100 ios-touch:opacity-100",
                                         )}
                                     {/if}
                                 </div>
@@ -3630,8 +3630,8 @@
                                 mediaIsFavourited,
                                 toggleMediaFavourite,
                                 where === "player"
-                                    ? "top-2 end-11 opacity-0 group-hover/vid:opacity-100 focus-visible:opacity-100"
-                                    : "top-1.5 end-1.5 opacity-0 group-hover/vid:opacity-100 focus-visible:opacity-100",
+                                    ? "top-2 end-11 opacity-0 group-hover/vid:opacity-100 focus-visible:opacity-100 ios-touch:opacity-100"
+                                    : "top-1.5 end-1.5 opacity-0 group-hover/vid:opacity-100 focus-visible:opacity-100 ios-touch:opacity-100",
                             )}
                         {/snippet}
                     </MessageVideo>

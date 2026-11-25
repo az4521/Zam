@@ -116,5 +116,14 @@ export default {
         plugin(({ addVariant }) => {
             addVariant("mirror", "&:dir(rtl)");
         }),
+        // `ios-touch:` applies on iOS WebKit (Safari, the PWA and the iOS
+        // app), where utils/iosTouch.ts marks the root with data-ios-touch.
+        // WebKit there turns a tap into a hover first and withholds the click
+        // when that hover reveals a button or link, so a row whose controls
+        // fade in on hover takes two taps. Hover-revealed controls use this
+        // to stay put on iOS.
+        plugin(({ addVariant }) => {
+            addVariant("ios-touch", ":root[data-ios-touch] &");
+        }),
     ],
 };

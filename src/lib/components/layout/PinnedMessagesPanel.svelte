@@ -173,7 +173,7 @@
                             {excerpt(event)}
                         </p>
                         <div
-                            class="flex gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            class="flex gap-1 mt-1.5 opacity-0 group-hover:opacity-100 ios-touch:opacity-100 transition-opacity"
                         >
                             <button
                                 onclick={() => {

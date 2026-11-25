@@ -681,7 +681,7 @@
             title={favourited
                 ? t("common.removeFromFavourites")
                 : t("common.addToFavourites")}
-            class="absolute top-1.5 end-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/media:opacity-100 transition-opacity hover:bg-black/70"
+            class="absolute top-1.5 end-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/media:opacity-100 ios-touch:opacity-100 transition-opacity hover:bg-black/70"
         >
             <svg
                 class="w-4 h-4"
@@ -843,7 +843,7 @@
                 title={favourited
                     ? t("common.removeFromFavourites")
                     : t("common.addToFavourites")}
-                class="absolute top-1.5 end-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/media:opacity-100 transition-opacity hover:bg-black/70"
+                class="absolute top-1.5 end-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/media:opacity-100 ios-touch:opacity-100 transition-opacity hover:bg-black/70"
             >
                 {#if favourited}
                     <svg
@@ -1130,7 +1130,7 @@
                 title={favourited
                     ? t("common.removeFromFavourites")
                     : t("common.addToFavourites")}
-                class="absolute top-1.5 end-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/media:opacity-100 transition-opacity hover:bg-black/70"
+                class="absolute top-1.5 end-1.5 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover/media:opacity-100 ios-touch:opacity-100 transition-opacity hover:bg-black/70"
             >
                 {#if favourited}
                     <svg

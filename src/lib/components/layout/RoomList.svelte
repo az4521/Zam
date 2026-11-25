@@ -1576,7 +1576,7 @@
                         e.stopPropagation();
                         onOpenRoomSettings?.(room);
                     }}
-                    class="flex-shrink-0 p-1 me-1 rounded text-zam-textMuted hover:text-zam-textPrimary transition-colors opacity-0 group-hover/room:opacity-100"
+                    class="flex-shrink-0 p-1 me-1 rounded text-zam-textMuted hover:text-zam-textPrimary transition-colors opacity-0 group-hover/room:opacity-100 ios-touch:hidden"
                     title={t("roomList.roomSettings")}
                 >
                     <svg
@@ -1751,13 +1751,13 @@
                 {#if room.isKnocked}
                     <!-- Pending knock: state chip + cancel on hover -->
                     <span
-                        class="flex-shrink-0 me-2 text-xs font-semibold text-zam-textMuted group-hover:hidden"
+                        class="flex-shrink-0 me-2 text-xs font-semibold text-zam-textMuted group-hover:hidden ios-touch:hidden"
                         >{t("roomList.requested")}</span
                     >
                     <button
                         onclick={() => handleCancelKnock(room.roomId)}
                         disabled={isJoining}
-                        class="flex-shrink-0 me-1 px-2 py-0.5 text-xs font-semibold rounded border border-zam-divider text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-60 disabled:cursor-not-allowed hidden group-hover:block"
+                        class="flex-shrink-0 me-1 px-2 py-0.5 text-xs font-semibold rounded border border-zam-divider text-zam-textMuted hover:text-zam-textPrimary hover:bg-zam-messageHover transition-colors disabled:opacity-60 disabled:cursor-not-allowed hidden group-hover:block ios-touch:block"
                     >
                         {t("roomList.cancelRequest")}
                     </button>
@@ -1766,7 +1766,7 @@
                     <button
                         onclick={() => handleJoin(room)}
                         disabled={isJoining}
-                        class="flex-shrink-0 me-1 px-2 py-0.5 text-xs font-semibold rounded bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100"
+                        class="flex-shrink-0 me-1 px-2 py-0.5 text-xs font-semibold rounded bg-zam-accent hover:bg-zam-accentHover text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed opacity-0 group-hover:opacity-100 ios-touch:opacity-100"
                     >
                         {#if isJoining}
                             <span class="flex items-center gap-1">

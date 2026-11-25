@@ -1,5 +1,8 @@
 // Before anything else: some Android WebViews lack APIs the SDK calls.
 import "$lib/polyfills";
+// iOS Safari, PWA and app: keep hover-revealed controls from eating taps.
+import { markIosTouch } from "$lib/utils/iosTouch";
+markIosTouch();
 // Android WebViews without RTCRtpScriptTransform (see the module).
 import { installAndroidScriptTransform } from "$lib/polyfills/androidScriptTransform";
 installAndroidScriptTransform();
