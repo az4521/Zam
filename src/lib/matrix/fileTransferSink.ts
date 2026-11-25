@@ -13,6 +13,7 @@
 //     download out of it. That takes the file's size twice over until the copy
 //     is cleaned up, because a page can't tell when a download has finished.
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import { isMobileNative } from "../utils/mobileNative";
 import { downloadObjectUrl } from "$lib/utils/saveFile";
 import {
     bytesToBase64,
@@ -87,9 +88,7 @@ const SCRATCH_PREFIX = "zam-transfer-";
 const SCRATCH_MAX_AGE_MS = 6 * 60 * 60_000;
 
 function isAndroid(): boolean {
-    return (
-        Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
-    );
+    return Capacitor.isNativePlatform() && isMobileNative();
 }
 
 let nextBlockSequence = 0;

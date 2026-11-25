@@ -4,6 +4,7 @@
 // the proxy.
 
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import { isMobileNative } from "./utils/mobileNative";
 
 export type ProxyBridge = NonNullable<NonNullable<Window["desktop"]>["proxy"]>;
 
@@ -33,7 +34,7 @@ export function proxyBridge(): ProxyBridge | null {
     if (typeof window === "undefined") return null;
     const desktop = window.desktop?.proxy;
     if (desktop) return desktop;
-    if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android")
+    if (Capacitor.isNativePlatform() && isMobileNative())
         return androidBridge();
     return null;
 }

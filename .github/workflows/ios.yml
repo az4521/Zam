@@ -1,0 +1,82 @@
+name: iOS build
+
+# The iOS IPA. Called by release.yml for every master push; also runnable by
+# hand (Actions -> iOS build -> Run workflow) on any branch to check that the
+# Xcode project still compiles.
+on:
+    workflow_call:
+        inputs:
+            version:
+                type: string
+                required: true
+    workflow_dispatch:
+        inputs:
+            version:
+                description: Version to stamp into the app
+                type: string
+                default: "0.0.0"
+
+permissions:
+    contents: read
+
+jobs:
+    # An IPA for AltStore / SideStore, which re-sign it under the installer's
+    # Apple ID. Built without signing, then signed ad hoc with each target's
+    # entitlements so the sideloading tool sees what the app asks for (the App
+    # Group the extensions share).
+    ios:
+        runs-on: macos-15
+        steps:
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+              with:
+                  node-version: 22
+                  cache: npm
+            - run: npm ci
+            - run: npm run build
+              env:
+                  VITE_PUSH_GATEWAY_URL: ${{ vars.PUSH_GATEWAY_URL }}
+                  VITE_VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
+                  VITE_TG_PROXY_URL: ${{ secrets.TG_PROXY_URL }}
+                  VITE_TG_PROXY_KEY: ${{ secrets.TG_PROXY_KEY }}
+            - run: npx cap sync ios
+            - name: Build the app
+              run: |
+                  set -euo pipefail
+                  xcodebuild \
+                    -project ios/App/App.xcodeproj \
+                    -scheme App \
+                    -configuration Release \
+                    -sdk iphoneos \
+                    -destination 'generic/platform=iOS' \
+                    -derivedDataPath "$RUNNER_TEMP/dd" \
+                    CODE_SIGNING_ALLOWED=NO \
+                    CODE_SIGNING_REQUIRED=NO \
+                    CODE_SIGN_IDENTITY="" \
+                    MARKETING_VERSION="${{ inputs.version }}" \
+                    CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+                    build
+            - name: Sign ad hoc and package the IPA
+              run: |
+                  set -euo pipefail
+                  APP="$RUNNER_TEMP/dd/Build/Products/Release-iphoneos/App.app"
+                  # Inside out: embedded frameworks, extensions, then the app.
+                  if [ -d "$APP/Frameworks" ]; then
+                    find "$APP/Frameworks" -maxdepth 1 \( -name '*.framework' -o -name '*.dylib' \) \
+                      -exec codesign --force --sign - {} \;
+                  fi
+                  codesign --force --sign - \
+                    --entitlements ios/App/NotificationService/NotificationService.entitlements \
+                    "$APP/PlugIns/NotificationService.appex"
+                  codesign --force --sign - \
+                    --entitlements ios/App/ShareExtension/ShareExtension.entitlements \
+                    "$APP/PlugIns/ShareExtension.appex"
+                  codesign --force --sign - --entitlements ios/App/App/App.entitlements "$APP"
+                  mkdir -p "$RUNNER_TEMP/ipa/Payload" release-files
+                  cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
+                  (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/release-files/Zam-${{ inputs.version }}.ipa" Payload)
+            - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: ios
+                  path: release-files/*.ipa
+                  if-no-files-found: error

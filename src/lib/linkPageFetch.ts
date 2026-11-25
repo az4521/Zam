@@ -10,6 +10,7 @@
  * back to the homeserver's preview.
  */
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import { isMobileNative } from "./utils/mobileNative";
 
 export type LinkPageResult =
     | { kind: "html"; finalUrl: string; html: string }
@@ -26,10 +27,7 @@ let androidPlugin: LinkPagePlugin | null = null;
 
 function isAndroid(): boolean {
     try {
-        return (
-            Capacitor.isNativePlatform() &&
-            Capacitor.getPlatform() === "android"
-        );
+        return Capacitor.isNativePlatform() && isMobileNative();
     } catch {
         return false;
     }

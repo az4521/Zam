@@ -3,8 +3,8 @@
 ## What this is
 
 **Zam**, a Discord-like Matrix chat client. It's **SvelteKit + Svelte 5**, builds to static
-files, and ships from that one build to four targets: the web, an installable PWA, an **Electron**
-desktop app, and an **Android** app via Capacitor.
+files, and ships from that one build to five targets: the web, an installable PWA, an **Electron**
+desktop app, and **Android** and **iOS** apps via Capacitor.
 
 > This document describes responsibilities and data flows. It deliberately does **not** inventory
 > exports, file sizes or line counts — those drift within days and the previous version of this
@@ -21,7 +21,7 @@ desktop app, and an **Android** app via Capacitor.
 - **livekit-client** for MatrixRTC voice/video
 - **marked** + a hand-rolled Discord-flavoured markdown layer, **DOMPurify** for sanitization,
   **@twemoji/api**, **leaflet** (location), **@ruffle-rs/ruffle** (legacy Flash embeds)
-- **Capacitor** (Android) + **electron-builder** (desktop)
+- **Capacitor** (Android, iOS) + **electron-builder** (desktop)
 
 ## Top-level layout
 
@@ -37,8 +37,9 @@ src/
                                         PWA start_url)
   lib/
     config.ts                        -- default homeserver per runtime
-    push.ts / webPush.ts             -- Android FCM push / browser+PWA VAPID web push
-    nativeSession.ts                 -- mirrors session creds into Android SharedPreferences
+    push.ts / webPush.ts             -- Android FCM / iOS APNs push, browser+PWA VAPID web push
+    nativeSession.ts                 -- mirrors session creds into native storage (Android
+                                        SharedPreferences, iOS Preferences)
     update.ts, desktopUpdater.ts, androidUpdater.ts   -- the three update runtimes
     desktopScreenShare.ts            -- Electron desktopCapturer bridge
     matrix/
@@ -70,6 +71,7 @@ static/                              -- sw.js, manifest.webmanifest, icons, ruff
                                         twemoji/
 electron/                            -- main.cjs, preload.cjs, pluginSockets.cjs
 android/                             -- Capacitor shell + 3 custom Java classes
+ios/                                 -- Capacitor 8 (SPM) shell: App, NotificationService, ShareExtension
 scripts/                             -- gen-vapid.mjs (VAPID private key -> PKCS#8 PEM for Sygnal)
 svelte.config.js                     -- adapter-static, fallback index.html, prod-only CSP
 capacitor.config.ts                  -- appId moe.crafty.matrix, appName Zam, webDir build
@@ -363,15 +365,16 @@ A message whose push actions carry the `sound` tweak is "loud".
    unknown, unsupported or errored probe all render the local store.
 5. Receipt events clear entries the user has now read.
 
-Page notifications, service-worker notifications and Android notifications are **three separate
+Page notifications, service-worker notifications and native notifications (Android, iOS) are **three separate
 domains**. Anything that clears or routes a notification has to address all three, and a routing
 decision must check which account the notification belongs to.
 
 ### Push
 
 Three paths — foreground (in-app Notification API), background web/PWA (VAPID web push →
-`static/sw.js`), and background Android (FCM → `MatrixMessagingService.java`). The two background
-paths need a Sygnal gateway, and **both have live fallbacks compiled in**. See
+`static/sw.js`), and background native: Android (FCM → `MatrixMessagingService.java`) or iOS (APNs,
+see "iOS native"). The web and Android paths need a Sygnal gateway, and **both have live fallbacks
+compiled in**; iOS pushes go through Sygnal too. See
 `ANDROID_PUSH_SETUP.md`, which carries the wire shapes and the effective defaults.
 
 Decrypting an Android push: the running page is asked first (`PushDecryptPlugin` →
@@ -407,10 +410,10 @@ worker has four jobs:
    notification when the unread count reaches zero.
 
 It also mirrors, **by hand**, `src/lib/utils/activeSession.ts` (the account-data heartbeat that
-suppresses notifications on idle devices) — as does the Java service. Those three copies must move
-together, and **nothing enforces it**: `activeSession.test.ts` pins the TypeScript constants so a
-change _there_ is loud, but no test reads `static/sw.js` or the Java service, and no gate compiles
-either of them.
+suppresses notifications on idle devices). `MAX_FUTURE_SKEW_MS` and `MAX_GRACE_MS` are copied into
+`static/sw.js`, `MatrixMessagingService.java` and the iOS notification service extension. The copies
+must move together: `scripts/check-active-session-sync.mjs` runs in `npm run build` and fails the build
+when any of them drifts. `activeSession.test.ts` pins the TypeScript constants.
 
 ### Sign-in (`matrix/oauth.ts`, `matrix/sso.ts`, `LoginView.svelte`)
 
@@ -428,7 +431,7 @@ Three ways in, chosen by what the typed homeserver offers (`getLoginOptions` in 
 - **Password** (`m.login.password`).
 
 Both browser flows share the callback channels in `loginRedirect.ts` (web: same origin; Electron:
-local server `/sso-callback` over IPC; Android: the `moe.crafty.matrix:` deep link) and the same
+local server `/sso-callback` over IPC; Android and iOS: the `moe.crafty.matrix:` deep link) and the same
 guard: a random `state` nonce must match the pending attempt (kept in localStorage) before anything
 is redeemed; a mismatch leaves the attempt pending, a read URL is never processed twice, and attempts
 expire after 30 minutes. OAuth adds the response's `iss` check. There is no OIDC `nonce` because
@@ -521,6 +524,48 @@ SharedPreferences. `ApkUpdaterPlugin.java` is a custom Capacitor plugin that dow
 hands it to the system installer. `MainActivity.java` registers the plugin and routes notification
 taps into the web layer.
 
+### iOS native (`ios/`)
+
+A Capacitor 8 project built with Swift Package Manager (no CocoaPods). It has three targets: `App`,
+`NotificationService` (a `UNNotificationServiceExtension`) and `ShareExtension`. `ios/App/Shared/`
+(`AppGroup.swift`, `MatrixSession.swift`) compiles into all three. `ZamViewController.swift` registers
+the app's plugins, the iOS counterpart of `MainActivity.java`. Layout, build and signing are in
+`ios/README.md`.
+
+- **Storage.** The web layer writes the session, account and notification settings through
+  `@capacitor/preferences` (`UserDefaults.standard`, `CapacitorStorage.` prefix).
+  `AppDelegate.mirrorSharedPreferences` copies `AppGroup.mirroredKeys` into the App Group defaults,
+  which the extensions read. The App Group id is read from `ALTAppGroups` in Info.plist, so a
+  re-signed AltStore or SideStore build works.
+- **Push.** APNs through `@capacitor/push-notifications`. The pusher uses app id `moe.crafty.matrix.ios`
+  (Sygnal needs an `apns` app entry for it), and its `default_payload` carries an `aps` block with
+  `mutable-content` and a placeholder alert (`apnsPayload` in `push.ts`). The extension replaces the
+  placeholder with sender, room, text, sender avatar (as a communication notification) and an image
+  thumbnail. It cannot decrypt E2EE events, so those show "Encrypted message". A push the app
+  suppresses is delivered with empty content, since there is no notification filtering entitlement.
+- **Notification actions.** Mark as read and invite decline run natively (`NotificationActions.swift`).
+  Reply, accept and join open the app: `pushNotificationActionPerformed` reaches
+  `src/lib/utils/iosNotificationAction.ts`, which calls the same window hooks Android's
+  `MainActivity` calls.
+- **Share.** `ShareExtension` stages shared text, URLs and files in the App Group `ShareInbox`.
+  `ShareInbox.swift` moves the files into `tmp/SharedIncoming` and calls `window.__matrixShare` when the
+  app becomes active.
+- **Calls.** CallKit runs in `CallServicePlugin.swift`. There is no PushKit VoIP ringing: incoming
+  calls arrive as time-sensitive notifications, and CallKit rings only while the app is in the
+  background.
+- **Proxy.** `ProxyPlugin` needs iOS 17 (`WKWebsiteDataStore.proxyConfigurations`). Below 17 the
+  settings are stored and the proxy reports "Proxy needs iOS 17 or later".
+- **Not on iOS.** Screen share, UnifiedPush, APK and web-bundle updates, the Android-only plugins, and
+  native code inside Zam plugins (`PluginNative`).
+- **Build and CI.** `npx cap sync ios`, then open `ios/App/App.xcodeproj`. New Swift files must be added
+  to their target in Xcode. `.github/workflows/ios.yml` builds an unsigned IPA on macOS, ad-hoc signs
+  each target with its entitlements and packages `Zam-<version>.ipa`. It runs from `release.yml` on
+  master pushes (not a release gate) and by hand on any branch. The `altstore` job writes
+  `altstore/source.json` and the `pages` job publishes it at `<pages>/altstore/source.json`.
+- **Push needs a store build.** Sideloaded builds are re-signed under the installer's team, so APNs
+  pushes sent by the project's Sygnal do not reach them. Push needs an App Store or TestFlight build
+  signed with the project's team.
+
 ### Live location and polls
 
 Live location is MSC3672 beacons with throttled publishes and expiry timers
@@ -584,7 +629,7 @@ crypto own), profiles, presence, and plain room/member/event summaries, never li
 `ringtones` (incoming-call ringtones: a looping audio `src` or `start`/`stop` callbacks, shown in
 the Ringing picker and falling back to the built-in tone on failure; `audio/ringtoneChoice.ts`),
 `call` (`registerTransport`: a call transport beside the SFU and the mesh, see "Call transports"),
-`network` (raw sockets, desktop and Android, see "Raw sockets"), `storage` (per-plugin namespaced key/value), `settings` (schema-driven, see
+`network` (raw sockets, desktop, Android and iOS, see "Raw sockets"), `storage` (per-plugin namespaced key/value), `settings` (schema-driven, see
 below), and `unsafe` (`getClient()` — the escape hatch). The curated `matrix` API is a
 stability/ergonomics layer and a seam for a future sandbox, not a security cage.
 **`zam.unsafe.getClient()`** hands a plugin the live matrix-js-sdk client instance for anything the
@@ -691,7 +736,8 @@ joined (or the current call's next membership change).
   that throws shows a notice, and the call goes on without it.
 
 **Raw sockets** (`pluginSockets.ts`, `socketRules.ts`, `electron/pluginSockets.cjs`, `zam.network`,
-capability `sockets`). Desktop and Android only (Android: `PluginSocketsPlugin.java`, bytes as base64,
+capability `sockets`). Desktop, Android and iOS only (Android: `PluginSocketsPlugin.java`, iOS:
+`PluginSocketsPlugin.swift`, bytes as base64,
 events as `socketEvent`, sockets closed when a page starts or the activity is destroyed): on the web
 `zam.network.available()` is false, and `connectTcp` and `openUdp` throw. The manifest's `sockets` lists the endpoints a plugin may reach, as `tcp:HOST:PORT` or
 `udp:HOST:PORT`, with `*` for any host or port (for example `tcp:127.0.0.1:7656`, `udp:*:*`,
@@ -757,6 +803,7 @@ file can leave every test green.
 - CI (`.github/workflows/release.yml`): a `verify` job runs `check`, `test` and `lint`; the Android
   and desktop build jobs need it to pass.
 - Android: `npx cap sync android`, then build in Android Studio (`webDir` → `build/`).
+- iOS: `npx cap sync ios`, then open `ios/App/App.xcodeproj` in Xcode (see "iOS native").
 - Desktop: `npm run electron:build` (electron-builder).
 
 ## Conventions for continuing development

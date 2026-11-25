@@ -1,14 +1,15 @@
 /**
  * Pure guard for the active-session constants that are hand-mirrored across
- * TypeScript, JavaScript, and Java. Enforces that MAX_FUTURE_SKEW_MS and
- * MAX_GRACE_MS stay in sync across src/lib/utils/activeSession.ts,
- * static/sw.js, and MatrixMessagingService.java.
+ * TypeScript, JavaScript, Java and Swift. Enforces that MAX_FUTURE_SKEW_MS
+ * and MAX_GRACE_MS stay in sync across src/lib/utils/activeSession.ts,
+ * static/sw.js, MatrixMessagingService.java and (when given) the iOS
+ * NotificationService.swift.
  */
 
 const CONSTANTS = ["MAX_FUTURE_SKEW_MS", "MAX_GRACE_MS"] as const;
 
 type ConstantName = (typeof CONSTANTS)[number];
-type Format = "typescript" | "javascript" | "java";
+type Format = "typescript" | "javascript" | "java" | "swift";
 
 /**
  * Extract the target constants from source code. Returns a map of constant
@@ -29,6 +30,10 @@ export function extractConstants(
             );
         } else if (format === "javascript") {
             pattern = new RegExp(`const\\s+${name}\\s*=\\s*([0-9_]+)`);
+        } else if (format === "swift") {
+            pattern = new RegExp(
+                `static\\s+let\\s+${name}\\s*(?::\\s*\\w+\\s*)?=\\s*([0-9_]+)`,
+            );
         } else {
             // Java
             pattern = new RegExp(
@@ -63,8 +68,9 @@ export function checkActiveSessionSync(sources: {
     "activeSession.ts": string;
     "sw.js": string;
     "MatrixMessagingService.java": string;
+    "NotificationService.swift"?: string;
 }): CheckResult {
-    const extracted = {
+    const extracted: Record<string, Record<string, number>> = {
         "activeSession.ts": extractConstants(
             sources["activeSession.ts"],
             "typescript",
@@ -75,16 +81,19 @@ export function checkActiveSessionSync(sources: {
             "java",
         ),
     };
+    if (sources["NotificationService.swift"] !== undefined) {
+        extracted["NotificationService.swift"] = extractConstants(
+            sources["NotificationService.swift"],
+            "swift",
+        );
+    }
 
     const mismatches: CheckResult["mismatches"] = [];
 
     for (const name of CONSTANTS) {
-        const values = {
-            "activeSession.ts": extracted["activeSession.ts"][name],
-            "sw.js": extracted["sw.js"][name],
-            "MatrixMessagingService.java":
-                extracted["MatrixMessagingService.java"][name],
-        };
+        const values: Record<string, number | undefined> = {};
+        for (const [file, consts] of Object.entries(extracted))
+            values[file] = consts[name];
 
         const uniqueValues = new Set(
             Object.values(values).filter((v) => v !== undefined),

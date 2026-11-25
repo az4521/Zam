@@ -124,4 +124,16 @@ describe("checkActiveSessionSync", () => {
             }),
         );
     });
+
+    it("reads Swift constants and checks them when given", () => {
+        expect(
+            extractConstants(
+                [
+                    "static let MAX_FUTURE_SKEW_MS: Double = 300000",
+                    "static let MAX_GRACE_MS = 7_200_000",
+                ].join("\n"),
+                "swift",
+            ),
+        ).toEqual({ MAX_FUTURE_SKEW_MS: 300000, MAX_GRACE_MS: 7200000 });
+    });
 });

@@ -4,7 +4,7 @@ This file provides guidance to coding agents working with code in this repositor
 
 **Zam** is a Discord-like Matrix client: SvelteKit (adapter-static, no SSR) + Svelte 5 runes +
 TypeScript + Tailwind, built on matrix-js-sdk (rust-crypto) and livekit-client. One static build
-ships to the web/PWA, Electron (`electron/`), and Android via Capacitor (`android/`).
+ships to the web/PWA, Electron (`electron/`), and Android and iOS via Capacitor (`android/`, `ios/`).
 
 **Read [ARCHITECTURE.md](ARCHITECTURE.md) before non-trivial work.** It is the authoritative
 design document (data flow, SDK boundary, stores, UI slot system, subsystems such as E2EE, calls,
@@ -25,6 +25,7 @@ npm run build          # static output in build/
 npm run i18n:missing   # strings each locale lacks (optionally: -- ja)
 npm run electron:build # desktop package (electron-builder)
 npx cap sync android   # then build in Android Studio
+npx cap sync ios       # then open ios/App/App.xcodeproj in Xcode
 ```
 
 CI (`.github/workflows/release.yml`) runs `check`, `test` and `lint` in a `verify` job that gates
@@ -35,8 +36,9 @@ the Android and desktop builds. Run `npm run lint` (or `format`) before committi
 - `scripts/check-no-emdash.mjs`: no em dash (U+2014) in any user-facing string under `src/`
   (comments are fine).
 - `scripts/check-active-session-sync.mjs`: `MAX_FUTURE_SKEW_MS` / `MAX_GRACE_MS` in
-  `src/lib/utils/activeSession.ts` are hand-mirrored in `static/sw.js` and
-  `android/.../MatrixMessagingService.java`; change all three together.
+  `src/lib/utils/activeSession.ts` are hand-mirrored in `static/sw.js`,
+  `android/.../MatrixMessagingService.java` and `ios/App/NotificationService/NotificationService.swift`;
+  change all four together.
 
 The production CSP lives in `svelte.config.js` and is applied only at build time, so the dev server
 proves nothing about CSP (test with the built output, e.g. the `static-build` entry in

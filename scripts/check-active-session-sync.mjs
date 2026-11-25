@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
  * Permanent guard: fail the build if the active-session constants drift out
- * of sync across their three hand-mirrored locations.
+ * of sync across their hand-mirrored locations.
  *
  * MAX_FUTURE_SKEW_MS and MAX_GRACE_MS live in src/lib/utils/activeSession.ts
  * and are hand-mirrored in static/sw.js and
- * android/app/src/main/java/moe/crafty/matrix/MatrixMessagingService.java
- * (the service worker and Android service can't import TypeScript). This
+ * android/app/src/main/java/moe/crafty/matrix/MatrixMessagingService.java and
+ * ios/App/NotificationService/NotificationService.swift (the service worker
+ * and native services can't import TypeScript). This
  * guard asserts they stay equal. Any drift breaks active-session push
  * suppression silently, which is worse than a build failure.
  *
@@ -25,6 +26,10 @@ const FILES = {
     "MatrixMessagingService.java": join(
         ROOT,
         "android/app/src/main/java/moe/crafty/matrix/MatrixMessagingService.java",
+    ),
+    "NotificationService.swift": join(
+        ROOT,
+        "ios/App/NotificationService/NotificationService.swift",
     ),
 };
 
@@ -50,9 +55,11 @@ if (!result.ok) {
         }
     }
     console.error(
-        "\nThese constants must be identical across all three files.",
+        "\nThese constants must be identical across all of these files.",
     );
-    console.error("See ARCHITECTURE.md:316-320 for context.");
+    console.error(
+        'See ARCHITECTURE.md, section "Service worker (`static/sw.js`)", for context.',
+    );
     process.exit(1);
 }
 

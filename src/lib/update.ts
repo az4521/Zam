@@ -20,6 +20,7 @@ import {
     stripDownloadTable,
     type ChangelogRelease,
 } from "$lib/utils/changelog";
+import { isIos } from "$lib/utils/mobileNative";
 
 /** Current build version (from package.json via the Vite `define`). */
 export const APP_VERSION: string =
@@ -27,12 +28,15 @@ export const APP_VERSION: string =
 
 /**
  * Whether this build can actually install an update by downloading a new
- * build (packaged desktop/native apps). The web build always serves the
- * latest version on reload, so there's nothing to download — the Update
- * button is disabled there.
+ * build (packaged desktop/Android/Electron apps). False on the web build, which
+ * always serves the latest version on reload, so there's nothing to download
+ * (the Update button reloads instead). False on iOS too: the app updates only
+ * through the App Store or AltStore, so the app neither offers an update nor
+ * polls GitHub releases there. Callers hide the update controls when this is
+ * false on iOS, and never use it as a promise that a GitHub download exists.
  */
 export const CAN_INSTALL_UPDATE: boolean =
-    Capacitor.isNativePlatform() ||
+    (Capacitor.isNativePlatform() && !isIos()) ||
     (typeof navigator !== "undefined" && /electron/i.test(navigator.userAgent));
 
 const LATEST_RELEASE_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;

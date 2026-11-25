@@ -7,6 +7,7 @@
 import { t } from "$lib/i18n";
 
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import { isMobileNative } from "./mobileNative";
 import { showToast } from "$lib/stores/toasts.svelte";
 
 interface MediaSaverPlugin {
@@ -20,9 +21,7 @@ interface MediaSaverPlugin {
 const MediaSaver = registerPlugin<MediaSaverPlugin>("MediaSaver");
 
 function isAndroid(): boolean {
-    return (
-        Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
-    );
+    return Capacitor.isNativePlatform() && isMobileNative();
 }
 
 const EXT_BY_MIME: Record<string, string> = {

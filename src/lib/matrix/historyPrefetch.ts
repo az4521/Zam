@@ -6,6 +6,7 @@
 // Every export is a no-op or null off Android, and none throws to callers.
 
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import { isMobileNative } from "../utils/mobileNative";
 import {
     parsePrefetchStatus,
     parseTakenPrefetchPage,
@@ -27,13 +28,10 @@ interface HistoryPrefetchPlugin {
 
 let plugin: HistoryPrefetchPlugin | null = null;
 
-/** True only in the Android app (Capacitor native shell). */
+/** True only in the Android and iOS apps (Capacitor native shell). */
 export function historyPrefetchAvailable(): boolean {
     try {
-        return (
-            Capacitor.isNativePlatform() &&
-            Capacitor.getPlatform() === "android"
-        );
+        return Capacitor.isNativePlatform() && isMobileNative();
     } catch {
         return false;
     }

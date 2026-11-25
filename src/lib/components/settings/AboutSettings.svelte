@@ -52,6 +52,11 @@
         installPrompt,
         promptInstall,
     } from "$lib/stores/installPrompt.svelte";
+    import { isIos, isMobileNative } from "$lib/utils/mobileNative";
+
+    // iOS updates only through the App Store / AltStore, so this surface shows
+    // the version and no update check, status or button at all.
+    const iosApp = isIos();
 
     let installing = $state(false);
 
@@ -391,7 +396,7 @@
                         class="text-xs text-zam-accent hover:underline"
                         >{t("aboutSettings.sourceCodeOnGitHub")}</a
                     >
-                    {#if !CAN_INSTALL_UPDATE}
+                    {#if !CAN_INSTALL_UPDATE && !isMobileNative()}
                         <a
                             href={WEBSITE_URL}
                             target="_blank"
@@ -413,7 +418,7 @@
                 {@render actionButton(view, runDesktopAction)}
             {:else if isAndroidUpdater()}
                 {@render actionButton(androidView, runAndroidAction)}
-            {:else}
+            {:else if !iosApp}
                 <button
                     onclick={check}
                     disabled={checking}
@@ -467,7 +472,7 @@
         </section>
     {/if}
 
-    {#if !isDesktopUpdater() && !isAndroidUpdater()}
+    {#if !isDesktopUpdater() && !isAndroidUpdater() && !iosApp}
         {#if error}
             <p class="text-sm text-zam-textMuted">{error}</p>
         {:else if info?.updateAvailable}

@@ -7,6 +7,7 @@
 // a missing Telecom must never get in the way of the call itself.
 
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import { isMobileNative } from "./utils/mobileNative";
 import type { PluginListenerHandle } from "@capacitor/core";
 import { auth } from "$lib/stores/auth.svelte";
 import { isForOtherAccount } from "$lib/utils/nativeCallAccount";
@@ -71,11 +72,9 @@ interface CallServicePlugin {
 
 const CallService = registerPlugin<CallServicePlugin>("CallService");
 
-/** True only on a native Android build, where the plugin is registered. */
+/** True on the native Android and iOS builds, where the plugin is registered. */
 export function hasNativeCallService(): boolean {
-    return (
-        Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android"
-    );
+    return Capacitor.isNativePlatform() && isMobileNative();
 }
 
 /** The web layer is in (or joining) a call in this room: keep it running
