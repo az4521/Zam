@@ -6,6 +6,10 @@ commit list is appended below it.
 
 ## v1.67.13
 
+🐛 **Fixed**
+
+- **The sign-in page scrolls again and the language picker no longer covers the card.** On a short screen the bottom of the page was cut off with no way to reach it, and the language picker sat on top of the sign-in card. The picker now sits above the card and the page scrolls.
+
 ⚡ **Improved**
 
 - **Loading feels like one step instead of several jumps.** The app fades in instead of cutting in, and the "saved on this device" note at the bottom of a room now takes the same height as the message box that replaces it, so the messages no longer shift when the room finishes loading.
