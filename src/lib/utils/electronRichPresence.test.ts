@@ -682,6 +682,18 @@ describe("presence pictures", () => {
         expect(await big.fetchImage("1", "icon:abcdef1234")).toBeNull();
     });
 
+    it("falls back to the executable icon when an icon reference names no fetchable address", async () => {
+        const exe = { type: "image/png", data: new Uint8Array([9]) };
+        const img = createPresenceImages({
+            fetch: stub(new Uint8Array([1])),
+            exeIcon: async (id: string) => (id === "1" ? exe : null),
+        });
+        // A hash that is not hex: resolve() refuses it, so no download is tried.
+        expect(await img.fetchImage("1", "icon:not-a-hash!")).toEqual(exe);
+        expect(await img.fetchImage("2", "icon:not-a-hash!")).toBeNull();
+        expect(calls).toEqual([]);
+    });
+
     it("refuses a redirect to another host", async () => {
         const img = createPresenceImages({
             fetch: async () => ({

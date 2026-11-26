@@ -119,12 +119,12 @@ function createPresenceImages({
                 return (await mediaIcon(player)) ?? null;
             }
             const url = await resolve(String(appId), ref);
-            if (!url) return null;
-            const image = await download(url);
-            // An app's own icon that is missing or refused: the game's
-            // executable icon, when the game is known.
+            const image = url ? await download(url) : null;
+            // An app's own icon that is missing, refused, or names no address
+            // we fetch: the game's executable icon, when the game is known.
             if (!image && /^icon:/.test(ref))
                 return (await exeIcon(String(appId))) ?? null;
+            if (!url) return null;
             // A Steam icon that is gone: the small icon (the same hash without
             // "_full"), then the header.
             const withIcon = /^steam:(\d{1,20}):[0-9a-f]{40}$/.exec(ref);
