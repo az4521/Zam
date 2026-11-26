@@ -244,6 +244,10 @@ export function getSlidingSyncProgress(): {
  * on classic /sync (which already delivers everything).
  */
 export function setSlidingSyncActiveRoom(roomId: string | null): void {
+    // Changing the subscriptions aborts the in-flight request, so an unchanged
+    // room (boot seeds it in buildSlidingSync, then the shell sets it again)
+    // must not restart the very first sync.
+    if (roomId === slidingActiveRoomId) return;
     slidingActiveRoomId = roomId;
     activeSlidingSync?.modifyRoomSubscriptions(slidingRoomSubscriptions());
 }
@@ -281,9 +285,17 @@ export async function buildSlidingSync(
          * them without storing them anywhere.
          */
         keepToDeviceOnServer?: boolean;
+        /**
+         * The room the app will open on boot. Subscribed from the first
+         * request: the shell only mounts after startClient, and subscribing
+         * then aborts that first request and sends it again.
+         */
+        initialRoomId?: string | null;
     },
 ): Promise<SlidingSync | undefined> {
     setActiveSlidingSync(null);
+    // Only seeds: a restart in a running shell keeps the room it is viewing.
+    slidingActiveRoomId ??= hooks.initialRoomId ?? null;
     slidingSyncFallbackReason = null;
     slidingPrimedTimelines = new WeakSet();
     const userId = client.getUserId();

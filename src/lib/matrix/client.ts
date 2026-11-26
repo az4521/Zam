@@ -1947,6 +1947,7 @@ export async function startSync(
     try {
         const slidingSync = await buildSlidingSync(client, {
             keepToDeviceOnServer: cryptoDown,
+            initialRoomId: preferredRoomId,
             onFallback: onSlidingSyncFallback,
             onListComplete: () => markRoomListComplete(client),
             onDroppedTimelines: (roomIds) =>
