@@ -124,4 +124,61 @@ if (typeof AbortSignal !== "undefined" && !("timeout" in AbortSignal)) {
     });
 }
 
+// Android WebViews (and non-secure contexts) often have no async clipboard, or
+// reject writeText although the tap was a user gesture. Every copy button in the
+// app calls navigator.clipboard.writeText, so give it the legacy execCommand
+// route as a fallback in one place rather than at each call site.
+function legacyCopy(text: string): boolean {
+    const active = document.activeElement as HTMLElement | null;
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.cssText =
+        "position:fixed;top:0;left:0;opacity:0;pointer-events:none";
+    document.body.appendChild(ta);
+    try {
+        ta.select();
+        ta.setSelectionRange(0, text.length);
+        return document.execCommand("copy");
+    } catch {
+        return false;
+    } finally {
+        ta.remove();
+        active?.focus?.({ preventScroll: true });
+    }
+}
+
+if (typeof navigator !== "undefined" && typeof document !== "undefined") {
+    const clip = navigator.clipboard as Clipboard | undefined;
+    const native = clip?.writeText?.bind(clip);
+    const writeText = async (text: string): Promise<void> => {
+        if (native) {
+            try {
+                await native(text);
+                return;
+            } catch (err) {
+                if (legacyCopy(text)) return;
+                throw err;
+            }
+        }
+        if (!legacyCopy(text)) throw new Error("clipboard unavailable");
+    };
+    try {
+        if (clip) {
+            Object.defineProperty(clip, "writeText", {
+                configurable: true,
+                writable: true,
+                value: writeText,
+            });
+        } else {
+            Object.defineProperty(navigator, "clipboard", {
+                configurable: true,
+                value: { writeText },
+            });
+        }
+    } catch {
+        /* read-only on this engine: call sites keep the native behaviour */
+    }
+}
+
 export {};
