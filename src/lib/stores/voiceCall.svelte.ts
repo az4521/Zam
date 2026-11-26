@@ -33,6 +33,8 @@ import {
     getDirectRoomIds,
     getRoomCallMemberships,
     setScreenShareEnabled,
+    startFileShare,
+    stopFileShare,
     setCameraEnabled,
     setVideoInputDevice,
     onVideoTracksChanged,
@@ -61,6 +63,7 @@ import {
 import type { WatchingMap } from "$lib/utils/shareWatchers";
 import { callWidgetKey } from "$lib/utils/callWidgets";
 import type { CallCodecState, CallEncryptionState } from "$lib/matrix/client";
+import { fileShareState, pickShareFile } from "$lib/stores/fileShare.svelte";
 import {
     DEFAULT_PARTICIPANT_AUDIO,
     withVolume,
@@ -840,6 +843,16 @@ export function setUserVideoHidden(userId: string, hidden: boolean): void {
 
 export async function toggleScreenShare(): Promise<void> {
     await setScreenShareEnabled(!voiceCallState.screenSharing);
+}
+
+/** The "Share a file" control: stops the file share when one runs, else asks
+ *  for a file and shares it. */
+export function toggleFileShare(): void {
+    if (fileShareState.active) {
+        void stopFileShare();
+        return;
+    }
+    pickShareFile((file) => void startFileShare(file));
 }
 
 export async function toggleCamera(): Promise<void> {

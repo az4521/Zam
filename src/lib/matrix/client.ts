@@ -13272,6 +13272,8 @@ export {
     setVoiceInputDevice,
     setScreenShareEnabled,
     setScreenShareQuality,
+    startFileShare,
+    stopFileShare,
     setCameraEnabled,
     setVideoInputDevice,
     setVoiceCaptureConstraints,

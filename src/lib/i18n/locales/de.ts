@@ -11,6 +11,15 @@ const messages: Partial<Record<MessageKey, string>> = {
     "common.turnOnCamera": "Kamera einschalten",
     "common.stopSharing": "Teilen beenden",
     "common.shareYourScreen": "Bildschirm teilen",
+    "fileShare.shareAFile": "Datei teilen",
+    "fileShare.controls": "Steuerung für geteilte Datei",
+    "fileShare.play": "Abspielen",
+    "fileShare.pause": "Pause",
+    "fileShare.seek": "Position",
+    "fileShare.localVolume":
+        "Deine Lautstärke (wird nicht an den Anruf gesendet)",
+    "fileShare.cannotPlay":
+        "Diese Datei konnte nicht abgespielt werden und wurde daher nicht geteilt.",
     "common.joining": "Beitreten…",
     "common.join": "Beitreten",
     "common.closeDialog": "Dialog schließen",

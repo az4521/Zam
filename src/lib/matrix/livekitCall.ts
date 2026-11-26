@@ -240,6 +240,16 @@ import {
     PASSTHROUGH_CHAIN,
     type MicProcessor,
 } from "$lib/audio/micProcessor";
+import {
+    captureFileShareStream,
+    openFileShareElement,
+    pickShareFile,
+    playFileShare,
+    releaseFileShareElement,
+    waitForFileShareReady,
+} from "$lib/stores/fileShare.svelte";
+import { fileShareMaxBitrate } from "$lib/utils/fileShareBitrate";
+import { showErrorToast } from "$lib/stores/toasts.svelte";
 import { deepFilterSupported } from "$lib/audio/deepFilter";
 import { contextNeedsResume } from "$lib/audio/keepContextRunning";
 import { prepareDenoiser } from "$lib/audio/prepareDenoiser";
@@ -464,6 +474,17 @@ let shareAudio: {
     track: LivekitClient.LocalAudioTrack;
     handle: ShareAudioTrack;
 } | null = null;
+/** A local file the sharer plays and publishes as their screen share
+ *  (startFileShare). `gen` ties async steps to this run. */
+let fileShareRun: {
+    call: ActiveVoiceCall;
+    video: LivekitClient.LocalVideoTrack;
+    audio: LivekitClient.LocalAudioTrack | null;
+    stream: MediaStream;
+} | null = null;
+/** Bumped by every start and stop; an async file share step that finds it
+ *  moved on has been replaced or stopped. */
+let fileShareGen = 0;
 let voicePlaybackMuted = false;
 // The mic state the user last asked for; consulted after connect so a mute
 // toggled during the connect window isn't clobbered.
@@ -3003,6 +3024,9 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             republishingSource !== track.source
         ) {
             stopShareAudio();
+            // A file share that is unpublished from outside ends with its
+            // playback (its own audio is unpublished with it).
+            if (fileShareRun?.video === track) void stopFileShare();
         }
         notifyCallVideo(call);
     });
@@ -3391,6 +3415,8 @@ async function leaveVoiceCallInternal(): Promise<void> {
         cancelGpuReconnect();
         // The room disconnect below unpublishes it; this stops the capture.
         stopShareAudio();
+        // A file share stops its playback and capture with the call.
+        void stopFileShare();
         cancelShareAudioWait();
         // The native helper must not outlive the call.
         discardNativeSharePort();
@@ -4075,6 +4101,13 @@ function screenShareQualityKey(): string {
 export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
     const call = activeVoice;
     if (!call) return false;
+    // A file share is a share too: a new screen share replaces it, and
+    // turning the share off ends it.
+    if (fileShareRun) {
+        await stopFileShare();
+        if (!on) return false;
+        if (activeVoice !== call) return false;
+    }
     if (androidShare.native) return setAndroidScreenShare(call, on);
     // The capture and encoding below are read now, but the desktop picker
     // (which offers the quality settings too) answers later: a change made
@@ -4410,6 +4443,118 @@ async function publishShareAudio(call: ActiveVoiceCall): Promise<void> {
     notifyCallVideo(call);
 }
 
+/** Share a local file as the call's screen share. Zam plays the file in a
+ *  local element and publishes its captured video as ScreenShare and its
+ *  sound as ScreenShareAudio, at a bitrate matched to the file (capped by the
+ *  share's pick). The native helper is never used. Replaces a running screen
+ *  share. Returns whether the file is now published. */
+export async function startFileShare(file: File): Promise<boolean> {
+    const call = activeVoice;
+    if (!call) return false;
+    await stopFileShare();
+    if (activeVoice !== call) return false;
+    if (call.local.getTrack(call.lk.Track.Source.ScreenShare)) {
+        await setScreenShareEnabled(false);
+        if (activeVoice !== call) return false;
+    }
+    const gen = ++fileShareGen;
+    const live = () => activeVoice === call && gen === fileShareGen;
+    const video = openFileShareElement(file, () => failFileShare(gen));
+    const ready = await waitForFileShareReady(video);
+    if (!ready) {
+        // An element error has already failed the share (and bumped the
+        // generation), so this only handles a release that didn't.
+        failFileShare(gen);
+        return false;
+    }
+    if (!live()) return false;
+    playFileShare();
+    const stream = captureFileShareStream(video);
+    const videoSource = stream?.getVideoTracks()[0];
+    if (!stream || !videoSource) {
+        stream?.getTracks().forEach((track) => track.stop());
+        failFileShare(gen);
+        return false;
+    }
+    // Motion, not text: a played file moves, so keep the frame rate.
+    videoSource.contentHint = "motion";
+    const bitrate = fileShareMaxBitrate(
+        file.size,
+        video.duration,
+        screenShareBitratePicked(),
+    );
+    const videoTrack = new call.lk.LocalVideoTrack(
+        videoSource,
+        undefined,
+        false,
+    );
+    fileShareRun = { call, video: videoTrack, audio: null, stream };
+    try {
+        await call.local.publishTrack(videoTrack, {
+            source: call.lk.Track.Source.ScreenShare,
+            screenShareEncoding: screenShareEncodingFor(
+                bitrate,
+                Number(settingsState.screenShareFps),
+            ),
+            degradationPreference: "maintain-framerate",
+            ...shareCodecOptions(call, videoTrack),
+        });
+    } catch (err) {
+        console.error("File share publish failed:", err);
+        failFileShare(gen);
+        return false;
+    }
+    if (!live()) return false;
+    const audioSource = stream.getAudioTracks()[0];
+    if (audioSource) {
+        const audioTrack = new call.lk.LocalAudioTrack(
+            audioSource,
+            undefined,
+            false,
+        );
+        try {
+            await call.local.publishTrack(audioTrack, {
+                source: call.lk.Track.Source.ScreenShareAudio,
+                audioPreset: call.lk.AudioPresets.musicHighQualityStereo,
+                forceStereo: true,
+                dtx: false,
+                red: false,
+            });
+        } catch (err) {
+            console.error("File share audio publish failed:", err);
+            if (live()) showErrorToast(t("client.couldNotShareScreenAudio"));
+        }
+        if (live() && fileShareRun) fileShareRun.audio = audioTrack;
+        else await call.local.unpublishTrack(audioTrack).catch(() => {});
+    }
+    if (!live()) return false;
+    notifyCallVideo(call);
+    return true;
+}
+
+/** A file share that can't play or publish: say so once, then stop it. */
+function failFileShare(gen: number): void {
+    if (gen !== fileShareGen) return;
+    showErrorToast(t("fileShare.cannotPlay"));
+    void stopFileShare();
+}
+
+/** Stop a file share: its playback, its captured tracks and its published
+ *  tracks. Safe to call when none is running. */
+export async function stopFileShare(): Promise<void> {
+    fileShareGen++;
+    const run = fileShareRun;
+    fileShareRun = null;
+    releaseFileShareElement();
+    if (!run) return;
+    if (activeVoice === run.call) {
+        for (const track of [run.video, run.audio])
+            if (track)
+                await run.call.local.unpublishTrack(track).catch(() => {});
+    }
+    for (const track of run.stream.getTracks()) track.stop();
+}
+
 /** Stop and unpublish the share's own audio track, if there is one. */
 function stopShareAudio(): void {
     const s = shareAudio;
@@ -4499,7 +4644,8 @@ async function applyScreenShareQualityNow(
     const call = activeVoice;
     if (!call) return;
     const track = call.local.getTrack(call.lk.Track.Source.ScreenShare);
-    if (!track) return;
+    // A file share's bitrate is matched to its file, not the picked quality.
+    if (!track || fileShareRun?.video === track) return;
     const native = nativeShare;
     if (native?.call === call && isNativeShareTrack(track)) {
         // The helper holds its capture size from the share's start, so only
@@ -5921,7 +6067,7 @@ function retargetShareEncodings(call: ActiveVoiceCall): void {
     screenShareQualityChain = screenShareQualityChain.then(async () => {
         if (activeVoice !== call) return;
         const track = call.local.getTrack(call.lk.Track.Source.ScreenShare);
-        if (!track) return;
+        if (!track || fileShareRun?.video === track) return;
         const sender = track.sender;
         const params = sender?.getParameters();
         if (!sender || !params) return;

@@ -9,6 +9,7 @@
         Video,
         VideoOff,
         MonitorUp,
+        FileVideo,
         Signal,
         Maximize2,
         Settings2,
@@ -23,8 +24,13 @@
         toggleCallDeafen,
         toggleCamera,
         toggleScreenShare,
+        toggleFileShare,
         toggleShareAudioMute,
     } from "$lib/stores/voiceCall.svelte";
+    import {
+        fileShareState,
+        fileShareSupported,
+    } from "$lib/stores/fileShare.svelte";
     import { settingsState } from "$lib/stores/settings.svelte";
     import { connStateLabel } from "$lib/utils/voiceCall";
     import { screenShareSupportedHere } from "$lib/utils/videoTiles";
@@ -281,6 +287,22 @@
                         : t("common.shareYourScreen")}
                 >
                     <MonitorUp size={20} />
+                </button>
+            {/if}
+            {#if fileShareSupported}
+                <button
+                    onclick={() => toggleFileShare()}
+                    class="p-1.5 rounded hover:bg-zam-messageHover {fileShareState.active
+                        ? 'text-zam-accent'
+                        : 'text-zam-textMuted hover:text-zam-textPrimary'}"
+                    title={fileShareState.active
+                        ? t("common.stopSharing")
+                        : t("fileShare.shareAFile")}
+                    aria-label={fileShareState.active
+                        ? t("common.stopSharing")
+                        : t("fileShare.shareAFile")}
+                >
+                    <FileVideo size={20} />
                 </button>
             {/if}
             {#if soundboardRoom}

@@ -13,6 +13,8 @@
     import type { VideoTileDescriptor } from "$lib/utils/videoTiles";
     import { shareViewers } from "$lib/utils/shareWatchers";
     import WatcherStack from "$lib/components/layout/WatcherStack.svelte";
+    import FileShareBar from "$lib/components/layout/FileShareBar.svelte";
+    import { fileShareState } from "$lib/stores/fileShare.svelte";
     import TileLabel from "$lib/components/layout/TileLabel.svelte";
     import {
         callPipState,
@@ -92,6 +94,12 @@
 
     // Who is watching a screen share (ours or someone else's), by user.
     const isShare = $derived(tile.source === "screenshare");
+    // Our own share is a file we play: its controls sit across the top, and
+    // the watchers stack moves below them. The published track is what shows
+    // here (it is the file's own captured picture).
+    const fileBar = $derived(
+        tile.isLocal && isShare && !tile.unwatched && fileShareState.active,
+    );
     const viewers = $derived(
         shareViewers(voiceCallState.shareWatchers, tile.identity),
     );
@@ -139,8 +147,17 @@
     {#if isShare && !tile.unwatched && showWatchers}
         <!-- Top end, clear of the tile's own buttons (they sit at the bottom
              end). The stack collapses to avatars and "+N" in small tiles. -->
-        <div class="absolute top-1 end-1 z-10 max-w-[calc(100%-0.5rem)]">
+        <div
+            class="absolute end-1 z-10 max-w-[calc(100%-0.5rem)] {fileBar
+                ? 'top-10'
+                : 'top-1'}"
+        >
             <WatcherStack {viewers} max={compact ? 3 : 5} />
+        </div>
+    {/if}
+    {#if fileBar}
+        <div class="absolute top-1 start-1 end-1 z-20">
+            <FileShareBar />
         </div>
     {/if}
     {#if !compact && !tile.unwatched}

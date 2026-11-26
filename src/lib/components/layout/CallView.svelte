@@ -17,6 +17,7 @@
         Video,
         VideoOff,
         MonitorUp,
+        FileVideo,
         EllipsisVertical,
         MonitorSmartphone,
         Settings,
@@ -43,6 +44,10 @@
     import UserProfileCard from "$lib/components/ui/UserProfileCard.svelte";
     import VideoTile from "$lib/components/layout/VideoTile.svelte";
     import {
+        fileShareState,
+        fileShareSupported,
+    } from "$lib/stores/fileShare.svelte";
+    import {
         deviceCountByUser,
         devicesByUser,
         callTileStatus,
@@ -68,6 +73,7 @@
         toggleCallDeafen,
         toggleCamera,
         toggleScreenShare,
+        toggleFileShare,
         toggleShareAudioMute,
         focusTile,
         clearFocus,
@@ -1179,6 +1185,22 @@
                             : t("common.shareYourScreen")}
                     >
                         <MonitorUp size={20} />
+                    </button>
+                {/if}
+                {#if fileShareSupported}
+                    <button
+                        onclick={() => toggleFileShare()}
+                        class="p-3 rounded-full hover:bg-zam-messageHover {fileShareState.active
+                            ? 'text-zam-accent'
+                            : 'text-zam-textPrimary'}"
+                        title={fileShareState.active
+                            ? t("common.stopSharing")
+                            : t("fileShare.shareAFile")}
+                        aria-label={fileShareState.active
+                            ? t("common.stopSharing")
+                            : t("fileShare.shareAFile")}
+                    >
+                        <FileVideo size={20} />
                     </button>
                 {/if}
                 {#if voiceCallState.screenSharing && voiceCallState.ownShareAudio}
