@@ -2980,6 +2980,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "videoTile.muteShareAudio": "静音屏幕共享声音",
     "videoTile.unmuteShareAudio": "取消静音屏幕共享声音",
     "videoTile.fullscreen": "全屏",
+    "videoTile.exitFullscreen": "退出全屏",
     "videoTile.pictureInPicture": "画中画",
     "videoTile.exitPictureInPicture": "退出画中画",
     "videoTile.watchStream": "观看直播",

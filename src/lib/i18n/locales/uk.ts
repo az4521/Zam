@@ -3240,6 +3240,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "videoTile.muteShareAudio": "Вимкнути звук демонстрації екрана",
     "videoTile.unmuteShareAudio": "Увімкнути звук демонстрації екрана",
     "videoTile.fullscreen": "На весь екран",
+    "videoTile.exitFullscreen": "Вийти з повноекранного режиму",
     "videoTile.pictureInPicture": "Картинка в картинці",
     "videoTile.exitPictureInPicture": "Вийти з режиму «картинка в картинці»",
     "videoTile.watchStream": "Дивитися трансляцію",

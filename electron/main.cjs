@@ -2628,7 +2628,10 @@ async function createWindow() {
                     // The page draws Chromium-style controls and drags itself.
                     frame: false,
                     alwaysOnTop: true,
-                    fullscreenable: false,
+                    // Element fullscreen (the page's own fullscreen button)
+                    // puts the window fullscreen; Electron refuses that when
+                    // this is false.
+                    fullscreenable: true,
                     minimizable: false,
                     maximizable: false,
                     skipTaskbar: true,
@@ -2681,12 +2684,27 @@ async function createWindow() {
         win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
         // Keep the page's own title ("Zam"), never an address.
         win.on("page-title-updated", (e) => e.preventDefault());
+        // Windows maximises a frameless window on a double-click of its drag
+        // region even when maximizable is false. Turn that into the page's
+        // fullscreen toggle instead, so the page's fullscreen state stays the
+        // one source of truth (no win.setFullScreen).
+        win.on("maximize", () => {
+            win.unmaximize();
+            win.webContents
+                .executeJavaScript(
+                    `window.dispatchEvent(new Event("zam-pip-toggle-fullscreen"))`,
+                    true,
+                )
+                .catch(() => {});
+        });
         win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
         win.webContents.on("will-navigate", (e) => e.preventDefault());
         // The page is all drag region (it moves the frameless window), and a
-        // drag region gets no mouse events, so :hover never fires there.
-        // Watch the cursor here and tell the page when it is over the window.
-        let hovered = false;
+        // drag region gets no mouse events, so the page never sees the cursor
+        // moving over it. Watch the cursor here and tell the page whenever it
+        // is over the window and moving: the page shows its controls and
+        // restarts their idle count (CallPipPanel, PIP_ACTIVITY_EVENT).
+        let lastPoint = null;
         const hoverTimer = setInterval(() => {
             if (win.isDestroyed()) return;
             const p = screen.getCursorScreenPoint();
@@ -2696,11 +2714,13 @@ async function createWindow() {
                 p.x < b.x + b.width &&
                 p.y >= b.y &&
                 p.y < b.y + b.height;
-            if (inside === hovered) return;
-            hovered = inside;
+            const moved =
+                !lastPoint || p.x !== lastPoint.x || p.y !== lastPoint.y;
+            lastPoint = { x: p.x, y: p.y };
+            if (!inside || !moved) return;
             win.webContents
                 .executeJavaScript(
-                    `document.documentElement.classList.toggle("hover", ${inside})`,
+                    `window.dispatchEvent(new Event("zam-pip-activity"))`,
                 )
                 .catch(() => {});
         }, 100);

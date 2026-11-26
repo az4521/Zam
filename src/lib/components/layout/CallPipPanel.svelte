@@ -9,8 +9,10 @@
     import {
         Headphones,
         HeadphoneOff,
+        Maximize2,
         Mic,
         MicOff,
+        Minimize,
         Minimize2,
         PhoneOff,
         PictureInPicture2,
@@ -35,6 +37,11 @@
     import { auth } from "$lib/stores/auth.svelte";
     import { pickPipTile } from "$lib/utils/videoTiles";
     import { shareViewers } from "$lib/utils/shareWatchers";
+    import {
+        createPipHud,
+        PIP_ACTIVITY_EVENT,
+        PIP_TOGGLE_FULLSCREEN_EVENT,
+    } from "$lib/utils/pipHud";
 
     interface Props {
         mode: "inline" | "window";
@@ -83,6 +90,71 @@
         tile ? shareViewers(voiceCallState.shareWatchers, tile.identity) : [],
     );
 
+    // Window mode only. The controls hide after a spell with no input in this
+    // window and come back on the next (utils/pipHud.ts). Everything runs on
+    // the pop-out's own window: its listeners and its timers. Input over the
+    // drag region never reaches the page, so the main process reports the
+    // cursor too (PIP_ACTIVITY_EVENT).
+    let root: HTMLDivElement | null = $state(null);
+    let hudShown = $state(true);
+    let fullscreen = $state(false);
+
+    $effect(() => {
+        if (mode !== "window" || !root) return;
+        const doc = root.ownerDocument;
+        const win = doc.defaultView;
+        if (!win) return;
+        const hud = createPipHud(
+            {
+                setTimeout: (fn, ms) => win.setTimeout(fn, ms),
+                clearTimeout: (handle) => win.clearTimeout(handle as number),
+            },
+            (shown) => (hudShown = shown),
+        );
+        const onActivity = () => hud.activity();
+        const onKeydown = (e: KeyboardEvent) => {
+            hud.activity();
+            // Chromium also leaves element fullscreen on Escape; this makes it
+            // certain whatever has focus in the window.
+            if (e.key === "Escape" && doc.fullscreenElement)
+                void doc.exitFullscreen().catch(() => {});
+        };
+        const onFullscreenChange = () => {
+            fullscreen = !!doc.fullscreenElement;
+        };
+        // A double-click on the drag region arrives as this event (main.cjs
+        // turns the maximise into it). It is a user gesture, so fullscreen is
+        // allowed here.
+        const onToggleFullscreen = () => toggleFullscreen();
+        const listeners: Array<[string, EventListener]> = [
+            ["pointermove", onActivity],
+            ["pointerdown", onActivity],
+            ["focusin", onActivity],
+            [PIP_ACTIVITY_EVENT, onActivity],
+            [PIP_TOGGLE_FULLSCREEN_EVENT, onToggleFullscreen],
+            ["keydown", onKeydown as EventListener],
+        ];
+        for (const [type, fn] of listeners) win.addEventListener(type, fn);
+        doc.addEventListener("fullscreenchange", onFullscreenChange);
+        fullscreen = !!doc.fullscreenElement;
+        return () => {
+            for (const [type, fn] of listeners)
+                win.removeEventListener(type, fn);
+            doc.removeEventListener("fullscreenchange", onFullscreenChange);
+            hud.dispose();
+            hudShown = true;
+            fullscreen = false;
+        };
+    });
+
+    /** The whole panel (video, label and controls) fullscreen in this window. */
+    function toggleFullscreen(): void {
+        if (!root) return;
+        const doc = root.ownerDocument;
+        if (doc.fullscreenElement) void doc.exitFullscreen().catch(() => {});
+        else void root.requestFullscreen().catch(() => {});
+    }
+
     const CONTROL =
         "p-1.5 rounded bg-black/60 text-white opacity-70 hover:opacity-100 focus-visible:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white";
     const ROUND =
@@ -99,10 +171,12 @@
 
 {#if tile}
     <div
+        bind:this={root}
         class="relative w-full h-full bg-black {mode === 'window'
             ? 'pip-root'
             : ''}"
         data-testid="call-pip-panel"
+        data-hud={mode === "window" ? (hudShown ? "shown" : "idle") : undefined}
     >
         <VideoTile
             {tile}
@@ -152,6 +226,21 @@
                         </button>
                     {/if}
                 {:else}
+                    <button
+                        type="button"
+                        class={CONTROL}
+                        title={fullscreen
+                            ? t("videoTile.exitFullscreen")
+                            : t("videoTile.fullscreen")}
+                        aria-label={fullscreen
+                            ? t("videoTile.exitFullscreen")
+                            : t("videoTile.fullscreen")}
+                        onclick={toggleFullscreen}
+                    >
+                        {#if fullscreen}<Minimize size={14} />{:else}<Maximize2
+                                size={14}
+                            />{/if}
+                    </button>
                     <button
                         type="button"
                         class={CONTROL}

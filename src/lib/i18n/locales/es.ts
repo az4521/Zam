@@ -3213,6 +3213,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "videoTile.muteShareAudio": "Silenciar audio de la pantalla compartida",
     "videoTile.unmuteShareAudio": "Reactivar audio de la pantalla compartida",
     "videoTile.fullscreen": "Pantalla completa",
+    "videoTile.exitFullscreen": "Salir de pantalla completa",
     "videoTile.pictureInPicture": "Imagen en imagen",
     "videoTile.exitPictureInPicture": "Salir de imagen en imagen",
     "videoTile.watchStream": "Ver transmisión",

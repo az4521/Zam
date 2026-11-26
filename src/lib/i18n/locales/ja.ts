@@ -2861,6 +2861,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "videoTile.muteShareAudio": "画面共有の音声をミュート",
     "videoTile.unmuteShareAudio": "画面共有の音声のミュートを解除",
     "videoTile.fullscreen": "全画面",
+    "videoTile.exitFullscreen": "全画面を終了",
     "videoTile.pictureInPicture": "ピクチャーインピクチャー",
     "videoTile.exitPictureInPicture": "ピクチャーインピクチャーを終了",
     "voiceAudioSettings.inputDevice": "入力デバイス",

@@ -3162,6 +3162,7 @@ export const en = {
     "videoTile.muteShareAudio": "Mute screen share audio",
     "videoTile.unmuteShareAudio": "Unmute screen share audio",
     "videoTile.fullscreen": "Fullscreen",
+    "videoTile.exitFullscreen": "Exit fullscreen",
     "videoTile.pictureInPicture": "Picture in picture",
     "videoTile.exitPictureInPicture": "Exit picture in picture",
     "videoTile.watchStream": "Watch stream",

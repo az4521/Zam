@@ -3194,6 +3194,7 @@ const messages: Partial<Record<MessageKey, string>> = {
     "videoTile.muteShareAudio": "Bildschirmfreigabe-Ton stummschalten",
     "videoTile.unmuteShareAudio": "Bildschirmfreigabe-Ton aktivieren",
     "videoTile.fullscreen": "Vollbild",
+    "videoTile.exitFullscreen": "Vollbild beenden",
     "videoTile.pictureInPicture": "Bild im Bild",
     "videoTile.exitPictureInPicture": "Bild im Bild beenden",
     "videoTile.watchStream": "Stream ansehen",

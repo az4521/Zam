@@ -59,8 +59,11 @@
     function toggleFullscreen(e: MouseEvent): void {
         e.stopPropagation();
         if (!containerEl) return;
-        if (document.fullscreenElement) {
-            void document.exitFullscreen().catch(() => {});
+        // The tile may live in the pop-out's document (same JS realm as the
+        // main window), so ask the document the tile is in, not the global one.
+        const doc = containerEl.ownerDocument;
+        if (doc.fullscreenElement) {
+            void doc.exitFullscreen().catch(() => {});
         } else {
             void containerEl.requestFullscreen().catch(() => {});
         }

@@ -173,13 +173,16 @@ function releaseHost(): void {
 
 // The pop-out window's own style sheet. The panel's Tailwind classes come
 // from the app's stylesheets, copied in by adoptStyles; these rules are the
-// window-only parts: the Chromium-style chrome that fades in on hover, and
-// the drag region of the window (everything but a button drags it).
+// window-only parts: the Chromium-style chrome, shown while the window has
+// recent activity (data-hud, see CallPipPanel) and hidden, with no pointer
+// events, when idle; and the drag region of the window (everything but a
+// button drags it).
 const PIP_WINDOW_CSS = `
 html,body{margin:0;height:100%;overflow:hidden;background:#000;color:#fff;user-select:none}
 .pip-root{position:relative;width:100%;height:100%;overflow:hidden;background:#000}
 .pip-chrome{transition:opacity .15s;opacity:0}
-html.hover .pip-chrome,.pip-root:hover .pip-chrome,.pip-root:focus-within .pip-chrome{opacity:1}
+.pip-root[data-hud="shown"] .pip-chrome{opacity:1}
+.pip-root[data-hud="idle"] .pip-chrome{pointer-events:none}
 html.pip-desktop,html.pip-desktop body{-webkit-app-region:drag}
 html.pip-desktop button{-webkit-app-region:no-drag}
 `;
