@@ -4,6 +4,15 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.13
+
+⚡ **Improved**
+
+- **Loading feels like one step instead of several jumps.** The app fades in instead of cutting in, and the "saved on this device" note at the bottom of a room now takes the same height as the message box that replaces it, so the messages no longer shift when the room finishes loading.
+- **Messages arrive first on launch.** The first sync asks for the room you had open and only a sliver of the room list, then fetches the rest right behind it. The sidebar shows your saved room list in the meantime.
+- **Placeholder rows while lists load.** The member list and the room list show skeleton rows instead of an empty panel or "No rooms yet".
+- **The Startup timing list in Debug settings now shows when the first sync answer arrives**, to tell server time from processing time.
+
 ## v1.67.12
 
 ✨ **New**
