@@ -3124,6 +3124,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "storageBanner.dismissLowStorageWarning":
         "Скрыть предупреждение о нехватке места",
 
+    // src/lib/components/layout/InstallBanner.svelte
+    "installBanner.text":
+        "Добавьте Zam на экран «Домой» (Поделиться, затем «На экран Домой»). Safari через неделю удаляет данные неустановленных сайтов, включая вход и ключи шифрования.",
+    "installBanner.dismiss": "Закрыть уведомление об установке",
+
     // src/lib/components/layout/UsageLimitBanner.svelte, stores/usageLimits.svelte.ts
     "usageLimits.bannerMau":
         "Ваш сервер достиг лимита ежемесячно активных пользователей, поэтому ваш аккаунт сейчас не может отправлять сообщения и синхронизироваться.",

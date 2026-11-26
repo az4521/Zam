@@ -3047,6 +3047,11 @@ export const en = {
     "storageBanner.checkAgain": "Check again",
     "storageBanner.dismissLowStorageWarning": "Dismiss storage warning",
 
+    // src/lib/components/layout/InstallBanner.svelte
+    "installBanner.text":
+        "Add Zam to your Home Screen (Share, then Add to Home Screen). Safari erases the data of sites that aren't installed after a week, including your login and encryption keys.",
+    "installBanner.dismiss": "Dismiss install notice",
+
     // src/lib/components/layout/UsageLimitBanner.svelte, stores/usageLimits.svelte.ts
     "usageLimits.bannerMau":
         "Your homeserver has reached its monthly active user limit, so your account can't send messages or sync right now.",

@@ -2755,6 +2755,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "storageBanner.checkAgain": "再確認",
     "storageBanner.dismissLowStorageWarning": "容量警告を閉じる",
 
+    // src/lib/components/layout/InstallBanner.svelte
+    "installBanner.text":
+        "Zam をホーム画面に追加してください(共有、ホーム画面に追加)。Safari はインストールされていないサイトのデータを 1 週間後に削除し、ログイン情報や暗号鍵も失われます。",
+    "installBanner.dismiss": "インストールの案内を閉じる",
+
     // src/lib/components/layout/UsageLimitBanner.svelte, stores/usageLimits.svelte.ts
     "usageLimits.bannerMau":
         "ホームサーバーが月間アクティブユーザー数の上限に達したため、現在このアカウントはメッセージの送信や同期ができません。",

@@ -2874,6 +2874,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "storageBanner.checkAgain": "重新检查",
     "storageBanner.dismissLowStorageWarning": "忽略存储空间警告",
 
+    // src/lib/components/layout/InstallBanner.svelte
+    "installBanner.text":
+        "请将 Zam 添加到主屏幕(分享,然后添加到主屏幕)。Safari 会在一周后清除未安装网站的数据,包括登录状态和加密密钥。",
+    "installBanner.dismiss": "关闭安装提示",
+
     // src/lib/components/layout/UsageLimitBanner.svelte, stores/usageLimits.svelte.ts
     "usageLimits.bannerMau":
         "你的主服务器已达到每月活跃用户上限，你的账号目前无法发送消息或同步。",

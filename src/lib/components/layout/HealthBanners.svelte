@@ -6,6 +6,7 @@
     import StorageBanner from "$lib/components/layout/StorageBanner.svelte";
     import CryptoUnavailableBanner from "$lib/components/layout/CryptoUnavailableBanner.svelte";
     import UsageLimitBanner from "$lib/components/layout/UsageLimitBanner.svelte";
+    import InstallBanner from "$lib/components/layout/InstallBanner.svelte";
 </script>
 
 <div
@@ -14,4 +15,5 @@
     <StorageBanner />
     <CryptoUnavailableBanner />
     <UsageLimitBanner />
+    <InstallBanner />
 </div>

@@ -3072,6 +3072,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "storageBanner.checkAgain": "Erneut prüfen",
     "storageBanner.dismissLowStorageWarning": "Speicherwarnung schließen",
 
+    // src/lib/components/layout/InstallBanner.svelte
+    "installBanner.text":
+        "Füge Zam zum Home-Bildschirm hinzu (Teilen, dann Zum Home-Bildschirm). Safari löscht die Daten nicht installierter Seiten nach einer Woche, einschließlich Anmeldung und Verschlüsselungsschlüssel.",
+    "installBanner.dismiss": "Installationshinweis schließen",
+
     // src/lib/components/layout/UsageLimitBanner.svelte, stores/usageLimits.svelte.ts
     "usageLimits.bannerMau":
         "Dein Homeserver hat sein Limit an monatlich aktiven Nutzern erreicht, daher kann dein Konto gerade keine Nachrichten senden oder synchronisieren.",

@@ -3092,6 +3092,11 @@ const messages: Partial<Record<MessageKey, string>> = {
     "storageBanner.checkAgain": "Comprobar de nuevo",
     "storageBanner.dismissLowStorageWarning": "Cerrar aviso de almacenamiento",
 
+    // src/lib/components/layout/InstallBanner.svelte
+    "installBanner.text":
+        "Añade Zam a la pantalla de inicio (Compartir, luego Añadir a pantalla de inicio). Safari borra los datos de los sitios no instalados tras una semana, incluidos tu sesión y tus claves de cifrado.",
+    "installBanner.dismiss": "Cerrar aviso de instalación",
+
     // src/lib/components/layout/UsageLimitBanner.svelte, stores/usageLimits.svelte.ts
     "usageLimits.bannerMau":
         "Tu servidor ha alcanzado su límite de usuarios activos mensuales, así que tu cuenta no puede enviar mensajes ni sincronizar ahora mismo.",
