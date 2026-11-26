@@ -4,6 +4,21 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.12
+
+✨ **New**
+
+- **Language picker on the sign-in page.** Choose your language from the corner before you log in.
+- **iOS Safari users are asked to install Zam before signing in.** Safari erases the storage of sites that are not installed after 7 days without use, so a dismissible banner now explains how to add Zam to the home screen.
+
+🐛 **Fixed**
+
+- **Copy buttons work on Android again.** Where the system clipboard was missing or refused the copy, buttons such as "Copy timing" did nothing; they now fall back to the older copy route.
+
+⚡ **Improved**
+
+- **Rooms load sooner after opening the app.** The room you had open is now requested in the very first sync, instead of the first request being cancelled and sent again once the app appeared.
+
 ## v1.67.11
 
 🐛 **Fixed**
