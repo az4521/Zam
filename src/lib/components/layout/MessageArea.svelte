@@ -3696,13 +3696,21 @@
              so the note doesn't claim either: ReconnectPill reports the
              connection. -->
         {#if cachedOnly}
+            <!-- Same outer padding and a floor equal to a one-line composer
+                 (editor 32px + the box's 2 * 0.625rem padding + 2px border),
+                 so the list doesn't jump when the real composer replaces it. -->
             <div
-                class="flex-shrink-0 mx-4 mb-4 rounded-lg border border-zam-backgroundModifier bg-zam-backgroundSecondary px-4 py-3"
+                bind:clientHeight={composerHeight}
+                class="px-4 pt-2 pb-[calc(1rem_+_env(safe-area-inset-bottom,0px))] md:pb-[calc(0.5rem_+_env(safe-area-inset-bottom,0px))] flex-shrink-0"
                 dir={uiDir}
             >
-                <p class="text-xs text-zam-textMuted">
-                    {t("messageArea.cachedRoomHint")}
-                </p>
+                <div
+                    class="flex items-center rounded-lg border border-zam-backgroundModifier bg-zam-backgroundSecondary px-4 min-h-[calc(32px_+_1.25rem_+_2px)]"
+                >
+                    <p class="text-xs text-zam-textMuted">
+                        {t("messageArea.cachedRoomHint")}
+                    </p>
+                </div>
             </div>
         {:else}
             <div bind:clientHeight={composerHeight} class="flex-shrink-0">

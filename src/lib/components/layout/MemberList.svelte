@@ -3,6 +3,7 @@
     import { untrack } from "svelte";
     import type { Room, RoomMember } from "matrix-js-sdk";
     import Avatar from "$lib/components/ui/Avatar.svelte";
+    import SkeletonRows from "$lib/components/ui/SkeletonRows.svelte";
     import {
         getOwnUserId,
         getRoomMembers,
@@ -169,6 +170,9 @@
     });
 
     const members = $derived(roster.members);
+    // A room always has at least its viewer, so an empty roster means the
+    // members haven't arrived yet.
+    const rosterLoading = $derived(members.length === 0);
 
     // One pass and a shared collator: a big room's three filters (each looking
     // up every member's power level) plus three localeCompare sorts were tens
@@ -501,11 +505,18 @@
         <h3
             class="text-xs font-semibold text-zam-textMuted uppercase tracking-wide"
         >
-            {t("memberList.members", {
-                length: roster.large
-                    ? room.getJoinedMemberCount()
-                    : members.length,
-            })}
+            {#if rosterLoading}
+                <span
+                    aria-hidden="true"
+                    class="block h-3 w-20 rounded bg-zam-textMuted/20 animate-pulse"
+                ></span>
+            {:else}
+                {t("memberList.members", {
+                    length: roster.large
+                        ? room.getJoinedMemberCount()
+                        : members.length,
+                })}
+            {/if}
         </h3>
         {#if roster.large}
             <p class="text-xs leading-4 text-zam-textMuted">
@@ -519,6 +530,9 @@
         onscroll={(e) => (scrollTop = e.currentTarget.scrollTop)}
         class="flex-1 overflow-y-auto"
     >
+        {#if rosterLoading}
+            <SkeletonRows variant="member" count={8} />
+        {/if}
         <div class="relative" style="height: {totalHeight}px">
             {#each visibleRows as row (row.key)}
                 <div

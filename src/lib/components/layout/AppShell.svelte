@@ -3024,7 +3024,7 @@
     <div
         dir="ltr"
         data-zam-region="app"
-        class="flex overflow-hidden bg-zam-background"
+        class="flex overflow-hidden bg-zam-background animate-fade-in"
         style="position: fixed; inset: 0;"
         ontouchstart={drawerDragStart}
     >

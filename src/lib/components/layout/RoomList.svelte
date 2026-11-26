@@ -56,7 +56,9 @@
         isLastJoinedMember,
         type RoomNotificationSetting,
         type SpaceChildInfo,
+        isRoomListLoading,
     } from "$lib/matrix/client";
+    import SkeletonRows from "$lib/components/ui/SkeletonRows.svelte";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
     import {
         callDeviceLabelsFor,
@@ -767,6 +769,12 @@
         }
         subHierarchies = next;
     }
+
+    // Nothing to show yet because sync hasn't delivered the list (a first boot,
+    // or no saved list): placeholder rows instead of "no rooms yet".
+    const listLoading = $derived(
+        (void roomsState.roomsTick, isRoomListLoading()),
+    );
 
     const showDMs = $derived(
         roomsState.activeSpaceId === null && roomsState.directRooms.length > 0,
@@ -2109,7 +2117,9 @@
             </div>
         {/if}
 
-        {#if visibleRooms.length === 0 && unjoinedRooms.length === 0 && childSpaces.length === 0 && !roomsState.hierarchyLoading && !showDMs}
+        {#if listLoading && visibleRooms.length === 0 && !showDMs}
+            <SkeletonRows count={8} />
+        {:else if visibleRooms.length === 0 && unjoinedRooms.length === 0 && childSpaces.length === 0 && !roomsState.hierarchyLoading && !showDMs}
             <p class="px-4 py-8 text-sm text-zam-textMuted text-center">
                 {t("roomList.noRoomsYet")}
             </p>

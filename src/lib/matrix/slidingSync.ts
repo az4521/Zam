@@ -42,6 +42,12 @@ import {
 // large account never waits on one giant initial response.
 const SLIDING_ALL_LIST = "all_rooms";
 const SLIDING_INITIAL_WINDOW = 30;
+// The recency and DM lists are what the server spends its time on (rooms with
+// state, every DM member). The first request asks for one room in each, plus
+// the subscribed open room, so the messages come back first; the growth step
+// below then fetches the rest of the room list right after. The sidebar is
+// painted from the saved room list meanwhile (and is hidden on mobile).
+const SLIDING_BOOT_WINDOW = 1;
 const SLIDING_GROW_STEP = 100;
 const SLIDING_LIST_TIMELINE = 1;
 const SLIDING_ROOM_TIMELINE = 30;
@@ -327,7 +333,7 @@ export async function buildSlidingSync(
         [
             SLIDING_ALL_LIST,
             {
-                ranges: [[0, SLIDING_INITIAL_WINDOW - 1]],
+                ranges: [[0, SLIDING_BOOT_WINDOW - 1]],
                 sort: ["by_recency"],
                 timeline_limit: SLIDING_LIST_TIMELINE,
                 required_state: SLIDING_LIST_STATE,
@@ -351,7 +357,7 @@ export async function buildSlidingSync(
             // them all; the server merges this with the room's other lists.
             "dms",
             {
-                ranges: [[0, SLIDING_INITIAL_WINDOW - 1]],
+                ranges: [[0, SLIDING_BOOT_WINDOW - 1]],
                 sort: ["by_recency"],
                 filters: { is_dm: true },
                 timeline_limit: SLIDING_LIST_TIMELINE,
@@ -550,6 +556,7 @@ export async function buildSlidingSync(
         },
     );
 
+    let bootResponseMarked = false;
     // Per completed response: grow every list one page until it covers all the
     // rooms the server reports for it (so no list has a hard cap), and backfill
     // rooms whose timeline the SDK emptied. Runs inside the sync loop, so it
@@ -564,6 +571,15 @@ export async function buildSlidingSync(
             if (err) {
                 logSync(`request failed: ${describeSyncError(err)}`);
                 return;
+            }
+            // Boot timing: how long the first request took on the wire
+            // (startclient-done to here) versus the SDK processing it.
+            if (
+                !bootResponseMarked &&
+                state === SlidingSyncState.RequestFinished
+            ) {
+                bootResponseMarked = true;
+                bootMark("sync-response");
             }
             if (state !== SlidingSyncState.Complete) return;
             try {

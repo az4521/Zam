@@ -2499,6 +2499,14 @@ function listRooms(): Room[] {
     return extra.length ? [...live, ...extra] : live;
 }
 
+/**
+ * True from sign-in until sync has delivered the whole room list: an empty
+ * list in that window is still loading, not empty. Re-read on roomsTick.
+ */
+export function isRoomListLoading(): boolean {
+    return !!matrixClient && !roomListComplete;
+}
+
 /** True while the sidebar may be showing cached rooms. */
 export function isRoomListFromCache(): boolean {
     return roomListCache !== null;
@@ -2587,10 +2595,10 @@ async function decryptRoomEvents(
 function markRoomListComplete(client: MatrixClient): void {
     if (matrixClient !== client || roomListComplete) return;
     roomListComplete = true;
-    if (roomListCache) {
-        roomListCache = null;
-        for (const cb of roomUpdateSubscribers) cb();
-    }
+    roomListCache = null;
+    // Always: with no saved list the sidebar is showing skeletons (see
+    // isRoomListLoading) and has to learn the list is whole.
+    for (const cb of roomUpdateSubscribers) cb();
     void saveRoomListSnapshot(client, true);
 }
 
