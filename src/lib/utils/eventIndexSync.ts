@@ -3,9 +3,25 @@
  * own devices: which time ranges each room is still missing, and the blocks
  * that answer a request. Ranges are ms timestamps, both ends inclusive.
  *
+ * Format negotiation: a request lists the block formats the asker reads
+ * (`fmt`, currently [2]). Only those are answered. An answer's chunks carry
+ * `fmt: 2` when they are format 2 blocks (indexBlock.ts); chunks without it
+ * are legacy deflate JSON, which an older device sends and this one still
+ * reads.
+ *
  * SDK-free so it can be unit-tested; sending and storage live elsewhere.
  */
-import { decodeBlock, encodeBlock, type IndexEntry } from "./eventIndex";
+import {
+    decodeIndexBlock,
+    encodeIndexBlock,
+    type CompactEntry,
+} from "./indexBlock";
+import {
+    decodeLegacyBlock,
+    entryKey,
+    legacyToCompact,
+    type LegacyIndexEntry,
+} from "./eventIndex";
 
 /** A time range in ms, both ends inclusive. */
 export type Range = [from: number, to: number];
@@ -13,17 +29,24 @@ export type Range = [from: number, to: number];
 export const INDEX_SYNC_REQUEST = "moe.crafty.zam.index_sync.request";
 export const INDEX_SYNC_BLOCK = "moe.crafty.zam.index_sync.block";
 
+/** The block format this build writes and answers with. */
+export const INDEX_SYNC_FORMAT = 2;
+
 /** Asks a device for the entries it has in the given ranges, per room.
  *
  * `audit` carries how many entries the asker holds per UTC day, per room. A
  * hole the asker's coverage wrongly claims is covered (an index from before
  * coverage existed, a message it couldn't decrypt) never shows up in
  * `missing`; the counts let the other side spot it: a day where it holds
- * more entries is sent whole. Optional, so older senders still parse. */
+ * more entries is sent whole. Optional, so older senders still parse.
+ *
+ * `fmt` lists the block formats the asker reads. Optional: a request without
+ * it comes from a device that only reads legacy blocks, and is not answered. */
 export interface IndexSyncRequest {
     id: string;
     rooms: { roomId: string; missing: Range[] }[];
     audit?: { roomId: string; days: DayCount[] }[];
+    fmt?: number[];
 }
 
 /** [UTC day number (ms / DAY_MS, floored), entries held that day]. */
@@ -31,8 +54,9 @@ export type DayCount = [day: number, count: number];
 
 export const DAY_MS = 24 * 60 * 60_000;
 
-/** One chunk of an answer. `data` is base64 of a deflate-raw JSON array of
- *  IndexEntry, the same bytes encodeBlock produces. */
+/** One chunk of an answer. `data` is base64 of a format 2 chunk (varint
+ *  metaLen, meta, body; see indexBlock.ts) when `fmt` is 2, otherwise base64
+ *  of a legacy deflate-raw JSON array of entries. */
 export interface IndexSyncBlock {
     id: string;
     roomId: string;
@@ -40,6 +64,7 @@ export interface IndexSyncBlock {
     seq: number;
     total: number;
     data: string;
+    fmt?: 2;
 }
 
 /** Limits the parse functions enforce on untrusted input. */
@@ -47,6 +72,7 @@ const MAX_TOTAL = 1000;
 const MAX_DATA = 100_000;
 const MAX_ROOMS = 200;
 const MAX_RANGES = 50;
+const MAX_FMT = 8;
 /** Day counts one request may carry, across all its rooms. */
 export const MAX_AUDIT_DAYS = 2500;
 
@@ -133,21 +159,58 @@ function fromBase64(s: string): Uint8Array {
     return out;
 }
 
-/** Base64 of the encoded block for these entries. */
-async function encodeChunk(entries: IndexEntry[]): Promise<string> {
-    const { data } = await encodeBlock(entries);
-    return toBase64(data);
+/** The format 2 chunk for these entries: varint(meta length), meta, body. */
+function packV2(meta: Uint8Array, body: Uint8Array): Uint8Array {
+    const head: number[] = [];
+    let n = meta.length;
+    while (n >= 128) {
+        head.push((n % 128) + 128);
+        n = Math.floor(n / 128);
+    }
+    head.push(n);
+    const out = new Uint8Array(head.length + meta.length + body.length);
+    out.set(head, 0);
+    out.set(meta, head.length);
+    out.set(body, head.length + meta.length);
+    return out;
+}
+
+/** Entries of a format 2 chunk. Throws on malformed input. */
+function unpackV2(bytes: Uint8Array): CompactEntry[] {
+    let pos = 0;
+    let len = 0;
+    let mul = 1;
+    for (;;) {
+        if (pos >= bytes.length || pos >= 5) {
+            throw new Error("index sync: bad chunk header");
+        }
+        const b = bytes[pos++];
+        len += (b & 0x7f) * mul;
+        mul *= 128;
+        if ((b & 0x80) === 0) break;
+    }
+    if (len > bytes.length - pos) throw new Error("index sync: bad chunk");
+    return decodeIndexBlock({
+        meta: bytes.subarray(pos, pos + len),
+        body: bytes.subarray(pos + len),
+    });
+}
+
+/** Base64 of the format 2 chunk for these entries. */
+function encodeChunk(entries: CompactEntry[]): string {
+    const block = encodeIndexBlock(entries);
+    return toBase64(packV2(block.meta, block.body));
 }
 
 /**
  * Shorten the body of one entry until its encoded block fits. Each step keeps
  * a fraction of the body sized from the overshoot, so it converges quickly.
  */
-async function fitSingle(
-    entry: IndexEntry,
+function fitSingle(
+    entry: CompactEntry,
     text: string,
     maxBytes: number,
-): Promise<string> {
+): string {
     let body = entry.b;
     let fitted = text;
     while (fitted.length > maxBytes && body.length > 0) {
@@ -158,7 +221,7 @@ async function fitSingle(
         body = body.slice(0, Math.max(0, keep));
         // Don't leave a lone high surrogate at the cut.
         if (/[\uD800-\uDBFF]$/.test(body)) body = body.slice(0, -1);
-        fitted = await encodeChunk([{ ...entry, b: body }]);
+        fitted = encodeChunk([{ ...entry, b: body }]);
     }
     if (fitted.length > maxBytes) {
         throw new RangeError(
@@ -169,40 +232,36 @@ async function fitSingle(
 }
 
 /** Encoded chunks of `entries` (already sorted), each at most maxBytes long. */
-async function splitToFit(
-    entries: IndexEntry[],
-    maxBytes: number,
-): Promise<string[]> {
-    const text = await encodeChunk(entries);
+function splitToFit(entries: CompactEntry[], maxBytes: number): string[] {
+    const text = encodeChunk(entries);
     if (text.length <= maxBytes) return [text];
     if (entries.length === 0) {
         throw new RangeError(`maxBytes ${maxBytes} is too small for a block`);
     }
-    if (entries.length === 1)
-        return [await fitSingle(entries[0], text, maxBytes)];
+    if (entries.length === 1) return [fitSingle(entries[0], text, maxBytes)];
     const mid = Math.floor(entries.length / 2);
     return [
-        ...(await splitToFit(entries.slice(0, mid), maxBytes)),
-        ...(await splitToFit(entries.slice(mid), maxBytes)),
+        ...splitToFit(entries.slice(0, mid), maxBytes),
+        ...splitToFit(entries.slice(mid), maxBytes),
     ];
 }
 
 /**
- * Pack entries for one room and range into blocks whose `data` is at most
- * maxBytes (base64 length). Entries are sorted by timestamp and split in
+ * Pack entries for one room and range into format 2 blocks whose `data` is at
+ * most maxBytes (base64 length). Entries are sorted by timestamp and split in
  * halves until each block fits. An entry too big on its own has its body
  * shortened. Always returns at least one block, so an empty answer still
  * tells the requester that the range is covered.
  */
-export async function packEntries(
+export function packEntries(
     roomId: string,
     requestId: string,
     range: Range,
-    entries: IndexEntry[],
+    entries: CompactEntry[],
     maxBytes = 40_000,
-): Promise<IndexSyncBlock[]> {
+): IndexSyncBlock[] {
     const sorted = [...entries].sort((a, b) => a.t - b.t);
-    const chunks = await splitToFit(sorted, maxBytes);
+    const chunks = splitToFit(sorted, maxBytes);
     return chunks.map((data, seq): IndexSyncBlock => ({
         id: requestId,
         roomId,
@@ -210,18 +269,20 @@ export async function packEntries(
         seq,
         total: chunks.length,
         data,
+        fmt: 2,
     }));
 }
 
-/** Whether a decoded value has the shape of an IndexEntry. */
-function isIndexEntry(v: unknown): v is IndexEntry {
+/** Whether a decoded legacy value has the shape of an entry. */
+function isLegacyEntry(v: unknown): v is LegacyIndexEntry {
     if (!v || typeof v !== "object") return false;
     const o = v as Record<string, unknown>;
     return (
         typeof o.e === "string" &&
         typeof o.s === "string" &&
         typeof o.t === "number" &&
-        Number.isFinite(o.t) &&
+        Number.isSafeInteger(o.t) &&
+        o.t >= 0 &&
         typeof o.m === "string" &&
         typeof o.b === "string" &&
         (o.v === undefined || o.v === 1) &&
@@ -229,34 +290,58 @@ function isIndexEntry(v: unknown): v is IndexEntry {
     );
 }
 
-/** The entries in one block. Malformed items are dropped. Throws if the data
- *  isn't valid base64 or deflate. */
-export async function unpackBlock(b: IndexSyncBlock): Promise<IndexEntry[]> {
-    const decoded = await decodeBlock({ z: true, data: fromBase64(b.data) });
-    return decoded.filter(isIndexEntry);
+/** The entries in one chunk, in the compact form. A format 2 chunk that
+ *  doesn't decode throws (the caller drops it); legacy items that don't have
+ *  the right shape are dropped. Throws if the data isn't valid base64. */
+export async function unpackBlock(b: IndexSyncBlock): Promise<CompactEntry[]> {
+    return (await unpackBlockDetailed(b)).map((x) => x.entry);
 }
 
-/** `incoming` without ids already known, and without repeats within itself
- *  (the first occurrence wins). */
+/** One entry of a chunk. `original` is the full id of the event a legacy
+ *  edit replaces: legacy chunks name it, so the receiver can look up its
+ *  timestamp. A format 2 edit carries its timestamp (`entry.ot`) instead. */
+export interface UnpackedEntry {
+    entry: CompactEntry;
+    original?: string;
+}
+
+/** The entries of one chunk with what the receiver needs to link them. */
+export async function unpackBlockDetailed(
+    b: IndexSyncBlock,
+): Promise<UnpackedEntry[]> {
+    const bytes = fromBase64(b.data);
+    if (b.fmt === INDEX_SYNC_FORMAT) {
+        return unpackV2(bytes).map((entry) => ({ entry }));
+    }
+    const decoded = await decodeLegacyBlock({ z: true, data: bytes });
+    return decoded.filter(isLegacyEntry).map((e) => ({
+        entry: legacyToCompact(e),
+        original: e.o,
+    }));
+}
+
+/** `incoming` without entries whose key is already known, and without repeats
+ *  within itself (the first occurrence wins). */
 export function dedupeEntries(
-    incoming: IndexEntry[],
-    knownIds: ReadonlySet<string>,
-): IndexEntry[] {
+    incoming: CompactEntry[],
+    knownKeys: ReadonlySet<string>,
+): CompactEntry[] {
     const seen = new Set<string>();
-    const out: IndexEntry[] = [];
+    const out: CompactEntry[] = [];
     for (const entry of incoming) {
-        if (knownIds.has(entry.e) || seen.has(entry.e)) continue;
-        seen.add(entry.e);
+        const key = entryKey(entry);
+        if (knownKeys.has(key) || seen.has(key)) continue;
+        seen.add(key);
         out.push(entry);
     }
     return out;
 }
 
 /** The entries whose timestamp falls in any of the ranges. */
-export function entriesInRange(
-    entries: IndexEntry[],
+export function entriesInRange<T extends { t: number }>(
+    entries: T[],
     ranges: Range[],
-): IndexEntry[] {
+): T[] {
     const merged = normalize(ranges);
     return entries.filter((entry) =>
         merged.some(([from, to]) => entry.t >= from && entry.t <= to),
@@ -286,14 +371,17 @@ function parseRange(v: unknown): Range | null {
 export function parseSyncBlock(content: unknown): IndexSyncBlock | null {
     if (!content || typeof content !== "object") return null;
     const c = content as Record<string, unknown>;
-    const { id, roomId, seq, total, data } = c;
+    const { id, roomId, seq, total, data, fmt } = c;
     const range = parseRange(c.range);
     if (!nonEmptyString(id) || !nonEmptyString(roomId) || !range) return null;
     if (!isInt(total) || total < 1 || total > MAX_TOTAL) return null;
     if (!isInt(seq) || seq < 0 || seq >= total) return null;
     if (typeof data !== "string" || data.length === 0) return null;
     if (data.length > MAX_DATA) return null;
-    return { id, roomId, range, seq, total, data };
+    if (fmt !== undefined && fmt !== INDEX_SYNC_FORMAT) return null;
+    const block: IndexSyncBlock = { id, roomId, range, seq, total, data };
+    if (fmt === INDEX_SYNC_FORMAT) block.fmt = INDEX_SYNC_FORMAT;
+    return block;
 }
 
 /** A sync request from untrusted input, or null if it is malformed. */
@@ -320,10 +408,21 @@ export function parseSyncRequest(content: unknown): IndexSyncRequest | null {
         }
         out.push({ roomId, missing: ranges });
     }
-    if (c.audit === undefined) return { id, rooms: out };
+    const request: IndexSyncRequest = { id, rooms: out };
+    if (c.fmt !== undefined) {
+        if (
+            !Array.isArray(c.fmt) ||
+            c.fmt.length > MAX_FMT ||
+            !c.fmt.every(isInt)
+        )
+            return null;
+        request.fmt = c.fmt as number[];
+    }
+    if (c.audit === undefined) return request;
     const audit = parseAudit(c.audit);
     if (!audit) return null;
-    return { id, rooms: out, audit };
+    request.audit = audit;
+    return request;
 }
 
 function parseAudit(v: unknown): IndexSyncRequest["audit"] | null {
@@ -350,7 +449,7 @@ function parseAudit(v: unknown): IndexSyncRequest["audit"] | null {
 }
 
 /** Entries per UTC day, oldest day first, only days with entries. */
-export function dayCounts(entries: IndexEntry[]): DayCount[] {
+export function dayCounts(entries: { t: number }[]): DayCount[] {
     const counts = new Map<number, number>();
     for (const e of entries) {
         const day = Math.floor(e.t / DAY_MS);
@@ -392,7 +491,7 @@ export function capAudit(
  * between two entries with the same timestamp.
  */
 export function windowRanges(
-    entries: IndexEntry[],
+    entries: { t: number }[],
     range: Range,
     size: number,
 ): Range[] {

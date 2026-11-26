@@ -1457,6 +1457,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "これまでに読み込んだ結果には一致がありません。",
     "messageSearchPanel.noResultsFor": "「{searched}」の結果はありません。",
     "messageSearchPanel.searchFailed": "検索に失敗しました",
+    "messageSearchPanel.jumpFailed":
+        "サーバーでそのメッセージを見つけられませんでした。",
     "messageSearchPanel.resultCount": "{count, plural, other {#件の結果}}",
     "messagesMediaSettings.messages": "メッセージ",
     "messagesMediaSettings.showMatrixIds": "Matrix IDを表示",

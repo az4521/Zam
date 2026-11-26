@@ -26,25 +26,45 @@ import {
 import { matrixClient } from "./runtime";
 import { reportStorageError } from "$lib/stores/storageHealth.svelte";
 import { isRoomEncrypted, deleteDatabaseWithOutcome } from "./crypto";
-import { isSyncStale } from "./client";
+import {
+    contextEventStamps,
+    fetchEventOriginTs,
+    isSyncStale,
+    timestampToEventAnchor,
+} from "./client";
 import { attachIndexSync } from "./eventIndexSync";
 import {
     addRange,
+    dedupeEntries,
     entriesInRange,
     subtractRanges,
     type Range,
 } from "$lib/utils/eventIndexSync";
 import {
     BLOCK_SIZE,
-    decodeBlock,
+    decodeLegacyBlock,
     dropRedactedEntries,
-    encodeBlock,
     entryFromEvent,
+    entryKey,
+    redactionKeyOf,
+    indexPlaceholderId,
+    legacyToCompact,
+    parseIndexPlaceholderId,
+    pickResolvedEventId,
     resolveEntries,
     searchEntries,
     type EncodedBlock,
-    type IndexEntry,
+    type LegacyIndexEntry,
 } from "$lib/utils/eventIndex";
+import {
+    decodeBlockKeys,
+    decodeIndexBlock,
+    encodeIndexBlock,
+    eventIdHash,
+    type BlockKeys,
+    type CompactEntry,
+} from "$lib/utils/indexBlock";
+import { initPpmd } from "$lib/utils/ppmd";
 import {
     mediaFilterDefinition,
     mediaItemsFromEvent,
@@ -84,8 +104,9 @@ export type {
     FullIndexResult,
 } from "$lib/utils/fullIndexProgress";
 
-// v4: META holds one-off migration flags (see scrubPriorRedactions).
-const DB_VERSION = 4;
+// v5: blocks in format 2 (rows with fmt: 2, see utils/indexBlock.ts). Legacy
+// rows are rewritten once (migrateLegacyIndex). META holds one-off flags.
+const DB_VERSION = 5;
 const BLOCKS = "blocks";
 const TAILS = "tails";
 const MEDIA = "media";
@@ -94,6 +115,15 @@ const REDACTED = "redacted";
 const COVERAGE = "coverage";
 const META = "meta";
 const REDACTION_SCRUB_KEY = "redaction-scrub";
+const MIGRATION_KEY = "format-2-migration";
+/** Compaction: a block whose bodies total at most a half of this is "small".
+ *  Adjacent blocks are merged while their bodies fit it. */
+const BLOCK_BODY_CAP = 1024 * 1024;
+const SMALL_BLOCK_BODY = BLOCK_BODY_CAP / 2;
+/** Small blocks a room needs before it is compacted. */
+const COMPACT_MIN_SMALL = 8;
+/** Events fetched on each side of a search hit when resolving its id. */
+const RESOLVE_CONTEXT_EVENTS = 50;
 
 /** How long new messages wait before being written (batches a busy sync). */
 const FLUSH_DELAY_MS = 2_000;
@@ -120,16 +150,48 @@ const FULL_BUILD_MAX_ERRORS = 3;
 /** Stop crawling past this much origin storage, or half the quota. */
 const STORAGE_CAP_BYTES = 1024 * 1024 * 1024;
 
-interface StoredBlock extends EncodedBlock {
+/** A format 2 block row (utils/indexBlock.ts). */
+interface StoredBlockV2 {
+    id?: number;
+    roomId: string;
+    fmt: 2;
+    count: number;
+    minTs: number;
+    maxTs: number;
+    /** Uncompressed body size: the compaction budget. */
+    bodyRaw: number;
+    meta: Uint8Array;
+    body: Uint8Array;
+}
+/** A legacy (format 1) block row, written before format 2. */
+interface StoredBlockLegacy extends EncodedBlock {
     id?: number;
     roomId: string;
     count: number;
     minTs: number;
     maxTs: number;
 }
+type StoredBlock = StoredBlockV2 | StoredBlockLegacy;
 interface StoredTail {
     roomId: string;
-    entries: IndexEntry[];
+    /** 2 for compact entries; absent on a legacy row. */
+    fmt?: 2;
+    entries: CompactEntry[] | LegacyIndexEntry[];
+}
+/** A block as the room cache keeps it. */
+interface BlockSummary {
+    count: number;
+    minTs: number;
+    maxTs: number;
+    bodyRaw: number;
+    legacy: boolean;
+}
+/** A room's in-memory index state. `keys` holds the entryKey of every stored
+ *  message (for dedup), `blocks` a summary of each block, `tail` the tail. */
+interface RoomIndexCache {
+    keys: Set<string>;
+    blocks: Map<number, BlockSummary>;
+    tail: CompactEntry[];
 }
 interface CrawlState {
     roomId: string;
@@ -244,6 +306,8 @@ interface Session {
     dbName: string;
     db: Promise<IDBDatabase>;
     stopped: boolean;
+    /** Per-room cache (see roomCache). Only touched on the write chain. */
+    rooms: Map<string, RoomIndexCache>;
     detach: () => void;
 }
 
@@ -251,10 +315,33 @@ let session: Session | null = null;
 // Every write goes through this chain, so a tail is never read and rewritten
 // by two writers at once.
 let writeChain: Promise<void> = Promise.resolve();
-const pending = new Map<
-    string,
-    { entries: IndexEntry[]; media: StoredMedia[]; redacted: string[] }
->();
+/** A redaction queued for the next write. `ts` is the redacted event's
+ *  origin_server_ts when it was found: without it the redaction removes
+ *  nothing by hash (only the full-id checks apply). */
+export interface RedactionNote {
+    eventId: string;
+    ts?: number;
+    /** The timestamp lookup failed for now: the tombstone is retried. */
+    pending?: boolean;
+}
+/** An edit queued for the next write, with the full id of the original it
+ *  replaces; its `ot` is filled in before the write, if the original is found. */
+export interface PendingEdit {
+    entry: CompactEntry;
+    original: string;
+}
+interface PendingRoom {
+    entries: CompactEntry[];
+    media: StoredMedia[];
+    redacted: RedactionNote[];
+    /** Full ids of the events redacted in this batch (checked before hashing). */
+    redactedIds: Set<string>;
+    edits: PendingEdit[];
+    /** The full event id of each queued entry: matched exactly against the
+     *  tombstones, before any hash is involved. */
+    fullIds: Map<CompactEntry, string>;
+}
+const pending = new Map<string, PendingRoom>();
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let tickTimer: ReturnType<typeof setInterval> | null = null;
 const LIVE_TICK_MS = 30_000;
@@ -262,13 +349,28 @@ const LIVE_TICK_MS = 30_000;
 // and then decrypted, and both fire.
 const seen = new Set<string>();
 
-function bucket(roomId: string) {
+function bucket(roomId: string): PendingRoom {
     let b = pending.get(roomId);
     if (!b) {
-        b = { entries: [], media: [], redacted: [] };
+        b = {
+            entries: [],
+            media: [],
+            redacted: [],
+            redactedIds: new Set(),
+            edits: [],
+            fullIds: new Map(),
+        };
         pending.set(roomId, b);
     }
     return b;
+}
+
+/** Queue a redaction. The event's full id is known at once, so the event is
+ *  not queued if it arrives after its redaction in the same batch. */
+function noteRedaction(roomId: string, note: RedactionNote): void {
+    const b = bucket(roomId);
+    b.redactedIds.add(note.eventId);
+    b.redacted.push(note);
 }
 
 function scheduleFlush(): void {
@@ -290,15 +392,25 @@ function queueEvent(
         content: Record<string, unknown>;
         redacted: boolean;
     },
+    /** Keys already stored for the room: such an entry is not queued. */
+    known?: ReadonlySet<string>,
 ): boolean {
     if (seen.has(ev.eventId)) return false;
     const entry = entryFromEvent(ev);
     if (!entry) return false;
+    if (known?.has(entryKey(entry))) return false;
+    const b = bucket(roomId);
+    if (b.redactedIds.has(ev.eventId)) return false;
     seen.add(ev.eventId);
     if (seen.size > 20_000) seen.clear();
     queuedMessages += 1;
-    const b = bucket(roomId);
     b.entries.push(entry);
+    b.fullIds.set(entry, ev.eventId);
+    if (entry.o !== undefined) {
+        const rel = ev.content["m.relates_to"] as { event_id?: unknown };
+        if (typeof rel.event_id === "string")
+            b.edits.push({ entry, original: rel.event_id });
+    }
     const media = mediaItemsFromEvent(ev);
     if (media.length === 1 && media[0].itemIndex === undefined)
         b.media.push({ ...media[0], roomId });
@@ -320,7 +432,23 @@ function flush(): Promise<void> {
     writeChain = writeChain
         .then(async () => {
             const db = await s.db;
-            for (const [roomId, b] of batch) await writeRoom(db, roomId, b);
+            for (const [roomId, b] of batch) {
+                // Lookups run here, on the chain, but never inside a transaction.
+                const failed = await resolveOriginTimes(roomId, b.edits, () =>
+                    isCurrent(s),
+                );
+                await writeRoom(s, db, roomId, b);
+                if (failed.length > 0) {
+                    // Kept for a retry; the edit is stored without its time meanwhile.
+                    const items = failed.map((x) => ({
+                        k: entryKey(x.entry),
+                        o: x.original,
+                    }));
+                    for (const it of items)
+                        markFirstFailure(originKey(roomId, it.k));
+                    await addPendingOrigins(db, roomId, items);
+                }
+            }
         })
         .catch((e) => {
             reportStorageError(e, { fromIndexedDB: true });
@@ -329,97 +457,801 @@ function flush(): Promise<void> {
     return writeChain;
 }
 
-/** Blocks of a room with the given events' bodies removed: each rewritten in
- *  place, or deleted once empty. Only blocks that actually change are returned.
- *  Decoding and compression happen here, outside any transaction. */
+/** A block row in the format 2 layout, from entries (any order). */
+function encodeRoomBlock(
+    roomId: string,
+    entries: CompactEntry[],
+): StoredBlockV2 {
+    const enc = encodeIndexBlock(entries);
+    const keys = decodeBlockKeys(enc);
+    return {
+        roomId,
+        fmt: 2,
+        count: keys.count,
+        minTs: keys.minTs,
+        maxTs: keys.maxTs,
+        bodyRaw: keys.bodyRaw,
+        meta: enc.meta,
+        body: enc.body,
+    };
+}
+
+function isV2(b: StoredBlock): b is StoredBlockV2 {
+    return (b as StoredBlockV2).fmt === 2;
+}
+
+function summaryOf(row: StoredBlock): BlockSummary {
+    return {
+        count: row.count,
+        minTs: row.minTs,
+        maxTs: row.maxTs,
+        bodyRaw: isV2(row) ? row.bodyRaw : 0,
+        legacy: !isV2(row),
+    };
+}
+
+/** Every entry a stored block holds, in the compact form. */
+async function blockEntries(b: StoredBlock): Promise<CompactEntry[]> {
+    if (isV2(b)) return decodeIndexBlock({ meta: b.meta, body: b.body });
+    return (await decodeLegacyBlock(b)).map(legacyToCompact);
+}
+
+/** The entries in a room's tail row, in the compact form. */
+function tailEntries(t: StoredTail | undefined): CompactEntry[] {
+    if (!t) return [];
+    if (t.fmt === 2) return t.entries as CompactEntry[];
+    return (t.entries as LegacyIndexEntry[]).map(legacyToCompact);
+}
+
+/** Whether a block's keys name any of these redactions: a message by its key
+ *  (hash and timestamp), or an edit by the key of the original it names. */
+function touchesKeys(k: BlockKeys, keys: ReadonlySet<string>): boolean {
+    for (let i = 0; i < k.count; i++) {
+        if (keys.has(entryKey({ h: k.h[i], t: k.t[i] }))) return true;
+    }
+    for (let i = 0; i < k.targets.length; i++) {
+        if (keys.has(entryKey({ h: k.targets[i], t: k.targetTs[i] })))
+            return true;
+    }
+    return false;
+}
+
+/** Whether the session that started a piece of work is still the running one. */
+function isCurrent(s: Session): boolean {
+    return session === s && !s.stopped;
+}
+
+/** Concurrent fetches allowed while looking up original timestamps. */
+const ORIGIN_FETCH_CONCURRENCY = 4;
+
+/** The origin_server_ts of an event this client already holds, or undefined. */
+function localEventTs(roomId: string, eventId: string): number | undefined {
+    const room = matrixClient?.getRoom(roomId);
+    const ts = room?.findEventById?.(eventId)?.getTs();
+    return typeof ts === "number" && ts > 0 ? ts : undefined;
+}
+
+/** What a timestamp lookup found. `gone`: the server has no such event
+ *  (M_NOT_FOUND): nothing will ever match it. `failed`: anything else, which
+ *  is retried later. */
+type OriginLookup =
+    { kind: "ts"; ts: number } | { kind: "gone" } | { kind: "failed" };
+
+function isNotFoundError(e: unknown): boolean {
+    const x = e as { errcode?: unknown; httpStatus?: unknown } | null;
+    return x?.errcode === "M_NOT_FOUND" || x?.httpStatus === 404;
+}
+
+/** The origin_server_ts of an event: the loaded event, else the server. */
+async function lookupOriginTs(
+    roomId: string,
+    eventId: string,
+): Promise<OriginLookup> {
+    const local = localEventTs(roomId, eventId);
+    if (local !== undefined) return { kind: "ts", ts: local };
+    try {
+        return { kind: "ts", ts: await fetchEventOriginTs(roomId, eventId) };
+    } catch (e) {
+        return isNotFoundError(e) ? { kind: "gone" } : { kind: "failed" };
+    }
+}
+
+/** Runs `fn` over `items` with at most `limit` calls in flight. */
+async function mapLimit<T>(
+    items: readonly T[],
+    limit: number,
+    fn: (item: T) => Promise<void>,
+): Promise<void> {
+    let next = 0;
+    const worker = async (): Promise<void> => {
+        while (next < items.length) await fn(items[next++]);
+    };
+    await Promise.all(
+        Array.from({ length: Math.min(limit, items.length) }, worker),
+    );
+}
+
+/**
+ * Sets `ot` on the edits whose original's timestamp can be found (loaded
+ * event first, then the server, a few requests at a time). Returns the edits
+ * whose lookup failed for now, so the caller can keep them to retry. An
+ * original the server doesn't know leaves its edits without `ot`, for good.
+ * Stops looking once `current()` is false (the session was stopped).
+ */
+export async function resolveOriginTimes(
+    roomId: string,
+    edits: readonly PendingEdit[],
+    current: () => boolean,
+): Promise<PendingEdit[]> {
+    const todo = edits.filter((x) => x.entry.ot === undefined);
+    if (todo.length === 0) return [];
+    const originals = [...new Set(todo.map((x) => x.original))];
+    const found = new Map<string, OriginLookup>();
+    await mapLimit(originals, ORIGIN_FETCH_CONCURRENCY, async (id) => {
+        if (!current()) return;
+        found.set(id, await lookupOriginTs(roomId, id));
+    });
+    const failed: PendingEdit[] = [];
+    for (const x of todo) {
+        const r = found.get(x.original);
+        if (r?.kind === "ts") x.entry.ot = r.ts;
+        else if (r?.kind === "failed") failed.push(x);
+    }
+    return failed;
+}
+
+/* ── Retries ───────────────────────────────────────────────────────────────
+ * A tombstone whose timestamp lookup failed is stored `pending`; an edit whose
+ * original's lookup failed is listed in its room's pending origins (META rows
+ * "origins:<room>"). Both are retried from the live tick, and once at start.
+ * Each waits its own time, doubling from RETRY_START_MS up to RETRY_MAX_MS,
+ * in memory: a restart retries at once. */
+
+const RETRY_START_MS = 60_000;
+const RETRY_MAX_MS = 6 * 60 * 60_000;
+const ORIGINS_PREFIX = "origins:";
+/** Pending origins kept per room; the oldest are dropped past this. */
+const ORIGIN_PENDING_CAP = 500;
+
+interface RetryState {
+    at: number;
+    delay: number;
+}
+const retryState = new Map<string, RetryState>();
+let retryRunning = false;
+
+const tombKey = (roomId: string, eventId: string) => `t|${roomId}|${eventId}`;
+const originKey = (roomId: string, k: string) => `o|${roomId}|${k}`;
+
+function retryDue(key: string, force: boolean): boolean {
+    if (force) return true;
+    const st = retryState.get(key);
+    return !st || Date.now() >= st.at;
+}
+
+/** A first failure: wait the start delay. */
+function markFirstFailure(key: string): void {
+    if (retryState.has(key)) return;
+    retryState.set(key, {
+        at: Date.now() + RETRY_START_MS,
+        delay: RETRY_START_MS,
+    });
+}
+
+/** A retry failed again: wait twice as long, up to the maximum. */
+function backoffAfter(key: string): void {
+    const delay = Math.min(
+        (retryState.get(key)?.delay ?? RETRY_START_MS / 2) * 2,
+        RETRY_MAX_MS,
+    );
+    retryState.set(key, { at: Date.now() + delay, delay });
+}
+
+interface PendingOriginItem {
+    k: string;
+    o: string;
+}
+
+/** Adds edits to their room's pending origins (write chain only). */
+async function addPendingOrigins(
+    db: IDBDatabase,
+    roomId: string,
+    items: PendingOriginItem[],
+): Promise<void> {
+    if (items.length === 0) return;
+    const key = ORIGINS_PREFIX + roomId;
+    const row = (await req(db.transaction(META).objectStore(META).get(key))) as
+        { key: string; list: PendingOriginItem[] } | undefined;
+    const list = [...(row?.list ?? [])];
+    for (const it of items) {
+        if (!list.some((x) => x.k === it.k)) list.push(it);
+    }
+    const tx = db.transaction(META, "readwrite");
+    tx.objectStore(META).put({
+        key,
+        list: list.slice(Math.max(0, list.length - ORIGIN_PENDING_CAP)),
+    });
+    await done(tx);
+}
+
+/** Removes one edit from its room's pending origins (write chain only). */
+async function removePendingOrigin(
+    db: IDBDatabase,
+    roomId: string,
+    k: string,
+): Promise<void> {
+    const key = ORIGINS_PREFIX + roomId;
+    const row = (await req(db.transaction(META).objectStore(META).get(key))) as
+        { key: string; list: PendingOriginItem[] } | undefined;
+    if (!row) return;
+    const list = row.list.filter((x) => x.k !== k);
+    const tx = db.transaction(META, "readwrite");
+    if (list.length === 0) tx.objectStore(META).delete(key);
+    else tx.objectStore(META).put({ key, list });
+    await done(tx);
+}
+
+/** Records the edits whose original lookup failed, so they are retried. */
+export function recordPendingOrigins(
+    roomId: string,
+    failed: readonly PendingEdit[],
+): Promise<void> {
+    if (failed.length === 0) return Promise.resolve();
+    return chained(async () => {
+        const s = session;
+        if (!s || !isCurrent(s)) return;
+        const items = failed.map((x) => ({
+            k: entryKey(x.entry),
+            o: x.original,
+        }));
+        for (const it of items) markFirstFailure(originKey(roomId, it.k));
+        await addPendingOrigins(await s.db, roomId, items);
+    });
+}
+
+/** Writes a tombstone's timestamp and scrubs what it names: the stored body
+ *  (by hash and timestamp) and the edits of it (by their original's key). */
+async function applyTombstoneTs(
+    s: Session,
+    db: IDBDatabase,
+    roomId: string,
+    eventId: string,
+    ts: number,
+): Promise<void> {
+    const key = redactionKeyOf(eventIdHash(eventId), ts);
+    const keys = new Set([key]);
+    const plan = await planBlockScrub(db, roomId, keys);
+    const tailRow = (await req(
+        db.transaction(TAILS).objectStore(TAILS).get(roomId),
+    )) as StoredTail | undefined;
+    const tailNow = tailEntries(tailRow);
+    const kept = dropRedactedEntries(tailNow, keys);
+    const tx = db.transaction([TAILS, BLOCKS, MEDIA, REDACTED], "readwrite");
+    tx.objectStore(REDACTED).put({ eventId, roomId, ts });
+    tx.objectStore(MEDIA).delete(eventId);
+    if (kept !== tailNow) {
+        tx.objectStore(TAILS).put({
+            roomId,
+            fmt: 2,
+            entries: kept,
+        } satisfies StoredTail);
+    }
+    for (const block of plan.puts) tx.objectStore(BLOCKS).put(block);
+    for (const id of plan.deletes) tx.objectStore(BLOCKS).delete(id);
+    await done(tx);
+    s.rooms.delete(roomId);
+}
+
+/** Sets `ot` on the one edit with key `k` (tail or block), dropping it at
+ *  once if its original is already redacted. False when no such edit is stored. */
+async function setEditOrigin(
+    s: Session,
+    db: IDBDatabase,
+    roomId: string,
+    k: string,
+    ts: number,
+): Promise<boolean> {
+    const roomKeys = await redactionKeys(db, roomId);
+    const apply = (entries: CompactEntry[]): CompactEntry[] | undefined => {
+        const i = entries.findIndex(
+            (e) => entryKey(e) === k && e.o !== undefined && e.ot === undefined,
+        );
+        if (i < 0) return undefined;
+        const copy = entries.slice();
+        copy[i] = { ...entries[i], ot: ts };
+        return dropRedactedEntries(copy, roomKeys);
+    };
+    const tailRow = (await req(
+        db.transaction(TAILS).objectStore(TAILS).get(roomId),
+    )) as StoredTail | undefined;
+    const nt = apply(tailEntries(tailRow));
+    if (nt) {
+        const tx = db.transaction(TAILS, "readwrite");
+        tx.objectStore(TAILS).put({
+            roomId,
+            fmt: 2,
+            entries: nt,
+        } satisfies StoredTail);
+        await done(tx);
+        s.rooms.delete(roomId);
+        return true;
+    }
+    const rows = (await req(
+        db.transaction(BLOCKS).objectStore(BLOCKS).index("room").getAll(roomId),
+    )) as StoredBlock[];
+    for (const row of rows) {
+        if (row.id === undefined || !isV2(row)) continue;
+        const keys = decodeBlockKeys({ meta: row.meta, body: row.body });
+        let has = false;
+        for (let i = 0; i < keys.count && !has; i++) {
+            has = entryKey({ h: keys.h[i], t: keys.t[i] }) === k;
+        }
+        if (!has) continue;
+        const nb = apply(await blockEntries(row));
+        if (!nb) continue;
+        const tx = db.transaction(BLOCKS, "readwrite");
+        if (nb.length === 0) tx.objectStore(BLOCKS).delete(row.id);
+        else
+            tx.objectStore(BLOCKS).put({
+                ...encodeRoomBlock(roomId, nb),
+                id: row.id,
+            });
+        await done(tx);
+        s.rooms.delete(roomId);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Retries the pending tombstones and pending edit origins that are due (all
+ * of them with `force`). Lookups run off the write chain, a few at a time;
+ * the results are written on the chain. A lookup the server answers as
+ * not-found clears its entry (logged): nothing can be matched later. Only
+ * one run at a time; a call during a run returns at once.
+ */
+export async function runPendingRetries(
+    opts: { force?: boolean } = {},
+): Promise<void> {
+    const s = session;
+    if (!s || !isCurrent(s) || retryRunning) return;
+    retryRunning = true;
+    try {
+        const db = await s.db;
+        const tombRows = (await req(
+            db.transaction(REDACTED).objectStore(REDACTED).getAll(),
+        )) as {
+            eventId: string;
+            roomId: string;
+            ts?: number;
+            pending?: boolean;
+        }[];
+        const tombs = tombRows.filter(
+            (t) =>
+                t.pending === true &&
+                retryDue(tombKey(t.roomId, t.eventId), !!opts.force),
+        );
+        const originRows = (await req(
+            db.transaction(META).objectStore(META).getAll(),
+        )) as { key: string; list?: PendingOriginItem[] }[];
+        const origins: { roomId: string; item: PendingOriginItem }[] = [];
+        for (const row of originRows) {
+            if (!row.key.startsWith(ORIGINS_PREFIX)) continue;
+            const roomId = row.key.slice(ORIGINS_PREFIX.length);
+            for (const item of row.list ?? []) {
+                if (retryDue(originKey(roomId, item.k), !!opts.force)) {
+                    origins.push({ roomId, item });
+                }
+            }
+        }
+        const lookupKeys = new Map<string, { roomId: string; id: string }>();
+        for (const t of tombs) {
+            lookupKeys.set(`${t.roomId}|${t.eventId}`, {
+                roomId: t.roomId,
+                id: t.eventId,
+            });
+        }
+        for (const o of origins) {
+            lookupKeys.set(`${o.roomId}|${o.item.o}`, {
+                roomId: o.roomId,
+                id: o.item.o,
+            });
+        }
+        const found = new Map<string, OriginLookup>();
+        await mapLimit(
+            [...lookupKeys],
+            ORIGIN_FETCH_CONCURRENCY,
+            async ([k, v]) => {
+                if (!isCurrent(s)) return;
+                found.set(k, await lookupOriginTs(v.roomId, v.id));
+            },
+        );
+        if (!isCurrent(s)) return;
+
+        await chained(async () => {
+            for (const t of tombs) {
+                if (!isCurrent(s)) return;
+                const r = found.get(`${t.roomId}|${t.eventId}`);
+                const key = tombKey(t.roomId, t.eventId);
+                if (!r) continue;
+                if (r.kind === "failed") {
+                    backoffAfter(key);
+                    continue;
+                }
+                retryState.delete(key);
+                // Superseded meanwhile (rewritten, or gone)?
+                const cur = (await req(
+                    db
+                        .transaction(REDACTED)
+                        .objectStore(REDACTED)
+                        .get(t.eventId),
+                )) as { pending?: boolean } | undefined;
+                if (!cur || cur.pending !== true) continue;
+                if (r.kind === "gone") {
+                    console.info(
+                        "[eventIndex] a redacted event is unknown to the server; its body stays unmatched",
+                    );
+                    const tx = db.transaction(REDACTED, "readwrite");
+                    tx.objectStore(REDACTED).put({
+                        eventId: t.eventId,
+                        roomId: t.roomId,
+                    });
+                    await done(tx);
+                } else {
+                    await applyTombstoneTs(s, db, t.roomId, t.eventId, r.ts);
+                }
+            }
+            for (const o of origins) {
+                if (!isCurrent(s)) return;
+                const r = found.get(`${o.roomId}|${o.item.o}`);
+                const key = originKey(o.roomId, o.item.k);
+                if (!r) continue;
+                if (r.kind === "failed") {
+                    backoffAfter(key);
+                    continue;
+                }
+                retryState.delete(key);
+                if (r.kind === "ts") {
+                    await setEditOrigin(s, db, o.roomId, o.item.k, r.ts);
+                } else {
+                    console.info(
+                        "[eventIndex] an edit's original is unknown to the server; the edit stays unlinked",
+                    );
+                }
+                await removePendingOrigin(db, o.roomId, o.item.k);
+            }
+        });
+    } finally {
+        retryRunning = false;
+    }
+}
+
+/** Runs `fn` on the write chain and returns its result: it sees every write
+ *  queued before it, and no write runs while it does. */
+function chained<T>(fn: () => Promise<T>): Promise<T> {
+    const run = writeChain.then(fn);
+    writeChain = run.then(
+        () => undefined,
+        (e) => {
+            reportStorageError(e, { fromIndexedDB: true });
+            console.warn("[eventIndex] write failed", e);
+        },
+    );
+    return run;
+}
+
+/**
+ * A room's in-memory index state: the key of every stored message (for
+ * dedup), a summary of each block (for compaction), and the tail. Built from
+ * the rows on first use and kept up to date by writeRoom. Only called on the
+ * write chain, so it never reads a room half-written.
+ */
+async function roomCache(
+    s: Session,
+    db: IDBDatabase,
+    roomId: string,
+): Promise<RoomIndexCache> {
+    const hit = s.rooms.get(roomId);
+    if (hit) return hit;
+    const tx = db.transaction([BLOCKS, TAILS], "readonly");
+    const [blocks, tail] = await Promise.all([
+        req(tx.objectStore(BLOCKS).index("room").getAll(roomId)) as Promise<
+            StoredBlock[]
+        >,
+        req(tx.objectStore(TAILS).get(roomId)) as Promise<
+            StoredTail | undefined
+        >,
+    ]);
+    const cache: RoomIndexCache = {
+        keys: new Set(),
+        blocks: new Map(),
+        tail: tailEntries(tail),
+    };
+    for (const row of blocks) {
+        if (row.id === undefined) continue;
+        cache.blocks.set(row.id, summaryOf(row));
+        if (isV2(row)) {
+            const k = decodeBlockKeys({ meta: row.meta, body: row.body });
+            for (let i = 0; i < k.count; i++)
+                cache.keys.add(entryKey({ h: k.h[i], t: k.t[i] }));
+        } else {
+            for (const e of await blockEntries(row))
+                cache.keys.add(entryKey(e));
+        }
+    }
+    for (const e of cache.tail) cache.keys.add(entryKey(e));
+    s.rooms.set(roomId, cache);
+    return cache;
+}
+
+/** Stored blocks of a room with the given redactions' bodies removed: each
+ *  rewritten in place, or deleted once empty. Only blocks whose keys name one
+ *  of them are decoded. Nothing is written here. */
+interface BlockScrub {
+    puts: StoredBlockV2[];
+    deletes: number[];
+    removed: CompactEntry[];
+}
+
 async function planBlockScrub(
     db: IDBDatabase,
     roomId: string,
-    ids: ReadonlySet<string>,
-): Promise<{ puts: StoredBlock[]; deletes: number[] }> {
-    const blocks = (await req(
+    keys: ReadonlySet<string>,
+): Promise<BlockScrub> {
+    const rows = (await req(
         db.transaction(BLOCKS).objectStore(BLOCKS).index("room").getAll(roomId),
     )) as StoredBlock[];
-    const puts: StoredBlock[] = [];
-    const deletes: number[] = [];
-    for (const block of blocks) {
-        const entries = await decodeBlock(block);
-        const kept = dropRedactedEntries(entries, ids);
-        if (kept.length === entries.length) continue;
-        if (kept.length === 0) {
-            if (block.id !== undefined) deletes.push(block.id);
+    const plan: BlockScrub = { puts: [], deletes: [], removed: [] };
+    for (const row of rows) {
+        if (row.id === undefined) continue;
+        if (
+            isV2(row) &&
+            !touchesKeys(
+                decodeBlockKeys({ meta: row.meta, body: row.body }),
+                keys,
+            )
+        )
             continue;
-        }
-        const ts = kept.map((e) => e.t);
-        puts.push({
-            ...(await encodeBlock(kept)),
-            id: block.id,
-            roomId,
-            count: kept.length,
-            minTs: Math.min(...ts),
-            maxTs: Math.max(...ts),
-        });
+        const entries = await blockEntries(row);
+        const kept = dropRedactedEntries(entries, keys);
+        if (kept.length === entries.length) continue;
+        const keptSet = new Set(kept);
+        plan.removed.push(...entries.filter((e) => !keptSet.has(e)));
+        if (kept.length === 0) plan.deletes.push(row.id);
+        else plan.puts.push({ ...encodeRoomBlock(roomId, kept), id: row.id });
     }
-    return { puts, deletes };
+    return plan;
 }
 
-async function writeRoom(
+/** Adjacent blocks (by first timestamp) grouped while their bodies fit one
+ *  block's budget. Only groups of two or more are returned. */
+function planCompaction(blocks: Map<number, BlockSummary>): number[][] {
+    const list = [...blocks]
+        .filter(([, b]) => !b.legacy)
+        .map(([id, b]) => ({ id, ...b }))
+        .sort((a, b) => a.minTs - b.minTs);
+    const groups: number[][] = [];
+    let cur: number[] = [];
+    let sum = 0;
+    for (const b of list) {
+        if (cur.length > 0 && sum + b.bodyRaw > BLOCK_BODY_CAP) {
+            groups.push(cur);
+            cur = [];
+            sum = 0;
+        }
+        cur.push(b.id);
+        sum += b.bodyRaw;
+    }
+    if (cur.length > 0) groups.push(cur);
+    return groups.filter((g) => g.length >= 2);
+}
+
+/**
+ * Merges a room's small blocks once it has enough of them: the groups from
+ * planCompaction are decoded, merged and re-encoded, and each group is put
+ * back as one block in a single transaction. The entries and their keys don't
+ * change, so the key set is left as it is.
+ */
+async function maybeCompact(
+    s: Session,
     db: IDBDatabase,
     roomId: string,
-    b: { entries: IndexEntry[]; media: StoredMedia[]; redacted: string[] },
 ): Promise<void> {
-    // Every tombstone this room has, plus the ones in this batch: an event
-    // redacted before it was indexed is never stored.
-    const read = db.transaction([TAILS, REDACTED], "readonly");
-    const [tail, tombRows] = await Promise.all([
-        req(read.objectStore(TAILS).get(roomId)) as Promise<
-            StoredTail | undefined
-        >,
-        req(read.objectStore(REDACTED).index("room").getAll(roomId)) as Promise<
-            { eventId: string }[]
-        >,
-    ]);
-    const gone = new Set(tombRows.map((r) => r.eventId));
-    for (const id of b.redacted) gone.add(id);
-    let entries = dropRedactedEntries(
-        [...(tail?.entries ?? []), ...b.entries],
-        gone,
-    );
-    // Compress outside the transaction: an IndexedDB transaction closes as
-    // soon as it waits on anything that isn't IndexedDB.
-    const blocks: StoredBlock[] = [];
-    while (entries.length >= BLOCK_SIZE) {
-        const chunk = entries.slice(0, BLOCK_SIZE);
-        entries = entries.slice(BLOCK_SIZE);
-        const ts = chunk.map((e) => e.t);
-        blocks.push({
-            ...(await encodeBlock(chunk)),
-            roomId,
-            count: chunk.length,
-            minTs: Math.min(...ts),
-            maxTs: Math.max(...ts),
-        });
+    const cache = s.rooms.get(roomId);
+    if (!cache) return;
+    let small = 0;
+    for (const b of cache.blocks.values()) {
+        if (!b.legacy && b.bodyRaw < SMALL_BLOCK_BODY) small++;
     }
-    // The stored bodies of events redacted in this batch are removed from
+    if (small < COMPACT_MIN_SMALL) return;
+    const groups = planCompaction(cache.blocks);
+    if (groups.length === 0) return;
+    const rows = (await req(
+        db.transaction(BLOCKS).objectStore(BLOCKS).index("room").getAll(roomId),
+    )) as StoredBlock[];
+    const byId = new Map<number, StoredBlockV2>();
+    for (const row of rows) {
+        if (row.id !== undefined && isV2(row)) byId.set(row.id, row);
+    }
+    const plans: { ids: number[]; block: StoredBlockV2 }[] = [];
+    for (const ids of groups) {
+        const entries: CompactEntry[] = [];
+        let whole = true;
+        for (const id of ids) {
+            const row = byId.get(id);
+            if (!row) {
+                whole = false;
+                break;
+            }
+            entries.push(
+                ...decodeIndexBlock({ meta: row.meta, body: row.body }),
+            );
+        }
+        if (whole) plans.push({ ids, block: encodeRoomBlock(roomId, entries) });
+    }
+    if (plans.length === 0) return;
+    const tx = db.transaction(BLOCKS, "readwrite");
+    const store = tx.objectStore(BLOCKS);
+    const added = plans.map((p) => store.add(p.block));
+    for (const p of plans) for (const id of p.ids) store.delete(id);
+    await done(tx);
+    plans.forEach((p, i) => {
+        for (const id of p.ids) cache.blocks.delete(id);
+        cache.blocks.set(added[i].result as number, summaryOf(p.block));
+    });
+}
+
+/** One room's share of a flush. */
+interface RoomBatch {
+    entries: CompactEntry[];
+    media: StoredMedia[];
+    redacted: RedactionNote[];
+    fullIds: Map<CompactEntry, string>;
+    edits: PendingEdit[];
+}
+
+/**
+ * Writes a room's batch: its entries, minus the ones already stored or
+ * redacted, then the redactions and media. Every full block is cut off the
+ * tail, and then compaction runs. Runs on the write chain.
+ */
+async function writeRoom(
+    s: Session,
+    db: IDBDatabase,
+    roomId: string,
+    b: RoomBatch,
+): Promise<void> {
+    try {
+        await writeRoomRows(s, db, roomId, b);
+        await maybeCompact(s, db, roomId);
+    } catch (e) {
+        // The in-memory view may be ahead of what was stored: rebuild it.
+        s.rooms.delete(roomId);
+        throw e;
+    }
+}
+
+/** The (hash, timestamp) key of a redaction note, or undefined without a timestamp. */
+function noteKey(n: RedactionNote): string | undefined {
+    return n.ts === undefined
+        ? undefined
+        : redactionKeyOf(eventIdHash(n.eventId), n.ts);
+}
+
+async function writeRoomRows(
+    s: Session,
+    db: IDBDatabase,
+    roomId: string,
+    b: RoomBatch,
+): Promise<void> {
+    const cache = await roomCache(s, db, roomId);
+    // Every tombstone this room has, plus the ones in this batch. A message
+    // is redacted when its (hash, timestamp) matches a tombstone's; a
+    // tombstone without a timestamp matches by full id only (see migration).
+    const tombRows = (await req(
+        db
+            .transaction(REDACTED)
+            .objectStore(REDACTED)
+            .index("room")
+            .getAll(roomId),
+    )) as { eventId: string; ts?: number }[];
+    const goneIds = new Set(tombRows.map((r) => r.eventId));
+    const goneKeys = new Set<string>();
+    for (const r of tombRows) {
+        const k = noteKey(r);
+        if (k !== undefined) goneKeys.add(k);
+    }
+    for (const n of b.redacted) {
+        goneIds.add(n.eventId);
+        const k = noteKey(n);
+        if (k !== undefined) goneKeys.add(k);
+    }
+    const isGone = (e: CompactEntry): boolean => {
+        if (goneKeys.has(entryKey(e))) return true;
+        return (
+            e.o !== undefined &&
+            e.ot !== undefined &&
+            goneKeys.has(redactionKeyOf(e.o, e.ot))
+        );
+    };
+
+    const tailKept = dropRedactedEntries(cache.tail, goneKeys);
+    const keptTail = new Set(tailKept);
+    const droppedTail = cache.tail.filter((e) => !keptTail.has(e));
+    for (const e of droppedTail) cache.keys.delete(entryKey(e));
+
+    // Exact checks first, by full id: the message itself, and the original an
+    // edit replaces (when this batch knows both).
+    const originOf = new Map<CompactEntry, string>();
+    for (const x of b.edits) originOf.set(x.entry, x.original);
+    const fresh: CompactEntry[] = [];
+    for (const e of b.entries) {
+        const full = b.fullIds.get(e);
+        if (full !== undefined && goneIds.has(full)) continue;
+        const origin = originOf.get(e);
+        if (origin !== undefined && goneIds.has(origin)) continue;
+        if (isGone(e)) continue;
+        const key = entryKey(e);
+        if (cache.keys.has(key)) continue;
+        cache.keys.add(key);
+        fresh.push(e);
+    }
+
+    let entries = [...tailKept, ...fresh];
+    const newBlocks: StoredBlockV2[] = [];
+    while (entries.length >= BLOCK_SIZE) {
+        newBlocks.push(encodeRoomBlock(roomId, entries.slice(0, BLOCK_SIZE)));
+        entries = entries.slice(BLOCK_SIZE);
+    }
+    const tail = entries;
+    // The stored bodies of messages redacted in this batch are removed from
     // their blocks, in the same transaction as the tombstone, so a tombstone
     // never outlives the plaintext it names.
-    const scrub =
-        b.redacted.length > 0
-            ? await planBlockScrub(db, roomId, new Set(b.redacted))
-            : { puts: [], deletes: [] };
-    const tx = db.transaction([TAILS, BLOCKS, MEDIA, REDACTED], "readwrite");
-    tx.objectStore(TAILS).put({ roomId, entries } satisfies StoredTail);
-    for (const block of scrub.puts) tx.objectStore(BLOCKS).put(block);
-    for (const id of scrub.deletes) tx.objectStore(BLOCKS).delete(id);
-    for (const block of blocks) tx.objectStore(BLOCKS).add(block);
-    for (const m of b.media) {
-        if (!gone.has(m.eventId)) tx.objectStore(MEDIA).put(m);
+    const batchKeys = new Set<string>();
+    for (const n of b.redacted) {
+        const k = noteKey(n);
+        if (k !== undefined) batchKeys.add(k);
     }
-    for (const eventId of b.redacted) {
-        tx.objectStore(REDACTED).put({ eventId, roomId });
-        tx.objectStore(MEDIA).delete(eventId);
+    const scrub =
+        batchKeys.size > 0 ? await planBlockScrub(db, roomId, batchKeys) : null;
+    const tx = db.transaction([TAILS, BLOCKS, MEDIA, REDACTED], "readwrite");
+    tx.objectStore(TAILS).put({
+        roomId,
+        fmt: 2,
+        entries: tail,
+    } satisfies StoredTail);
+    if (scrub) {
+        for (const block of scrub.puts) tx.objectStore(BLOCKS).put(block);
+        for (const id of scrub.deletes) tx.objectStore(BLOCKS).delete(id);
+    }
+    const added = newBlocks.map((block) => tx.objectStore(BLOCKS).add(block));
+    for (const m of b.media) {
+        if (!goneIds.has(m.eventId)) tx.objectStore(MEDIA).put(m);
+    }
+    for (const n of b.redacted) {
+        tx.objectStore(REDACTED).put(
+            // A timestamp when known; `pending` when its lookup failed (retried);
+            // neither when the server has no such event (matched by full id only).
+            n.ts !== undefined
+                ? { eventId: n.eventId, roomId, ts: n.ts }
+                : n.pending
+                  ? { eventId: n.eventId, roomId, pending: true }
+                  : { eventId: n.eventId, roomId },
+        );
+        tx.objectStore(MEDIA).delete(n.eventId);
     }
     await done(tx);
+
+    cache.tail = tail;
+    if (scrub) {
+        for (const e of scrub.removed) cache.keys.delete(entryKey(e));
+        for (const id of scrub.deletes) cache.blocks.delete(id);
+        for (const block of scrub.puts)
+            cache.blocks.set(block.id as number, summaryOf(block));
+    }
+    newBlocks.forEach((block, i) =>
+        cache.blocks.set(added[i].result as number, summaryOf(block)),
+    );
 }
 
 /** Run a write after the ones already queued (every index write goes through
@@ -435,7 +1267,8 @@ function serialWrite(fn: () => Promise<void>): Promise<void> {
 /**
  * Once per index: a redaction stored before the scrub existed left its body
  * in a block. Walk every room with a tombstone and remove those bodies. Runs
- * on the write chain; a flag in META means it never runs again.
+ * on the write chain; a flag in META means it never runs again. A tombstone
+ * without a timestamp removes nothing by hash, as everywhere else.
  */
 async function scrubPriorRedactions(s: Session): Promise<void> {
     const db = await s.db;
@@ -445,35 +1278,194 @@ async function scrubPriorRedactions(s: Session): Promise<void> {
     if (flag) return;
     const tombs = (await req(
         db.transaction(REDACTED).objectStore(REDACTED).getAll(),
-    )) as { eventId: string; roomId: string }[];
+    )) as { eventId: string; roomId: string; ts?: number }[];
     const byRoom = new Map<string, Set<string>>();
     for (const t of tombs) {
-        let ids = byRoom.get(t.roomId);
-        if (!ids) {
-            ids = new Set();
-            byRoom.set(t.roomId, ids);
+        const key = noteKey(t);
+        if (key === undefined) continue;
+        let keys = byRoom.get(t.roomId);
+        if (!keys) {
+            keys = new Set();
+            byRoom.set(t.roomId, keys);
         }
-        ids.add(t.eventId);
+        keys.add(key);
     }
-    for (const [roomId, ids] of byRoom) {
+    for (const [roomId, keys] of byRoom) {
         if (s.stopped) return;
         const tail = (await req(
             db.transaction(TAILS).objectStore(TAILS).get(roomId),
         )) as StoredTail | undefined;
-        const plan = await planBlockScrub(db, roomId, ids);
-        const kept = tail ? dropRedactedEntries(tail.entries, ids) : null;
+        const plan = await planBlockScrub(db, roomId, keys);
+        const tailNow = tailEntries(tail);
+        const kept = dropRedactedEntries(tailNow, keys);
         const tx = db.transaction([TAILS, BLOCKS], "readwrite");
-        if (tail && kept && kept !== tail.entries)
-            tx.objectStore(TAILS).put({ roomId, entries: kept });
+        if (tail && kept !== tailNow)
+            tx.objectStore(TAILS).put({
+                roomId,
+                fmt: 2,
+                entries: kept,
+            } satisfies StoredTail);
         for (const block of plan.puts) tx.objectStore(BLOCKS).put(block);
         for (const id of plan.deletes) tx.objectStore(BLOCKS).delete(id);
         await done(tx);
+        s.rooms.delete(roomId);
     }
     const flagTx = db.transaction(META, "readwrite");
     flagTx
         .objectStore(META)
         .put({ key: REDACTION_SCRUB_KEY, done: true, at: Date.now() });
     await done(flagTx);
+}
+
+/**
+ * Once per index: rewrite each room that still holds legacy (format 1) rows
+ * into format 2. Every entry of the room is read, duplicates are dropped (a
+ * legacy row's copies by full event id, then any copy by key), tombstoned
+ * messages are dropped, and the rest is written back as format 2 blocks plus
+ * a new tail, in one transaction per room. A room that is interrupted is
+ * simply redone on the next start. A META flag records completion. Runs on
+ * the write chain, before any other write.
+ */
+async function migrateLegacyIndex(s: Session): Promise<void> {
+    const db = await s.db;
+    const flag = await req(
+        db.transaction(META).objectStore(META).get(MIGRATION_KEY),
+    );
+    if (flag) return;
+    const roomIds = (await req(
+        db.transaction(TAILS).objectStore(TAILS).getAllKeys(),
+    )) as string[];
+    for (const roomId of roomIds) {
+        if (s.stopped) return;
+        await migrateRoom(s, db, roomId);
+    }
+    const flagTx = db.transaction(META, "readwrite");
+    flagTx
+        .objectStore(META)
+        .put({ key: MIGRATION_KEY, done: true, at: Date.now() });
+    await done(flagTx);
+}
+
+async function migrateRoom(
+    s: Session,
+    db: IDBDatabase,
+    roomId: string,
+): Promise<void> {
+    const read = db.transaction([BLOCKS, TAILS, REDACTED], "readonly");
+    const [blocks, tail, tombRows] = await Promise.all([
+        req(read.objectStore(BLOCKS).index("room").getAll(roomId)) as Promise<
+            StoredBlock[]
+        >,
+        req(read.objectStore(TAILS).get(roomId)) as Promise<
+            StoredTail | undefined
+        >,
+        req(read.objectStore(REDACTED).index("room").getAll(roomId)) as Promise<
+            { eventId: string; ts?: number }[]
+        >,
+    ]);
+    const hasLegacy =
+        blocks.some((b) => !isV2(b)) || (tail !== undefined && tail.fmt !== 2);
+    if (!hasLegacy) return;
+
+    const goneIds = new Set(tombRows.map((r) => r.eventId));
+    const goneKeys = new Set<string>();
+    for (const r of tombRows) {
+        const k = noteKey(r);
+        if (k !== undefined) goneKeys.add(k);
+    }
+    // Oldest rows first, then the tail (the newest): the first copy wins.
+    const ordered = [...blocks].sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+    const legacyLists: LegacyIndexEntry[][] = [];
+    for (const b of ordered) {
+        if (!isV2(b)) legacyLists.push(await decodeLegacyBlock(b));
+    }
+    const legacyTail =
+        tail && tail.fmt !== 2 ? (tail.entries as LegacyIndexEntry[]) : null;
+    if (legacyTail) legacyLists.push(legacyTail);
+    // The timestamp of each legacy message, by full id. A legacy edit's
+    // original is found exactly here, when it is in the room's legacy data.
+    const legacyTs = new Map<string, number>();
+    for (const list of legacyLists) {
+        for (const e of list) {
+            if (!legacyTs.has(e.e)) legacyTs.set(e.e, e.t);
+        }
+    }
+
+    const legacyIds = new Set<string>();
+    const keys = new Set<string>();
+    const all: CompactEntry[] = [];
+    const add = (e: CompactEntry) => {
+        if (goneKeys.has(entryKey(e))) return;
+        if (
+            e.o !== undefined &&
+            e.ot !== undefined &&
+            goneKeys.has(redactionKeyOf(e.o, e.ot))
+        )
+            return;
+        const key = entryKey(e);
+        if (keys.has(key)) return;
+        keys.add(key);
+        all.push(e);
+    };
+    const addLegacy = (list: LegacyIndexEntry[]) => {
+        for (const e of list) {
+            if (legacyIds.has(e.e)) continue;
+            legacyIds.add(e.e);
+            // Tombstones apply by full id here, exactly, whatever their time.
+            if (goneIds.has(e.e) || (e.o !== undefined && goneIds.has(e.o)))
+                continue;
+            const originTs = e.o !== undefined ? legacyTs.get(e.o) : undefined;
+            add(legacyToCompact(e, originTs));
+        }
+    };
+    let li = 0;
+    for (const b of ordered) {
+        if (isV2(b)) {
+            for (const e of decodeIndexBlock({ meta: b.meta, body: b.body }))
+                add(e);
+        } else {
+            addLegacy(legacyLists[li++]);
+        }
+    }
+    if (legacyTail) {
+        addLegacy(legacyTail);
+    } else if (tail?.fmt === 2) {
+        for (const e of tail.entries as CompactEntry[]) add(e);
+    }
+
+    all.sort((a, b) => a.t - b.t);
+    // Straight to full-size blocks (compaction would only merge 250-entry
+    // ones on the room's next write); the newest partial run stays the tail.
+    const tailStart = all.length - (all.length % BLOCK_SIZE);
+    const fresh: StoredBlockV2[] = [];
+    const enc = new TextEncoder();
+    let start = 0;
+    let body = 0;
+    for (let i = 0; i < tailStart; i++) {
+        const size = enc.encode(all[i].b).length + 1;
+        if (i > start && body + size > BLOCK_BODY_CAP) {
+            fresh.push(encodeRoomBlock(roomId, all.slice(start, i)));
+            start = i;
+            body = 0;
+        }
+        body += size;
+    }
+    if (start < tailStart)
+        fresh.push(encodeRoomBlock(roomId, all.slice(start, tailStart)));
+    const restTail = all.slice(tailStart);
+
+    const tx = db.transaction([BLOCKS, TAILS], "readwrite");
+    for (const b of blocks) {
+        if (b.id !== undefined) tx.objectStore(BLOCKS).delete(b.id);
+    }
+    for (const block of fresh) tx.objectStore(BLOCKS).add(block);
+    tx.objectStore(TAILS).put({
+        roomId,
+        fmt: 2,
+        entries: restTail,
+    } satisfies StoredTail);
+    await done(tx);
+    s.rooms.delete(roomId);
 }
 
 // ── Live feed ──────────────────────────────────────────────────────────────
@@ -507,8 +1499,27 @@ function liveRedaction(ev: MatrixEvent, room: Room | null | undefined): void {
         (ev.event as { redacts?: string }).redacts ??
         (ev.getContent().redacts as string | undefined);
     if (!target) return;
-    bucket(room.roomId).redacted.push(target);
-    scheduleFlush();
+    const roomId = room.roomId;
+    const s = session;
+    // Marked at once, so an event arriving meanwhile is not queued; the
+    // tombstone (with the redacted event's timestamp) follows once looked up.
+    bucket(roomId).redactedIds.add(target);
+    void lookupOriginTs(roomId, target)
+        .catch((): OriginLookup => ({ kind: "failed" }))
+        .then((r) => {
+            if (!s || !isCurrent(s)) return;
+            if (r.kind === "ts") {
+                noteRedaction(roomId, { eventId: target, ts: r.ts });
+            } else {
+                if (r.kind === "failed")
+                    markFirstFailure(tombKey(roomId, target));
+                noteRedaction(roomId, {
+                    eventId: target,
+                    pending: r.kind === "failed",
+                });
+            }
+            scheduleFlush();
+        });
 }
 
 // ── Coverage ───────────────────────────────────────────────────────────────
@@ -641,6 +1652,10 @@ function liveTick(): void {
         return;
     }
     wasStale = false;
+    // Pending timestamp lookups (tombstones, edits) retry when due.
+    void runPendingRetries().catch((e) =>
+        console.warn("[eventIndex] retry failed", e),
+    );
     const now = Date.now();
     for (const [roomId, from] of liveEdge) {
         void addCoverage(roomId, [from, now]);
@@ -748,13 +1763,12 @@ async function fetchPage(
     }
     // A re-walk (v3 repair, gap walk) meets messages already stored; skipping
     // them stops a message being stored twice.
-    const known = new Set<string>();
+    let known: ReadonlySet<string> = new Set<string>();
     if (minTs !== null && maxTs !== null) {
         await flush();
         if (s.stopped) return null;
         const db = await s.db;
-        for (const e of await roomEntriesIn(db, room.roomId, [[minTs, maxTs]]))
-            known.add(e.e);
+        known = (await chained(() => roomCache(s, db, room.roomId))).keys;
         if (s.stopped) return null;
     }
     for (const e of events) {
@@ -763,17 +1777,20 @@ async function fetchPage(
         // The server hands a redacted event back as a stub: whatever this
         // device still holds of its body goes too.
         if (eventId && e.isRedacted())
-            bucket(room.roomId).redacted.push(eventId);
+            noteRedaction(room.roomId, { eventId, ts: e.getTs() });
         if (!eventId || !sender || e.isDecryptionFailure()) continue;
-        if (known.has(eventId)) continue;
-        queueEvent(room.roomId, {
-            eventId,
-            sender,
-            ts: e.getTs(),
-            type: e.getType(),
-            content: e.getContent(),
-            redacted: e.isRedacted(),
-        });
+        queueEvent(
+            room.roomId,
+            {
+                eventId,
+                sender,
+                ts: e.getTs(),
+                type: e.getType(),
+                content: e.getContent(),
+                redacted: e.isRedacted(),
+            },
+            known,
+        );
     }
     await flush();
     return { end, minTs };
@@ -1181,7 +2198,11 @@ async function runFullBuild(opts: {
 }
 
 async function runCrawler(s: Session): Promise<void> {
+    await serialWrite(() => migrateLegacyIndex(s));
     await serialWrite(() => scrubPriorRedactions(s));
+    void runPendingRetries().catch((e) =>
+        console.warn("[eventIndex] retry failed", e),
+    );
     await seedCoverage(s).catch((e) =>
         console.warn("[eventIndex] coverage seed failed", e),
     );
@@ -1244,8 +2265,13 @@ export function startEventIndex(): () => void {
     const s: Session = {
         client,
         dbName: eventIndexDbName(userId, deviceId),
-        db: openDb(eventIndexDbName(userId, deviceId)),
+        // The block codec must be ready before any block is read or written.
+        db: openDb(eventIndexDbName(userId, deviceId)).then(async (db) => {
+            await initPpmd();
+            return db;
+        }),
         stopped: false,
+        rooms: new Map(),
         detach: () => {
             detachSync();
             client.off(RoomEvent.Timeline, onTimeline as never);
@@ -1332,15 +2358,16 @@ async function redactedIds(
     return new Set(rows.map((r) => r.eventId));
 }
 
-/** A search hit as a MatrixEvent, for the same rendering as server results. */
-function entryEvent(roomId: string, entry: IndexEntry): MatrixEvent {
+/** A search hit as a MatrixEvent, for the same rendering as server results.
+ *  Its event id is a placeholder: jumpTo resolves it (resolveIndexedEventId). */
+function entryEvent(roomId: string, entry: CompactEntry): MatrixEvent {
     const content: Record<string, unknown> = {
         msgtype: entry.m,
         body: entry.b,
     };
     if (entry.v) content["org.matrix.msc3245.voice"] = {};
     return new MatrixEvent({
-        event_id: entry.e,
+        event_id: indexPlaceholderId(entry.h, entry.t),
         room_id: roomId,
         sender: entry.s,
         origin_server_ts: entry.t,
@@ -1366,7 +2393,7 @@ export async function searchLocalIndex(
 ): Promise<LocalSearchResult> {
     const s = session;
     if (!s) return { events: [], complete: false };
-    const toEvents = (entries: IndexEntry[]) =>
+    const toEvents = (entries: CompactEntry[]) =>
         entries.map((e) => entryEvent(roomId, e));
     const db = await s.db;
     // Write what's queued first, so a message that just arrived is findable.
@@ -1386,12 +2413,12 @@ export async function searchLocalIndex(
             { eventId: string }[]
         >,
     ]);
-    const redacted = new Set(redactedRows.map((r) => r.eventId));
-    const all: IndexEntry[] = [...(tail?.entries ?? [])];
+    const redacted = redactionKeysOf(redactedRows);
+    const all: CompactEntry[] = [...tailEntries(tail)];
     blocks.sort((a, b) => b.maxTs - a.maxTs);
     const PARTIAL_AFTER = 8;
     for (let i = 0; i < blocks.length; i++) {
-        all.push(...(await decodeBlock(blocks[i])));
+        all.push(...(await blockEntries(blocks[i])));
         if (
             onPartial &&
             i === PARTIAL_AFTER - 1 &&
@@ -1463,12 +2490,41 @@ export async function getMissingRanges(): Promise<
     return out;
 }
 
+/** The (hash, timestamp) keys of tombstones. A tombstone without a timestamp
+ *  has no key: it removes nothing by hash. */
+function redactionKeysOf(
+    rows: { eventId: string; ts?: number }[],
+): Set<string> {
+    const keys = new Set<string>();
+    for (const r of rows) {
+        if (r.ts !== undefined) {
+            keys.add(redactionKeyOf(eventIdHash(r.eventId), r.ts));
+        }
+    }
+    return keys;
+}
+
+/** A room's tombstones as (hash, timestamp) keys (the full ids are kept in REDACTED). */
+async function redactionKeys(
+    db: IDBDatabase,
+    roomId: string,
+): Promise<Set<string>> {
+    const rows = (await req(
+        db
+            .transaction(REDACTED)
+            .objectStore(REDACTED)
+            .index("room")
+            .getAll(roomId),
+    )) as { eventId: string; ts?: number }[];
+    return redactionKeysOf(rows);
+}
+
 /** Decoded entries of a room's blocks that overlap `ranges`, plus its tail. */
 async function roomEntriesIn(
     db: IDBDatabase,
     roomId: string,
     ranges: Range[],
-): Promise<IndexEntry[]> {
+): Promise<CompactEntry[]> {
     const tx = db.transaction([BLOCKS, TAILS]);
     const [blocks, tail] = await Promise.all([
         req(tx.objectStore(BLOCKS).index("room").getAll(roomId)) as Promise<
@@ -1478,10 +2534,10 @@ async function roomEntriesIn(
             StoredTail | undefined
         >,
     ]);
-    const all: IndexEntry[] = [...(tail?.entries ?? [])];
+    const all: CompactEntry[] = [...tailEntries(tail)];
     for (const b of blocks) {
         if (ranges.some(([lo, hi]) => b.minTs <= hi && b.maxTs >= lo))
-            all.push(...(await decodeBlock(b)));
+            all.push(...(await blockEntries(b)));
     }
     for (const e of pending.get(roomId)?.entries ?? []) all.push(e);
     return entriesInRange(all, ranges);
@@ -1492,18 +2548,16 @@ async function roomEntriesIn(
 export async function readEntriesInRanges(
     roomId: string,
     ranges: Range[],
-): Promise<IndexEntry[]> {
+): Promise<CompactEntry[]> {
     const s = session;
     if (!s) return [];
     const db = await s.db;
     await flush();
     const [entries, redacted] = await Promise.all([
         roomEntriesIn(db, roomId, ranges),
-        redactedIds(db, roomId),
+        redactionKeys(db, roomId),
     ]);
-    return entries.filter(
-        (e) => !redacted.has(e.e) && !(e.o && redacted.has(e.o)),
-    );
+    return dropRedactedEntries(entries, redacted);
 }
 
 /** Merge entries a peer sent for `range` (a full answer: the whole range is
@@ -1511,21 +2565,14 @@ export async function readEntriesInRanges(
 export async function importPeerEntries(
     roomId: string,
     range: Range,
-    entries: IndexEntry[],
+    entries: CompactEntry[],
 ): Promise<number> {
     const s = session;
     if (!s) return 0;
     const db = await s.db;
     await flush();
-    const known = new Set(
-        (await roomEntriesIn(db, roomId, [range])).map((e) => e.e),
-    );
-    const fresh: IndexEntry[] = [];
-    for (const e of entries) {
-        if (known.has(e.e)) continue;
-        known.add(e.e);
-        fresh.push(e);
-    }
+    const known = (await chained(() => roomCache(s, db, roomId))).keys;
+    const fresh = dedupeEntries(entries, known);
     if (fresh.length) {
         bucket(roomId).entries.push(...fresh);
         await flush();
@@ -1549,4 +2596,39 @@ export async function importPeerEntries(
         }
     }
     return fresh.length;
+}
+
+/** The real event id behind a search hit's placeholder, found through the
+ *  server: the event at the hit's timestamp, or one near it with a matching
+ *  hash. The forward lookup is tried first, then the backward one. The
+ *  forward lookup's event is the fallback when neither confirms the hash.
+ *  Null when the server can't say at all. */
+export async function resolveIndexedEventId(
+    roomId: string,
+    placeholderId: string,
+): Promise<string | null> {
+    const parsed = parseIndexPlaceholderId(placeholderId);
+    if (!parsed) return null;
+    let fallback: string | null = null;
+    try {
+        for (const dir of [Direction.Forward, Direction.Backward]) {
+            const anchor = await timestampToEventAnchor(roomId, parsed.t, dir);
+            if (!anchor) continue;
+            if (!fallback) fallback = anchor.eventId;
+            const context =
+                anchor.ts === parsed.t &&
+                eventIdHash(anchor.eventId) === parsed.h
+                    ? []
+                    : await contextEventStamps(
+                          roomId,
+                          anchor.eventId,
+                          RESOLVE_CONTEXT_EVENTS,
+                      );
+            const id = pickResolvedEventId(parsed.h, parsed.t, anchor, context);
+            if (id) return id;
+        }
+    } catch (e) {
+        console.warn("[eventIndex] could not resolve a search hit", e);
+    }
+    return fallback;
 }

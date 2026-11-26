@@ -5,6 +5,7 @@
         searchRoomMessages,
         searchRoomMessagesMore,
         searchLocalIndex,
+        resolveIndexedEventId,
         isEventIndexActive,
         getMemberName,
         getMemberAvatar,
@@ -21,6 +22,8 @@
         type SearchEventMeta,
     } from "$lib/utils/messageSearch";
     import { galleryItems } from "$lib/utils/gallery";
+    import { isIndexPlaceholderId } from "$lib/utils/eventIndex";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
     import {
         activeSearchToken,
         filterMemberSuggestions,
@@ -222,8 +225,16 @@
         const server = (results?.results ?? []).map((r) =>
             r.context.getEvent(),
         );
+        // A local hit the server also returned (same sender and time) is
+        // shown once: the two carry different ids.
+        const serverKeys = new Set(
+            server.map((e) => `${e.getSender()}|${e.getTs()}`),
+        );
+        const local = localEvents.filter(
+            (e) => !serverKeys.has(`${e.getSender()}|${e.getTs()}`),
+        );
         const merged = usedLocal
-            ? [...server, ...localEvents].sort((a, b) => b.getTs() - a.getTs())
+            ? [...server, ...local].sort((a, b) => b.getTs() - a.getTs())
             : server;
         return merged.filter((e) => {
             const id = e.getId();
@@ -259,8 +270,19 @@
             : (results?.count ?? rows.length)),
     );
 
-    function jumpTo(eventId: string) {
-        onJumpTo(eventId);
+    async function jumpTo(eventId: string) {
+        // A hit from the local index carries a placeholder id: the server
+        // gives the real event, which the timeline needs.
+        let target = eventId;
+        if (isIndexPlaceholderId(eventId)) {
+            const resolved = await resolveIndexedEventId(room.roomId, eventId);
+            if (!resolved) {
+                showErrorToast(t("messageSearchPanel.jumpFailed"));
+                return;
+            }
+            target = resolved;
+        }
+        onJumpTo(target);
         // The panel overlays the whole chat on mobile — close it so the
         // jumped-to message is visible. Desktop keeps it open for browsing.
         if (interfaceState.isMobile) onClose();
@@ -462,7 +484,7 @@
                     {@const avatarUrl = getMemberAvatar(room, sender)}
                     {@const name = getMemberName(room, sender)}
                     <button
-                        onclick={() => jumpTo(event.getId()!)}
+                        onclick={() => void jumpTo(event.getId()!)}
                         class="w-full text-start p-2 rounded-lg hover:bg-zam-messageHover transition-colors"
                     >
                         <div class="flex items-center gap-2 mb-1">

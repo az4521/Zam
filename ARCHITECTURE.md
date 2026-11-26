@@ -331,6 +331,39 @@ replaces our SFU publish but not listening: we still receive from everyone else'
 plugin transports ask first (`meshConsent.svelte.ts`): the mesh before opening direct connections, a
 plugin transport before the first receive over it in a call.
 
+### Local message index (`matrix/eventIndex.ts`, `utils/eventIndex.ts`, `utils/indexBlock.ts`)
+
+Search for encrypted rooms runs on a per-device IndexedDB index of decrypted messages. The
+server can't read them, so `searchLocalIndex` decompresses a room's blocks and scans them.
+
+- **Format 2 blocks** (`fmt: 2` rows, `utils/indexBlock.ts`): columnar metadata (senders,
+  msgtypes, timestamps, hashes, flags) plus message bodies, both PPMd-compressed by the
+  WASM codec in `native/ppmd-wasm` (built by `scripts/build-ppmd-wasm.mjs`). The meta part
+  decodes alone, so keys and timestamps are read without touching bodies. Entries carry
+  `h`, a 32-bit FNV-1a hash of the event id, never the full id. Tombstones (REDACTED) keep
+  full ids. Legacy rows (deflated JSON, no `fmt`) are read until migrated.
+- **Migration**: once per DB, on the write chain (`migrateLegacyIndex`). Each room with legacy
+  rows is rewritten in one transaction: duplicates dropped, tombstoned messages dropped,
+  blocks re-cut. A META flag records completion, and an interrupted room is redone.
+- **Dedup**: a message's key is `h:t`. `writeRoom` skips keys already stored (per-room
+  in-memory `Set`, built lazily by `roomCache`), so restarts and re-crawls don't store twice.
+- **Compaction**: after a write, when a room has 8 or more blocks whose bodies are under
+  512 KiB, adjacent blocks are merged up to 1 MiB of body (`maybeCompact`, `planCompaction`).
+  Keys don't change, so the cache stays valid.
+- **Matching**: a message is identified by (hash, timestamp), never by the 32-bit hash alone.
+  Redactions store the redacted event's timestamp; an edit stores its original's timestamp (`ot`), found
+  from the loaded event or `GET /event`. An edit without `ot` links to nothing and stands alone.
+  A redaction whose lookup failed is stored `pending` and retried (live tick, and once at start,
+  backing off to 6 h); until then it matches nothing by hash. An edit whose original lookup failed
+  is listed in the room's pending origins (META `origins:<room>`) and retried the same way.
+  A server answer of not-found clears either entry for good (full-id checks still apply).
+- **Search hits** carry placeholder ids `$zamidx_<hash>_<ts>`. `jumpTo` in
+  `MessageSearchPanel` calls `resolveIndexedEventId`: the server's `timestamp_to_event`,
+  then `/context` around it, picking the event whose hash and timestamp match.
+- **Peer sync** (`utils/eventIndexSync.ts`): requests carry `fmt: [2]`. Only requests that
+  list 2 are answered, with format 2 chunks (`fmt: 2`). Chunks without `fmt` are legacy and
+  still accepted, converted on import; imports go through the same key dedup.
+
 ### Threads
 
 Real SDK threads. **`threadSupport: true` belongs in `startClient()`, not `createClient()`** — the

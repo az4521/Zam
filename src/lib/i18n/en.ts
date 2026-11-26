@@ -1675,6 +1675,8 @@ export const en = {
         "No matches in the results loaded so far.",
     "messageSearchPanel.noResultsFor": 'No results for "{searched}".',
     "messageSearchPanel.searchFailed": "Search failed",
+    "messageSearchPanel.jumpFailed":
+        "Couldn't find that message on the server.",
     "messageSearchPanel.resultCount":
         "{count, plural, one {# result} other {# results}}",
 

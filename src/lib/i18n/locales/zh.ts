@@ -1603,6 +1603,7 @@ const messages: Partial<Record<MessageKey, string>> = {
         "到目前为止加载的结果中没有匹配项。",
     "messageSearchPanel.noResultsFor": "没有“{searched}”的结果。",
     "messageSearchPanel.searchFailed": "搜索失败",
+    "messageSearchPanel.jumpFailed": "无法在服务器上找到该消息。",
     "messageSearchPanel.resultCount": "{count, plural, other {# 个结果}}",
 
     // src/lib/components/settings/MessagesMediaSettings.svelte

@@ -22,6 +22,7 @@ import type { CryptoApi } from "matrix-js-sdk/lib/crypto-api";
 import {
     DAY_MS,
     INDEX_SYNC_BLOCK,
+    INDEX_SYNC_FORMAT,
     INDEX_SYNC_REQUEST,
     capAudit,
     dayCounts,
@@ -33,12 +34,13 @@ import {
     parseSyncRequest,
     rangesCover,
     peerRefusal,
-    unpackBlock,
+    unpackBlockDetailed,
+    type UnpackedEntry,
     windowRanges,
     type IndexSyncBlock,
     type Range,
 } from "$lib/utils/eventIndexSync";
-import type { IndexEntry } from "$lib/utils/eventIndex";
+import type { CompactEntry } from "$lib/utils/indexBlock";
 import {
     deviceAllowed,
     createRateLimit,
@@ -52,6 +54,9 @@ import {
     holdBackfill,
     importPeerEntries,
     indexedRoomIds,
+    isEventIndexActive,
+    recordPendingOrigins,
+    resolveOriginTimes,
     readEntriesInRanges,
 } from "./eventIndex";
 
@@ -170,6 +175,7 @@ export function attachIndexSync(client: MatrixClient): () => void {
     const timers = new Set<ReturnType<typeof setTimeout>>();
     let stopped = false;
     let importedSinceAsk = false;
+    let loggedOldPeer = false;
 
     async function check(
         payload: ReceivedToDevice,
@@ -303,6 +309,7 @@ export function attachIndexSync(client: MatrixClient): () => void {
             id,
             rooms: missing,
             audit,
+            fmt: [INDEX_SYNC_FORMAT],
         });
         // A capped answer leaves some missing: ask again while answers help.
         later(() => {
@@ -319,6 +326,17 @@ export function attachIndexSync(client: MatrixClient): () => void {
         if (!peer) return;
         const request = parseSyncRequest(payload.message.content);
         if (!request) return log(`bad request from ${peer.deviceId}`);
+        // Hashed entries can't be read by a device that lists no format 2:
+        // such a request is not answered (logged once per connection).
+        if (!request.fmt?.includes(INDEX_SYNC_FORMAT)) {
+            if (!loggedOldPeer) {
+                loggedOldPeer = true;
+                log(
+                    `${peer.deviceId} reads only the legacy format: not answering`,
+                );
+            }
+            return;
+        }
         status.requestsReceived++;
         if (!canAnswer()) return log(`rate limited ${peer.deviceId}`);
         log(`${peer.deviceId} asks about ${request.rooms.length} rooms`);
@@ -329,7 +347,7 @@ export function attachIndexSync(client: MatrixClient): () => void {
         const sendRanges = async (
             roomId: string,
             give: Range[],
-            entries: IndexEntry[],
+            entries: CompactEntry[],
         ): Promise<boolean> => {
             // A window at a time: each is all or nothing.
             const windows = give
@@ -343,7 +361,7 @@ export function attachIndexSync(client: MatrixClient): () => void {
                 .sort((a, b) => b[1] - a[1]);
             for (const range of windows) {
                 if (stopped) return false;
-                const blocks = await packEntries(
+                const blocks = packEntries(
                     roomId,
                     request.id,
                     range,
@@ -434,14 +452,32 @@ export function attachIndexSync(client: MatrixClient): () => void {
         status.chunksReceived++;
         if (asm.parts.size < asm.total) return;
         assemblies.delete(key);
-        const entries: IndexEntry[] = [];
-        for (const part of asm.parts.values())
-            entries.push(...(await unpackBlock(part)));
+        const unpacked: UnpackedEntry[] = [];
+        try {
+            for (const part of asm.parts.values())
+                unpacked.push(...(await unpackBlockDetailed(part)));
+        } catch (e) {
+            return log(`dropped an undecodable answer for ${asm.roomId}: ${e}`);
+        }
+        // A legacy edit names its original by full id only: its time is looked
+        // up here. A format 2 edit already carries it.
+        const failedOrigins = await resolveOriginTimes(
+            asm.roomId,
+            unpacked.flatMap((u) =>
+                u.original === undefined
+                    ? []
+                    : [{ entry: u.entry, original: u.original }],
+            ),
+            () => isEventIndexActive(),
+        );
+        const entries = unpacked.map((u) => u.entry);
         const inRange = entriesInRange(entries, [asm.range]).slice(
             0,
             MAX_ENTRIES_PER_WINDOW,
         );
         const added = await importPeerEntries(asm.roomId, asm.range, inRange);
+        // Edits whose original's time failed now: kept for a retry.
+        await recordPendingOrigins(asm.roomId, failedOrigins);
         // Only new entries make another ask worth it; empty windows would
         // otherwise keep the asking going every FOLLOW_UP_MS.
         if (added > 0) importedSinceAsk = true;

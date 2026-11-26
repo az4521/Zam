@@ -1552,6 +1552,8 @@ const messages: Partial<Record<MessageKey, string>> = {
         "Aucune correspondance dans les résultats chargés jusqu'ici.",
     "messageSearchPanel.noResultsFor": "Aucun résultat pour « {searched} ».",
     "messageSearchPanel.searchFailed": "Échec de la recherche",
+    "messageSearchPanel.jumpFailed":
+        "Impossible de trouver ce message sur le serveur.",
     "messageSearchPanel.resultCount":
         "{count, plural, one {# résultat} other {# résultats}}",
 

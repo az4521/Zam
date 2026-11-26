@@ -1705,6 +1705,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageSearchPanel.noResultsFor":
         "Нет результатов по запросу «{searched}».",
     "messageSearchPanel.searchFailed": "Не удалось выполнить поиск",
+    "messageSearchPanel.jumpFailed":
+        "Не удалось найти это сообщение на сервере.",
     "messageSearchPanel.resultCount":
         "{count, plural, one {# результат} few {# результата} many {# результатов} other {# результата}}",
 

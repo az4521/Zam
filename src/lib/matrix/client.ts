@@ -588,6 +588,7 @@ export {
     deleteEventIndex,
     isEventIndexActive,
     searchLocalIndex,
+    resolveIndexedEventId,
     getIndexedMedia,
 } from "./eventIndex";
 export type { LocalSearchResult } from "./eventIndex";
@@ -3392,6 +3393,69 @@ export async function trimRoomHistory(
     rebuildLiveTimeline(room, now.slice(at), res.start);
     contextTimelineSets.delete(roomId);
     return true;
+}
+
+/** The server's event at or after (Forward) or at or before (Backward) a time,
+ *  for resolving an index search hit. Null when the room has none that way. */
+export async function timestampToEventAnchor(
+    roomId: string,
+    ts: number,
+    dir: Direction,
+): Promise<{ eventId: string; ts: number } | null> {
+    if (!matrixClient) return null;
+    const res = await matrixClient.timestampToEvent(roomId, ts, dir);
+    return res?.event_id
+        ? { eventId: res.event_id, ts: res.origin_server_ts }
+        : null;
+}
+
+/** The ids and timestamps of the events the server returns around one event
+ *  (its /context). Nothing is decrypted: the ids are all that is needed. */
+export async function contextEventStamps(
+    roomId: string,
+    eventId: string,
+    limit: number,
+): Promise<{ eventId: string; ts: number }[]> {
+    if (!matrixClient) return [];
+    type Raw = { event_id?: unknown; origin_server_ts?: unknown };
+    const res = await matrixClient.http.authedRequest<{
+        event?: Raw;
+        events_before?: Raw[];
+        events_after?: Raw[];
+    }>(
+        Method.Get,
+        `/rooms/${encodeURIComponent(roomId)}/context/${encodeURIComponent(eventId)}`,
+        { limit: String(limit) },
+    );
+    const out: { eventId: string; ts: number }[] = [];
+    for (const e of [
+        res.event,
+        ...(res.events_before ?? []),
+        ...(res.events_after ?? []),
+    ]) {
+        if (
+            e &&
+            typeof e.event_id === "string" &&
+            typeof e.origin_server_ts === "number"
+        )
+            out.push({ eventId: e.event_id, ts: e.origin_server_ts });
+    }
+    return out;
+}
+
+/** The origin_server_ts of one event from the server (GET /rooms/{roomId}/event/
+ *  {eventId}). Nothing is decrypted. Throws when the request fails, when the
+ *  event is unknown (M_NOT_FOUND) or when the answer has no timestamp. */
+export async function fetchEventOriginTs(
+    roomId: string,
+    eventId: string,
+): Promise<number> {
+    if (!matrixClient) throw new Error("no client");
+    const ev = await matrixClient.fetchRoomEvent(roomId, eventId);
+    if (typeof ev.origin_server_ts !== "number") {
+        throw new Error("event has no origin_server_ts");
+    }
+    return ev.origin_server_ts;
 }
 
 /** Whether `eventId` is in the room's live timeline (or is one of our pending

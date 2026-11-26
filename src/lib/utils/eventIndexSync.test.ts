@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { beforeAll, describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import {
     addRange,
     subtractRanges,
@@ -19,15 +20,37 @@ import {
     type IndexSyncBlock,
     type Range,
 } from "./eventIndexSync";
-import { encodeBlock, type IndexEntry } from "./eventIndex";
+import { entryKey } from "./eventIndex";
+import { eventIdHash, type CompactEntry } from "./indexBlock";
+import { initPpmd } from "./ppmd";
 
-const entry = (id: string, t: number, b = `body ${id}`): IndexEntry => ({
-    e: id,
+const H = eventIdHash;
+
+beforeAll(async () => {
+    await initPpmd(readFileSync("src/lib/utils/ppmd.wasm"));
+});
+
+const entry = (id: string, t: number, b = `body ${id}`): CompactEntry => ({
+    h: H(id),
     s: "@a:x",
     t,
     m: "m.text",
     b,
 });
+
+/** Base64 of a legacy chunk: deflate-raw of a JSON array, as older builds sent. */
+async function legacyChunk(items: unknown[]): Promise<string> {
+    const json = new TextEncoder().encode(JSON.stringify(items));
+    const stream = new CompressionStream("deflate-raw");
+    const writer = stream.writable.getWriter();
+    void writer.write(json).then(() => writer.close());
+    const bytes = new Uint8Array(
+        await new Response(stream.readable).arrayBuffer(),
+    );
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary);
+}
 
 /** Deterministic pseudo-random text, so the blocks don't compress away. */
 function noise(seed: number, length: number): string {
@@ -264,8 +287,8 @@ describe("rangesCover", () => {
 });
 
 describe("packEntries", () => {
-    it("returns one block for a small set with the request fields", async () => {
-        const blocks = await packEntries(
+    it("returns one format 2 block for a small set with the request fields", () => {
+        const blocks = packEntries(
             "!room:x",
             "req-1",
             [100, 200],
@@ -279,19 +302,20 @@ describe("packEntries", () => {
             range: [100, 200],
             seq: 0,
             total: 1,
+            fmt: 2,
         });
         expect(b.data.length).toBeLessThanOrEqual(40_000);
     });
 
     it("returns one empty block when there are no entries", async () => {
-        const blocks = await packEntries("!r:x", "req", [0, 50], []);
+        const blocks = packEntries("!r:x", "req", [0, 50], []);
         expect(blocks).toHaveLength(1);
         expect(blocks[0]).toMatchObject({ seq: 0, total: 1, range: [0, 50] });
         expect(await unpackBlock(blocks[0])).toEqual([]);
     });
 
     it("sorts entries by timestamp before packing", async () => {
-        const blocks = await packEntries(
+        const blocks = packEntries(
             "!r:x",
             "req",
             [0, 100],
@@ -301,19 +325,19 @@ describe("packEntries", () => {
         expect(out.map((e) => e.t)).toEqual([10, 20, 30]);
     });
 
-    it("does not mutate its entries array", async () => {
+    it("does not mutate its entries array", () => {
         const entries = [entry("$b", 20), entry("$a", 10)];
-        await packEntries("!r:x", "req", [0, 100], entries);
-        expect(entries.map((e) => e.e)).toEqual(["$b", "$a"]);
+        packEntries("!r:x", "req", [0, 100], entries);
+        expect(entries.map((e) => e.h)).toEqual([H("$b"), H("$a")]);
     });
 
     it("splits 2000 entries into several blocks, each within maxBytes", async () => {
-        const entries: IndexEntry[] = [];
+        const entries: CompactEntry[] = [];
         for (let i = 0; i < 2000; i++) {
             entries.push(entry(`$e${i}`, 1_000_000 - i * 7, noise(i + 1, 120)));
         }
         const maxBytes = 40_000;
-        const blocks = await packEntries(
+        const blocks = packEntries(
             "!big:x",
             "req-big",
             [0, 2_000_000],
@@ -330,10 +354,10 @@ describe("packEntries", () => {
             expect(b.roomId).toBe("!big:x");
         });
 
-        const unpacked: IndexEntry[] = [];
+        const unpacked: CompactEntry[] = [];
         for (const b of blocks) unpacked.push(...(await unpackBlock(b)));
         expect(unpacked).toHaveLength(2000);
-        expect(new Set(unpacked.map((e) => e.e)).size).toBe(2000);
+        expect(new Set(unpacked.map((e) => e.h)).size).toBe(2000);
         expect(unpacked.map((e) => e.t)).toEqual(
             [...unpacked.map((e) => e.t)].sort((a, b) => a - b),
         );
@@ -341,61 +365,92 @@ describe("packEntries", () => {
 
     it("shortens the body of an entry too big to fit alone", async () => {
         const big = entry("$huge", 5, noise(7, 200_000));
-        const blocks = await packEntries("!r:x", "req", [0, 10], [big]);
+        const blocks = packEntries("!r:x", "req", [0, 10], [big]);
         expect(blocks).toHaveLength(1);
         expect(blocks[0].data.length).toBeLessThanOrEqual(40_000);
         const [out] = await unpackBlock(blocks[0]);
-        expect(out.e).toBe("$huge");
+        expect(out.h).toBe(H("$huge"));
         expect(out.t).toBe(5);
         expect(out.b.length).toBeGreaterThan(0);
         expect(out.b.length).toBeLessThan(big.b.length);
         expect(big.b.startsWith(out.b)).toBe(true);
     });
 
-    it("throws when maxBytes cannot hold even an empty block", async () => {
-        await expect(packEntries("!r:x", "req", [0, 1], [], 1)).rejects.toThrow(
+    it("throws when maxBytes cannot hold even an empty block", () => {
+        expect(() => packEntries("!r:x", "req", [0, 1], [], 1)).toThrow(
             RangeError,
         );
     });
 
-    it("throws when maxBytes cannot hold one entry with an empty body", async () => {
-        await expect(
+    it("throws when maxBytes cannot hold one entry with an empty body", () => {
+        expect(() =>
             packEntries("!r:x", "req", [0, 1], [entry("$a", 1)], 1),
-        ).rejects.toThrow(RangeError);
+        ).toThrow(RangeError);
     });
 });
 
 describe("unpackBlock", () => {
-    it("roundtrips the entries packed into a block", async () => {
+    it("roundtrips the entries packed into a format 2 block", async () => {
         const entries = [entry("$1", 1, "héllo"), entry("$2", 2, "日本語")];
-        const [block] = await packEntries("!r:x", "req", [0, 5], entries);
+        const [block] = packEntries("!r:x", "req", [0, 5], entries);
         expect(await unpackBlock(block)).toEqual(entries);
     });
 
     it("keeps optional edit and voice fields", async () => {
-        const edit: IndexEntry = { ...entry("$3", 3, "fixed"), v: 1, o: "$1" };
-        const [block] = await packEntries("!r:x", "req", [0, 5], [edit]);
+        const edit: CompactEntry = {
+            ...entry("$3", 3, "fixed"),
+            v: 1,
+            o: H("$1"),
+        };
+        const [block] = packEntries("!r:x", "req", [0, 5], [edit]);
         expect(await unpackBlock(block)).toEqual([edit]);
     });
 
-    it("drops malformed items inside a block", async () => {
+    it("rejects a format 2 chunk that does not decode", async () => {
+        const [block] = packEntries("!r:x", "req", [0, 5], [entry("$1", 1)]);
+        // Header bytes that promise more meta than the chunk holds.
+        const bytes = Uint8Array.from(atob(block.data), (c) => c.charCodeAt(0));
+        const broken = bytes.slice(0, 6);
+        broken[0] = 0xff;
+        const data = btoa(String.fromCharCode(...broken));
+        await expect(unpackBlock({ ...block, data })).rejects.toThrow();
+        await expect(unpackBlock({ ...block, data: "AAAA" })).rejects.toThrow();
+    });
+
+    it("reads a legacy deflate chunk, dropping malformed items", async () => {
         const junk = [
-            entry("$good", 1),
+            { e: "$good", s: "@a:x", t: 1, m: "m.text", b: "good" },
             { e: "$no-time", s: "@a:x", m: "m.text", b: "x" },
             { e: "$nan", s: "@a:x", t: NaN, m: "m.text", b: "x" },
             { e: "$bad-v", s: "@a:x", t: 4, m: "m.text", b: "x", v: 2 },
+            { e: "$edit", s: "@a:x", t: 5, m: "m.text", b: "y", o: "$good" },
             null,
             "text",
-        ] as unknown as IndexEntry[];
-        // Built directly: packEntries assumes well-typed entries.
-        const { data } = await encodeBlock(junk);
-        let binary = "";
-        for (const byte of data) binary += String.fromCharCode(byte);
-        const out = await unpackBlock({ ...validBlock(), data: btoa(binary) });
-        expect(out.map((e) => e.e)).toEqual(["$good"]);
+        ];
+        const out = await unpackBlock({
+            ...validBlock(),
+            data: await legacyChunk(junk),
+        });
+        expect(out).toEqual([
+            {
+                h: H("$good"),
+                s: "@a:x",
+                t: 1,
+                m: "m.text",
+                b: "good",
+            },
+            {
+                h: H("$edit"),
+                s: "@a:x",
+                t: 5,
+                m: "m.text",
+                b: "y",
+                o: H("$good"),
+            },
+        ]);
     });
 
-    it("rejects data that is not base64 deflate", async () => {
+    it("rejects legacy data that is not base64 deflate", async () => {
         await expect(
             unpackBlock({ ...validBlock(), data: "%%%not base64%%%" }),
         ).rejects.toThrow();
@@ -403,24 +458,32 @@ describe("unpackBlock", () => {
 });
 
 describe("dedupeEntries", () => {
-    it("drops ids already known", () => {
+    it("drops entries whose key is already known", () => {
         const out = dedupeEntries(
             [entry("$a", 1), entry("$b", 2)],
-            new Set(["$a"]),
+            new Set([entryKey(entry("$a", 1))]),
         );
-        expect(out.map((e) => e.e)).toEqual(["$b"]);
+        expect(out).toEqual([entry("$b", 2)]);
     });
 
-    it("keeps the first of repeated ids within incoming", () => {
+    it("keeps the first of repeated keys within incoming", () => {
         const out = dedupeEntries(
-            [entry("$a", 1, "first"), entry("$a", 2, "second")],
+            [entry("$a", 1, "first"), entry("$a", 1, "second")],
             new Set(),
         );
         expect(out).toEqual([entry("$a", 1, "first")]);
     });
 
+    it("keeps the same event at another time (its key differs)", () => {
+        const out = dedupeEntries(
+            [entry("$a", 2)],
+            new Set([entryKey(entry("$a", 1))]),
+        );
+        expect(out).toEqual([entry("$a", 2)]);
+    });
+
     it("returns an empty list for empty input", () => {
-        expect(dedupeEntries([], new Set(["$a"]))).toEqual([]);
+        expect(dedupeEntries([], new Set(["x"]))).toEqual([]);
     });
 });
 
@@ -433,9 +496,9 @@ describe("entriesInRange", () => {
     ];
 
     it("includes both ends of a range", () => {
-        expect(entriesInRange(entries, [[5, 10]]).map((e) => e.e)).toEqual([
-            "$2",
-            "$3",
+        expect(entriesInRange(entries, [[5, 10]]).map((e) => e.h)).toEqual([
+            H("$2"),
+            H("$3"),
         ]);
     });
 
@@ -444,8 +507,8 @@ describe("entriesInRange", () => {
             entriesInRange(entries, [
                 [0, 0],
                 [20, 30],
-            ]).map((e) => e.e),
-        ).toEqual(["$1", "$4"]);
+            ]).map((e) => e.h),
+        ).toEqual([H("$1"), H("$4")]);
     });
 
     it("returns nothing for no ranges", () => {
@@ -590,8 +653,8 @@ describe("parseSyncRequest", () => {
 });
 
 describe("windowRanges", () => {
-    const at = (t: number): IndexEntry => ({
-        e: `$${t}`,
+    const at = (t: number): CompactEntry => ({
+        h: H(`$${t}`),
         s: "@a:x",
         t,
         m: "m.text",
