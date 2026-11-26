@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { t } from "$lib/i18n";
+    import { LOCALES, getLocale, setLocale, t, type Locale } from "$lib/i18n";
     import { ChevronDown, ChevronRight } from "lucide-svelte";
     import { onMount } from "svelte";
     import { page } from "$app/state";
@@ -621,9 +621,21 @@
 </svelte:head>
 
 <div
-    class="flex items-center justify-center bg-zam-backgroundTertiary p-4"
+    class="relative flex items-center justify-center bg-zam-backgroundTertiary p-4"
     style="min-height: 100vh; min-height: 100dvh;"
 >
+    <!-- Language picker: the app's locale otherwise follows the browser, with
+         no way to change it before signing in. Changing it reloads the page. -->
+    <select
+        class="absolute top-3 right-3 max-w-[10rem] bg-zam-background text-zam-textPrimary text-sm rounded px-2 py-1.5 border border-zam-divider focus:outline-none focus:ring-2 focus:ring-zam-accent"
+        value={getLocale()}
+        onchange={(e) => setLocale(e.currentTarget.value as Locale)}
+        aria-label={t("appearanceSettings.displayLanguage")}
+    >
+        {#each LOCALES as l (l.code)}
+            <option value={l.code}>{l.nativeName}</option>
+        {/each}
+    </select>
     <div class="w-full max-w-md">
         <!-- Card -->
         <div class="bg-zam-background rounded-lg shadow-2xl p-8">
