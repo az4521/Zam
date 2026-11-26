@@ -138,14 +138,48 @@ export function buildFileOffer(offer: FileOffer): Record<string, unknown> {
     };
 }
 
-/** The LiveKit identity lk-jwt-service gives a device. */
+/** The LiveKit identity lk-jwt-service's legacy `/sfu/get` gives a device. */
 export function transferIdentity(userId: string, deviceId: string): string {
     return `${userId}:${deviceId}`;
 }
 
 /**
- * The LiveKit room of one transfer. Only the two devices learn its name. It
- * carries no Matrix room ID: the random secret is enough.
+ * The LiveKit identity lk-jwt-service's `/get_token` gives a device for a
+ * MatrixRTC member: unpadded standard base64 of the SHA-256 of the JSON
+ * array `[userId, deviceId, memberId]` (lk-jwt-service `helper.rs`
+ * `legacy_livekit_identity_for`).
+ */
+export async function transferSlotIdentity(
+    userId: string,
+    deviceId: string,
+    memberId: string,
+): Promise<string> {
+    const data = new TextEncoder().encode(
+        JSON.stringify([userId, deviceId, memberId]),
+    );
+    const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data));
+    return bytesToBase64(hash).replace(/=+$/, "");
+}
+
+/** Every LiveKit identity the peer's device may have in a transfer's rooms:
+ *  its SFU may have answered `/get_token` or only the legacy `/sfu/get`. */
+export async function transferPeerIdentities(
+    userId: string,
+    deviceId: string,
+    transferId: string,
+): Promise<string[]> {
+    return [
+        await transferSlotIdentity(userId, deviceId, transferId),
+        transferIdentity(userId, deviceId),
+    ];
+}
+
+/**
+ * The LiveKit room of one transfer. Only the two devices learn its name. On
+ * `/get_token` it is the MatrixRTC slot within the offer's Matrix room (an
+ * application-service lk-jwt-service only issues tokens for a room the
+ * caller has joined); on legacy `/sfu/get` it is the room name itself. Either
+ * way the random secret keeps it hidden from the rest of the room.
  */
 export function transferRoomAlias(secret: string): string {
     return `zam-transfer-${secret}`;

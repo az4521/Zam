@@ -109,6 +109,8 @@ import {
     isAdvertisedServiceUrl,
     livekitServiceUrls,
     sfuJwtUrl,
+    sfuGetTokenUrl,
+    getTokenUnsupported,
     screenShareCaptureResolution,
 } from "$lib/utils/voiceCall";
 import {
@@ -1324,11 +1326,59 @@ export async function ownSfuTarget(
  *  numbers. Seen live 2026-11-14 in the viewer's SDP. */
 const SEPARATE_PEER_CONNECTIONS = { singlePeerConnection: false } as const;
 
+/** Where a hidden room lives as a MatrixRTC slot: the Matrix room both
+ *  devices are joined to, and the member ID this device joins it as. */
+export interface HiddenSlot {
+    roomId: string;
+    memberId: string;
+}
+
+/**
+ * Ask an SFU's lk-jwt-service for a token to a MatrixRTC slot (`/get_token`,
+ * MSC4195 shape). An application-service lk-jwt-service only answers for a
+ * Matrix room the caller has joined, so a made-up name on `/sfu/get` fails
+ * there (502). Falls back to `/sfu/get` with the slot as the room name when
+ * the service has no `/get_token`; every client asks a given SFU the same
+ * way, so both ends still meet in one LiveKit room.
+ */
+async function fetchSlotJwt(
+    target: LivekitTarget,
+    slot: HiddenSlot,
+): Promise<{ url: string; jwt: string }> {
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    const openIdToken = await matrixClient.getOpenIdToken();
+    await bypassProxyFor(target.serviceUrl);
+    const res = await fetch(sfuGetTokenUrl(target.serviceUrl), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            room_id: slot.roomId,
+            slot_id: target.alias,
+            openid_token: openIdToken,
+            member: {
+                id: slot.memberId,
+                claimed_user_id: matrixClient.getUserId(),
+                claimed_device_id: matrixClient.getDeviceId(),
+            },
+        }),
+    });
+    if (getTokenUnsupported(res.status)) return fetchSfuJwt(target);
+    if (!res.ok) {
+        throw new Error(
+            t("client.voiceServerRejectedTheJoin", { status: res.status }),
+        );
+    }
+    return (await res.json()) as { url: string; jwt: string };
+}
+
 /** Join a LiveKit room no call knows about. Nothing goes in the Matrix room,
  *  so only someone told its name can find it (see fileTransfer.ts). */
-export async function joinHiddenSfuRoom(target: LivekitTarget) {
+export async function joinHiddenSfuRoom(
+    target: LivekitTarget,
+    slot: HiddenSlot,
+) {
     const lk = await livekit.load();
-    const { url, jwt } = await fetchSfuJwt(target);
+    const { url, jwt } = await fetchSlotJwt(target, slot);
     await bypassProxyFor(url);
     const room = new lk.Room({ ...SEPARATE_PEER_CONNECTIONS });
     await room.connect(url, jwt, { autoSubscribe: false });

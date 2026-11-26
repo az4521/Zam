@@ -868,6 +868,9 @@ describe("a direct transfer", () => {
             "@alice:x",
             offer,
         );
+        // The wait for an answer starts once the request is out, after the
+        // receiver's own room (and its peer identities' hashing) is set up.
+        await untilReal(() => !!sentBy(RECEIVER, FILE_REQUEST_TYPE));
         await vi.advanceTimersByTimeAsync(31_000);
         await accepting;
         vi.useRealTimers();

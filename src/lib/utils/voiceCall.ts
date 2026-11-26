@@ -171,6 +171,17 @@ export function sfuJwtUrl(serviceUrl: string): string {
     return `${serviceUrl.replace(/\/+$/, "")}/sfu/get`;
 }
 
+/** lk-jwt-service's MatrixRTC token endpoint (MSC4195 shape) for a focus. */
+export function sfuGetTokenUrl(serviceUrl: string): string {
+    return `${serviceUrl.replace(/\/+$/, "")}/get_token`;
+}
+
+/** Whether a `/get_token` refusal means the service doesn't have that
+ *  endpoint (an older lk-jwt-service), so legacy `/sfu/get` is the way in. */
+export function getTokenUnsupported(status: number): boolean {
+    return status === 404 || status === 405;
+}
+
 export interface LivekitTarget {
     serviceUrl: string;
     alias: string;

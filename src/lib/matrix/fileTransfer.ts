@@ -64,7 +64,7 @@ import {
     importTransferKey,
     parseAckContent,
     randomToken,
-    transferIdentity,
+    transferPeerIdentities,
     transferRoomAlias,
     type AckPacket,
     type FileOffer,
@@ -104,6 +104,7 @@ import {
     joinHiddenSfuRoom,
     ownSfuTarget,
     sfuAdvertisedBy,
+    type HiddenSlot,
 } from "./livekitCall";
 import { hasTurnRelay, meshConsentServers } from "./call/fullMesh/meshPolicy";
 import { requestMeshConsent } from "$lib/stores/meshConsent.svelte";
@@ -466,11 +467,18 @@ function keyBytes(value: unknown): Uint8Array<ArrayBuffer> | null {
     return base64UrlToBytes(value);
 }
 
-function openLink(peerIdentity: string, session: Session): TransferRooms {
+/** `identities` is a promise so that hashing them (WebCrypto) doesn't hold
+ *  up the request or accept; nothing joins or publishes before it settles. */
+function openLink(
+    identities: Promise<string[]>,
+    session: Session,
+    hidden: HiddenSlot,
+): TransferRooms {
     type LkRoom = Awaited<ReturnType<typeof joinHiddenSfuRoom>>["room"];
     let handler: (packet: Uint8Array) => void = () => {};
     let closed = false;
     let ownJoined = false;
+    let peerIdentities: string[] = [];
     const current: Record<"own" | "peer", LkRoom | null> = {
         own: null,
         peer: null,
@@ -480,14 +488,16 @@ function openLink(peerIdentity: string, session: Session): TransferRooms {
         target: SfuRoomTarget,
         slot: "own" | "peer",
     ): Promise<void> {
-        const { room, lk } = await joinHiddenSfuRoom(target);
+        peerIdentities = await identities;
+        const { room, lk } = await joinHiddenSfuRoom(target, hidden);
         // Heard in either room: an older receiver publishes in the sender's.
         room.on(
             lk.RoomEvent.DataReceived,
             (payload, participant, _kind, topic) => {
                 if (
                     topic === FILE_DATA_TOPIC &&
-                    participant?.identity === peerIdentity
+                    participant !== undefined &&
+                    peerIdentities.includes(participant.identity)
                 )
                     handler(payload);
             },
@@ -539,7 +549,8 @@ function openLink(peerIdentity: string, session: Session): TransferRooms {
             await room.localParticipant.publishData(packet, {
                 reliable: true,
                 topic: FILE_DATA_TOPIC,
-                destinationIdentities: [peerIdentity],
+                // Whichever of them the peer joined as; the others match no one.
+                destinationIdentities: peerIdentities,
             });
         },
         onPacket: (h) => (handler = h),
@@ -697,8 +708,9 @@ async function serveRequest(
         let engine: TransferLink;
         if (target) {
             rooms = openLink(
-                transferIdentity(peer.userId, peer.deviceId),
+                transferPeerIdentities(peer.userId, peer.deviceId, transferId),
                 session,
+                { roomId: offered.roomId, memberId: transferId },
             );
             await rooms.joinOwn(target);
             // Without it, acknowledgements still come over to-device messages.
@@ -1167,7 +1179,11 @@ async function receiveFile(
     let direct: ReceiverDirect | null = null;
     let receiver: BlockReceiver | null = null;
     try {
-        rooms = openLink(transferIdentity(peer.userId, peer.deviceId), session);
+        rooms = openLink(
+            transferPeerIdentities(peer.userId, peer.deviceId, transferId),
+            session,
+            { roomId, memberId: transferId },
+        );
         // Joined before the sender hears of it: our SFU may only let us make
         // it. With no room of our own, we try publishing in the sender's.
         let ownRoom = await ownSfuTarget(

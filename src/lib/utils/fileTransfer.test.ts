@@ -40,7 +40,9 @@ import {
     sealedLength,
     sealPacket,
     transferIdentity,
+    transferPeerIdentities,
     transferRoomAlias,
+    transferSlotIdentity,
     treeRoot,
 } from "./fileTransfer";
 
@@ -131,6 +133,24 @@ describe("offer expiry", () => {
 describe("names", () => {
     it("builds lk-jwt-service's identity", () => {
         expect(transferIdentity("@a:b", "DEV")).toBe("@a:b:DEV");
+    });
+
+    it("matches lk-jwt-service's /get_token identity test vector", async () => {
+        expect(
+            await transferSlotIdentity(
+                "@alice:example.com",
+                "DEVICE123",
+                "memberABC",
+            ),
+        ).toBe("J+T45tGruxc+HrUOqJJlyQSV33m728Cme4+vt8/SWrU");
+    });
+
+    it("lists both identities a peer may have", async () => {
+        const ids = await transferPeerIdentities("@a:b", "DEV", "t1");
+        expect(ids).toEqual([
+            await transferSlotIdentity("@a:b", "DEV", "t1"),
+            "@a:b:DEV",
+        ]);
     });
 
     it("names the LiveKit room by its secret alone", () => {
