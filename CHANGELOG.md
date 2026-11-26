@@ -4,6 +4,20 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.9
+
+✨ **New**
+
+- **Share a file in calls.** Pick a video and Zam plays it for everyone as your share, sent at roughly the file's own bitrate instead of re-encoding a screen capture at up to 100 Mbps. You get play/pause, seeking, your own listening volume and stop on your share tile.
+- **No yellow border around shared windows on Windows 11.** The first window share asks Windows for borderless capture; once you allow it, the border is gone. Windows 10 has no way to turn it off.
+
+🐛 **Fixed**
+
+- **The call picture-in-picture window can go fullscreen.** Use its new fullscreen button or double-click it, and press Escape to leave. Double-clicking no longer just maximizes it.
+- **Picture-in-picture controls hide** after a few seconds without mouse or keyboard activity, and come back when you move the mouse.
+- **Direct file transfers work with homeservers whose LiveKit token service runs as an application service** (such as tuwunel 2.1's recommended setup).
+- **Rich presence falls back to the game's own icon** when its listed icon cannot be fetched.
+
 ## v1.67.8
 
 ✨ **New**
