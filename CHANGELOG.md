@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.10
+
+✨ **New**
+
+- **Optional OBS game capture for window shares on Windows.** Turn it on in the share quality options and Zam downloads OBS Studio's own game capture files (checked against pinned hashes) to capture games the way OBS does, without the yellow capture border. If the hook can't deliver frames, the share falls back to normal window capture without ending. Anti-cheat should treat it like OBS, but use it at your own risk.
+
 ## v1.67.9
 
 ✨ **New**
