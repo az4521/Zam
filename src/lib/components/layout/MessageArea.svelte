@@ -126,6 +126,7 @@
     import { daySeparator, messageTimestamp } from "$lib/utils/timeFormat";
     import { renderPlainTextWithTwemoji } from "$lib/utils/twemojiText";
     import { canSendReceipt } from "$lib/utils/receiptGate";
+    import { getLastInputTs, onReturnFromIdle } from "$lib/utils/userActivity";
     import {
         historyEdge,
         hasRoomCreate,
@@ -2248,8 +2249,8 @@
     }
 
     // A read receipt tells other clients the user has *seen* an event, so only
-    // send one when the app could actually display it: the window focused AND
-    // the tab visible. Every markAsRead() call site funnels through this gate
+    // send one when the app could actually display it AND someone is there:
+    // the window focused, the tab visible and recent input. Every markAsRead() call site funnels through this gate
     // (see canSendReceipt) so receipts never fire while the app is hidden or
     // in the background. While gated out, local unread state deliberately
     // persists — it clears when the user next focuses (onWindowFocusRegained).
@@ -2259,6 +2260,8 @@
             canSendReceipt({
                 hasFocus: document.hasFocus(),
                 visible: document.visibilityState === "visible",
+                lastInputTs: getLastInputTs(),
+                now: Date.now(),
             })
         ) {
             markAsRead();
@@ -2282,7 +2285,11 @@
     onMount(() => {
         window.addEventListener("focus", onWindowFocusRegained);
         document.addEventListener("visibilitychange", onWindowFocusRegained);
+        // Back at a window that stayed focused while nobody was there: the
+        // messages that arrived meanwhile were held unread, so read them now.
+        const offReturn = onReturnFromIdle(onWindowFocusRegained);
         return () => {
+            offReturn();
             window.removeEventListener("focus", onWindowFocusRegained);
             document.removeEventListener(
                 "visibilitychange",

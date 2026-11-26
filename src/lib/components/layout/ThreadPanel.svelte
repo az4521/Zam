@@ -27,6 +27,7 @@
     import MessageInput from "$lib/components/messages/MessageInput.svelte";
     import { composerThreadKey } from "$lib/utils/threadContent";
     import { canSendReceipt } from "$lib/utils/receiptGate";
+    import { getLastInputTs, onReturnFromIdle } from "$lib/utils/userActivity";
     import { timelineKey } from "$lib/utils/timelineDisplay";
 
     interface Props {
@@ -151,28 +152,36 @@
     // cascade would become a dependency of this effect while the cascade's
     // writes retrigger it — an infinite loop (effect_update_depth_exceeded)
     // that froze the whole panel. Track only the open thread + latest reply.
+    // Only claim the thread "read" when the user could actually see it —
+    // window focused, tab visible and recent input — mirroring the
+    // main-timeline gate (receiptGate.ts / MessageArea markAsReadIfDisplayable).
+    // Without this a threaded receipt fires while the window is hidden or
+    // unattended (S-A2), and the phone drops the push as already read.
+    function markThreadReadIfDisplayable() {
+        if (
+            canSendReceipt({
+                hasFocus: document.hasFocus(),
+                visible: document.visibilityState === "visible",
+                lastInputTs: getLastInputTs(),
+                now: Date.now(),
+            })
+        ) {
+            markThreadRead(room, rootEventId)
+                .then((cleared) => {
+                    if (cleared) bumpUnreadTick();
+                })
+                .catch(() => {});
+        }
+    }
     $effect(() => {
         void rootEventId;
         void messages.length;
-        untrack(() => {
-            // Only claim the thread "read" when the user could actually see it —
-            // window focused AND tab visible — mirroring the main-timeline gate
-            // (receiptGate.ts / MessageArea markAsReadIfDisplayable). Without this
-            // a threaded receipt fires while the window is hidden/unfocused (S-A2).
-            if (
-                canSendReceipt({
-                    hasFocus: document.hasFocus(),
-                    visible: document.visibilityState === "visible",
-                })
-            ) {
-                markThreadRead(room, rootEventId)
-                    .then((cleared) => {
-                        if (cleared) bumpUnreadTick();
-                    })
-                    .catch(() => {});
-            }
-        });
+        untrack(markThreadReadIfDisplayable);
     });
+    // Replies that landed while nobody was at the window were held unread:
+    // read them on the first input back. A plain listener, not a tracked
+    // scope, for the same reason as the effect above.
+    $effect(() => onReturnFromIdle(markThreadReadIfDisplayable));
 
     // Reset pagination flags when the panel retargets to a different thread root.
     // The panel is reused (no {#key}) across a rootEventId change, so without this

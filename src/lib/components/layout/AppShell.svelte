@@ -314,6 +314,7 @@
         shouldSuppressForActiveDevice,
         shouldWriteHeartbeat,
     } from "$lib/utils/activeSession";
+    import { getLastInputTs, noteUserInput } from "$lib/utils/userActivity";
     import { sameOrder } from "$lib/utils/roomClassification";
     import {
         HIERARCHY_TTL_MS,
@@ -752,7 +753,6 @@
     // inputs reactive is exactly the pattern that has deadlocked this app.
     // Seeded at mount (opening the app is an interaction) and bumped by the
     // passive input listeners registered there.
-    let lastInputTs: number | null = null;
 
     // The account's newest heartbeat, refreshed from sync. Plain `let`: it is
     // read from notification callbacks, never from a tracked scope, and
@@ -781,7 +781,7 @@
                 // has no inbox to fall back on. Require recent input too.
                 hasFocus: isDeviceInUse({
                     hasFocus: document.hasFocus(),
-                    lastInputTs,
+                    lastInputTs: getLastInputTs(),
                     now: Date.now(),
                     idleLimitMs: IDLE_LIMIT_MS,
                 }),
@@ -1930,16 +1930,15 @@
         // Opening the app is itself an interaction — without this seed the
         // first heartbeat could never be written (isDeviceInUse treats a null
         // stamp as "idle").
-        lastInputTs = Date.now();
+        noteUserInput();
         // Passive listeners: they only stamp a number, so they must never
         // block scrolling or typing.
         // Coming back from idle should not wait out the timer.
+        // The stamp lives in userActivity.ts: the read-receipt gate needs the
+        // same "someone is here" answer, and noteUserInput() also wakes
+        // whatever held a receipt back while the device sat idle.
         const onUserInput = () => {
-            const now = Date.now();
-            const wasIdle =
-                lastInputTs === null || now - lastInputTs >= IDLE_LIMIT_MS;
-            lastInputTs = now;
-            if (wasIdle) maybeWriteHeartbeat();
+            if (noteUserInput()) maybeWriteHeartbeat();
         };
         const inputEvents = [
             "pointerdown",
@@ -1950,7 +1949,13 @@
         for (const type of inputEvents)
             window.addEventListener(type, onUserInput, { passive: true });
 
-        const onWindowFocus = () => maybeWriteHeartbeat();
+        // Gaining focus is itself an interaction (alt-tab, a taskbar click, a
+        // notification tap), so it counts as input: without this, switching
+        // back by keyboard would leave the window "idle" until the next click.
+        const onWindowFocus = () => {
+            noteUserInput();
+            maybeWriteHeartbeat();
+        };
         window.addEventListener("focus", onWindowFocus);
         let heartbeatTimer: number | undefined;
         const heartbeatTick = () => {
