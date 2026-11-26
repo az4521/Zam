@@ -20,6 +20,8 @@ if (process.platform !== "win32") {
 const root = fileURLToPath(new URL("../", import.meta.url));
 const srcDir = join(root, "native", "share-capture");
 const src = join(srcDir, "zam-share.cpp");
+// OBS game capture (ported from OBS Studio 33.0.3, GPL-2.0-or-later); see obs-hook.h.
+const obsSrc = join(srcDir, "obs-hook.cpp");
 const outDir = join(srcDir, "build");
 const out = join(outDir, "zam-share.exe");
 const libs = [
@@ -90,6 +92,7 @@ const cl = [
     // experimental header there, which C++20 rejects outright.
     "/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS",
     `"${src}"`,
+    `"${obsSrc}"`,
     `/Fe:"${out}"`,
     `/Fo:"${outDir}\\\\"`,
     "/link",
@@ -104,4 +107,5 @@ execFileSync(
     },
 );
 rmSync(join(outDir, "zam-share.obj"), { force: true });
+rmSync(join(outDir, "obs-hook.obj"), { force: true });
 console.log(`build-share-capture: built ${out}`);

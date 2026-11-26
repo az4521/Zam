@@ -201,6 +201,9 @@ export interface NativeShareSetup {
     maxHeight: number;
     /** Also encode a half-size layer for simulcast (Windows helper). */
     simulcast?: boolean;
+    /** Window shares also use the OBS game-capture hook files, when installed
+     *  (electron/obsHook.cjs). */
+    obsGameCapture?: boolean;
 }
 
 /** What the helper reported when it started (its info JSON, see

@@ -52,15 +52,18 @@ function sanitizeConfig(raw) {
         maxWidth: clampInt(o.maxWidth, 160, 7680, DEFAULTS.maxWidth),
         maxHeight: clampInt(o.maxHeight, 160, 7680, DEFAULTS.maxHeight),
         simulcast: o.simulcast === true,
+        obsGameCapture: o.obsGameCapture === true,
     };
 }
 
 // Command-line arguments for a window source, or null if the source is not a
-// window this helper can capture.
-function helperArgs(sourceId, cfg) {
+// window this helper can capture. `obsDir` is the verified OBS hook folder
+// (obsHook.cjs), passed when the setting is on; the helper decides from there.
+function helperArgs(sourceId, cfg, obsDir = null) {
     const hwnd = windowSourceHwnd(sourceId);
     if (!hwnd) return null;
     return [
+        ...(obsDir ? ["--obs-hook-dir", obsDir] : []),
         "--window",
         hwnd,
         "--fps",
@@ -178,7 +181,9 @@ function killHelper(proc) {
     } catch {}
 }
 
-function createNativeShare(app) {
+// `options.obsHookDir()` gives the verified OBS hook folder, or null (see
+// obsHook.cjs). It is used only when the page's OBS setting is on.
+function createNativeShare(app, options = {}) {
     let cfg = { ...DEFAULTS };
     let current = null;
 
@@ -397,7 +402,18 @@ function createNativeShare(app) {
             try {
                 if (process.platform !== "win32" || !cfg.enabled) return false;
                 if (!webContents) return false;
-                const args = helperArgs(sourceId, cfg);
+                let obsDir = null;
+                if (cfg.obsGameCapture && options.obsHookDir) {
+                    try {
+                        obsDir = options.obsHookDir();
+                    } catch (err) {
+                        console.error(
+                            "native share: OBS hook check failed:",
+                            err,
+                        );
+                    }
+                }
+                const args = helperArgs(sourceId, cfg, obsDir);
                 if (!args) return false;
                 const exe = helperPath(app);
                 if (!fs.existsSync(exe)) return false;

@@ -2718,6 +2718,18 @@ const messages: Partial<Record<MessageKey, string>> = {
     "screenShareQualityChips.nativeCapture": "Помічник захоплення Windows",
     "screenShareQualityChips.nativeCaptureHint":
         "Захоплює й кодує трансляцію поза браузером, тож важка гра її не смикає. Застосовується до наступної трансляції.",
+    "screenShareQualityChips.obsCapture": "Захоплення ігор OBS",
+    "screenShareQualityChips.obsCaptureBusy":
+        "Завантаження файлів захоплення ігор OBS...",
+    "screenShareQualityChips.obsCaptureSource":
+        "Використовує файли захоплення ігор OBS Studio 33.0.3 (GPL-2.0-or-later), завантажені з релізу OBS на GitHub.",
+    "screenShareQualityChips.obsCaptureLicense": "Ліцензія",
+    "screenShareQualityChips.obsCaptureSourceCode": "Вихідний код",
+    "screenShareQualityChips.obsCaptureSourceArchive": "Архів вихідного коду",
+    "screenShareQualityChips.obsCaptureHelp":
+        "Використовує файли захоплення ігор OBS Studio. Античіт має сприймати це як захоплення ігор OBS, але Zam не може гарантувати, що це не буде заблоковано чи позначено. Використовуйте на свій ризик.",
+    "screenShareQualityChips.obsCaptureFailed":
+        "Не вдалося налаштувати захоплення ігор OBS. Перевірте з'єднання та спробуйте ще раз.",
     "screenShareQualityChips.shareSystemAudio": "Ділитися системним звуком",
     "screenShareQualityChips.appliesToNextShare":
         "Застосовується до наступного показу",

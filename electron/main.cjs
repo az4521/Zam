@@ -51,6 +51,7 @@ const { createPresenceImages } = require("./presenceImages.cjs");
 const { linuxExeIconAsync, windowsSteamIcon } = require("./exeIcon.cjs");
 const { createAppAudio } = require("./appAudio.cjs");
 const { createNativeShare } = require("./nativeShare.cjs");
+const { createObsHook } = require("./obsHook.cjs");
 const { resolveShareAudio } = require("./shareAudio.cjs");
 const { createFileLog } = require("./fileLog.cjs");
 const {
@@ -2152,7 +2153,18 @@ ipcMain.on("share-audio:stop", () => appAudio.stop());
 // Native Windows window share (nativeShare.cjs): the page sends its settings
 // before each share; nativeShare sanitises them and applies them at the next
 // grant.
-const nativeShare = createNativeShare(app);
+// OBS game-capture hook files (obsHook.cjs), used by window shares when the
+// setting is on. Downloaded on demand from OBS's GitHub release.
+const obsHook = createObsHook({
+    app,
+    fetchFn: (url, init) => net.fetch(url, init),
+});
+const nativeShare = createNativeShare(app, {
+    obsHookDir: () => obsHook.hookDir(),
+});
+ipcMain.handle("obs-hook:status", () => obsHook.status());
+ipcMain.handle("obs-hook:install", () => obsHook.install());
+ipcMain.handle("obs-hook:remove", () => obsHook.remove());
 app.on("will-quit", () => nativeShare.stop());
 ipcMain.on("native-share:configure", (e, cfg) => {
     if (!mainWindow || e.sender !== mainWindow.webContents) return;

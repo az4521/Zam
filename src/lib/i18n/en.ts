@@ -2636,6 +2636,18 @@ export const en = {
     "screenShareQualityChips.nativeCapture": "Windows capture helper",
     "screenShareQualityChips.nativeCaptureHint":
         "Captures and encodes the share outside the browser, so a busy game doesn't stutter it. Applies to the next share.",
+    "screenShareQualityChips.obsCapture": "OBS game capture",
+    "screenShareQualityChips.obsCaptureBusy":
+        "Downloading OBS game capture files...",
+    "screenShareQualityChips.obsCaptureSource":
+        "Uses OBS Studio 33.0.3 game capture files (GPL-2.0-or-later), downloaded from OBS's GitHub release.",
+    "screenShareQualityChips.obsCaptureLicense": "License",
+    "screenShareQualityChips.obsCaptureSourceCode": "Source code",
+    "screenShareQualityChips.obsCaptureSourceArchive": "Source archive",
+    "screenShareQualityChips.obsCaptureHelp":
+        "Uses OBS Studio's game capture files. Anti-cheat should treat this like OBS game capture, but Zam can't guarantee it won't be blocked or flagged. Use at your own risk.",
+    "screenShareQualityChips.obsCaptureFailed":
+        "Couldn't set up OBS game capture. Check your connection and try again.",
     "screenShareQualityChips.shareSystemAudio": "Share system audio",
     "screenShareQualityChips.appliesToNextShare": "Applies to next share",
     "screenShareQualityChips.shareSystemAudioAppliesToNext":

@@ -7,11 +7,19 @@
         setScreenShareFps,
         setShareSystemAudio,
         setNativeScreenShare,
+        setObsGameCapture,
         setScreenShareBitrate,
         setUploadSpeedOverride,
         uploadOverride,
     } from "$lib/stores/settings.svelte";
+    import { onMount } from "svelte";
     import { nativeShareAvailable } from "$lib/desktopScreenShare";
+    import { showErrorToast } from "$lib/stores/toasts.svelte";
+    import {
+        OBS_LICENSE_URL,
+        OBS_SOURCE_ARCHIVE_URL,
+        OBS_SOURCE_URL,
+    } from "$lib/utils/obsHookLinks";
     import { uploadEstimate } from "$lib/stores/uploadEstimate.svelte";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
     import { switchCallVideoCodec } from "$lib/matrix/client";
@@ -46,6 +54,37 @@
     const isLive = $derived(onQualityChange !== undefined);
     // The Windows desktop app's capture helper (matrix/call/nativeShare).
     const nativeOffered = nativeShareAvailable();
+
+    // OBS game-capture files (electron/obsHook.cjs). Offered only where the
+    // desktop bridge says it is supported (Windows x64).
+    let obsSupported = $state(false);
+    let obsBusy = $state(false);
+    onMount(() => {
+        window.desktop?.obsHook
+            ?.status()
+            .then((s) => (obsSupported = s.supported))
+            .catch(() => {});
+    });
+
+    async function toggleObs(on: boolean): Promise<void> {
+        const hook = window.desktop?.obsHook;
+        if (!hook || obsBusy) return;
+        if (!on) {
+            setObsGameCapture(false);
+            return;
+        }
+        obsBusy = true;
+        try {
+            await hook.install();
+            setObsGameCapture(true);
+        } catch (err) {
+            console.error("OBS game capture setup failed:", err);
+            setObsGameCapture(false);
+            showErrorToast(t("screenShareQualityChips.obsCaptureFailed"));
+        } finally {
+            obsBusy = false;
+        }
+    }
 
     function pickRes(key: string): void {
         setScreenShareResolution(key);
@@ -361,6 +400,55 @@
                 onChange={(v) => setNativeScreenShare(v)}
                 label={t("screenShareQualityChips.nativeCapture")}
             />
+        </div>
+    {/if}
+    {#if obsSupported}
+        <div class="flex items-center justify-between gap-3">
+            <div>
+                <div class="text-sm text-zam-textPrimary">
+                    {t("screenShareQualityChips.obsCapture")}
+                </div>
+                {#if obsBusy}
+                    <div class="text-xs text-zam-textMuted mt-0.5">
+                        {t("screenShareQualityChips.obsCaptureBusy")}
+                    </div>
+                {/if}
+            </div>
+            <ToggleSwitch
+                checked={settingsState.obsGameCapture}
+                disabled={obsBusy}
+                onChange={(v) => toggleObs(v)}
+                label={t("screenShareQualityChips.obsCapture")}
+            />
+        </div>
+        <div class="text-xs text-zam-textMuted -mt-1">
+            <p>
+                {t("screenShareQualityChips.obsCaptureSource")}
+                <a
+                    class="underline hover:text-zam-textPrimary"
+                    href={OBS_LICENSE_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >{t("screenShareQualityChips.obsCaptureLicense")}</a
+                >
+                ·
+                <a
+                    class="underline hover:text-zam-textPrimary"
+                    href={OBS_SOURCE_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >{t("screenShareQualityChips.obsCaptureSourceCode")}</a
+                >
+                ·
+                <a
+                    class="underline hover:text-zam-textPrimary"
+                    href={OBS_SOURCE_ARCHIVE_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >{t("screenShareQualityChips.obsCaptureSourceArchive")}</a
+                >
+            </p>
+            <p class="mt-1">{t("screenShareQualityChips.obsCaptureHelp")}</p>
         </div>
     {/if}
 </div>

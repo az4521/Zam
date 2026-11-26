@@ -2507,6 +2507,17 @@ const messages: Partial<Record<MessageKey, string>> = {
     "screenShareQualityChips.nativeCapture": "Windows 捕获辅助程序",
     "screenShareQualityChips.nativeCaptureHint":
         "在浏览器之外捕获并编码共享画面，因此占用大的游戏不会让共享卡顿。将应用于下一次共享。",
+    "screenShareQualityChips.obsCapture": "OBS 游戏捕获",
+    "screenShareQualityChips.obsCaptureBusy": "正在下载 OBS 游戏捕获文件...",
+    "screenShareQualityChips.obsCaptureSource":
+        "使用 OBS Studio 33.0.3 的游戏捕获文件（GPL-2.0-or-later），从 OBS 的 GitHub 发布版下载。",
+    "screenShareQualityChips.obsCaptureLicense": "许可证",
+    "screenShareQualityChips.obsCaptureSourceCode": "源代码",
+    "screenShareQualityChips.obsCaptureSourceArchive": "源代码压缩包",
+    "screenShareQualityChips.obsCaptureHelp":
+        "使用 OBS Studio 的游戏捕获文件。反作弊应将其视为 OBS 游戏捕获，但 Zam 无法保证不会被阻止或标记。使用风险自负。",
+    "screenShareQualityChips.obsCaptureFailed":
+        "无法设置 OBS 游戏捕获。请检查网络连接后重试。",
     "screenShareQualityChips.shareSystemAudio": "共享系统音频",
     "screenShareQualityChips.appliesToNextShare": "下次共享时生效",
     "screenShareQualityChips.shareSystemAudioAppliesToNext":

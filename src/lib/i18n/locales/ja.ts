@@ -2367,6 +2367,18 @@ const messages: Partial<Record<MessageKey, string>> = {
     "screenShareQualityChips.nativeCapture": "Windows キャプチャヘルパー",
     "screenShareQualityChips.nativeCaptureHint":
         "ブラウザの外で共有をキャプチャしてエンコードするため、負荷の高いゲーム中も映像がかくつきません。次の共有から適用されます。",
+    "screenShareQualityChips.obsCapture": "OBS ゲームキャプチャ",
+    "screenShareQualityChips.obsCaptureBusy":
+        "OBS ゲームキャプチャのファイルをダウンロード中...",
+    "screenShareQualityChips.obsCaptureSource":
+        "OBS Studio 33.0.3 のゲームキャプチャファイル (GPL-2.0-or-later) を、OBS の GitHub リリースからダウンロードして使用します。",
+    "screenShareQualityChips.obsCaptureLicense": "ライセンス",
+    "screenShareQualityChips.obsCaptureSourceCode": "ソースコード",
+    "screenShareQualityChips.obsCaptureSourceArchive": "ソースアーカイブ",
+    "screenShareQualityChips.obsCaptureHelp":
+        "OBS Studio のゲームキャプチャファイルを使用します。アンチチートは OBS のゲームキャプチャと同様に扱うはずですが、Zam はブロックやフラグ付けされないことを保証できません。自己責任でご利用ください。",
+    "screenShareQualityChips.obsCaptureFailed":
+        "OBS ゲームキャプチャを設定できませんでした。接続を確認して、もう一度お試しください。",
     "screenShareQualityChips.shareSystemAudio": "システム音声を共有",
     "screenShareQualityChips.appliesToNextShare": "次回の共有に適用",
     "screenShareQualityChips.shareSystemAudioAppliesToNext":

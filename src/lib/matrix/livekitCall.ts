@@ -4130,6 +4130,7 @@ export async function setScreenShareEnabled(on: boolean): Promise<boolean> {
             simulcast: true,
             maxWidth: res.width,
             maxHeight: res.height,
+            obsGameCapture: settingsState.obsGameCapture,
         });
     } else {
         discardNativeSharePort();

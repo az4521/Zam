@@ -635,6 +635,10 @@ export const settingsState = $state({
      *  native helper, not in Chromium (matrix/call/nativeShare). Only the
      *  Windows desktop app offers it. */
     nativeScreenShare: readAccountBool("nativeScreenShare", true),
+    /** Windows desktop: window shares also use OBS Studio's game-capture hook
+     *  files (electron/obsHook.cjs), downloaded when this is turned on. Off by
+     *  default. */
+    obsGameCapture: readAccountBool("obsGameCapture", false),
     /** Screen-share capture target, applied when a share starts (a mid-share
      *  change would re-prompt the OS picker). Stored as strings for the
      *  <select>s; fps is parsed to a number at the call site. */
@@ -1006,6 +1010,7 @@ export function reloadAccountSettings(): void {
         "nativeScreenShare",
         true,
     );
+    settingsState.obsGameCapture = readAccountBool("obsGameCapture", false);
     settingsState.shareSmoothingMs = readShareSmoothing();
     settingsState.screenShareResolution =
         readAccountString("screenShareResolution") ?? "1080";
@@ -1644,6 +1649,11 @@ export function setShareSystemAudio(value: boolean): void {
 export function setNativeScreenShare(value: boolean): void {
     settingsState.nativeScreenShare = value;
     writeAccountBool("nativeScreenShare", value);
+}
+
+export function setObsGameCapture(value: boolean): void {
+    settingsState.obsGameCapture = value;
+    writeAccountBool("obsGameCapture", value);
 }
 
 export function setShareSmoothingMs(value: number): void {

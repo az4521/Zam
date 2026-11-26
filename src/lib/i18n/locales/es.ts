@@ -2562,6 +2562,19 @@ const messages: Partial<Record<MessageKey, string>> = {
     "screenShareQualityChips.nativeCapture": "Asistente de captura de Windows",
     "screenShareQualityChips.nativeCaptureHint":
         "Captura y codifica la pantalla compartida fuera del navegador, para que un juego exigente no la entrecorte. Se aplica al próximo uso compartido.",
+    "screenShareQualityChips.obsCapture": "Captura de juegos de OBS",
+    "screenShareQualityChips.obsCaptureBusy":
+        "Descargando los archivos de captura de juegos de OBS...",
+    "screenShareQualityChips.obsCaptureSource":
+        "Usa los archivos de captura de juegos de OBS Studio 33.0.3 (GPL-2.0-or-later), descargados de la versión en GitHub de OBS.",
+    "screenShareQualityChips.obsCaptureLicense": "Licencia",
+    "screenShareQualityChips.obsCaptureSourceCode": "Código fuente",
+    "screenShareQualityChips.obsCaptureSourceArchive":
+        "Archivo de código fuente",
+    "screenShareQualityChips.obsCaptureHelp":
+        "Usa los archivos de captura de juegos de OBS Studio. El anticheat debería tratarlo como la captura de juegos de OBS, pero Zam no puede garantizar que no lo bloqueen ni lo marquen. Úsalo bajo tu propio riesgo.",
+    "screenShareQualityChips.obsCaptureFailed":
+        "No se pudo configurar la captura de juegos de OBS. Comprueba tu conexión e inténtalo de nuevo.",
     "screenShareQualityChips.shareSystemAudio":
         "Compartir el audio del sistema",
     "screenShareQualityChips.appliesToNextShare":

@@ -170,6 +170,7 @@ test("sanitizeConfig clamps and defaults", () => {
         maxWidth: 1920,
         maxHeight: 1080,
         simulcast: false,
+        obsGameCapture: false,
     });
     assert.deepEqual(
         sanitizeConfig({
@@ -187,6 +188,7 @@ test("sanitizeConfig clamps and defaults", () => {
             maxWidth: 160,
             maxHeight: 7680,
             simulcast: false,
+            obsGameCapture: false,
         },
     );
     assert.equal(sanitizeConfig({ enabled: true }).enabled, true);
@@ -222,4 +224,15 @@ test("helperArgs only for window sources", () => {
     assert.equal(helperArgs("window:0:0", cfg), null);
     assert.equal(helperArgs("window:abc:0", cfg), null);
     assert.equal(helperArgs(undefined, cfg), null);
+});
+
+test("passes --obs-hook-dir only for a window with a verified hook folder", () => {
+    const cfg = sanitizeConfig({ enabled: true, obsGameCapture: true });
+    assert.equal(cfg.obsGameCapture, true);
+    assert.equal(sanitizeConfig({ enabled: true }).obsGameCapture, false);
+    const win = "window:132456:0";
+    const withHook = helperArgs(win, cfg, "C:\hook");
+    assert.deepEqual(withHook.slice(0, 2), ["--obs-hook-dir", "C:\hook"]);
+    assert.equal(withHook.includes("--window"), true);
+    assert.equal(helperArgs(win, cfg).includes("--obs-hook-dir"), false);
 });

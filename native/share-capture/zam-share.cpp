@@ -54,6 +54,8 @@
 #include <fcntl.h>
 #include <io.h>
 
+#include "obs-hook.h"
+
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "mfplat.lib")
@@ -189,6 +191,8 @@ struct Options {
     // Also encode a half-size layer (at most 30 fps) for simulcast; its AUs
     // carry flag bit 1.
     bool simulcast = false;
+    // OBS game-capture files (obs-hook.cpp). Empty = WGC only.
+    std::wstring obsHookDir;
 };
 static Options g_opt;
 
@@ -249,6 +253,55 @@ static ComPtr<T> dxgiOf(const winrt::Windows::Foundation::IInspectable& obj) {
 // WinRT delegate ends the process, which users saw as a crash on stop).
 static std::atomic<bool> g_captureClosing{false};
 static std::atomic<int> g_framesInFlight{0};
+// True while OBS game capture (obs-hook.cpp) supplies this share's frames.
+static std::atomic<bool> g_hookLive{false};
+
+// Copies one captured frame (on g_dev) into g_sh.captured and advances seq, the one path both WGC and
+// the OBS hook feed. Runs on the WGC callback thread or the hook thread; g_ctx is multithread-protected.
+static void publishFrame(ID3D11Texture2D* src) {
+    D3D11_TEXTURE2D_DESC sd{};
+    src->GetDesc(&sd);
+    // Hook textures may be typeless; the converter and copies need the typed format.
+    if (sd.Format == DXGI_FORMAT_B8G8R8A8_TYPELESS) sd.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    if (sd.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS) sd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    // No D3D call may run under g_sh.m: the pacer takes the D3D lock while holding it.
+    ComPtr<ID3D11Texture2D> dst;
+    {
+        std::lock_guard<std::mutex> lk(g_sh.m);
+        dst = g_sh.captured;
+    }
+    D3D11_TEXTURE2D_DESC dd{};
+    if (dst.Get()) dst->GetDesc(&dd);
+    bool ok = true;
+    if (dst.Get() == nullptr || dd.Width != sd.Width || dd.Height != sd.Height || dd.Format != sd.Format) {
+        D3D11_TEXTURE2D_DESC td = sd;
+        td.MipLevels = 1;
+        td.ArraySize = 1;
+        td.Usage = D3D11_USAGE_DEFAULT;
+        td.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+        td.CPUAccessFlags = 0;
+        td.MiscFlags = 0;
+        td.SampleDesc.Count = 1;
+        td.SampleDesc.Quality = 0;
+        ComPtr<ID3D11Texture2D> t;
+        if (FAILED(g_dev->CreateTexture2D(&td, nullptr, &t))) {
+            ok = false;
+        } else {
+            dst = t;
+            std::lock_guard<std::mutex> lk(g_sh.m);
+            g_sh.captured = t;
+            g_sh.capW = sd.Width;
+            g_sh.capH = sd.Height;
+        }
+    }
+    if (ok) {
+        g_ctx->CopyResource(dst.Get(), src);
+        std::lock_guard<std::mutex> lk(g_sh.m);
+        g_sh.seq++;
+        g_sh.lastCaptureUs = nowUs();
+        g_sh.capturedTotal++;
+    }
+}
 
 static void onFrameArrived(WGC::Direct3D11CaptureFramePool const& pool) {
     struct InFlight {
@@ -271,46 +324,8 @@ static void onFrameArrived(WGC::Direct3D11CaptureFramePool const& pool) {
             g_poolH = (uint32_t)content.Height;
             pool.Recreate(g_winDevice, WDX::DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, content);
         } else {
-            ComPtr<ID3D11Texture2D> src = dxgiOf<ID3D11Texture2D>(frame.Surface());
-            D3D11_TEXTURE2D_DESC sd{};
-            src->GetDesc(&sd);
-            // No D3D call may run under g_sh.m: the pacer takes the D3D lock while holding it.
-            ComPtr<ID3D11Texture2D> dst;
-            {
-                std::lock_guard<std::mutex> lk(g_sh.m);
-                dst = g_sh.captured;
-            }
-            D3D11_TEXTURE2D_DESC dd{};
-            if (dst.Get()) dst->GetDesc(&dd);
-            bool ok = true;
-            if (dst.Get() == nullptr || dd.Width != sd.Width || dd.Height != sd.Height) {
-                D3D11_TEXTURE2D_DESC td = sd;
-                td.MipLevels = 1;
-                td.ArraySize = 1;
-                td.Usage = D3D11_USAGE_DEFAULT;
-                td.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-                td.CPUAccessFlags = 0;
-                td.MiscFlags = 0;
-                td.SampleDesc.Count = 1;
-                td.SampleDesc.Quality = 0;
-                ComPtr<ID3D11Texture2D> t;
-                if (FAILED(g_dev->CreateTexture2D(&td, nullptr, &t))) {
-                    ok = false;
-                } else {
-                    dst = t;
-                    std::lock_guard<std::mutex> lk(g_sh.m);
-                    g_sh.captured = t;
-                    g_sh.capW = sd.Width;
-                    g_sh.capH = sd.Height;
-                }
-            }
-            if (ok) {
-                g_ctx->CopyResource(dst.Get(), src.Get());
-                std::lock_guard<std::mutex> lk(g_sh.m);
-                g_sh.seq++;
-                g_sh.lastCaptureUs = nowUs();
-                g_sh.capturedTotal++;
-            }
+            // While OBS game capture supplies this share's frames, WGC frames are drained and dropped.
+            if (!g_hookLive) publishFrame(dxgiOf<ID3D11Texture2D>(frame.Surface()).Get());
         }
     } catch (...) {
         logf_("share: frame handling failed");
@@ -1378,6 +1393,10 @@ static bool parseArgs(int argc, wchar_t** argv, std::string& err) {
             const wchar_t* v = val(L"--cursor");
             if (!v) return false;
             g_opt.cursor = _wtoi(v) != 0;
+        } else if (a == L"--obs-hook-dir") {
+            const wchar_t* v = val(L"--obs-hook-dir");
+            if (!v) return false;
+            g_opt.obsHookDir = v;
         } else {
             err = "unknown argument: " + toUtf8(a.c_str());
             return false;
@@ -1578,7 +1597,29 @@ int wmain(int argc, wchar_t** argv) {
         logf_("share: trace capture started");
         std::thread(stdinLoop).detach();
 
+        // OBS game capture (optional). WGC keeps running underneath: if the hook cannot start or
+        // stops, its frames are used again and the share continues.
+        if (g_opt.useWindow && !g_opt.obsHookDir.empty()) {
+            obshook::Config hc;
+            hc.dir = g_opt.obsHookDir;
+            hc.hwnd = g_opt.hwnd;
+            hc.device = g_dev.Get();
+            hc.fps = g_opt.fps;
+            hc.onFrame = [](ID3D11Texture2D* src) { publishFrame(src); };
+            hc.onState = [](bool live, const std::string& reason) {
+                g_hookLive = live;
+                if (live) logf_("share: OBS game capture live (window capture paused)");
+                else logf_("share: OBS game capture ended (%s), window capture resumed", reason.c_str());
+            };
+            hc.log = [](const std::string& line) { logf_("%s", line.c_str()); };
+            std::string herr;
+            if (!obshook::start(hc, herr)) logf_("share: OBS game capture not used: %s", herr.c_str());
+        }
+
         code = runPacer();
+        // Stop the hook before the WGC pool goes: its shared texture lives on g_dev.
+        obshook::stop();
+        g_hookLive = false;
 
         g_captureClosing = true;
         pool.FrameArrived(frameToken);

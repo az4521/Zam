@@ -192,6 +192,12 @@ contextBridge.exposeInMainWorld("desktop", {
         configureNative: (cfg) =>
             ipcRenderer.send("native-share:configure", cfg),
     },
+    // OBS game-capture hook files for window shares (obsHook.cjs).
+    obsHook: {
+        status: () => ipcRenderer.invoke("obs-hook:status"),
+        install: () => ipcRenderer.invoke("obs-hook:install"),
+        remove: () => ipcRenderer.invoke("obs-hook:remove"),
+    },
     notify: {
         flash: () => ipcRenderer.send("notify:flash"),
         show: (payload) => ipcRenderer.send("notify:show", payload),

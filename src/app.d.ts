@@ -403,7 +403,36 @@ declare global {
                     bitrate: number;
                     maxWidth: number;
                     maxHeight: number;
+                    simulcast?: boolean;
+                    /** The OBS game-capture setting (electron/obsHook.cjs). */
+                    obsGameCapture?: boolean;
                 }) => void;
+            };
+            /** OBS Studio game-capture hook files for window shares
+             *  (electron/obsHook.cjs). Windows x64 only. */
+            obsHook?: {
+                status: () => Promise<{
+                    supported: boolean;
+                    installed: boolean;
+                    version: string;
+                    busy: boolean;
+                    error?: string;
+                }>;
+                /** Downloads and verifies the files; rejects on failure. */
+                install: () => Promise<{
+                    supported: boolean;
+                    installed: boolean;
+                    version: string;
+                    busy: boolean;
+                    error?: string;
+                }>;
+                remove: () => Promise<{
+                    supported: boolean;
+                    installed: boolean;
+                    version: string;
+                    busy: boolean;
+                    error?: string;
+                }>;
             };
             notify?: {
                 flash: () => void;

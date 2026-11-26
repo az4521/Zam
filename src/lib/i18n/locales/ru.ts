@@ -2695,6 +2695,18 @@ const messages: Partial<Record<MessageKey, string>> = {
     "screenShareQualityChips.nativeCapture": "Помощник захвата Windows",
     "screenShareQualityChips.nativeCaptureHint":
         "Захватывает и кодирует трансляцию вне браузера, поэтому тяжелая игра её не подтормаживает. Применяется к следующей трансляции.",
+    "screenShareQualityChips.obsCapture": "Захват игр OBS",
+    "screenShareQualityChips.obsCaptureBusy":
+        "Загрузка файлов захвата игр OBS...",
+    "screenShareQualityChips.obsCaptureSource":
+        "Использует файлы захвата игр OBS Studio 33.0.3 (GPL-2.0-or-later), загруженные из релиза OBS на GitHub.",
+    "screenShareQualityChips.obsCaptureLicense": "Лицензия",
+    "screenShareQualityChips.obsCaptureSourceCode": "Исходный код",
+    "screenShareQualityChips.obsCaptureSourceArchive": "Архив исходного кода",
+    "screenShareQualityChips.obsCaptureHelp":
+        "Использует файлы захвата игр OBS Studio. Античит должен воспринимать это так же, как захват игр OBS, но Zam не может гарантировать, что это не будет заблокировано или отмечено. Используйте на свой страх и риск.",
+    "screenShareQualityChips.obsCaptureFailed":
+        "Не удалось настроить захват игр OBS. Проверьте подключение и попробуйте снова.",
     "screenShareQualityChips.shareSystemAudio": "Передавать системный звук",
     "screenShareQualityChips.appliesToNextShare":
         "Применится к следующей демонстрации",
