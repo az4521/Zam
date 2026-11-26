@@ -33,6 +33,8 @@
 #include <winrt/Windows.Graphics.Capture.h>
 #include <winrt/Windows.Graphics.DirectX.h>
 #include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
+#include <winrt/Windows.Foundation.Metadata.h>
+#include <winrt/Windows.Security.Authorization.AppCapabilityAccess.h>
 
 #include <algorithm>
 #include <chrono>
@@ -1438,6 +1440,38 @@ static void raisePriority() {
     SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
 }
 
+// Windows 11 borderless capture consent. GraphicsCaptureAccess (UniversalApiContract 12, Windows 11)
+// shows a one-time user prompt; the answer persists for the app. The helper is one process per
+// share, so the result is cached for the process. The class is looked up by name first, so on
+// Windows 10 (no such type) nothing is called. Returns true only when the user allowed it.
+static bool requestBorderlessAccess() {
+    static int state = -1; // -1 not asked yet, 0 not allowed or unavailable, 1 allowed
+    if (state != -1) return state == 1;
+    state = 0;
+    try {
+        if (!winrt::Windows::Foundation::Metadata::ApiInformation::IsTypePresent(
+                L"Windows.Graphics.Capture.GraphicsCaptureAccess")) {
+            logf_("share: borderless access API absent (Windows 10), keeping the capture border");
+            return false;
+        }
+        auto op = WGC::GraphicsCaptureAccess::RequestAccessAsync(WGC::GraphicsCaptureAccessKind::Borderless);
+        // A decided answer returns at once; the first-ever prompt is the only slow case. Do not hold
+        // capture start on it past this bound: the request keeps running and the next share sees it.
+        if (op.wait_for(std::chrono::seconds(10)) != winrt::Windows::Foundation::AsyncStatus::Completed) {
+            logf_("share: borderless access still pending, starting with the capture border");
+            return false;
+        }
+        auto status = op.GetResults();
+        logf_("share: borderless access status %d", (int)status);
+        state = status == winrt::Windows::Security::Authorization::AppCapabilityAccess::AppCapabilityAccessStatus::Allowed ? 1 : 0;
+    } catch (const winrt::hresult_error& e) {
+        logf_("share: borderless access failed 0x%08X", (unsigned)e.code().value);
+    } catch (...) {
+        logf_("share: borderless access failed");
+    }
+    return state == 1;
+}
+
 int wmain(int argc, wchar_t** argv) {
     _setmode(_fileno(stdout), _O_BINARY);
     LARGE_INTEGER f;
@@ -1504,8 +1538,18 @@ int wmain(int argc, wchar_t** argv) {
         }
         // Border removal is IGraphicsCaptureSession3 (newer OS). Query first: calling it on a
         // runtime without the interface crashes instead of throwing.
+        // Applies to window and monitor captures alike (same session). On Windows 11 the setter needs
+        // the borderless consent first, so ask once (cached) and then set it; any failure keeps the border.
+        const bool borderlessOk = requestBorderlessAccess();
         try {
-            if (auto s3 = session.try_as<WGC::IGraphicsCaptureSession3>()) s3.IsBorderRequired(false);
+            if (auto s3 = session.try_as<WGC::IGraphicsCaptureSession3>()) {
+                s3.IsBorderRequired(false);
+                logf_("share: border off (consent %d)", borderlessOk ? 1 : 0);
+            } else {
+                logf_("share: no IGraphicsCaptureSession3, border stays");
+            }
+        } catch (const winrt::hresult_error& e) {
+            logf_("share: IsBorderRequired failed 0x%08X, border stays", (unsigned)e.code().value);
         } catch (...) {
             // Older OS: the capture border stays, which is harmless.
         }
