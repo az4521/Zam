@@ -300,6 +300,8 @@ static void publishFrame(ID3D11Texture2D* src) {
         g_sh.seq++;
         g_sh.lastCaptureUs = nowUs();
         g_sh.capturedTotal++;
+        // Wake the pacer now: with no WGC callback to do it, the hook path relies on this.
+        SetEvent(g_sh.wake);
     }
 }
 
@@ -1135,6 +1137,20 @@ static void emitStats(int64_t now, uint64_t& lastCap, int64_t& lastStatsUs) {
 }
 
 // Returns the process exit code.
+// The WGC session (window or monitor). It is created once: at start, or when the OBS game capture
+// (obs-hook.cpp) gives up on a window share. Until then no WGC item, pool or session exists, so no
+// capture border is drawn while the hook carries the share.
+static bool startWgc(std::string& err);
+static WGC::GraphicsCaptureItem g_item{nullptr};
+static WGC::Direct3D11CaptureFramePool g_pool{nullptr};
+static WGC::GraphicsCaptureSession g_session{nullptr};
+static winrt::event_token g_frameToken{}, g_closedToken{};
+static bool g_wgcStarted = false;
+// Set by the OBS hook thread when the hook gives up; the pacer (main thread) starts WGC.
+static std::atomic<bool> g_wgcWanted{false};
+// Set once the share is ending, so the hook's own stop is not taken for a failure.
+static std::atomic<bool> g_shareEnding{false};
+
 static int runPacer() {
     Encoder enc;
     Converter conv;
@@ -1196,6 +1212,28 @@ static int runPacer() {
             ch = g_sh.capH;
         }
         if (stop) break;
+        if (g_wgcWanted && !g_wgcStarted) {
+            // The OBS hook gave up mid-share: start WGC once, here on the main thread (it owns the
+            // WinRT apartment). Frames then flow through onFrameArrived as they always did.
+            g_wgcWanted = false;
+            if (!IsWindow(g_opt.hwnd)) {
+                stopNow("closed");
+                break;
+            }
+            std::string werr;
+            bool ok = false;
+            try {
+                ok = startWgc(werr);
+            } catch (const winrt::hresult_error& e) {
+                werr = toUtf8(e.message().c_str());
+            } catch (...) {
+                werr = "unexpected failure";
+            }
+            if (!ok) {
+                sendError("window capture failed: " + werr);
+                return 1;
+            }
+        }
         if (keyReq) pendingKey = true;
         if (keyReqLow) pendingKeyLow = true;
         // The low layer: what was asked for, else a quarter of the full one,
@@ -1491,6 +1529,99 @@ static bool requestBorderlessAccess() {
     return state == 1;
 }
 
+// Creates the WGC item, frame pool and session for the window or monitor, and starts it. Runs once.
+static bool startWgc(std::string& err) {
+    if (g_wgcStarted) return true;
+    auto interop = winrt::get_activation_factory<WGC::GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
+    WGC::GraphicsCaptureItem item{nullptr};
+    HRESULT hr;
+    if (g_opt.useWindow) {
+        if (!IsWindow(g_opt.hwnd)) {
+            err = "window handle is not a valid window";
+            return false;
+        }
+        hr = interop->CreateForWindow(g_opt.hwnd, winrt::guid_of<WGC::GraphicsCaptureItem>(),
+                                      reinterpret_cast<void**>(winrt::put_abi(item)));
+    } else {
+        std::vector<HMONITOR> mons;
+        EnumDisplayMonitors(nullptr, nullptr, collectMonitor, reinterpret_cast<LPARAM>(&mons));
+        if (g_opt.monitor < 0 || (size_t)g_opt.monitor >= mons.size()) {
+            err = "monitor index out of range";
+            return false;
+        }
+        hr = interop->CreateForMonitor(mons[g_opt.monitor], winrt::guid_of<WGC::GraphicsCaptureItem>(),
+                                       reinterpret_cast<void**>(winrt::put_abi(item)));
+    }
+    winrt::check_hresult(hr);
+    logf_("share: trace item ok");
+
+    auto size = item.Size();
+    g_poolW = (uint32_t)size.Width;
+    g_poolH = (uint32_t)size.Height;
+    auto pool = WGC::Direct3D11CaptureFramePool::CreateFreeThreaded(
+        g_winDevice, WDX::DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, size);
+    logf_("share: trace pool ok %ux%u", g_poolW, g_poolH);
+    auto session = pool.CreateCaptureSession(item);
+    logf_("share: trace session ok");
+    try {
+        session.IsCursorCaptureEnabled(g_opt.cursor);
+    } catch (...) {
+    }
+    // Border removal is IGraphicsCaptureSession3 (newer OS). Query first: calling it on a
+    // runtime without the interface crashes instead of throwing.
+    // Applies to window and monitor captures alike (same session). On Windows 11 the setter needs
+    // the borderless consent first, so ask once (cached) and then set it; any failure keeps the border.
+    const bool borderlessOk = requestBorderlessAccess();
+    try {
+        if (auto s3 = session.try_as<WGC::IGraphicsCaptureSession3>()) {
+            s3.IsBorderRequired(false);
+            logf_("share: border off (consent %d)", borderlessOk ? 1 : 0);
+        } else {
+            logf_("share: no IGraphicsCaptureSession3, border stays");
+        }
+    } catch (const winrt::hresult_error& e) {
+        logf_("share: IsBorderRequired failed 0x%08X, border stays", (unsigned)e.code().value);
+    } catch (...) {
+        // Older OS: the capture border stays, which is harmless.
+    }
+
+    auto frameToken = pool.FrameArrived([](WGC::Direct3D11CaptureFramePool const& p,
+                                           winrt::Windows::Foundation::IInspectable const&) { onFrameArrived(p); });
+    logf_("share: trace frame handler registered");
+    auto closedToken = item.Closed([](WGC::GraphicsCaptureItem const&, winrt::Windows::Foundation::IInspectable const&) {
+        std::lock_guard<std::mutex> lk(g_sh.m);
+        if (!g_sh.stop) {
+            g_sh.stop = true;
+            g_sh.stopReason = "closed";
+        }
+        SetEvent(g_sh.wake);
+    });
+    logf_("share: trace handlers ok");
+    session.StartCapture();
+    logf_("share: trace capture started");
+
+    g_item = item;
+    g_pool = pool;
+    g_session = session;
+    g_frameToken = frameToken;
+    g_closedToken = closedToken;
+    g_wgcStarted = true;
+    return true;
+}
+
+// Tears down the WGC session if startWgc ran. Safe to call when it never did.
+static void stopWgc() {
+    if (!g_wgcStarted) return;
+    g_captureClosing = true;
+    g_pool.FrameArrived(g_frameToken);
+    // Let a handler that already started finish before the pool goes.
+    for (int i = 0; i < 100 && g_framesInFlight > 0; i++) Sleep(5);
+    g_item.Closed(g_closedToken);
+    g_session.Close();
+    g_pool.Close();
+    g_wgcStarted = false;
+}
+
 int wmain(int argc, wchar_t** argv) {
     _setmode(_fileno(stdout), _O_BINARY);
     LARGE_INTEGER f;
@@ -1518,88 +1649,21 @@ int wmain(int argc, wchar_t** argv) {
         logf_("share: trace mf ok");
 
         g_sh.wake = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-
-        // Resolve the capture item.
-        auto interop = winrt::get_activation_factory<WGC::GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
-        WGC::GraphicsCaptureItem item{nullptr};
-        HRESULT hr;
-        if (g_opt.useWindow) {
-            if (!IsWindow(g_opt.hwnd)) {
-                sendError("window handle is not a valid window");
-                ExitProcess(1);
-            }
-            hr = interop->CreateForWindow(g_opt.hwnd, winrt::guid_of<WGC::GraphicsCaptureItem>(),
-                                          reinterpret_cast<void**>(winrt::put_abi(item)));
-        } else {
-            std::vector<HMONITOR> mons;
-            EnumDisplayMonitors(nullptr, nullptr, collectMonitor, reinterpret_cast<LPARAM>(&mons));
-            if (g_opt.monitor < 0 || (size_t)g_opt.monitor >= mons.size()) {
-                sendError("monitor index out of range");
-                ExitProcess(1);
-            }
-            hr = interop->CreateForMonitor(mons[g_opt.monitor], winrt::guid_of<WGC::GraphicsCaptureItem>(),
-                                           reinterpret_cast<void**>(winrt::put_abi(item)));
-        }
-        winrt::check_hresult(hr);
-        logf_("share: trace item ok");
-
-        auto size = item.Size();
-        g_poolW = (uint32_t)size.Width;
-        g_poolH = (uint32_t)size.Height;
-        auto pool = WGC::Direct3D11CaptureFramePool::CreateFreeThreaded(
-            g_winDevice, WDX::DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, size);
-        logf_("share: trace pool ok %ux%u", g_poolW, g_poolH);
-        auto session = pool.CreateCaptureSession(item);
-        logf_("share: trace session ok");
-        try {
-            session.IsCursorCaptureEnabled(g_opt.cursor);
-        } catch (...) {
-        }
-        // Border removal is IGraphicsCaptureSession3 (newer OS). Query first: calling it on a
-        // runtime without the interface crashes instead of throwing.
-        // Applies to window and monitor captures alike (same session). On Windows 11 the setter needs
-        // the borderless consent first, so ask once (cached) and then set it; any failure keeps the border.
-        const bool borderlessOk = requestBorderlessAccess();
-        try {
-            if (auto s3 = session.try_as<WGC::IGraphicsCaptureSession3>()) {
-                s3.IsBorderRequired(false);
-                logf_("share: border off (consent %d)", borderlessOk ? 1 : 0);
-            } else {
-                logf_("share: no IGraphicsCaptureSession3, border stays");
-            }
-        } catch (const winrt::hresult_error& e) {
-            logf_("share: IsBorderRequired failed 0x%08X, border stays", (unsigned)e.code().value);
-        } catch (...) {
-            // Older OS: the capture border stays, which is harmless.
-        }
-
-        auto frameToken = pool.FrameArrived([](WGC::Direct3D11CaptureFramePool const& p,
-                                               winrt::Windows::Foundation::IInspectable const&) {
-            onFrameArrived(p);
-        });
-        logf_("share: trace frame handler registered");
-        auto closedToken = item.Closed([](WGC::GraphicsCaptureItem const&, winrt::Windows::Foundation::IInspectable const&) {
-            std::lock_guard<std::mutex> lk(g_sh.m);
-            if (!g_sh.stop) {
-                g_sh.stop = true;
-                g_sh.stopReason = "closed";
-            }
-            SetEvent(g_sh.wake);
-        });
-
         {
             std::lock_guard<std::mutex> lk(g_sh.m);
             g_sh.fps = g_opt.fps;
             g_sh.bitrate = g_opt.bitrate;
         }
-        logf_("share: trace handlers ok");
-        session.StartCapture();
-        logf_("share: trace capture started");
-        std::thread(stdinLoop).detach();
 
-        // OBS game capture (optional). WGC keeps running underneath: if the hook cannot start or
-        // stops, its frames are used again and the share continues.
+        // OBS game capture first, for a window share with --obs-hook-dir. While it carries the share
+        // no WGC session exists (so no capture border). If it cannot start, WGC starts now; if it
+        // gives up later, the pacer starts WGC once (g_wgcWanted).
+        bool hookStarted = false;
         if (g_opt.useWindow && !g_opt.obsHookDir.empty()) {
+            if (!IsWindow(g_opt.hwnd)) {
+                sendError("window handle is not a valid window");
+                ExitProcess(1);
+            }
             obshook::Config hc;
             hc.dir = g_opt.obsHookDir;
             hc.hwnd = g_opt.hwnd;
@@ -1608,26 +1672,36 @@ int wmain(int argc, wchar_t** argv) {
             hc.onFrame = [](ID3D11Texture2D* src) { publishFrame(src); };
             hc.onState = [](bool live, const std::string& reason) {
                 g_hookLive = live;
-                if (live) logf_("share: OBS game capture live (window capture paused)");
-                else logf_("share: OBS game capture ended (%s), window capture resumed", reason.c_str());
+                if (live) {
+                    logf_("share: OBS game capture live (no WGC session)");
+                } else if (g_shareEnding) {
+                    logf_("share: OBS game capture stopped");
+                } else {
+                    logf_("share: OBS game capture ended (%s), starting window capture", reason.c_str());
+                    g_wgcWanted = true;
+                }
             };
             hc.log = [](const std::string& line) { logf_("%s", line.c_str()); };
             std::string herr;
-            if (!obshook::start(hc, herr)) logf_("share: OBS game capture not used: %s", herr.c_str());
+            hookStarted = obshook::start(hc, herr);
+            if (!hookStarted) logf_("share: OBS game capture not used: %s", herr.c_str());
+        }
+        if (!hookStarted) {
+            std::string werr;
+            if (!startWgc(werr)) {
+                sendError(werr);
+                ExitProcess(1);
+            }
         }
 
+        std::thread(stdinLoop).detach();
         code = runPacer();
+
         // Stop the hook before the WGC pool goes: its shared texture lives on g_dev.
+        g_shareEnding = true;
         obshook::stop();
         g_hookLive = false;
-
-        g_captureClosing = true;
-        pool.FrameArrived(frameToken);
-        // Let a handler that already started finish before the pool goes.
-        for (int i = 0; i < 100 && g_framesInFlight > 0; i++) Sleep(5);
-        item.Closed(closedToken);
-        session.Close();
-        pool.Close();
+        stopWgc();
 
         std::string reason;
         {
