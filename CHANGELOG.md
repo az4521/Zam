@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.11
+
+🐛 **Fixed**
+
+- **Android notifications no longer turn into a stream of "You have a new message" after the app is closed.** Accounts that sign in through an OAuth provider (such as matrix.org) have short-lived access tokens, and the push service kept using an expired one, so every message showed the generic text and buzzed, even while you were active on another device. The push service now refreshes the token itself, and messages it still cannot read are grouped into one "N new messages" line that only alerts once.
+- **An unattended desktop window no longer marks messages read.** A focused window with nobody at it sent read receipts for every new message, so your phone skipped those notifications. Messages are now marked read only after recent mouse or keyboard input.
+
+⚡ **Improved**
+
+- **The search index for encrypted rooms is about 9 times smaller.** Duplicate entries are removed and the text is compressed; existing indexes are converted automatically.
+
 ## v1.67.10
 
 ✨ **New**
