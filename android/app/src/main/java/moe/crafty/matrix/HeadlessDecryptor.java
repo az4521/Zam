@@ -82,6 +82,38 @@ final class HeadlessDecryptor {
             return null;
         }
 
+        String json = runPage(ctx, params, timeoutMs, started);
+        if (json == null || json.isEmpty()) return null;
+        try {
+            JSONObject r = new JSONObject(json);
+            String type = r.optString("type", "");
+            JSONObject content = r.optJSONObject("content");
+            if (type.isEmpty() || "m.room.encrypted".equals(type) || content == null) {
+                return null;
+            }
+            return new PushDecryptPlugin.Result(type, content);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Load the page with these params and wait (up to timeoutMs) for its
+     * answer. Null on timeout or when the WebView cannot start. Blocking.
+     */
+    private static String runPage(Context ctx, final String params, long timeoutMs,
+            long started) {
+        return runPage(ctx, params, timeoutMs, started, 0L);
+    }
+
+    /**
+     * As above; when the page has not answered by timeoutMs, it is left
+     * running (unseen) for up to lingerMs more before it is torn down. The
+     * token refresh needs that: a page killed between the provider's answer
+     * and the registry write would lose the rotated refresh token.
+     */
+    private static String runPage(Context ctx, final String params, long timeoutMs,
+            long started, long lingerMs) {
         final Context app = ctx.getApplicationContext();
         final CountDownLatch done = new CountDownLatch(1);
         final AtomicReference<String> answer = new AtomicReference<>(null);
@@ -111,7 +143,7 @@ final class HeadlessDecryptor {
 
         // Tear down either way: destroying the WebView also ends its JS, which
         // releases the store lock if the page was still working.
-        main.post(() -> {
+        final Runnable teardown = () -> {
             WebView w = view.getAndSet(null);
             if (w != null) {
                 try {
@@ -119,18 +151,66 @@ final class HeadlessDecryptor {
                     w.destroy();
                 } catch (Throwable ignored) {}
             }
-        });
+        };
+        if (lingerMs > 0 && done.getCount() > 0) {
+            new Thread(() -> {
+                try {
+                    done.await(lingerMs, TimeUnit.MILLISECONDS);
+                } catch (InterruptedException ignored) {}
+                main.post(teardown);
+            }, "push-page-linger").start();
+        } else {
+            main.post(teardown);
+        }
 
-        String json = answer.get();
+        return answer.get();
+    }
+
+    /** How long a refresh page that missed its timeout may still finish. */
+    private static final long REFRESH_LINGER_MS = 20000L;
+
+    /** A refreshed OAuth access token: refreshToken's answer. */
+    static final class Token {
+        final String accessToken;
+        /** Epoch ms it stops working; 0 when the provider did not say. */
+        final long expiresAt;
+
+        Token(String accessToken, long expiresAt) {
+            this.accessToken = accessToken;
+            this.expiresAt = expiresAt;
+        }
+    }
+
+    /**
+     * Refresh an account's expired OAuth access token through the page
+     * (refreshHeadless in pushDecryptHeadless.ts), which keeps the rotated
+     * refresh token in the registry the app reads. Only works while no app
+     * page runs: the page refuses otherwise, since the running app owns the
+     * refresh. Null on refusal, failure or timeout. Blocking: off the main
+     * thread only.
+     */
+    static Token refreshToken(Context ctx, String userId, String staleToken, long timeoutMs) {
+        if (Looper.myLooper() == Looper.getMainLooper()) return null;
+        final long started = SystemClock.elapsedRealtime();
+        final String params;
+        try {
+            JSONObject p = new JSONObject();
+            p.put("mode", "refresh");
+            p.put("userId", userId);
+            p.put("accessToken", staleToken);
+            params = p.toString();
+        } catch (Throwable t) {
+            return null;
+        }
+        String json = runPage(ctx, params, timeoutMs, started, REFRESH_LINGER_MS);
         if (json == null || json.isEmpty()) return null;
         try {
             JSONObject r = new JSONObject(json);
-            String type = r.optString("type", "");
-            JSONObject content = r.optJSONObject("content");
-            if (type.isEmpty() || "m.room.encrypted".equals(type) || content == null) {
-                return null;
-            }
-            return new PushDecryptPlugin.Result(type, content);
+            Object token = r.opt("accessToken");
+            if (!(token instanceof String) || ((String) token).isEmpty()) return null;
+            Object expires = r.opt("expiresAt");
+            long expiresAt = expires instanceof Number ? ((Number) expires).longValue() : 0L;
+            return new Token((String) token, expiresAt);
         } catch (Throwable t) {
             return null;
         }

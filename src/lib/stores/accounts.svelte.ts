@@ -63,6 +63,20 @@ function persist(): void {
 }
 
 /**
+ * Boot step, once this page holds the app-page lock (appPageLock.ts): take
+ * the registry from storage again. The Android push service may have
+ * refreshed an OAuth token while this page was starting, which rotated the
+ * refresh token; the copy loaded at module init would still hold the used-up
+ * one, and the next persist() would write it back over the live one.
+ */
+export function reloadRegistryFromStorage(): void {
+    const fresh = loadRegistry();
+    if (JSON.stringify(fresh) === JSON.stringify(accountsState.registry))
+        return;
+    accountsState.registry = fresh;
+}
+
+/**
  * Boot step, before session restore: when the registry is empty but the
  * IndexedDB copy has accounts, localStorage was wiped under us (Chromium does
  * that after failed writes on a full disk), so put the accounts back. When the

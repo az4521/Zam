@@ -118,6 +118,9 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     // Keys on each MessagingStyle line, for the event-id dedupe in showNotification.
     private static final String LINE_EVENT_ID = "zam_event_id";
     private static final String LINE_PLACEHOLDER = "zam_placeholder";
+    // On the one collapsed placeholder line: the event ids it stands for, as
+    // a JSON array (PushTokens.idsToJson).
+    private static final String LINE_PLACEHOLDER_IDS = "zam_placeholder_ids";
     /** Notification extra: the room a conversation notification is for. */
     private static final String NOTIF_ROOM_ID = "zam_room_id";
     // Push-rule id prefix for a room's "mentions only" override (the room id
@@ -298,23 +301,58 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     PushLog.log(ctx, tag + "waited " + waited + "ms for a validated network");
                 }
             }
-            // Another device is demonstrably in use → stay quiet. Checked
-            // before the enrichment fetches below so a suppressed push costs
-            // one request instead of five. Never throws; false on any doubt.
-            if (shouldStayQuiet(ctx, tag, hs, token, selfUserId, selfDeviceId)) return;
-            // Already read on another client: when the phone wakes, FCM can
-            // deliver pushes queued while it was off. Fails open (see
-            // isRoomReadElsewhere). Runs before the event is known, so it also
-            // applies to m.call.notify; see the note there.
-            boolean checkRead = session != null && roomId != null;
-            Boolean readElsewhere = checkRead ? isRoomReadElsewhere(hs, token, roomId) : Boolean.FALSE;
-            if (checkRead && readElsewhere == null) {
-                // The request itself failed (no answer at all): one retry.
-                pauseQuietly(RETRY_DELAY_MS);
-                readElsewhere = isRoomReadElsewhere(hs, token, roomId);
-                if (readElsewhere == null) {
-                    PushLog.log(ctx, tag + "read check failed twice, notifying");
+            // An OAuth access token lives minutes (matrix.org: 5). Only the
+            // running app refreshes it, so a push that arrives after the app
+            // closed finds the mirrored one expired, and every request below
+            // would fail with 401: the generic text, and every check that
+            // fails open (quiet, read) letting it through. Refresh first.
+            boolean refreshTried = false;
+            if (session != null && PushTokens.needsRefresh(session.oauth,
+                    session.accessTokenExpiresAt, System.currentTimeMillis())) {
+                refreshTried = true;
+                PushLog.log(ctx, tag + "access token expired, refreshing");
+                SessionRecord fresh = refreshSession(ctx, tag, session);
+                if (fresh != null) {
+                    session = fresh;
+                    token = fresh.accessToken;
                 }
+            }
+            Boolean readElsewhere = Boolean.FALSE;
+            for (int attempt = 0; ; attempt++) {
+                // Another device is demonstrably in use → stay quiet. Checked
+                // before the enrichment fetches below so a suppressed push costs
+                // one request instead of five. Never throws; false on any doubt.
+                if (shouldStayQuiet(ctx, tag, hs, token, selfUserId, selfDeviceId)) return;
+                // Already read on another client: when the phone wakes, FCM can
+                // deliver pushes queued while it was off. Fails open (see
+                // isRoomReadElsewhere). Runs before the event is known, so it also
+                // applies to m.call.notify; see the note there.
+                boolean checkRead = session != null && roomId != null;
+                readElsewhere = checkRead ? isRoomReadElsewhere(hs, token, roomId) : Boolean.FALSE;
+                if (checkRead && readElsewhere == null && !lastRequestAuthFailed()) {
+                    // The request itself failed (no answer at all): one retry.
+                    pauseQuietly(RETRY_DELAY_MS);
+                    readElsewhere = isRoomReadElsewhere(hs, token, roomId);
+                }
+                // The token was refused (an expiry the record did not state,
+                // or a token revoked meanwhile): refresh once and check again.
+                if (checkRead && readElsewhere == null && lastRequestAuthFailed()
+                        && !refreshTried && attempt == 0) {
+                    refreshTried = true;
+                    PushLog.log(ctx, tag + "access token refused ("
+                        + lastRequestOutcome() + "), refreshing");
+                    SessionRecord fresh = refreshSession(ctx, tag, session);
+                    if (fresh != null) {
+                        session = fresh;
+                        token = fresh.accessToken;
+                        continue;
+                    }
+                }
+                if (checkRead && readElsewhere == null) {
+                    PushLog.log(ctx, tag + "read check failed (" + lastRequestOutcome()
+                        + "), notifying");
+                }
+                break;
             }
             if (Boolean.TRUE.equals(readElsewhere)) {
                 PushLog.log(ctx, tag + "skipped: room already read (server count 0)");
@@ -350,7 +388,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                     pauseQuietly(RETRY_DELAY_MS);
                     event = fetchEvent(hs, token, roomId, eventId);
                     PushLog.log(ctx, tag + "event fetch retry "
-                        + (event != null ? "succeeded" : "failed"));
+                        + (event != null ? "succeeded" : "failed (" + lastRequestOutcome() + ")"));
                 }
                 // An invite: the push names our own invite event, which an
                 // invitee usually cannot fetch (only joined members see a
@@ -612,12 +650,28 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         final String accessToken;
         final String userId;
         final String deviceId; // may be null — the reader then never suppresses
+        // An OAuth session: its access token expires and must be refreshed
+        // (refreshSession). False for password and legacy-SSO sessions.
+        final boolean oauth;
+        // Epoch ms the access token stops working; 0 when unknown.
+        final long accessTokenExpiresAt;
 
         SessionRecord(String hs, String token, String user, String device) {
+            this(hs, token, user, device, false, 0L);
+        }
+
+        SessionRecord(String hs, String token, String user, String device,
+                boolean oauth, long accessTokenExpiresAt) {
             this.homeserverUrl = hs;
             this.accessToken = token;
             this.userId = user;
             this.deviceId = device;
+            this.oauth = oauth;
+            this.accessTokenExpiresAt = accessTokenExpiresAt;
+        }
+
+        SessionRecord withToken(String token, long expiresAt) {
+            return new SessionRecord(homeserverUrl, token, userId, deviceId, oauth, expiresAt);
         }
     }
 
@@ -866,10 +920,122 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             // hs + "/_matrix/…" and "https://hs/" would double the slash. No
             // TS/JS counterpart — those copies do not build URLs this way.
             // Cannot eat the host: a hostless URL was refused above.
-            return new SessionRecord(hs.replaceAll("/+$", ""), token, user, deviceId);
+            // The OAuth fields are optional and never fail the record (as in
+            // oauthFields() in nativeSessionRecord.ts): a malformed expiry is
+            // "unknown", and a 401 still triggers the refresh.
+            boolean oauth = o.opt("oauth") instanceof JSONObject;
+            Object rawExpiry = o.opt("accessTokenExpiresAt");
+            long expiresAt = rawExpiry instanceof Number
+                    && Double.isFinite(((Number) rawExpiry).doubleValue())
+                    && ((Number) rawExpiry).doubleValue() > 0
+                ? ((Number) rawExpiry).longValue() : 0L;
+            return new SessionRecord(hs.replaceAll("/+$", ""), token, user, deviceId,
+                oauth, expiresAt);
         } catch (Exception e) {
             return null; // not JSON, not an object, or anything unexpected
         }
+    }
+
+    // ── Access-token refresh ────────────────────────────────────────────────
+
+    /** One refresh at a time: FCM and UnifiedPush pushes run on their own threads. */
+    private static final Object REFRESH_LOCK = new Object();
+    /** The hidden page's refresh: WebView start plus two bounded requests. */
+    private static final long REFRESH_TIMEOUT_MS = 10000L;
+    /** How long to wait for a running app to re-mirror a token it refreshed. */
+    private static final long LIVE_APP_REFRESH_WAIT_MS = 3000L;
+
+    /**
+     * The session again with an access token that works, or null when none
+     * could be had. An OAuth session only: the others do not expire.
+     *
+     * The refresh token is never mirrored natively (see NativeSessionRecord in
+     * nativeSessionRecord.ts): it rotates, and two holders refreshing would
+     * leave one with a dead one. So the hidden push page does the refresh,
+     * from the app's own registry, and only while no app page runs
+     * (HeadlessDecryptor.refreshToken). When the app runs, it is the one to
+     * refresh; its new token reaches this record through syncNativeSession,
+     * which is waited for briefly.
+     */
+    private static SessionRecord refreshSession(Context ctx, String tag, SessionRecord session) {
+        if (session == null || !session.oauth) return null;
+        synchronized (REFRESH_LOCK) {
+            // Another push, or the app, may have refreshed while this one waited.
+            SessionRecord current = reloadSession(ctx, session.userId);
+            if (current != null && !current.accessToken.equals(session.accessToken)
+                    && !PushTokens.needsRefresh(true, current.accessTokenExpiresAt,
+                        System.currentTimeMillis())) {
+                PushLog.log(ctx, tag + "access token was refreshed meanwhile");
+                return current;
+            }
+            long started = System.currentTimeMillis();
+            HeadlessDecryptor.Token fresh = HeadlessDecryptor.refreshToken(ctx,
+                session.userId, session.accessToken, REFRESH_TIMEOUT_MS);
+            if (fresh != null) {
+                storeRefreshedToken(ctx, session.userId, fresh.accessToken, fresh.expiresAt);
+                PushLog.log(ctx, tag + "access token refreshed in "
+                    + (System.currentTimeMillis() - started) + "ms");
+                return session.withToken(fresh.accessToken, fresh.expiresAt);
+            }
+            if (MainActivity.bridgeStarted()) {
+                long deadline = System.currentTimeMillis() + LIVE_APP_REFRESH_WAIT_MS;
+                while (System.currentTimeMillis() < deadline) {
+                    pauseQuietly(500L);
+                    SessionRecord again = reloadSession(ctx, session.userId);
+                    if (again != null && !again.accessToken.equals(session.accessToken)) {
+                        PushLog.log(ctx, tag + "access token refreshed by the running app");
+                        return again;
+                    }
+                }
+            }
+            PushLog.log(ctx, tag + "access token expired and could not be refreshed"
+                + " (logcat tag PushDecrypt says why)");
+            return null;
+        }
+    }
+
+    /**
+     * The session, refreshed first when its token is known to be expired;
+     * the session as it was when the refresh fails (its requests then fail as
+     * before). For the native surfaces that call the homeserver outside a
+     * push: the badge-push cleanup and the notification actions.
+     */
+    static SessionRecord withUsableToken(Context ctx, String tag, SessionRecord session) {
+        if (session == null || !PushTokens.needsRefresh(session.oauth,
+                session.accessTokenExpiresAt, System.currentTimeMillis())) return session;
+        SessionRecord fresh = refreshSession(ctx, tag, session);
+        return fresh != null ? fresh : session;
+    }
+
+    /** The stored session for this user, read afresh. Null when gone. */
+    private static SessionRecord reloadSession(Context ctx, String userId) {
+        try {
+            SharedPreferences prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            return resolveSession(prefs, readSessionRecord(prefs), userId);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /**
+     * Write a refreshed access token into this user's stored records (the
+     * active one when it is theirs, and their all-accounts entry), so the
+     * next push starts with it. The app's own registry already has it: the
+     * page wrote it there, and the app re-mirrors from that on its next start.
+     */
+    private static void storeRefreshedToken(Context ctx, String userId, String token,
+            long expiresAt) {
+        try {
+            SharedPreferences prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            SharedPreferences.Editor edit = prefs.edit();
+            String active = PushTokens.withAccessToken(prefs.getString(KEY_SESSION, null),
+                userId, token, expiresAt);
+            if (active != null) edit.putString(KEY_SESSION, active);
+            String map = PushTokens.withAccountAccessToken(
+                prefs.getString(KEY_SESSION_ACCOUNTS, null), userId, token, expiresAt);
+            if (map != null) edit.putString(KEY_SESSION_ACCOUNTS, map);
+            edit.commit();
+        } catch (Throwable ignored) {}
     }
 
     // ── Active-session suppression ──────────────────────────────────────────
@@ -1665,14 +1831,57 @@ public class MatrixMessagingService extends FirebaseMessagingService {
         return out;
     }
 
+    // The outcome of this thread's last httpGet / httpPostJson, for the push
+    // log and the expired-token check: the HTTP status, or -1 when no answer
+    // came (network error, timeout). Pushes run one per thread (FCM's and
+    // UnifiedPush's), so a ThreadLocal keeps them apart.
+    private static final ThreadLocal<Integer> LAST_STATUS = new ThreadLocal<>();
+    private static final ThreadLocal<String> LAST_ERRCODE = new ThreadLocal<>();
+
+    private static void noteStatus(int status, HttpURLConnection conn) {
+        LAST_STATUS.set(status);
+        String errcode = null;
+        if (status >= 400 && conn != null) {
+            try (InputStream es = conn.getErrorStream()) {
+                if (es != null) {
+                    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                    byte[] buf = new byte[1024];
+                    int n;
+                    while ((n = es.read(buf)) != -1 && out.size() < 4096) out.write(buf, 0, n);
+                    Object code = new JSONObject(out.toString("UTF-8")).opt("errcode");
+                    if (code instanceof String) errcode = (String) code;
+                }
+            } catch (Throwable ignored) {}
+        }
+        LAST_ERRCODE.set(errcode);
+    }
+
+    /** Whether this thread's last request was refused for its access token. */
+    private static boolean lastRequestAuthFailed() {
+        Integer status = LAST_STATUS.get();
+        return status != null && PushTokens.isAuthFailure(status, LAST_ERRCODE.get());
+    }
+
+    /** This thread's last request outcome for the log: "HTTP 401 M_UNKNOWN_TOKEN", "no answer". */
+    private static String lastRequestOutcome() {
+        Integer status = LAST_STATUS.get();
+        if (status == null) return "not sent";
+        if (status < 0) return "no answer";
+        String errcode = LAST_ERRCODE.get();
+        return "HTTP " + status + (errcode != null ? " " + errcode : "");
+    }
+
     private static String httpGet(String urlStr, String token) {
         HttpURLConnection conn = null;
+        LAST_STATUS.set(-1);
+        LAST_ERRCODE.set(null);
         try {
             conn = ZamProxy.open(new URL(urlStr));
             conn.setConnectTimeout(CONNECT_TIMEOUT);
             conn.setReadTimeout(READ_TIMEOUT);
             conn.setRequestProperty("Authorization", "Bearer " + token);
             int code = conn.getResponseCode();
+            noteStatus(code, conn);
             if (code != 200) return null;
             try (InputStream is = conn.getInputStream()) {
                 java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
@@ -1691,6 +1900,8 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     /** POST a JSON body. Response text on 200, else null. Same timeouts and auth as httpGet. */
     private static String httpPostJson(String urlStr, String token, String json) {
         HttpURLConnection conn = null;
+        LAST_STATUS.set(-1);
+        LAST_ERRCODE.set(null);
         try {
             conn = ZamProxy.open(new URL(urlStr));
             conn.setConnectTimeout(CONNECT_TIMEOUT);
@@ -1704,7 +1915,9 @@ public class MatrixMessagingService extends FirebaseMessagingService {
             try (java.io.OutputStream os = conn.getOutputStream()) {
                 os.write(payload);
             }
-            if (conn.getResponseCode() != 200) return null;
+            int code = conn.getResponseCode();
+            noteStatus(code, conn);
+            if (code != 200) return null;
             try (InputStream is = conn.getInputStream()) {
                 java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
                 byte[] buf = new byte[4096];
@@ -1778,6 +1991,7 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                         || room.hashCode() == sbn.getId())) idByRoom.put(room, sbn.getId());
             }
             if (idByRoom.isEmpty()) return 0;
+            session = withUsableToken(ctx, "badge push: ", session);
             String json = fetchRoomCounts(session.homeserverUrl, session.accessToken,
                 idByRoom.keySet());
             if (json == null) return 0;
@@ -1869,6 +2083,31 @@ public class MatrixMessagingService extends FirebaseMessagingService {
     private static boolean lineIsPlaceholder(NotificationCompat.MessagingStyle.Message m) {
         Bundle extras = m.getExtras();
         return extras != null && extras.getBoolean(LINE_PLACEHOLDER, false);
+    }
+
+    /** The event ids a placeholder line stands for (one, before lines were collapsed). */
+    private static java.util.List<String> placeholderIds(
+            NotificationCompat.MessagingStyle.Message m) {
+        Bundle extras = m.getExtras();
+        java.util.List<String> ids = PushTokens.idsFromJson(
+            extras != null ? extras.getString(LINE_PLACEHOLDER_IDS) : null);
+        if (ids.isEmpty() && lineEventId(m) != null) ids.add(lineEventId(m));
+        return ids;
+    }
+
+    /** The one collapsed placeholder line for these unread, unreadable messages. */
+    private static NotificationCompat.MessagingStyle.Message placeholderLine(
+            java.util.List<String> ids, long ts, Person author) {
+        NotificationCompat.MessagingStyle.Message line =
+            new NotificationCompat.MessagingStyle.Message(
+                PushTokens.placeholderText(ids.size()), ts, author);
+        Bundle extras = line.getExtras();
+        if (extras != null) {
+            if (!ids.isEmpty()) extras.putString(LINE_EVENT_ID, ids.get(ids.size() - 1));
+            extras.putBoolean(LINE_PLACEHOLDER, true);
+            extras.putString(LINE_PLACEHOLDER_IDS, PushTokens.idsToJson(ids));
+        }
+        return line;
     }
 
     private static void showNotification(Context ctx, String title, String body, String roomId,
@@ -2051,6 +2290,29 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                         }
                     }
                 }
+                // Placeholders collapse into ONE line ("3 new messages"): a
+                // run of pushes that could not be read used to stack a "You
+                // have a new message" line per push, and alert for each.
+                java.util.List<String> pendingIds = new java.util.ArrayList<>();
+                NotificationCompat.MessagingStyle.Message oldPlaceholder = null;
+                for (NotificationCompat.MessagingStyle.Message m : previous) {
+                    if (!lineIsPlaceholder(m)) continue;
+                    if (oldPlaceholder == null) oldPlaceholder = m;
+                    for (String id : placeholderIds(m)) {
+                        pendingIds = PushTokens.addPlaceholderId(pendingIds, id);
+                    }
+                }
+                pendingIds = placeholder
+                    ? PushTokens.addPlaceholderId(pendingIds, eventId)
+                    : PushTokens.withoutPlaceholderId(pendingIds, eventId);
+                // Already saying "new messages": a further unreadable one
+                // updates the count without buzzing again.
+                if (placeholder && oldPlaceholder != null) builder.setOnlyAlertOnce(true);
+                if (placeholder) {
+                    String count = PushTokens.placeholderText(pendingIds.size());
+                    builder.setContentText(count)
+                        .setStyle(new NotificationCompat.BigTextStyle().bigText(count));
+                }
                 // Rebuilt from the old style, minus the same event's line: the
                 // title and group flags carry over as they were set above.
                 NotificationCompat.MessagingStyle rebuilt =
@@ -2058,25 +2320,38 @@ public class MatrixMessagingService extends FirebaseMessagingService {
                 rebuilt.setConversationTitle(style.getConversationTitle());
                 rebuilt.setGroupConversation(style.isGroupConversation());
                 for (NotificationCompat.MessagingStyle.Message m : previous) {
+                    if (lineIsPlaceholder(m)) {
+                        // The collapsed line keeps its place while a real
+                        // message arrives; a new placeholder moves it last.
+                        if (m == oldPlaceholder && !placeholder && !pendingIds.isEmpty()) {
+                            rebuilt.addMessage(placeholderLine(pendingIds, m.getTimestamp(),
+                                m.getPerson() != null ? m.getPerson() : authorPerson));
+                        }
+                        continue;
+                    }
                     if (eventId != null && eventId.equals(lineEventId(m))) continue;
                     rebuilt.addMessage(m);
                 }
-                // The message itself when there is one (the "sent a message"
-                // placeholder when its text is hidden).
-                NotificationCompat.MessagingStyle.Message line =
-                    new NotificationCompat.MessagingStyle.Message(
+                NotificationCompat.MessagingStyle.Message line;
+                if (placeholder) {
+                    line = placeholderLine(pendingIds, ts, authorPerson);
+                } else {
+                    // The message itself when there is one (the "sent a message"
+                    // placeholder when its text is hidden).
+                    line = new NotificationCompat.MessagingStyle.Message(
                         msgBody != null ? msgBody : body, ts, authorPerson);
-                if (msgImage != null) {
-                    Uri imageUri = saveNotificationImage(ctx, msgImage);
-                    if (imageUri != null) line.setData("image/jpeg", imageUri);
-                }
-                // Extras travel with the line through the notification's own
-                // bundle (androidx writes and reads them in Message.toBundle /
-                // getMessageFromBundle), so the next push can find this event.
-                Bundle lineExtras = line.getExtras();
-                if (eventId != null && lineExtras != null) {
-                    lineExtras.putString(LINE_EVENT_ID, eventId);
-                    lineExtras.putBoolean(LINE_PLACEHOLDER, placeholder);
+                    if (msgImage != null) {
+                        Uri imageUri = saveNotificationImage(ctx, msgImage);
+                        if (imageUri != null) line.setData("image/jpeg", imageUri);
+                    }
+                    // Extras travel with the line through the notification's own
+                    // bundle (androidx writes and reads them in Message.toBundle /
+                    // getMessageFromBundle), so the next push can find this event.
+                    Bundle lineExtras = line.getExtras();
+                    if (eventId != null && lineExtras != null) {
+                        lineExtras.putString(LINE_EVENT_ID, eventId);
+                        lineExtras.putBoolean(LINE_PLACEHOLDER, false);
+                    }
                 }
                 rebuilt.addMessage(line);
                 style = rebuilt;

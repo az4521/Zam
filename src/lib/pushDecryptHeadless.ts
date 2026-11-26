@@ -27,6 +27,12 @@ import {
     initAsync,
 } from "@matrix-org/matrix-sdk-crypto-wasm";
 import { getCryptoDbName, getCryptoLockName } from "./utils/cryptoStore";
+import {
+    APP_PAGE_LOCK,
+    REGISTRY_STORAGE_KEY,
+    refreshStoredAccount,
+} from "./utils/headlessTokenRefresh";
+import { writeRegistryBackup } from "./utils/registryBackup";
 // AbortSignal.timeout, below, is newer than some Android WebViews.
 import "./polyfills";
 
@@ -216,4 +222,85 @@ async function receivePendingToDevice(
             : undefined,
     );
     return true;
+}
+
+export interface HeadlessRefreshParams {
+    userId: string;
+    /** The access token the push service found not working. */
+    accessToken: string;
+}
+
+export interface HeadlessRefreshResult {
+    accessToken: string;
+    /** Epoch ms the new token stops working, when the provider said. */
+    expiresAt?: number;
+}
+
+/** Bound on each request the refresh makes (metadata, token endpoint). */
+const REFRESH_FETCH_TIMEOUT_MS = 5000;
+
+/**
+ * Refresh an account's OAuth access token while no app page runs, and store
+ * the rotated pair in the registry the app reads (headlessTokenRefresh.ts).
+ * Null when an app page is running (it owns the refresh), the account is not
+ * an OAuth one, or anything fails. Never throws.
+ */
+export async function refreshHeadless(
+    params: HeadlessRefreshParams,
+): Promise<HeadlessRefreshResult | null> {
+    try {
+        const locks = (globalThis.navigator as Navigator | undefined)?.locks;
+        // Without locks there is no way to know no page is refreshing too.
+        if (!locks) {
+            trace("refresh: no Web Locks, giving up");
+            return null;
+        }
+        return await locks.request(
+            APP_PAGE_LOCK,
+            { mode: "exclusive", ifAvailable: true },
+            async (lock) => {
+                if (!lock) {
+                    trace("refresh: an app page is running, it refreshes");
+                    return null;
+                }
+                const outcome = await refreshStoredAccount({
+                    registryRaw: localStorage.getItem(REGISTRY_STORAGE_KEY),
+                    userId: params.userId,
+                    staleAccessToken: params.accessToken,
+                    now: Date.now(),
+                    fetchFn: (input, init) => fetch(input, init),
+                    timeoutMs: REFRESH_FETCH_TIMEOUT_MS,
+                });
+                if (!outcome.ok) {
+                    trace(`refresh: ${outcome.reason}`);
+                    return null;
+                }
+                if (outcome.registryRaw !== null) {
+                    // Still under the lock: the rotated refresh token must be
+                    // stored before any app page can read the registry.
+                    try {
+                        localStorage.setItem(
+                            REGISTRY_STORAGE_KEY,
+                            outcome.registryRaw,
+                        );
+                    } catch (e) {
+                        trace("refresh: registry write", e);
+                    }
+                    await writeRegistryBackup(outcome.registryRaw);
+                    trace("refresh: refreshed");
+                } else {
+                    trace("refresh: stored token is newer, used as is");
+                }
+                return {
+                    accessToken: outcome.accessToken,
+                    ...(outcome.expiresAt !== undefined
+                        ? { expiresAt: outcome.expiresAt }
+                        : {}),
+                };
+            },
+        );
+    } catch (e) {
+        trace("refresh: failed", e);
+        return null;
+    }
 }

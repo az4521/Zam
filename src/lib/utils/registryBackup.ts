@@ -66,15 +66,22 @@ function openDb(): Promise<IDBDatabase> {
  * Write the serialized registry. Fire-and-forget: a failure (the disk is full
  * too) keeps the previous copy, which is still the best one available.
  * Transactions on one store complete in the order they were created, so the
- * newest call wins.
+ * newest call wins. The promise settles (never rejects) once the write is
+ * done or has failed: the hidden push page waits on it before it is torn down.
  */
-export function writeRegistryBackup(raw: string): void {
-    if (typeof indexedDB === "undefined") return;
-    openDb()
-        .then((db) => {
-            const tx = db.transaction(STORE, "readwrite");
-            tx.objectStore(STORE).put(raw, KEY);
-        })
+export function writeRegistryBackup(raw: string): Promise<void> {
+    if (typeof indexedDB === "undefined") return Promise.resolve();
+    return openDb()
+        .then(
+            (db) =>
+                new Promise<void>((resolve) => {
+                    const tx = db.transaction(STORE, "readwrite");
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => resolve();
+                    tx.onabort = () => resolve();
+                    tx.objectStore(STORE).put(raw, KEY);
+                }),
+        )
         .catch(() => {});
 }
 

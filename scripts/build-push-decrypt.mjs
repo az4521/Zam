@@ -63,8 +63,13 @@ writeFileSync(
     let result = null;
     try {
         const params = JSON.parse(PushDecryptHost.params());
-        params.wasmUrl = new URL(pushDecryptHeadless.wasmPath, location.href).href;
-        result = await pushDecryptHeadless.decryptHeadless(params);
+        if (params.mode === "refresh") {
+            // An expired OAuth access token (HeadlessDecryptor.refreshToken).
+            result = await pushDecryptHeadless.refreshHeadless(params);
+        } else {
+            params.wasmUrl = new URL(pushDecryptHeadless.wasmPath, location.href).href;
+            result = await pushDecryptHeadless.decryptHeadless(params);
+        }
     } catch (e) {
         console.info("[push-decrypt] page: " + e);
     }

@@ -86,7 +86,10 @@ public class MessageActionReceiver extends BroadcastReceiver {
             MatrixMessagingService.PREFS, Context.MODE_PRIVATE);
         MatrixMessagingService.SessionRecord session = MatrixMessagingService.resolveSession(
             prefs, MatrixMessagingService.readSessionRecord(prefs), userId);
-        return session != null && userId.equals(session.userId) ? session : null;
+        if (session == null || !userId.equals(session.userId)) return null;
+        // An OAuth token expires minutes after the app closes (see
+        // MatrixMessagingService.refreshSession).
+        return MatrixMessagingService.withUsableToken(context, "notification action: ", session);
     }
 
     private static void declineInvite(Context context, String roomId, String userId)
@@ -142,10 +145,8 @@ public class MessageActionReceiver extends BroadcastReceiver {
             MatrixMessagingService.PREFS, Context.MODE_PRIVATE);
         // The account the notification was posted under (PRIV-02), whichever
         // signed-in account that is: never another account's credentials.
-        if (userId == null) return;
-        MatrixMessagingService.SessionRecord session = MatrixMessagingService.resolveSession(
-            prefs, MatrixMessagingService.readSessionRecord(prefs), userId);
-        if (session == null || !userId.equals(session.userId)) return;
+        MatrixMessagingService.SessionRecord session = sessionFor(context, userId);
+        if (session == null) return;
 
         String base = session.homeserverUrl + "/_matrix/client/v3/rooms/"
             + MatrixMessagingService.enc(roomId);

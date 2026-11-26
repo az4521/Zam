@@ -42,8 +42,10 @@
     import {
         accountsState,
         recoverRegistryFromBackup,
+        reloadRegistryFromStorage,
         switchActive,
     } from "$lib/stores/accounts.svelte";
+    import { holdAppPageLock } from "$lib/appPageLock";
     import { getLastOpenedRoomId } from "$lib/stores/rooms.svelte";
     import { deepLinkBootAccount } from "$lib/utils/deepLinkHash";
     import { rootView, shouldRestoreSession } from "$lib/utils/sessionView";
@@ -320,6 +322,11 @@
     onMount(() => {
         (async () => {
             bootMark("restore-start");
+            // Before anything reads tokens: wait out a token refresh the
+            // Android push service may be running (appPageLock.ts), then take
+            // the registry it may have rewritten.
+            await holdAppPageLock();
+            reloadRegistryFromStorage();
             // Put back accounts a localStorage wipe took (registryBackup.ts)
             // BEFORE anything reads the registry, the wipe sweep below included.
             const recovered = await recoverRegistryFromBackup();
