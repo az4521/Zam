@@ -126,7 +126,17 @@
         // turns the maximise into it). It is a user gesture, so fullscreen is
         // allowed here.
         const onToggleFullscreen = () => toggleFullscreen();
+        // In fullscreen Chromium drops the drag region, so the double-click
+        // reaches the page as a plain dblclick instead of the maximise above.
+        // Only then; double-clicks on the controls stay theirs.
+        const onDblClick = (e: MouseEvent) => {
+            if (!doc.fullscreenElement) return;
+            const target = e.target as Element | null;
+            if (target?.closest?.("button, input, select, a")) return;
+            toggleFullscreen();
+        };
         const listeners: Array<[string, EventListener]> = [
+            ["dblclick", onDblClick as EventListener],
             ["pointermove", onActivity],
             ["pointerdown", onActivity],
             ["focusin", onActivity],
