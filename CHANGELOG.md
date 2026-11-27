@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.17
+
+⚡ **Improved**
+
+- **The launch placeholders fade smoothly into the app**, and the placeholder room list now matches the width of your real one.
+
+🐛 **Fixed**
+
+- **Rooms no longer look unread at launch and then flip to read** as the app finishes connecting.
+- **The room list and DMs no longer rearrange while syncing.** Saved order, favourites and low-priority rooms stay where they were, and a DM's position no longer jumps when messages decrypt.
+- **The "join rooms" section in a space no longer fills up and then empties** during launch.
+
 ## v1.67.16
 
 ⚡ **Improved**
