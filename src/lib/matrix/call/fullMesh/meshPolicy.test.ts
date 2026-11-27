@@ -77,6 +77,11 @@ describe("isLivekitTransport", () => {
         expect(isLivekitTransport(meshFor("D1"))).toBe(false);
     });
 
+    it("accepts both livekit type names", () => {
+        expect(isLivekitTransport({ type: "livekit" })).toBe(true);
+        expect(isLivekitTransport({ type: "m.livekit" })).toBe(true);
+    });
+
     it("is false for non-objects and missing values", () => {
         expect(isLivekitTransport(undefined)).toBe(false);
         expect(isLivekitTransport(null)).toBe(false);

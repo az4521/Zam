@@ -571,7 +571,7 @@ function namedRoom(content: Record<string, unknown>): SfuRoomTarget | null {
     if (
         typeof serviceUrl !== "string" ||
         typeof alias !== "string" ||
-        !serviceUrl.startsWith("https://")
+        !(serviceUrl.startsWith("https://") || serviceUrl.startsWith("wss://"))
     )
         return null;
     return { serviceUrl, alias };

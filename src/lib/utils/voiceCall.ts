@@ -183,22 +183,47 @@ export function getTokenUnsupported(status: number): boolean {
 }
 
 export interface LivekitTarget {
+    /** An lk-jwt-service base URL (https), or, for an MSC4195 `url`
+     *  transport, the SFU's WebSocket URL (wss), whose token comes from the
+     *  homeserver instead (isWsSfuUrl). */
     serviceUrl: string;
     alias: string;
+    /** MSC4195 `server_name`: the homeserver of the SFU, when not our own. */
+    serverName?: string;
 }
 
-function asLivekit(
-    t: unknown,
-): { livekit_service_url: string; livekit_alias?: string } | null {
+/** Whether an SFU URL is a WebSocket URL (an MSC4195 transport, token from
+ *  the homeserver) rather than an lk-jwt-service base URL. */
+export function isWsSfuUrl(url: string): boolean {
+    return /^wss?:\/\//i.test(url);
+}
+
+function asLivekit(t: unknown): {
+    livekit_service_url: string;
+    livekit_alias?: string;
+    server_name?: string;
+} | null {
     if (typeof t !== "object" || t === null) return null;
     const o = t as Record<string, unknown>;
-    if (o.type !== "livekit" || typeof o.livekit_service_url !== "string")
-        return null;
+    // MSC4195 names the type "m.livekit"; deployed implementations still use
+    // "livekit". Accept both.
+    if (o.type !== "livekit" && o.type !== "m.livekit") return null;
+    // An lk-jwt-service transport names its service; an MSC4195 one (tuwunel)
+    // only the SFU's WebSocket `url`.
+    const url =
+        typeof o.livekit_service_url === "string"
+            ? o.livekit_service_url
+            : typeof o.url === "string" && o.url.startsWith("wss://")
+              ? o.url
+              : null;
+    if (url === null) return null;
     return {
-        livekit_service_url: o.livekit_service_url,
-        // Remote membership data — a non-string alias must not leak through.
+        livekit_service_url: url,
+        // Remote membership data: a non-string alias must not leak through.
         livekit_alias:
             typeof o.livekit_alias === "string" ? o.livekit_alias : undefined,
+        server_name:
+            typeof o.server_name === "string" ? o.server_name : undefined,
     };
 }
 
@@ -218,6 +243,7 @@ export function pickLivekitTransport(
             return {
                 serviceUrl: lk.livekit_service_url,
                 alias: lk.livekit_alias ?? roomId,
+                serverName: lk.server_name,
             };
     }
     for (const t of configuredFoci) {
@@ -241,7 +267,12 @@ export function livekitServiceUrls(foci: unknown): string[] {
 function normalServiceUrl(url: string): string | null {
     try {
         const u = new URL(url);
-        if (u.protocol !== "https:" || u.username || u.password) return null;
+        if (
+            (u.protocol !== "https:" && u.protocol !== "wss:") ||
+            u.username ||
+            u.password
+        )
+            return null;
         return `${u.origin}${u.pathname.replace(/\/+$/, "")}`;
     } catch {
         return null;
@@ -333,9 +364,10 @@ export function remoteLivekitTargets(
     for (const t of memberTransports) {
         const lk = asLivekit(t);
         if (!lk) continue;
-        const target = {
+        const target: LivekitTarget = {
             serviceUrl: lk.livekit_service_url,
             alias: lk.livekit_alias ?? roomId,
+            serverName: lk.server_name,
         };
         const key = livekitTargetKey(target);
         if (key !== publishKey && !out.has(key)) out.set(key, target);

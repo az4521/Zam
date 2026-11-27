@@ -42,7 +42,7 @@ export function withMeshCanSubscribe<T>(membership: T): T {
 }
 
 export function isLivekitTransport(t: unknown): boolean {
-    return isRecord(t) && t.type === "livekit";
+    return isRecord(t) && (t.type === "livekit" || t.type === "m.livekit");
 }
 
 /**

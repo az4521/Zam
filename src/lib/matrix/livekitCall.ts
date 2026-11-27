@@ -110,6 +110,7 @@ import {
     livekitServiceUrls,
     sfuJwtUrl,
     sfuGetTokenUrl,
+    isWsSfuUrl,
     getTokenUnsupported,
     screenShareCaptureResolution,
 } from "$lib/utils/voiceCall";
@@ -1240,10 +1241,14 @@ export async function configuredRtcFoci(): Promise<unknown[]> {
     try {
         const res = await matrixClient.http.authedRequest<{
             rtc_transports?: unknown;
+            transports?: unknown;
         }>(Method.Get, "/rtc/transports", undefined, undefined, {
             prefix: ClientPrefix.V1,
         });
-        if (Array.isArray(res.rtc_transports)) return res.rtc_transports;
+        // MSC4143 names the list `rtc_transports`; tuwunel and matrix.org
+        // answer with `transports`.
+        const list = res.rtc_transports ?? res.transports;
+        if (Array.isArray(list)) return list;
     } catch (err) {
         console.warn(
             "[call] couldn't read the homeserver's RTC transports",
@@ -1303,12 +1308,55 @@ export async function sfuAdvertisedBy(
     return isAdvertisedServiceUrl(serviceUrl, urls);
 }
 
+/** A MatrixRTC slot and our member in it, for a homeserver token request. */
+interface SlotRef {
+    roomId: string;
+    slotId: string;
+    memberId: string;
+}
+
+/** The slot a call's own membership is in. */
+function callSlot(call: ActiveVoiceCall): SlotRef {
+    return {
+        roomId: call.roomId,
+        slotId: call.session.slotId,
+        memberId: `${matrixClient?.getUserId()}:${matrixClient?.getDeviceId()}`,
+    };
+}
+
+/** MSC4195: the homeserver issues the token for an SFU named by its
+ *  WebSocket URL (tuwunel advertises no lk-jwt-service). The homeserver
+ *  checks the room, the member and that it is the SFU of `server_name`. */
+async function fetchHomeserverJwt(
+    target: LivekitTarget,
+    slot: SlotRef,
+): Promise<{ url: string; jwt: string }> {
+    if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    const res = await matrixClient.http.authedRequest<{ jwt?: unknown }>(
+        Method.Post,
+        "/rtc/livekit/get_token",
+        undefined,
+        {
+            ...(target.serverName ? { server_name: target.serverName } : {}),
+            url: target.serviceUrl,
+            room_id: slot.roomId,
+            slot_id: slot.slotId,
+            member_id: slot.memberId,
+        },
+        { prefix: ClientPrefix.V1 },
+    );
+    if (typeof res.jwt !== "string") throw new Error("no jwt in get_token");
+    return { url: target.serviceUrl, jwt: res.jwt };
+}
+
 /** Ask an SFU's lk-jwt-service for a LiveKit token (legacy /sfu/get). On our
  *  own SFU it may publish; on another homeserver's it is listen-only. */
 async function fetchSfuJwt(
     target: LivekitTarget,
+    slot: SlotRef,
 ): Promise<{ url: string; jwt: string }> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    if (isWsSfuUrl(target.serviceUrl)) return fetchHomeserverJwt(target, slot);
     const openIdToken = await matrixClient.getOpenIdToken();
     await bypassProxyFor(target.serviceUrl);
     const res = await fetch(sfuJwtUrl(target.serviceUrl), {
@@ -1367,6 +1415,12 @@ async function fetchSlotJwt(
     slot: HiddenSlot,
 ): Promise<{ url: string; jwt: string }> {
     if (!matrixClient) throw new Error(t("client.notLoggedIn"));
+    if (isWsSfuUrl(target.serviceUrl))
+        return fetchHomeserverJwt(target, {
+            roomId: slot.roomId,
+            slotId: target.alias,
+            memberId: slot.memberId,
+        });
     const openIdToken = await matrixClient.getOpenIdToken();
     await bypassProxyFor(target.serviceUrl);
     const res = await fetch(sfuGetTokenUrl(target.serviceUrl), {
@@ -1383,7 +1437,12 @@ async function fetchSlotJwt(
             },
         }),
     });
-    if (getTokenUnsupported(res.status)) return fetchSfuJwt(target);
+    if (getTokenUnsupported(res.status))
+        return fetchSfuJwt(target, {
+            roomId: slot.roomId,
+            slotId: target.alias,
+            memberId: slot.memberId,
+        });
     if (!res.ok) {
         throw new Error(
             t("client.voiceServerRejectedTheJoin", { status: res.status }),
@@ -2309,6 +2368,9 @@ async function syncRemoteSfus(call: ActiveVoiceCall): Promise<void> {
         others.map(async ({ m, transport }) => {
             const named = pickLivekitTransport([transport], [], call.roomId);
             if (!named) return true; // not an SFU; remoteLivekitTargets skips it
+            // A WebSocket-URL SFU gets its token from our homeserver, which
+            // checks the named server is in the room; no OpenID goes there.
+            if (isWsSfuUrl(named.serviceUrl)) return true;
             return sfuAdvertisedBy(m.userId, named.serviceUrl);
         }),
     );
@@ -2318,9 +2380,18 @@ async function syncRemoteSfus(call: ActiveVoiceCall): Promise<void> {
         remoteSyncRun.get(call) !== run
     )
         return;
-    const verified = others.map(({ transport }, i) =>
-        checks[i] ? transport : null,
-    );
+    const verified = others.map(({ m, transport }, i) => {
+        if (!checks[i]) return null;
+        // Tokens for a WebSocket-URL SFU name its server: the member's own
+        // unless the transport says otherwise.
+        const named = pickLivekitTransport([transport], [], call.roomId);
+        if (named && isWsSfuUrl(named.serviceUrl) && !named.serverName)
+            return {
+                ...(transport as object),
+                server_name: serverName(m.userId),
+            };
+        return transport;
+    });
     const wanted = remoteLivekitTargets(verified, call.publishKey, call.roomId);
     if (checks.some((ok) => !ok)) {
         const own = pickOwnLivekitTransport(
@@ -2634,7 +2705,7 @@ async function connectRemoteSfu(
         ...SEPARATE_PEER_CONNECTIONS,
     });
     try {
-        const { url, jwt } = await fetchSfuJwt(target);
+        const { url, jwt } = await fetchSfuJwt(target, callSlot(call));
         if (activeVoice !== call) return;
         wireCallMedia(call, lkRoom);
         lkRoom.on(call.lk.RoomEvent.Disconnected, (reason) => {
@@ -3042,11 +3113,13 @@ export async function joinVoiceCall(roomId: string): Promise<void> {
             callPeersBeforeJoin,
         );
         const transport = target
-            ? {
-                  type: "livekit",
-                  livekit_service_url: target.serviceUrl,
-                  livekit_alias: target.alias,
-              }
+            ? isWsSfuUrl(target.serviceUrl)
+                ? { type: "livekit", url: target.serviceUrl }
+                : {
+                      type: "livekit",
+                      livekit_service_url: target.serviceUrl,
+                      livekit_alias: target.alias,
+                  }
             : viaPlugin
               ? ownPluginTransport(
                     viaPlugin.entry.pluginId,
@@ -3160,7 +3233,7 @@ async function connectPublishingRoom(
 ): Promise<void> {
     const lk = call.lk;
     let connected = false;
-    const { url, jwt } = await fetchSfuJwt(target);
+    const { url, jwt } = await fetchSfuJwt(target, callSlot(call));
     if (seq !== voiceJoinSeq) return;
 
     wireCallMedia(call, lkRoom);

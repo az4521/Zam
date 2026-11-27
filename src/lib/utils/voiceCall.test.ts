@@ -6,6 +6,7 @@ import {
     toggleDeafen,
     sfuJwtUrl,
     pickLivekitTransport,
+    isWsSfuUrl,
     pickOwnLivekitTransport,
     livekitServiceUrls,
     isAdvertisedServiceUrl,
@@ -567,6 +568,33 @@ describe("livekitServiceUrls", () => {
                 null,
             ]),
         ).toEqual(["https://a.example"]);
+    });
+
+    it("accepts the MSC4195 m.livekit type as well", () => {
+        expect(
+            livekitServiceUrls([
+                { type: "m.livekit", livekit_service_url: "https://a.example" },
+            ]),
+        ).toEqual(["https://a.example"]);
+    });
+
+    it("reads the MSC4195 WebSocket url form (tuwunel)", () => {
+        const foci = [
+            { type: "livekit", url: "wss://rtc.example/livekit/sfu" },
+            { type: "m.livekit", url: "wss://rtc.example/livekit/sfu" },
+            { type: "livekit", url: "https://not-a-websocket.example" },
+        ];
+        expect(livekitServiceUrls(foci)).toEqual([
+            "wss://rtc.example/livekit/sfu",
+            "wss://rtc.example/livekit/sfu",
+        ]);
+        expect(pickLivekitTransport([], foci, "!r:x")).toEqual({
+            serviceUrl: "wss://rtc.example/livekit/sfu",
+            alias: "!r:x",
+            serverName: undefined,
+        });
+        expect(isWsSfuUrl("wss://rtc.example/livekit/sfu")).toBe(true);
+        expect(isWsSfuUrl("https://livekit-jwt.example")).toBe(false);
     });
 
     it("reads nothing from a non-array", () => {
