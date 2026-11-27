@@ -195,12 +195,25 @@ export function buildSnapshot(
         // timeline's tail rather than a sample.
         // A redacted event is kept out: its stub has nothing to show, and the
         // plaintext it replaced must not be written back on a later boot.
-        const timeline = room
+        const tail = room
             .getLiveTimeline()
             .getEvents()
             .filter((e) => !e.isState() && !e.isRedacted())
-            .slice(-MAX_CACHED_EVENTS)
-            .map(rawOf);
+            .slice(-MAX_CACHED_EVENTS);
+        const timeline = tail.map(rawOf);
+        // The tail's senders, so the cached conversation opens with display
+        // names and avatars instead of raw user ids until members load. At
+        // most one member event per sender, and none already stored above.
+        const haveMember = new Set(
+            state
+                .filter((e) => e.type === "m.room.member")
+                .map((e) => e.state_key),
+        );
+        for (const sender of new Set(tail.map((e) => e.getSender()))) {
+            if (!sender || haveMember.has(sender)) continue;
+            const member = current.getStateEvents("m.room.member", sender);
+            if (member) state.push(rawOf(member));
+        }
         rooms.push({
             roomId: room.roomId,
             state,
@@ -245,9 +258,13 @@ export function materializeSnapshot(
             // or the screen. client.ts decrypts only what is replayed here.
             const replay = prunedTimeline(cached.timeline, knownRedacted);
             if (replay.length) {
+                // Through the timeline SET, not the bare timeline: that is
+                // what indexes the events by id, so a reply finds its parent
+                // here (findEventById) instead of fetching it over the network.
                 const timeline = room.getLiveTimeline();
+                const set = room.getUnfilteredTimelineSet();
                 for (const raw of replay) {
-                    timeline.addEvent(toEvent(raw), {
+                    set.addEventToTimeline(toEvent(raw), timeline, {
                         toStartOfTimeline: false,
                         addToState: false,
                     });

@@ -2962,8 +2962,12 @@
     // .animate() is a DOM call (not an SDK send) so it is safe inside the effect.
     const ROOM_FADE_MS = 120;
     let roomPaneEl = $state<HTMLDivElement>();
+    // A string, so the effect below only re-runs for a different room: it read
+    // `activeRoom` itself, whose object changes when sync swaps the saved
+    // stand-in for the live room, and that replayed the fade as a flash.
+    const activeRoomIdForFade = $derived(activeRoom?.roomId);
     $effect(() => {
-        const rid = activeRoom?.roomId;
+        const rid = activeRoomIdForFade;
         const el = roomPaneEl;
         if (!rid || !el) return;
         untrack(() => {

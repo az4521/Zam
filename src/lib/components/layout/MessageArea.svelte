@@ -3704,6 +3704,9 @@
                 class="px-4 pt-2 pb-[calc(1rem_+_env(safe-area-inset-bottom,0px))] md:pb-[calc(0.5rem_+_env(safe-area-inset-bottom,0px))] flex-shrink-0"
                 dir={uiDir}
             >
+                <!-- The composer's reserved typing-indicator row (MessageInput:
+                     h-4 + mb-1) above its input box. -->
+                <div class="h-4 mb-1"></div>
                 <div
                     class="flex items-center rounded-lg border border-zam-backgroundModifier bg-zam-backgroundSecondary px-4 min-h-[calc(32px_+_1.25rem_+_2px)]"
                 >

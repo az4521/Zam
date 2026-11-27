@@ -149,6 +149,58 @@ describe("roomListCache", () => {
         expect(bodies.at(-1)).toBe("message 44");
     });
 
+    it("saves the tail's senders and indexes replayed events by id", () => {
+        const { client, add } = makeClient();
+        const room = add("!chan", [
+            stateEvent("!chan", "m.room.create", "", {}),
+            stateEvent("!chan", "m.room.member", ME, { membership: "join" }),
+            stateEvent(
+                "!chan",
+                "m.room.member",
+                BOB,
+                {
+                    membership: "join",
+                    displayname: "Bob",
+                    avatar_url: "mxc://x/y",
+                },
+                BOB,
+            ),
+            // Not in the tail: must not be saved.
+            stateEvent(
+                "!chan",
+                "m.room.member",
+                "@idle:example.org",
+                { membership: "join", displayname: "Idle" },
+                "@idle:example.org",
+            ),
+        ]);
+        room.getLiveTimeline().addEvent(
+            new MatrixEvent({
+                type: EventType.RoomMessage,
+                room_id: "!chan",
+                sender: BOB,
+                event_id: "$parent",
+                origin_server_ts: 1000,
+                content: { msgtype: "m.text", body: "hello" },
+            }),
+            { toStartOfTimeline: false, addToState: false },
+        );
+
+        const snap = JSON.parse(JSON.stringify(buildSnapshot(client)));
+        const saved = snap.rooms[0].state
+            .filter((e: { type: string }) => e.type === "m.room.member")
+            .map((e: { state_key: string }) => e.state_key);
+        expect(saved).toContain(BOB);
+        expect(saved).not.toContain("@idle:example.org");
+
+        const fresh = makeClient().client;
+        const cached = materializeSnapshot(fresh, snap).rooms.get("!chan")!;
+        expect(cached.getMember(BOB)?.name).toBe("Bob");
+        expect(
+            cached.getUnfilteredTimelineSet().findEventById("$parent"),
+        ).toBeTruthy();
+    });
+
     it("never caches a redacted message's plaintext", () => {
         const { client, add } = makeClient();
         const room = add("!chan", [
