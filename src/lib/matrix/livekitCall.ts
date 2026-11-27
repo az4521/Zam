@@ -726,15 +726,15 @@ export function setShareWatched(identity: string, watched: boolean): void {
 // or was rebuilt (a new object) always gets its value again.
 const watchingSent = new WeakMap<LivekitRoom, string>();
 
-/** Tell every LiveKit room of the call which shares we watch (mesh viewers
- *  are not reported). Sends only when a room's value changes. */
+/** Tell the call which shares we watch (mesh viewers are not reported).
+ *  Sends only when the value changes. */
 function announceWatching(call: ActiveVoiceCall): void {
-    if (activeVoice !== call) return;
-    for (const room of callLkRooms(call)) announceWatchingTo(call, room);
+    if (activeVoice !== call || !call.lkRoom) return;
+    announceWatchingTo(call, call.lkRoom);
 }
 
 function announceWatchingTo(call: ActiveVoiceCall, room: LivekitRoom): void {
-    if (activeVoice !== call) return;
+    if (activeVoice !== call || room !== call.lkRoom) return;
     const value = encodeWatchingAttribute(watchedShareIds(call));
     if (watchingSent.get(room) === value) return;
     watchingSent.set(room, value);
@@ -753,8 +753,12 @@ function peerBook(room: LivekitRoom): PeerAttributeBook {
     return book;
 }
 
-/** Send our whole record to the room, or to just `to`. */
+/** Send our whole record to the room, or to just `to`. Only on our own SFU:
+ *  on another homeserver's we are listen-only (no publishing, data
+ *  included). Everyone in the call also listens on ours, so it reaches
+ *  them all, and readers look across every connection (callAttribute). */
 function sendOwnAttributes(room: LivekitRoom, to?: string): void {
+    if (!activeVoice || room !== activeVoice.lkRoom) return;
     const own = ownAttributes.get(room);
     if (!own) return;
     void room.localParticipant
@@ -772,19 +776,26 @@ function sendOwnAttributes(room: LivekitRoom, to?: string): void {
  *  (any caller may); also set as LiveKit attributes where the token allows
  *  it, for clients that only read those. */
 function announceAttributes(room: LivekitRoom, attrs: AttributeRecord): void {
+    if (!activeVoice || room !== activeVoice.lkRoom) return;
     ownAttributes.set(room, { ...ownAttributes.get(room), ...attrs });
     sendOwnAttributes(room);
     if (room.localParticipant.permissions?.canUpdateMetadata)
         void room.localParticipant.setAttributes(attrs).catch(() => {});
 }
 
-/** A participant's value in `room`: data message first, then attribute. */
-function participantAttribute(
-    room: LivekitRoom,
+/** A participant's value: what it sent on any connection of the call (it
+ *  sends only on its own SFU, which may not be the one `p` came from), else
+ *  its LiveKit attribute. */
+function callAttribute(
+    call: ActiveVoiceCall,
     p: { identity: string; attributes: Readonly<Record<string, string>> },
     key: string,
 ): string | undefined {
-    return peerAttribute(peerAttributeBooks.get(room), p, key);
+    for (const room of callLkRooms(call)) {
+        const v = peerAttributeBooks.get(room)?.get(p.identity, key);
+        if (v !== undefined) return v;
+    }
+    return peerAttribute(undefined, p, key);
 }
 
 const watchersSubscribers = new Set<(watching: WatchingMap) => void>();
@@ -802,7 +813,7 @@ function notifyCallWatchers(call: ActiveVoiceCall): void {
     const rooms = callLkRooms(call).map((room) =>
         [...room.remoteParticipants.values()].map((p) => ({
             identity: p.identity,
-            attribute: participantAttribute(room, p, WATCHING_ATTRIBUTE),
+            attribute: callAttribute(call, p, WATCHING_ATTRIBUTE),
         })),
     );
     const me = matrixClient?.getUserId();
@@ -1888,10 +1899,10 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
         );
         lkRoom.on(lk.RoomEvent.LocalTrackUnpublished, shareAudioChanged);
     }
-    // Watching is per room: a viewer announces in every room it is in, and
-    // a room's participants count toward who watches what, so these run for
-    // remote SFU rooms too. A reconnect may drop the attribute server-side,
-    // so the room's announcement is re-sent.
+    // Each viewer announces on its own SFU only, and everyone listens on
+    // everyone's, so what each room's people say is read from every room,
+    // remote SFU rooms included. A reconnect may drop the attribute
+    // server-side, so our announcement is re-sent.
     const watchersChanged = () => notifyCallWatchers(call);
     lkRoom.on(lk.RoomEvent.ParticipantConnected, watchersChanged);
     lkRoom.on(lk.RoomEvent.ParticipantDisconnected, watchersChanged);
@@ -1923,10 +1934,11 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
                 participant.identity,
                 attrs,
             );
-            if (first) sendOwnAttributes(lkRoom, participant.identity);
+            // Ours goes back on our own SFU, whichever one theirs came on.
+            if (first && call.lkRoom)
+                sendOwnAttributes(call.lkRoom, participant.identity);
             if (changed.includes(WATCHING_ATTRIBUTE)) watchersChanged();
-            if (changed.includes(DECODE_ATTRIBUTE) && lkRoom === call.lkRoom)
-                notifyCallCodecs(call);
+            if (changed.includes(DECODE_ATTRIBUTE)) notifyCallCodecs(call);
         },
     );
     lkRoom.on(
@@ -2820,9 +2832,8 @@ async function connectRemoteSfu(
         call.remotes.set(key, lkRoom);
         scanPluginDataTracks(lkRoom);
         notifyCallMutes(call);
-        announceCodecs(call, lkRoom);
-        // Viewers here must be visible to the sharers on this SFU too.
-        announceWatchingTo(call, lkRoom);
+        // Listen-only here: we announce nothing on this SFU (the people
+        // on it also listen on ours), but read what its people announce.
         notifyCallWatchers(call);
         notifyCallEncryption(call);
         call.remoteFailuresNotified.delete(key);
@@ -5733,7 +5744,7 @@ function localDecode(call: ActiveVoiceCall): VideoCodec[] {
 export function refreshDecodeSupport(): void {
     const call = activeVoice;
     if (!call) return;
-    for (const lkRoom of callLkRooms(call)) announceCodecs(call, lkRoom);
+    if (call.lkRoom) announceCodecs(call, call.lkRoom);
     resubscribeVideo(call);
 }
 
@@ -5953,8 +5964,8 @@ async function checkDecodeHealth(call: ActiveVoiceCall): Promise<void> {
         if (!seen.has(id)) decodeWatch.delete(id);
 }
 
-/** Tell everyone on `lkRoom` what we decode. Set on every connection, since
- *  whoever publishes on a remote one needs it too. */
+/** Tell the call what we decode. Only our own SFU carries it (we are
+ *  listen-only on others); remote publishers also listen there. */
 function announceCodecs(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
     if (activeVoice !== call) return;
     announceAttributes(lkRoom, {
@@ -5972,7 +5983,7 @@ function peerDecode(call: ActiveVoiceCall): (VideoCodec[] | null)[] {
     if (settingsState.ignoreCodecSupport)
         return [...room.remoteParticipants.values()].map(() => null);
     return [...room.remoteParticipants.values()].map((p) =>
-        parseDecodeAttribute(participantAttribute(room, p, DECODE_ATTRIBUTE)),
+        parseDecodeAttribute(callAttribute(call, p, DECODE_ATTRIBUTE)),
     );
 }
 
