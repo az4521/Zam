@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.19
+
+🐛 **Fixed**
+
+- **"Who's watching" and video format support now work in calls that span homeservers.** Zam only announces them on your own homeserver's call server, where everyone in the call can hear them, instead of also trying other homeservers' call servers where it may only listen.
+
 ## v1.67.18
 
 ⚡ **Improved**
