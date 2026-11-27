@@ -4,6 +4,17 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.16
+
+⚡ **Improved**
+
+- **The app appears at once on launch.** Zam now shows your rooms and messages from what was saved on the device instead of a "Restoring session" screen, and finishes connecting in the background. While it loads you see soft placeholder spaces, rooms and messages in the shape of the app, not a spinner.
+- **Messages sent before a room has loaded wait their turn.** The "you can send once the room has loaded" note is gone: type as normal and plain text is sent as soon as the room is ready. Edits, commands, attachments and threads still need the room to finish loading.
+
+🐛 **Fixed**
+
+- **Placeholder rows in the room and member lists were invisible** while loading. They now show.
+
 ## v1.67.15
 
 🐛 **Fixed**
