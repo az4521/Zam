@@ -57,6 +57,7 @@
         type RoomNotificationSetting,
         type SpaceChildInfo,
         isRoomListLoading,
+        getCachedRoom,
     } from "$lib/matrix/client";
     import SkeletonRows from "$lib/components/ui/SkeletonRows.svelte";
     import { voiceCallState } from "$lib/stores/voiceCall.svelte";
@@ -485,6 +486,22 @@
         name: () => t("roomList.dmSortName"),
     };
 
+    // A DM's sort time only moves forward. An encrypted event counts as the
+    // latest message until it decrypts; if it is a reaction or an edit it is
+    // then skipped and the time falls back to an older message, so rows jump
+    // back as keys arrive during boot. Real activity only ever moves a row up.
+    const dmTsFloor = new Map<string, number>();
+    function noDmTsRegression(
+        roomId: string,
+        ts: number | null,
+    ): number | null {
+        const floor = dmTsFloor.get(roomId);
+        if (ts === null) return floor ?? null;
+        if (floor !== undefined && floor > ts) return floor;
+        dmTsFloor.set(roomId, ts);
+        return ts;
+    }
+
     // Untagged DMs sort by the order picked in the header menu (latest
     // message by default; the SDK's room order is arbitrary). unreadTick: a
     // new message or a read moves the row; "online first" re-reads presence
@@ -501,10 +518,26 @@
             ]);
             const fallback = room.getLastActiveTimestamp();
             const { unread } = roomButton(room);
+            const own =
+                found?.event.getTs() ??
+                (fallback > Number.MIN_SAFE_INTEGER ? fallback : null);
+            // While the saved room list is showing, a room keeps the time its
+            // saved copy had, even when that is none. Messages that came in
+            // since reach the rooms in separate sync windows, and applying each
+            // would shuffle the list several times; they all take effect in
+            // one step once the list is whole.
+            const cached = getCachedRoom(room.roomId);
+            let seenTs = own;
+            if (cached && cached !== room) {
+                const saved = cached.getLastActiveTimestamp();
+                seenTs =
+                    latestMessage([
+                        ...cached.getLiveTimeline().getEvents(),
+                    ])?.event.getTs() ??
+                    (saved > Number.MIN_SAFE_INTEGER ? saved : null);
+            }
             facts.set(room.roomId, {
-                lastMessageTs:
-                    found?.event.getTs() ??
-                    (fallback > Number.MIN_SAFE_INTEGER ? fallback : null),
+                lastMessageTs: noDmTsRegression(room.roomId, seenTs),
                 unread,
                 presence:
                     order === "online"

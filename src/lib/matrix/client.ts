@@ -2530,7 +2530,34 @@ const SNAPSHOT_SAVE_INTERVAL_MS = 2 * 60_000;
 // room and then lets the rest fill in behind the neutral "decrypting" row.
 const PREFERRED_DECRYPT_WAIT_MS = 500;
 
+// What each room was last saved as (restored at boot, updated on every save).
+const savedUnread = new Map<string, boolean>();
+
+/**
+ * The unread verdict to SAVE for a room. The room list completes before every
+ * read receipt has arrived, and with no receipt the unread check calls any room
+ * whose last message is someone else's unread. Saving that would make a read
+ * room start the next run unread, so a verdict resting only on a missing
+ * receipt keeps what was saved before. The server's counts and "marked unread"
+ * are always trusted, and so is the check once we know where we have read to.
+ */
+function snapshotUnread(room: Room): boolean {
+    const unread = getRoomUnreadInfo(room).unread;
+    let verdict = unread;
+    if (unread && getUnreadCount(room) < 1 && !getMarkedUnread(room)) {
+        const userId = matrixClient?.getUserId();
+        const knowsReceipt =
+            !!userId &&
+            (room.getEventReadUpTo(userId) !== null ||
+                ownReceiptTs(room, userId) !== null);
+        if (!knowsReceipt) verdict = savedUnread.get(room.roomId) ?? false;
+    }
+    savedUnread.set(room.roomId, verdict);
+    return verdict;
+}
+
 function resetRoomListCache(): void {
+    savedUnread.clear();
     bootUnread.clearSaved();
     roomListCache = null;
     roomListComplete = false;
@@ -2556,11 +2583,22 @@ function lookupAccountData(type: string): MatrixEvent | undefined {
 function listRooms(): Room[] {
     const live = matrixClient?.getRooms() ?? [];
     if (!roomListCache || !matrixClient) return live;
-    const client = matrixClient;
-    const extra = [...roomListCache.rooms.values()].filter(
-        (r) => !client.getRoom(r.roomId),
-    );
-    return extra.length ? [...live, ...extra] : live;
+    // The saved order holds while sync fills in: a room keeps its slot when its
+    // live object replaces the cached one, instead of every arrival moving to
+    // the front. Rooms the cache never had (new, invites) follow.
+    const liveById = new Map(live.map((r) => [r.roomId, r]));
+    const ordered: Room[] = [];
+    for (const [id, cached] of roomListCache.rooms) {
+        ordered.push(liveById.get(id) ?? cached);
+        liveById.delete(id);
+    }
+    for (const r of liveById.values()) ordered.push(r);
+    return ordered;
+}
+
+/** The saved copy of a room while the room list is still loading, or null. */
+export function getCachedRoom(roomId: string): Room | null {
+    return roomListCache?.rooms.get(roomId) ?? null;
 }
 
 /**
@@ -2628,6 +2666,8 @@ async function hydrateRoomListCache(
     for (const [spaceId, list] of Object.entries(snapshot.hierarchies ?? {}))
         if (!hierarchyCache.has(spaceId)) hierarchyCache.set(spaceId, list);
     roomListCache = cache;
+    for (const r of snapshot.rooms)
+        if (r.unread !== undefined) savedUnread.set(r.roomId, r.unread);
     bootUnread.restore(
         snapshot.rooms
             .filter((r) => r.unread !== undefined)
@@ -2692,11 +2732,7 @@ async function saveRoomListSnapshot(
     // the old snapshot instead would bring left rooms back on the next
     // offline start.
     await saveSnapshot(snapshotKey(userId, deviceId), {
-        ...buildSnapshot(
-            client,
-            undefined,
-            (room) => getRoomUnreadInfo(room).unread,
-        ),
+        ...buildSnapshot(client, undefined, snapshotUnread),
         hierarchies: Object.fromEntries(hierarchyCache),
     });
 }
@@ -3081,7 +3117,19 @@ const roomTagToggleInFlight = new Set<string>();
 
 /** Read a room's tags from local synced state (no HTTP round-trip). */
 export function getRoomTags(roomId: string): RoomTagMap {
-    return (lookupRoom(roomId)?.tags ?? {}) as RoomTagMap;
+    const live = matrixClient?.getRoom(roomId);
+    const liveTags = live?.tags as RoomTagMap | undefined;
+    // A room sync has just delivered may not have its account data yet, so it
+    // reads as untagged and a favourite or low-priority room hops between
+    // sections until the tags land. Until the list is complete, no tags means
+    // "not known yet": use the saved ones.
+    if (live && liveTags && Object.keys(liveTags).length === 0) {
+        const saved = roomListCache?.rooms.get(roomId)?.tags;
+        if (saved) return saved as RoomTagMap;
+    }
+    return (liveTags ??
+        roomListCache?.rooms.get(roomId)?.tags ??
+        {}) as RoomTagMap;
 }
 
 export async function setRoomTag(
