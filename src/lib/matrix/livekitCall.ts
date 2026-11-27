@@ -228,6 +228,14 @@ import {
     type WatchingMap,
 } from "$lib/utils/shareWatchers";
 import {
+    PEER_ATTRIBUTES_TOPIC,
+    PeerAttributeBook,
+    decodePeerAttributes,
+    encodePeerAttributes,
+    peerAttribute,
+    type AttributeRecord,
+} from "$lib/utils/peerAttributes";
+import {
     clearLiveUploadEstimate,
     noteUploadEstimate,
     uploadEstimate,
@@ -730,12 +738,53 @@ function announceWatchingTo(call: ActiveVoiceCall, room: LivekitRoom): void {
     const value = encodeWatchingAttribute(watchedShareIds(call));
     if (watchingSent.get(room) === value) return;
     watchingSent.set(room, value);
+    announceAttributes(room, { [WATCHING_ATTRIBUTE]: value });
+}
+
+// What we told each LiveKit room about ourselves (utils/peerAttributes), and
+// what each room's participants told us. Keyed by the room object, so a
+// rebuilt room starts clean.
+const ownAttributes = new WeakMap<LivekitRoom, AttributeRecord>();
+const peerAttributeBooks = new WeakMap<LivekitRoom, PeerAttributeBook>();
+
+function peerBook(room: LivekitRoom): PeerAttributeBook {
+    let book = peerAttributeBooks.get(room);
+    if (!book) peerAttributeBooks.set(room, (book = new PeerAttributeBook()));
+    return book;
+}
+
+/** Send our whole record to the room, or to just `to`. */
+function sendOwnAttributes(room: LivekitRoom, to?: string): void {
+    const own = ownAttributes.get(room);
+    if (!own) return;
     void room.localParticipant
-        .setAttributes({ [WATCHING_ATTRIBUTE]: value })
-        .catch((err: unknown) => {
-            watchingSent.delete(room);
-            console.warn("Couldn't announce watched screen shares:", err);
-        });
+        .publishData(encodePeerAttributes(own), {
+            reliable: true,
+            topic: PEER_ATTRIBUTES_TOPIC,
+            ...(to ? { destinationIdentities: [to] } : {}),
+        })
+        .catch((err: unknown) =>
+            console.warn("Couldn't announce call attributes:", err),
+        );
+}
+
+/** Tell everyone in `room` these values of ours. Sent as a data message
+ *  (any caller may); also set as LiveKit attributes where the token allows
+ *  it, for clients that only read those. */
+function announceAttributes(room: LivekitRoom, attrs: AttributeRecord): void {
+    ownAttributes.set(room, { ...ownAttributes.get(room), ...attrs });
+    sendOwnAttributes(room);
+    if (room.localParticipant.permissions?.canUpdateMetadata)
+        void room.localParticipant.setAttributes(attrs).catch(() => {});
+}
+
+/** A participant's value in `room`: data message first, then attribute. */
+function participantAttribute(
+    room: LivekitRoom,
+    p: { identity: string; attributes: Readonly<Record<string, string>> },
+    key: string,
+): string | undefined {
+    return peerAttribute(peerAttributeBooks.get(room), p, key);
 }
 
 const watchersSubscribers = new Set<(watching: WatchingMap) => void>();
@@ -753,7 +802,7 @@ function notifyCallWatchers(call: ActiveVoiceCall): void {
     const rooms = callLkRooms(call).map((room) =>
         [...room.remoteParticipants.values()].map((p) => ({
             identity: p.identity,
-            attribute: p.attributes[WATCHING_ATTRIBUTE],
+            attribute: participantAttribute(room, p, WATCHING_ATTRIBUTE),
         })),
     );
     const me = matrixClient?.getUserId();
@@ -1846,6 +1895,40 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
     const watchersChanged = () => notifyCallWatchers(call);
     lkRoom.on(lk.RoomEvent.ParticipantConnected, watchersChanged);
     lkRoom.on(lk.RoomEvent.ParticipantDisconnected, watchersChanged);
+    // The same values over data messages (utils/peerAttributes): a newcomer
+    // gets our record, and whoever we hear from first gets it back, in case
+    // they joined before their data channel could take ours.
+    lkRoom.on(lk.RoomEvent.ParticipantConnected, (p: { identity: string }) => {
+        if (activeVoice === call) sendOwnAttributes(lkRoom, p.identity);
+    });
+    lkRoom.on(
+        lk.RoomEvent.ParticipantDisconnected,
+        (p: { identity: string }) => {
+            peerBook(lkRoom).forget(p.identity);
+        },
+    );
+    lkRoom.on(
+        lk.RoomEvent.DataReceived,
+        (
+            payload: Uint8Array,
+            participant?: { identity: string },
+            _kind?: unknown,
+            topic?: string,
+        ) => {
+            if (topic !== PEER_ATTRIBUTES_TOPIC || !participant) return;
+            if (activeVoice !== call) return;
+            const attrs = decodePeerAttributes(payload);
+            if (!attrs) return;
+            const { first, changed } = peerBook(lkRoom).receive(
+                participant.identity,
+                attrs,
+            );
+            if (first) sendOwnAttributes(lkRoom, participant.identity);
+            if (changed.includes(WATCHING_ATTRIBUTE)) watchersChanged();
+            if (changed.includes(DECODE_ATTRIBUTE) && lkRoom === call.lkRoom)
+                notifyCallCodecs(call);
+        },
+    );
     lkRoom.on(
         lk.RoomEvent.ParticipantAttributesChanged,
         (changed: Record<string, string>) => {
@@ -1855,6 +1938,8 @@ function wireCallMedia(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
     lkRoom.on(lk.RoomEvent.Reconnected, () => {
         if (activeVoice !== call) return;
         announceWatchingTo(call, lkRoom);
+        // After a full reconnect the others forgot us as we left.
+        sendOwnAttributes(lkRoom);
         notifyCallWatchers(call);
     });
     lkRoom.on(lk.RoomEvent.AudioPlaybackStatusChanged, () =>
@@ -5872,13 +5957,9 @@ async function checkDecodeHealth(call: ActiveVoiceCall): Promise<void> {
  *  whoever publishes on a remote one needs it too. */
 function announceCodecs(call: ActiveVoiceCall, lkRoom: LivekitRoom): void {
     if (activeVoice !== call) return;
-    void lkRoom.localParticipant
-        .setAttributes({
-            [DECODE_ATTRIBUTE]: encodeDecodeAttribute(localDecode(call)),
-        })
-        .catch((err: unknown) =>
-            console.warn("Couldn't announce video codecs:", err),
-        );
+    announceAttributes(lkRoom, {
+        [DECODE_ATTRIBUTE]: encodeDecodeAttribute(localDecode(call)),
+    });
 }
 
 /** What each participant we publish to decodes; null for those who didn't
@@ -5891,7 +5972,7 @@ function peerDecode(call: ActiveVoiceCall): (VideoCodec[] | null)[] {
     if (settingsState.ignoreCodecSupport)
         return [...room.remoteParticipants.values()].map(() => null);
     return [...room.remoteParticipants.values()].map((p) =>
-        parseDecodeAttribute(p.attributes[DECODE_ATTRIBUTE]),
+        parseDecodeAttribute(participantAttribute(room, p, DECODE_ATTRIBUTE)),
     );
 }
 
