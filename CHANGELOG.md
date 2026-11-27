@@ -4,6 +4,18 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.18
+
+⚡ **Improved**
+
+- **Custom emoji and stickers load faster and use less memory.** Zam now builds a few combined images for each emoji and sticker pack and keeps them on the device, so the pickers open without loading every emoji one by one. Editing a pack only rebuilds the part that changed, and animated emoji and stickers still play.
+- **Small custom emoji no longer download at full size.** Reactions, autocomplete and emoji in messages used to fetch each emoji's original file even when drawn tiny.
+
+🐛 **Fixed**
+
+- **"Who's watching" and screen share quality in calls work again.** The list of who is watching a share never updated, and viewers' supported video formats never reached the sharer.
+- **Double-clicking a fullscreen call pop-out now returns it to a window.**
+
 ## v1.67.17
 
 ⚡ **Improved**
