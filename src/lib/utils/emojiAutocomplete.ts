@@ -13,6 +13,8 @@ export type EmojiCandidate =
           kind: "custom";
           shortcode: string;
           url: string;
+          /** The emote's mxc URI, for its pack sprite sheet cell. */
+          mxcUrl?: string;
           /** The room or space its pack lives in (CustomEmoji.source). */
           source?: string;
       };
@@ -52,6 +54,7 @@ export function rankEmojiCandidates(
             kind: "custom",
             shortcode: e.shortcode,
             url: e.url,
+            mxcUrl: e.mxcUrl,
             source: e.source,
         }));
     const ranked: { rank: number; candidate: EmojiCandidate }[] = [];

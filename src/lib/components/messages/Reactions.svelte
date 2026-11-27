@@ -22,6 +22,15 @@
     } from "$lib/utils/reactionLabel";
     import { longPress } from "$lib/actions/longPress";
     import ReactorPopover from "./ReactorPopover.svelte";
+    import { spriteFor } from "$lib/matrix/packSheets";
+    import { packSheetsState } from "$lib/stores/packSheets.svelte";
+
+    /** The pack sprite for a custom reaction. Reading the tick makes the chip
+     *  re-draw when its sheet loads. */
+    function reactionSprite(mxc: string) {
+        void packSheetsState.tick;
+        return spriteFor("emoji", mxc);
+    }
 
     interface Props {
         eventId: string;
@@ -210,11 +219,21 @@
                 title={name}
             >
                 {#if imgSrc}
-                    <img
-                        src={imgSrc}
-                        alt={name}
-                        class="w-4 h-4 object-contain"
-                    />
+                    {@const sprite = reactionSprite(group.key)}
+                    {#if sprite && !sprite.animated}
+                        <span
+                            class="w-4 h-4 block"
+                            style={sprite.style}
+                            role="img"
+                            aria-label={name}
+                        ></span>
+                    {:else}
+                        <img
+                            src={imgSrc}
+                            alt={name}
+                            class="w-4 h-4 object-contain"
+                        />
+                    {/if}
                 {:else if group.key.startsWith(":") && group.key.endsWith(":")}
                     <span class="font-mono">{group.key}</span>
                 {:else if isEmojiOnly(group.key)}

@@ -54,6 +54,12 @@
 
     import { renderEmoji } from "$lib/utils/twemoji";
     import { emojiSpriteStyle } from "$lib/utils/emojiSprites";
+    import {
+        ensurePackSheets,
+        sheetImagesOf,
+        spriteFor,
+    } from "$lib/matrix/packSheets";
+    import { packSheetsState } from "$lib/stores/packSheets.svelte";
 
     interface Props {
         room?: Room | null;
@@ -196,6 +202,21 @@
             room,
         );
     });
+    // Custom emoji from every pack shown, one sheet group per pack in display
+    // order. Untracked ensure: sheet state is read only by emojiSprite below.
+    $effect(() => {
+        const packs = customPacks.map((p) => sheetImagesOf(p.emojis));
+        untrack(() => ensurePackSheets("emoji", packs));
+    });
+
+    /** The pack sprite for a custom emoji. Reading the tick here is what makes
+     *  the grid re-draw when a sheet loads; it runs during render, not in an
+     *  effect. */
+    function emojiSprite(mxc: string) {
+        void packSheetsState.tick;
+        return spriteFor("emoji", mxc);
+    }
+
     const ownAvatarUrl = $derived(getOwnAvatarUrl());
 
     // Recently used entries shown in the "Recently Used" section. Hidden when
@@ -840,28 +861,47 @@
                                         item.data.mxcUrl,
                                         16,
                                     )}
-                                    <span class="relative block w-full h-full">
-                                        {#if lqip && !loadedThumbs.has(thumb)}
+                                    {@const sprite = emojiSprite(
+                                        item.data.mxcUrl,
+                                    )}
+                                    {#if sprite && !sprite.animated}
+                                        <span
+                                            class="picker-sprite"
+                                            style={sprite.style}
+                                            role="img"
+                                            aria-label={item.data.shortcode}
+                                        ></span>
+                                    {:else}
+                                        <span
+                                            class="relative block w-full h-full"
+                                        >
+                                            {#if !sprite && lqip && !loadedThumbs.has(thumb)}
+                                                <img
+                                                    src={lqip}
+                                                    alt=""
+                                                    aria-hidden="true"
+                                                    class="absolute inset-0 w-full h-full object-cover blur-md scale-110"
+                                                    decoding="async"
+                                                />
+                                            {/if}
+                                            <!-- An animated sprite is a poster under the live image. -->
                                             <img
-                                                src={lqip}
-                                                alt=""
-                                                aria-hidden="true"
-                                                class="absolute inset-0 w-full h-full object-cover blur-md scale-110"
+                                                src={thumb}
+                                                alt={item.data.shortcode}
+                                                onload={() =>
+                                                    settleThumb(thumb)}
+                                                onerror={() =>
+                                                    settleThumb(thumb)}
+                                                class="relative w-full h-full object-contain transition-opacity duration-200"
+                                                style={loadedThumbs.has(thumb)
+                                                    ? undefined
+                                                    : sprite?.style}
+                                                class:opacity-0={!sprite &&
+                                                    !loadedThumbs.has(thumb)}
                                                 decoding="async"
                                             />
-                                        {/if}
-                                        <img
-                                            src={thumb}
-                                            alt={item.data.shortcode}
-                                            onload={() => settleThumb(thumb)}
-                                            onerror={() => settleThumb(thumb)}
-                                            class="relative w-full h-full object-contain transition-opacity duration-200"
-                                            class:opacity-0={!loadedThumbs.has(
-                                                thumb,
-                                            )}
-                                            decoding="async"
-                                        />
-                                    </span>
+                                        </span>
+                                    {/if}
                                 {:else}
                                     {@const sprite = emojiSpriteStyle(
                                         item.data.emoji,

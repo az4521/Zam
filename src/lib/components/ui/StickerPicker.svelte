@@ -29,6 +29,12 @@
         type GridSection,
     } from "$lib/utils/virtualGrid";
     import { pickerThumbUrl } from "$lib/matrix/media";
+    import {
+        ensurePackSheets,
+        sheetImagesOf,
+        spriteFor,
+    } from "$lib/matrix/packSheets";
+    import { packSheetsState } from "$lib/stores/packSheets.svelte";
 
     interface Props {
         roomId?: string | null;
@@ -111,6 +117,22 @@
     const stickerPacks = $derived(
         getCustomStickerPacks(roomsState.activeSpaceId, room),
     );
+
+    // Sticker sheets for every pack shown, one group per pack in display
+    // order. Untracked ensure: sheet state is read only by stickerSprite.
+    $effect(() => {
+        const packs = stickerPacks.map((p) => sheetImagesOf(p.stickers));
+        untrack(() => ensurePackSheets("sticker", packs));
+    });
+
+    /** The pack sprite for a sticker. Reading the tick here is what makes the
+     *  grid re-draw when a sheet loads; it runs during render, not in an
+     *  effect. */
+    function stickerSprite(mxc: string) {
+        void packSheetsState.tick;
+        return spriteFor("sticker", mxc);
+    }
+
     const ownAvatarUrl = $derived(getOwnAvatarUrl());
 
     $effect(() => {
@@ -564,6 +586,7 @@
                                         STICKER_THUMB_PX,
                                     ) ?? s.url}
                                 {@const lqip = pickerThumbUrl(s.mxcUrl, 16)}
+                                {@const sprite = stickerSprite(s.mxcUrl)}
                                 <button
                                     data-item-index={idx}
                                     onclick={() => pick(s)}
@@ -580,30 +603,44 @@
                                     class:ring-2={activeIndex === idx}
                                     class:ring-zam-accent={activeIndex === idx}
                                 >
-                                    <span
-                                        class="relative block w-full h-full max-w-14 max-h-14"
-                                    >
-                                        {#if lqip && !loadedThumbs.has(thumb)}
+                                    {#if sprite && !sprite.animated}
+                                        <span
+                                            class="block w-full h-full max-w-14 max-h-14"
+                                            style={sprite.style}
+                                            role="img"
+                                            aria-label={s.shortcode}
+                                        ></span>
+                                    {:else}
+                                        <span
+                                            class="relative block w-full h-full max-w-14 max-h-14"
+                                        >
+                                            {#if !sprite && lqip && !loadedThumbs.has(thumb)}
+                                                <img
+                                                    src={lqip}
+                                                    alt=""
+                                                    aria-hidden="true"
+                                                    class="absolute inset-0 w-full h-full object-cover blur-md scale-110"
+                                                    decoding="async"
+                                                />
+                                            {/if}
+                                            <!-- An animated sprite is a poster under the live image. -->
                                             <img
-                                                src={lqip}
-                                                alt=""
-                                                aria-hidden="true"
-                                                class="absolute inset-0 w-full h-full object-cover blur-md scale-110"
+                                                src={thumb}
+                                                alt={s.shortcode}
+                                                onload={() =>
+                                                    settleThumb(thumb)}
+                                                onerror={() =>
+                                                    settleThumb(thumb)}
+                                                class="relative w-full h-full object-contain transition-opacity duration-200"
+                                                style={loadedThumbs.has(thumb)
+                                                    ? undefined
+                                                    : sprite?.style}
+                                                class:opacity-0={!sprite &&
+                                                    !loadedThumbs.has(thumb)}
                                                 decoding="async"
                                             />
-                                        {/if}
-                                        <img
-                                            src={thumb}
-                                            alt={s.shortcode}
-                                            onload={() => settleThumb(thumb)}
-                                            onerror={() => settleThumb(thumb)}
-                                            class="relative w-full h-full object-contain transition-opacity duration-200"
-                                            class:opacity-0={!loadedThumbs.has(
-                                                thumb,
-                                            )}
-                                            decoding="async"
-                                        />
-                                    </span>
+                                        </span>
+                                    {/if}
                                 </button>
                             {/each}
                         </div>

@@ -190,3 +190,78 @@ describe("per-tag enforcement (spec v1.19 HTML subset)", () => {
         ).toContain("href");
     });
 });
+
+describe("emoticonSprite (pack sprite sheets)", () => {
+    const style =
+        'background-image:url("blob:https://app/abc");background-size:800% 800%;background-position:0% 0%;background-repeat:no-repeat';
+    const resolveMxc = () => "https://hs/media/abc";
+    const still = () => ({ style, animated: false });
+    const animated = () => ({ style, animated: true });
+    // Serialized attributes escape quotes, so compare the parsed value.
+    const styleOf = (html: string) =>
+        new DOMParser()
+            .parseFromString(html, "text/html")
+            .querySelector("img")
+            ?.getAttribute("style");
+
+    it("paints a still emoticon: 1x1 data: src plus the sprite style", () => {
+        const out = sanitizeMatrixHtml(
+            '<img data-mx-emoticon src="mxc://hs/abc" alt=":a:" height="32">',
+            { resolveMxc, emoticonSprite: still },
+        );
+        expect(out).toContain('src="data:image/gif;base64,');
+        expect(out).not.toContain("hs/media");
+        expect(out).toContain('alt=":a:"');
+        expect(styleOf(out)).toBe(style);
+    });
+
+    it("keeps the resolved src and no style when animated", () => {
+        const out = sanitizeMatrixHtml(
+            '<img data-mx-emoticon src="mxc://hs/abc" alt=":a:">',
+            { resolveMxc, emoticonSprite: animated },
+        );
+        expect(out).toContain('src="https://hs/media/abc"');
+        expect(out).not.toContain("data:image/gif");
+        expect(out).not.toContain("style=");
+    });
+
+    it("leaves an emoticon with no sprite unchanged", () => {
+        const plain = sanitizeMatrixHtml(
+            '<img data-mx-emoticon src="mxc://hs/abc" alt=":a:">',
+            { resolveMxc, emoticonSprite: () => null },
+        );
+        const none = sanitizeMatrixHtml(
+            '<img data-mx-emoticon src="mxc://hs/abc" alt=":a:">',
+            { resolveMxc },
+        );
+        for (const out of [plain, none]) {
+            expect(out).toContain('src="https://hs/media/abc"');
+            expect(out).not.toContain("style=");
+        }
+    });
+
+    it("never gives a non-emoticon img a style", () => {
+        const out = sanitizeMatrixHtml('<img src="mxc://hs/abc" alt="pic">', {
+            resolveMxc,
+            emoticonSprite: still,
+        });
+        expect(out).toContain('src="https://hs/media/abc"');
+        expect(out).not.toContain("style=");
+    });
+
+    it("ignores a sprite style that is not a blob: background", () => {
+        const out = sanitizeMatrixHtml(
+            '<img data-mx-emoticon src="mxc://hs/abc">',
+            {
+                resolveMxc,
+                emoticonSprite: () => ({
+                    style: 'background-image:url("https://evil.example/x.png");',
+                    animated: false,
+                }),
+            },
+        );
+        expect(out).toContain('src="https://hs/media/abc"');
+        expect(out).not.toContain("style=");
+        expect(out).not.toContain("evil.example");
+    });
+});

@@ -235,6 +235,8 @@
     } from "$lib/utils/timeFormat";
     import { renderHtml } from "$lib/utils/twemoji";
     import { sanitizeMatrixHtml } from "$lib/utils/sanitizeHtml";
+    import { spriteFor } from "$lib/matrix/packSheets";
+    import { packSheetsState } from "$lib/stores/packSheets.svelte";
     import { renderMessageTimestamps } from "$lib/utils/timestampMarkup";
     import { highlightCodeBlocks } from "$lib/utils/codeHighlight";
     import { highlighterFor } from "$lib/utils/codeHighlighter.svelte";
@@ -2585,13 +2587,27 @@
         // differently across an account switch. A NUL (U+0000) is a safe
         // separator (never present in a URL or in Matrix HTML).
         const base = getHomeserverBaseUrl() ?? "";
+        // Emoticons take their sprite from the pack sheets, which load in the
+        // background. Only messages with emoticons read the tick, so a sheet
+        // load re-renders them and not every message; the tick is part of
+        // their cache key so a stale sprite-less result is never reused.
+        const hasEmoticons = html.includes("data-mx-emoticon");
+        const tick = hasEmoticons ? packSheetsState.tick : 0;
+        const key = hasEmoticons
+            ? `${base}\u0000${tick}\u0000${html}`
+            : `${base}\u0000${html}`;
         // Inline <t:...> timestamps (sanitized <time>) are localized here,
         // outside the cache: relative ones depend on the current time.
         return renderMessageTimestamps(
             renderInlineTimestampsHtml(
                 highlightRoomMention(
-                    sanitizeCache.get(`${base}\u0000${html}`, () =>
-                        sanitizeMatrixHtml(html, { resolveMxc: mxcToHttp }),
+                    sanitizeCache.get(key, () =>
+                        sanitizeMatrixHtml(html, {
+                            resolveMxc: mxcToHttp,
+                            emoticonSprite: hasEmoticons
+                                ? (mxc) => spriteFor("emoji", mxc)
+                                : undefined,
+                        }),
                     ),
                 ),
                 getLocale(),

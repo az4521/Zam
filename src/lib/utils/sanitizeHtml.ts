@@ -12,7 +12,28 @@ import DOMPurify from "dompurify";
 export interface SanitizeOptions {
     /** Convert an `mxc://` URI to a loadable HTTP URL (null = drop it). */
     resolveMxc?: (mxc: string) => string | null;
+    /**
+     * Sprite for a custom emoticon (`<img data-mx-emoticon>`) by its mxc URI,
+     * from a pack sprite sheet (see matrix/packSheets.ts). A still sprite
+     * replaces the image with a 1x1 transparent GIF painted by `style`. An
+     * animated sprite is ignored: the plain <img> is kept, because a poster
+     * under animated pixels shows through their transparent areas. Null, an
+     * animated sprite, or a missing option keeps the plain <img>.
+     */
+    emoticonSprite?: (mxc: string) => EmoticonSprite | null;
 }
+
+export interface EmoticonSprite {
+    /** CSS declarations from spriteFor; only blob: backgrounds are accepted. */
+    style: string;
+    animated: boolean;
+}
+
+/** 1x1 transparent GIF, so a sprite-painted emoticon loads no remote bytes. */
+const BLANK_GIF =
+    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+/** Only the shape spriteFor emits: a blob: background and nothing else. */
+const SPRITE_STYLE = /^background-image:url\("blob:[^"'()\\;<>\s]+"\);/;
 
 // Matrix spec: allowed tags for org.matrix.custom.html
 const ALLOWED_TAGS = [
@@ -115,7 +136,22 @@ const ALLOWED_URI_REGEXP =
     /^(?:(?:https?|ftp|mailto|magnet|matrix|mxc):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
 
 let currentResolveMxc: SanitizeOptions["resolveMxc"];
+let currentEmoticonSprite: SanitizeOptions["emoticonSprite"];
 let hookRegistered = false;
+
+/** The sprite for an emoticon <img> whose src is still its mxc URI, or null. */
+function emoticonSpriteFor(el: Element): EmoticonSprite | null {
+    if (!currentEmoticonSprite) return null;
+    if (el.tagName !== "IMG" || !el.hasAttribute("data-mx-emoticon"))
+        return null;
+    const mxc = el.getAttribute("src");
+    if (!mxc || !mxc.startsWith("mxc://")) return null;
+    const sprite = currentEmoticonSprite(mxc);
+    if (!sprite || sprite.animated === true) return null;
+    if (typeof sprite.style !== "string") return null;
+    if (!SPRITE_STYLE.test(sprite.style)) return null;
+    return { style: sprite.style, animated: false };
+}
 
 function registerHook(): void {
     if (hookRegistered || !DOMPurify.isSupported) return;
@@ -157,14 +193,23 @@ function registerHook(): void {
     DOMPurify.addHook("afterSanitizeAttributes", (node) => {
         const el = node as Element;
         if (!el.getAttribute) return;
+        // This hook runs after DOMPurify has checked the attributes, so what
+        // is set here is not re-checked. Only the sprite style is set here,
+        // and only from spriteFor's output (see SPRITE_STYLE).
+        const sprite = emoticonSpriteFor(el);
         for (const attr of ["src", "href"] as const) {
             const val = el.getAttribute(attr);
             if (val && val.startsWith("mxc://")) {
+                if (sprite && attr === "src") {
+                    el.setAttribute("src", BLANK_GIF);
+                    continue;
+                }
                 const http = currentResolveMxc?.(val) ?? null;
                 if (http) el.setAttribute(attr, http);
                 else el.removeAttribute(attr);
             }
         }
+        if (sprite) el.setAttribute("style", sprite.style);
         // Any link that opens a new context must not leak window.opener.
         if (el.tagName === "A" && el.getAttribute("target")) {
             el.setAttribute("rel", "noopener noreferrer");
@@ -182,6 +227,7 @@ export function sanitizeMatrixHtml(
     if (!DOMPurify.isSupported) return "";
     registerHook();
     currentResolveMxc = opts?.resolveMxc;
+    currentEmoticonSprite = opts?.emoticonSprite;
     try {
         return DOMPurify.sanitize(html, {
             ALLOWED_TAGS,
@@ -193,5 +239,6 @@ export function sanitizeMatrixHtml(
         }) as string;
     } finally {
         currentResolveMxc = undefined;
+        currentEmoticonSprite = undefined;
     }
 }

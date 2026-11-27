@@ -113,7 +113,9 @@
         findEventById,
         isHighlightEvent,
         preloadRoomEmoji,
+        getCustomEmojiPacks,
     } from "$lib/matrix/client";
+    import { ensurePackSheets, sheetImagesOf } from "$lib/matrix/packSheets";
     import {
         shouldShowHeader,
         dateSeparatorLabel,
@@ -362,10 +364,22 @@
         void r.roomId;
         const spaceId = untrack(() => roomsState.activeSpaceId);
         const spaces = untrack(() => roomsState.spaces);
-        const timer = setTimeout(
-            () => preloadRoomEmoji(r, spaceId, spaces),
-            EMOJI_PRELOAD_DEFER_MS,
-        );
+        const timer = setTimeout(() => {
+            preloadRoomEmoji(r, spaceId, spaces);
+            // Build the room's emoji sprite sheets so inline emoticons in
+            // messages can draw from them. Packs are read untracked.
+            untrack(() => {
+                try {
+                    const packs = getCustomEmojiPacks(spaceId, spaces, r);
+                    ensurePackSheets(
+                        "emoji",
+                        packs.map((p) => sheetImagesOf(p.emojis)),
+                    );
+                } catch {
+                    /* best-effort warm-up, same as preloadRoomEmoji */
+                }
+            });
+        }, EMOJI_PRELOAD_DEFER_MS);
         return () => clearTimeout(timer);
     });
     let isDragOver = $state(false);
