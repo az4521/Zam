@@ -59,6 +59,7 @@
     import { releaseSessionResources } from "$lib/utils/sessionTeardown";
     import { clearAllNotificationSurfaces } from "$lib/utils/notificationSurfaces";
     import AppShell from "$lib/components/layout/AppShell.svelte";
+    import { fade } from "svelte/transition";
     import Splash from "$lib/components/layout/Splash.svelte";
     import { markFreshSignIn } from "$lib/stores/onboarding.svelte";
     import HealthBanners from "$lib/components/layout/HealthBanners.svelte";
@@ -111,6 +112,12 @@
             isAddAccountMode: addModeAtInit || oauthReturnAtInit,
         }),
     );
+
+    // Matches AppShell's fade-in; none under reduced motion.
+    const splashFadeMs = window.matchMedia("(prefers-reduced-motion: reduce)")
+        .matches
+        ? 0
+        : 250;
 
     // A session is saved here: the splash is then a silent app-shaped skeleton.
     const hadSessionAtInit = !!loadStoredSession();
@@ -562,14 +569,23 @@
     }
 </script>
 
+{#if view === "splash"}
+    <!-- Fixed over whatever replaces it, so when the app mounts the skeleton
+         fades out while the app fades in (AppShell's animate-fade-in) instead
+         of one vanishing before the other appears. -->
+    <div class="fixed inset-0 z-[200]" out:fade={{ duration: splashFadeMs }}>
+        <Splash
+            message={sessionInUse
+                ? t("rootPage.sessionOpenInAnotherTab")
+                : null}
+            quiet={hadSessionAtInit}
+        />
+    </div>
+{/if}
+
 {#if view === "shell"}
     <AppShell />
-{:else if view === "splash"}
-    <Splash
-        message={sessionInUse ? t("rootPage.sessionOpenInAnotherTab") : null}
-        quiet={hadSessionAtInit}
-    />
-{:else}
+{:else if view !== "splash"}
     {#await loadLoginView() then { default: LoginView }}
         <LoginView
             {isAddAccountMode}

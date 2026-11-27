@@ -1,5 +1,6 @@
 <script lang="ts">
     import { t } from "$lib/i18n";
+    import { loadRoomListWidth } from "$lib/utils/roomListWidth";
     import SkeletonRows from "$lib/components/ui/SkeletonRows.svelte";
     // Shown while a stored session is being silently restored. With a session
     // on this device (`quiet`) it is app-shaped blocks, so the restore looks
@@ -14,6 +15,9 @@
     // the first), the room list about 80% (32px rows under a 56px header gap).
     const height = typeof window === "undefined" ? 800 : window.innerHeight;
     const railCount = Math.max(1, Math.floor((height * 0.5 - 12 - 8 + 8) / 56));
+    const roomListWidth = loadRoomListWidth(
+        typeof window === "undefined" ? 1200 : window.innerWidth,
+    );
     const roomRows = Math.max(1, Math.floor((height * 0.8 - 56) / 32));
 
     let {
@@ -66,7 +70,8 @@
             </div>
         </div>
         <div
-            class="hidden md:block w-60 flex-shrink-0 bg-zam-backgroundSecondary pt-14"
+            class="hidden md:block flex-shrink-0 bg-zam-backgroundSecondary pt-14"
+            style="width: {roomListWidth}px;"
             aria-hidden="true"
         >
             <div>

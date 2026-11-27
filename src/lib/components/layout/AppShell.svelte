@@ -326,6 +326,13 @@
     import { updateFaviconBadge } from "$lib/utils/faviconBadge";
     import { restoreAppWindow } from "$lib/utils/restoreWindow";
     import {
+        ROOM_LIST_WIDTH_KEY,
+        ROOM_LIST_MIN_W,
+        roomListMaxWidth,
+        clampRoomListWidth as clampRoomListWidthFor,
+        loadRoomListWidth,
+    } from "$lib/utils/roomListWidth";
+    import {
         isUndecryptedEvent,
         previewForEvent,
     } from "$lib/utils/encryptionState";
@@ -404,22 +411,10 @@
 
     // Desktop room-list width (px), user-resizable from its right edge and
     // persisted per browser. The space rail beside it stays a fixed 4.5rem.
-    const ROOM_LIST_WIDTH_KEY = "layout.roomListWidth";
-    const ROOM_LIST_MIN_W = 200;
-    const roomListMaxW = () =>
-        Math.max(ROOM_LIST_MIN_W, Math.min(640, window.innerWidth * 0.5));
+    const roomListMaxW = () => roomListMaxWidth(window.innerWidth);
     const clampRoomListWidth = (w: number) =>
-        Math.round(Math.min(roomListMaxW(), Math.max(ROOM_LIST_MIN_W, w)));
-    let roomListWidth = $state(
-        (() => {
-            try {
-                const v = Number(localStorage.getItem(ROOM_LIST_WIDTH_KEY));
-                return v > 0 ? clampRoomListWidth(v) : 240;
-            } catch {
-                return 240;
-            }
-        })(),
-    );
+        clampRoomListWidthFor(w, window.innerWidth);
+    let roomListWidth = $state(loadRoomListWidth(window.innerWidth));
     function saveRoomListWidth() {
         try {
             localStorage.setItem(ROOM_LIST_WIDTH_KEY, String(roomListWidth));
