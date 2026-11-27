@@ -1489,8 +1489,6 @@ const messages: Partial<Record<MessageKey, string>> = {
 
     // src/lib/components/layout/MessageArea.svelte
     "messageArea.dropToAttach": "Отпустите, чтобы прикрепить",
-    "messageArea.cachedRoomHint":
-        "Показаны сообщения, сохранённые на этом устройстве. Отправлять можно будет после загрузки комнаты.",
     "messageArea.unreadNotifications": "Непрочитанные уведомления",
     "messageArea.encryptionEnabled": "Шифрование включено",
     "messageArea.joiningVoiceCall": "Подключение к голосовому звонку…",
@@ -5205,6 +5203,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageInput.scheduleSend": "Запланировать сообщение",
     "messageInput.cannotScheduleAttachments":
         "Запланированные сообщения не могут содержать вложения. Отправьте их сейчас или уберите, чтобы запланировать только текст.",
+    "messageInput.roomNotLoadedYet":
+        "Эта комната ещё не загрузилась. Пока можно отправлять только обычный текст.",
     "messageInput.messageScheduled": "Сообщение запланировано на {when}",
     "messageInput.failedToSchedule": "Не удалось запланировать сообщение",
     "scheduledMessages.count":

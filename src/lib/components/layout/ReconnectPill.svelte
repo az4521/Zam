@@ -17,13 +17,22 @@
     // pointer-events-none and never covers the columns, so it can't imply the
     // app is locked - offline stays fully usable.
     const APPEAR_DELAY_MS = 2000;
+    // The first sync after launch (no state yet) is not announced: the app is
+    // already showing cached rooms and messages, so "Connecting…" would only
+    // advertise a load that changes nothing visible. It surfaces only if that
+    // first sync hangs for a long time; errors and offline use the short delay.
+    const INITIAL_APPEAR_DELAY_MS = 15000;
+    const initial = $derived(!syncState);
     let show = $state(false);
     $effect(() => {
         if (!disconnected) {
             show = false;
             return;
         }
-        const timer = setTimeout(() => (show = true), APPEAR_DELAY_MS);
+        const timer = setTimeout(
+            () => (show = true),
+            initial ? INITIAL_APPEAR_DELAY_MS : APPEAR_DELAY_MS,
+        );
         return () => clearTimeout(timer);
     });
 </script>

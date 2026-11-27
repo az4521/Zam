@@ -1403,8 +1403,6 @@ const messages: Partial<Record<MessageKey, string>> = {
 
     // src/lib/components/layout/MessageArea.svelte
     "messageArea.dropToAttach": "拖放以添加附件",
-    "messageArea.cachedRoomHint":
-        "正在显示保存在此设备上的消息。房间加载完成后即可发送。",
     "messageArea.unreadNotifications": "未读通知",
     "messageArea.encryptionEnabled": "已启用加密",
     "messageArea.joiningVoiceCall": "正在加入语音通话…",
@@ -4729,6 +4727,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageInput.scheduleSend": "定时发送",
     "messageInput.cannotScheduleAttachments":
         "定时消息不能包含附件。请立即发送，或移除附件后仅定时发送文本。",
+    "messageInput.roomNotLoadedYet":
+        "此房间尚未加载完成。在此之前只能发送纯文本。",
     "messageInput.messageScheduled": "消息已定时于 {when} 发送",
     "messageInput.failedToSchedule": "无法定时发送消息",
     "scheduledMessages.count": "{count, plural, other {# 条定时消息}}",

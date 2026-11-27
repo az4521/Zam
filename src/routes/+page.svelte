@@ -112,6 +112,9 @@
         }),
     );
 
+    // A session is saved here: the splash is then a silent app-shaped skeleton.
+    const hadSessionAtInit = !!loadStoredSession();
+
     // Set while another tab runs this session; the splash then says so.
     let sessionInUse = $state(false);
 
@@ -176,6 +179,7 @@
     async function beginSync(
         attempt: number,
         preferredRoomId: string | null = null,
+        onCachePainted?: () => void,
     ): Promise<void> {
         disposeSync?.();
         disposeSync = null;
@@ -186,8 +190,14 @@
             handleSessionExpired,
             (reason) => showToast(reason, { tone: "accent" }),
             preferredRoomId,
+            onCachePainted,
         );
-        if (!isLiveAttempt(startup, attempt)) {
+        // A restore may have published the shell early (onCachePainted), which
+        // moves the attempt from "starting" to "active": still ours.
+        const ours =
+            isLiveAttempt(startup, attempt) ||
+            (startup.phase === "active" && startup.attempt === attempt);
+        if (!ours) {
             dispose();
             return;
         }
@@ -369,6 +379,27 @@
                 return;
             }
             const attempt = beginStartup();
+            // Publishes the session: AppShell mounts in place, NO goto. Runs
+            // once, either as soon as the saved room list is painted (the app
+            // appears from its cache while sync is still starting) or, with
+            // nothing saved, when sync is running.
+            const publishSession = () =>
+                commitStartup(attempt, () => {
+                    auth.userId = stored.userId;
+                    auth.homeserverUrl = stored.homeserverUrl;
+                    // A refresh during startup may already have rotated the token.
+                    auth.accessToken =
+                        getLatestTokens(stored.userId)?.accessToken ??
+                        stored.accessToken;
+                    auth.deviceId = stored.deviceId;
+                    auth.isAuthenticated = true;
+                    // No sync state yet: not "offline", just not started.
+                    if (auth.syncState === "STOPPED") auth.syncState = "";
+                    restoring = false;
+                    initServiceWorker();
+                    bootMark("shell-committed");
+                    scheduleBootLog();
+                });
             try {
                 bootMark("reconnect-start");
                 await reconnect(
@@ -385,7 +416,11 @@
                         : undefined,
                 );
                 bootMark("reconnect-done");
-                await beginSync(attempt, getLastOpenedRoomId(stored.userId));
+                await beginSync(
+                    attempt,
+                    getLastOpenedRoomId(stored.userId),
+                    publishSession,
+                );
             } catch (err) {
                 // The device was signed out (its encryption data was lost):
                 // back to login like an expired session, saying why.
@@ -409,6 +444,30 @@
                     err instanceof CryptoKeysUncheckedError
                         ? err.message
                         : RESTORE_FAILED_MESSAGE;
+                // The app was already shown from the saved room list and sync
+                // then failed to start: take it back down to the login view,
+                // as a failure before it was shown would (the session is
+                // kept, unlike an expiry).
+                if (startup.phase === "active" && startup.attempt === attempt) {
+                    clearAllNotificationSurfaces();
+                    setSyncRestarter(null);
+                    disposeSync?.();
+                    disposeSync = null;
+                    stopClient();
+                    startup = reduceSessionStartup(startup, {
+                        type: "invalidated",
+                        error: message,
+                    });
+                    auth.isAuthenticated = false;
+                    auth.userId = null;
+                    auth.accessToken = null;
+                    auth.deviceId = null;
+                    auth.homeserverUrl = "";
+                    auth.syncState = "STOPPED";
+                    auth.error = message;
+                    restoring = false;
+                    return;
+                }
                 // A superseded attempt's owner already published its own state.
                 if (failStartup(attempt, message)) {
                     auth.error = message;
@@ -416,22 +475,8 @@
                 }
                 return;
             }
-            // Sync is running: only NOW does the session become observable and
-            // AppShell mount in place — NO goto.
-            commitStartup(attempt, () => {
-                auth.userId = stored.userId;
-                auth.homeserverUrl = stored.homeserverUrl;
-                // A refresh during startup may already have rotated the token.
-                auth.accessToken =
-                    getLatestTokens(stored.userId)?.accessToken ??
-                    stored.accessToken;
-                auth.deviceId = stored.deviceId;
-                auth.isAuthenticated = true;
-                restoring = false;
-                initServiceWorker();
-                bootMark("shell-committed");
-                scheduleBootLog();
-            });
+            // Sync is running (the shell may already be up from the cache).
+            publishSession();
         })();
     });
 
@@ -522,6 +567,7 @@
 {:else if view === "splash"}
     <Splash
         message={sessionInUse ? t("rootPage.sessionOpenInAnotherTab") : null}
+        quiet={hadSessionAtInit}
     />
 {:else}
     {#await loadLoginView() then { default: LoginView }}

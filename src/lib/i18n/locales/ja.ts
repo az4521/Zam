@@ -1256,8 +1256,6 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageActionsSheet.thisMessage": "このメッセージを{label}しますか？",
     "messageActionsSheet.messageActions": "メッセージ操作",
     "messageArea.dropToAttach": "ドロップして添付",
-    "messageArea.cachedRoomHint":
-        "このデバイスに保存されたメッセージを表示しています。ルームの読み込みが終わると送信できます。",
     "messageArea.unreadNotifications": "未読の通知",
     "messageArea.encryptionEnabled": "暗号化が有効",
     "messageArea.joiningVoiceCall": "音声通話に参加しています…",
@@ -4722,6 +4720,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageInput.scheduleSend": "メッセージを予約",
     "messageInput.cannotScheduleAttachments":
         "予約メッセージには添付ファイルを含められません。今すぐ送信するか、添付を外してテキストだけ予約してください。",
+    "messageInput.roomNotLoadedYet":
+        "このルームはまだ読み込み中です。読み込みが終わるまでは通常のテキストしか送信できません。",
     "messageInput.messageScheduled": "{when} に送信するよう予約しました",
     "messageInput.failedToSchedule": "メッセージを予約できませんでした",
     "scheduledMessages.count":

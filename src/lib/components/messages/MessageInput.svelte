@@ -36,6 +36,7 @@
         getMyPowerLevel,
         getRoomPowerLevels,
         sendThreadReply,
+        isRoomCachedOnly,
         type CustomEmoji,
         type CustomSticker,
         type MediaCaption,
@@ -1792,7 +1793,28 @@
         textareaEl?.focus();
     }
 
+    // A room that exists only in the saved room list (sync has not delivered
+    // it yet) takes plain text only: it is held in the outbox and goes out when
+    // the room arrives. Everything else needs the live room.
+    const roomLive = $derived(
+        !room ||
+            (void auth.syncState,
+            void roomsState.roomsTick,
+            !isRoomCachedOnly(roomId)),
+    );
+
     async function send() {
+        if (
+            !roomLive &&
+            (activeEdit ||
+                isThread ||
+                fileQueue.length > 0 ||
+                scheduleAt !== null ||
+                /^\s*(\/(?!\/)|s\/)/.test(text))
+        ) {
+            showErrorToast(t("messageInput.roomNotLoadedYet"));
+            return;
+        }
         // Edit mode: Enter and the send button save the edit. Nothing else
         // (commands, sed, attachments, replies, threads) applies to it.
         if (activeEdit) {
@@ -2040,6 +2062,7 @@
             shouldQueueSend({
                 syncState: auth.syncState,
                 online: navigator.onLine,
+                roomLive,
             })
         ) {
             const { html } = formatted;

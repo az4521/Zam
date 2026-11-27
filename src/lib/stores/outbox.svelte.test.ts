@@ -13,11 +13,14 @@ const h = vi.hoisted(() => ({
             ) => Promise<string>
         >(),
     onSyncReconnected: vi.fn((_cb: () => void) => () => {}),
+    isRoomReadyToSend: vi.fn((_roomId: string) => true),
 }));
 
 vi.mock("$lib/matrix/client", () => ({
     sendOutboxMessage: h.sendOutboxMessage,
     onSyncReconnected: h.onSyncReconnected,
+    onRoomsMayBeReady: vi.fn(() => () => {}),
+    isRoomReadyToSend: h.isRoomReadyToSend,
 }));
 
 import {
@@ -51,6 +54,7 @@ beforeEach(() => {
     // clearAllMocks wipes calls, not implementations — restore the defaults.
     h.sendOutboxMessage.mockResolvedValue("$ev");
     h.onSyncReconnected.mockImplementation((_cb: () => void) => () => {});
+    h.isRoomReadyToSend.mockReturnValue(true);
     resetOutbox();
 });
 
@@ -285,5 +289,20 @@ describe("outbox store", () => {
 
         addSpy.mockRestore();
         removeSpy.mockRestore();
+    });
+
+    it("holds a message until the room is ready, then sends it", async () => {
+        h.isRoomReadyToSend.mockReturnValue(false);
+        queueMessage(ROOM, { body: "early" });
+        flushOutbox();
+        await Promise.resolve();
+        expect(h.sendOutboxMessage).not.toHaveBeenCalled();
+        expect(getOutboxItems(ROOM)).toHaveLength(1);
+
+        h.isRoomReadyToSend.mockReturnValue(true);
+        flushOutbox();
+        await vi.waitFor(() =>
+            expect(h.sendOutboxMessage).toHaveBeenCalledTimes(1),
+        );
     });
 });

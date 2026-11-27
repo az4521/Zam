@@ -32,7 +32,12 @@ import {
 } from "$lib/utils/outbox";
 import { classifySendError } from "$lib/utils/sendGating";
 import { matrixErrorMessage } from "$lib/utils/knock";
-import { sendOutboxMessage, onSyncReconnected } from "$lib/matrix/client";
+import {
+    sendOutboxMessage,
+    onSyncReconnected,
+    onRoomsMayBeReady,
+    isRoomReadyToSend,
+} from "$lib/matrix/client";
 
 /** Give up on an item after this many send attempts and mark it failed. */
 export const OUTBOX_MAX_ATTEMPTS = 5;
@@ -96,6 +101,9 @@ async function flushRoom(roomId: string): Promise<void> {
     flushing.add(roomId);
     try {
         for (;;) {
+            // A message written before sync delivered the room waits here;
+            // onRoomsMayBeReady flushes again when it arrives.
+            if (!isRoomReadyToSend(roomId)) break;
             const item = nextSendable(state.s, roomId);
             if (!item) break;
 
@@ -167,7 +175,13 @@ export function removeOutboxItem(_roomId: string, id: string): void {
 export function initOutbox(): () => void {
     const unsubReconnect = onSyncReconnected(flushOutbox);
     window.addEventListener("online", flushOutbox);
+    // Only when something is waiting (and not already failed/sending): this
+    // fires on every sync response.
+    const unsubReady = onRoomsMayBeReady(() => {
+        if (hasOutboxItems()) flushOutbox();
+    });
     return () => {
+        unsubReady();
         unsubReconnect();
         window.removeEventListener("online", flushOutbox);
     };

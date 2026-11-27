@@ -24,6 +24,8 @@ export const en = {
     "messageInput.scheduleSend": "Schedule message",
     "messageInput.cannotScheduleAttachments":
         "Scheduled messages can't include attachments. Send them now, or remove them to schedule the text.",
+    "messageInput.roomNotLoadedYet":
+        "This room hasn't finished loading. Only plain text can be sent until it has.",
     "messageInput.messageScheduled": "Message scheduled for {when}",
     "messageInput.failedToSchedule": "Couldn't schedule the message",
     "scheduledMessages.count":
@@ -1464,8 +1466,6 @@ export const en = {
 
     // src/lib/components/layout/MessageArea.svelte
     "messageArea.dropToAttach": "Drop to attach",
-    "messageArea.cachedRoomHint":
-        "Showing the messages saved on this device. You can send once the room has loaded.",
     "messageArea.unreadNotifications": "Unread notifications",
     "messageArea.encryptionEnabled": "Encryption enabled",
     "messageArea.joiningVoiceCall": "Joining voice call…",

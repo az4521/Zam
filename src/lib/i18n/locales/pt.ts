@@ -1480,8 +1480,6 @@ const messages: Partial<Record<MessageKey, string>> = {
 
     // src/lib/components/layout/MessageArea.svelte
     "messageArea.dropToAttach": "Solte para anexar",
-    "messageArea.cachedRoomHint":
-        "Mostrando as mensagens salvas neste dispositivo. Você poderá enviar quando a sala terminar de carregar.",
     "messageArea.unreadNotifications": "Notificações não lidas",
     "messageArea.encryptionEnabled": "Criptografia ativada",
     "messageArea.joiningVoiceCall": "Entrando na chamada de voz…",
@@ -5240,6 +5238,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageInput.scheduleSend": "Agendar mensagem",
     "messageInput.cannotScheduleAttachments":
         "Mensagens agendadas não podem incluir anexos. Envie-os agora ou remova-os para agendar só o texto.",
+    "messageInput.roomNotLoadedYet":
+        "Esta sala ainda não terminou de carregar. Até lá, só é possível enviar texto simples.",
     "messageInput.messageScheduled": "Mensagem agendada para {when}",
     "messageInput.failedToSchedule": "Não foi possível agendar a mensagem",
     "scheduledMessages.count":

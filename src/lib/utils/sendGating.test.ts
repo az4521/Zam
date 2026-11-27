@@ -2,6 +2,23 @@ import { describe, it, expect } from "vitest";
 import { shouldQueueSend, classifySendError } from "./sendGating";
 
 describe("shouldQueueSend", () => {
+    it("queues while the room is not live yet, even when sync is healthy", () => {
+        expect(
+            shouldQueueSend({
+                syncState: "SYNCING",
+                online: true,
+                roomLive: false,
+            }),
+        ).toBe(true);
+        expect(
+            shouldQueueSend({
+                syncState: null,
+                online: true,
+                roomLive: true,
+            }),
+        ).toBe(false);
+    });
+
     it("queues when the browser is offline regardless of sync state", () => {
         expect(shouldQueueSend({ syncState: "SYNCING", online: false })).toBe(
             true,

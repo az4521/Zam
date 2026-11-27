@@ -1684,6 +1684,14 @@ export async function startSync(
      * already cleartext. Other cached rooms decrypt in the background.
      */
     preferredRoomId?: string | null,
+    /**
+     * Called once the saved room list has been painted, before the sync
+     * client starts. Only when there IS a saved list: the caller can show the
+     * app from it at once instead of waiting for sync to start. Not called
+     * for a first run with nothing saved. A later failure still rejects this
+     * promise, so the caller must be ready to tear the shown app back down.
+     */
+    onCachePainted?: () => void,
 ): Promise<() => void> {
     const owner = captureClient();
     const client = owner.client;
@@ -1929,6 +1937,8 @@ export async function startSync(
     // Paint the last known room list while sync catches up.
     await hydrateRoomListCache(client, preferredRoomId);
     bootMark("roomlist-hydrated");
+    if (onCachePainted && isRoomListFromCache() && ownedClient(owner))
+        onCachePainted();
     // A hidden page may never come back (mobile kills it): save on the way out.
     const onHidden = () => {
         if (document.visibilityState === "hidden")
@@ -2203,6 +2213,34 @@ export function onSyncPrepared(callback: () => void): () => void {
     };
     matrixClient.on(ClientEvent.Sync, handler as never);
     return () => matrixClient?.off(ClientEvent.Sync, handler as never);
+}
+
+/**
+ * True once sync has delivered the room with its state, so a send into it goes
+ * out with the right encryption and permissions. A room only in the saved room
+ * list, or a bare stub awaiting its state, is not ready.
+ */
+export function isRoomReadyToSend(roomId: string): boolean {
+    const room = matrixClient?.getRoom(roomId);
+    return !!room && !roomLacksState(room);
+}
+
+/** Fires when a room may have become ready to send into: a room appearing, or
+ *  any healthy sync response (which can complete a stub's state). Returns an
+ *  unsubscribe. */
+export function onRoomsMayBeReady(callback: () => void): () => void {
+    if (!matrixClient) return () => {};
+    const client = matrixClient;
+    const onRoom = () => callback();
+    const onSync = (state: string) => {
+        if (state === "PREPARED" || state === "SYNCING") callback();
+    };
+    client.on(ClientEvent.Room, onRoom as never);
+    client.on(ClientEvent.Sync, onSync as never);
+    return () => {
+        client.off(ClientEvent.Room, onRoom as never);
+        client.off(ClientEvent.Sync, onSync as never);
+    };
 }
 
 /** Fires when the sync loop recovers from an error/reconnecting state — i.e.

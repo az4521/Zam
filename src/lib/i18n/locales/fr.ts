@@ -1334,8 +1334,6 @@ const messages: Partial<Record<MessageKey, string>> = {
 
     // src/lib/components/layout/MessageArea.svelte
     "messageArea.dropToAttach": "Déposer pour joindre",
-    "messageArea.cachedRoomHint":
-        "Les messages enregistrés sur cet appareil sont affichés. Vous pourrez envoyer une fois le salon chargé.",
     "messageArea.unreadNotifications": "Notifications non lues",
     "messageArea.encryptionEnabled": "Chiffrement activé",
     "messageArea.joiningVoiceCall": "Connexion à l'appel vocal…",
@@ -5282,6 +5280,8 @@ const messages: Partial<Record<MessageKey, string>> = {
     "messageInput.scheduleSend": "Programmer le message",
     "messageInput.cannotScheduleAttachments":
         "Les messages programmés ne peuvent pas contenir de pièces jointes. Envoyez-les maintenant ou retirez-les pour programmer le texte seul.",
+    "messageInput.roomNotLoadedYet":
+        "Ce salon n'a pas fini de se charger. D'ici là, seul du texte brut peut être envoyé.",
     "messageInput.messageScheduled": "Message programmé pour {when}",
     "messageInput.failedToSchedule": "Impossible de programmer le message",
     "scheduledMessages.count":

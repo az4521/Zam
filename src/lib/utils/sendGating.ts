@@ -18,7 +18,12 @@
 export function shouldQueueSend(input: {
     syncState: string | null | undefined;
     online: boolean;
+    /** False while the room exists only in the saved room list (sync has not
+     *  delivered it yet): nothing can be sent into it, so hold the message. */
+    roomLive?: boolean;
 }): boolean {
+    // Room not delivered by sync yet → queue until it is
+    if (input.roomLive === false) return true;
     // Browser offline → always queue
     if (!input.online) return true;
     // Clearly-down sync states → queue

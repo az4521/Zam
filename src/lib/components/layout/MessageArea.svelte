@@ -42,7 +42,6 @@
         getTombstone,
         joinRoom,
         getRoom,
-        isRoomCachedOnly,
         getReadUpToEventId,
         getOwnReadReceipt,
         getMarkedUnread,
@@ -62,6 +61,7 @@
         getDirectRoomIds,
         type ReadReceiptInfo,
     } from "$lib/matrix/client";
+    import SkeletonRows from "$lib/components/ui/SkeletonRows.svelte";
     import Avatar from "$lib/components/ui/Avatar.svelte";
     import { logSync } from "$lib/matrix/syncLog";
     import { setActiveRoom } from "$lib/stores/rooms.svelte";
@@ -221,14 +221,6 @@
     }
 
     let { room, isMobile = false, onMenuOpen }: Props = $props();
-
-    // A room that exists only in the saved room list: sync hasn't delivered it
-    // yet (offline, or early in any boot), so its timeline is the cached tail
-    // and there is nothing to send to yet. Re-checked as sync delivers rooms.
-    const cachedOnly = $derived.by(() => {
-        void auth.syncState;
-        return isRoomCachedOnly(room.roomId);
-    });
 
     // Let the room's own content (timeline, avatars) claim connections first,
     // then warm its custom emoji in the background.
@@ -3376,7 +3368,17 @@
 
             <!-- Older history may still load: shown until the room's start is
                  reached, so an unloaded top is never mistaken for it -->
-            {#if historyEdgeState === "loading"}
+            {#if historyEdgeState === "loading" && messages.length === 0}
+                <!-- Nothing to show yet: the shape of a conversation, not a
+                     spinner over an empty pane. -->
+                <div
+                    role="status"
+                    aria-label={t("messageArea.loadingHistory")}
+                    class="flex-1 min-h-0 overflow-hidden flex flex-col justify-end"
+                >
+                    <SkeletonRows variant="message" count={24} />
+                </div>
+            {:else if historyEdgeState === "loading"}
                 <div class="flex justify-center py-4">
                     <div
                         class="w-6 h-6 border-2 border-zam-accent border-t-transparent rounded-full animate-spin"
@@ -3690,56 +3692,32 @@
         {/if}
 
         <!-- Message input. Wrapped so its rendered height can be measured and
-             the floating pills above can be offset to clear it. A cached room
-             has no live timeline to send into, so it shows a note instead.
-             That happens offline and also for a moment on every online boot,
-             so the note doesn't claim either: ReconnectPill reports the
-             connection. -->
-        {#if cachedOnly}
-            <!-- Same outer padding and a floor equal to a one-line composer
-                 (editor 32px + the box's 2 * 0.625rem padding + 2px border),
-                 so the list doesn't jump when the real composer replaces it. -->
-            <div
-                bind:clientHeight={composerHeight}
-                class="px-4 pt-2 pb-[calc(1rem_+_env(safe-area-inset-bottom,0px))] md:pb-[calc(0.5rem_+_env(safe-area-inset-bottom,0px))] flex-shrink-0"
-                dir={uiDir}
-            >
-                <!-- The composer's reserved typing-indicator row (MessageInput:
-                     h-4 + mb-1) above its input box. -->
-                <div class="h-4 mb-1"></div>
-                <div
-                    class="flex items-center rounded-lg border border-zam-backgroundModifier bg-zam-backgroundSecondary px-4 min-h-[calc(32px_+_1.25rem_+_2px)]"
-                >
-                    <p class="text-xs text-zam-textMuted">
-                        {t("messageArea.cachedRoomHint")}
-                    </p>
-                </div>
-            </div>
-        {:else}
-            <div bind:clientHeight={composerHeight} class="flex-shrink-0">
-                <MessageInput
-                    bind:this={messageInputEl}
-                    bind:autocompleteOpen={composerAutocompleteOpen}
-                    {roomId}
-                    {roomName}
-                    {room}
-                    {replyToEvent}
-                    {editEvent}
-                    onCancelEdit={() => {
-                        editEvent = null;
-                    }}
-                    {scrollEl}
-                    keepScrollOnSend={isContextView}
-                    onCancelReply={() => {
-                        replyToEvent = null;
-                    }}
-                    onRequestEditLast={requestEditLastMessage}
-                    onSedEdit={(cmd) =>
-                        sedEditLastMessage(room, messages, auth.userId, cmd)}
-                    onThreadCreated={openThread}
-                />
-            </div>
-        {/if}
+             the floating pills above can be offset to clear it. A room sync
+             has not delivered yet still gets the real composer: plain text
+             sent there waits in the outbox until the room arrives. -->
+        <div bind:clientHeight={composerHeight} class="flex-shrink-0">
+            <MessageInput
+                bind:this={messageInputEl}
+                bind:autocompleteOpen={composerAutocompleteOpen}
+                {roomId}
+                {roomName}
+                {room}
+                {replyToEvent}
+                {editEvent}
+                onCancelEdit={() => {
+                    editEvent = null;
+                }}
+                {scrollEl}
+                keepScrollOnSend={isContextView}
+                onCancelReply={() => {
+                    replyToEvent = null;
+                }}
+                onRequestEditLast={requestEditLastMessage}
+                onSedEdit={(cmd) =>
+                    sedEditLastMessage(room, messages, auth.userId, cmd)}
+                onThreadCreated={openThread}
+            />
+        </div>
     </div>
 
     <!-- Debug panel (toggleDebug keybind, Ctrl+Alt+Shift+D by default) -->
