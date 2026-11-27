@@ -382,6 +382,9 @@ function logHeal(): void {
     );
 }
 
+/** Avatar images, shared by every place that draws the same one. */
+export const avatarBlobs = new BlobUrlCache(400);
+
 /** Waits before each automatic retry of a transient authed-fetch failure. */
 export const MEDIA_RETRY_DELAYS_MS = [1_500, 4_000, 10_000];
 
@@ -415,11 +418,18 @@ export interface MediaRetry {
 export function createMediaRetry(
     getSrc: () => string | null | undefined,
     getMimeHint?: () => string | undefined,
+    // Where blobs are kept for reuse. With it, authed media always goes through
+    // the token fetch, and a URL fetched before is shown on the first frame
+    // (no placeholder), e.g. an avatar whose row is rebuilt when the saved room
+    // is swapped for the live one. Without it each instance owns its blob.
+    shared?: BlobUrlCache,
 ): MediaRetry {
     let effective = $state<string | null | undefined>(undefined);
     let failed = $state(false);
     let pending = $state(false);
     let blobUrl: string | null = null;
+    // The hold on a shared blob while this instance shows it.
+    let releaseShared: (() => void) | null = null;
     let tried = false;
     // Bumped when the src changes or the component goes away, so a fetch or
     // timer started for an older state does nothing when it lands.
@@ -439,13 +449,36 @@ export function createMediaRetry(
     function startAuthed(s: string, g: number): void {
         pending = true;
         waitingSrc = null;
-        void authedMediaBlobResult(s, getMimeHint?.()).then((r) => {
+        const hint = getMimeHint?.();
+        // A failure rejects inside the cache so it is not remembered: the next
+        // attempt fetches again.
+        const result: Promise<MediaBlobResult> = shared
+            ? shared
+                  .get(s, async () => {
+                      const got = await authedMediaBlobResult(s, hint);
+                      if (got.url !== null) return got.url;
+                      throw got;
+                  })
+                  .then(
+                      (url) => ({ url: url as string }),
+                      (got: unknown): MediaBlobResult =>
+                          got && typeof got === "object" && "transient" in got
+                              ? (got as MediaBlobResult)
+                              : { url: null, transient: true },
+                  )
+            : authedMediaBlobResult(s, hint);
+        void result.then((r) => {
             if (g !== gen) {
-                if (r.url !== null) URL.revokeObjectURL(r.url);
+                if (r.url !== null && !shared) URL.revokeObjectURL(r.url);
                 return;
             }
             if (r.url !== null) {
-                blobUrl = r.url;
+                if (shared) {
+                    releaseShared?.();
+                    releaseShared = shared.hold(r.url);
+                } else {
+                    blobUrl = r.url;
+                }
                 effective = r.url;
                 pending = false;
                 return;
@@ -478,10 +511,25 @@ export function createMediaRetry(
                 URL.revokeObjectURL(blobUrl);
                 blobUrl = null;
             }
+            releaseShared?.();
+            releaseShared = null;
             effective = s;
             failed = false;
             pending = false;
             tried = false;
+            if (s && shared && isAuthedMediaUrl(s)) {
+                const hit = shared.peek(s);
+                if (hit) {
+                    releaseShared = shared.hold(hit);
+                    effective = hit;
+                    tried = true;
+                    return;
+                }
+                effective = undefined;
+                tried = true;
+                startAuthed(s, gen);
+                return;
+            }
             // No worker adding the token yet: an <img> would only 401 and
             // land in onError anyway, so go straight to the authed fetch.
             if (s && !swMediaAuth.ready && isAuthedMediaUrl(s)) {
@@ -522,6 +570,8 @@ export function createMediaRetry(
         cancelRetry();
         waitingSrc = null;
         if (blobUrl) URL.revokeObjectURL(blobUrl);
+        releaseShared?.();
+        releaseShared = null;
     });
 
     return {

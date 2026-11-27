@@ -1,10 +1,17 @@
 <script lang="ts">
     import { getAvatarColor, getAvatarInitials } from "$lib/utils/colors";
     import {
+        avatarBlobs,
         createMediaRetry,
         isAuthedMediaUrl,
         thumbnailUrl,
     } from "$lib/stores/mediaAuth.svelte";
+
+    import {
+        rememberTinyAvatar,
+        tinyAvatarFor,
+        tinyFromImage,
+    } from "$lib/utils/avatarTiny";
 
     interface Props {
         src?: string | null;
@@ -66,8 +73,10 @@
         void resolvedSrc;
         useOriginal = false;
     });
-    const imgRetry = createMediaRetry(() =>
-        useOriginal ? resolvedSrc : thumbSrc,
+    const imgRetry = createMediaRetry(
+        () => (useOriginal ? resolvedSrc : thumbSrc),
+        undefined,
+        avatarBlobs,
     );
     $effect(() => {
         if (imgRetry.failed && !useOriginal && thumbSrc !== resolvedSrc)
@@ -76,23 +85,52 @@
     const showImage = $derived(
         !!imgRetry.src && !imgRetry.failed && !imgRetry.pending,
     );
+
+    // A tiny blurred copy of this avatar from an earlier session, painted at
+    // once while the real image is fetched, then faded out as it arrives.
+    const tiny = $derived(imgRetry.failed ? null : tinyAvatarFor(resolvedSrc));
+    let loaded = $state(false);
+    $effect(() => {
+        void imgRetry.src;
+        loaded = false;
+    });
+    function onLoad(e: Event) {
+        loaded = true;
+        if (resolvedSrc && !tinyAvatarFor(resolvedSrc)) {
+            const data = tinyFromImage(e.currentTarget as HTMLImageElement);
+            if (data) rememberTinyAvatar(resolvedSrc, data);
+        }
+    }
 </script>
 
 <div
-    class="flex-shrink-0 flex items-center justify-center overflow-hidden {roundedClass()} {extraClass}"
-    style="width: {size}px; height: {size}px; background-color: {showImage
+    class="relative flex-shrink-0 flex items-center justify-center overflow-hidden {roundedClass()} {extraClass}"
+    style="width: {size}px; height: {size}px; background-color: {showImage ||
+    tiny
         ? 'transparent'
         : bgColor};"
 >
+    {#if tiny}
+        <img
+            src={tiny}
+            alt=""
+            aria-hidden="true"
+            class="absolute inset-0 w-full h-full object-cover {roundedClass()}"
+        />
+    {/if}
     {#if showImage}
         <img
             src={imgRetry.src}
             alt={name}
-            class="w-full h-full object-cover {roundedClass()}"
+            class="relative w-full h-full object-cover {roundedClass()}"
+            style={tiny
+                ? `opacity: ${loaded ? 1 : 0}; transition: opacity 200ms ease-out;`
+                : undefined}
             data-own-retry
+            onload={onLoad}
             onerror={imgRetry.onError}
         />
-    {:else}
+    {:else if !tiny}
         <span
             class="text-white font-semibold select-none"
             style="font-size: {size * 0.4}px;"

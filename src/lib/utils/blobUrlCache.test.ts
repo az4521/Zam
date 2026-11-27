@@ -80,4 +80,11 @@ describe("BlobUrlCache", () => {
         const b = await fill("b");
         expect(revoked).not.toContain(b);
     });
+
+    it("peeks a made URL synchronously, and nothing for an unknown key", async () => {
+        const { cache, fill } = setup(2);
+        expect(cache.peek("a")).toBeUndefined();
+        await fill("a");
+        expect(cache.peek("a")).toBe("blob:a");
+    });
 });

@@ -54,6 +54,12 @@ export class BlobUrlCache {
         return p;
     }
 
+    /** The URL already made for `key`, if any: a synchronous hit, so a
+     *  component that remounts can paint the image on its first frame. */
+    peek(key: string): string | undefined {
+        return this.urls.get(key);
+    }
+
     /** Keep `url` from being revoked until the returned release is called. */
     hold(url: string | null | undefined): () => void {
         if (!url) return () => {};
