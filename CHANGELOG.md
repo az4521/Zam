@@ -4,6 +4,15 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.14
+
+🐛 **Fixed**
+
+- **The screen no longer flashes when a room goes from saved to live on launch.** The room fade was replaying at that moment and dimmed the whole screen.
+- **Messages no longer jump up when the message box appears.** The saved-messages note is now the same height as the real composer, including its typing-indicator row.
+- **Saved messages open with names and avatars, not raw usernames.** The saved room list now keeps each sender's profile, so you no longer see `@user:server` with a placeholder avatar for a moment on every launch. This takes effect from the second launch after updating.
+- **Replies show the message they answer straight away on launch** instead of "Original message not loaded".
+
 ## v1.67.13
 
 🐛 **Fixed**
