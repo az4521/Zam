@@ -76,6 +76,12 @@ interface CachedRoom {
     invited?: number;
     total?: number;
     highlight?: number;
+    /**
+     * Whether the room was unread when this was saved (see bootUnread.ts).
+     * Absent in snapshots saved before it existed: those rooms get no held-over
+     * verdict.
+     */
+    unread?: boolean;
 }
 
 export interface RoomListSnapshot {
@@ -150,6 +156,7 @@ function rawOf(ev: MatrixEvent): Partial<IEvent> {
 export function buildSnapshot(
     client: MatrixClient,
     accountDataTypes: readonly string[] = CACHED_ACCOUNT_DATA_TYPES,
+    unreadOf?: (room: Room) => boolean,
 ): RoomListSnapshot {
     const accountData: Partial<IEvent>[] = [];
     for (const type of accountDataTypes) {
@@ -226,6 +233,7 @@ export function buildSnapshot(
             highlight: room.getUnreadNotificationCount(
                 NotificationCountType.Highlight,
             ),
+            unread: unreadOf?.(room),
         });
     }
     return { v: SNAPSHOT_VERSION, savedAt: Date.now(), accountData, rooms };

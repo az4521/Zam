@@ -295,6 +295,7 @@
         resolveQuickReplyThreadRoot,
         markRoomAsRead,
         onReadReceiptConfirmed,
+        markRoomLaunchedUnread,
         startEventIndex,
         type ActiveSessionHeartbeat,
     } from "$lib/matrix/client";
@@ -881,6 +882,7 @@
         }
         // decision.eventId is only present once the poster/session gates passed,
         // so we never jump into a room the route check just refused.
+        markRoomLaunchedUnread(decision.roomId);
         navigateToRoom(decision.roomId, decision.eventId);
     }
 
@@ -2585,7 +2587,11 @@
                     deepLink.roomId,
                     deepLink.eventId,
                 );
-            else navigateToRoom(deepLink.roomId, deepLink.eventId);
+            else {
+                // The notified room is unread, whatever the saved state says.
+                markRoomLaunchedUnread(deepLink.roomId);
+                navigateToRoom(deepLink.roomId, deepLink.eventId);
+            }
             history.replaceState(
                 history.state,
                 "",
@@ -2626,8 +2632,10 @@
         // A notification tapped for this account while another was active:
         // the switch reloaded into this account, so open the room now.
         const pendingRoute = takePendingRoute(localStorage, auth.userId);
-        if (pendingRoute)
+        if (pendingRoute) {
+            markRoomLaunchedUnread(pendingRoute.roomId);
             navigateToRoom(pendingRoute.roomId, pendingRoute.eventId);
+        }
 
         if (auth.userId) {
             (async () => {

@@ -209,6 +209,7 @@ import {
     snapshotKey,
     type MaterializedCache,
 } from "./roomListCache";
+import { BootUnread } from "$lib/utils/bootUnread";
 import {
     buildEditHistory,
     type EditHistoryCandidate,
@@ -1962,7 +1963,10 @@ export async function startSync(
             onListComplete: () => markRoomListComplete(client),
             onDroppedTimelines: (roomIds) =>
                 roomIds.forEach((id) => backfillEmptyTimeline(id)),
-            onRoomsUpdated: (roomIds) => loadUnknownCallMembers(roomIds),
+            onRoomsUpdated: (roomIds) => {
+                releaseBootUnread(roomIds);
+                loadUnknownCallMembers(roomIds);
+            },
             onSkippedEvents: (roomId, fromToken, stopAtEventId) =>
                 void recoverSkippedEvents(
                     roomId,
@@ -2387,6 +2391,7 @@ export function stopClient(): void {
     // Read marks and local unread overrides belong to the session that set them.
     localReadMarks.clear();
     locallyClearedUnread.clear();
+    bootUnread.releaseAll();
 }
 
 const pendingLeaves = new Set<string>();
@@ -2497,6 +2502,26 @@ export function getLiveRoom(roomId: string): Room | null {
 
 let roomListCache: MaterializedCache | null = null;
 let roomListComplete = false;
+// Each room's unread verdict from the last run, held until sync delivers that
+// room (see bootUnread.ts), so the sidebar does not flash everything unread.
+const bootUnread = new BootUnread();
+
+/**
+ * A notification for this room opened the app, so it is unread whatever the
+ * saved state says. Only meaningful while the room list is still loading; after
+ * that the room's own state is already the truth.
+ */
+export function markRoomLaunchedUnread(roomId: string): void {
+    if (!matrixClient || roomListComplete) return;
+    bootUnread.markLaunched(roomId);
+    for (const cb of roomUpdateSubscribers) cb();
+}
+
+/** Sync delivered these rooms: stop holding over their saved unread state. */
+function releaseBootUnread(roomIds: Iterable<string>): void {
+    if (bootUnread.release(roomIds))
+        for (const cb of roomUpdateSubscribers) cb();
+}
 let lastSnapshotSaveAt = 0;
 const SNAPSHOT_SAVE_INTERVAL_MS = 2 * 60_000;
 // A cached event with its key present decrypts from the local store in a few
@@ -2506,6 +2531,7 @@ const SNAPSHOT_SAVE_INTERVAL_MS = 2 * 60_000;
 const PREFERRED_DECRYPT_WAIT_MS = 500;
 
 function resetRoomListCache(): void {
+    bootUnread.clearSaved();
     roomListCache = null;
     roomListComplete = false;
     lastSnapshotSaveAt = 0;
@@ -2602,6 +2628,14 @@ async function hydrateRoomListCache(
     for (const [spaceId, list] of Object.entries(snapshot.hierarchies ?? {}))
         if (!hierarchyCache.has(spaceId)) hierarchyCache.set(spaceId, list);
     roomListCache = cache;
+    bootUnread.restore(
+        snapshot.rooms
+            .filter((r) => r.unread !== undefined)
+            .map((r) => [
+                r.roomId,
+                { unread: !!r.unread, highlight: r.highlight ?? 0 },
+            ]),
+    );
     void decryptCachedEvents(client, cache, preferredRoomId);
 }
 
@@ -2634,6 +2668,7 @@ function markRoomListComplete(client: MatrixClient): void {
     if (matrixClient !== client || roomListComplete) return;
     roomListComplete = true;
     roomListCache = null;
+    bootUnread.releaseAll();
     // Always: with no saved list the sidebar is showing skeletons (see
     // isRoomListLoading) and has to learn the list is whole.
     for (const cb of roomUpdateSubscribers) cb();
@@ -2657,7 +2692,11 @@ async function saveRoomListSnapshot(
     // the old snapshot instead would bring left rooms back on the next
     // offline start.
     await saveSnapshot(snapshotKey(userId, deviceId), {
-        ...buildSnapshot(client),
+        ...buildSnapshot(
+            client,
+            undefined,
+            (room) => getRoomUnreadInfo(room).unread,
+        ),
         hierarchies: Object.fromEntries(hierarchyCache),
     });
 }
@@ -6249,6 +6288,9 @@ export function getRoomUnreadInfo(room: Room): {
     unread: boolean;
     highlight: number;
 } {
+    // Still waiting on sync for this room: show what it was at the last run.
+    const held = bootUnread.get(room.roomId);
+    if (held) return held;
     let highlight = getHighlightCount(room);
     let total = getUnreadCount(room);
     const userId = matrixClient?.getUserId();
@@ -7827,6 +7869,8 @@ export async function sendReadReceipt(event: MatrixEvent): Promise<void> {
     const roomId = event.getRoomId();
     const eventId = event.getId();
     if (!roomId || !eventId) return;
+    // Reading the room settles its state: stop showing the held-over one.
+    releaseBootUnread([roomId]);
 
     // Idempotence guard, same law as markThreadRead: the SDK SYNCHRONOUSLY
     // synthesizes a local receipt and fires every app-level receipt listener
@@ -8309,7 +8353,9 @@ export async function fetchSpaceHierarchy(
  * after a join or leave; live membership wins whenever the SDK tracks the room.
  */
 export function isJoinedNow(child: SpaceChildInfo): boolean {
-    const membership = matrixClient?.getRoom(child.roomId)?.getMyMembership();
+    // lookupRoom also sees the saved room list, so at boot a room we are in
+    // does not show as joinable while sync has yet to deliver it.
+    const membership = lookupRoom(child.roomId)?.getMyMembership();
     return membership ? membership === "join" : child.isJoined;
 }
 
