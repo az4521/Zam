@@ -4,6 +4,12 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.15
+
+🐛 **Fixed**
+
+- **Profile pictures no longer flash coloured initials when the app loads.** Zam now keeps a tiny blurred copy of each avatar, shows it at once, and fades to the real picture when it arrives. Avatars you have already seen this session also reappear instantly when the saved room is replaced by the live one. The tiny copies are made as pictures load, so this is smooth from the second launch after updating.
+
 ## v1.67.14
 
 🐛 **Fixed**
