@@ -14,6 +14,7 @@ import {
     getPrefetchedAnchor,
     getUnreadAnchor,
     isInitialSyncComplete,
+    isRoomListLoading,
     prefetchContextWindow,
     prefetchRoomTimeline,
 } from "$lib/matrix/client";
@@ -114,7 +115,9 @@ function run(): void {
     if (!running) return;
     // Before the first sync the room list and live timelines are still being
     // built; paging them now races the sync and stamps the cooldown for nothing.
-    if (!isInitialSyncComplete()) {
+    // While the room list is still growing, prefetch /messages would compete
+    // with the sliding sync growth requests, so wait for the whole list too.
+    if (!isInitialSyncComplete() || isRoomListLoading()) {
         scheduleRun(2000);
         return;
     }

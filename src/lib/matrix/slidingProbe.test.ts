@@ -56,7 +56,12 @@ describe("startSlidingProbe / takeSlidingProbe", () => {
         expect(await p).toEqual({ kind: "ok" });
         expect(c.calls).toHaveLength(1);
         expect(c.calls[0]).toEqual([
-            { lists: {}, timeout: 0, clientTimeout: 10000 },
+            {
+                lists: {},
+                timeout: 0,
+                clientTimeout: 10000,
+                conn_id: "zam-probe",
+            },
             "https://hs.example",
         ]);
     });

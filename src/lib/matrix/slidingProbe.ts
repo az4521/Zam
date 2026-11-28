@@ -2,14 +2,18 @@
  * The sliding sync capability probe, started early so its round trip overlaps
  * crypto startup instead of waiting for it.
  *
- * The probe is a bare `POST /sync` with no lists, no extensions, no `pos` and
- * no conn_id, so it asks the server nothing it would later have to resume:
- * to-device messages, receipts and account data are only requested by the real
- * connection. Its response body is discarded; only the outcome (supported,
- * unsupported, or a transient failure) is kept. No SDK value imports, so the
- * store is testable on its own.
+ * The probe is a `POST /sync` with no lists, no extensions and no `pos`. It
+ * carries its own conn_id (PROBE_CONN_ID), never the real connection's (which
+ * has none): tuwunel keys connections by user, device and conn_id, and resets a
+ * connection that sends a request without `pos`. Sharing the real connection's
+ * key would reset the sync in use. The probe asks the server nothing it would
+ * later have to resume: to-device messages, receipts and account data are only
+ * requested by the real connection. Its response body is discarded; only the
+ * outcome (supported, unsupported, or a transient failure) is kept. No SDK
+ * value imports, so the store is testable on its own.
  */
 import type { MatrixClient } from "matrix-js-sdk";
+import type { MSC3575SlidingSyncRequest } from "matrix-js-sdk/lib/sliding-sync";
 import { bootMark } from "$lib/utils/bootTiming";
 import { isSlidingSyncUnsupportedError } from "$lib/utils/slidingSyncHelpers";
 
@@ -26,6 +30,9 @@ export type ProbeClient = Pick<
     MatrixClient,
     "slidingSync" | "getHomeserverUrl"
 >;
+
+/** The probe's own connection key, distinct from the real sync's (which has none). */
+const PROBE_CONN_ID = "zam-probe";
 
 /** Probes keyed by the client that sent them, so a stale client's is never used. */
 const pending = new WeakMap<object, Promise<SlidingProbe>>();
@@ -49,7 +56,14 @@ export function startSlidingProbe(client: ProbeClient): Promise<SlidingProbe> {
     const outcome = Promise.resolve()
         .then(() =>
             client.slidingSync(
-                { lists: {}, timeout: 0, clientTimeout: 10000 },
+                // conn_id is not in the SDK's type, but the SDK posts the whole
+                // object as the body, so the server receives it.
+                {
+                    lists: {},
+                    timeout: 0,
+                    clientTimeout: 10000,
+                    conn_id: PROBE_CONN_ID,
+                } as MSC3575SlidingSyncRequest,
                 client.getHomeserverUrl(),
             ),
         )

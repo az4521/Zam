@@ -21,6 +21,7 @@ import {
 } from "matrix-js-sdk/lib/sliding-sync";
 import {
     hasUnflaggedScrollback,
+    isSlidingSyncUnsupportedError,
     isSlidingTimelineGap,
     nextWindowEnd,
     roomsWithDroppedTimeline,
@@ -28,12 +29,18 @@ import {
 } from "$lib/utils/slidingSyncHelpers";
 import { bootMark } from "$lib/utils/bootTiming";
 import { describeSyncError, logSync } from "$lib/matrix/syncLog";
-import { startSlidingProbe, takeSlidingProbe } from "$lib/matrix/slidingProbe";
+import {
+    startSlidingProbe,
+    takeSlidingProbe,
+    type SlidingProbe,
+} from "$lib/matrix/slidingProbe";
 import { keepSlidingSyncAlive } from "$lib/matrix/slidingSyncKeepAlive";
 import { adaptSlidingSyncTimeout } from "$lib/matrix/slidingSyncTimeout";
 import { resendRoomSubscriptions } from "$lib/matrix/slidingSyncSubscriptions";
 import {
     isSlidingSyncEnabled,
+    isSlidingSyncKnownSupported,
+    markSlidingSyncSupported,
     setSlidingSyncEnabled,
 } from "$lib/matrix/slidingSyncPref";
 
@@ -48,7 +55,7 @@ const SLIDING_INITIAL_WINDOW = 30;
 // below then fetches the rest of the room list right after. The sidebar is
 // painted from the saved room list meanwhile (and is hidden on mobile).
 const SLIDING_BOOT_WINDOW = 1;
-const SLIDING_GROW_STEP = 100;
+const SLIDING_GROW_STEP = 300;
 const SLIDING_LIST_TIMELINE = 1;
 const SLIDING_ROOM_TIMELINE = 30;
 const SLIDING_TIMEOUT_MS = 30000;
@@ -310,9 +317,19 @@ export async function buildSlidingSync(
     // Ask the server before committing: on one that lacks the endpoint sync
     // would otherwise just sit in an error state with no way back. The probe
     // is normally already in flight (started in createAuthenticatedClient, see
-    // slidingProbe.ts); a fresh one is sent only when none was started.
-    const probe = await (takeSlidingProbe(client) ?? startSlidingProbe(client));
+    // slidingProbe.ts); a fresh one is sent only when none was started, and
+    // not at all when a recent probe already found the server supported.
+    const pending = takeSlidingProbe(client);
+    const knownSupported =
+        pending === undefined && isSlidingSyncKnownSupported(userId);
+    const probe: SlidingProbe = knownSupported
+        ? { kind: "ok" }
+        : await (pending ?? startSlidingProbe(client));
     bootMark("sliding-probe-done");
+    // A probe that was actually sent answered: remember a success so the next
+    // boot skips it. (A known-supported boot leaves the stamp to expire.)
+    if (probe.kind === "ok" && !knownSupported)
+        markSlidingSyncSupported(userId, true);
     if (probe.kind === "unsupported") {
         const reason = t("client.thisHomeserverDoesnTSupportSliding");
         console.warn(
@@ -557,6 +574,7 @@ export async function buildSlidingSync(
     );
 
     let bootResponseMarked = false;
+    let unsupportedNoted = false;
     // Per completed response: grow every list one page until it covers all the
     // rooms the server reports for it (so no list has a hard cap), and backfill
     // rooms whose timeline the SDK emptied. Runs inside the sync loop, so it
@@ -570,6 +588,15 @@ export async function buildSlidingSync(
         ) => {
             if (err) {
                 logSync(`request failed: ${describeSyncError(err)}`);
+                // The server lost sliding sync after a recent probe stamped it
+                // as supported. Forget the stamp so the next boot probes again.
+                if (!unsupportedNoted && isSlidingSyncUnsupportedError(err)) {
+                    unsupportedNoted = true;
+                    markSlidingSyncSupported(userId, false);
+                    logSync(
+                        "server no longer supports sliding sync; the next start will probe again",
+                    );
+                }
                 return;
             }
             // Boot timing: how long the first request took on the wire

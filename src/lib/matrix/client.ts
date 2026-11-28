@@ -73,6 +73,7 @@ import {
 } from "$lib/utils/largeRoomMembers";
 import {
     isSlidingSyncEnabled,
+    isSlidingSyncKnownSupported,
     setSlidingSyncEnabled,
 } from "$lib/matrix/slidingSyncPref";
 import { discoverOAuthMetadata, type PendingOAuth } from "$lib/matrix/oauth";
@@ -166,6 +167,7 @@ import {
 } from "$lib/utils/sessionCleanup";
 import { bootMark, logBootTimeline } from "$lib/utils/bootTiming";
 import { startSlidingProbe } from "$lib/matrix/slidingProbe";
+import { firstCallWrapper } from "$lib/utils/firstCallMemo";
 import type { OwnKeysVerdict } from "$lib/utils/ownDeviceKeysCheck";
 import { reportStorageError } from "$lib/stores/storageHealth.svelte";
 import { parseLoginFlows, type LoginOptions } from "$lib/utils/loginFlows";
@@ -857,11 +859,25 @@ async function createAuthenticatedClient(opts: {
     // Failures are not kept by the SDK, so startClient simply retries.
     void client.getVersions().catch(() => {});
 
+    // Start the push rules fetch now too. The sliding sync first request waits
+    // for it (sliding-sync-sdk.ts sync()), so this round trip overlaps
+    // initCrypto instead. The client's first getPushRules call reuses it.
+    const getPushRulesOriginal = client.getPushRules.bind(client);
+    client.getPushRules = firstCallWrapper(
+        getPushRulesOriginal,
+        getPushRulesOriginal(),
+    );
+
     // Start the sliding sync capability probe now as well, so its round trip
     // overlaps initCrypto. Only for accounts that opted in (buildSlidingSync
-    // checks the same flag); the probe carries no extensions and consumes no
-    // server state (see slidingProbe.ts).
-    if (isSlidingSyncEnabled(opts.userId)) startSlidingProbe(client);
+    // checks the same flag) and whose support is not already known from a
+    // recent probe. The probe carries no extensions and uses its own conn_id, so
+    // it never resets the real connection (see slidingProbe.ts).
+    if (
+        isSlidingSyncEnabled(opts.userId) &&
+        !isSlidingSyncKnownSupported(opts.userId)
+    )
+        startSlidingProbe(client);
 
     // Initialise E2EE before the caller starts sync, so crypto is ready when
     // to-device / m.room.encrypted events arrive. Never throws — a crypto-init
