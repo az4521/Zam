@@ -4,6 +4,13 @@ Human-readable release notes. The `## v<version>` section for the released versi
 the GitHub release body automatically (see `.github/workflows/release.yml`); the auto-generated
 commit list is appended below it.
 
+## v1.67.20
+
+⚡ **Improved**
+
+- **Zam starts syncing sooner after it opens.** The first sync no longer waits for your notification rules to download, and the check for whether your homeserver supports sliding sync is skipped when it was confirmed in the last week.
+- **The full room list arrives in fewer requests.** Large accounts load their rooms 300 at a time instead of 100, and Zam waits for the list to finish before preloading recent messages.
+
 ## v1.67.19
 
 🐛 **Fixed**
